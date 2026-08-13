@@ -73,7 +73,11 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   aftertouch.slider.setTooltip(
       "Moves every partial's aftertouch amount, keeping their spread");
 
+  drift.slider.setTooltip(
+      "Moves every partial's pitch drift, keeping their spread");
+
   wireMacro(tuneAll.slider, Role::Tune);
+  wireMacro(drift.slider, Role::Drift);
   wireMacro(velocity.slider, Role::Velocity);
   wireMacro(aftertouch.slider, Role::Aftertouch);
 

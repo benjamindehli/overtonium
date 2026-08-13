@@ -19,6 +19,7 @@ inline constexpr const char *safetyClipId = "safetyClip";
 inline constexpr const char *tuneSuffix = "tune";
 inline constexpr const char *pmRateSuffix = "pmRate";
 inline constexpr const char *pmDepthSuffix = "pmDepth";
+inline constexpr const char *driftSuffix = "drift";
 inline constexpr const char *attackSuffix = "attack";
 inline constexpr const char *decaySuffix = "decay";
 inline constexpr const char *sustainSuffix = "sustain";
@@ -47,6 +48,7 @@ struct Cache {
     std::atomic<float> *tune = nullptr;
     std::atomic<float> *pmRate = nullptr;
     std::atomic<float> *pmDepth = nullptr;
+    std::atomic<float> *drift = nullptr;
     std::atomic<float> *attack = nullptr;
     std::atomic<float> *decay = nullptr;
     std::atomic<float> *sustain = nullptr;

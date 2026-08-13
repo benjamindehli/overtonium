@@ -71,8 +71,8 @@ private:
   const HarmonicInfo info;
   const juce::Colour colour;
 
-  LinkableSlider tune, pmRate, pmDepth, attack, decay, sustain, release, amRate,
-      amDepth, velocity, aftertouch, volume;
+  LinkableSlider tune, pmRate, pmDepth, drift, attack, decay, sustain, release,
+      amRate, amDepth, velocity, aftertouch, volume;
   juce::TextButton muteButton{"M"}, soloButton{"S"};
   juce::Label tuneReadout, levelReadout;
 

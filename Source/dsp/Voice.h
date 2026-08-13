@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 
+#include "Drift.h"
 #include "Envelope.h"
 #include "Harmonics.h"
 #include "Params.h"
@@ -36,7 +37,8 @@ public:
   /// 44.1 kHz.
   static constexpr int kControlBlock = 32;
 
-  void prepare(double newSampleRate) noexcept;
+  /// @param seed  distinguishes this voice's random stream from its siblings.
+  void prepare(double newSampleRate, uint32_t seed) noexcept;
   void reset() noexcept;
 
   void noteOn(int note, float velocity, const SynthParams &p) noexcept;
@@ -65,6 +67,7 @@ private:
     double pitchLfoPhase = 0.0;
     double ampLfoPhase = 0.0;
     Envelope env;
+    SmoothRandom drift;
     /// Carried across control blocks so gain never steps.
     float lastGain = 0.0f;
     /// Latched at note-on from this strip's own velocity sensitivity.
@@ -78,6 +81,7 @@ private:
   double baseFreq = 440.0;
   int midiNote = -1;
 
+  Xorshift rng;
   float polyPressure = 0.0f;
   /// Aftertouch drives gain directly, so it needs its own smoothing. Seven bits
   /// arriving at MIDI rate would otherwise step audibly.

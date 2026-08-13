@@ -6,8 +6,17 @@
 
 namespace ovt {
 
-void Voice::prepare(double newSampleRate) noexcept {
+namespace {
+/// Drift is meant to read as gentle chorusing rather than vibrato, so the
+/// rates sit well below anything you would hear as a pitch wobble. Each
+/// partial of each note draws its own rate from this range, log distributed.
+constexpr double kDriftMinHz = 0.08;
+constexpr double kDriftMaxHz = 1.10;
+} // namespace
+
+void Voice::prepare(double newSampleRate, uint32_t seed) noexcept {
   sampleRate = std::max(1.0, newSampleRate);
+  rng.reseed(seed);
 
   for (auto &pt : partials)
     pt.env.setSampleRate(sampleRate);
@@ -22,6 +31,7 @@ void Voice::prepare(double newSampleRate) noexcept {
 void Voice::reset() noexcept {
   for (auto &pt : partials) {
     pt.env.reset();
+    pt.drift.reset();
     pt.phase = 0.0;
     pt.pitchLfoPhase = 0.0;
     pt.ampLfoPhase = 0.0;
@@ -60,6 +70,12 @@ void Voice::noteOn(int note, float velocity, const SynthParams &p) noexcept {
 
     pt.env.configure(op.attack, op.decay, op.sustain, op.release);
     pt.env.noteOn(p.global.phaseReset);
+
+    // A fresh rate per partial per note. Reusing one rate would turn 32
+    // independent wanders into a single detune.
+    const double rate = kDriftMinHz * std::pow(kDriftMaxHz / kDriftMinHz,
+                                               (double)rng.unipolar());
+    pt.drift.restart(rng, rate, sampleRate / (double)kControlBlock);
 
     if (p.global.phaseReset) {
       pt.phase = 0.0;
@@ -160,8 +176,13 @@ void Voice::render(float *left, float *right, int numSamples,
               ? (double)(sine(pt.pitchLfoPhase) * op.pmDepthCents)
               : 0.0;
 
+      // Advanced unconditionally so that turning the knob up mid-note joins the
+      // wander already in progress instead of jumping.
+      const double driftCents = (double)(pt.drift.advance(rng) * op.driftCents);
+
       const double semis = semitoneOffset(i, (double)op.tuneBlend) +
-                           pmCents * 0.01 + (double)p.global.bendSemitones;
+                           (pmCents + driftCents) * 0.01 +
+                           (double)p.global.bendSemitones;
 
       const double freq = baseFreq * std::exp2(semis / 12.0);
       const double inc = freq / sampleRate;

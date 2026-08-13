@@ -109,6 +109,7 @@ Each of the 32 strips has, top to bottom:
 |---|---|---|
 | TUNE | equal to just | Readout shows the resulting cent offset |
 | PITCH MOD rate and depth | 0.01 to 30 Hz, 0 to 200 cents | Per-partial vibrato |
+| DRIFT | 0 to 25 cents | Smooth random pitch wander. See below |
 | ENVELOPE A D S R | 0.5 ms to 5 s, 1 ms to 20 s, 0 to 100%, 1 ms to 20 s | Exponential decay and release |
 | AMP MOD rate and depth | 0.01 to 30 Hz, 0 to 100% | Per-partial tremolo |
 | VELOCITY | 0 to 100% | How much key velocity scales this partial |
@@ -122,7 +123,7 @@ Aftertouch works the same way but **adds** to the fader instead of scaling it, a
 
 Global controls in the top bar:
 
-- **TUNE ALL**, **VEL** and **AT** are endless relative macros. See below.
+- **TUNE ALL**, **DRIFT**, **VEL** and **AT** are endless relative macros. See below.
 - **MASTER**, **SPREAD** and **BEND**
 - **PRESET**, **POLY** (1 to 16 voices) and **ZOOM**
 - **LINK** gangs the strips, so dragging any knob moves that knob on all 32 channels
@@ -133,11 +134,21 @@ Double-clicking any knob restores its default. Hovering a harmonic number shows 
 
 ### Relative macros
 
-TUNE ALL, VEL, AT and LINK all move 32 values at once, and they all do it relatively. They apply an offset to wherever each strip already sits instead of dragging everything to one shared value, so a spectrum you have shaped by hand keeps its shape.
+TUNE ALL, DRIFT, VEL, AT and LINK all move 32 values at once, and they all do it relatively. They apply an offset to wherever each strip already sits instead of dragging everything to one shared value, so a spectrum you have shaped by hand keeps its shape.
 
-The three macro knobs are endless. They have no absolute position, they show how far you have turned them during the current drag, and they spring back to centre when you let go, so the next drag starts fresh from wherever the strips now are. A full turn in either direction still covers the entire range, so "everything to just intonation" or "everything to equal" remains one drag away.
+The four macro knobs are endless. They have no absolute position, they show how far you have turned them during the current drag, and they spring back to centre when you let go, so the next drag starts fresh from wherever the strips now are. A full turn in either direction still covers the entire range, so "everything to just intonation" or "everything to equal" remains one drag away.
 
 The offset is always measured from the values captured when the drag started, so returning the knob to where you began restores the strips exactly, even if some of them hit an end stop along the way.
+
+### Drift
+
+DRIFT adds a slow random wander to a partial's pitch. It is aimed at chorusing rather than vibrato, so the range stops at 25 cents and the rates sit between 0.08 and 1.1 Hz, well below anything you would hear as a pitch wobble. Even a few cents across all 32 strips thickens the tone noticeably.
+
+Every partial of every note draws its own rate, log distributed across that range, and its own contour. Nothing locks together, so repeated notes never land on the same detuning and the 32 partials never move as one.
+
+The contour is genuinely smooth rather than stepped. Random points are drawn at the chosen rate and joined with a Catmull-Rom spline, which gives a continuous curve through them. Sample and hold would step between values, and lowpassed noise would wander in amplitude as well as in value. The tests assert the largest step stays under 0.02 of full scale, that two streams are uncorrelated, and that two consecutive notes diverge.
+
+*Slow Pad* uses 7 cents and *Shimmer* 12 cents.
 
 ### Stereo spread
 
@@ -156,6 +167,8 @@ Polyphony is the multiplier that matters, since eight voices means 256 sine osci
 | 1 | 32 | about 1% |
 | 8 | 256 | 6 to 8% |
 | 16 | 512 | 13 to 16% |
+
+Those figures are with every modulator running at once: both LFOs, drift, velocity and aftertouch.
 
 That leaves enough headroom for the engine to stay a plain bank of oscillators with nothing clever in the signal path. What keeps it cheap:
 
@@ -176,11 +189,12 @@ Source/
   dsp/            JUCE-free DSP core, unit tested standalone
     Harmonics.h     tuning table and blend maths
     SineTable.h     interpolated sine lookup
+    Drift.h         seeded PRNG and the smooth random contour
     Envelope.h      per-partial ADSR
     Params.h        plain-data parameter snapshot
     Voice.*         32 partials, one note
     SynthEngine.*   voice pool, allocation, stealing, master stage
-  PluginParameters.*  APVTS layout, 454 parameters, and the audio-thread snapshot
+  PluginParameters.*  APVTS layout, 486 parameters, and the audio-thread snapshot
   Presets.*           factory presets
   PluginProcessor.*   MIDI handling, sample-accurate rendering, state
   PluginEditor.*      window, zoom, LINK, gutter

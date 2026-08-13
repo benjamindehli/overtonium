@@ -13,6 +13,9 @@ struct OscParams {
   float tuneBlend = 0.0f; ///< 0 = equal temperament, 1 = just intonation
   float pmRateHz = 4.0f;
   float pmDepthCents = 0.0f;
+  /// Depth of the smooth random pitch wander, in cents. Each partial of each
+  /// note gets its own rate, so nothing ever locks together.
+  float driftCents = 0.0f;
 
   // Amplitude
   float attack = 0.005f; ///< seconds

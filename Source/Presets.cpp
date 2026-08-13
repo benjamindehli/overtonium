@@ -42,6 +42,7 @@ struct Applier {
     allOsc(params::tuneSuffix, [](int) { return 1.0; });
     allOsc(params::pmRateSuffix, [](int) { return 4.0; });
     allOsc(params::pmDepthSuffix, [](int) { return 0.0; });
+    allOsc(params::driftSuffix, [](int) { return 0.0; });
     allOsc(params::attackSuffix, [](int) { return 0.005; });
     allOsc(params::decaySuffix, [](int) { return 0.6; });
     allOsc(params::sustainSuffix, [](int) { return 1.0; });
@@ -135,6 +136,7 @@ void apply(APVTS &apvts, int index) {
     ap.allOsc(params::releaseSuffix, [](int) { return 3.0; });
     ap.allOsc(params::amDepthSuffix, [](int) { return 0.15; });
     ap.allOsc(params::amRateSuffix, [](int n) { return 0.3 + 0.07 * n; });
+    ap.allOsc(params::driftSuffix, [](int) { return 7.0; });
 
     ap.set(params::spreadId, 0.7f);
     break;
@@ -183,6 +185,7 @@ void apply(APVTS &apvts, int index) {
     ap.allOsc(params::amRateSuffix, [](int n) { return 0.15 + 0.05 * n; });
     ap.allOsc(params::pmDepthSuffix, [](int) { return 4.0; });
     ap.allOsc(params::pmRateSuffix, [](int n) { return 0.2 + 0.03 * n; });
+    ap.allOsc(params::driftSuffix, [](int) { return 12.0; });
 
     ap.set(params::spreadId, 1.0f);
     break;

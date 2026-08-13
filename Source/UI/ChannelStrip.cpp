@@ -23,6 +23,7 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   setUpKnob(tune, Role::Tune, colour);
   setUpKnob(pmRate, Role::PmRate, secondary);
   setUpKnob(pmDepth, Role::PmDepth, secondary);
+  setUpKnob(drift, Role::Drift, secondary);
   setUpKnob(attack, Role::Attack, secondary);
   setUpKnob(decay, Role::Decay, secondary);
   setUpKnob(sustain, Role::Sustain, secondary);
@@ -198,6 +199,7 @@ void ChannelStrip::resized() {
   tuneReadout.setBounds(rows[rowIndex(Row::TuneText)]);
   pmRate.setBounds(rows[rowIndex(Row::PmRate)].reduced(1));
   pmDepth.setBounds(rows[rowIndex(Row::PmDepth)].reduced(1));
+  drift.setBounds(rows[rowIndex(Row::Drift)].reduced(1));
   attack.setBounds(rows[rowIndex(Row::Attack)].reduced(1));
   decay.setBounds(rows[rowIndex(Row::Decay)].reduced(1));
   sustain.setBounds(rows[rowIndex(Row::Sustain)].reduced(1));

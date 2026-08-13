@@ -65,7 +65,7 @@ juce::MidiBuffer noteOnAt(int note, float velocity, int sample) {
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
-  const int expected = ovt::kNumHarmonics * 14 + 6;
+  const int expected = ovt::kNumHarmonics * 15 + 6;
   check(p.getParameters().size() == expected,
         "parameter count is " + std::to_string(p.getParameters().size()) +
             ", expected " + std::to_string(expected));
@@ -83,12 +83,13 @@ void testParameterWiring(OvertoniumProcessor &p) {
 
   const char *suffixes[] = {
       ovt::params::tuneSuffix,    ovt::params::pmRateSuffix,
-      ovt::params::pmDepthSuffix, ovt::params::attackSuffix,
-      ovt::params::decaySuffix,   ovt::params::sustainSuffix,
-      ovt::params::releaseSuffix, ovt::params::amRateSuffix,
-      ovt::params::amDepthSuffix, ovt::params::velSuffix,
-      ovt::params::atSuffix,      ovt::params::muteSuffix,
-      ovt::params::soloSuffix,    ovt::params::volumeSuffix};
+      ovt::params::pmDepthSuffix, ovt::params::driftSuffix,
+      ovt::params::attackSuffix,  ovt::params::decaySuffix,
+      ovt::params::sustainSuffix, ovt::params::releaseSuffix,
+      ovt::params::amRateSuffix,  ovt::params::amDepthSuffix,
+      ovt::params::velSuffix,     ovt::params::atSuffix,
+      ovt::params::muteSuffix,    ovt::params::soloSuffix,
+      ovt::params::volumeSuffix};
 
   bool allPresent = true;
   for (int i = 0; i < ovt::kNumHarmonics; ++i)
@@ -96,7 +97,7 @@ void testParameterWiring(OvertoniumProcessor &p) {
       allPresent &= p.apvts.getRawParameterValue(
                         ovt::params::oscParamId(s, i)) != nullptr;
 
-  check(allPresent, "all 448 per-partial parameters resolve");
+  check(allPresent, "all 480 per-partial parameters resolve");
 
   // Defaults should give an immediately playable 1/n spectrum.
   for (int i = 0; i < ovt::kNumHarmonics; ++i) {

@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "dsp/Drift.h"
 #include "dsp/Harmonics.h"
 #include "dsp/SineTable.h"
 #include "dsp/SynthEngine.h"
@@ -776,6 +777,167 @@ void testAftertouch() {
   }
 }
 
+// -----------------------------------------------------------------------------
+// 13. Pitch drift: smooth random wander, a different rate per partial and per
+//     note, and no stepping.
+// -----------------------------------------------------------------------------
+void testDrift() {
+  section("Pitch drift");
+
+  // --- the generator on its own
+  // -----------------------------------------------
+  {
+    Xorshift rng(12345u);
+    SmoothRandom sr;
+    sr.restart(rng, 1.0, 1000.0); // one new point per 1000 steps
+
+    float previous = sr.current();
+    float worstStep = 0.0f, lowest = 1.0f, highest = -1.0f;
+
+    for (int i = 0; i < 200000; ++i) {
+      const float v = sr.advance(rng);
+      worstStep = std::max(worstStep, std::abs(v - previous));
+      lowest = std::min(lowest, v);
+      highest = std::max(highest, v);
+      previous = v;
+    }
+
+    std::printf("  generator: range %.3f to %.3f, largest step %.5f\n", lowest,
+                highest, worstStep);
+
+    // Sample and hold would show steps approaching the full 2.0 range here.
+    check(worstStep < 0.02f, "the contour is smooth, not stepped");
+    check(lowest < -0.5f && highest > 0.5f, "it uses the range");
+    check(lowest > -1.35f && highest < 1.35f, "it stays near +-1");
+
+    // It must actually wander rather than settle.
+    double sum = 0.0;
+    for (int i = 0; i < 20000; ++i)
+      sum += std::abs(sr.advance(rng));
+    check(sum / 20000.0 > 0.1, "the contour keeps moving");
+  }
+
+  // --- two streams must not correlate
+  // ----------------------------------------- Correlation is only meaningful
+  // over many independent draws. A slow contour yields very few points per run,
+  // so the raw generator is checked directly and the contour is run long enough
+  // to gather thousands of points.
+  {
+    Xorshift a(1u), b(2u); // adjacent seeds are the hard case for xorshift
+    double dot = 0.0, ea = 0.0, eb = 0.0;
+
+    for (int i = 0; i < 200000; ++i) {
+      const double u = a.bipolar(), v = b.bipolar();
+      dot += u * v;
+      ea += u * u;
+      eb += v * v;
+    }
+
+    const double raw = dot / std::sqrt(ea * eb);
+    std::printf("  raw generator correlation: %+.4f\n", raw);
+    check(std::abs(raw) < 0.02, "adjacent seeds give uncorrelated streams");
+  }
+
+  {
+    Xorshift a(1u), b(2u);
+    SmoothRandom x, y;
+    x.restart(a, 10.0, 1000.0); // a new point every 100 steps
+    y.restart(b, 10.0, 1000.0);
+
+    constexpr int steps = 500000; // about 5000 points each
+    double dot = 0.0, ex = 0.0, ey = 0.0;
+
+    for (int i = 0; i < steps; ++i) {
+      const double u = x.advance(a), v = y.advance(b);
+      dot += u * v;
+      ex += u * u;
+      ey += v * v;
+    }
+
+    const double correlation = dot / std::sqrt(ex * ey);
+    std::printf("  contour correlation over ~5000 points: %+.4f\n",
+                correlation);
+    check(std::abs(correlation) < 0.08, "separate contours are uncorrelated");
+  }
+
+  // --- in the synth
+  // -------------------------------------------------------------
+  constexpr double sr = 48000.0;
+  constexpr int N = 48000;
+
+  auto renderOne = [&](float driftCents, int note) {
+    SynthEngine engine;
+    engine.prepare(sr);
+
+    auto p = makeFlatParams(0.0f);
+    for (auto &o : p.osc) {
+      o.tuneBlend = 1.0f;
+      o.volume = 0.0f;
+    }
+    p.osc[0].volume = 0.5f;
+    p.osc[0].driftCents = driftCents;
+
+    engine.noteOn(note, 1.0f, p);
+    std::vector<float> l((size_t)N), r((size_t)N);
+    engine.render(l.data(), r.data(), N, p);
+    return l;
+  };
+
+  // Drift at zero must leave the pitch untouched.
+  const auto clean = renderOne(0.0f, 57);
+  const auto drifted = renderOne(25.0f, 57);
+
+  const double cleanCarrier = binMagnitude(clean, 220.0, sr);
+  const double driftedCarrier = binMagnitude(drifted, 220.0, sr);
+
+  check(cleanCarrier > 0.1, "the undrifted partial is present");
+  check(driftedCarrier < 0.98 * cleanCarrier,
+        "drift smears the carrier out of its bin");
+
+  bool finite = true;
+  for (int n = 0; n < N; ++n)
+    finite &= std::isfinite(drifted[(size_t)n]);
+  check(finite, "drifted output is finite");
+
+  // The wander is shallow by design: a hard cap keeps this chorusing rather
+  // than vibrato.
+  check(binMagnitude(drifted, 220.0 * 1.02, sr) < 0.05 * cleanCarrier,
+        "drift stays close to the nominal pitch");
+
+  // Two notes on the same engine must not receive the same contour. This has to
+  // share one engine: a fresh one is reseeded and would legitimately repeat.
+  {
+    SynthEngine engine;
+    engine.prepare(sr);
+
+    auto p = makeFlatParams(0.0f);
+    for (auto &o : p.osc) {
+      o.tuneBlend = 1.0f;
+      o.volume = 0.0f;
+    }
+    p.osc[0].volume = 0.5f;
+    p.osc[0].driftCents = 25.0f;
+
+    auto play = [&] {
+      engine.allSoundOff();
+      engine.noteOn(57, 1.0f, p);
+      std::vector<float> l((size_t)N), r((size_t)N);
+      engine.render(l.data(), r.data(), N, p);
+      return l;
+    };
+
+    const auto first = play();
+    const auto second = play();
+
+    double difference = 0.0;
+    for (int n = 0; n < N; ++n)
+      difference += std::abs(first[(size_t)n] - second[(size_t)n]);
+
+    std::printf("  divergence between two notes: %.1f\n", difference);
+    check(difference > 100.0, "consecutive notes drift differently");
+  }
+}
+
 void testModulation() {
   section("Pitch and amplitude modulation");
 
@@ -841,6 +1003,9 @@ void benchmark() {
       o.sustain = 1.0f;
       o.amDepth = 0.3f; // worst case: every modulator running
       o.pmDepthCents = 5.0f;
+      o.driftCents = 8.0f;
+      o.velAmount = 0.5f;
+      o.atAmount = 0.5f;
       o.tuneBlend = 0.5f;
     }
 
@@ -880,6 +1045,7 @@ int main() {
   testPerPartialVelocity();
   testStereoSpread();
   testAftertouch();
+  testDrift();
   benchmark();
 
   std::printf("\n%d checks, %d failures\n", checks, failures);

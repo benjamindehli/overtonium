@@ -24,8 +24,9 @@ inline float softClip(float x) noexcept {
 void SynthEngine::prepare(double newSampleRate) noexcept {
   sampleRate = std::max(1.0, newSampleRate);
 
-  for (auto &v : voices)
-    v.prepare(sampleRate);
+  // Distinct seeds so two voices never draw the same drift contour.
+  for (size_t i = 0; i < voices.size(); ++i)
+    voices[i].prepare(sampleRate, (uint32_t)(i + 1) * 2654435761u);
 
   reset();
 }

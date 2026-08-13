@@ -106,11 +106,12 @@ private:
 
   juce::AudioProcessorValueTreeState &apvts;
 
-  // Tune, velocity and aftertouch exist on every strip, so their top-bar knobs
-  // are relative macros. Master, spread and bend are single global values with
-  // nothing to stay relative to, so they are ordinary absolute knobs.
+  // Tune, drift, velocity and aftertouch exist on every strip, so their
+  // top-bar knobs are relative macros. Master, spread and bend are single
+  // global values with nothing to stay relative to, so they are absolute.
   LabelledKnob<RelativeKnob> tuneAll{"TUNE ALL", colours::accent};
   LabelledKnob<LinkableSlider> master{"MASTER"};
+  LabelledKnob<RelativeKnob> drift{"DRIFT"};
   LabelledKnob<LinkableSlider> spread{"SPREAD"};
   LabelledKnob<RelativeKnob> velocity{"VEL"};
   LabelledKnob<RelativeKnob> aftertouch{"AT"};
