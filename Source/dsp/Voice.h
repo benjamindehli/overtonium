@@ -63,6 +63,8 @@ private:
     Envelope env;
     /// Carried across control blocks so gain never steps.
     float lastGain = 0.0f;
+    /// Latched at note-on from this strip's own velocity sensitivity.
+    float velGain = 1.0f;
     bool gainPrimed = false;
   };
 
@@ -71,7 +73,6 @@ private:
   double sampleRate = 44100.0;
   double baseFreq = 440.0;
   int midiNote = -1;
-  float velGain = 1.0f;
   bool active = false;
   bool released = false;
   uint64_t startOrder = 0;

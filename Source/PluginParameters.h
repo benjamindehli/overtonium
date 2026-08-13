@@ -10,14 +10,12 @@ namespace ovt::params {
 inline constexpr const char *masterGainId = "masterGain";
 inline constexpr const char *polyphonyId = "polyphony";
 inline constexpr const char *spreadId = "stereoSpread";
-inline constexpr const char *velAmountId = "velAmount";
 inline constexpr const char *bendRangeId = "bendRange";
 inline constexpr const char *phaseResetId = "phaseReset";
 inline constexpr const char *safetyClipId = "safetyClip";
 
-// ---- per-partial parameter IDs
-// ---------------------------------------------------------- Suffixes are
-// appended to a stable "h01".."h32" prefix.
+// ---- per-partial parameter IDs ----------------------------------------------
+// Suffixes are appended to a stable "h01".."h32" prefix.
 inline constexpr const char *tuneSuffix = "tune";
 inline constexpr const char *pmRateSuffix = "pmRate";
 inline constexpr const char *pmDepthSuffix = "pmDepth";
@@ -27,6 +25,7 @@ inline constexpr const char *sustainSuffix = "sustain";
 inline constexpr const char *releaseSuffix = "release";
 inline constexpr const char *amRateSuffix = "amRate";
 inline constexpr const char *amDepthSuffix = "amDepth";
+inline constexpr const char *velSuffix = "vel";
 inline constexpr const char *muteSuffix = "mute";
 inline constexpr const char *soloSuffix = "solo";
 inline constexpr const char *volumeSuffix = "volume";
@@ -53,6 +52,7 @@ struct Cache {
     std::atomic<float> *release = nullptr;
     std::atomic<float> *amRate = nullptr;
     std::atomic<float> *amDepth = nullptr;
+    std::atomic<float> *vel = nullptr;
     std::atomic<float> *mute = nullptr;
     std::atomic<float> *solo = nullptr;
     std::atomic<float> *volume = nullptr;
@@ -63,7 +63,6 @@ struct Cache {
   std::atomic<float> *masterGain = nullptr;
   std::atomic<float> *polyphony = nullptr;
   std::atomic<float> *spread = nullptr;
-  std::atomic<float> *velAmount = nullptr;
   std::atomic<float> *bendRange = nullptr;
   std::atomic<float> *phaseReset = nullptr;
   std::atomic<float> *safetyClip = nullptr;

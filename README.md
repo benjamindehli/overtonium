@@ -111,19 +111,30 @@ Each of the 32 strips has, top to bottom:
 | PITCH MOD rate and depth | 0.01 to 30 Hz, 0 to 200 cents | Per-partial vibrato |
 | ENVELOPE A D S R | 0.5 ms to 5 s, 1 ms to 20 s, 0 to 100%, 1 ms to 20 s | Exponential decay and release |
 | AMP MOD rate and depth | 0.01 to 30 Hz, 0 to 100% | Per-partial tremolo |
+| VELOCITY | 0 to 100% | How much key velocity scales this partial |
 | M and S | | Mute wins over solo |
 | LEVEL | -inf to 0 dB | Square-law fader |
 
+Velocity being per partial is what lets a soft note be a different timbre rather than just a quieter one. Set the fundamental to 0% and the upper partials to 100% and the tone opens up as you play harder, which is roughly what a struck string or bar does. *Struck Bell* and *Odd Harmonics* ship with that curve already dialled in.
+
 Global controls in the top bar:
 
-- **TUNE ALL** sweeps all 32 tuning knobs at once
-- **MASTER**, **SPREAD** (fans partials across the stereo field), **VEL** and **BEND**
+- **TUNE ALL** and **VEL** are endless relative macros. See below.
+- **MASTER**, **SPREAD** (fans partials across the stereo field) and **BEND**
 - **PRESET**, **POLY** (1 to 16 voices) and **ZOOM**
-- **LINK** gangs the strips, so dragging any knob moves the same knob on all 32 channels
+- **LINK** gangs the strips, so dragging any knob moves that knob on all 32 channels
 - **PHASE** resets partial phase on each note for a coherent, percussive attack
 - **CLIP** soft-clips the output. Worth leaving on when you push 32 faders up
 
 Double-clicking any knob restores its default. Hovering a harmonic number shows its interval and exact cent deviation.
+
+### Relative macros
+
+TUNE ALL, VEL and LINK all move 32 values at once, and all three do it relatively. They apply an offset to wherever each strip already sits instead of dragging everything to one shared value, so a spectrum you have shaped by hand keeps its shape.
+
+The two macro knobs are endless. They have no absolute position, they show how far you have turned them during the current drag, and they spring back to centre when you let go, so the next drag starts fresh from wherever the strips now are. A full turn in either direction still covers the entire range, so "everything to just intonation" or "everything to equal" remains one drag away.
+
+The offset is always measured from the values captured when the drag started, so returning the knob to where you began restores the strips exactly, even if some of them hit an end stop along the way.
 
 ## Notes on CPU
 
@@ -158,7 +169,7 @@ Source/
     Params.h        plain-data parameter snapshot
     Voice.*         32 partials, one note
     SynthEngine.*   voice pool, allocation, stealing, master stage
-  PluginParameters.*  APVTS layout, 391 parameters, and the audio-thread snapshot
+  PluginParameters.*  APVTS layout, 422 parameters, and the audio-thread snapshot
   Presets.*           factory presets
   PluginProcessor.*   MIDI handling, sample-accurate rendering, state
   PluginEditor.*      window, zoom, LINK, gutter

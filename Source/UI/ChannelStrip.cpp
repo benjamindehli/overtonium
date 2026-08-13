@@ -29,6 +29,7 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   setUpKnob(release, Role::Release, secondary);
   setUpKnob(amRate, Role::AmRate, secondary);
   setUpKnob(amDepth, Role::AmDepth, secondary);
+  setUpKnob(velocity, Role::Velocity, secondary);
   setUpFader(volume, Role::Volume, colour);
 
   muteButton.setClickingTogglesState(true);
@@ -179,7 +180,8 @@ void ChannelStrip::paint(juce::Graphics &g) {
 
   // Section rules, aligned with the gutter headings.
   g.setColour(colours::outline.withAlpha(0.7f));
-  for (auto r : {Row::PitchModHeading, Row::EnvHeading, Row::AmpModHeading}) {
+  for (auto r : {Row::PitchModHeading, Row::EnvHeading, Row::AmpModHeading,
+                 Row::OutputHeading}) {
     const auto row = rows[rowIndex(r)];
     g.fillRect(row.getX(), row.getY() + row.getHeight() / 2, row.getWidth(), 1);
   }
@@ -201,6 +203,7 @@ void ChannelStrip::resized() {
   release.setBounds(rows[rowIndex(Row::Release)].reduced(1));
   amRate.setBounds(rows[rowIndex(Row::AmRate)].reduced(1));
   amDepth.setBounds(rows[rowIndex(Row::AmDepth)].reduced(1));
+  velocity.setBounds(rows[rowIndex(Row::Velocity)].reduced(1));
   volume.setBounds(rows[rowIndex(Row::Fader)].reduced(2, 1));
   levelReadout.setBounds(rows[rowIndex(Row::FaderText)]);
 

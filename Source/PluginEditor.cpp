@@ -20,7 +20,7 @@ const juce::Identifier kEditorZoom{"editorZoom"};
 
 bool isHeadingRow(Row r) {
   return r == Row::PitchModHeading || r == Row::EnvHeading ||
-         r == Row::AmpModHeading;
+         r == Row::AmpModHeading || r == Row::OutputHeading;
 }
 } // namespace
 
@@ -82,9 +82,9 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   }
 
   topBar.onPresetChosen = [this](int index) { applyPreset(index); };
-  topBar.onTuneAllDragStart = [this] { beginTuneAllGesture(); };
-  topBar.onTuneAllChanged = [this](float blend) { setAllTuning(blend); };
-  topBar.onTuneAllDragEnd = [this] { endTuneAllGesture(); };
+  topBar.onMacroStart = [this](Role role) { macroDragStarted(role); };
+  topBar.onMacroDelta = [this](Role role, float d) { macroMoved(role, d); };
+  topBar.onMacroEnd = [this](Role role) { macroDragEnded(role); };
   topBar.onZoomChanged = [this](float z) { setZoom(z); };
 
   // ---- restore the last window size -----------------------------------------
@@ -201,6 +201,27 @@ juce::RangedAudioParameter *OvertoniumEditor::oscParameter(Role role,
 
 bool OvertoniumEditor::isLinkEnabled() const { return topBar.isLinkEnabled(); }
 
+void OvertoniumEditor::captureBaseline(Role role) {
+  for (int i = 0; i < kNumHarmonics; ++i) {
+    auto *param = oscParameter(role, i);
+    baseline[(size_t)i] = param != nullptr ? param->getValue() : 0.0f;
+  }
+}
+
+void OvertoniumEditor::applyOffsetFromBaseline(Role role, float delta,
+                                               int skipIndex) {
+  const juce::ScopedValueSetter<bool> guard(propagatingLink, true);
+
+  for (int i = 0; i < kNumHarmonics; ++i) {
+    if (i == skipIndex)
+      continue;
+
+    if (auto *param = oscParameter(role, i))
+      param->setValueNotifyingHost(
+          juce::jlimit(0.0f, 1.0f, baseline[(size_t)i] + delta));
+  }
+}
+
 void OvertoniumEditor::linkDragStarted(Role role, int sourceIndex) {
   // Latch the switch state at drag start: toggling LINK mid-drag must not leave
   // the host holding gestures that never get closed.
@@ -208,6 +229,7 @@ void OvertoniumEditor::linkDragStarted(Role role, int sourceIndex) {
     return;
 
   linkGestureActive = true;
+  captureBaseline(role);
 
   for (int i = 0; i < kNumHarmonics; ++i)
     if (i != sourceIndex)
@@ -220,15 +242,18 @@ void OvertoniumEditor::linkValueChanged(Role role, int sourceIndex,
   if (!linkGestureActive || propagatingLink)
     return;
 
-  const juce::ScopedValueSetter<bool> guard(propagatingLink, true);
+  auto *source = oscParameter(role, sourceIndex);
+  if (source == nullptr)
+    return;
 
-  for (int i = 0; i < kNumHarmonics; ++i) {
-    if (i == sourceIndex)
-      continue;
+  // Ganging is relative: the siblings move by however far the dragged knob has
+  // travelled, so their differences survive. Because the offset is always
+  // measured from the values captured at drag start, dragging back to where you
+  // began restores them exactly, even if some hit an end stop on the way.
+  const float delta =
+      source->convertTo0to1(plainValue) - baseline[(size_t)sourceIndex];
 
-    if (auto *param = oscParameter(role, i))
-      param->setValueNotifyingHost(param->convertTo0to1(plainValue));
-  }
+  applyOffsetFromBaseline(role, delta, sourceIndex);
 }
 
 void OvertoniumEditor::linkDragEnded(Role role, int sourceIndex) {
@@ -243,30 +268,33 @@ void OvertoniumEditor::linkDragEnded(Role role, int sourceIndex) {
         param->endChangeGesture();
 }
 
-// ---- TUNE ALL macro ---------------------------------------------------------
+// ---- endless macros ---------------------------------------------------------
 
-void OvertoniumEditor::beginTuneAllGesture() {
-  tuneAllGesture = true;
+void OvertoniumEditor::macroDragStarted(Role role) {
+  macroRole = role;
+  macroGestureActive = true;
+  captureBaseline(role);
 
   for (int i = 0; i < kNumHarmonics; ++i)
-    if (auto *param = oscParameter(Role::Tune, i))
+    if (auto *param = oscParameter(role, i))
       param->beginChangeGesture();
 }
 
-void OvertoniumEditor::setAllTuning(float blend) {
-  for (int i = 0; i < kNumHarmonics; ++i)
-    if (auto *param = oscParameter(Role::Tune, i))
-      param->setValueNotifyingHost(param->convertTo0to1(blend));
-}
-
-void OvertoniumEditor::endTuneAllGesture() {
-  if (!tuneAllGesture)
+void OvertoniumEditor::macroMoved(Role role, float delta) {
+  if (!macroGestureActive || macroRole != role)
     return;
 
-  tuneAllGesture = false;
+  applyOffsetFromBaseline(role, delta, -1);
+}
+
+void OvertoniumEditor::macroDragEnded(Role role) {
+  if (!macroGestureActive || macroRole != role)
+    return;
+
+  macroGestureActive = false;
 
   for (int i = 0; i < kNumHarmonics; ++i)
-    if (auto *param = oscParameter(Role::Tune, i))
+    if (auto *param = oscParameter(role, i))
       param->endChangeGesture();
 }
 
@@ -305,23 +333,6 @@ void OvertoniumEditor::timerCallback() {
 
     strips[(size_t)i]->setSilencedByOthers(!audible);
   }
-
-  // The macro knob only claims to represent the strips when they actually
-  // agree.
-  const auto first =
-      apvts.getRawParameterValue(params::oscParamId(params::tuneSuffix, 0))
-          ->load();
-  bool uniform = true;
-
-  for (int i = 1; i < kNumHarmonics && uniform; ++i)
-    uniform = std::abs(apvts
-                           .getRawParameterValue(
-                               params::oscParamId(params::tuneSuffix, i))
-                           ->load() -
-                       first) < 0.001f;
-
-  if (uniform)
-    topBar.setTuneAllDisplay(first);
 }
 
 // =============================================================================

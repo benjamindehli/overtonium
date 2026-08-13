@@ -85,11 +85,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f,
       FAttr().withStringFromValueFunction(percentText)));
 
-  layout.add(std::make_unique<FloatP>(
-      juce::ParameterID{velAmountId, 1}, "Velocity Amount",
-      juce::NormalisableRange<float>(0.0f, 1.0f), 0.7f,
-      FAttr().withStringFromValueFunction(percentText)));
-
   layout.add(std::make_unique<juce::AudioParameterInt>(
       juce::ParameterID{bendRangeId, 1}, "Pitch Bend Range", 0, 24, 2));
 
@@ -147,6 +142,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f,
         FAttr().withStringFromValueFunction(percentText)));
 
+    layout.add(std::make_unique<FloatP>(
+        juce::ParameterID{oscParamId(velSuffix, i), 1}, p + "Velocity",
+        juce::NormalisableRange<float>(0.0f, 1.0f), 0.7f,
+        FAttr().withStringFromValueFunction(percentText)));
+
     layout.add(std::make_unique<BoolP>(
         juce::ParameterID{oscParamId(muteSuffix, i), 1}, p + "Mute", false));
 
@@ -168,7 +168,6 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   masterGain = apvts.getRawParameterValue(masterGainId);
   polyphony = apvts.getRawParameterValue(polyphonyId);
   spread = apvts.getRawParameterValue(spreadId);
-  velAmount = apvts.getRawParameterValue(velAmountId);
   bendRange = apvts.getRawParameterValue(bendRangeId);
   phaseReset = apvts.getRawParameterValue(phaseResetId);
   safetyClip = apvts.getRawParameterValue(safetyClipId);
@@ -185,6 +184,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
     o.release = apvts.getRawParameterValue(oscParamId(releaseSuffix, i));
     o.amRate = apvts.getRawParameterValue(oscParamId(amRateSuffix, i));
     o.amDepth = apvts.getRawParameterValue(oscParamId(amDepthSuffix, i));
+    o.vel = apvts.getRawParameterValue(oscParamId(velSuffix, i));
     o.mute = apvts.getRawParameterValue(oscParamId(muteSuffix, i));
     o.solo = apvts.getRawParameterValue(oscParamId(soloSuffix, i));
     o.volume = apvts.getRawParameterValue(oscParamId(volumeSuffix, i));
@@ -221,6 +221,7 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     o.release = c.release->load();
     o.amRateHz = c.amRate->load();
     o.amDepth = c.amDepth->load();
+    o.velAmount = c.vel->load();
     o.volume = c.volume->load();
 
     const bool muted = c.mute->load() > 0.5f;
@@ -233,7 +234,6 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   out.global.masterGain =
       juce::Decibels::decibelsToGain(masterGain->load(), -60.0f);
   out.global.stereoSpread = spread->load();
-  out.global.velAmount = velAmount->load();
   out.global.bendSemitones = bendNormalised * bendRange->load();
   out.global.phaseReset = phaseReset->load() > 0.5f;
   out.global.safetyClip = safetyClip->load() > 0.5f;

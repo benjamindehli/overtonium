@@ -21,6 +21,10 @@ struct OscParams {
   float release = 0.400f;
   float amRateHz = 4.0f;
   float amDepth = 0.0f; ///< 0..1 tremolo depth
+  /// How strongly key velocity scales this partial. 0 = ignored, 1 = fully
+  /// sensitive. Per partial so the upper harmonics can be made to appear only
+  /// when the key is struck hard, the way most acoustic instruments behave.
+  float velAmount = 0.7f;
   /// Linear gain, mute/solo already folded in by the caller.
   float volume = 0.0f;
 
@@ -31,8 +35,6 @@ struct OscParams {
 struct GlobalParams {
   float masterGain = 0.25f;  ///< linear
   float stereoSpread = 0.0f; ///< 0 = mono, 1 = partials fanned across the field
-  /// 0 = velocity ignored, 1 = fully velocity sensitive.
-  float velAmount = 0.7f;
   float bendSemitones = 0.0f; ///< current pitch-bend offset
   bool phaseReset = true; ///< reset partial phase on note-on (coherent attack)
   /// Soft-clip the sum; 32 faders make it very easy to overshoot.

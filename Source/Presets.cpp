@@ -1,5 +1,6 @@
 #include "Presets.h"
 
+#include <algorithm>
 #include <cmath>
 
 #include "PluginParameters.h"
@@ -47,6 +48,7 @@ struct Applier {
     allOsc(params::releaseSuffix, [](int) { return 0.4; });
     allOsc(params::amRateSuffix, [](int) { return 4.0; });
     allOsc(params::amDepthSuffix, [](int) { return 0.0; });
+    allOsc(params::velSuffix, [](int) { return 0.7; });
     allOsc(params::muteSuffix, [](int) { return 0.0; });
     allOsc(params::soloSuffix, [](int) { return 0.0; });
     allOsc(params::volumeSuffix, [](int) { return 0.0; });
@@ -112,6 +114,10 @@ void apply(APVTS &apvts, int index) {
               [](int n) { return 6.0 / (1.0 + 0.35 * (n - 1)); });
     ap.allOsc(params::releaseSuffix,
               [](int n) { return 6.0 / (1.0 + 0.35 * (n - 1)); });
+    // Strike it harder and the upper partials arrive, the way a real bar or
+    // string brightens with force.
+    ap.allOsc(params::velSuffix,
+              [](int n) { return std::min(1.0, 0.2 + 0.06 * (n - 1)); });
     break;
   }
 
@@ -141,6 +147,8 @@ void apply(APVTS &apvts, int index) {
               [](int n) { return (n % 2) ? 1.0 / n : 0.0; });
     ap.allOsc(params::attackSuffix, [](int) { return 0.02; });
     ap.allOsc(params::releaseSuffix, [](int) { return 0.2; });
+    ap.allOsc(params::velSuffix,
+              [](int n) { return std::min(1.0, 0.3 + 0.05 * (n - 1)); });
     break;
   }
 

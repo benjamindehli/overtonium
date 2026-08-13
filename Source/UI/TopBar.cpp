@@ -12,23 +12,42 @@ constexpr float kZoomChoices[] = {0.75f, 1.0f, 1.25f, 1.5f};
 
 // =============================================================================
 
-LabelledKnob::LabelledKnob(juce::String captionText, juce::Colour fill)
-    : caption(std::move(captionText)) {
-  slider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
-  slider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
-  slider.setColour(juce::Slider::rotarySliderFillColourId, fill);
-  addAndMakeVisible(slider);
+RelativeKnob::RelativeKnob() {
+  setSliderStyle(juce::Slider::RotaryVerticalDrag);
+  setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+
+  // Full travel in either direction covers the whole parameter range, so even
+  // the extremes ("everything to just", "everything to equal") stay one drag
+  // away despite the control being relative.
+  setRange(-1.0, 1.0, 0.0);
+  setValue(0.0, juce::dontSendNotification);
+  setDoubleClickReturnValue(false, 0.0);
+
+  // A relative gesture needs a start and an end to bracket it. The wheel has
+  // neither, so it would move the knob without moving anything else.
+  setScrollWheelEnabled(false);
+
+  // Tells the look and feel to draw the arc outwards from twelve o'clock.
+  getProperties().set("bipolar", true);
+
+  onValueChange = [this] {
+    if (onRelativeDelta)
+      onRelativeDelta((float)getValue());
+  };
 }
 
-void LabelledKnob::paint(juce::Graphics &g) {
-  g.setColour(colours::textDim);
-  g.setFont(makeFont(9.0f, true));
-  g.drawText(caption, getLocalBounds().removeFromBottom(11),
-             juce::Justification::centred, false);
+void RelativeKnob::startedDragging() {
+  if (onRelativeStart)
+    onRelativeStart();
 }
 
-void LabelledKnob::resized() {
-  slider.setBounds(getLocalBounds().withTrimmedBottom(12));
+void RelativeKnob::stoppedDragging() {
+  if (onRelativeEnd)
+    onRelativeEnd();
+
+  // Spring back so the next drag starts from wherever the strips now sit.
+  setValue(0.0, juce::dontSendNotification);
+  repaint();
 }
 
 // =============================================================================
@@ -36,41 +55,32 @@ void LabelledKnob::resized() {
 TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
                juce::Component &popupParent)
     : apvts(state) {
-  for (auto *k : {&tuneAll, &master, &spread, &velocity, &bend}) {
-    k->slider.setPopupDisplayEnabled(true, true, &popupParent);
+  KnobPanel *knobs[] = {&tuneAll, &master, &spread, &velocity, &bend};
+
+  for (auto *k : knobs) {
+    k->getSlider().setPopupDisplayEnabled(true, true, &popupParent);
     addAndMakeVisible(*k);
   }
 
-  // ---- the macro knob is not a parameter; it writes to all 32 strips --------
-  tuneAll.slider.setRange(0.0, 1.0, 0.0);
-  tuneAll.slider.setValue(1.0, juce::dontSendNotification);
-  tuneAll.slider.setDoubleClickReturnValue(true, 1.0);
-  tuneAll.slider.setTooltip(
-      "Sweeps every partial between equal temperament and just intonation");
-  tuneAll.slider.onUserDragStart = [this] {
-    if (onTuneAllDragStart)
-      onTuneAllDragStart();
-  };
-  tuneAll.slider.onUserDragEnd = [this] {
-    if (onTuneAllDragEnd)
-      onTuneAllDragEnd();
-  };
-  tuneAll.slider.onValueChange = [this] {
-    if (onTuneAllChanged)
-      onTuneAllChanged((float)tuneAll.slider.getValue());
-  };
+  // ---- the endless macros are not parameters
+  // --------------------------------- They nudge all 32 strips by the same
+  // amount, so the shape you dialled in survives the gesture.
+  tuneAll.slider.setTooltip("Moves every partial towards just intonation or "
+                            "equal temperament, keeping their spread");
+  velocity.slider.setTooltip(
+      "Moves every partial's velocity sensitivity, keeping their spread");
+
+  wireMacro(tuneAll.slider, Role::Tune);
+  wireMacro(velocity.slider, Role::Velocity);
 
   master.slider.setTooltip("Output level");
   spread.slider.setTooltip("Fans the partials across the stereo field");
-  velocity.slider.setTooltip("How strongly key velocity affects level");
   bend.slider.setTooltip("Pitch bend range in semitones");
 
   masterAttachment = std::make_unique<SliderAttachment>(
       apvts, params::masterGainId, master.slider);
   spreadAttachment = std::make_unique<SliderAttachment>(apvts, params::spreadId,
                                                         spread.slider);
-  velAttachment = std::make_unique<SliderAttachment>(apvts, params::velAmountId,
-                                                     velocity.slider);
   bendAttachment = std::make_unique<SliderAttachment>(
       apvts, params::bendRangeId, bend.slider);
 
@@ -159,15 +169,25 @@ void TopBar::styleToggle(juce::TextButton &b, const juce::String &text,
   addAndMakeVisible(b);
 }
 
+void TopBar::wireMacro(RelativeKnob &knob, Role role) {
+  knob.onRelativeStart = [this, role] {
+    if (onMacroStart)
+      onMacroStart(role);
+  };
+  knob.onRelativeDelta = [this, role](float delta) {
+    if (onMacroDelta)
+      onMacroDelta(role, delta);
+  };
+  knob.onRelativeEnd = [this, role] {
+    if (onMacroEnd)
+      onMacroEnd(role);
+  };
+}
+
 void TopBar::setVoiceCount(int active, int limit) {
   voicesLabel.setText(juce::String(active) + " / " + juce::String(limit) +
                           " voices",
                       juce::dontSendNotification);
-}
-
-void TopBar::setTuneAllDisplay(float blend) {
-  if (!tuneAll.slider.isUserDragging())
-    tuneAll.slider.setValue(blend, juce::dontSendNotification);
 }
 
 void TopBar::setZoomChoice(float zoom) {
@@ -205,7 +225,9 @@ void TopBar::resized() {
   b.removeFromLeft(168); // title, painted rather than a child component
   b.removeFromLeft(10);
 
-  for (auto *k : {&tuneAll, &master, &spread, &velocity, &bend}) {
+  KnobPanel *knobs[] = {&tuneAll, &master, &spread, &velocity, &bend};
+
+  for (auto *k : knobs) {
     if (b.getWidth() < 60)
       break;
 

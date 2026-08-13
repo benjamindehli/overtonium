@@ -81,10 +81,19 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   g.setColour(colours::groove.brighter(0.16f));
   g.strokePath(track, stroke);
 
-  if (sliderPos > 0.001f) {
+  // Relative controls read as an offset either side of twelve o'clock rather
+  // than as a level filling up from the left.
+  const bool bipolar =
+      (bool)slider.getProperties().getWithDefault("bipolar", false);
+  const auto arcFrom =
+      bipolar ? rotaryStartAngle + 0.5f * (rotaryEndAngle - rotaryStartAngle)
+              : rotaryStartAngle;
+
+  if (std::abs(angle - arcFrom) > 0.001f) {
     juce::Path value;
-    value.addCentredArc(centre.x, centre.y, arcR, arcR, 0.0f, rotaryStartAngle,
-                        angle, true);
+    value.addCentredArc(centre.x, centre.y, arcR, arcR, 0.0f,
+                        juce::jmin(arcFrom, angle), juce::jmax(arcFrom, angle),
+                        true);
 
     g.setColour(slider.findColour(juce::Slider::rotarySliderFillColourId)
                     .withMultipliedAlpha(slider.isEnabled() ? 1.0f : 0.4f));

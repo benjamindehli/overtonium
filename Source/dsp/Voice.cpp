@@ -34,8 +34,7 @@ void Voice::noteOn(int note, float velocity, const SynthParams &p) noexcept {
   midiNote = note;
   baseFreq = 440.0 * std::exp2((double)(note - 69) / 12.0);
 
-  const float velAmount = std::clamp(p.global.velAmount, 0.0f, 1.0f);
-  velGain = 1.0f - velAmount + velAmount * std::clamp(velocity, 0.0f, 1.0f);
+  const float vel = std::clamp(velocity, 0.0f, 1.0f);
 
   active = true;
   released = false;
@@ -43,6 +42,11 @@ void Voice::noteOn(int note, float velocity, const SynthParams &p) noexcept {
   for (int i = 0; i < kNumHarmonics; ++i) {
     auto &pt = partials[(size_t)i];
     const auto &op = p.osc[(size_t)i];
+
+    // Each strip decides for itself how much of the key velocity it takes,
+    // latched here so a velocity change cannot alter a note already sounding.
+    const float amount = std::clamp(op.velAmount, 0.0f, 1.0f);
+    pt.velGain = 1.0f - amount + amount * vel;
 
     pt.env.configure(op.attack, op.decay, op.sustain, op.release);
     pt.env.noteOn(p.global.phaseReset);
@@ -141,7 +145,7 @@ void Voice::render(float *left, float *right, int numSamples,
       }
 
       const float nyq = nyquistGain(freq, sampleRate);
-      const float base = op.audible ? op.volume * velGain * nyq : 0.0f;
+      const float base = op.audible ? op.volume * pt.velGain * nyq : 0.0f;
       const float gEnd = base * amEnd;
 
       if (!pt.gainPrimed) {

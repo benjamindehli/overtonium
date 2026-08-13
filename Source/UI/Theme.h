@@ -42,6 +42,8 @@ enum class Row {
   AmpModHeading,
   AmRate,
   AmDepth,
+  OutputHeading,
+  Velocity,
   MuteSolo,
   Fader,
   FaderText,
@@ -76,6 +78,7 @@ enum class Role {
   Release,
   AmRate,
   AmDepth,
+  Velocity,
   Volume,
   NumRoles
 };

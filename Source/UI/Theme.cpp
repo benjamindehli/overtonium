@@ -43,6 +43,8 @@ constexpr int kRowHeights[kNumRows] = {
     15, // AmpModHeading
     30, // AmRate
     30, // AmDepth
+    15, // OutputHeading
+    28, // Velocity
     20, // MuteSolo
     -1, // Fader
     13  // FaderText
@@ -102,6 +104,10 @@ const char *rowLabel(Row r) {
     return "release";
   case Row::AmpModHeading:
     return "AMP MOD";
+  case Row::OutputHeading:
+    return "OUTPUT";
+  case Row::Velocity:
+    return "velocity";
   case Row::AmRate:
     return "rate";
   case Row::AmDepth:
@@ -143,6 +149,8 @@ const char *roleSuffix(Role r) {
     return params::amRateSuffix;
   case Role::AmDepth:
     return params::amDepthSuffix;
+  case Role::Velocity:
+    return params::velSuffix;
   case Role::Volume:
     return params::volumeSuffix;
 

@@ -68,13 +68,13 @@ SynthParams makeFlatParams(float volumePerPartial) {
     o.release = 0.100f;
     o.amRateHz = 4.0f;
     o.amDepth = 0.0f;
+    o.velAmount = 0.0f; // full level regardless of velocity
     o.volume = volumePerPartial;
     o.audible = true;
   }
 
   p.global.masterGain = 1.0f;
   p.global.stereoSpread = 0.0f;
-  p.global.velAmount = 0.0f; // full level regardless of velocity
   p.global.bendSemitones = 0.0f;
   p.global.phaseReset = true;
   p.global.safetyClip = false;
@@ -496,6 +496,83 @@ void testVoiceAllocation() {
 // -----------------------------------------------------------------------------
 // 9. Modulation actually modulates.
 // -----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// 10. Velocity is per partial, so a soft note can be a different timbre and not
+//     merely a quieter one.
+// -----------------------------------------------------------------------------
+void testPerPartialVelocity() {
+  section("Per-partial velocity");
+
+  constexpr double sr = 48000.0;
+  constexpr int N = 24000;
+
+  auto measure = [&](float velocity) {
+    SynthEngine engine;
+    engine.prepare(sr);
+
+    auto p = makeFlatParams(0.0f);
+    for (auto &o : p.osc)
+      o.tuneBlend = 1.0f;
+
+    // Partial 1 ignores velocity entirely, partial 4 follows it completely.
+    p.osc[0].volume = 0.4f;
+    p.osc[0].velAmount = 0.0f;
+    p.osc[3].volume = 0.4f;
+    p.osc[3].velAmount = 1.0f;
+
+    engine.noteOn(57, velocity, p);
+    std::vector<float> l((size_t)N), r((size_t)N);
+    engine.render(l.data(), r.data(), N, p);
+
+    return std::pair<double, double>{binMagnitude(l, 220.0, sr),
+                                     binMagnitude(l, 880.0, sr)};
+  };
+
+  const auto hard = measure(1.0f);
+  const auto soft = measure(0.25f);
+
+  check(std::abs(hard.first - soft.first) < 0.02 * hard.first,
+        "the insensitive partial is unchanged by velocity");
+  check(soft.second < 0.4 * hard.second,
+        "the sensitive partial drops when played softly");
+
+  // The point of the feature: the balance between partials moves, so the tone
+  // itself changes rather than just the level.
+  const double hardRatio = hard.second / hard.first;
+  const double softRatio = soft.second / soft.first;
+  std::printf("  partial 4 / partial 1: %.3f hard, %.3f soft\n", hardRatio,
+              softRatio);
+  check(softRatio < 0.5 * hardRatio, "the spectral balance shifts with touch");
+
+  // A uniform setting must still behave like a plain velocity control.
+  SynthEngine engine;
+  engine.prepare(sr);
+  auto p = makeFlatParams(0.02f);
+  for (auto &o : p.osc)
+    o.velAmount = 1.0f;
+
+  engine.noteOn(57, 0.5f, p);
+  std::vector<float> l((size_t)N), r((size_t)N);
+  engine.render(l.data(), r.data(), N, p);
+
+  float peakHalf = 0.0f;
+  for (int n = 0; n < N; ++n)
+    peakHalf = std::max(peakHalf, std::abs(l[(size_t)n]));
+
+  SynthEngine full;
+  full.prepare(sr);
+  full.noteOn(57, 1.0f, p);
+  std::vector<float> l2((size_t)N), r2((size_t)N);
+  full.render(l2.data(), r2.data(), N, p);
+
+  float peakFull = 0.0f;
+  for (int n = 0; n < N; ++n)
+    peakFull = std::max(peakFull, std::abs(l2[(size_t)n]));
+
+  check(std::abs(peakHalf / peakFull - 0.5f) < 0.05f,
+        "uniform full sensitivity scales level linearly with velocity");
+}
+
 void testModulation() {
   section("Pitch and amplitude modulation");
 
@@ -597,6 +674,7 @@ int main() {
   testNoClickOnMute();
   testVoiceAllocation();
   testModulation();
+  testPerPartialVelocity();
   benchmark();
 
   std::printf("\n%d checks, %d failures\n", checks, failures);

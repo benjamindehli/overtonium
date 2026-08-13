@@ -65,17 +65,17 @@ juce::MidiBuffer noteOnAt(int note, float velocity, int sample) {
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
-  const int expected = ovt::kNumHarmonics * 12 + 7;
+  const int expected = ovt::kNumHarmonics * 13 + 6;
   check(p.getParameters().size() == expected,
         "parameter count is " + std::to_string(p.getParameters().size()) +
             ", expected " + std::to_string(expected));
 
   // Every ID the audio thread caches must actually exist in the layout. A typo
   // here is a null atomic pointer and a crash on the first block.
-  const char *globals[] = {ovt::params::masterGainId, ovt::params::polyphonyId,
-                           ovt::params::spreadId,     ovt::params::velAmountId,
-                           ovt::params::bendRangeId,  ovt::params::phaseResetId,
-                           ovt::params::safetyClipId};
+  const char *globals[] = {
+      ovt::params::masterGainId, ovt::params::polyphonyId,
+      ovt::params::spreadId,     ovt::params::bendRangeId,
+      ovt::params::phaseResetId, ovt::params::safetyClipId};
 
   for (auto *id : globals)
     check(p.apvts.getRawParameterValue(id) != nullptr,
@@ -86,8 +86,9 @@ void testParameterWiring(OvertoniumProcessor &p) {
       ovt::params::pmDepthSuffix, ovt::params::attackSuffix,
       ovt::params::decaySuffix,   ovt::params::sustainSuffix,
       ovt::params::releaseSuffix, ovt::params::amRateSuffix,
-      ovt::params::amDepthSuffix, ovt::params::muteSuffix,
-      ovt::params::soloSuffix,    ovt::params::volumeSuffix};
+      ovt::params::amDepthSuffix, ovt::params::velSuffix,
+      ovt::params::muteSuffix,    ovt::params::soloSuffix,
+      ovt::params::volumeSuffix};
 
   bool allPresent = true;
   for (int i = 0; i < ovt::kNumHarmonics; ++i)
@@ -95,7 +96,7 @@ void testParameterWiring(OvertoniumProcessor &p) {
       allPresent &= p.apvts.getRawParameterValue(
                         ovt::params::oscParamId(s, i)) != nullptr;
 
-  check(allPresent, "all 384 per-partial parameters resolve");
+  check(allPresent, "all 416 per-partial parameters resolve");
 
   // Defaults should give an immediately playable 1/n spectrum.
   for (int i = 0; i < ovt::kNumHarmonics; ++i) {

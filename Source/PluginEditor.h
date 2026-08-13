@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <memory>
 #include <vector>
 
@@ -41,9 +42,14 @@ private:
   void applyResizeLimits();
   void applyPreset(int index);
 
-  void beginTuneAllGesture();
-  void setAllTuning(float blend);
-  void endTuneAllGesture();
+  void macroDragStarted(ovt::ui::Role);
+  void macroMoved(ovt::ui::Role, float delta);
+  void macroDragEnded(ovt::ui::Role);
+
+  /// Snapshots every strip's normalised value for a role, so a relative gesture
+  /// can be expressed as an offset from where things stood when it began.
+  void captureBaseline(ovt::ui::Role);
+  void applyOffsetFromBaseline(ovt::ui::Role, float delta, int skipIndex);
 
   juce::RangedAudioParameter *oscParameter(ovt::ui::Role, int index) const;
 
@@ -69,9 +75,12 @@ private:
 
   float zoom = 1.0f;
 
+  std::array<float, ovt::kNumHarmonics> baseline{};
+
   bool propagatingLink = false;
   bool linkGestureActive = false;
-  bool tuneAllGesture = false;
+  bool macroGestureActive = false;
+  ovt::ui::Role macroRole = ovt::ui::Role::Tune;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OvertoniumEditor)
 };
