@@ -12,6 +12,10 @@ namespace {
 /// partial of each note draws its own rate from this range, log distributed.
 constexpr double kDriftMinHz = 0.08;
 constexpr double kDriftMaxHz = 1.10;
+
+/// Corner of the one-pole pair that tilts the noise. Around a kilohertz splits
+/// it into a usable "body" and "air" either side.
+constexpr double kNoiseTiltHz = 1000.0;
 } // namespace
 
 void Voice::prepare(double newSampleRate, uint32_t seed) noexcept {
@@ -24,6 +28,11 @@ void Voice::prepare(double newSampleRate, uint32_t seed) noexcept {
   // Roughly a 15 ms time constant, stepped once per control block.
   pressureCoef =
       1.0f - (float)std::exp(-(double)kControlBlock / (0.015 * sampleRate));
+
+  lowpassCoef =
+      1.0f - (float)std::exp(-6.283185307179586 * kNoiseTiltHz / sampleRate);
+
+  noise.rng.reseed(seed ^ 0x5bf03635u);
 
   reset();
 }
@@ -38,6 +47,12 @@ void Voice::reset() noexcept {
     pt.lastGain = 0.0f;
     pt.gainPrimed = false;
   }
+
+  noise.env.reset();
+  noise.lowpassState = 0.0f;
+  noise.lastGain = 0.0f;
+  noise.gainPrimed = false;
+  noisePeak = 0.0f;
 
   active = false;
   released = false;
@@ -92,6 +107,18 @@ void Voice::noteOn(int note, float velocity, const SynthParams &p) noexcept {
     // for rather than from the previous note's trailing value.
     pt.gainPrimed = false;
   }
+
+  {
+    const auto &np = p.noise;
+    const float amount = std::clamp(np.velAmount, -1.0f, 1.0f);
+
+    noise.velGain =
+        amount >= 0.0f ? 1.0f - amount * (1.0f - vel) : 1.0f + amount * vel;
+
+    noise.env.configure(np.delay, np.attack, np.decay, np.sustain, np.release);
+    noise.env.noteOn(p.global.phaseReset);
+    noise.gainPrimed = false;
+  }
 }
 
 void Voice::noteOff() noexcept {
@@ -102,6 +129,8 @@ void Voice::noteOff() noexcept {
 
   for (auto &pt : partials)
     pt.env.noteOff();
+
+  noise.env.noteOff();
 }
 
 void Voice::steal() noexcept {
@@ -112,6 +141,8 @@ void Voice::steal() noexcept {
 
   for (auto &pt : partials)
     pt.env.forceRelease(0.004f);
+
+  noise.env.forceRelease(0.004f);
 }
 
 void Voice::render(float *left, float *right, int numSamples,
@@ -157,6 +188,7 @@ void Voice::render(float *left, float *right, int numSamples,
   }
 
   partialPeaks.fill(0.0f);
+  noisePeak = 0.0f;
 
   const float pressureTarget =
       std::max(std::clamp(p.global.aftertouch, 0.0f, 1.0f), polyPressure);
@@ -278,14 +310,88 @@ void Voice::render(float *left, float *right, int numSamples,
 
       pt.phase = ph;
     }
+
+    renderNoise(left + start, right + start, len, p, pressure);
   }
 
-  active = std::any_of(partials.begin(), partials.end(),
+  active = noise.env.isActive() ||
+           std::any_of(partials.begin(), partials.end(),
                        [](const Partial &pt) { return pt.env.isActive(); });
 
   if (!active) {
     released = false;
     midiNote = -1;
+  }
+}
+
+void Voice::renderNoise(float *left, float *right, int len,
+                        const SynthParams &p, float pressure) noexcept {
+  const auto &np = p.noise;
+
+  noise.env.configure(np.delay, np.attack, np.decay, np.sustain, np.release);
+
+  if (!noise.env.isActive())
+    return;
+
+  const double amPhaseInc = (double)np.amRateHz / sampleRate;
+
+  float amEnd = 1.0f;
+  if (np.amDepth > 0.0f) {
+    const double endPhase = wrapPhase(noiseAmPhase + amPhaseInc * (double)len);
+    amEnd = 1.0f -
+            np.amDepth * 0.5f * (1.0f - SineTable::instance().cosine(endPhase));
+  }
+
+  const float level =
+      std::clamp(np.volume * noise.velGain +
+                     std::clamp(np.atAmount, -1.0f, 1.0f) * pressure,
+                 0.0f, 1.0f);
+  const float gEnd = (np.audible ? level : 0.0f) * amEnd;
+
+  if (!noise.gainPrimed) {
+    noise.lastGain = np.audible ? level : 0.0f;
+    noise.gainPrimed = true;
+  }
+
+  float g = noise.lastGain;
+  const float gInc = (gEnd - g) / (float)len;
+
+  noiseAmPhase = wrapPhase(noiseAmPhase + amPhaseInc * (double)len);
+  noise.lastGain = gEnd;
+
+  noisePeak = std::max(noisePeak, noise.env.getLevel() * gEnd);
+
+  if (g <= 1.0e-7f && gEnd <= 1.0e-7f) {
+    for (int n = 0; n < len; ++n)
+      noise.env.tick();
+
+    return;
+  }
+
+  // Colour tilts between the two halves of a complementary one-pole pair.
+  // Both at unity reconstructs the original white noise, so the centre of the
+  // knob is genuinely flat rather than merely filtered less.
+  const float colour = std::clamp(np.colour, 0.0f, 1.0f);
+  const float lowMix = colour < 0.5f ? 1.0f : 1.0f - (colour - 0.5f) * 2.0f;
+  const float highMix = colour < 0.5f ? colour * 2.0f : 1.0f;
+
+  // Noise sits centred. The stereo spread places partials by harmonic number,
+  // which noise has none of.
+  constexpr float pan = 0.70710678f;
+
+  for (int n = 0; n < len; ++n) {
+    const float white = noise.rng.bipolar();
+
+    noise.lowpassState += lowpassCoef * (white - noise.lowpassState);
+    const float high = white - noise.lowpassState;
+
+    const float s =
+        (lowMix * noise.lowpassState + highMix * high) * noise.env.tick() * g;
+
+    left[n] += s * pan;
+    right[n] += s * pan;
+
+    g += gInc;
   }
 }
 

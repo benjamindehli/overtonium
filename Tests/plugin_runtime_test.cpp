@@ -65,7 +65,8 @@ juce::MidiBuffer noteOnAt(int note, float velocity, int sample) {
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
-  const int expected = ovt::kNumHarmonics * 16 + 6;
+  // 16 per partial, 6 global, 13 for the noise channel.
+  const int expected = ovt::kNumHarmonics * 16 + 6 + 13;
   check(p.getParameters().size() == expected,
         "parameter count is " + std::to_string(p.getParameters().size()) +
             ", expected " + std::to_string(expected));
@@ -98,6 +99,22 @@ void testParameterWiring(OvertoniumProcessor &p) {
                         ovt::params::oscParamId(s, i)) != nullptr;
 
   check(allPresent, "all 512 per-partial parameters resolve");
+
+  const char *noiseSuffixes[] = {
+      ovt::params::colourSuffix,  ovt::params::delaySuffix,
+      ovt::params::attackSuffix,  ovt::params::decaySuffix,
+      ovt::params::sustainSuffix, ovt::params::releaseSuffix,
+      ovt::params::amRateSuffix,  ovt::params::amDepthSuffix,
+      ovt::params::velSuffix,     ovt::params::atSuffix,
+      ovt::params::muteSuffix,    ovt::params::soloSuffix,
+      ovt::params::volumeSuffix};
+
+  bool noisePresent = true;
+  for (auto *n : noiseSuffixes)
+    noisePresent &=
+        p.apvts.getRawParameterValue(ovt::params::noiseParamId(n)) != nullptr;
+
+  check(noisePresent, "the noise channel's parameters resolve");
 
   // Defaults should give an immediately playable 1/n spectrum.
   for (int i = 0; i < ovt::kNumHarmonics; ++i) {

@@ -36,6 +36,12 @@ inline constexpr const char *volumeSuffix = "volume";
 /// "h07_tune" for index0 == 6. Zero-padded so the IDs sort naturally.
 juce::String oscParamId(const char *suffix, int index0);
 
+/// "noise_attack". The noise channel reuses the strip suffixes where they
+/// apply, and adds one of its own.
+juce::String noiseParamId(const char *suffix);
+
+inline constexpr const char *colourSuffix = "colour";
+
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
 /// Default fader level for a partial: a 1/n roll-off over the first octave-and-
@@ -65,6 +71,24 @@ struct Cache {
   };
 
   std::array<Osc, kNumHarmonics> osc{};
+
+  struct NoiseChannel {
+    std::atomic<float> *colour = nullptr;
+    std::atomic<float> *delay = nullptr;
+    std::atomic<float> *attack = nullptr;
+    std::atomic<float> *decay = nullptr;
+    std::atomic<float> *sustain = nullptr;
+    std::atomic<float> *release = nullptr;
+    std::atomic<float> *amRate = nullptr;
+    std::atomic<float> *amDepth = nullptr;
+    std::atomic<float> *vel = nullptr;
+    std::atomic<float> *at = nullptr;
+    std::atomic<float> *mute = nullptr;
+    std::atomic<float> *solo = nullptr;
+    std::atomic<float> *volume = nullptr;
+  };
+
+  NoiseChannel noise{};
 
   std::atomic<float> *masterGain = nullptr;
   std::atomic<float> *polyphony = nullptr;

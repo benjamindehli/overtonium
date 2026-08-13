@@ -63,13 +63,14 @@ void RowGutter::paint(juce::Graphics &g) {
 
 OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     : juce::AudioProcessorEditor(&p), processor(p), topBar(p.apvts, *this),
-      masterStrip(*this, *this) {
+      masterStrip(*this, *this), noiseStrip(p.apvts, *this) {
   setLookAndFeel(&lookAndFeel);
 
   addAndMakeVisible(content);
   content.addAndMakeVisible(topBar);
   content.addAndMakeVisible(gutter);
   content.addAndMakeVisible(masterStrip);
+  content.addAndMakeVisible(noiseStrip);
   content.addAndMakeVisible(viewport);
 
   viewport.setViewedComponent(&stripsHolder, false);
@@ -97,7 +98,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
 
   // Default size shows all 32 strips at once, which is the whole point of the
   // layout.
-  const int defaultWidth = kGutterWidth + kStripWidth + kMasterGap +
+  const int defaultWidth = kGutterWidth + 2 * (kStripWidth + kMasterGap) +
                            kNumHarmonics * kStripWidth + 2 * kEdge;
   const int defaultHeight = chromeHeight() + preferredStripHeight();
 
@@ -137,12 +138,19 @@ void OvertoniumEditor::resized() {
   const auto gutterArea = area.removeFromLeft(kGutterWidth);
   const auto masterArea = area.removeFromLeft(kStripWidth);
   area.removeFromLeft(kMasterGap);
+
+  // Noise is pinned on the far right, after the series it does not belong to,
+  // and stays in view rather than needing a scroll to reach.
+  const auto noiseArea = area.removeFromRight(kStripWidth);
+  area.removeFromRight(kMasterGap);
+
   viewport.setBounds(area);
 
   const int stripHeight = viewport.getMaximumVisibleHeight();
 
   gutter.setBounds(gutterArea.withHeight(stripHeight));
   masterStrip.setBounds(masterArea.withHeight(stripHeight));
+  noiseStrip.setBounds(noiseArea.withHeight(stripHeight));
   stripsHolder.setSize(kNumHarmonics * kStripWidth, stripHeight);
 
   for (int i = 0; i < (int)strips.size(); ++i)
@@ -309,23 +317,35 @@ juce::RangedAudioParameter *OvertoniumEditor::boolParameter(const char *suffix,
 }
 
 void OvertoniumEditor::setAllMutes(bool muted) {
-  for (int i = 0; i < kNumHarmonics; ++i) {
-    if (auto *param = boolParameter(params::muteSuffix, i)) {
-      param->beginChangeGesture();
-      param->setValueNotifyingHost(muted ? 1.0f : 0.0f);
-      param->endChangeGesture();
-    }
-  }
+  const auto apply = [muted](juce::RangedAudioParameter *param) {
+    if (param == nullptr)
+      return;
+
+    param->beginChangeGesture();
+    param->setValueNotifyingHost(muted ? 1.0f : 0.0f);
+    param->endChangeGesture();
+  };
+
+  for (int i = 0; i < kNumHarmonics; ++i)
+    apply(boolParameter(params::muteSuffix, i));
+
+  apply(processor.apvts.getParameter(params::noiseParamId(params::muteSuffix)));
 }
 
 void OvertoniumEditor::clearAllSolos() {
-  for (int i = 0; i < kNumHarmonics; ++i) {
-    if (auto *param = boolParameter(params::soloSuffix, i)) {
-      param->beginChangeGesture();
-      param->setValueNotifyingHost(0.0f);
-      param->endChangeGesture();
-    }
-  }
+  const auto clear = [](juce::RangedAudioParameter *param) {
+    if (param == nullptr)
+      return;
+
+    param->beginChangeGesture();
+    param->setValueNotifyingHost(0.0f);
+    param->endChangeGesture();
+  };
+
+  for (int i = 0; i < kNumHarmonics; ++i)
+    clear(boolParameter(params::soloSuffix, i));
+
+  clear(processor.apvts.getParameter(params::noiseParamId(params::soloSuffix)));
 }
 
 bool OvertoniumEditor::anySoloActive() const {
@@ -346,6 +366,7 @@ void OvertoniumEditor::timerCallback() {
   for (int i = 0; i < kNumHarmonics; ++i)
     strips[(size_t)i]->setMeterLevel(processor.getPartialLevel(i));
 
+  noiseStrip.setMeterLevel(processor.getNoiseLevel());
   masterStrip.setOutputLevel(processor.getOutputLevel());
 
   // The rest is housekeeping that nobody can see at 30 Hz, and it costs 96
@@ -367,14 +388,15 @@ void OvertoniumEditor::timerCallback() {
 
   // Dim whatever a solo elsewhere is silencing, so the mixer shows what you can
   // hear.
-  bool anySolo = false;
-  for (int i = 0; i < kNumHarmonics; ++i) {
-    if (apvts.getRawParameterValue(params::oscParamId(params::soloSuffix, i))
-            ->load() > 0.5f) {
-      anySolo = true;
-      break;
-    }
-  }
+  // Solo spans the noise channel too, so it takes part in the dimming.
+  bool anySolo =
+      apvts.getRawParameterValue(params::noiseParamId(params::soloSuffix))
+          ->load() > 0.5f;
+
+  for (int i = 0; i < kNumHarmonics && !anySolo; ++i)
+    anySolo =
+        apvts.getRawParameterValue(params::oscParamId(params::soloSuffix, i))
+            ->load() > 0.5f;
 
   for (int i = 0; i < kNumHarmonics; ++i) {
     const bool muted =
@@ -386,6 +408,17 @@ void OvertoniumEditor::timerCallback() {
     const bool audible = muted ? false : (anySolo ? soloed : true);
 
     strips[(size_t)i]->setSilencedByOthers(!audible);
+  }
+
+  {
+    const bool muted =
+        apvts.getRawParameterValue(params::noiseParamId(params::muteSuffix))
+            ->load() > 0.5f;
+    const bool soloed =
+        apvts.getRawParameterValue(params::noiseParamId(params::soloSuffix))
+            ->load() > 0.5f;
+
+    noiseStrip.setSilencedByOthers(muted ? true : (anySolo && !soloed));
   }
 
   masterStrip.setSoloActive(anySolo);

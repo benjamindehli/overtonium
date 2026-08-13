@@ -45,6 +45,29 @@ struct OscParams {
   bool audible = true;
 };
 
+/// The noise channel.
+///
+/// It behaves like a strip in every respect except pitch, of which it has
+/// none, so it carries no tuning, pitch modulation or drift. Colour takes
+/// their place: it tilts the spectrum from dark rumble through flat to bright
+/// hiss, which is the difference between adding breath and adding fizz.
+struct NoiseParams {
+  float colour = 0.5f; ///< 0 dark, 0.5 flat, 1 bright
+
+  float delay = 0.0f;
+  float attack = 0.005f;
+  float decay = 0.600f;
+  float sustain = 1.0f;
+  float release = 0.400f;
+  float amRateHz = 4.0f;
+  float amDepth = 0.0f;
+  float velAmount = 0.7f;
+  float atAmount = 0.0f;
+  float volume = 0.0f;
+
+  bool audible = true;
+};
+
 struct GlobalParams {
   float masterGain = 0.25f;  ///< linear
   float stereoSpread = 0.0f; ///< 0 = mono, 1 = partials fanned across the field
@@ -57,6 +80,7 @@ struct GlobalParams {
 
 struct SynthParams {
   std::array<OscParams, kNumHarmonics> osc{};
+  NoiseParams noise{};
   GlobalParams global{};
 };
 

@@ -57,6 +57,23 @@ double binMagnitude(const std::vector<float> &x, double freq,
   return std::sqrt(re * re + im * im) / norm;
 }
 
+/// Mean magnitude across a band.
+///
+/// A single bin of a noise signal is Rayleigh distributed, so one bin carries
+/// almost no information and the ratio of two of them is wildly variable.
+/// Averaging many bins is what makes a spectral claim about noise meaningful.
+double bandMagnitude(const std::vector<float> &x, double lowHz, double highHz,
+                     double sampleRate, int bins = 40) {
+  double sum = 0.0;
+
+  for (int k = 0; k < bins; ++k) {
+    const double t = (double)k / (double)(bins - 1);
+    sum += binMagnitude(x, lowHz + t * (highHz - lowHz), sampleRate);
+  }
+
+  return sum / (double)bins;
+}
+
 SynthParams makeFlatParams(float volumePerPartial) {
   SynthParams p;
 
@@ -1203,6 +1220,183 @@ void testEnvelopeDelay() {
   engine.allSoundOff();
 }
 
+// -----------------------------------------------------------------------------
+// 16. The noise channel: broadband, enveloped like a strip, tilted by colour.
+// -----------------------------------------------------------------------------
+void testNoiseChannel() {
+  section("Noise channel");
+
+  constexpr double sr = 48000.0;
+  constexpr int N = 24000;
+
+  auto render = [&](float volume, float colour, float velocity = 1.0f) {
+    SynthEngine engine;
+    engine.prepare(sr);
+
+    auto p = makeFlatParams(0.0f);
+    for (auto &o : p.osc)
+      o.volume = 0.0f; // noise only, so nothing else colours the measurement
+
+    p.noise.volume = volume;
+    p.noise.colour = colour;
+    p.noise.velAmount = 0.0f;
+    p.noise.attack = 0.001f;
+    p.noise.sustain = 1.0f;
+    p.noise.audible = true;
+
+    engine.noteOn(45, velocity, p);
+    std::vector<float> l((size_t)N), r((size_t)N);
+    engine.render(l.data(), r.data(), N, p);
+    return l;
+  };
+
+  // Silent at zero, and it needs a note like everything else.
+  {
+    const auto quiet = render(0.0f, 0.5f);
+    float peak = 0.0f;
+    for (int n = 0; n < N; ++n)
+      peak = std::max(peak, std::abs(quiet[(size_t)n]));
+    check(peak < 1.0e-6f, "the noise channel is silent at zero level");
+  }
+
+  const auto flat = render(0.6f, 0.5f);
+
+  float peak = 0.0f;
+  bool finite = true;
+  for (int n = 0; n < N; ++n) {
+    peak = std::max(peak, std::abs(flat[(size_t)n]));
+    finite &= std::isfinite(flat[(size_t)n]);
+  }
+
+  check(finite, "noise output is finite");
+  check(peak > 0.05f, "noise sounds");
+
+  // Broadband, unlike a partial: energy everywhere rather than in one bin.
+  const double low = bandMagnitude(flat, 150.0, 350.0, sr);
+  const double mid = bandMagnitude(flat, 1800.0, 2200.0, sr);
+  const double high = bandMagnitude(flat, 7000.0, 11000.0, sr);
+  check(low > 1.0e-5 && mid > 1.0e-5 && high > 1.0e-5,
+        "noise covers the spectrum rather than one frequency");
+
+  // Colour tilts it. Dark should favour the bottom, bright the top.
+  const auto dark = render(0.6f, 0.0f);
+  const auto bright = render(0.6f, 1.0f);
+
+  const auto tilt = [&](const std::vector<float> &x) {
+    return bandMagnitude(x, 7000.0, 11000.0, sr) /
+           bandMagnitude(x, 150.0, 350.0, sr);
+  };
+
+  const double darkTilt = tilt(dark);
+  const double flatTilt = tilt(flat);
+  const double brightTilt = tilt(bright);
+
+  std::printf("  high/low ratio: %.3f dark, %.3f flat, %.3f bright\n", darkTilt,
+              flatTilt, brightTilt);
+
+  check(darkTilt < 0.5 * flatTilt, "colour at zero rolls the top off");
+  check(brightTilt > 2.0 * flatTilt, "colour at full rolls the bottom off");
+
+  // The centre is genuinely flat, not merely filtered less. The complementary
+  // pair has to reconstruct the original white noise there.
+  check(flatTilt > 0.7 && flatTilt < 1.4,
+        "the centre of the colour knob is flat (" + std::to_string(flatTilt) +
+            ")");
+
+  // It answers to velocity like a strip.
+  {
+    SynthEngine engine;
+    engine.prepare(sr);
+
+    auto p = makeFlatParams(0.0f);
+    for (auto &o : p.osc)
+      o.volume = 0.0f;
+
+    p.noise.volume = 0.6f;
+    p.noise.velAmount = 1.0f;
+    p.noise.attack = 0.001f;
+
+    engine.noteOn(45, 0.25f, p);
+    std::vector<float> l((size_t)N), r((size_t)N);
+    engine.render(l.data(), r.data(), N, p);
+
+    float soft = 0.0f;
+    for (int n = 0; n < N; ++n)
+      soft = std::max(soft, std::abs(l[(size_t)n]));
+
+    check(soft < 0.5f * peak, "the noise channel follows velocity");
+  }
+
+  // Muting it silences it, and the meter agrees.
+  {
+    SynthEngine engine;
+    engine.prepare(sr);
+
+    auto p = makeFlatParams(0.0f);
+    for (auto &o : p.osc)
+      o.volume = 0.0f;
+
+    p.noise.volume = 0.6f;
+    p.noise.velAmount = 0.0f;
+    p.noise.attack = 0.001f;
+
+    engine.noteOn(45, 1.0f, p);
+    std::vector<float> l((size_t)N), r((size_t)N);
+    engine.render(l.data(), r.data(), N, p);
+    check(engine.getNoiseLevel() > 0.05f, "the noise meter reads it");
+
+    // Muting ramps over one control block rather than cutting, so measure once
+    // that ramp is behind us.
+    p.noise.audible = false;
+    engine.render(l.data(), r.data(), N, p);
+    engine.render(l.data(), r.data(), N, p);
+
+    float muted = 0.0f;
+    for (int n = 0; n < N; ++n)
+      muted = std::max(muted, std::abs(l[(size_t)n]));
+
+    check(muted < 1.0e-6f, "muting the noise channel silences it");
+    check(engine.getNoiseLevel() < 1.0e-6f, "and its meter falls to zero");
+  }
+
+  // Two voices must not layer the identical noise.
+  {
+    SynthEngine engine;
+    engine.prepare(sr);
+
+    auto p = makeFlatParams(0.0f);
+    for (auto &o : p.osc)
+      o.volume = 0.0f;
+
+    p.noise.volume = 0.4f;
+    p.noise.velAmount = 0.0f;
+    p.noise.attack = 0.001f;
+
+    engine.noteOn(45, 1.0f, p);
+    std::vector<float> one((size_t)N), r1((size_t)N);
+    engine.render(one.data(), r1.data(), N, p);
+
+    engine.allSoundOff();
+    engine.noteOn(45, 1.0f, p);
+    engine.noteOn(52, 1.0f, p);
+    std::vector<float> two((size_t)N), r2((size_t)N);
+    engine.render(two.data(), r2.data(), N, p);
+
+    double energyOne = 0.0, energyTwo = 0.0;
+    for (int n = 0; n < N; ++n) {
+      energyOne += (double)one[(size_t)n] * one[(size_t)n];
+      energyTwo += (double)two[(size_t)n] * two[(size_t)n];
+    }
+
+    // Independent streams add in power, so two voices land near sqrt(2) rather
+    // than at exactly double, which is what identical noise would give.
+    const double ratio = std::sqrt(energyTwo / energyOne);
+    std::printf("  two voices against one: %.3f\n", ratio);
+    check(ratio > 1.2 && ratio < 1.7,
+          "each voice gets its own noise instead of layering the same signal");
+  }
+}
+
 void testModulation() {
   section("Pitch and amplitude modulation");
 
@@ -1274,6 +1468,13 @@ void benchmark() {
       o.tuneBlend = 0.5f;
     }
 
+    // The noise channel is part of the worst case, so it runs too.
+    p.noise.volume = 0.3f;
+    p.noise.colour = 0.35f;
+    p.noise.amDepth = 0.2f;
+    p.noise.sustain = 1.0f;
+    p.noise.audible = true;
+
     for (int v = 0; v < poly; ++v)
       engine.noteOn(48 + v, 1.0f, p);
 
@@ -1313,6 +1514,7 @@ int main() {
   testDrift();
   testPartialMetering();
   testEnvelopeDelay();
+  testNoiseChannel();
   benchmark();
 
   std::printf("\n%d checks, %d failures\n", checks, failures);

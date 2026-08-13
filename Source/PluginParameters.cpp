@@ -55,6 +55,10 @@ juce::String oscParamId(const char *suffix, int index0) {
   return "h" + juce::String(index0 + 1).paddedLeft('0', 2) + "_" + suffix;
 }
 
+juce::String noiseParamId(const char *suffix) {
+  return juce::String("noise_") + suffix;
+}
+
 float defaultVolumeFor(int index0) {
   // 1/n over the first eight partials, silence above: a soft sawtooth / drawbar
   // blend that is immediately playable without being a wall of sound.
@@ -181,6 +185,69 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         defaultVolumeFor(i), FAttr().withStringFromValueFunction(gainText)));
   }
 
+  // ---- noise channel --------------------------------------------------------
+  // Same controls as a strip, minus everything to do with pitch, plus a colour
+  // control in its place.
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{noiseParamId(colourSuffix), 1}, "Noise Colour",
+      juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f,
+      FAttr().withStringFromValueFunction(percentText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{noiseParamId(delaySuffix), 1}, "Noise Delay",
+      rangeWithCentre(0.0f, 5.0f, 0.2f), 0.0f,
+      FAttr().withStringFromValueFunction(timeText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{noiseParamId(attackSuffix), 1}, "Noise Attack",
+      rangeWithCentre(0.0005f, 5.0f, 0.03f), 0.005f,
+      FAttr().withStringFromValueFunction(timeText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{noiseParamId(decaySuffix), 1}, "Noise Decay",
+      rangeWithCentre(0.001f, 20.0f, 0.5f), 0.6f,
+      FAttr().withStringFromValueFunction(timeText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{noiseParamId(sustainSuffix), 1}, "Noise Sustain",
+      juce::NormalisableRange<float>(0.0f, 1.0f), 1.0f,
+      FAttr().withStringFromValueFunction(percentText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{noiseParamId(releaseSuffix), 1}, "Noise Release",
+      rangeWithCentre(0.001f, 20.0f, 0.5f), 0.4f,
+      FAttr().withStringFromValueFunction(timeText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{noiseParamId(amRateSuffix), 1}, "Noise Amp Mod Rate",
+      rangeWithCentre(0.01f, 30.0f, 4.0f), 4.0f, FAttr().withLabel("Hz")));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{noiseParamId(amDepthSuffix), 1}, "Noise Amp Mod Depth",
+      juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f,
+      FAttr().withStringFromValueFunction(percentText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{noiseParamId(velSuffix), 1}, "Noise Velocity",
+      juce::NormalisableRange<float>(-1.0f, 1.0f), 0.7f,
+      FAttr().withStringFromValueFunction(signedPercentText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{noiseParamId(atSuffix), 1}, "Noise Aftertouch",
+      juce::NormalisableRange<float>(-1.0f, 1.0f), 0.0f,
+      FAttr().withStringFromValueFunction(signedPercentText)));
+
+  layout.add(std::make_unique<BoolP>(
+      juce::ParameterID{noiseParamId(muteSuffix), 1}, "Noise Mute", false));
+
+  layout.add(std::make_unique<BoolP>(
+      juce::ParameterID{noiseParamId(soloSuffix), 1}, "Noise Solo", false));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{noiseParamId(volumeSuffix), 1}, "Noise Level",
+      juce::NormalisableRange<float>(0.0f, 1.0f, 0.0f, 0.5f), 0.0f,
+      FAttr().withStringFromValueFunction(gainText)));
+
   return layout;
 }
 
@@ -214,6 +281,22 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
 
     jassert(o.tune != nullptr && o.volume != nullptr);
   }
+
+  noise.colour = apvts.getRawParameterValue(noiseParamId(colourSuffix));
+  noise.delay = apvts.getRawParameterValue(noiseParamId(delaySuffix));
+  noise.attack = apvts.getRawParameterValue(noiseParamId(attackSuffix));
+  noise.decay = apvts.getRawParameterValue(noiseParamId(decaySuffix));
+  noise.sustain = apvts.getRawParameterValue(noiseParamId(sustainSuffix));
+  noise.release = apvts.getRawParameterValue(noiseParamId(releaseSuffix));
+  noise.amRate = apvts.getRawParameterValue(noiseParamId(amRateSuffix));
+  noise.amDepth = apvts.getRawParameterValue(noiseParamId(amDepthSuffix));
+  noise.vel = apvts.getRawParameterValue(noiseParamId(velSuffix));
+  noise.at = apvts.getRawParameterValue(noiseParamId(atSuffix));
+  noise.mute = apvts.getRawParameterValue(noiseParamId(muteSuffix));
+  noise.solo = apvts.getRawParameterValue(noiseParamId(soloSuffix));
+  noise.volume = apvts.getRawParameterValue(noiseParamId(volumeSuffix));
+
+  jassert(noise.colour != nullptr && noise.volume != nullptr);
 }
 
 int Cache::polyphonyValue() const {
@@ -223,12 +306,14 @@ int Cache::polyphonyValue() const {
 }
 
 void Cache::snapshot(SynthParams &out, float bendNormalised) const {
-  bool anySolo = false;
+  // Solo spans the noise channel too, so soloing a partial silences the noise
+  // and soloing the noise silences the series.
+  bool anySolo = noise.solo->load() > 0.5f;
   for (const auto &o : osc) {
-    if (o.solo->load() > 0.5f) {
-      anySolo = true;
+    if (anySolo)
       break;
-    }
+
+    anySolo = o.solo->load() > 0.5f;
   }
 
   for (int i = 0; i < kNumHarmonics; ++i) {
@@ -255,6 +340,26 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
 
     // Mixer convention: solo isolates, but an explicit mute still wins.
     o.audible = muted ? false : (anySolo ? soloed : true);
+  }
+
+  {
+    auto &n = out.noise;
+
+    n.colour = noise.colour->load();
+    n.delay = noise.delay->load();
+    n.attack = noise.attack->load();
+    n.decay = noise.decay->load();
+    n.sustain = noise.sustain->load();
+    n.release = noise.release->load();
+    n.amRateHz = noise.amRate->load();
+    n.amDepth = noise.amDepth->load();
+    n.velAmount = noise.vel->load();
+    n.atAmount = noise.at->load();
+    n.volume = noise.volume->load();
+
+    const bool muted = noise.mute->load() > 0.5f;
+    const bool soloed = noise.solo->load() > 0.5f;
+    n.audible = muted ? false : (anySolo ? soloed : true);
   }
 
   out.global.masterGain =

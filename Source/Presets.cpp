@@ -57,6 +57,18 @@ struct Applier {
     allOsc(params::volumeSuffix, [](int) { return 0.0; });
 
     set(params::spreadId, 0.0f);
+
+    // Noise is off unless a preset asks for it.
+    set(params::noiseParamId(params::volumeSuffix), 0.0f);
+    set(params::noiseParamId(params::colourSuffix), 0.5f);
+    set(params::noiseParamId(params::delaySuffix), 0.0f);
+    set(params::noiseParamId(params::attackSuffix), 0.005f);
+    set(params::noiseParamId(params::decaySuffix), 0.6f);
+    set(params::noiseParamId(params::sustainSuffix), 1.0f);
+    set(params::noiseParamId(params::releaseSuffix), 0.4f);
+    set(params::noiseParamId(params::amDepthSuffix), 0.0f);
+    set(params::noiseParamId(params::muteSuffix), 0.0f);
+    set(params::noiseParamId(params::soloSuffix), 0.0f);
   }
 };
 

@@ -43,6 +43,7 @@ void SynthEngine::reset() noexcept {
   for (auto &level : partialLevels)
     level.store(0.0f, std::memory_order_relaxed);
 
+  noiseLevel.store(0.0f, std::memory_order_relaxed);
   outputLevel.store(0.0f, std::memory_order_relaxed);
 }
 
@@ -185,6 +186,7 @@ void SynthEngine::render(float *left, float *right, int numSamples,
   std::fill(right, right + numSamples, 0.0f);
 
   std::array<float, kNumHarmonics> peaks{};
+  float noisePeak = 0.0f;
 
   for (auto &v : voices) {
     if (!v.isActive())
@@ -195,10 +197,14 @@ void SynthEngine::render(float *left, float *right, int numSamples,
     const auto &voicePeaks = v.getPartialPeaks();
     for (size_t i = 0; i < peaks.size(); ++i)
       peaks[i] = std::max(peaks[i], voicePeaks[i]);
+
+    noisePeak = std::max(noisePeak, v.getNoisePeak());
   }
 
   for (size_t i = 0; i < peaks.size(); ++i)
     partialLevels[i].store(peaks[i], std::memory_order_relaxed);
+
+  noiseLevel.store(noisePeak, std::memory_order_relaxed);
 
   // ---- master gain, smoothed over ~10 ms so fader moves do not zipper -------
   const float target = std::max(0.0f, p.global.masterGain);

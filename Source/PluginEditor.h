@@ -10,6 +10,7 @@
 #include "UI/ChannelStrip.h"
 #include "UI/LookAndFeel.h"
 #include "UI/MasterStrip.h"
+#include "UI/NoiseStrip.h"
 #include "UI/TopBar.h"
 
 /// Left-hand caption column. Lays out the same rows as a channel strip so every
@@ -73,6 +74,7 @@ private:
   ovt::ui::TopBar topBar;
   RowGutter gutter;
   ovt::ui::MasterStrip masterStrip;
+  ovt::ui::NoiseStrip noiseStrip;
 
   // stripsHolder is declared before the viewport that displays it, so on
   // teardown the viewport is destroyed first and never sees a dangling viewed

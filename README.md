@@ -137,6 +137,16 @@ Global controls in the top bar:
 
 Double-clicking any knob restores its default. Hovering a harmonic number shows its interval and exact cent deviation.
 
+### The noise channel
+
+Pinned on the right, after the series it does not belong to, is a noise channel marked NZ. It has the same envelope, tremolo, velocity, aftertouch, mute, solo, level and meter as a partial, and takes part in solo alongside them. What it does not have is pitch, so the tuning, pitch modulation and drift rows are empty.
+
+COLOUR takes the tuning row instead. It tilts the noise from dark rumble at one end, through flat in the middle, to bright hiss at the other. The middle really is flat rather than merely filtered less: the two halves of a complementary one-pole pair are summed at unity there, which reconstructs the original white noise exactly. The tests measure a high to low band ratio of 0.13 dark, 1.06 flat and 4.35 bright.
+
+Each voice runs its own noise stream, so playing a chord does not layer 8 copies of the identical signal. Two voices measure about sqrt(2) times the energy of one, which is what independent sources give.
+
+The master channel drives the 32 partials only. Its tuning, pitch modulation and drift controls have no noise counterpart, and having some of its controls reach the noise channel while others could not would be worse than having none of them do.
+
 ### Meters
 
 Each channel meters what that partial is actually putting out, on a decibel scale floored at -48 dB. Since it reflects the final gain, it shows the envelope, tremolo, velocity, aftertouch, the Nyquist fade and mute or solo all at once, so the spectrum can be watched evolving as a note decays.
@@ -186,10 +196,10 @@ Polyphony is the multiplier that matters, since eight voices means 256 sine osci
 | Voices | Oscillators | Load |
 |---|---|---|
 | 1 | 32 | about 1% |
-| 8 | 256 | 6 to 8% |
-| 16 | 512 | 13 to 16% |
+| 8 | 256 | about 7% |
+| 16 | 512 | 14 to 15% |
 
-Those figures are with every modulator running at once: both LFOs, drift, velocity and aftertouch.
+Those figures are with everything running at once: both LFOs, drift, velocity, aftertouch, the meters and the noise channel.
 
 That leaves enough headroom for the engine to stay a plain bank of oscillators with nothing clever in the signal path. What keeps it cheap:
 
@@ -215,11 +225,11 @@ Source/
     Params.h        plain-data parameter snapshot
     Voice.*         32 partials, one note
     SynthEngine.*   voice pool, allocation, stealing, master stage
-  PluginParameters.*  APVTS layout, 518 parameters, and the audio-thread snapshot
+  PluginParameters.*  APVTS layout, 531 parameters, and the audio-thread snapshot
   Presets.*           factory presets
   PluginProcessor.*   MIDI handling, sample-accurate rendering, state
   PluginEditor.*      window, zoom, relative macros, LINK, gutter
-  UI/                 theme, look and feel, channel strip, master strip, top bar
+  UI/                 theme, look and feel, channel, master and noise strips, top bar
 Tests/
   dsp_test.cpp            standalone DSP tests and CPU benchmark
   plugin_runtime_test.cpp headless plugin integration tests

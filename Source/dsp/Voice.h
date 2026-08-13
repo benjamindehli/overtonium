@@ -62,12 +62,17 @@ public:
     return partialPeaks;
   }
 
+  float getNoisePeak() const noexcept { return noisePeak; }
+
   /// Adds this voice into the (already-sized) stereo buffers. Master gain is
   /// applied downstream by the engine.
   void render(float *left, float *right, int numSamples,
               const SynthParams &p) noexcept;
 
 private:
+  void renderNoise(float *left, float *right, int len, const SynthParams &,
+                   float pressure) noexcept;
+
   struct Partial {
     double phase = 0.0;
     double pitchLfoPhase = 0.0;
@@ -81,8 +86,24 @@ private:
     bool gainPrimed = false;
   };
 
+  /// The noise channel runs alongside the partials with its own envelope and
+  /// its own random stream, so each note gets its own noise rather than every
+  /// voice layering the identical signal.
+  struct Noise {
+    Envelope env;
+    Xorshift rng;
+    float lowpassState = 0.0f;
+    float velGain = 1.0f;
+    float lastGain = 0.0f;
+    bool gainPrimed = false;
+  };
+
   std::array<Partial, kNumHarmonics> partials{};
   std::array<float, kNumHarmonics> partialPeaks{};
+  Noise noise;
+  double noiseAmPhase = 0.0;
+  float noisePeak = 0.0f;
+  float lowpassCoef = 0.1f;
 
   double sampleRate = 44100.0;
   double baseFreq = 440.0;
