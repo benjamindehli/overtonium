@@ -1149,7 +1149,9 @@ void testPartialMetering() {
     q.global.safetyClip = false;
 
     out.render(l.data(), r.data(), block, q);
-    check(out.getOutputLevel() < 1.0e-6f, "output meter is zero when idle");
+    check(out.getOutputLevelLeft() < 1.0e-6f &&
+              out.getOutputLevelRight() < 1.0e-6f,
+          "output meter is zero when idle");
 
     out.noteOn(45, 1.0f, q);
     for (int b = 0; b < 20; ++b)
@@ -1159,18 +1161,41 @@ void testPartialMetering() {
     for (int n = 0; n < block; ++n)
       actual = std::max(actual, std::abs(l[(size_t)n]));
 
-    check(out.getOutputLevel() >= actual - 1.0e-6f,
+    check(out.getOutputLevelLeft() >= actual - 1.0e-6f,
           "output meter is at least the buffer peak");
-    check(out.getOutputLevel() > 0.01f, "output meter reads a sounding patch");
+    check(out.getOutputLevelLeft() > 0.01f,
+          "output meter reads a sounding patch");
 
     // Halving the master gain has to halve the reading.
-    const float loud = out.getOutputLevel();
+    const float loud = out.getOutputLevelLeft();
     q.global.masterGain = 0.5f;
     for (int b = 0; b < 40; ++b)
       out.render(l.data(), r.data(), block, q);
 
-    check(std::abs(out.getOutputLevel() / loud - 0.5f) < 0.05f,
+    check(std::abs(out.getOutputLevelLeft() / loud - 0.5f) < 0.05f,
           "output meter tracks master gain");
+
+    // Mono until spread is dialled in, which is why the two are reported
+    // separately at all.
+    check(std::abs(out.getOutputLevelLeft() - out.getOutputLevelRight()) <
+              1.0e-6f,
+          "the channels match with no spread");
+
+    q.global.masterGain = 1.0f;
+    q.global.stereoSpread = 1.0f;
+    for (auto &o : q.osc)
+      o.volume = 0.0f;
+    q.osc[3].volume = 0.5f; // a partial placed off centre
+
+    SynthEngine wide;
+    wide.prepare(sr);
+    wide.noteOn(45, 1.0f, q);
+    for (int b = 0; b < 20; ++b)
+      wide.render(l.data(), r.data(), block, q);
+
+    check(std::abs(wide.getOutputLevelLeft() - wide.getOutputLevelRight()) >
+              0.05f * wide.getOutputLevelLeft(),
+          "spread drives the channels apart");
   }
 }
 

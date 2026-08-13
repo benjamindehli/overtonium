@@ -13,6 +13,99 @@ constexpr float kZoomChoices[] = {0.75f, 1.0f, 1.25f, 1.5f};
 
 // =============================================================================
 
+namespace {
+/// Shared with the channel meters so the two read on the same scale.
+constexpr float kMeterFloorDb = -48.0f;
+
+float toNormalised(float level) {
+  if (level <= 1.0e-5f)
+    return 0.0f;
+
+  return juce::jlimit(0.0f, 1.0f,
+                      (juce::Decibels::gainToDecibels(level) - kMeterFloorDb) /
+                          -kMeterFloorDb);
+}
+} // namespace
+
+bool StereoOutputMeter::Bar::advance(float level) {
+  const auto norm = toNormalised(level);
+  const auto next =
+      norm > displayed ? norm : juce::jmax(norm, displayed - 0.05f);
+
+  bool moved = std::abs(next - displayed) > 0.003f;
+  displayed = next;
+
+  // Hold the peak for about a second, then let it fall with the bar.
+  if (next >= peak) {
+    peak = next;
+    hold = 30;
+    moved = true;
+  } else if (hold > 0) {
+    --hold;
+  } else if (peak > 0.0f) {
+    peak = juce::jmax(next, peak - 0.02f);
+    moved = true;
+  }
+
+  return moved;
+}
+
+void StereoOutputMeter::push(float l, float r) {
+  const bool a = left.advance(l);
+  const bool b = right.advance(r);
+
+  if (a || b)
+    repaint();
+}
+
+void StereoOutputMeter::paintBar(juce::Graphics &g, juce::Rectangle<float> r,
+                                 const Bar &bar) const {
+  g.setColour(colours::groove);
+  g.fillRoundedRectangle(r, 1.5f);
+
+  // The gradient spans the whole bar, so the colours stay anchored to their
+  // decibel positions instead of stretching with the level.
+  juce::ColourGradient grade(colours::accent, r.getX(), r.getY(),
+                             colours::muteOn, r.getRight(), r.getY(), false);
+  grade.addColour(0.80, colours::accent);
+  grade.addColour(0.94, colours::soloOn);
+
+  if (bar.displayed > 0.001f) {
+    g.setGradientFill(grade);
+    g.fillRoundedRectangle(r.withWidth(r.getWidth() * bar.displayed), 1.5f);
+  }
+
+  if (bar.peak > 0.001f) {
+    const auto x = r.getX() + r.getWidth() * bar.peak;
+    g.setColour(bar.peak > 0.94f ? colours::muteOn : colours::text);
+    g.fillRect(juce::jmin(x, r.getRight() - 1.5f), r.getY(), 1.5f,
+               r.getHeight());
+  }
+}
+
+void StereoOutputMeter::paint(juce::Graphics &g) {
+  auto area = getLocalBounds().toFloat();
+
+  // Scale marks at the decibel values worth aiming at.
+  const auto scale = area.removeFromBottom(5.0f);
+  for (const float db : {-48.0f, -36.0f, -24.0f, -12.0f, -6.0f, 0.0f}) {
+    const auto t = (db - kMeterFloorDb) / -kMeterFloorDb;
+    const auto x = scale.getX() + t * (scale.getWidth() - 1.5f);
+
+    g.setColour(colours::textDim.withAlpha(db >= -6.0f ? 0.55f : 0.30f));
+    g.fillRect(x, scale.getY(), 1.0f, 3.0f);
+  }
+
+  const auto gap = 2.0f;
+  const auto barH = (area.getHeight() - gap) * 0.5f;
+
+  paintBar(g, area.removeFromTop(barH), left);
+  area.removeFromTop(gap);
+  paintBar(g, area.removeFromTop(barH), right);
+}
+
+// =============================================================================
+
 LabelledKnob::LabelledKnob(juce::String captionText, juce::Colour fill)
     : caption(std::move(captionText)) {
   slider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
@@ -54,6 +147,14 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
                                                         spread.slider);
   bendAttachment = std::make_unique<SliderAttachment>(
       apvts, params::bendRangeId, bend.slider);
+
+  meterCaption.setText("OUT  L / R", juce::dontSendNotification);
+  meterCaption.setFont(makeFont(9.0f, true));
+  meterCaption.setColour(juce::Label::textColourId, colours::textDim);
+  meterCaption.setJustificationType(juce::Justification::centredLeft);
+  meterCaption.setInterceptsMouseClicks(false, false);
+  addAndMakeVisible(meterCaption);
+  addAndMakeVisible(meter);
 
   // ---- presets --------------------------------------------------------------
   presetBox.addItemList(presets::names(), 1);
@@ -226,9 +327,23 @@ void TopBar::resized() {
     b.removeFromRight(8);
   }
 
-  if (b.getWidth() > 110)
+  if (b.getWidth() > 110) {
     placeCaptioned(presetBox, presetCaption,
                    b.removeFromRight(juce::jmin(170, b.getWidth())));
+    b.removeFromRight(14);
+  }
+
+  // Whatever is left in the middle goes to the output meter, so it grows with
+  // the window rather than staying a token strip.
+  if (b.getWidth() > 90) {
+    auto column = b.withSizeKeepingCentre(juce::jmin(300, b.getWidth()), 37);
+    meterCaption.setBounds(column.removeFromTop(12));
+    column.removeFromTop(1);
+    meter.setBounds(column);
+  } else {
+    meter.setBounds({});
+    meterCaption.setBounds({});
+  }
 }
 
 } // namespace ovt::ui

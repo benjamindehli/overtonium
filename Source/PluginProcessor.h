@@ -57,8 +57,14 @@ public:
   /// Polled by the editor to drive the noise channel meter.
   float getNoiseLevel() const noexcept { return engine.getNoiseLevel(); }
 
-  /// Polled by the editor to drive the master meter.
-  float getOutputLevel() const noexcept { return engine.getOutputLevel(); }
+  /// Polled by the editor to drive the output meter.
+  float getOutputLevelLeft() const noexcept {
+    return engine.getOutputLevelLeft();
+  }
+
+  float getOutputLevelRight() const noexcept {
+    return engine.getOutputLevelRight();
+  }
 
   juce::AudioProcessorValueTreeState apvts;
 

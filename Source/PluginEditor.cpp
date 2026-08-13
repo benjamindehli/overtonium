@@ -62,13 +62,12 @@ void RowGutter::paint(juce::Graphics &g) {
 
 OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     : juce::AudioProcessorEditor(&p), processor(p), topBar(p.apvts, *this),
-      masterStrip(*this, *this), noiseStrip(p.apvts, *this) {
+      noiseStrip(p.apvts, *this) {
   setLookAndFeel(&lookAndFeel);
 
   addAndMakeVisible(content);
   content.addAndMakeVisible(topBar);
   content.addAndMakeVisible(gutter);
-  content.addAndMakeVisible(masterStrip);
   content.addAndMakeVisible(noiseStrip);
   content.addAndMakeVisible(viewport);
 
@@ -97,7 +96,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
 
   // Default size shows all 32 strips at once, which is the whole point of the
   // layout.
-  const int defaultWidth = kGutterWidth + 2 * (kStripWidth + kMasterGap) +
+  const int defaultWidth = kGutterWidth + kStripWidth + kMasterGap +
                            kNumHarmonics * kStripWidth + 2 * kEdge;
   const int defaultHeight = chromeHeight() + preferredStripHeight();
 
@@ -140,8 +139,6 @@ void OvertoniumEditor::resized() {
   area.reduce(kEdge, kEdge);
 
   const auto gutterArea = area.removeFromLeft(kGutterWidth);
-  const auto masterArea = area.removeFromLeft(kStripWidth);
-  area.removeFromLeft(kMasterGap);
 
   // Noise is pinned on the far right, after the series it does not belong to,
   // and stays in view rather than needing a scroll to reach.
@@ -153,7 +150,6 @@ void OvertoniumEditor::resized() {
   const int stripHeight = viewport.getMaximumVisibleHeight();
 
   gutter.setBounds(gutterArea.withHeight(stripHeight));
-  masterStrip.setBounds(masterArea.withHeight(stripHeight));
   noiseStrip.setBounds(noiseArea.withHeight(stripHeight));
   stripsHolder.setSize(kNumHarmonics * kStripWidth, stripHeight);
 
@@ -285,83 +281,6 @@ void OvertoniumEditor::linkDragEnded(Role role, int sourceIndex) {
         param->endChangeGesture();
 }
 
-// ---- endless macros ---------------------------------------------------------
-
-void OvertoniumEditor::macroStarted(Role role) {
-  macroRole = role;
-  macroGestureActive = true;
-  captureBaseline(role);
-
-  for (int i = 0; i < kNumHarmonics; ++i)
-    if (auto *param = oscParameter(role, i))
-      param->beginChangeGesture();
-}
-
-void OvertoniumEditor::macroMoved(Role role, float delta) {
-  if (!macroGestureActive || macroRole != role)
-    return;
-
-  applyOffsetFromBaseline(role, delta, -1);
-}
-
-void OvertoniumEditor::macroEnded(Role role) {
-  if (!macroGestureActive || macroRole != role)
-    return;
-
-  macroGestureActive = false;
-
-  for (int i = 0; i < kNumHarmonics; ++i)
-    if (auto *param = oscParameter(role, i))
-      param->endChangeGesture();
-}
-
-juce::RangedAudioParameter *OvertoniumEditor::boolParameter(const char *suffix,
-                                                            int index) const {
-  return processor.apvts.getParameter(params::oscParamId(suffix, index));
-}
-
-void OvertoniumEditor::setAllMutes(bool muted) {
-  const auto apply = [muted](juce::RangedAudioParameter *param) {
-    if (param == nullptr)
-      return;
-
-    param->beginChangeGesture();
-    param->setValueNotifyingHost(muted ? 1.0f : 0.0f);
-    param->endChangeGesture();
-  };
-
-  for (int i = 0; i < kNumHarmonics; ++i)
-    apply(boolParameter(params::muteSuffix, i));
-
-  apply(processor.apvts.getParameter(params::noiseParamId(params::muteSuffix)));
-}
-
-void OvertoniumEditor::clearAllSolos() {
-  const auto clear = [](juce::RangedAudioParameter *param) {
-    if (param == nullptr)
-      return;
-
-    param->beginChangeGesture();
-    param->setValueNotifyingHost(0.0f);
-    param->endChangeGesture();
-  };
-
-  for (int i = 0; i < kNumHarmonics; ++i)
-    clear(boolParameter(params::soloSuffix, i));
-
-  clear(processor.apvts.getParameter(params::noiseParamId(params::soloSuffix)));
-}
-
-bool OvertoniumEditor::anySoloActive() const {
-  for (int i = 0; i < kNumHarmonics; ++i)
-    if (processor.apvts
-            .getRawParameterValue(params::oscParamId(params::soloSuffix, i))
-            ->load() > 0.5f)
-      return true;
-
-  return false;
-}
-
 // ---- polling ----------------------------------------------------------------
 
 void OvertoniumEditor::timerCallback() {
@@ -371,7 +290,8 @@ void OvertoniumEditor::timerCallback() {
     strips[(size_t)i]->setMeterLevel(processor.getPartialLevel(i));
 
   noiseStrip.setMeterLevel(processor.getNoiseLevel());
-  masterStrip.setOutputLevel(processor.getOutputLevel());
+  topBar.setOutputLevels(processor.getOutputLevelLeft(),
+                         processor.getOutputLevelRight());
 
   // The rest is housekeeping that nobody can see at 30 Hz, and it costs 96
   // parameter lookups, so it runs at a quarter of the rate.
@@ -424,8 +344,6 @@ void OvertoniumEditor::timerCallback() {
 
     noiseStrip.setSilencedByOthers(muted ? true : (anySolo && !soloed));
   }
-
-  masterStrip.setSoloActive(anySolo);
 }
 
 // =============================================================================

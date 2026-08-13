@@ -55,10 +55,15 @@ public:
     return noiseLevel.load(std::memory_order_relaxed);
   }
 
-  /// Peak of the finished stereo output, after master gain and the clipper, so
-  /// it reports what actually leaves the plugin.
-  float getOutputLevel() const noexcept {
-    return outputLevel.load(std::memory_order_relaxed);
+  /// Peak of the finished output per channel, after master gain and the
+  /// clipper, so it reports what actually leaves the plugin. Kept separate
+  /// because stereo spread is the whole reason the two can differ.
+  float getOutputLevelLeft() const noexcept {
+    return outputLevelL.load(std::memory_order_relaxed);
+  }
+
+  float getOutputLevelRight() const noexcept {
+    return outputLevelR.load(std::memory_order_relaxed);
   }
 
 private:
@@ -77,7 +82,8 @@ private:
   /// Negative == "snap to target on the next block".
   std::array<std::atomic<float>, kNumHarmonics> partialLevels{};
   std::atomic<float> noiseLevel{0.0f};
-  std::atomic<float> outputLevel{0.0f};
+  std::atomic<float> outputLevelL{0.0f};
+  std::atomic<float> outputLevelR{0.0f};
 
   float smoothedMasterGain = -1.0f;
 };

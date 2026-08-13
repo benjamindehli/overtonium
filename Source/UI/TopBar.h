@@ -13,6 +13,36 @@
 
 namespace ovt::ui {
 
+/// The stereo output meter.
+///
+/// Horizontal and split, because the two channels only differ once stereo
+/// spread is dialled in and a summed meter would hide exactly that. Carries a
+/// peak hold, since the thing you most want from an output meter is what it hit
+/// a moment ago rather than what it is doing right now.
+class StereoOutputMeter : public juce::Component {
+public:
+  StereoOutputMeter() { setInterceptsMouseClicks(false, false); }
+
+  /// @param l,r  linear peaks from the audio thread.
+  void push(float l, float r);
+
+  void paint(juce::Graphics &) override;
+
+private:
+  struct Bar {
+    float displayed = 0.0f;
+    float peak = 0.0f;
+    int hold = 0;
+
+    /// @returns true when something moved by enough to be worth redrawing.
+    bool advance(float level);
+  };
+
+  void paintBar(juce::Graphics &, juce::Rectangle<float>, const Bar &) const;
+
+  Bar left, right;
+};
+
 /// A knob with a caption underneath.
 class LabelledKnob : public juce::Component {
 public:
@@ -43,6 +73,7 @@ public:
   bool isLinkEnabled() const { return linkButton.getToggleState(); }
 
   void setVoiceCount(int active, int limit);
+  void setOutputLevels(float l, float r) { meter.push(l, r); }
   void setZoomChoice(float zoom);
 
 private:
@@ -62,6 +93,9 @@ private:
   LabelledKnob master{"MASTER"};
   LabelledKnob spread{"SPREAD"};
   LabelledKnob bend{"BEND"};
+
+  StereoOutputMeter meter;
+  juce::Label meterCaption;
 
   juce::ComboBox presetBox, polyBox, zoomBox;
   juce::Label presetCaption, polyCaption, zoomCaption, voicesLabel;

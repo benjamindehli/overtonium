@@ -131,7 +131,7 @@ Global controls in the top bar:
 
 - **MASTER**, **SPREAD** and **BEND**, the three values that are genuinely single and so are ordinary absolute knobs
 - **PRESET**, **POLY** (1 to 16 voices) and **ZOOM**
-- **LINK** gangs the strips, so dragging one channel's knob moves that knob on all 32. The master channel below does the same job more directly.
+- **LINK** gangs the strips, so dragging one channel's knob moves that knob on all 32. See below.
 - **PHASE** resets partial phase on each note for a coherent, percussive attack
 - **CLIP** soft-clips the output. Worth leaving on when you push 32 faders up
 
@@ -151,7 +151,7 @@ COLOUR takes the tuning row instead. It tilts the noise from dark rumble at one 
 
 Each voice runs its own noise stream, so playing a chord does not layer 8 copies of the identical signal. Two voices measure about sqrt(2) times the energy of one, which is what independent sources give.
 
-The master channel drives the 32 partials only. Its tuning, pitch modulation and drift controls have no noise counterpart, and having some of its controls reach the noise channel while others could not would be worse than having none of them do.
+LINK gangs the 32 partials only. Its tuning, pitch modulation and drift have no noise counterpart, and having some ganged controls reach the noise channel while others could not would be worse than having none of them do.
 
 ### Meters
 
@@ -159,33 +159,22 @@ Each channel meters what that partial is actually putting out, on a decibel scal
 
 The meter fills the fader's own track rather than sitting beside it. A fader that also drew its set level would be showing you something the cap already says, so the whole track is given over to output instead. The cap is drawn as translucent glass with bright edges, so the meter reads straight through it, and the knob pointers are drawn the same way so the value arc shows through them.
 
-The master channel meters the finished stereo output, after master gain and the clipper, so it reports what actually leaves the plugin.
 
 It reads the loudest instance of a partial across the sounding voices rather than the sum, so it shows the shape of the patch instead of pinning itself the moment you play a chord.
 
 The cost is close to nothing on either side. The audio thread samples a value it has already computed once per 32-sample control block, which measured inside run-to-run noise on the benchmark. Each meter is its own component and only repaints when its bar moves a visible amount, so a held or silent patch does no drawing at all.
 
-### The master channel
+### Ganging the channels
 
-Between the row labels and the scrolling mixer sits a master channel marked ALL. It carries the same controls in the same rows as the 32 partial strips, so every knob in the instrument has a global counterpart sitting directly opposite its own row. It does not scroll, so it stays in view however far along the series you have gone.
+**LINK** in the top bar gangs the strips: dragging any knob moves that knob on all 32 channels at once. It works relatively, applying an offset to wherever each strip already sits rather than dragging everything to one shared value, so a spectrum you have shaped by hand keeps its shape.
 
-Every control on it is relative. It applies an offset to wherever each strip already sits rather than dragging everything to one shared value, so a spectrum you have shaped by hand keeps its shape. LINK in the top bar does the same thing from any individual channel.
+The offset is measured from the values captured when the drag started, so returning the knob to where you began restores the strips exactly, even if some of them hit an end stop along the way.
 
-The controls are endless. They have no absolute position, they show how far you have turned them during the current drag, and they spring back to centre when you let go, so the next drag starts fresh from wherever the strips now are. A full turn in either direction still covers the entire range, so "everything to just intonation" or "everything to equal" remains one drag away.
+### The output meter
 
-The offset is always measured from the values captured when the drag started, so returning a control to where you began restores the strips exactly, even if some of them hit an end stop along the way.
+The top bar carries a horizontal output meter, split into left and right. It is split because the two channels are identical until stereo spread is dialled in, and a summed meter would hide precisely the thing spread does. It reads the finished output after master gain and the clipper, so it reports what actually leaves the plugin.
 
-Its **M** mutes or unmutes all 32 channels. Its **S** lights whenever anything is soloed and clicking it clears every solo, since soloing everything would be the same as soloing nothing.
-
-### Drift
-
-DRIFT adds a slow random wander to a partial's pitch. It is aimed at chorusing rather than vibrato, so the range stops at 25 cents and the rates sit between 0.08 and 1.1 Hz, well below anything you would hear as a pitch wobble. Even a few cents across all 32 strips thickens the tone noticeably.
-
-Every partial of every note draws its own rate, log distributed across that range, and its own contour. Nothing locks together, so repeated notes never land on the same detuning and the 32 partials never move as one.
-
-The contour is genuinely smooth rather than stepped. Random points are drawn at the chosen rate and joined with a Catmull-Rom spline, which gives a continuous curve through them. Sample and hold would step between values, and lowpassed noise would wander in amplitude as well as in value. The tests assert the largest step stays under 0.02 of full scale, that two streams are uncorrelated, and that two consecutive notes diverge.
-
-*Slow Pad* uses 7 cents and *Shimmer* 12 cents.
+Each bar carries a peak hold that sits for about a second before falling, since what an output meter is mostly wanted for is what it hit a moment ago. The bar runs from teal through amber to orange as it approaches full scale, with the colours anchored to their decibel positions rather than stretching with the level, and there is a scale beneath marked at -48, -36, -24, -12, -6 and 0 dB.
 
 ### Stereo spread
 
@@ -234,8 +223,8 @@ Source/
   PluginParameters.*  APVTS layout, 531 parameters, and the audio-thread snapshot
   Presets.*           factory presets
   PluginProcessor.*   MIDI handling, sample-accurate rendering, state
-  PluginEditor.*      window, zoom, relative macros, LINK, gutter
-  UI/                 theme, look and feel, channel, master and noise strips, top bar
+  PluginEditor.*      window, zoom, LINK, gutter
+  UI/                 theme, look and feel, channel and noise strips, top bar
 Tests/
   dsp_test.cpp            standalone DSP tests and CPU benchmark
   plugin_runtime_test.cpp headless plugin integration tests

@@ -94,26 +94,6 @@ inline constexpr int kNumRoles = (int)Role::NumRoles;
 /// Maps a role onto the matching parameter-ID suffix from ovt::params.
 const char *roleSuffix(Role r);
 
-/// Human name for a role, used in the master strip's tooltips.
-const char *roleName(Role r);
-
-/// Which row a role's control occupies.
-Row rowForRole(Role r);
-
-/// Implemented by the editor. Drives one relative gesture across all 32 strips,
-/// which is what the master strip and the top-bar macros both do.
-struct MacroTarget {
-  virtual ~MacroTarget() = default;
-
-  virtual void macroStarted(Role) = 0;
-  virtual void macroMoved(Role, float delta) = 0;
-  virtual void macroEnded(Role) = 0;
-
-  virtual void setAllMutes(bool muted) = 0;
-  virtual void clearAllSolos() = 0;
-  virtual bool anySoloActive() const = 0;
-};
-
 /// Implemented by the editor; lets a strip broadcast a drag to its 31 siblings.
 struct LinkTarget {
   virtual ~LinkTarget() = default;

@@ -44,7 +44,8 @@ void SynthEngine::reset() noexcept {
     level.store(0.0f, std::memory_order_relaxed);
 
   noiseLevel.store(0.0f, std::memory_order_relaxed);
-  outputLevel.store(0.0f, std::memory_order_relaxed);
+  outputLevelL.store(0.0f, std::memory_order_relaxed);
+  outputLevelR.store(0.0f, std::memory_order_relaxed);
 }
 
 void SynthEngine::setPolyphony(int n) noexcept {
@@ -240,11 +241,14 @@ void SynthEngine::render(float *left, float *right, int numSamples,
     }
   }
 
-  float peak = 0.0f;
-  for (int n = 0; n < numSamples; ++n)
-    peak = std::max(peak, std::max(std::abs(left[n]), std::abs(right[n])));
+  float peakL = 0.0f, peakR = 0.0f;
+  for (int n = 0; n < numSamples; ++n) {
+    peakL = std::max(peakL, std::abs(left[n]));
+    peakR = std::max(peakR, std::abs(right[n]));
+  }
 
-  outputLevel.store(peak, std::memory_order_relaxed);
+  outputLevelL.store(peakL, std::memory_order_relaxed);
+  outputLevelR.store(peakR, std::memory_order_relaxed);
 }
 
 } // namespace ovt
