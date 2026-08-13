@@ -138,9 +138,17 @@ void OvertoniumLookAndFeel::drawLinearSlider(
   const auto fillTop =
       juce::jlimit(bounds.getY(), bounds.getBottom(), sliderPos);
 
+  // A relative fader shows its offset either side of the middle, the same way
+  // the relative knobs draw their arc from twelve o'clock.
+  const bool bipolar =
+      (bool)slider.getProperties().getWithDefault("bipolar", false);
+  const auto anchor = bipolar ? bounds.getCentreY() : bounds.getBottom();
+
   g.setColour(slider.findColour(juce::Slider::trackColourId)
                   .withMultipliedAlpha(slider.isEnabled() ? 0.9f : 0.4f));
-  g.fillRoundedRectangle(groove.withTop(fillTop), grooveW * 0.5f);
+  g.fillRoundedRectangle(groove.withTop(juce::jmin(anchor, fillTop))
+                             .withBottom(juce::jmax(anchor, fillTop)),
+                         grooveW * 0.5f);
 
   // Fader cap
   const auto capH = juce::jmax(5.0f, bounds.getWidth() * 0.28f);

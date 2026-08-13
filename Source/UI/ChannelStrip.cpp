@@ -9,6 +9,46 @@ namespace {
 inline size_t rowIndex(Row r) { return (size_t)r; }
 } // namespace
 
+RelativeKnob::RelativeKnob() {
+  setSliderStyle(juce::Slider::RotaryVerticalDrag);
+  setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+
+  // Full travel in either direction covers the whole parameter range, so even
+  // the extremes ("everything to just", "everything to equal") stay one drag
+  // away despite the control being relative.
+  setRange(-1.0, 1.0, 0.0);
+  setValue(0.0, juce::dontSendNotification);
+  setDoubleClickReturnValue(false, 0.0);
+
+  // A relative gesture needs a start and an end to bracket it. The wheel has
+  // neither, so it would move the knob without moving anything else.
+  setScrollWheelEnabled(false);
+
+  // Tells the look and feel to draw the arc outwards from twelve o'clock.
+  getProperties().set("bipolar", true);
+
+  onValueChange = [this] {
+    if (onRelativeDelta)
+      onRelativeDelta((float)getValue());
+  };
+}
+
+void RelativeKnob::startedDragging() {
+  if (onRelativeStart)
+    onRelativeStart();
+}
+
+void RelativeKnob::stoppedDragging() {
+  if (onRelativeEnd)
+    onRelativeEnd();
+
+  // Spring back so the next drag starts from wherever the strips now sit.
+  setValue(0.0, juce::dontSendNotification);
+  repaint();
+}
+
+// =============================================================================
+
 ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
                            LinkTarget &linkTarget, juce::Component &popupParent,
                            int index0)

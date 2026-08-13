@@ -38,6 +38,24 @@ private:
   bool dragging = false;
 };
 
+/// An endless, relative control.
+///
+/// It has no meaningful absolute position. It reports how far it has been
+/// turned since the drag began and springs back to centre on release, so the
+/// 32 strips it drives keep whatever spread you dialled into them instead of
+/// all jumping to one value.
+class RelativeKnob : public juce::Slider {
+public:
+  RelativeKnob();
+
+  void startedDragging() override;
+  void stoppedDragging() override;
+
+  /// Offset since the drag began, in normalised parameter units.
+  std::function<void(float delta)> onRelativeDelta;
+  std::function<void()> onRelativeStart, onRelativeEnd;
+};
+
 /// One vertical channel: everything that belongs to a single partial.
 class ChannelStrip : public juce::Component,
                      public juce::SettableTooltipClient {

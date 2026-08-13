@@ -9,6 +9,7 @@
 #include "PluginProcessor.h"
 #include "UI/ChannelStrip.h"
 #include "UI/LookAndFeel.h"
+#include "UI/MasterStrip.h"
 #include "UI/TopBar.h"
 
 /// Left-hand caption column. Lays out the same rows as a channel strip so every
@@ -20,6 +21,7 @@ public:
 
 class OvertoniumEditor : public juce::AudioProcessorEditor,
                          public ovt::ui::LinkTarget,
+                         public ovt::ui::MacroTarget,
                          private juce::Timer {
 public:
   explicit OvertoniumEditor(OvertoniumProcessor &);
@@ -35,6 +37,14 @@ public:
                         float plainValue) override;
   void linkDragEnded(ovt::ui::Role, int sourceIndex) override;
 
+  // ---- ovt::ui::MacroTarget ----
+  void macroStarted(ovt::ui::Role) override;
+  void macroMoved(ovt::ui::Role, float delta) override;
+  void macroEnded(ovt::ui::Role) override;
+  void setAllMutes(bool muted) override;
+  void clearAllSolos() override;
+  bool anySoloActive() const override;
+
 private:
   void timerCallback() override;
 
@@ -42,16 +52,14 @@ private:
   void applyResizeLimits();
   void applyPreset(int index);
 
-  void macroDragStarted(ovt::ui::Role);
-  void macroMoved(ovt::ui::Role, float delta);
-  void macroDragEnded(ovt::ui::Role);
-
   /// Snapshots every strip's normalised value for a role, so a relative gesture
   /// can be expressed as an offset from where things stood when it began.
   void captureBaseline(ovt::ui::Role);
   void applyOffsetFromBaseline(ovt::ui::Role, float delta, int skipIndex);
 
   juce::RangedAudioParameter *oscParameter(ovt::ui::Role, int index) const;
+  juce::RangedAudioParameter *boolParameter(const char *suffix,
+                                            int index) const;
 
   OvertoniumProcessor &processor;
 
@@ -64,6 +72,7 @@ private:
   juce::Component content;
   ovt::ui::TopBar topBar;
   RowGutter gutter;
+  ovt::ui::MasterStrip masterStrip;
 
   // stripsHolder is declared before the viewport that displays it, so on
   // teardown the viewport is destroyed first and never sees a dangling viewed

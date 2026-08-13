@@ -74,6 +74,7 @@ set(OVERTONIUM_SOURCES
     Source/dsp/SynthEngine.cpp
     Source/UI/ChannelStrip.cpp
     Source/UI/LookAndFeel.cpp
+    Source/UI/MasterStrip.cpp
     Source/UI/Theme.cpp
     Source/UI/TopBar.cpp)
 

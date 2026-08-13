@@ -135,6 +135,78 @@ const char *rowLabel(Row r) {
   }
 }
 
+const char *roleName(Role r) {
+  switch (r) {
+  case Role::Tune:
+    return "tuning";
+  case Role::PmRate:
+    return "pitch mod rate";
+  case Role::PmDepth:
+    return "pitch mod depth";
+  case Role::Drift:
+    return "drift";
+  case Role::Attack:
+    return "attack";
+  case Role::Decay:
+    return "decay";
+  case Role::Sustain:
+    return "sustain";
+  case Role::Release:
+    return "release";
+  case Role::AmRate:
+    return "amp mod rate";
+  case Role::AmDepth:
+    return "amp mod depth";
+  case Role::Velocity:
+    return "velocity";
+  case Role::Aftertouch:
+    return "aftertouch";
+  case Role::Volume:
+    return "level";
+
+  case Role::NumRoles:
+  default:
+    jassertfalse;
+    return "";
+  }
+}
+
+Row rowForRole(Role r) {
+  switch (r) {
+  case Role::Tune:
+    return Row::TuneKnob;
+  case Role::PmRate:
+    return Row::PmRate;
+  case Role::PmDepth:
+    return Row::PmDepth;
+  case Role::Drift:
+    return Row::Drift;
+  case Role::Attack:
+    return Row::Attack;
+  case Role::Decay:
+    return Row::Decay;
+  case Role::Sustain:
+    return Row::Sustain;
+  case Role::Release:
+    return Row::Release;
+  case Role::AmRate:
+    return Row::AmRate;
+  case Role::AmDepth:
+    return Row::AmDepth;
+  case Role::Velocity:
+    return Row::Velocity;
+  case Role::Aftertouch:
+    return Row::Aftertouch;
+  case Role::Volume:
+    return Row::Fader;
+
+  case Role::NumRoles:
+  default:
+    jassertfalse;
+    return Row::Header;
+  }
+}
+
 const char *roleSuffix(Role r) {
   switch (r) {
   case Role::Tune:

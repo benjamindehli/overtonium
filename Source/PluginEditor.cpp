@@ -10,6 +10,8 @@ namespace {
 constexpr int kTopBarHeight = 66;
 constexpr int kEdge = 4;
 constexpr int kScrollBarThickness = 10;
+/// Breathing room between the master channel and the scrolling series.
+constexpr int kMasterGap = 8;
 
 int chromeHeight() { return kTopBarHeight + 2 * kEdge + kScrollBarThickness; }
 
@@ -60,12 +62,14 @@ void RowGutter::paint(juce::Graphics &g) {
 // =============================================================================
 
 OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
-    : juce::AudioProcessorEditor(&p), processor(p), topBar(p.apvts, *this) {
+    : juce::AudioProcessorEditor(&p), processor(p), topBar(p.apvts, *this),
+      masterStrip(*this, *this) {
   setLookAndFeel(&lookAndFeel);
 
   addAndMakeVisible(content);
   content.addAndMakeVisible(topBar);
   content.addAndMakeVisible(gutter);
+  content.addAndMakeVisible(masterStrip);
   content.addAndMakeVisible(viewport);
 
   viewport.setViewedComponent(&stripsHolder, false);
@@ -82,9 +86,6 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   }
 
   topBar.onPresetChosen = [this](int index) { applyPreset(index); };
-  topBar.onMacroStart = [this](Role role) { macroDragStarted(role); };
-  topBar.onMacroDelta = [this](Role role, float d) { macroMoved(role, d); };
-  topBar.onMacroEnd = [this](Role role) { macroDragEnded(role); };
   topBar.onZoomChanged = [this](float z) { setZoom(z); };
 
   // ---- restore the last window size -----------------------------------------
@@ -96,8 +97,8 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
 
   // Default size shows all 32 strips at once, which is the whole point of the
   // layout.
-  const int defaultWidth =
-      kGutterWidth + kNumHarmonics * kStripWidth + 2 * kEdge;
+  const int defaultWidth = kGutterWidth + kStripWidth + kMasterGap +
+                           kNumHarmonics * kStripWidth + 2 * kEdge;
   const int defaultHeight = chromeHeight() + preferredStripHeight();
 
   const int savedWidth = (int)state.getProperty(kEditorWidth, defaultWidth);
@@ -134,11 +135,14 @@ void OvertoniumEditor::resized() {
   area.reduce(kEdge, kEdge);
 
   const auto gutterArea = area.removeFromLeft(kGutterWidth);
+  const auto masterArea = area.removeFromLeft(kStripWidth);
+  area.removeFromLeft(kMasterGap);
   viewport.setBounds(area);
 
   const int stripHeight = viewport.getMaximumVisibleHeight();
 
   gutter.setBounds(gutterArea.withHeight(stripHeight));
+  masterStrip.setBounds(masterArea.withHeight(stripHeight));
   stripsHolder.setSize(kNumHarmonics * kStripWidth, stripHeight);
 
   for (int i = 0; i < (int)strips.size(); ++i)
@@ -162,7 +166,8 @@ void OvertoniumEditor::resized() {
 
 void OvertoniumEditor::applyResizeLimits() {
   // Limits are expressed in logical pixels, so they scale with the zoom factor.
-  const int minWidth = kGutterWidth + 6 * kStripWidth + 2 * kEdge;
+  const int minWidth =
+      kGutterWidth + kStripWidth + kMasterGap + 6 * kStripWidth + 2 * kEdge;
   const int minHeight = chromeHeight() + minimumStripHeight();
 
   setResizeLimits(juce::roundToInt((float)minWidth * zoom),
@@ -270,7 +275,7 @@ void OvertoniumEditor::linkDragEnded(Role role, int sourceIndex) {
 
 // ---- endless macros ---------------------------------------------------------
 
-void OvertoniumEditor::macroDragStarted(Role role) {
+void OvertoniumEditor::macroStarted(Role role) {
   macroRole = role;
   macroGestureActive = true;
   captureBaseline(role);
@@ -287,7 +292,7 @@ void OvertoniumEditor::macroMoved(Role role, float delta) {
   applyOffsetFromBaseline(role, delta, -1);
 }
 
-void OvertoniumEditor::macroDragEnded(Role role) {
+void OvertoniumEditor::macroEnded(Role role) {
   if (!macroGestureActive || macroRole != role)
     return;
 
@@ -296,6 +301,41 @@ void OvertoniumEditor::macroDragEnded(Role role) {
   for (int i = 0; i < kNumHarmonics; ++i)
     if (auto *param = oscParameter(role, i))
       param->endChangeGesture();
+}
+
+juce::RangedAudioParameter *OvertoniumEditor::boolParameter(const char *suffix,
+                                                            int index) const {
+  return processor.apvts.getParameter(params::oscParamId(suffix, index));
+}
+
+void OvertoniumEditor::setAllMutes(bool muted) {
+  for (int i = 0; i < kNumHarmonics; ++i) {
+    if (auto *param = boolParameter(params::muteSuffix, i)) {
+      param->beginChangeGesture();
+      param->setValueNotifyingHost(muted ? 1.0f : 0.0f);
+      param->endChangeGesture();
+    }
+  }
+}
+
+void OvertoniumEditor::clearAllSolos() {
+  for (int i = 0; i < kNumHarmonics; ++i) {
+    if (auto *param = boolParameter(params::soloSuffix, i)) {
+      param->beginChangeGesture();
+      param->setValueNotifyingHost(0.0f);
+      param->endChangeGesture();
+    }
+  }
+}
+
+bool OvertoniumEditor::anySoloActive() const {
+  for (int i = 0; i < kNumHarmonics; ++i)
+    if (processor.apvts
+            .getRawParameterValue(params::oscParamId(params::soloSuffix, i))
+            ->load() > 0.5f)
+      return true;
+
+  return false;
 }
 
 // ---- polling ----------------------------------------------------------------
@@ -333,6 +373,8 @@ void OvertoniumEditor::timerCallback() {
 
     strips[(size_t)i]->setSilencedByOthers(!audible);
   }
+
+  masterStrip.setSoloActive(anySolo);
 }
 
 // =============================================================================

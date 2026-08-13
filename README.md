@@ -123,22 +123,25 @@ Aftertouch works the same way but **adds** to the fader instead of scaling it, a
 
 Global controls in the top bar:
 
-- **TUNE ALL**, **DRIFT**, **VEL** and **AT** are endless relative macros. See below.
-- **MASTER**, **SPREAD** and **BEND**
+- **MASTER**, **SPREAD** and **BEND**, the three values that are genuinely single and so are ordinary absolute knobs
 - **PRESET**, **POLY** (1 to 16 voices) and **ZOOM**
-- **LINK** gangs the strips, so dragging any knob moves that knob on all 32 channels
+- **LINK** gangs the strips, so dragging one channel's knob moves that knob on all 32. The master channel below does the same job more directly.
 - **PHASE** resets partial phase on each note for a coherent, percussive attack
 - **CLIP** soft-clips the output. Worth leaving on when you push 32 faders up
 
 Double-clicking any knob restores its default. Hovering a harmonic number shows its interval and exact cent deviation.
 
-### Relative macros
+### The master channel
 
-TUNE ALL, DRIFT, VEL, AT and LINK all move 32 values at once, and they all do it relatively. They apply an offset to wherever each strip already sits instead of dragging everything to one shared value, so a spectrum you have shaped by hand keeps its shape.
+Between the row labels and the scrolling mixer sits a master channel marked ALL. It carries the same controls in the same rows as the 32 partial strips, so every knob in the instrument has a global counterpart sitting directly opposite its own row. It does not scroll, so it stays in view however far along the series you have gone.
 
-The four macro knobs are endless. They have no absolute position, they show how far you have turned them during the current drag, and they spring back to centre when you let go, so the next drag starts fresh from wherever the strips now are. A full turn in either direction still covers the entire range, so "everything to just intonation" or "everything to equal" remains one drag away.
+Every control on it is relative. It applies an offset to wherever each strip already sits rather than dragging everything to one shared value, so a spectrum you have shaped by hand keeps its shape. LINK in the top bar does the same thing from any individual channel.
 
-The offset is always measured from the values captured when the drag started, so returning the knob to where you began restores the strips exactly, even if some of them hit an end stop along the way.
+The controls are endless. They have no absolute position, they show how far you have turned them during the current drag, and they spring back to centre when you let go, so the next drag starts fresh from wherever the strips now are. A full turn in either direction still covers the entire range, so "everything to just intonation" or "everything to equal" remains one drag away.
+
+The offset is always measured from the values captured when the drag started, so returning a control to where you began restores the strips exactly, even if some of them hit an end stop along the way.
+
+Its **M** mutes or unmutes all 32 channels. Its **S** lights whenever anything is soloed and clicking it clears every solo, since soloing everything would be the same as soloing nothing.
 
 ### Drift
 
@@ -197,8 +200,8 @@ Source/
   PluginParameters.*  APVTS layout, 486 parameters, and the audio-thread snapshot
   Presets.*           factory presets
   PluginProcessor.*   MIDI handling, sample-accurate rendering, state
-  PluginEditor.*      window, zoom, LINK, gutter
-  UI/                 theme, look and feel, channel strip, top bar
+  PluginEditor.*      window, zoom, relative macros, LINK, gutter
+  UI/                 theme, look and feel, channel strip, master strip, top bar
 Tests/
   dsp_test.cpp            standalone DSP tests and CPU benchmark
   plugin_runtime_test.cpp headless plugin integration tests

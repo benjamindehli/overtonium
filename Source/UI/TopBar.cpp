@@ -12,42 +12,23 @@ constexpr float kZoomChoices[] = {0.75f, 1.0f, 1.25f, 1.5f};
 
 // =============================================================================
 
-RelativeKnob::RelativeKnob() {
-  setSliderStyle(juce::Slider::RotaryVerticalDrag);
-  setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
-
-  // Full travel in either direction covers the whole parameter range, so even
-  // the extremes ("everything to just", "everything to equal") stay one drag
-  // away despite the control being relative.
-  setRange(-1.0, 1.0, 0.0);
-  setValue(0.0, juce::dontSendNotification);
-  setDoubleClickReturnValue(false, 0.0);
-
-  // A relative gesture needs a start and an end to bracket it. The wheel has
-  // neither, so it would move the knob without moving anything else.
-  setScrollWheelEnabled(false);
-
-  // Tells the look and feel to draw the arc outwards from twelve o'clock.
-  getProperties().set("bipolar", true);
-
-  onValueChange = [this] {
-    if (onRelativeDelta)
-      onRelativeDelta((float)getValue());
-  };
+LabelledKnob::LabelledKnob(juce::String captionText, juce::Colour fill)
+    : caption(std::move(captionText)) {
+  slider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
+  slider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+  slider.setColour(juce::Slider::rotarySliderFillColourId, fill);
+  addAndMakeVisible(slider);
 }
 
-void RelativeKnob::startedDragging() {
-  if (onRelativeStart)
-    onRelativeStart();
+void LabelledKnob::paint(juce::Graphics &g) {
+  g.setColour(colours::textDim);
+  g.setFont(makeFont(9.0f, true));
+  g.drawText(caption, getLocalBounds().removeFromBottom(11),
+             juce::Justification::centred, false);
 }
 
-void RelativeKnob::stoppedDragging() {
-  if (onRelativeEnd)
-    onRelativeEnd();
-
-  // Spring back so the next drag starts from wherever the strips now sit.
-  setValue(0.0, juce::dontSendNotification);
-  repaint();
+void LabelledKnob::resized() {
+  slider.setBounds(getLocalBounds().withTrimmedBottom(12));
 }
 
 // =============================================================================
@@ -55,31 +36,12 @@ void RelativeKnob::stoppedDragging() {
 TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
                juce::Component &popupParent)
     : apvts(state) {
-  KnobPanel *knobs[] = {&tuneAll,  &master,     &spread,
-                        &velocity, &aftertouch, &bend};
+  LabelledKnob *knobs[] = {&master, &spread, &bend};
 
   for (auto *k : knobs) {
-    k->getSlider().setPopupDisplayEnabled(true, true, &popupParent);
+    k->slider.setPopupDisplayEnabled(true, true, &popupParent);
     addAndMakeVisible(*k);
   }
-
-  // ---- the endless macros are not parameters --------------------------------
-  // They nudge all 32 strips by the same amount, so the shape you dialled in
-  // survives the gesture.
-  tuneAll.slider.setTooltip("Moves every partial towards just intonation or "
-                            "equal temperament, keeping their spread");
-  velocity.slider.setTooltip(
-      "Moves every partial's velocity sensitivity, keeping their spread");
-  aftertouch.slider.setTooltip(
-      "Moves every partial's aftertouch amount, keeping their spread");
-
-  drift.slider.setTooltip(
-      "Moves every partial's pitch drift, keeping their spread");
-
-  wireMacro(tuneAll.slider, Role::Tune);
-  wireMacro(drift.slider, Role::Drift);
-  wireMacro(velocity.slider, Role::Velocity);
-  wireMacro(aftertouch.slider, Role::Aftertouch);
 
   master.slider.setTooltip("Output level");
   spread.slider.setTooltip("Fans the partials across the stereo field");
@@ -127,7 +89,8 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
 
   // ---- toggles --------------------------------------------------------------
   styleToggle(linkButton, "LINK",
-              "Gang every strip: moving one knob moves all 32");
+              "Gang the strips, so dragging one channel's knob moves that "
+              "knob on all 32. The master channel does the same thing.");
   styleToggle(phaseButton, "PHASE",
               "Reset partial phase on each note for a coherent attack");
   styleToggle(clipButton, "CLIP",
@@ -177,21 +140,6 @@ void TopBar::styleToggle(juce::TextButton &b, const juce::String &text,
   addAndMakeVisible(b);
 }
 
-void TopBar::wireMacro(RelativeKnob &knob, Role role) {
-  knob.onRelativeStart = [this, role] {
-    if (onMacroStart)
-      onMacroStart(role);
-  };
-  knob.onRelativeDelta = [this, role](float delta) {
-    if (onMacroDelta)
-      onMacroDelta(role, delta);
-  };
-  knob.onRelativeEnd = [this, role] {
-    if (onMacroEnd)
-      onMacroEnd(role);
-  };
-}
-
 void TopBar::setVoiceCount(int active, int limit) {
   voicesLabel.setText(juce::String(active) + " / " + juce::String(limit) +
                           " voices",
@@ -233,8 +181,7 @@ void TopBar::resized() {
   b.removeFromLeft(168); // title, painted rather than a child component
   b.removeFromLeft(10);
 
-  KnobPanel *knobs[] = {&tuneAll,  &master,     &spread,
-                        &velocity, &aftertouch, &bend};
+  LabelledKnob *knobs[] = {&master, &spread, &bend};
 
   for (auto *k : knobs) {
     if (b.getWidth() < 60)
