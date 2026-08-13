@@ -27,6 +27,9 @@ public:
   void noteOff(int note) noexcept;
   void setSustainPedal(bool down) noexcept;
 
+  /// Routes polyphonic aftertouch to whichever voices are holding that note.
+  void setPolyPressure(int note, float pressure) noexcept;
+
   void allNotesOff() noexcept; ///< graceful release (MIDI CC 123)
   void
   allSoundOff() noexcept; ///< immediate silence (MIDI CC 120 / transport stop)

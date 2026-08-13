@@ -44,6 +44,7 @@ enum class Row {
   AmDepth,
   OutputHeading,
   Velocity,
+  Aftertouch,
   MuteSolo,
   Fader,
   FaderText,
@@ -79,6 +80,7 @@ enum class Role {
   AmRate,
   AmDepth,
   Velocity,
+  Aftertouch,
   Volume,
   NumRoles
 };

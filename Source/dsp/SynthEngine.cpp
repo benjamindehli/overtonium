@@ -147,6 +147,12 @@ void SynthEngine::setSustainPedal(bool down) noexcept {
   }
 }
 
+void SynthEngine::setPolyPressure(int note, float pressure) noexcept {
+  for (auto &v : voices)
+    if (v.isActive() && v.getNote() == note)
+      v.setPolyPressure(pressure);
+}
+
 void SynthEngine::allNotesOff() noexcept {
   for (size_t i = 0; i < voices.size(); ++i) {
     voices[i].noteOff();

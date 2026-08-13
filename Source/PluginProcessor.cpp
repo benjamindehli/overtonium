@@ -14,6 +14,7 @@ void OvertoniumProcessor::prepareToPlay(double sampleRate,
   scratch.setSize(2, juce::jmax(1, maximumExpectedSamplesPerBlock), false, true,
                   true);
   pitchBendNormalised = 0.0f;
+  channelPressure = 0.0f;
 }
 
 void OvertoniumProcessor::releaseResources() {
@@ -53,6 +54,12 @@ void OvertoniumProcessor::handleMidiMessage(const juce::MidiMessage &m) {
     pitchBendNormalised = ((float)m.getPitchWheelValue() - 8192.0f) / 8192.0f;
     currentParams.global.bendSemitones =
         pitchBendNormalised * paramCache.bendRange->load();
+  } else if (m.isChannelPressure()) {
+    channelPressure = (float)m.getChannelPressureValue() / 127.0f;
+    currentParams.global.aftertouch = channelPressure;
+  } else if (m.isAftertouch()) {
+    engine.setPolyPressure(m.getNoteNumber(),
+                           (float)m.getAfterTouchValue() / 127.0f);
   } else if (m.isSustainPedalOn()) {
     engine.setSustainPedal(true);
   } else if (m.isSustainPedalOff()) {
@@ -61,6 +68,8 @@ void OvertoniumProcessor::handleMidiMessage(const juce::MidiMessage &m) {
     engine.allNotesOff();
   } else if (m.isAllSoundOff()) {
     engine.allSoundOff();
+    channelPressure = 0.0f;
+    currentParams.global.aftertouch = 0.0f;
   }
 }
 
@@ -87,6 +96,7 @@ void OvertoniumProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     scratch.setSize(2, numSamples, false, true, true);
 
   paramCache.snapshot(currentParams, pitchBendNormalised);
+  currentParams.global.aftertouch = channelPressure;
   engine.setPolyphony(paramCache.polyphonyValue());
 
   // Render in segments split on MIDI timestamps so note timing is sample

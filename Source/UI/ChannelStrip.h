@@ -72,7 +72,7 @@ private:
   const juce::Colour colour;
 
   LinkableSlider tune, pmRate, pmDepth, attack, decay, sustain, release, amRate,
-      amDepth, velocity, volume;
+      amDepth, velocity, aftertouch, volume;
   juce::TextButton muteButton{"M"}, soloButton{"S"};
   juce::Label tuneReadout, levelReadout;
 

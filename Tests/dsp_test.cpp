@@ -686,6 +686,96 @@ void testStereoSpread() {
   check(anyRight, "audible partials appear on the right");
 }
 
+// -----------------------------------------------------------------------------
+// 12. Aftertouch adds to the fader rather than scaling it, so a strip parked at
+//     silence can be brought in by pressure alone.
+// -----------------------------------------------------------------------------
+void testAftertouch() {
+  section("Aftertouch");
+
+  constexpr double sr = 48000.0;
+  constexpr int N = 24000;
+
+  auto build = [&](float atAmount, float volume) {
+    auto p = makeFlatParams(0.0f);
+    for (auto &o : p.osc) {
+      o.tuneBlend = 1.0f;
+      o.volume = 0.0f;
+      o.atAmount = 0.0f;
+      o.velAmount = 0.0f;
+    }
+    p.osc[0].volume = volume;
+    p.osc[0].atAmount = atAmount;
+    p.osc[0].velAmount = 1.0f;
+    return p;
+  };
+
+  auto level = [&](float atAmount, float volume, float pressure, float velocity,
+                   bool poly) {
+    SynthEngine engine;
+    engine.prepare(sr);
+
+    auto p = build(atAmount, volume);
+    if (!poly)
+      p.global.aftertouch = pressure;
+
+    engine.noteOn(57, velocity, p);
+    if (poly)
+      engine.setPolyPressure(57, pressure);
+
+    std::vector<float> l((size_t)N), r((size_t)N);
+    engine.render(l.data(), r.data(), N, p);
+    return binMagnitude(l, 220.0, sr);
+  };
+
+  check(level(1.0f, 0.0f, 0.0f, 1.0f, false) < 1.0e-4,
+        "a fader at zero with no pressure is silent");
+
+  const double pressed = level(1.0f, 0.0f, 1.0f, 1.0f, false);
+  check(pressed > 0.1, "pressure alone brings the partial in");
+
+  // The whole point of adding rather than scaling: velocity must not gate it.
+  const double softKey = level(1.0f, 0.0f, 1.0f, 0.05f, false);
+  check(std::abs(softKey - pressed) < 0.02 * pressed,
+        "aftertouch is independent of velocity");
+
+  const double viaPoly = level(1.0f, 0.0f, 1.0f, 1.0f, true);
+  check(std::abs(viaPoly - pressed) < 0.02 * pressed,
+        "polyphonic aftertouch reaches the voice");
+
+  // Additive: pressure lifts a partly open fader further.
+  const double faderOnly = level(0.0f, 0.4f, 0.0f, 1.0f, false);
+  const double faderPlus = level(0.3f, 0.4f, 1.0f, 1.0f, false);
+  check(faderPlus > faderOnly * 1.2, "pressure adds on top of the fader");
+
+  check(level(0.0f, 0.4f, 1.0f, 1.0f, false) < faderOnly * 1.02,
+        "a strip with no aftertouch amount ignores pressure");
+
+  // Seven-bit pressure arriving at MIDI rate must not step the gain.
+  {
+    SynthEngine engine;
+    engine.prepare(sr);
+
+    auto p = build(1.0f, 0.0f);
+    engine.noteOn(45, 1.0f, p); // low note, so a legitimate slope stays small
+
+    constexpr int block = 2048;
+    std::vector<float> a((size_t)block), b((size_t)block);
+    engine.render(a.data(), b.data(), block, p);
+
+    p.global.aftertouch = 1.0f; // slam it from nothing to full
+    std::vector<float> c((size_t)block), d((size_t)block);
+    engine.render(c.data(), d.data(), block, p);
+
+    float worst = 0.0f;
+    for (int n = 1; n < block; ++n)
+      worst = std::max(worst, std::abs(c[(size_t)n] - c[(size_t)n - 1]));
+
+    std::printf("  max step on a full pressure jump: %.5f\n", worst);
+    check(worst < 0.05f, "a pressure jump is smoothed, not stepped");
+  }
+}
+
 void testModulation() {
   section("Pitch and amplitude modulation");
 
@@ -789,6 +879,7 @@ int main() {
   testModulation();
   testPerPartialVelocity();
   testStereoSpread();
+  testAftertouch();
   benchmark();
 
   std::printf("\n%d checks, %d failures\n", checks, failures);

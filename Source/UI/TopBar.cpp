@@ -55,23 +55,27 @@ void RelativeKnob::stoppedDragging() {
 TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
                juce::Component &popupParent)
     : apvts(state) {
-  KnobPanel *knobs[] = {&tuneAll, &master, &spread, &velocity, &bend};
+  KnobPanel *knobs[] = {&tuneAll,  &master,     &spread,
+                        &velocity, &aftertouch, &bend};
 
   for (auto *k : knobs) {
     k->getSlider().setPopupDisplayEnabled(true, true, &popupParent);
     addAndMakeVisible(*k);
   }
 
-  // ---- the endless macros are not parameters
-  // --------------------------------- They nudge all 32 strips by the same
-  // amount, so the shape you dialled in survives the gesture.
+  // ---- the endless macros are not parameters --------------------------------
+  // They nudge all 32 strips by the same amount, so the shape you dialled in
+  // survives the gesture.
   tuneAll.slider.setTooltip("Moves every partial towards just intonation or "
                             "equal temperament, keeping their spread");
   velocity.slider.setTooltip(
       "Moves every partial's velocity sensitivity, keeping their spread");
+  aftertouch.slider.setTooltip(
+      "Moves every partial's aftertouch amount, keeping their spread");
 
   wireMacro(tuneAll.slider, Role::Tune);
   wireMacro(velocity.slider, Role::Velocity);
+  wireMacro(aftertouch.slider, Role::Aftertouch);
 
   master.slider.setTooltip("Output level");
   spread.slider.setTooltip("Fans the partials across the stereo field");
@@ -225,7 +229,8 @@ void TopBar::resized() {
   b.removeFromLeft(168); // title, painted rather than a child component
   b.removeFromLeft(10);
 
-  KnobPanel *knobs[] = {&tuneAll, &master, &spread, &velocity, &bend};
+  KnobPanel *knobs[] = {&tuneAll,  &master,     &spread,
+                        &velocity, &aftertouch, &bend};
 
   for (auto *k : knobs) {
     if (b.getWidth() < 60)

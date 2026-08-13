@@ -147,6 +147,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::NormalisableRange<float>(0.0f, 1.0f), 0.7f,
         FAttr().withStringFromValueFunction(percentText)));
 
+    layout.add(std::make_unique<FloatP>(
+        juce::ParameterID{oscParamId(atSuffix, i), 1}, p + "Aftertouch",
+        juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f,
+        FAttr().withStringFromValueFunction(percentText)));
+
     layout.add(std::make_unique<BoolP>(
         juce::ParameterID{oscParamId(muteSuffix, i), 1}, p + "Mute", false));
 
@@ -185,6 +190,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
     o.amRate = apvts.getRawParameterValue(oscParamId(amRateSuffix, i));
     o.amDepth = apvts.getRawParameterValue(oscParamId(amDepthSuffix, i));
     o.vel = apvts.getRawParameterValue(oscParamId(velSuffix, i));
+    o.at = apvts.getRawParameterValue(oscParamId(atSuffix, i));
     o.mute = apvts.getRawParameterValue(oscParamId(muteSuffix, i));
     o.solo = apvts.getRawParameterValue(oscParamId(soloSuffix, i));
     o.volume = apvts.getRawParameterValue(oscParamId(volumeSuffix, i));
@@ -222,6 +228,7 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     o.amRateHz = c.amRate->load();
     o.amDepth = c.amDepth->load();
     o.velAmount = c.vel->load();
+    o.atAmount = c.at->load();
     o.volume = c.volume->load();
 
     const bool muted = c.mute->load() > 0.5f;

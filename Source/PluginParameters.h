@@ -26,6 +26,7 @@ inline constexpr const char *releaseSuffix = "release";
 inline constexpr const char *amRateSuffix = "amRate";
 inline constexpr const char *amDepthSuffix = "amDepth";
 inline constexpr const char *velSuffix = "vel";
+inline constexpr const char *atSuffix = "aftertouch";
 inline constexpr const char *muteSuffix = "mute";
 inline constexpr const char *soloSuffix = "solo";
 inline constexpr const char *volumeSuffix = "volume";
@@ -53,6 +54,7 @@ struct Cache {
     std::atomic<float> *amRate = nullptr;
     std::atomic<float> *amDepth = nullptr;
     std::atomic<float> *vel = nullptr;
+    std::atomic<float> *at = nullptr;
     std::atomic<float> *mute = nullptr;
     std::atomic<float> *solo = nullptr;
     std::atomic<float> *volume = nullptr;

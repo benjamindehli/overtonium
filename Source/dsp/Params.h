@@ -25,6 +25,10 @@ struct OscParams {
   /// sensitive. Per partial so the upper harmonics can be made to appear only
   /// when the key is struck hard, the way most acoustic instruments behave.
   float velAmount = 0.7f;
+  /// How much channel or polyphonic aftertouch pushes this partial's level up.
+  /// It adds to the fader rather than scaling it, so a strip parked at zero can
+  /// be faded in entirely by leaning on the key.
+  float atAmount = 0.0f;
   /// Linear gain, mute/solo already folded in by the caller.
   float volume = 0.0f;
 
@@ -36,6 +40,7 @@ struct GlobalParams {
   float masterGain = 0.25f;  ///< linear
   float stereoSpread = 0.0f; ///< 0 = mono, 1 = partials fanned across the field
   float bendSemitones = 0.0f; ///< current pitch-bend offset
+  float aftertouch = 0.0f;    ///< current channel pressure, 0..1
   bool phaseReset = true; ///< reset partial phase on note-on (coherent attack)
   /// Soft-clip the sum; 32 faders make it very easy to overshoot.
   bool safetyClip = true;

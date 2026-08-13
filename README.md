@@ -112,14 +112,17 @@ Each of the 32 strips has, top to bottom:
 | ENVELOPE A D S R | 0.5 ms to 5 s, 1 ms to 20 s, 0 to 100%, 1 ms to 20 s | Exponential decay and release |
 | AMP MOD rate and depth | 0.01 to 30 Hz, 0 to 100% | Per-partial tremolo |
 | VELOCITY | 0 to 100% | How much key velocity scales this partial |
+| AFTERTOUCH | 0 to 100% | How much key pressure adds to this partial |
 | M and S | | Mute wins over solo |
 | LEVEL | -inf to 0 dB | Square-law fader |
 
 Velocity being per partial is what lets a soft note be a different timbre rather than just a quieter one. Set the fundamental to 0% and the upper partials to 100% and the tone opens up as you play harder, which is roughly what a struck string or bar does. *Struck Bell* and *Odd Harmonics* ship with that curve already dialled in.
 
+Aftertouch works the same way but **adds** to the fader instead of scaling it, and it ignores velocity entirely. That means a strip with its fader all the way down is silent until you lean on the key, and then it fades in under your finger. Put a few upper partials on aftertouch and the note grows brighter the harder you press, without touching the partials you left alone. Both channel pressure and polyphonic aftertouch are accepted, and whichever is higher wins. Pressure is smoothed over about 15 ms, so seven-bit MIDI does not step the gain.
+
 Global controls in the top bar:
 
-- **TUNE ALL** and **VEL** are endless relative macros. See below.
+- **TUNE ALL**, **VEL** and **AT** are endless relative macros. See below.
 - **MASTER**, **SPREAD** and **BEND**
 - **PRESET**, **POLY** (1 to 16 voices) and **ZOOM**
 - **LINK** gangs the strips, so dragging any knob moves that knob on all 32 channels
@@ -130,9 +133,9 @@ Double-clicking any knob restores its default. Hovering a harmonic number shows 
 
 ### Relative macros
 
-TUNE ALL, VEL and LINK all move 32 values at once, and all three do it relatively. They apply an offset to wherever each strip already sits instead of dragging everything to one shared value, so a spectrum you have shaped by hand keeps its shape.
+TUNE ALL, VEL, AT and LINK all move 32 values at once, and they all do it relatively. They apply an offset to wherever each strip already sits instead of dragging everything to one shared value, so a spectrum you have shaped by hand keeps its shape.
 
-The two macro knobs are endless. They have no absolute position, they show how far you have turned them during the current drag, and they spring back to centre when you let go, so the next drag starts fresh from wherever the strips now are. A full turn in either direction still covers the entire range, so "everything to just intonation" or "everything to equal" remains one drag away.
+The three macro knobs are endless. They have no absolute position, they show how far you have turned them during the current drag, and they spring back to centre when you let go, so the next drag starts fresh from wherever the strips now are. A full turn in either direction still covers the entire range, so "everything to just intonation" or "everything to equal" remains one drag away.
 
 The offset is always measured from the values captured when the drag started, so returning the knob to where you began restores the strips exactly, even if some of them hit an end stop along the way.
 
@@ -177,7 +180,7 @@ Source/
     Params.h        plain-data parameter snapshot
     Voice.*         32 partials, one note
     SynthEngine.*   voice pool, allocation, stealing, master stage
-  PluginParameters.*  APVTS layout, 422 parameters, and the audio-thread snapshot
+  PluginParameters.*  APVTS layout, 454 parameters, and the audio-thread snapshot
   Presets.*           factory presets
   PluginProcessor.*   MIDI handling, sample-accurate rendering, state
   PluginEditor.*      window, zoom, LINK, gutter

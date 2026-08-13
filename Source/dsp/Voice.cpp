@@ -12,6 +12,10 @@ void Voice::prepare(double newSampleRate) noexcept {
   for (auto &pt : partials)
     pt.env.setSampleRate(sampleRate);
 
+  // Roughly a 15 ms time constant, stepped once per control block.
+  pressureCoef =
+      1.0f - (float)std::exp(-(double)kControlBlock / (0.015 * sampleRate));
+
   reset();
 }
 
@@ -28,6 +32,8 @@ void Voice::reset() noexcept {
   active = false;
   released = false;
   midiNote = -1;
+  polyPressure = 0.0f;
+  pressureSmoothed = 0.0f;
 }
 
 void Voice::noteOn(int note, float velocity, const SynthParams &p) noexcept {
@@ -35,6 +41,10 @@ void Voice::noteOn(int note, float velocity, const SynthParams &p) noexcept {
   baseFreq = 440.0 * std::exp2((double)(note - 69) / 12.0);
 
   const float vel = std::clamp(velocity, 0.0f, 1.0f);
+
+  // A fresh note starts unpressed and ramps in if the key is already leaned on.
+  polyPressure = 0.0f;
+  pressureSmoothed = 0.0f;
 
   active = true;
   released = false;
@@ -125,8 +135,14 @@ void Voice::render(float *left, float *right, int numSamples,
     }
   }
 
+  const float pressureTarget =
+      std::max(std::clamp(p.global.aftertouch, 0.0f, 1.0f), polyPressure);
+
   for (int start = 0; start < numSamples; start += kControlBlock) {
     const int len = std::min(kControlBlock, numSamples - start);
+
+    pressureSmoothed += (pressureTarget - pressureSmoothed) * pressureCoef;
+    const float pressure = pressureSmoothed;
 
     for (int i = 0; i < kNumHarmonics; ++i) {
       auto &pt = partials[(size_t)i];
@@ -163,7 +179,13 @@ void Voice::render(float *left, float *right, int numSamples,
       }
 
       const float nyq = nyquistGain(freq, sampleRate);
-      const float base = op.audible ? op.volume * pt.velGain * nyq : 0.0f;
+
+      // Aftertouch adds to the fader instead of scaling it, which is what lets
+      // a strip sitting at zero be brought in by pressure alone. Velocity only
+      // ever touches the fader's own contribution.
+      const float level = std::clamp(
+          op.volume * pt.velGain + op.atAmount * pressure, 0.0f, 1.0f);
+      const float base = op.audible ? level * nyq : 0.0f;
       const float gEnd = base * amEnd;
 
       if (!pt.gainPrimed) {

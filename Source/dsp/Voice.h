@@ -43,6 +43,10 @@ public:
   void noteOff() noexcept;
   void steal() noexcept; ///< fast fade-out so the voice can be reused
 
+  /// Polyphonic aftertouch for this voice. Channel pressure arrives separately
+  /// through SynthParams, and whichever is higher wins.
+  void setPolyPressure(float v) noexcept { polyPressure = v; }
+
   bool isActive() const noexcept { return active; }
   bool isReleasing() const noexcept { return released; }
   int getNote() const noexcept { return midiNote; }
@@ -73,6 +77,13 @@ private:
   double sampleRate = 44100.0;
   double baseFreq = 440.0;
   int midiNote = -1;
+
+  float polyPressure = 0.0f;
+  /// Aftertouch drives gain directly, so it needs its own smoothing. Seven bits
+  /// arriving at MIDI rate would otherwise step audibly.
+  float pressureSmoothed = 0.0f;
+  float pressureCoef = 1.0f;
+
   bool active = false;
   bool released = false;
   uint64_t startOrder = 0;

@@ -30,6 +30,7 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   setUpKnob(amRate, Role::AmRate, secondary);
   setUpKnob(amDepth, Role::AmDepth, secondary);
   setUpKnob(velocity, Role::Velocity, secondary);
+  setUpKnob(aftertouch, Role::Aftertouch, secondary);
   setUpFader(volume, Role::Volume, colour);
 
   muteButton.setClickingTogglesState(true);
@@ -204,6 +205,7 @@ void ChannelStrip::resized() {
   amRate.setBounds(rows[rowIndex(Row::AmRate)].reduced(1));
   amDepth.setBounds(rows[rowIndex(Row::AmDepth)].reduced(1));
   velocity.setBounds(rows[rowIndex(Row::Velocity)].reduced(1));
+  aftertouch.setBounds(rows[rowIndex(Row::Aftertouch)].reduced(1));
   volume.setBounds(rows[rowIndex(Row::Fader)].reduced(2, 1));
   levelReadout.setBounds(rows[rowIndex(Row::FaderText)]);
 

@@ -65,7 +65,7 @@ juce::MidiBuffer noteOnAt(int note, float velocity, int sample) {
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
-  const int expected = ovt::kNumHarmonics * 13 + 6;
+  const int expected = ovt::kNumHarmonics * 14 + 6;
   check(p.getParameters().size() == expected,
         "parameter count is " + std::to_string(p.getParameters().size()) +
             ", expected " + std::to_string(expected));
@@ -87,8 +87,8 @@ void testParameterWiring(OvertoniumProcessor &p) {
       ovt::params::decaySuffix,   ovt::params::sustainSuffix,
       ovt::params::releaseSuffix, ovt::params::amRateSuffix,
       ovt::params::amDepthSuffix, ovt::params::velSuffix,
-      ovt::params::muteSuffix,    ovt::params::soloSuffix,
-      ovt::params::volumeSuffix};
+      ovt::params::atSuffix,      ovt::params::muteSuffix,
+      ovt::params::soloSuffix,    ovt::params::volumeSuffix};
 
   bool allPresent = true;
   for (int i = 0; i < ovt::kNumHarmonics; ++i)
@@ -96,7 +96,7 @@ void testParameterWiring(OvertoniumProcessor &p) {
       allPresent &= p.apvts.getRawParameterValue(
                         ovt::params::oscParamId(s, i)) != nullptr;
 
-  check(allPresent, "all 416 per-partial parameters resolve");
+  check(allPresent, "all 448 per-partial parameters resolve");
 
   // Defaults should give an immediately playable 1/n spectrum.
   for (int i = 0; i < ovt::kNumHarmonics; ++i) {
@@ -180,6 +180,48 @@ void testPresets(OvertoniumProcessor &p) {
   }
 
   ovt::presets::apply(p.apvts, 0); // back to Init
+}
+
+void testAftertouchMidi(OvertoniumProcessor &p) {
+  section("Aftertouch over MIDI");
+
+  ovt::presets::apply(p.apvts, 0);
+
+  // Park every fader at silence and let pressure be the only way in.
+  for (int i = 0; i < ovt::kNumHarmonics; ++i) {
+    p.apvts.getParameter(ovt::params::oscParamId(ovt::params::volumeSuffix, i))
+        ->setValueNotifyingHost(0.0f);
+    p.apvts.getParameter(ovt::params::oscParamId(ovt::params::atSuffix, i))
+        ->setValueNotifyingHost(i < 4 ? 1.0f : 0.0f);
+  }
+
+  p.prepareToPlay(48000.0, 512);
+
+  const auto silent = renderBlocks(p, 20, 512, noteOnAt(57, 1.0f, 0));
+  check(silent.peak < 1.0e-4f,
+        "faders at zero stay silent while the key is unpressed");
+
+  juce::MidiBuffer press;
+  press.addEvent(juce::MidiMessage::channelPressureChange(1, 127), 0);
+  const auto pressed = renderBlocks(p, 20, 512, press);
+  check(pressed.finite, "aftertouch output is finite");
+  check(pressed.peak > 0.01f, "channel pressure fades the partials in (peak " +
+                                  std::to_string(pressed.peak) + ")");
+
+  juce::MidiBuffer release;
+  release.addEvent(juce::MidiMessage::channelPressureChange(1, 0), 0);
+  const auto released = renderBlocks(p, 40, 512, release);
+  check(released.peak < pressed.peak, "letting go fades them back out");
+
+  // Polyphonic aftertouch has to reach the voice holding that note.
+  juce::MidiBuffer poly;
+  poly.addEvent(juce::MidiMessage::aftertouchChange(1, 57, 127), 0);
+  const auto polyPressed = renderBlocks(p, 20, 512, poly);
+  check(polyPressed.peak > 0.01f, "polyphonic aftertouch reaches the voice");
+
+  p.reset();
+  renderBlocks(p, 4, 512);
+  ovt::presets::apply(p.apvts, 0);
 }
 
 void testBusLayouts(OvertoniumProcessor &p) {
@@ -289,6 +331,7 @@ int main() {
   testParameterWiring(processor);
   testRendering(processor);
   testPresets(processor);
+  testAftertouchMidi(processor);
   testBusLayouts(processor);
   testStateRoundTrip(processor);
   testSoloAndMute(processor);

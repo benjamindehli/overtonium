@@ -64,6 +64,7 @@ private:
   juce::AudioBuffer<float> scratch;
 
   float pitchBendNormalised = 0.0f;
+  float channelPressure = 0.0f;
   std::atomic<int> activeVoices{0};
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OvertoniumProcessor)

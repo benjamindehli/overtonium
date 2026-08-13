@@ -49,6 +49,7 @@ struct Applier {
     allOsc(params::amRateSuffix, [](int) { return 4.0; });
     allOsc(params::amDepthSuffix, [](int) { return 0.0; });
     allOsc(params::velSuffix, [](int) { return 0.7; });
+    allOsc(params::atSuffix, [](int) { return 0.0; });
     allOsc(params::muteSuffix, [](int) { return 0.0; });
     allOsc(params::soloSuffix, [](int) { return 0.0; });
     allOsc(params::volumeSuffix, [](int) { return 0.0; });
