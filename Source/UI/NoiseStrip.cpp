@@ -106,8 +106,7 @@ void NoiseStrip::setSilencedByOthers(bool shouldDim) {
 void NoiseStrip::paint(juce::Graphics &g) {
   auto bounds = getLocalBounds();
 
-  g.setColour(colours::panel.brighter(0.03f));
-  g.fillRect(bounds);
+  paintChannelBackground(g, bounds, colours::panel.brighter(0.03f));
 
   const auto rows = layoutRows(bounds.reduced(2, 4));
   auto header = rows[rowIndex(Row::Header)];
@@ -141,9 +140,6 @@ void NoiseStrip::paint(juce::Graphics &g) {
   g.setColour(colours::textDim.withAlpha(0.5f));
   g.setFont(makeFont(9.0f));
   g.drawText("no pitch", absent, juce::Justification::centred, false);
-
-  g.setColour(colours::background.withAlpha(0.55f));
-  g.fillRect(getWidth() - 1, 0, 1, getHeight());
 }
 
 void NoiseStrip::resized() {

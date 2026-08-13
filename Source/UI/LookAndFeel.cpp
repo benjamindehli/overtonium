@@ -11,6 +11,30 @@ juce::Font makeFont(float height, bool bold) {
   return juce::Font(options);
 }
 
+void paintChannelBackground(juce::Graphics &g, juce::Rectangle<int> bounds,
+                            juce::Colour base) {
+  const auto r = bounds.toFloat();
+
+  g.setGradientFill(juce::ColourGradient(base.brighter(0.10f), r.getX(),
+                                         r.getY(), base.darker(0.06f), r.getX(),
+                                         r.getBottom(), false));
+  g.fillRect(r);
+
+  // The header casts onto the top of every channel.
+  const auto shade = juce::jmin(10.0f, r.getHeight() * 0.05f);
+  g.setGradientFill(juce::ColourGradient(
+      juce::Colours::black.withAlpha(0.28f), r.getX(), r.getY(),
+      juce::Colours::black.withAlpha(0.0f), r.getX(), r.getY() + shade, false));
+  g.fillRect(r.withHeight(shade));
+
+  // Lit edge on the left, shadowed on the right.
+  g.setColour(juce::Colours::white.withAlpha(0.05f));
+  g.fillRect(r.getX(), r.getY(), 1.0f, r.getHeight());
+
+  g.setColour(juce::Colours::black.withAlpha(0.35f));
+  g.fillRect(r.getRight() - 1.0f, r.getY(), 1.0f, r.getHeight());
+}
+
 OvertoniumLookAndFeel::OvertoniumLookAndFeel() {
   setColour(juce::Slider::rotarySliderFillColourId, colours::accent);
   setColour(juce::Slider::rotarySliderOutlineColourId, colours::groove);
@@ -60,59 +84,98 @@ void OvertoniumLookAndFeel::drawRotarySlider(
     juce::Graphics &g, int x, int y, int width, int height, float sliderPos,
     float rotaryStartAngle, float rotaryEndAngle, juce::Slider &slider) {
   const auto bounds =
-      juce::Rectangle<int>(x, y, width, height).toFloat().reduced(2.0f);
+      juce::Rectangle<int>(x, y, width, height).toFloat().reduced(1.0f);
   const auto radius = juce::jmin(bounds.getWidth(), bounds.getHeight()) * 0.5f;
 
   if (radius < 4.0f)
     return;
 
   const auto centre = bounds.getCentre();
-  const auto lineW = juce::jmax(2.0f, radius * 0.24f);
-  const auto arcR = radius - lineW * 0.5f;
+  const auto dim = slider.isEnabled() ? 1.0f : 0.4f;
   const auto angle =
       rotaryStartAngle + sliderPos * (rotaryEndAngle - rotaryStartAngle);
-
-  const juce::PathStrokeType stroke(lineW, juce::PathStrokeType::curved,
-                                    juce::PathStrokeType::rounded);
-
-  juce::Path track;
-  track.addCentredArc(centre.x, centre.y, arcR, arcR, 0.0f, rotaryStartAngle,
-                      rotaryEndAngle, true);
-  g.setColour(colours::groove.brighter(0.16f));
-  g.strokePath(track, stroke);
 
   // Relative controls read as an offset either side of twelve o'clock rather
   // than as a level filling up from the left.
   const bool bipolar =
       (bool)slider.getProperties().getWithDefault("bipolar", false);
-  const auto arcFrom =
+  const auto anchor =
       bipolar ? rotaryStartAngle + 0.5f * (rotaryEndAngle - rotaryStartAngle)
               : rotaryStartAngle;
 
-  if (std::abs(angle - arcFrom) > 0.001f) {
-    juce::Path value;
-    value.addCentredArc(centre.x, centre.y, arcR, arcR, 0.0f,
-                        juce::jmin(arcFrom, angle), juce::jmax(arcFrom, angle),
-                        true);
+  const auto fill = slider.findColour(juce::Slider::rotarySliderFillColourId);
 
-    g.setColour(slider.findColour(juce::Slider::rotarySliderFillColourId)
-                    .withMultipliedAlpha(slider.isEnabled() ? 1.0f : 0.4f));
-    g.strokePath(value, stroke);
+  // ---- the tick ring --------------------------------------------------------
+  // Discrete ticks rather than a continuous arc. It reads as a measurement
+  // instrument, which is what this thing is, and it echoes the 32 discrete
+  // partials the whole synth is built from.
+  const int ticks = juce::jlimit(9, 25, juce::roundToInt(radius * 1.15f));
+  const auto lo = juce::jmin(anchor, angle);
+  const auto hi = juce::jmax(anchor, angle);
+
+  for (int i = 0; i < ticks; ++i) {
+    const auto t = (float)i / (float)(ticks - 1);
+    const auto a = rotaryStartAngle + t * (rotaryEndAngle - rotaryStartAngle);
+    const bool lit = a >= lo - 1.0e-4f && a <= hi + 1.0e-4f;
+
+    const auto inner = radius * (lit ? 0.76f : 0.82f);
+    const auto outer = radius * (lit ? 1.00f : 0.96f);
+    const auto sinA = std::sin(a);
+    const auto cosA = std::cos(a);
+
+    g.setColour(lit ? fill.withMultipliedAlpha(dim)
+                    : colours::groove.brighter(0.22f).withMultipliedAlpha(dim));
+    g.drawLine({centre.x + inner * sinA, centre.y - inner * cosA,
+                centre.x + outer * sinA, centre.y - outer * cosA},
+               lit ? juce::jmax(1.6f, radius * 0.11f)
+                   : juce::jmax(1.0f, radius * 0.07f));
   }
 
-  // Pointer, drawn from the centre outwards so tiny knobs stay readable. It is
-  // glass: a translucent body with bright edges, so the value arc reads through
-  // it rather than being masked by it.
+  // ---- the cap --------------------------------------------------------------
+  // A machined body, lit from above, so the control has some physical presence
+  // instead of being an arc floating on the panel.
+  const auto bodyR = radius * 0.66f;
+  const juce::Rectangle<float> body(centre.x - bodyR, centre.y - bodyR,
+                                    bodyR * 2.0f, bodyR * 2.0f);
+
+  // Cast shadow, down and to the right of the light. Built from a few
+  // overlapping ellipses rather than a real blur, which would be far too
+  // expensive to run on several hundred controls.
+  const auto cast = body.translated(bodyR * 0.10f, bodyR * 0.16f);
+  for (int i = 3; i >= 1; --i) {
+    g.setColour(juce::Colours::black.withAlpha(0.09f * dim));
+    g.fillEllipse(cast.expanded((float)i * bodyR * 0.07f));
+  }
+
+  // Radial rather than vertical, so the cap reads as a dome catching a light
+  // from the top left instead of a disc with a gradient painted on it.
+  g.setGradientFill(juce::ColourGradient(
+      colours::panelAlt.brighter(0.45f), centre.x - bodyR * 0.45f,
+      centre.y - bodyR * 0.55f, colours::groove.darker(0.25f),
+      centre.x + bodyR * 0.75f, centre.y + bodyR * 0.95f, true));
+  g.fillEllipse(body);
+
+  // Specular: a soft bloom where the light strikes.
+  const auto specR = bodyR * 0.62f;
+  const juce::Point<float> spec(centre.x - bodyR * 0.34f,
+                                centre.y - bodyR * 0.40f);
+  g.setGradientFill(
+      juce::ColourGradient(juce::Colours::white.withAlpha(0.20f * dim), spec.x,
+                           spec.y, juce::Colours::white.withAlpha(0.0f),
+                           spec.x + specR, spec.y + specR, true));
+  g.fillEllipse(spec.x - specR, spec.y - specR, specR * 2.0f, specR * 2.0f);
+
+  g.setColour(colours::outline.brighter(0.15f).withMultipliedAlpha(dim));
+  g.drawEllipse(body.reduced(0.5f), 1.0f);
+
+  // ---- the pointer ----------------------------------------------------------
+  // Glass: a translucent body with bright edges, so the cap reads through it.
   juce::Path pointer;
-  const auto pointerLength = arcR * 0.8f;
-  const auto pointerWidth = juce::jmax(2.0f, lineW * 0.5f);
-  pointer.addRoundedRectangle(-pointerWidth * 0.5f, -pointerLength,
-                              pointerWidth, pointerLength * 0.72f,
-                              pointerWidth * 0.5f);
+  const auto pointerWidth = juce::jmax(2.0f, radius * 0.13f);
+  pointer.addRoundedRectangle(-pointerWidth * 0.5f, -bodyR * 0.92f,
+                              pointerWidth, bodyR * 0.78f, pointerWidth * 0.5f);
   pointer.applyTransform(
       juce::AffineTransform::rotation(angle).translated(centre.x, centre.y));
-
-  const auto dim = slider.isEnabled() ? 1.0f : 0.4f;
 
   g.setColour(juce::Colours::white.withAlpha(0.30f * dim));
   g.fillPath(pointer);
@@ -164,11 +227,34 @@ void OvertoniumLookAndFeel::drawLinearSlider(
                            grooveW * 0.5f);
   }
 
+  // Scale ticks either side of the track, in the same language as the tick
+  // ring on the knobs. They give the meter something to be read against.
+  if (bounds.getWidth() >= 22.0f) {
+    constexpr int steps = 9;
+    const auto inset = 1.0f;
+    const auto len = 3.0f;
+
+    for (int i = 0; i < steps; ++i) {
+      const auto t = (float)i / (float)(steps - 1);
+      const auto ty = bounds.getY() + t * bounds.getHeight();
+      const bool major = (i % 4) == 0;
+
+      g.setColour(colours::textDim.withAlpha((major ? 0.45f : 0.22f) * dim));
+      g.fillRect(bounds.getX() + inset, ty - 0.5f, major ? len + 1.0f : len,
+                 1.0f);
+      g.fillRect(bounds.getRight() - inset - (major ? len + 1.0f : len),
+                 ty - 0.5f, major ? len + 1.0f : len, 1.0f);
+    }
+  }
+
   // Glass cap: translucent body, bright edges and a bright centre line for
   // reading the exact position. The meter behind shows through it.
   const auto capH = juce::jmax(6.0f, bounds.getWidth() * 0.30f);
   const juce::Rectangle<float> cap(bounds.getX() + 0.5f, fillTop - capH * 0.5f,
                                    bounds.getWidth() - 1.0f, capH);
+
+  g.setColour(juce::Colours::black.withAlpha(0.30f * dim));
+  g.fillRoundedRectangle(cap.translated(0.5f, 1.5f), 2.0f);
 
   g.setColour(juce::Colours::white.withAlpha(0.22f * dim));
   g.fillRoundedRectangle(cap, 2.0f);
@@ -188,19 +274,35 @@ void OvertoniumLookAndFeel::drawButtonBackground(
   const auto bounds = button.getLocalBounds().toFloat().reduced(0.5f);
   const auto corner = juce::jmin(4.0f, bounds.getHeight() * 0.3f);
 
-  auto fill = button.getToggleState() ? backgroundColour : colours::panelAlt;
+  const bool on = button.getToggleState();
+  auto fill = on ? backgroundColour : colours::panelAlt;
 
   if (shouldDrawButtonAsDown)
     fill = fill.brighter(0.15f);
   else if (shouldDrawButtonAsHighlighted)
     fill = fill.brighter(0.08f);
 
-  g.setColour(fill);
+  // Raised buttons cast, engaged ones sit down into the panel and do not.
+  if (!on && !shouldDrawButtonAsDown) {
+    g.setColour(juce::Colours::black.withAlpha(0.30f));
+    g.fillRoundedRectangle(bounds.translated(0.0f, 1.0f), corner);
+  }
+
+  // Lit from above when on and merely raised when off, so the state reads at a
+  // glance across 33 channels rather than needing a colour comparison.
+  g.setGradientFill(juce::ColourGradient(
+      fill.brighter(on ? 0.30f : 0.12f), bounds.getCentreX(), bounds.getY(),
+      fill.darker(on ? 0.10f : 0.05f), bounds.getCentreX(), bounds.getBottom(),
+      false));
   g.fillRoundedRectangle(bounds, corner);
 
-  g.setColour(button.getToggleState() ? fill.brighter(0.25f)
-                                      : colours::outline);
-  g.drawRoundedRectangle(bounds, corner, 1.0f);
+  // A bright lip along the top edge, matching the glass on the indicators.
+  g.setColour(juce::Colours::white.withAlpha(on ? 0.35f : 0.10f));
+  g.fillRoundedRectangle(bounds.getX() + 1.5f, bounds.getY() + 1.0f,
+                         bounds.getWidth() - 3.0f, 1.0f, 0.5f);
+
+  g.setColour(on ? fill.brighter(0.45f) : colours::outline);
+  g.drawRoundedRectangle(bounds.reduced(0.5f), corner, 1.0f);
 }
 
 void OvertoniumLookAndFeel::drawButtonText(juce::Graphics &g,
@@ -223,11 +325,19 @@ void OvertoniumLookAndFeel::drawComboBox(juce::Graphics &g, int width,
   const auto bounds =
       juce::Rectangle<int>(0, 0, width, height).toFloat().reduced(0.5f);
 
-  g.setColour(box.findColour(juce::ComboBox::backgroundColourId));
+  const auto fill = box.findColour(juce::ComboBox::backgroundColourId);
+
+  g.setGradientFill(juce::ColourGradient(
+      fill.brighter(0.12f), bounds.getCentreX(), bounds.getY(),
+      fill.darker(0.05f), bounds.getCentreX(), bounds.getBottom(), false));
   g.fillRoundedRectangle(bounds, 4.0f);
 
+  g.setColour(juce::Colours::white.withAlpha(0.08f));
+  g.fillRoundedRectangle(bounds.getX() + 2.0f, bounds.getY() + 1.0f,
+                         bounds.getWidth() - 4.0f, 1.0f, 0.5f);
+
   g.setColour(box.findColour(juce::ComboBox::outlineColourId));
-  g.drawRoundedRectangle(bounds, 4.0f, 1.0f);
+  g.drawRoundedRectangle(bounds.reduced(0.5f), 4.0f, 1.0f);
 
   juce::Path chevron;
   const auto cx = bounds.getRight() - 12.0f;

@@ -70,8 +70,7 @@ void MasterStrip::setSoloActive(bool active) {
 void MasterStrip::paint(juce::Graphics &g) {
   auto bounds = getLocalBounds();
 
-  g.setColour(colours::panel.brighter(0.06f));
-  g.fillRect(bounds);
+  paintChannelBackground(g, bounds, colours::panel.brighter(0.06f));
 
   const auto rows = layoutRows(bounds.reduced(2, 4));
   auto header = rows[rowIndex(Row::Header)];

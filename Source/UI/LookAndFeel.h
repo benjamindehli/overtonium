@@ -39,4 +39,11 @@ public:
 /// Small helper so the codebase has one place that knows how to make a font.
 juce::Font makeFont(float height, bool bold = false);
 
+/// Fills a channel background under the panel's light source, which comes from
+/// the top left throughout. A brighter left edge and a darker right one make a
+/// run of strips read as raised columns rather than a flat sheet, and the band
+/// of shade along the top is the shadow the header casts onto them.
+void paintChannelBackground(juce::Graphics &, juce::Rectangle<int> bounds,
+                            juce::Colour base);
+
 } // namespace ovt::ui

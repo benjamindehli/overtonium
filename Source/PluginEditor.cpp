@@ -29,8 +29,7 @@ bool isHeadingRow(Row r) {
 // =============================================================================
 
 void RowGutter::paint(juce::Graphics &g) {
-  g.setColour(colours::panel);
-  g.fillRect(getLocalBounds());
+  paintChannelBackground(g, getLocalBounds(), colours::panel.darker(0.25f));
 
   const auto rows = layoutRows(getLocalBounds().reduced(0, 4));
 
@@ -120,7 +119,12 @@ OvertoniumEditor::~OvertoniumEditor() {
 }
 
 void OvertoniumEditor::paint(juce::Graphics &g) {
-  g.fillAll(colours::background);
+  const auto r = getLocalBounds().toFloat();
+
+  g.setGradientFill(juce::ColourGradient(
+      colours::background.brighter(0.16f), r.getX(), r.getY(),
+      colours::background.darker(0.35f), r.getRight(), r.getBottom(), false));
+  g.fillRect(r);
 }
 
 void OvertoniumEditor::resized() {

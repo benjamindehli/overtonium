@@ -8,7 +8,8 @@ namespace ovt::ui {
 
 namespace {
 constexpr float kZoomChoices[] = {0.75f, 1.0f, 1.25f, 1.5f};
-}
+
+} // namespace
 
 // =============================================================================
 

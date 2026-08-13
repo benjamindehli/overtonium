@@ -83,6 +83,15 @@ void LevelMeter::paint(juce::Graphics &g) {
   g.setColour(colours::groove);
   g.fillRoundedRectangle(track, corner);
 
+  // Recessed, so the light that reaches the panel does not reach the bottom of
+  // the channel it is cut into.
+  const auto lip = juce::jmin(6.0f, track.getHeight() * 0.06f);
+  g.setGradientFill(
+      juce::ColourGradient(juce::Colours::black.withAlpha(0.45f), track.getX(),
+                           track.getY(), juce::Colours::black.withAlpha(0.0f),
+                           track.getX(), track.getY() + lip, false));
+  g.fillRect(track.withHeight(lip));
+
   if (displayed <= 0.001f)
     return;
 
@@ -245,8 +254,8 @@ void ChannelStrip::setSilencedByOthers(bool shouldDim) {
 void ChannelStrip::paint(juce::Graphics &g) {
   auto bounds = getLocalBounds();
 
-  g.setColour((index % 2) == 0 ? colours::panel : colours::panelAlt);
-  g.fillRect(bounds);
+  paintChannelBackground(g, bounds,
+                         (index % 2) == 0 ? colours::panel : colours::panelAlt);
 
   // A faint wash on the octave partials makes the shape of the series readable
   // even when you are scrolled halfway along the mixer.
@@ -281,9 +290,6 @@ void ChannelStrip::paint(juce::Graphics &g) {
     const auto row = rows[rowIndex(r)];
     g.fillRect(row.getX(), row.getY() + row.getHeight() / 2, row.getWidth(), 1);
   }
-
-  g.setColour(colours::background.withAlpha(0.55f));
-  g.fillRect(getWidth() - 1, 0, 1, getHeight());
 }
 
 void ChannelStrip::resized() {
