@@ -4,37 +4,39 @@
 
 #include "Theme.h"
 
-namespace ovt::ui
-{
+namespace ovt::ui {
 
-class OvertoniumLookAndFeel : public juce::LookAndFeel_V4
-{
+class OvertoniumLookAndFeel : public juce::LookAndFeel_V4 {
 public:
-    OvertoniumLookAndFeel();
+  OvertoniumLookAndFeel();
 
-    void drawRotarySlider (juce::Graphics&, int x, int y, int width, int height,
-                           float sliderPosProportional, float rotaryStartAngle,
-                           float rotaryEndAngle, juce::Slider&) override;
+  void drawRotarySlider(juce::Graphics &, int x, int y, int width, int height,
+                        float sliderPosProportional, float rotaryStartAngle,
+                        float rotaryEndAngle, juce::Slider &) override;
 
-    void drawLinearSlider (juce::Graphics&, int x, int y, int width, int height,
-                           float sliderPos, float minSliderPos, float maxSliderPos,
-                           juce::Slider::SliderStyle, juce::Slider&) override;
+  void drawLinearSlider(juce::Graphics &, int x, int y, int width, int height,
+                        float sliderPos, float minSliderPos, float maxSliderPos,
+                        juce::Slider::SliderStyle, juce::Slider &) override;
 
-    void drawButtonBackground (juce::Graphics&, juce::Button&, const juce::Colour& backgroundColour,
-                               bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
+  void drawButtonBackground(juce::Graphics &, juce::Button &,
+                            const juce::Colour &backgroundColour,
+                            bool shouldDrawButtonAsHighlighted,
+                            bool shouldDrawButtonAsDown) override;
 
-    void drawButtonText (juce::Graphics&, juce::TextButton&,
-                         bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
+  void drawButtonText(juce::Graphics &, juce::TextButton &,
+                      bool shouldDrawButtonAsHighlighted,
+                      bool shouldDrawButtonAsDown) override;
 
-    void drawComboBox (juce::Graphics&, int width, int height, bool isButtonDown,
-                       int buttonX, int buttonY, int buttonW, int buttonH, juce::ComboBox&) override;
+  void drawComboBox(juce::Graphics &, int width, int height, bool isButtonDown,
+                    int buttonX, int buttonY, int buttonW, int buttonH,
+                    juce::ComboBox &) override;
 
-    juce::Font getComboBoxFont (juce::ComboBox&) override;
-    juce::Font getPopupMenuFont() override;
-    juce::Font getSliderPopupFont (juce::Slider&) override;
+  juce::Font getComboBoxFont(juce::ComboBox &) override;
+  juce::Font getPopupMenuFont() override;
+  juce::Font getSliderPopupFont(juce::Slider &) override;
 };
 
-/** Small helper so the codebase has one place that knows how to make a font. */
-juce::Font makeFont (float height, bool bold = false);
+/// Small helper so the codebase has one place that knows how to make a font.
+juce::Font makeFont(float height, bool bold = false);
 
 } // namespace ovt::ui

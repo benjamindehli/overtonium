@@ -1,164 +1,145 @@
 #include "PluginProcessor.h"
 
 OvertoniumProcessor::OvertoniumProcessor()
-    : juce::AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
-      apvts (*this, nullptr, "OVERTONIUM", ovt::params::createParameterLayout())
-{
-    paramCache.connect (apvts);
+    : juce::AudioProcessor(BusesProperties().withOutput(
+          "Output", juce::AudioChannelSet::stereo(), true)),
+      apvts(*this, nullptr, "OVERTONIUM",
+            ovt::params::createParameterLayout()) {
+  paramCache.connect(apvts);
 }
 
-void OvertoniumProcessor::prepareToPlay (double sampleRate, int maximumExpectedSamplesPerBlock)
-{
-    engine.prepare (sampleRate);
-    scratch.setSize (2, juce::jmax (1, maximumExpectedSamplesPerBlock), false, true, true);
-    pitchBendNormalised = 0.0f;
+void OvertoniumProcessor::prepareToPlay(double sampleRate,
+                                        int maximumExpectedSamplesPerBlock) {
+  engine.prepare(sampleRate);
+  scratch.setSize(2, juce::jmax(1, maximumExpectedSamplesPerBlock), false, true,
+                  true);
+  pitchBendNormalised = 0.0f;
 }
 
-void OvertoniumProcessor::releaseResources()
-{
+void OvertoniumProcessor::releaseResources() {
+  engine.allSoundOff();
+  scratch.setSize(2, 1, false, true, true);
+}
+
+bool OvertoniumProcessor::isBusesLayoutSupported(
+    const BusesLayout &layouts) const {
+  if (layouts.getMainInputChannels() != 0)
+    return false;
+
+  const auto out = layouts.getMainOutputChannelSet();
+  return out == juce::AudioChannelSet::mono() ||
+         out == juce::AudioChannelSet::stereo();
+}
+
+double OvertoniumProcessor::getTailLengthSeconds() const {
+  // Report the longest release currently dialled in rather than the worst case
+  // the ranges allow, so offline bounces are not padded with 20 s of silence.
+  float longest = 0.0f;
+
+  for (int i = 0; i < ovt::kNumHarmonics; ++i) {
+    if (const auto *r = paramCache.osc[(size_t)i].release)
+      longest = juce::jmax(longest, r->load());
+  }
+
+  return (double)longest + 0.1;
+}
+
+void OvertoniumProcessor::handleMidiMessage(const juce::MidiMessage &m) {
+  if (m.isNoteOn()) {
+    engine.noteOn(m.getNoteNumber(), m.getFloatVelocity(), currentParams);
+  } else if (m.isNoteOff()) {
+    engine.noteOff(m.getNoteNumber());
+  } else if (m.isPitchWheel()) {
+    pitchBendNormalised = ((float)m.getPitchWheelValue() - 8192.0f) / 8192.0f;
+    currentParams.global.bendSemitones =
+        pitchBendNormalised * paramCache.bendRange->load();
+  } else if (m.isSustainPedalOn()) {
+    engine.setSustainPedal(true);
+  } else if (m.isSustainPedalOff()) {
+    engine.setSustainPedal(false);
+  } else if (m.isAllNotesOff()) {
+    engine.allNotesOff();
+  } else if (m.isAllSoundOff()) {
     engine.allSoundOff();
-    scratch.setSize (2, 1, false, true, true);
+  }
 }
 
-bool OvertoniumProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
-{
-    if (layouts.getMainInputChannels() != 0)
-        return false;
+void OvertoniumProcessor::renderSegment(int startSample, int numSamples) {
+  if (numSamples <= 0)
+    return;
 
-    const auto out = layouts.getMainOutputChannelSet();
-    return out == juce::AudioChannelSet::mono() || out == juce::AudioChannelSet::stereo();
+  engine.render(scratch.getWritePointer(0, startSample),
+                scratch.getWritePointer(1, startSample), numSamples,
+                currentParams);
 }
 
-double OvertoniumProcessor::getTailLengthSeconds() const
-{
-    // Report the longest release currently dialled in rather than the worst case the
-    // ranges allow, so offline bounces are not padded with 20 s of silence.
-    float longest = 0.0f;
+void OvertoniumProcessor::processBlock(juce::AudioBuffer<float> &buffer,
+                                       juce::MidiBuffer &midi) {
+  juce::ScopedNoDenormals noDenormals;
 
-    for (int i = 0; i < ovt::kNumHarmonics; ++i)
-    {
-        if (const auto* r = paramCache.osc[(size_t) i].release)
-            longest = juce::jmax (longest, r->load());
-    }
+  const int numSamples = buffer.getNumSamples();
 
-    return (double) longest + 0.1;
+  if (numSamples <= 0)
+    return;
+
+  // Hosts are allowed to exceed the block size they promised in prepareToPlay.
+  if (scratch.getNumSamples() < numSamples)
+    scratch.setSize(2, numSamples, false, true, true);
+
+  paramCache.snapshot(currentParams, pitchBendNormalised);
+  engine.setPolyphony(paramCache.polyphonyValue());
+
+  // Render in segments split on MIDI timestamps so note timing is sample
+  // accurate.
+  int position = 0;
+
+  for (const auto metadata : midi) {
+    // Clamping against `position` rather than 0 keeps the segments monotonic
+    // even if a host hands us out-of-order timestamps; otherwise we would
+    // render backwards over audio we had already written.
+    const int eventTime =
+        juce::jlimit(position, numSamples, metadata.samplePosition);
+
+    renderSegment(position, eventTime - position);
+    position = eventTime;
+
+    handleMidiMessage(metadata.getMessage());
+  }
+
+  renderSegment(position, numSamples - position);
+
+  // ---- fan the stereo render out to whatever the host asked for -------------
+  const int numOut = buffer.getNumChannels();
+  const auto *left = scratch.getReadPointer(0);
+  const auto *right = scratch.getReadPointer(1);
+
+  if (numOut == 1) {
+    auto *dest = buffer.getWritePointer(0);
+    for (int n = 0; n < numSamples; ++n)
+      dest[n] = 0.5f * (left[n] + right[n]);
+  } else if (numOut >= 2) {
+    buffer.copyFrom(0, 0, left, numSamples);
+    buffer.copyFrom(1, 0, right, numSamples);
+
+    for (int ch = 2; ch < numOut; ++ch)
+      buffer.clear(ch, 0, numSamples);
+  }
+
+  activeVoices.store(engine.getActiveVoiceCount());
 }
 
-void OvertoniumProcessor::handleMidiMessage (const juce::MidiMessage& m)
-{
-    if (m.isNoteOn())
-    {
-        engine.noteOn (m.getNoteNumber(), m.getFloatVelocity(), currentParams);
-    }
-    else if (m.isNoteOff())
-    {
-        engine.noteOff (m.getNoteNumber());
-    }
-    else if (m.isPitchWheel())
-    {
-        pitchBendNormalised = ((float) m.getPitchWheelValue() - 8192.0f) / 8192.0f;
-        currentParams.global.bendSemitones = pitchBendNormalised * paramCache.bendRange->load();
-    }
-    else if (m.isSustainPedalOn())
-    {
-        engine.setSustainPedal (true);
-    }
-    else if (m.isSustainPedalOff())
-    {
-        engine.setSustainPedal (false);
-    }
-    else if (m.isAllNotesOff())
-    {
-        engine.allNotesOff();
-    }
-    else if (m.isAllSoundOff())
-    {
-        engine.allSoundOff();
-    }
+void OvertoniumProcessor::getStateInformation(juce::MemoryBlock &destData) {
+  if (auto xml = apvts.copyState().createXml())
+    copyXmlToBinary(*xml, destData);
 }
 
-void OvertoniumProcessor::renderSegment (int startSample, int numSamples)
-{
-    if (numSamples <= 0)
-        return;
-
-    engine.render (scratch.getWritePointer (0, startSample),
-                   scratch.getWritePointer (1, startSample),
-                   numSamples,
-                   currentParams);
+void OvertoniumProcessor::setStateInformation(const void *data,
+                                              int sizeInBytes) {
+  if (auto xml = getXmlFromBinary(data, sizeInBytes))
+    if (xml->hasTagName(apvts.state.getType()))
+      apvts.replaceState(juce::ValueTree::fromXml(*xml));
 }
 
-void OvertoniumProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
-{
-    juce::ScopedNoDenormals noDenormals;
-
-    const int numSamples = buffer.getNumSamples();
-
-    if (numSamples <= 0)
-        return;
-
-    // Hosts are allowed to exceed the block size they promised in prepareToPlay.
-    if (scratch.getNumSamples() < numSamples)
-        scratch.setSize (2, numSamples, false, true, true);
-
-    paramCache.snapshot (currentParams, pitchBendNormalised);
-    engine.setPolyphony (paramCache.polyphonyValue());
-
-    // Render in segments split on MIDI timestamps so note timing is sample accurate.
-    int position = 0;
-
-    for (const auto metadata : midi)
-    {
-        // Clamping against `position` rather than 0 keeps the segments monotonic even if a
-        // host hands us out-of-order timestamps; otherwise we would render backwards over
-        // audio we had already written.
-        const int eventTime = juce::jlimit (position, numSamples, metadata.samplePosition);
-
-        renderSegment (position, eventTime - position);
-        position = eventTime;
-
-        handleMidiMessage (metadata.getMessage());
-    }
-
-    renderSegment (position, numSamples - position);
-
-    // ---- fan the stereo render out to whatever the host asked for ----------------------
-    const int numOut = buffer.getNumChannels();
-    const auto* left  = scratch.getReadPointer (0);
-    const auto* right = scratch.getReadPointer (1);
-
-    if (numOut == 1)
-    {
-        auto* dest = buffer.getWritePointer (0);
-        for (int n = 0; n < numSamples; ++n)
-            dest[n] = 0.5f * (left[n] + right[n]);
-    }
-    else if (numOut >= 2)
-    {
-        buffer.copyFrom (0, 0, left,  numSamples);
-        buffer.copyFrom (1, 0, right, numSamples);
-
-        for (int ch = 2; ch < numOut; ++ch)
-            buffer.clear (ch, 0, numSamples);
-    }
-
-    activeVoices.store (engine.getActiveVoiceCount());
-}
-
-void OvertoniumProcessor::getStateInformation (juce::MemoryBlock& destData)
-{
-    if (auto xml = apvts.copyState().createXml())
-        copyXmlToBinary (*xml, destData);
-}
-
-void OvertoniumProcessor::setStateInformation (const void* data, int sizeInBytes)
-{
-    if (auto xml = getXmlFromBinary (data, sizeInBytes))
-        if (xml->hasTagName (apvts.state.getType()))
-            apvts.replaceState (juce::ValueTree::fromXml (*xml));
-}
-
-juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
-{
-    return new OvertoniumProcessor();
+juce::AudioProcessor *JUCE_CALLTYPE createPluginFilter() {
+  return new OvertoniumProcessor();
 }

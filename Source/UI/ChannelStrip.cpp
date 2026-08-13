@@ -3,221 +3,210 @@
 #include "../PluginParameters.h"
 #include "LookAndFeel.h"
 
-namespace ovt::ui
-{
+namespace ovt::ui {
 
-namespace
-{
-    inline size_t rowIndex (Row r) { return (size_t) r; }
+namespace {
+inline size_t rowIndex(Row r) { return (size_t)r; }
+} // namespace
+
+ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
+                           LinkTarget &linkTarget, juce::Component &popupParent,
+                           int index0)
+    : apvts(state), link(linkTarget), popupHost(popupParent), index(index0),
+      info(harmonic(index0)),
+      colour(intervalColour(harmonic(index0).pitchClass)) {
+  // Tune and Level carry the strip's identity colour; the modulation and
+  // envelope knobs are desaturated so they read as secondary at a glance across
+  // 32 channels.
+  const auto secondary = colour.withSaturation(0.28f).withBrightness(0.72f);
+
+  setUpKnob(tune, Role::Tune, colour);
+  setUpKnob(pmRate, Role::PmRate, secondary);
+  setUpKnob(pmDepth, Role::PmDepth, secondary);
+  setUpKnob(attack, Role::Attack, secondary);
+  setUpKnob(decay, Role::Decay, secondary);
+  setUpKnob(sustain, Role::Sustain, secondary);
+  setUpKnob(release, Role::Release, secondary);
+  setUpKnob(amRate, Role::AmRate, secondary);
+  setUpKnob(amDepth, Role::AmDepth, secondary);
+  setUpFader(volume, Role::Volume, colour);
+
+  muteButton.setClickingTogglesState(true);
+  soloButton.setClickingTogglesState(true);
+  muteButton.setColour(juce::TextButton::buttonOnColourId, colours::muteOn);
+  soloButton.setColour(juce::TextButton::buttonOnColourId, colours::soloOn);
+  muteButton.setTooltip("Mute harmonic " + juce::String(info.harmonic));
+  soloButton.setTooltip("Solo harmonic " + juce::String(info.harmonic));
+  addAndMakeVisible(muteButton);
+  addAndMakeVisible(soloButton);
+
+  muteAttachment = std::make_unique<ButtonAttachment>(
+      apvts, params::oscParamId(params::muteSuffix, index), muteButton);
+  soloAttachment = std::make_unique<ButtonAttachment>(
+      apvts, params::oscParamId(params::soloSuffix, index), soloButton);
+
+  for (auto *l : {&tuneReadout, &levelReadout}) {
+    l->setJustificationType(juce::Justification::centred);
+    l->setFont(makeFont(10.0f));
+    l->setColour(juce::Label::textColourId, colours::textDim);
+    l->setInterceptsMouseClicks(false, false);
+    addAndMakeVisible(*l);
+  }
+
+  updateTuneReadout();
+  updateLevelReadout();
+
+  const auto cents = juce::String(info.jiCents, 1);
+  setTooltip("Harmonic " + juce::String(info.harmonic) + "  -  " +
+             intervalName(info.pitchClass) + "\n" +
+             juce::String(info.etSemitones) +
+             " semitones above the played note" + "\nJust intonation is " +
+             (info.jiCents >= 0.0 ? "+" : "") + cents + " cents from that");
 }
 
-ChannelStrip::ChannelStrip (juce::AudioProcessorValueTreeState& state,
-                            LinkTarget& linkTarget,
-                            juce::Component& popupParent,
-                            int index0)
-    : apvts (state),
-      link (linkTarget),
-      popupHost (popupParent),
-      index (index0),
-      info (harmonic (index0)),
-      colour (intervalColour (harmonic (index0).pitchClass))
-{
-    // Tune and Level carry the strip's identity colour; the modulation and envelope knobs
-    // are desaturated so they read as secondary at a glance across 32 channels.
-    const auto secondary = colour.withSaturation (0.28f).withBrightness (0.72f);
+void ChannelStrip::setUpKnob(LinkableSlider &s, Role role, juce::Colour fill) {
+  s.setSliderStyle(juce::Slider::RotaryVerticalDrag);
+  s.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+  s.setColour(juce::Slider::rotarySliderFillColourId, fill);
+  s.setPopupDisplayEnabled(true, true, &popupHost);
+  addAndMakeVisible(s);
 
-    setUpKnob  (tune,    Role::Tune,    colour);
-    setUpKnob  (pmRate,  Role::PmRate,  secondary);
-    setUpKnob  (pmDepth, Role::PmDepth, secondary);
-    setUpKnob  (attack,  Role::Attack,  secondary);
-    setUpKnob  (decay,   Role::Decay,   secondary);
-    setUpKnob  (sustain, Role::Sustain, secondary);
-    setUpKnob  (release, Role::Release, secondary);
-    setUpKnob  (amRate,  Role::AmRate,  secondary);
-    setUpKnob  (amDepth, Role::AmDepth, secondary);
-    setUpFader (volume,  Role::Volume,  colour);
-
-    muteButton.setClickingTogglesState (true);
-    soloButton.setClickingTogglesState (true);
-    muteButton.setColour (juce::TextButton::buttonOnColourId, colours::muteOn);
-    soloButton.setColour (juce::TextButton::buttonOnColourId, colours::soloOn);
-    muteButton.setTooltip ("Mute harmonic " + juce::String (info.harmonic));
-    soloButton.setTooltip ("Solo harmonic " + juce::String (info.harmonic));
-    addAndMakeVisible (muteButton);
-    addAndMakeVisible (soloButton);
-
-    muteAttachment = std::make_unique<ButtonAttachment> (
-        apvts, params::oscParamId (params::muteSuffix, index), muteButton);
-    soloAttachment = std::make_unique<ButtonAttachment> (
-        apvts, params::oscParamId (params::soloSuffix, index), soloButton);
-
-    for (auto* l : { &tuneReadout, &levelReadout })
-    {
-        l->setJustificationType (juce::Justification::centred);
-        l->setFont (makeFont (10.0f));
-        l->setColour (juce::Label::textColourId, colours::textDim);
-        l->setInterceptsMouseClicks (false, false);
-        addAndMakeVisible (*l);
-    }
-
-    updateTuneReadout();
-    updateLevelReadout();
-
-    const auto cents = juce::String (info.jiCents, 1);
-    setTooltip ("Harmonic " + juce::String (info.harmonic) + "  -  " + intervalName (info.pitchClass)
-                + "\n" + juce::String (info.etSemitones) + " semitones above the played note"
-                + "\nJust intonation is " + (info.jiCents >= 0.0 ? "+" : "") + cents + " cents from that");
+  wireUp(s, role);
 }
 
-void ChannelStrip::setUpKnob (LinkableSlider& s, Role role, juce::Colour fill)
-{
-    s.setSliderStyle (juce::Slider::RotaryVerticalDrag);
-    s.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
-    s.setColour (juce::Slider::rotarySliderFillColourId, fill);
-    s.setPopupDisplayEnabled (true, true, &popupHost);
-    addAndMakeVisible (s);
+void ChannelStrip::setUpFader(LinkableSlider &s, Role role, juce::Colour fill) {
+  s.setSliderStyle(juce::Slider::LinearVertical);
+  s.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+  s.setColour(juce::Slider::trackColourId, fill);
+  s.setPopupDisplayEnabled(true, true, &popupHost);
+  addAndMakeVisible(s);
 
-    wireUp (s, role);
+  wireUp(s, role);
 }
 
-void ChannelStrip::setUpFader (LinkableSlider& s, Role role, juce::Colour fill)
-{
-    s.setSliderStyle (juce::Slider::LinearVertical);
-    s.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
-    s.setColour (juce::Slider::trackColourId, fill);
-    s.setPopupDisplayEnabled (true, true, &popupHost);
-    addAndMakeVisible (s);
+void ChannelStrip::wireUp(LinkableSlider &s, Role role) {
+  const auto paramId = params::oscParamId(roleSuffix(role), index);
 
-    wireUp (s, role);
+  // The attachment must exist before onValueChange fires, or the first callback
+  // reads a slider whose range has not been set up yet.
+  sliderAttachments.push_back(
+      std::make_unique<SliderAttachment>(apvts, paramId, s));
+
+  // Double-click restores the parameter's own default rather than the range
+  // minimum.
+  if (auto *p = apvts.getParameter(paramId))
+    s.setDoubleClickReturnValue(
+        true, (double)p->convertFrom0to1(p->getDefaultValue()));
+
+  s.onUserDragStart = [this, role] { link.linkDragStarted(role, index); };
+  s.onUserDragEnd = [this, role] { link.linkDragEnded(role, index); };
+
+  s.onValueChange = [this, &s, role] {
+    if (role == Role::Tune)
+      updateTuneReadout();
+    else if (role == Role::Volume)
+      updateLevelReadout();
+
+    if (s.isUserDragging())
+      link.linkValueChanged(role, index, (float)s.getValue());
+  };
 }
 
-void ChannelStrip::wireUp (LinkableSlider& s, Role role)
-{
-    const auto paramId = params::oscParamId (roleSuffix (role), index);
+void ChannelStrip::updateTuneReadout() {
+  const auto blend = tune.getValue();
+  const auto cents = blend * info.jiCents;
 
-    // The attachment must exist before onValueChange fires, or the first callback reads
-    // a slider whose range has not been set up yet.
-    sliderAttachments.push_back (std::make_unique<SliderAttachment> (apvts, paramId, s));
+  juce::String text;
 
-    // Double-click restores the parameter's own default rather than the range minimum.
-    if (auto* p = apvts.getParameter (paramId))
-        s.setDoubleClickReturnValue (true, (double) p->convertFrom0to1 (p->getDefaultValue()));
+  if (std::abs(info.jiCents) < 0.05)
+    text = "0.0"; // the octaves are the same either way
+  else if (blend <= 0.0005)
+    text = "ET";
+  else
+    text = (cents >= 0.0 ? "+" : "") + juce::String(cents, 1);
 
-    s.onUserDragStart = [this, role] { link.linkDragStarted (role, index); };
-    s.onUserDragEnd   = [this, role] { link.linkDragEnded (role, index); };
-
-    s.onValueChange = [this, &s, role]
-    {
-        if (role == Role::Tune)
-            updateTuneReadout();
-        else if (role == Role::Volume)
-            updateLevelReadout();
-
-        if (s.isUserDragging())
-            link.linkValueChanged (role, index, (float) s.getValue());
-    };
+  tuneReadout.setText(text, juce::dontSendNotification);
 }
 
-void ChannelStrip::updateTuneReadout()
-{
-    const auto blend = tune.getValue();
-    const auto cents = blend * info.jiCents;
+void ChannelStrip::updateLevelReadout() {
+  const auto v = (float)volume.getValue();
 
-    juce::String text;
-
-    if (std::abs (info.jiCents) < 0.05)
-        text = "0.0";                                   // the octaves are the same either way
-    else if (blend <= 0.0005)
-        text = "ET";
-    else
-        text = (cents >= 0.0 ? "+" : "") + juce::String (cents, 1);
-
-    tuneReadout.setText (text, juce::dontSendNotification);
+  levelReadout.setText(v <= 0.0005f
+                           ? juce::String("-inf")
+                           : juce::String(juce::Decibels::gainToDecibels(v), 1),
+                       juce::dontSendNotification);
 }
 
-void ChannelStrip::updateLevelReadout()
-{
-    const auto v = (float) volume.getValue();
+void ChannelStrip::setSilencedByOthers(bool shouldDim) {
+  if (silenced == shouldDim)
+    return;
 
-    levelReadout.setText (v <= 0.0005f ? juce::String ("-inf")
-                                       : juce::String (juce::Decibels::gainToDecibels (v), 1),
-                          juce::dontSendNotification);
+  silenced = shouldDim;
+  setAlpha(silenced ? 0.4f : 1.0f);
 }
 
-void ChannelStrip::setSilencedByOthers (bool shouldDim)
-{
-    if (silenced == shouldDim)
-        return;
+void ChannelStrip::paint(juce::Graphics &g) {
+  auto bounds = getLocalBounds();
 
-    silenced = shouldDim;
-    setAlpha (silenced ? 0.4f : 1.0f);
+  g.setColour((index % 2) == 0 ? colours::panel : colours::panelAlt);
+  g.fillRect(bounds);
+
+  // A faint wash on the octave partials makes the shape of the series readable
+  // even when you are scrolled halfway along the mixer.
+  if (info.pitchClass == 0) {
+    g.setColour(colour.withAlpha(0.055f));
+    g.fillRect(bounds);
+  }
+
+  const auto rows = layoutRows(bounds.reduced(2, 4));
+
+  auto header = rows[rowIndex(Row::Header)];
+
+  g.setColour(colour);
+  g.fillRect(header.removeFromTop(3).reduced(1, 0));
+
+  header.removeFromTop(1);
+
+  g.setColour(colours::text);
+  g.setFont(makeFont(14.0f, true));
+  g.drawText(juce::String(info.harmonic), header.removeFromTop(14),
+             juce::Justification::centred, false);
+
+  g.setColour(colour.withAlpha(0.85f));
+  g.setFont(makeFont(9.0f));
+  g.drawText(intervalShortName(info.pitchClass), header,
+             juce::Justification::centred, false);
+
+  // Section rules, aligned with the gutter headings.
+  g.setColour(colours::outline.withAlpha(0.7f));
+  for (auto r : {Row::PitchModHeading, Row::EnvHeading, Row::AmpModHeading}) {
+    const auto row = rows[rowIndex(r)];
+    g.fillRect(row.getX(), row.getY() + row.getHeight() / 2, row.getWidth(), 1);
+  }
+
+  g.setColour(colours::background.withAlpha(0.55f));
+  g.fillRect(getWidth() - 1, 0, 1, getHeight());
 }
 
-void ChannelStrip::paint (juce::Graphics& g)
-{
-    auto bounds = getLocalBounds();
+void ChannelStrip::resized() {
+  const auto rows = layoutRows(getLocalBounds().reduced(2, 4));
 
-    g.setColour ((index % 2) == 0 ? colours::panel : colours::panelAlt);
-    g.fillRect (bounds);
+  tune.setBounds(rows[rowIndex(Row::TuneKnob)]);
+  tuneReadout.setBounds(rows[rowIndex(Row::TuneText)]);
+  pmRate.setBounds(rows[rowIndex(Row::PmRate)].reduced(1));
+  pmDepth.setBounds(rows[rowIndex(Row::PmDepth)].reduced(1));
+  attack.setBounds(rows[rowIndex(Row::Attack)].reduced(1));
+  decay.setBounds(rows[rowIndex(Row::Decay)].reduced(1));
+  sustain.setBounds(rows[rowIndex(Row::Sustain)].reduced(1));
+  release.setBounds(rows[rowIndex(Row::Release)].reduced(1));
+  amRate.setBounds(rows[rowIndex(Row::AmRate)].reduced(1));
+  amDepth.setBounds(rows[rowIndex(Row::AmDepth)].reduced(1));
+  volume.setBounds(rows[rowIndex(Row::Fader)].reduced(2, 1));
+  levelReadout.setBounds(rows[rowIndex(Row::FaderText)]);
 
-    // A faint wash on the octave partials makes the shape of the series readable
-    // even when you are scrolled halfway along the mixer.
-    if (info.pitchClass == 0)
-    {
-        g.setColour (colour.withAlpha (0.055f));
-        g.fillRect (bounds);
-    }
-
-    const auto rows = layoutRows (bounds.reduced (2, 4));
-
-    auto header = rows[rowIndex (Row::Header)];
-
-    g.setColour (colour);
-    g.fillRect (header.removeFromTop (3).reduced (1, 0));
-
-    header.removeFromTop (1);
-
-    g.setColour (colours::text);
-    g.setFont (makeFont (14.0f, true));
-    g.drawText (juce::String (info.harmonic), header.removeFromTop (14),
-                juce::Justification::centred, false);
-
-    g.setColour (colour.withAlpha (0.85f));
-    g.setFont (makeFont (9.0f));
-    g.drawText (intervalShortName (info.pitchClass), header, juce::Justification::centred, false);
-
-    // Section rules, aligned with the gutter headings.
-    g.setColour (colours::outline.withAlpha (0.7f));
-    for (auto r : { Row::PitchModHeading, Row::EnvHeading, Row::AmpModHeading })
-    {
-        const auto row = rows[rowIndex (r)];
-        g.fillRect (row.getX(), row.getY() + row.getHeight() / 2, row.getWidth(), 1);
-    }
-
-    g.setColour (colours::background.withAlpha (0.55f));
-    g.fillRect (getWidth() - 1, 0, 1, getHeight());
-}
-
-void ChannelStrip::resized()
-{
-    const auto rows = layoutRows (getLocalBounds().reduced (2, 4));
-
-    tune        .setBounds (rows[rowIndex (Row::TuneKnob)]);
-    tuneReadout .setBounds (rows[rowIndex (Row::TuneText)]);
-    pmRate      .setBounds (rows[rowIndex (Row::PmRate)].reduced (1));
-    pmDepth     .setBounds (rows[rowIndex (Row::PmDepth)].reduced (1));
-    attack      .setBounds (rows[rowIndex (Row::Attack)].reduced (1));
-    decay       .setBounds (rows[rowIndex (Row::Decay)].reduced (1));
-    sustain     .setBounds (rows[rowIndex (Row::Sustain)].reduced (1));
-    release     .setBounds (rows[rowIndex (Row::Release)].reduced (1));
-    amRate      .setBounds (rows[rowIndex (Row::AmRate)].reduced (1));
-    amDepth     .setBounds (rows[rowIndex (Row::AmDepth)].reduced (1));
-    volume      .setBounds (rows[rowIndex (Row::Fader)].reduced (2, 1));
-    levelReadout.setBounds (rows[rowIndex (Row::FaderText)]);
-
-    auto ms = rows[rowIndex (Row::MuteSolo)];
-    muteButton.setBounds (ms.removeFromLeft (ms.getWidth() / 2).reduced (1));
-    soloButton.setBounds (ms.reduced (1));
+  auto ms = rows[rowIndex(Row::MuteSolo)];
+  muteButton.setBounds(ms.removeFromLeft(ms.getWidth() / 2).reduced(1));
+  soloButton.setBounds(ms.reduced(1));
 }
 
 } // namespace ovt::ui
