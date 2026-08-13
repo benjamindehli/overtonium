@@ -50,6 +50,12 @@ public:
     return partialLevels[(size_t)index0].load(std::memory_order_relaxed);
   }
 
+  /// Peak of the finished stereo output, after master gain and the clipper, so
+  /// it reports what actually leaves the plugin.
+  float getOutputLevel() const noexcept {
+    return outputLevel.load(std::memory_order_relaxed);
+  }
+
 private:
   Voice *findFreeVoice() noexcept;
   Voice *findOldestSounding() noexcept;
@@ -65,6 +71,7 @@ private:
 
   /// Negative == "snap to target on the next block".
   std::array<std::atomic<float>, kNumHarmonics> partialLevels{};
+  std::atomic<float> outputLevel{0.0f};
 
   float smoothedMasterGain = -1.0f;
 };

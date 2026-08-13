@@ -54,6 +54,9 @@ public:
     return engine.getPartialLevel(index0);
   }
 
+  /// Polled by the editor to drive the master meter.
+  float getOutputLevel() const noexcept { return engine.getOutputLevel(); }
+
   juce::AudioProcessorValueTreeState apvts;
 
 private:

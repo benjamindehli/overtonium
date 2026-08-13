@@ -18,6 +18,12 @@ MasterStrip::MasterStrip(MacroTarget &target, juce::Component &popupParent)
   auto &level = knobs[(size_t)Role::Volume];
   level.setSliderStyle(juce::Slider::LinearVertical);
   level.setColour(juce::Slider::trackColourId, colours::accent);
+  level.getProperties().set("meteredGroove", true);
+  level.setTooltip("Moves the level of all 32 channels, keeping their spread. "
+                   "The track shows the finished output.");
+
+  addAndMakeVisible(meter);
+  meter.toBack(); // the fader cap has to draw over it
 
   muteButton.setClickingTogglesState(true);
   muteButton.setColour(juce::TextButton::buttonOnColourId, colours::muteOn);
@@ -107,6 +113,9 @@ void MasterStrip::resized() {
     knobs[(size_t)r].setBounds(row == Row::Fader ? area.reduced(2, 1)
                                                  : area.reduced(1));
   }
+
+  // Shares its rectangle with the level control, as on the partial strips.
+  meter.setBounds(rows[rowIndex(Row::Fader)].reduced(2, 1));
 
   auto ms = rows[rowIndex(Row::MuteSolo)];
   muteButton.setBounds(ms.removeFromLeft(ms.getWidth() / 2).reduced(1));

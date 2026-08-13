@@ -27,6 +27,9 @@ public:
   /// how you clear them.
   void setSoloActive(bool active);
 
+  /// Peak of the finished output, for the master meter.
+  void setOutputLevel(float level) { meter.push(level); }
+
 private:
   void setUp(RelativeKnob &, Role);
 
@@ -34,6 +37,7 @@ private:
   juce::Component &popupHost;
 
   std::array<RelativeKnob, kNumRoles> knobs;
+  LevelMeter meter{colours::accent};
   juce::TextButton muteButton{"M"}, soloButton{"S"};
 
   bool soloActive = false;

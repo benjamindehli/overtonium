@@ -346,6 +346,8 @@ void OvertoniumEditor::timerCallback() {
   for (int i = 0; i < kNumHarmonics; ++i)
     strips[(size_t)i]->setMeterLevel(processor.getPartialLevel(i));
 
+  masterStrip.setOutputLevel(processor.getOutputLevel());
+
   // The rest is housekeeping that nobody can see at 30 Hz, and it costs 96
   // parameter lookups, so it runs at a quarter of the rate.
   if (++housekeepingTick < 4)

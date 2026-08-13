@@ -100,19 +100,24 @@ void OvertoniumLookAndFeel::drawRotarySlider(
     g.strokePath(value, stroke);
   }
 
-  // Pointer, drawn from the centre outwards so tiny knobs stay readable.
+  // Pointer, drawn from the centre outwards so tiny knobs stay readable. It is
+  // glass: a translucent body with bright edges, so the value arc reads through
+  // it rather than being masked by it.
   juce::Path pointer;
   const auto pointerLength = arcR * 0.8f;
-  const auto pointerWidth = juce::jmax(1.6f, lineW * 0.45f);
+  const auto pointerWidth = juce::jmax(2.0f, lineW * 0.5f);
   pointer.addRoundedRectangle(-pointerWidth * 0.5f, -pointerLength,
                               pointerWidth, pointerLength * 0.72f,
                               pointerWidth * 0.5f);
   pointer.applyTransform(
       juce::AffineTransform::rotation(angle).translated(centre.x, centre.y));
 
-  g.setColour(
-      colours::text.withMultipliedAlpha(slider.isEnabled() ? 1.0f : 0.4f));
+  const auto dim = slider.isEnabled() ? 1.0f : 0.4f;
+
+  g.setColour(juce::Colours::white.withAlpha(0.30f * dim));
   g.fillPath(pointer);
+  g.setColour(juce::Colours::white.withAlpha(0.85f * dim));
+  g.strokePath(pointer, juce::PathStrokeType(0.9f));
 }
 
 void OvertoniumLookAndFeel::drawLinearSlider(
@@ -126,38 +131,54 @@ void OvertoniumLookAndFeel::drawLinearSlider(
   }
 
   const auto bounds = juce::Rectangle<int>(x, y, width, height).toFloat();
-  const auto centreX = bounds.getCentreX();
-  const auto grooveW = juce::jmax(4.0f, bounds.getWidth() * 0.22f);
+  const auto dim = slider.isEnabled() ? 1.0f : 0.4f;
 
-  const juce::Rectangle<float> groove(centreX - grooveW * 0.5f, bounds.getY(),
-                                      grooveW, bounds.getHeight());
-
-  g.setColour(colours::groove);
-  g.fillRoundedRectangle(groove, grooveW * 0.5f);
+  // When a meter sits behind the fader it owns the groove, so the track fill
+  // that would otherwise show the set level is dropped. The cap alone says
+  // where the fader is, which leaves the whole track free to show output.
+  const bool meteredGroove =
+      (bool)slider.getProperties().getWithDefault("meteredGroove", false);
 
   const auto fillTop =
       juce::jlimit(bounds.getY(), bounds.getBottom(), sliderPos);
 
-  // A relative fader shows its offset either side of the middle, the same way
-  // the relative knobs draw their arc from twelve o'clock.
-  const bool bipolar =
-      (bool)slider.getProperties().getWithDefault("bipolar", false);
-  const auto anchor = bipolar ? bounds.getCentreY() : bounds.getBottom();
+  if (!meteredGroove) {
+    const auto centreX = bounds.getCentreX();
+    const auto grooveW = juce::jmax(4.0f, bounds.getWidth() * 0.22f);
+    const juce::Rectangle<float> groove(centreX - grooveW * 0.5f, bounds.getY(),
+                                        grooveW, bounds.getHeight());
 
-  g.setColour(slider.findColour(juce::Slider::trackColourId)
-                  .withMultipliedAlpha(slider.isEnabled() ? 0.9f : 0.4f));
-  g.fillRoundedRectangle(groove.withTop(juce::jmin(anchor, fillTop))
-                             .withBottom(juce::jmax(anchor, fillTop)),
-                         grooveW * 0.5f);
+    g.setColour(colours::groove);
+    g.fillRoundedRectangle(groove, grooveW * 0.5f);
 
-  // Fader cap
-  const auto capH = juce::jmax(5.0f, bounds.getWidth() * 0.28f);
-  const juce::Rectangle<float> cap(bounds.getX() + 1.0f, fillTop - capH * 0.5f,
-                                   bounds.getWidth() - 2.0f, capH);
+    // A relative fader shows its offset either side of the middle, the same way
+    // the relative knobs draw their arc from twelve o'clock.
+    const bool bipolar =
+        (bool)slider.getProperties().getWithDefault("bipolar", false);
+    const auto anchor = bipolar ? bounds.getCentreY() : bounds.getBottom();
 
-  g.setColour(
-      colours::text.withMultipliedAlpha(slider.isEnabled() ? 1.0f : 0.4f));
+    g.setColour(slider.findColour(juce::Slider::trackColourId)
+                    .withMultipliedAlpha(0.9f * dim));
+    g.fillRoundedRectangle(groove.withTop(juce::jmin(anchor, fillTop))
+                               .withBottom(juce::jmax(anchor, fillTop)),
+                           grooveW * 0.5f);
+  }
+
+  // Glass cap: translucent body, bright edges and a bright centre line for
+  // reading the exact position. The meter behind shows through it.
+  const auto capH = juce::jmax(6.0f, bounds.getWidth() * 0.30f);
+  const juce::Rectangle<float> cap(bounds.getX() + 0.5f, fillTop - capH * 0.5f,
+                                   bounds.getWidth() - 1.0f, capH);
+
+  g.setColour(juce::Colours::white.withAlpha(0.22f * dim));
   g.fillRoundedRectangle(cap, 2.0f);
+
+  g.setColour(juce::Colours::white.withAlpha(0.80f * dim));
+  g.drawRoundedRectangle(cap.reduced(0.5f), 2.0f, 1.0f);
+
+  g.setColour(juce::Colours::white.withAlpha(0.55f * dim));
+  g.fillRect(cap.getX() + 2.0f, cap.getCentreY() - 0.5f, cap.getWidth() - 4.0f,
+             1.0f);
 }
 
 void OvertoniumLookAndFeel::drawButtonBackground(

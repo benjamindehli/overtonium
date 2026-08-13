@@ -73,18 +73,23 @@ void LevelMeter::push(float level) {
 }
 
 void LevelMeter::paint(juce::Graphics &g) {
-  const auto bounds = getLocalBounds().toFloat();
+  // The meter sits behind the fader and owns its whole track, so it is drawn
+  // wide enough to read at a glance rather than as a hairline beside it.
+  const auto full = getLocalBounds().toFloat();
+  const auto trackW = juce::jmax(6.0f, full.getWidth() * 0.62f);
+  const auto track = full.withSizeKeepingCentre(trackW, full.getHeight());
+  const auto corner = trackW * 0.35f;
 
   g.setColour(colours::groove);
-  g.fillRoundedRectangle(bounds, 1.5f);
+  g.fillRoundedRectangle(track, corner);
 
   if (displayed <= 0.001f)
     return;
 
-  const auto height = bounds.getHeight() * displayed;
+  const auto height = track.getHeight() * displayed;
 
-  g.setColour(colour.withAlpha(0.9f));
-  g.fillRoundedRectangle(bounds.withTop(bounds.getBottom() - height), 1.5f);
+  g.setColour(colour.withAlpha(0.92f));
+  g.fillRoundedRectangle(track.withTop(track.getBottom() - height), corner);
 }
 
 // =============================================================================
@@ -137,6 +142,7 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   }
 
   addAndMakeVisible(meter);
+  meter.toBack(); // the fader cap has to draw over it
 
   updateTuneReadout();
   updateLevelReadout();
@@ -163,6 +169,7 @@ void ChannelStrip::setUpFader(LinkableSlider &s, Role role, juce::Colour fill) {
   s.setSliderStyle(juce::Slider::LinearVertical);
   s.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
   s.setColour(juce::Slider::trackColourId, fill);
+  s.getProperties().set("meteredGroove", true);
   s.setPopupDisplayEnabled(true, true, &popupHost);
   addAndMakeVisible(s);
 
@@ -290,10 +297,10 @@ void ChannelStrip::resized() {
   amDepth.setBounds(rows[rowIndex(Row::AmDepth)].reduced(1));
   velocity.setBounds(rows[rowIndex(Row::Velocity)].reduced(1));
   aftertouch.setBounds(rows[rowIndex(Row::Aftertouch)].reduced(1));
-  // Fader and meter side by side, the way a mixer channel reads: what you asked
-  // for on the left, what is actually coming out on the right.
-  auto faderRow = rows[rowIndex(Row::Fader)];
-  meter.setBounds(faderRow.removeFromRight(9).reduced(1, 2));
+  // Meter and fader share the same rectangle. The meter draws the track and
+  // the fader draws only its cap on top, so the output fills the fader itself.
+  const auto faderRow = rows[rowIndex(Row::Fader)];
+  meter.setBounds(faderRow.reduced(2, 1));
   volume.setBounds(faderRow.reduced(2, 1));
   levelReadout.setBounds(rows[rowIndex(Row::FaderText)]);
 

@@ -998,6 +998,41 @@ void testPartialMetering() {
   for (int i = 0; i < kNumHarmonics; ++i)
     decayed &= engine.getPartialLevel(i) < 1.0e-4f;
   check(decayed, "meters fall to zero once the note has released");
+
+  // The master meter has to report the finished output, after master gain and
+  // the clipper, so it says what actually leaves the plugin.
+  {
+    SynthEngine out;
+    out.prepare(sr);
+
+    auto q = makeFlatParams(0.05f);
+    q.global.masterGain = 1.0f;
+    q.global.safetyClip = false;
+
+    out.render(l.data(), r.data(), block, q);
+    check(out.getOutputLevel() < 1.0e-6f, "output meter is zero when idle");
+
+    out.noteOn(45, 1.0f, q);
+    for (int b = 0; b < 20; ++b)
+      out.render(l.data(), r.data(), block, q);
+
+    float actual = 0.0f;
+    for (int n = 0; n < block; ++n)
+      actual = std::max(actual, std::abs(l[(size_t)n]));
+
+    check(out.getOutputLevel() >= actual - 1.0e-6f,
+          "output meter is at least the buffer peak");
+    check(out.getOutputLevel() > 0.01f, "output meter reads a sounding patch");
+
+    // Halving the master gain has to halve the reading.
+    const float loud = out.getOutputLevel();
+    q.global.masterGain = 0.5f;
+    for (int b = 0; b < 40; ++b)
+      out.render(l.data(), r.data(), block, q);
+
+    check(std::abs(out.getOutputLevel() / loud - 0.5f) < 0.05f,
+          "output meter tracks master gain");
+  }
 }
 
 void testModulation() {
