@@ -56,6 +56,28 @@ public:
   std::function<void()> onRelativeStart, onRelativeEnd;
 };
 
+/// A slim output meter for one partial.
+///
+/// Its own component rather than something the strip paints, so a new reading
+/// invalidates a sliver a few pixels wide instead of the whole channel. With 32
+/// of these updating at 30 Hz that distinction is the difference between free
+/// and noticeable.
+class LevelMeter : public juce::Component {
+public:
+  explicit LevelMeter(juce::Colour barColour) : colour(barColour) {
+    setInterceptsMouseClicks(false, false);
+  }
+
+  /// @param level  linear amplitude from the audio thread, 0 to 1.
+  void push(float level);
+
+  void paint(juce::Graphics &) override;
+
+private:
+  juce::Colour colour;
+  float displayed = 0.0f;
+};
+
 /// One vertical channel: everything that belongs to a single partial.
 class ChannelStrip : public juce::Component,
                      public juce::SettableTooltipClient {
@@ -69,6 +91,8 @@ public:
 
   /// Greys the strip out when another strip's solo is silencing it.
   void setSilencedByOthers(bool shouldDim);
+
+  void setMeterLevel(float level) { meter.push(level); }
 
 private:
   using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
@@ -93,6 +117,7 @@ private:
       amRate, amDepth, velocity, aftertouch, volume;
   juce::TextButton muteButton{"M"}, soloButton{"S"};
   juce::Label tuneReadout, levelReadout;
+  LevelMeter meter;
 
   std::vector<std::unique_ptr<SliderAttachment>> sliderAttachments;
   std::unique_ptr<ButtonAttachment> muteAttachment, soloAttachment;

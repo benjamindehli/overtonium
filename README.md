@@ -115,7 +115,7 @@ Each of the 32 strips has, top to bottom:
 | VELOCITY | 0 to 100% | How much key velocity scales this partial |
 | AFTERTOUCH | 0 to 100% | How much key pressure adds to this partial |
 | M and S | | Mute wins over solo |
-| LEVEL | -inf to 0 dB | Square-law fader |
+| LEVEL | -inf to 0 dB | Square-law fader, with an output meter beside it |
 
 Velocity being per partial is what lets a soft note be a different timbre rather than just a quieter one. Set the fundamental to 0% and the upper partials to 100% and the tone opens up as you play harder, which is roughly what a struck string or bar does. *Struck Bell* and *Odd Harmonics* ship with that curve already dialled in.
 
@@ -130,6 +130,14 @@ Global controls in the top bar:
 - **CLIP** soft-clips the output. Worth leaving on when you push 32 faders up
 
 Double-clicking any knob restores its default. Hovering a harmonic number shows its interval and exact cent deviation.
+
+### Meters
+
+Each channel has a slim meter next to its fader showing what that partial is actually putting out, on a decibel scale floored at -48 dB. Since it reflects the final gain, it shows the envelope, tremolo, velocity, aftertouch, the Nyquist fade and mute or solo all at once, so the spectrum can be watched evolving as a note decays.
+
+It reads the loudest instance of a partial across the sounding voices rather than the sum, so it shows the shape of the patch instead of pinning itself the moment you play a chord.
+
+The cost is close to nothing on either side. The audio thread samples a value it has already computed once per 32-sample control block, which measured inside run-to-run noise on the benchmark. Each meter is its own component and only repaints when its bar moves a visible amount, so a held or silent patch does no drawing at all.
 
 ### The master channel
 

@@ -110,7 +110,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   setSize(juce::roundToInt(savedWidth * zoom),
           juce::roundToInt(savedHeight * zoom));
 
-  startTimerHz(15);
+  startTimerHz(30);
 }
 
 OvertoniumEditor::~OvertoniumEditor() {
@@ -341,6 +341,18 @@ bool OvertoniumEditor::anySoloActive() const {
 // ---- polling ----------------------------------------------------------------
 
 void OvertoniumEditor::timerCallback() {
+  // Meters run every tick. Each strip only repaints if its bar actually moved a
+  // visible amount, so a still patch costs nothing.
+  for (int i = 0; i < kNumHarmonics; ++i)
+    strips[(size_t)i]->setMeterLevel(processor.getPartialLevel(i));
+
+  // The rest is housekeeping that nobody can see at 30 Hz, and it costs 96
+  // parameter lookups, so it runs at a quarter of the rate.
+  if (++housekeepingTick < 4)
+    return;
+
+  housekeepingTick = 0;
+
   auto &apvts = processor.apvts;
 
   // Voice readout

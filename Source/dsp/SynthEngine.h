@@ -3,6 +3,8 @@
 #include <array>
 #include <cstdint>
 
+#include <atomic>
+
 #include "Voice.h"
 
 namespace ovt {
@@ -40,6 +42,14 @@ public:
 
   int getActiveVoiceCount() const noexcept;
 
+  /// Loudest instance of each partial across the sounding voices, 0..1.
+  ///
+  /// The loudest rather than the sum, so the display shows the shape of the
+  /// patch and does not simply pin itself the moment you play a chord.
+  float getPartialLevel(int index0) const noexcept {
+    return partialLevels[(size_t)index0].load(std::memory_order_relaxed);
+  }
+
 private:
   Voice *findFreeVoice() noexcept;
   Voice *findOldestSounding() noexcept;
@@ -54,6 +64,8 @@ private:
   bool sustainDown = false;
 
   /// Negative == "snap to target on the next block".
+  std::array<std::atomic<float>, kNumHarmonics> partialLevels{};
+
   float smoothedMasterGain = -1.0f;
 };
 

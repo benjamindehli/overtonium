@@ -56,6 +56,12 @@ public:
   uint64_t getAge() const noexcept { return startOrder; }
   void setAge(uint64_t v) noexcept { startOrder = v; }
 
+  /// Peak output amplitude of each partial during the last render call, for
+  /// metering. Sampled once per control block, which is all a meter can show.
+  const std::array<float, kNumHarmonics> &getPartialPeaks() const noexcept {
+    return partialPeaks;
+  }
+
   /// Adds this voice into the (already-sized) stereo buffers. Master gain is
   /// applied downstream by the engine.
   void render(float *left, float *right, int numSamples,
@@ -76,6 +82,7 @@ private:
   };
 
   std::array<Partial, kNumHarmonics> partials{};
+  std::array<float, kNumHarmonics> partialPeaks{};
 
   double sampleRate = 44100.0;
   double baseFreq = 440.0;

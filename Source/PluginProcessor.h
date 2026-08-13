@@ -49,6 +49,11 @@ public:
   /// Polled by the editor for the voice-count readout.
   int getActiveVoiceCount() const noexcept { return activeVoices.load(); }
 
+  /// Polled by the editor to drive the per-channel meters.
+  float getPartialLevel(int index0) const noexcept {
+    return engine.getPartialLevel(index0);
+  }
+
   juce::AudioProcessorValueTreeState apvts;
 
 private:

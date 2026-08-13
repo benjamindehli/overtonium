@@ -83,6 +83,7 @@ private:
   std::vector<std::unique_ptr<ovt::ui::ChannelStrip>> strips;
 
   float zoom = 1.0f;
+  int housekeepingTick = 0;
 
   std::array<float, ovt::kNumHarmonics> baseline{};
 

@@ -151,6 +151,8 @@ void Voice::render(float *left, float *right, int numSamples,
     }
   }
 
+  partialPeaks.fill(0.0f);
+
   const float pressureTarget =
       std::max(std::clamp(p.global.aftertouch, 0.0f, 1.0f), polyPressure);
 
@@ -228,6 +230,11 @@ void Voice::render(float *left, float *right, int numSamples,
       pt.pitchLfoPhase = wrapPhase(pt.pitchLfoPhase + pmPhaseInc * (double)len);
       pt.ampLfoPhase = wrapPhase(pt.ampLfoPhase + amPhaseInc * (double)len);
       pt.lastGain = gEnd;
+
+      // One multiply and one compare per partial per control block. Both terms
+      // are already to hand, so metering costs essentially nothing here.
+      partialPeaks[(size_t)i] =
+          std::max(partialPeaks[(size_t)i], pt.env.getLevel() * gEnd);
 
       if (g <= 1.0e-7f && gEnd <= 1.0e-7f) {
         // Inaudible right now (muted, faded out above Nyquist, or fader at

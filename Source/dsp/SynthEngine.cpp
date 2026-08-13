@@ -39,6 +39,9 @@ void SynthEngine::reset() noexcept {
   sustainDown = false;
   ageCounter = 0;
   smoothedMasterGain = -1.0f;
+
+  for (auto &level : partialLevels)
+    level.store(0.0f, std::memory_order_relaxed);
 }
 
 void SynthEngine::setPolyphony(int n) noexcept {
@@ -179,9 +182,21 @@ void SynthEngine::render(float *left, float *right, int numSamples,
   std::fill(left, left + numSamples, 0.0f);
   std::fill(right, right + numSamples, 0.0f);
 
-  for (auto &v : voices)
-    if (v.isActive())
-      v.render(left, right, numSamples, p);
+  std::array<float, kNumHarmonics> peaks{};
+
+  for (auto &v : voices) {
+    if (!v.isActive())
+      continue;
+
+    v.render(left, right, numSamples, p);
+
+    const auto &voicePeaks = v.getPartialPeaks();
+    for (size_t i = 0; i < peaks.size(); ++i)
+      peaks[i] = std::max(peaks[i], voicePeaks[i]);
+  }
+
+  for (size_t i = 0; i < peaks.size(); ++i)
+    partialLevels[i].store(peaks[i], std::memory_order_relaxed);
 
   // ---- master gain, smoothed over ~10 ms so fader moves do not zipper -------
   const float target = std::max(0.0f, p.global.masterGain);

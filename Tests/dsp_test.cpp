@@ -938,6 +938,68 @@ void testDrift() {
   }
 }
 
+// -----------------------------------------------------------------------------
+// 14. The per-partial meter has to follow what is actually coming out, so the
+//     display cannot drift away from the sound.
+// -----------------------------------------------------------------------------
+void testPartialMetering() {
+  section("Per-partial metering");
+
+  constexpr double sr = 48000.0;
+  constexpr int block = 512;
+
+  SynthEngine engine;
+  engine.prepare(sr);
+
+  auto p = makeFlatParams(0.0f);
+  for (int i = 0; i < kNumHarmonics; ++i) {
+    p.osc[(size_t)i].tuneBlend = 1.0f;
+    p.osc[(size_t)i].volume = i < 4 ? 0.8f / (float)(i + 1) : 0.0f;
+  }
+
+  std::vector<float> l((size_t)block), r((size_t)block);
+
+  engine.render(l.data(), r.data(), block, p);
+  bool allQuiet = true;
+  for (int i = 0; i < kNumHarmonics; ++i)
+    allQuiet &= engine.getPartialLevel(i) < 1.0e-6f;
+  check(allQuiet, "meters read zero while nothing sounds");
+
+  engine.noteOn(45, 1.0f, p);
+  for (int b = 0; b < 20; ++b)
+    engine.render(l.data(), r.data(), block, p);
+
+  // The meter should trace the fader shape it was given.
+  for (int i = 0; i < 4; ++i)
+    check(engine.getPartialLevel(i) > 0.5f * 0.8f / (float)(i + 1),
+          "partial " + std::to_string(i + 1) + " meters near its fader");
+
+  for (int i = 4; i < kNumHarmonics; ++i)
+    check(engine.getPartialLevel(i) < 1.0e-6f,
+          "silent partial " + std::to_string(i + 1) + " meters zero");
+
+  check(engine.getPartialLevel(0) > engine.getPartialLevel(1),
+        "the meters follow the spectral shape");
+
+  // Muting has to show, since the meter is meant to say what you can hear.
+  p.osc[0].audible = false;
+  for (int b = 0; b < 4; ++b)
+    engine.render(l.data(), r.data(), block, p);
+  check(engine.getPartialLevel(0) < 1.0e-6f, "a muted partial meters zero");
+
+  p.osc[0].audible = true;
+
+  // And it has to fall away with the release rather than stick.
+  engine.allNotesOff();
+  for (int b = 0; b < 400; ++b)
+    engine.render(l.data(), r.data(), block, p);
+
+  bool decayed = true;
+  for (int i = 0; i < kNumHarmonics; ++i)
+    decayed &= engine.getPartialLevel(i) < 1.0e-4f;
+  check(decayed, "meters fall to zero once the note has released");
+}
+
 void testModulation() {
   section("Pitch and amplitude modulation");
 
@@ -1046,6 +1108,7 @@ int main() {
   testStereoSpread();
   testAftertouch();
   testDrift();
+  testPartialMetering();
   benchmark();
 
   std::printf("\n%d checks, %d failures\n", checks, failures);

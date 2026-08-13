@@ -49,12 +49,52 @@ void RelativeKnob::stoppedDragging() {
 
 // =============================================================================
 
+void LevelMeter::push(float level) {
+  // A decibel scale with a floor at -48 dB. On a linear amplitude scale
+  // everything above the fundamental sits squashed against the bottom.
+  const float norm =
+      level <= 1.0e-5f
+          ? 0.0f
+          : juce::jlimit(0.0f, 1.0f,
+                         (juce::Decibels::gainToDecibels(level) + 48.0f) /
+                             48.0f);
+
+  // Instant rise and a gentle fall, so a partial decaying under its own
+  // envelope reads as a decay rather than as flicker.
+  const float next =
+      norm > displayed ? norm : juce::jmax(norm, displayed - 0.06f);
+
+  // Below a pixel at any sensible size, so not worth waking the painter for.
+  if (std::abs(next - displayed) < 0.004f)
+    return;
+
+  displayed = next;
+  repaint();
+}
+
+void LevelMeter::paint(juce::Graphics &g) {
+  const auto bounds = getLocalBounds().toFloat();
+
+  g.setColour(colours::groove);
+  g.fillRoundedRectangle(bounds, 1.5f);
+
+  if (displayed <= 0.001f)
+    return;
+
+  const auto height = bounds.getHeight() * displayed;
+
+  g.setColour(colour.withAlpha(0.9f));
+  g.fillRoundedRectangle(bounds.withTop(bounds.getBottom() - height), 1.5f);
+}
+
+// =============================================================================
+
 ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
                            LinkTarget &linkTarget, juce::Component &popupParent,
                            int index0)
     : apvts(state), link(linkTarget), popupHost(popupParent), index(index0),
       info(harmonic(index0)),
-      colour(intervalColour(harmonic(index0).pitchClass)) {
+      colour(intervalColour(harmonic(index0).pitchClass)), meter(colour) {
   // Tune and Level carry the strip's identity colour; the modulation and
   // envelope knobs are desaturated so they read as secondary at a glance across
   // 32 channels.
@@ -95,6 +135,8 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
     l->setInterceptsMouseClicks(false, false);
     addAndMakeVisible(*l);
   }
+
+  addAndMakeVisible(meter);
 
   updateTuneReadout();
   updateLevelReadout();
@@ -248,7 +290,11 @@ void ChannelStrip::resized() {
   amDepth.setBounds(rows[rowIndex(Row::AmDepth)].reduced(1));
   velocity.setBounds(rows[rowIndex(Row::Velocity)].reduced(1));
   aftertouch.setBounds(rows[rowIndex(Row::Aftertouch)].reduced(1));
-  volume.setBounds(rows[rowIndex(Row::Fader)].reduced(2, 1));
+  // Fader and meter side by side, the way a mixer channel reads: what you asked
+  // for on the left, what is actually coming out on the right.
+  auto faderRow = rows[rowIndex(Row::Fader)];
+  meter.setBounds(faderRow.removeFromRight(9).reduced(1, 2));
+  volume.setBounds(faderRow.reduced(2, 1));
   levelReadout.setBounds(rows[rowIndex(Row::FaderText)]);
 
   auto ms = rows[rowIndex(Row::MuteSolo)];
