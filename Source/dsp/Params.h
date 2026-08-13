@@ -24,13 +24,16 @@ struct OscParams {
   float release = 0.400f;
   float amRateHz = 4.0f;
   float amDepth = 0.0f; ///< 0..1 tremolo depth
-  /// How strongly key velocity scales this partial. 0 = ignored, 1 = fully
-  /// sensitive. Per partial so the upper harmonics can be made to appear only
-  /// when the key is struck hard, the way most acoustic instruments behave.
+  /// How strongly key velocity scales this partial, -1 to 1. Positive means
+  /// harder is louder, the way most acoustic instruments behave. Negative
+  /// inverts it, so the partial is loudest when played softly. Setting some
+  /// partials positive and others negative crossfades between two timbres
+  /// across the velocity range.
   float velAmount = 0.7f;
-  /// How much channel or polyphonic aftertouch pushes this partial's level up.
-  /// It adds to the fader rather than scaling it, so a strip parked at zero can
-  /// be faded in entirely by leaning on the key.
+  /// How much channel or polyphonic aftertouch moves this partial's level,
+  /// -1 to 1. It adds to the fader rather than scaling it, so a strip parked at
+  /// zero can be faded in entirely by leaning on the key, and a negative amount
+  /// fades an open strip out again.
   float atAmount = 0.0f;
   /// Linear gain, mute/solo already folded in by the caller.
   float volume = 0.0f;

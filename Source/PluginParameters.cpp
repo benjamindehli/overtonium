@@ -23,6 +23,12 @@ juce::String percentText(float v, int) {
   return juce::String(juce::roundToInt(v * 100.0f)) + " %";
 }
 
+/// Bipolar controls keep their sign, so the inverted half is unmistakable.
+juce::String signedPercentText(float v, int) {
+  const auto pc = juce::roundToInt(v * 100.0f);
+  return (pc > 0 ? "+" : "") + juce::String(pc) + " %";
+}
+
 juce::String gainText(float v, int) {
   if (v <= 0.0001f)
     return "-inf dB";
@@ -148,13 +154,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(velSuffix, i), 1}, p + "Velocity",
-        juce::NormalisableRange<float>(0.0f, 1.0f), 0.7f,
-        FAttr().withStringFromValueFunction(percentText)));
+        juce::NormalisableRange<float>(-1.0f, 1.0f), 0.7f,
+        FAttr().withStringFromValueFunction(signedPercentText)));
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(atSuffix, i), 1}, p + "Aftertouch",
-        juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f,
-        FAttr().withStringFromValueFunction(percentText)));
+        juce::NormalisableRange<float>(-1.0f, 1.0f), 0.0f,
+        FAttr().withStringFromValueFunction(signedPercentText)));
 
     layout.add(std::make_unique<BoolP>(
         juce::ParameterID{oscParamId(muteSuffix, i), 1}, p + "Mute", false));

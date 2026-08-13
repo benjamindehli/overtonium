@@ -65,8 +65,13 @@ void Voice::noteOn(int note, float velocity, const SynthParams &p) noexcept {
 
     // Each strip decides for itself how much of the key velocity it takes,
     // latched here so a velocity change cannot alter a note already sounding.
-    const float amount = std::clamp(op.velAmount, 0.0f, 1.0f);
-    pt.velGain = 1.0f - amount + amount * vel;
+    //
+    // Both halves give 1 at zero amount and reach vel and 1 - vel at the
+    // extremes, so a negative setting makes the partial loudest when played
+    // softly rather than hardest.
+    const float amount = std::clamp(op.velAmount, -1.0f, 1.0f);
+    pt.velGain =
+        amount >= 0.0f ? 1.0f - amount * (1.0f - vel) : 1.0f + amount * vel;
 
     pt.env.configure(op.attack, op.decay, op.sustain, op.release);
     pt.env.noteOn(p.global.phaseReset);
@@ -206,8 +211,12 @@ void Voice::render(float *left, float *right, int numSamples,
       // Aftertouch adds to the fader instead of scaling it, which is what lets
       // a strip sitting at zero be brought in by pressure alone. Velocity only
       // ever touches the fader's own contribution.
-      const float level = std::clamp(
-          op.volume * pt.velGain + op.atAmount * pressure, 0.0f, 1.0f);
+      // Aftertouch adds, so a negative amount subtracts and the clamp floors
+      // it at silence. No special case needed for the inverted direction.
+      const float level =
+          std::clamp(op.volume * pt.velGain +
+                         std::clamp(op.atAmount, -1.0f, 1.0f) * pressure,
+                     0.0f, 1.0f);
       const float base = op.audible ? level * nyq : 0.0f;
       const float gEnd = base * amEnd;
 

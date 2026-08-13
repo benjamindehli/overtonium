@@ -573,6 +573,71 @@ void testPerPartialVelocity() {
 
   check(std::abs(peakHalf / peakFull - 0.5f) < 0.05f,
         "uniform full sensitivity scales level linearly with velocity");
+
+  // --- the inverted half --------------------------------------------------
+  auto atVelocity = [&](float amount, float velocity) {
+    SynthEngine engine;
+    engine.prepare(sr);
+
+    auto p = makeFlatParams(0.0f);
+    for (auto &o : p.osc) {
+      o.tuneBlend = 1.0f;
+      o.volume = 0.0f;
+    }
+    p.osc[0].volume = 0.5f;
+    p.osc[0].velAmount = amount;
+
+    engine.noteOn(57, velocity, p);
+    std::vector<float> l((size_t)N), r((size_t)N);
+    engine.render(l.data(), r.data(), N, p);
+    return binMagnitude(l, 220.0, sr);
+  };
+
+  const double invertedSoft = atVelocity(-1.0f, 0.05f);
+  const double invertedHard = atVelocity(-1.0f, 1.0f);
+  check(invertedSoft > 5.0 * invertedHard,
+        "a negative amount makes soft playing the loud end");
+  check(invertedHard < 0.02 * invertedSoft,
+        "full negative silences a hard hit");
+
+  // Zero is the hinge: neither direction should touch the level there.
+  check(std::abs(atVelocity(0.0f, 0.1f) - atVelocity(0.0f, 1.0f)) <
+            0.02 * atVelocity(0.0f, 1.0f),
+        "zero amount ignores velocity from either side");
+
+  // Mirror image: -0.5 at velocity v should match +0.5 at 1 - v.
+  check(std::abs(atVelocity(-0.5f, 0.25f) - atVelocity(0.5f, 0.75f)) <
+            0.02 * atVelocity(0.5f, 0.75f),
+        "the two halves are mirror images");
+
+  // The point of the feature: opposite signs crossfade two sets of partials.
+  {
+    auto balance = [&](float velocity) {
+      SynthEngine engine;
+      engine.prepare(sr);
+
+      auto p = makeFlatParams(0.0f);
+      for (auto &o : p.osc) {
+        o.tuneBlend = 1.0f;
+        o.volume = 0.0f;
+      }
+      p.osc[0].volume = 0.5f;
+      p.osc[0].velAmount = -1.0f; // soft timbre
+      p.osc[3].volume = 0.5f;
+      p.osc[3].velAmount = 1.0f; // hard timbre
+
+      engine.noteOn(57, velocity, p);
+      std::vector<float> l((size_t)N), r((size_t)N);
+      engine.render(l.data(), r.data(), N, p);
+      return binMagnitude(l, 880.0, sr) / binMagnitude(l, 220.0, sr);
+    };
+
+    const double soft = balance(0.15f);
+    const double hard = balance(0.95f);
+    std::printf("  partial 4 / partial 1: %.3f soft, %.3f hard\n", soft, hard);
+    check(hard > 10.0 * soft,
+          "opposite signs crossfade between two timbres across the range");
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -751,6 +816,12 @@ void testAftertouch() {
 
   check(level(0.0f, 0.4f, 1.0f, 1.0f, false) < faderOnly * 1.02,
         "a strip with no aftertouch amount ignores pressure");
+
+  // A negative amount subtracts, so pressure fades an open strip out.
+  check(level(-0.3f, 0.4f, 1.0f, 1.0f, false) < faderOnly * 0.8,
+        "negative aftertouch fades a partial out under pressure");
+  check(level(-1.0f, 0.4f, 1.0f, 1.0f, false) < 1.0e-4,
+        "enough negative aftertouch silences it entirely");
 
   // Seven-bit pressure arriving at MIDI rate must not step the gain.
   {

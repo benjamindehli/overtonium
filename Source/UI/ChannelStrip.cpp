@@ -117,6 +117,10 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   setUpKnob(amDepth, Role::AmDepth, secondary);
   setUpKnob(velocity, Role::Velocity, secondary);
   setUpKnob(aftertouch, Role::Aftertouch, secondary);
+
+  // Both run either side of zero, so their arcs read out from twelve o'clock.
+  velocity.getProperties().set("bipolar", true);
+  aftertouch.getProperties().set("bipolar", true);
   setUpFader(volume, Role::Volume, colour);
 
   muteButton.setClickingTogglesState(true);
