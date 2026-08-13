@@ -90,16 +90,34 @@ void Voice::render(float *left, float *right, int numSamples,
 
   const auto &sine = SineTable::instance();
 
-  // Equal-power pan positions: partials fan outwards alternately, so the
-  // fundamental stays centred and the top of the series gets the widest
-  // placement.
+  // Equal-power pan positions.
+  //
+  // Partials are placed in symmetric pairs: 1 and 2 in the centre, then 3 and 4
+  // opposite each other, and so on out to 31 and 32 at the edges. Pairing
+  // matters for two reasons. Neighbouring partials have near-identical levels
+  // in any normal spectrum, so putting them on opposite sides keeps the image
+  // centred whatever shape is dialled in, and every position has a mirror, so
+  // nothing ends up hard panned with no counterpart on the other side.
+  //
+  // The width grows as a square root rather than linearly, because a spectrum
+  // that rolls off puts almost all of its energy in the first few partials. A
+  // linear fan leaves exactly those bunched in the middle and the control does
+  // nothing audible.
+  //
+  // Which member of a pair takes the left side alternates, so the louder one
+  // does not always land on the same side.
   std::array<float, kNumHarmonics> panL{}, panR{};
   {
     const float spread = std::clamp(p.global.stereoSpread, 0.0f, 1.0f);
+    constexpr int lastPair = kNumHarmonics / 2 - 1;
 
     for (int i = 0; i < kNumHarmonics; ++i) {
-      const float pos =
-          ((i & 1) ? 1.0f : -1.0f) * ((float)i / (float)(kNumHarmonics - 1));
+      const int pairIndex = i / 2;
+      const bool second = (i % 2) != 0;
+      const bool flip = (pairIndex % 2) != 0;
+
+      const float magnitude = std::sqrt((float)pairIndex / (float)lastPair);
+      const float pos = (second != flip ? 1.0f : -1.0f) * magnitude;
       const float pan = std::clamp(spread * pos, -1.0f, 1.0f);
 
       panL[(size_t)i] = std::sqrt(0.5f * (1.0f - pan));

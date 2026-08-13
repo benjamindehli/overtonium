@@ -3,6 +3,7 @@
 //   c++ -std=c++17 -O2 -I Source Tests/dsp_test.cpp Source/dsp/*.cpp -o
 //   dsp_test && ./dsp_test
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -573,6 +574,118 @@ void testPerPartialVelocity() {
         "uniform full sensitivity scales level linearly with velocity");
 }
 
+// -----------------------------------------------------------------------------
+// 11. Stereo spread must be symmetric, balanced, and actually wide where a real
+//     spectrum keeps its energy.
+// -----------------------------------------------------------------------------
+void testStereoSpread() {
+  section("Stereo spread");
+
+  constexpr double sr = 48000.0;
+  constexpr int N = 24000;
+  constexpr double f0 = 110.0; // A2, so all 32 partials stay under Nyquist
+
+  struct Rendered {
+    std::vector<float> l, r;
+  };
+
+  auto render = [&](float spread, bool rollOff) {
+    SynthEngine engine;
+    engine.prepare(sr);
+
+    auto p = makeFlatParams(0.02f);
+    for (int i = 0; i < kNumHarmonics; ++i) {
+      p.osc[(size_t)i].tuneBlend = 1.0f;
+      if (rollOff)
+        p.osc[(size_t)i].volume = i < 8 ? 0.02f / (float)(i + 1) : 0.0f;
+    }
+    p.global.stereoSpread = spread;
+
+    engine.noteOn(45, 1.0f, p);
+    Rendered out{std::vector<float>((size_t)N), std::vector<float>((size_t)N)};
+    engine.render(out.l.data(), out.r.data(), N, p);
+    return out;
+  };
+
+  auto balances = [&](const Rendered &x) {
+    std::vector<double> b;
+    for (int n = 1; n <= kNumHarmonics; ++n) {
+      const double ml = binMagnitude(x.l, f0 * n, sr);
+      const double mr = binMagnitude(x.r, f0 * n, sr);
+      b.push_back(ml + mr > 1.0e-12 ? (mr - ml) / (mr + ml) : 0.0);
+    }
+    return b;
+  };
+
+  auto imbalanceDb = [&](const Rendered &x) {
+    double sl = 0.0, sr = 0.0;
+    for (int n = 0; n < N; ++n) {
+      sl += (double)x.l[(size_t)n] * x.l[(size_t)n];
+      sr += (double)x.r[(size_t)n] * x.r[(size_t)n];
+    }
+    return 20.0 * std::log10(std::sqrt(sr / N) / std::sqrt(sl / N));
+  };
+
+  // Spread off must be exactly mono.
+  {
+    const auto mono = render(0.0f, false);
+    float worst = 0.0f;
+    for (int n = 0; n < N; ++n)
+      worst = std::max(worst, std::abs(mono.l[(size_t)n] - mono.r[(size_t)n]));
+
+    check(worst < 1.0e-7f, "spread at zero leaves the channels identical");
+  }
+
+  const auto wide = render(1.0f, false);
+  auto b = balances(wide);
+
+  // Every placement needs a mirror, or the image leans and the widest partial
+  // ends up alone on one side.
+  auto sorted = b;
+  std::sort(sorted.begin(), sorted.end());
+
+  double worstMirror = 0.0;
+  for (int k = 0; k < kNumHarmonics / 2; ++k)
+    worstMirror = std::max(
+        worstMirror,
+        std::abs(sorted[(size_t)k] + sorted[(size_t)(kNumHarmonics - 1 - k)]));
+
+  std::printf("  worst mirror error %.4f\n", worstMirror);
+  check(worstMirror < 0.01, "every pan position has an opposite number");
+
+  check(sorted.front() < -0.99, "the field reaches hard left");
+  check(sorted.back() > 0.99, "the field reaches hard right");
+
+  const double flatDb = imbalanceDb(wide);
+  std::printf("  channel imbalance: %+.2f dB flat", flatDb);
+  check(std::abs(flatDb) < 0.2, "a flat spectrum stays centred");
+
+  // The reason the pairing exists: a rolled-off spectrum must stay centred too,
+  // and must still be spread where its energy actually lives.
+  const auto rolled = render(1.0f, true);
+  const double rolledDb = imbalanceDb(rolled);
+  std::printf(", %+.2f dB rolled off\n", rolledDb);
+  check(std::abs(rolledDb) < 0.5, "a 1/n spectrum stays centred");
+
+  auto rb = balances(rolled);
+  double widest = 0.0;
+  for (int n = 0; n < 8; ++n)
+    widest = std::max(widest, std::abs(rb[(size_t)n]));
+
+  std::printf("  widest of the first eight partials: %.3f\n", widest);
+  check(widest > 0.2,
+        "the partials carrying the energy are actually placed, not bunched "
+        "in the middle");
+
+  bool anyLeft = false, anyRight = false;
+  for (int n = 0; n < 8; ++n) {
+    anyLeft |= rb[(size_t)n] < -0.1;
+    anyRight |= rb[(size_t)n] > 0.1;
+  }
+  check(anyLeft, "audible partials appear on the left");
+  check(anyRight, "audible partials appear on the right");
+}
+
 void testModulation() {
   section("Pitch and amplitude modulation");
 
@@ -675,6 +788,7 @@ int main() {
   testVoiceAllocation();
   testModulation();
   testPerPartialVelocity();
+  testStereoSpread();
   benchmark();
 
   std::printf("\n%d checks, %d failures\n", checks, failures);

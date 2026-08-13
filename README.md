@@ -120,7 +120,7 @@ Velocity being per partial is what lets a soft note be a different timbre rather
 Global controls in the top bar:
 
 - **TUNE ALL** and **VEL** are endless relative macros. See below.
-- **MASTER**, **SPREAD** (fans partials across the stereo field) and **BEND**
+- **MASTER**, **SPREAD** and **BEND**
 - **PRESET**, **POLY** (1 to 16 voices) and **ZOOM**
 - **LINK** gangs the strips, so dragging any knob moves that knob on all 32 channels
 - **PHASE** resets partial phase on each note for a coherent, percussive attack
@@ -135,6 +135,14 @@ TUNE ALL, VEL and LINK all move 32 values at once, and all three do it relativel
 The two macro knobs are endless. They have no absolute position, they show how far you have turned them during the current drag, and they spring back to centre when you let go, so the next drag starts fresh from wherever the strips now are. A full turn in either direction still covers the entire range, so "everything to just intonation" or "everything to equal" remains one drag away.
 
 The offset is always measured from the values captured when the drag started, so returning the knob to where you began restores the strips exactly, even if some of them hit an end stop along the way.
+
+### Stereo spread
+
+SPREAD places the partials in mirrored pairs. Harmonics 1 and 2 stay in the centre, 3 and 4 sit opposite each other, and so on out to 31 and 32 at the edges.
+
+Pairing does two jobs. Neighbouring partials have near-identical levels in any normal spectrum, so putting each pair on opposite sides keeps the image centred whatever shape you dial in. And because every position has a mirror, no partial ends up hard panned with nothing facing it, which is what makes a spread sound like it is leaning rather than widening.
+
+The width grows as a square root rather than as a straight fan, because a spectrum that rolls off keeps nearly all its energy in the first few partials. A linear fan leaves exactly those bunched in the middle and the control does very little you can hear. The tests measure both properties, asserting that channel imbalance stays under 0.2 dB and that the partials actually carrying the energy get placed.
 
 ## Notes on CPU
 
