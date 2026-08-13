@@ -1,0 +1,22 @@
+build/
+build-*/
+cmake-build-*/
+_deps/
+.claude/
+CLAUDE.md
+
+# macOS
+.DS_Store
+*.xcodeproj/
+*.xcworkspace/
+DerivedData/
+
+# Windows
+*.vcxproj*
+*.sln
+*.user
+
+# Editors
+.vscode/
+.idea/
+compile_commands.json
