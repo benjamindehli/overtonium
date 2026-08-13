@@ -132,55 +132,56 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   }
 
   // ---- the cap --------------------------------------------------------------
-  // A machined body, lit from above, so the control has some physical presence
-  // instead of being an arc floating on the panel.
-  const auto bodyR = radius * 0.66f;
+  // A machined disc, not a dome. A strong radial gradient with a specular bloom
+  // reads as a ball bearing, which is not what the top of a control looks like.
+  // The face is nearly flat and the roundness lives entirely in the rim, which
+  // catches the light along its upper edge and falls into shadow underneath.
+  const auto bodyR = radius * 0.60f;
   const juce::Rectangle<float> body(centre.x - bodyR, centre.y - bodyR,
                                     bodyR * 2.0f, bodyR * 2.0f);
 
   // Cast shadow, down and to the right of the light. Built from a few
   // overlapping ellipses rather than a real blur, which would be far too
   // expensive to run on several hundred controls.
-  const auto cast = body.translated(bodyR * 0.10f, bodyR * 0.16f);
+  const auto cast = body.translated(bodyR * 0.10f, bodyR * 0.18f);
   for (int i = 3; i >= 1; --i) {
     g.setColour(juce::Colours::black.withAlpha(0.09f * dim));
     g.fillEllipse(cast.expanded((float)i * bodyR * 0.07f));
   }
 
-  // Radial rather than vertical, so the cap reads as a dome catching a light
-  // from the top left instead of a disc with a gradient painted on it.
   g.setGradientFill(juce::ColourGradient(
-      colours::panelAlt.brighter(0.45f), centre.x - bodyR * 0.45f,
-      centre.y - bodyR * 0.55f, colours::groove.darker(0.25f),
-      centre.x + bodyR * 0.75f, centre.y + bodyR * 0.95f, true));
+      colours::panelAlt.brighter(0.16f), centre.x, body.getY(),
+      colours::panelAlt.darker(0.34f), centre.x, body.getBottom(), false));
   g.fillEllipse(body);
 
-  // Specular: a soft bloom where the light strikes.
-  const auto specR = bodyR * 0.62f;
-  const juce::Point<float> spec(centre.x - bodyR * 0.34f,
-                                centre.y - bodyR * 0.40f);
-  g.setGradientFill(
-      juce::ColourGradient(juce::Colours::white.withAlpha(0.20f * dim), spec.x,
-                           spec.y, juce::Colours::white.withAlpha(0.0f),
-                           spec.x + specR, spec.y + specR, true));
-  g.fillEllipse(spec.x - specR, spec.y - specR, specR * 2.0f, specR * 2.0f);
-
-  g.setColour(colours::outline.brighter(0.15f).withMultipliedAlpha(dim));
-  g.drawEllipse(body.reduced(0.5f), 1.0f);
+  // The rim is the only part that is meant to look curved.
+  g.setGradientFill(juce::ColourGradient(
+      juce::Colours::white.withAlpha(0.28f * dim), centre.x, body.getY(),
+      juce::Colours::black.withAlpha(0.45f * dim), centre.x, body.getBottom(),
+      false));
+  g.drawEllipse(body.reduced(0.6f), 1.2f);
 
   // ---- the pointer ----------------------------------------------------------
-  // Glass: a translucent body with bright edges, so the cap reads through it.
-  juce::Path pointer;
-  const auto pointerWidth = juce::jmax(2.0f, radius * 0.13f);
-  pointer.addRoundedRectangle(-pointerWidth * 0.5f, -bodyR * 0.92f,
-                              pointerWidth, bodyR * 0.78f, pointerWidth * 0.5f);
-  pointer.applyTransform(
-      juce::AffineTransform::rotation(angle).translated(centre.x, centre.y));
+  // In the control's own colour rather than white, so it belongs to the knob
+  // and lines up with the lit ticks beyond the rim instead of sitting on the
+  // cap like something stuck there. Seated in a dark groove so it reads as
+  // inlaid into the face.
+  const auto sinA = std::sin(angle);
+  const auto cosA = std::cos(angle);
+  const auto inner = bodyR * 0.26f;
+  const auto outer = bodyR * 0.84f;
+  const auto weight = juce::jmax(1.8f, radius * 0.12f);
 
-  g.setColour(juce::Colours::white.withAlpha(0.30f * dim));
-  g.fillPath(pointer);
-  g.setColour(juce::Colours::white.withAlpha(0.85f * dim));
-  g.strokePath(pointer, juce::PathStrokeType(0.9f));
+  const auto x1 = centre.x + inner * sinA;
+  const auto y1 = centre.y - inner * cosA;
+  const auto x2 = centre.x + outer * sinA;
+  const auto y2 = centre.y - outer * cosA;
+
+  g.setColour(juce::Colours::black.withAlpha(0.55f * dim));
+  g.drawLine(x1, y1 + 0.9f, x2, y2 + 0.9f, weight);
+
+  g.setColour(fill.brighter(0.25f).withMultipliedAlpha(dim));
+  g.drawLine(x1, y1, x2, y2, weight);
 }
 
 void OvertoniumLookAndFeel::drawLinearSlider(
