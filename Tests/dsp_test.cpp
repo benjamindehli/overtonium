@@ -320,7 +320,7 @@ void testEnvelopeAndMuteSolo() {
 
   Envelope env;
   env.setSampleRate(1000.0);
-  env.configure(0.1f, 0.1f, 0.5f, 0.1f);
+  env.configure(0.0f, 0.1f, 0.1f, 0.5f, 0.1f);
   env.noteOn(true);
 
   for (int i = 0; i < 100; ++i)
@@ -350,12 +350,63 @@ void testEnvelopeAndMuteSolo() {
   // A zero-sustain envelope must free itself without a note-off.
   Envelope perc;
   perc.setSampleRate(1000.0);
-  perc.configure(0.001f, 0.05f, 0.0f, 0.1f);
+  perc.configure(0.0f, 0.001f, 0.05f, 0.0f, 0.1f);
   perc.noteOn(true);
   for (int i = 0; i < 1000; ++i)
     perc.tick();
 
   check(!perc.isActive(), "zero-sustain envelope frees itself");
+
+  // --- delay before the attack
+  // ------------------------------------------------
+  {
+    Envelope d;
+    d.setSampleRate(1000.0);
+    d.configure(0.2f, 0.05f, 0.1f, 1.0f, 0.1f); // 200 ms delay
+    d.noteOn(true);
+
+    check(d.isActive(), "a delayed envelope counts as active straight away");
+
+    for (int i = 0; i < 190; ++i)
+      d.tick();
+    check(d.getLevel() < 1.0e-6f, "nothing sounds during the delay");
+    check(d.getStage() == Envelope::Stage::Delay, "still waiting");
+
+    for (int i = 0; i < 20; ++i)
+      d.tick();
+    check(d.getStage() != Envelope::Stage::Delay, "the delay ends on time");
+    check(d.getLevel() > 0.0f, "the attack starts once the delay is up");
+
+    for (int i = 0; i < 200; ++i)
+      d.tick();
+    check(std::abs(d.getLevel() - 1.0f) < 1.0e-3f, "it still reaches full");
+
+    // Letting go before the delay elapses has to cancel the note outright.
+    Envelope cancelled;
+    cancelled.setSampleRate(1000.0);
+    cancelled.configure(0.5f, 0.05f, 0.1f, 1.0f, 0.1f);
+    cancelled.noteOn(true);
+    for (int i = 0; i < 50; ++i)
+      cancelled.tick();
+    cancelled.noteOff();
+    for (int i = 0; i < 50; ++i)
+      cancelled.tick();
+
+    check(!cancelled.isActive(),
+          "releasing during the delay cancels the note without a burst");
+
+    // Retiming the knob must not reach back into a note already waiting.
+    Envelope latched;
+    latched.setSampleRate(1000.0);
+    latched.configure(0.2f, 0.05f, 0.1f, 1.0f, 0.1f);
+    latched.noteOn(true);
+    latched.configure(2.0f, 0.05f, 0.1f, 1.0f, 0.1f); // moved mid-note
+    for (int i = 0; i < 260; ++i)
+      latched.tick();
+
+    check(latched.getLevel() > 0.0f,
+          "the delay is latched at note-on, not re-read while waiting");
+  }
 
   // --- mute / solo
   // ------------------------------------------------------------------
@@ -1106,6 +1157,52 @@ void testPartialMetering() {
   }
 }
 
+// -----------------------------------------------------------------------------
+// 15. A delayed partial has to stay out of the mix until its time comes.
+// -----------------------------------------------------------------------------
+void testEnvelopeDelay() {
+  section("Envelope delay");
+
+  constexpr double sr = 48000.0;
+  constexpr int block = 4800; // 100 ms
+
+  SynthEngine engine;
+  engine.prepare(sr);
+
+  auto p = makeFlatParams(0.0f);
+  for (auto &o : p.osc) {
+    o.tuneBlend = 1.0f;
+    o.volume = 0.0f;
+  }
+  p.osc[0].volume = 0.5f; // immediate
+  p.osc[3].volume = 0.5f; // held back
+  p.osc[3].delay = 0.30f;
+  p.osc[3].attack = 0.01f;
+
+  std::vector<float> l((size_t)block), r((size_t)block);
+  engine.noteOn(45, 1.0f, p);
+
+  auto slice = [&] {
+    engine.render(l.data(), r.data(), block, p);
+    return std::pair<double, double>{binMagnitude(l, 110.0, sr),
+                                     binMagnitude(l, 440.0, sr)};
+  };
+
+  const auto first = slice(); // 0 to 100 ms
+  check(first.first > 0.05, "the undelayed partial sounds immediately");
+  check(first.second < 0.002, "the delayed partial is absent while it waits (" +
+                                  std::to_string(first.second) + ")");
+
+  slice(); // 100 to 200 ms, still waiting
+  slice(); // 200 to 300 ms, arriving
+
+  const auto after = slice(); // 300 to 400 ms
+  check(after.second > 0.05, "the delayed partial arrives once its time is up");
+  check(after.first > 0.05, "the undelayed partial is still going");
+
+  engine.allSoundOff();
+}
+
 void testModulation() {
   section("Pitch and amplitude modulation");
 
@@ -1215,6 +1312,7 @@ int main() {
   testAftertouch();
   testDrift();
   testPartialMetering();
+  testEnvelopeDelay();
   benchmark();
 
   std::printf("\n%d checks, %d failures\n", checks, failures);

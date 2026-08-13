@@ -37,6 +37,7 @@ constexpr int kRowHeights[kNumRows] = {
     30, // PmDepth
     30, // Drift
     15, // EnvHeading
+    28, // Delay
     28, // Attack
     28, // Decay
     28, // Sustain
@@ -98,6 +99,8 @@ const char *rowLabel(Row r) {
     return "drift";
   case Row::EnvHeading:
     return "ENVELOPE";
+  case Row::Delay:
+    return "delay";
   case Row::Attack:
     return "attack";
   case Row::Decay:
@@ -145,6 +148,8 @@ const char *roleName(Role r) {
     return "pitch mod depth";
   case Role::Drift:
     return "drift";
+  case Role::Delay:
+    return "delay";
   case Role::Attack:
     return "attack";
   case Role::Decay:
@@ -181,6 +186,8 @@ Row rowForRole(Role r) {
     return Row::PmDepth;
   case Role::Drift:
     return Row::Drift;
+  case Role::Delay:
+    return Row::Delay;
   case Role::Attack:
     return Row::Attack;
   case Role::Decay:
@@ -217,6 +224,8 @@ const char *roleSuffix(Role r) {
     return params::pmDepthSuffix;
   case Role::Drift:
     return params::driftSuffix;
+  case Role::Delay:
+    return params::delaySuffix;
   case Role::Attack:
     return params::attackSuffix;
   case Role::Decay:

@@ -124,6 +124,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         rangeWithCentre(0.0f, 25.0f, 6.0f), 0.0f, FAttr().withLabel("ct")));
 
     layout.add(std::make_unique<FloatP>(
+        juce::ParameterID{oscParamId(delaySuffix, i), 1}, p + "Delay",
+        rangeWithCentre(0.0f, 5.0f, 0.2f), 0.0f,
+        FAttr().withStringFromValueFunction(timeText)));
+
+    layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(attackSuffix, i), 1}, p + "Attack",
         rangeWithCentre(0.0005f, 5.0f, 0.03f), 0.005f,
         FAttr().withStringFromValueFunction(timeText)));
@@ -194,6 +199,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
     o.pmRate = apvts.getRawParameterValue(oscParamId(pmRateSuffix, i));
     o.pmDepth = apvts.getRawParameterValue(oscParamId(pmDepthSuffix, i));
     o.drift = apvts.getRawParameterValue(oscParamId(driftSuffix, i));
+    o.delay = apvts.getRawParameterValue(oscParamId(delaySuffix, i));
     o.attack = apvts.getRawParameterValue(oscParamId(attackSuffix, i));
     o.decay = apvts.getRawParameterValue(oscParamId(decaySuffix, i));
     o.sustain = apvts.getRawParameterValue(oscParamId(sustainSuffix, i));
@@ -233,6 +239,7 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     o.pmRateHz = c.pmRate->load();
     o.pmDepthCents = c.pmDepth->load();
     o.driftCents = c.drift->load();
+    o.delay = c.delay->load();
     o.attack = c.attack->load();
     o.decay = c.decay->load();
     o.sustain = c.sustain->load();

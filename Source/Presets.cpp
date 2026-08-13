@@ -43,6 +43,7 @@ struct Applier {
     allOsc(params::pmRateSuffix, [](int) { return 4.0; });
     allOsc(params::pmDepthSuffix, [](int) { return 0.0; });
     allOsc(params::driftSuffix, [](int) { return 0.0; });
+    allOsc(params::delaySuffix, [](int) { return 0.0; });
     allOsc(params::attackSuffix, [](int) { return 0.005; });
     allOsc(params::decaySuffix, [](int) { return 0.6; });
     allOsc(params::sustainSuffix, [](int) { return 1.0; });
@@ -129,8 +130,10 @@ void apply(APVTS &apvts, int index) {
 
     ap.allOsc(params::volumeSuffix,
               [](int n) { return n <= 16 ? 1.0 / n : 0.0; });
-    // Staggered attacks: the spectrum opens up over a couple of seconds.
-    ap.allOsc(params::attackSuffix, [](int n) { return 0.6 + 0.05 * (n - 1); });
+    // Staggered entries: the spectrum unfolds over a couple of seconds while
+    // every partial keeps the same attack shape.
+    ap.allOsc(params::delaySuffix, [](int n) { return 0.05 * (n - 1); });
+    ap.allOsc(params::attackSuffix, [](int) { return 0.8; });
     ap.allOsc(params::decaySuffix, [](int) { return 4.0; });
     ap.allOsc(params::sustainSuffix, [](int) { return 0.8; });
     ap.allOsc(params::releaseSuffix, [](int) { return 3.0; });
@@ -178,6 +181,7 @@ void apply(APVTS &apvts, int index) {
     ap.allOsc(params::volumeSuffix, [](int n) {
       return n == 1 ? 0.6 : (n >= 8 ? 0.5 / std::sqrt((double)n) : 0.0);
     });
+    ap.allOsc(params::delaySuffix, [](int n) { return 0.04 * (n - 1); });
     ap.allOsc(params::attackSuffix, [](int) { return 1.5; });
     ap.allOsc(params::releaseSuffix, [](int) { return 4.0; });
     // Every partial breathes at its own rate, so the spectrum never repeats.

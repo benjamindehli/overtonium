@@ -73,7 +73,7 @@ void Voice::noteOn(int note, float velocity, const SynthParams &p) noexcept {
     pt.velGain =
         amount >= 0.0f ? 1.0f - amount * (1.0f - vel) : 1.0f + amount * vel;
 
-    pt.env.configure(op.attack, op.decay, op.sustain, op.release);
+    pt.env.configure(op.delay, op.attack, op.decay, op.sustain, op.release);
     pt.env.noteOn(p.global.phaseReset);
 
     // A fresh rate per partial per note. Reusing one rate would turn 32
@@ -171,7 +171,7 @@ void Voice::render(float *left, float *right, int numSamples,
       auto &pt = partials[(size_t)i];
       const auto &op = p.osc[(size_t)i];
 
-      pt.env.configure(op.attack, op.decay, op.sustain, op.release);
+      pt.env.configure(op.delay, op.attack, op.decay, op.sustain, op.release);
 
       if (!pt.env.isActive())
         continue;
