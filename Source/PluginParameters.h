@@ -14,6 +14,24 @@ inline constexpr const char *bendRangeId = "bendRange";
 inline constexpr const char *phaseResetId = "phaseReset";
 inline constexpr const char *safetyClipId = "safetyClip";
 
+// ---- master effects ---------------------------------------------------------
+inline constexpr const char *echoOnId = "echoOn";
+inline constexpr const char *echoMixId = "echoMix";
+inline constexpr const char *echoTimeId = "echoTime";
+inline constexpr const char *echoFeedbackId = "echoFeedback";
+inline constexpr const char *echoToneId = "echoTone";
+inline constexpr const char *echoWobbleId = "echoWobble";
+inline constexpr const char *echoSpreadId = "echoSpread";
+
+inline constexpr const char *reverbOnId = "reverbOn";
+inline constexpr const char *reverbMixId = "reverbMix";
+inline constexpr const char *reverbSizeId = "reverbSize";
+inline constexpr const char *reverbDecayId = "reverbDecay";
+inline constexpr const char *reverbDampId = "reverbDamp";
+inline constexpr const char *reverbLowCutId = "reverbLowCut";
+inline constexpr const char *reverbPreDelayId = "reverbPreDelay";
+inline constexpr const char *reverbWidthId = "reverbWidth";
+
 // ---- per-partial parameter IDs ----------------------------------------------
 // Suffixes are appended to a stable "h01".."h32" prefix.
 inline constexpr const char *tuneSuffix = "tune";
@@ -96,6 +114,30 @@ struct Cache {
   std::atomic<float> *bendRange = nullptr;
   std::atomic<float> *phaseReset = nullptr;
   std::atomic<float> *safetyClip = nullptr;
+
+  struct Echo {
+    std::atomic<float> *on = nullptr;
+    std::atomic<float> *mix = nullptr;
+    std::atomic<float> *time = nullptr;
+    std::atomic<float> *feedback = nullptr;
+    std::atomic<float> *tone = nullptr;
+    std::atomic<float> *wobble = nullptr;
+    std::atomic<float> *spread = nullptr;
+  };
+
+  struct Reverb {
+    std::atomic<float> *on = nullptr;
+    std::atomic<float> *mix = nullptr;
+    std::atomic<float> *size = nullptr;
+    std::atomic<float> *decay = nullptr;
+    std::atomic<float> *damp = nullptr;
+    std::atomic<float> *lowCut = nullptr;
+    std::atomic<float> *preDelay = nullptr;
+    std::atomic<float> *width = nullptr;
+  };
+
+  Echo echo{};
+  Reverb reverb{};
 
   void connect(juce::AudioProcessorValueTreeState &apvts);
 

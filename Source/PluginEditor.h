@@ -8,6 +8,7 @@
 
 #include "PluginProcessor.h"
 #include "UI/ChannelStrip.h"
+#include "UI/FxBar.h"
 #include "UI/LookAndFeel.h"
 #include "UI/NoiseStrip.h"
 #include "UI/TopBar.h"
@@ -101,6 +102,7 @@ private:
   /// Single child holding the whole UI, so zoom is one AffineTransform.
   juce::Component content;
   ovt::ui::TopBar topBar;
+  ovt::ui::FxBar fxBar;
   RowGutter gutter;
   ovt::ui::NoiseStrip noiseStrip;
 

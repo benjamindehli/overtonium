@@ -28,12 +28,18 @@ void SynthEngine::prepare(double newSampleRate) noexcept {
   for (size_t i = 0; i < voices.size(); ++i)
     voices[i].prepare(sampleRate, (uint32_t)(i + 1) * 2654435761u);
 
+  echo.prepare(sampleRate);
+  reverb.prepare(sampleRate);
+
   reset();
 }
 
 void SynthEngine::reset() noexcept {
   for (auto &v : voices)
     v.reset();
+
+  echo.reset();
+  reverb.reset();
 
   heldBySustain.fill(false);
   sustainDown = false;
@@ -206,6 +212,14 @@ void SynthEngine::render(float *left, float *right, int numSamples,
     partialLevels[i].store(peaks[i], std::memory_order_relaxed);
 
   noiseLevel.store(noisePeak, std::memory_order_relaxed);
+
+  // ---- master effects, ahead of the fader ----------------------------------
+  // The channel meters above read the partials themselves, so they are taken
+  // before this point. The output meter is taken after it, which is why the
+  // two disagree once a tail is ringing: that is the effects, and it should
+  // show.
+  echo.process(left, right, numSamples, p.echo);
+  reverb.process(left, right, numSamples, p.reverb);
 
   // ---- master gain, smoothed over ~10 ms so fader moves do not zipper -------
   const float target = std::max(0.0f, p.global.masterGain);

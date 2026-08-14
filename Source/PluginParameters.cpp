@@ -104,6 +104,77 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   layout.add(std::make_unique<BoolP>(juce::ParameterID{safetyClipId, 1},
                                      "Safety Clip", true));
 
+  // ---- master effects -------------------------------------------------------
+  layout.add(
+      std::make_unique<BoolP>(juce::ParameterID{echoOnId, 1}, "Echo", false));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{echoMixId, 1}, "Echo Mix",
+      juce::NormalisableRange<float>(0.0f, 1.0f), 0.25f,
+      FAttr().withStringFromValueFunction(percentText)));
+
+  layout.add(
+      std::make_unique<FloatP>(juce::ParameterID{echoTimeId, 1}, "Echo Time",
+                               rangeWithCentre(0.02f, 2.0f, 0.35f), 0.35f,
+                               FAttr().withStringFromValueFunction(timeText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{echoFeedbackId, 1}, "Echo Feedback",
+      juce::NormalisableRange<float>(0.0f, 0.95f), 0.35f,
+      FAttr().withStringFromValueFunction(percentText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{echoToneId, 1}, "Echo Tone",
+      juce::NormalisableRange<float>(0.0f, 1.0f), 0.45f,
+      FAttr().withStringFromValueFunction(percentText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{echoWobbleId, 1}, "Echo Wobble",
+      juce::NormalisableRange<float>(0.0f, 1.0f), 0.25f,
+      FAttr().withStringFromValueFunction(percentText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{echoSpreadId, 1}, "Echo Spread",
+      juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f,
+      FAttr().withStringFromValueFunction(percentText)));
+
+  layout.add(std::make_unique<BoolP>(juce::ParameterID{reverbOnId, 1}, "Reverb",
+                                     false));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{reverbMixId, 1}, "Reverb Mix",
+      juce::NormalisableRange<float>(0.0f, 1.0f), 0.25f,
+      FAttr().withStringFromValueFunction(percentText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{reverbSizeId, 1}, "Reverb Size",
+      juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f,
+      FAttr().withStringFromValueFunction(percentText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{reverbDecayId, 1}, "Reverb Decay",
+      rangeWithCentre(0.2f, 20.0f, 2.0f), 2.0f,
+      FAttr().withStringFromValueFunction(timeText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{reverbDampId, 1}, "Reverb Damping",
+      juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f,
+      FAttr().withStringFromValueFunction(percentText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{reverbLowCutId, 1}, "Reverb Low Cut",
+      rangeWithCentre(20.0f, 800.0f, 150.0f), 120.0f, FAttr().withLabel("Hz")));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{reverbPreDelayId, 1}, "Reverb Pre-delay",
+      rangeWithCentre(0.0f, 0.25f, 0.05f), 0.0f,
+      FAttr().withStringFromValueFunction(timeText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{reverbWidthId, 1}, "Reverb Width",
+      juce::NormalisableRange<float>(0.0f, 1.0f), 1.0f,
+      FAttr().withStringFromValueFunction(percentText)));
+
   // ---- per partial ----------------------------------------------------------
   for (int i = 0; i < kNumHarmonics; ++i) {
     const auto p = prefixFor(i);
@@ -259,6 +330,25 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   phaseReset = apvts.getRawParameterValue(phaseResetId);
   safetyClip = apvts.getRawParameterValue(safetyClipId);
 
+  echo.on = apvts.getRawParameterValue(echoOnId);
+  echo.mix = apvts.getRawParameterValue(echoMixId);
+  echo.time = apvts.getRawParameterValue(echoTimeId);
+  echo.feedback = apvts.getRawParameterValue(echoFeedbackId);
+  echo.tone = apvts.getRawParameterValue(echoToneId);
+  echo.wobble = apvts.getRawParameterValue(echoWobbleId);
+  echo.spread = apvts.getRawParameterValue(echoSpreadId);
+
+  reverb.on = apvts.getRawParameterValue(reverbOnId);
+  reverb.mix = apvts.getRawParameterValue(reverbMixId);
+  reverb.size = apvts.getRawParameterValue(reverbSizeId);
+  reverb.decay = apvts.getRawParameterValue(reverbDecayId);
+  reverb.damp = apvts.getRawParameterValue(reverbDampId);
+  reverb.lowCut = apvts.getRawParameterValue(reverbLowCutId);
+  reverb.preDelay = apvts.getRawParameterValue(reverbPreDelayId);
+  reverb.width = apvts.getRawParameterValue(reverbWidthId);
+
+  jassert(echo.on != nullptr && reverb.on != nullptr);
+
   for (int i = 0; i < kNumHarmonics; ++i) {
     auto &o = osc[(size_t)i];
 
@@ -368,6 +458,23 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   out.global.bendSemitones = bendNormalised * bendRange->load();
   out.global.phaseReset = phaseReset->load() > 0.5f;
   out.global.safetyClip = safetyClip->load() > 0.5f;
+
+  out.echo.enabled = echo.on->load() > 0.5f;
+  out.echo.mix = echo.mix->load();
+  out.echo.timeSeconds = echo.time->load();
+  out.echo.feedback = echo.feedback->load();
+  out.echo.tone = echo.tone->load();
+  out.echo.wobble = echo.wobble->load();
+  out.echo.spread = echo.spread->load();
+
+  out.reverb.enabled = reverb.on->load() > 0.5f;
+  out.reverb.mix = reverb.mix->load();
+  out.reverb.size = reverb.size->load();
+  out.reverb.decaySeconds = reverb.decay->load();
+  out.reverb.damping = reverb.damp->load();
+  out.reverb.lowCutHz = reverb.lowCut->load();
+  out.reverb.preDelaySeconds = reverb.preDelay->load();
+  out.reverb.width = reverb.width->load();
 }
 
 } // namespace ovt::params

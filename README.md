@@ -64,7 +64,7 @@ cmake --build build --target overtonium_dsp_test
 ./build/overtonium_dsp_test
 ```
 
-They cover the tuning table, blend endpoints, sine table accuracy, the anti-aliasing guard, envelope behaviour, mute and solo, click-free parameter changes, voice allocation and modulation, and they finish by printing a CPU benchmark.
+They cover the tuning table, blend endpoints, sine table accuracy, the anti-aliasing guard, envelope behaviour, mute and solo, click-free parameter changes, voice allocation, modulation and the two master effects, and they finish by printing a CPU benchmark.
 
 There is a second target, `overtonium_runtime_test`, which builds the plugin sources as a console app and exercises parameter wiring, MIDI handling, the factory presets, bus layouts and state round-tripping. It never opens an editor, so it runs on a machine with no display. Both targets are registered with CTest, so `ctest` from the build directory runs them together.
 
@@ -128,6 +128,8 @@ The reason to want the negative half is crossfading. Give one set of partials a 
 The envelope's delay stage holds a partial silent before its attack begins. Staggering it across the series makes the spectrum unfold rather than arrive all at once, which is how *Slow Pad* and *Shimmer* now open up. It is latched in samples at note-on, so moving the knob cannot retime a note already waiting, and releasing a key before the delay elapses cancels that partial rather than letting it burst in afterwards.
 
 Aftertouch works the same way but **adds** to the fader instead of scaling it, and it ignores velocity entirely. That means a strip with its fader all the way down is silent until you lean on the key, and then it fades in under your finger, while a negative amount fades an open strip back out again. Put a few upper partials on positive aftertouch and the note grows brighter the harder you press, without touching the partials you left alone. Both channel pressure and polyphonic aftertouch are accepted, and whichever is higher wins. Pressure is smoothed over about 15 ms, so seven-bit MIDI does not step the gain.
+
+Under the mixer sits a row of master effects, a tape echo and a reverb. They are described below.
 
 The top bar holds the global controls, boxed into groups of things that work together:
 
@@ -226,6 +228,43 @@ Pairing does two jobs. Neighbouring partials have near-identical levels in any n
 
 The width grows as a square root rather than as a straight fan, because a spectrum that rolls off keeps nearly all its energy in the first few partials. A linear fan leaves exactly those bunched in the middle and the control does very little you can hear. The tests measure both properties, asserting that channel imbalance stays under 0.2 dB and that the partials actually carrying the energy get placed.
 
+### The master effects
+
+Along the bottom of the window sit two effects that work on the finished mix rather than on any one partial: a tape echo and a reverb. They are placed under the mixer because that is where they are in the signal. Everything above the row happens per partial, everything on it happens to the sum. Both sit ahead of the master fader, so the fader is a true output level and moving it cannot change the wet to dry balance underneath it. Each has a switch that names it, and switching one off empties it rather than leaving a tail to reappear next time it comes on.
+
+**ECHO** is a tape loop rather than a digital delay:
+
+| Control | Does |
+|---|---|
+| MIX | how much of the output is repeats |
+| TIME | distance between the heads, 20 ms to 2 s |
+| FDBK | how much of each repeat goes round again, up to 95% |
+| TONE | how much top end survives a pass |
+| WOW | wow and flutter |
+| SPREAD | crossfeed between the heads |
+
+Four things about it are borrowed from the machine rather than from the maths. TIME is reached by winding rather than by jumping, so moving the knob slides the repeats in pitch on the way to the new setting, which is the sound a tape delay is mostly wanted for. Every pass round the loop goes through a lowpass and a highpass, so the repeats darken and thin as they recede instead of staying a copy of the original at a lower level. The loop saturates rather than clips, which is also what stops it running away: the tests drive it at maximum feedback for twenty seconds and the output stays bounded. And the motor is not steady, so a slow wander and a faster flutter move the pitch of the repeats around, measured at about 1% of swing at full.
+
+SPREAD is a crossfeed rather than a second delay time. Two different times comb against each other the moment the source has any width, while feeding each head into the other keeps one time and lets the repeats walk across the image, alternating sides at the top of the control.
+
+**REVERB** is a feedback delay network: eight delay lines fed back through a Householder matrix, with four allpass stages per side in front of it to scatter a hit into a wash before it reaches the network.
+
+| Control | Does |
+|---|---|
+| MIX | how much of the output is reverb |
+| SIZE | room dimensions, from a booth to a hall |
+| DECAY | how long the tail takes to fall 60 dB, 0.2 to 20 s |
+| DAMP | how quickly the top end dies out of the tail |
+| LO CUT | how much of the bottom is kept out of it, 20 to 800 Hz |
+| PRE | silence between the note and its reverb, up to 250 ms |
+| WIDTH | mono at zero, fully spread at the top |
+
+The matrix is orthogonal, so the network neither gains nor loses energy of its own accord and the decay is entirely the doing of the per-line gains, which is why DECAY can be trusted. The tests measure it: a 1 s setting falls silent in 1.0 s and a 5 s setting in 4.4 s.
+
+The choice of a network rather than a bank of combs is about this instrument in particular. Thirty-two pure sines held indefinitely will find every resonance a fixed network has, and a comb reverb answers them with a metallic pitch. The line lengths are therefore mutually prime and each is slowly modulated at its own rate, so the tail keeps moving underneath a held chord. The tests check for exactly that failure, measuring the loudest bin of the tail against the average across the spectrum.
+
+LO CUT exists for the same reason. A fundamental at full level feeding a long tail floods everything above it, and the reverb becomes a rumble the moment you play low. Cutting the input at 120 Hz or so leaves the tail to carry the partials, which is where the interest is.
+
 ## Notes on CPU
 
 Polyphony is the multiplier that matters, since eight voices means 256 sine oscillators. Measured on one core of an x86 container at 48 kHz with every modulator running:
@@ -236,7 +275,7 @@ Polyphony is the multiplier that matters, since eight voices means 256 sine osci
 | 8 | 256 | about 7% |
 | 16 | 512 | 14 to 15% |
 
-Those figures are with everything running at once: both LFOs, drift, velocity, aftertouch, the meters and the noise channel.
+Those figures are with everything running at once: both LFOs, drift, velocity, aftertouch, the meters and the noise channel. The two master effects add about 1.2% on top of that, whatever the polyphony, since they work on the sum rather than per voice.
 
 That leaves enough headroom for the engine to stay a plain bank of oscillators with nothing clever in the signal path. What keeps it cheap:
 
@@ -261,12 +300,14 @@ Source/
     Envelope.h      per-partial delay plus ADSR
     Params.h        plain-data parameter snapshot
     Voice.*         32 partials, one note
-    SynthEngine.*   voice pool, allocation, stealing, master stage
-  PluginParameters.*  APVTS layout, 531 parameters, and the audio-thread snapshot
+    TapeEcho.*      the master echo
+    Reverb.*        the master reverb, a feedback delay network
+    SynthEngine.*   voice pool, allocation, stealing, effects, master stage
+  PluginParameters.*  APVTS layout, 546 parameters, and the audio-thread snapshot
   Presets.*           factory presets
   PluginProcessor.*   MIDI handling, sample-accurate rendering, state
   PluginEditor.*      window, zoom, LINK, gutter
-  UI/                 theme, look and feel, channel and noise strips, top bar
+  UI/                 theme, look and feel, channel and noise strips, top and effects bars
 Tests/
   dsp_test.cpp            standalone DSP tests and CPU benchmark
   plugin_runtime_test.cpp headless plugin integration tests

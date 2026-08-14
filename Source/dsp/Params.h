@@ -78,10 +78,43 @@ struct GlobalParams {
   bool safetyClip = true;
 };
 
+/// The tape echo, which sits across the whole instrument rather than on any one
+/// partial.
+struct EchoParams {
+  bool enabled = false;
+  float mix = 0.25f;         ///< 0 dry, 1 fully wet
+  float timeSeconds = 0.35f; ///< distance between the heads
+  float feedback = 0.35f;    ///< 0..0.95, how much goes round again
+  /// Where the repeats sit: 0 leaves each one darker than the last, 1 keeps
+  /// them close to the original. Tape loses the top end on every pass, and that
+  /// loss is most of what makes an echo sit behind the note instead of on it.
+  float tone = 0.45f;
+  /// Wow and flutter. The motor is never quite steady, so the pitch of the
+  /// repeats wanders.
+  float wobble = 0.25f;
+  /// Crossfeed between the two heads. At zero the repeats stay on the side they
+  /// came from, at one they alternate.
+  float spread = 0.0f;
+};
+
+/// The reverb: a feedback delay network, sized and damped from the panel.
+struct ReverbParams {
+  bool enabled = false;
+  float mix = 0.25f;
+  float size = 0.5f;         ///< 0 a small room, 1 a hall
+  float decaySeconds = 2.0f; ///< RT60
+  float damping = 0.5f;      ///< how fast the top end dies away in the tail
+  float lowCutHz = 120.0f;   ///< keeps the fundamental out of the tail
+  float preDelaySeconds = 0.0f;
+  float width = 1.0f;
+};
+
 struct SynthParams {
   std::array<OscParams, kNumHarmonics> osc{};
   NoiseParams noise{};
   GlobalParams global{};
+  EchoParams echo{};
+  ReverbParams reverb{};
 };
 
 } // namespace ovt

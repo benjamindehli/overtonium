@@ -67,8 +67,9 @@ juce::MidiBuffer noteOnAt(int note, float velocity, int sample) {
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
-  // 16 per partial, 6 global, 13 for the noise channel.
-  const int expected = ovt::kNumHarmonics * 16 + 6 + 13;
+  // 16 per partial, 6 global, 13 for the noise channel, 15 for the two
+  // master effects.
+  const int expected = ovt::kNumHarmonics * 16 + 6 + 13 + 15;
   check(p.getParameters().size() == expected,
         "parameter count is " + std::to_string(p.getParameters().size()) +
             ", expected " + std::to_string(expected));
@@ -79,6 +80,20 @@ void testParameterWiring(OvertoniumProcessor &p) {
       ovt::params::masterGainId, ovt::params::polyphonyId,
       ovt::params::spreadId,     ovt::params::bendRangeId,
       ovt::params::phaseResetId, ovt::params::safetyClipId};
+
+  const char *effects[] = {
+      ovt::params::echoOnId,       ovt::params::echoMixId,
+      ovt::params::echoTimeId,     ovt::params::echoFeedbackId,
+      ovt::params::echoToneId,     ovt::params::echoWobbleId,
+      ovt::params::echoSpreadId,   ovt::params::reverbOnId,
+      ovt::params::reverbMixId,    ovt::params::reverbSizeId,
+      ovt::params::reverbDecayId,  ovt::params::reverbDampId,
+      ovt::params::reverbLowCutId, ovt::params::reverbPreDelayId,
+      ovt::params::reverbWidthId};
+
+  for (auto *id : effects)
+    check(p.apvts.getRawParameterValue(id) != nullptr,
+          std::string("effect param ") + id);
 
   for (auto *id : globals)
     check(p.apvts.getRawParameterValue(id) != nullptr,
@@ -431,6 +446,75 @@ void testRowHover() {
         "the fader row still reports the role LINK would gang");
 }
 
+void testMasterEffects(OvertoniumProcessor &p) {
+  section("Master effects");
+
+  const auto setParam = [&p](const char *id, float plain) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1(plain));
+  };
+
+  /// Plays a short note, lets it go, and reports what is still coming out a
+  /// second after the release has finished.
+  const auto tailAfterNote = [&]() {
+    p.prepareToPlay(48000.0, 512);
+    p.reset();
+
+    renderBlocks(p, 20, 512, noteOnAt(60, 0.9f, 0));
+
+    juce::MidiBuffer off;
+    off.addEvent(juce::MidiMessage::noteOff(1, 60), 0);
+    juce::AudioBuffer<float> buffer(2, 512);
+    p.processBlock(buffer, off);
+
+    // Long enough for the longest release in the Init patch to be over.
+    renderBlocks(p, 120, 512);
+
+    return renderBlocks(p, 40, 512).peak;
+  };
+
+  ovt::presets::apply(p.apvts, 0);
+
+  const auto dry = tailAfterNote();
+  check(dry < 1.0e-5f, "with the effects off the note stops when it stops");
+
+  setParam(ovt::params::reverbOnId, 1.0f);
+  setParam(ovt::params::reverbMixId, 0.5f);
+  setParam(ovt::params::reverbDecayId, 6.0f);
+
+  const auto wet = tailAfterNote();
+  check(wet > 1.0e-4f, "the reverb goes on ringing after the note (peak " +
+                           std::to_string(wet) + ")");
+
+  check(p.getTailLengthSeconds() > 5.0,
+        "the reported tail covers the reverb (" +
+            std::to_string(p.getTailLengthSeconds()) + " s)");
+
+  setParam(ovt::params::reverbOnId, 0.0f);
+
+  const auto bypassed = tailAfterNote();
+  check(bypassed < 1.0e-5f, "switching it off takes the tail with it");
+
+  // The echo has to put something audible on the far side of the note too.
+  setParam(ovt::params::echoOnId, 1.0f);
+  setParam(ovt::params::echoMixId, 0.6f);
+  setParam(ovt::params::echoTimeId, 0.4f);
+  setParam(ovt::params::echoFeedbackId, 0.7f);
+
+  const auto echoed = tailAfterNote();
+  check(echoed > 1.0e-4f, "the echo repeats after the note (peak " +
+                              std::to_string(echoed) + ")");
+
+  check(p.getTailLengthSeconds() > 2.0,
+        "the reported tail covers the repeats (" +
+            std::to_string(p.getTailLengthSeconds()) + " s)");
+
+  ovt::presets::apply(p.apvts, 0);
+  p.reset();
+
+  check(tailAfterNote() < 1.0e-5f, "Init puts both of them away again");
+}
+
 void testBusLayouts(OvertoniumProcessor &p) {
   section("Bus layouts");
 
@@ -539,6 +623,7 @@ int main() {
   testRendering(processor);
   testPresets(processor);
   testAftertouchMidi(processor);
+  testMasterEffects(processor);
   testLinkCurves();
   testRowHover();
   testBusLayouts(processor);

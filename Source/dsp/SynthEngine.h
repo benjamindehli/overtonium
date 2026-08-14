@@ -1,10 +1,13 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 
 #include <atomic>
 
+#include "Reverb.h"
+#include "TapeEcho.h"
 #include "Voice.h"
 
 namespace ovt {
@@ -66,6 +69,12 @@ public:
     return outputLevelR.load(std::memory_order_relaxed);
   }
 
+  /// How long the master effects would take to fall silent under the settings
+  /// they are holding, so the host can pad an offline bounce correctly.
+  float effectsTailSeconds(const SynthParams &p) const noexcept {
+    return std::max(echo.tailSeconds(p.echo), reverb.tailSeconds(p.reverb));
+  }
+
 private:
   Voice *findFreeVoice() noexcept;
   Voice *findOldestSounding() noexcept;
@@ -86,6 +95,12 @@ private:
   std::atomic<float> outputLevelR{0.0f};
 
   float smoothedMasterGain = -1.0f;
+
+  // The master effects. They sit after the voices and before the master fader,
+  // so the fader is a true output level and moving it cannot change the wet to
+  // dry balance underneath it.
+  TapeEcho echo;
+  Reverb reverb;
 };
 
 } // namespace ovt

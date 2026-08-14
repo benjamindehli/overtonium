@@ -44,21 +44,6 @@ private:
   Bar left, right;
 };
 
-/// A knob with a caption underneath.
-class LabelledKnob : public juce::Component {
-public:
-  explicit LabelledKnob(juce::String captionText,
-                        juce::Colour fill = colours::accent);
-
-  void paint(juce::Graphics &) override;
-  void resized() override;
-
-  LinkableSlider slider;
-
-private:
-  juce::String caption;
-};
-
 class TopBar : public juce::Component {
 public:
   TopBar(juce::AudioProcessorValueTreeState &apvts,

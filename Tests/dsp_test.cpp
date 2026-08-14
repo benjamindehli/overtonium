@@ -12,8 +12,10 @@
 
 #include "dsp/Drift.h"
 #include "dsp/Harmonics.h"
+#include "dsp/Reverb.h"
 #include "dsp/SineTable.h"
 #include "dsp/SynthEngine.h"
+#include "dsp/TapeEcho.h"
 #include "dsp/Voice.h"
 
 using namespace ovt;
@@ -1468,7 +1470,566 @@ void testModulation() {
 }
 
 // -----------------------------------------------------------------------------
-// 10. CPU: the whole point of the exercise.
+// 10. The master effects.
+// -----------------------------------------------------------------------------
+namespace {
+
+struct Stereo {
+  std::vector<float> l, r;
+
+  explicit Stereo(size_t n) : l(n, 0.0f), r(n, 0.0f) {}
+  size_t size() const { return l.size(); }
+};
+
+/// Runs an effect over a whole signal in blocks, the way a host would.
+template <typename Fx, typename P>
+void runBlocks(Fx &fx, Stereo &s, const P &p, int block = 256) {
+  for (size_t start = 0; start < s.size(); start += (size_t)block) {
+    const auto n = (int)std::min((size_t)block, s.size() - start);
+    fx.process(s.l.data() + start, s.r.data() + start, n, p);
+  }
+}
+
+double rms(const std::vector<float> &x, size_t from, size_t to) {
+  to = std::min(to, x.size());
+  if (to <= from)
+    return 0.0;
+
+  double sum = 0.0;
+  for (size_t n = from; n < to; ++n)
+    sum += (double)x[n] * (double)x[n];
+
+  return std::sqrt(sum / (double)(to - from));
+}
+
+double peak(const std::vector<float> &x, size_t from, size_t to) {
+  to = std::min(to, x.size());
+  double m = 0.0;
+
+  for (size_t n = from; n < to; ++n)
+    m = std::max(m, (double)std::abs(x[n]));
+
+  return m;
+}
+
+bool allFinite(const Stereo &s) {
+  for (size_t n = 0; n < s.size(); ++n)
+    if (!std::isfinite(s.l[n]) || !std::isfinite(s.r[n]))
+      return false;
+
+  return true;
+}
+
+/// Frequency from zero crossings. Coarse, but a delay line wandering by a
+/// percent is a big effect and this measures it without any windowing games.
+double crossingFrequency(const std::vector<float> &x, size_t from, size_t to,
+                         double sampleRate) {
+  to = std::min(to, x.size());
+  int crossings = 0;
+  size_t first = 0, last = 0;
+
+  for (size_t n = from + 1; n < to; ++n) {
+    if (x[n - 1] <= 0.0f && x[n] > 0.0f) {
+      if (crossings == 0)
+        first = n;
+
+      last = n;
+      ++crossings;
+    }
+  }
+
+  if (crossings < 2)
+    return 0.0;
+
+  return (double)(crossings - 1) * sampleRate / (double)(last - first);
+}
+
+/// A slice of copies-of-the-input, for feeding an effect.
+Stereo impulse(size_t length, float amplitude = 1.0f) {
+  Stereo s(length);
+  s.l[0] = amplitude;
+  s.r[0] = amplitude;
+  return s;
+}
+
+Stereo tone(size_t length, double freq, double sampleRate,
+            float amplitude = 0.25f) {
+  Stereo s(length);
+
+  for (size_t n = 0; n < length; ++n) {
+    const auto v = (float)(amplitude * std::sin(6.283185307179586 * freq *
+                                                (double)n / sampleRate));
+    s.l[n] = v;
+    s.r[n] = v;
+  }
+
+  return s;
+}
+
+} // namespace
+
+void testTapeEcho() {
+  section("Tape echo");
+
+  constexpr double sr = 48000.0;
+
+  TapeEcho echo;
+  echo.prepare(sr);
+
+  EchoParams p;
+  p.enabled = false;
+  p.mix = 1.0f;
+
+  {
+    auto s = tone(4800, 440.0, sr);
+    const auto before = s.l;
+    runBlocks(echo, s, p);
+
+    bool identical = true;
+    for (size_t n = 0; n < s.size(); ++n)
+      identical &= s.l[n] == before[n];
+
+    check(identical, "switched off, the echo passes the signal untouched");
+  }
+
+  // ---- where the repeats land -----------------------------------------------
+  p.enabled = true;
+  p.timeSeconds = 0.25f;
+  p.feedback = 0.6f;
+  p.tone = 1.0f;
+  p.wobble = 0.0f;
+  p.spread = 0.0f;
+
+  echo.reset();
+
+  {
+    auto s = impulse((size_t)(sr * 1.2));
+    runBlocks(echo, s, p);
+
+    const auto expected = (size_t)(0.25 * sr);
+    size_t found = 0;
+    double best = 0.0;
+
+    for (size_t n = 10; n < (size_t)(0.4 * sr); ++n) {
+      if (std::abs(s.l[n]) > best) {
+        best = std::abs(s.l[n]);
+        found = n;
+      }
+    }
+
+    const auto errorMs =
+        std::abs((double)found - (double)expected) * 1000.0 / sr;
+    std::printf("  first repeat at %.1f ms, wanted %.1f ms\n",
+                (double)found * 1000.0 / sr, 250.0);
+
+    check(errorMs < 2.0, "the first repeat lands at the head distance");
+    check(best > 0.5, "the first repeat carries the signal at full level");
+
+    // Each pass round the loop is quieter than the last.
+    const auto first = peak(s.l, (size_t)(0.2 * sr), (size_t)(0.3 * sr));
+    const auto second = peak(s.l, (size_t)(0.45 * sr), (size_t)(0.55 * sr));
+    const auto third = peak(s.l, (size_t)(0.7 * sr), (size_t)(0.8 * sr));
+
+    check(second < first && third < second, "the repeats fall away");
+    check(second > 0.2 * first, "feedback at 60% is still clearly audible");
+  }
+
+  // ---- the loop must not run away -------------------------------------------
+  {
+    echo.reset();
+
+    p.feedback = 0.95f;
+    p.mix = 1.0f;
+    p.timeSeconds = 0.12f;
+
+    auto s = tone((size_t)(sr * 20.0), 220.0, sr, 0.7f);
+    runBlocks(echo, s, p);
+
+    check(allFinite(s), "the loop stays finite at maximum feedback");
+    check(peak(s.l, 0, s.size()) < 2.0,
+          "the loop stays bounded at maximum feedback (peak " +
+              std::to_string(peak(s.l, 0, s.size())) + ")");
+  }
+
+  // ---- tone
+  // ------------------------------------------------------------------
+  {
+    const auto measure = [&](float toneValue) {
+      echo.reset();
+
+      EchoParams e;
+      e.enabled = true;
+      e.mix = 1.0f;
+      e.timeSeconds = 0.1f;
+      e.feedback = 0.8f;
+      e.tone = toneValue;
+      e.wobble = 0.0f;
+
+      // A click carries every frequency, so what comes back says what the loop
+      // did to the top end.
+      auto s = impulse((size_t)(sr * 2.0));
+      runBlocks(echo, s, e);
+
+      std::vector<float> tail(s.l.begin() + (size_t)(sr * 0.9), s.l.end());
+      return bandMagnitude(tail, 4000.0, 9000.0, sr) /
+             std::max(1.0e-9, bandMagnitude(tail, 200.0, 600.0, sr));
+    };
+
+    const auto dark = measure(0.0f);
+    const auto bright = measure(1.0f);
+
+    std::printf("  high to low after ~10 passes: dark %.4f, bright %.4f\n",
+                dark, bright);
+
+    check(bright > dark * 4.0,
+          "dark repeats lose their top end and bright ones keep it");
+  }
+
+  // ---- wow and flutter
+  // -------------------------------------------------------
+  {
+    const auto wander = [&](float wobble) {
+      echo.reset();
+
+      EchoParams e;
+      e.enabled = true;
+      e.mix = 1.0f;
+      e.timeSeconds = 0.5f;
+      e.feedback = 0.0f;
+      e.tone = 1.0f;
+      e.wobble = wobble;
+
+      auto s = tone((size_t)(sr * 4.0), 1000.0, sr);
+      runBlocks(echo, s, e);
+
+      double lowest = 1.0e9, highest = 0.0;
+
+      for (int w = 0; w < 12; ++w) {
+        const auto from = (size_t)(sr * (1.0 + 0.2 * w));
+        const auto f =
+            crossingFrequency(s.l, from, from + (size_t)(sr * 0.2), sr);
+
+        lowest = std::min(lowest, f);
+        highest = std::max(highest, f);
+      }
+
+      return (highest - lowest) / 1000.0;
+    };
+
+    const auto steady = wander(0.0f);
+    const auto wobbling = wander(1.0f);
+
+    std::printf(
+        "  pitch swing of the repeats: steady %.4f%%, wobbling %.2f%%\n",
+        steady * 100.0, wobbling * 100.0);
+
+    check(steady < 0.002, "with the motor steady the repeats hold their pitch");
+    check(wobbling > 0.004,
+          "wow and flutter wander the pitch of the repeats audibly");
+  }
+
+  // ---- crossfeed
+  // -------------------------------------------------------------
+  {
+    const auto sideEnergy = [&](float spread) {
+      echo.reset();
+
+      EchoParams e;
+      e.enabled = true;
+      e.mix = 1.0f;
+      e.timeSeconds = 0.2f;
+      e.feedback = 0.7f;
+      e.tone = 1.0f;
+      e.wobble = 0.0f;
+      e.spread = spread;
+
+      auto s = impulse((size_t)(sr * 1.5));
+      s.r[0] = 0.0f; // left only
+
+      runBlocks(echo, s, e);
+
+      // The second repeat: with the heads crossed it should have walked over.
+      return peak(s.r, (size_t)(0.35 * sr), (size_t)(0.45 * sr));
+    };
+
+    const auto straight = sideEnergy(0.0f);
+    const auto crossed = sideEnergy(1.0f);
+
+    std::printf(
+        "  second repeat on the far side: straight %.4f, crossed %.4f\n",
+        straight, crossed);
+
+    check(straight < 1.0e-6, "with the heads straight the repeats stay put");
+    check(crossed > 0.1, "with the heads crossed the repeats walk across");
+  }
+}
+
+void testReverb() {
+  section("Reverb");
+
+  constexpr double sr = 48000.0;
+
+  Reverb reverb;
+  reverb.prepare(sr);
+
+  ReverbParams p;
+  p.enabled = false;
+
+  {
+    auto s = tone(4800, 440.0, sr);
+    const auto before = s.l;
+    runBlocks(reverb, s, p);
+
+    bool identical = true;
+    for (size_t n = 0; n < s.size(); ++n)
+      identical &= s.l[n] == before[n];
+
+    check(identical, "switched off, the reverb passes the signal untouched");
+  }
+
+  // ---- decay time
+  // ------------------------------------------------------------
+  const auto measureDecay = [&](float decaySeconds) {
+    reverb.reset();
+
+    ReverbParams r;
+    r.enabled = true;
+    r.mix = 1.0f;
+    r.size = 0.6f;
+    r.decaySeconds = decaySeconds;
+    r.damping = 0.0f;
+    r.lowCutHz = 20.0f;
+    r.preDelaySeconds = 0.0f;
+    r.width = 1.0f;
+
+    auto s = impulse((size_t)(sr * 25.0));
+    runBlocks(reverb, s, r);
+
+    if (!allFinite(s))
+      return -1.0;
+
+    // Reference taken just after the input has scattered, then the point where
+    // the tail has fallen 60 dB below it.
+    const auto reference = rms(s.l, (size_t)(sr * 0.05), (size_t)(sr * 0.15));
+    const auto floorLevel = reference * 0.001;
+
+    for (double t = 0.15; t < 24.0; t += 0.05) {
+      const auto from = (size_t)(sr * t);
+      if (rms(s.l, from, from + (size_t)(sr * 0.05)) < floorLevel)
+        return t;
+    }
+
+    return 24.0;
+  };
+
+  const auto short_ = measureDecay(1.0f);
+  const auto long_ = measureDecay(5.0f);
+
+  std::printf("  measured decay: %.2f s at RT60 1 s, %.2f s at RT60 5 s\n",
+              short_, long_);
+
+  check(short_ > 0.5 && short_ < 2.0, "a 1 s decay falls silent in about 1 s");
+  check(long_ > 3.0 && long_ < 9.0, "a 5 s decay falls silent in about 5 s");
+  check(long_ > short_ * 2.5, "the decay control does what it says");
+
+  // ---- the tail has to be dense, not a pitch --------------------------------
+  {
+    reverb.reset();
+
+    ReverbParams r;
+    r.enabled = true;
+    r.mix = 1.0f;
+    r.size = 0.5f;
+    r.decaySeconds = 3.0f;
+    r.damping = 0.2f;
+    r.lowCutHz = 20.0f;
+    r.width = 1.0f;
+
+    auto s = impulse((size_t)(sr * 3.0));
+    runBlocks(reverb, s, r);
+
+    std::vector<float> tail(s.l.begin() + (size_t)(sr * 0.5),
+                            s.l.begin() + (size_t)(sr * 1.5));
+
+    // A network that has settled onto a resonance puts everything into one
+    // place in the spectrum. A dense one does not.
+    double loudest = 0.0, total = 0.0;
+    constexpr int bins = 60;
+
+    for (int k = 0; k < bins; ++k) {
+      const auto f = 200.0 + 100.0 * k;
+      const auto m = binMagnitude(tail, f, sr);
+
+      loudest = std::max(loudest, m);
+      total += m;
+    }
+
+    const auto ratio = loudest / (total / bins);
+    std::printf("  loudest bin is %.2fx the average of the tail spectrum\n",
+                ratio);
+
+    check(ratio < 6.0, "the tail is broadband rather than a ringing pitch");
+  }
+
+  // ---- pre-delay
+  // -------------------------------------------------------------
+  {
+    reverb.reset();
+
+    ReverbParams r;
+    r.enabled = true;
+    r.mix = 1.0f;
+    r.size = 0.5f;
+    r.decaySeconds = 2.0f;
+    r.damping = 0.3f;
+    r.lowCutHz = 20.0f;
+    r.preDelaySeconds = 0.1f;
+    r.width = 1.0f;
+
+    auto s = impulse((size_t)(sr * 1.0));
+    runBlocks(reverb, s, r);
+
+    check(peak(s.l, 2, (size_t)(sr * 0.09)) < 1.0e-6,
+          "nothing comes back before the pre-delay is up");
+    check(peak(s.l, (size_t)(sr * 0.1), (size_t)(sr * 0.3)) > 1.0e-4,
+          "the tail arrives after it");
+  }
+
+  // ---- damping and low cut
+  // ---------------------------------------------------
+  {
+    const auto tailBand = [&](float damping, float lowCut, double lo,
+                              double hi) {
+      reverb.reset();
+
+      ReverbParams r;
+      r.enabled = true;
+      r.mix = 1.0f;
+      r.size = 0.5f;
+      r.decaySeconds = 3.0f;
+      r.damping = damping;
+      r.lowCutHz = lowCut;
+      r.width = 1.0f;
+
+      auto s = impulse((size_t)(sr * 2.0));
+      runBlocks(reverb, s, r);
+
+      std::vector<float> tail(s.l.begin() + (size_t)(sr * 0.5), s.l.end());
+      return bandMagnitude(tail, lo, hi, sr);
+    };
+
+    const auto open = tailBand(0.0f, 20.0f, 5000.0, 10000.0);
+    const auto damped = tailBand(1.0f, 20.0f, 5000.0, 10000.0);
+
+    std::printf("  top end in the tail: open %.2e, damped %.2e\n", open,
+                damped);
+    check(damped < open * 0.5, "damping takes the top off the tail");
+
+    const auto full = tailBand(0.3f, 20.0f, 60.0, 120.0);
+    const auto cut = tailBand(0.3f, 500.0f, 60.0, 120.0);
+
+    std::printf("  bottom end in the tail: full %.2e, cut %.2e\n", full, cut);
+    check(cut < full * 0.5,
+          "the low cut keeps the fundamental out of the tail");
+  }
+
+  // ---- width
+  // -----------------------------------------------------------------
+  {
+    const auto correlation = [&](float width) {
+      reverb.reset();
+
+      ReverbParams r;
+      r.enabled = true;
+      r.mix = 1.0f;
+      r.size = 0.5f;
+      r.decaySeconds = 2.0f;
+      r.damping = 0.3f;
+      r.lowCutHz = 20.0f;
+      r.width = width;
+
+      auto s = impulse((size_t)(sr * 1.5));
+      runBlocks(reverb, s, r);
+
+      double ll = 0.0, rr = 0.0, lr = 0.0;
+      for (size_t n = (size_t)(sr * 0.1); n < s.size(); ++n) {
+        ll += (double)s.l[n] * s.l[n];
+        rr += (double)s.r[n] * s.r[n];
+        lr += (double)s.l[n] * s.r[n];
+      }
+
+      return lr / std::sqrt(std::max(1.0e-12, ll * rr));
+    };
+
+    const auto mono = correlation(0.0f);
+    const auto wide = correlation(1.0f);
+
+    std::printf("  channel correlation: width 0 %.3f, width 1 %.3f\n", mono,
+                wide);
+
+    check(mono > 0.999, "at zero width the two sides are the same signal");
+    check(wide < 0.6, "at full width they are largely independent");
+  }
+
+  // ---- level
+  // -----------------------------------------------------------------
+  {
+    reverb.reset();
+
+    ReverbParams r;
+    r.enabled = true;
+    r.mix = 1.0f;
+    r.size = 0.5f;
+    r.decaySeconds = 2.0f;
+    r.damping = 0.4f;
+    r.lowCutHz = 60.0f;
+    r.width = 1.0f;
+
+    // Broadband input, so this is a fair comparison rather than one frequency
+    // landing on a mode.
+    Xorshift rng(7u);
+    Stereo s((size_t)(sr * 4.0));
+    for (size_t n = 0; n < s.size(); ++n) {
+      s.l[n] = 0.2f * rng.bipolar();
+      s.r[n] = 0.2f * rng.bipolar();
+    }
+
+    const auto dry = rms(s.l, (size_t)(sr * 1.0), (size_t)(sr * 3.0));
+    runBlocks(reverb, s, r);
+    const auto wet = rms(s.l, (size_t)(sr * 1.0), (size_t)(sr * 3.0));
+
+    std::printf("  fully wet is %.2fx the dry level it replaced\n", wet / dry);
+
+    check(wet / dry > 0.4 && wet / dry < 2.0,
+          "turning the mix up does not change how loud the thing is");
+  }
+
+  // ---- stability
+  // -------------------------------------------------------------
+  {
+    reverb.reset();
+
+    ReverbParams r;
+    r.enabled = true;
+    r.mix = 1.0f;
+    r.size = 1.0f;
+    r.decaySeconds = 30.0f;
+    r.damping = 0.0f;
+    r.lowCutHz = 20.0f;
+    r.width = 1.0f;
+
+    auto s = tone((size_t)(sr * 30.0), 300.0, sr, 0.5f);
+    runBlocks(reverb, s, r);
+
+    check(allFinite(s), "the network stays finite at the longest decay");
+    check(peak(s.l, 0, s.size()) < 4.0,
+          "the network stays bounded at the longest decay (peak " +
+              std::to_string(peak(s.l, 0, s.size())) + ")");
+  }
+}
+
+// -----------------------------------------------------------------------------
+// 11. CPU: the whole point of the exercise.
 // -----------------------------------------------------------------------------
 void benchmark() {
   section("CPU benchmark");
@@ -1521,6 +2082,45 @@ void benchmark() {
     check(engine.getActiveVoiceCount() == poly,
           "all benchmark voices sounding");
   }
+
+  // What the master effects cost on top, measured against the same patch with
+  // them switched off rather than guessed at.
+  for (int withEffects = 0; withEffects < 2; ++withEffects) {
+    SynthEngine engine;
+    engine.prepare(sr);
+    engine.setPolyphony(8);
+
+    auto p = makeFlatParams(0.02f);
+    for (auto &o : p.osc)
+      o.sustain = 1.0f;
+
+    p.echo.enabled = withEffects != 0;
+    p.echo.mix = 0.3f;
+    p.echo.feedback = 0.6f;
+    p.echo.wobble = 0.5f;
+    p.echo.spread = 0.4f;
+
+    p.reverb.enabled = withEffects != 0;
+    p.reverb.mix = 0.3f;
+    p.reverb.size = 0.7f;
+    p.reverb.decaySeconds = 4.0f;
+
+    for (int v = 0; v < 8; ++v)
+      engine.noteOn(48 + v, 1.0f, p);
+
+    std::vector<float> l((size_t)block), r((size_t)block);
+    const int blocks = (int)(secs * sr / block);
+
+    const auto t0 = std::chrono::steady_clock::now();
+    for (int i = 0; i < blocks; ++i)
+      engine.render(l.data(), r.data(), block, p);
+    const auto t1 = std::chrono::steady_clock::now();
+
+    const double elapsed = std::chrono::duration<double>(t1 - t0).count();
+
+    std::printf("   8 voices, effects %s: %.2f%% of one core\n",
+                withEffects ? "on " : "off", 100.0 * elapsed / secs);
+  }
 }
 
 int main() {
@@ -1540,6 +2140,8 @@ int main() {
   testPartialMetering();
   testEnvelopeDelay();
   testNoiseChannel();
+  testTapeEcho();
+  testReverb();
   benchmark();
 
   std::printf("\n%d checks, %d failures\n", checks, failures);

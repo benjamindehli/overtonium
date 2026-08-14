@@ -56,6 +56,24 @@ public:
   std::function<void()> onRelativeStart, onRelativeEnd;
 };
 
+/// A knob with a caption underneath.
+///
+/// The strips get their captions from the gutter, so this is for the controls
+/// that stand on their own: the master section and the effects.
+class LabelledKnob : public juce::Component {
+public:
+  explicit LabelledKnob(juce::String captionText,
+                        juce::Colour fill = colours::accent);
+
+  void paint(juce::Graphics &) override;
+  void resized() override;
+
+  LinkableSlider slider;
+
+private:
+  juce::String caption;
+};
+
 /// A slim output meter for one partial.
 ///
 /// Its own component rather than something the strip paints, so a new reading

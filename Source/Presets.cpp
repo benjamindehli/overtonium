@@ -69,6 +69,44 @@ struct Applier {
     set(params::noiseParamId(params::amDepthSuffix), 0.0f);
     set(params::noiseParamId(params::muteSuffix), 0.0f);
     set(params::noiseParamId(params::soloSuffix), 0.0f);
+
+    // The master effects are off unless a preset switches them on, and their
+    // settings go back to the panel defaults either way, so loading a preset
+    // never leaves the last one's tail behind.
+    set(params::echoOnId, 0.0f);
+    set(params::echoMixId, 0.25f);
+    set(params::echoTimeId, 0.35f);
+    set(params::echoFeedbackId, 0.35f);
+    set(params::echoToneId, 0.45f);
+    set(params::echoWobbleId, 0.25f);
+    set(params::echoSpreadId, 0.0f);
+
+    set(params::reverbOnId, 0.0f);
+    set(params::reverbMixId, 0.25f);
+    set(params::reverbSizeId, 0.5f);
+    set(params::reverbDecayId, 2.0f);
+    set(params::reverbDampId, 0.5f);
+    set(params::reverbLowCutId, 120.0f);
+    set(params::reverbPreDelayId, 0.0f);
+    set(params::reverbWidthId, 1.0f);
+  }
+
+  /// Switches the reverb on with a given size, decay and blend. Everything
+  /// else stays where neutralBase left it.
+  void reverb(float mix, float size, float decay, float damping) const {
+    set(params::reverbOnId, 1.0f);
+    set(params::reverbMixId, mix);
+    set(params::reverbSizeId, size);
+    set(params::reverbDecayId, decay);
+    set(params::reverbDampId, damping);
+  }
+
+  void echo(float mix, float time, float feedback, float tone) const {
+    set(params::echoOnId, 1.0f);
+    set(params::echoMixId, mix);
+    set(params::echoTimeId, time);
+    set(params::echoFeedbackId, feedback);
+    set(params::echoToneId, tone);
   }
 };
 
@@ -133,6 +171,9 @@ void apply(APVTS &apvts, int index) {
     // string brightens with force.
     ap.allOsc(params::velSuffix,
               [](int n) { return std::min(1.0, 0.2 + 0.06 * (n - 1)); });
+
+    // A small, quick room. Struck things are heard somewhere.
+    ap.reverb(0.22f, 0.4f, 1.8f, 0.5f);
     break;
   }
 
@@ -154,6 +195,7 @@ void apply(APVTS &apvts, int index) {
     ap.allOsc(params::driftSuffix, [](int) { return 7.0; });
 
     ap.set(params::spreadId, 0.7f);
+    ap.reverb(0.35f, 0.75f, 5.0f, 0.55f);
     break;
   }
 
@@ -204,6 +246,10 @@ void apply(APVTS &apvts, int index) {
     ap.allOsc(params::driftSuffix, [](int) { return 12.0; });
 
     ap.set(params::spreadId, 1.0f);
+    ap.reverb(0.45f, 0.9f, 8.0f, 0.4f);
+    ap.echo(0.28f, 0.66f, 0.55f, 0.35f);
+    ap.set(params::echoSpreadId, 0.8f);
+    ap.set(params::echoWobbleId, 0.45f);
     break;
   }
 

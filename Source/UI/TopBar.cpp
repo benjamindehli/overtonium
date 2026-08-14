@@ -141,26 +141,6 @@ void StereoOutputMeter::paint(juce::Graphics &g) {
 
 // =============================================================================
 
-LabelledKnob::LabelledKnob(juce::String captionText, juce::Colour fill)
-    : caption(std::move(captionText)) {
-  slider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
-  slider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
-  slider.setColour(juce::Slider::rotarySliderFillColourId, fill);
-  addAndMakeVisible(slider);
-}
-
-void LabelledKnob::paint(juce::Graphics &g) {
-  g.setColour(colours::textDim);
-  g.setFont(makeFont(9.0f, true));
-  g.drawText(caption, getLocalBounds().removeFromBottom(11),
-             juce::Justification::centred, false);
-}
-
-void LabelledKnob::resized() {
-  // A little vertical inset, or the tick ring sits right on the group border.
-  slider.setBounds(getLocalBounds().withTrimmedBottom(12).reduced(0, 2));
-}
-
 // =============================================================================
 
 TopBar::TopBar(juce::AudioProcessorValueTreeState &state,

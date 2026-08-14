@@ -72,7 +72,10 @@ set(OVERTONIUM_SOURCES
     Source/Presets.cpp
     Source/dsp/Voice.cpp
     Source/dsp/SynthEngine.cpp
+    Source/dsp/TapeEcho.cpp
+    Source/dsp/Reverb.cpp
     Source/UI/ChannelStrip.cpp
+    Source/UI/FxBar.cpp
     Source/UI/LookAndFeel.cpp
     Source/UI/NoiseStrip.cpp
     Source/UI/Theme.cpp
@@ -114,7 +117,9 @@ if(OVERTONIUM_BUILD_TESTS)
     add_executable(overtonium_dsp_test
         Tests/dsp_test.cpp
         Source/dsp/Voice.cpp
-        Source/dsp/SynthEngine.cpp)
+        Source/dsp/SynthEngine.cpp
+        Source/dsp/TapeEcho.cpp
+        Source/dsp/Reverb.cpp)
 
     target_include_directories(overtonium_dsp_test PRIVATE Source)
     target_compile_features(overtonium_dsp_test PRIVATE cxx_std_17)

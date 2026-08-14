@@ -42,7 +42,10 @@ double OvertoniumProcessor::getTailLengthSeconds() const {
       longest = juce::jmax(longest, r->load());
   }
 
-  return (double)longest + 0.1;
+  // Whatever is still ringing in the master effects when the last voice ends
+  // is part of the tail too, and it can easily outlast the longest release.
+  return (double)longest + (double)engine.effectsTailSeconds(currentParams) +
+         0.1;
 }
 
 void OvertoniumProcessor::handleMidiMessage(const juce::MidiMessage &m) {
