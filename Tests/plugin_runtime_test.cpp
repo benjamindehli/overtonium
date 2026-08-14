@@ -261,53 +261,67 @@ void testLinkCurves() {
     check(exact, std::string(linkCurveName(curve)) + ": zero delta is a no-op");
   }
 
-  // Uniform moves everything together.
-  check(std::abs(linkedValue(LinkCurve::Uniform, 0.4f, 0.2f, 1.0f, 0.0f, 0.5f) -
-                 0.6f) < 1.0e-6f,
-        "uniform adds the drag to every strip");
+  // The strip being dragged must always come out at exactly its full share,
+  // whatever the curve and wherever it sits. It follows the mouse, so anything
+  // else would put it out of step with every strip around it.
+  bool anchored = true;
+  for (int c = 0; c < (int)LinkCurve::NumCurves; ++c)
+    for (int src : {0, 7, 16, 31})
+      anchored &=
+          std::abs(linkCurveWeight((LinkCurve)c, src, src) - 1.0f) < 1.0e-6f;
 
-  // Tilts weight by position in the series, in opposite directions.
-  const auto upLow = linkCurveWeight(LinkCurve::TiltUp, 0);
-  const auto upHigh =
-      linkCurveWeight(LinkCurve::TiltUp, ovt::kNumHarmonics - 1);
-  const auto downLow = linkCurveWeight(LinkCurve::TiltDown, 0);
-  const auto downHigh =
-      linkCurveWeight(LinkCurve::TiltDown, ovt::kNumHarmonics - 1);
+  check(anchored,
+        "the dragged strip's own weight is exactly 1 for every curve");
 
-  std::printf("  tilt up %.2f to %.2f, tilt down %.2f to %.2f\n", upLow, upHigh,
-              downLow, downHigh);
+  // Tilts weight by distance from the grabbed strip, in opposite directions.
+  const int src = 15;
+  const auto upAbove = linkCurveWeight(LinkCurve::TiltUp, 31, src);
+  const auto upBelow = linkCurveWeight(LinkCurve::TiltUp, 0, src);
+  const auto downAbove = linkCurveWeight(LinkCurve::TiltDown, 31, src);
+  const auto downBelow = linkCurveWeight(LinkCurve::TiltDown, 0, src);
 
-  check(upHigh > upLow * 4.0f, "tilt up moves the higher partials far more");
-  check(downLow > downHigh * 4.0f, "tilt down does the opposite");
-  check(upLow > 0.0f && downHigh > 0.0f,
+  std::printf("  grabbing h16, tilt up: h1 %.2f h32 %.2f, tilt down: h1 %.2f "
+              "h32 %.2f\n",
+              upBelow, upAbove, downBelow, downAbove);
+
+  check(upAbove > 1.0f && upBelow < 1.0f,
+        "tilt up moves partials above the grab more and below it less");
+  check(downAbove < 1.0f && downBelow > 1.0f, "tilt down does the opposite");
+  check(upBelow > 0.0f && downAbove > 0.0f,
         "neither tilt freezes its quiet end completely");
-  check(std::abs(linkCurveWeight(LinkCurve::Uniform, 5) - 1.0f) < 1.0e-6f,
+
+  // Geometric, so equal distances either side are reciprocal.
+  check(std::abs(upAbove * linkCurveWeight(LinkCurve::TiltUp, 0, 16) - 1.0f) <
+            0.2f,
+        "the tilt is symmetric in proportion either side of the grab");
+
+  check(std::abs(linkCurveWeight(LinkCurve::Uniform, 5, 20) - 1.0f) < 1.0e-6f,
         "uniform weights every strip equally");
 
   // Spread scatters upwards along each strip's own direction.
-  const auto up = linkedValue(LinkCurve::Spread, 0.5f, 0.2f, 1.0f, 1.0f, 0.5f);
+  const auto up = linkedValue(LinkCurve::Spread, 0.5f, 0.2f, 1.0f, 1.0f, 0.7f);
   const auto down =
-      linkedValue(LinkCurve::Spread, 0.5f, 0.2f, 1.0f, -1.0f, 0.5f);
+      linkedValue(LinkCurve::Spread, 0.5f, 0.2f, 1.0f, -1.0f, 0.7f);
 
   check(up > 0.5f && down < 0.5f,
         "pushing up scatters strips in both directions");
   check(std::abs((up - 0.5f) + (down - 0.5f)) < 1.0e-6f,
         "opposite directions scatter by equal amounts");
 
-  // And gathers towards the average on the way down, regardless of which side
-  // of it a strip started.
-  const float mean = 0.5f;
+  // Gathering collapses onto the dragged strip, from either side of it.
+  const float target = 0.4f;
   const auto above =
-      linkedValue(LinkCurve::Spread, 0.9f, -0.5f, 1.0f, 1.0f, mean);
+      linkedValue(LinkCurve::Spread, 0.9f, -0.5f, 1.0f, 1.0f, target);
   const auto below =
-      linkedValue(LinkCurve::Spread, 0.1f, -0.5f, 1.0f, 1.0f, mean);
+      linkedValue(LinkCurve::Spread, 0.1f, -0.5f, 1.0f, 1.0f, target);
 
-  check(std::abs(above - mean) < 1.0e-5f && std::abs(below - mean) < 1.0e-5f,
-        "half a drag down gathers everything onto the average");
+  check(std::abs(above - target) < 1.0e-5f &&
+            std::abs(below - target) < 1.0e-5f,
+        "half a drag down gathers everything onto the dragged strip");
 
   const auto partly =
-      linkedValue(LinkCurve::Spread, 0.9f, -0.125f, 1.0f, 1.0f, mean);
-  check(partly < 0.9f && partly > mean, "gathering is gradual, not a snap");
+      linkedValue(LinkCurve::Spread, 0.9f, -0.125f, 1.0f, 1.0f, target);
+  check(partly < 0.9f && partly > target, "gathering is gradual, not a snap");
 
   // Nothing may leave the parameter's range.
   check(linkedValue(LinkCurve::Uniform, 0.9f, 0.5f, 1.0f, 0.0f, 0.5f) <= 1.0f &&

@@ -58,7 +58,6 @@ private:
     std::array<float, ovt::kNumHarmonics> baseline{};
     std::array<float, ovt::kNumHarmonics> weight{}; ///< zero means not selected
     std::array<float, ovt::kNumHarmonics> jitter{}; ///< fixed spread directions
-    float mean = 0.0f;
 
     bool includes(int i) const { return weight[(size_t)i] > 0.0f; }
   };

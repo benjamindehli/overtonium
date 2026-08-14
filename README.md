@@ -186,15 +186,15 @@ Two selectors beside it decide what a drag reaches and what it does. Both are la
 | Curve | Effect |
 |---|---|
 | Uniform | every selected strip moves by the same amount |
-| Tilt up | higher partials move more, from about a seventh of the drag at the fundamental to all of it at the 32nd |
-| Tilt down | the same ramp reversed |
-| Spread / gather | pushing up scatters the strips apart along random directions, pulling down gathers them onto their average |
+| Tilt up | partials above the one you grabbed move more, those below move less |
+| Tilt down | the same tilt reversed |
+| Spread / gather | pushing up scatters the strips apart along random directions, pulling down gathers them onto the strip you are dragging |
 
-The tilts never fall to zero, so the quiet end still follows rather than freezing. Spread draws its directions once when the drag begins, so the scatter holds still while you move rather than boiling, and half a drag downwards is enough to gather everything onto the average.
+The tilts are anchored on the strip you grabbed, which always gets exactly its full share of the drag. That has to be true: the knob under the mouse follows the mouse, so any other weighting would put it visibly out of step with the strips beside it. Tilting is therefore relative to where you reach in, and the weighting is geometric, reaching about 1.8 times at the far end of the series and about 0.6 at the near end when you grab the middle. Neither direction falls to zero, so the quiet end still follows.
+
+Spread draws its scatter directions once when the drag begins, so the pattern holds still while you move rather than boiling. Gathering collapses onto the strip you are dragging rather than onto a fixed average, which keeps the knob in your hand as the thing everything converges towards. Half a drag downwards is enough to arrive.
 
 The offset is always measured from the values captured when the drag started, so returning the knob to where you began restores the strips exactly, even if some of them hit an end stop along the way. That holds for every curve.
-
-The strip you are actually dragging follows the mouse in full, whatever the curve says its share should be, since it is the one under your finger.
 
 ### The output meter
 

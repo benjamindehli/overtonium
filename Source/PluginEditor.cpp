@@ -240,11 +240,8 @@ void OvertoniumEditor::linkDragStarted(Role role, int sourceIndex) {
   gesture.role = role;
   gesture.curve = topBar.getLinkCurve();
   gesture.source = sourceIndex;
-  gesture.mean = 0.0f;
 
   const auto sourceClass = harmonic(sourceIndex).pitchClass;
-  float total = 0.0f;
-  int counted = 0;
 
   for (int i = 0; i < kNumHarmonics; ++i) {
     bool selected = true;
@@ -272,19 +269,14 @@ void OvertoniumEditor::linkDragStarted(Role role, int sourceIndex) {
     auto *param = oscParameter(role, i);
     gesture.baseline[(size_t)i] = param != nullptr ? param->getValue() : 0.0f;
     gesture.weight[(size_t)i] =
-        selected ? juce::jmax(0.001f, linkCurveWeight(gesture.curve, i)) : 0.0f;
+        selected
+            ? juce::jmax(0.001f, linkCurveWeight(gesture.curve, i, sourceIndex))
+            : 0.0f;
     gesture.jitter[(size_t)i] = spreadRandom.bipolar();
 
-    if (selected) {
-      total += gesture.baseline[(size_t)i];
-      ++counted;
-
-      if (i != sourceIndex && param != nullptr)
-        param->beginChangeGesture();
-    }
+    if (selected && i != sourceIndex && param != nullptr)
+      param->beginChangeGesture();
   }
-
-  gesture.mean = counted > 0 ? total / (float)counted : 0.0f;
 }
 
 void OvertoniumEditor::linkValueChanged(Role role, int sourceIndex,
@@ -303,6 +295,11 @@ void OvertoniumEditor::linkValueChanged(Role role, int sourceIndex,
   const auto delta =
       source->convertTo0to1(plainValue) - gesture.baseline[(size_t)sourceIndex];
 
+  // The dragged strip's live value. Gathering collapses everything onto it, so
+  // the knob in your hand is the target rather than a stranded outlier.
+  const auto target =
+      juce::jlimit(0.0f, 1.0f, gesture.baseline[(size_t)sourceIndex] + delta);
+
   const juce::ScopedValueSetter<bool> guard(propagatingLink, true);
 
   for (int i = 0; i < kNumHarmonics; ++i) {
@@ -312,7 +309,7 @@ void OvertoniumEditor::linkValueChanged(Role role, int sourceIndex,
     if (auto *param = oscParameter(role, i))
       param->setValueNotifyingHost(linkedValue(
           gesture.curve, gesture.baseline[(size_t)i], delta,
-          gesture.weight[(size_t)i], gesture.jitter[(size_t)i], gesture.mean));
+          gesture.weight[(size_t)i], gesture.jitter[(size_t)i], target));
   }
 }
 

@@ -174,16 +174,22 @@ const char *linkCurveName(LinkCurve c) {
   }
 }
 
-float linkCurveWeight(LinkCurve c, int index0) {
-  const auto t = (float)juce::jlimit(0, kNumHarmonics - 1, index0) /
-                 (float)(kNumHarmonics - 1);
+float linkCurveWeight(LinkCurve c, int index0, int sourceIndex) {
+  // How far up or down the series this strip sits from the one being dragged,
+  // as -1 to +1.
+  const auto distance =
+      (float)(juce::jlimit(0, kNumHarmonics - 1, index0) - sourceIndex) /
+      (float)(kNumHarmonics - 1);
+
+  // Geometric rather than linear, so the far ends stay in proportion and the
+  // grabbed strip lands on exactly 1 whichever direction the tilt runs.
+  constexpr float ratio = 3.0f;
 
   switch (c) {
   case LinkCurve::TiltUp:
-    // Never quite zero, so the quiet end still follows rather than freezing.
-    return 0.15f + 0.85f * t;
+    return std::pow(ratio, distance);
   case LinkCurve::TiltDown:
-    return 1.0f - 0.85f * t;
+    return std::pow(ratio, -distance);
 
   case LinkCurve::Uniform:
   case LinkCurve::Spread:
@@ -194,17 +200,19 @@ float linkCurveWeight(LinkCurve c, int index0) {
 }
 
 float linkedValue(LinkCurve curve, float baseline, float delta, float weight,
-                  float jitter, float mean) {
+                  float jitter, float target) {
   float value = baseline;
 
   if (curve == LinkCurve::Spread) {
-    // Pushing up scatters each strip along the direction it was given, pulling
-    // down gathers them towards the average. Half a drag is enough to arrive,
-    // so the gesture completes in one movement.
+    // Pushing up scatters each strip along the direction it was given. Pulling
+    // down gathers them onto the strip being dragged rather than onto a fixed
+    // average, which keeps the knob in your hand as the thing everything
+    // collapses towards instead of leaving it stranded off to one side. Half a
+    // drag is enough to arrive, so the gesture completes in one movement.
     const auto gather = juce::jlimit(0.0f, 1.0f, -delta * 2.0f);
 
     value = delta >= 0.0f ? baseline + delta * jitter
-                          : baseline + (mean - baseline) * gather;
+                          : baseline + (target - baseline) * gather;
   } else {
     value = baseline + delta * weight;
   }

@@ -122,11 +122,15 @@ enum class LinkCurve {
 const char *linkScopeName(LinkScope);
 const char *linkCurveName(LinkCurve);
 
-/// Weight applied to a strip's share of a LINK drag, before the curve's own
-/// behaviour. Ramps across the whole series rather than across the selection,
-/// so "higher partials move more" keeps meaning the same thing whichever
-/// scope is chosen.
-float linkCurveWeight(LinkCurve, int index0);
+/// Weight applied to a strip's share of a LINK drag.
+///
+/// Anchored on the strip being dragged, which always comes out at exactly 1.
+/// That matters: the knob under the mouse has to follow the mouse, so if the
+/// curve gave it anything other than its full share it would disagree with
+/// every strip around it. Tilting is therefore relative to where you grabbed,
+/// and partials further up or down the series move progressively more or less
+/// than the one in your hand.
+float linkCurveWeight(LinkCurve, int index0, int sourceIndex);
 
 /// Where one linked strip lands partway through a LINK drag.
 ///
@@ -137,9 +141,9 @@ float linkCurveWeight(LinkCurve, int index0);
 /// @param delta     how far the dragged knob has moved, in normalised units
 /// @param weight    this strip's share, from linkCurveWeight
 /// @param jitter    a fixed direction in [-1, 1], only used by Spread
-/// @param mean      average of the selection at drag start, only used by Spread
+/// @param target    the dragged strip's live value, gathered towards by Spread
 float linkedValue(LinkCurve, float baseline, float delta, float weight,
-                  float jitter, float mean);
+                  float jitter, float target);
 
 /// Implemented by the editor; lets a strip broadcast a drag to its 31 siblings.
 struct LinkTarget {
