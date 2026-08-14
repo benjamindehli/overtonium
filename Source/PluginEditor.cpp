@@ -19,6 +19,8 @@ int chromeHeight() { return kTopBarHeight + 2 * kEdge + kScrollBarThickness; }
 const juce::Identifier kEditorWidth{"editorWidth"};
 const juce::Identifier kEditorHeight{"editorHeight"};
 const juce::Identifier kEditorZoom{"editorZoom"};
+const juce::Identifier kLinkScope{"linkScope"};
+const juce::Identifier kLinkCurve{"linkCurve"};
 
 bool isHeadingRow(Row r) {
   return r == Row::PitchModHeading || r == Row::EnvHeading ||
@@ -93,6 +95,17 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   zoom = (float)(double)state.getProperty(kEditorZoom, 1.0);
   zoom = juce::jlimit(0.5f, 2.0f, zoom);
   topBar.setZoomChoice(zoom);
+
+  topBar.setLinkScope((LinkScope)juce::jlimit(
+      0, (int)LinkScope::NumScopes - 1, (int)state.getProperty(kLinkScope, 0)));
+  topBar.setLinkCurve((LinkCurve)juce::jlimit(
+      0, (int)LinkCurve::NumCurves - 1, (int)state.getProperty(kLinkCurve, 0)));
+
+  topBar.onLinkSettingsChanged = [this] {
+    auto &tree = processor.apvts.state;
+    tree.setProperty(kLinkScope, (int)topBar.getLinkScope(), nullptr);
+    tree.setProperty(kLinkCurve, (int)topBar.getLinkCurve(), nullptr);
+  };
 
   // Default size shows all 32 strips at once, which is the whole point of the
   // layout.
@@ -214,69 +227,103 @@ juce::RangedAudioParameter *OvertoniumEditor::oscParameter(Role role,
 
 bool OvertoniumEditor::isLinkEnabled() const { return topBar.isLinkEnabled(); }
 
-void OvertoniumEditor::captureBaseline(Role role) {
-  for (int i = 0; i < kNumHarmonics; ++i) {
-    auto *param = oscParameter(role, i);
-    baseline[(size_t)i] = param != nullptr ? param->getValue() : 0.0f;
-  }
-}
-
-void OvertoniumEditor::applyOffsetFromBaseline(Role role, float delta,
-                                               int skipIndex) {
-  const juce::ScopedValueSetter<bool> guard(propagatingLink, true);
-
-  for (int i = 0; i < kNumHarmonics; ++i) {
-    if (i == skipIndex)
-      continue;
-
-    if (auto *param = oscParameter(role, i))
-      param->setValueNotifyingHost(
-          juce::jlimit(0.0f, 1.0f, baseline[(size_t)i] + delta));
-  }
-}
-
 void OvertoniumEditor::linkDragStarted(Role role, int sourceIndex) {
   // Latch the switch state at drag start: toggling LINK mid-drag must not leave
   // the host holding gestures that never get closed.
   if (!isLinkEnabled())
     return;
 
-  linkGestureActive = true;
-  captureBaseline(role);
+  const auto scope = topBar.getLinkScope();
 
-  for (int i = 0; i < kNumHarmonics; ++i)
-    if (i != sourceIndex)
-      if (auto *param = oscParameter(role, i))
+  auto &gesture = linkGesture;
+  gesture.active = true;
+  gesture.role = role;
+  gesture.curve = topBar.getLinkCurve();
+  gesture.source = sourceIndex;
+  gesture.mean = 0.0f;
+
+  const auto sourceClass = harmonic(sourceIndex).pitchClass;
+  float total = 0.0f;
+  int counted = 0;
+
+  for (int i = 0; i < kNumHarmonics; ++i) {
+    bool selected = true;
+
+    switch (scope) {
+    case LinkScope::SameInterval:
+      selected = harmonic(i).pitchClass == sourceClass;
+      break;
+    case LinkScope::Odd:
+      selected = ((i + 1) % 2) == 1;
+      break;
+    case LinkScope::Even:
+      selected = ((i + 1) % 2) == 0;
+      break;
+    case LinkScope::All:
+    case LinkScope::NumScopes:
+    default:
+      break;
+    }
+
+    // The strip under the mouse is always part of its own drag, whatever the
+    // scope would otherwise say.
+    selected = selected || i == sourceIndex;
+
+    auto *param = oscParameter(role, i);
+    gesture.baseline[(size_t)i] = param != nullptr ? param->getValue() : 0.0f;
+    gesture.weight[(size_t)i] =
+        selected ? juce::jmax(0.001f, linkCurveWeight(gesture.curve, i)) : 0.0f;
+    gesture.jitter[(size_t)i] = spreadRandom.bipolar();
+
+    if (selected) {
+      total += gesture.baseline[(size_t)i];
+      ++counted;
+
+      if (i != sourceIndex && param != nullptr)
         param->beginChangeGesture();
+    }
+  }
+
+  gesture.mean = counted > 0 ? total / (float)counted : 0.0f;
 }
 
 void OvertoniumEditor::linkValueChanged(Role role, int sourceIndex,
                                         float plainValue) {
-  if (!linkGestureActive || propagatingLink)
+  auto &gesture = linkGesture;
+
+  if (!gesture.active || gesture.role != role ||
+      gesture.source != sourceIndex || propagatingLink)
     return;
 
   auto *source = oscParameter(role, sourceIndex);
   if (source == nullptr)
     return;
 
-  // Ganging is relative: the siblings move by however far the dragged knob has
-  // travelled, so their differences survive. Because the offset is always
-  // measured from the values captured at drag start, dragging back to where you
-  // began restores them exactly, even if some hit an end stop on the way.
-  const float delta =
-      source->convertTo0to1(plainValue) - baseline[(size_t)sourceIndex];
+  // How far the dragged knob has travelled, in normalised units.
+  const auto delta =
+      source->convertTo0to1(plainValue) - gesture.baseline[(size_t)sourceIndex];
 
-  applyOffsetFromBaseline(role, delta, sourceIndex);
+  const juce::ScopedValueSetter<bool> guard(propagatingLink, true);
+
+  for (int i = 0; i < kNumHarmonics; ++i) {
+    if (i == sourceIndex || !gesture.includes(i))
+      continue;
+
+    if (auto *param = oscParameter(role, i))
+      param->setValueNotifyingHost(linkedValue(
+          gesture.curve, gesture.baseline[(size_t)i], delta,
+          gesture.weight[(size_t)i], gesture.jitter[(size_t)i], gesture.mean));
+  }
 }
 
 void OvertoniumEditor::linkDragEnded(Role role, int sourceIndex) {
-  if (!linkGestureActive)
+  if (!linkGesture.active)
     return;
 
-  linkGestureActive = false;
+  linkGesture.active = false;
 
   for (int i = 0; i < kNumHarmonics; ++i)
-    if (i != sourceIndex)
+    if (i != sourceIndex && linkGesture.includes(i))
       if (auto *param = oscParameter(role, i))
         param->endChangeGesture();
 }

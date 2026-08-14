@@ -72,6 +72,15 @@ public:
 
   bool isLinkEnabled() const { return linkButton.getToggleState(); }
 
+  /// Latched by the editor at the start of each LINK drag.
+  LinkScope getLinkScope() const;
+  LinkCurve getLinkCurve() const;
+
+  void setLinkScope(LinkScope);
+  void setLinkCurve(LinkCurve);
+
+  std::function<void()> onLinkSettingsChanged;
+
   void setVoiceCount(int active, int limit);
   void setOutputLevels(float l, float r) { meter.push(l, r); }
   void setZoomChoice(float zoom);
@@ -85,6 +94,9 @@ private:
   void styleToggle(juce::TextButton &, const juce::String &text,
                    const juce::String &tooltip);
 
+  /// The two selectors only mean anything while LINK is engaged.
+  void updateLinkEnablement();
+
   juce::AudioProcessorValueTreeState &apvts;
 
   // Anything that exists on all 32 strips now lives on the master channel.
@@ -97,8 +109,9 @@ private:
   StereoOutputMeter meter;
   juce::Label meterCaption;
 
-  juce::ComboBox presetBox, polyBox, zoomBox;
-  juce::Label presetCaption, polyCaption, zoomCaption, voicesLabel;
+  juce::ComboBox presetBox, polyBox, zoomBox, scopeBox, curveBox;
+  juce::Label presetCaption, polyCaption, zoomCaption, scopeCaption,
+      curveCaption, voicesLabel;
 
   juce::TextButton linkButton, phaseButton, clipButton;
 

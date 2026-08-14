@@ -9,6 +9,7 @@
 #include "PluginParameters.h"
 #include "PluginProcessor.h"
 #include "Presets.h"
+#include "UI/Theme.h"
 
 namespace {
 
@@ -242,6 +243,99 @@ void testAftertouchMidi(OvertoniumProcessor &p) {
   ovt::presets::apply(p.apvts, 0);
 }
 
+void testLinkCurves() {
+  section("Link scopes and curves");
+
+  using namespace ovt::ui;
+
+  // Every curve has to leave things exactly where they were at zero delta, or a
+  // drag could not be undone by returning the knob.
+  for (int c = 0; c < (int)LinkCurve::NumCurves; ++c) {
+    const auto curve = (LinkCurve)c;
+    bool exact = true;
+
+    for (float base : {0.0f, 0.3f, 0.75f, 1.0f})
+      exact &= std::abs(linkedValue(curve, base, 0.0f, 1.0f, 0.7f, 0.5f) -
+                        base) < 1.0e-6f;
+
+    check(exact, std::string(linkCurveName(curve)) + ": zero delta is a no-op");
+  }
+
+  // Uniform moves everything together.
+  check(std::abs(linkedValue(LinkCurve::Uniform, 0.4f, 0.2f, 1.0f, 0.0f, 0.5f) -
+                 0.6f) < 1.0e-6f,
+        "uniform adds the drag to every strip");
+
+  // Tilts weight by position in the series, in opposite directions.
+  const auto upLow = linkCurveWeight(LinkCurve::TiltUp, 0);
+  const auto upHigh =
+      linkCurveWeight(LinkCurve::TiltUp, ovt::kNumHarmonics - 1);
+  const auto downLow = linkCurveWeight(LinkCurve::TiltDown, 0);
+  const auto downHigh =
+      linkCurveWeight(LinkCurve::TiltDown, ovt::kNumHarmonics - 1);
+
+  std::printf("  tilt up %.2f to %.2f, tilt down %.2f to %.2f\n", upLow, upHigh,
+              downLow, downHigh);
+
+  check(upHigh > upLow * 4.0f, "tilt up moves the higher partials far more");
+  check(downLow > downHigh * 4.0f, "tilt down does the opposite");
+  check(upLow > 0.0f && downHigh > 0.0f,
+        "neither tilt freezes its quiet end completely");
+  check(std::abs(linkCurveWeight(LinkCurve::Uniform, 5) - 1.0f) < 1.0e-6f,
+        "uniform weights every strip equally");
+
+  // Spread scatters upwards along each strip's own direction.
+  const auto up = linkedValue(LinkCurve::Spread, 0.5f, 0.2f, 1.0f, 1.0f, 0.5f);
+  const auto down =
+      linkedValue(LinkCurve::Spread, 0.5f, 0.2f, 1.0f, -1.0f, 0.5f);
+
+  check(up > 0.5f && down < 0.5f,
+        "pushing up scatters strips in both directions");
+  check(std::abs((up - 0.5f) + (down - 0.5f)) < 1.0e-6f,
+        "opposite directions scatter by equal amounts");
+
+  // And gathers towards the average on the way down, regardless of which side
+  // of it a strip started.
+  const float mean = 0.5f;
+  const auto above =
+      linkedValue(LinkCurve::Spread, 0.9f, -0.5f, 1.0f, 1.0f, mean);
+  const auto below =
+      linkedValue(LinkCurve::Spread, 0.1f, -0.5f, 1.0f, 1.0f, mean);
+
+  check(std::abs(above - mean) < 1.0e-5f && std::abs(below - mean) < 1.0e-5f,
+        "half a drag down gathers everything onto the average");
+
+  const auto partly =
+      linkedValue(LinkCurve::Spread, 0.9f, -0.125f, 1.0f, 1.0f, mean);
+  check(partly < 0.9f && partly > mean, "gathering is gradual, not a snap");
+
+  // Nothing may leave the parameter's range.
+  check(linkedValue(LinkCurve::Uniform, 0.9f, 0.5f, 1.0f, 0.0f, 0.5f) <= 1.0f &&
+            linkedValue(LinkCurve::Uniform, 0.1f, -0.5f, 1.0f, 0.0f, 0.5f) >=
+                0.0f,
+        "results stay inside the parameter range");
+
+  // Same-interval scope has to pick out a real family. The octaves are the
+  // partials at powers of two.
+  int octaves = 0;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    if (ovt::harmonic(i).pitchClass == ovt::harmonic(0).pitchClass)
+      ++octaves;
+
+  check(octaves == 6,
+        "same interval on the fundamental selects the 6 octaves (" +
+            std::to_string(octaves) + ")");
+
+  int fifths = 0;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    if (ovt::harmonic(i).pitchClass == ovt::harmonic(2).pitchClass)
+      ++fifths;
+
+  check(fifths == 4,
+        "same interval on the third partial selects the 4 fifths (" +
+            std::to_string(fifths) + ")");
+}
+
 void testBusLayouts(OvertoniumProcessor &p) {
   section("Bus layouts");
 
@@ -350,6 +444,7 @@ int main() {
   testRendering(processor);
   testPresets(processor);
   testAftertouchMidi(processor);
+  testLinkCurves();
   testBusLayouts(processor);
   testStateRoundTrip(processor);
   testSoloAndMute(processor);

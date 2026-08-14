@@ -138,6 +138,80 @@ const char *rowLabel(Row r) {
   }
 }
 
+const char *linkScopeName(LinkScope s) {
+  switch (s) {
+  case LinkScope::All:
+    return "All";
+  case LinkScope::SameInterval:
+    return "Same interval";
+  case LinkScope::Odd:
+    return "Odd harmonics";
+  case LinkScope::Even:
+    return "Even harmonics";
+
+  case LinkScope::NumScopes:
+  default:
+    jassertfalse;
+    return "All";
+  }
+}
+
+const char *linkCurveName(LinkCurve c) {
+  switch (c) {
+  case LinkCurve::Uniform:
+    return "Uniform";
+  case LinkCurve::TiltUp:
+    return "Tilt up";
+  case LinkCurve::TiltDown:
+    return "Tilt down";
+  case LinkCurve::Spread:
+    return "Spread / gather";
+
+  case LinkCurve::NumCurves:
+  default:
+    jassertfalse;
+    return "Uniform";
+  }
+}
+
+float linkCurveWeight(LinkCurve c, int index0) {
+  const auto t = (float)juce::jlimit(0, kNumHarmonics - 1, index0) /
+                 (float)(kNumHarmonics - 1);
+
+  switch (c) {
+  case LinkCurve::TiltUp:
+    // Never quite zero, so the quiet end still follows rather than freezing.
+    return 0.15f + 0.85f * t;
+  case LinkCurve::TiltDown:
+    return 1.0f - 0.85f * t;
+
+  case LinkCurve::Uniform:
+  case LinkCurve::Spread:
+  case LinkCurve::NumCurves:
+  default:
+    return 1.0f;
+  }
+}
+
+float linkedValue(LinkCurve curve, float baseline, float delta, float weight,
+                  float jitter, float mean) {
+  float value = baseline;
+
+  if (curve == LinkCurve::Spread) {
+    // Pushing up scatters each strip along the direction it was given, pulling
+    // down gathers them towards the average. Half a drag is enough to arrive,
+    // so the gesture completes in one movement.
+    const auto gather = juce::jlimit(0.0f, 1.0f, -delta * 2.0f);
+
+    value = delta >= 0.0f ? baseline + delta * jitter
+                          : baseline + (mean - baseline) * gather;
+  } else {
+    value = baseline + delta * weight;
+  }
+
+  return juce::jlimit(0.0f, 1.0f, value);
+}
+
 const char *roleSuffix(Role r) {
   switch (r) {
   case Role::Tune:

@@ -168,9 +168,33 @@ The cost is close to nothing on either side. The audio thread samples a value it
 
 ### Ganging the channels
 
-**LINK** in the top bar gangs the strips: dragging any knob moves that knob on all 32 channels at once. It works relatively, applying an offset to wherever each strip already sits rather than dragging everything to one shared value, so a spectrum you have shaped by hand keeps its shape.
+**LINK** in the top bar gangs the strips: dragging any knob moves the same knob on the others. It works relatively, applying an offset to wherever each strip already sits rather than dragging everything to one shared value, so a spectrum you have shaped by hand keeps its shape.
 
-The offset is measured from the values captured when the drag started, so returning the knob to where you began restores the strips exactly, even if some of them hit an end stop along the way.
+Two selectors beside it decide what a drag reaches and what it does. Both are latched when the drag begins, so changing one midway cannot half-apply two different rules.
+
+**LINK SCOPE** picks the channels:
+
+| Scope | Reaches |
+|---|---|
+| All | every partial |
+| Same interval | only the strips sharing the interval class of the one you grab, so you can move just the fifths, or just the octaves |
+| Odd harmonics | 1, 3, 5 and so on, the hollow half of the series |
+| Even harmonics | 2, 4, 6 and so on |
+
+**LINK CURVE** picks how the drag is shared out:
+
+| Curve | Effect |
+|---|---|
+| Uniform | every selected strip moves by the same amount |
+| Tilt up | higher partials move more, from about a seventh of the drag at the fundamental to all of it at the 32nd |
+| Tilt down | the same ramp reversed |
+| Spread / gather | pushing up scatters the strips apart along random directions, pulling down gathers them onto their average |
+
+The tilts never fall to zero, so the quiet end still follows rather than freezing. Spread draws its directions once when the drag begins, so the scatter holds still while you move rather than boiling, and half a drag downwards is enough to gather everything onto the average.
+
+The offset is always measured from the values captured when the drag started, so returning the knob to where you began restores the strips exactly, even if some of them hit an end stop along the way. That holds for every curve.
+
+The strip you are actually dragging follows the mouse in full, whatever the curve says its share should be, since it is the one under your finger.
 
 ### The output meter
 

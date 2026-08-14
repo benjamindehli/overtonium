@@ -101,6 +101,46 @@ inline constexpr int kNumRoles = (int)Role::NumRoles;
 /// Maps a role onto the matching parameter-ID suffix from ovt::params.
 const char *roleSuffix(Role r);
 
+/// Which channels a LINK drag reaches.
+enum class LinkScope {
+  All = 0,
+  SameInterval, ///< only strips sharing the dragged one's interval class
+  Odd,          ///< odd harmonic numbers, the hollow half of the series
+  Even,
+  NumScopes
+};
+
+/// How a LINK drag is distributed across the strips it reaches.
+enum class LinkCurve {
+  Uniform = 0, ///< every strip moves by the same amount
+  TiltUp,      ///< higher partials move more
+  TiltDown,    ///< lower partials move more
+  Spread,      ///< pushing up scatters them, pulling down gathers them
+  NumCurves
+};
+
+const char *linkScopeName(LinkScope);
+const char *linkCurveName(LinkCurve);
+
+/// Weight applied to a strip's share of a LINK drag, before the curve's own
+/// behaviour. Ramps across the whole series rather than across the selection,
+/// so "higher partials move more" keeps meaning the same thing whichever
+/// scope is chosen.
+float linkCurveWeight(LinkCurve, int index0);
+
+/// Where one linked strip lands partway through a LINK drag.
+///
+/// Pure arithmetic, kept out of the editor so it can be tested without a
+/// window. A zero delta must return the baseline exactly for every curve,
+/// which is what lets a drag be undone by returning the knob.
+///
+/// @param delta     how far the dragged knob has moved, in normalised units
+/// @param weight    this strip's share, from linkCurveWeight
+/// @param jitter    a fixed direction in [-1, 1], only used by Spread
+/// @param mean      average of the selection at drag start, only used by Spread
+float linkedValue(LinkCurve, float baseline, float delta, float weight,
+                  float jitter, float mean);
+
 /// Implemented by the editor; lets a strip broadcast a drag to its 31 siblings.
 struct LinkTarget {
   virtual ~LinkTarget() = default;

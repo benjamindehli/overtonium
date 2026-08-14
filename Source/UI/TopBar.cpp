@@ -191,14 +191,49 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
 
   // ---- toggles --------------------------------------------------------------
   styleToggle(linkButton, "LINK",
-              "Gang the strips, so dragging one channel's knob moves that "
-              "knob on all 32. The master channel does the same thing.");
+              "Gang the strips, so dragging one channel's knob moves the same "
+              "knob on the others. Scope picks which ones, curve picks how "
+              "the movement is shared out.");
   styleToggle(phaseButton, "PHASE",
               "Reset partial phase on each note for a coherent attack");
   styleToggle(clipButton, "CLIP",
               "Soft-clip the output. Worth leaving on with 32 faders.");
 
   linkButton.setColour(juce::TextButton::buttonOnColourId, colours::soloOn);
+  linkButton.onClick = [this] {
+    updateLinkEnablement();
+    if (onLinkSettingsChanged)
+      onLinkSettingsChanged();
+  };
+
+  // ---- what LINK reaches, and how it is shared out
+  // ---------------------------
+  for (int i = 0; i < (int)LinkScope::NumScopes; ++i)
+    scopeBox.addItem(linkScopeName((LinkScope)i), i + 1);
+
+  for (int i = 0; i < (int)LinkCurve::NumCurves; ++i)
+    curveBox.addItem(linkCurveName((LinkCurve)i), i + 1);
+
+  scopeBox.setSelectedId(1, juce::dontSendNotification);
+  curveBox.setSelectedId(1, juce::dontSendNotification);
+
+  scopeBox.setTooltip("Which channels a LINK drag reaches. Same interval "
+                      "follows only the strips sharing the one you grab, so "
+                      "you can move just the fifths or just the octaves.");
+  curveBox.setTooltip(
+      "How the drag is shared out. Tilt up moves the higher "
+      "partials more, tilt down the lower ones. Spread scatters "
+      "them as you push up and gathers them as you pull down.");
+
+  for (auto *box : {&scopeBox, &curveBox}) {
+    box->onChange = [this] {
+      if (onLinkSettingsChanged)
+        onLinkSettingsChanged();
+    };
+    addAndMakeVisible(*box);
+  }
+
+  updateLinkEnablement();
 
   phaseAttachment = std::make_unique<ButtonAttachment>(
       apvts, params::phaseResetId, phaseButton);
@@ -214,6 +249,8 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
       {&presetCaption, "PRESET", juce::Justification::centredLeft},
       {&polyCaption, "POLY", juce::Justification::centredLeft},
       {&zoomCaption, "ZOOM", juce::Justification::centredLeft},
+      {&scopeCaption, "LINK SCOPE", juce::Justification::centredLeft},
+      {&curveCaption, "LINK CURVE", juce::Justification::centredLeft},
   };
 
   for (auto &c : captions) {
@@ -240,6 +277,33 @@ void TopBar::styleToggle(juce::TextButton &b, const juce::String &text,
   b.setClickingTogglesState(true);
   b.setTooltip(tooltip);
   addAndMakeVisible(b);
+}
+
+LinkScope TopBar::getLinkScope() const {
+  return (LinkScope)juce::jlimit(0, (int)LinkScope::NumScopes - 1,
+                                 scopeBox.getSelectedId() - 1);
+}
+
+LinkCurve TopBar::getLinkCurve() const {
+  return (LinkCurve)juce::jlimit(0, (int)LinkCurve::NumCurves - 1,
+                                 curveBox.getSelectedId() - 1);
+}
+
+void TopBar::setLinkScope(LinkScope s) {
+  scopeBox.setSelectedId((int)s + 1, juce::dontSendNotification);
+}
+
+void TopBar::setLinkCurve(LinkCurve c) {
+  curveBox.setSelectedId((int)c + 1, juce::dontSendNotification);
+}
+
+void TopBar::updateLinkEnablement() {
+  const auto on = linkButton.getToggleState();
+
+  scopeBox.setEnabled(on);
+  curveBox.setEnabled(on);
+  scopeCaption.setAlpha(on ? 1.0f : 0.45f);
+  curveCaption.setAlpha(on ? 1.0f : 0.45f);
 }
 
 void TopBar::setVoiceCount(int active, int limit) {
@@ -322,6 +386,18 @@ void TopBar::resized() {
     b.removeFromRight(8);
   }
 
+  if (b.getWidth() > 200) {
+    placeCaptioned(curveBox, curveCaption, b.removeFromRight(104));
+    b.removeFromRight(6);
+    placeCaptioned(scopeBox, scopeCaption, b.removeFromRight(104));
+    b.removeFromRight(8);
+  } else {
+    curveBox.setBounds({});
+    curveCaption.setBounds({});
+    scopeBox.setBounds({});
+    scopeCaption.setBounds({});
+  }
+
   if (b.getWidth() > 80) {
     placeCaptioned(polyBox, polyCaption, b.removeFromRight(60));
     b.removeFromRight(8);
@@ -336,7 +412,7 @@ void TopBar::resized() {
   // Whatever is left in the middle goes to the output meter, so it grows with
   // the window rather than staying a token strip.
   if (b.getWidth() > 90) {
-    auto column = b.withSizeKeepingCentre(juce::jmin(300, b.getWidth()), 37);
+    auto column = b.withSizeKeepingCentre(juce::jmin(240, b.getWidth()), 37);
     meterCaption.setBounds(column.removeFromTop(12));
     column.removeFromTop(1);
     meter.setBounds(column);

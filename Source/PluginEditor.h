@@ -11,6 +11,7 @@
 #include "UI/LookAndFeel.h"
 #include "UI/NoiseStrip.h"
 #include "UI/TopBar.h"
+#include "dsp/Drift.h"
 
 /// Left-hand caption column. Lays out the same rows as a channel strip so every
 /// knob in the mixer has a name without repeating it 32 times.
@@ -43,10 +44,29 @@ private:
   void applyResizeLimits();
   void applyPreset(int index);
 
-  /// Snapshots every strip's normalised value for a role, so a LINK drag can be
-  /// expressed as an offset from where things stood when it began.
-  void captureBaseline(ovt::ui::Role);
-  void applyOffsetFromBaseline(ovt::ui::Role, float delta, int skipIndex);
+  /// Everything a LINK drag needs, latched when it begins.
+  ///
+  /// Latching matters: the offset is always measured from where things stood
+  /// at the start, so returning the knob restores them exactly, and changing
+  /// the scope or curve mid-drag cannot half-apply one rule and half another.
+  struct LinkGesture {
+    bool active = false;
+    ovt::ui::Role role = ovt::ui::Role::Tune;
+    ovt::ui::LinkCurve curve = ovt::ui::LinkCurve::Uniform;
+    int source = -1;
+
+    std::array<float, ovt::kNumHarmonics> baseline{};
+    std::array<float, ovt::kNumHarmonics> weight{}; ///< zero means not selected
+    std::array<float, ovt::kNumHarmonics> jitter{}; ///< fixed spread directions
+    float mean = 0.0f;
+
+    bool includes(int i) const { return weight[(size_t)i] > 0.0f; }
+  };
+
+  LinkGesture linkGesture;
+
+  /// Deliberately never reseeded, so each spread differs from the last.
+  ovt::Xorshift spreadRandom{0x9e3779b9u};
 
   juce::RangedAudioParameter *oscParameter(ovt::ui::Role, int index) const;
 
@@ -74,10 +94,7 @@ private:
   float zoom = 1.0f;
   int housekeepingTick = 0;
 
-  std::array<float, ovt::kNumHarmonics> baseline{};
-
   bool propagatingLink = false;
-  bool linkGestureActive = false;
   bool macroGestureActive = false;
   ovt::ui::Role macroRole = ovt::ui::Role::Tune;
 
