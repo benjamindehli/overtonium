@@ -135,6 +135,11 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   // owns it rather than being swallowed by the control.
   addMouseListener(this, true);
 
+  // The strip decides the pointer for everything on it, which is how the LINK
+  // tool shows itself. Children keep their own only where that would be wrong,
+  // as on the mute and solo buttons.
+  setMouseCursor(juce::MouseCursor::ParentCursor);
+
   // Tune and Level carry the strip's identity colour; the modulation and
   // envelope knobs are desaturated so they read as secondary at a glance across
   // 32 channels.
@@ -196,6 +201,7 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
 }
 
 void ChannelStrip::setUpKnob(LinkableSlider &s, Role role, juce::Colour fill) {
+  s.setMouseCursor(juce::MouseCursor::ParentCursor);
   s.setSliderStyle(juce::Slider::RotaryVerticalDrag);
   s.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
   s.setColour(juce::Slider::rotarySliderFillColourId, fill);
@@ -206,6 +212,7 @@ void ChannelStrip::setUpKnob(LinkableSlider &s, Role role, juce::Colour fill) {
 }
 
 void ChannelStrip::setUpFader(LinkableSlider &s, Role role, juce::Colour fill) {
+  s.setMouseCursor(juce::MouseCursor::ParentCursor);
   s.setSliderStyle(juce::Slider::LinearVertical);
   s.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
   s.setColour(juce::Slider::trackColourId, fill);
@@ -275,6 +282,11 @@ void ChannelStrip::setSilencedByOthers(bool shouldDim) {
 
   silenced = shouldDim;
   setAlpha(silenced ? 0.4f : 1.0f);
+}
+
+void ChannelStrip::mouseDown(const juce::MouseEvent &e) {
+  if (e.mods.isPopupMenu())
+    link.showLinkMenu();
 }
 
 void ChannelStrip::mouseEnter(const juce::MouseEvent &e) { reportHover(e); }

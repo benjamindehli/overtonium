@@ -18,6 +18,19 @@ namespace ovt::ui {
 /// feedback loop.
 class LinkableSlider : public juce::Slider {
 public:
+  /// A right-click is the strip's, not the slider's: it opens the LINK menu.
+  /// Left to itself the slider would open a drag gesture it never closes,
+  /// since the mouse-up goes to the menu rather than back here.
+  void mouseDown(const juce::MouseEvent &e) override {
+    if (!e.mods.isPopupMenu())
+      juce::Slider::mouseDown(e);
+  }
+
+  void mouseDrag(const juce::MouseEvent &e) override {
+    if (!e.mods.isPopupMenu())
+      juce::Slider::mouseDrag(e);
+  }
+
   void startedDragging() override {
     dragging = true;
     if (onUserDragStart != nullptr)
@@ -110,6 +123,7 @@ public:
   void mouseEnter(const juce::MouseEvent &) override;
   void mouseMove(const juce::MouseEvent &) override;
   void mouseExit(const juce::MouseEvent &) override;
+  void mouseDown(const juce::MouseEvent &) override;
 
   /// Greys the strip out when another strip's solo is silencing it.
   void setSilencedByOthers(bool shouldDim);

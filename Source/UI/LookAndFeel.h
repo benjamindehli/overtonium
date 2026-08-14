@@ -54,4 +54,15 @@ void paintChannelBackground(juce::Graphics &, juce::Rectangle<int> bounds,
 /// caption in the gutter to the channel your hand is on.
 void paintRowHighlight(juce::Graphics &, juce::Rectangle<int> row);
 
+/// A pointer that says what a LINK drag would do to the channels it reaches.
+///
+/// Five bars beside the arrow, in the shape of the curve: level for uniform,
+/// rising or falling for the tilts, scattered for spread. The tool is a mode,
+/// and a mode you cannot see is a mode you forget you are in.
+juce::MouseCursor linkCursor(LinkCurve);
+
+/// The artwork behind linkCursor, exposed so it can be looked at without a
+/// pointer to hang it on.
+juce::Image linkCursorImage(LinkCurve, float scale);
+
 } // namespace ovt::ui

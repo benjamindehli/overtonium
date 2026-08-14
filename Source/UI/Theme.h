@@ -149,6 +149,26 @@ enum class LinkCurve {
 const char *linkScopeName(LinkScope);
 const char *linkCurveName(LinkCurve);
 
+/// Everything the LINK switch is currently set to.
+struct LinkSettings {
+  bool enabled = false;
+  LinkScope scope = LinkScope::All;
+  LinkCurve curve = LinkCurve::Uniform;
+};
+
+/// The LINK menu, built as data rather than assembled at the click.
+///
+/// One list serves the button in the bar and the right-click in the mixer, and
+/// keeping it out here means it can be checked without a window. A menu that
+/// can only be reached by clicking is a menu that never gets tested.
+juce::PopupMenu buildLinkMenu(const LinkSettings &);
+
+/// Applies what the menu came back with.
+///
+/// @returns false when the id was not one of ours, which includes the 0 that
+/// means the menu was dismissed.
+bool applyLinkMenuChoice(int id, LinkSettings &);
+
 /// Weight applied to a strip's share of a LINK drag.
 ///
 /// Anchored on the strip being dragged, which always comes out at exactly 1.
@@ -196,6 +216,11 @@ struct LinkTarget {
   virtual void linkValueChanged(Role role, int sourceIndex,
                                 float plainValue) = 0;
   virtual void linkDragEnded(Role role, int sourceIndex) = 0;
+
+  /// Pops the LINK menu under the pointer. A right-click anywhere in the mixer
+  /// is the quickest way to change what the next drag will do, without going
+  /// back up to the bar for it.
+  virtual void showLinkMenu() = 0;
 };
 
 } // namespace ovt::ui

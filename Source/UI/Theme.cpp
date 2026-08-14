@@ -236,6 +236,55 @@ const char *linkCurveName(LinkCurve c) {
   }
 }
 
+namespace {
+/// Menu ids. Scopes and curves are offset so the two lists cannot be confused
+/// for one another, and neither can be confused for the switch.
+constexpr int kLinkToggleId = 1;
+constexpr int kScopeBaseId = 100;
+constexpr int kCurveBaseId = 200;
+} // namespace
+
+juce::PopupMenu buildLinkMenu(const LinkSettings &settings) {
+  juce::PopupMenu m;
+
+  m.addItem(kLinkToggleId, "LINK", true, settings.enabled);
+  m.addSeparator();
+
+  // The two lists are only worth reading while the switch is on, so they grey
+  // out with it rather than disappearing, which would move everything else.
+  m.addSectionHeader("Scope");
+  for (int i = 0; i < (int)LinkScope::NumScopes; ++i)
+    m.addItem(kScopeBaseId + i, linkScopeName((LinkScope)i), settings.enabled,
+              i == (int)settings.scope);
+
+  m.addSeparator();
+  m.addSectionHeader("Curve");
+  for (int i = 0; i < (int)LinkCurve::NumCurves; ++i)
+    m.addItem(kCurveBaseId + i, linkCurveName((LinkCurve)i), settings.enabled,
+              i == (int)settings.curve);
+
+  return m;
+}
+
+bool applyLinkMenuChoice(int id, LinkSettings &settings) {
+  if (id == kLinkToggleId) {
+    settings.enabled = !settings.enabled;
+    return true;
+  }
+
+  if (id >= kCurveBaseId && id < kCurveBaseId + (int)LinkCurve::NumCurves) {
+    settings.curve = (LinkCurve)(id - kCurveBaseId);
+    return true;
+  }
+
+  if (id >= kScopeBaseId && id < kScopeBaseId + (int)LinkScope::NumScopes) {
+    settings.scope = (LinkScope)(id - kScopeBaseId);
+    return true;
+  }
+
+  return false;
+}
+
 float linkCurveWeight(LinkCurve c, int index0, int sourceIndex) {
   // How far up or down the series this strip sits from the one being dragged,
   // as -1 to +1.

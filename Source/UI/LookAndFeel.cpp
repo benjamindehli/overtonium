@@ -1,5 +1,7 @@
 #include "LookAndFeel.h"
 
+#include <array>
+
 namespace ovt::ui {
 
 juce::Font makeFont(float height, bool bold) {
@@ -44,6 +46,84 @@ void paintRowHighlight(juce::Graphics &g, juce::Rectangle<int> row) {
   g.setColour(colours::accent.withAlpha(0.16f));
   g.fillRect(r.getX(), r.getY(), r.getWidth(), 1.0f);
   g.fillRect(r.getX(), r.getBottom() - 1.0f, r.getWidth(), 1.0f);
+}
+
+juce::Image linkCursorImage(LinkCurve curve, float scale) {
+  constexpr int size = 30;
+
+  juce::Image image(juce::Image::ARGB, (int)((float)size * scale),
+                    (int)((float)size * scale), true);
+
+  {
+    juce::Graphics g(image);
+    g.addTransform(juce::AffineTransform::scale(scale));
+
+    juce::Path arrow;
+    arrow.startNewSubPath(1.0f, 1.0f);
+    arrow.lineTo(1.0f, 14.5f);
+    arrow.lineTo(4.6f, 11.0f);
+    arrow.lineTo(7.0f, 16.5f);
+    arrow.lineTo(9.4f, 15.4f);
+    arrow.lineTo(7.0f, 10.1f);
+    arrow.lineTo(12.0f, 10.1f);
+    arrow.closeSubPath();
+
+    // Outlined in black first, so the pointer reads against a light background
+    // as well as against the panel.
+    g.setColour(juce::Colours::black.withAlpha(0.9f));
+    g.strokePath(arrow, juce::PathStrokeType(2.6f, juce::PathStrokeType::curved,
+                                             juce::PathStrokeType::rounded));
+
+    g.setColour(juce::Colours::white);
+    g.fillPath(arrow);
+
+    // The five bars, as a share of full height.
+    std::array<float, 5> heights{};
+
+    switch (curve) {
+    case LinkCurve::TiltUp:
+      heights = {0.25f, 0.42f, 0.6f, 0.78f, 0.96f};
+      break;
+    case LinkCurve::TiltDown:
+      heights = {0.96f, 0.78f, 0.6f, 0.42f, 0.25f};
+      break;
+    case LinkCurve::Spread:
+      heights = {0.9f, 0.3f, 0.75f, 0.35f, 0.95f};
+      break;
+
+    case LinkCurve::Uniform:
+    case LinkCurve::NumCurves:
+    default:
+      heights = {0.6f, 0.6f, 0.6f, 0.6f, 0.6f};
+      break;
+    }
+
+    const auto base = 27.0f;
+    const auto span = 13.0f;
+    auto x = 13.0f;
+
+    for (auto h : heights) {
+      const juce::Rectangle<float> bar(x, base - span * h, 2.4f, span * h);
+
+      g.setColour(juce::Colours::black.withAlpha(0.9f));
+      g.fillRect(bar.expanded(1.0f, 1.0f));
+      g.setColour(colours::accent.brighter(0.5f));
+      g.fillRect(bar);
+
+      x += 3.4f;
+    }
+  }
+
+  return image;
+}
+
+juce::MouseCursor linkCursor(LinkCurve curve) {
+  // Drawn at twice the nominal size and handed over with a scale, so it stays
+  // sharp on a high-density display.
+  constexpr float scale = 2.0f;
+
+  return juce::MouseCursor(
+      juce::ScaledImage(linkCursorImage(curve, scale), scale), {1, 1});
 }
 
 OvertoniumLookAndFeel::OvertoniumLookAndFeel() {

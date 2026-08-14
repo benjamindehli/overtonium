@@ -129,25 +129,27 @@ The envelope's delay stage holds a partial silent before its attack begins. Stag
 
 Aftertouch works the same way but **adds** to the fader instead of scaling it, and it ignores velocity entirely. That means a strip with its fader all the way down is silent until you lean on the key, and then it fades in under your finger, while a negative amount fades an open strip back out again. Put a few upper partials on positive aftertouch and the note grows brighter the harder you press, without touching the partials you left alone. Both channel pressure and polyphonic aftertouch are accepted, and whichever is higher wins. Pressure is smoothed over about 15 ms, so seven-bit MIDI does not step the gain.
 
-Under the mixer sits a row of master effects, a tape echo and a reverb. They are described below.
-
-The top bar holds the global controls, boxed into groups of things that work together:
+The top bar holds everything that is not per partial, boxed into groups of things that work together, in signal order from left to right:
 
 | Group | Contains |
 |---|---|
 | Preset | the factory preset menu |
-| Voice | **POLY** (1 to 16 voices), **BEND** range, and how many voices are sounding |
-| Link | **LINK** and its scope and curve selectors. See below |
+| Voice | how many voices are sounding, and a menu of polyphony and bend range |
+| Link | **LINK** and a menu of what it reaches and how. See below |
+| Echo | the tape echo. See below |
+| Reverb | the reverb. See below |
 | Output | **SPREAD**, **MASTER**, the stereo meter, **PHASE** and **CLIP** |
 | View | **ZOOM** |
 
 **PHASE** resets partial phase on each note for a coherent, percussive attack. **CLIP** soft-clips the output and is worth leaving on when you push 32 faders up.
 
-The bar reflows onto a second row when the window is too narrow to fit the groups across one, rather than dropping controls or letting captions collide. That happens below about 1250 px of logical width. The second row runs the full width, since the title is above it rather than beside it, and the window will not shrink past 722 px, the point at which even two rows would have to start hiding a group.
+Voice and Link are menus rather than boxes and knobs on the panel. Polyphony and bend range are both a short list of whole numbers, which a menu states better than a knob does, and neither is something you reach for mid-phrase. That buys the width the two effects sit in.
 
-The output meter is the one element that flexes. It takes any width left over on its row up to a limit, since uncapped it swallowed a whole second row and stopped reading as a meter, and it gives up to 40 px back when a row is slightly too tight. That last part matters: a window a few pixels short of fitting one row narrows the meter instead of wrapping.
+The bar reflows onto further rows when the window is too narrow to fit the groups across one, rather than dropping controls or letting captions collide. It fills each row as far as it will go, so it stays compact and anchored to the title, and the rows below the first run the full width since the title is above them rather than beside them. One row per group is the worst case, and the window will not shrink past 722 px, which is where it stops fitting in three.
 
-When the bar does wrap it fills the first row as far as it will go, which keeps it compact and anchored to the title. The exception is a second row that would come out nearly empty, since one small group alone on a row of its own reads as a mistake. In that case a group is pulled down to join it.
+The output meter is the one element that flexes. It takes any width left over on its row up to a limit, since uncapped it swallowed a whole row and stopped reading as a meter, and it gives up to 40 px back when a row is slightly too tight. That last part matters: a window a few pixels short of fitting a row narrows the meter instead of wrapping.
+
+The exception to filling greedily is a last row that would come out nearly empty, since one small group alone on a row of its own reads as a mistake. In that case a group is pulled down to join it.
 
 Double-clicking any knob restores its default. Hovering a harmonic number shows its interval and exact cent deviation.
 
@@ -186,7 +188,9 @@ The cost is close to nothing on either side. The audio thread samples a value it
 
 **LINK** in the top bar gangs the strips: dragging any knob moves the same knob on the others. It works relatively, applying an offset to wherever each strip already sits rather than dragging everything to one shared value, so a spectrum you have shaped by hand keeps its shape.
 
-Two selectors beside it decide what a drag reaches and what it does. Both are latched when the drag begins, so changing one midway cannot half-apply two different rules.
+A menu beside it decides what a drag reaches and what it does. The same menu is on a right-click anywhere in the mixer, which is where you are when you want it, and both settings are latched when a drag begins, so changing one midway cannot half-apply two different rules.
+
+While LINK is on, the pointer over the mixer says which curve is loaded: five bars, level for uniform, rising or falling for the tilts and scattered for spread. A mode you cannot see is a mode you forget you are in, and this one changes what every drag does.
 
 With LINK engaged, pointing at a knob arms every knob a drag from it would move, before you touch anything. How brightly each one lights follows the curve, so under a tilt the end of the series that would take the biggest share is the end that glows most, and a scope that leaves channels out leaves them dark. Changing the scope or the curve redraws it under the pointer, which makes the difference between the four scopes and the four curves something you can see rather than something you have to try.
 
@@ -230,7 +234,7 @@ The width grows as a square root rather than as a straight fan, because a spectr
 
 ### The master effects
 
-Along the bottom of the window sit two effects that work on the finished mix rather than on any one partial: a tape echo and a reverb. They are placed under the mixer because that is where they are in the signal. Everything above the row happens per partial, everything on it happens to the sum. Both sit ahead of the master fader, so the fader is a true output level and moving it cannot change the wet to dry balance underneath it. Each has a switch that names it, and switching one off empties it rather than leaving a tail to reappear next time it comes on.
+Two of the groups in the top bar work on the finished mix rather than on any one partial: a tape echo and a reverb. They sit where they are in the signal, after everything per partial and before the output group, and both are ahead of the master fader, so the fader is a true output level and moving it cannot change the wet to dry balance underneath it. Each has a switch that names it, and switching one off empties it rather than leaving a tail to reappear next time it comes on.
 
 **ECHO** is a tape loop rather than a digital delay:
 
@@ -241,11 +245,11 @@ Along the bottom of the window sit two effects that work on the finished mix rat
 | FDBK | how much of each repeat goes round again, up to 95% |
 | TONE | how much top end survives a pass |
 | WOW | wow and flutter |
-| SPREAD | crossfeed between the heads |
+| SPREAD | how far the repeats alternate between the speakers |
 
 Four things about it are borrowed from the machine rather than from the maths. TIME is reached by winding rather than by jumping, so moving the knob slides the repeats in pitch on the way to the new setting, which is the sound a tape delay is mostly wanted for. Every pass round the loop goes through a lowpass and a highpass, so the repeats darken and thin as they recede instead of staying a copy of the original at a lower level. The loop saturates rather than clips, which is also what stops it running away: the tests drive it at maximum feedback for twenty seconds and the output stays bounded. And the motor is not steady, so a slow wander and a faster flutter move the pitch of the repeats around, measured at about 1% of swing at full.
 
-SPREAD is a crossfeed rather than a second delay time. Two different times comb against each other the moment the source has any width, while feeding each head into the other keeps one time and lets the repeats walk across the image, alternating sides at the top of the control.
+SPREAD sends the repeats in on one side and crosses the heads over on every pass, so at the top of the control they alternate between the speakers and at the bottom they stay where they were played. Crossfeed alone is not enough: swapping two identical signals changes neither, so on a centred source, which is nearly everything this gets fed, it would do nothing at all. Asking it to also decide where the signal enters is what makes the control audible.
 
 **REVERB** is a feedback delay network: eight delay lines fed back through a Householder matrix, with four allpass stages per side in front of it to scatter a hit into a wash before it reaches the network.
 
@@ -307,7 +311,7 @@ Source/
   Presets.*           factory presets
   PluginProcessor.*   MIDI handling, sample-accurate rendering, state
   PluginEditor.*      window, zoom, LINK, gutter
-  UI/                 theme, look and feel, channel and noise strips, top and effects bars
+  UI/                 theme, look and feel, channel and noise strips, top bar
 Tests/
   dsp_test.cpp            standalone DSP tests and CPU benchmark
   plugin_runtime_test.cpp headless plugin integration tests

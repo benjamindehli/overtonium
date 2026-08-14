@@ -8,7 +8,6 @@
 
 #include "PluginProcessor.h"
 #include "UI/ChannelStrip.h"
-#include "UI/FxBar.h"
 #include "UI/LookAndFeel.h"
 #include "UI/NoiseStrip.h"
 #include "UI/TopBar.h"
@@ -47,6 +46,8 @@ public:
                         float plainValue) override;
   void linkDragEnded(ovt::ui::Role, int sourceIndex) override;
 
+  void showLinkMenu() override;
+
   // ---- ovt::ui::HoverTarget ----
   void hoverChanged(int stripIndex, ovt::ui::Row) override;
 
@@ -66,6 +67,9 @@ private:
   /// Lights the control LINK is moving, or would move if you grabbed the one
   /// under the pointer.
   void updateLinkGlow();
+
+  /// Hands the strips a pointer that says what a drag would do to them.
+  void updateLinkCursor();
 
   /// Everything a LINK drag needs, latched when it begins.
   ///
@@ -102,7 +106,6 @@ private:
   /// Single child holding the whole UI, so zoom is one AffineTransform.
   juce::Component content;
   ovt::ui::TopBar topBar;
-  ovt::ui::FxBar fxBar;
   RowGutter gutter;
   ovt::ui::NoiseStrip noiseStrip;
 

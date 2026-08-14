@@ -75,7 +75,6 @@ set(OVERTONIUM_SOURCES
     Source/dsp/TapeEcho.cpp
     Source/dsp/Reverb.cpp
     Source/UI/ChannelStrip.cpp
-    Source/UI/FxBar.cpp
     Source/UI/LookAndFeel.cpp
     Source/UI/NoiseStrip.cpp
     Source/UI/Theme.cpp

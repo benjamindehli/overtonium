@@ -4,6 +4,7 @@
 #include <functional>
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -44,6 +45,17 @@ private:
   Bar left, right;
 };
 
+/// A small square button that opens a menu.
+///
+/// It draws a chevron rather than carrying a caption, since what it opens
+/// names itself, and a caption would cost more width than the button.
+class MenuButton : public juce::Button {
+public:
+  MenuButton() : juce::Button({}) {}
+
+  void paintButton(juce::Graphics &, bool highlighted, bool down) override;
+};
+
 class TopBar : public juce::Component {
 public:
   TopBar(juce::AudioProcessorValueTreeState &apvts,
@@ -59,15 +71,24 @@ public:
   bool isLinkEnabled() const { return linkButton.getToggleState(); }
 
   /// Latched by the editor at the start of each LINK drag.
-  LinkScope getLinkScope() const;
-  LinkCurve getLinkCurve() const;
+  LinkScope getLinkScope() const { return scope; }
+  LinkCurve getLinkCurve() const { return curve; }
 
   void setLinkScope(LinkScope);
   void setLinkCurve(LinkCurve);
 
   std::function<void()> onLinkSettingsChanged;
 
-  /// The bar reflows onto a second row when the groups no longer fit across
+  /// The switch, the scope and the curve, in one menu.
+  ///
+  /// Shared by the button in the bar and by a right-click anywhere on a strip,
+  /// so there is one list rather than two that can drift apart.
+  ///
+  /// @param anchor  what to hang the menu off, or nullptr to put it under the
+  ///                pointer.
+  void showLinkMenu(juce::Component *anchor);
+
+  /// The bar reflows onto further rows when the groups no longer fit across
   /// one, so nothing has to be dropped on a narrow window. Static because the
   /// editor has to know the height before it can hand the bar its bounds.
   static int heightForWidth(int width);
@@ -84,33 +105,54 @@ public:
 private:
   using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
   using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
-  using ComboBoxAttachment =
-      juce::AudioProcessorValueTreeState::ComboBoxAttachment;
 
   void styleToggle(juce::TextButton &, const juce::String &text,
                    const juce::String &tooltip);
 
-  /// The two selectors only mean anything while LINK is engaged.
+  /// The menu of scopes and curves only means anything while LINK is engaged.
   void updateLinkEnablement();
+
+  /// One effect knob, wired to its parameter.
+  struct Control {
+    std::unique_ptr<LabelledKnob> knob;
+    std::unique_ptr<SliderAttachment> attachment;
+  };
+
+  void addKnob(std::vector<Control> &into, const juce::String &caption,
+               const juce::String &paramId, const juce::String &tooltip,
+               juce::Component &popupParent);
+
+  /// Polyphony and bend range, which are both a short list of numbers and so
+  /// read better as a menu than as a box and a knob taking up the bar.
+  void showVoiceMenu();
 
   /// Related controls sit together in a bordered group.
   enum Group {
     PresetGroup = 0,
     VoiceGroup,
     LinkGroup,
+    EchoGroup,
+    ReverbGroup,
     OutputGroup,
     ViewGroup,
     NumGroups
   };
+
+  /// Where the rows break. Entry r is the first group on row r, and the last
+  /// entry is NumGroups, so row r holds [start[r], start[r + 1]).
+  struct RowPlan {
+    int rows = 1;
+    std::array<int, NumGroups + 1> start{};
+  };
+
+  /// Packs the groups into as many rows as it takes.
+  static RowPlan planRows(int firstRowWidth, int fullWidth, int maxRows);
 
   /// Clears every control's bounds before a fresh pass. Without this a control
   /// that does not get placed keeps whatever position it had when the window
   /// was wider, which is what put the preset and poly captions on top of one
   /// another.
   void parkControls();
-
-  /// How many groups belong on the first row.
-  static int chooseSplit(int firstRowWidth, int secondRowWidth);
 
   void layoutRow(juce::Rectangle<int> row, int firstGroup, int lastGroup);
   void placeGroup(int group, juce::Rectangle<int> bounds);
@@ -124,21 +166,26 @@ private:
   // have nothing to stay relative to and so are ordinary absolute knobs.
   LabelledKnob master{"MASTER"};
   LabelledKnob spread{"SPREAD"};
-  LabelledKnob bend{"BEND"};
 
   StereoOutputMeter meter;
   juce::Label meterCaption;
 
-  juce::ComboBox presetBox, polyBox, zoomBox, scopeBox, curveBox;
-  juce::Label presetCaption, polyCaption, zoomCaption, scopeCaption,
-      curveCaption, voicesLabel;
+  juce::ComboBox presetBox, zoomBox;
+  juce::Label presetCaption, zoomCaption, voicesCaption;
 
+  juce::TextButton voicesButton;
   juce::TextButton linkButton, phaseButton, clipButton;
+  juce::TextButton echoButton, reverbButton;
+  MenuButton linkMenuButton;
 
-  std::unique_ptr<SliderAttachment> masterAttachment, spreadAttachment,
-      bendAttachment;
-  std::unique_ptr<ComboBoxAttachment> polyAttachment;
-  std::unique_ptr<ButtonAttachment> phaseAttachment, clipAttachment;
+  std::vector<Control> echoControls, reverbControls;
+
+  LinkScope scope = LinkScope::All;
+  LinkCurve curve = LinkCurve::Uniform;
+
+  std::unique_ptr<SliderAttachment> masterAttachment, spreadAttachment;
+  std::unique_ptr<ButtonAttachment> phaseAttachment, clipAttachment,
+      echoAttachment, reverbAttachment;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(TopBar)
 };

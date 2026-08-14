@@ -21,9 +21,19 @@ constexpr int kGroupPad = 7;
 
 /// Minimum width of each group, in the order they are laid out. Only the
 /// output group grows, because the meter is the one thing worth more room.
-constexpr int kGroupMinWidth[] = {164, 202, 262, 338, 82};
-constexpr int kOutputGroupIndex = 3;
-constexpr int kGroupCount = 5;
+constexpr int kGroupMinWidth[] = {164, 124, 96, 324, 366, 338, 82};
+constexpr int kOutputGroupIndex = 5;
+constexpr int kGroupCount = 7;
+
+constexpr int kKnobWidth = 42;
+constexpr int kFxToggleWidth = 52;
+constexpr int kFxToggleGap = 6;
+
+constexpr int kEchoKnobs = 6;
+constexpr int kReverbKnobs = 7;
+
+/// How many rows of bar are worth having above a mixer.
+constexpr int kMaxComfortableRows = 3;
 
 /// The meter is the only thing worth extra room, but not unlimited extra room.
 /// Uncapped it swallows a whole second row and reads as a progress bar.
@@ -143,10 +153,41 @@ void StereoOutputMeter::paint(juce::Graphics &g) {
 
 // =============================================================================
 
+void MenuButton::paintButton(juce::Graphics &g, bool highlighted, bool down) {
+  const auto bounds = getLocalBounds().toFloat().reduced(0.5f);
+
+  auto fill = colours::panelAlt;
+  if (down)
+    fill = fill.brighter(0.15f);
+  else if (highlighted)
+    fill = fill.brighter(0.08f);
+
+  g.setGradientFill(juce::ColourGradient(
+      fill.brighter(0.12f), bounds.getCentreX(), bounds.getY(),
+      fill.darker(0.05f), bounds.getCentreX(), bounds.getBottom(), false));
+  g.fillRoundedRectangle(bounds, 4.0f);
+
+  g.setColour(colours::outline);
+  g.drawRoundedRectangle(bounds.reduced(0.5f), 4.0f, 1.0f);
+
+  juce::Path chevron;
+  const auto cx = bounds.getCentreX();
+  const auto cy = bounds.getCentreY();
+  chevron.startNewSubPath(cx - 4.0f, cy - 2.0f);
+  chevron.lineTo(cx, cy + 2.5f);
+  chevron.lineTo(cx + 4.0f, cy - 2.0f);
+
+  g.setColour(isEnabled() ? colours::text : colours::textDim);
+  g.strokePath(chevron, juce::PathStrokeType(1.6f, juce::PathStrokeType::curved,
+                                             juce::PathStrokeType::rounded));
+}
+
+// =============================================================================
+
 TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
                juce::Component &popupParent)
     : apvts(state) {
-  LabelledKnob *knobs[] = {&master, &spread, &bend};
+  LabelledKnob *knobs[] = {&master, &spread};
 
   for (auto *k : knobs) {
     k->slider.setPopupDisplayEnabled(true, true, &popupParent);
@@ -155,14 +196,11 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
 
   master.slider.setTooltip("Output level");
   spread.slider.setTooltip("Fans the partials across the stereo field");
-  bend.slider.setTooltip("Pitch bend range in semitones");
 
   masterAttachment = std::make_unique<SliderAttachment>(
       apvts, params::masterGainId, master.slider);
   spreadAttachment = std::make_unique<SliderAttachment>(apvts, params::spreadId,
                                                         spread.slider);
-  bendAttachment = std::make_unique<SliderAttachment>(
-      apvts, params::bendRangeId, bend.slider);
 
   meterCaption.setText("OUT  L / R", juce::dontSendNotification);
   meterCaption.setFont(makeFont(9.0f, true));
@@ -182,15 +220,13 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   };
   addAndMakeVisible(presetBox);
 
-  // ---- polyphony ------------------------------------------------------------
-  for (size_t i = 0; i < params::kPolyphonyChoices.size(); ++i)
-    polyBox.addItem(juce::String(params::kPolyphonyChoices[i]), (int)i + 1);
-
-  polyAttachment =
-      std::make_unique<ComboBoxAttachment>(apvts, params::polyphonyId, polyBox);
-  polyBox.setTooltip(
-      "Maximum simultaneous notes. Each note runs 32 sine partials.");
-  addAndMakeVisible(polyBox);
+  // ---- voices ---------------------------------------------------------------
+  // Polyphony and bend range are both a short list of whole numbers, so they
+  // read better as a menu than as a box and a knob holding open a group.
+  voicesButton.setTooltip("How many notes at once, and how far the wheel "
+                          "bends. Each note runs 32 sine partials.");
+  voicesButton.onClick = [this] { showVoiceMenu(); };
+  addAndMakeVisible(voicesButton);
 
   // ---- zoom -----------------------------------------------------------------
   for (int i = 0; i < (int)std::size(kZoomChoices); ++i)
@@ -224,32 +260,66 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
 
   // ---- what LINK reaches, and how it is shared out
   // ---------------------------
-  for (int i = 0; i < (int)LinkScope::NumScopes; ++i)
-    scopeBox.addItem(linkScopeName((LinkScope)i), i + 1);
+  linkMenuButton.setTooltip(
+      "Which channels a LINK drag reaches, and how the movement is shared out "
+      "between them. The same menu is on a right-click anywhere in the mixer.");
+  linkMenuButton.onClick = [this] { showLinkMenu(&linkMenuButton); };
+  addAndMakeVisible(linkMenuButton);
 
-  for (int i = 0; i < (int)LinkCurve::NumCurves; ++i)
-    curveBox.addItem(linkCurveName((LinkCurve)i), i + 1);
+  // ---- the master effects
+  // ----------------------------------------------------
+  styleToggle(echoButton, "ECHO",
+              "Tape echo across the whole instrument, before the master fader");
+  styleToggle(reverbButton, "REVERB",
+              "Reverb across the whole instrument, after the echo");
 
-  scopeBox.setSelectedId(1, juce::dontSendNotification);
-  curveBox.setSelectedId(1, juce::dontSendNotification);
+  echoButton.setColour(juce::TextButton::buttonOnColourId, colours::accent);
+  reverbButton.setColour(juce::TextButton::buttonOnColourId, colours::accent);
 
-  scopeBox.setTooltip("Which channels a LINK drag reaches. Same interval "
-                      "follows only the strips sharing the one you grab, so "
-                      "you can move just the fifths or just the octaves.");
-  curveBox.setTooltip(
-      "How the drag is shared out. Tilt up moves the higher "
-      "partials more, tilt down the lower ones. Spread scatters "
-      "them as you push up and gathers them as you pull down.");
+  echoAttachment =
+      std::make_unique<ButtonAttachment>(apvts, params::echoOnId, echoButton);
+  reverbAttachment = std::make_unique<ButtonAttachment>(
+      apvts, params::reverbOnId, reverbButton);
 
-  for (auto *box : {&scopeBox, &curveBox}) {
-    box->onChange = [this] {
-      if (onLinkSettingsChanged)
-        onLinkSettingsChanged();
-    };
-    addAndMakeVisible(*box);
-  }
+  addKnob(echoControls, "MIX", params::echoMixId,
+          "How much of the output is repeats", popupParent);
+  addKnob(echoControls, "TIME", params::echoTimeId,
+          "Distance between the heads. Moving it winds the tape rather than "
+          "cutting to the new time, so the repeats slide in pitch on the way.",
+          popupParent);
+  addKnob(echoControls, "FDBK", params::echoFeedbackId,
+          "How much of each repeat goes round again", popupParent);
+  addKnob(echoControls, "TONE", params::echoToneId,
+          "Dark leaves every repeat duller than the last, bright keeps them "
+          "close to the original",
+          popupParent);
+  addKnob(echoControls, "WOW", params::echoWobbleId,
+          "Wow and flutter. The motor is never quite steady, so the pitch of "
+          "the repeats wanders.",
+          popupParent);
+  addKnob(echoControls, "SPREAD", params::echoSpreadId,
+          "Sends the repeats in on one side and crosses them over on every "
+          "pass, so they alternate between the speakers",
+          popupParent);
 
-  updateLinkEnablement();
+  addKnob(reverbControls, "MIX", params::reverbMixId,
+          "How much of the output is reverb", popupParent);
+  addKnob(reverbControls, "SIZE", params::reverbSizeId,
+          "Room dimensions, from a booth to a hall", popupParent);
+  addKnob(reverbControls, "DECAY", params::reverbDecayId,
+          "How long the tail takes to fall away", popupParent);
+  addKnob(reverbControls, "DAMP", params::reverbDampId,
+          "How quickly the top end dies out of the tail", popupParent);
+  addKnob(reverbControls, "LO CUT", params::reverbLowCutId,
+          "Keeps the fundamental out of the tail, which matters on an "
+          "instrument built from 32 partials",
+          popupParent);
+  addKnob(reverbControls, "PRE", params::reverbPreDelayId,
+          "Silence between the note and its reverb. A little of it keeps the "
+          "attack clear of the wash.",
+          popupParent);
+  addKnob(reverbControls, "WIDTH", params::reverbWidthId,
+          "Mono at zero, fully spread at the top", popupParent);
 
   phaseAttachment = std::make_unique<ButtonAttachment>(
       apvts, params::phaseResetId, phaseButton);
@@ -263,10 +333,8 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
     juce::Justification just;
   } captions[] = {
       {&presetCaption, "PRESET", juce::Justification::centredLeft},
-      {&polyCaption, "POLY", juce::Justification::centredLeft},
+      {&voicesCaption, "VOICES", juce::Justification::centredLeft},
       {&zoomCaption, "ZOOM", juce::Justification::centredLeft},
-      {&scopeCaption, "LINK SCOPE", juce::Justification::centredLeft},
-      {&curveCaption, "LINK CURVE", juce::Justification::centredLeft},
   };
 
   for (auto &c : captions) {
@@ -278,13 +346,8 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
     addAndMakeVisible(*c.label);
   }
 
-  voicesLabel.setFont(makeFont(10.0f));
-  voicesLabel.setColour(juce::Label::textColourId, colours::textDim);
-  voicesLabel.setJustificationType(juce::Justification::centredRight);
-  voicesLabel.setInterceptsMouseClicks(false, false);
-  addAndMakeVisible(voicesLabel);
-
   setVoiceCount(0, 8);
+  updateLinkEnablement();
 }
 
 void TopBar::styleToggle(juce::TextButton &b, const juce::String &text,
@@ -295,37 +358,131 @@ void TopBar::styleToggle(juce::TextButton &b, const juce::String &text,
   addAndMakeVisible(b);
 }
 
-LinkScope TopBar::getLinkScope() const {
-  return (LinkScope)juce::jlimit(0, (int)LinkScope::NumScopes - 1,
-                                 scopeBox.getSelectedId() - 1);
-}
+void TopBar::addKnob(std::vector<Control> &into, const juce::String &caption,
+                     const juce::String &paramId, const juce::String &tooltip,
+                     juce::Component &popupParent) {
+  Control c;
+  c.knob = std::make_unique<LabelledKnob>(caption);
+  c.knob->slider.setTooltip(tooltip);
+  c.knob->slider.setPopupDisplayEnabled(true, true, &popupParent);
 
-LinkCurve TopBar::getLinkCurve() const {
-  return (LinkCurve)juce::jlimit(0, (int)LinkCurve::NumCurves - 1,
-                                 curveBox.getSelectedId() - 1);
+  if (auto *p = apvts.getParameter(paramId))
+    c.knob->slider.setDoubleClickReturnValue(
+        true, (double)p->convertFrom0to1(p->getDefaultValue()));
+
+  addAndMakeVisible(*c.knob);
+
+  c.attachment =
+      std::make_unique<SliderAttachment>(apvts, paramId, c.knob->slider);
+
+  into.push_back(std::move(c));
 }
 
 void TopBar::setLinkScope(LinkScope s) {
-  scopeBox.setSelectedId((int)s + 1, juce::dontSendNotification);
+  scope = (LinkScope)juce::jlimit(0, (int)LinkScope::NumScopes - 1, (int)s);
 }
 
 void TopBar::setLinkCurve(LinkCurve c) {
-  curveBox.setSelectedId((int)c + 1, juce::dontSendNotification);
+  curve = (LinkCurve)juce::jlimit(0, (int)LinkCurve::NumCurves - 1, (int)c);
 }
 
 void TopBar::updateLinkEnablement() {
-  const auto on = linkButton.getToggleState();
+  linkMenuButton.setEnabled(linkButton.getToggleState());
+}
 
-  scopeBox.setEnabled(on);
-  curveBox.setEnabled(on);
-  scopeCaption.setAlpha(on ? 1.0f : 0.45f);
-  curveCaption.setAlpha(on ? 1.0f : 0.45f);
+void TopBar::showLinkMenu(juce::Component *anchor) {
+  const LinkSettings settings{linkButton.getToggleState(), scope, curve};
+
+  auto m = buildLinkMenu(settings);
+  m.setLookAndFeel(&getLookAndFeel());
+
+  auto options = juce::PopupMenu::Options().withStandardItemHeight(22);
+
+  if (anchor != nullptr) {
+    options = options.withTargetComponent(anchor);
+  } else {
+    // Under the pointer, which is where a right-click expects to find it.
+    const auto p = juce::Desktop::getInstance()
+                       .getMainMouseSource()
+                       .getScreenPosition()
+                       .roundToInt();
+
+    options = options.withTargetScreenArea({p.x, p.y, 1, 1});
+  }
+
+  m.showMenuAsync(options, [this, settings](int result) {
+    auto chosen = settings;
+
+    if (!applyLinkMenuChoice(result, chosen))
+      return;
+
+    linkButton.setToggleState(chosen.enabled, juce::dontSendNotification);
+    scope = chosen.scope;
+    curve = chosen.curve;
+
+    updateLinkEnablement();
+
+    if (onLinkSettingsChanged)
+      onLinkSettingsChanged();
+  });
+}
+
+void TopBar::showVoiceMenu() {
+  juce::PopupMenu m;
+  m.setLookAndFeel(&getLookAndFeel());
+
+  auto *polyphony = apvts.getParameter(params::polyphonyId);
+  auto *bendRange = apvts.getParameter(params::bendRangeId);
+
+  const auto polyIndex =
+      polyphony != nullptr
+          ? juce::roundToInt(polyphony->convertFrom0to1(polyphony->getValue()))
+          : 0;
+
+  m.addSectionHeader("Polyphony");
+  for (int i = 0; i < (int)params::kPolyphonyChoices.size(); ++i)
+    m.addItem(100 + i,
+              juce::String(params::kPolyphonyChoices[(size_t)i]) + " voices",
+              true, i == polyIndex);
+
+  const auto currentBend =
+      bendRange != nullptr
+          ? juce::roundToInt(bendRange->convertFrom0to1(bendRange->getValue()))
+          : 2;
+
+  // The semitone counts anyone actually uses, rather than all 25 of them.
+  static const int kBendChoices[] = {0, 1, 2, 3, 4, 5, 7, 12, 24};
+
+  m.addSeparator();
+  m.addSectionHeader("Pitch bend range");
+  for (auto semitones : kBendChoices)
+    m.addItem(200 + semitones,
+              juce::String(semitones) +
+                  (semitones == 1 ? " semitone" : " semitones"),
+              true, semitones == currentBend);
+
+  m.showMenuAsync(juce::PopupMenu::Options()
+                      .withTargetComponent(&voicesButton)
+                      .withStandardItemHeight(22),
+                  [this](int result) {
+                    if (result == 0)
+                      return;
+
+                    const auto id = result >= 200 ? params::bendRangeId
+                                                  : params::polyphonyId;
+                    const auto plain = result >= 200 ? (float)(result - 200)
+                                                     : (float)(result - 100);
+
+                    if (auto *p = apvts.getParameter(id))
+                      p->setValueNotifyingHost(p->convertTo0to1(plain));
+                  });
 }
 
 void TopBar::setVoiceCount(int active, int limit) {
-  voicesLabel.setText(juce::String(active) + " / " + juce::String(limit) +
-                          " voices",
-                      juce::dontSendNotification);
+  const auto text = juce::String(active) + " / " + juce::String(limit);
+
+  if (voicesButton.getButtonText() != text)
+    voicesButton.setButtonText(text);
 }
 
 void TopBar::setZoomChoice(float zoom) {
@@ -337,69 +494,100 @@ void TopBar::setZoomChoice(float zoom) {
   }
 }
 
-int TopBar::heightForWidth(int width) {
-  const auto content = width - 2 * kBarMargin - kTitleWidth - kTitleLead;
-  const auto onOneRow =
-      content >= totalGroupWidth(0, kGroupCount) - kOutputMaxSqueeze;
+TopBar::RowPlan TopBar::planRows(int firstRowWidth, int fullWidth,
+                                 int maxRows) {
+  RowPlan plan;
+  plan.start.fill(kGroupCount);
+  plan.start[0] = 0;
 
-  const auto rows = onOneRow ? 1 : 2;
+  int group = 0;
+  int row = 0;
+
+  // Greedy, filling each row as far as it will go. The first row is short by
+  // the width of the title, the rest have the whole bar.
+  while (group < kGroupCount && row < maxRows) {
+    const auto available = row == 0 ? firstRowWidth : fullWidth;
+
+    int used = 0;
+    int onThisRow = 0;
+
+    while (group < kGroupCount) {
+      auto width = kGroupMinWidth[group] + (onThisRow > 0 ? kGroupGap : 0);
+
+      // The meter can give up a little rather than send its group to the next
+      // row, so a window a few pixels short does not wrap.
+      if (group == kOutputGroupIndex)
+        width -= kOutputMaxSqueeze;
+
+      if (onThisRow > 0 && used + width > available)
+        break;
+
+      used += width;
+      ++onThisRow;
+      ++group;
+    }
+
+    ++row;
+    plan.start[(size_t)row] = group;
+  }
+
+  plan.rows = row;
+
+  // A last row holding one small group looks like a mistake rather than a
+  // layout. If there is a fuller row above it, pull a group down to join it.
+  if (plan.rows >= 2) {
+    const auto last = plan.rows - 1;
+    const auto lastWidth =
+        totalGroupWidth(plan.start[(size_t)last], kGroupCount);
+    const auto onRowAbove =
+        plan.start[(size_t)last] - plan.start[(size_t)last - 1];
+
+    if (lastWidth * 100 < fullWidth * 30 && onRowAbove >= 2)
+      plan.start[(size_t)last] -= 1;
+  }
+
+  return plan;
+}
+
+int TopBar::heightForWidth(int width) {
+  const auto full = width - 2 * kBarMargin;
+  const auto first = full - kTitleWidth - kTitleLead;
+
+  const auto rows = planRows(first, full, kGroupCount).rows;
 
   return rows * kRowHeight + (rows - 1) * kRowGap + 2 * kBarPadY;
 }
 
-int TopBar::chooseSplit(int firstRowWidth, int secondRowWidth) {
-  if (firstRowWidth >= totalGroupWidth(0, kGroupCount) - kOutputMaxSqueeze)
-    return kGroupCount;
-
-  // Fill the first row as far as it will go, which keeps the bar compact and
-  // anchored to the title. The exception is a second row that would come out
-  // nearly empty: one small group stranded on a row of its own looks like a
-  // mistake, so in that case a group is pulled down to join it.
-  int fallback = 0;
-
-  for (int split = kGroupCount - 1; split >= 1; --split) {
-    const auto first = totalGroupWidth(0, split);
-    const auto second = totalGroupWidth(split, kGroupCount);
-
-    if (first > firstRowWidth || second > secondRowWidth)
-      continue;
-
-    if (fallback == 0)
-      fallback = split;
-
-    if (second * 100 >= secondRowWidth * 30)
-      return split;
-  }
-
-  return fallback > 0 ? fallback : 1;
-}
-
 int TopBar::minimumWidth() {
-  // The narrowest window at which some split fits across two rows. Only the
-  // first row loses width to the title, which is why the two rows are measured
-  // against different budgets. Greedy filling from the left reaches the same
-  // split, so this is a real floor rather than an optimistic one.
-  int best = std::numeric_limits<int>::max();
+  // The bar keeps working however narrow the window gets, stacking one group
+  // per row if it has to, but at some point the chrome is taller than the
+  // mixer underneath it. This is the narrowest window where it still fits in
+  // kMaxComfortableRows, and the editor takes it as the floor.
+  for (int width = 2 * kBarMargin + kTitleWidth; width < 4000; ++width) {
+    const auto full = width - 2 * kBarMargin;
+    const auto first = full - kTitleWidth - kTitleLead;
 
-  for (int split = 1; split < kGroupCount; ++split) {
-    const auto first = totalGroupWidth(0, split) + kTitleWidth + kTitleLead;
-    const auto second = totalGroupWidth(split, kGroupCount);
-
-    best = juce::jmin(best, juce::jmax(first, second) + 2 * kBarMargin);
+    if (planRows(first, full, kGroupCount).rows <= kMaxComfortableRows)
+      return width;
   }
 
-  return best;
+  jassertfalse;
+  return 1024;
 }
 
 void TopBar::parkControls() {
   juce::Component *all[] = {
-      &master,      &spread,        &bend,         &meter,       &meterCaption,
-      &presetBox,   &presetCaption, &polyBox,      &polyCaption, &zoomBox,
-      &zoomCaption, &scopeBox,      &scopeCaption, &curveBox,    &curveCaption,
-      &linkButton,  &phaseButton,   &clipButton,   &voicesLabel};
+      &master,       &spread,        &meter,      &meterCaption,
+      &presetBox,    &presetCaption, &zoomBox,    &zoomCaption,
+      &voicesButton, &voicesCaption, &linkButton, &linkMenuButton,
+      &phaseButton,  &clipButton,    &echoButton, &reverbButton};
 
   for (auto *c : all)
     c->setBounds({});
+
+  for (auto *set : {&echoControls, &reverbControls})
+    for (auto &c : *set)
+      c.knob->setBounds({});
 
   groupBounds.fill({});
 }
@@ -423,25 +611,38 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
     b.setBounds(column.withSizeKeepingCentre(column.getWidth(), 24));
   };
 
+  /// The switch names the effect, so it stands at the head of its group and
+  /// the knobs follow.
+  const auto effect = [&](juce::Button &toggle, std::vector<Control> &controls,
+                          juce::Rectangle<int> area) {
+    button(toggle, area.removeFromLeft(kFxToggleWidth));
+    area.removeFromLeft(kFxToggleGap);
+
+    for (auto &c : controls)
+      c.knob->setBounds(area.removeFromLeft(kKnobWidth));
+  };
+
   switch (group) {
   case PresetGroup:
     captioned(presetBox, presetCaption, r);
     break;
 
   case VoiceGroup:
-    captioned(polyBox, polyCaption, r.removeFromLeft(56));
-    r.removeFromLeft(6);
-    bend.setBounds(r.removeFromLeft(52));
-    r.removeFromLeft(6);
-    voicesLabel.setBounds(r);
+    captioned(voicesButton, voicesCaption, r);
     break;
 
   case LinkGroup:
     button(linkButton, r.removeFromLeft(48));
     r.removeFromLeft(6);
-    captioned(scopeBox, scopeCaption, r.removeFromLeft(94));
-    r.removeFromLeft(6);
-    captioned(curveBox, curveCaption, r.removeFromLeft(94));
+    button(linkMenuButton, r.removeFromLeft(28));
+    break;
+
+  case EchoGroup:
+    effect(echoButton, echoControls, r);
+    break;
+
+  case ReverbGroup:
+    effect(reverbButton, reverbControls, r);
     break;
 
   case OutputGroup: {
@@ -481,12 +682,15 @@ void TopBar::layoutRow(juce::Rectangle<int> row, int firstGroup,
   const auto outputAdjust = slack >= 0 ? juce::jmin(slack, kOutputMaxExtra)
                                        : juce::jmax(slack, -kOutputMaxSqueeze);
 
+  const bool hasOutput =
+      kOutputGroupIndex >= firstGroup && kOutputGroupIndex < lastGroup;
+
   for (int g = firstGroup; g < lastGroup; ++g) {
     if (g > firstGroup)
       row.removeFromLeft(kGroupGap);
 
     auto width = kGroupMinWidth[g];
-    if (g == kOutputGroupIndex)
+    if (g == kOutputGroupIndex && hasOutput)
       width += outputAdjust;
 
     // Never hand out more than is left, so a very narrow window crops the last
@@ -496,6 +700,35 @@ void TopBar::layoutRow(juce::Rectangle<int> row, int firstGroup,
       break;
 
     placeGroup(g, row.removeFromLeft(width));
+  }
+}
+
+void TopBar::resized() {
+  parkControls();
+
+  auto area = getLocalBounds().reduced(kBarMargin, kBarPadY);
+  const auto fullWidth = area;
+
+  const auto affordable =
+      juce::jmax(1, (area.getHeight() + kRowGap) / (kRowHeight + kRowGap));
+
+  const auto plan = planRows(fullWidth.getWidth() - kTitleWidth - kTitleLead,
+                             fullWidth.getWidth(), affordable);
+
+  for (int row = 0; row < plan.rows; ++row) {
+    if (row > 0)
+      area.removeFromTop(kRowGap);
+
+    auto line = area.removeFromTop(kRowHeight);
+
+    // Only the first row has to make room for the title beside it.
+    if (row == 0)
+      line.removeFromLeft(kTitleWidth + kTitleLead);
+
+    if (line.getWidth() < 60)
+      break;
+
+    layoutRow(line, plan.start[(size_t)row], plan.start[(size_t)row + 1]);
   }
 }
 
@@ -533,38 +766,6 @@ void TopBar::paint(juce::Graphics &g) {
   g.setFont(makeFont(9.5f));
   g.drawText("32-partial overtone synthesiser", title.removeFromTop(13),
              juce::Justification::centredLeft, false);
-}
-
-void TopBar::resized() {
-  parkControls();
-
-  auto area = getLocalBounds().reduced(kBarMargin, kBarPadY);
-  const auto fullWidth = area;
-
-  // Only the first row has to make room for the title.
-  auto firstRow = area.removeFromTop(kRowHeight);
-  firstRow.removeFromLeft(kTitleWidth + kTitleLead);
-
-  if (firstRow.getWidth() < 60)
-    return;
-
-  const auto wrapAt =
-      fullWidth.getHeight() >= 2 * kRowHeight
-          ? chooseSplit(firstRow.getWidth(), fullWidth.getWidth())
-          : kGroupCount;
-
-  layoutRow(firstRow, 0, wrapAt);
-
-  if (wrapAt < kGroupCount) {
-    area.removeFromTop(kRowGap);
-
-    // The second row starts at the margin, since the title is above it rather
-    // than beside it.
-    layoutRow(area.removeFromTop(kRowHeight)
-                  .withX(fullWidth.getX())
-                  .withWidth(fullWidth.getWidth()),
-              wrapAt, kGroupCount);
-  }
 }
 
 } // namespace ovt::ui

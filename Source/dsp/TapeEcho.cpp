@@ -135,7 +135,7 @@ void TapeEcho::process(float *outL, float *outR, int numSamples,
   const auto mix = std::clamp(p.mix, 0.0f, 1.0f);
   const auto feedback = std::clamp(p.feedback, 0.0f, 0.95f);
   const auto wobble = std::clamp(p.wobble, 0.0f, 1.0f);
-  const auto cross = std::clamp(p.spread, 0.0f, 1.0f) * 0.5f;
+  const auto cross = std::clamp(p.spread, 0.0f, 1.0f);
 
   const auto targetDelay =
       (float)(std::clamp(p.timeSeconds, 0.01f, kMaxTimeSeconds) * sampleRate);
@@ -186,16 +186,23 @@ void TapeEcho::process(float *outL, float *outR, int numSamples,
     const auto agedL = saturate(left.damp - left.dc);
     const auto agedR = saturate(right.damp - right.dc);
 
-    // Crossfeed sends part of each head into the other, so the repeats walk
-    // across the image instead of sitting where they landed.
+    // Crossfeed sends each head into the other, so the repeats walk across the
+    // image instead of sitting where they landed.
     const auto fedL = agedL * (1.0f - cross) + agedR * cross;
     const auto fedR = agedR * (1.0f - cross) + agedL * cross;
 
     const auto dryL = outL[n];
     const auto dryR = outR[n];
 
-    left.buffer[(size_t)left.write] = dryL + fedL * feedback;
-    right.buffer[(size_t)right.write] = dryR + fedR * feedback;
+    // Crossfeed alone does nothing to a centred source, since swapping two
+    // identical signals changes neither. What makes the repeats alternate is
+    // feeding them in on one side: at full spread everything enters on the
+    // left and the crossfeed walks it over on each pass.
+    const auto injectL = dryL * (1.0f - 0.5f * cross) + dryR * (0.5f * cross);
+    const auto injectR = dryR * (1.0f - cross);
+
+    left.buffer[(size_t)left.write] = injectL + fedL * feedback;
+    right.buffer[(size_t)right.write] = injectR + fedR * feedback;
 
     if (++left.write >= bufferLength)
       left.write = 0;

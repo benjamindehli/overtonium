@@ -15,8 +15,8 @@ constexpr int kMasterGap = 8;
 /// Everything above and below the strips. The top bar reflows onto a second
 /// row when narrow, so its height depends on the width it is given.
 int chromeHeight(int logicalWidth) {
-  return ovt::ui::TopBar::heightForWidth(logicalWidth) +
-         ovt::ui::FxBar::height() + 2 * kEdge + kScrollBarThickness;
+  return ovt::ui::TopBar::heightForWidth(logicalWidth) + 2 * kEdge +
+         kScrollBarThickness;
 }
 
 /// State keys stored alongside the parameters so window size survives a reopen.
@@ -84,12 +84,11 @@ void RowGutter::paint(juce::Graphics &g) {
 
 OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     : juce::AudioProcessorEditor(&p), processor(p), topBar(p.apvts, *this),
-      fxBar(p.apvts, *this), noiseStrip(p.apvts, *this, *this) {
+      noiseStrip(p.apvts, *this, *this) {
   setLookAndFeel(&lookAndFeel);
 
   addAndMakeVisible(content);
   content.addAndMakeVisible(topBar);
-  content.addAndMakeVisible(fxBar);
   content.addAndMakeVisible(gutter);
   content.addAndMakeVisible(noiseStrip);
   content.addAndMakeVisible(viewport);
@@ -131,7 +130,10 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     // "what would this knob take with it", so the preview follows immediately
     // rather than waiting for the pointer to move.
     updateLinkGlow();
+    updateLinkCursor();
   };
+
+  updateLinkCursor();
 
   // Default size shows all 32 strips at once, which is the whole point of the
   // layout.
@@ -176,10 +178,6 @@ void OvertoniumEditor::resized() {
   topBar.setBounds(
       area.removeFromTop(ovt::ui::TopBar::heightForWidth(logicalWidth)));
 
-  // The effects sit under the mixer, which is where they sit in the signal:
-  // everything above them is per partial, everything on them is the sum.
-  fxBar.setBounds(area.removeFromBottom(ovt::ui::FxBar::height()));
-
   area.reduce(kEdge, kEdge);
 
   const auto gutterArea = area.removeFromLeft(kGutterWidth);
@@ -220,11 +218,9 @@ void OvertoniumEditor::applyResizeLimits() {
   // Limits are expressed in logical pixels, so they scale with the zoom factor.
   // Wide enough for a usable stretch of mixer, and never narrower than the top
   // bar can lay itself out without dropping a group.
-  const int minWidth =
-      juce::jmax(juce::jmax(kGutterWidth + kStripWidth + kMasterGap +
-                                6 * kStripWidth + 2 * kEdge,
-                            ovt::ui::TopBar::minimumWidth()),
-                 ovt::ui::FxBar::minimumWidth());
+  const int minWidth = juce::jmax(kGutterWidth + kStripWidth + kMasterGap +
+                                      6 * kStripWidth + 2 * kEdge,
+                                  ovt::ui::TopBar::minimumWidth());
   // The narrowest window is also the one where the bar takes two rows, so
   // the minimum height has to leave room for that.
   const int minHeight = chromeHeight(minWidth) + minimumStripHeight();
@@ -264,6 +260,22 @@ juce::RangedAudioParameter *OvertoniumEditor::oscParameter(Role role,
 }
 
 bool OvertoniumEditor::isLinkEnabled() const { return topBar.isLinkEnabled(); }
+
+void OvertoniumEditor::showLinkMenu() { topBar.showLinkMenu(nullptr); }
+
+void OvertoniumEditor::updateLinkCursor() {
+  // Set on the holder rather than on each control: the strips and their knobs
+  // all take the parent's pointer, so this one assignment reaches every one of
+  // them. The noise channel is outside the holder, which is right, since LINK
+  // never reaches it either.
+  stripsHolder.setMouseCursor(topBar.isLinkEnabled()
+                                  ? linkCursor(topBar.getLinkCurve())
+                                  : juce::MouseCursor());
+
+  // The pointer may be sitting still over a strip, in which case nothing else
+  // would ask for it again.
+  stripsHolder.updateMouseCursor();
+}
 
 void OvertoniumEditor::gatherLinkWeights(
     int sourceIndex, LinkScope scope, LinkCurve curve,

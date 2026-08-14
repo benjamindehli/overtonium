@@ -1728,10 +1728,16 @@ void testTapeEcho() {
           "wow and flutter wander the pitch of the repeats audibly");
   }
 
-  // ---- crossfeed
-  // -------------------------------------------------------------
+  // ---- crossfeed -----------------------------------------------------------
+  // The input here is centred, which is the case that matters, since almost
+  // everything this thing is fed will be. A hard-panned source makes crossfeed
+  // look like it works even when it does nothing at all to a centred one.
   {
-    const auto sideEnergy = [&](float spread) {
+    struct Sides {
+      double firstL, firstR, secondL, secondR;
+    };
+
+    const auto walk = [&](float spread) {
       echo.reset();
 
       EchoParams e;
@@ -1744,23 +1750,35 @@ void testTapeEcho() {
       e.spread = spread;
 
       auto s = impulse((size_t)(sr * 1.5));
-      s.r[0] = 0.0f; // left only
-
       runBlocks(echo, s, e);
 
-      // The second repeat: with the heads crossed it should have walked over.
-      return peak(s.r, (size_t)(0.35 * sr), (size_t)(0.45 * sr));
+      const auto from1 = (size_t)(0.15 * sr), to1 = (size_t)(0.25 * sr);
+      const auto from2 = (size_t)(0.35 * sr), to2 = (size_t)(0.45 * sr);
+
+      return Sides{peak(s.l, from1, to1), peak(s.r, from1, to1),
+                   peak(s.l, from2, to2), peak(s.r, from2, to2)};
     };
 
-    const auto straight = sideEnergy(0.0f);
-    const auto crossed = sideEnergy(1.0f);
+    const auto straight = walk(0.0f);
+    const auto crossed = walk(1.0f);
 
-    std::printf(
-        "  second repeat on the far side: straight %.4f, crossed %.4f\n",
-        straight, crossed);
+    std::printf("  centred source, heads straight: repeat 1 L %.3f R %.3f, "
+                "repeat 2 L %.3f R %.3f\n",
+                straight.firstL, straight.firstR, straight.secondL,
+                straight.secondR);
+    std::printf("  centred source, heads crossed:  repeat 1 L %.3f R %.3f, "
+                "repeat 2 L %.3f R %.3f\n",
+                crossed.firstL, crossed.firstR, crossed.secondL,
+                crossed.secondR);
 
-    check(straight < 1.0e-6, "with the heads straight the repeats stay put");
-    check(crossed > 0.1, "with the heads crossed the repeats walk across");
+    check(std::abs(straight.firstL - straight.firstR) < 1.0e-6 &&
+              std::abs(straight.secondL - straight.secondR) < 1.0e-6,
+          "with the heads straight a centred source stays centred");
+
+    check(crossed.firstL > 0.5 && crossed.firstR < 0.01,
+          "with the heads crossed the first repeat lands on one side");
+    check(crossed.secondR > 0.4 * crossed.firstL && crossed.secondL < 0.01,
+          "and the second repeat has walked to the other");
   }
 }
 

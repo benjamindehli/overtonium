@@ -11,6 +11,7 @@
 #include "PluginProcessor.h"
 #include "Presets.h"
 #include "UI/Theme.h"
+#include "UI/TopBar.h"
 
 namespace {
 
@@ -515,6 +516,137 @@ void testMasterEffects(OvertoniumProcessor &p) {
   check(tailAfterNote() < 1.0e-5f, "Init puts both of them away again");
 }
 
+void testLinkMenu() {
+  section("Link menu");
+
+  using namespace ovt::ui;
+
+  LinkSettings settings;
+  settings.enabled = false;
+  settings.scope = LinkScope::Odd;
+  settings.curve = LinkCurve::TiltDown;
+
+  auto menu = buildLinkMenu(settings);
+
+  int items = 0, headers = 0, ticked = 0, enabled = 0;
+  std::string tickedNames;
+
+  for (juce::PopupMenu::MenuItemIterator it(menu); it.next();) {
+    const auto &item = it.getItem();
+
+    if (item.isSectionHeader) {
+      ++headers;
+      continue;
+    }
+
+    if (item.itemID == 0)
+      continue; // separator
+
+    ++items;
+
+    if (item.isTicked) {
+      ++ticked;
+      tickedNames += item.text.toStdString() + " ";
+    }
+
+    if (item.isEnabled)
+      ++enabled;
+  }
+
+  check(headers == 2, "the menu is in two named sections");
+  check(items == 1 + (int)LinkScope::NumScopes + (int)LinkCurve::NumCurves,
+        "the switch, four scopes and four curves are all there (" +
+            std::to_string(items) + ")");
+
+  // Exactly the two current settings are ticked, and nothing else.
+  check(ticked == 2, "two items are ticked");
+  check(tickedNames == "Odd harmonics Tilt down ",
+        "and they are the current ones: " + tickedNames);
+
+  // With LINK off the lists are shown but greyed, so the menu does not change
+  // shape as the switch moves.
+  check(enabled == 1, "with LINK off only the switch itself can be picked");
+
+  settings.enabled = true;
+  int enabledOn = 0;
+  auto onMenu = buildLinkMenu(settings);
+
+  for (juce::PopupMenu::MenuItemIterator it(onMenu); it.next();)
+    if (it.getItem().itemID != 0 && it.getItem().isEnabled &&
+        !it.getItem().isSectionHeader)
+      ++enabledOn;
+
+  check(enabledOn == items, "with LINK on every item can be picked");
+
+  // ---- what the menu does when something is chosen --------------------------
+  LinkSettings state;
+
+  check(!applyLinkMenuChoice(0, state), "dismissing the menu changes nothing");
+  check(!applyLinkMenuChoice(9999, state), "an id from elsewhere is ignored");
+
+  check(applyLinkMenuChoice(1, state) && state.enabled,
+        "the first item is the switch");
+  check(applyLinkMenuChoice(1, state) && !state.enabled,
+        "and it toggles rather than setting");
+
+  // Every scope and every curve has to come back as itself, which is what the
+  // two id ranges are for.
+  bool roundTrip = true;
+
+  for (int i = 0; i < (int)LinkScope::NumScopes; ++i) {
+    applyLinkMenuChoice(100 + i, state);
+    roundTrip &= state.scope == (LinkScope)i;
+  }
+
+  for (int i = 0; i < (int)LinkCurve::NumCurves; ++i) {
+    applyLinkMenuChoice(200 + i, state);
+    roundTrip &= state.curve == (LinkCurve)i;
+  }
+
+  check(roundTrip, "every scope and curve comes back as the one picked");
+
+  // Picking a curve must not disturb the scope, or the two lists would fight.
+  state.scope = LinkScope::SameInterval;
+  applyLinkMenuChoice(203, state);
+  check(state.scope == LinkScope::SameInterval,
+        "picking a curve leaves the scope alone");
+}
+
+void testTopBarLayout() {
+  section("Top bar layout");
+
+  using ovt::ui::TopBar;
+
+  const auto minimum = TopBar::minimumWidth();
+  const auto tallest = TopBar::heightForWidth(minimum);
+
+  std::printf("  minimum width %d, bar %d px there, %d px at 1400\n", minimum,
+              tallest, TopBar::heightForWidth(1400));
+
+  check(minimum > 0 && minimum < 1100,
+        "the bar fits in a sensible minimum width (" + std::to_string(minimum) +
+            ")");
+
+  check(tallest <= 3 * 54 + 2 * 4 + 2 * 6,
+        "and takes no more than three rows there (" + std::to_string(tallest) +
+            " px)");
+
+  // Wider windows must never need more rows than narrow ones.
+  int previous = tallest;
+  bool monotonic = true;
+
+  for (int width = minimum; width <= 2400; width += 17) {
+    const auto rows = TopBar::heightForWidth(width);
+    monotonic &= rows <= previous;
+    previous = rows;
+  }
+
+  check(monotonic, "the bar never grows taller as the window grows wider");
+
+  check(TopBar::heightForWidth(2400) < TopBar::heightForWidth(minimum),
+        "and it is shorter on a wide window than on a narrow one");
+}
+
 void testBusLayouts(OvertoniumProcessor &p) {
   section("Bus layouts");
 
@@ -626,6 +758,8 @@ int main() {
   testMasterEffects(processor);
   testLinkCurves();
   testRowHover();
+  testLinkMenu();
+  testTopBarLayout();
   testBusLayouts(processor);
   testStateRoundTrip(processor);
   testSoloAndMute(processor);
