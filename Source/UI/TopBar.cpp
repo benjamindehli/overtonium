@@ -2,6 +2,8 @@
 
 #include "../PluginParameters.h"
 #include "../Presets.h"
+#include <limits>
+
 #include "LookAndFeel.h"
 
 namespace ovt::ui {
@@ -22,6 +24,13 @@ constexpr int kGroupPad = 7;
 constexpr int kGroupMinWidth[] = {164, 202, 262, 338, 82};
 constexpr int kOutputGroupIndex = 3;
 constexpr int kGroupCount = 5;
+
+/// The meter is the only thing worth extra room, but not unlimited extra room.
+/// Uncapped it swallows a whole second row and reads as a progress bar.
+constexpr int kOutputMaxExtra = 190;
+
+/// The title only occupies the first row, so the second gets the full width.
+constexpr int kTitleLead = 10;
 
 int totalGroupWidth(int first, int last) {
   int total = 0;
@@ -143,7 +152,8 @@ void LabelledKnob::paint(juce::Graphics &g) {
 }
 
 void LabelledKnob::resized() {
-  slider.setBounds(getLocalBounds().withTrimmedBottom(12));
+  // A little vertical inset, or the tick ring sits right on the group border.
+  slider.setBounds(getLocalBounds().withTrimmedBottom(12).reduced(0, 2));
 }
 
 // =============================================================================
@@ -343,23 +353,27 @@ void TopBar::setZoomChoice(float zoom) {
 }
 
 int TopBar::heightForWidth(int width) {
-  const auto content = width - 2 * kBarMargin - kTitleWidth - 10;
+  const auto content = width - 2 * kBarMargin - kTitleWidth - kTitleLead;
   const auto rows = content >= totalGroupWidth(0, kGroupCount) ? 1 : 2;
 
   return rows * kRowHeight + (rows - 1) * kRowGap + 2 * kBarPadY;
 }
 
 int TopBar::minimumWidth() {
-  // The narrowest content width at which some split of the groups fits across
-  // two rows. Greedy filling from the left reaches that same split, so this is
-  // a real floor rather than an optimistic one.
-  int best = totalGroupWidth(0, kGroupCount);
+  // The narrowest window at which some split fits across two rows. Only the
+  // first row loses width to the title, which is why the two rows are measured
+  // against different budgets. Greedy filling from the left reaches the same
+  // split, so this is a real floor rather than an optimistic one.
+  int best = std::numeric_limits<int>::max();
 
-  for (int split = 1; split < kGroupCount; ++split)
-    best = juce::jmin(best, juce::jmax(totalGroupWidth(0, split),
-                                       totalGroupWidth(split, kGroupCount)));
+  for (int split = 1; split < kGroupCount; ++split) {
+    const auto first = totalGroupWidth(0, split) + kTitleWidth + kTitleLead;
+    const auto second = totalGroupWidth(split, kGroupCount);
 
-  return best + kTitleWidth + 10 + 2 * kBarMargin;
+    best = juce::jmin(best, juce::jmax(first, second) + 2 * kBarMargin);
+  }
+
+  return best;
 }
 
 void TopBar::parkControls() {
@@ -454,7 +468,7 @@ void TopBar::layoutRow(juce::Rectangle<int> row, int firstGroup,
 
     auto width = kGroupMinWidth[g];
     if (g == kOutputGroupIndex)
-      width += surplus;
+      width += juce::jmin(surplus, kOutputMaxExtra);
 
     // Never hand out more than is left, so a very narrow window crops the last
     // group rather than letting groups overlap each other.
@@ -506,21 +520,25 @@ void TopBar::resized() {
   parkControls();
 
   auto area = getLocalBounds().reduced(kBarMargin, kBarPadY);
-  area.removeFromLeft(kTitleWidth + 10);
+  const auto fullWidth = area;
 
-  if (area.getWidth() < 60)
+  // Only the first row has to make room for the title.
+  auto firstRow = area.removeFromTop(kRowHeight);
+  firstRow.removeFromLeft(kTitleWidth + kTitleLead);
+
+  if (firstRow.getWidth() < 60)
     return;
 
   // Fill the first row greedily, then everything left over goes to the second.
   int wrapAt = kGroupCount;
 
-  if (area.getHeight() >= 2 * kRowHeight) {
+  if (fullWidth.getHeight() >= 2 * kRowHeight) {
     int used = 0;
 
     for (int g = 0; g < kGroupCount; ++g) {
       const auto need = kGroupMinWidth[g] + (g > 0 ? kGroupGap : 0);
 
-      if (used + need > area.getWidth() && g > 0) {
+      if (used + need > firstRow.getWidth() && g > 0) {
         wrapAt = g;
         break;
       }
@@ -529,11 +547,17 @@ void TopBar::resized() {
     }
   }
 
-  layoutRow(area.removeFromTop(kRowHeight), 0, wrapAt);
+  layoutRow(firstRow, 0, wrapAt);
 
   if (wrapAt < kGroupCount) {
     area.removeFromTop(kRowGap);
-    layoutRow(area.removeFromTop(kRowHeight), wrapAt, kGroupCount);
+
+    // The second row starts at the margin, since the title is above it rather
+    // than beside it.
+    layoutRow(area.removeFromTop(kRowHeight)
+                  .withX(fullWidth.getX())
+                  .withWidth(fullWidth.getWidth()),
+              wrapAt, kGroupCount);
   }
 }
 

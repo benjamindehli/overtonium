@@ -141,7 +141,9 @@ The top bar holds the global controls, boxed into groups of things that work tog
 
 **PHASE** resets partial phase on each note for a coherent, percussive attack. **CLIP** soft-clips the output and is worth leaving on when you push 32 faders up.
 
-The bar reflows onto a second row when the window is too narrow to fit the groups across one, rather than dropping controls or letting captions collide. That happens below about 1290 px of logical width, and the window will not shrink past the point where even two rows would have to start hiding a group.
+The bar reflows onto a second row when the window is too narrow to fit the groups across one, rather than dropping controls or letting captions collide. That happens below about 1290 px of logical width. The second row runs the full width, since the title is above it rather than beside it, and the window will not shrink past 722 px, the point at which even two rows would have to start hiding a group.
+
+The output meter takes any width left over on its row, up to a limit. Uncapped it swallowed a whole second row and stopped reading as a meter.
 
 Double-clicking any knob restores its default. Hovering a harmonic number shows its interval and exact cent deviation.
 
