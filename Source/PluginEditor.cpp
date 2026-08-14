@@ -7,13 +7,17 @@ using namespace ovt;
 using namespace ovt::ui;
 
 namespace {
-constexpr int kTopBarHeight = 66;
 constexpr int kEdge = 4;
 constexpr int kScrollBarThickness = 10;
-/// Breathing room between the master channel and the scrolling series.
+/// Breathing room between the noise channel and the scrolling series.
 constexpr int kMasterGap = 8;
 
-int chromeHeight() { return kTopBarHeight + 2 * kEdge + kScrollBarThickness; }
+/// Everything above and below the strips. The top bar reflows onto a second
+/// row when narrow, so its height depends on the width it is given.
+int chromeHeight(int logicalWidth) {
+  return ovt::ui::TopBar::heightForWidth(logicalWidth) + 2 * kEdge +
+         kScrollBarThickness;
+}
 
 /// State keys stored alongside the parameters so window size survives a reopen.
 const juce::Identifier kEditorWidth{"editorWidth"};
@@ -111,7 +115,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   // layout.
   const int defaultWidth = kGutterWidth + kStripWidth + kMasterGap +
                            kNumHarmonics * kStripWidth + 2 * kEdge;
-  const int defaultHeight = chromeHeight() + preferredStripHeight();
+  const int defaultHeight = chromeHeight(defaultWidth) + preferredStripHeight();
 
   const int savedWidth = (int)state.getProperty(kEditorWidth, defaultWidth);
   const int savedHeight = (int)state.getProperty(kEditorHeight, defaultHeight);
@@ -147,7 +151,8 @@ void OvertoniumEditor::resized() {
   content.setBounds(0, 0, logicalWidth, logicalHeight);
 
   auto area = content.getLocalBounds();
-  topBar.setBounds(area.removeFromTop(kTopBarHeight));
+  topBar.setBounds(
+      area.removeFromTop(ovt::ui::TopBar::heightForWidth(logicalWidth)));
 
   area.reduce(kEdge, kEdge);
 
@@ -187,9 +192,14 @@ void OvertoniumEditor::resized() {
 
 void OvertoniumEditor::applyResizeLimits() {
   // Limits are expressed in logical pixels, so they scale with the zoom factor.
-  const int minWidth =
-      kGutterWidth + kStripWidth + kMasterGap + 6 * kStripWidth + 2 * kEdge;
-  const int minHeight = chromeHeight() + minimumStripHeight();
+  // Wide enough for a usable stretch of mixer, and never narrower than the top
+  // bar can lay itself out without dropping a group.
+  const int minWidth = juce::jmax(kGutterWidth + kStripWidth + kMasterGap +
+                                      6 * kStripWidth + 2 * kEdge,
+                                  ovt::ui::TopBar::minimumWidth());
+  // The narrowest window is also the one where the bar takes two rows, so
+  // the minimum height has to leave room for that.
+  const int minHeight = chromeHeight(minWidth) + minimumStripHeight();
 
   setResizeLimits(juce::roundToInt((float)minWidth * zoom),
                   juce::roundToInt((float)minHeight * zoom),

@@ -9,6 +9,27 @@ namespace ovt::ui {
 namespace {
 constexpr float kZoomChoices[] = {0.75f, 1.0f, 1.25f, 1.5f};
 
+constexpr int kBarMargin = 12;
+constexpr int kBarPadY = 6;
+constexpr int kRowHeight = 54;
+constexpr int kRowGap = 4;
+constexpr int kGroupGap = 8;
+constexpr int kTitleWidth = 178;
+constexpr int kGroupPad = 7;
+
+/// Minimum width of each group, in the order they are laid out. Only the
+/// output group grows, because the meter is the one thing worth more room.
+constexpr int kGroupMinWidth[] = {164, 202, 262, 338, 82};
+constexpr int kOutputGroupIndex = 3;
+constexpr int kGroupCount = 5;
+
+int totalGroupWidth(int first, int last) {
+  int total = 0;
+  for (int g = first; g < last; ++g)
+    total += kGroupMinWidth[g] + (g > first ? kGroupGap : 0);
+
+  return total;
+}
 } // namespace
 
 // =============================================================================
@@ -321,6 +342,130 @@ void TopBar::setZoomChoice(float zoom) {
   }
 }
 
+int TopBar::heightForWidth(int width) {
+  const auto content = width - 2 * kBarMargin - kTitleWidth - 10;
+  const auto rows = content >= totalGroupWidth(0, kGroupCount) ? 1 : 2;
+
+  return rows * kRowHeight + (rows - 1) * kRowGap + 2 * kBarPadY;
+}
+
+int TopBar::minimumWidth() {
+  // The narrowest content width at which some split of the groups fits across
+  // two rows. Greedy filling from the left reaches that same split, so this is
+  // a real floor rather than an optimistic one.
+  int best = totalGroupWidth(0, kGroupCount);
+
+  for (int split = 1; split < kGroupCount; ++split)
+    best = juce::jmin(best, juce::jmax(totalGroupWidth(0, split),
+                                       totalGroupWidth(split, kGroupCount)));
+
+  return best + kTitleWidth + 10 + 2 * kBarMargin;
+}
+
+void TopBar::parkControls() {
+  juce::Component *all[] = {
+      &master,      &spread,        &bend,         &meter,       &meterCaption,
+      &presetBox,   &presetCaption, &polyBox,      &polyCaption, &zoomBox,
+      &zoomCaption, &scopeBox,      &scopeCaption, &curveBox,    &curveCaption,
+      &linkButton,  &phaseButton,   &clipButton,   &voicesLabel};
+
+  for (auto *c : all)
+    c->setBounds({});
+
+  groupBounds.fill({});
+}
+
+void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
+  groupBounds[(size_t)group] = bounds;
+
+  auto r = bounds.reduced(kGroupPad, 0);
+
+  // Captioned controls carry their label above. Knobs carry theirs below, so
+  // both come out the same overall height and can share a row.
+  const auto captioned = [](juce::Component &c, juce::Label &cap,
+                            juce::Rectangle<int> column) {
+    auto area = column.withSizeKeepingCentre(column.getWidth(), 37);
+    cap.setBounds(area.removeFromTop(12));
+    area.removeFromTop(1);
+    c.setBounds(area);
+  };
+
+  const auto button = [](juce::Button &b, juce::Rectangle<int> column) {
+    b.setBounds(column.withSizeKeepingCentre(column.getWidth(), 24));
+  };
+
+  switch (group) {
+  case PresetGroup:
+    captioned(presetBox, presetCaption, r);
+    break;
+
+  case VoiceGroup:
+    captioned(polyBox, polyCaption, r.removeFromLeft(56));
+    r.removeFromLeft(6);
+    bend.setBounds(r.removeFromLeft(52));
+    r.removeFromLeft(6);
+    voicesLabel.setBounds(r);
+    break;
+
+  case LinkGroup:
+    button(linkButton, r.removeFromLeft(48));
+    r.removeFromLeft(6);
+    captioned(scopeBox, scopeCaption, r.removeFromLeft(94));
+    r.removeFromLeft(6);
+    captioned(curveBox, curveCaption, r.removeFromLeft(94));
+    break;
+
+  case OutputGroup: {
+    spread.setBounds(r.removeFromLeft(52));
+    master.setBounds(r.removeFromLeft(52));
+    r.removeFromLeft(6);
+
+    // The meter takes whatever the group was given beyond its minimum.
+    button(clipButton, r.removeFromRight(44));
+    r.removeFromRight(4);
+    button(phaseButton, r.removeFromRight(50));
+    r.removeFromRight(6);
+
+    captioned(meter, meterCaption, r);
+    break;
+  }
+
+  case ViewGroup:
+    captioned(zoomBox, zoomCaption, r);
+    break;
+
+  default:
+    jassertfalse;
+    break;
+  }
+}
+
+void TopBar::layoutRow(juce::Rectangle<int> row, int firstGroup,
+                       int lastGroup) {
+  if (firstGroup >= lastGroup)
+    return;
+
+  const auto needed = totalGroupWidth(firstGroup, lastGroup);
+  const auto surplus = juce::jmax(0, row.getWidth() - needed);
+
+  for (int g = firstGroup; g < lastGroup; ++g) {
+    if (g > firstGroup)
+      row.removeFromLeft(kGroupGap);
+
+    auto width = kGroupMinWidth[g];
+    if (g == kOutputGroupIndex)
+      width += surplus;
+
+    // Never hand out more than is left, so a very narrow window crops the last
+    // group rather than letting groups overlap each other.
+    width = juce::jmin(width, row.getWidth());
+    if (width < 40)
+      break;
+
+    placeGroup(g, row.removeFromLeft(width));
+  }
+}
+
 void TopBar::paint(juce::Graphics &g) {
   g.setColour(colours::panel);
   g.fillRect(getLocalBounds());
@@ -328,7 +473,23 @@ void TopBar::paint(juce::Graphics &g) {
   g.setColour(colours::outline);
   g.fillRect(0, getHeight() - 1, getWidth(), 1);
 
-  auto title = getLocalBounds().reduced(12, 6).removeFromLeft(168);
+  // A panel behind each group, which is what carries the "these belong
+  // together" reading. The controls name themselves, so the boxes carry no
+  // titles of their own and cost no extra height.
+  for (const auto &r : groupBounds) {
+    if (r.isEmpty())
+      continue;
+
+    const auto f = r.toFloat();
+
+    g.setColour(colours::panelAlt.withAlpha(0.75f));
+    g.fillRoundedRectangle(f, 4.0f);
+    g.setColour(colours::outline.withAlpha(0.9f));
+    g.drawRoundedRectangle(f.reduced(0.5f), 4.0f, 1.0f);
+  }
+
+  auto title = getLocalBounds().reduced(kBarMargin, kBarPadY);
+  title = title.removeFromLeft(kTitleWidth).withHeight(kRowHeight);
 
   g.setColour(colours::text);
   g.setFont(makeFont(21.0f, true));
@@ -342,83 +503,37 @@ void TopBar::paint(juce::Graphics &g) {
 }
 
 void TopBar::resized() {
-  auto b = getLocalBounds().reduced(12, 6);
+  parkControls();
 
-  b.removeFromLeft(168); // title, painted rather than a child component
-  b.removeFromLeft(10);
+  auto area = getLocalBounds().reduced(kBarMargin, kBarPadY);
+  area.removeFromLeft(kTitleWidth + 10);
 
-  LabelledKnob *knobs[] = {&master, &spread, &bend};
+  if (area.getWidth() < 60)
+    return;
 
-  for (auto *k : knobs) {
-    if (b.getWidth() < 60)
-      break;
+  // Fill the first row greedily, then everything left over goes to the second.
+  int wrapAt = kGroupCount;
 
-    k->setBounds(b.removeFromLeft(54));
-    b.removeFromLeft(2);
+  if (area.getHeight() >= 2 * kRowHeight) {
+    int used = 0;
+
+    for (int g = 0; g < kGroupCount; ++g) {
+      const auto need = kGroupMinWidth[g] + (g > 0 ? kGroupGap : 0);
+
+      if (used + need > area.getWidth() && g > 0) {
+        wrapAt = g;
+        break;
+      }
+
+      used += need;
+    }
   }
 
-  auto placeCaptioned = [](juce::Component &c, juce::Label &cap,
-                           juce::Rectangle<int> column) {
-    auto area = column.withSizeKeepingCentre(column.getWidth(), 37);
-    cap.setBounds(area.removeFromTop(12));
-    area.removeFromTop(1);
-    c.setBounds(area);
-  };
+  layoutRow(area.removeFromTop(kRowHeight), 0, wrapAt);
 
-  // Everything on the right is placed from the right edge inwards, so the knob
-  // cluster in the middle is what gets squeezed when the window is narrow.
-  voicesLabel.setBounds(
-      b.removeFromRight(juce::jmin(72, juce::jmax(0, b.getWidth()))));
-  b.removeFromRight(6);
-
-  if (b.getWidth() > 90) {
-    placeCaptioned(zoomBox, zoomCaption, b.removeFromRight(74));
-    b.removeFromRight(8);
-  }
-
-  if (b.getWidth() > 180) {
-    auto buttons = b.removeFromRight(164).withSizeKeepingCentre(164, 24);
-    linkButton.setBounds(buttons.removeFromLeft(50));
-    buttons.removeFromLeft(5);
-    phaseButton.setBounds(buttons.removeFromLeft(52));
-    buttons.removeFromLeft(5);
-    clipButton.setBounds(buttons);
-    b.removeFromRight(8);
-  }
-
-  if (b.getWidth() > 200) {
-    placeCaptioned(curveBox, curveCaption, b.removeFromRight(104));
-    b.removeFromRight(6);
-    placeCaptioned(scopeBox, scopeCaption, b.removeFromRight(104));
-    b.removeFromRight(8);
-  } else {
-    curveBox.setBounds({});
-    curveCaption.setBounds({});
-    scopeBox.setBounds({});
-    scopeCaption.setBounds({});
-  }
-
-  if (b.getWidth() > 80) {
-    placeCaptioned(polyBox, polyCaption, b.removeFromRight(60));
-    b.removeFromRight(8);
-  }
-
-  if (b.getWidth() > 110) {
-    placeCaptioned(presetBox, presetCaption,
-                   b.removeFromRight(juce::jmin(170, b.getWidth())));
-    b.removeFromRight(14);
-  }
-
-  // Whatever is left in the middle goes to the output meter, so it grows with
-  // the window rather than staying a token strip.
-  if (b.getWidth() > 90) {
-    auto column = b.withSizeKeepingCentre(juce::jmin(240, b.getWidth()), 37);
-    meterCaption.setBounds(column.removeFromTop(12));
-    column.removeFromTop(1);
-    meter.setBounds(column);
-  } else {
-    meter.setBounds({});
-    meterCaption.setBounds({});
+  if (wrapAt < kGroupCount) {
+    area.removeFromTop(kRowGap);
+    layoutRow(area.removeFromTop(kRowHeight), wrapAt, kGroupCount);
   }
 }
 

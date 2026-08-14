@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <functional>
 #include <memory>
 #include <utility>
@@ -81,6 +82,16 @@ public:
 
   std::function<void()> onLinkSettingsChanged;
 
+  /// The bar reflows onto a second row when the groups no longer fit across
+  /// one, so nothing has to be dropped on a narrow window. Static because the
+  /// editor has to know the height before it can hand the bar its bounds.
+  static int heightForWidth(int width);
+
+  /// Narrowest window the bar can lay out without hiding a group. The editor
+  /// takes this as a floor, since refusing to shrink further is better than
+  /// quietly dropping controls.
+  static int minimumWidth();
+
   void setVoiceCount(int active, int limit);
   void setOutputLevels(float l, float r) { meter.push(l, r); }
   void setZoomChoice(float zoom);
@@ -96,6 +107,27 @@ private:
 
   /// The two selectors only mean anything while LINK is engaged.
   void updateLinkEnablement();
+
+  /// Related controls sit together in a bordered group.
+  enum Group {
+    PresetGroup = 0,
+    VoiceGroup,
+    LinkGroup,
+    OutputGroup,
+    ViewGroup,
+    NumGroups
+  };
+
+  /// Clears every control's bounds before a fresh pass. Without this a control
+  /// that does not get placed keeps whatever position it had when the window
+  /// was wider, which is what put the preset and poly captions on top of one
+  /// another.
+  void parkControls();
+
+  void layoutRow(juce::Rectangle<int> row, int firstGroup, int lastGroup);
+  void placeGroup(int group, juce::Rectangle<int> bounds);
+
+  std::array<juce::Rectangle<int>, NumGroups> groupBounds{};
 
   juce::AudioProcessorValueTreeState &apvts;
 
