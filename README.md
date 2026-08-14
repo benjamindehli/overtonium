@@ -99,7 +99,9 @@ At `blend = 1` this is exactly `n` times the fundamental. Nothing is hard-coded,
 
 The test suite asserts this table, so the derivation cannot silently drift from it.
 
-Strips are colour-coded by interval class, which keeps the structure of the series visible while you scroll: octaves gold, fifths cyan, major thirds green, sevenths orange, and so on.
+Strips are colour-coded by interval class, which keeps the structure of the series visible while you scroll. The twelve classes sit in chromatic order along a narrow band running from blue at the octave, through magenta and red in the middle, to yellow at the major seventh. Octaves are therefore blue, fifths rose, major thirds magenta, sevenths amber and yellow.
+
+The band is deliberately narrow, a crop from the middle of a full blue to yellow sweep, so 32 channels read as one family rather than as a rainbow. Saturation and value fall towards the warm end because yellow reads far brighter than blue at the same nominal value, which keeps the sevenths from visually swamping the octaves. Nothing in the band enters green or cyan, which is where the accent used by the global controls lives, so chrome never reads as one of the channels.
 
 ## Controls
 

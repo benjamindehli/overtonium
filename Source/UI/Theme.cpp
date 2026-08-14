@@ -1,29 +1,29 @@
 #include "Theme.h"
 
+#include <cmath>
+
 #include "../PluginParameters.h"
 
 namespace ovt::ui {
 
 juce::Colour intervalColour(int pitchClass) {
-  // Hues chosen so neighbouring interval classes stay distinguishable at 38 px
-  // wide.
-  static const float hues[12] = {
-      45.0f,  // prime/octave  gold
-      10.0f,  // minor second  red
-      75.0f,  // major second  chartreuse
-      150.0f, // minor third   spring green
-      115.0f, // major third   green
-      175.0f, // fourth        teal
-      320.0f, // tritone       magenta
-      195.0f, // fifth         cyan
-      265.0f, // minor sixth   indigo
-      285.0f, // major sixth   violet
-      30.0f,  // minor seventh orange
-      220.0f  // major seventh blue
-  };
+  const auto pc = ((pitchClass % 12) + 12) % 12;
+  const auto t = (float)pc / 11.0f;
 
-  const auto pc = (size_t)(((pitchClass % 12) + 12) % 12);
-  return juce::Colour::fromHSV(hues[pc] / 360.0f, 0.55f, 0.88f, 1.0f);
+  // The band is the middle of a blue to yellow sweep, cropped at both ends.
+  // The full sweep put pure blue and pure yellow at the extremes, which was
+  // louder than a control surface wants. The hue passes through 360, so the
+  // wrap has to happen after interpolating rather than before.
+  const auto hue = 238.1f + t * (411.5f - 238.1f);
+
+  // Saturation and value fall towards the warm end because yellow reads far
+  // brighter than blue at equal nominal value. Without this the sevenths would
+  // be several times the luminance of the octaves and would visually swamp
+  // them.
+  const auto sat = 0.730f + t * (0.585f - 0.730f);
+  const auto val = 0.954f + t * (0.863f - 0.954f);
+
+  return juce::Colour::fromHSV(std::fmod(hue, 360.0f) / 360.0f, sat, val, 1.0f);
 }
 
 namespace {

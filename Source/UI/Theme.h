@@ -16,13 +16,20 @@ inline const juce::Colour groove{0xff090b0e};
 inline const juce::Colour outline{0xff272e37};
 inline const juce::Colour text{0xffd9dfe7};
 inline const juce::Colour textDim{0xff6f7a86};
-inline const juce::Colour accent{0xff5fd0c4};
+/// Chrome, not content. Sits in the cyan the channel ramp never reaches, so
+/// the global controls never read as one of the channels.
+inline const juce::Colour accent{0xff62bbd9};
 inline const juce::Colour muteOn{0xffe0733d};
 inline const juce::Colour soloOn{0xffe8c34a};
 } // namespace colours
 
-/// Hue per interval class, so the eye can group octaves, fifths and thirds at a
-/// glance while scanning 32 strips.
+/// Colour for an interval class, so the eye can group octaves, fifths and
+/// thirds while scanning 32 strips.
+///
+/// The twelve classes are spread in chromatic order across a narrow band that
+/// runs from blue, through magenta and red, to yellow. Narrow enough that the
+/// mixer reads as one family rather than a rainbow, and placed clear of the
+/// green and cyan the global accent uses.
 juce::Colour intervalColour(int pitchClass);
 
 /// Vertical slots in a channel strip. The gutter on the left lays out the same
