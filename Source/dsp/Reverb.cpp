@@ -30,6 +30,14 @@ constexpr float kDiffuseRightMs[Reverb::kAllpasses] = {5.13f, 3.91f, 13.61f,
 
 constexpr float kDiffuseCoefficient = 0.65f;
 
+/// Where the input is cut off before it reaches the network.
+///
+/// Fixed rather than offered as a control. A fundamental at full level feeding
+/// a long tail floods everything above it, so this is never wanted open, and
+/// far enough down that it never eats the note itself. On an instrument built
+/// from 32 partials the interest is above here anyway.
+constexpr float kLowCutHz = 175.0f;
+
 /// Sets the wet level so that mix at 1 lands in the same country as the dry
 /// signal it replaced. Chosen by measuring, not by taste.
 constexpr float kOutputScale = 1.0f;
@@ -178,8 +186,17 @@ void Reverb::process(float *outL, float *outR, int numSamples,
   const auto mix = std::clamp(p.mix, 0.0f, 1.0f);
   const auto width = std::clamp(p.width, 0.0f, 1.0f);
 
-  const auto targetScale =
-      0.35f + std::clamp(p.size, 0.0f, 1.0f) * (kMaxScale - 0.35f);
+  const auto rt60 = std::clamp(p.decaySeconds, 0.1f, 30.0f);
+
+  // The room is sized from the decay rather than set separately. A long tail in
+  // a small room is a spring rather than a place, and a short one in a hall is
+  // a gate, so the two were always turned together anyway. Logarithmic, since
+  // that is how the decay control itself is scaled.
+  const auto size = std::clamp((std::log(rt60) - std::log(0.2f)) /
+                                   (std::log(20.0f) - std::log(0.2f)),
+                               0.0f, 1.0f);
+
+  const auto targetScale = 0.35f + size * (kMaxScale - 0.35f);
 
   if (smoothedScale < 0.0f)
     smoothedScale = targetScale;
@@ -192,14 +209,11 @@ void Reverb::process(float *outL, float *outR, int numSamples,
   const auto damping = std::clamp(p.damping, 0.0f, 1.0f);
   const auto dampHz = 800.0f + (1.0f - damping) * (1.0f - damping) * 15000.0f;
   const auto dampCoef = onePole(dampHz, sampleRate);
-  const auto lowCutCoef =
-      onePole(std::clamp(p.lowCutHz, 20.0f, 800.0f), sampleRate);
+  const auto lowCutCoef = onePole(kLowCutHz, sampleRate);
 
   const auto preDelaySamples =
       std::clamp((float)(p.preDelaySeconds * sampleRate), 1.0f,
                  (float)(preDelayLength - 2));
-
-  const auto rt60 = std::clamp(p.decaySeconds, 0.1f, 30.0f);
 
   const auto &sine = SineTable::instance();
 
@@ -208,7 +222,7 @@ void Reverb::process(float *outL, float *outR, int numSamples,
 
   for (int i = 0; i < kLines; ++i) {
     delay[(size_t)i] = baseSamples[(size_t)i] * targetScale;
-    modDepth[(size_t)i] = 2.0f + 0.0015f * delay[(size_t)i];
+    modDepth[(size_t)i] = 3.0f + 0.0035f * delay[(size_t)i];
     modStep[(size_t)i] = kModHz[i] / sampleRate;
 
     // 60 dB over the requested time, given how often this line goes round.

@@ -17,7 +17,9 @@ namespace ovt {
 /// Stereo is a crossfeed rather than a second time. Two different delay times
 /// comb against each other as soon as the source has any width, while feeding
 /// each head back into the other keeps one time and lets the repeats walk
-/// across the image.
+/// across the image. It is fixed rather than offered as a control: the useful
+/// part of that range is a lean, and everything either side of it was either
+/// inaudible or a gimmick.
 class TapeEcho {
 public:
   /// Longest head distance the buffer has to allow for, plus room for the

@@ -9,7 +9,6 @@ namespace ovt::params {
 // ---- global parameter IDs ---------------------------------------------------
 inline constexpr const char *masterGainId = "masterGain";
 inline constexpr const char *polyphonyId = "polyphony";
-inline constexpr const char *spreadId = "stereoSpread";
 inline constexpr const char *bendRangeId = "bendRange";
 inline constexpr const char *phaseResetId = "phaseReset";
 inline constexpr const char *safetyClipId = "safetyClip";
@@ -19,16 +18,12 @@ inline constexpr const char *echoOnId = "echoOn";
 inline constexpr const char *echoMixId = "echoMix";
 inline constexpr const char *echoTimeId = "echoTime";
 inline constexpr const char *echoFeedbackId = "echoFeedback";
-inline constexpr const char *echoToneId = "echoTone";
-inline constexpr const char *echoWobbleId = "echoWobble";
-inline constexpr const char *echoSpreadId = "echoSpread";
+inline constexpr const char *echoAgeId = "echoAge";
 
 inline constexpr const char *reverbOnId = "reverbOn";
 inline constexpr const char *reverbMixId = "reverbMix";
-inline constexpr const char *reverbSizeId = "reverbSize";
 inline constexpr const char *reverbDecayId = "reverbDecay";
 inline constexpr const char *reverbDampId = "reverbDamp";
-inline constexpr const char *reverbLowCutId = "reverbLowCut";
 inline constexpr const char *reverbPreDelayId = "reverbPreDelay";
 inline constexpr const char *reverbWidthId = "reverbWidth";
 
@@ -50,6 +45,7 @@ inline constexpr const char *atSuffix = "aftertouch";
 inline constexpr const char *muteSuffix = "mute";
 inline constexpr const char *soloSuffix = "solo";
 inline constexpr const char *volumeSuffix = "volume";
+inline constexpr const char *panSuffix = "pan";
 
 /// "h07_tune" for index0 == 6. Zero-padded so the IDs sort naturally.
 juce::String oscParamId(const char *suffix, int index0);
@@ -86,6 +82,7 @@ struct Cache {
     std::atomic<float> *mute = nullptr;
     std::atomic<float> *solo = nullptr;
     std::atomic<float> *volume = nullptr;
+    std::atomic<float> *pan = nullptr;
   };
 
   std::array<Osc, kNumHarmonics> osc{};
@@ -104,13 +101,13 @@ struct Cache {
     std::atomic<float> *mute = nullptr;
     std::atomic<float> *solo = nullptr;
     std::atomic<float> *volume = nullptr;
+    std::atomic<float> *pan = nullptr;
   };
 
   NoiseChannel noise{};
 
   std::atomic<float> *masterGain = nullptr;
   std::atomic<float> *polyphony = nullptr;
-  std::atomic<float> *spread = nullptr;
   std::atomic<float> *bendRange = nullptr;
   std::atomic<float> *phaseReset = nullptr;
   std::atomic<float> *safetyClip = nullptr;
@@ -120,18 +117,14 @@ struct Cache {
     std::atomic<float> *mix = nullptr;
     std::atomic<float> *time = nullptr;
     std::atomic<float> *feedback = nullptr;
-    std::atomic<float> *tone = nullptr;
-    std::atomic<float> *wobble = nullptr;
-    std::atomic<float> *spread = nullptr;
+    std::atomic<float> *age = nullptr;
   };
 
   struct Reverb {
     std::atomic<float> *on = nullptr;
     std::atomic<float> *mix = nullptr;
-    std::atomic<float> *size = nullptr;
     std::atomic<float> *decay = nullptr;
     std::atomic<float> *damp = nullptr;
-    std::atomic<float> *lowCut = nullptr;
     std::atomic<float> *preDelay = nullptr;
     std::atomic<float> *width = nullptr;
   };

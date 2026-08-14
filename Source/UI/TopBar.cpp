@@ -15,29 +15,26 @@ constexpr int kBarMargin = 12;
 constexpr int kBarPadY = 6;
 constexpr int kRowHeight = 54;
 constexpr int kRowGap = 4;
-constexpr int kGroupGap = 8;
-constexpr int kTitleWidth = 178;
-constexpr int kGroupPad = 7;
+constexpr int kGroupGap = 6;
+constexpr int kTitleWidth = 150;
+constexpr int kGroupPad = 6;
 
 /// Minimum width of each group, in the order they are laid out. Only the
 /// output group grows, because the meter is the one thing worth more room.
-constexpr int kGroupMinWidth[] = {164, 124, 96, 324, 366, 338, 82};
+constexpr int kGroupMinWidth[] = {144, 90, 60, 222, 260, 186, 82};
 constexpr int kOutputGroupIndex = 5;
 constexpr int kGroupCount = 7;
 
-constexpr int kKnobWidth = 42;
+constexpr int kKnobWidth = 38;
 constexpr int kFxToggleWidth = 52;
 constexpr int kFxToggleGap = 6;
-
-constexpr int kEchoKnobs = 6;
-constexpr int kReverbKnobs = 7;
 
 /// How many rows of bar are worth having above a mixer.
 constexpr int kMaxComfortableRows = 3;
 
 /// The meter is the only thing worth extra room, but not unlimited extra room.
-/// Uncapped it swallows a whole second row and reads as a progress bar.
-constexpr int kOutputMaxExtra = 190;
+/// Uncapped it swallows a whole row and reads as a progress bar.
+constexpr int kOutputMaxExtra = 120;
 
 /// ...and the one that can give ground when a row is slightly too tight. A
 /// window a few pixels short of fitting one row should narrow the meter rather
@@ -153,54 +150,15 @@ void StereoOutputMeter::paint(juce::Graphics &g) {
 
 // =============================================================================
 
-void MenuButton::paintButton(juce::Graphics &g, bool highlighted, bool down) {
-  const auto bounds = getLocalBounds().toFloat().reduced(0.5f);
-
-  auto fill = colours::panelAlt;
-  if (down)
-    fill = fill.brighter(0.15f);
-  else if (highlighted)
-    fill = fill.brighter(0.08f);
-
-  g.setGradientFill(juce::ColourGradient(
-      fill.brighter(0.12f), bounds.getCentreX(), bounds.getY(),
-      fill.darker(0.05f), bounds.getCentreX(), bounds.getBottom(), false));
-  g.fillRoundedRectangle(bounds, 4.0f);
-
-  g.setColour(colours::outline);
-  g.drawRoundedRectangle(bounds.reduced(0.5f), 4.0f, 1.0f);
-
-  juce::Path chevron;
-  const auto cx = bounds.getCentreX();
-  const auto cy = bounds.getCentreY();
-  chevron.startNewSubPath(cx - 4.0f, cy - 2.0f);
-  chevron.lineTo(cx, cy + 2.5f);
-  chevron.lineTo(cx + 4.0f, cy - 2.0f);
-
-  g.setColour(isEnabled() ? colours::text : colours::textDim);
-  g.strokePath(chevron, juce::PathStrokeType(1.6f, juce::PathStrokeType::curved,
-                                             juce::PathStrokeType::rounded));
-}
-
-// =============================================================================
-
 TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
                juce::Component &popupParent)
     : apvts(state) {
-  LabelledKnob *knobs[] = {&master, &spread};
-
-  for (auto *k : knobs) {
-    k->slider.setPopupDisplayEnabled(true, true, &popupParent);
-    addAndMakeVisible(*k);
-  }
-
+  master.slider.setPopupDisplayEnabled(true, true, &popupParent);
   master.slider.setTooltip("Output level");
-  spread.slider.setTooltip("Fans the partials across the stereo field");
+  addAndMakeVisible(master);
 
   masterAttachment = std::make_unique<SliderAttachment>(
       apvts, params::masterGainId, master.slider);
-  spreadAttachment = std::make_unique<SliderAttachment>(apvts, params::spreadId,
-                                                        spread.slider);
 
   meterCaption.setText("OUT  L / R", juce::dontSendNotification);
   meterCaption.setFont(makeFont(9.0f, true));
@@ -220,13 +178,15 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   };
   addAndMakeVisible(presetBox);
 
-  // ---- voices ---------------------------------------------------------------
-  // Polyphony and bend range are both a short list of whole numbers, so they
-  // read better as a menu than as a box and a knob holding open a group.
-  voicesButton.setTooltip("How many notes at once, and how far the wheel "
-                          "bends. Each note runs 32 sine partials.");
-  voicesButton.onClick = [this] { showVoiceMenu(); };
-  addAndMakeVisible(voicesButton);
+  // ---- settings -------------------------------------------------------------
+  // Everything that is set once and then left: polyphony, bend range, and the
+  // two switches that used to sit on the panel taking up room they had not
+  // earned.
+  settingsButton.setButtonText("SETTINGS");
+  settingsButton.setTooltip("Polyphony, pitch bend range, phase reset and the "
+                            "safety clipper");
+  settingsButton.onClick = [this] { showSettingsMenu(); };
+  addAndMakeVisible(settingsButton);
 
   // ---- zoom -----------------------------------------------------------------
   for (int i = 0; i < (int)std::size(kZoomChoices); ++i)
@@ -242,29 +202,18 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   addAndMakeVisible(zoomBox);
 
   // ---- toggles --------------------------------------------------------------
-  styleToggle(linkButton, "LINK",
-              "Gang the strips, so dragging one channel's knob moves the same "
-              "knob on the others. Scope picks which ones, curve picks how "
-              "the movement is shared out.");
-  styleToggle(phaseButton, "PHASE",
-              "Reset partial phase on each note for a coherent attack");
-  styleToggle(clipButton, "CLIP",
-              "Soft-clip the output. Worth leaving on with 32 faders.");
-
+  // One button rather than a switch and a chevron beside it. It always opens
+  // the menu, and it lights when the switch inside is on, so the state is
+  // visible without the state being what the click does.
+  linkButton.setButtonText("LINK");
+  linkButton.setTooltip(
+      "Gang the strips, so dragging one channel's knob moves the same knob on "
+      "the others. The menu picks which channels it reaches and how the "
+      "movement is shared out. The same menu is on a right-click in the "
+      "mixer.");
   linkButton.setColour(juce::TextButton::buttonOnColourId, colours::soloOn);
-  linkButton.onClick = [this] {
-    updateLinkEnablement();
-    if (onLinkSettingsChanged)
-      onLinkSettingsChanged();
-  };
-
-  // ---- what LINK reaches, and how it is shared out
-  // ---------------------------
-  linkMenuButton.setTooltip(
-      "Which channels a LINK drag reaches, and how the movement is shared out "
-      "between them. The same menu is on a right-click anywhere in the mixer.");
-  linkMenuButton.onClick = [this] { showLinkMenu(&linkMenuButton); };
-  addAndMakeVisible(linkMenuButton);
+  linkButton.onClick = [this] { showLinkMenu(&linkButton); };
+  addAndMakeVisible(linkButton);
 
   // ---- the master effects
   // ----------------------------------------------------
@@ -289,42 +238,26 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
           popupParent);
   addKnob(echoControls, "FDBK", params::echoFeedbackId,
           "How much of each repeat goes round again", popupParent);
-  addKnob(echoControls, "TONE", params::echoToneId,
-          "Dark leaves every repeat duller than the last, bright keeps them "
-          "close to the original",
-          popupParent);
-  addKnob(echoControls, "WOW", params::echoWobbleId,
-          "Wow and flutter. The motor is never quite steady, so the pitch of "
-          "the repeats wanders.",
-          popupParent);
-  addKnob(echoControls, "SPREAD", params::echoSpreadId,
-          "Sends the repeats in on one side and crosses them over on every "
-          "pass, so they alternate between the speakers",
+  addKnob(echoControls, "AGE", params::echoAgeId,
+          "How worn the machine is. Turning it up takes the top off every "
+          "repeat, sets the motor wandering and lets the tape lean over when "
+          "it is driven. New is clean and bright, old is dark and unsteady.",
           popupParent);
 
   addKnob(reverbControls, "MIX", params::reverbMixId,
           "How much of the output is reverb", popupParent);
-  addKnob(reverbControls, "SIZE", params::reverbSizeId,
-          "Room dimensions, from a booth to a hall", popupParent);
   addKnob(reverbControls, "DECAY", params::reverbDecayId,
-          "How long the tail takes to fall away", popupParent);
+          "How long the tail takes to fall away. The room is sized to match, "
+          "since a long tail in a small room is a spring rather than a place.",
+          popupParent);
   addKnob(reverbControls, "DAMP", params::reverbDampId,
           "How quickly the top end dies out of the tail", popupParent);
-  addKnob(reverbControls, "LO CUT", params::reverbLowCutId,
-          "Keeps the fundamental out of the tail, which matters on an "
-          "instrument built from 32 partials",
-          popupParent);
   addKnob(reverbControls, "PRE", params::reverbPreDelayId,
           "Silence between the note and its reverb. A little of it keeps the "
           "attack clear of the wash.",
           popupParent);
   addKnob(reverbControls, "WIDTH", params::reverbWidthId,
           "Mono at zero, fully spread at the top", popupParent);
-
-  phaseAttachment = std::make_unique<ButtonAttachment>(
-      apvts, params::phaseResetId, phaseButton);
-  clipAttachment = std::make_unique<ButtonAttachment>(
-      apvts, params::safetyClipId, clipButton);
 
   // ---- captions -------------------------------------------------------------
   struct {
@@ -333,7 +266,6 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
     juce::Justification just;
   } captions[] = {
       {&presetCaption, "PRESET", juce::Justification::centredLeft},
-      {&voicesCaption, "VOICES", juce::Justification::centredLeft},
       {&zoomCaption, "ZOOM", juce::Justification::centredLeft},
   };
 
@@ -346,7 +278,6 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
     addAndMakeVisible(*c.label);
   }
 
-  setVoiceCount(0, 8);
   updateLinkEnablement();
 }
 
@@ -386,9 +317,7 @@ void TopBar::setLinkCurve(LinkCurve c) {
   curve = (LinkCurve)juce::jlimit(0, (int)LinkCurve::NumCurves - 1, (int)c);
 }
 
-void TopBar::updateLinkEnablement() {
-  linkMenuButton.setEnabled(linkButton.getToggleState());
-}
+void TopBar::updateLinkEnablement() { linkButton.repaint(); }
 
 void TopBar::showLinkMenu(juce::Component *anchor) {
   const LinkSettings settings{linkButton.getToggleState(), scope, curve};
@@ -427,19 +356,24 @@ void TopBar::showLinkMenu(juce::Component *anchor) {
   });
 }
 
-void TopBar::showVoiceMenu() {
+void TopBar::showSettingsMenu() {
   juce::PopupMenu m;
   m.setLookAndFeel(&getLookAndFeel());
 
   auto *polyphony = apvts.getParameter(params::polyphonyId);
   auto *bendRange = apvts.getParameter(params::bendRangeId);
+  auto *phase = apvts.getParameter(params::phaseResetId);
+  auto *clip = apvts.getParameter(params::safetyClipId);
 
   const auto polyIndex =
       polyphony != nullptr
           ? juce::roundToInt(polyphony->convertFrom0to1(polyphony->getValue()))
           : 0;
 
-  m.addSectionHeader("Polyphony");
+  // The count of what is actually sounding goes in the header rather than on
+  // the panel, where it was a readout nobody was watching.
+  m.addSectionHeader("Polyphony (" + juce::String(activeVoices) + " sounding)");
+
   for (int i = 0; i < (int)params::kPolyphonyChoices.size(); ++i)
     m.addItem(100 + i,
               juce::String(params::kPolyphonyChoices[(size_t)i]) + " voices",
@@ -455,18 +389,38 @@ void TopBar::showVoiceMenu() {
 
   m.addSeparator();
   m.addSectionHeader("Pitch bend range");
+
   for (auto semitones : kBendChoices)
     m.addItem(200 + semitones,
               juce::String(semitones) +
                   (semitones == 1 ? " semitone" : " semitones"),
               true, semitones == currentBend);
 
+  m.addSeparator();
+  m.addSectionHeader("Output");
+  m.addItem(300, "Phase reset", true,
+            phase != nullptr && phase->getValue() > 0.5f);
+  m.addItem(301, "Safety clip", true,
+            clip != nullptr && clip->getValue() > 0.5f);
+
   m.showMenuAsync(juce::PopupMenu::Options()
-                      .withTargetComponent(&voicesButton)
+                      .withTargetComponent(&settingsButton)
                       .withStandardItemHeight(22),
                   [this](int result) {
                     if (result == 0)
                       return;
+
+                    const auto flip = [this](const char *id) {
+                      if (auto *p = apvts.getParameter(id))
+                        p->setValueNotifyingHost(p->getValue() > 0.5f ? 0.0f
+                                                                      : 1.0f);
+                    };
+
+                    if (result == 300)
+                      return flip(params::phaseResetId);
+
+                    if (result == 301)
+                      return flip(params::safetyClipId);
 
                     const auto id = result >= 200 ? params::bendRangeId
                                                   : params::polyphonyId;
@@ -478,12 +432,7 @@ void TopBar::showVoiceMenu() {
                   });
 }
 
-void TopBar::setVoiceCount(int active, int limit) {
-  const auto text = juce::String(active) + " / " + juce::String(limit);
-
-  if (voicesButton.getButtonText() != text)
-    voicesButton.setButtonText(text);
-}
+void TopBar::setVoiceCount(int active, int) { activeVoices = active; }
 
 void TopBar::setZoomChoice(float zoom) {
   for (int i = 0; i < (int)std::size(kZoomChoices); ++i) {
@@ -576,11 +525,10 @@ int TopBar::minimumWidth() {
 }
 
 void TopBar::parkControls() {
-  juce::Component *all[] = {
-      &master,       &spread,        &meter,      &meterCaption,
-      &presetBox,    &presetCaption, &zoomBox,    &zoomCaption,
-      &voicesButton, &voicesCaption, &linkButton, &linkMenuButton,
-      &phaseButton,  &clipButton,    &echoButton, &reverbButton};
+  juce::Component *all[] = {&master,      &meter,          &meterCaption,
+                            &presetBox,   &presetCaption,  &zoomBox,
+                            &zoomCaption, &settingsButton, &linkButton,
+                            &echoButton,  &reverbButton};
 
   for (auto *c : all)
     c->setBounds({});
@@ -628,13 +576,11 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
     break;
 
   case VoiceGroup:
-    captioned(voicesButton, voicesCaption, r);
+    button(settingsButton, r);
     break;
 
   case LinkGroup:
-    button(linkButton, r.removeFromLeft(48));
-    r.removeFromLeft(6);
-    button(linkMenuButton, r.removeFromLeft(28));
+    button(linkButton, r);
     break;
 
   case EchoGroup:
@@ -646,16 +592,10 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
     break;
 
   case OutputGroup: {
-    spread.setBounds(r.removeFromLeft(52));
-    master.setBounds(r.removeFromLeft(52));
+    master.setBounds(r.removeFromLeft(48));
     r.removeFromLeft(6);
 
     // The meter takes whatever the group was given beyond its minimum.
-    button(clipButton, r.removeFromRight(44));
-    r.removeFromRight(4);
-    button(phaseButton, r.removeFromRight(50));
-    r.removeFromRight(6);
-
     captioned(meter, meterCaption, r);
     break;
   }

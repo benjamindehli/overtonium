@@ -116,6 +116,7 @@ Each of the 32 strips has, top to bottom:
 | AMP MOD rate and depth | 0.01 to 30 Hz, 0 to 100% | Per-partial tremolo |
 | VELOCITY | -100 to +100% | How much key velocity scales this partial. Negative inverts it |
 | AFTERTOUCH | -100 to +100% | How much key pressure moves this partial. Negative fades it out |
+| PAN | hard left to hard right | Where this partial sits in the field. Equal power, so the level holds as it crosses |
 | M and S | | Mute wins over solo |
 | LEVEL | -inf to 0 dB | Square-law fader, with the meter filling its track |
 
@@ -134,18 +135,16 @@ The top bar holds everything that is not per partial, boxed into groups of thing
 | Group | Contains |
 |---|---|
 | Preset | the factory preset menu |
-| Voice | how many voices are sounding, and a menu of polyphony and bend range |
-| Link | **LINK** and a menu of what it reaches and how. See below |
+| Settings | polyphony, bend range, phase reset and the safety clipper |
+| Link | **LINK**, and what it reaches and how. See below |
 | Echo | the tape echo. See below |
 | Reverb | the reverb. See below |
-| Output | **SPREAD**, **MASTER**, the stereo meter, **PHASE** and **CLIP** |
+| Output | **MASTER** and the stereo meter |
 | View | **ZOOM** |
 
-**PHASE** resets partial phase on each note for a coherent, percussive attack. **CLIP** soft-clips the output and is worth leaving on when you push 32 faders up.
+Settings and Link are menus rather than panels. Everything behind Settings is set once and then left, and a short list of whole numbers reads better written out than dialled in on a knob. Phase reset gives a coherent, percussive attack by restarting partial phase on each note, and the safety clipper is worth leaving on when you push 32 faders up, but neither is something you sit and adjust, so neither is worth the width of a button. That is what the two effects are sitting in.
 
-Voice and Link are menus rather than boxes and knobs on the panel. Polyphony and bend range are both a short list of whole numbers, which a menu states better than a knob does, and neither is something you reach for mid-phrase. That buys the width the two effects sit in.
-
-The bar reflows onto further rows when the window is too narrow to fit the groups across one, rather than dropping controls or letting captions collide. It fills each row as far as it will go, so it stays compact and anchored to the title, and the rows below the first run the full width since the title is above them rather than beside them. One row per group is the worst case, and the window will not shrink past 722 px, which is where it stops fitting in three.
+Everything fits across one row above about 1220 px of logical width. Below that the bar reflows onto further rows rather than dropping controls or letting captions collide. It fills each row as far as it will go, so it stays compact and anchored to the title, and the rows below the first run the full width since the title is above them rather than beside them. One row per group is the worst case, and the window will not shrink past 512 px, which is where it stops fitting in three.
 
 The output meter is the one element that flexes. It takes any width left over on its row up to a limit, since uncapped it swallowed a whole row and stopped reading as a meter, and it gives up to 40 px back when a row is slightly too tight. That last part matters: a window a few pixels short of fitting a row narrows the meter instead of wrapping.
 
@@ -165,7 +164,7 @@ Cast shadows are built from a few overlapping shapes rather than from a real blu
 
 ### The noise channel
 
-Pinned on the right, after the series it does not belong to, is a noise channel marked NZ. It has the same envelope, tremolo, velocity, aftertouch, mute, solo, level and meter as a partial, and takes part in solo alongside them. What it does not have is pitch, so the tuning, pitch modulation and drift rows are empty.
+Pinned on the right, after the series it does not belong to, is a noise channel marked NZ. It has the same envelope, tremolo, velocity, aftertouch, pan, mute, solo, level and meter as a partial, and takes part in solo alongside them. What it does not have is pitch, so the tuning, pitch modulation and drift rows are empty.
 
 COLOUR takes the tuning row instead. It tilts the noise from dark rumble at one end, through flat in the middle, to bright hiss at the other. The middle really is flat rather than merely filtered less: the two halves of a complementary one-pole pair are summed at unity there, which reconstructs the original white noise exactly. The tests measure a high to low band ratio of 0.13 dark, 1.06 flat and 4.35 bright.
 
@@ -188,7 +187,7 @@ The cost is close to nothing on either side. The audio thread samples a value it
 
 **LINK** in the top bar gangs the strips: dragging any knob moves the same knob on the others. It works relatively, applying an offset to wherever each strip already sits rather than dragging everything to one shared value, so a spectrum you have shaped by hand keeps its shape.
 
-A menu beside it decides what a drag reaches and what it does. The same menu is on a right-click anywhere in the mixer, which is where you are when you want it, and both settings are latched when a drag begins, so changing one midway cannot half-apply two different rules.
+The button opens a menu rather than toggling, since what a drag reaches and how it shares itself out matter as much as whether it is on at all, and it lights when the switch inside is engaged. The same menu is on a right-click anywhere in the mixer, which is where you are when you want it. Both settings are latched when a drag begins, so changing one midway cannot half-apply two different rules.
 
 While LINK is on, the pointer over the mixer says which curve is loaded: five bars, level for uniform, rising or falling for the tilts and scattered for spread. A mode you cannot see is a mode you forget you are in, and this one changes what every drag does.
 
@@ -220,17 +219,17 @@ The offset is always measured from the values captured when the drag started, so
 
 ### The output meter
 
-The top bar carries a horizontal output meter, split into left and right. It is split because the two channels are identical until stereo spread is dialled in, and a summed meter would hide precisely the thing spread does. It reads the finished output after master gain and the clipper, so it reports what actually leaves the plugin.
+The top bar carries a horizontal output meter, split into left and right. It is split because the two channels are identical until something is panned off centre, and a summed meter would hide precisely that. It reads the finished output after master gain and the clipper, so it reports what actually leaves the plugin.
 
 Each bar carries a peak hold that sits for about a second before falling, since what an output meter is mostly wanted for is what it hit a moment ago. The bar runs from teal through amber to orange as it approaches full scale, with the colours anchored to their decibel positions rather than stretching with the level, and there is a scale beneath marked at -48, -36, -24, -12, -6 and 0 dB.
 
-### Stereo spread
+### Panning
 
-SPREAD places the partials in mirrored pairs. Harmonics 1 and 2 stay in the centre, 3 and 4 sit opposite each other, and so on out to 31 and 32 at the edges.
+Every channel has a PAN, the noise channel included, rather than one width control fanning the series out. A single knob can only ever make one shape. Placing the partials by hand is what lets you put a partial opposite the one a semitone away from it, or the octaves left and the sevenths right, and none of those are shapes a width control could have produced.
 
-Pairing does two jobs. Neighbouring partials have near-identical levels in any normal spectrum, so putting each pair on opposite sides keeps the image centred whatever shape you dial in. And because every position has a mirror, no partial ends up hard panned with nothing facing it, which is what makes a spread sound like it is leaning rather than widening.
+The law is equal power, so the number on the knob is the number in the audio and the level holds as a partial crosses the field. The tests measure both, reading the positions back out of the rendered audio rather than taking them on trust: hard left and hard right land within 0.01 of the ends, half left images at half left within 0.02, and a partial swept across the whole field varies in loudness by under 0.1 dB.
 
-The width grows as a square root rather than as a straight fan, because a spectrum that rolls off keeps nearly all its energy in the first few partials. A linear fan leaves exactly those bunched in the middle and the control does very little you can hear. The tests measure both properties, asserting that channel imbalance stays under 0.2 dB and that the partials actually carrying the energy get placed.
+A good shape to start from is mirrored pairs, 1 and 2 in the centre widening out to 31 and 32 at the edges, with the sides alternating so the louder of each pair does not always land on the same one. That is what the old width control used to do, and *Slow Pad* and *Shimmer* now write it into their pans, where it can be taken apart by hand. It is worth understanding before you leave it: neighbouring partials have near-identical levels in any normal spectrum, so putting each pair on opposite sides keeps the image centred whatever shape you dial in, and because every position has a mirror, no partial ends up hard panned with nothing facing it.
 
 ### The master effects
 
@@ -243,31 +242,33 @@ Two of the groups in the top bar work on the finished mix rather than on any one
 | MIX | how much of the output is repeats |
 | TIME | distance between the heads, 20 ms to 2 s |
 | FDBK | how much of each repeat goes round again, up to 95% |
-| TONE | how much top end survives a pass |
-| WOW | wow and flutter |
-| SPREAD | how far the repeats alternate between the speakers |
+| AGE | how worn the machine is |
 
-Four things about it are borrowed from the machine rather than from the maths. TIME is reached by winding rather than by jumping, so moving the knob slides the repeats in pitch on the way to the new setting, which is the sound a tape delay is mostly wanted for. Every pass round the loop goes through a lowpass and a highpass, so the repeats darken and thin as they recede instead of staying a copy of the original at a lower level. The loop saturates rather than clips, which is also what stops it running away: the tests drive it at maximum feedback for twenty seconds and the output stays bounded. And the motor is not steady, so a slow wander and a faster flutter move the pitch of the repeats around, measured at about 1% of swing at full.
+TIME is reached by winding rather than by jumping, so moving the knob slides the repeats in pitch on the way to the new setting, which is the sound a tape delay is mostly wanted for.
 
-SPREAD sends the repeats in on one side and crosses the heads over on every pass, so at the top of the control they alternate between the speakers and at the bottom they stay where they were played. Crossfeed alone is not enough: swapping two identical signals changes neither, so on a centred source, which is nearly everything this gets fed, it would do nothing at all. Asking it to also decide where the signal enters is what makes the control audible.
+AGE is one control for the three things that go together as a tape machine wears: the top end it loses on every pass, how far the motor wanders, and how hard the tape leans over when it is driven. New is clean, bright and steady, old is dark, unsteady and compressed. They were three knobs that were nearly always turned together. The tests measure all three separately: a new machine hands back four times the top end of a worn one after ten passes, holds its pitch to 0.01% where a worn one wanders by over 1%, and passes its repeats through at full level where a worn one compresses them.
+
+The compression is in two stages, and they are not the same thing. The first is character and follows AGE, so a new machine really is untouched. The second is a backstop that is always there, because at 95% feedback a steady tone can otherwise pile up to twenty times what went into it. The tests drive it at maximum feedback with a new machine for twenty seconds and the output stays bounded.
+
+The repeats walk across the image rather than sitting where they were played, which is a fixed crossfeed rather than a control. The useful part of that range was a lean, and everything either side of it was either inaudible or a gimmick. It is worth knowing why it is not simply a crossfeed: swapping two identical signals changes neither, so on a centred source, which is nearly everything this gets fed, crossfeed alone does nothing at all. What makes it audible is feeding the repeats in unevenly and letting the crossfeed carry them over on each pass.
 
 **REVERB** is a feedback delay network: eight delay lines fed back through a Householder matrix, with four allpass stages per side in front of it to scatter a hit into a wash before it reaches the network.
 
 | Control | Does |
 |---|---|
 | MIX | how much of the output is reverb |
-| SIZE | room dimensions, from a booth to a hall |
 | DECAY | how long the tail takes to fall 60 dB, 0.2 to 20 s |
 | DAMP | how quickly the top end dies out of the tail |
-| LO CUT | how much of the bottom is kept out of it, 20 to 800 Hz |
 | PRE | silence between the note and its reverb, up to 250 ms |
 | WIDTH | mono at zero, fully spread at the top |
 
-The matrix is orthogonal, so the network neither gains nor loses energy of its own accord and the decay is entirely the doing of the per-line gains, which is why DECAY can be trusted. The tests measure it: a 1 s setting falls silent in 1.0 s and a 5 s setting in 4.4 s.
+The room is sized from the decay rather than set separately. A long tail in a small room is a spring rather than a place, and a short one in a hall is a gate, so the two were always turned together anyway.
+
+The matrix is orthogonal, so the network neither gains nor loses energy of its own accord and the decay is entirely the doing of the per-line gains, which is why DECAY can be trusted. The tests measure it: a 1 s setting falls silent in 1.0 s and a 5 s setting in 4.3 s.
 
 The choice of a network rather than a bank of combs is about this instrument in particular. Thirty-two pure sines held indefinitely will find every resonance a fixed network has, and a comb reverb answers them with a metallic pitch. The line lengths are therefore mutually prime and each is slowly modulated at its own rate, so the tail keeps moving underneath a held chord. The tests check for exactly that failure, measuring the loudest bin of the tail against the average across the spectrum.
 
-LO CUT exists for the same reason. A fundamental at full level feeding a long tail floods everything above it, and the reverb becomes a rumble the moment you play low. Cutting the input at 120 Hz or so leaves the tail to carry the partials, which is where the interest is.
+The input is cut off below 175 Hz for the same reason, and that is fixed rather than offered as a control. A fundamental at full level feeding a long tail floods everything above it, and the reverb becomes a rumble the moment you play low, so it is never wanted open. On an instrument built from 32 partials the interest is above there anyway.
 
 ## Notes on CPU
 
@@ -279,7 +280,7 @@ Polyphony is the multiplier that matters, since eight voices means 256 sine osci
 | 8 | 256 | about 7% |
 | 16 | 512 | 14 to 15% |
 
-Those figures are with everything running at once: both LFOs, drift, velocity, aftertouch, the meters and the noise channel. The two master effects add about 1.2% on top of that, whatever the polyphony, since they work on the sum rather than per voice.
+Those figures are with everything running at once: both LFOs, drift, velocity, aftertouch, the meters and the noise channel. The two master effects add well under 1% on top of that, whatever the polyphony, since they work on the sum rather than per voice.
 
 That leaves enough headroom for the engine to stay a plain bank of oscillators with nothing clever in the signal path. What keeps it cheap:
 
@@ -307,7 +308,7 @@ Source/
     TapeEcho.*      the master echo
     Reverb.*        the master reverb, a feedback delay network
     SynthEngine.*   voice pool, allocation, stealing, effects, master stage
-  PluginParameters.*  APVTS layout, 546 parameters, and the audio-thread snapshot
+  PluginParameters.*  APVTS layout, 574 parameters, and the audio-thread snapshot
   Presets.*           factory presets
   PluginProcessor.*   MIDI handling, sample-accurate rendering, state
   PluginEditor.*      window, zoom, LINK, gutter

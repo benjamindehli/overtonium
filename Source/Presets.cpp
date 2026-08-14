@@ -56,7 +56,7 @@ struct Applier {
     allOsc(params::soloSuffix, [](int) { return 0.0; });
     allOsc(params::volumeSuffix, [](int) { return 0.0; });
 
-    set(params::spreadId, 0.0f);
+    allOsc(params::panSuffix, [](int) { return 0.0; });
 
     // Noise is off unless a preset asks for it.
     set(params::noiseParamId(params::volumeSuffix), 0.0f);
@@ -69,6 +69,7 @@ struct Applier {
     set(params::noiseParamId(params::amDepthSuffix), 0.0f);
     set(params::noiseParamId(params::muteSuffix), 0.0f);
     set(params::noiseParamId(params::soloSuffix), 0.0f);
+    set(params::noiseParamId(params::panSuffix), 0.0f);
 
     // The master effects are off unless a preset switches them on, and their
     // settings go back to the panel defaults either way, so loading a preset
@@ -77,36 +78,54 @@ struct Applier {
     set(params::echoMixId, 0.25f);
     set(params::echoTimeId, 0.35f);
     set(params::echoFeedbackId, 0.35f);
-    set(params::echoToneId, 0.45f);
-    set(params::echoWobbleId, 0.25f);
-    set(params::echoSpreadId, 0.0f);
+    set(params::echoAgeId, 0.35f);
 
     set(params::reverbOnId, 0.0f);
     set(params::reverbMixId, 0.25f);
-    set(params::reverbSizeId, 0.5f);
     set(params::reverbDecayId, 2.0f);
     set(params::reverbDampId, 0.5f);
-    set(params::reverbLowCutId, 120.0f);
     set(params::reverbPreDelayId, 0.0f);
     set(params::reverbWidthId, 1.0f);
   }
 
-  /// Switches the reverb on with a given size, decay and blend. Everything
-  /// else stays where neutralBase left it.
-  void reverb(float mix, float size, float decay, float damping) const {
+  /// The old stereo spread control, written out as pan positions.
+  ///
+  /// Partials go in mirrored pairs, 1 and 2 in the centre out to 31 and 32 at
+  /// the edges, with the sides alternating so the louder of each pair does not
+  /// always land on the same one. It was a good shape to start from, so the
+  /// presets that used to dial in spread now write it into the pans, where it
+  /// can be taken apart by hand.
+  void fanOut(double width) const {
+    constexpr int lastPair = kNumHarmonics / 2 - 1;
+
+    for (int i = 0; i < kNumHarmonics; ++i) {
+      const int pairIndex = i / 2;
+      const bool second = (i % 2) != 0;
+      const bool flip = (pairIndex % 2) != 0;
+
+      const auto magnitude =
+          std::sqrt((double)pairIndex / (double)lastPair) * width;
+
+      osc(params::panSuffix, i,
+          (float)((second != flip ? 1.0 : -1.0) * magnitude));
+    }
+  }
+
+  /// Switches the reverb on. The room follows the decay, so there is nothing
+  /// else to say about its size.
+  void reverb(float mix, float decay, float damping) const {
     set(params::reverbOnId, 1.0f);
     set(params::reverbMixId, mix);
-    set(params::reverbSizeId, size);
     set(params::reverbDecayId, decay);
     set(params::reverbDampId, damping);
   }
 
-  void echo(float mix, float time, float feedback, float tone) const {
+  void echo(float mix, float time, float feedback, float age) const {
     set(params::echoOnId, 1.0f);
     set(params::echoMixId, mix);
     set(params::echoTimeId, time);
     set(params::echoFeedbackId, feedback);
-    set(params::echoToneId, tone);
+    set(params::echoAgeId, age);
   }
 };
 
@@ -173,7 +192,7 @@ void apply(APVTS &apvts, int index) {
               [](int n) { return std::min(1.0, 0.2 + 0.06 * (n - 1)); });
 
     // A small, quick room. Struck things are heard somewhere.
-    ap.reverb(0.22f, 0.4f, 1.8f, 0.5f);
+    ap.reverb(0.22f, 1.8f, 0.5f);
     break;
   }
 
@@ -194,8 +213,8 @@ void apply(APVTS &apvts, int index) {
     ap.allOsc(params::amRateSuffix, [](int n) { return 0.3 + 0.07 * n; });
     ap.allOsc(params::driftSuffix, [](int) { return 7.0; });
 
-    ap.set(params::spreadId, 0.7f);
-    ap.reverb(0.35f, 0.75f, 5.0f, 0.55f);
+    ap.fanOut(0.7);
+    ap.reverb(0.35f, 5.0f, 0.55f);
     break;
   }
 
@@ -245,11 +264,9 @@ void apply(APVTS &apvts, int index) {
     ap.allOsc(params::pmRateSuffix, [](int n) { return 0.2 + 0.03 * n; });
     ap.allOsc(params::driftSuffix, [](int) { return 12.0; });
 
-    ap.set(params::spreadId, 1.0f);
-    ap.reverb(0.45f, 0.9f, 8.0f, 0.4f);
-    ap.echo(0.28f, 0.66f, 0.55f, 0.35f);
-    ap.set(params::echoSpreadId, 0.8f);
-    ap.set(params::echoWobbleId, 0.45f);
+    ap.fanOut(1.0);
+    ap.reverb(0.45f, 8.0f, 0.4f);
+    ap.echo(0.28f, 0.66f, 0.55f, 0.6f);
     break;
   }
 

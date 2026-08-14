@@ -35,8 +35,12 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
   setUpKnob(aftertouch, params::atSuffix, secondary,
             "How much key pressure moves the noise. Negative fades it out.");
 
+  setUpKnob(pan, params::panSuffix, secondary,
+            "Where the noise sits in the stereo field");
+
   velocity.getProperties().set("bipolar", true);
   aftertouch.getProperties().set("bipolar", true);
+  pan.getProperties().set("bipolar", true);
 
   volume.setSliderStyle(juce::Slider::LinearVertical);
   volume.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
@@ -186,6 +190,7 @@ void NoiseStrip::resized() {
   amDepth.setBounds(rows[rowIndex(Row::AmDepth)].reduced(1));
   velocity.setBounds(rows[rowIndex(Row::Velocity)].reduced(1));
   aftertouch.setBounds(rows[rowIndex(Row::Aftertouch)].reduced(1));
+  pan.setBounds(rows[rowIndex(Row::Pan)].reduced(1));
 
   const auto faderRow = rows[rowIndex(Row::Fader)];
   meter.setBounds(faderRow.reduced(2, 1));

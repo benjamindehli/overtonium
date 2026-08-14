@@ -68,28 +68,25 @@ juce::MidiBuffer noteOnAt(int note, float velocity, int sample) {
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
-  // 16 per partial, 6 global, 13 for the noise channel, 15 for the two
-  // master effects.
-  const int expected = ovt::kNumHarmonics * 16 + 6 + 13 + 15;
+  // 17 per partial, 5 global, 14 for the noise channel, 11 for the two master
+  // effects.
+  const int expected = ovt::kNumHarmonics * 17 + 5 + 14 + 11;
   check(p.getParameters().size() == expected,
         "parameter count is " + std::to_string(p.getParameters().size()) +
             ", expected " + std::to_string(expected));
 
   // Every ID the audio thread caches must actually exist in the layout. A typo
   // here is a null atomic pointer and a crash on the first block.
-  const char *globals[] = {
-      ovt::params::masterGainId, ovt::params::polyphonyId,
-      ovt::params::spreadId,     ovt::params::bendRangeId,
-      ovt::params::phaseResetId, ovt::params::safetyClipId};
+  const char *globals[] = {ovt::params::masterGainId, ovt::params::polyphonyId,
+                           ovt::params::bendRangeId, ovt::params::phaseResetId,
+                           ovt::params::safetyClipId};
 
   const char *effects[] = {
-      ovt::params::echoOnId,       ovt::params::echoMixId,
-      ovt::params::echoTimeId,     ovt::params::echoFeedbackId,
-      ovt::params::echoToneId,     ovt::params::echoWobbleId,
-      ovt::params::echoSpreadId,   ovt::params::reverbOnId,
-      ovt::params::reverbMixId,    ovt::params::reverbSizeId,
-      ovt::params::reverbDecayId,  ovt::params::reverbDampId,
-      ovt::params::reverbLowCutId, ovt::params::reverbPreDelayId,
+      ovt::params::echoOnId,     ovt::params::echoMixId,
+      ovt::params::echoTimeId,   ovt::params::echoFeedbackId,
+      ovt::params::echoAgeId,    ovt::params::reverbOnId,
+      ovt::params::reverbMixId,  ovt::params::reverbDecayId,
+      ovt::params::reverbDampId, ovt::params::reverbPreDelayId,
       ovt::params::reverbWidthId};
 
   for (auto *id : effects)
@@ -108,7 +105,8 @@ void testParameterWiring(OvertoniumProcessor &p) {
       ovt::params::releaseSuffix, ovt::params::amRateSuffix,
       ovt::params::amDepthSuffix, ovt::params::velSuffix,
       ovt::params::atSuffix,      ovt::params::muteSuffix,
-      ovt::params::soloSuffix,    ovt::params::volumeSuffix};
+      ovt::params::soloSuffix,    ovt::params::volumeSuffix,
+      ovt::params::panSuffix};
 
   bool allPresent = true;
   for (int i = 0; i < ovt::kNumHarmonics; ++i)
@@ -116,7 +114,7 @@ void testParameterWiring(OvertoniumProcessor &p) {
       allPresent &= p.apvts.getRawParameterValue(
                         ovt::params::oscParamId(s, i)) != nullptr;
 
-  check(allPresent, "all 512 per-partial parameters resolve");
+  check(allPresent, "all 544 per-partial parameters resolve");
 
   const char *noiseSuffixes[] = {
       ovt::params::colourSuffix,  ovt::params::delaySuffix,
@@ -125,7 +123,7 @@ void testParameterWiring(OvertoniumProcessor &p) {
       ovt::params::amRateSuffix,  ovt::params::amDepthSuffix,
       ovt::params::velSuffix,     ovt::params::atSuffix,
       ovt::params::muteSuffix,    ovt::params::soloSuffix,
-      ovt::params::volumeSuffix};
+      ovt::params::volumeSuffix,  ovt::params::panSuffix};
 
   bool noisePresent = true;
   for (auto *n : noiseSuffixes)
@@ -431,7 +429,7 @@ void testRowHover() {
   for (auto n : found)
     oneEach &= n == 1;
 
-  check(oneEach, "each of the 14 linkable roles sits on exactly one row");
+  check(oneEach, "each of the 15 linkable roles sits on exactly one row");
 
   check(!roleForRow(Row::MuteSolo, role),
         "the mute and solo row carries no linkable role");
@@ -482,6 +480,7 @@ void testMasterEffects(OvertoniumProcessor &p) {
   setParam(ovt::params::reverbOnId, 1.0f);
   setParam(ovt::params::reverbMixId, 0.5f);
   setParam(ovt::params::reverbDecayId, 6.0f);
+  setParam(ovt::params::reverbDampId, 0.2f);
 
   const auto wet = tailAfterNote();
   check(wet > 1.0e-4f, "the reverb goes on ringing after the note (peak " +

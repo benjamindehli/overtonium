@@ -29,6 +29,17 @@ juce::String signedPercentText(float v, int) {
   return (pc > 0 ? "+" : "") + juce::String(pc) + " %";
 }
 
+/// Pan reads as a side and a distance, the way a desk marks it, rather than as
+/// a signed number nobody converts in their head.
+juce::String panText(float v, int) {
+  const auto amount = juce::roundToInt(std::abs(v) * 100.0f);
+
+  if (amount == 0)
+    return "Centre";
+
+  return (v < 0.0f ? "L" : "R") + juce::String(amount);
+}
+
 juce::String gainText(float v, int) {
   if (v <= 0.0001f)
     return "-inf dB";
@@ -90,11 +101,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::ParameterID{polyphonyId, 1}, "Polyphony", polyChoices,
       4)); // 8 voices
 
-  layout.add(std::make_unique<FloatP>(
-      juce::ParameterID{spreadId, 1}, "Stereo Spread",
-      juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f,
-      FAttr().withStringFromValueFunction(percentText)));
-
   layout.add(std::make_unique<juce::AudioParameterInt>(
       juce::ParameterID{bendRangeId, 1}, "Pitch Bend Range", 0, 24, 2));
 
@@ -124,18 +130,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       FAttr().withStringFromValueFunction(percentText)));
 
   layout.add(std::make_unique<FloatP>(
-      juce::ParameterID{echoToneId, 1}, "Echo Tone",
-      juce::NormalisableRange<float>(0.0f, 1.0f), 0.45f,
-      FAttr().withStringFromValueFunction(percentText)));
-
-  layout.add(std::make_unique<FloatP>(
-      juce::ParameterID{echoWobbleId, 1}, "Echo Wobble",
-      juce::NormalisableRange<float>(0.0f, 1.0f), 0.25f,
-      FAttr().withStringFromValueFunction(percentText)));
-
-  layout.add(std::make_unique<FloatP>(
-      juce::ParameterID{echoSpreadId, 1}, "Echo Spread",
-      juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f,
+      juce::ParameterID{echoAgeId, 1}, "Echo Age",
+      juce::NormalisableRange<float>(0.0f, 1.0f), 0.35f,
       FAttr().withStringFromValueFunction(percentText)));
 
   layout.add(std::make_unique<BoolP>(juce::ParameterID{reverbOnId, 1}, "Reverb",
@@ -147,11 +143,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       FAttr().withStringFromValueFunction(percentText)));
 
   layout.add(std::make_unique<FloatP>(
-      juce::ParameterID{reverbSizeId, 1}, "Reverb Size",
-      juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f,
-      FAttr().withStringFromValueFunction(percentText)));
-
-  layout.add(std::make_unique<FloatP>(
       juce::ParameterID{reverbDecayId, 1}, "Reverb Decay",
       rangeWithCentre(0.2f, 20.0f, 2.0f), 2.0f,
       FAttr().withStringFromValueFunction(timeText)));
@@ -160,10 +151,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::ParameterID{reverbDampId, 1}, "Reverb Damping",
       juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f,
       FAttr().withStringFromValueFunction(percentText)));
-
-  layout.add(std::make_unique<FloatP>(
-      juce::ParameterID{reverbLowCutId, 1}, "Reverb Low Cut",
-      rangeWithCentre(20.0f, 800.0f, 150.0f), 120.0f, FAttr().withLabel("Hz")));
 
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{reverbPreDelayId, 1}, "Reverb Pre-delay",
@@ -248,6 +235,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     layout.add(std::make_unique<BoolP>(
         juce::ParameterID{oscParamId(soloSuffix, i), 1}, p + "Solo", false));
 
+    layout.add(std::make_unique<FloatP>(
+        juce::ParameterID{oscParamId(panSuffix, i), 1}, p + "Pan",
+        juce::NormalisableRange<float>(-1.0f, 1.0f), 0.0f,
+        FAttr().withStringFromValueFunction(panText)));
+
     // Square-law fader: half travel lands at a quarter of full amplitude, which
     // is roughly where the ear expects "half as loud".
     layout.add(std::make_unique<FloatP>(
@@ -315,6 +307,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::ParameterID{noiseParamId(soloSuffix), 1}, "Noise Solo", false));
 
   layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{noiseParamId(panSuffix), 1}, "Noise Pan",
+      juce::NormalisableRange<float>(-1.0f, 1.0f), 0.0f,
+      FAttr().withStringFromValueFunction(panText)));
+
+  layout.add(std::make_unique<FloatP>(
       juce::ParameterID{noiseParamId(volumeSuffix), 1}, "Noise Level",
       juce::NormalisableRange<float>(0.0f, 1.0f, 0.0f, 0.5f), 0.0f,
       FAttr().withStringFromValueFunction(gainText)));
@@ -325,7 +322,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   masterGain = apvts.getRawParameterValue(masterGainId);
   polyphony = apvts.getRawParameterValue(polyphonyId);
-  spread = apvts.getRawParameterValue(spreadId);
   bendRange = apvts.getRawParameterValue(bendRangeId);
   phaseReset = apvts.getRawParameterValue(phaseResetId);
   safetyClip = apvts.getRawParameterValue(safetyClipId);
@@ -334,16 +330,12 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   echo.mix = apvts.getRawParameterValue(echoMixId);
   echo.time = apvts.getRawParameterValue(echoTimeId);
   echo.feedback = apvts.getRawParameterValue(echoFeedbackId);
-  echo.tone = apvts.getRawParameterValue(echoToneId);
-  echo.wobble = apvts.getRawParameterValue(echoWobbleId);
-  echo.spread = apvts.getRawParameterValue(echoSpreadId);
+  echo.age = apvts.getRawParameterValue(echoAgeId);
 
   reverb.on = apvts.getRawParameterValue(reverbOnId);
   reverb.mix = apvts.getRawParameterValue(reverbMixId);
-  reverb.size = apvts.getRawParameterValue(reverbSizeId);
   reverb.decay = apvts.getRawParameterValue(reverbDecayId);
   reverb.damp = apvts.getRawParameterValue(reverbDampId);
-  reverb.lowCut = apvts.getRawParameterValue(reverbLowCutId);
   reverb.preDelay = apvts.getRawParameterValue(reverbPreDelayId);
   reverb.width = apvts.getRawParameterValue(reverbWidthId);
 
@@ -368,6 +360,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
     o.mute = apvts.getRawParameterValue(oscParamId(muteSuffix, i));
     o.solo = apvts.getRawParameterValue(oscParamId(soloSuffix, i));
     o.volume = apvts.getRawParameterValue(oscParamId(volumeSuffix, i));
+    o.pan = apvts.getRawParameterValue(oscParamId(panSuffix, i));
 
     jassert(o.tune != nullptr && o.volume != nullptr);
   }
@@ -385,6 +378,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   noise.mute = apvts.getRawParameterValue(noiseParamId(muteSuffix));
   noise.solo = apvts.getRawParameterValue(noiseParamId(soloSuffix));
   noise.volume = apvts.getRawParameterValue(noiseParamId(volumeSuffix));
+  noise.pan = apvts.getRawParameterValue(noiseParamId(panSuffix));
 
   jassert(noise.colour != nullptr && noise.volume != nullptr);
 }
@@ -424,6 +418,7 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     o.velAmount = c.vel->load();
     o.atAmount = c.at->load();
     o.volume = c.volume->load();
+    o.pan = c.pan->load();
 
     const bool muted = c.mute->load() > 0.5f;
     const bool soloed = c.solo->load() > 0.5f;
@@ -446,6 +441,7 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     n.velAmount = noise.vel->load();
     n.atAmount = noise.at->load();
     n.volume = noise.volume->load();
+    n.pan = noise.pan->load();
 
     const bool muted = noise.mute->load() > 0.5f;
     const bool soloed = noise.solo->load() > 0.5f;
@@ -454,7 +450,6 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
 
   out.global.masterGain =
       juce::Decibels::decibelsToGain(masterGain->load(), -60.0f);
-  out.global.stereoSpread = spread->load();
   out.global.bendSemitones = bendNormalised * bendRange->load();
   out.global.phaseReset = phaseReset->load() > 0.5f;
   out.global.safetyClip = safetyClip->load() > 0.5f;
@@ -463,16 +458,12 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   out.echo.mix = echo.mix->load();
   out.echo.timeSeconds = echo.time->load();
   out.echo.feedback = echo.feedback->load();
-  out.echo.tone = echo.tone->load();
-  out.echo.wobble = echo.wobble->load();
-  out.echo.spread = echo.spread->load();
+  out.echo.age = echo.age->load();
 
   out.reverb.enabled = reverb.on->load() > 0.5f;
   out.reverb.mix = reverb.mix->load();
-  out.reverb.size = reverb.size->load();
   out.reverb.decaySeconds = reverb.decay->load();
   out.reverb.damping = reverb.damp->load();
-  out.reverb.lowCutHz = reverb.lowCut->load();
   out.reverb.preDelaySeconds = reverb.preDelay->load();
   out.reverb.width = reverb.width->load();
 }

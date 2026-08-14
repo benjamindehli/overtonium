@@ -159,9 +159,13 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   setUpKnob(velocity, Role::Velocity, secondary);
   setUpKnob(aftertouch, Role::Aftertouch, secondary);
 
-  // Both run either side of zero, so their arcs read out from twelve o'clock.
+  setUpKnob(pan, Role::Pan, secondary);
+
+  // These all run either side of zero, so their arcs read out from twelve
+  // o'clock rather than filling from the left.
   velocity.getProperties().set("bipolar", true);
   aftertouch.getProperties().set("bipolar", true);
+  pan.getProperties().set("bipolar", true);
   setUpFader(volume, Role::Volume, colour);
 
   muteButton.setClickingTogglesState(true);
@@ -346,6 +350,8 @@ LinkableSlider *ChannelStrip::sliderForRole(Role role) {
     return &velocity;
   case Role::Aftertouch:
     return &aftertouch;
+  case Role::Pan:
+    return &pan;
   case Role::Volume:
     return &volume;
 
@@ -440,6 +446,7 @@ void ChannelStrip::resized() {
   amDepth.setBounds(rows[rowIndex(Row::AmDepth)].reduced(1));
   velocity.setBounds(rows[rowIndex(Row::Velocity)].reduced(1));
   aftertouch.setBounds(rows[rowIndex(Row::Aftertouch)].reduced(1));
+  pan.setBounds(rows[rowIndex(Row::Pan)].reduced(1));
   // Meter and fader share the same rectangle. The meter draws the track and
   // the fader draws only its cap on top, so the output fills the fader itself.
   const auto faderRow = rows[rowIndex(Row::Fader)];

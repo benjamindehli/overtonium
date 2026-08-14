@@ -45,17 +45,6 @@ private:
   Bar left, right;
 };
 
-/// A small square button that opens a menu.
-///
-/// It draws a chevron rather than carrying a caption, since what it opens
-/// names itself, and a caption would cost more width than the button.
-class MenuButton : public juce::Button {
-public:
-  MenuButton() : juce::Button({}) {}
-
-  void paintButton(juce::Graphics &, bool highlighted, bool down) override;
-};
-
 class TopBar : public juce::Component {
 public:
   TopBar(juce::AudioProcessorValueTreeState &apvts,
@@ -109,7 +98,8 @@ private:
   void styleToggle(juce::TextButton &, const juce::String &text,
                    const juce::String &tooltip);
 
-  /// The menu of scopes and curves only means anything while LINK is engaged.
+  /// The switch lives in the menu now, so the button has to redraw when it
+  /// moves rather than when it is clicked.
   void updateLinkEnablement();
 
   /// One effect knob, wired to its parameter.
@@ -122,9 +112,9 @@ private:
                const juce::String &paramId, const juce::String &tooltip,
                juce::Component &popupParent);
 
-  /// Polyphony and bend range, which are both a short list of numbers and so
-  /// read better as a menu than as a box and a knob taking up the bar.
-  void showVoiceMenu();
+  /// Polyphony, bend range and the two output switches. All of them are set
+  /// once and left, which is a menu rather than a panel.
+  void showSettingsMenu();
 
   /// Related controls sit together in a bordered group.
   enum Group {
@@ -165,27 +155,26 @@ private:
   // What is left here is the handful of genuinely single global values, which
   // have nothing to stay relative to and so are ordinary absolute knobs.
   LabelledKnob master{"MASTER"};
-  LabelledKnob spread{"SPREAD"};
 
   StereoOutputMeter meter;
   juce::Label meterCaption;
 
   juce::ComboBox presetBox, zoomBox;
-  juce::Label presetCaption, zoomCaption, voicesCaption;
+  juce::Label presetCaption, zoomCaption;
 
-  juce::TextButton voicesButton;
-  juce::TextButton linkButton, phaseButton, clipButton;
+  juce::TextButton settingsButton, linkButton;
   juce::TextButton echoButton, reverbButton;
-  MenuButton linkMenuButton;
+
+  /// Shown in the settings menu rather than on the panel.
+  int activeVoices = 0;
 
   std::vector<Control> echoControls, reverbControls;
 
   LinkScope scope = LinkScope::All;
   LinkCurve curve = LinkCurve::Uniform;
 
-  std::unique_ptr<SliderAttachment> masterAttachment, spreadAttachment;
-  std::unique_ptr<ButtonAttachment> phaseAttachment, clipAttachment,
-      echoAttachment, reverbAttachment;
+  std::unique_ptr<SliderAttachment> masterAttachment;
+  std::unique_ptr<ButtonAttachment> echoAttachment, reverbAttachment;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(TopBar)
 };

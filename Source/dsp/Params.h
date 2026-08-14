@@ -40,6 +40,8 @@ struct OscParams {
   float atAmount = 0.0f;
   /// Linear gain, mute/solo already folded in by the caller.
   float volume = 0.0f;
+  /// Where this partial sits in the field, -1 hard left to +1 hard right.
+  float pan = 0.0f;
 
   /// False when muted, or when some other strip is soloed.
   bool audible = true;
@@ -64,13 +66,13 @@ struct NoiseParams {
   float velAmount = 0.7f;
   float atAmount = 0.0f;
   float volume = 0.0f;
+  float pan = 0.0f;
 
   bool audible = true;
 };
 
 struct GlobalParams {
-  float masterGain = 0.25f;  ///< linear
-  float stereoSpread = 0.0f; ///< 0 = mono, 1 = partials fanned across the field
+  float masterGain = 0.25f;   ///< linear
   float bendSemitones = 0.0f; ///< current pitch-bend offset
   float aftertouch = 0.0f;    ///< current channel pressure, 0..1
   bool phaseReset = true; ///< reset partial phase on note-on (coherent attack)
@@ -85,26 +87,24 @@ struct EchoParams {
   float mix = 0.25f;         ///< 0 dry, 1 fully wet
   float timeSeconds = 0.35f; ///< distance between the heads
   float feedback = 0.35f;    ///< 0..0.95, how much goes round again
-  /// Where the repeats sit: 0 leaves each one darker than the last, 1 keeps
-  /// them close to the original. Tape loses the top end on every pass, and that
-  /// loss is most of what makes an echo sit behind the note instead of on it.
-  float tone = 0.45f;
-  /// Wow and flutter. The motor is never quite steady, so the pitch of the
-  /// repeats wanders.
-  float wobble = 0.25f;
-  /// Crossfeed between the two heads. At zero the repeats stay on the side they
-  /// came from, at one they alternate.
-  float spread = 0.0f;
+  /// How worn the machine is, 0 to 1.
+  ///
+  /// One control for the three things that go together on a tape delay as it
+  /// ages: the top end it loses on every pass, how far the motor wanders, and
+  /// how hard the tape leans over when it is driven. New is clean and bright,
+  /// old is dark, unsteady and compressed. Separating them meant three knobs
+  /// that were nearly always turned together.
+  float age = 0.35f;
 };
 
 /// The reverb: a feedback delay network, sized and damped from the panel.
 struct ReverbParams {
   bool enabled = false;
   float mix = 0.25f;
-  float size = 0.5f;         ///< 0 a small room, 1 a hall
-  float decaySeconds = 2.0f; ///< RT60
-  float damping = 0.5f;      ///< how fast the top end dies away in the tail
-  float lowCutHz = 120.0f;   ///< keeps the fundamental out of the tail
+  /// RT60. The room is sized from it rather than set separately: a long tail in
+  /// a small room is a spring, not a place, and nobody was reaching for that.
+  float decaySeconds = 2.0f;
+  float damping = 0.5f; ///< how fast the top end dies away in the tail
   float preDelaySeconds = 0.0f;
   float width = 1.0f;
 };

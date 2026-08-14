@@ -95,7 +95,6 @@ SynthParams makeFlatParams(float volumePerPartial) {
   }
 
   p.global.masterGain = 1.0f;
-  p.global.stereoSpread = 0.0f;
   p.global.bendSemitones = 0.0f;
   p.global.phaseReset = true;
   p.global.safetyClip = false;
@@ -714,8 +713,8 @@ void testPerPartialVelocity() {
 // 11. Stereo spread must be symmetric, balanced, and actually wide where a real
 //     spectrum keeps its energy.
 // -----------------------------------------------------------------------------
-void testStereoSpread() {
-  section("Stereo spread");
+void testPanning() {
+  section("Panning");
 
   constexpr double sr = 48000.0;
   constexpr int N = 24000;
@@ -725,17 +724,19 @@ void testStereoSpread() {
     std::vector<float> l, r;
   };
 
-  auto render = [&](float spread, bool rollOff) {
+  /// Renders with a pan position per partial, taken from fn(index).
+  const auto render = [&](auto &&fn, bool rollOff) {
     SynthEngine engine;
     engine.prepare(sr);
 
     auto p = makeFlatParams(0.02f);
     for (int i = 0; i < kNumHarmonics; ++i) {
       p.osc[(size_t)i].tuneBlend = 1.0f;
+      p.osc[(size_t)i].pan = (float)fn(i);
+
       if (rollOff)
         p.osc[(size_t)i].volume = i < 8 ? 0.02f / (float)(i + 1) : 0.0f;
     }
-    p.global.stereoSpread = spread;
 
     engine.noteOn(45, 1.0f, p);
     Rendered out{std::vector<float>((size_t)N), std::vector<float>((size_t)N)};
@@ -743,41 +744,123 @@ void testStereoSpread() {
     return out;
   };
 
-  auto balances = [&](const Rendered &x) {
+  /// Where each partial ended up, as -1 hard left to +1 hard right, read back
+  /// out of the rendered audio rather than taken on trust.
+  ///
+  /// Measured as a balance of power rather than of amplitude, which is what an
+  /// equal-power pan law is defined against: half left means half the power on
+  /// the right, not half the amplitude.
+  const auto balances = [&](const Rendered &x) {
     std::vector<double> b;
+
     for (int n = 1; n <= kNumHarmonics; ++n) {
       const double ml = binMagnitude(x.l, f0 * n, sr);
       const double mr = binMagnitude(x.r, f0 * n, sr);
-      b.push_back(ml + mr > 1.0e-12 ? (mr - ml) / (mr + ml) : 0.0);
+      const double pl = ml * ml, pr = mr * mr;
+
+      b.push_back(pl + pr > 1.0e-24 ? (pr - pl) / (pr + pl) : 0.0);
     }
+
     return b;
   };
 
-  auto imbalanceDb = [&](const Rendered &x) {
+  const auto imbalanceDb = [&](const Rendered &x) {
     double sl = 0.0, sr = 0.0;
+
     for (int n = 0; n < N; ++n) {
       sl += (double)x.l[(size_t)n] * x.l[(size_t)n];
       sr += (double)x.r[(size_t)n] * x.r[(size_t)n];
     }
+
     return 20.0 * std::log10(std::sqrt(sr / N) / std::sqrt(sl / N));
   };
 
-  // Spread off must be exactly mono.
+  // Everything centred must be exactly mono.
   {
-    const auto mono = render(0.0f, false);
+    const auto mono = render([](int) { return 0.0; }, false);
     float worst = 0.0f;
+
     for (int n = 0; n < N; ++n)
       worst = std::max(worst, std::abs(mono.l[(size_t)n] - mono.r[(size_t)n]));
 
-    check(worst < 1.0e-7f, "spread at zero leaves the channels identical");
+    check(worst < 1.0e-7f, "centred partials leave the channels identical");
   }
 
-  const auto wide = render(1.0f, false);
-  auto b = balances(wide);
+  // A partial put somewhere has to arrive there. Odd partials hard left, even
+  // hard right, which is a placement no width control could have made.
+  {
+    const auto split =
+        render([](int i) { return (i % 2) == 0 ? -1.0 : 1.0; }, false);
+    const auto b = balances(split);
 
-  // Every placement needs a mirror, or the image leans and the widest partial
-  // ends up alone on one side.
-  auto sorted = b;
+    double worstLeft = 0.0, worstRight = 0.0;
+
+    for (int i = 0; i < kNumHarmonics; ++i) {
+      if ((i % 2) == 0)
+        worstLeft = std::max(worstLeft, b[(size_t)i] + 1.0);
+      else
+        worstRight = std::max(worstRight, 1.0 - b[(size_t)i]);
+    }
+
+    std::printf("  hard panned: worst error left %.4f, right %.4f\n", worstLeft,
+                worstRight);
+
+    check(worstLeft < 0.01 && worstRight < 0.01,
+          "each partial arrives where it was put");
+  }
+
+  // Half left has to land half left, not somewhere near it: equal power means
+  // the number on the knob and the number in the audio agree.
+  {
+    const auto half = render([](int) { return -0.5; }, false);
+    const auto b = balances(half);
+
+    double worst = 0.0;
+    for (auto v : b)
+      worst = std::max(worst, std::abs(v + 0.5));
+
+    std::printf("  half left: worst error %.4f\n", worst);
+    check(worst < 0.02, "a partial at half left images at half left");
+  }
+
+  // Equal power, so a partial sweeping across does not get louder in the
+  // middle or thinner at the edges.
+  {
+    double loudest = 0.0, quietest = 1.0e9;
+
+    for (float pan : {-1.0f, -0.5f, 0.0f, 0.5f, 1.0f}) {
+      const auto x = render([pan](int) { return (double)pan; }, false);
+
+      double energy = 0.0;
+      for (int n = 0; n < N; ++n)
+        energy += (double)x.l[(size_t)n] * x.l[(size_t)n] +
+                  (double)x.r[(size_t)n] * x.r[(size_t)n];
+
+      loudest = std::max(loudest, energy);
+      quietest = std::min(quietest, energy);
+    }
+
+    const auto spreadDb = 10.0 * std::log10(loudest / quietest);
+    std::printf("  loudness across the sweep varies by %.2f dB\n", spreadDb);
+
+    check(spreadDb < 0.1, "panning holds the level as it crosses the field");
+  }
+
+  // The shape the old spread control used to make, now something a preset
+  // writes into the pans: mirrored pairs, widening up the series.
+  const auto fan = [](int i) {
+    constexpr int lastPair = kNumHarmonics / 2 - 1;
+
+    const int pairIndex = i / 2;
+    const bool second = (i % 2) != 0;
+    const bool flip = (pairIndex % 2) != 0;
+
+    return (second != flip ? 1.0 : -1.0) *
+           std::sqrt((double)pairIndex / (double)lastPair);
+  };
+
+  const auto wide = render(fan, false);
+  auto sorted = balances(wide);
   std::sort(sorted.begin(), sorted.end());
 
   double worstMirror = 0.0;
@@ -786,9 +869,8 @@ void testStereoSpread() {
         worstMirror,
         std::abs(sorted[(size_t)k] + sorted[(size_t)(kNumHarmonics - 1 - k)]));
 
-  std::printf("  worst mirror error %.4f\n", worstMirror);
-  check(worstMirror < 0.01, "every pan position has an opposite number");
-
+  std::printf("  mirrored fan: worst mirror error %.4f\n", worstMirror);
+  check(worstMirror < 0.01, "every position in the fan has an opposite number");
   check(sorted.front() < -0.99, "the field reaches hard left");
   check(sorted.back() > 0.99, "the field reaches hard right");
 
@@ -797,8 +879,8 @@ void testStereoSpread() {
   check(std::abs(flatDb) < 0.2, "a flat spectrum stays centred");
 
   // The reason the pairing exists: a rolled-off spectrum must stay centred too,
-  // and must still be spread where its energy actually lives.
-  const auto rolled = render(1.0f, true);
+  // and must still be placed where its energy actually lives.
+  const auto rolled = render(fan, true);
   const double rolledDb = imbalanceDb(rolled);
   std::printf(", %+.2f dB rolled off\n", rolledDb);
   check(std::abs(rolledDb) < 0.5, "a 1/n spectrum stays centred");
@@ -812,14 +894,6 @@ void testStereoSpread() {
   check(widest > 0.2,
         "the partials carrying the energy are actually placed, not bunched "
         "in the middle");
-
-  bool anyLeft = false, anyRight = false;
-  for (int n = 0; n < 8; ++n) {
-    anyLeft |= rb[(size_t)n] < -0.1;
-    anyRight |= rb[(size_t)n] > 0.1;
-  }
-  check(anyLeft, "audible partials appear on the left");
-  check(anyRight, "audible partials appear on the right");
 }
 
 // -----------------------------------------------------------------------------
@@ -1184,10 +1258,11 @@ void testPartialMetering() {
           "the channels match with no spread");
 
     q.global.masterGain = 1.0f;
-    q.global.stereoSpread = 1.0f;
     for (auto &o : q.osc)
       o.volume = 0.0f;
+
     q.osc[3].volume = 0.5f; // a partial placed off centre
+    q.osc[3].pan = 0.9f;
 
     SynthEngine wide;
     wide.prepare(sr);
@@ -1592,13 +1667,11 @@ void testTapeEcho() {
     check(identical, "switched off, the echo passes the signal untouched");
   }
 
-  // ---- where the repeats land -----------------------------------------------
+  // ---- where the repeats land ----------------------------------------------
   p.enabled = true;
   p.timeSeconds = 0.25f;
   p.feedback = 0.6f;
-  p.tone = 1.0f;
-  p.wobble = 0.0f;
-  p.spread = 0.0f;
+  p.age = 0.0f;
 
   echo.reset();
 
@@ -1619,13 +1692,13 @@ void testTapeEcho() {
 
     const auto errorMs =
         std::abs((double)found - (double)expected) * 1000.0 / sr;
+
     std::printf("  first repeat at %.1f ms, wanted %.1f ms\n",
                 (double)found * 1000.0 / sr, 250.0);
 
     check(errorMs < 2.0, "the first repeat lands at the head distance");
     check(best > 0.5, "the first repeat carries the signal at full level");
 
-    // Each pass round the loop is quieter than the last.
     const auto first = peak(s.l, (size_t)(0.2 * sr), (size_t)(0.3 * sr));
     const auto second = peak(s.l, (size_t)(0.45 * sr), (size_t)(0.55 * sr));
     const auto third = peak(s.l, (size_t)(0.7 * sr), (size_t)(0.8 * sr));
@@ -1634,13 +1707,14 @@ void testTapeEcho() {
     check(second > 0.2 * first, "feedback at 60% is still clearly audible");
   }
 
-  // ---- the loop must not run away -------------------------------------------
+  // ---- the loop must not run away, however new the machine is --------------
   {
     echo.reset();
 
     p.feedback = 0.95f;
     p.mix = 1.0f;
     p.timeSeconds = 0.12f;
+    p.age = 0.0f; // no character compression, so only the backstop is left
 
     auto s = tone((size_t)(sr * 20.0), 220.0, sr, 0.7f);
     runBlocks(echo, s, p);
@@ -1651,10 +1725,9 @@ void testTapeEcho() {
               std::to_string(peak(s.l, 0, s.size())) + ")");
   }
 
-  // ---- tone
-  // ------------------------------------------------------------------
+  // ---- age: the top end it hands back --------------------------------------
   {
-    const auto measure = [&](float toneValue) {
+    const auto measure = [&](float age) {
       echo.reset();
 
       EchoParams e;
@@ -1662,8 +1735,7 @@ void testTapeEcho() {
       e.mix = 1.0f;
       e.timeSeconds = 0.1f;
       e.feedback = 0.8f;
-      e.tone = toneValue;
-      e.wobble = 0.0f;
+      e.age = age;
 
       // A click carries every frequency, so what comes back says what the loop
       // did to the top end.
@@ -1671,24 +1743,24 @@ void testTapeEcho() {
       runBlocks(echo, s, e);
 
       std::vector<float> tail(s.l.begin() + (size_t)(sr * 0.9), s.l.end());
+
       return bandMagnitude(tail, 4000.0, 9000.0, sr) /
              std::max(1.0e-9, bandMagnitude(tail, 200.0, 600.0, sr));
     };
 
-    const auto dark = measure(0.0f);
-    const auto bright = measure(1.0f);
+    const auto worn = measure(1.0f);
+    const auto fresh = measure(0.0f);
 
-    std::printf("  high to low after ~10 passes: dark %.4f, bright %.4f\n",
-                dark, bright);
+    std::printf("  high to low after ~10 passes: worn %.4f, new %.4f\n", worn,
+                fresh);
 
-    check(bright > dark * 4.0,
-          "dark repeats lose their top end and bright ones keep it");
+    check(fresh > worn * 4.0,
+          "a worn machine loses the top end and a new one keeps it");
   }
 
-  // ---- wow and flutter
-  // -------------------------------------------------------
+  // ---- age: how steady the motor is ----------------------------------------
   {
-    const auto wander = [&](float wobble) {
+    const auto wander = [&](float age) {
       echo.reset();
 
       EchoParams e;
@@ -1696,8 +1768,7 @@ void testTapeEcho() {
       e.mix = 1.0f;
       e.timeSeconds = 0.5f;
       e.feedback = 0.0f;
-      e.tone = 1.0f;
-      e.wobble = wobble;
+      e.age = age;
 
       auto s = tone((size_t)(sr * 4.0), 1000.0, sr);
       runBlocks(echo, s, e);
@@ -1716,69 +1787,78 @@ void testTapeEcho() {
       return (highest - lowest) / 1000.0;
     };
 
-    const auto steady = wander(0.0f);
-    const auto wobbling = wander(1.0f);
+    const auto fresh = wander(0.0f);
+    const auto worn = wander(1.0f);
 
-    std::printf(
-        "  pitch swing of the repeats: steady %.4f%%, wobbling %.2f%%\n",
-        steady * 100.0, wobbling * 100.0);
+    std::printf("  pitch swing of the repeats: new %.4f%%, worn %.2f%%\n",
+                fresh * 100.0, worn * 100.0);
 
-    check(steady < 0.002, "with the motor steady the repeats hold their pitch");
-    check(wobbling > 0.004,
-          "wow and flutter wander the pitch of the repeats audibly");
+    check(fresh < 0.002, "a new machine holds the pitch of its repeats");
+    check(worn > 0.004, "a worn one wanders audibly");
   }
 
-  // ---- crossfeed -----------------------------------------------------------
-  // The input here is centred, which is the case that matters, since almost
-  // everything this thing is fed will be. A hard-panned source makes crossfeed
-  // look like it works even when it does nothing at all to a centred one.
+  // ---- age: how hard the tape leans over -----------------------------------
   {
-    struct Sides {
-      double firstL, firstR, secondL, secondR;
-    };
-
-    const auto walk = [&](float spread) {
+    const auto compression = [&](float age) {
       echo.reset();
 
       EchoParams e;
       e.enabled = true;
       e.mix = 1.0f;
-      e.timeSeconds = 0.2f;
-      e.feedback = 0.7f;
-      e.tone = 1.0f;
-      e.wobble = 0.0f;
-      e.spread = spread;
+      e.timeSeconds = 0.15f;
+      e.feedback = 0.85f;
+      e.age = age;
 
-      auto s = impulse((size_t)(sr * 1.5));
+      // Loud enough that a worn machine has something to lean on.
+      auto s = impulse((size_t)(sr * 1.2), 0.95f);
       runBlocks(echo, s, e);
 
-      const auto from1 = (size_t)(0.15 * sr), to1 = (size_t)(0.25 * sr);
-      const auto from2 = (size_t)(0.35 * sr), to2 = (size_t)(0.45 * sr);
+      const auto first = peak(s.l, (size_t)(0.1 * sr), (size_t)(0.2 * sr));
+      const auto second = peak(s.l, (size_t)(0.25 * sr), (size_t)(0.35 * sr));
 
-      return Sides{peak(s.l, from1, to1), peak(s.r, from1, to1),
-                   peak(s.l, from2, to2), peak(s.r, from2, to2)};
+      return second / std::max(1.0e-9, first);
     };
 
-    const auto straight = walk(0.0f);
-    const auto crossed = walk(1.0f);
+    const auto fresh = compression(0.0f);
+    const auto worn = compression(1.0f);
 
-    std::printf("  centred source, heads straight: repeat 1 L %.3f R %.3f, "
+    std::printf("  second repeat against the first: new %.3f, worn %.3f\n",
+                fresh, worn);
+
+    check(fresh > worn * 1.05,
+          "a worn machine compresses what goes round and a new one does not");
+  }
+
+  // ---- the fixed crossfeed -------------------------------------------------
+  // The input here is centred, which is the case that matters, since almost
+  // everything this thing is fed will be. Crossfeed alone does nothing to a
+  // centred source, so this is the test that would have caught the original
+  // bug: the repeats have to move even when the source does not.
+  {
+    echo.reset();
+
+    EchoParams e;
+    e.enabled = true;
+    e.mix = 1.0f;
+    e.timeSeconds = 0.2f;
+    e.feedback = 0.7f;
+    e.age = 0.0f;
+
+    auto s = impulse((size_t)(sr * 1.5));
+    runBlocks(echo, s, e);
+
+    const auto from1 = (size_t)(0.15 * sr), to1 = (size_t)(0.25 * sr);
+    const auto from2 = (size_t)(0.35 * sr), to2 = (size_t)(0.45 * sr);
+
+    const auto firstL = peak(s.l, from1, to1), firstR = peak(s.r, from1, to1);
+    const auto secondL = peak(s.l, from2, to2), secondR = peak(s.r, from2, to2);
+
+    std::printf("  centred source: repeat 1 L %.3f R %.3f, "
                 "repeat 2 L %.3f R %.3f\n",
-                straight.firstL, straight.firstR, straight.secondL,
-                straight.secondR);
-    std::printf("  centred source, heads crossed:  repeat 1 L %.3f R %.3f, "
-                "repeat 2 L %.3f R %.3f\n",
-                crossed.firstL, crossed.firstR, crossed.secondL,
-                crossed.secondR);
+                firstL, firstR, secondL, secondR);
 
-    check(std::abs(straight.firstL - straight.firstR) < 1.0e-6 &&
-              std::abs(straight.secondL - straight.secondR) < 1.0e-6,
-          "with the heads straight a centred source stays centred");
-
-    check(crossed.firstL > 0.5 && crossed.firstR < 0.01,
-          "with the heads crossed the first repeat lands on one side");
-    check(crossed.secondR > 0.4 * crossed.firstL && crossed.secondL < 0.01,
-          "and the second repeat has walked to the other");
+    check(firstL > firstR * 1.5, "the first repeat leans to one side");
+    check(secondR > secondL * 1.2, "and the next one leans to the other");
   }
 }
 
@@ -1813,10 +1893,8 @@ void testReverb() {
     ReverbParams r;
     r.enabled = true;
     r.mix = 1.0f;
-    r.size = 0.6f;
     r.decaySeconds = decaySeconds;
     r.damping = 0.0f;
-    r.lowCutHz = 20.0f;
     r.preDelaySeconds = 0.0f;
     r.width = 1.0f;
 
@@ -1857,10 +1935,8 @@ void testReverb() {
     ReverbParams r;
     r.enabled = true;
     r.mix = 1.0f;
-    r.size = 0.5f;
     r.decaySeconds = 3.0f;
     r.damping = 0.2f;
-    r.lowCutHz = 20.0f;
     r.width = 1.0f;
 
     auto s = impulse((size_t)(sr * 3.0));
@@ -1897,10 +1973,8 @@ void testReverb() {
     ReverbParams r;
     r.enabled = true;
     r.mix = 1.0f;
-    r.size = 0.5f;
     r.decaySeconds = 2.0f;
     r.damping = 0.3f;
-    r.lowCutHz = 20.0f;
     r.preDelaySeconds = 0.1f;
     r.width = 1.0f;
 
@@ -1916,17 +1990,14 @@ void testReverb() {
   // ---- damping and low cut
   // ---------------------------------------------------
   {
-    const auto tailBand = [&](float damping, float lowCut, double lo,
-                              double hi) {
+    const auto tailBand = [&](float damping, double lo, double hi) {
       reverb.reset();
 
       ReverbParams r;
       r.enabled = true;
       r.mix = 1.0f;
-      r.size = 0.5f;
       r.decaySeconds = 3.0f;
       r.damping = damping;
-      r.lowCutHz = lowCut;
       r.width = 1.0f;
 
       auto s = impulse((size_t)(sr * 2.0));
@@ -1936,19 +2007,21 @@ void testReverb() {
       return bandMagnitude(tail, lo, hi, sr);
     };
 
-    const auto open = tailBand(0.0f, 20.0f, 5000.0, 10000.0);
-    const auto damped = tailBand(1.0f, 20.0f, 5000.0, 10000.0);
+    const auto open = tailBand(0.0f, 5000.0, 10000.0);
+    const auto damped = tailBand(1.0f, 5000.0, 10000.0);
 
     std::printf("  top end in the tail: open %.2e, damped %.2e\n", open,
                 damped);
     check(damped < open * 0.5, "damping takes the top off the tail");
 
-    const auto full = tailBand(0.3f, 20.0f, 60.0, 120.0);
-    const auto cut = tailBand(0.3f, 500.0f, 60.0, 120.0);
+    // The low cut is fixed at 175 Hz now, so what reaches the tail below it
+    // has to be well down on what reaches it above.
+    const auto below = tailBand(0.3f, 60.0, 110.0);
+    const auto above = tailBand(0.3f, 400.0, 800.0);
 
-    std::printf("  bottom end in the tail: full %.2e, cut %.2e\n", full, cut);
-    check(cut < full * 0.5,
-          "the low cut keeps the fundamental out of the tail");
+    std::printf("  tail below the cut %.2e, above it %.2e\n", below, above);
+    check(below < above * 0.5,
+          "the fixed low cut keeps the fundamental out of the tail");
   }
 
   // ---- width
@@ -1960,10 +2033,8 @@ void testReverb() {
       ReverbParams r;
       r.enabled = true;
       r.mix = 1.0f;
-      r.size = 0.5f;
       r.decaySeconds = 2.0f;
       r.damping = 0.3f;
-      r.lowCutHz = 20.0f;
       r.width = width;
 
       auto s = impulse((size_t)(sr * 1.5));
@@ -1997,10 +2068,8 @@ void testReverb() {
     ReverbParams r;
     r.enabled = true;
     r.mix = 1.0f;
-    r.size = 0.5f;
     r.decaySeconds = 2.0f;
     r.damping = 0.4f;
-    r.lowCutHz = 60.0f;
     r.width = 1.0f;
 
     // Broadband input, so this is a fair comparison rather than one frequency
@@ -2022,27 +2091,46 @@ void testReverb() {
           "turning the mix up does not change how loud the thing is");
   }
 
-  // ---- stability
-  // -------------------------------------------------------------
+  // ---- stability -----------------------------------------------------------
+  // A 30 s reverb fed a continuous tone builds up, and should: that is what a
+  // long tail does. What must not happen is that it keeps building, so the
+  // test is not a peak but a direction. Feed it, stop, and watch it fall.
   {
     reverb.reset();
 
     ReverbParams r;
     r.enabled = true;
     r.mix = 1.0f;
-    r.size = 1.0f;
     r.decaySeconds = 30.0f;
     r.damping = 0.0f;
-    r.lowCutHz = 20.0f;
     r.width = 1.0f;
 
-    auto s = tone((size_t)(sr * 30.0), 300.0, sr, 0.5f);
+    Stereo s((size_t)(sr * 60.0));
+
+    for (size_t n = 0; n < (size_t)(sr * 30.0); ++n) {
+      const auto v =
+          (float)(0.5 * std::sin(6.283185307179586 * 300.0 * (double)n / sr));
+      s.l[n] = v;
+      s.r[n] = v;
+    }
+
     runBlocks(reverb, s, r);
 
+    const auto driven = rms(s.l, (size_t)(sr * 28.0), (size_t)(sr * 30.0));
+    const auto justAfter = rms(s.l, (size_t)(sr * 31.0), (size_t)(sr * 33.0));
+    const auto muchLater = rms(s.l, (size_t)(sr * 55.0), (size_t)(sr * 57.0));
+
+    std::printf("  driven %.3f, a second later %.3f, half a minute later "
+                "%.4f\n",
+                driven, justAfter, muchLater);
+
     check(allFinite(s), "the network stays finite at the longest decay");
-    check(peak(s.l, 0, s.size()) < 4.0,
-          "the network stays bounded at the longest decay (peak " +
-              std::to_string(peak(s.l, 0, s.size())) + ")");
+    check(peak(s.l, 0, s.size()) < 20.0,
+          "and bounded (peak " + std::to_string(peak(s.l, 0, s.size())) + ")");
+
+    check(justAfter < driven, "it starts falling the moment the input stops");
+    check(muchLater < justAfter * 0.03,
+          "and is 30 dB further down half a minute after that");
   }
 }
 
@@ -2115,12 +2203,10 @@ void benchmark() {
     p.echo.enabled = withEffects != 0;
     p.echo.mix = 0.3f;
     p.echo.feedback = 0.6f;
-    p.echo.wobble = 0.5f;
-    p.echo.spread = 0.4f;
+    p.echo.age = 0.5f;
 
     p.reverb.enabled = withEffects != 0;
     p.reverb.mix = 0.3f;
-    p.reverb.size = 0.7f;
     p.reverb.decaySeconds = 4.0f;
 
     for (int v = 0; v < 8; ++v)
@@ -2152,7 +2238,7 @@ int main() {
   testVoiceAllocation();
   testModulation();
   testPerPartialVelocity();
-  testStereoSpread();
+  testPanning();
   testAftertouch();
   testDrift();
   testPartialMetering();

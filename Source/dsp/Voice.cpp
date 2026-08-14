@@ -152,39 +152,19 @@ void Voice::render(float *left, float *right, int numSamples,
 
   const auto &sine = SineTable::instance();
 
-  // Equal-power pan positions.
+  // Equal-power pan positions, one per partial.
   //
-  // Partials are placed in symmetric pairs: 1 and 2 in the centre, then 3 and 4
-  // opposite each other, and so on out to 31 and 32 at the edges. Pairing
-  // matters for two reasons. Neighbouring partials have near-identical levels
-  // in any normal spectrum, so putting them on opposite sides keeps the image
-  // centred whatever shape is dialled in, and every position has a mirror, so
-  // nothing ends up hard panned with no counterpart on the other side.
-  //
-  // The width grows as a square root rather than linearly, because a spectrum
-  // that rolls off puts almost all of its energy in the first few partials. A
-  // linear fan leaves exactly those bunched in the middle and the control does
-  // nothing audible.
-  //
-  // Which member of a pair takes the left side alternates, so the louder one
-  // does not always land on the same side.
+  // Placing them by hand rather than fanning them from one control is the
+  // difference between a width setting and an arrangement: a partial can be
+  // put opposite the one a semitone away from it, or the octaves left and the
+  // sevenths right, which is not a shape any single knob could have produced.
   std::array<float, kNumHarmonics> panL{}, panR{};
-  {
-    const float spread = std::clamp(p.global.stereoSpread, 0.0f, 1.0f);
-    constexpr int lastPair = kNumHarmonics / 2 - 1;
 
-    for (int i = 0; i < kNumHarmonics; ++i) {
-      const int pairIndex = i / 2;
-      const bool second = (i % 2) != 0;
-      const bool flip = (pairIndex % 2) != 0;
+  for (int i = 0; i < kNumHarmonics; ++i) {
+    const float pan = std::clamp(p.osc[(size_t)i].pan, -1.0f, 1.0f);
 
-      const float magnitude = std::sqrt((float)pairIndex / (float)lastPair);
-      const float pos = (second != flip ? 1.0f : -1.0f) * magnitude;
-      const float pan = std::clamp(spread * pos, -1.0f, 1.0f);
-
-      panL[(size_t)i] = std::sqrt(0.5f * (1.0f - pan));
-      panR[(size_t)i] = std::sqrt(0.5f * (1.0f + pan));
-    }
+    panL[(size_t)i] = std::sqrt(0.5f * (1.0f - pan));
+    panR[(size_t)i] = std::sqrt(0.5f * (1.0f + pan));
   }
 
   partialPeaks.fill(0.0f);
@@ -375,9 +355,11 @@ void Voice::renderNoise(float *left, float *right, int len,
   const float lowMix = colour < 0.5f ? 1.0f : 1.0f - (colour - 0.5f) * 2.0f;
   const float highMix = colour < 0.5f ? colour * 2.0f : 1.0f;
 
-  // Noise sits centred. The stereo spread places partials by harmonic number,
-  // which noise has none of.
-  constexpr float pan = 0.70710678f;
+  // Placed the same way a partial is, so the one channel that is not part of
+  // the series still sits somewhere rather than always up the middle.
+  const float pan = std::clamp(np.pan, -1.0f, 1.0f);
+  const float panL = std::sqrt(0.5f * (1.0f - pan));
+  const float panR = std::sqrt(0.5f * (1.0f + pan));
 
   for (int n = 0; n < len; ++n) {
     const float white = noise.rng.bipolar();
@@ -388,8 +370,8 @@ void Voice::renderNoise(float *left, float *right, int len,
     const float s =
         (lowMix * noise.lowpassState + highMix * high) * noise.env.tick() * g;
 
-    left[n] += s * pan;
-    right[n] += s * pan;
+    left[n] += s * panL;
+    right[n] += s * panR;
 
     g += gInc;
   }

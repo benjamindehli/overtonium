@@ -12,11 +12,13 @@ constexpr float kTwoPi = 6.283185307179586f;
 constexpr double kWowRateHz = 0.7;
 constexpr float kFlutterRateHz = 6.3f;
 
-/// Soft saturation for the feedback path. Tape does not clip, it leans over,
-/// and a loop that leans over is a loop that cannot run away.
-inline float saturate(float x) noexcept {
-  constexpr float threshold = 0.6f;
+/// Where the heads sit relative to each other. Fixed rather than offered: the
+/// useful part of the range is a lean, and every setting either side of it was
+/// either inaudible or a gimmick.
+constexpr float kCrossfeed = 0.7f;
 
+/// Soft compression above a threshold. Used twice, for two different jobs.
+inline float lean(float x, float threshold) noexcept {
   const float a = std::abs(x);
   if (a <= threshold)
     return x;
@@ -25,6 +27,11 @@ inline float saturate(float x) noexcept {
   const float y = threshold + (1.0f - threshold) * std::tanh(over);
 
   return x < 0.0f ? -y : y;
+}
+
+/// The character stage, in proportion to how worn the machine is.
+inline float worn(float x, float age) noexcept {
+  return x + age * (lean(x, 0.6f) - x);
 }
 
 /// One-pole coefficient for a given cutoff.
@@ -134,8 +141,7 @@ void TapeEcho::process(float *outL, float *outR, int numSamples,
 
   const auto mix = std::clamp(p.mix, 0.0f, 1.0f);
   const auto feedback = std::clamp(p.feedback, 0.0f, 0.95f);
-  const auto wobble = std::clamp(p.wobble, 0.0f, 1.0f);
-  const auto cross = std::clamp(p.spread, 0.0f, 1.0f);
+  const auto age = std::clamp(p.age, 0.0f, 1.0f);
 
   const auto targetDelay =
       (float)(std::clamp(p.timeSeconds, 0.01f, kMaxTimeSeconds) * sampleRate);
@@ -147,10 +153,10 @@ void TapeEcho::process(float *outL, float *outR, int numSamples,
   // slow enough that the pitch slide is the point rather than a glitch.
   const auto glide = (float)std::exp(-1.0 / (0.09 * sampleRate));
 
-  // The repeats darken from the top and thin from the bottom. Tone runs the
-  // lowpass from a whisper to nearly open.
-  const auto toneHz = 700.0f + std::clamp(p.tone, 0.0f, 1.0f) *
-                                   std::clamp(p.tone, 0.0f, 1.0f) * 11000.0f;
+  // The repeats darken from the top and thin from the bottom. A new machine
+  // keeps nearly everything, a worn one hands back very little.
+  const auto brightness = 1.0f - age;
+  const auto toneHz = 700.0f + brightness * brightness * 11000.0f;
   const auto lpCoef = onePole(toneHz, sampleRate);
   const auto hpCoef = onePole(90.0f, sampleRate);
 
@@ -169,7 +175,7 @@ void TapeEcho::process(float *outL, float *outR, int numSamples,
 
     const auto flutter = std::sin(kTwoPi * flutterPhase);
     const auto modulation =
-        wobble * smoothedDelay * (0.006f * wowValue + 0.0012f * flutter);
+        age * smoothedDelay * (0.006f * wowValue + 0.0012f * flutter);
 
     const auto delaySamples = smoothedDelay + modulation;
 
@@ -183,23 +189,27 @@ void TapeEcho::process(float *outL, float *outR, int numSamples,
     left.dc = left.damp + (left.dc - left.damp) * hpCoef;
     right.dc = right.damp + (right.dc - right.damp) * hpCoef;
 
-    const auto agedL = saturate(left.damp - left.dc);
-    const auto agedR = saturate(right.damp - right.dc);
+    // Two stages, and they are not the same thing. The first is character and
+    // follows the wear, so a new machine passes its repeats through untouched.
+    // The second is a backstop that is always there: at 95% feedback a steady
+    // tone can otherwise pile up to twenty times what went in.
+    const auto agedL = lean(worn(left.damp - left.dc, age), 0.95f);
+    const auto agedR = lean(worn(right.damp - right.dc, age), 0.95f);
 
     // Crossfeed sends each head into the other, so the repeats walk across the
     // image instead of sitting where they landed.
-    const auto fedL = agedL * (1.0f - cross) + agedR * cross;
-    const auto fedR = agedR * (1.0f - cross) + agedL * cross;
+    const auto fedL = agedL * (1.0f - kCrossfeed) + agedR * kCrossfeed;
+    const auto fedR = agedR * (1.0f - kCrossfeed) + agedL * kCrossfeed;
 
     const auto dryL = outL[n];
     const auto dryR = outR[n];
 
     // Crossfeed alone does nothing to a centred source, since swapping two
-    // identical signals changes neither. What makes the repeats alternate is
-    // feeding them in on one side: at full spread everything enters on the
-    // left and the crossfeed walks it over on each pass.
-    const auto injectL = dryL * (1.0f - 0.5f * cross) + dryR * (0.5f * cross);
-    const auto injectR = dryR * (1.0f - cross);
+    // identical signals changes neither. What makes the repeats move is feeding
+    // them in unevenly and letting the crossfeed carry them over on each pass.
+    const auto injectL =
+        dryL * (1.0f - 0.5f * kCrossfeed) + dryR * (0.5f * kCrossfeed);
+    const auto injectR = dryR * (1.0f - kCrossfeed);
 
     left.buffer[(size_t)left.write] = injectL + fedL * feedback;
     right.buffer[(size_t)right.write] = injectR + fedR * feedback;
