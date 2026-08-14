@@ -4,6 +4,7 @@ cmake-build-*/
 _deps/
 .claude/
 CLAUDE.md
+temp/
 
 # macOS
 .DS_Store
