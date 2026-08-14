@@ -124,6 +124,9 @@ private:
   /// another.
   void parkControls();
 
+  /// How many groups belong on the first row.
+  static int chooseSplit(int firstRowWidth, int secondRowWidth);
+
   void layoutRow(juce::Rectangle<int> row, int firstGroup, int lastGroup);
   void placeGroup(int group, juce::Rectangle<int> bounds);
 

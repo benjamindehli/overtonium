@@ -29,6 +29,11 @@ constexpr int kGroupCount = 5;
 /// Uncapped it swallows a whole second row and reads as a progress bar.
 constexpr int kOutputMaxExtra = 190;
 
+/// ...and the one that can give ground when a row is slightly too tight. A
+/// window a few pixels short of fitting one row should narrow the meter rather
+/// than wrap, which is what used to strand the view group alone on row two.
+constexpr int kOutputMaxSqueeze = 40;
+
 /// The title only occupies the first row, so the second gets the full width.
 constexpr int kTitleLead = 10;
 
@@ -354,9 +359,39 @@ void TopBar::setZoomChoice(float zoom) {
 
 int TopBar::heightForWidth(int width) {
   const auto content = width - 2 * kBarMargin - kTitleWidth - kTitleLead;
-  const auto rows = content >= totalGroupWidth(0, kGroupCount) ? 1 : 2;
+  const auto onOneRow =
+      content >= totalGroupWidth(0, kGroupCount) - kOutputMaxSqueeze;
+
+  const auto rows = onOneRow ? 1 : 2;
 
   return rows * kRowHeight + (rows - 1) * kRowGap + 2 * kBarPadY;
+}
+
+int TopBar::chooseSplit(int firstRowWidth, int secondRowWidth) {
+  if (firstRowWidth >= totalGroupWidth(0, kGroupCount) - kOutputMaxSqueeze)
+    return kGroupCount;
+
+  // Fill the first row as far as it will go, which keeps the bar compact and
+  // anchored to the title. The exception is a second row that would come out
+  // nearly empty: one small group stranded on a row of its own looks like a
+  // mistake, so in that case a group is pulled down to join it.
+  int fallback = 0;
+
+  for (int split = kGroupCount - 1; split >= 1; --split) {
+    const auto first = totalGroupWidth(0, split);
+    const auto second = totalGroupWidth(split, kGroupCount);
+
+    if (first > firstRowWidth || second > secondRowWidth)
+      continue;
+
+    if (fallback == 0)
+      fallback = split;
+
+    if (second * 100 >= secondRowWidth * 30)
+      return split;
+  }
+
+  return fallback > 0 ? fallback : 1;
 }
 
 int TopBar::minimumWidth() {
@@ -460,7 +495,11 @@ void TopBar::layoutRow(juce::Rectangle<int> row, int firstGroup,
     return;
 
   const auto needed = totalGroupWidth(firstGroup, lastGroup);
-  const auto surplus = juce::jmax(0, row.getWidth() - needed);
+  const auto slack = row.getWidth() - needed;
+
+  // Spare room goes to the meter, and a small shortfall comes out of it too.
+  const auto outputAdjust = slack >= 0 ? juce::jmin(slack, kOutputMaxExtra)
+                                       : juce::jmax(slack, -kOutputMaxSqueeze);
 
   for (int g = firstGroup; g < lastGroup; ++g) {
     if (g > firstGroup)
@@ -468,7 +507,7 @@ void TopBar::layoutRow(juce::Rectangle<int> row, int firstGroup,
 
     auto width = kGroupMinWidth[g];
     if (g == kOutputGroupIndex)
-      width += juce::jmin(surplus, kOutputMaxExtra);
+      width += outputAdjust;
 
     // Never hand out more than is left, so a very narrow window crops the last
     // group rather than letting groups overlap each other.
@@ -529,23 +568,10 @@ void TopBar::resized() {
   if (firstRow.getWidth() < 60)
     return;
 
-  // Fill the first row greedily, then everything left over goes to the second.
-  int wrapAt = kGroupCount;
-
-  if (fullWidth.getHeight() >= 2 * kRowHeight) {
-    int used = 0;
-
-    for (int g = 0; g < kGroupCount; ++g) {
-      const auto need = kGroupMinWidth[g] + (g > 0 ? kGroupGap : 0);
-
-      if (used + need > firstRow.getWidth() && g > 0) {
-        wrapAt = g;
-        break;
-      }
-
-      used += need;
-    }
-  }
+  const auto wrapAt =
+      fullWidth.getHeight() >= 2 * kRowHeight
+          ? chooseSplit(firstRow.getWidth(), fullWidth.getWidth())
+          : kGroupCount;
 
   layoutRow(firstRow, 0, wrapAt);
 
