@@ -64,9 +64,30 @@ inline constexpr int kNumRows = (int)Row::NumRows;
 inline constexpr int kStripWidth = 38;
 inline constexpr int kGutterWidth = 78;
 
+/// Stands for "no row", which is what a hover over a heading or a gap reports.
+inline constexpr Row kNoRow = Row::NumRows;
+
 using RowBounds = std::array<juce::Rectangle<int>, kNumRows>;
 
 RowBounds layoutRows(juce::Rectangle<int> area);
+
+/// The row a point in a strip belongs to, or kNoRow for the header and the
+/// section rules, which have nothing to point at.
+///
+/// The two readouts answer with the control above them, so drifting off the
+/// tuning knob onto its cents figure does not put the highlight out.
+Row controlRowAt(const RowBounds &, juce::Point<int>);
+
+/// Whether a row takes the pointer highlight.
+///
+/// The faders and the mute and solo buttons do not. They are the two rows
+/// nobody has to hunt for, and a wash the height of a whole fader was a lot of
+/// paint to say something that obvious. The fader still reports itself, so LINK
+/// can still show what a drag on it would reach.
+bool rowShowsHighlight(Row);
+
+/// Repaints the band a row highlights, if it highlights one at all.
+void repaintRowHighlight(juce::Component &, const RowBounds &, Row);
 
 /// Total height needed before the fader starts being squeezed.
 int preferredStripHeight();
@@ -100,6 +121,12 @@ inline constexpr int kNumRoles = (int)Role::NumRoles;
 
 /// Maps a role onto the matching parameter-ID suffix from ovt::params.
 const char *roleSuffix(Role r);
+
+/// The role a row carries, if it carries one at all.
+///
+/// @returns false for the mute and solo row, which holds buttons rather than a
+/// value LINK could gang, and for every row with no control on it.
+bool roleForRow(Row, Role &out);
 
 /// Which channels a LINK drag reaches.
 enum class LinkScope {
@@ -144,6 +171,19 @@ float linkCurveWeight(LinkCurve, int index0, int sourceIndex);
 /// @param target    the dragged strip's live value, gathered towards by Spread
 float linkedValue(LinkCurve, float baseline, float delta, float weight,
                   float jitter, float target);
+
+/// Implemented by the editor; lets a strip say where the pointer is.
+///
+/// A knob thirty channels along is a long way from the caption that names it,
+/// so the whole mixer picks out the row under the pointer and the gutter
+/// brightens the one label that belongs to it.
+struct HoverTarget {
+  virtual ~HoverTarget() = default;
+
+  /// @param stripIndex  the partial under the pointer, or -1 for the noise
+  ///                    channel, which sits outside the series.
+  virtual void hoverChanged(int stripIndex, Row row) = 0;
+};
 
 /// Implemented by the editor; lets a strip broadcast a drag to its 31 siblings.
 struct LinkTarget {

@@ -104,11 +104,15 @@ void LevelMeter::paint(juce::Graphics &g) {
 // =============================================================================
 
 ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
-                           LinkTarget &linkTarget, juce::Component &popupParent,
-                           int index0)
-    : apvts(state), link(linkTarget), popupHost(popupParent), index(index0),
-      info(harmonic(index0)),
+                           LinkTarget &linkTarget, HoverTarget &hoverTarget,
+                           juce::Component &popupParent, int index0)
+    : apvts(state), link(linkTarget), hover(hoverTarget),
+      popupHost(popupParent), index(index0), info(harmonic(index0)),
       colour(intervalColour(harmonic(index0).pitchClass)), meter(colour) {
+  // Deep listener, so a pointer resting on a knob is reported by the strip that
+  // owns it rather than being swallowed by the control.
+  addMouseListener(this, true);
+
   // Tune and Level carry the strip's identity colour; the modulation and
   // envelope knobs are desaturated so they read as secondary at a glance across
   // 32 channels.
@@ -251,6 +255,96 @@ void ChannelStrip::setSilencedByOthers(bool shouldDim) {
   setAlpha(silenced ? 0.4f : 1.0f);
 }
 
+void ChannelStrip::mouseEnter(const juce::MouseEvent &e) { reportHover(e); }
+void ChannelStrip::mouseMove(const juce::MouseEvent &e) { reportHover(e); }
+void ChannelStrip::mouseExit(const juce::MouseEvent &e) { reportHover(e); }
+
+void ChannelStrip::reportHover(const juce::MouseEvent &e) {
+  const auto p = e.getEventRelativeTo(this).getPosition();
+  const auto rows = layoutRows(getLocalBounds().reduced(2, 4));
+
+  // Leaving one knob for the next fires the exit before the enter, so the
+  // answer is always worked out from where the pointer now is rather than from
+  // which callback arrived.
+  hover.hoverChanged(index, getLocalBounds().contains(p) ? controlRowAt(rows, p)
+                                                         : kNoRow);
+}
+
+void ChannelStrip::setHighlightedRow(Row row) {
+  if (row == highlighted)
+    return;
+
+  const auto rows = layoutRows(getLocalBounds().reduced(2, 4));
+
+  // Only the two bands that changed are repainted. With 33 strips answering
+  // every time the pointer crosses a row, repainting whole channels would
+  // redraw the window several times a second for a wash and two hairlines.
+  repaintRowHighlight(*this, rows, highlighted);
+  highlighted = row;
+  repaintRowHighlight(*this, rows, highlighted);
+}
+
+LinkableSlider *ChannelStrip::sliderForRole(Role role) {
+  switch (role) {
+  case Role::Tune:
+    return &tune;
+  case Role::PmRate:
+    return &pmRate;
+  case Role::PmDepth:
+    return &pmDepth;
+  case Role::Drift:
+    return &drift;
+  case Role::Delay:
+    return &delay;
+  case Role::Attack:
+    return &attack;
+  case Role::Decay:
+    return &decay;
+  case Role::Sustain:
+    return &sustain;
+  case Role::Release:
+    return &release;
+  case Role::AmRate:
+    return &amRate;
+  case Role::AmDepth:
+    return &amDepth;
+  case Role::Velocity:
+    return &velocity;
+  case Role::Aftertouch:
+    return &aftertouch;
+  case Role::Volume:
+    return &volume;
+
+  case Role::NumRoles:
+  default:
+    jassertfalse;
+    return nullptr;
+  }
+}
+
+void ChannelStrip::setLinkGlow(Role role, float amount) {
+  amount = juce::jlimit(0.0f, 1.0f, amount);
+
+  if (role == glowRole && std::abs(amount - glowAmount) < 0.004f)
+    return;
+
+  // Moving to a different row leaves the old control lit unless it is put out
+  // on the way past.
+  if (role != glowRole)
+    if (auto *previous = sliderForRole(glowRole)) {
+      previous->getProperties().set("linkGlow", 0.0);
+      previous->repaint();
+    }
+
+  glowRole = role;
+  glowAmount = amount;
+
+  if (auto *s = sliderForRole(glowRole)) {
+    s->getProperties().set("linkGlow", (double)glowAmount);
+    s->repaint();
+  }
+}
+
 void ChannelStrip::paint(juce::Graphics &g) {
   auto bounds = getLocalBounds();
 
@@ -265,6 +359,9 @@ void ChannelStrip::paint(juce::Graphics &g) {
   }
 
   const auto rows = layoutRows(bounds.reduced(2, 4));
+
+  if (rowShowsHighlight(highlighted))
+    paintRowHighlight(g, rows[rowIndex(highlighted)]);
 
   auto header = rows[rowIndex(Row::Header)];
 

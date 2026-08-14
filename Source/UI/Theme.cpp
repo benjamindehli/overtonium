@@ -85,6 +85,68 @@ RowBounds layoutRows(juce::Rectangle<int> area) {
   return out;
 }
 
+namespace {
+/// Rows that hold something you can point at.
+bool rowHasControl(Row r) {
+  switch (r) {
+  case Row::TuneKnob:
+  case Row::PmRate:
+  case Row::PmDepth:
+  case Row::Drift:
+  case Row::Delay:
+  case Row::Attack:
+  case Row::Decay:
+  case Row::Sustain:
+  case Row::Release:
+  case Row::AmRate:
+  case Row::AmDepth:
+  case Row::Velocity:
+  case Row::Aftertouch:
+  case Row::MuteSolo:
+  case Row::Fader:
+    return true;
+
+  default:
+    return false;
+  }
+}
+} // namespace
+
+Row controlRowAt(const RowBounds &rows, juce::Point<int> p) {
+  for (int i = 0; i < kNumRows; ++i) {
+    const auto &row = rows[(size_t)i];
+
+    // Only the vertical span is tested. The strips carry a couple of pixels of
+    // margin either side, and losing the highlight in that margin would make
+    // the band flicker as the pointer crosses from one channel to the next.
+    if (p.y < row.getY() || p.y >= row.getBottom())
+      continue;
+
+    switch ((Row)i) {
+    case Row::TuneText:
+      return Row::TuneKnob;
+    case Row::FaderText:
+      return Row::Fader;
+
+    default:
+      return rowHasControl((Row)i) ? (Row)i : kNoRow;
+    }
+  }
+
+  return kNoRow;
+}
+
+bool rowShowsHighlight(Row row) {
+  return row != kNoRow && row != Row::Fader && row != Row::MuteSolo;
+}
+
+void repaintRowHighlight(juce::Component &c, const RowBounds &rows, Row row) {
+  if (!rowShowsHighlight(row))
+    return;
+
+  c.repaint(rows[(size_t)row]);
+}
+
 const char *rowLabel(Row r) {
   switch (r) {
   case Row::TuneKnob:
@@ -255,6 +317,56 @@ const char *roleSuffix(Role r) {
   default:
     jassertfalse;
     return params::tuneSuffix;
+  }
+}
+
+bool roleForRow(Row r, Role &out) {
+  switch (r) {
+  case Row::TuneKnob:
+    out = Role::Tune;
+    return true;
+  case Row::PmRate:
+    out = Role::PmRate;
+    return true;
+  case Row::PmDepth:
+    out = Role::PmDepth;
+    return true;
+  case Row::Drift:
+    out = Role::Drift;
+    return true;
+  case Row::Delay:
+    out = Role::Delay;
+    return true;
+  case Row::Attack:
+    out = Role::Attack;
+    return true;
+  case Row::Decay:
+    out = Role::Decay;
+    return true;
+  case Row::Sustain:
+    out = Role::Sustain;
+    return true;
+  case Row::Release:
+    out = Role::Release;
+    return true;
+  case Row::AmRate:
+    out = Role::AmRate;
+    return true;
+  case Row::AmDepth:
+    out = Role::AmDepth;
+    return true;
+  case Row::Velocity:
+    out = Role::Velocity;
+    return true;
+  case Row::Aftertouch:
+    out = Role::Aftertouch;
+    return true;
+  case Row::Fader:
+    out = Role::Volume;
+    return true;
+
+  default:
+    return false;
   }
 }
 

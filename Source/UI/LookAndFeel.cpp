@@ -35,6 +35,17 @@ void paintChannelBackground(juce::Graphics &g, juce::Rectangle<int> bounds,
   g.fillRect(r.getRight() - 1.0f, r.getY(), 1.0f, r.getHeight());
 }
 
+void paintRowHighlight(juce::Graphics &g, juce::Rectangle<int> row) {
+  const auto r = row.toFloat();
+
+  g.setColour(colours::accent.withAlpha(0.045f));
+  g.fillRect(r);
+
+  g.setColour(colours::accent.withAlpha(0.16f));
+  g.fillRect(r.getX(), r.getY(), r.getWidth(), 1.0f);
+  g.fillRect(r.getX(), r.getBottom() - 1.0f, r.getWidth(), 1.0f);
+}
+
 OvertoniumLookAndFeel::OvertoniumLookAndFeel() {
   setColour(juce::Slider::rotarySliderFillColourId, colours::accent);
   setColour(juce::Slider::rotarySliderOutlineColourId, colours::groove);
@@ -105,6 +116,24 @@ void OvertoniumLookAndFeel::drawRotarySlider(
 
   const auto fill = slider.findColour(juce::Slider::rotarySliderFillColourId);
 
+  // How much of a LINK drag this knob is about to take, or is taking. Zero for
+  // a knob the drag does not reach.
+  const auto glow =
+      (float)(double)slider.getProperties().getWithDefault("linkGlow", 0.0);
+
+  // ---- the armed halo -------------------------------------------------------
+  // Sits under the ticks and behind the cap, so what shows is a ring of colour
+  // in the gap between the two. Bright in proportion to how far the curve is
+  // about to move this particular knob.
+  if (glow > 0.0f) {
+    g.setColour(fill.withAlpha(0.16f * glow * dim));
+    g.fillEllipse(bounds.withSizeKeepingCentre(radius * 2.0f, radius * 2.0f));
+
+    // A second, tighter pass around the cap, which is where the eye lands.
+    g.setColour(fill.withAlpha(0.12f * glow * dim));
+    g.fillEllipse(bounds.withSizeKeepingCentre(radius * 1.5f, radius * 1.5f));
+  }
+
   // ---- the tick ring --------------------------------------------------------
   // Discrete ticks rather than a continuous arc. It reads as a measurement
   // instrument, which is what this thing is, and it echoes the 32 discrete
@@ -123,8 +152,13 @@ void OvertoniumLookAndFeel::drawRotarySlider(
     const auto sinA = std::sin(a);
     const auto cosA = std::cos(a);
 
+    // The unlit ticks warm towards the knob's own colour while it is armed,
+    // which lights the whole ring rather than only the part showing the value.
+    const auto unlit =
+        colours::groove.brighter(0.22f).interpolatedWith(fill, 0.65f * glow);
+
     g.setColour(lit ? fill.withMultipliedAlpha(dim)
-                    : colours::groove.brighter(0.22f).withMultipliedAlpha(dim));
+                    : unlit.withMultipliedAlpha(dim));
     g.drawLine({centre.x + inner * sinA, centre.y - inner * cosA,
                 centre.x + outer * sinA, centre.y - outer * cosA},
                lit ? juce::jmax(1.6f, radius * 0.11f)
@@ -226,6 +260,21 @@ void OvertoniumLookAndFeel::drawLinearSlider(
     g.fillRoundedRectangle(groove.withTop(juce::jmin(anchor, fillTop))
                                .withBottom(juce::jmax(anchor, fillTop)),
                            grooveW * 0.5f);
+  }
+
+  // Armed by LINK, the same as the halo on the knobs. A fader has no ring to
+  // warm, so the outline of its track carries it instead.
+  const auto glow =
+      (float)(double)slider.getProperties().getWithDefault("linkGlow", 0.0);
+
+  if (glow > 0.0f) {
+    const auto lit = slider.findColour(juce::Slider::trackColourId);
+
+    g.setColour(lit.withAlpha(0.10f * glow * dim));
+    g.fillRoundedRectangle(bounds, 3.0f);
+
+    g.setColour(lit.withAlpha(0.55f * glow * dim));
+    g.drawRoundedRectangle(bounds.reduced(0.5f), 3.0f, 1.2f);
   }
 
   // Scale ticks either side of the track, in the same language as the tick

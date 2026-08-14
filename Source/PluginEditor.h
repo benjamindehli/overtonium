@@ -18,10 +18,19 @@
 class RowGutter : public juce::Component {
 public:
   void paint(juce::Graphics &) override;
+
+  /// Brightens the caption for the row the pointer is on, which is the point of
+  /// the whole highlight: the name of the knob you are holding, thirty channels
+  /// away, is the one thing that lights up.
+  void setHighlightedRow(ovt::ui::Row);
+
+private:
+  ovt::ui::Row highlighted = ovt::ui::kNoRow;
 };
 
 class OvertoniumEditor : public juce::AudioProcessorEditor,
                          public ovt::ui::LinkTarget,
+                         public ovt::ui::HoverTarget,
                          private juce::Timer {
 public:
   explicit OvertoniumEditor(OvertoniumProcessor &);
@@ -37,12 +46,25 @@ public:
                         float plainValue) override;
   void linkDragEnded(ovt::ui::Role, int sourceIndex) override;
 
+  // ---- ovt::ui::HoverTarget ----
+  void hoverChanged(int stripIndex, ovt::ui::Row) override;
+
 private:
   void timerCallback() override;
 
   void setZoom(float newZoom);
   void applyResizeLimits();
   void applyPreset(int index);
+
+  /// Which strips a drag from this one would reach, and by how much. Zero marks
+  /// a strip the scope leaves out.
+  void gatherLinkWeights(int sourceIndex, ovt::ui::LinkScope,
+                         ovt::ui::LinkCurve,
+                         std::array<float, ovt::kNumHarmonics> &out) const;
+
+  /// Lights the control LINK is moving, or would move if you grabbed the one
+  /// under the pointer.
+  void updateLinkGlow();
 
   /// Everything a LINK drag needs, latched when it begins.
   ///
@@ -92,6 +114,14 @@ private:
 
   float zoom = 1.0f;
   int housekeepingTick = 0;
+
+  int hoverStrip = -1;
+  ovt::ui::Row hoverRow = ovt::ui::kNoRow;
+
+  /// A rotary drag unbinds the pointer from the screen, so the positions it
+  /// reports during one mean nothing. The highlight stays where it was grabbed
+  /// until the drag ends.
+  bool hoverLocked = false;
 
   bool propagatingLink = false;
   bool macroGestureActive = false;

@@ -34,10 +34,24 @@ bool isHeadingRow(Row r) {
 
 // =============================================================================
 
+void RowGutter::setHighlightedRow(Row row) {
+  if (row == highlighted)
+    return;
+
+  const auto rows = layoutRows(getLocalBounds().reduced(0, 4));
+
+  repaintRowHighlight(*this, rows, highlighted);
+  highlighted = row;
+  repaintRowHighlight(*this, rows, highlighted);
+}
+
 void RowGutter::paint(juce::Graphics &g) {
   paintChannelBackground(g, getLocalBounds(), colours::panel.darker(0.25f));
 
   const auto rows = layoutRows(getLocalBounds().reduced(0, 4));
+
+  if (rowShowsHighlight(highlighted))
+    paintRowHighlight(g, rows[(size_t)highlighted]);
 
   for (int i = 0; i < kNumRows; ++i) {
     const auto row = (Row)i;
@@ -54,9 +68,11 @@ void RowGutter::paint(juce::Graphics &g) {
       area = area.removeFromTop(16);
 
     const bool heading = isHeadingRow(row);
+    const bool lit = row == highlighted && rowShowsHighlight(row);
 
-    g.setFont(makeFont(heading ? 10.0f : 9.5f, heading));
-    g.setColour(heading ? colours::text : colours::textDim);
+    g.setFont(makeFont(heading ? 10.0f : 9.5f, heading || lit));
+    g.setColour(lit ? colours::accent
+                    : (heading ? colours::text : colours::textDim));
     g.drawText(text, area, juce::Justification::centredRight, false);
   }
 
@@ -68,7 +84,7 @@ void RowGutter::paint(juce::Graphics &g) {
 
 OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     : juce::AudioProcessorEditor(&p), processor(p), topBar(p.apvts, *this),
-      noiseStrip(p.apvts, *this) {
+      noiseStrip(p.apvts, *this, *this) {
   setLookAndFeel(&lookAndFeel);
 
   addAndMakeVisible(content);
@@ -85,7 +101,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   strips.reserve(kNumHarmonics);
   for (int i = 0; i < kNumHarmonics; ++i) {
     auto strip =
-        std::make_unique<ChannelStrip>(processor.apvts, *this, *this, i);
+        std::make_unique<ChannelStrip>(processor.apvts, *this, *this, *this, i);
     stripsHolder.addAndMakeVisible(*strip);
     strips.push_back(std::move(strip));
   }
@@ -109,6 +125,11 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     auto &tree = processor.apvts.state;
     tree.setProperty(kLinkScope, (int)topBar.getLinkScope(), nullptr);
     tree.setProperty(kLinkCurve, (int)topBar.getLinkCurve(), nullptr);
+
+    // Switching LINK on, or changing what it reaches, changes the answer to
+    // "what would this knob take with it", so the preview follows immediately
+    // rather than waiting for the pointer to move.
+    updateLinkGlow();
   };
 
   // Default size shows all 32 strips at once, which is the whole point of the
@@ -237,20 +258,9 @@ juce::RangedAudioParameter *OvertoniumEditor::oscParameter(Role role,
 
 bool OvertoniumEditor::isLinkEnabled() const { return topBar.isLinkEnabled(); }
 
-void OvertoniumEditor::linkDragStarted(Role role, int sourceIndex) {
-  // Latch the switch state at drag start: toggling LINK mid-drag must not leave
-  // the host holding gestures that never get closed.
-  if (!isLinkEnabled())
-    return;
-
-  const auto scope = topBar.getLinkScope();
-
-  auto &gesture = linkGesture;
-  gesture.active = true;
-  gesture.role = role;
-  gesture.curve = topBar.getLinkCurve();
-  gesture.source = sourceIndex;
-
+void OvertoniumEditor::gatherLinkWeights(
+    int sourceIndex, LinkScope scope, LinkCurve curve,
+    std::array<float, kNumHarmonics> &out) const {
   const auto sourceClass = harmonic(sourceIndex).pitchClass;
 
   for (int i = 0; i < kNumHarmonics; ++i) {
@@ -276,17 +286,39 @@ void OvertoniumEditor::linkDragStarted(Role role, int sourceIndex) {
     // scope would otherwise say.
     selected = selected || i == sourceIndex;
 
+    out[(size_t)i] =
+        selected ? juce::jmax(0.001f, linkCurveWeight(curve, i, sourceIndex))
+                 : 0.0f;
+  }
+}
+
+void OvertoniumEditor::linkDragStarted(Role role, int sourceIndex) {
+  hoverLocked = true;
+
+  // Latch the switch state at drag start: toggling LINK mid-drag must not leave
+  // the host holding gestures that never get closed.
+  if (!isLinkEnabled())
+    return;
+
+  auto &gesture = linkGesture;
+  gesture.active = true;
+  gesture.role = role;
+  gesture.curve = topBar.getLinkCurve();
+  gesture.source = sourceIndex;
+
+  gatherLinkWeights(sourceIndex, topBar.getLinkScope(), gesture.curve,
+                    gesture.weight);
+
+  for (int i = 0; i < kNumHarmonics; ++i) {
     auto *param = oscParameter(role, i);
     gesture.baseline[(size_t)i] = param != nullptr ? param->getValue() : 0.0f;
-    gesture.weight[(size_t)i] =
-        selected
-            ? juce::jmax(0.001f, linkCurveWeight(gesture.curve, i, sourceIndex))
-            : 0.0f;
     gesture.jitter[(size_t)i] = spreadRandom.bipolar();
 
-    if (selected && i != sourceIndex && param != nullptr)
+    if (gesture.includes(i) && i != sourceIndex && param != nullptr)
       param->beginChangeGesture();
   }
+
+  updateLinkGlow();
 }
 
 void OvertoniumEditor::linkValueChanged(Role role, int sourceIndex,
@@ -324,6 +356,8 @@ void OvertoniumEditor::linkValueChanged(Role role, int sourceIndex,
 }
 
 void OvertoniumEditor::linkDragEnded(Role role, int sourceIndex) {
+  hoverLocked = false;
+
   if (!linkGesture.active)
     return;
 
@@ -333,6 +367,63 @@ void OvertoniumEditor::linkDragEnded(Role role, int sourceIndex) {
     if (i != sourceIndex && linkGesture.includes(i))
       if (auto *param = oscParameter(role, i))
         param->endChangeGesture();
+
+  // Back to a preview: the pointer is still on the knob that was just let go.
+  updateLinkGlow();
+}
+
+// ---- hover ------------------------------------------------------------------
+
+void OvertoniumEditor::hoverChanged(int stripIndex, Row row) {
+  if (hoverLocked || (stripIndex == hoverStrip && row == hoverRow))
+    return;
+
+  const bool rowMoved = row != hoverRow;
+
+  hoverStrip = stripIndex;
+  hoverRow = row;
+
+  if (rowMoved) {
+    for (auto &strip : strips)
+      strip->setHighlightedRow(row);
+
+    noiseStrip.setHighlightedRow(row);
+    gutter.setHighlightedRow(row);
+  }
+
+  updateLinkGlow();
+}
+
+void OvertoniumEditor::updateLinkGlow() {
+  auto role = Role::Tune;
+  std::array<float, kNumHarmonics> weight{};
+
+  if (linkGesture.active) {
+    role = linkGesture.role;
+    weight = linkGesture.weight;
+  } else if (isLinkEnabled() && hoverStrip >= 0 && roleForRow(hoverRow, role)) {
+    // Nothing has been grabbed yet, so this is a preview of what the knob under
+    // the pointer would take with it.
+    gatherLinkWeights(hoverStrip, topBar.getLinkScope(), topBar.getLinkCurve(),
+                      weight);
+  }
+
+  auto strongest = 0.0f;
+  for (auto w : weight)
+    strongest = juce::jmax(strongest, w);
+
+  for (int i = 0; i < kNumHarmonics; ++i) {
+    const auto w = weight[(size_t)i];
+
+    // Measured against the strip that moves most, so a tilted curve shows
+    // itself: the end of the series that takes the biggest share is the end
+    // that lights up brightest. The floor keeps a strip that is in the drag but
+    // barely moving from looking like one that is out of it.
+    const auto glow =
+        w > 0.0f && strongest > 0.0f ? 0.4f + 0.6f * (w / strongest) : 0.0f;
+
+    strips[(size_t)i]->setLinkGlow(role, glow);
+  }
 }
 
 // ---- polling ----------------------------------------------------------------

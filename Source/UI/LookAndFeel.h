@@ -46,4 +46,12 @@ juce::Font makeFont(float height, bool bold = false);
 void paintChannelBackground(juce::Graphics &, juce::Rectangle<int> bounds,
                             juce::Colour base);
 
+/// Picks out the row under the pointer.
+///
+/// Drawn in the chrome colour rather than a channel colour, since it belongs to
+/// the pointer rather than to any one partial, and drawn as a ruled band so
+/// that it reads as a single line running the width of the mixer, from the
+/// caption in the gutter to the channel your hand is on.
+void paintRowHighlight(juce::Graphics &, juce::Rectangle<int> row);
+
 } // namespace ovt::ui

@@ -2,6 +2,7 @@
 // handling, factory presets, bus layouts and state round-tripping. No editor is
 // created, so this runs on a CI box with no display.
 
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <string>
@@ -350,6 +351,86 @@ void testLinkCurves() {
             std::to_string(fifths) + ")");
 }
 
+void testRowHover() {
+  section("Row hover");
+
+  using namespace ovt::ui;
+
+  // The same rectangle a strip lays its rows out in.
+  const auto rows =
+      layoutRows(juce::Rectangle<int>(0, 0, kStripWidth, 620).reduced(2, 4));
+
+  const auto rowAtCentre = [&rows](Row r) {
+    const auto band = rows[(size_t)r];
+    return controlRowAt(rows, {kStripWidth / 2, band.getCentreY()});
+  };
+
+  bool identity = true;
+  for (Row r : {Row::TuneKnob, Row::PmRate, Row::PmDepth, Row::Drift,
+                Row::Delay, Row::Attack, Row::Decay, Row::Sustain, Row::Release,
+                Row::AmRate, Row::AmDepth, Row::Velocity, Row::Aftertouch,
+                Row::MuteSolo, Row::Fader})
+    identity &= rowAtCentre(r) == r;
+
+  check(identity, "every control row reports itself");
+
+  bool quiet = true;
+  for (Row r : {Row::Header, Row::PitchModHeading, Row::EnvHeading,
+                Row::AmpModHeading, Row::OutputHeading})
+    quiet &= rowAtCentre(r) == kNoRow;
+
+  check(quiet, "the header and the section rules report nothing");
+
+  check(rowAtCentre(Row::TuneText) == Row::TuneKnob &&
+            rowAtCentre(Row::FaderText) == Row::Fader,
+        "the readouts report the control above them");
+
+  // Off the top and bottom of the laid-out area there is nothing to point at.
+  check(controlRowAt(rows, {kStripWidth / 2, -20}) == kNoRow &&
+            controlRowAt(rows, {kStripWidth / 2, 4000}) == kNoRow,
+        "a point outside the rows reports nothing");
+
+  // Anything the highlight can land on needs a caption in the gutter, or the
+  // band would light up with nothing at the end of it.
+  bool named = true;
+  for (int y = rows[0].getY(); y < rows[kNumRows - 1].getBottom(); ++y) {
+    const auto r = controlRowAt(rows, {kStripWidth / 2, y});
+
+    if (r != kNoRow)
+      named &= rowLabel(r) != nullptr;
+  }
+
+  check(named, "every row the pointer can land on has a caption");
+
+  // LINK works in roles, the pointer works in rows, and the two have to line up
+  // one for one or a preview would arm the wrong knob.
+  std::array<int, (size_t)kNumRoles> found{};
+  Role role{};
+
+  for (int i = 0; i < kNumRows; ++i)
+    if (roleForRow((Row)i, role))
+      ++found[(size_t)role];
+
+  bool oneEach = true;
+  for (auto n : found)
+    oneEach &= n == 1;
+
+  check(oneEach, "each of the 14 linkable roles sits on exactly one row");
+
+  check(!roleForRow(Row::MuteSolo, role),
+        "the mute and solo row carries no linkable role");
+
+  // The two rows nobody has to hunt for are left alone.
+  check(!rowShowsHighlight(Row::Fader) && !rowShowsHighlight(Row::MuteSolo),
+        "the faders and the mute and solo buttons take no highlight");
+
+  check(!rowShowsHighlight(kNoRow), "nothing highlights nothing");
+
+  // Suppressing the band must not cost the fader its LINK preview.
+  check(roleForRow(Row::Fader, role) && role == Role::Volume,
+        "the fader row still reports the role LINK would gang");
+}
+
 void testBusLayouts(OvertoniumProcessor &p) {
   section("Bus layouts");
 
@@ -459,6 +540,7 @@ int main() {
   testPresets(processor);
   testAftertouchMidi(processor);
   testLinkCurves();
+  testRowHover();
   testBusLayouts(processor);
   testStateRoundTrip(processor);
   testSoloAndMute(processor);

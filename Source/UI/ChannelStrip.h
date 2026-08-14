@@ -83,16 +83,30 @@ class ChannelStrip : public juce::Component,
                      public juce::SettableTooltipClient {
 public:
   ChannelStrip(juce::AudioProcessorValueTreeState &state,
-               LinkTarget &linkTarget, juce::Component &popupParent,
-               int index0);
+               LinkTarget &linkTarget, HoverTarget &hoverTarget,
+               juce::Component &popupParent, int index0);
 
   void paint(juce::Graphics &) override;
   void resized() override;
+
+  void mouseEnter(const juce::MouseEvent &) override;
+  void mouseMove(const juce::MouseEvent &) override;
+  void mouseExit(const juce::MouseEvent &) override;
 
   /// Greys the strip out when another strip's solo is silencing it.
   void setSilencedByOthers(bool shouldDim);
 
   void setMeterLevel(float level) { meter.push(level); }
+
+  /// Picks out one row, or kNoRow to clear. Every strip is told the same row,
+  /// so the highlight runs the width of the mixer.
+  void setHighlightedRow(Row);
+
+  /// Arms the control LINK would move on this strip.
+  ///
+  /// @param amount  0 for a strip the drag does not reach, otherwise how much
+  ///                of the drag it takes relative to the strip that takes most.
+  void setLinkGlow(Role, float amount);
 
 private:
   using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
@@ -105,8 +119,15 @@ private:
   void updateTuneReadout();
   void updateLevelReadout();
 
+  /// Tells the editor which row the pointer is on. Called for the strip's own
+  /// mouse events and for those of every control on it.
+  void reportHover(const juce::MouseEvent &);
+
+  LinkableSlider *sliderForRole(Role);
+
   juce::AudioProcessorValueTreeState &apvts;
   LinkTarget &link;
+  HoverTarget &hover;
   juce::Component &popupHost;
 
   const int index;
@@ -123,6 +144,10 @@ private:
   std::unique_ptr<ButtonAttachment> muteAttachment, soloAttachment;
 
   bool silenced = false;
+
+  Row highlighted = kNoRow;
+  Role glowRole = Role::Tune;
+  float glowAmount = 0.0f;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ChannelStrip)
 };

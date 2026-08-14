@@ -20,13 +20,21 @@ namespace ovt::ui {
 class NoiseStrip : public juce::Component, public juce::SettableTooltipClient {
 public:
   NoiseStrip(juce::AudioProcessorValueTreeState &state,
-             juce::Component &popupParent);
+             HoverTarget &hoverTarget, juce::Component &popupParent);
 
   void paint(juce::Graphics &) override;
   void resized() override;
 
+  void mouseEnter(const juce::MouseEvent &) override;
+  void mouseMove(const juce::MouseEvent &) override;
+  void mouseExit(const juce::MouseEvent &) override;
+
   void setSilencedByOthers(bool shouldDim);
   void setMeterLevel(float level) { meter.push(level); }
+
+  /// Takes part in the row highlight, so the band crosses the noise channel
+  /// too. LINK never reaches it, so there is nothing here to arm.
+  void setHighlightedRow(Row);
 
 private:
   using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
@@ -35,7 +43,10 @@ private:
   void setUpKnob(juce::Slider &, const char *suffix, juce::Colour fill,
                  const juce::String &tooltip);
 
+  void reportHover(const juce::MouseEvent &);
+
   juce::AudioProcessorValueTreeState &apvts;
+  HoverTarget &hover;
   juce::Component &popupHost;
 
   const juce::Colour colour;
@@ -50,6 +61,7 @@ private:
   std::unique_ptr<ButtonAttachment> muteAttachment, soloAttachment;
 
   bool silenced = false;
+  Row highlighted = kNoRow;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NoiseStrip)
 };

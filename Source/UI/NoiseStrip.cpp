@@ -14,9 +14,11 @@ const juce::Colour kNoiseColour{0xff9aa4b0};
 } // namespace
 
 NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
-                       juce::Component &popupParent)
-    : apvts(state), popupHost(popupParent), colour(kNoiseColour),
-      meter(kNoiseColour) {
+                       HoverTarget &hoverTarget, juce::Component &popupParent)
+    : apvts(state), hover(hoverTarget), popupHost(popupParent),
+      colour(kNoiseColour), meter(kNoiseColour) {
+  addMouseListener(this, true);
+
   const auto secondary = colour.withSaturation(0.10f).withBrightness(0.68f);
 
   setUpKnob(colourKnob, params::colourSuffix, colour,
@@ -101,6 +103,31 @@ void NoiseStrip::setSilencedByOthers(bool shouldDim) {
 
   silenced = shouldDim;
   setAlpha(silenced ? 0.4f : 1.0f);
+}
+
+void NoiseStrip::mouseEnter(const juce::MouseEvent &e) { reportHover(e); }
+void NoiseStrip::mouseMove(const juce::MouseEvent &e) { reportHover(e); }
+void NoiseStrip::mouseExit(const juce::MouseEvent &e) { reportHover(e); }
+
+void NoiseStrip::reportHover(const juce::MouseEvent &e) {
+  const auto p = e.getEventRelativeTo(this).getPosition();
+  const auto rows = layoutRows(getLocalBounds().reduced(2, 4));
+
+  // -1 says the pointer is off the harmonic series, which is what stops a
+  // hover here from arming a LINK preview.
+  hover.hoverChanged(-1, getLocalBounds().contains(p) ? controlRowAt(rows, p)
+                                                      : kNoRow);
+}
+
+void NoiseStrip::setHighlightedRow(Row row) {
+  if (row == highlighted)
+    return;
+
+  const auto rows = layoutRows(getLocalBounds().reduced(2, 4));
+
+  repaintRowHighlight(*this, rows, highlighted);
+  highlighted = row;
+  repaintRowHighlight(*this, rows, highlighted);
 }
 
 void NoiseStrip::paint(juce::Graphics &g) {
