@@ -110,6 +110,20 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   layout.add(std::make_unique<BoolP>(juce::ParameterID{safetyClipId, 1},
                                      "Safety Clip", true));
 
+  juce::StringArray rateChoices;
+  for (auto hz : kLofiRateChoices)
+    rateChoices.add(lofiRateName(hz));
+
+  layout.add(std::make_unique<juce::AudioParameterChoice>(
+      juce::ParameterID{lofiRateId, 1}, "Sample Rate", rateChoices, 0));
+
+  juce::StringArray bitChoices;
+  for (auto bits : kLofiBitChoices)
+    bitChoices.add(lofiBitName(bits));
+
+  layout.add(std::make_unique<juce::AudioParameterChoice>(
+      juce::ParameterID{lofiBitsId, 1}, "Bit Depth", bitChoices, 0));
+
   // ---- master effects -------------------------------------------------------
   layout.add(
       std::make_unique<BoolP>(juce::ParameterID{echoOnId, 1}, "Echo", false));
@@ -345,6 +359,8 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   bendRange = apvts.getRawParameterValue(bendRangeId);
   phaseReset = apvts.getRawParameterValue(phaseResetId);
   safetyClip = apvts.getRawParameterValue(safetyClipId);
+  lofiRate = apvts.getRawParameterValue(lofiRateId);
+  lofiBits = apvts.getRawParameterValue(lofiBitsId);
 
   echo.on = apvts.getRawParameterValue(echoOnId);
   echo.mix = apvts.getRawParameterValue(echoMixId);
@@ -405,6 +421,20 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   noise.pan = apvts.getRawParameterValue(noiseParamId(panSuffix));
 
   jassert(noise.colour != nullptr && noise.volume != nullptr);
+}
+
+juce::String lofiRateName(int hz) {
+  if (hz <= 0)
+    return "Host";
+
+  // Rates that are not a whole number of kHz are the ones people know by their
+  // exact figure, so they keep it.
+  return hz % 1000 == 0 ? juce::String(hz / 1000) + " kHz"
+                        : juce::String((double)hz / 1000.0, 3) + " kHz";
+}
+
+juce::String lofiBitName(int bits) {
+  return bits <= 0 ? "Host" : juce::String(bits) + " bit";
 }
 
 int Cache::polyphonyValue() const {
@@ -481,6 +511,16 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   out.global.bendSemitones = bendNormalised * bendRange->load();
   out.global.phaseReset = phaseReset->load() > 0.5f;
   out.global.safetyClip = safetyClip->load() > 0.5f;
+
+  {
+    const auto r = juce::jlimit(0, (int)kLofiRateChoices.size() - 1,
+                                (int)std::lround(lofiRate->load()));
+    const auto b = juce::jlimit(0, (int)kLofiBitChoices.size() - 1,
+                                (int)std::lround(lofiBits->load()));
+
+    out.lofi.rateHz = (double)kLofiRateChoices[(size_t)r];
+    out.lofi.bits = kLofiBitChoices[(size_t)b];
+  }
 
   out.echo.enabled = echo.on->load() > 0.5f;
   out.echo.mix = echo.mix->load();

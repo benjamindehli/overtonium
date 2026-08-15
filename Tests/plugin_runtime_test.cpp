@@ -70,9 +70,9 @@ juce::MidiBuffer noteOnAt(int note, float velocity, int sample) {
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
-  // 19 per partial, 5 global, 16 for the noise channel, 11 for the two master
+  // 19 per partial, 7 global, 16 for the noise channel, 11 for the two master
   // effects.
-  const int expected = ovt::kNumHarmonics * 19 + 5 + 16 + 11;
+  const int expected = ovt::kNumHarmonics * 19 + 7 + 16 + 11;
   check(p.getParameters().size() == expected,
         "parameter count is " + std::to_string(p.getParameters().size()) +
             ", expected " + std::to_string(expected));

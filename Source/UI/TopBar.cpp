@@ -530,6 +530,36 @@ void TopBar::showSettingsMenu() {
   m.addItem(301, "Safety clip", true,
             clip != nullptr && clip->getValue() > 0.5f);
 
+  // Converter quality, downwards. Both live here rather than on the panel
+  // because they are a decision about the instrument rather than something you
+  // ride, and because the default for both is "whatever the host is doing",
+  // which is not a setting most people will ever touch.
+  const auto chosenIndex = [this](const char *id) {
+    auto *p = apvts.getParameter(id);
+    return p != nullptr ? juce::roundToInt(p->convertFrom0to1(p->getValue()))
+                        : 0;
+  };
+
+  const auto rateIndex = chosenIndex(params::lofiRateId);
+  const auto bitIndex = chosenIndex(params::lofiBitsId);
+
+  juce::PopupMenu rates, bits;
+
+  for (int i = 0; i < (int)params::kLofiRateChoices.size(); ++i)
+    rates.addItem(400 + i,
+                  params::lofiRateName(params::kLofiRateChoices[(size_t)i]),
+                  true, i == rateIndex);
+
+  for (int i = 0; i < (int)params::kLofiBitChoices.size(); ++i)
+    bits.addItem(500 + i,
+                 params::lofiBitName(params::kLofiBitChoices[(size_t)i]), true,
+                 i == bitIndex);
+
+  m.addSeparator();
+  m.addSectionHeader("Converter");
+  m.addSubMenu("Sample rate", rates);
+  m.addSubMenu("Bit depth", bits);
+
   m.showMenuAsync(juce::PopupMenu::Options()
                       .withTargetComponent(&settingsButton)
                       .withStandardItemHeight(22),
@@ -548,6 +578,23 @@ void TopBar::showSettingsMenu() {
 
                     if (result == 301)
                       return flip(params::safetyClipId);
+
+                    // The converter entries carry an index into their choice
+                    // list rather than a value, since the lists are not
+                    // contiguous runs of numbers.
+                    const auto choose = [this](const char *id, int index) {
+                      auto *p = apvts.getParameter(id);
+
+                      if (p != nullptr)
+                        p->setValueNotifyingHost(
+                            p->convertTo0to1((float)index));
+                    };
+
+                    if (result >= 500)
+                      return choose(params::lofiBitsId, result - 500);
+
+                    if (result >= 400)
+                      return choose(params::lofiRateId, result - 400);
 
                     const auto id = result >= 200 ? params::bendRangeId
                                                   : params::polyphonyId;

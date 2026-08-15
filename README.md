@@ -164,7 +164,7 @@ The top bar holds everything that is not per partial, in signal order from left 
 | Group | Contains |
 |---|---|
 | Preset | the preset menu: factory, saved, and somewhere to put the one you are working on |
-| Settings | polyphony, bend range, phase reset and the safety clipper |
+| Settings | polyphony, bend range, phase reset, the safety clipper and the converter |
 | Link | **LINK**, and what it reaches and how. See below |
 | Echo | the tape echo. See below |
 | Reverb | the reverb. See below |
@@ -333,7 +333,30 @@ That leaves enough headroom for the engine to stay a plain bank of oscillators w
 - LFOs, envelope coefficients and gain ramps update once per 32-sample control block. Only the oscillator and envelope run at sample rate.
 - Silent partials, whether muted, faded out above Nyquist or sitting at zero, skip the oscillator entirely and only advance their envelope.
 
-Partials fade out as they approach Nyquist. Without that, the 32nd harmonic of a high note would fold back down as aliasing, since it lands near 67 kHz for a C7. Measured alias images sit at -122 dB.
+Partials fade out as they approach Nyquist. Without that, the 32nd harmonic of a high note would fold back down as aliasing, since it lands near 67 kHz for a C7. Measured alias images sit at -122 dB. Turning the converter down, below, deliberately switches that guard off.
+
+### The converter
+
+Two settings under Settings, both defaulting to whatever the host is running at, and both cuts rather than effects. They are the one part of the instrument where turning something down does less work rather than more.
+
+**Sample rate** picks from 32 kHz down to 4 kHz. What it does is not a filter over the top of a finished signal: the whole voice pool renders at the lower rate and the result is held between frames. That is worth doing because sampling a sinusoid at 8 kHz produces one particular sequence of numbers whatever rate you were nominally computing at, so the samples that survive the hold are the only ones worth computing at all. Rendering at the host rate and then decimating would sound the same and cost full price.
+
+Measured on one core at 48 kHz, eight voices, the same patch throughout:
+
+| Render rate | Load | Against full rate |
+|---|---|---|
+| host, 48 kHz | 7.8% | |
+| 22.05 kHz | 3.8% | 48% |
+| 11.025 kHz | 2.0% | 25% |
+| 8 kHz | 1.5% | 19% |
+
+The aliasing is the point, so the Nyquist guard comes off with it. A converter running at 8 kHz does not quietly mute everything above 4 kHz, it wraps it back down, and so does this: the 32nd partial of A3 sits at 7040 Hz and reappears at 960. The original frequency stays faintly audible above it, because holding a sample puts an image either side of the rate, about seven times quieter at that spacing.
+
+Modulation gets coarser along with everything else. The LFOs, drift and gain ramps still land once per 32-sample control block, which at 8 kHz is 4 ms rather than 0.7. Everything is still in the right place in real time, since every coefficient is derived from the rate being rendered at, so a one-second attack is still a second.
+
+**Bit depth** picks from 16 bits down to 2, quantising to 2^(n-1) steps either side of zero. It sits with the rate, ahead of the echo, the reverb and the master fader, so those behave like outboard on a lo-fi source rather than being crushed themselves. It does not clip: that is the safety clipper's job further down, and a bit-depth setting that also distorted would be doing something the panel does not mention.
+
+Both settings are stored with a preset, since at that point they are part of the sound rather than part of the setup.
 
 ## Licensing
 
@@ -362,7 +385,7 @@ Source/
     TapeEcho.*      the master echo
     Reverb.*        the master reverb, a feedback delay network
     SynthEngine.*   voice pool, allocation, stealing, effects, master stage
-  PluginParameters.*  APVTS layout, 640 parameters, and the audio-thread snapshot
+  PluginParameters.*  APVTS layout, 642 parameters, and the audio-thread snapshot
   Presets.*           factory presets
   PluginProcessor.*   MIDI handling, sample-accurate rendering, state
   PluginEditor.*      window, zoom, LINK, gutter

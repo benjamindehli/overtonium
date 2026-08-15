@@ -80,8 +80,43 @@ private:
   Voice *findOldestSounding() noexcept;
   int countSounding() const noexcept;
 
+  /// The voice pool and the lo-fi converter, which are the same stage.
+  ///
+  /// Overwrites both channels and publishes the partial meters.
+  void renderVoices(float *left, float *right, int numSamples,
+                    const SynthParams &p) noexcept;
+
+  /// Sums every sounding voice into the buffers and takes the meter peaks.
+  void sumVoices(float *left, float *right, int numFrames, const SynthParams &p,
+                 std::array<float, kNumHarmonics> &peaks,
+                 float &noisePeak) noexcept;
+
+  /// Moves the whole pool to a new render rate, if it is not there already.
+  void setRenderRate(double rate) noexcept;
+
+  /// The render rate the settings ask for, clamped to something the host can
+  /// actually carry. Equal to the host rate when the setting is off.
+  double lofiRenderRate(const SynthParams &p) const noexcept;
+
   std::array<Voice, kPoolSize> voices{};
   std::array<bool, kPoolSize> heldBySustain{};
+
+  /// How much of a block the reduced-rate path takes at a time. Fixed, so the
+  /// scratch is a member and the audio thread never allocates, and large
+  /// enough that the per-chunk setup is lost in the noise.
+  static constexpr int kLofiChunk = 512;
+
+  std::array<float, kLofiChunk> lofiScratchL{};
+  std::array<float, kLofiChunk> lofiScratchR{};
+
+  /// Where the reduced rate has got to between host samples, carried across
+  /// blocks so the hold pattern does not restart every buffer.
+  double resamplePhase = 1.0;
+  float heldL = 0.0f, heldR = 0.0f;
+
+  /// What the pool is currently rendering at, which is the host rate unless
+  /// the lo-fi setting says otherwise.
+  double renderRate = 44100.0;
 
   double sampleRate = 44100.0;
   int polyphony = 8;

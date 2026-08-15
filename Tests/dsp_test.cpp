@@ -2385,6 +2385,264 @@ void benchmark() {
   }
 }
 
+// -----------------------------------------------------------------------------
+// The lo-fi converter: a rate that genuinely reduces work, and a quantiser.
+// -----------------------------------------------------------------------------
+void testLofi() {
+  section("Lo-fi converter");
+
+  constexpr double sr = 48000.0;
+  constexpr int N = 12000;
+
+  const auto renderNote = [](const SynthParams &p, int samples,
+                             std::vector<float> &l, std::vector<float> &r) {
+    SynthEngine engine;
+    engine.prepare(sr);
+    engine.setPolyphony(8);
+
+    auto sounding = p;
+    engine.noteOn(57, 1.0f, sounding); // A3
+
+    l.assign((size_t)samples, 0.0f);
+    r.assign((size_t)samples, 0.0f);
+    engine.render(l.data(), r.data(), samples, sounding);
+  };
+
+  auto base = makeFlatParams(0.02f);
+  for (auto &o : base.osc)
+    o.sustain = 1.0f;
+
+  // ---- off by default -------------------------------------------------------
+  std::vector<float> plainL, plainR;
+  renderNote(base, N, plainL, plainR);
+
+  int plainRuns = 0;
+  for (int n = 1; n < N; ++n)
+    if (plainL[(size_t)n] == plainL[(size_t)n - 1])
+      ++plainRuns;
+
+  check(base.lofi.rateHz == 0.0 && base.lofi.bits == 0,
+        "the converter defaults to the host's own rate and depth");
+
+  check(plainRuns * 100 < N,
+        "and leaves the output as a continuous signal rather than a staircase");
+
+  // ---- rate reduction holds samples ----------------------------------------
+  auto reduced = base;
+  reduced.lofi.rateHz = 8000.0;
+
+  std::vector<float> heldL, heldR;
+  renderNote(reduced, N, heldL, heldR);
+
+  // 8 kHz into 48 kHz is one fresh sample in six, so five in six repeat.
+  int repeats = 0;
+  for (int n = 1; n < N; ++n)
+    if (heldL[(size_t)n] == heldL[(size_t)n - 1])
+      ++repeats;
+
+  const double heldFraction = (double)repeats / (double)(N - 1);
+
+  check(heldFraction > 0.79 && heldFraction < 0.87,
+        "8 kHz into a 48 kHz host holds five samples in six (" +
+            std::to_string(heldFraction) + ")");
+
+  // Runs must be the same length throughout rather than drifting, which is
+  // what a resampler phase that restarts every block would produce.
+  int longest = 1, run = 1;
+  for (int n = 1; n < N; ++n) {
+    run = heldL[(size_t)n] == heldL[(size_t)n - 1] ? run + 1 : 1;
+    longest = std::max(longest, run);
+  }
+
+  check(longest <= 6, "and never holds longer than the ratio calls for (" +
+                          std::to_string(longest) + ")");
+
+  bool finite = true;
+  float peak = 0.0f;
+  for (int n = 0; n < N; ++n) {
+    finite &= std::isfinite(heldL[(size_t)n]);
+    peak = std::max(peak, std::abs(heldL[(size_t)n]));
+  }
+
+  check(finite && peak > 0.05f,
+        "the reduced-rate output is finite and audible (peak " +
+            std::to_string(peak) + ")");
+
+  // ---- partials fold rather than being culled -------------------------------
+  //
+  // The 32nd partial of A3 sits at 7040 Hz, well above the 4 kHz ceiling an
+  // 8 kHz converter has. A Nyquist guard would silence it. A converter wraps
+  // it back down to 960 Hz, and that is the sound being asked for.
+  auto single = makeFlatParams(0.0f);
+  for (auto &o : single.osc)
+    o.sustain = 1.0f;
+
+  single.osc[31].volume = 0.5f;
+  single.osc[31].tuneBlend = 1.0f; // exactly 32 * f0
+
+  std::vector<float> cleanL, cleanR, foldedL, foldedR;
+  renderNote(single, N, cleanL, cleanR);
+
+  single.lofi.rateHz = 8000.0;
+  renderNote(single, N, foldedL, foldedR);
+
+  constexpr double partial = 7040.0;       // 32 * 220
+  constexpr double fold = 8000.0 - 7040.0; // 960, where it lands
+
+  const auto cleanAtFold = binMagnitude(cleanL, fold, sr);
+  const auto foldedAtFold = binMagnitude(foldedL, fold, sr);
+
+  check(foldedAtFold > 20.0 * cleanAtFold,
+        "a partial above the reduced Nyquist folds down instead of being muted "
+        "(" +
+            std::to_string(foldedAtFold) + " against " +
+            std::to_string(cleanAtFold) + " at the host rate)");
+
+  // The original frequency is still faintly there, because holding a sample
+  // puts an image either side of the rate. It is the fold that is loud: the
+  // hold's own response falls as sin(pi f / rate) / (pi f / rate), which is
+  // 0.98 down at 960 Hz and 0.13 at 7040, so about seven to one.
+  const auto foldedAtOriginal = binMagnitude(foldedL, partial, sr);
+
+  check(foldedAtFold > 4.0 * foldedAtOriginal,
+        "and the fold is what you hear rather than the image above it (" +
+            std::to_string(foldedAtFold / foldedAtOriginal) + " to one)");
+
+  // ---- quantiser ------------------------------------------------------------
+  for (int bits : {8, 4, 2}) {
+    auto crushed = base;
+    crushed.lofi.bits = bits;
+
+    std::vector<float> qL, qR;
+    renderNote(crushed, N, qL, qR);
+
+    const double step = 1.0 / (double)(1 << (bits - 1));
+
+    bool onGrid = true;
+    for (int n = 0; n < N; ++n) {
+      const double v = (double)qL[(size_t)n] / step;
+      onGrid &= std::abs(v - std::round(v)) < 1.0e-4;
+    }
+
+    check(onGrid, "at " + std::to_string(bits) +
+                      " bits every sample lands on the quantiser grid");
+  }
+
+  // Fewer bits has to mean more error against the same signal, or the setting
+  // is not doing what it says.
+  double previous = 0.0;
+  bool monotonic = true;
+
+  for (int bits : {12, 8, 6, 4}) {
+    auto crushed = base;
+    crushed.lofi.bits = bits;
+
+    std::vector<float> qL, qR;
+    renderNote(crushed, N, qL, qR);
+
+    double error = 0.0;
+    for (int n = 0; n < N; ++n)
+      error += std::abs((double)qL[(size_t)n] - (double)plainL[(size_t)n]);
+
+    monotonic &= error > previous;
+    previous = error;
+  }
+
+  check(monotonic,
+        "and each step down the list quantises harder than the last");
+
+  // ---- the two settings compose --------------------------------------------
+  auto both = base;
+  both.lofi.rateHz = 11025.0;
+  both.lofi.bits = 6;
+
+  std::vector<float> bothL, bothR;
+  renderNote(both, N, bothL, bothR);
+
+  const double bothStep = 1.0 / 32.0;
+  bool composed = true;
+  int bothRepeats = 0;
+
+  for (int n = 0; n < N; ++n) {
+    const double v = (double)bothL[(size_t)n] / bothStep;
+    composed &= std::abs(v - std::round(v)) < 1.0e-4;
+
+    if (n > 0 && bothL[(size_t)n] == bothL[(size_t)n - 1])
+      ++bothRepeats;
+  }
+
+  check(composed && bothRepeats > N / 2,
+        "rate and depth together give a held, quantised output");
+
+  // ---- asking for more than the host has is not a thing ---------------------
+  auto tooFast = base;
+  tooFast.lofi.rateHz = 96000.0;
+
+  std::vector<float> fastL, fastR;
+  renderNote(tooFast, N, fastL, fastR);
+
+  int fastRepeats = 0;
+  for (int n = 1; n < N; ++n)
+    if (fastL[(size_t)n] == fastL[(size_t)n - 1])
+      ++fastRepeats;
+
+  check(fastRepeats == plainRuns,
+        "a rate above the host's reads as off rather than as an upsample");
+}
+
+/// The point of doing the reduction at the source rather than over the top.
+void benchmarkLofi() {
+  section("Lo-fi cost");
+
+  constexpr double sr = 48000.0;
+  constexpr int block = 512;
+  constexpr double secs = 4.0;
+
+  double fullRate = 0.0;
+
+  for (int hz : {0, 22050, 11025, 8000}) {
+    SynthEngine engine;
+    engine.prepare(sr);
+    engine.setPolyphony(8);
+
+    auto p = makeFlatParams(0.02f);
+    for (auto &o : p.osc)
+      o.sustain = 1.0f;
+
+    p.lofi.rateHz = (double)hz;
+
+    for (int v = 0; v < 8; ++v)
+      engine.noteOn(48 + v, 1.0f, p);
+
+    std::vector<float> l((size_t)block), r((size_t)block);
+    const int blocks = (int)(secs * sr / block);
+
+    const auto t0 = std::chrono::steady_clock::now();
+    for (int i = 0; i < blocks; ++i)
+      engine.render(l.data(), r.data(), block, p);
+    const auto t1 = std::chrono::steady_clock::now();
+
+    const double elapsed = std::chrono::duration<double>(t1 - t0).count();
+    const double load = 100.0 * elapsed / secs;
+
+    if (hz == 0)
+      fullRate = load;
+
+    std::printf("  8 voices at %-10s %.2f%% of one core%s\n",
+                hz == 0 ? "host rate:" : (std::to_string(hz) + " Hz:").c_str(),
+                load,
+                hz == 0 ? ""
+                        : ("   (" + std::to_string((int)std::lround(
+                                        100.0 * load / fullRate)) +
+                           "% of full rate)")
+                              .c_str());
+
+    if (hz == 8000)
+      check(load < fullRate * 0.6,
+            "8 kHz costs well under half of what the host rate costs");
+  }
+}
+
 int main() {
   testTuningTable();
   testBlendEndpoints();
@@ -2405,7 +2663,9 @@ int main() {
   testNoiseChannel();
   testTapeEcho();
   testReverb();
+  testLofi();
   benchmark();
+  benchmarkLofi();
 
   std::printf("\n%d checks, %d failures\n", checks, failures);
   return failures == 0 ? 0 : 1;

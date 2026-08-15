@@ -41,6 +41,15 @@ public:
   void prepare(double newSampleRate, uint32_t seed) noexcept;
   void reset() noexcept;
 
+  /// Moves the voice to a different render rate without disturbing it.
+  ///
+  /// Everything rate-dependent here is a coefficient recomputed from a stored
+  /// rate, so this can happen under a sounding note: phases, envelope levels
+  /// and stages all carry on where they were, and a one-second attack is still
+  /// a second. Used by the lo-fi setting, which renders the whole voice pool
+  /// slower rather than filtering the result.
+  void setRenderRate(double newSampleRate) noexcept;
+
   void noteOn(int note, float velocity, const SynthParams &p) noexcept;
   void noteOff() noexcept;
   void steal() noexcept; ///< fast fade-out so the voice can be reused

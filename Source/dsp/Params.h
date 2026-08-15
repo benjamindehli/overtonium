@@ -117,12 +117,28 @@ struct ReverbParams {
   float width = 1.0f;
 };
 
+/// Converter quality, downwards.
+///
+/// Both settings default to off, which means whatever the host is running at
+/// and no quantiser, and both are cuts rather than effects: turning them down
+/// does less work, not more. See SynthEngine::renderVoices for why the rate is
+/// a genuine saving rather than a filter over the top.
+struct LofiParams {
+  /// Render rate in Hz, or 0 for the host's own.
+  double rateHz = 0.0;
+
+  /// Quantiser resolution in bits, or 0 for none. Signed, so 8 bits is 256
+  /// codes across the range.
+  int bits = 0;
+};
+
 struct SynthParams {
   std::array<OscParams, kNumHarmonics> osc{};
   NoiseParams noise{};
   GlobalParams global{};
   EchoParams echo{};
   ReverbParams reverb{};
+  LofiParams lofi{};
 };
 
 } // namespace ovt

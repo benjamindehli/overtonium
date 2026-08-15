@@ -12,6 +12,8 @@ inline constexpr const char *polyphonyId = "polyphony";
 inline constexpr const char *bendRangeId = "bendRange";
 inline constexpr const char *phaseResetId = "phaseReset";
 inline constexpr const char *safetyClipId = "safetyClip";
+inline constexpr const char *lofiRateId = "lofiRate";
+inline constexpr const char *lofiBitsId = "lofiBits";
 
 // ---- master effects ---------------------------------------------------------
 inline constexpr const char *echoOnId = "echoOn";
@@ -117,6 +119,8 @@ struct Cache {
   std::atomic<float> *bendRange = nullptr;
   std::atomic<float> *phaseReset = nullptr;
   std::atomic<float> *safetyClip = nullptr;
+  std::atomic<float> *lofiRate = nullptr;
+  std::atomic<float> *lofiBits = nullptr;
 
   struct Echo {
     std::atomic<float> *on = nullptr;
@@ -149,5 +153,18 @@ struct Cache {
 
 /// The polyphony choices, in parameter order.
 inline const std::array<int, 7> kPolyphonyChoices{1, 2, 4, 6, 8, 12, 16};
+
+/// Render rates, in parameter order. Zero means the host's own, which is the
+/// default and the only entry that is not a reduction.
+inline const std::array<int, 8> kLofiRateChoices{0,     32000, 22050, 16000,
+                                                 11025, 8000,  6000,  4000};
+
+/// Quantiser depths, in parameter order. Zero means none, which is the default
+/// and is what the rest of the instrument runs at anyway.
+inline const std::array<int, 9> kLofiBitChoices{0, 16, 12, 10, 8, 6, 4, 3, 2};
+
+/// What the menu calls each of them.
+juce::String lofiRateName(int hz);
+juce::String lofiBitName(int bits);
 
 } // namespace ovt::params

@@ -23,6 +23,7 @@ inline float softClip(float x) noexcept {
 
 void SynthEngine::prepare(double newSampleRate) noexcept {
   sampleRate = std::max(1.0, newSampleRate);
+  renderRate = sampleRate;
 
   // Distinct seeds so two voices never draw the same drift contour.
   for (size_t i = 0; i < voices.size(); ++i)
@@ -45,6 +46,11 @@ void SynthEngine::reset() noexcept {
   sustainDown = false;
   ageCounter = 0;
   smoothedMasterGain = -1.0f;
+
+  // Past 1 so the first host sample of the next block draws a fresh frame
+  // rather than a stale held one.
+  resamplePhase = 1.0;
+  heldL = heldR = 0.0f;
 
   for (auto &level : partialLevels)
     level.store(0.0f, std::memory_order_relaxed);
@@ -184,22 +190,55 @@ void SynthEngine::allSoundOff() noexcept {
   sustainDown = false;
 }
 
-void SynthEngine::render(float *left, float *right, int numSamples,
-                         const SynthParams &p) noexcept {
-  if (numSamples <= 0)
+namespace {
+/// Rounds to the nearest of 2^(bits-1) steps either side of zero.
+///
+/// Deliberately does not clamp. This sits ahead of the master fader and the
+/// safety clipper, which is where clipping belongs, and a quantiser that also
+/// clipped would turn a bit-depth setting into a distortion the panel does not
+/// mention.
+inline void quantise(float *left, float *right, int n, int bits) noexcept {
+  const float levels = (float)(1 << (bits - 1));
+  const float step = 1.0f / levels;
+
+  for (int i = 0; i < n; ++i) {
+    left[i] = std::round(left[i] * levels) * step;
+    right[i] = std::round(right[i] * levels) * step;
+  }
+}
+} // namespace
+
+double SynthEngine::lofiRenderRate(const SynthParams &p) const noexcept {
+  if (p.lofi.rateHz <= 0.0)
+    return sampleRate;
+
+  // Asking for more than the host is running at is not a thing anyone can
+  // have, so it reads as off rather than as an upsample.
+  return std::clamp(p.lofi.rateHz, 1000.0, sampleRate);
+}
+
+void SynthEngine::setRenderRate(double rate) noexcept {
+  if (rate == renderRate)
     return;
 
-  std::fill(left, left + numSamples, 0.0f);
-  std::fill(right, right + numSamples, 0.0f);
+  renderRate = rate;
 
-  std::array<float, kNumHarmonics> peaks{};
-  float noisePeak = 0.0f;
+  for (auto &v : voices)
+    v.setRenderRate(rate);
+}
+
+void SynthEngine::sumVoices(float *left, float *right, int numFrames,
+                            const SynthParams &p,
+                            std::array<float, kNumHarmonics> &peaks,
+                            float &noisePeak) noexcept {
+  std::fill(left, left + numFrames, 0.0f);
+  std::fill(right, right + numFrames, 0.0f);
 
   for (auto &v : voices) {
     if (!v.isActive())
       continue;
 
-    v.render(left, right, numSamples, p);
+    v.render(left, right, numFrames, p);
 
     const auto &voicePeaks = v.getPartialPeaks();
     for (size_t i = 0; i < peaks.size(); ++i)
@@ -207,11 +246,101 @@ void SynthEngine::render(float *left, float *right, int numSamples,
 
     noisePeak = std::max(noisePeak, v.getNoisePeak());
   }
+}
+
+void SynthEngine::renderVoices(float *left, float *right, int numSamples,
+                               const SynthParams &p) noexcept {
+  const auto target = lofiRenderRate(p);
+  const int bits = std::clamp(p.lofi.bits, 0, 24);
+
+  std::array<float, kNumHarmonics> peaks{};
+  float noisePeak = 0.0f;
+
+  if (target >= sampleRate) {
+    setRenderRate(sampleRate);
+    sumVoices(left, right, numSamples, p, peaks, noisePeak);
+
+    if (bits > 0)
+      quantise(left, right, numSamples, bits);
+  } else {
+    // The whole pool renders slowly and the result is held between frames.
+    //
+    // This is where the setting pays for itself. The obvious way to build a
+    // rate reducer is to render everything at the host rate and then hold the
+    // output, but sampling a sinusoid at 8 kHz gives one particular sequence
+    // of numbers whatever rate you were nominally computing at, so the samples
+    // that survive holding are the only ones worth computing. Thirty-two
+    // oscillators and their envelopes are what this instrument costs, and
+    // against a 48 kHz host they now run a sixth as often.
+    //
+    // Not quite identical to the expensive way: the per-control-block work,
+    // the LFOs and the gain ramps, still lands every 32 frames, which is now
+    // 4 ms rather than 0.7. Modulation is coarser, at the rate the rest of it
+    // is coarser. Everything is still in the right place in real time,
+    // because the coefficients are all derived from the rate being rendered
+    // at.
+    setRenderRate(target);
+
+    const double ratio = target / sampleRate;
+
+    for (int done = 0; done < numSamples;) {
+      const int len = std::min(kLofiChunk, numSamples - done);
+
+      // How many frames this chunk of output will draw from. Counted first
+      // rather than estimated, so the expansion below never runs off the end
+      // of what was rendered.
+      int frames = 0;
+      {
+        double ph = resamplePhase;
+
+        for (int n = 0; n < len; ++n) {
+          ph += ratio;
+
+          if (ph >= 1.0) {
+            ph -= 1.0;
+            ++frames;
+          }
+        }
+      }
+
+      sumVoices(lofiScratchL.data(), lofiScratchR.data(), frames, p, peaks,
+                noisePeak);
+
+      if (bits > 0)
+        quantise(lofiScratchL.data(), lofiScratchR.data(), frames, bits);
+
+      int src = 0;
+
+      for (int n = 0; n < len; ++n) {
+        resamplePhase += ratio;
+
+        if (resamplePhase >= 1.0) {
+          resamplePhase -= 1.0;
+          heldL = lofiScratchL[(size_t)src];
+          heldR = lofiScratchR[(size_t)src];
+          ++src;
+        }
+
+        left[done + n] = heldL;
+        right[done + n] = heldR;
+      }
+
+      done += len;
+    }
+  }
 
   for (size_t i = 0; i < peaks.size(); ++i)
     partialLevels[i].store(peaks[i], std::memory_order_relaxed);
 
   noiseLevel.store(noisePeak, std::memory_order_relaxed);
+}
+
+void SynthEngine::render(float *left, float *right, int numSamples,
+                         const SynthParams &p) noexcept {
+  if (numSamples <= 0)
+    return;
+
+  renderVoices(left, right, numSamples, p);
 
   // ---- master effects, ahead of the fader ----------------------------------
   // The channel meters above read the partials themselves, so they are taken

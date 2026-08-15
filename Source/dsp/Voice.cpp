@@ -18,12 +18,18 @@ constexpr double kDriftMaxHz = 1.10;
 constexpr double kNoiseTiltHz = 1000.0;
 } // namespace
 
-void Voice::prepare(double newSampleRate, uint32_t seed) noexcept {
+void Voice::setRenderRate(double newSampleRate) noexcept {
+  // Drift is the one thing not recomputed here. Its step is latched at
+  // note-on, so a note already sounding when the rate changes wanders at the
+  // old speed until it is played again. Re-deriving it would need the rate
+  // knob's value per partial, which is a lot of plumbing for an artefact that
+  // lasts one note and only on a setting nobody changes mid-phrase.
   sampleRate = std::max(1.0, newSampleRate);
-  rng.reseed(seed);
 
   for (auto &pt : partials)
     pt.env.setSampleRate(sampleRate);
+
+  noise.env.setSampleRate(sampleRate);
 
   // Roughly a 15 ms time constant, stepped once per control block.
   pressureCoef =
@@ -31,7 +37,12 @@ void Voice::prepare(double newSampleRate, uint32_t seed) noexcept {
 
   lowpassCoef =
       1.0f - (float)std::exp(-6.283185307179586 * kNoiseTiltHz / sampleRate);
+}
 
+void Voice::prepare(double newSampleRate, uint32_t seed) noexcept {
+  setRenderRate(newSampleRate);
+
+  rng.reseed(seed);
   noise.rng.reseed(seed ^ 0x5bf03635u);
 
   reset();
@@ -175,6 +186,12 @@ void Voice::render(float *left, float *right, int numSamples,
   const float pressureTarget =
       std::max(std::clamp(p.global.aftertouch, 0.0f, 1.0f), polyPressure);
 
+  // With the render rate turned down, the guard that keeps partials from
+  // folding is exactly the wrong thing to have on: folding is the sound being
+  // asked for. A converter running at 8 kHz does not quietly mute everything
+  // above 4 kHz, it wraps it back down, and so does this.
+  const bool foldAliases = p.lofi.rateHz > 0.0;
+
   for (int start = 0; start < numSamples; start += kControlBlock) {
     const int len = std::min(kControlBlock, numSamples - start);
 
@@ -207,7 +224,13 @@ void Voice::render(float *left, float *right, int numSamples,
                            (double)p.global.bendSemitones;
 
       const double freq = baseFreq * std::exp2(semis / 12.0);
-      const double inc = freq / sampleRate;
+
+      // Reduced into the first turn of the table. Sampling a sinusoid above
+      // the rate produces the same numbers as sampling the one it folds to, so
+      // this is not an approximation of aliasing, it is the aliasing, and the
+      // inner loop keeps its single compare instead of a modulo per sample.
+      double inc = freq / sampleRate;
+      inc -= std::floor(inc);
 
       // ---- amplitude --------------------------------------------------------
       const double amPhaseInc = (double)op.amRateHz / sampleRate;
@@ -221,7 +244,7 @@ void Voice::render(float *left, float *right, int numSamples,
         amEnd = 1.0f - op.amDepth * 0.5f * (1.0f - sine.cosine(endPhase));
       }
 
-      const float nyq = nyquistGain(freq, sampleRate);
+      const float nyq = foldAliases ? 1.0f : nyquistGain(freq, sampleRate);
 
       // Aftertouch adds to the fader instead of scaling it, which is what lets
       // a strip sitting at zero be brought in by pressure alone. Velocity only
