@@ -37,6 +37,8 @@ inline constexpr const char *delaySuffix = "delay";
 inline constexpr const char *attackSuffix = "attack";
 inline constexpr const char *decaySuffix = "decay";
 inline constexpr const char *sustainSuffix = "sustain";
+inline constexpr const char *swellSuffix = "swell";
+inline constexpr const char *offLevelSuffix = "offLevel";
 inline constexpr const char *releaseSuffix = "release";
 inline constexpr const char *amRateSuffix = "amRate";
 inline constexpr const char *amDepthSuffix = "amDepth";
@@ -74,6 +76,8 @@ struct Cache {
     std::atomic<float> *attack = nullptr;
     std::atomic<float> *decay = nullptr;
     std::atomic<float> *sustain = nullptr;
+    std::atomic<float> *swell = nullptr;
+    std::atomic<float> *offLevel = nullptr;
     std::atomic<float> *release = nullptr;
     std::atomic<float> *amRate = nullptr;
     std::atomic<float> *amDepth = nullptr;
@@ -93,6 +97,8 @@ struct Cache {
     std::atomic<float> *attack = nullptr;
     std::atomic<float> *decay = nullptr;
     std::atomic<float> *sustain = nullptr;
+    std::atomic<float> *swell = nullptr;
+    std::atomic<float> *offLevel = nullptr;
     std::atomic<float> *release = nullptr;
     std::atomic<float> *amRate = nullptr;
     std::atomic<float> *amDepth = nullptr;

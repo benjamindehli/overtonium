@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "dsp/Drift.h"
+#include "dsp/Envelope.h"
 #include "dsp/Harmonics.h"
 #include "dsp/Reverb.h"
 #include "dsp/SineTable.h"
@@ -338,7 +339,7 @@ void testEnvelopeAndMuteSolo() {
 
   Envelope env;
   env.setSampleRate(1000.0);
-  env.configure(0.0f, 0.1f, 0.1f, 0.5f, 0.1f);
+  env.configure(0.0f, 0.1f, 0.1f, 0.5f, 0.0f, 0.0f, 0.1f);
   env.noteOn(true);
 
   for (int i = 0; i < 100; ++i)
@@ -368,7 +369,7 @@ void testEnvelopeAndMuteSolo() {
   // A zero-sustain envelope must free itself without a note-off.
   Envelope perc;
   perc.setSampleRate(1000.0);
-  perc.configure(0.0f, 0.001f, 0.05f, 0.0f, 0.1f);
+  perc.configure(0.0f, 0.001f, 0.05f, 0.0f, 0.0f, 0.0f, 0.1f);
   perc.noteOn(true);
   for (int i = 0; i < 1000; ++i)
     perc.tick();
@@ -380,7 +381,7 @@ void testEnvelopeAndMuteSolo() {
   {
     Envelope d;
     d.setSampleRate(1000.0);
-    d.configure(0.2f, 0.05f, 0.1f, 1.0f, 0.1f); // 200 ms delay
+    d.configure(0.2f, 0.05f, 0.1f, 1.0f, 0.0f, 0.0f, 0.1f); // 200 ms delay
     d.noteOn(true);
 
     check(d.isActive(), "a delayed envelope counts as active straight away");
@@ -402,7 +403,7 @@ void testEnvelopeAndMuteSolo() {
     // Letting go before the delay elapses has to cancel the note outright.
     Envelope cancelled;
     cancelled.setSampleRate(1000.0);
-    cancelled.configure(0.5f, 0.05f, 0.1f, 1.0f, 0.1f);
+    cancelled.configure(0.5f, 0.05f, 0.1f, 1.0f, 0.0f, 0.0f, 0.1f);
     cancelled.noteOn(true);
     for (int i = 0; i < 50; ++i)
       cancelled.tick();
@@ -416,9 +417,10 @@ void testEnvelopeAndMuteSolo() {
     // Retiming the knob must not reach back into a note already waiting.
     Envelope latched;
     latched.setSampleRate(1000.0);
-    latched.configure(0.2f, 0.05f, 0.1f, 1.0f, 0.1f);
+    latched.configure(0.2f, 0.05f, 0.1f, 1.0f, 0.0f, 0.0f, 0.1f);
     latched.noteOn(true);
-    latched.configure(2.0f, 0.05f, 0.1f, 1.0f, 0.1f); // moved mid-note
+    latched.configure(2.0f, 0.05f, 0.1f, 1.0f, 0.0f, 0.0f,
+                      0.1f); // moved mid-note
     for (int i = 0; i < 260; ++i)
       latched.tick();
 
@@ -1325,6 +1327,162 @@ void testEnvelopeDelay() {
 // -----------------------------------------------------------------------------
 // 16. The noise channel: broadband, enveloped like a strip, tilted by colour.
 // -----------------------------------------------------------------------------
+/// Runs one envelope directly and reports the level at every sample, which is
+/// the only way to see the shape rather than infer it from a spectrum.
+std::vector<float> envelopeTrace(double sr, float sustain, float swell,
+                                 float offLevel, float release,
+                                 double holdSeconds, double tailSeconds) {
+  Envelope env;
+  env.setSampleRate(sr);
+  env.configure(0.0f, 0.002f, 0.05f, sustain, swell, offLevel, release);
+  env.noteOn(true);
+
+  std::vector<float> out;
+  out.reserve((size_t)((holdSeconds + tailSeconds) * sr));
+
+  for (int n = 0; n < (int)(holdSeconds * sr); ++n)
+    out.push_back(env.tick());
+
+  env.noteOff();
+
+  for (int n = 0; n < (int)(tailSeconds * sr); ++n)
+    out.push_back(env.tick());
+
+  return out;
+}
+
+void testKeyOffEnvelope() {
+  section("Key-off envelope");
+
+  constexpr double sr = 48000.0;
+  constexpr double hold = 0.5;
+
+  const auto at = [&](const std::vector<float> &v, double seconds) {
+    const auto i = (size_t)(seconds * sr);
+    return i < v.size() ? (double)v[i] : 0.0;
+  };
+
+  const auto peakAfter = [&](const std::vector<float> &v, double from,
+                             double to) {
+    double m = 0.0;
+    for (auto i = (size_t)(from * sr); i < (size_t)(to * sr) && i < v.size();
+         ++i)
+      m = std::max(m, (double)v[i]);
+
+    return m;
+  };
+
+  // ---- a key-off level of zero leaves the old behaviour exactly as it was ---
+  {
+    const auto trace = envelopeTrace(sr, 0.5f, 0.2f, 0.0f, 0.4f, hold, 2.0);
+
+    check(std::abs(at(trace, 0.4) - 0.5) < 1.0e-4,
+          "it sustains at the sustain level");
+
+    // Straight down from the sustain, with nothing above it on the way.
+    check(peakAfter(trace, hold, hold + 2.0) <= 0.5 + 1.0e-6,
+          "the release never rises above the sustain");
+
+    // Within 1% after the release time, which is the convention everywhere
+    // else in this envelope.
+    check(at(trace, hold + 0.4) < 0.5 * 0.02,
+          "and is down to 1% after the release time (" +
+              std::to_string(at(trace, hold + 0.4)) + ")");
+  }
+
+  // ---- a key-off level above the sustain: the point of the exercise ---------
+  {
+    const auto trace = envelopeTrace(sr, 0.3f, 0.15f, 0.9f, 0.5f, hold, 3.0);
+
+    const auto peak = peakAfter(trace, hold, hold + 3.0);
+    std::printf("  sustain 0.30, key-off level 0.90: peak after the key is "
+                "let go %.3f\n",
+                peak);
+
+    check(peak > 0.85, "letting go can be louder than holding");
+    check(std::abs(at(trace, hold + 0.15) - 0.9) < 1.0e-3,
+          "the swell arrives at the key-off level on time (" +
+              std::to_string(at(trace, hold + 0.15)) + ")");
+
+    // Rising the whole way there, not overshooting and coming back.
+    // Up to the last sample of the swell itself: one further along is the
+    // first sample of the release, which is meant to be lower.
+    bool rising = true;
+    for (auto i = (size_t)(hold * sr); i + 1 < (size_t)((hold + 0.15) * sr);
+         ++i)
+      rising &= trace[i + 1] >= trace[i] - 1.0e-6f;
+
+    check(rising, "and gets there without wobbling on the way");
+
+    check(at(trace, hold + 0.15 + 0.5) < 0.9 * 0.02,
+          "then releases from there on schedule (" +
+              std::to_string(at(trace, hold + 0.15 + 0.5)) + ")");
+  }
+
+  // ---- a key-off level below the sustain: the piano case -------------------
+  {
+    const auto trace = envelopeTrace(sr, 0.9f, 0.03f, 0.2f, 4.0f, hold, 6.0);
+
+    check(at(trace, hold + 0.03) < 0.25,
+          "a level below the sustain drops fast (" +
+              std::to_string(at(trace, hold + 0.03)) + ")");
+
+    check(at(trace, hold + 1.0) > 0.02,
+          "and then hangs on in a long tail (" +
+              std::to_string(at(trace, hold + 1.0)) + ")");
+
+    // The whole point: the tail outlasts what a single release from 0.9 would
+    // have given at the same setting, because it starts from a low level and
+    // takes the full release time from there.
+    check(at(trace, hold + 4.0) < 0.2 * 0.05, "before falling silent");
+  }
+
+  // ---- the key-off sound happens even if the note never really started -----
+  {
+    Envelope env;
+    env.setSampleRate(sr);
+    env.configure(1.0f, 0.01f, 0.1f, 0.5f, 0.05f, 0.8f, 0.3f);
+    env.noteOn(true);
+
+    for (int n = 0; n < (int)(0.1 * sr); ++n)
+      env.tick(); // still inside the delay
+
+    check(env.getLevel() < 1.0e-6f, "nothing sounds during the delay");
+
+    env.noteOff();
+
+    double peak = 0.0;
+    for (int n = 0; n < (int)(1.0 * sr); ++n)
+      peak = std::max(peak, (double)env.tick());
+
+    std::printf("  released inside the delay, key-off level 0.80: peak %.3f\n",
+                peak);
+
+    check(peak > 0.7,
+          "a key let go before the note arrives still makes its key-off sound");
+  }
+
+  // ---- and does not, when there is no key-off stage -------------------------
+  {
+    Envelope env;
+    env.setSampleRate(sr);
+    env.configure(1.0f, 0.01f, 0.1f, 0.5f, 0.05f, 0.0f, 0.3f);
+    env.noteOn(true);
+
+    for (int n = 0; n < (int)(0.1 * sr); ++n)
+      env.tick();
+
+    env.noteOff();
+
+    double peak = 0.0;
+    for (int n = 0; n < (int)(1.0 * sr); ++n)
+      peak = std::max(peak, (double)env.tick());
+
+    check(peak < 1.0e-6, "with no key-off stage it is cancelled as before");
+    check(!env.isActive(), "and the partial frees itself");
+  }
+}
+
 void testNoiseChannel() {
   section("Noise channel");
 
@@ -2243,6 +2401,7 @@ int main() {
   testDrift();
   testPartialMetering();
   testEnvelopeDelay();
+  testKeyOffEnvelope();
   testNoiseChannel();
   testTapeEcho();
   testReverb();

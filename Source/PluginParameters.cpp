@@ -206,6 +206,16 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         FAttr().withStringFromValueFunction(percentText)));
 
     layout.add(std::make_unique<FloatP>(
+        juce::ParameterID{oscParamId(swellSuffix, i), 1}, p + "Key-off Swell",
+        rangeWithCentre(0.0f, 5.0f, 0.1f), 0.005f,
+        FAttr().withStringFromValueFunction(timeText)));
+
+    layout.add(std::make_unique<FloatP>(
+        juce::ParameterID{oscParamId(offLevelSuffix, i), 1},
+        p + "Key-off Level", juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f,
+        FAttr().withStringFromValueFunction(percentText)));
+
+    layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(releaseSuffix, i), 1}, p + "Release",
         rangeWithCentre(0.001f, 20.0f, 0.5f), 0.4f,
         FAttr().withStringFromValueFunction(timeText)));
@@ -274,6 +284,16 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{noiseParamId(sustainSuffix), 1}, "Noise Sustain",
       juce::NormalisableRange<float>(0.0f, 1.0f), 1.0f,
+      FAttr().withStringFromValueFunction(percentText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{noiseParamId(swellSuffix), 1}, "Noise Key-off Swell",
+      rangeWithCentre(0.0f, 5.0f, 0.1f), 0.005f,
+      FAttr().withStringFromValueFunction(timeText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{noiseParamId(offLevelSuffix), 1}, "Noise Key-off Level",
+      juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f,
       FAttr().withStringFromValueFunction(percentText)));
 
   layout.add(std::make_unique<FloatP>(
@@ -352,6 +372,8 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
     o.attack = apvts.getRawParameterValue(oscParamId(attackSuffix, i));
     o.decay = apvts.getRawParameterValue(oscParamId(decaySuffix, i));
     o.sustain = apvts.getRawParameterValue(oscParamId(sustainSuffix, i));
+    o.swell = apvts.getRawParameterValue(oscParamId(swellSuffix, i));
+    o.offLevel = apvts.getRawParameterValue(oscParamId(offLevelSuffix, i));
     o.release = apvts.getRawParameterValue(oscParamId(releaseSuffix, i));
     o.amRate = apvts.getRawParameterValue(oscParamId(amRateSuffix, i));
     o.amDepth = apvts.getRawParameterValue(oscParamId(amDepthSuffix, i));
@@ -370,6 +392,8 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   noise.attack = apvts.getRawParameterValue(noiseParamId(attackSuffix));
   noise.decay = apvts.getRawParameterValue(noiseParamId(decaySuffix));
   noise.sustain = apvts.getRawParameterValue(noiseParamId(sustainSuffix));
+  noise.swell = apvts.getRawParameterValue(noiseParamId(swellSuffix));
+  noise.offLevel = apvts.getRawParameterValue(noiseParamId(offLevelSuffix));
   noise.release = apvts.getRawParameterValue(noiseParamId(releaseSuffix));
   noise.amRate = apvts.getRawParameterValue(noiseParamId(amRateSuffix));
   noise.amDepth = apvts.getRawParameterValue(noiseParamId(amDepthSuffix));
@@ -412,6 +436,8 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     o.attack = c.attack->load();
     o.decay = c.decay->load();
     o.sustain = c.sustain->load();
+    o.swell = c.swell->load();
+    o.offLevel = c.offLevel->load();
     o.release = c.release->load();
     o.amRateHz = c.amRate->load();
     o.amDepth = c.amDepth->load();
@@ -435,6 +461,8 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     n.attack = noise.attack->load();
     n.decay = noise.decay->load();
     n.sustain = noise.sustain->load();
+    n.swell = noise.swell->load();
+    n.offLevel = noise.offLevel->load();
     n.release = noise.release->load();
     n.amRateHz = noise.amRate->load();
     n.amDepth = noise.amDepth->load();

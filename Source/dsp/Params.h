@@ -25,6 +25,12 @@ struct OscParams {
   float decay = 0.400f;
   float sustain = 1.0f; ///< 0..1
   float release = 0.400f;
+  /// Where the envelope goes when the key is let go, and how long it takes to
+  /// get there. A level above the sustain is a release click or a bloom, below
+  /// it is the fast initial drop into a long tail that a struck string has.
+  /// Zero skips the stage, which is what it did before it had one.
+  float swell = 0.005f;
+  float offLevel = 0.0f;
   float amRateHz = 4.0f;
   float amDepth = 0.0f; ///< 0..1 tremolo depth
   /// How strongly key velocity scales this partial, -1 to 1. Positive means
@@ -60,6 +66,8 @@ struct NoiseParams {
   float attack = 0.005f;
   float decay = 0.600f;
   float sustain = 1.0f;
+  float swell = 0.005f;
+  float offLevel = 0.0f;
   float release = 0.400f;
   float amRateHz = 4.0f;
   float amDepth = 0.0f;

@@ -153,6 +153,8 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   setUpKnob(attack, Role::Attack, secondary);
   setUpKnob(decay, Role::Decay, secondary);
   setUpKnob(sustain, Role::Sustain, secondary);
+  setUpKnob(swell, Role::Swell, secondary);
+  setUpKnob(offLevel, Role::OffLevel, secondary);
   setUpKnob(release, Role::Release, secondary);
   setUpKnob(amRate, Role::AmRate, secondary);
   setUpKnob(amDepth, Role::AmDepth, secondary);
@@ -340,6 +342,10 @@ LinkableSlider *ChannelStrip::sliderForRole(Role role) {
     return &decay;
   case Role::Sustain:
     return &sustain;
+  case Role::Swell:
+    return &swell;
+  case Role::OffLevel:
+    return &offLevel;
   case Role::Release:
     return &release;
   case Role::AmRate:
@@ -422,8 +428,8 @@ void ChannelStrip::paint(juce::Graphics &g) {
 
   // Section rules, aligned with the gutter headings.
   g.setColour(colours::outline.withAlpha(0.7f));
-  for (auto r : {Row::PitchModHeading, Row::EnvHeading, Row::AmpModHeading,
-                 Row::OutputHeading}) {
+  for (auto r : {Row::PitchModHeading, Row::EnvHeading, Row::KeyOffHeading,
+                 Row::AmpModHeading, Row::OutputHeading}) {
     const auto row = rows[rowIndex(r)];
     g.fillRect(row.getX(), row.getY() + row.getHeight() / 2, row.getWidth(), 1);
   }
@@ -441,6 +447,8 @@ void ChannelStrip::resized() {
   attack.setBounds(rows[rowIndex(Row::Attack)].reduced(1));
   decay.setBounds(rows[rowIndex(Row::Decay)].reduced(1));
   sustain.setBounds(rows[rowIndex(Row::Sustain)].reduced(1));
+  swell.setBounds(rows[rowIndex(Row::Swell)].reduced(1));
+  offLevel.setBounds(rows[rowIndex(Row::OffLevel)].reduced(1));
   release.setBounds(rows[rowIndex(Row::Release)].reduced(1));
   amRate.setBounds(rows[rowIndex(Row::AmRate)].reduced(1));
   amDepth.setBounds(rows[rowIndex(Row::AmDepth)].reduced(1));

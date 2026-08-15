@@ -28,7 +28,8 @@ const juce::Identifier kLinkCurve{"linkCurve"};
 
 bool isHeadingRow(Row r) {
   return r == Row::PitchModHeading || r == Row::EnvHeading ||
-         r == Row::AmpModHeading || r == Row::OutputHeading;
+         r == Row::KeyOffHeading || r == Row::AmpModHeading ||
+         r == Row::OutputHeading;
 }
 } // namespace
 

@@ -167,7 +167,8 @@ private:
   const juce::Colour colour;
 
   LinkableSlider tune, pmRate, pmDepth, drift, delay, attack, decay, sustain,
-      release, amRate, amDepth, velocity, aftertouch, pan, volume;
+      swell, offLevel, release, amRate, amDepth, velocity, aftertouch, pan,
+      volume;
   juce::TextButton muteButton{"M"}, soloButton{"S"};
   juce::Label tuneReadout, levelReadout;
   LevelMeter meter;

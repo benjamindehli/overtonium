@@ -51,8 +51,8 @@ private:
 
   const juce::Colour colour;
 
-  juce::Slider colourKnob, delay, attack, decay, sustain, release, amRate,
-      amDepth, velocity, aftertouch, pan, volume;
+  juce::Slider colourKnob, delay, attack, decay, sustain, swell, offLevel,
+      release, amRate, amDepth, velocity, aftertouch, pan, volume;
   juce::TextButton muteButton{"M"}, soloButton{"S"};
   juce::Label colourReadout, levelReadout;
   LevelMeter meter;

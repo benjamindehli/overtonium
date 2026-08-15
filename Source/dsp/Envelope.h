@@ -5,7 +5,8 @@
 
 namespace ovt {
 
-/// Per-partial delay plus ADSR.
+/// Per-partial envelope: delay plus ADSR on the way in, and a two-stage key-off
+/// on the way out.
 ///
 /// Linear attack, exponential decay and release. The exponential segments are
 /// what make additive tones read as "plucked" or "struck" rather than
@@ -16,11 +17,21 @@ namespace ovt {
 /// arrive at different times and the spectrum unfolds instead of appearing all
 /// at once.
 ///
+/// Letting go of the key does not simply fade from wherever the level sat. It
+/// swells to a key-off level of its own first, and only then releases. Above
+/// the sustain that is a release click or a bloom, the sound a damper or a
+/// hammer return makes. Below it, it is the fast initial drop into a long tail
+/// that a piano or a struck bell actually has. A key-off level of zero skips
+/// the stage entirely, which is the default and is exactly what the envelope
+/// did before it had one.
+///
 /// Times are "to within 1%": a decay time of 0.5 s means the level has covered
-/// 99% of the distance to the sustain level after 0.5 s.
+/// 99% of the distance to the sustain level after 0.5 s. The swell is the
+/// exception and is exact, because the release has to start on schedule rather
+/// than whenever an exponential happens to arrive.
 class Envelope {
 public:
-  enum class Stage { Idle, Delay, Attack, Decay, Sustain, Release };
+  enum class Stage { Idle, Delay, Attack, Decay, Sustain, Swell, Release };
 
   void setSampleRate(double sr) noexcept {
     sampleRate = std::max(1.0, sr);
@@ -29,21 +40,26 @@ public:
 
   /// Cheap to call every block: coefficients are only recomputed when something
   /// moves.
-  void configure(float delay, float a, float d, float s, float r) noexcept {
+  void configure(float delay, float a, float d, float s, float swell,
+                 float offLvl, float r) noexcept {
     if (!dirty && delay == delayTime && a == attackTime && d == decayTime &&
-        s == sustainLevel && r == releaseTime)
+        s == sustainLevel && swell == swellTime && offLvl == offLevel &&
+        r == releaseTime)
       return;
 
     delayTime = delay;
     attackTime = a;
     decayTime = d;
     sustainLevel = std::clamp(s, 0.0f, 1.0f);
+    swellTime = swell;
+    offLevel = std::clamp(offLvl, 0.0f, 1.0f);
     releaseTime = r;
     dirty = false;
 
     attackInc =
         (float)(1.0 / (std::max(1.0e-4, (double)attackTime) * sampleRate));
     decayCoef = coefFor(decayTime);
+    swellCoef = coefFor(swellTime);
     releaseCoef = coefFor(releaseTime);
   }
 
@@ -62,8 +78,20 @@ public:
   }
 
   void noteOff() noexcept {
-    if (stage != Stage::Idle)
+    if (stage == Stage::Idle)
+      return;
+
+    if (offLevel <= kEpsilon) {
       stage = Stage::Release;
+      return;
+    }
+
+    // Latched in samples, so the release starts when the knob says it does.
+    // The exponential itself only covers 99% of the distance in that time, and
+    // waiting for the rest of it would push the release out by more than twice
+    // the swell.
+    swellRemaining = (int)(std::max(0.0f, swellTime) * sampleRate);
+    stage = Stage::Swell;
   }
 
   /// Steals the voice with a short fade instead of a click.
@@ -80,6 +108,7 @@ public:
     stage = Stage::Idle;
     level = 0.0f;
     delayRemaining = 0;
+    swellRemaining = 0;
     forcedRelease = false;
   }
 
@@ -120,6 +149,15 @@ public:
       level = sustainLevel;
       break;
 
+    case Stage::Swell:
+      level = offLevel + (level - offLevel) * swellCoef;
+
+      if (--swellRemaining <= 0) {
+        level = offLevel;
+        stage = Stage::Release;
+      }
+      break;
+
     case Stage::Release:
       level *= forcedRelease ? forcedReleaseCoef : releaseCoef;
       if (level < kEpsilon) {
@@ -147,9 +185,11 @@ private:
   float level = 0.0f;
 
   float delayTime = -1.0f, attackTime = -1.0f, decayTime = -1.0f,
-        sustainLevel = -1.0f, releaseTime = -1.0f;
-  int delayRemaining = 0;
-  float attackInc = 0.0f, decayCoef = 0.0f, releaseCoef = 0.0f;
+        sustainLevel = -1.0f, swellTime = -1.0f, offLevel = -1.0f,
+        releaseTime = -1.0f;
+  int delayRemaining = 0, swellRemaining = 0;
+  float attackInc = 0.0f, decayCoef = 0.0f, swellCoef = 0.0f,
+        releaseCoef = 0.0f;
 
   bool forcedRelease = false;
   float forcedReleaseCoef = 0.0f;

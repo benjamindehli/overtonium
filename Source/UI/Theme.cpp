@@ -41,6 +41,9 @@ constexpr int kRowHeights[kNumRows] = {
     28, // Attack
     28, // Decay
     28, // Sustain
+    15, // KeyOffHeading
+    28, // Swell
+    28, // OffLevel
     28, // Release
     15, // AmpModHeading
     30, // AmRate
@@ -98,6 +101,8 @@ bool rowHasControl(Row r) {
   case Row::Attack:
   case Row::Decay:
   case Row::Sustain:
+  case Row::Swell:
+  case Row::OffLevel:
   case Row::Release:
   case Row::AmRate:
   case Row::AmDepth:
@@ -171,6 +176,12 @@ const char *rowLabel(Row r) {
     return "decay";
   case Row::Sustain:
     return "sustain";
+  case Row::KeyOffHeading:
+    return "KEY OFF";
+  case Row::Swell:
+    return "swell";
+  case Row::OffLevel:
+    return "level";
   case Row::Release:
     return "release";
   case Row::AmpModHeading:
@@ -353,6 +364,10 @@ const char *roleSuffix(Role r) {
     return params::decaySuffix;
   case Role::Sustain:
     return params::sustainSuffix;
+  case Role::Swell:
+    return params::swellSuffix;
+  case Role::OffLevel:
+    return params::offLevelSuffix;
   case Role::Release:
     return params::releaseSuffix;
   case Role::AmRate:
@@ -400,6 +415,12 @@ bool roleForRow(Row r, Role &out) {
     return true;
   case Row::Sustain:
     out = Role::Sustain;
+    return true;
+  case Row::Swell:
+    out = Role::Swell;
+    return true;
+  case Row::OffLevel:
+    out = Role::OffLevel;
     return true;
   case Row::Release:
     out = Role::Release;

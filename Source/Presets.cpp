@@ -47,6 +47,8 @@ struct Applier {
     allOsc(params::attackSuffix, [](int) { return 0.005; });
     allOsc(params::decaySuffix, [](int) { return 0.6; });
     allOsc(params::sustainSuffix, [](int) { return 1.0; });
+    allOsc(params::swellSuffix, [](int) { return 0.005; });
+    allOsc(params::offLevelSuffix, [](int) { return 0.0; });
     allOsc(params::releaseSuffix, [](int) { return 0.4; });
     allOsc(params::amRateSuffix, [](int) { return 4.0; });
     allOsc(params::amDepthSuffix, [](int) { return 0.0; });
@@ -65,6 +67,8 @@ struct Applier {
     set(params::noiseParamId(params::attackSuffix), 0.005f);
     set(params::noiseParamId(params::decaySuffix), 0.6f);
     set(params::noiseParamId(params::sustainSuffix), 1.0f);
+    set(params::noiseParamId(params::swellSuffix), 0.005f);
+    set(params::noiseParamId(params::offLevelSuffix), 0.0f);
     set(params::noiseParamId(params::releaseSuffix), 0.4f);
     set(params::noiseParamId(params::amDepthSuffix), 0.0f);
     set(params::noiseParamId(params::muteSuffix), 0.0f);
@@ -169,6 +173,13 @@ void apply(APVTS &apvts, int index) {
 
     ap.allOsc(params::attackSuffix, [](int) { return 0.008; });
     ap.allOsc(params::releaseSuffix, [](int) { return 0.06; });
+
+    // The click a drawbar organ makes as the contacts break. It is on the
+    // upper drawbars only, it is louder than the note was holding, and it is
+    // over in a few tens of milliseconds.
+    ap.allOsc(params::swellSuffix, [](int) { return 0.002; });
+    ap.allOsc(params::offLevelSuffix,
+              [](int n) { return n >= 8 ? 0.55 : 0.0; });
     break;
   }
 

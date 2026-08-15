@@ -88,7 +88,8 @@ void Voice::noteOn(int note, float velocity, const SynthParams &p) noexcept {
     pt.velGain =
         amount >= 0.0f ? 1.0f - amount * (1.0f - vel) : 1.0f + amount * vel;
 
-    pt.env.configure(op.delay, op.attack, op.decay, op.sustain, op.release);
+    pt.env.configure(op.delay, op.attack, op.decay, op.sustain, op.swell,
+                     op.offLevel, op.release);
     pt.env.noteOn(p.global.phaseReset);
 
     // A fresh rate per partial per note. Reusing one rate would turn 32
@@ -115,7 +116,8 @@ void Voice::noteOn(int note, float velocity, const SynthParams &p) noexcept {
     noise.velGain =
         amount >= 0.0f ? 1.0f - amount * (1.0f - vel) : 1.0f + amount * vel;
 
-    noise.env.configure(np.delay, np.attack, np.decay, np.sustain, np.release);
+    noise.env.configure(np.delay, np.attack, np.decay, np.sustain, np.swell,
+                        np.offLevel, np.release);
     noise.env.noteOn(p.global.phaseReset);
     noise.gainPrimed = false;
   }
@@ -183,7 +185,8 @@ void Voice::render(float *left, float *right, int numSamples,
       auto &pt = partials[(size_t)i];
       const auto &op = p.osc[(size_t)i];
 
-      pt.env.configure(op.delay, op.attack, op.decay, op.sustain, op.release);
+      pt.env.configure(op.delay, op.attack, op.decay, op.sustain, op.swell,
+                       op.offLevel, op.release);
 
       if (!pt.env.isActive())
         continue;
@@ -308,7 +311,8 @@ void Voice::renderNoise(float *left, float *right, int len,
                         const SynthParams &p, float pressure) noexcept {
   const auto &np = p.noise;
 
-  noise.env.configure(np.delay, np.attack, np.decay, np.sustain, np.release);
+  noise.env.configure(np.delay, np.attack, np.decay, np.sustain, np.swell,
+                      np.offLevel, np.release);
 
   if (!noise.env.isActive())
     return;

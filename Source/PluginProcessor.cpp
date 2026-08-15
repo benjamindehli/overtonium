@@ -38,8 +38,14 @@ double OvertoniumProcessor::getTailLengthSeconds() const {
   float longest = 0.0f;
 
   for (int i = 0; i < ovt::kNumHarmonics; ++i) {
-    if (const auto *r = paramCache.osc[(size_t)i].release)
-      longest = juce::jmax(longest, r->load());
+    const auto &osc = paramCache.osc[(size_t)i];
+
+    // The key-off stage runs before the release does, so a partial with a long
+    // swell outlasts its release time.
+    const auto swell = osc.swell != nullptr ? osc.swell->load() : 0.0f;
+    const auto release = osc.release != nullptr ? osc.release->load() : 0.0f;
+
+    longest = juce::jmax(longest, swell + release);
   }
 
   // Whatever is still ringing in the master effects when the last voice ends

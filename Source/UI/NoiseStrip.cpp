@@ -27,6 +27,11 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
   setUpKnob(attack, params::attackSuffix, secondary, "Attack");
   setUpKnob(decay, params::decaySuffix, secondary, "Decay");
   setUpKnob(sustain, params::sustainSuffix, secondary, "Sustain");
+  setUpKnob(swell, params::swellSuffix, secondary,
+            "How long the key-off stage takes to reach its level");
+  setUpKnob(offLevel, params::offLevelSuffix, secondary,
+            "Where the envelope goes when the key is let go. Zero skips the "
+            "stage and releases from wherever it was.");
   setUpKnob(release, params::releaseSuffix, secondary, "Release");
   setUpKnob(amRate, params::amRateSuffix, secondary, "Tremolo rate");
   setUpKnob(amDepth, params::amDepthSuffix, secondary, "Tremolo depth");
@@ -157,8 +162,8 @@ void NoiseStrip::paint(juce::Graphics &g) {
   g.drawText("noise", header, juce::Justification::centred, false);
 
   g.setColour(colours::outline.withAlpha(0.7f));
-  for (auto r : {Row::PitchModHeading, Row::EnvHeading, Row::AmpModHeading,
-                 Row::OutputHeading}) {
+  for (auto r : {Row::PitchModHeading, Row::EnvHeading, Row::KeyOffHeading,
+                 Row::AmpModHeading, Row::OutputHeading}) {
     const auto row = rows[rowIndex(r)];
     g.fillRect(row.getX(), row.getY() + row.getHeight() / 2, row.getWidth(), 1);
   }
@@ -185,6 +190,8 @@ void NoiseStrip::resized() {
   attack.setBounds(rows[rowIndex(Row::Attack)].reduced(1));
   decay.setBounds(rows[rowIndex(Row::Decay)].reduced(1));
   sustain.setBounds(rows[rowIndex(Row::Sustain)].reduced(1));
+  swell.setBounds(rows[rowIndex(Row::Swell)].reduced(1));
+  offLevel.setBounds(rows[rowIndex(Row::OffLevel)].reduced(1));
   release.setBounds(rows[rowIndex(Row::Release)].reduced(1));
   amRate.setBounds(rows[rowIndex(Row::AmRate)].reduced(1));
   amDepth.setBounds(rows[rowIndex(Row::AmDepth)].reduced(1));

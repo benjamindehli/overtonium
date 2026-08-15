@@ -68,9 +68,9 @@ juce::MidiBuffer noteOnAt(int note, float velocity, int sample) {
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
-  // 17 per partial, 5 global, 14 for the noise channel, 11 for the two master
+  // 19 per partial, 5 global, 16 for the noise channel, 11 for the two master
   // effects.
-  const int expected = ovt::kNumHarmonics * 17 + 5 + 14 + 11;
+  const int expected = ovt::kNumHarmonics * 19 + 5 + 16 + 11;
   check(p.getParameters().size() == expected,
         "parameter count is " + std::to_string(p.getParameters().size()) +
             ", expected " + std::to_string(expected));
@@ -102,6 +102,7 @@ void testParameterWiring(OvertoniumProcessor &p) {
       ovt::params::pmDepthSuffix, ovt::params::driftSuffix,
       ovt::params::delaySuffix,   ovt::params::attackSuffix,
       ovt::params::decaySuffix,   ovt::params::sustainSuffix,
+      ovt::params::swellSuffix,   ovt::params::offLevelSuffix,
       ovt::params::releaseSuffix, ovt::params::amRateSuffix,
       ovt::params::amDepthSuffix, ovt::params::velSuffix,
       ovt::params::atSuffix,      ovt::params::muteSuffix,
@@ -114,16 +115,17 @@ void testParameterWiring(OvertoniumProcessor &p) {
       allPresent &= p.apvts.getRawParameterValue(
                         ovt::params::oscParamId(s, i)) != nullptr;
 
-  check(allPresent, "all 544 per-partial parameters resolve");
+  check(allPresent, "all 608 per-partial parameters resolve");
 
   const char *noiseSuffixes[] = {
-      ovt::params::colourSuffix,  ovt::params::delaySuffix,
-      ovt::params::attackSuffix,  ovt::params::decaySuffix,
-      ovt::params::sustainSuffix, ovt::params::releaseSuffix,
-      ovt::params::amRateSuffix,  ovt::params::amDepthSuffix,
-      ovt::params::velSuffix,     ovt::params::atSuffix,
-      ovt::params::muteSuffix,    ovt::params::soloSuffix,
-      ovt::params::volumeSuffix,  ovt::params::panSuffix};
+      ovt::params::colourSuffix,   ovt::params::delaySuffix,
+      ovt::params::attackSuffix,   ovt::params::decaySuffix,
+      ovt::params::sustainSuffix,  ovt::params::swellSuffix,
+      ovt::params::offLevelSuffix, ovt::params::releaseSuffix,
+      ovt::params::amRateSuffix,   ovt::params::amDepthSuffix,
+      ovt::params::velSuffix,      ovt::params::atSuffix,
+      ovt::params::muteSuffix,     ovt::params::soloSuffix,
+      ovt::params::volumeSuffix,   ovt::params::panSuffix};
 
   bool noisePresent = true;
   for (auto *n : noiseSuffixes)
@@ -370,9 +372,13 @@ void testRowHover() {
 
   using namespace ovt::ui;
 
-  // The same rectangle a strip lays its rows out in.
-  const auto rows =
-      layoutRows(juce::Rectangle<int>(0, 0, kStripWidth, 620).reduced(2, 4));
+  // The same rectangle a strip lays its rows out in, at the height a strip
+  // actually asks for. Taking that from preferredStripHeight rather than
+  // writing a number here means adding a row cannot quietly push the last one
+  // off the bottom of the test without the test noticing.
+  const auto rows = layoutRows(
+      juce::Rectangle<int>(0, 0, kStripWidth, preferredStripHeight() + 8)
+          .reduced(2, 4));
 
   const auto rowAtCentre = [&rows](Row r) {
     const auto band = rows[(size_t)r];
@@ -380,17 +386,18 @@ void testRowHover() {
   };
 
   bool identity = true;
-  for (Row r : {Row::TuneKnob, Row::PmRate, Row::PmDepth, Row::Drift,
-                Row::Delay, Row::Attack, Row::Decay, Row::Sustain, Row::Release,
-                Row::AmRate, Row::AmDepth, Row::Velocity, Row::Aftertouch,
-                Row::MuteSolo, Row::Fader})
+  for (Row r :
+       {Row::TuneKnob, Row::PmRate, Row::PmDepth, Row::Drift, Row::Delay,
+        Row::Attack, Row::Decay, Row::Sustain, Row::Swell, Row::OffLevel,
+        Row::Release, Row::AmRate, Row::AmDepth, Row::Velocity, Row::Aftertouch,
+        Row::Pan, Row::MuteSolo, Row::Fader})
     identity &= rowAtCentre(r) == r;
 
   check(identity, "every control row reports itself");
 
   bool quiet = true;
   for (Row r : {Row::Header, Row::PitchModHeading, Row::EnvHeading,
-                Row::AmpModHeading, Row::OutputHeading})
+                Row::KeyOffHeading, Row::AmpModHeading, Row::OutputHeading})
     quiet &= rowAtCentre(r) == kNoRow;
 
   check(quiet, "the header and the section rules report nothing");
@@ -429,7 +436,7 @@ void testRowHover() {
   for (auto n : found)
     oneEach &= n == 1;
 
-  check(oneEach, "each of the 15 linkable roles sits on exactly one row");
+  check(oneEach, "each of the 17 linkable roles sits on exactly one row");
 
   check(!roleForRow(Row::MuteSolo, role),
         "the mute and solo row carries no linkable role");

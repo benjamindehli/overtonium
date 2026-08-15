@@ -112,7 +112,8 @@ Each of the 32 strips has, top to bottom:
 | TUNE | equal to just | Readout shows the resulting cent offset |
 | PITCH MOD rate and depth | 0.01 to 30 Hz, 0 to 200 cents | Per-partial vibrato |
 | DRIFT | 0 to 25 cents | Smooth random pitch wander. See below |
-| ENVELOPE delay, A, D, S, R | 0 to 5 s, 0.5 ms to 5 s, 1 ms to 20 s, 0 to 100%, 1 ms to 20 s | Exponential decay and release |
+| ENVELOPE delay, A, D, S | 0 to 5 s, 0.5 ms to 5 s, 1 ms to 20 s, 0 to 100% | Exponential decay |
+| KEY OFF swell, level, release | 0 to 5 s, 0 to 100%, 1 ms to 20 s | A second envelope for letting go. See below |
 | AMP MOD rate and depth | 0.01 to 30 Hz, 0 to 100% | Per-partial tremolo |
 | VELOCITY | -100 to +100% | How much key velocity scales this partial. Negative inverts it |
 | AFTERTOUCH | -100 to +100% | How much key pressure moves this partial. Negative fades it out |
@@ -125,6 +126,14 @@ Velocity being per partial is what lets a soft note be a different timbre rather
 Both controls run either side of zero. A positive amount means harder or heavier is louder. A negative amount inverts that, so the partial is at its loudest when you play softly or lift off the key. The two halves are exact mirrors, so -50% at a given velocity matches +50% at the opposite velocity.
 
 The reason to want the negative half is crossfading. Give one set of partials a positive velocity amount and another set a negative one, and the two timbres trade places across the velocity range instead of one simply fading in. The test suite plays that case and measures the spectral balance swinging by a factor of a hundred between a soft and a hard note.
+
+Letting go of a key runs its own little envelope rather than simply fading out. The KEY OFF rows say where the level goes when the key is released and how long it takes to get there, and only then does the release run from that level down to silence.
+
+Above the sustain that is a release click or a bloom, the sound a damper landing or a hammer returning makes, and it can be louder than the note was while you were holding it. *Drawbar Organ* uses it that way: the upper drawbars jump to 55% for two milliseconds as the contacts break. Below the sustain it is the fast initial drop into a long tail that a piano or a struck bell actually has, which is the half of it that probably gets more use.
+
+A key-off level of zero skips the stage entirely and releases from wherever the level sat, which is the default and is exactly what the envelope did before it had one. So nothing you have already made sounds different, and the knob reads honestly: zero means no key-off stage.
+
+Two details that fall out of it. The swell time is exact rather than the "within 1%" the other stages use, because the release has to start when the knob says it does rather than whenever an exponential happens to arrive. And letting go of a key during the delay now still makes a key-off sound if you have asked for one, which is what a release click does on a real instrument, while a level of zero cancels the partial as before.
 
 The envelope's delay stage holds a partial silent before its attack begins. Staggering it across the series makes the spectrum unfold rather than arrive all at once, which is how *Slow Pad* and *Shimmer* now open up. It is latched in samples at note-on, so moving the knob cannot retime a note already waiting, and releasing a key before the delay elapses cancels that partial rather than letting it burst in afterwards.
 
@@ -305,13 +314,13 @@ Source/
     Harmonics.h     tuning table and blend maths
     SineTable.h     interpolated sine lookup
     Drift.h         seeded PRNG and the smooth random contour
-    Envelope.h      per-partial delay plus ADSR
+    Envelope.h      per-partial delay, ADSR and the two-stage key-off
     Params.h        plain-data parameter snapshot
     Voice.*         32 partials, one note
     TapeEcho.*      the master echo
     Reverb.*        the master reverb, a feedback delay network
     SynthEngine.*   voice pool, allocation, stealing, effects, master stage
-  PluginParameters.*  APVTS layout, 574 parameters, and the audio-thread snapshot
+  PluginParameters.*  APVTS layout, 640 parameters, and the audio-thread snapshot
   Presets.*           factory presets
   PluginProcessor.*   MIDI handling, sample-accurate rendering, state
   PluginEditor.*      window, zoom, LINK, gutter
