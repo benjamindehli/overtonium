@@ -77,13 +77,17 @@ namespace {
 int segmentsFor(int height) { return juce::jlimit(6, 24, height / 15); }
 } // namespace
 
-int LevelMeter::litSegments(float level) const {
-  const auto segments = segmentsFor(getHeight());
+void LevelMeter::setBackdrop(juce::Colour top, juce::Colour bottom) {
+  backdropTop = top;
+  backdropBottom = bottom;
 
-  return juce::jlimit(
-      0, segments,
-      (int)std::ceil(juce::jlimit(0.0f, 1.0f, level) * (float)segments));
+  // Every pixel is now this component's responsibility, which is the whole
+  // point: an opaque child is subtracted from what its parent has to paint.
+  setOpaque(true);
+  repaint();
 }
+
+int LevelMeter::segments() const { return segmentsFor(getHeight()); }
 
 juce::Rectangle<int> LevelMeter::push(float level) {
   // A decibel scale with a floor at -48 dB. On a linear amplitude scale
@@ -100,10 +104,29 @@ juce::Rectangle<int> LevelMeter::push(float level) {
   const float next =
       norm > displayed ? norm : juce::jmax(norm, displayed - 0.06f);
 
-  const auto before = litSegments(displayed);
-  const auto after = litSegments(next);
-
   displayed = next;
+
+  // Where the level sits, measured in lamps.
+  const auto count = segments();
+  const auto exact = juce::jlimit(0.0f, 1.0f, displayed) * (float)count;
+
+  const auto before = juce::jlimit(0, count, lit);
+  auto after = before;
+
+  // A lamp lights when the level reaches it, and goes out only once the level
+  // has fallen clear of it. Without that margin a tremolo sitting on a
+  // boundary makes the lamp flicker at the frame rate, and every one of those
+  // frames costs a redraw of the window whether the change is one lamp or a
+  // hundred.
+  constexpr float kClearOf = 0.3f;
+
+  while (after < count && exact >= (float)after + 1.0f)
+    ++after;
+
+  while (after > 0 && exact < (float)after - kClearOf)
+    --after;
+
+  lit = after;
 
   // The level moves continuously but the display does not, so most frames have
   // nothing to say. That is where the saving is: not in drawing less, but in
@@ -115,8 +138,7 @@ juce::Rectangle<int> LevelMeter::push(float level) {
   // editor collects these from all 33 meters and invalidates once, since a
   // fistful of scattered rectangles gets coalesced into its bounding box, and
   // that bounding box is the whole window.
-  const auto segments = segmentsFor(getHeight());
-  const auto step = (float)getHeight() / (float)segments;
+  const auto step = (float)getHeight() / (float)count;
 
   const auto top = (float)getHeight() - (float)juce::jmax(before, after) * step;
   const auto bottom =
@@ -128,6 +150,17 @@ juce::Rectangle<int> LevelMeter::push(float level) {
 }
 
 void LevelMeter::paint(juce::Graphics &g) {
+  // The slice of channel background this meter stands on. Painting it here
+  // rather than letting the strip show through is what lets the component be
+  // opaque, and an opaque component is one the strip underneath does not have
+  // to redraw behind.
+  if (isOpaque()) {
+    g.setGradientFill(juce::ColourGradient(backdropTop, 0.0f, 0.0f,
+                                           backdropBottom, 0.0f,
+                                           (float)getHeight(), false));
+    g.fillRect(getLocalBounds());
+  }
+
   // The meter sits behind the fader and owns its whole track, so it is drawn
   // wide enough to read at a glance rather than as a hairline beside it.
   const auto full = getLocalBounds().toFloat();
@@ -146,9 +179,9 @@ void LevelMeter::paint(juce::Graphics &g) {
                            track.getX(), track.getY() + lip, false));
   g.fillRect(track.withHeight(lip));
 
-  const auto segments = segmentsFor(getHeight());
-  const auto lit = litSegments(displayed);
-  const auto step = track.getHeight() / (float)segments;
+  const auto count = segments();
+  const auto onNow = juce::jlimit(0, count, lit);
+  const auto step = track.getHeight() / (float)count;
   const auto gap = juce::jlimit(1.0f, 3.0f, step * 0.18f);
 
   // Off is the channel's own colour held down low, so an idle meter still says
@@ -156,14 +189,14 @@ void LevelMeter::paint(juce::Graphics &g) {
   const auto on = colour.withAlpha(0.92f);
   const auto off = colour.withAlpha(0.13f);
 
-  for (int i = 0; i < segments; ++i) {
+  for (int i = 0; i < count; ++i) {
     const auto lamp =
         juce::Rectangle<float>(track.getX() + 1.0f,
                                track.getBottom() - (float)(i + 1) * step,
                                track.getWidth() - 2.0f, step)
             .reduced(0.0f, gap * 0.5f);
 
-    g.setColour(i < lit ? on : off);
+    g.setColour(i < onNow ? on : off);
     g.fillRoundedRectangle(lamp, juce::jmin(2.0f, lamp.getHeight() * 0.4f));
   }
 }
@@ -504,6 +537,28 @@ void ChannelStrip::resized() {
   // the fader draws only its cap on top, so the output fills the fader itself.
   const auto faderRow = rows[rowIndex(Row::Fader)];
   meter.setBounds(faderRow.reduced(2, 1));
+
+  // The strip's background is a gradient down the whole channel, so the meter
+  // is told the two colours at its own edges. Kept in step with
+  // paintChannelBackground and the octave wash below it by construction.
+  {
+    const auto base = (index % 2) == 0 ? colours::panel : colours::panelAlt;
+    const auto top = base.brighter(0.10f);
+    const auto bottom = base.darker(0.06f);
+
+    const auto at = [&](int y) {
+      auto shade = top.interpolatedWith(
+          bottom, juce::jlimit(0.0f, 1.0f,
+                               (float)y / (float)juce::jmax(1, getHeight())));
+
+      if (info.pitchClass == 0)
+        shade = shade.overlaidWith(colour.withAlpha(0.055f));
+
+      return shade;
+    };
+
+    meter.setBackdrop(at(meter.getY()), at(meter.getBottom()));
+  }
   volume.setBounds(faderRow.reduced(2, 1));
   levelReadout.setBounds(rows[rowIndex(Row::FaderText)]);
 

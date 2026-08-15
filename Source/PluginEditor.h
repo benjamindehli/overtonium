@@ -125,7 +125,10 @@ private:
   std::vector<std::unique_ptr<ovt::ui::ChannelStrip>> strips;
 
   float zoom = 1.0f;
-  int housekeepingTick = 0;
+
+  /// Counts timer callbacks, so the meters and the housekeeping can each run
+  /// at their own fraction of it.
+  int tick = 0;
 
   int hoverStrip = -1;
   ovt::ui::Row hoverRow = ovt::ui::kNoRow;
@@ -134,6 +137,14 @@ private:
   /// reports during one mean nothing. The highlight stays where it was grabbed
   /// until the drag ends.
   bool hoverLocked = false;
+
+  /// How many rectangles the mixer is allowed to invalidate in one frame. Few
+  /// enough that a window manager keeps them rather than falling back to their
+  /// bounding box, which is the whole window.
+  static constexpr int kMaxDirtyRegions = 6;
+
+  /// Reused every frame rather than reallocated, since this runs at 30 Hz.
+  juce::Array<juce::Rectangle<int>> dirtyRegions;
 
   bool propagatingLink = false;
   bool macroGestureActive = false;

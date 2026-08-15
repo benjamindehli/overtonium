@@ -93,6 +93,21 @@ bool rowShowsHighlight(Row);
 /// Repaints the band a row highlights, if it highlights one at all.
 void repaintRowHighlight(juce::Component &, const RowBounds &, Row);
 
+/// Reduces a set of dirty rectangles to at most `limit` of them, merging the
+/// pairs that add the least area.
+///
+/// Thirty-three channel meters produce thirty-three small scattered
+/// rectangles a frame. Handing all of them to the window manager is no good,
+/// since past a handful it gives up and redraws their bounding box, which
+/// here reaches from the top bar to the faders. Handing it one merged
+/// rectangle is no good either: the bands sit at different heights, so their
+/// union is nearly as tall as the mixer while the changes inside it are not.
+/// A few rectangles is the setting that survives coalescing and still says
+/// something specific.
+///
+/// The result always covers every rectangle that went in.
+void coalesceRegions(juce::Array<juce::Rectangle<int>> &regions, int limit);
+
 /// Total height needed before the fader starts being squeezed.
 int preferredStripHeight();
 

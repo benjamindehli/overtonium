@@ -201,6 +201,20 @@ void NoiseStrip::resized() {
 
   const auto faderRow = rows[rowIndex(Row::Fader)];
   meter.setBounds(faderRow.reduced(2, 1));
+
+  {
+    const auto base = colours::panel.brighter(0.03f);
+    const auto top = base.brighter(0.10f);
+    const auto bottom = base.darker(0.06f);
+
+    const auto at = [&](int y) {
+      return top.interpolatedWith(
+          bottom, juce::jlimit(0.0f, 1.0f,
+                               (float)y / (float)juce::jmax(1, getHeight())));
+    };
+
+    meter.setBackdrop(at(meter.getY()), at(meter.getBottom()));
+  }
   volume.setBounds(faderRow.reduced(2, 1));
   levelReadout.setBounds(rows[rowIndex(Row::FaderText)]);
 

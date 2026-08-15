@@ -209,7 +209,17 @@ The meter fills the fader's own track rather than sitting beside it. A fader tha
 
 It reads the loudest instance of a partial across the sounding voices rather than the sum, so it shows the shape of the patch instead of pinning itself the moment you play a chord.
 
-The cost is close to nothing on either side. The audio thread samples a value it has already computed once per 32-sample control block, which measured inside run-to-run noise on the benchmark. Each meter is its own component and only repaints when its bar moves a visible amount, so a held or silent patch does no drawing at all.
+The cost is close to nothing on either side. The audio thread samples a value it has already computed once per 32-sample control block, which measured inside run-to-run noise on the benchmark.
+
+Drawing them cost rather more than that until it was measured properly. Meters are the only thing in the window that changes on its own, so they set the cost of playing a note, and three things were wrong at once. They are worth writing down because none of them were about drawing being slow.
+
+The meters are segmented rather than continuous, which is the old spectrum-analyser look and also means the display only changes when the level crosses a segment boundary. On a slow decay 139 frames out of 152 have nothing to redraw at all.
+
+Nothing repaints itself. Each meter hands the band that changed up to the editor, which collects all 33 and invalidates a handful of rectangles once. That is the important one: a window manager handed a fistful of scattered dirty rectangles gives up and redraws their bounding box, and the bounding box of the channel meters at the bottom and the output meter at the top is the whole window, which is 47 ms of work with six hundred knobs in it. But merging them into a single rectangle is nearly as bad, since the bands sit at different heights and their union is most of the mixer. Six rectangles is the setting that both survives coalescing and stays specific: it invalidates 7,000 pixels a frame where one merged rectangle invalidates 54,000.
+
+And the meters are opaque, painting their own slice of the channel gradient, so the strip behind them is not redrawn underneath.
+
+Measured across two seconds of a decaying chord, that is 141% of a core down to 1%.
 
 ### Ganging the channels
 

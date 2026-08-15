@@ -114,6 +114,10 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
       noiseStrip(p.apvts, *this, *this) {
   setLookAndFeel(&lookAndFeel);
 
+  // The background is filled edge to edge, so say so: an opaque top-level
+  // component saves the window manager blending it against whatever is behind.
+  setOpaque(true);
+
   addAndMakeVisible(content);
   content.addAndMakeVisible(topBar);
   content.addAndMakeVisible(gutter);
@@ -520,22 +524,28 @@ void OvertoniumEditor::updateLinkGlow() {
 // ---- polling ----------------------------------------------------------------
 
 void OvertoniumEditor::timerCallback() {
-  // Meters run every tick, and the whole mixer is invalidated as one
-  // rectangle rather than thirty-three.
-  //
-  // The reason is what happens above us: a window manager handed a fistful of
-  // scattered dirty rectangles will coalesce them into their bounding box, and
-  // the bounding box of the channel meters at the bottom and the output meter
-  // at the top is the entire window. Redrawing all of that at 30 Hz is what
-  // made the editor crawl while a note was sounding. One band across the
-  // faders, and one small rectangle in the bar, are two regions far enough
-  // apart to survive being coalesced into something worth drawing.
-  juce::Rectangle<int> dirty;
+  ++tick;
 
-  const auto add = [this, &dirty](juce::Component &from,
-                                  juce::Rectangle<int> band) {
+  // Two things about a frame cost the window manager: that it happened at all,
+  // and how much of the window the dirty rectangles enclose. It enlarges them
+  // to their bounding box, so the mixer is invalidated as a handful of
+  // rectangles rather than thirty-three scattered ones: merging them all into
+  // one is nearly as bad as leaving them scattered, since the bands sit at
+  // different heights and their union is most of the mixer.
+  //
+  // The frames themselves are the larger cost, so the meters are read on every
+  // other tick, fifteen times a second, which is more than a segmented meter
+  // can show anyway. Splitting the mixer into halves that take alternate turns
+  // was measured too: it halves the area of a frame but doubles how many
+  // frames there are, which is the wrong way round.
+  if ((tick % 2) != 0)
+    return;
+
+  dirtyRegions.clearQuick();
+
+  const auto add = [this](juce::Component &from, juce::Rectangle<int> band) {
     if (!band.isEmpty())
-      dirty = dirty.getUnion(content.getLocalArea(&from, band));
+      dirtyRegions.add(content.getLocalArea(&from, band));
   };
 
   for (int i = 0; i < kNumHarmonics; ++i) {
@@ -545,19 +555,19 @@ void OvertoniumEditor::timerCallback() {
 
   add(noiseStrip, noiseStrip.setMeterLevel(processor.getNoiseLevel()));
 
-  if (!dirty.isEmpty())
-    content.repaint(dirty);
+  coalesceRegions(dirtyRegions, kMaxDirtyRegions);
+
+  for (const auto &region : dirtyRegions)
+    content.repaint(region);
 
   // Its own region, at the other end of the window from the mixer.
   topBar.setOutputLevels(processor.getOutputLevelLeft(),
                          processor.getOutputLevelRight());
 
-  // The rest is housekeeping that nobody can see at 30 Hz, and it costs 96
-  // parameter lookups, so it runs at a quarter of the rate.
-  if (++housekeepingTick < 4)
+  // The rest is housekeeping that nobody can see at 30 Hz, so it runs at a
+  // fraction of the rate.
+  if ((tick % 8) != 0)
     return;
-
-  housekeepingTick = 0;
 
   // Read through the cached atomics rather than the parameter map: the map
   // wants a string per lookup, and this runs several times a second.

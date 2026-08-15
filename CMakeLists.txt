@@ -101,6 +101,24 @@ target_compile_definitions(Overtonium PUBLIC
     # See README.md before changing it.
     )
 
+if(APPLE)
+    # Backs the editor with a CAMetalLayer instead of the ordinary CoreGraphics one.
+    #
+    # This matters here because of what the mixer asks for. Thirty-three meters spread
+    # across the window each invalidate a small band of themselves, and since about
+    # macOS 10.13 CoreGraphics answers a list of scattered rectangles by redrawing the
+    # single rectangle that encloses them, which for this layout is the whole editor.
+    # JUCE's own note in juce_NSViewComponentPeer_mac.mm says the Metal layer is the
+    # way out of that. It also puts the per-frame compositing on the GPU, which is
+    # where the cost was showing up: little CPU, but a large energy impact whenever
+    # the meters were moving.
+    #
+    # Nothing about how anything is drawn changes. The same CoreGraphics calls produce
+    # the same pixels, they are just handed to the window a different way.
+    target_compile_definitions(Overtonium PUBLIC
+        JUCE_COREGRAPHICS_RENDER_WITH_MULTIPLE_PAINT_CALLS=1)
+endif()
+
 target_link_libraries(Overtonium
     PRIVATE
         OvertoniumResources

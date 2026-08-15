@@ -105,6 +105,15 @@ public:
     setInterceptsMouseClicks(false, false);
   }
 
+  /// The channel background behind this meter, at its top and bottom edges.
+  ///
+  /// Given these, the meter paints its own backdrop and can declare itself
+  /// opaque, which stops the strip underneath being redrawn every time a lamp
+  /// changes. The colours have to come from the strip because the background
+  /// is a gradient down the whole channel, and the meter only covers a slice
+  /// of it.
+  void setBackdrop(juce::Colour top, juce::Colour bottom);
+
   /// @param level  linear amplitude from the audio thread, 0 to 1.
   /// @returns the region it asked to have repainted, empty when nothing moved.
   ///
@@ -116,12 +125,15 @@ public:
   void paint(juce::Graphics &) override;
 
 private:
-  /// How many lamps are lit at a given level, which is the only thing the
-  /// display actually depends on.
-  int litSegments(float level) const;
+  int segments() const;
 
   juce::Colour colour;
+  juce::Colour backdropTop, backdropBottom;
   float displayed = 0.0f;
+
+  /// How many lamps are lit. Kept rather than derived so it can hold still
+  /// while the level wobbles across a boundary.
+  int lit = 0;
 };
 
 /// One vertical channel: everything that belongs to a single partial.

@@ -1,6 +1,8 @@
 #include "Theme.h"
 
+#include <algorithm>
 #include <cmath>
+#include <limits>
 
 #include "../PluginParameters.h"
 
@@ -152,6 +154,43 @@ void repaintRowHighlight(juce::Component &c, const RowBounds &rows, Row row) {
     return;
 
   c.repaint(rows[(size_t)row]);
+}
+
+void coalesceRegions(juce::Array<juce::Rectangle<int>> &regions, int limit) {
+  limit = juce::jmax(1, limit);
+
+  // Left to right, so the pairs considered for merging are neighbours in the
+  // mixer rather than opposite ends of it.
+  std::sort(regions.begin(), regions.end(),
+            [](const juce::Rectangle<int> &a, const juce::Rectangle<int> &b) {
+              return a.getX() < b.getX();
+            });
+
+  while (regions.size() > limit) {
+    auto bestCost = std::numeric_limits<int64_t>::max();
+    int bestAt = 0;
+
+    // What merging two neighbours would add: the area of the rectangle that
+    // holds both, less the two areas it replaces.
+    for (int i = 0; i + 1 < regions.size(); ++i) {
+      const auto &a = regions.getReference(i);
+      const auto &b = regions.getReference(i + 1);
+      const auto merged = a.getUnion(b);
+
+      const auto cost = (int64_t)merged.getWidth() * merged.getHeight() -
+                        (int64_t)a.getWidth() * a.getHeight() -
+                        (int64_t)b.getWidth() * b.getHeight();
+
+      if (cost < bestCost) {
+        bestCost = cost;
+        bestAt = i;
+      }
+    }
+
+    regions.setUnchecked(bestAt, regions.getReference(bestAt).getUnion(
+                                     regions.getReference(bestAt + 1)));
+    regions.remove(bestAt + 1);
+  }
 }
 
 const char *rowLabel(Row r) {
