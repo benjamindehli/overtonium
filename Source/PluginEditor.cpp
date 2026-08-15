@@ -520,12 +520,35 @@ void OvertoniumEditor::updateLinkGlow() {
 // ---- polling ----------------------------------------------------------------
 
 void OvertoniumEditor::timerCallback() {
-  // Meters run every tick. Each strip only repaints if its bar actually moved a
-  // visible amount, so a still patch costs nothing.
-  for (int i = 0; i < kNumHarmonics; ++i)
-    strips[(size_t)i]->setMeterLevel(processor.getPartialLevel(i));
+  // Meters run every tick, and the whole mixer is invalidated as one
+  // rectangle rather than thirty-three.
+  //
+  // The reason is what happens above us: a window manager handed a fistful of
+  // scattered dirty rectangles will coalesce them into their bounding box, and
+  // the bounding box of the channel meters at the bottom and the output meter
+  // at the top is the entire window. Redrawing all of that at 30 Hz is what
+  // made the editor crawl while a note was sounding. One band across the
+  // faders, and one small rectangle in the bar, are two regions far enough
+  // apart to survive being coalesced into something worth drawing.
+  juce::Rectangle<int> dirty;
 
-  noiseStrip.setMeterLevel(processor.getNoiseLevel());
+  const auto add = [this, &dirty](juce::Component &from,
+                                  juce::Rectangle<int> band) {
+    if (!band.isEmpty())
+      dirty = dirty.getUnion(content.getLocalArea(&from, band));
+  };
+
+  for (int i = 0; i < kNumHarmonics; ++i) {
+    auto &strip = *strips[(size_t)i];
+    add(strip, strip.setMeterLevel(processor.getPartialLevel(i)));
+  }
+
+  add(noiseStrip, noiseStrip.setMeterLevel(processor.getNoiseLevel()));
+
+  if (!dirty.isEmpty())
+    content.repaint(dirty);
+
+  // Its own region, at the other end of the window from the mixer.
   topBar.setOutputLevels(processor.getOutputLevelLeft(),
                          processor.getOutputLevelRight());
 
@@ -536,50 +559,32 @@ void OvertoniumEditor::timerCallback() {
 
   housekeepingTick = 0;
 
-  auto &apvts = processor.apvts;
+  // Read through the cached atomics rather than the parameter map: the map
+  // wants a string per lookup, and this runs several times a second.
+  const auto &cache = processor.parameters();
 
-  // Voice readout
-  const auto polyIndex = juce::jlimit(
-      0, (int)params::kPolyphonyChoices.size() - 1,
-      (int)apvts.getRawParameterValue(params::polyphonyId)->load());
+  const auto on = [](const std::atomic<float> *p) {
+    return p != nullptr && p->load() > 0.5f;
+  };
 
-  topBar.setVoiceCount(processor.getActiveVoiceCount(),
-                       params::kPolyphonyChoices[(size_t)polyIndex]);
+  topBar.setVoiceCount(processor.getActiveVoiceCount(), cache.polyphonyValue());
 
   // Dim whatever a solo elsewhere is silencing, so the mixer shows what you can
-  // hear.
-  // Solo spans the noise channel too, so it takes part in the dimming.
-  bool anySolo =
-      apvts.getRawParameterValue(params::noiseParamId(params::soloSuffix))
-          ->load() > 0.5f;
+  // hear. Solo spans the noise channel too, so it takes part in the dimming.
+  bool anySolo = on(cache.noise.solo);
 
   for (int i = 0; i < kNumHarmonics && !anySolo; ++i)
-    anySolo =
-        apvts.getRawParameterValue(params::oscParamId(params::soloSuffix, i))
-            ->load() > 0.5f;
+    anySolo = on(cache.osc[(size_t)i].solo);
 
   for (int i = 0; i < kNumHarmonics; ++i) {
-    const bool muted =
-        apvts.getRawParameterValue(params::oscParamId(params::muteSuffix, i))
-            ->load() > 0.5f;
-    const bool soloed =
-        apvts.getRawParameterValue(params::oscParamId(params::soloSuffix, i))
-            ->load() > 0.5f;
-    const bool audible = muted ? false : (anySolo ? soloed : true);
+    const auto &osc = cache.osc[(size_t)i];
+    const bool audible = on(osc.mute) ? false : (anySolo ? on(osc.solo) : true);
 
     strips[(size_t)i]->setSilencedByOthers(!audible);
   }
 
-  {
-    const bool muted =
-        apvts.getRawParameterValue(params::noiseParamId(params::muteSuffix))
-            ->load() > 0.5f;
-    const bool soloed =
-        apvts.getRawParameterValue(params::noiseParamId(params::soloSuffix))
-            ->load() > 0.5f;
-
-    noiseStrip.setSilencedByOthers(muted ? true : (anySolo && !soloed));
-  }
+  noiseStrip.setSilencedByOthers(
+      on(cache.noise.mute) ? true : (anySolo && !on(cache.noise.solo)));
 }
 
 // =============================================================================

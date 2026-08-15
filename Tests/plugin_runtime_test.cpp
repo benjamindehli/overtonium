@@ -648,6 +648,134 @@ void testMasterEffects(OvertoniumProcessor &p) {
   check(tailAfterNote() < 1.0e-5f, "Init puts both of them away again");
 }
 
+void testMeterRepaint() {
+  section("Meter repaints");
+
+  using namespace ovt::ui;
+
+  LevelMeter meter(juce::Colour(0xff62bbd9));
+  meter.setSize(30, 251);
+
+  const auto render = [&meter] {
+    juce::Image image(juce::Image::ARGB, meter.getWidth(), meter.getHeight(),
+                      true);
+    juce::Graphics g(image);
+    meter.paintEntireComponent(g, false);
+
+    return image;
+  };
+
+  /// The rows that actually differ between two renders, as [first, last).
+  ///
+  /// Kept as two plain ints: a juce::Range built backwards to mean "empty"
+  /// collapses to (height, height) instead, and then every union with it comes
+  /// back claiming the whole meter changed.
+  const auto changedRows = [&meter](const juce::Image &a,
+                                    const juce::Image &b) {
+    int first = -1, last = -1;
+
+    for (int y = 0; y < meter.getHeight(); ++y)
+      for (int x = 0; x < meter.getWidth(); ++x)
+        if (a.getPixelAt(x, y) != b.getPixelAt(x, y)) {
+          if (first < 0)
+            first = y;
+
+          last = y;
+          break;
+        }
+
+    return first < 0 ? juce::Range<int>() : juce::Range<int>(first, last + 1);
+  };
+
+  // Levels worth walking through: a note arriving, several frames of decay,
+  // silence, and the ends of the range.
+  const float levels[] = {0.0f, 0.9f,  0.85f, 0.6f, 0.35f,  0.2f,
+                          0.1f, 0.02f, 0.0f,  1.0f, 0.999f, 0.5f};
+
+  bool covered = true;
+  int worstTouched = 0, largestChange = 0;
+
+  for (auto level : levels) {
+    const auto before = render();
+    const auto band = meter.push(level);
+    const auto after = render();
+
+    const auto rows = changedRows(before, after);
+
+    if (rows.getStart() >= rows.getEnd())
+      continue; // nothing moved, nothing to cover
+
+    const bool ok = !band.isEmpty() && band.getY() <= rows.getStart() &&
+                    band.getBottom() >= rows.getEnd();
+
+    if (!ok)
+      std::printf("  rows %d..%d changed, band covers %d..%d\n",
+                  rows.getStart(), rows.getEnd(), band.getY(),
+                  band.getBottom());
+
+    covered &= ok;
+    worstTouched = std::max(worstTouched, band.getHeight());
+    largestChange = std::max(largestChange, rows.getLength());
+  }
+
+  check(covered, "the dirty band covers every pixel that changes");
+
+  std::printf("  worst case %d px repainted, largest real change %d px, of "
+              "%d\n",
+              worstTouched, largestChange, meter.getHeight());
+
+  // The other half of the claim: a frame that reports nothing to repaint must
+  // genuinely have nothing to repaint, or the meter freezes at a stale value.
+  {
+    bool honest = true;
+    int quiet = 0, total = 0;
+
+    meter.push(1.0f);
+    meter.push(1.0f);
+
+    // A slow decay, the way a released note actually falls.
+    for (float level = 1.0f; level > 0.01f; level *= 0.97f) {
+      const auto before = render();
+      const auto band = meter.push(level);
+      const auto after = render();
+
+      ++total;
+
+      if (band.isEmpty()) {
+        ++quiet;
+        honest &= changedRows(before, after).isEmpty();
+      }
+    }
+
+    check(honest, "a frame that reports no repaint really did not change");
+
+    std::printf("  a slow decay: %d of %d frames needed no repaint at all\n",
+                quiet, total);
+
+    check(quiet * 2 > total, "and most frames of a decay need none (" +
+                                 std::to_string(quiet) + " of " +
+                                 std::to_string(total) + ")");
+  }
+
+  // And when a frame does have something to say, it says it about one lamp
+  // rather than about the whole column.
+  {
+    meter.push(1.0f);
+    meter.push(1.0f);
+
+    juce::Rectangle<int> crossing;
+
+    for (float level = 1.0f; level > 0.01f && crossing.isEmpty();
+         level *= 0.97f)
+      crossing = meter.push(level);
+
+    check(!crossing.isEmpty() && crossing.getHeight() < meter.getHeight() / 4,
+          "a frame that does repaint touches one lamp (" +
+              std::to_string(crossing.getHeight()) + " px of " +
+              std::to_string(meter.getHeight()) + ")");
+  }
+}
+
 void testLinkMenu() {
   section("Link menu");
 
@@ -891,6 +1019,7 @@ int main() {
   testMasterEffects(processor);
   testLinkCurves();
   testRowHover();
+  testMeterRepaint();
   testLinkMenu();
   testTopBarLayout();
   testBusLayouts(processor);

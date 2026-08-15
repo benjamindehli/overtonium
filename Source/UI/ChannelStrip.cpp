@@ -71,7 +71,21 @@ void LabelledKnob::resized() {
 
 // =============================================================================
 
-void LevelMeter::push(float level) {
+namespace {
+/// How many lamps fit. Aiming at sixteen, but a short window gets fewer rather
+/// than a column of slivers, and a tall one gets more rather than bars.
+int segmentsFor(int height) { return juce::jlimit(6, 24, height / 15); }
+} // namespace
+
+int LevelMeter::litSegments(float level) const {
+  const auto segments = segmentsFor(getHeight());
+
+  return juce::jlimit(
+      0, segments,
+      (int)std::ceil(juce::jlimit(0.0f, 1.0f, level) * (float)segments));
+}
+
+juce::Rectangle<int> LevelMeter::push(float level) {
   // A decibel scale with a floor at -48 dB. On a linear amplitude scale
   // everything above the fundamental sits squashed against the bottom.
   const float norm =
@@ -86,12 +100,31 @@ void LevelMeter::push(float level) {
   const float next =
       norm > displayed ? norm : juce::jmax(norm, displayed - 0.06f);
 
-  // Below a pixel at any sensible size, so not worth waking the painter for.
-  if (std::abs(next - displayed) < 0.004f)
-    return;
+  const auto before = litSegments(displayed);
+  const auto after = litSegments(next);
 
   displayed = next;
-  repaint();
+
+  // The level moves continuously but the display does not, so most frames have
+  // nothing to say. That is where the saving is: not in drawing less, but in
+  // not being drawn at all.
+  if (before == after)
+    return {};
+
+  // Only the lamps that lit or went out. Deliberately not repainted here: the
+  // editor collects these from all 33 meters and invalidates once, since a
+  // fistful of scattered rectangles gets coalesced into its bounding box, and
+  // that bounding box is the whole window.
+  const auto segments = segmentsFor(getHeight());
+  const auto step = (float)getHeight() / (float)segments;
+
+  const auto top = (float)getHeight() - (float)juce::jmax(before, after) * step;
+  const auto bottom =
+      (float)getHeight() - (float)juce::jmin(before, after) * step;
+
+  return juce::Rectangle<int>(0, juce::roundToInt(top) - 2, getWidth(),
+                              juce::roundToInt(bottom - top) + 4)
+      .getIntersection(getLocalBounds());
 }
 
 void LevelMeter::paint(juce::Graphics &g) {
@@ -100,10 +133,9 @@ void LevelMeter::paint(juce::Graphics &g) {
   const auto full = getLocalBounds().toFloat();
   const auto trackW = juce::jmax(6.0f, full.getWidth() * 0.62f);
   const auto track = full.withSizeKeepingCentre(trackW, full.getHeight());
-  const auto corner = trackW * 0.35f;
 
   g.setColour(colours::groove);
-  g.fillRoundedRectangle(track, corner);
+  g.fillRoundedRectangle(track, trackW * 0.35f);
 
   // Recessed, so the light that reaches the panel does not reach the bottom of
   // the channel it is cut into.
@@ -114,13 +146,26 @@ void LevelMeter::paint(juce::Graphics &g) {
                            track.getX(), track.getY() + lip, false));
   g.fillRect(track.withHeight(lip));
 
-  if (displayed <= 0.001f)
-    return;
+  const auto segments = segmentsFor(getHeight());
+  const auto lit = litSegments(displayed);
+  const auto step = track.getHeight() / (float)segments;
+  const auto gap = juce::jlimit(1.0f, 3.0f, step * 0.18f);
 
-  const auto height = track.getHeight() * displayed;
+  // Off is the channel's own colour held down low, so an idle meter still says
+  // which channel it belongs to.
+  const auto on = colour.withAlpha(0.92f);
+  const auto off = colour.withAlpha(0.13f);
 
-  g.setColour(colour.withAlpha(0.92f));
-  g.fillRoundedRectangle(track.withTop(track.getBottom() - height), corner);
+  for (int i = 0; i < segments; ++i) {
+    const auto lamp =
+        juce::Rectangle<float>(track.getX() + 1.0f,
+                               track.getBottom() - (float)(i + 1) * step,
+                               track.getWidth() - 2.0f, step)
+            .reduced(0.0f, gap * 0.5f);
+
+    g.setColour(i < lit ? on : off);
+    g.fillRoundedRectangle(lamp, juce::jmin(2.0f, lamp.getHeight() * 0.4f));
+  }
 }
 
 // =============================================================================

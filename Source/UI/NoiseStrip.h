@@ -30,7 +30,12 @@ public:
   void mouseExit(const juce::MouseEvent &) override;
 
   void setSilencedByOthers(bool shouldDim);
-  void setMeterLevel(float level) { meter.push(level); }
+  /// @returns the region of this strip that needs redrawing. See
+  /// ChannelStrip::setMeterLevel.
+  juce::Rectangle<int> setMeterLevel(float level) {
+    const auto band = meter.push(level);
+    return band.isEmpty() ? band : band.translated(meter.getX(), meter.getY());
+  }
 
   /// Takes part in the row highlight, so the band crosses the noise channel
   /// too. LINK never reaches it, so there is nothing here to arm.

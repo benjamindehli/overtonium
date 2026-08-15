@@ -68,6 +68,12 @@ public:
 
   juce::AudioProcessorValueTreeState apvts;
 
+  /// The same cached atomics the audio thread reads. The editor polls mute and
+  /// solo several times a second, and going through the parameter map for that
+  /// builds a string per lookup, which is a hundred allocations a tick on the
+  /// message thread for values that are already sitting in here.
+  const ovt::params::Cache &parameters() const noexcept { return paramCache; }
+
 private:
   void handleMidiMessage(const juce::MidiMessage &m);
   void renderSegment(int startSample, int numSamples);

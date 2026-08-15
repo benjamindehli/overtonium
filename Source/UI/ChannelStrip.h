@@ -89,10 +89,16 @@ private:
 
 /// A slim output meter for one partial.
 ///
-/// Its own component rather than something the strip paints, so a new reading
-/// invalidates a sliver a few pixels wide instead of the whole channel. With 32
-/// of these updating at 30 Hz that distinction is the difference between free
-/// and noticeable.
+/// Segmented rather than a continuous bar, which is the old spectrum-analyser
+/// look and is also what makes it cheap. A smooth bar has to be redrawn on
+/// every frame in which the level moves at all, which for a decaying note is
+/// every frame. A segmented one only changes when the level crosses a segment
+/// boundary, so a slow decay redraws a handful of times a second instead of
+/// thirty, and the frames in between cost nothing at all.
+///
+/// Unlit segments keep the channel colour at low alpha rather than going dark,
+/// so the meter reads as a column of lamps that are off rather than as a bar
+/// that has gone.
 class LevelMeter : public juce::Component {
 public:
   explicit LevelMeter(juce::Colour barColour) : colour(barColour) {
@@ -100,11 +106,20 @@ public:
   }
 
   /// @param level  linear amplitude from the audio thread, 0 to 1.
-  void push(float level);
+  /// @returns the region it asked to have repainted, empty when nothing moved.
+  ///
+  /// Handing the region back rather than exposing the maths behind it keeps
+  /// the test honest: it checks the rectangle the component actually used, in
+  /// the units the component actually used, and cannot drift from it.
+  juce::Rectangle<int> push(float level);
 
   void paint(juce::Graphics &) override;
 
 private:
+  /// How many lamps are lit at a given level, which is the only thing the
+  /// display actually depends on.
+  int litSegments(float level) const;
+
   juce::Colour colour;
   float displayed = 0.0f;
 };
@@ -128,7 +143,13 @@ public:
   /// Greys the strip out when another strip's solo is silencing it.
   void setSilencedByOthers(bool shouldDim);
 
-  void setMeterLevel(float level) { meter.push(level); }
+  /// @returns the region of this strip that needs redrawing, empty if the
+  /// meter did not move. The editor collects these and invalidates once, so
+  /// the window sees one dirty rectangle a frame rather than thirty-three.
+  juce::Rectangle<int> setMeterLevel(float level) {
+    const auto band = meter.push(level);
+    return band.isEmpty() ? band : band.translated(meter.getX(), meter.getY());
+  }
 
   /// Picks out one row, or kNoRow to clear. Every strip is told the same row,
   /// so the highlight runs the width of the mixer.
