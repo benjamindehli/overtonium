@@ -116,6 +116,17 @@ public:
   Stage getStage() const noexcept { return stage; }
   float getLevel() const noexcept { return level; }
 
+  /// True when the envelope is holding at silence and nothing but a key-off
+  /// can change that.
+  ///
+  /// A partial with no sustain but a key-off level sits here for as long as
+  /// the key is down, which on a held chord is most of the time. Saying so
+  /// lets the caller skip the oscillator without dropping the note, which is
+  /// the work the old early exit to Idle used to save by mistake.
+  bool isSilentlyHolding() const noexcept {
+    return stage == Stage::Sustain && level < kEpsilon;
+  }
+
   inline float tick() noexcept {
     switch (stage) {
     case Stage::Idle:
@@ -141,7 +152,19 @@ public:
       level = sustainLevel + (level - sustainLevel) * decayCoef;
       if (level - sustainLevel < kEpsilon) {
         level = sustainLevel;
-        stage = (sustainLevel < kEpsilon) ? Stage::Idle : Stage::Sustain;
+
+        // A decay that lands on a sustain of zero used to mean the note was
+        // finished. That stopped being true when the key-off stage arrived: a
+        // key-off level above zero still has something to say when the key is
+        // let go, and going idle here threw the note away before it could.
+        // Which is exactly the sound a music box or a thumb piano makes, so it
+        // is the case that matters most.
+        //
+        // So it holds at silence and waits instead. Only when both levels are
+        // zero is there genuinely nothing left to come.
+        stage = (sustainLevel < kEpsilon && offLevel <= kEpsilon)
+                    ? Stage::Idle
+                    : Stage::Sustain;
       }
       break;
 

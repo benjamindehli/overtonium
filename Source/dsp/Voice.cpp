@@ -283,10 +283,11 @@ void Voice::render(float *left, float *right, int numSamples,
       partialPeaks[(size_t)i] =
           std::max(partialPeaks[(size_t)i], pt.env.getLevel() * gEnd);
 
-      if (g <= 1.0e-7f && gEnd <= 1.0e-7f) {
-        // Inaudible right now (muted, faded out above Nyquist, or fader at
-        // zero). Keep the envelope and phase moving so unmuting mid-note picks
-        // up in the right place, but skip the oscillator entirely.
+      if ((g <= 1.0e-7f && gEnd <= 1.0e-7f) || pt.env.isSilentlyHolding()) {
+        // Inaudible right now: muted, faded out above Nyquist, fader at zero,
+        // or decayed to a sustain of nothing and waiting for the key to come
+        // up. Keep the envelope and phase moving so unmuting or letting go
+        // mid-note picks up in the right place, but skip the oscillator.
         for (int n = 0; n < len; ++n)
           pt.env.tick();
 

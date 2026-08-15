@@ -1481,6 +1481,124 @@ void testKeyOffEnvelope() {
     check(peak < 1.0e-6, "with no key-off stage it is cancelled as before");
     check(!env.isActive(), "and the partial frees itself");
   }
+
+  // ---- a decay that lands on silence still has a key-off to come ------------
+  //
+  // The music box case, and the one that was broken: with no sustain, the
+  // decay reaches zero while the key is still down. Reaching zero is not the
+  // same as being finished, because the key-off level is what the patch is
+  // actually about.
+  {
+    Envelope env;
+    env.setSampleRate(sr);
+    env.configure(0.0f, 0.002f, 0.05f, 0.0f, 0.02f, 0.6f, 0.4f);
+    env.noteOn(true);
+
+    // Long past the end of a 50 ms decay to nothing.
+    for (int n = 0; n < (int)(0.5 * sr); ++n)
+      env.tick();
+
+    check(env.getLevel() < 1.0e-6f, "a decay to no sustain reaches silence");
+    check(env.isActive(),
+          "but the partial stays alive while the key is still down");
+    check(env.isSilentlyHolding(),
+          "and says it is holding silently, so the oscillator can be skipped");
+
+    env.noteOff();
+
+    double peak = 0.0;
+    for (int n = 0; n < (int)(0.1 * sr); ++n)
+      peak = std::max(peak, (double)env.tick());
+
+    std::printf("  decayed to silence, key-off level 0.60: peak %.3f\n", peak);
+
+    check(peak > 0.55,
+          "letting go brings it back up to the key-off level (" +
+              std::to_string(peak) + ")");
+
+    for (int n = 0; n < (int)(2.0 * sr); ++n)
+      env.tick();
+
+    check(!env.isActive(), "and after the release it frees itself");
+  }
+
+  // ---- with no key-off level it still frees itself at once ------------------
+  {
+    Envelope env;
+    env.setSampleRate(sr);
+    env.configure(0.0f, 0.002f, 0.05f, 0.0f, 0.02f, 0.0f, 0.4f);
+    env.noteOn(true);
+
+    for (int n = 0; n < (int)(0.5 * sr); ++n)
+      env.tick();
+
+    check(!env.isActive(),
+          "no sustain and no key-off level is still a finished note");
+  }
+}
+
+/// The same fault from the outside, where it was heard: a whole voice going
+/// quiet before it could make its key-off sound.
+void testKeyOffAfterSilentDecay() {
+  section("Key-off after a silent decay");
+
+  constexpr double sr = 48000.0;
+
+  SynthEngine engine;
+  engine.prepare(sr);
+  engine.setPolyphony(8);
+
+  auto p = makeFlatParams(0.05f);
+  for (auto &o : p.osc) {
+    o.attack = 0.002f;
+    o.decay = 0.05f;
+    o.sustain = 0.0f; // dies away under a held key
+    o.swell = 0.02f;
+    o.offLevel = 0.6f; // and speaks again when the key comes up
+    o.release = 0.3f;
+  }
+
+  engine.noteOn(60, 1.0f, p);
+
+  // Half a second of holding, by which time a 50 ms decay to nothing is long
+  // over.
+  constexpr int held = (int)(0.5 * sr);
+  std::vector<float> l((size_t)held), r((size_t)held);
+  engine.render(l.data(), r.data(), held, p);
+
+  double tailWhileHeld = 0.0;
+  for (auto i = (size_t)(0.3 * sr); i < l.size(); ++i)
+    tailWhileHeld = std::max(tailWhileHeld, std::abs((double)l[i]));
+
+  check(tailWhileHeld < 1.0e-4,
+        "the note goes quiet under a held key as the patch asks (" +
+            std::to_string(tailWhileHeld) + ")");
+
+  check(engine.getActiveVoiceCount() == 1,
+        "but the voice is still there to be let go of");
+
+  engine.noteOff(60);
+
+  constexpr int after = (int)(0.5 * sr);
+  std::vector<float> al((size_t)after), ar((size_t)after);
+  engine.render(al.data(), ar.data(), after, p);
+
+  double keyOff = 0.0;
+  for (auto v : al)
+    keyOff = std::max(keyOff, std::abs((double)v));
+
+  std::printf("  held peak %.6f, key-off peak %.4f\n", tailWhileHeld, keyOff);
+
+  check(keyOff > 0.05,
+        "and letting go sounds the key-off stage (" + std::to_string(keyOff) +
+            ")");
+
+  // It has to end, or a patch like this would pile up voices forever.
+  std::vector<float> el((size_t)after), er((size_t)after);
+  for (int i = 0; i < 6; ++i)
+    engine.render(el.data(), er.data(), after, p);
+
+  check(engine.getActiveVoiceCount() == 0, "then the voice frees itself");
 }
 
 void testNoiseChannel() {
@@ -2660,6 +2778,7 @@ int main() {
   testPartialMetering();
   testEnvelopeDelay();
   testKeyOffEnvelope();
+  testKeyOffAfterSilentDecay();
   testNoiseChannel();
   testTapeEcho();
   testReverb();
