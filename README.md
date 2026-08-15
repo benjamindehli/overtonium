@@ -7,6 +7,7 @@ The control worth reaching for first is TUNE. It sweeps each partial continuousl
 - **Formats:** VST3, AU (macOS), Standalone, LV2 (Linux)
 - **Platforms:** macOS (universal), Windows, Linux
 - **Framework:** JUCE 8
+- **Licence:** AGPLv3. See [Licensing](#licensing)
 - **By:** Benjamin Dehli for Dehli Musikk. Hosts list it under DehliMusikk (manufacturer code `Dhmk`, plugin code `Ovtn`)
 
 ## Building
@@ -334,9 +335,15 @@ That leaves enough headroom for the engine to stay a plain bank of oscillators w
 
 Partials fade out as they approach Nyquist. Without that, the 32nd harmonic of a high note would fold back down as aliasing, since it lands near 67 kHz for a C7. Measured alias images sit at -122 dB.
 
-## JUCE licensing
+## Licensing
 
-JUCE 8 is dual-licensed under AGPLv3 or a commercial licence. This project leaves `JUCE_DISPLAY_SPLASH_SCREEN` at its default, which is enabled, and that is what the licence requires unless you either hold a paid JUCE licence or release this project under the AGPLv3. Decide which applies to you before you disable it in `CMakeLists.txt`.
+Overtonium is released under the [AGPLv3](LICENSE).
+
+That follows from what it is built on. The JUCE 8 framework modules are dual-licensed under the AGPLv3 or a paid commercial licence, and a plugin is a single combined work with them, so the combination has to be conveyed under terms the AGPL allows. Taking the AGPL for this project too is the simplest way to be exactly what it says it is. The network clause the AGPL is known for, section 13, only applies to software users interact with remotely over a network, which an audio plugin is not, so in practice it reads as the GPL does.
+
+If you want to build on this and ship something closed-source, that needs a commercial JUCE licence from the JUCE side and a separate arrangement on this side, since the AGPL does not permit it.
+
+There is no splash screen to worry about. JUCE 6 and 7 had one, and disabling it was the thing that required a paid licence. JUCE 8 removed it, and `JUCE_DISPLAY_SPLASH_SCREEN` is now ignored with a compiler warning if you define it.
 
 ## Layout
 

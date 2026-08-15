@@ -95,11 +95,7 @@ target_compile_definitions(Overtonium PUBLIC
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_VST3_CAN_REPLACE_VST2=0
-    JUCE_STRICT_REFCOUNTEDPOINTER=1
-    # JUCE_DISPLAY_SPLASH_SCREEN: left at its default (enabled) on purpose. Turning it off
-    # requires either a paid JUCE licence or releasing this project under the AGPLv3.
-    # See README.md before changing it.
-    )
+    JUCE_STRICT_REFCOUNTEDPOINTER=1)
 
 if(APPLE)
     # Backs the editor with a CAMetalLayer instead of the ordinary CoreGraphics one.
