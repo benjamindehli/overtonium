@@ -64,10 +64,13 @@ void LabelledKnob::paint(juce::Graphics &g) {
              juce::Justification::centred, false);
 }
 
-void LabelledKnob::resized() {
-  // A little vertical inset, or the tick ring sits right on the group border.
-  slider.setBounds(getLocalBounds().withTrimmedBottom(12).reduced(0, 2));
+juce::Rectangle<int> LabelledKnob::dialBounds(juce::Rectangle<int> bounds) {
+  // The caption takes the bottom, and then a little vertical inset, or the
+  // tick ring sits right on the group border.
+  return bounds.withTrimmedBottom(12).reduced(0, 2);
 }
+
+void LabelledKnob::resized() { slider.setBounds(dialBounds(getLocalBounds())); }
 
 // =============================================================================
 

@@ -25,6 +25,10 @@ constexpr int kGroupMinWidth[] = {144, 90, 60, 222, 260, 186, 82};
 constexpr int kOutputGroupIndex = 5;
 constexpr int kGroupCount = 7;
 
+/// Buttons, lists and the output meter all stand this tall, centred on the
+/// dials beside them, so a row reads as one line of controls.
+constexpr int kControlHeight = 24;
+
 constexpr int kKnobWidth = 38;
 constexpr int kFxToggleWidth = 52;
 constexpr int kFxToggleGap = 6;
@@ -74,61 +78,105 @@ float toNormalised(float level) {
                       (juce::Decibels::gainToDecibels(level) - kMeterFloorDb) /
                           -kMeterFloorDb);
 }
+
+/// The colour of the lamp standing at this fraction of full scale.
+///
+/// Anchored to decibel positions rather than to the level, so a lamp keeps its
+/// colour whatever the bar is doing and the top of the scale always reads as
+/// the top of the scale.
+juce::Colour lampColour(float t) {
+  if (t < 0.80f)
+    return colours::accent;
+
+  if (t < 0.94f)
+    return colours::accent.interpolatedWith(colours::soloOn,
+                                            (t - 0.80f) / 0.14f);
+
+  return colours::soloOn.interpolatedWith(colours::muteOn, (t - 0.94f) / 0.06f);
+}
 } // namespace
 
-bool StereoOutputMeter::Bar::advance(float level) {
+int StereoOutputMeter::segments() const {
+  // A lamp every eight pixels or so, within reason.
+  return juce::jlimit(12, 48, getWidth() / 8);
+}
+
+bool StereoOutputMeter::Bar::advance(float level, int count) {
   const auto norm = toNormalised(level);
   const auto next =
       norm > displayed ? norm : juce::jmax(norm, displayed - 0.05f);
 
-  bool moved = std::abs(next - displayed) > 0.003f;
   displayed = next;
 
-  // Hold the peak for about a second, then let it fall with the bar.
+  // Hold the peak for a couple of seconds, then let it fall with the bar.
   if (next >= peak) {
     peak = next;
     hold = 30;
-    moved = true;
   } else if (hold > 0) {
     --hold;
   } else if (peak > 0.0f) {
     peak = juce::jmax(next, peak - 0.02f);
-    moved = true;
   }
 
-  return moved;
+  const auto wasLit = lit;
+  const auto wasPeak = peakLamp;
+
+  // The same hysteresis as the channel meters: a lamp lights when the level
+  // reaches it and goes out only once the level has fallen clear of it, so a
+  // note sitting on a boundary cannot flicker at the frame rate.
+  constexpr float kClearOf = 0.3f;
+
+  const auto exact = juce::jlimit(0.0f, 1.0f, displayed) * (float)count;
+  lit = juce::jlimit(0, count, lit);
+
+  while (lit < count && exact >= (float)lit + 1.0f)
+    ++lit;
+
+  while (lit > 0 && exact < (float)lit - kClearOf)
+    --lit;
+
+  peakLamp = peak > 0.001f
+                 ? juce::jlimit(0, count - 1,
+                                (int)(juce::jmin(peak, 1.0f) * (float)count))
+                 : -1;
+
+  return lit != wasLit || peakLamp != wasPeak;
 }
 
 void StereoOutputMeter::push(float l, float r) {
-  const bool a = left.advance(l);
-  const bool b = right.advance(r);
+  const auto count = segments();
+  if (count < 1)
+    return;
+
+  const bool a = left.advance(l, count);
+  const bool b = right.advance(r, count);
 
   if (a || b)
     repaint();
 }
 
 void StereoOutputMeter::paintBar(juce::Graphics &g, juce::Rectangle<float> r,
-                                 const Bar &bar) const {
+                                 const Bar &bar, int count) const {
   g.setColour(colours::groove);
   g.fillRoundedRectangle(r, 1.5f);
 
-  // The gradient spans the whole bar, so the colours stay anchored to their
-  // decibel positions instead of stretching with the level.
-  juce::ColourGradient grade(colours::accent, r.getX(), r.getY(),
-                             colours::muteOn, r.getRight(), r.getY(), false);
-  grade.addColour(0.80, colours::accent);
-  grade.addColour(0.94, colours::soloOn);
+  const auto step = r.getWidth() / (float)count;
+  const auto gap = juce::jlimit(1.0f, 3.0f, step * 0.18f);
 
-  if (bar.displayed > 0.001f) {
-    g.setGradientFill(grade);
-    g.fillRoundedRectangle(r.withWidth(r.getWidth() * bar.displayed), 1.5f);
-  }
+  for (int i = 0; i < count; ++i) {
+    const auto lamp =
+        juce::Rectangle<float>(r.getX() + (float)i * step, r.getY(), step,
+                               r.getHeight())
+            .reduced(gap * 0.5f, 1.0f);
 
-  if (bar.peak > 0.001f) {
-    const auto x = r.getX() + r.getWidth() * bar.peak;
-    g.setColour(bar.peak > 0.94f ? colours::muteOn : colours::text);
-    g.fillRect(juce::jmin(x, r.getRight() - 1.5f), r.getY(), 1.5f,
-               r.getHeight());
+    const auto colour = lampColour(((float)i + 0.5f) / (float)count);
+
+    // The peak stays alight above the bar it came from, which is the whole
+    // point of holding it.
+    const bool on = i < bar.lit || i == bar.peakLamp;
+
+    g.setColour(colour.withAlpha(on ? 0.92f : 0.13f));
+    g.fillRoundedRectangle(lamp, juce::jmin(1.5f, lamp.getWidth() * 0.4f));
   }
 }
 
@@ -136,7 +184,7 @@ void StereoOutputMeter::paint(juce::Graphics &g) {
   auto area = getLocalBounds().toFloat();
 
   // Scale marks at the decibel values worth aiming at.
-  const auto scale = area.removeFromBottom(5.0f);
+  const auto scale = area.removeFromBottom(4.0f);
   for (const float db : {-48.0f, -36.0f, -24.0f, -12.0f, -6.0f, 0.0f}) {
     const auto t = (db - kMeterFloorDb) / -kMeterFloorDb;
     const auto x = scale.getX() + t * (scale.getWidth() - 1.5f);
@@ -145,12 +193,13 @@ void StereoOutputMeter::paint(juce::Graphics &g) {
     g.fillRect(x, scale.getY(), 1.0f, 3.0f);
   }
 
+  const auto count = segments();
   const auto gap = 2.0f;
   const auto barH = (area.getHeight() - gap) * 0.5f;
 
-  paintBar(g, area.removeFromTop(barH), left);
+  paintBar(g, area.removeFromTop(barH), left, count);
   area.removeFromTop(gap);
-  paintBar(g, area.removeFromTop(barH), right);
+  paintBar(g, area.removeFromTop(barH), right, count);
 }
 
 // =============================================================================
@@ -169,12 +218,8 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   masterAttachment = std::make_unique<SliderAttachment>(
       apvts, params::masterGainId, master.slider);
 
-  meterCaption.setText("OUT  L / R", juce::dontSendNotification);
-  meterCaption.setFont(makeFont(9.0f, true));
-  meterCaption.setColour(juce::Label::textColourId, colours::textDim);
-  meterCaption.setJustificationType(juce::Justification::centredLeft);
-  meterCaption.setInterceptsMouseClicks(false, false);
-  addAndMakeVisible(meterCaption);
+  // Two bars beside the master fader, at the end of the signal path, need no
+  // caption to say what they are.
   addAndMakeVisible(meter);
 
   // ---- presets --------------------------------------------------------------
@@ -264,25 +309,6 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
           popupParent);
   addKnob(reverbControls, "WIDTH", params::reverbWidthId,
           "Mono at zero, fully spread at the top", popupParent);
-
-  // ---- captions -------------------------------------------------------------
-  struct {
-    juce::Label *label;
-    const char *text;
-    juce::Justification just;
-  } captions[] = {
-      {&presetCaption, "PRESET", juce::Justification::centredLeft},
-      {&zoomCaption, "ZOOM", juce::Justification::centredLeft},
-  };
-
-  for (auto &c : captions) {
-    c.label->setText(c.text, juce::dontSendNotification);
-    c.label->setFont(makeFont(9.0f, true));
-    c.label->setColour(juce::Label::textColourId, colours::textDim);
-    c.label->setJustificationType(c.just);
-    c.label->setInterceptsMouseClicks(false, false);
-    addAndMakeVisible(*c.label);
-  }
 
   updateLinkEnablement();
 }
@@ -626,10 +652,9 @@ int TopBar::minimumWidth() {
 }
 
 void TopBar::parkControls() {
-  juce::Component *all[] = {&master,       &meter,          &meterCaption,
-                            &presetButton, &presetCaption,  &zoomBox,
-                            &zoomCaption,  &settingsButton, &linkButton,
-                            &echoButton,   &reverbButton};
+  juce::Component *all[] = {&master,     &meter,       &presetButton,
+                            &zoomBox,    &linkButton,  &settingsButton,
+                            &echoButton, &reverbButton};
 
   for (auto *c : all)
     c->setBounds({});
@@ -646,18 +671,20 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
 
   auto r = bounds.reduced(kGroupPad, 0);
 
-  // Captioned controls carry their label above. Knobs carry theirs below, so
-  // both come out the same overall height and can share a row.
-  const auto captioned = [](juce::Component &c, juce::Label &cap,
-                            juce::Rectangle<int> column) {
-    auto area = column.withSizeKeepingCentre(column.getWidth(), 37);
-    cap.setBounds(area.removeFromTop(12));
-    area.removeFromTop(1);
-    c.setBounds(area);
+  // Everything in the bar lines up with the dials rather than with the middle
+  // of the row. A knob carries its caption underneath, so its dial sits above
+  // the centre, and anything centred in the row instead reads as sagging next
+  // to it.
+  const auto alignedWithDials = [](juce::Component &c,
+                                   juce::Rectangle<int> column) {
+    const auto dial = LabelledKnob::dialBounds(column);
+
+    c.setBounds(column.getX(), dial.getCentreY() - kControlHeight / 2,
+                column.getWidth(), kControlHeight);
   };
 
-  const auto button = [](juce::Button &b, juce::Rectangle<int> column) {
-    b.setBounds(column.withSizeKeepingCentre(column.getWidth(), 24));
+  const auto button = [&](juce::Button &b, juce::Rectangle<int> column) {
+    alignedWithDials(b, column);
   };
 
   /// The switch names the effect, so it stands at the head of its group and
@@ -673,7 +700,7 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
 
   switch (group) {
   case PresetGroup:
-    captioned(presetButton, presetCaption, r);
+    button(presetButton, r);
     break;
 
   case VoiceGroup:
@@ -697,12 +724,12 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
     r.removeFromLeft(6);
 
     // The meter takes whatever the group was given beyond its minimum.
-    captioned(meter, meterCaption, r);
+    alignedWithDials(meter, r);
     break;
   }
 
   case ViewGroup:
-    captioned(zoomBox, zoomCaption, r);
+    alignedWithDials(zoomBox, r);
     break;
 
   default:
@@ -795,8 +822,17 @@ void TopBar::paint(juce::Graphics &g) {
   // A panel behind each group, which is what carries the "these belong
   // together" reading. The controls name themselves, so the boxes carry no
   // titles of their own and cost no extra height.
-  for (const auto &r : groupBounds) {
-    if (r.isEmpty())
+  //
+  // Only where there is something to group, though. A box drawn around a
+  // single button says nothing that the button was not already saying, and
+  // four of them in a row turn the bar into a fence.
+  for (int group = 0; group < NumGroups; ++group) {
+    const auto &r = groupBounds[(size_t)group];
+
+    const bool framed = group == EchoGroup || group == ReverbGroup ||
+                        group == OutputGroup;
+
+    if (r.isEmpty() || !framed)
       continue;
 
     const auto f = r.toFloat();

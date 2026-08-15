@@ -17,10 +17,14 @@ namespace ovt::ui {
 
 /// The stereo output meter.
 ///
-/// Horizontal and split, because the two channels only differ once stereo
-/// spread is dialled in and a summed meter would hide exactly that. Carries a
-/// peak hold, since the thing you most want from an output meter is what it hit
-/// a moment ago rather than what it is doing right now.
+/// Horizontal and split, because the two channels only differ once the panning
+/// is dialled in and a summed meter would hide exactly that. Carries a peak
+/// hold, since the thing you most want from an output meter is what it hit a
+/// moment ago rather than what it is doing right now.
+///
+/// Segmented, like the channel meters, and for the same two reasons: it reads
+/// at a glance, and it only asks to be redrawn when a lamp changes rather than
+/// on every frame in which the level moves at all.
 class StereoOutputMeter : public juce::Component {
 public:
   StereoOutputMeter() { setInterceptsMouseClicks(false, false); }
@@ -31,16 +35,27 @@ public:
   void paint(juce::Graphics &) override;
 
 private:
+  /// How many lamps fit across the meter.
+  int segments() const;
+
   struct Bar {
     float displayed = 0.0f;
     float peak = 0.0f;
     int hold = 0;
 
-    /// @returns true when something moved by enough to be worth redrawing.
-    bool advance(float level);
+    /// Lamps alight, and the one holding the peak, or -1 when there is none.
+    /// Kept rather than derived so they can hold still while the level wobbles
+    /// across a boundary.
+    int lit = 0;
+    int peakLamp = -1;
+
+    /// @returns true when a lamp changed, which is the only time redrawing
+    /// would show anything.
+    bool advance(float level, int count);
   };
 
-  void paintBar(juce::Graphics &, juce::Rectangle<float>, const Bar &) const;
+  void paintBar(juce::Graphics &, juce::Rectangle<float>, const Bar &,
+                int count) const;
 
   Bar left, right;
 };
@@ -172,14 +187,12 @@ private:
   LabelledKnob master{"MASTER"};
 
   StereoOutputMeter meter;
-  juce::Label meterCaption;
 
   /// The logo, rescaled once to the size it is drawn at. Scaling a 2464 px
   /// image down to 150 on every repaint would be both slow and soft.
   juce::Image logo, logoScaled;
 
   juce::ComboBox zoomBox;
-  juce::Label presetCaption, zoomCaption;
 
   juce::TextButton presetButton, settingsButton, linkButton;
 

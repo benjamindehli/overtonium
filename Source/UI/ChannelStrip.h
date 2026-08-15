@@ -81,6 +81,13 @@ public:
   void paint(juce::Graphics &) override;
   void resized() override;
 
+  /// Where the dial sits inside bounds of this size.
+  ///
+  /// Public because a panel that mixes knobs with buttons has to line the
+  /// buttons up with the dials rather than with the middle of the row: the
+  /// caption underneath means the two are not the same place.
+  static juce::Rectangle<int> dialBounds(juce::Rectangle<int>);
+
   LinkableSlider slider;
 
 private:

@@ -2,10 +2,12 @@
 // handling, factory presets, bus layouts and state round-tripping. No editor is
 // created, so this runs on a CI box with no display.
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdio>
 #include <string>
+#include <vector>
 
 #include "PluginParameters.h"
 #include "PluginProcessor.h"
@@ -907,6 +909,62 @@ void testTopBarLayout() {
         "and it is shorter on a wide window than on a narrow one");
 }
 
+/// A knob carries its caption underneath, so its dial does not sit in the
+/// middle of the row. Anything laid out down the middle instead reads as
+/// sagging next to the knobs, which is easy to reintroduce by adding a control
+/// and centring it, and hard to notice in a screenshot.
+void testTopBarAlignment(OvertoniumProcessor &p) {
+  section("Top bar alignment");
+
+  using namespace ovt::ui;
+
+  juce::Component popupParent;
+  TopBar bar(p.apvts, popupParent);
+
+  const auto centresAt = [&bar](int width) {
+    bar.setSize(width, TopBar::heightForWidth(width));
+
+    std::vector<int> centres;
+
+    for (auto *child : bar.getChildren()) {
+      // A group that did not fit was parked rather than placed.
+      if (child->getBounds().isEmpty())
+        continue;
+
+      // A knob's line is its dial, not the control, which reaches further down
+      // to hold the caption.
+      if (auto *knob = dynamic_cast<LabelledKnob *>(child))
+        centres.push_back(knob->getY() + knob->slider.getBounds().getCentreY());
+      else
+        centres.push_back(child->getBounds().getCentreY());
+    }
+
+    return centres;
+  };
+
+  // One row, two rows and three, since each row lays itself out afresh.
+  for (int width : {1412, 1100, 900, TopBar::minimumWidth()}) {
+    const auto centres = centresAt(width);
+    const auto at = " (" + std::to_string(width) + " px)";
+
+    check(centres.size() > 10, "the bar places its controls" + at);
+
+    // Rows are more than 30 px apart, so two controls are either on the same
+    // line, which has to be exactly the same line, or on different rows. A gap
+    // in between is a control that missed.
+    bool aligned = true;
+    for (size_t i = 0; i < centres.size(); ++i)
+      for (size_t j = i + 1; j < centres.size(); ++j) {
+        const auto apart = std::abs(centres[i] - centres[j]);
+        aligned &= apart == 0 || apart > 30;
+      }
+
+    check(aligned, "every knob, button, list and meter sharing a row stands on "
+                   "one line" +
+                       at);
+  }
+}
+
 void testBusLayouts(OvertoniumProcessor &p) {
   section("Bus layouts");
 
@@ -1022,6 +1080,7 @@ int main() {
   testMeterRepaint();
   testLinkMenu();
   testTopBarLayout();
+  testTopBarAlignment(processor);
   testBusLayouts(processor);
   testStateRoundTrip(processor);
   testSoloAndMute(processor);

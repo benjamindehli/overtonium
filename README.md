@@ -158,7 +158,7 @@ The envelope's delay stage holds a partial silent before its attack begins. Stag
 
 Aftertouch works the same way but **adds** to the fader instead of scaling it, and it ignores velocity entirely. That means a strip with its fader all the way down is silent until you lean on the key, and then it fades in under your finger, while a negative amount fades an open strip back out again. Put a few upper partials on positive aftertouch and the note grows brighter the harder you press, without touching the partials you left alone. Both channel pressure and polyphonic aftertouch are accepted, and whichever is higher wins. Pressure is smoothed over about 15 ms, so seven-bit MIDI does not step the gain.
 
-The top bar holds everything that is not per partial, boxed into groups of things that work together, in signal order from left to right:
+The top bar holds everything that is not per partial, in signal order from left to right:
 
 | Group | Contains |
 |---|---|
@@ -169,6 +169,8 @@ The top bar holds everything that is not per partial, boxed into groups of thing
 | Reverb | the reverb. See below |
 | Output | **MASTER** and the stereo meter |
 | View | **ZOOM** |
+
+Echo, Reverb and Output are drawn as boxes, because a box is what says "these belong together" and there is something in each of them to group. The rest are single controls standing on their own: a box around one button says nothing the button was not already saying, and four of them in a row turn the bar into a fence. Buttons, lists and the meter all stand on the line the knob dials stand on, rather than in the middle of their row, since a knob carries its caption underneath and anything centred beside one reads as sagging.
 
 Settings and Link are menus rather than panels. Everything behind Settings is set once and then left, and a short list of whole numbers reads better written out than dialled in on a knob. Phase reset gives a coherent, percussive attack by restarting partial phase on each note, and the safety clipper is worth leaving on when you push 32 faders up, but neither is something you sit and adjust, so neither is worth the width of a button. That is what the two effects are sitting in.
 
@@ -211,15 +213,17 @@ It reads the loudest instance of a partial across the sounding voices rather tha
 
 The cost is close to nothing on either side. The audio thread samples a value it has already computed once per 32-sample control block, which measured inside run-to-run noise on the benchmark.
 
-Drawing them cost rather more than that until it was measured properly. Meters are the only thing in the window that changes on its own, so they set the cost of playing a note, and three things were wrong at once. They are worth writing down because none of them were about drawing being slow.
+Drawing them cost rather more than that until it was measured properly. Meters are the only thing in the window that changes on its own, so they set the cost of playing a note, and several things were wrong at once. They are worth writing down because almost none of them were about drawing being slow.
 
-The meters are segmented rather than continuous, which is the old spectrum-analyser look and also means the display only changes when the level crosses a segment boundary. On a slow decay 139 frames out of 152 have nothing to redraw at all.
+The meters are segmented rather than continuous, which is the old spectrum-analyser look and also means the display only changes when the level crosses a segment boundary. A lamp lights when the level reaches it and goes out only once the level has fallen clear of it, so a note sitting on a boundary cannot flicker. On a slow decay 138 frames out of 152 have nothing to redraw at all.
 
-Nothing repaints itself. Each meter hands the band that changed up to the editor, which collects all 33 and invalidates a handful of rectangles once. That is the important one: a window manager handed a fistful of scattered dirty rectangles gives up and redraws their bounding box, and the bounding box of the channel meters at the bottom and the output meter at the top is the whole window, which is 47 ms of work with six hundred knobs in it. But merging them into a single rectangle is nearly as bad, since the bands sit at different heights and their union is most of the mixer. Six rectangles is the setting that both survives coalescing and stays specific: it invalidates 7,000 pixels a frame where one merged rectangle invalidates 54,000.
+Nothing repaints itself. Each meter hands the band that changed up to the editor, which collects all 33 and invalidates a handful of rectangles once. Merging them into a single rectangle is nearly as bad as leaving them scattered, since the bands sit at different heights and their union is most of the mixer. Six rectangles is the setting that both stays specific and stays cheap: it invalidates 7,000 pixels a frame where one merged rectangle invalidates 54,000.
 
-And the meters are opaque, painting their own slice of the channel gradient, so the strip behind them is not redrawn underneath.
+The meters are opaque, painting their own slice of the channel gradient, so the strip behind them is not redrawn underneath. And they are read fifteen times a second rather than thirty, which is more than a segmented meter can show anyway and halves the number of frames in which anything is invalidated at all.
 
-Measured across two seconds of a decaying chord, that is 141% of a core down to 1%.
+Together those took a decaying chord from 141% of a core to 1%. And it was still visibly sluggish, which is the interesting part: the cost was never CPU. It was that since around macOS 10.13 CoreGraphics answers a list of scattered dirty rectangles by redrawing the one rectangle that encloses them, and for this layout that is the whole window, every frame, whatever care went into the rectangles. JUCE's own note in `juce_NSViewComponentPeer_mac.mm` says as much, and points at the way out: a Metal-backed layer, which keeps the rectangles apart and puts the compositing on the GPU. `JUCE_COREGRAPHICS_RENDER_WITH_MULTIPLE_PAINT_CALLS` turns it on and has no default, so it is set in CMakeLists.txt for Apple builds. That was the one that made the difference on the machine, and none of the work above would have shown up without it.
+
+One thing that looks like it should help and does not: splitting the mixer into halves that update on alternate frames. Each meter still updates at the same rate and each frame covers half the width, so the area per frame halves, but the number of frames doubles. Frames are the more expensive of the two.
 
 ### Ganging the channels
 
@@ -259,7 +263,9 @@ The offset is always measured from the values captured when the drag started, so
 
 The top bar carries a horizontal output meter, split into left and right. It is split because the two channels are identical until something is panned off centre, and a summed meter would hide precisely that. It reads the finished output after master gain and the clipper, so it reports what actually leaves the plugin.
 
-Each bar carries a peak hold that sits for about a second before falling, since what an output meter is mostly wanted for is what it hit a moment ago. The bar runs from teal through amber to orange as it approaches full scale, with the colours anchored to their decibel positions rather than stretching with the level, and there is a scale beneath marked at -48, -36, -24, -12, -6 and 0 dB.
+It is segmented like the channel meters, for the same two reasons: it reads at a glance, and it only asks to be redrawn when a lamp changes rather than on every frame in which the level moves at all. Lamps run from teal through amber to orange as they approach full scale, with the colours anchored to their decibel positions rather than stretching with the level, so a lamp keeps its colour whatever the bar is doing. Unlit lamps hold their colour dimmed rather than going dark, which means the top of the scale is visible before you reach it. There is a scale beneath marked at -48, -36, -24, -12, -6 and 0 dB.
+
+Each bar carries a peak hold, since what an output meter is mostly wanted for is what it hit a moment ago. The peak stays alight as a single lamp above the bar for a couple of seconds, then falls with it.
 
 ### Panning
 
