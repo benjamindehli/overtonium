@@ -159,6 +159,10 @@ private:
   StereoOutputMeter meter;
   juce::Label meterCaption;
 
+  /// The logo, rescaled once to the size it is drawn at. Scaling a 2464 px
+  /// image down to 150 on every repaint would be both slow and soft.
+  juce::Image logo, logoScaled;
+
   juce::ComboBox presetBox, zoomBox;
   juce::Label presetCaption, zoomCaption;
 

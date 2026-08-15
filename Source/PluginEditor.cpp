@@ -78,6 +78,32 @@ void RowGutter::paint(juce::Graphics &g) {
 
   g.setColour(colours::outline);
   g.fillRect(getWidth() - 1, 0, 1, getHeight());
+
+  // ---- the maker's badge ----------------------------------------------------
+  // The fader row is the one place in the window with room going spare: it
+  // stretches with the height, its caption sits at the top, and the rest is
+  // panel. A badge at the foot of it is where a console puts one.
+  if (makersMark == nullptr)
+    return;
+
+  auto foot = rows[(size_t)Row::Fader];
+  foot.removeFromTop(20); // clear of the LEVEL caption
+
+  const auto art = makersMark->getDrawableBounds();
+  const auto width = juce::jmin(getWidth() - 20, 58);
+  const auto height = juce::roundToInt((float)width * art.getHeight() /
+                                       juce::jmax(1.0f, art.getWidth()));
+
+  // On a short window there is no room, and a squashed badge is worse than
+  // none, so it simply is not drawn.
+  if (foot.getHeight() < height + 12)
+    return;
+
+  const juce::Rectangle<int> badge(
+      getWidth() - width - 10, foot.getBottom() - height - 6, width, height);
+
+  makersMark->drawWithin(g, badge.toFloat(), juce::RectanglePlacement::centred,
+                         0.5f);
 }
 
 // =============================================================================

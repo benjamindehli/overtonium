@@ -54,6 +54,16 @@ void paintChannelBackground(juce::Graphics &, juce::Rectangle<int> bounds,
 /// caption in the gutter to the channel your hand is on.
 void paintRowHighlight(juce::Graphics &, juce::Rectangle<int> row);
 
+/// The product wordmark, for the corner of the bar.
+juce::Image logoWordmark();
+
+/// The maker's mark, for the foot of the gutter.
+///
+/// Vector rather than pixels, since it is drawn small and its size depends on
+/// how tall the window is. Returns null if the drawing cannot be parsed, and
+/// every caller has to cope with that rather than assume.
+std::unique_ptr<juce::Drawable> logoMakersMark();
+
 /// A pointer that says what a LINK drag would do to the channels it reaches.
 ///
 /// Five bars beside the arrow, in the shape of the curve: level for uniform,

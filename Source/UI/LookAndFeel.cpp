@@ -2,6 +2,8 @@
 
 #include <array>
 
+#include <BinaryData.h>
+
 namespace ovt::ui {
 
 juce::Font makeFont(float height, bool bold) {
@@ -35,6 +37,16 @@ void paintChannelBackground(juce::Graphics &g, juce::Rectangle<int> bounds,
 
   g.setColour(juce::Colours::black.withAlpha(0.35f));
   g.fillRect(r.getRight() - 1.0f, r.getY(), 1.0f, r.getHeight());
+}
+
+juce::Image logoWordmark() {
+  return juce::ImageCache::getFromMemory(BinaryData::logo_png,
+                                         BinaryData::logo_pngSize);
+}
+
+std::unique_ptr<juce::Drawable> logoMakersMark() {
+  return juce::Drawable::createFromImageData(BinaryData::dehlimusikk_svg,
+                                             BinaryData::dehlimusikk_svgSize);
 }
 
 void paintRowHighlight(juce::Graphics &g, juce::Rectangle<int> row) {

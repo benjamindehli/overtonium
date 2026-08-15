@@ -144,7 +144,7 @@ The top bar holds everything that is not per partial, boxed into groups of thing
 
 Settings and Link are menus rather than panels. Everything behind Settings is set once and then left, and a short list of whole numbers reads better written out than dialled in on a knob. Phase reset gives a coherent, percussive attack by restarting partial phase on each note, and the safety clipper is worth leaving on when you push 32 faders up, but neither is something you sit and adjust, so neither is worth the width of a button. That is what the two effects are sitting in.
 
-Everything fits across one row above about 1220 px of logical width. Below that the bar reflows onto further rows rather than dropping controls or letting captions collide. It fills each row as far as it will go, so it stays compact and anchored to the title, and the rows below the first run the full width since the title is above them rather than beside them. One row per group is the worst case, and the window will not shrink past 512 px, which is where it stops fitting in three.
+Everything fits across one row above about 1200 px of logical width. Below that the bar reflows onto further rows rather than dropping controls or letting captions collide. It fills each row as far as it will go, so it stays compact and anchored to the title, and the rows below the first run the full width since the title is above them rather than beside them. One row per group is the worst case, and the window will not shrink past 512 px, which is where it stops fitting in three.
 
 The output meter is the one element that flexes. It takes any width left over on its row up to a limit, since uncapped it swallowed a whole row and stopped reading as a meter, and it gives up to 40 px back when a row is slightly too tight. That last part matters: a window a few pixels short of fitting a row narrows the meter instead of wrapping.
 
@@ -297,6 +297,9 @@ JUCE 8 is dual-licensed under AGPLv3 or a commercial licence. This project leave
 ## Layout
 
 ```
+Resources/
+  logo.png            the overtonium wordmark, compiled into the binary
+  dehli-musikk.svg    the maker's mark, vector since it is drawn small
 Source/
   dsp/            JUCE-free DSP core, unit tested standalone
     Harmonics.h     tuning table and blend maths

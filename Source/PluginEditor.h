@@ -26,6 +26,9 @@ public:
 
 private:
   ovt::ui::Row highlighted = ovt::ui::kNoRow;
+
+  /// The maker's badge, in the empty foot of the gutter.
+  std::unique_ptr<juce::Drawable> makersMark{ovt::ui::logoMakersMark()};
 };
 
 class OvertoniumEditor : public juce::AudioProcessorEditor,

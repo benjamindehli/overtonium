@@ -44,6 +44,10 @@ constexpr int kOutputMaxSqueeze = 40;
 /// The title only occupies the first row, so the second gets the full width.
 constexpr int kTitleLead = 10;
 
+/// What it is, under the wordmark. It measures 128 px here against the 150 px
+/// the title block gives it, which leaves room for a wider font elsewhere.
+constexpr const char *kCredit = "32-partial overtone synthesiser";
+
 int totalGroupWidth(int first, int last) {
   int total = 0;
   for (int g = first; g < last; ++g)
@@ -153,6 +157,8 @@ void StereoOutputMeter::paint(juce::Graphics &g) {
 TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
                juce::Component &popupParent)
     : apvts(state) {
+  logo = logoWordmark();
+
   master.slider.setPopupDisplayEnabled(true, true, &popupParent);
   master.slider.setTooltip("Output level");
   addAndMakeVisible(master);
@@ -644,6 +650,18 @@ void TopBar::layoutRow(juce::Rectangle<int> row, int firstGroup,
 }
 
 void TopBar::resized() {
+  // Rescaled at twice the size it is drawn, so it stays sharp on a display
+  // that is doing the same thing again underneath us.
+  if (logo.isValid()) {
+    const auto height = kRowHeight * 2;
+    const auto width = juce::roundToInt((float)height * (float)logo.getWidth() /
+                                        (float)juce::jmax(1, logo.getHeight()));
+
+    if (logoScaled.getHeight() != height)
+      logoScaled =
+          logo.rescaled(width, height, juce::Graphics::highResamplingQuality);
+  }
+
   parkControls();
 
   auto area = getLocalBounds().reduced(kBarMargin, kBarPadY);
@@ -697,6 +715,28 @@ void TopBar::paint(juce::Graphics &g) {
   auto title = getLocalBounds().reduced(kBarMargin, kBarPadY);
   title = title.removeFromLeft(kTitleWidth).withHeight(kRowHeight);
 
+  if (logoScaled.isValid()) {
+    const auto wordmarkHeight =
+        juce::roundToInt((float)kTitleWidth * (float)logoScaled.getHeight() /
+                         (float)juce::jmax(1, logoScaled.getWidth()));
+
+    // The pair is centred as a block, so the wordmark does not drift when the
+    // credit line under it changes size.
+    auto block = title.withSizeKeepingCentre(kTitleWidth, wordmarkHeight + 15);
+
+    g.drawImage(logoScaled, block.removeFromTop(wordmarkHeight).toFloat(),
+                juce::RectanglePlacement::xLeft |
+                    juce::RectanglePlacement::yMid);
+
+    block.removeFromTop(2);
+
+    g.setColour(colours::textDim);
+    g.setFont(makeFont(9.5f));
+    g.drawText(kCredit, block, juce::Justification::centredLeft, false);
+    return;
+  }
+
+  // Nothing to fall back to but the name, which is better than a blank corner.
   g.setColour(colours::text);
   g.setFont(makeFont(21.0f, true));
   g.drawText("OVERTONIUM", title.removeFromTop(24),
@@ -704,8 +744,8 @@ void TopBar::paint(juce::Graphics &g) {
 
   g.setColour(colours::textDim);
   g.setFont(makeFont(9.5f));
-  g.drawText("32-partial overtone synthesiser", title.removeFromTop(13),
-             juce::Justification::centredLeft, false);
+  g.drawText(kCredit, title.removeFromTop(13), juce::Justification::centredLeft,
+             false);
 }
 
 } // namespace ovt::ui

@@ -80,6 +80,13 @@ set(OVERTONIUM_SOURCES
     Source/UI/Theme.cpp
     Source/UI/TopBar.cpp)
 
+# The logo travels inside the binary rather than as a file beside it, since a
+# plugin is loaded from wherever the host feels like putting it.
+juce_add_binary_data(OvertoniumResources
+    SOURCES
+        Resources/logo.png
+        Resources/dehli-musikk.svg)
+
 target_sources(Overtonium PRIVATE ${OVERTONIUM_SOURCES})
 
 target_include_directories(Overtonium PRIVATE Source)
@@ -96,6 +103,7 @@ target_compile_definitions(Overtonium PUBLIC
 
 target_link_libraries(Overtonium
     PRIVATE
+        OvertoniumResources
         juce::juce_audio_utils
     PUBLIC
         juce::juce_recommended_config_flags
@@ -143,6 +151,7 @@ if(OVERTONIUM_BUILD_TESTS)
 
     target_link_libraries(overtonium_runtime_test
         PRIVATE
+            OvertoniumResources
             juce::juce_audio_utils
         PUBLIC
             juce::juce_recommended_config_flags
