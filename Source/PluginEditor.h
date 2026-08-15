@@ -61,6 +61,10 @@ private:
   void applyResizeLimits();
   void applyPreset(int index);
 
+  /// Says something went wrong, or that something worked, without stopping
+  /// what the message thread is doing.
+  void complain(const juce::String &title, const juce::String &detail);
+
   /// Which strips a drag from this one would reach, and by how much. Zero marks
   /// a strip the scope leaves out.
   void gatherLinkWeights(int sourceIndex, ovt::ui::LinkScope,

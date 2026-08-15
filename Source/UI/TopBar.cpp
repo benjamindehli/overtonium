@@ -48,6 +48,9 @@ constexpr int kTitleLead = 10;
 /// the title block gives it, which leaves room for a wider font elsewhere.
 constexpr const char *kCredit = "32-partial overtone synthesiser";
 
+/// What the preset button says when nothing has been loaded yet.
+constexpr const char *kNoPreset = "Select...";
+
 int totalGroupWidth(int first, int last) {
   int total = 0;
   for (int g = first; g < last; ++g)
@@ -175,14 +178,11 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   addAndMakeVisible(meter);
 
   // ---- presets --------------------------------------------------------------
-  presetBox.addItemList(presets::names(), 1);
-  presetBox.setTextWhenNothingSelected("Select...");
-  presetBox.onChange = [this] {
-    const auto id = presetBox.getSelectedId();
-    if (id > 0 && onPresetChosen)
-      onPresetChosen(id - 1);
-  };
-  addAndMakeVisible(presetBox);
+  presetButton.setButtonText(kNoPreset);
+  presetButton.setTooltip("Factory and saved presets, and somewhere to put "
+                          "the one you are working on");
+  presetButton.onClick = [this] { showPresetMenu(); };
+  addAndMakeVisible(presetButton);
 
   // ---- settings -------------------------------------------------------------
   // Everything that is set once and then left: polyphony, bend range, and the
@@ -362,6 +362,101 @@ void TopBar::showLinkMenu(juce::Component *anchor) {
   });
 }
 
+void TopBar::setPresetName(const juce::String &name) {
+  presetButton.setButtonText(name.isEmpty() ? kNoPreset : name);
+}
+
+juce::String TopBar::getPresetName() const {
+  const auto shown = presetButton.getButtonText();
+  return shown == kNoPreset ? juce::String() : shown;
+}
+
+void TopBar::showPresetMenu() {
+  juce::PopupMenu m;
+  m.setLookAndFeel(&getLookAndFeel());
+
+  const auto factory = presets::names();
+
+  m.addSectionHeader("Factory");
+  for (int i = 0; i < factory.size(); ++i)
+    m.addItem(100 + i, factory[i]);
+
+  // Read fresh every time it opens, so a preset saved a moment ago is there
+  // and one deleted in Finder is not.
+  userPresetFiles = presets::userPresets();
+
+  if (!userPresetFiles.isEmpty()) {
+    m.addSeparator();
+    m.addSectionHeader("Saved");
+
+    for (int i = 0; i < userPresetFiles.size(); ++i)
+      m.addItem(1000 + i,
+                userPresetFiles.getReference(i).getFileNameWithoutExtension());
+  }
+
+  m.addSeparator();
+  m.addItem(1, "Save preset...");
+  m.addItem(2, "Open the preset folder");
+  m.addSeparator();
+  m.addItem(3, "Copy as factory preset code");
+
+  m.showMenuAsync(juce::PopupMenu::Options()
+                      .withTargetComponent(&presetButton)
+                      .withStandardItemHeight(22),
+                  [this](int result) {
+                    if (result == 0)
+                      return;
+
+                    if (result == 1)
+                      return askForPresetName();
+
+                    if (result == 2)
+                      return (void)presets::userDirectory().revealToUser();
+
+                    if (result == 3) {
+                      if (onCopyFactoryCode)
+                        onCopyFactoryCode();
+
+                      return;
+                    }
+
+                    if (result >= 1000) {
+                      const auto index = result - 1000;
+
+                      if (index < userPresetFiles.size() && onUserPresetChosen)
+                        onUserPresetChosen(userPresetFiles.getReference(index));
+
+                      return;
+                    }
+
+                    if (onPresetChosen)
+                      onPresetChosen(result - 100);
+                  });
+}
+
+void TopBar::askForPresetName() {
+  nameWindow = std::make_unique<juce::AlertWindow>(
+      "Save preset", "What should it be called?",
+      juce::MessageBoxIconType::NoIcon, this);
+
+  nameWindow->setLookAndFeel(&getLookAndFeel());
+  nameWindow->addTextEditor("name", getPresetName());
+  nameWindow->addButton("Save", 1, juce::KeyPress(juce::KeyPress::returnKey));
+  nameWindow->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
+
+  nameWindow->enterModalState(
+      true, juce::ModalCallbackFunction::create([this](int result) {
+        const auto name = nameWindow != nullptr
+                              ? nameWindow->getTextEditorContents("name")
+                              : juce::String();
+
+        nameWindow.reset();
+
+        if (result == 1 && onSaveUserPreset)
+          onSaveUserPreset(name);
+      }));
+}
+
 void TopBar::showSettingsMenu() {
   juce::PopupMenu m;
   m.setLookAndFeel(&getLookAndFeel());
@@ -531,10 +626,10 @@ int TopBar::minimumWidth() {
 }
 
 void TopBar::parkControls() {
-  juce::Component *all[] = {&master,      &meter,          &meterCaption,
-                            &presetBox,   &presetCaption,  &zoomBox,
-                            &zoomCaption, &settingsButton, &linkButton,
-                            &echoButton,  &reverbButton};
+  juce::Component *all[] = {&master,       &meter,          &meterCaption,
+                            &presetButton, &presetCaption,  &zoomBox,
+                            &zoomCaption,  &settingsButton, &linkButton,
+                            &echoButton,   &reverbButton};
 
   for (auto *c : all)
     c->setBounds({});
@@ -578,7 +673,7 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
 
   switch (group) {
   case PresetGroup:
-    captioned(presetBox, presetCaption, r);
+    captioned(presetButton, presetCaption, r);
     break;
 
   case VoiceGroup:

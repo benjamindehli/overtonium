@@ -133,7 +133,40 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     strips.push_back(std::move(strip));
   }
 
-  topBar.onPresetChosen = [this](int index) { applyPreset(index); };
+  topBar.onPresetChosen = [this](int index) {
+    applyPreset(index);
+    topBar.setPresetName(presets::names()[index]);
+  };
+
+  topBar.onUserPresetChosen = [this](juce::File file) {
+    juce::String error;
+
+    if (presets::load(processor.apvts, file, error))
+      topBar.setPresetName(file.getFileNameWithoutExtension());
+    else
+      complain("Could not load that preset", error);
+  };
+
+  topBar.onSaveUserPreset = [this](juce::String name) {
+    juce::String error;
+
+    if (presets::save(processor.apvts, name, error))
+      topBar.setPresetName(presets::sanitiseName(name));
+    else
+      complain("Could not save that preset", error);
+  };
+
+  topBar.onCopyFactoryCode = [this] {
+    const auto name = presets::sanitiseName(topBar.getPresetName());
+
+    juce::SystemClipboard::copyTextToClipboard(presets::factoryCode(
+        processor.apvts, name.isEmpty() ? "Untitled" : name));
+
+    complain("Copied", "The C++ for this patch is on the clipboard. Paste it "
+                       "into Presets.cpp as a new case and add its name to "
+                       "kNames.");
+  };
+
   topBar.onZoomChanged = [this](float z) { setZoom(z); };
 
   // ---- restore the last window size -----------------------------------------
@@ -276,6 +309,18 @@ void OvertoniumEditor::setZoom(float newZoom) {
 
 void OvertoniumEditor::applyPreset(int index) {
   presets::apply(processor.apvts, index);
+}
+
+void OvertoniumEditor::complain(const juce::String &title,
+                                const juce::String &detail) {
+  juce::NativeMessageBox::showAsync(
+      juce::MessageBoxOptions()
+          .withIconType(juce::MessageBoxIconType::NoIcon)
+          .withTitle(title)
+          .withMessage(detail)
+          .withButton("OK")
+          .withAssociatedComponent(this),
+      nullptr);
 }
 
 // ---- LINK -------------------------------------------------------------------

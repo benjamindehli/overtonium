@@ -55,7 +55,14 @@ public:
 
   // ---- callbacks the editor fills in ----
   std::function<void(int)> onPresetChosen;
+  std::function<void(juce::File)> onUserPresetChosen;
+  std::function<void(juce::String)> onSaveUserPreset;
+  std::function<void()> onCopyFactoryCode;
   std::function<void(float)> onZoomChanged;
+
+  /// Shown on the preset button, so the bar says what is loaded.
+  void setPresetName(const juce::String &);
+  juce::String getPresetName() const;
 
   bool isLinkEnabled() const { return linkButton.getToggleState(); }
 
@@ -116,6 +123,14 @@ private:
   /// once and left, which is a menu rather than a panel.
   void showSettingsMenu();
 
+  /// The factory list, then whatever has been saved, then what can be done
+  /// with them.
+  void showPresetMenu();
+
+  /// Asks for a name and hands it back. Its own window, since a menu cannot
+  /// take typing.
+  void askForPresetName();
+
   /// Related controls sit together in a bordered group.
   enum Group {
     PresetGroup = 0,
@@ -163,10 +178,16 @@ private:
   /// image down to 150 on every repaint would be both slow and soft.
   juce::Image logo, logoScaled;
 
-  juce::ComboBox presetBox, zoomBox;
+  juce::ComboBox zoomBox;
   juce::Label presetCaption, zoomCaption;
 
-  juce::TextButton settingsButton, linkButton;
+  juce::TextButton presetButton, settingsButton, linkButton;
+
+  /// Held between opening the menu and acting on it, so the ids the menu hands
+  /// back mean something.
+  juce::Array<juce::File> userPresetFiles;
+
+  std::unique_ptr<juce::AlertWindow> nameWindow;
   juce::TextButton echoButton, reverbButton;
 
   /// Shown in the settings menu rather than on the panel.

@@ -194,7 +194,7 @@ void testPresets(OvertoniumProcessor &p) {
   section("Factory presets");
 
   const auto names = ovt::presets::names();
-  check(names.size() == 9, "nine factory presets");
+  check(names.size() == 15, "fifteen factory presets");
 
   for (int i = 0; i < names.size(); ++i) {
     ovt::presets::apply(p.apvts, i);
@@ -450,6 +450,132 @@ void testRowHover() {
   // Suppressing the band must not cost the fader its LINK preview.
   check(roleForRow(Row::Fader, role) && role == Role::Volume,
         "the fader row still reports the role LINK would gang");
+}
+
+void testUserPresets(OvertoniumProcessor &p) {
+  section("User presets");
+
+  using namespace ovt;
+
+  // ---- names a filesystem can carry ----------------------------------------
+  check(presets::sanitiseName("Glass Bells") == "Glass Bells",
+        "an ordinary name survives");
+  check(presets::sanitiseName("  padded  ") == "padded",
+        "the edges are trimmed, so two presets cannot look identical");
+  check(presets::sanitiseName("a/b:c*d?e") == "abcde",
+        "what a path separator would break is removed");
+  check(presets::sanitiseName("   ").isEmpty(), "and nothing is not a name");
+  check(
+      presets::sanitiseName(juce::String::repeatedString("x", 200)).length() ==
+          64,
+      "absurd names are cut down to something a menu can show");
+
+  // ---- capture and restore --------------------------------------------------
+  presets::apply(p.apvts, 0);
+
+  auto *tune = p.apvts.getParameter(params::oscParamId(params::tuneSuffix, 4));
+  auto *level =
+      p.apvts.getParameter(params::oscParamId(params::offLevelSuffix, 4));
+  auto *decay = p.apvts.getParameter(params::reverbDecayId);
+
+  tune->setValueNotifyingHost(tune->convertTo0to1(0.25f));
+  level->setValueNotifyingHost(level->convertTo0to1(0.8f));
+  decay->setValueNotifyingHost(decay->convertTo0to1(7.5f));
+
+  const auto captured = presets::capture(p.apvts, "Round trip");
+  check(captured != nullptr && captured->getNumChildElements() > 600,
+        "every parameter is captured (" +
+            std::to_string(captured != nullptr ? captured->getNumChildElements()
+                                               : 0) +
+            ")");
+
+  // Move everything somewhere else, then put it back.
+  presets::apply(p.apvts, 1);
+
+  check(std::abs(tune->convertFrom0to1(tune->getValue()) - 0.25f) > 0.1f,
+        "the test actually disturbed the values it is about to restore");
+
+  const auto applied = presets::restore(p.apvts, *captured);
+  check(applied == captured->getNumChildElements(),
+        "restoring recognises everything it wrote");
+
+  check(std::abs(tune->convertFrom0to1(tune->getValue()) - 0.25f) < 1.0e-4f,
+        "a per-partial value comes back");
+  check(std::abs(level->convertFrom0to1(level->getValue()) - 0.8f) < 1.0e-4f,
+        "including one added later");
+  check(std::abs(decay->convertFrom0to1(decay->getValue()) - 7.5f) < 1.0e-3f,
+        "and an effect value comes back");
+
+  // ---- what a file from another build looks like ---------------------------
+  {
+    juce::XmlElement partial("OVERTONIUM_PRESET");
+    auto *entry = partial.createNewChildElement("PARAM");
+    entry->setAttribute("id", params::oscParamId(params::tuneSuffix, 4));
+    entry->setAttribute("value", 0.5);
+
+    auto *unknown = partial.createNewChildElement("PARAM");
+    unknown->setAttribute("id", "h01_somethingWeRemoved");
+    unknown->setAttribute("value", 1.0);
+
+    const auto before =
+        level->convertFrom0to1(level->getValue()); // untouched by the file
+
+    check(presets::restore(p.apvts, partial) == 1,
+          "a file from another build applies what it knows");
+    check(std::abs(level->convertFrom0to1(level->getValue()) - before) <
+              1.0e-6f,
+          "and leaves the rest alone rather than resetting it");
+
+    juce::XmlElement foreign("SOMETHING_ELSE");
+    check(presets::restore(p.apvts, foreign) < 0,
+          "a document that is not ours is refused");
+  }
+
+  // ---- through a real file --------------------------------------------------
+  {
+    const auto file = juce::File::createTempFile(".ovtpreset");
+
+    const auto doc = presets::capture(p.apvts, "On disk");
+    check(doc->writeTo(file), "a preset writes to disk");
+
+    presets::apply(p.apvts, 2);
+
+    juce::String error;
+    check(presets::load(p.apvts, file, error),
+          "and loads back: " + error.toStdString());
+
+    check(std::abs(tune->convertFrom0to1(tune->getValue()) - 0.5f) < 1.0e-4f,
+          "with the values it was carrying");
+
+    file.deleteFile();
+
+    check(!presets::load(p.apvts, file, error),
+          "a file that is not there fails rather than crashing");
+    check(error.isNotEmpty(), "and says why");
+  }
+
+  // ---- the factory code generator ------------------------------------------
+  {
+    presets::apply(p.apvts, 0);
+
+    auto *drift =
+        p.apvts.getParameter(params::oscParamId(params::driftSuffix, 0));
+    drift->setValueNotifyingHost(drift->convertTo0to1(12.0f));
+
+    const auto code = presets::factoryCode(p.apvts, "Test Patch");
+
+    check(code.contains("case N: // Test Patch"), "the case is named");
+    check(code.contains("ap.neutralBase();"),
+          "it starts from the neutral base");
+    check(code.contains(params::oscParamId(params::driftSuffix, 0)),
+          "and carries the value that was changed");
+
+    // Only the differences, or the case would be 640 lines of noise.
+    check(!code.contains(params::oscParamId(params::tuneSuffix, 7)),
+          "but not the ones left at their default");
+  }
+
+  presets::apply(p.apvts, 0);
 }
 
 void testMasterEffects(OvertoniumProcessor &p) {
@@ -761,6 +887,7 @@ int main() {
   testRendering(processor);
   testPresets(processor);
   testAftertouchMidi(processor);
+  testUserPresets(processor);
   testMasterEffects(processor);
   testLinkCurves();
   testRowHover();

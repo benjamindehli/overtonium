@@ -66,7 +66,26 @@ cmake --build build --target overtonium_dsp_test
 
 They cover the tuning table, blend endpoints, sine table accuracy, the anti-aliasing guard, envelope behaviour, mute and solo, click-free parameter changes, voice allocation, modulation and the two master effects, and they finish by printing a CPU benchmark.
 
-There is a second target, `overtonium_runtime_test`, which builds the plugin sources as a console app and exercises parameter wiring, MIDI handling, the factory presets, bus layouts and state round-tripping. It never opens an editor, so it runs on a machine with no display. Both targets are registered with CTest, so `ctest` from the build directory runs them together.
+There is a second target, `overtonium_runtime_test`, which builds the plugin sources as a console app and exercises parameter wiring, MIDI handling, the factory presets, user preset round-tripping, bus layouts and state round-tripping. It never opens an editor, so it runs on a machine with no display. Both targets are registered with CTest, so `ctest` from the build directory runs them together.
+
+## Presets
+
+Fifteen factory presets ship with it. The first nine are the original ones. The six after them were built on what came later, and each is there to show one thing:
+
+| Preset | What it is for |
+|---|---|
+| Harpsichord | the key-off stage: the jack falls back louder than the note was holding |
+| Music Box | a comb of six teeth, each ringing for a different length and sitting somewhere different in the field |
+| Kalimba | a soft key-off thud below the sustain, and the noise channel as the gourd |
+| Cathedral | a principal chorus arriving slowly, in a nine second room |
+| Tape Choir | a worn echo and 14 cents of drift, with the partials fanned across the field |
+| Glass Armonica | rubbed glass, and a key-off level above the sustain so lifting the finger lets the rim ring on |
+
+**Saving your own.** The preset menu writes to `Dehli Musikk/Overtonium/Presets` under your user application data folder, one small `.ovtpreset` file each, and lists whatever it finds there under the factory list. The menu reads the folder every time it opens, so a preset saved a moment ago is in it and one deleted in Finder is not.
+
+A preset holds parameter values and nothing else. Not the window size, the zoom or the LINK settings, since loading a sound should not move your window or change your tools. Values are stored plain rather than normalised, so a preset survives a parameter's range being widened later, and anything a file does not mention keeps its default rather than being reset, so a preset saved by an older build loads into a newer one without silently zeroing whatever was added in between. The tests cover both of those directly.
+
+**Making a factory one.** Dial in a patch, then pick "Copy as factory preset code". That puts the C++ for it on the clipboard, as a `case` that starts from `neutralBase()` and then sets only what differs from the default. Paste it into `Presets.cpp`, add the name to `kNames`, and tidy it by hand where the shape has a formula rather than 32 separate numbers. Factory presets stay as code rather than as embedded data precisely so they can say `1.0 / n` instead of listing values.
 
 ## The tuning system
 
@@ -143,7 +162,7 @@ The top bar holds everything that is not per partial, boxed into groups of thing
 
 | Group | Contains |
 |---|---|
-| Preset | the factory preset menu |
+| Preset | the preset menu: factory, saved, and somewhere to put the one you are working on |
 | Settings | polyphony, bend range, phase reset and the safety clipper |
 | Link | **LINK**, and what it reaches and how. See below |
 | Echo | the tape echo. See below |
