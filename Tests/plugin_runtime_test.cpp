@@ -1008,6 +1008,12 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
       if (child->getBounds().isEmpty())
         continue;
 
+      // The converter readouts belong in the caption band under the meter
+      // rather than on the line with the controls, which is checked separately
+      // below.
+      if (dynamic_cast<SegmentDisplay *>(child) != nullptr)
+        continue;
+
       // A knob's line is its dial, not the control, which reaches further down
       // to hold the caption.
       if (auto *knob = dynamic_cast<LabelledKnob *>(child))
@@ -1039,6 +1045,40 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
     check(aligned, "every knob, button, list and meter sharing a row stands on "
                    "one line" +
                        at);
+  }
+
+  // And the readouts sit under the meter, inside the row, at every width the
+  // bar can be given. Excluding them from the rule above would otherwise be a
+  // hole rather than a decision.
+  for (int width : {1412, 1100, 900, TopBar::minimumWidth()}) {
+    bar.setSize(width, TopBar::heightForWidth(width));
+
+    juce::Rectangle<int> meterBounds;
+    juce::Array<juce::Rectangle<int>> readouts;
+
+    for (auto *child : bar.getChildren()) {
+      if (dynamic_cast<StereoOutputMeter *>(child) != nullptr)
+        meterBounds = child->getBounds();
+
+      if (dynamic_cast<SegmentDisplay *>(child) != nullptr)
+        readouts.add(child->getBounds());
+    }
+
+    const auto at = " (" + std::to_string(width) + " px)";
+
+    check(readouts.size() == 2, "both converter readouts are placed" + at);
+
+    bool below = !meterBounds.isEmpty();
+    for (const auto &r : readouts)
+      below &= !r.isEmpty() && r.getY() >= meterBounds.getBottom() &&
+               r.getBottom() <= bar.getHeight();
+
+    check(below, "and both sit under the meter without leaving the bar" + at);
+
+    // Side by side rather than one on top of the other or overlapping.
+    if (readouts.size() == 2)
+      check(!readouts[0].intersects(readouts[1]),
+            "and do not overlap each other" + at);
   }
 }
 

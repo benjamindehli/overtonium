@@ -209,6 +209,10 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
 
   updateLinkCursor();
 
+  // Housekeeping runs at 4 Hz, and a readout that is blank for the first
+  // quarter second of the window being open reads as broken.
+  topBar.updateConverterReadouts(processor.getSampleRate());
+
   // Default size shows all 32 strips at once, which is the whole point of the
   // layout.
   const int defaultWidth = kGutterWidth + kStripWidth + kMasterGap +
@@ -630,6 +634,7 @@ void OvertoniumEditor::timerCallback() {
   };
 
   topBar.setVoiceCount(processor.getActiveVoiceCount(), cache.polyphonyValue());
+  topBar.updateConverterReadouts(processor.getSampleRate());
 
   // Dim whatever a solo elsewhere is silencing, so the mixer shows what you can
   // hear. Solo spans the noise channel too, so it takes part in the dimming.

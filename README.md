@@ -223,12 +223,12 @@ The top bar holds everything that is not per partial, in signal order from left 
 | Group | Contains |
 |---|---|
 | Preset | the preset menu: factory, saved, and somewhere to put the one you are working on |
-| Settings | polyphony, bend range, what feeds aftertouch, phase reset, the safety clipper and the converter |
+| Settings | undo, polyphony, bend range, what feeds aftertouch, phase reset and the safety clipper |
 | Link | **LINK**, and what it reaches and how. See below |
 | Series | **STRETCH** and **TRACK**, what the series does before anything is done to it. See below |
 | Echo | the tape echo. See below |
 | Reverb | the reverb. See below |
-| Output | **MASTER** and the stereo meter |
+| Output | **MASTER**, the stereo meter, and the converter readouts under it |
 | View | **ZOOM** |
 
 Echo, Reverb and Output are drawn as boxes, because a box is what says "these belong together" and there is something in each of them to group. The rest are single controls standing on their own: a box around one button says nothing the button was not already saying, and four of them in a row turn the bar into a fence. Buttons, lists and the meter all stand on the line the knob dials stand on, rather than in the middle of their row, since a knob carries its caption underneath and anything centred beside one reads as sagging.
@@ -398,6 +398,10 @@ Partials fade out as they approach Nyquist. Without that, the 32nd harmonic of a
 ### The converter
 
 Two settings under Settings, both defaulting to whatever the host is running at, and both cuts rather than effects. They are the one part of the instrument where turning something down does less work rather than more.
+
+Both are on the panel rather than in a menu, as two seven-segment readouts under the output meter, which is where a converter sits in the chain and roughly what one looks like. They have to be visible because they travel with a preset: loading one can change them, and a setting that changes underneath you without saying so is worse than no setting. Clicking either opens its list.
+
+Lit means something is being cut. Left alone they show what the host is running at, dimmed, so the readout says what is happening either way rather than going blank when it is not in use. A rate above the host's own is not something anyone can be given, so it reads as off rather than pretending.
 
 **Sample rate** picks from 32 kHz down to 4 kHz. What it does is not a filter over the top of a finished signal: the whole voice pool renders at the lower rate and the result is held between frames. That is worth doing because sampling a sinusoid at 8 kHz produces one particular sequence of numbers whatever rate you were nominally computing at, so the samples that survive the hold are the only ones worth computing at all. Rendering at the host rate and then decimating would sound the same and cost full price.
 

@@ -60,6 +60,41 @@ private:
   Bar left, right;
 };
 
+/// A small seven-segment readout, the way a converter labels its front panel.
+///
+/// Lit means the setting is doing something. Left on the host's own rate and
+/// depth it shows what the host is running at, dimmed, so the display is a
+/// statement of fact either way rather than going blank when it is not in use.
+///
+/// Clicking it opens the same menu the value came from, so the readout is also
+/// the control.
+class SegmentDisplay : public juce::Component,
+                       public juce::SettableTooltipClient {
+public:
+  /// @param unit  drawn small beside the digits, or empty for none.
+  explicit SegmentDisplay(juce::String unit);
+
+  /// @param digits  0 to 9 and a decimal point. Anything else is drawn blank.
+  /// @param active  false dims it, meaning nothing is being changed.
+  void setReading(const juce::String &digits, bool active);
+
+  std::function<void()> onClick;
+
+  void paint(juce::Graphics &) override;
+  void mouseUp(const juce::MouseEvent &) override;
+  void mouseEnter(const juce::MouseEvent &) override;
+  void mouseExit(const juce::MouseEvent &) override;
+
+private:
+  /// Draws one character in the classic seven-bar arrangement.
+  void paintGlyph(juce::Graphics &, juce::Rectangle<float>, char,
+                  juce::Colour on, juce::Colour off) const;
+
+  juce::String reading, unitText;
+  bool active = false;
+  bool hovered = false;
+};
+
 class TopBar : public juce::Component {
 public:
   TopBar(juce::AudioProcessorValueTreeState &apvts,
@@ -116,6 +151,11 @@ public:
   static int minimumWidth();
 
   void setVoiceCount(int active, int limit);
+
+  /// Refreshes the two converter readouts. The host rate has to be passed in
+  /// because "leave it alone" is a setting whose value only the processor
+  /// knows.
+  void updateConverterReadouts(double hostSampleRate);
   void setOutputLevels(float l, float r) { meter.push(l, r); }
   void setZoomChoice(float zoom);
 
@@ -147,6 +187,12 @@ private:
   /// The factory list, then whatever has been saved, then what can be done
   /// with them.
   void showPresetMenu();
+
+  /// The converter lists. Hung off the readout that opens them, and built here
+  /// rather than inline so the readout and anything else share one list.
+  void showConverterMenu(const char *paramId,
+                         const juce::StringArray &choices,
+                         juce::Component *anchor);
 
   /// Asks for a name and hands it back. Its own window, since a menu cannot
   /// take typing.
@@ -199,6 +245,11 @@ private:
   LabelledKnob stretch{"STRETCH"}, track{"TRACK"};
 
   StereoOutputMeter meter;
+
+  /// Under the meter, at the end of the chain, which is where a converter
+  /// sits. On the panel rather than in a menu because they are part of a
+  /// preset: loading one can change them, so they have to be visible.
+  SegmentDisplay rateDisplay{"kHz"}, bitsDisplay{"bit"};
 
   /// The logo, rescaled once to the size it is drawn at. Scaling a 2464 px
   /// image down to 150 on every repaint would be both slow and soft.

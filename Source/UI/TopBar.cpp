@@ -204,6 +204,188 @@ void StereoOutputMeter::paint(juce::Graphics &g) {
 
 // =============================================================================
 
+namespace {
+/// Which of the seven bars are lit for each character we can draw.
+///
+///      aaa
+///     f   b
+///      ggg
+///     e   c
+///      ddd
+constexpr uint8_t kSegA = 1, kSegB = 2, kSegC = 4, kSegD = 8, kSegE = 16,
+                  kSegF = 32, kSegG = 64;
+
+uint8_t segmentsFor(char c) {
+  switch (c) {
+  case '0':
+    return kSegA | kSegB | kSegC | kSegD | kSegE | kSegF;
+  case '1':
+    return kSegB | kSegC;
+  case '2':
+    return kSegA | kSegB | kSegG | kSegE | kSegD;
+  case '3':
+    return kSegA | kSegB | kSegG | kSegC | kSegD;
+  case '4':
+    return kSegF | kSegG | kSegB | kSegC;
+  case '5':
+    return kSegA | kSegF | kSegG | kSegC | kSegD;
+  case '6':
+    return kSegA | kSegF | kSegG | kSegE | kSegC | kSegD;
+  case '7':
+    return kSegA | kSegB | kSegC;
+  case '8':
+    return kSegA | kSegB | kSegC | kSegD | kSegE | kSegF | kSegG;
+  case '9':
+    return kSegA | kSegB | kSegC | kSegD | kSegF | kSegG;
+  default:
+    return 0;
+  }
+}
+} // namespace
+
+SegmentDisplay::SegmentDisplay(juce::String unit) : unitText(std::move(unit)) {}
+
+void SegmentDisplay::setReading(const juce::String &digits, bool isActive) {
+  if (digits == reading && isActive == active)
+    return;
+
+  reading = digits;
+  active = isActive;
+  repaint();
+}
+
+void SegmentDisplay::mouseUp(const juce::MouseEvent &e) {
+  if (onClick && contains(e.getPosition()))
+    onClick();
+}
+
+void SegmentDisplay::mouseEnter(const juce::MouseEvent &) {
+  hovered = true;
+  repaint();
+}
+
+void SegmentDisplay::mouseExit(const juce::MouseEvent &) {
+  hovered = false;
+  repaint();
+}
+
+void SegmentDisplay::paintGlyph(juce::Graphics &g, juce::Rectangle<float> area,
+                                char c, juce::Colour on,
+                                juce::Colour off) const {
+  const auto lit = segmentsFor(c);
+
+  // Every bar is drawn whether it is on or not, which is what makes it read as
+  // a display with something switched off rather than as floating shapes.
+  const auto t = juce::jmax(1.0f, area.getHeight() * 0.16f);
+  const auto gap = t * 0.35f;
+  const auto w = area.getWidth();
+  const auto h = area.getHeight();
+  const auto mid = (h - t) * 0.5f;
+
+  struct Bar {
+    uint8_t flag;
+    juce::Rectangle<float> r;
+  };
+
+  const Bar bars[] = {
+      {kSegA, {t * 0.5f + gap, 0.0f, w - t - gap * 2.0f, t}},
+      {kSegB, {w - t, t * 0.5f + gap, t, mid - gap * 1.5f}},
+      {kSegC, {w - t, mid + t * 0.5f + gap * 0.5f, t, mid - gap * 1.5f}},
+      {kSegD, {t * 0.5f + gap, h - t, w - t - gap * 2.0f, t}},
+      {kSegE, {0.0f, mid + t * 0.5f + gap * 0.5f, t, mid - gap * 1.5f}},
+      {kSegF, {0.0f, t * 0.5f + gap, t, mid - gap * 1.5f}},
+      {kSegG, {t * 0.5f + gap, mid, w - t - gap * 2.0f, t}},
+  };
+
+  for (const auto &bar : bars) {
+    g.setColour((lit & bar.flag) != 0 ? on : off);
+    g.fillRoundedRectangle(bar.r.translated(area.getX(), area.getY()),
+                           t * 0.35f);
+  }
+}
+
+void SegmentDisplay::paint(juce::Graphics &g) {
+  auto area = getLocalBounds().toFloat().reduced(1.0f);
+
+  const auto on = active ? colours::accent : colours::textDim;
+  const auto off = on.withAlpha(hovered ? 0.20f : 0.12f);
+  const auto lit = on.withAlpha(active ? 0.95f : 0.75f);
+
+  // A recess, so the readout sits in the panel rather than on it, and so the
+  // unlit bars have something to be dark against.
+  g.setColour(colours::groove);
+  g.fillRoundedRectangle(area, 2.5f);
+
+  if (hovered) {
+    g.setColour(colours::outline);
+    g.drawRoundedRectangle(area.reduced(0.5f), 2.5f, 1.0f);
+  }
+
+  area = area.reduced(3.0f, 2.0f);
+
+  if (reading.isEmpty())
+    return;
+
+  // The point rides between digits on a narrow stripe of its own rather than
+  // taking a whole cell, the way it does on a real display.
+  int cells = 0, points = 0;
+
+  for (auto c : reading)
+    (c == '.' ? points : cells) += 1;
+
+  if (cells < 1)
+    return;
+
+  // The unit only earns its place once the digits have what they need.
+  const auto unitW =
+      unitText.isNotEmpty() && area.getWidth() > 44.0f ? 21.0f : 0.0f;
+
+  // A point costs about a third of a digit, which is what the extra term in
+  // the denominator is buying.
+  const auto cellW =
+      juce::jmin((area.getWidth() - unitW) /
+                     ((float)cells + 0.32f * (float)points),
+                 area.getHeight() * 0.72f);
+
+  const auto glyphW = cellW * 0.82f;
+  const auto pointW = cellW * 0.32f;
+  const auto runW = cellW * (float)cells + pointW * (float)points;
+
+  // Centred as one block, so a three-character reading does not sit off to one
+  // side of a display sized for four.
+  auto x = area.getCentreX() - (runW + unitW) * 0.5f;
+
+  const auto digitArea = area.withX(x).withWidth(runW);
+
+  if (unitW > 0.0f) {
+    g.setColour(colours::textDim.withAlpha(0.8f));
+    g.setFont(makeFont(7.5f, true));
+    g.drawText(unitText,
+               area.withX(digitArea.getRight() + 2.0f).withWidth(unitW - 2.0f),
+               juce::Justification::centredLeft, false);
+  }
+
+  for (int i = 0; i < reading.length(); ++i) {
+    const auto c = (char)reading[i];
+
+    if (c == '.') {
+      // Same weight as a segment, sitting on the baseline the segments end on.
+      const auto t = juce::jmax(1.0f, digitArea.getHeight() * 0.16f);
+
+      g.setColour(lit);
+      g.fillRoundedRectangle(x + (pointW - t) * 0.5f, digitArea.getBottom() - t,
+                             t, t, t * 0.35f);
+
+      x += pointW;
+      continue;
+    }
+
+    paintGlyph(g, {x, digitArea.getY(), glyphW, digitArea.getHeight()}, c, lit,
+               off);
+    x += cellW;
+  }
+}
+
 // =============================================================================
 
 TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
@@ -244,6 +426,33 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   // Two bars beside the master fader, at the end of the signal path, need no
   // caption to say what they are.
   addAndMakeVisible(meter);
+
+  rateDisplay.setTooltip(
+      "The rate the instrument renders at. Turning it down is a real cut "
+      "rather than a filter over the top: it does less work, and the partials "
+      "above the new ceiling fold back down instead of disappearing.");
+
+  bitsDisplay.setTooltip("The depth the instrument quantises to, ahead of the "
+                         "echo, the reverb and the fader.");
+
+  rateDisplay.onClick = [this] {
+    juce::StringArray choices;
+    for (auto hz : params::kLofiRateChoices)
+      choices.add(params::lofiRateName(hz));
+
+    showConverterMenu(params::lofiRateId, choices, &rateDisplay);
+  };
+
+  bitsDisplay.onClick = [this] {
+    juce::StringArray choices;
+    for (auto bits : params::kLofiBitChoices)
+      choices.add(params::lofiBitName(bits));
+
+    showConverterMenu(params::lofiBitsId, choices, &bitsDisplay);
+  };
+
+  addAndMakeVisible(rateDisplay);
+  addAndMakeVisible(bitsDisplay);
 
   // ---- presets --------------------------------------------------------------
   presetButton.setButtonText(kNoPreset);
@@ -420,6 +629,32 @@ juce::String TopBar::getPresetName() const {
   return shown == kNoPreset ? juce::String() : shown;
 }
 
+void TopBar::showConverterMenu(const char *paramId,
+                               const juce::StringArray &choices,
+                               juce::Component *anchor) {
+  auto *param = apvts.getParameter(paramId);
+  if (param == nullptr)
+    return;
+
+  const auto current =
+      juce::roundToInt(param->convertFrom0to1(param->getValue()));
+
+  juce::PopupMenu m;
+  m.setLookAndFeel(&getLookAndFeel());
+
+  for (int i = 0; i < choices.size(); ++i)
+    m.addItem(i + 1, choices[i], true, i == current);
+
+  m.showMenuAsync(juce::PopupMenu::Options()
+                      .withTargetComponent(anchor)
+                      .withStandardItemHeight(22),
+                  [param](int result) {
+                    if (result > 0)
+                      param->setValueNotifyingHost(
+                          param->convertTo0to1((float)(result - 1)));
+                  });
+}
+
 void TopBar::showPresetMenu() {
   juce::PopupMenu m;
   m.setLookAndFeel(&getLookAndFeel());
@@ -575,35 +810,6 @@ void TopBar::showSettingsMenu() {
   m.addItem(301, "Safety clip", true,
             clip != nullptr && clip->getValue() > 0.5f);
 
-  // Converter quality, downwards. Both live here rather than on the panel
-  // because they are a decision about the instrument rather than something you
-  // ride, and because the default for both is "whatever the host is doing",
-  // which is not a setting most people will ever touch.
-  const auto chosenIndex = [this](const char *id) {
-    auto *p = apvts.getParameter(id);
-    return p != nullptr ? juce::roundToInt(p->convertFrom0to1(p->getValue()))
-                        : 0;
-  };
-
-  const auto rateIndex = chosenIndex(params::lofiRateId);
-  const auto bitIndex = chosenIndex(params::lofiBitsId);
-
-  juce::PopupMenu rates, bits;
-
-  for (int i = 0; i < (int)params::kLofiRateChoices.size(); ++i)
-    rates.addItem(400 + i,
-                  params::lofiRateName(params::kLofiRateChoices[(size_t)i]),
-                  true, i == rateIndex);
-
-  for (int i = 0; i < (int)params::kLofiBitChoices.size(); ++i)
-    bits.addItem(500 + i,
-                 params::lofiBitName(params::kLofiBitChoices[(size_t)i]), true,
-                 i == bitIndex);
-
-  m.addSeparator();
-  m.addSectionHeader("Converter");
-  m.addSubMenu("Sample rate", rates);
-  m.addSubMenu("Bit depth", bits);
 
   m.showMenuAsync(juce::PopupMenu::Options()
                       .withTargetComponent(&settingsButton)
@@ -644,12 +850,6 @@ void TopBar::showSettingsMenu() {
                     if (result >= 600)
                       return choose(params::atSourceId, result - 600);
 
-                    if (result >= 500)
-                      return choose(params::lofiBitsId, result - 500);
-
-                    if (result >= 400)
-                      return choose(params::lofiRateId, result - 400);
-
                     const auto id = result >= 200 ? params::bendRangeId
                                                   : params::polyphonyId;
                     const auto plain = result >= 200 ? (float)(result - 200)
@@ -661,6 +861,38 @@ void TopBar::showSettingsMenu() {
 }
 
 void TopBar::setVoiceCount(int active, int) { activeVoices = active; }
+
+void TopBar::updateConverterReadouts(double hostSampleRate) {
+  const auto chosen = [this](const char *id, int count) {
+    auto *p = apvts.getParameter(id);
+
+    return p == nullptr
+               ? 0
+               : juce::jlimit(
+                     0, count - 1,
+                     juce::roundToInt(p->convertFrom0to1(p->getValue())));
+  };
+
+  const auto rate = params::kLofiRateChoices[(size_t)chosen(
+      params::lofiRateId, (int)params::kLofiRateChoices.size())];
+
+  // Asking for more than the host has is not something anyone can be given, so
+  // the readout says what is actually happening rather than what was picked.
+  // Before the first prepareToPlay there is no host rate to compare against,
+  // and a deliberate choice should still show rather than waiting for one.
+  const bool known = hostSampleRate > 0.0;
+  const bool cutting = rate > 0 && (!known || (double)rate < hostSampleRate);
+  const auto shown = cutting ? (double)rate : hostSampleRate;
+
+  rateDisplay.setReading(
+      shown > 0.0 ? juce::String(shown / 1000.0, 1) : juce::String(), cutting);
+
+  const auto bits = params::kLofiBitChoices[(size_t)chosen(
+      params::lofiBitsId, (int)params::kLofiBitChoices.size())];
+
+  // Nothing being quantised means the 32-bit float everything else runs in.
+  bitsDisplay.setReading(juce::String(bits > 0 ? bits : 32), bits > 0);
+}
 
 void TopBar::setZoomChoice(float zoom) {
   for (int i = 0; i < (int)std::size(kZoomChoices); ++i) {
@@ -753,10 +985,10 @@ int TopBar::minimumWidth() {
 }
 
 void TopBar::parkControls() {
-  juce::Component *all[] = {&master,     &meter,       &presetButton,
-                            &zoomBox,    &linkButton,  &settingsButton,
-                            &echoButton, &reverbButton, &stretch,
-                            &track};
+  juce::Component *all[] = {&master,        &meter,       &presetButton,
+                            &zoomBox,       &linkButton,  &settingsButton,
+                            &echoButton,    &reverbButton, &stretch,
+                            &track,         &rateDisplay, &bitsDisplay};
 
   for (auto *c : all)
     c->setBounds({});
@@ -837,6 +1069,18 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
 
     // The meter takes whatever the group was given beyond its minimum.
     alignedWithDials(meter, r);
+
+    // The two readouts go under it, in the band the knob captions occupy, so
+    // the converter reads as the last thing before the output rather than as
+    // another control competing with the meter.
+    auto below = r.withTop(meter.getBottom() + 3).withTrimmedBottom(1);
+
+    const auto each = juce::jmin(66, (below.getWidth() - 6) / 2);
+    auto pair = below.withSizeKeepingCentre(each * 2 + 6, below.getHeight());
+
+    rateDisplay.setBounds(pair.removeFromLeft(each));
+    pair.removeFromLeft(6);
+    bitsDisplay.setBounds(pair);
     break;
   }
 
