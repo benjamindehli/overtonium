@@ -87,6 +87,10 @@ struct GlobalParams {
   /// Inharmonicity, as cents of displacement on the 32nd partial. Zero is the
   /// plain harmonic series. See inharmonicCents.
   float stretchCents = 0.0f;
+  /// Keyboard tracking, in dB per octave above the rolloff. Thins the series
+  /// as you play up rather than turning high notes down. Zero is off. See
+  /// trackingGain.
+  float trackDbPerOctave = 0.0f;
   /// Soft-clip the sum; 32 faders make it very easy to overshoot.
   bool safetyClip = true;
 };

@@ -180,6 +180,27 @@ void Voice::render(float *left, float *right, int numSamples,
     panR[(size_t)i] = std::sqrt(0.5f * (1.0f + pan));
   }
 
+  // How much of each partial the keyboard tracking leaves at this pitch.
+  //
+  // Taken from the nominal position of the partial rather than from the
+  // frequency it is momentarily at, so vibrato and drift do not modulate the
+  // brightness, and worked out once per call rather than once per control
+  // block, since none of it moves while a note sounds.
+  std::array<float, kNumHarmonics> track{};
+
+  if (p.global.trackDbPerOctave > 0.0f) {
+    for (int i = 0; i < kNumHarmonics; ++i) {
+      const auto semis = semitoneOffset(i, (double)p.osc[(size_t)i].tuneBlend,
+                                        (double)p.global.stretchCents);
+
+      track[(size_t)i] =
+          trackingGain(baseFreq * std::exp2(semis / 12.0), baseFreq,
+                       (double)p.global.trackDbPerOctave);
+    }
+  } else {
+    track.fill(1.0f);
+  }
+
   partialPeaks.fill(0.0f);
   noisePeak = 0.0f;
 
@@ -256,7 +277,8 @@ void Voice::render(float *left, float *right, int numSamples,
           std::clamp(op.volume * pt.velGain +
                          std::clamp(op.atAmount, -1.0f, 1.0f) * pressure,
                      0.0f, 1.0f);
-      const float base = op.audible ? level * nyq : 0.0f;
+      const float base =
+          op.audible ? level * nyq * track[(size_t)i] : 0.0f;
       const float gEnd = base * amEnd;
 
       if (!pt.gainPrimed) {

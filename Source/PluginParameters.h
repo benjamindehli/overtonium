@@ -13,6 +13,7 @@ inline constexpr const char *bendRangeId = "bendRange";
 inline constexpr const char *phaseResetId = "phaseReset";
 inline constexpr const char *stretchId = "stretch";
 inline constexpr const char *atSourceId = "atSource";
+inline constexpr const char *trackId = "track";
 inline constexpr const char *safetyClipId = "safetyClip";
 inline constexpr const char *lofiRateId = "lofiRate";
 inline constexpr const char *lofiBitsId = "lofiBits";
@@ -122,6 +123,7 @@ struct Cache {
   std::atomic<float> *phaseReset = nullptr;
   std::atomic<float> *stretch = nullptr;
   std::atomic<float> *atSource = nullptr;
+  std::atomic<float> *track = nullptr;
   std::atomic<float> *safetyClip = nullptr;
   std::atomic<float> *lofiRate = nullptr;
   std::atomic<float> *lofiBits = nullptr;

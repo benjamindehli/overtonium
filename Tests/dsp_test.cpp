@@ -238,6 +238,89 @@ void testStretch() {
         "piano-sized stretch leaves the low partials alone");
 }
 
+void testTracking() {
+  section("Keyboard tracking");
+
+  constexpr double sr = 48000.0;
+  constexpr int N = 24000;
+
+  // Off has to be exactly off.
+  bool neutral = true;
+  for (double hz : {50.0, 500.0, 5000.0, 20000.0})
+    neutral &= trackingGain(hz, 100.0, 0.0) == 1.0f;
+
+  check(neutral, "zero dB per octave changes nothing");
+
+  // Everything at or below the fundamental is left alone, whatever the slope.
+  check(trackingGain(100.0, 100.0, 12.0) == 1.0f,
+        "the fundamental is never touched");
+
+  // A bass note lives below the rolloff, so most of its series survives.
+  const auto bassTop = trackingGain(55.0 * 32.0, 55.0, 6.0);
+  const auto trebleTop = trackingGain(880.0 * 32.0, 880.0, 6.0);
+
+  std::printf("  at 6 dB/oct, partial 32 keeps %.3f at A1 and %.3f at A5\n",
+              bassTop, trebleTop);
+
+  check(bassTop > trebleTop,
+        "the same partial survives better on a low note than a high one");
+
+  check(bassTop > 0.4f, "a bass note keeps most of its series");
+  check(trebleTop < 0.1f, "a treble note loses the top of its");
+
+  // Rendered, which is the claim that matters: the same patch played two
+  // octaves apart should thin out, and should not simply get quieter.
+  const auto ratioAt = [&](int note, float slope) {
+    SynthEngine engine;
+    engine.prepare(sr);
+    engine.setPolyphony(4);
+
+    auto p = makeFlatParams(0.0f);
+    for (auto &o : p.osc) {
+      o.sustain = 1.0f;
+      o.tuneBlend = 1.0f;
+    }
+
+    p.global.trackDbPerOctave = slope;
+    p.osc[0].volume = 0.4f;
+    p.osc[7].volume = 0.4f;
+
+    engine.noteOn(note, 1.0f, p);
+
+    std::vector<float> l((size_t)N), r((size_t)N);
+    engine.render(l.data(), r.data(), N, p);
+
+    const auto f0 = 440.0 * std::exp2((double)(note - 69) / 12.0);
+
+    return std::make_pair(binMagnitude(l, f0, sr),
+                          binMagnitude(l, f0 * 8.0, sr));
+  };
+
+  const auto lowOff = ratioAt(45, 0.0f);  // A2
+  const auto highOff = ratioAt(81, 0.0f); // A5
+  const auto lowOn = ratioAt(45, 8.0f);
+  const auto highOn = ratioAt(81, 8.0f);
+
+  const auto balance = [](std::pair<double, double> v) {
+    return v.second / std::max(1.0e-9, v.first);
+  };
+
+  std::printf("  partial 8 against the fundamental: off %.3f at A2, %.3f at "
+              "A5; on %.3f and %.3f\n",
+              balance(lowOff), balance(highOff), balance(lowOn),
+              balance(highOn));
+
+  check(std::abs(balance(lowOff) - balance(highOff)) < 0.1,
+        "with tracking off the spectrum is the same at both pitches");
+
+  check(balance(highOn) < 0.4 * balance(lowOn),
+        "with it on the high note is markedly thinner");
+
+  // Duller, not quieter: the fundamental must survive the move.
+  check(lowOn.first > 0.5 * lowOff.first && highOn.first > 0.5 * highOff.first,
+        "and the fundamental is left where it was at both pitches");
+}
+
 void testBlendEndpoints() {
   section("Tuning blend endpoints");
 
@@ -2828,6 +2911,7 @@ int main() {
   testTuningTable();
   testBlendEndpoints();
   testStretch();
+  testTracking();
   testSineTable();
   testRenderedSpectrum();
   testAliasing();

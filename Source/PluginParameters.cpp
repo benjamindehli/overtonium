@@ -39,6 +39,13 @@ juce::String stretchText(float cents, int) {
          " ct";
 }
 
+juce::String trackText(float dbPerOctave, int) {
+  if (dbPerOctave < 0.05f)
+    return "Off";
+
+  return juce::String(dbPerOctave, 1) + " dB/oct";
+}
+
 juce::String timeText(float seconds, int) {
   if (seconds < 1.0f)
     return juce::String(seconds * 1000.0f, seconds < 0.1f ? 1 : 0) + " ms";
@@ -140,6 +147,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{stretchId, 1}, "Stretch", squaredBipolarRange(1200.0f),
       0.0f, FAttr().withStringFromValueFunction(stretchText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{trackId, 1}, "Tracking",
+      juce::NormalisableRange<float>(0.0f, 12.0f, 0.1f), 0.0f,
+      FAttr().withStringFromValueFunction(trackText)));
 
   juce::StringArray atSourceChoices;
   for (auto *name : kAftertouchSourceNames)
@@ -399,6 +411,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   phaseReset = apvts.getRawParameterValue(phaseResetId);
   stretch = apvts.getRawParameterValue(stretchId);
   atSource = apvts.getRawParameterValue(atSourceId);
+  track = apvts.getRawParameterValue(trackId);
   safetyClip = apvts.getRawParameterValue(safetyClipId);
   lofiRate = apvts.getRawParameterValue(lofiRateId);
   lofiBits = apvts.getRawParameterValue(lofiBitsId);
@@ -552,6 +565,7 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   out.global.bendSemitones = bendNormalised * bendRange->load();
   out.global.phaseReset = phaseReset->load() > 0.5f;
   out.global.stretchCents = stretch->load();
+  out.global.trackDbPerOctave = track->load();
   out.global.safetyClip = safetyClip->load() > 0.5f;
 
   {

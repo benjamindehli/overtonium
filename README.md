@@ -135,6 +135,16 @@ The bottom of the series barely moves and the top of it walks away, which is the
 
 It is a separate axis from TUNE rather than more of it, and the two combine: equal temperament with heavy stretch is a different object from just intonation with the same stretch. Zero is the plain harmonic series, so no preset made before it existed sounds any different, and the table above is what zero means.
 
+### Tracking
+
+Without TRACK, a patch has the same spectrum at every pitch. Nothing real does. Play up a piano and the top of the series thins out, not because the note changed but because the body has a rolloff that stays where it is and the partials climb up through it.
+
+TRACK is that rolloff, in dB per octave above a fixed corner of 1 kHz, which is around C6. It is measured against the fundamental rather than absolutely, and that is the part that matters: taken absolutely it would be a shelf, making high notes quieter rather than duller, which is not the thing worth having. Normalised, the fundamental keeps its level at every pitch and only the spectrum above it thins.
+
+The consequence falls out of where the corner sits. A bass note has most of its series below 1 kHz and keeps nearly all of it. A treble note whose fundamental is already above the corner loses the full slope across every partial it has. At 6 dB per octave, the 32nd partial keeps 57% of its level at A1 and 4% at A5.
+
+Zero is off, and off is exact.
+
 Strips are colour-coded by interval class, which keeps the structure of the series visible while you scroll. The twelve classes sit in chromatic order along a narrow band running from blue at the octave, through magenta and red in the middle, to yellow at the major seventh. Octaves are therefore blue, fifths rose, major thirds magenta, sevenths amber and yellow.
 
 The band is deliberately narrow, a crop from the middle of a full blue to yellow sweep, so 32 channels read as one family rather than as a rainbow. Saturation and value fall towards the warm end because yellow reads far brighter than blue at the same nominal value, which keeps the sevenths from visually swamping the octaves. Nothing in the band enters green or cyan, which is where the accent used by the global controls lives, so chrome never reads as one of the channels.
@@ -186,7 +196,7 @@ The top bar holds everything that is not per partial, in signal order from left 
 | Preset | the preset menu: factory, saved, and somewhere to put the one you are working on |
 | Settings | polyphony, bend range, what feeds aftertouch, phase reset, the safety clipper and the converter |
 | Link | **LINK**, and what it reaches and how. See below |
-| Series | **STRETCH**, the inharmonicity of the whole series. See below |
+| Series | **STRETCH** and **TRACK**, what the series does before anything is done to it. See below |
 | Echo | the tape echo. See below |
 | Reverb | the reverb. See below |
 | Output | **MASTER** and the stereo meter |

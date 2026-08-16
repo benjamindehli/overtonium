@@ -28,6 +28,43 @@ inline float nyquistGain(double freq, double sampleRate) noexcept {
   return (float)(0.5 * (1.0 + std::cos(3.14159265358979324 * t)));
 }
 
+/// Where the keyboard tracking rolloff sits, in Hz.
+///
+/// Instruments lose their top as you play up the keyboard, and not because
+/// anything about the note changes. The body has a rolloff that stays where it
+/// is, and playing higher walks the partials up through it. A kilohertz is
+/// about C6, which puts the crossover in the middle of where anyone plays.
+inline constexpr double kTrackingCornerHz = 1000.0;
+
+/// How much of a partial survives at the pitch it is being played at.
+///
+/// Measured against the fundamental rather than absolutely, so the keyboard
+/// stays even and only the spectrum thins. Without that it would be a shelf:
+/// high notes quieter rather than duller, which is not the thing worth having.
+///
+/// The consequence is that a bass note keeps almost all of its series, since
+/// most of it is below the corner, while a treble note whose fundamental is
+/// already above the corner loses the full slope across every partial.
+///
+/// @param dbPerOctave  0 switches it off entirely.
+inline float trackingGain(double partialHz, double fundamentalHz,
+                          double dbPerOctave) noexcept {
+  if (dbPerOctave <= 0.0)
+    return 1.0f;
+
+  const auto above = [](double hz) {
+    return hz > kTrackingCornerHz ? std::log2(hz / kTrackingCornerHz) : 0.0;
+  };
+
+  const auto octaves = above(partialHz) - above(fundamentalHz);
+
+  if (octaves <= 0.0)
+    return 1.0f;
+
+  // 6.0206 dB is a factor of two in amplitude.
+  return (float)std::exp2(-dbPerOctave * octaves / 6.020599913279624);
+}
+
 /// One polyphonic voice: 32 independently tuned, enveloped and modulated sine
 /// partials.
 class Voice {

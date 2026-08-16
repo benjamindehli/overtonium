@@ -21,7 +21,7 @@ constexpr int kGroupPad = 6;
 
 /// Minimum width of each group, in the order they are laid out. Only the
 /// output group grows, because the meter is the one thing worth more room.
-constexpr int kGroupMinWidth[] = {144, 90, 60, 64, 222, 260, 186, 82};
+constexpr int kGroupMinWidth[] = {144, 90, 60, 116, 222, 260, 186, 82};
 constexpr int kOutputGroupIndex = 6;
 constexpr int kGroupCount = 8;
 
@@ -229,6 +229,17 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
 
   stretchAttachment = std::make_unique<SliderAttachment>(
       apvts, params::stretchId, stretch.slider);
+
+  track.slider.setPopupDisplayEnabled(true, true, &popupParent);
+  track.slider.setTooltip(
+      "Thins the series as you play up the keyboard, the way a real body does: "
+      "the partials climb through a rolloff that stays put. Measured against "
+      "the fundamental, so high notes get duller rather than quieter.");
+  track.slider.setDoubleClickReturnValue(true, 0.0);
+  addAndMakeVisible(track);
+
+  trackAttachment = std::make_unique<SliderAttachment>(
+      apvts, params::trackId, track.slider);
 
   // Two bars beside the master fader, at the end of the signal path, need no
   // caption to say what they are.
@@ -732,9 +743,10 @@ int TopBar::minimumWidth() {
 }
 
 void TopBar::parkControls() {
-  juce::Component *all[] = {&master,      &meter,          &presetButton,
-                            &zoomBox,     &linkButton,     &settingsButton,
-                            &echoButton,  &reverbButton,   &stretch};
+  juce::Component *all[] = {&master,     &meter,       &presetButton,
+                            &zoomBox,    &linkButton,  &settingsButton,
+                            &echoButton, &reverbButton, &stretch,
+                            &track};
 
   for (auto *c : all)
     c->setBounds({});
@@ -791,9 +803,15 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
     button(linkButton, r);
     break;
 
-  case SeriesGroup:
-    stretch.setBounds(r);
+  case SeriesGroup: {
+    // Split evenly rather than at the usual knob width, since STRETCH is a
+    // longer caption than anything else in the bar and would otherwise be cut.
+    const auto half = r.getWidth() / 2;
+
+    stretch.setBounds(r.removeFromLeft(half));
+    track.setBounds(r);
     break;
+  }
 
   case EchoGroup:
     effect(echoButton, echoControls, r);
@@ -913,8 +931,8 @@ void TopBar::paint(juce::Graphics &g) {
   for (int group = 0; group < NumGroups; ++group) {
     const auto &r = groupBounds[(size_t)group];
 
-    const bool framed = group == EchoGroup || group == ReverbGroup ||
-                        group == OutputGroup;
+    const bool framed = group == SeriesGroup || group == EchoGroup ||
+                        group == ReverbGroup || group == OutputGroup;
 
     if (r.isEmpty() || !framed)
       continue;
