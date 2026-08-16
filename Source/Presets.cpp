@@ -75,6 +75,21 @@ struct Applier {
     set(params::noiseParamId(params::soloSuffix), 0.0f);
     set(params::noiseParamId(params::panSuffix), 0.0f);
 
+    // Everything global that is part of the sound rather than part of the
+    // setup. A preset decides what the instrument is, so it has to decide
+    // these too: loading one with the series stretched into a bell, or the
+    // converter down at eight bits, has to give the patch that was designed
+    // rather than that patch through whatever was left over.
+    //
+    // Deliberately not here: master gain, polyphony, bend range and what feeds
+    // aftertouch. Those are how you play it and how loud, not what it sounds
+    // like, and a preset that moved them would be overstepping.
+    set(params::stretchId, 0.0f);
+    set(params::trackId, 0.0f);
+    set(params::lofiRateId, 0.0f);
+    set(params::lofiBitsId, 0.0f);
+    set(params::phaseResetId, 1.0f);
+
     // The master effects are off unless a preset switches them on, and their
     // settings go back to the panel defaults either way, so loading a preset
     // never leaves the last one's tail behind.
@@ -122,6 +137,15 @@ struct Applier {
     set(params::reverbMixId, mix);
     set(params::reverbDecayId, decay);
     set(params::reverbDampId, damping);
+  }
+
+  /// What the series is made of, before anything is done to it.
+  ///
+  /// @param stretchCents  how far off harmonic the top partial sits.
+  /// @param trackDbPerOctave  how fast the top of it goes as you play up.
+  void series(float stretchCents, float trackDbPerOctave) const {
+    set(params::stretchId, stretchCents);
+    set(params::trackId, trackDbPerOctave);
   }
 
   void echo(float mix, float time, float feedback, float age) const {
@@ -458,6 +482,10 @@ void apply(APVTS &apvts, int index) {
       ap.osc(params::amDepthSuffix, i, 0.6f);
       ap.osc(params::amRateSuffix, i, 5.0f);
     }
+
+    // A short bar has less above its fundamental than a long one, which is why
+    // the top of a vibraphone is a much plainer sound than the bottom.
+    ap.series(0.0f, 3.0f);
     break;
   }
 
@@ -481,6 +509,11 @@ void apply(APVTS &apvts, int index) {
     ap.allOsc(params::offLevelSuffix,
               [](int n) { return std::min(0.8, 0.25 + 0.05 * n); });
     ap.allOsc(params::releaseSuffix, [](int) { return 0.09; });
+
+    // A short treble string carries far less of the pluck's edge than a long
+    // bass one, which is why a harpsichord's top octave sounds thin rather
+    // than merely high.
+    ap.series(0.0f, 2.5f);
 
     ap.fanOut(0.35);
     ap.reverb(0.18f, 1.2f, 0.45f);
@@ -515,7 +548,14 @@ void apply(APVTS &apvts, int index) {
     ap.allOsc(params::swellSuffix, [](int) { return 0.0015; });
     ap.allOsc(params::offLevelSuffix, [](int n) { return n >= 7 ? 0.3 : 0.0; });
 
-    ap.reverb(0.3f, 1.6f, 0.3f);
+    // Picking odd teeth was always a stand-in for the real thing: a steel comb
+    // tooth is a bar, and a bar does not ring in whole-number ratios. Now the
+    // teeth are pushed off harmonic as well as picked, so the top of the comb
+    // shimmers instead of fusing. The 23rd sits about 170 cents sharp.
+    //
+    // A small comb also has very little left up top, which is what stops the
+    // high end of the cylinder sounding like the low end transposed.
+    ap.series(300.0f, 3.0f);
     break;
   }
 
@@ -553,6 +593,12 @@ void apply(APVTS &apvts, int index) {
     ap.set(params::noiseParamId(params::decaySuffix), 0.09f);
     ap.set(params::noiseParamId(params::sustainSuffix), 0.0f);
     ap.set(params::noiseParamId(params::releaseSuffix), 0.09f);
+
+    // Tines are more inharmonic than a music box comb, not less: the second
+    // mode of a real one sits nowhere near the octave. Partials 4, 9 and 15
+    // were already a hand-picked stand-in for that, and this pushes them
+    // further out, the top one by well over a semitone.
+    ap.series(500.0f, 3.0f);
 
     ap.reverb(0.24f, 1.0f, 0.55f);
     break;
@@ -608,6 +654,10 @@ void apply(APVTS &apvts, int index) {
     ap.allOsc(params::driftSuffix, [](int) { return 14.0; });
     ap.allOsc(params::velSuffix, [](int) { return 0.4; });
 
+    // Voices thin out at the top of a range rather than getting brighter, and
+    // the machine takes a little more off after them.
+    ap.series(0.0f, 3.5f);
+
     ap.fanOut(0.85);
 
     // An old machine: dark, unsteady repeats a beat and a half behind.
@@ -640,6 +690,12 @@ void apply(APVTS &apvts, int index) {
     // Lifting the finger lets the rim ring on a moment longer than it was.
     ap.allOsc(params::swellSuffix, [](int) { return 0.4; });
     ap.allOsc(params::offLevelSuffix, [](int) { return 0.85; });
+
+    // Glass is nearly pure, so barely any: enough that the upper partials beat
+    // against the fundamental instead of locking to it, which is most of what
+    // separates a rubbed rim from a sine wave. A smaller bowl is a purer one,
+    // hence the tracking.
+    ap.series(180.0f, 4.0f);
 
     ap.fanOut(0.9);
     ap.reverb(0.45f, 6.0f, 0.25f);

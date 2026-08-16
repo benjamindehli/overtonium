@@ -88,9 +88,26 @@ Fifteen factory presets ship with it. The first nine are the original ones. The 
 | Tape Choir | a worn echo and 14 cents of drift, with the partials fanned across the field |
 | Glass Armonica | rubbed glass, and a key-off level above the sustain so lifting the finger lets the rim ring on |
 
+Six of them use STRETCH or TRACK, since six of them are modelling something with a body. Picking odd partials was always a stand-in for inharmonicity, and three of these now have the real thing on top of it:
+
+| Preset | Stretch | Tracking | Why |
+|---|---|---|---|
+| Vibraphone | | 3.0 dB/oct | a short bar carries less above its fundamental than a long one |
+| Harpsichord | | 2.5 dB/oct | a short treble string carries less of the pluck's edge |
+| Music Box | +300 ct | 3.0 dB/oct | a comb tooth is a bar and does not ring in whole numbers. The 23rd tooth ends up 168 cents sharp |
+| Kalimba | +500 ct | 3.0 dB/oct | tines are further out than a comb, not less. The 15th partial lands 137 cents sharp |
+| Tape Choir | | 3.5 dB/oct | voices thin out at the top of a range rather than brightening |
+| Glass Armonica | +180 ct | 4.0 dB/oct | barely any, but enough that the upper partials beat against the fundamental instead of locking to it |
+
+The organs are deliberately left alone. A drawbar organ is electric and a pipe organ is voiced rank by rank, so neither loses its top as you play up, and pretending otherwise would be modelling the wrong instrument. So are the four synthetic patches, where the raw spectrum is the point.
+
 **Saving your own.** The preset menu writes to `Dehli Musikk/Overtonium/Presets` under your user application data folder, one small `.ovtpreset` file each, and lists whatever it finds there under the factory list. The menu reads the folder every time it opens, so a preset saved a moment ago is in it and one deleted in Finder is not.
 
-A preset holds parameter values and nothing else. Not the window size, the zoom or the LINK settings, since loading a sound should not move your window or change your tools. Values are stored plain rather than normalised, so a preset survives a parameter's range being widened later, and anything a file does not mention keeps its default rather than being reset, so a preset saved by an older build loads into a newer one without silently zeroing whatever was added in between. The tests cover both of those directly.
+A preset holds parameter values and nothing else. Not the window size, the zoom or the LINK settings, since loading a sound should not move your window or change your tools.
+
+Factory presets start from a neutral base rather than from wherever you happened to be, so one always gives the instrument it describes. That covers the globals that are part of the sound: STRETCH, TRACK, the converter and phase reset all go back to neutral unless the preset asks for otherwise. It deliberately leaves master gain, polyphony, bend range, the aftertouch source and the safety clipper where you set them, since those are how you play it and how loud rather than what it sounds like. A test loads every factory preset twice, once from clean and once after deliberately making a mess of everything, and requires the two to be identical.
+
+Values are stored plain rather than normalised, so a preset survives a parameter's range being widened later, and anything a file does not mention keeps its default rather than being reset, so a preset saved by an older build loads into a newer one without silently zeroing whatever was added in between. The tests cover both of those directly.
 
 **Undo.** The parameter tree carries an undo history, which matters most because of LINK: one drag can move the same knob on all 32 channels, and before this the only way back from a drag you did not mean was to reload the preset.
 

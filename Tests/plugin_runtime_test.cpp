@@ -1045,6 +1045,95 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
 /// Undo, which is only worth having if a LINK drag across 32 channels comes
 /// back in one step. The round trip runs parameter -> value tree -> undo
 /// manager and back again.
+/// A factory preset has to give the same instrument whatever was loaded
+/// before it.
+///
+/// Written against every parameter rather than against a list, so it catches
+/// the next global somebody adds and forgets to reset, which is exactly how
+/// STRETCH, TRACK and the converter each got missed.
+void testPresetsAreReproducible(OvertoniumProcessor &p) {
+  section("Presets start from a known state");
+
+  // What a preset deliberately leaves alone: how you play it and how loud, as
+  // opposed to what it sounds like.
+  const juce::StringArray preserved{
+      ovt::params::masterGainId, ovt::params::polyphonyId,
+      ovt::params::bendRangeId, ovt::params::atSourceId,
+      ovt::params::safetyClipId};
+
+  const auto snapshot = [&p] {
+    std::vector<std::pair<juce::String, float>> out;
+
+    for (auto *raw : p.getParameters())
+      if (auto *r = dynamic_cast<juce::RangedAudioParameter *>(raw))
+        out.emplace_back(r->paramID, r->convertFrom0to1(r->getValue()));
+
+    return out;
+  };
+
+  // Something has to be left in a state no preset would produce, or the test
+  // proves nothing.
+  const auto makeAMess = [&p] {
+    const auto put = [&p](const juce::String &id, float plain) {
+      if (auto *param = p.apvts.getParameter(id))
+        param->setValueNotifyingHost(param->convertTo0to1(plain));
+    };
+
+    put(ovt::params::stretchId, 700.0f);
+    put(ovt::params::trackId, 9.0f);
+    put(ovt::params::lofiRateId, 5.0f); // 8 kHz
+    put(ovt::params::lofiBitsId, 4.0f); // 8 bit
+    put(ovt::params::phaseResetId, 0.0f);
+    put(ovt::params::echoOnId, 1.0f);
+    put(ovt::params::reverbOnId, 1.0f);
+    put(ovt::params::reverbDecayId, 17.0f);
+
+    for (int i = 0; i < ovt::kNumHarmonics; ++i) {
+      put(ovt::params::oscParamId(ovt::params::volumeSuffix, i), 0.9f);
+      put(ovt::params::oscParamId(ovt::params::driftSuffix, i), 20.0f);
+      put(ovt::params::oscParamId(ovt::params::panSuffix, i), -0.8f);
+    }
+  };
+
+  const auto names = ovt::presets::names();
+  int reproducible = 0;
+  juce::StringArray drifted;
+
+  for (int i = 0; i < names.size(); ++i) {
+    ovt::presets::apply(p.apvts, i);
+    const auto clean = snapshot();
+
+    makeAMess();
+    ovt::presets::apply(p.apvts, i);
+    const auto afterMess = snapshot();
+
+    bool same = true;
+    for (size_t k = 0; k < clean.size(); ++k) {
+      if (preserved.contains(clean[k].first))
+        continue;
+
+      if (std::abs(clean[k].second - afterMess[k].second) > 1.0e-4f) {
+        same = false;
+
+        if (!drifted.contains(clean[k].first))
+          drifted.add(clean[k].first);
+      }
+    }
+
+    if (same)
+      ++reproducible;
+  }
+
+  if (!drifted.isEmpty())
+    std::printf("  parameters left over from the previous patch: %s\n",
+                drifted.joinIntoString(", ").toRawUTF8());
+
+  check(reproducible == names.size(),
+        "all " + std::to_string(names.size()) +
+            " factory presets load the same from a dirty state (" +
+            std::to_string(reproducible) + ")");
+}
+
 void testUndo(OvertoniumProcessor &p) {
   section("Undo");
 
@@ -1244,6 +1333,7 @@ int main() {
   testLinkMenu();
   testTopBarLayout();
   testTopBarAlignment(processor);
+  testPresetsAreReproducible(processor);
   testUndo(processor);
   testBusLayouts(processor);
   testStateRoundTrip(processor);
