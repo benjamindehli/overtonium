@@ -1,0 +1,71 @@
+name: Build and test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      # One platform failing should not hide what the other two would have
+      # said, which is usually the thing that tells you which it is.
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            os: ubuntu-latest
+          - name: macOS
+            os: macos-latest
+            # A universal binary is what a release wants and doubles the time a
+            # build takes. The runner's own architecture is enough to compile
+            # and test against.
+            extra: -DCMAKE_OSX_ARCHITECTURES=arm64
+          - name: Windows
+            os: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libasound2-dev libfreetype-dev libfontconfig1-dev libx11-dev \
+            libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev \
+            libxcomposite-dev libgl-dev
+
+      - name: Configure
+        run: >
+          cmake -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DOVERTONIUM_INSTALL_AFTER_BUILD=OFF
+          ${{ matrix.extra }}
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      # Neither suite opens an editor, so both run on a machine with no display.
+      - name: Test
+        run: ctest --test-dir build --build-config Release --output-on-failure
+
+  dsp-core:
+    name: DSP core, no build system
+    runs-on: ubuntu-latest
+
+    # The README claims the DSP core has no JUCE dependency and compiles from a
+    # bare compiler. That is worth holding to, so it is checked rather than
+    # asserted: no CMake, no JUCE, no third-party headers.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile and run
+        run: |
+          c++ -std=c++17 -O2 -Wall -Wextra -Werror \
+            -I Source Tests/dsp_test.cpp Source/dsp/*.cpp -o dsp_test
+          ./dsp_test

@@ -35,6 +35,12 @@ endif()
 # ------------------------------------------------------------------------------------------
 # Plugin
 # ------------------------------------------------------------------------------------------
+# On a workstation the point of a build is to have the plugin installed and
+# ready for the host to rescan. On a build machine there is no host, and copying
+# into a user folder that does not exist is a way to fail for no reason.
+option(OVERTONIUM_INSTALL_AFTER_BUILD
+       "Copy the built plugins into the user plugin folders" ON)
+
 set(OVERTONIUM_FORMATS VST3 Standalone)
 
 if(APPLE)
@@ -59,7 +65,7 @@ juce_add_plugin(Overtonium
     NEEDS_MIDI_OUTPUT           FALSE
     IS_MIDI_EFFECT              FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
-    COPY_PLUGIN_AFTER_BUILD     TRUE
+    COPY_PLUGIN_AFTER_BUILD     ${OVERTONIUM_INSTALL_AFTER_BUILD}
     VST3_CATEGORIES             Instrument Synth
     AU_MAIN_TYPE                kAudioUnitType_MusicDevice
     DESCRIPTION                 "32-partial overtone synthesiser"
