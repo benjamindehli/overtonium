@@ -76,6 +76,11 @@ public:
 
 private:
   void handleMidiMessage(const juce::MidiMessage &m);
+
+  /// Folds the channel-wide expression sources down to the single value the
+  /// per-channel AT amounts read, according to what the setting says to
+  /// listen to.
+  void updateAftertouch();
   void renderSegment(int startSample, int numSamples);
 
   ovt::params::Cache paramCache;
@@ -88,6 +93,10 @@ private:
 
   float pitchBendNormalised = 0.0f;
   float channelPressure = 0.0f;
+
+  /// CC1. Held rather than consumed, since it is a position the player has
+  /// left the wheel in rather than an event.
+  float modWheel = 0.0f;
   std::atomic<int> activeVoices{0};
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OvertoniumProcessor)

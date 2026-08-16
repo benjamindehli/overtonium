@@ -141,6 +141,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::ParameterID{stretchId, 1}, "Stretch", squaredBipolarRange(1200.0f),
       0.0f, FAttr().withStringFromValueFunction(stretchText)));
 
+  juce::StringArray atSourceChoices;
+  for (auto *name : kAftertouchSourceNames)
+    atSourceChoices.add(name);
+
+  layout.add(std::make_unique<juce::AudioParameterChoice>(
+      juce::ParameterID{atSourceId, 1}, "Aftertouch From", atSourceChoices,
+      (int)AftertouchSource::Either));
+
   juce::StringArray rateChoices;
   for (auto hz : kLofiRateChoices)
     rateChoices.add(lofiRateName(hz));
@@ -390,6 +398,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   bendRange = apvts.getRawParameterValue(bendRangeId);
   phaseReset = apvts.getRawParameterValue(phaseResetId);
   stretch = apvts.getRawParameterValue(stretchId);
+  atSource = apvts.getRawParameterValue(atSourceId);
   safetyClip = apvts.getRawParameterValue(safetyClipId);
   lofiRate = apvts.getRawParameterValue(lofiRateId);
   lofiBits = apvts.getRawParameterValue(lofiBitsId);

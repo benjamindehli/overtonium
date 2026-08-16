@@ -70,9 +70,9 @@ juce::MidiBuffer noteOnAt(int note, float velocity, int sample) {
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
-  // 19 per partial, 8 global, 16 for the noise channel, 11 for the two master
+  // 19 per partial, 9 global, 16 for the noise channel, 11 for the two master
   // effects.
-  const int expected = ovt::kNumHarmonics * 19 + 8 + 16 + 11;
+  const int expected = ovt::kNumHarmonics * 19 + 9 + 16 + 11;
   check(p.getParameters().size() == expected,
         "parameter count is " + std::to_string(p.getParameters().size()) +
             ", expected " + std::to_string(expected));
@@ -256,6 +256,83 @@ void testAftertouchMidi(OvertoniumProcessor &p) {
   poly.addEvent(juce::MidiMessage::aftertouchChange(1, 57, 127), 0);
   const auto polyPressed = renderBlocks(p, 20, 512, poly);
   check(polyPressed.peak > 0.01f, "polyphonic aftertouch reaches the voice");
+
+  poly.clear();
+  poly.addEvent(juce::MidiMessage::aftertouchChange(1, 57, 0), 0);
+  renderBlocks(p, 40, 512, poly);
+
+  // ---- the mod wheel, which is what most keyboards actually have ----------
+  auto *source = p.apvts.getParameter(ovt::params::atSourceId);
+
+  const auto setSource = [&](ovt::params::AftertouchSource s) {
+    source->setValueNotifyingHost(source->convertTo0to1((float)s));
+  };
+
+  const auto sendCC = [&](int value) {
+    juce::MidiBuffer m;
+    m.addEvent(juce::MidiMessage::controllerEvent(1, 1, value), 0);
+    return renderBlocks(p, 20, 512, m);
+  };
+
+  check((int)std::lround(p.apvts.getRawParameterValue(ovt::params::atSourceId)
+                             ->load()) ==
+            (int)ovt::params::AftertouchSource::Either,
+        "either source is the default, so a wheel works out of the box");
+
+  const auto wheelUp = sendCC(127);
+  check(wheelUp.peak > 0.01f, "the mod wheel fades the partials in (peak " +
+                                  std::to_string(wheelUp.peak) + ")");
+
+  const auto wheelDown = sendCC(0);
+  check(wheelDown.peak < wheelUp.peak, "and letting it fall takes them out");
+
+  juce::MidiBuffer pressOn, pressOff;
+  pressOn.addEvent(juce::MidiMessage::channelPressureChange(1, 127), 0);
+  pressOff.addEvent(juce::MidiMessage::channelPressureChange(1, 0), 0);
+
+  // Set to pressure only, the wheel must do nothing at all.
+  setSource(ovt::params::AftertouchSource::ChannelPressure);
+  const auto ignored = sendCC(127);
+  check(ignored.peak < 1.0e-4f,
+        "set to channel pressure, the wheel is ignored (peak " +
+            std::to_string(ignored.peak) + ")");
+
+  // ...and pressure still gets through on that setting.
+  check(renderBlocks(p, 20, 512, pressOn).peak > 0.01f,
+        "while channel pressure still does");
+
+  // Both back to rest before the mirror image. A wheel left up at 127 would
+  // make the next pair of checks pass for entirely the wrong reason.
+  sendCC(0);
+  renderBlocks(p, 40, 512, pressOff);
+
+  setSource(ovt::params::AftertouchSource::ModWheel);
+  check(renderBlocks(p, 20, 512, pressOn).peak < 1.0e-4f,
+        "set to the wheel, channel pressure is ignored");
+
+  renderBlocks(p, 40, 512, pressOff);
+  check(sendCC(127).peak > 0.01f, "while the wheel does the work");
+
+  sendCC(0);
+  setSource(ovt::params::AftertouchSource::Either);
+
+  // CC1 must not have eaten the pedal or the panic messages on its way past.
+  juce::MidiBuffer pedal;
+  pedal.addEvent(juce::MidiMessage::controllerEvent(1, 64, 127), 0);
+  renderBlocks(p, 2, 512, pedal);
+
+  juce::MidiBuffer noteOff;
+  noteOff.addEvent(juce::MidiMessage::noteOff(1, 57), 0);
+  renderBlocks(p, 20, 512, noteOff);
+
+  check(p.getActiveVoiceCount() == 1,
+        "the sustain pedal still reaches the engine past the wheel");
+
+  juce::MidiBuffer pedalUp;
+  pedalUp.addEvent(juce::MidiMessage::controllerEvent(1, 64, 0), 0);
+  renderBlocks(p, 200, 512, pedalUp);
+
+  check(p.getActiveVoiceCount() == 0, "and letting it up releases the note");
 
   p.reset();
   renderBlocks(p, 4, 512);

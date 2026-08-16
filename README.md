@@ -177,12 +177,14 @@ The envelope's delay stage holds a partial silent before its attack begins. Stag
 
 Aftertouch works the same way but **adds** to the fader instead of scaling it, and it ignores velocity entirely. That means a strip with its fader all the way down is silent until you lean on the key, and then it fades in under your finger, while a negative amount fades an open strip back out again. Put a few upper partials on positive aftertouch and the note grows brighter the harder you press, without touching the partials you left alone. Both channel pressure and polyphonic aftertouch are accepted, and whichever is higher wins. Pressure is smoothed over about 15 ms, so seven-bit MIDI does not step the gain.
 
+The mod wheel can stand in for it, and by default does. Most keyboards have no aftertouch at all, and the wheel is the control your hand already goes to, so CC1 feeds the same destination. Nothing changes for a controller that does send pressure, since a wheel left alone reads zero. Settings has an "Aftertouch from" entry if you would rather have one or the other on its own. Polyphonic aftertouch is not on that list: it is per note rather than per channel, there is nothing ambiguous about where it should go, and it stays routed whatever the setting says.
+
 The top bar holds everything that is not per partial, in signal order from left to right:
 
 | Group | Contains |
 |---|---|
 | Preset | the preset menu: factory, saved, and somewhere to put the one you are working on |
-| Settings | polyphony, bend range, phase reset, the safety clipper and the converter |
+| Settings | polyphony, bend range, what feeds aftertouch, phase reset, the safety clipper and the converter |
 | Link | **LINK**, and what it reaches and how. See below |
 | Series | **STRETCH**, the inharmonicity of the whole series. See below |
 | Echo | the tape echo. See below |

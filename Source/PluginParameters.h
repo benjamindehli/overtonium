@@ -12,6 +12,7 @@ inline constexpr const char *polyphonyId = "polyphony";
 inline constexpr const char *bendRangeId = "bendRange";
 inline constexpr const char *phaseResetId = "phaseReset";
 inline constexpr const char *stretchId = "stretch";
+inline constexpr const char *atSourceId = "atSource";
 inline constexpr const char *safetyClipId = "safetyClip";
 inline constexpr const char *lofiRateId = "lofiRate";
 inline constexpr const char *lofiBitsId = "lofiBits";
@@ -120,6 +121,7 @@ struct Cache {
   std::atomic<float> *bendRange = nullptr;
   std::atomic<float> *phaseReset = nullptr;
   std::atomic<float> *stretch = nullptr;
+  std::atomic<float> *atSource = nullptr;
   std::atomic<float> *safetyClip = nullptr;
   std::atomic<float> *lofiRate = nullptr;
   std::atomic<float> *lofiBits = nullptr;
@@ -155,6 +157,22 @@ struct Cache {
 
 /// The polyphony choices, in parameter order.
 inline const std::array<int, 7> kPolyphonyChoices{1, 2, 4, 6, 8, 12, 16};
+
+/// What drives the per-channel AT amount, in parameter order.
+///
+/// Aftertouch is the natural source and the one the row is named for, but most
+/// keyboards do not have it, and the wheel is the control everybody's hand
+/// already goes to. So the wheel can stand in for it, and by default does, at
+/// no cost to a controller that sends pressure: a wheel left alone reads zero
+/// and changes nothing.
+///
+/// Polyphonic aftertouch is not on this list. It is per note rather than per
+/// channel, there is nothing ambiguous about where it should go, and it stays
+/// routed whatever this says.
+enum class AftertouchSource { ChannelPressure = 0, ModWheel, Either };
+
+inline const std::array<const char *, 3> kAftertouchSourceNames{
+    "Channel pressure", "Mod wheel", "Either"};
 
 /// Render rates, in parameter order. Zero means the host's own, which is the
 /// default and the only entry that is not a reduction.

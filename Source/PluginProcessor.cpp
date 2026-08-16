@@ -15,6 +15,7 @@ void OvertoniumProcessor::prepareToPlay(double sampleRate,
                   true);
   pitchBendNormalised = 0.0f;
   channelPressure = 0.0f;
+  modWheel = 0.0f;
 }
 
 void OvertoniumProcessor::releaseResources() {
@@ -54,6 +55,31 @@ double OvertoniumProcessor::getTailLengthSeconds() const {
          0.1;
 }
 
+void OvertoniumProcessor::updateAftertouch() {
+  using ovt::params::AftertouchSource;
+
+  const auto source =
+      paramCache.atSource != nullptr
+          ? (AftertouchSource)juce::jlimit(
+                0, (int)ovt::params::kAftertouchSourceNames.size() - 1,
+                (int)std::lround(paramCache.atSource->load()))
+          : AftertouchSource::Either;
+
+  switch (source) {
+  case AftertouchSource::ChannelPressure:
+    currentParams.global.aftertouch = channelPressure;
+    break;
+
+  case AftertouchSource::ModWheel:
+    currentParams.global.aftertouch = modWheel;
+    break;
+
+  default:
+    currentParams.global.aftertouch = juce::jmax(channelPressure, modWheel);
+    break;
+  }
+}
+
 void OvertoniumProcessor::handleMidiMessage(const juce::MidiMessage &m) {
   if (m.isNoteOn()) {
     engine.noteOn(m.getNoteNumber(), m.getFloatVelocity(), currentParams);
@@ -65,7 +91,13 @@ void OvertoniumProcessor::handleMidiMessage(const juce::MidiMessage &m) {
         pitchBendNormalised * paramCache.bendRange->load();
   } else if (m.isChannelPressure()) {
     channelPressure = (float)m.getChannelPressureValue() / 127.0f;
-    currentParams.global.aftertouch = channelPressure;
+    updateAftertouch();
+  } else if (m.isController() && m.getControllerNumber() == 1) {
+    // Checked by number rather than by one of the isSomething helpers, so it
+    // cannot swallow the sustain pedal or the panic messages further down,
+    // which are controllers too.
+    modWheel = (float)m.getControllerValue() / 127.0f;
+    updateAftertouch();
   } else if (m.isAftertouch()) {
     engine.setPolyPressure(m.getNoteNumber(),
                            (float)m.getAfterTouchValue() / 127.0f);
@@ -77,8 +109,10 @@ void OvertoniumProcessor::handleMidiMessage(const juce::MidiMessage &m) {
     engine.allNotesOff();
   } else if (m.isAllSoundOff()) {
     engine.allSoundOff();
+    // The wheel is left alone: it is a physical position the player has set,
+    // not something a panic message should silently move.
     channelPressure = 0.0f;
-    currentParams.global.aftertouch = 0.0f;
+    updateAftertouch();
   }
 }
 
@@ -105,7 +139,7 @@ void OvertoniumProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     scratch.setSize(2, numSamples, false, true, true);
 
   paramCache.snapshot(currentParams, pitchBendNormalised);
-  currentParams.global.aftertouch = channelPressure;
+  updateAftertouch();
   engine.setPolyphony(paramCache.polyphonyValue());
 
   // Render in segments split on MIDI timestamps so note timing is sample

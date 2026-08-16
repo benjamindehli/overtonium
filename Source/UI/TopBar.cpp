@@ -535,6 +535,24 @@ void TopBar::showSettingsMenu() {
                   (semitones == 1 ? " semitone" : " semitones"),
               true, semitones == currentBend);
 
+  // Which channel-wide control the AT row on every strip listens to. Most
+  // keyboards have no aftertouch, so the wheel stands in for it, and by
+  // default either will do.
+  const auto sourceIndex = [this] {
+    auto *p = apvts.getParameter(params::atSourceId);
+    return p != nullptr ? juce::roundToInt(p->convertFrom0to1(p->getValue()))
+                        : 0;
+  }();
+
+  juce::PopupMenu sources;
+
+  for (int i = 0; i < (int)params::kAftertouchSourceNames.size(); ++i)
+    sources.addItem(600 + i, params::kAftertouchSourceNames[(size_t)i], true,
+                    i == sourceIndex);
+
+  m.addSeparator();
+  m.addSubMenu("Aftertouch from", sources);
+
   m.addSeparator();
   m.addSectionHeader("Output");
   m.addItem(300, "Phase reset", true,
@@ -601,6 +619,9 @@ void TopBar::showSettingsMenu() {
                         p->setValueNotifyingHost(
                             p->convertTo0to1((float)index));
                     };
+
+                    if (result >= 600)
+                      return choose(params::atSourceId, result - 600);
 
                     if (result >= 500)
                       return choose(params::lofiBitsId, result - 500);
