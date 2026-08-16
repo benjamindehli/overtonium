@@ -12,6 +12,33 @@ juce::NormalisableRange<float> rangeWithCentre(float lo, float hi,
   return r;
 }
 
+/// A bipolar range with its fine end in the middle.
+///
+/// Piano stretch lives in the first hundred cents or so and a bell wants a
+/// thousand, so a linear control would spend most of its travel somewhere
+/// nobody goes. Squaring either side of centre puts a quarter of the range in
+/// half the travel and keeps the symmetry a bipolar control needs.
+juce::NormalisableRange<float> squaredBipolarRange(float extent) {
+  return {-extent, extent,
+          [](float lo, float hi, float t) {
+            const auto x = 2.0f * t - 1.0f;
+            return juce::jmap(x * std::abs(x), -1.0f, 1.0f, lo, hi);
+          },
+          [](float lo, float hi, float v) {
+            const auto x = juce::jmap(v, lo, hi, -1.0f, 1.0f);
+            return 0.5f * (std::copysign(std::sqrt(std::abs(x)), x) + 1.0f);
+          },
+          [](float lo, float hi, float v) { return juce::jlimit(lo, hi, v); }};
+}
+
+juce::String stretchText(float cents, int) {
+  if (std::abs(cents) < 0.5f)
+    return "Harmonic";
+
+  return (cents > 0.0f ? "+" : "") + juce::String(juce::roundToInt(cents)) +
+         " ct";
+}
+
 juce::String timeText(float seconds, int) {
   if (seconds < 1.0f)
     return juce::String(seconds * 1000.0f, seconds < 0.1f ? 1 : 0) + " ms";
@@ -109,6 +136,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
   layout.add(std::make_unique<BoolP>(juce::ParameterID{safetyClipId, 1},
                                      "Safety Clip", true));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{stretchId, 1}, "Stretch", squaredBipolarRange(1200.0f),
+      0.0f, FAttr().withStringFromValueFunction(stretchText)));
 
   juce::StringArray rateChoices;
   for (auto hz : kLofiRateChoices)
@@ -358,6 +389,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   polyphony = apvts.getRawParameterValue(polyphonyId);
   bendRange = apvts.getRawParameterValue(bendRangeId);
   phaseReset = apvts.getRawParameterValue(phaseResetId);
+  stretch = apvts.getRawParameterValue(stretchId);
   safetyClip = apvts.getRawParameterValue(safetyClipId);
   lofiRate = apvts.getRawParameterValue(lofiRateId);
   lofiBits = apvts.getRawParameterValue(lofiBitsId);
@@ -510,6 +542,7 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
       juce::Decibels::decibelsToGain(masterGain->load(), -60.0f);
   out.global.bendSemitones = bendNormalised * bendRange->load();
   out.global.phaseReset = phaseReset->load() > 0.5f;
+  out.global.stretchCents = stretch->load();
   out.global.safetyClip = safetyClip->load() > 0.5f;
 
   {

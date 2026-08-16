@@ -21,9 +21,9 @@ constexpr int kGroupPad = 6;
 
 /// Minimum width of each group, in the order they are laid out. Only the
 /// output group grows, because the meter is the one thing worth more room.
-constexpr int kGroupMinWidth[] = {144, 90, 60, 222, 260, 186, 82};
-constexpr int kOutputGroupIndex = 5;
-constexpr int kGroupCount = 7;
+constexpr int kGroupMinWidth[] = {144, 90, 60, 64, 222, 260, 186, 82};
+constexpr int kOutputGroupIndex = 6;
+constexpr int kGroupCount = 8;
 
 /// Buttons, lists and the output meter all stand this tall, centred on the
 /// dials beside them, so a row reads as one line of controls.
@@ -217,6 +217,18 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
 
   masterAttachment = std::make_unique<SliderAttachment>(
       apvts, params::masterGainId, master.slider);
+
+  stretch.slider.setPopupDisplayEnabled(true, true, &popupParent);
+  stretch.slider.setTooltip(
+      "Pulls the partials off the harmonic series, the way a stiff string or a "
+      "struck bar does. A little of it is piano stretch. A lot of it is a "
+      "bell. It stacks with each channel's TUNE rather than replacing it.");
+  stretch.slider.setDoubleClickReturnValue(true, 0.0);
+  stretch.slider.getProperties().set("bipolar", true);
+  addAndMakeVisible(stretch);
+
+  stretchAttachment = std::make_unique<SliderAttachment>(
+      apvts, params::stretchId, stretch.slider);
 
   // Two bars beside the master fader, at the end of the signal path, need no
   // caption to say what they are.
@@ -699,9 +711,9 @@ int TopBar::minimumWidth() {
 }
 
 void TopBar::parkControls() {
-  juce::Component *all[] = {&master,     &meter,       &presetButton,
-                            &zoomBox,    &linkButton,  &settingsButton,
-                            &echoButton, &reverbButton};
+  juce::Component *all[] = {&master,      &meter,          &presetButton,
+                            &zoomBox,     &linkButton,     &settingsButton,
+                            &echoButton,  &reverbButton,   &stretch};
 
   for (auto *c : all)
     c->setBounds({});
@@ -756,6 +768,10 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
 
   case LinkGroup:
     button(linkButton, r);
+    break;
+
+  case SeriesGroup:
+    stretch.setBounds(r);
     break;
 
   case EchoGroup:

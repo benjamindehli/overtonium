@@ -84,6 +84,9 @@ struct GlobalParams {
   float bendSemitones = 0.0f; ///< current pitch-bend offset
   float aftertouch = 0.0f;    ///< current channel pressure, 0..1
   bool phaseReset = true; ///< reset partial phase on note-on (coherent attack)
+  /// Inharmonicity, as cents of displacement on the 32nd partial. Zero is the
+  /// plain harmonic series. See inharmonicCents.
+  float stretchCents = 0.0f;
   /// Soft-clip the sum; 32 faders make it very easy to overshoot.
   bool safetyClip = true;
 };

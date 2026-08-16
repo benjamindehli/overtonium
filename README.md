@@ -119,6 +119,22 @@ At `blend = 1` this is exactly `n` times the fundamental. Nothing is hard-coded,
 
 The test suite asserts this table, so the derivation cannot silently drift from it.
 
+### Stretch
+
+TUNE decides how the series is spelled. STRETCH decides whether it is a series at all.
+
+Nothing real rings at integer multiples of anything. A string with any bending stiffness has partials at `n * f0 * sqrt(1 + B * n^2)`, sharp of the harmonic and increasingly so up the series, and it is that, not the hammer or the soundboard, that makes a piano sound like a piano rather than like a sawtooth. It is also what a tuner is matching when they stretch the octaves: tune the top of the instrument to the theory and it beats against its own overtones.
+
+STRETCH is B, dialled by what it does to the top partial rather than by its own value, which lives between 0.00003 and 0.008 and means nothing to anyone. At +150 cents, which is a real piano:
+
+| Partial | 2 | 8 | 16 | 32 |
+|---|---|---|---|---|
+| Cents sharp of harmonic | +0.6 | +10.2 | +40.0 | +150.0 |
+
+The bottom of the series barely moves and the top of it walks away, which is the shape that matters. Push further and the partials stop agreeing on a fundamental, and the sound stops being a note with a timbre and becomes a bell. Negative pulls them inward instead, which no physical string does and which is worth having anyway.
+
+It is a separate axis from TUNE rather than more of it, and the two combine: equal temperament with heavy stretch is a different object from just intonation with the same stretch. Zero is the plain harmonic series, so no preset made before it existed sounds any different, and the table above is what zero means.
+
 Strips are colour-coded by interval class, which keeps the structure of the series visible while you scroll. The twelve classes sit in chromatic order along a narrow band running from blue at the octave, through magenta and red in the middle, to yellow at the major seventh. Octaves are therefore blue, fifths rose, major thirds magenta, sevenths amber and yellow.
 
 The band is deliberately narrow, a crop from the middle of a full blue to yellow sweep, so 32 channels read as one family rather than as a rainbow. Saturation and value fall towards the warm end because yellow reads far brighter than blue at the same nominal value, which keeps the sevenths from visually swamping the octaves. Nothing in the band enters green or cyan, which is where the accent used by the global controls lives, so chrome never reads as one of the channels.
@@ -168,6 +184,7 @@ The top bar holds everything that is not per partial, in signal order from left 
 | Preset | the preset menu: factory, saved, and somewhere to put the one you are working on |
 | Settings | polyphony, bend range, phase reset, the safety clipper and the converter |
 | Link | **LINK**, and what it reaches and how. See below |
+| Series | **STRETCH**, the inharmonicity of the whole series. See below |
 | Echo | the tape echo. See below |
 | Reverb | the reverb. See below |
 | Output | **MASTER** and the stereo meter |

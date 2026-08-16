@@ -219,9 +219,10 @@ void Voice::render(float *left, float *right, int numSamples,
       // wander already in progress instead of jumping.
       const double driftCents = (double)(pt.drift.advance(rng) * op.driftCents);
 
-      const double semis = semitoneOffset(i, (double)op.tuneBlend) +
-                           (pmCents + driftCents) * 0.01 +
-                           (double)p.global.bendSemitones;
+      const double semis =
+          semitoneOffset(i, (double)op.tuneBlend,
+                         (double)p.global.stretchCents) +
+          (pmCents + driftCents) * 0.01 + (double)p.global.bendSemitones;
 
       const double freq = baseFreq * std::exp2(semis / 12.0);
 

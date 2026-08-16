@@ -175,6 +175,69 @@ void testTuningTable() {
 // 2. blend == 1 must land on an exact n:1 ratio, blend == 0 on an exact 12-TET
 // semitone.
 // -----------------------------------------------------------------------------
+void testStretch() {
+  section("Stretch");
+
+  // Zero has to be exactly the harmonic series, or every preset ever saved
+  // changes underneath it.
+  bool neutral = true;
+  for (int i = 0; i < kNumHarmonics; ++i) {
+    neutral &= inharmonicCents(i, 0.0) == 0.0;
+    neutral &= semitoneOffset(i, 1.0, 0.0) == semitoneOffset(i, 1.0);
+  }
+
+  check(neutral, "zero stretch is the plain harmonic series");
+
+  // The dial is calibrated on the top partial, so it should read back exactly.
+  bool calibrated = true;
+  for (double cents : {-600.0, -100.0, 25.0, 150.0, 1200.0})
+    calibrated &=
+        std::abs(inharmonicCents(kNumHarmonics - 1, cents) - cents) < 1.0e-9;
+
+  check(calibrated, "the dial reads the displacement of the top partial");
+
+  // The fundamental is the fundamental whatever else moves.
+  bool rooted = true;
+  for (double cents : {-600.0, -100.0, 150.0, 1200.0})
+    rooted &= std::abs(inharmonicCents(0, cents)) < 3.0;
+
+  check(rooted, "and barely moves the fundamental (" +
+                    std::to_string(inharmonicCents(0, 1200.0)) + " cents at "
+                    "full stretch)");
+
+  // Rising faster than linearly up the series is what makes it a stiff string
+  // rather than a detune: each gap has to be wider than the one below it.
+  bool accelerating = true;
+  double previous = 0.0;
+
+  for (int i = 1; i < kNumHarmonics; ++i) {
+    const auto gap = inharmonicCents(i, 300.0) - inharmonicCents(i - 1, 300.0);
+    accelerating &= gap > previous;
+    previous = gap;
+  }
+
+  check(accelerating, "every partial is pushed further than the one below it");
+
+  // Negative compresses instead, and stays a real frequency all the way down.
+  bool compresses = true;
+  for (int i = 0; i < kNumHarmonics; ++i)
+    compresses &= inharmonicCents(i, -600.0) <= 0.0 &&
+                  std::isfinite(inharmonicCents(i, -600.0));
+
+  check(compresses, "and negative pulls them in without collapsing");
+
+  // A quarter of a semitone on the octave above the fundamental is roughly
+  // where a real piano sits, so partial 2 should still be nearly clean when
+  // partial 32 is 150 cents out.
+  std::printf("  at +150 ct on the top: partial 2 %+.2f, partial 8 %+.2f, "
+              "partial 32 %+.2f cents\n",
+              inharmonicCents(1, 150.0), inharmonicCents(7, 150.0),
+              inharmonicCents(31, 150.0));
+
+  check(inharmonicCents(1, 150.0) < 1.0,
+        "piano-sized stretch leaves the low partials alone");
+}
+
 void testBlendEndpoints() {
   section("Tuning blend endpoints");
 
@@ -2764,6 +2827,7 @@ void benchmarkLofi() {
 int main() {
   testTuningTable();
   testBlendEndpoints();
+  testStretch();
   testSineTable();
   testRenderedSpectrum();
   testAliasing();

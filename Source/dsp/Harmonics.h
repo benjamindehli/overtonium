@@ -70,13 +70,50 @@ inline const HarmonicInfo &harmonic(int index0) noexcept {
   return harmonicTable()[(size_t)index0];
 }
 
+/// How far partial n sits above its own harmonic, in cents.
+///
+/// Real sounding bodies are not integer multiples of anything. A string with
+/// any bending stiffness rings at n * f0 * sqrt(1 + B * n^2), sharp of the
+/// harmonic and increasingly so up the series. That is why a piano sounds like
+/// a piano rather than like a sawtooth, and it is what a tuner is matching
+/// when they stretch the octaves. Push the same law further and the partials
+/// stop agreeing on a fundamental at all, which is a bell.
+///
+/// It is a separate axis from TUNE rather than more of it. TUNE decides
+/// whether the series reads as one timbre or as a chord. This decides whether
+/// it is a string or a bar, and the two combine.
+///
+/// @param stretchCents  how far the top partial is displaced. That rather than
+///                      B itself, which is a number between 0.00003 and 0.008
+///                      and says nothing to anyone. Zero is the plain harmonic
+///                      series, negative compresses it.
+inline double inharmonicCents(int index0, double stretchCents) noexcept {
+  if (stretchCents == 0.0)
+    return 0.0;
+
+  constexpr double top = (double)kNumHarmonics;
+
+  // Fixed by the top partial landing exactly where the dial says, so the
+  // control reads as a measurement rather than as an amount.
+  const double b = (std::exp2(stretchCents / 600.0) - 1.0) / (top * top);
+  const double n = (double)(index0 + 1);
+
+  return 600.0 * std::log2(std::max(1.0e-6, 1.0 + b * n * n));
+}
+
 /// Semitone offset above the played note.
 ///
 /// @param blend  0 == equal temperament (snapped to the nearest semitone), 1 ==
 /// just intonation (an exact n:1 ratio with the fundamental).
-inline double semitoneOffset(int index0, double blend) noexcept {
+/// @param stretchCents  inharmonicity, applied on top of whichever of those
+/// two the blend has arrived at. Defaulted so the plain harmonic series stays
+/// the thing you get by not asking for anything.
+inline double semitoneOffset(int index0, double blend,
+                             double stretchCents = 0.0) noexcept {
   const auto &h = harmonic(index0);
-  return (double)h.etSemitones + blend * h.jiCents * 0.01;
+
+  return (double)h.etSemitones + blend * h.jiCents * 0.01 +
+         inharmonicCents(index0, stretchCents) * 0.01;
 }
 
 inline const char *intervalName(int pitchClass) noexcept {

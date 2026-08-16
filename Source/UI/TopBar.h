@@ -151,6 +151,7 @@ private:
     PresetGroup = 0,
     VoiceGroup,
     LinkGroup,
+    SeriesGroup,
     EchoGroup,
     ReverbGroup,
     OutputGroup,
@@ -186,6 +187,10 @@ private:
   // have nothing to stay relative to and so are ordinary absolute knobs.
   LabelledKnob master{"MASTER"};
 
+  /// Inharmonicity. It belongs with the instrument rather than with the
+  /// effects, so it stands between the tools and the two boxes after them.
+  LabelledKnob stretch{"STRETCH"};
+
   StereoOutputMeter meter;
 
   /// The logo, rescaled once to the size it is drawn at. Scaling a 2464 px
@@ -211,7 +216,7 @@ private:
   LinkScope scope = LinkScope::All;
   LinkCurve curve = LinkCurve::Uniform;
 
-  std::unique_ptr<SliderAttachment> masterAttachment;
+  std::unique_ptr<SliderAttachment> masterAttachment, stretchAttachment;
   std::unique_ptr<ButtonAttachment> echoAttachment, reverbAttachment;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(TopBar)
