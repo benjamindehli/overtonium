@@ -86,6 +86,12 @@ Fifteen factory presets ship with it. The first nine are the original ones. The 
 
 A preset holds parameter values and nothing else. Not the window size, the zoom or the LINK settings, since loading a sound should not move your window or change your tools. Values are stored plain rather than normalised, so a preset survives a parameter's range being widened later, and anything a file does not mention keeps its default rather than being reset, so a preset saved by an older build loads into a newer one without silently zeroing whatever was added in between. The tests cover both of those directly.
 
+**Undo.** The parameter tree carries an undo history, which matters most because of LINK: one drag can move the same knob on all 32 channels, and before this the only way back from a drag you did not mean was to reload the preset.
+
+A step is a gesture rather than a value change. Transactions are closed when the tree has been still for a moment rather than by hooking every parameter's gesture callbacks, which a host is free to call from the audio thread and which would mean allocating there. Watching for stillness needs no hooks and gives the same answer: a drag is one step however many values it moved, and letting go for a moment starts the next one.
+
+Cmd-Z and Cmd-Shift-Z work where the host lets them through, which many do not, since a DAW usually keeps those for its own history. Undo and Redo are therefore also at the top of the Settings menu, which always works. Loading a session clears the history, since undoing your way back into someone else's edits is not useful.
+
 **Making a factory one.** Dial in a patch, then pick "Copy as factory preset code". That puts the C++ for it on the clipboard, as a `case` that starts from `neutralBase()` and then sets only what differs from the default. Paste it into `Presets.cpp`, add the name to `kNames`, and tidy it by hand where the shape has a formula rather than 32 separate numbers. Factory presets stay as code rather than as embedded data precisely so they can say `1.0 / n` instead of listing values.
 
 ## The tuning system

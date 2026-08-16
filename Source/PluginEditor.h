@@ -42,6 +42,8 @@ public:
   void paint(juce::Graphics &) override;
   void resized() override;
 
+  bool keyPressed(const juce::KeyPress &) override;
+
   // ---- ovt::ui::LinkTarget ----
   bool isLinkEnabled() const override;
   void linkDragStarted(ovt::ui::Role, int sourceIndex) override;
@@ -129,6 +131,20 @@ private:
   /// Counts timer callbacks, so the meters and the housekeeping can each run
   /// at their own fraction of it.
   int tick = 0;
+
+  /// Closes off an undo transaction once the tree has stopped moving.
+  ///
+  /// The alternative is hooking every parameter's gesture callbacks, which a
+  /// host may call from the audio thread, and opening a transaction allocates.
+  /// Watching for stillness instead needs no hooks and gives the same answer:
+  /// a drag is one step however many values it moved, and letting go for a
+  /// moment starts the next one.
+  void closeUndoTransactionWhenIdle();
+
+  /// Closes the open transaction, then steps back or forward.
+  void stepHistory(bool redo);
+
+  int lastUndoActionCount = 0;
 
   int hoverStrip = -1;
   ovt::ui::Row hoverRow = ovt::ui::kNoRow;

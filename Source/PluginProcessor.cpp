@@ -3,7 +3,7 @@
 OvertoniumProcessor::OvertoniumProcessor()
     : juce::AudioProcessor(BusesProperties().withOutput(
           "Output", juce::AudioChannelSet::stereo(), true)),
-      apvts(*this, nullptr, "OVERTONIUM",
+      apvts(*this, &undoManager, "OVERTONIUM",
             ovt::params::createParameterLayout()) {
   paramCache.connect(apvts);
 }

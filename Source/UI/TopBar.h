@@ -75,6 +75,12 @@ public:
   std::function<void()> onCopyFactoryCode;
   std::function<void(float)> onZoomChanged;
 
+  /// History. It lives at the head of the Settings menu because that is the
+  /// only menu the window has, and because a keyboard shortcut cannot be
+  /// relied on: most hosts keep Cmd-Z for themselves.
+  std::function<void()> onUndo, onRedo;
+  std::function<bool()> canUndo, canRedo;
+
   /// Shown on the preset button, so the bar says what is loaded.
   void setPresetName(const juce::String &);
   juce::String getPresetName() const;

@@ -1042,6 +1042,92 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
   }
 }
 
+/// Undo, which is only worth having if a LINK drag across 32 channels comes
+/// back in one step. The round trip runs parameter -> value tree -> undo
+/// manager and back again.
+void testUndo(OvertoniumProcessor &p) {
+  section("Undo");
+
+  auto &undo = p.undo();
+
+  // Parameter moves reach the value tree, and so the undo manager, on a timer.
+  // copyState flushes them synchronously, which makes this a test of the round
+  // trip rather than of how long to wait.
+  const auto settle = [&p] { p.apvts.copyState(); };
+
+  const auto tuneOf = [&p](int i) {
+    return p.apvts
+        .getRawParameterValue(
+            ovt::params::oscParamId(ovt::params::tuneSuffix, i))
+        ->load();
+  };
+
+  const auto setTune = [&p](int i, float v) {
+    p.apvts.getParameter(ovt::params::oscParamId(ovt::params::tuneSuffix, i))
+        ->setValueNotifyingHost(v);
+  };
+
+  ovt::presets::apply(p.apvts, 0);
+  settle();
+  undo.clearUndoHistory();
+  undo.beginNewTransaction();
+
+  const auto before = tuneOf(0);
+  setTune(0, before > 0.5f ? 0.1f : 0.9f);
+  settle();
+
+  const auto after = tuneOf(0);
+  check(std::abs(after - before) > 0.1f, "the parameter moved to begin with");
+  check(undo.canUndo(), "and the move is on the undo stack");
+
+  undo.beginNewTransaction();
+  check(undo.undo(), "undo reports that it did something");
+  settle();
+
+  check(std::abs(tuneOf(0) - before) < 1.0e-4f,
+        "and puts the parameter back (" + std::to_string(tuneOf(0)) +
+            " against " + std::to_string(before) + ")");
+
+  check(undo.redo(), "redo reports that it did something");
+  settle();
+
+  check(std::abs(tuneOf(0) - after) < 1.0e-4f, "and moves it forward again");
+
+  // The one that matters: a gesture that moves every channel has to come back
+  // as a single step, not as 32.
+  undo.beginNewTransaction();
+
+  std::array<float, ovt::kNumHarmonics> baseline{};
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    baseline[(size_t)i] = tuneOf(i);
+
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    setTune(i, baseline[(size_t)i] > 0.5f ? 0.2f : 0.8f);
+
+  settle();
+
+  int moved = 0;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    if (std::abs(tuneOf(i) - baseline[(size_t)i]) > 0.1f)
+      ++moved;
+
+  check(moved == ovt::kNumHarmonics, "a ganged move reaches all 32 channels");
+
+  undo.beginNewTransaction();
+  undo.undo();
+  settle();
+
+  int restored = 0;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    if (std::abs(tuneOf(i) - baseline[(size_t)i]) < 1.0e-4f)
+      ++restored;
+
+  check(restored == ovt::kNumHarmonics,
+        "and one undo brings all 32 back (" + std::to_string(restored) + ")");
+
+  undo.clearUndoHistory();
+}
+
 void testBusLayouts(OvertoniumProcessor &p) {
   section("Bus layouts");
 
@@ -1158,6 +1244,7 @@ int main() {
   testLinkMenu();
   testTopBarLayout();
   testTopBarAlignment(processor);
+  testUndo(processor);
   testBusLayouts(processor);
   testStateRoundTrip(processor);
   testSoloAndMute(processor);

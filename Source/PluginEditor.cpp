@@ -173,6 +173,16 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
 
   topBar.onZoomChanged = [this](float z) { setZoom(z); };
 
+  topBar.onUndo = [this] { stepHistory(false); };
+  topBar.onRedo = [this] { stepHistory(true); };
+  topBar.canUndo = [this] { return processor.undo().canUndo(); };
+  topBar.canRedo = [this] { return processor.undo().canRedo(); };
+
+  // Without this the editor is never focused and never sees a key press. Note
+  // that plenty of hosts keep Cmd-Z for their own history and it will not reach
+  // us at all, which is why the menu carries the same two entries.
+  setWantsKeyboardFocus(true);
+
   // ---- restore the last window size -----------------------------------------
   const auto &state = processor.apvts.state;
 
@@ -523,6 +533,46 @@ void OvertoniumEditor::updateLinkGlow() {
 
 // ---- polling ----------------------------------------------------------------
 
+void OvertoniumEditor::closeUndoTransactionWhenIdle() {
+  auto &undo = processor.undo();
+  const auto count = undo.getNumActionsInCurrentTransaction();
+
+  // Still moving. Whatever it is belongs with what came before it, so that a
+  // LINK drag across 32 channels comes back in one step rather than 32.
+  if (count != lastUndoActionCount) {
+    lastUndoActionCount = count;
+    return;
+  }
+
+  // Quiet since the last check, so anything after this is a separate move.
+  if (count > 0) {
+    undo.beginNewTransaction();
+    lastUndoActionCount = 0;
+  }
+}
+
+void OvertoniumEditor::stepHistory(bool redo) {
+  auto &undo = processor.undo();
+
+  // Whatever is still open has to be closed first, or the most recent move is
+  // not yet a step of its own and undo would reach straight past it.
+  undo.beginNewTransaction();
+  lastUndoActionCount = 0;
+
+  if (redo)
+    undo.redo();
+  else
+    undo.undo();
+}
+
+bool OvertoniumEditor::keyPressed(const juce::KeyPress &key) {
+  if (!key.getModifiers().isCommandDown() || key.getKeyCode() != 'Z')
+    return false;
+
+  stepHistory(key.getModifiers().isShiftDown());
+  return true;
+}
+
 void OvertoniumEditor::timerCallback() {
   ++tick;
 
@@ -568,6 +618,8 @@ void OvertoniumEditor::timerCallback() {
   // fraction of the rate.
   if ((tick % 8) != 0)
     return;
+
+  closeUndoTransactionWhenIdle();
 
   // Read through the cached atomics rather than the parameter map: the map
   // wants a string per lookup, and this runs several times a second.

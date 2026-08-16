@@ -520,6 +520,10 @@ void TopBar::showSettingsMenu() {
           ? juce::roundToInt(polyphony->convertFrom0to1(polyphony->getValue()))
           : 0;
 
+  m.addItem(700, "Undo", canUndo && canUndo());
+  m.addItem(701, "Redo", canRedo && canRedo());
+  m.addSeparator();
+
   // The count of what is actually sounding goes in the header rather than on
   // the panel, where it was a readout nobody was watching.
   m.addSectionHeader("Polyphony (" + juce::String(activeVoices) + " sounding)");
@@ -630,6 +634,12 @@ void TopBar::showSettingsMenu() {
                         p->setValueNotifyingHost(
                             p->convertTo0to1((float)index));
                     };
+
+                    if (result == 700)
+                      return onUndo ? onUndo() : void();
+
+                    if (result == 701)
+                      return onRedo ? onRedo() : void();
 
                     if (result >= 600)
                       return choose(params::atSourceId, result - 600);
