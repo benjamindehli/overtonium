@@ -101,6 +101,28 @@ Voice *SynthEngine::findOldestSounding() noexcept {
   return oldest;
 }
 
+Voice *SynthEngine::findQuietestExpendable() noexcept {
+  Voice *best = nullptr;
+  bool bestReleasing = false;
+
+  for (auto &v : voices) {
+    if (!v.isActive())
+      return &v;
+
+    // A voice on its way out is always a better thing to take than one with a
+    // key still down on it, however loud the two happen to be right now.
+    const bool releasing = v.isReleasing();
+
+    if (best == nullptr || (releasing && !bestReleasing) ||
+        (releasing == bestReleasing && v.lastLevel() < best->lastLevel())) {
+      best = &v;
+      bestReleasing = releasing;
+    }
+  }
+
+  return best;
+}
+
 void SynthEngine::noteOn(int note, float velocity,
                          const SynthParams &p) noexcept {
   // One key, one voice. The instrument is polyphonic across the keyboard and
@@ -148,12 +170,19 @@ void SynthEngine::noteOn(int note, float velocity,
   auto *target = findFreeVoice();
 
   if (target == nullptr) {
-    // Pool exhausted (every surplus voice is mid-fade). Take the oldest
-    // outright.
-    target = &voices[0];
-    for (auto &v : voices)
-      if (v.getAge() < target->getAge())
-        target = &v;
+    // Pool exhausted: every voice is doing something and the new note cannot
+    // wait for a fade, so one of them has to go this instant. That is a step
+    // in the output whichever it is, and the size of the step is that voice's
+    // current level, so take the quietest.
+    //
+    // It used to take the oldest, which is the right rule for stealing under
+    // the polyphony limit and the wrong one here: the oldest voice is often a
+    // note still being held, while a tail three quarters of the way through
+    // its release is sitting right beside it costing almost nothing to lose.
+    target = findQuietestExpendable();
+
+    if (target == nullptr)
+      return;
 
     target->reset();
   }

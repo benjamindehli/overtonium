@@ -79,6 +79,10 @@ public:
 private:
   Voice *findFreeVoice() noexcept;
   Voice *findOldestSounding() noexcept;
+
+  /// The voice it costs least to take outright, for when the pool has nothing
+  /// free and the new note cannot wait for a fade.
+  Voice *findQuietestExpendable() noexcept;
   int countSounding() const noexcept;
 
   /// The voice pool and the lo-fi converter, which are the same stage.

@@ -272,6 +272,10 @@ A key that is still down, or held by the sustain pedal, is retriggered where it 
 
 It also stops tails eating the voice pool, which was the more expensive half of the problem. Every tap held one of the 24 voices for the whole of its release, so one repeatedly tapped key could fill the pool by itself: four keys held and a fifth tapped 25 times used to end with all 24 in use. Past that the allocator has nothing free and takes the oldest voice outright, with no fade and no regard for whether a key is still down on it, which is audible as notes being cut off mid-hold. The same sequence now ends with five voices in use.
 
+**When the pool runs out.** Under the polyphony limit a stolen voice is handed a four millisecond fade and keeps rendering out of the eight surplus voices, so stealing never clicks. Past that surplus there is nothing left to fade into: the new note cannot wait, so a voice has to go this instant, and that is a step in the output whichever one it is. The size of the step is that voice's current level, so the only lever is which voice gets taken.
+
+It used to take the oldest. That is the right rule for stealing under the limit and the wrong one here, because the oldest voice is often a note still being held while a tail three quarters of the way through its release sits beside it costing almost nothing to lose. It now takes the quietest, preferring one already on its way out. With one loud note held among quiet tails and the pool overflowing, the held note used to be cut outright and now survives.
+
 ### The noise channel
 
 Pinned on the right, after the series it does not belong to, is a noise channel marked NZ. It has the same envelope, tremolo, velocity, aftertouch, pan, mute, solo, level and meter as a partial, and takes part in solo alongside them. What it does not have is pitch, so the tuning, pitch modulation and drift rows are empty.

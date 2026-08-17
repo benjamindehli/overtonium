@@ -112,6 +112,22 @@ public:
 
   float getNoisePeak() const noexcept { return noisePeak; }
 
+  /// Roughly how loud this voice was during the last render, for deciding
+  /// which one it costs least to take away.
+  ///
+  /// The peaks are already to hand from the metering, so this is free. It is
+  /// the loudest partial rather than the sum, which is the same choice the
+  /// channel meters make and for the same reason: what you would notice going
+  /// missing is the loudest thing in it.
+  float lastLevel() const noexcept {
+    auto loudest = noisePeak;
+
+    for (auto peak : partialPeaks)
+      loudest = std::max(loudest, peak);
+
+    return loudest;
+  }
+
   /// Adds this voice into the (already-sized) stereo buffers. Master gain is
   /// applied downstream by the engine.
   void render(float *left, float *right, int numSamples,

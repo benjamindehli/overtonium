@@ -897,6 +897,143 @@ void testOneVoicePerKey() {
             std::to_string(pool.getActiveVoiceCount()) + ")");
 }
 
+/// What happens when the pool genuinely runs out.
+///
+/// Under the polyphony limit a voice is stolen with a fade and keeps rendering
+/// out of the surplus. Past that surplus there is nothing left to fade into: a
+/// voice has to go this instant, which is a step in the output whichever one it
+/// is. The size of that step is the voice's current level, so the only lever is
+/// which voice gets taken.
+void testPoolExhaustion() {
+  section("Pool exhaustion");
+
+  constexpr double sr = 48000.0;
+
+  auto p = makeFlatParams(0.0f);
+  for (auto &o : p.osc) {
+    o.attack = 0.002f;
+    o.decay = 6.0f;
+    o.sustain = 1.0f;
+    o.release = 6.0f; // long enough that nothing frees itself during the test
+    o.velAmount = 0.0f;
+  }
+
+  p.osc[0].volume = 0.5f;
+  p.osc[1].volume = 0.25f;
+  p.global.masterGain = 1.0f;
+  p.global.safetyClip = false;
+
+  SynthEngine engine;
+  engine.prepare(sr);
+  engine.setPolyphony(SynthEngine::kMaxPolyphony);
+
+  std::vector<float> l(256), r(256);
+  const auto run = [&](int blocks) {
+    for (int i = 0; i < blocks; ++i)
+      engine.render(l.data(), r.data(), (int)l.size(), p);
+  };
+
+  // Fill the pool: sixteen held, then let them all go so they are all
+  // releasing, then start sixteen more on top.
+  for (int n = 0; n < SynthEngine::kMaxPolyphony; ++n)
+    engine.noteOn(40 + n, 1.0f, p);
+
+  run(8);
+
+  for (int n = 0; n < SynthEngine::kMaxPolyphony; ++n)
+    engine.noteOff(40 + n);
+
+  run(4);
+
+  double biggestStep = 0.0, loudest = 0.0;
+
+  for (int n = 0; n < SynthEngine::kMaxPolyphony; ++n) {
+    engine.noteOn(64 + n, 1.0f, p);
+
+    engine.render(l.data(), r.data(), (int)l.size(), p);
+
+    for (size_t i = 1; i < l.size(); ++i) {
+      biggestStep = std::max(biggestStep, std::abs((double)l[i] - l[i - 1]));
+      loudest = std::max(loudest, std::abs((double)l[i]));
+    }
+  }
+
+  check(engine.getActiveVoiceCount() == SynthEngine::kPoolSize,
+        "the pool really did fill up (" +
+            std::to_string(engine.getActiveVoiceCount()) + " of " +
+            std::to_string(SynthEngine::kPoolSize) + ")");
+
+  std::printf("  pool full, 16 more notes forced in: biggest step %.4f "
+              "against a %.4f signal\n",
+              biggestStep, loudest);
+
+  // A step the size of the whole signal is a voice at full level vanishing.
+  check(biggestStep < 0.25 * loudest,
+        "the step stays small when the tails are the old ones (" +
+            std::to_string(biggestStep / std::max(1.0e-9, loudest)) +
+            " of the signal)");
+
+  // ---- and when the oldest voice is the one you least want taken ---------
+  //
+  // Above, the oldest voices were also the quietest, so either rule picks the
+  // same one. This is the case that separates them: one loud note held down
+  // since before everything else, with the rest of the pool full of quiet
+  // tails. The oldest is exactly the wrong voice to take.
+  auto q = makeFlatParams(0.0f);
+  for (auto &o : q.osc) {
+    o.attack = 0.002f;
+    o.decay = 6.0f;
+    o.sustain = 1.0f;
+    o.release = 6.0f;
+    o.velAmount = 1.0f; // so the tails can be played quietly
+  }
+
+  q.osc[0].volume = 0.7f;
+  q.global.masterGain = 1.0f;
+  q.global.safetyClip = false;
+
+  SynthEngine keeper;
+  keeper.prepare(sr);
+  keeper.setPolyphony(SynthEngine::kMaxPolyphony);
+
+  constexpr int kHeld = 60; // C4
+  const auto heldHz = 440.0 * std::exp2((double)(kHeld - 69) / 12.0);
+
+  keeper.noteOn(kHeld, 1.0f, q);
+
+  std::vector<float> kl(512), kr(512);
+  for (int i = 0; i < 20; ++i)
+    keeper.render(kl.data(), kr.data(), (int)kl.size(), q);
+
+  // Fill the rest of the pool with quiet tails, played and let go at once.
+  for (int i = 0; i < SynthEngine::kPoolSize - 1; ++i) {
+    keeper.noteOn(24 + i, 0.05f, q);
+    keeper.render(kl.data(), kr.data(), (int)kl.size(), q);
+    keeper.noteOff(24 + i);
+  }
+
+  keeper.render(kl.data(), kr.data(), (int)kl.size(), q);
+
+  check(keeper.getActiveVoiceCount() == SynthEngine::kPoolSize,
+        "the pool is full with one loud note held among quiet tails");
+
+  // One more note, which has nowhere to go.
+  keeper.noteOn(80, 1.0f, q);
+
+  std::vector<float> after((size_t)(0.25 * sr)), afterR(after.size());
+  keeper.render(after.data(), afterR.data(), (int)after.size(), q);
+
+  const auto heldAfter = binMagnitude(after, heldHz, sr);
+
+  std::printf("  a loud held note among quiet tails: %.4f left at its "
+              "fundamental after the pool overflowed\n",
+              heldAfter);
+
+  check(heldAfter > 0.02,
+        "the note still being held survives the overflow (" +
+            std::to_string(heldAfter) + ")");
+}
+
 void testVoiceAllocation() {
   section("Voice allocation");
 
@@ -3249,6 +3386,7 @@ int main() {
   testNoClickOnMute();
   testVoiceAllocation();
   testOneVoicePerKey();
+  testPoolExhaustion();
   testModulation();
   testPerPartialVelocity();
   testPanning();
