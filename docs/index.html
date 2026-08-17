@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overtonium, a 32-partial overtone synthesiser</title>
+<meta name="description" content="An additive synthesiser laid out like a 32-channel mixer. Every channel is one sine partial with its own tuning, envelope, modulation and pan.">
+<meta property="og:title" content="Overtonium">
+<meta property="og:description" content="An additive synthesiser laid out like a 32-channel mixer. Every channel is one sine partial with its own tuning, envelope, modulation and pan.">
+<meta property="og:image" content="overtonium.png">
+<meta property="og:type" content="website">
+<link rel="icon" href="dehli-musikk.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="page">
+
+<header>
+  <img class="wordmark" src="overtonium-wordmark.png" alt="Overtonium">
+  <p class="tagline">32-partial overtone synthesiser</p>
+
+  <ul class="links">
+    <li><a class="primary" href="https://github.com/benjamindehli/overtonium">Source on GitHub</a></li>
+    <li><a href="https://github.com/benjamindehli/overtonium#building">Build it yourself</a></li>
+    <li><a href="https://store.dehlimusikk.no/">Dehli Musikk</a></li>
+  </ul>
+</header>
+
+<main>
+
+<section>
+  <p class="lead">An additive synthesiser laid out like a 32-channel mixer. Every channel is one sine oscillator locked to a harmonic of the played note, and every channel has its own tuning, envelope, modulation and place in the stereo field.</p>
+
+  <p>Additive synthesis usually hides its partials behind a spectrum drawing or a handful of macro controls. This puts all of them on the surface, as faders, and gives each one the controls a channel on a desk would have. Shaping a sound is mixing it.</p>
+
+  <dl class="facts">
+    <div><dt>Formats</dt><dd>VST3, Standalone, AU on macOS, LV2 on Linux</dd></div>
+    <div><dt>Platforms</dt><dd>macOS, Windows, Linux</dd></div>
+    <div><dt>Partials</dt><dd>32, plus a noise channel</dd></div>
+    <div><dt>Licence</dt><dd>AGPLv3</dd></div>
+  </dl>
+
+  <figure>
+    <img src="overtonium.png" alt="The Overtonium window: a top bar of global controls above 32 channel strips and a noise channel, with the meters lit by a held chord." width="1348" height="1010">
+    <figcaption>The whole instrument. Thirty-two channels, a noise channel pinned on the right, and the global controls along the top.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2>The control worth reaching for first</h2>
+
+  <p>TUNE sweeps each partial continuously between equal temperament and just intonation. At the just end the partial sits at an exact whole-number ratio with the fundamental and the whole stack fuses into one timbre. At the equal end each partial snaps to the nearest semitone and the same stack smears into a chord.</p>
+
+  <p>Two of the factory presets, <strong>Just Saw</strong> and <strong>Equal Saw</strong>, are identical except for that one control. They sound nothing alike.</p>
+
+  <p>Nothing about the tuning is hard-coded. For harmonic <code>n</code> the just interval is <code>1200 * log2(n)</code> cents, the equal position is that rounded to the nearest semitone, and TUNE dials in the remainder. Rounded to whole cents the derivation reproduces the familiar overtone table, which the test suite asserts so it cannot quietly drift.</p>
+</section>
+
+<section>
+  <h2>Three axes of tuning</h2>
+
+  <p>TUNE decides how the series is spelled. Two more controls decide what kind of body is producing it and what the keyboard underneath is tuned to.</p>
+
+  <h3>Stretch</h3>
+  <p>Nothing real rings at whole-number multiples. A string with any stiffness has partials at <code>n * f0 * sqrt(1 + B * n^2)</code>, sharp of the harmonic and increasingly so up the series, and that is why a piano sounds like a piano rather than like a sawtooth. STRETCH is that, dialled by what it does to the top partial. A little of it is piano stretch. A lot of it is a bell.</p>
+
+  <h3>Temperament</h3>
+  <p>The keyboard itself can be tuned to equal, just, Pythagorean, quarter-comma meantone, Werckmeister III or Young, on any root, at any reference pitch from 415 to 466 Hz. They are derived from the circle of fifths rather than copied from tables of cents, so meantone's major third comes out pure to a thousandth of a cent because a quarter comma is genuinely a quarter comma.</p>
+
+  <h3>Tracking</h3>
+  <p>Real instruments lose their top as you play up the keyboard, because the body has a rolloff that stays where it is while the partials climb through it. TRACK is that rolloff, measured against the fundamental so high notes get duller rather than quieter.</p>
+</section>
+
+<section>
+  <h2>What every channel has</h2>
+
+  <div class="split">
+    <div>
+      <p>Each of the 32 strips carries a tuning blend and a start phase, pitch modulation with its own rate, depth and random drift, a full envelope, tremolo, velocity and aftertouch sensitivity, pan, mute, solo, a fader and a meter. The noise channel has all of it except pitch.</p>
+
+      <p>The envelope has two halves. Delay, attack, decay and sustain on the way in, and on the way out a key-off stage that swells to a level of its own before releasing from there. Above the sustain that is a release click or a bloom, the sound a damper or a hammer return makes. Below it, it is the fast initial drop into a long tail that a struck string actually has. How hard you let the key go can drive it.</p>
+
+      <p>Six hundred and seventy-two per-partial controls is a lot to move by hand, so LINK gangs the strips. Dragging one knob moves the same knob on the others, relatively, so a spectrum you have shaped keeps its shape. It can reach every channel, or the odd ones, or the octaves, and it can fan the movement out across the series rather than applying it evenly.</p>
+
+      <p>Channels are coloured by interval class, so octaves, fifths and thirds stay visible while you scroll across 32 of them.</p>
+    </div>
+
+    <figure>
+      <img src="overtonium-strips.png" alt="A close view of the first six channels, showing the row captions in the gutter and the interval colour of each channel." width="316" height="948">
+      <figcaption>Six channels and the caption gutter.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <h2>Across the whole instrument</h2>
+
+  <figure>
+    <img src="overtonium-bar.png" alt="The top bar: preset and settings buttons, LINK, the series controls, the tape echo, the reverb, the master fader and the output meter with two seven-segment converter readouts." width="1348" height="74">
+  </figure>
+
+  <p>A tape echo, modelled on the parts of a tape loop the ear notices. Moving the time knob winds the tape rather than cutting to the new setting, so the repeats slide in pitch on the way. Stereo is two tape paths side by side, each fed its own channel and coming back on the side it went out on, with motors running at slightly different speeds so the repeat comes back doubled rather than bounced.</p>
+
+  <p>A reverb built as a feedback delay network, whose room is sized from its decay time, since a long tail in a small room is a spring rather than a place.</p>
+
+  <p>And a converter, shown as two seven-segment readouts under the output meter. Turning the sample rate down is a genuine cut rather than a filter over the top: the whole voice pool renders slower, which costs a fifth as much at 8 kHz, and the partials above the new ceiling fold back down instead of disappearing.</p>
+</section>
+
+<section>
+  <h2>Getting it</h2>
+
+  <p>Overtonium is free software under the AGPLv3, and there are no binaries yet. You need CMake 3.22 or newer and a C++17 compiler. JUCE is downloaded at configure time, so there is nothing else to install on macOS or Windows.</p>
+
+<pre><code>git clone https://github.com/benjamindehli/overtonium.git
+cd overtonium
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build</code></pre>
+
+  <p>On macOS the plugins are copied into your user plugin folders as part of the build. Linux needs a handful of development packages first, which the <a href="https://github.com/benjamindehli/overtonium#linux">readme</a> lists. Every push is built and tested on all three platforms.</p>
+</section>
+
+</main>
+
+<footer>
+  <div class="maker">
+    <img src="dehli-musikk.svg" alt="">
+    <div>By Benjamin Dehli for <a href="https://www.dehlimusikk.no/">Dehli Musikk</a>. Hosts list it under DehliMusikk.</div>
+  </div>
+
+  <p>Released under the <a href="https://github.com/benjamindehli/overtonium/blob/main/LICENSE">GNU Affero General Public License v3</a>, which follows from JUCE. Built with <a href="https://juce.com/">JUCE 8</a>.</p>
+</footer>
+
+</div>
+</body>
+</html>

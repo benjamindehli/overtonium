@@ -10,6 +10,7 @@ The control worth reaching for first is TUNE. It sweeps each partial continuousl
 - **Platforms:** macOS (universal), Windows, Linux
 - **Framework:** JUCE 8
 - **Licence:** AGPLv3. See [Licensing](#licensing)
+- **Page:** [benjamindehli.github.io/overtonium](https://benjamindehli.github.io/overtonium/), built from `docs/`
 - **By:** Benjamin Dehli for Dehli Musikk. Hosts list it under DehliMusikk (manufacturer code `Dhmk`, plugin code `Ovtn`)
 
 ## Building
@@ -74,6 +75,14 @@ There is a second target, `overtonium_runtime_test`, which builds the plugin sou
 Both run in CI on macOS, Windows and Linux on every push and pull request, building the plugin itself along the way so a compile error in the JUCE half cannot pass unnoticed. A second job compiles the DSP core with the bare-compiler line above, and with `-Werror`, so the claim that it has no build system dependency is checked rather than asserted.
 
 Pass `-DOVERTONIUM_INSTALL_AFTER_BUILD=OFF` to skip copying the built plugins into your user plugin folders, which is what CI does and what you want on any machine with no host to rescan them.
+
+### The page
+
+`docs/` holds a single static page, served by GitHub Pages from the `main` branch. There is no generator and no build step: it is one HTML file, one stylesheet and four images, so what is in the repo is what gets served. `.nojekyll` is there to stop GitHub running Jekyll over it.
+
+The screenshots are rendered rather than captured. The plugin has no dependency on a display, so a scratch program builds the editor, plays a chord into it, hands the strips the levels the engine measured, and writes the window out with `createComponentSnapshot`. That means the pictures can be regenerated after a layout change instead of going stale, and it works on a machine with no window server.
+
+The stylesheet takes its palette from `Source/UI/Theme.h`, so the page and the instrument stay the same colour.
 
 ## Presets
 

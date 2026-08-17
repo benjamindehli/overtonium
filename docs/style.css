@@ -1,0 +1,279 @@
+/* The plugin's own palette, taken from Source/UI/Theme.h so the page and the
+   instrument cannot drift apart. */
+:root {
+  --background: #0b0d10;
+  --panel: #14181d;
+  --panel-alt: #181d23;
+  --groove: #090b0e;
+  --outline: #272e37;
+  --text: #d9dfe7;
+  --text-dim: #6f7a86;
+  --accent: #62bbd9;
+  --warn: #e0733d;
+  --hold: #e8c34a;
+
+  --measure: 74ch;
+  --page: 1180px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  padding: 0 24px 96px;
+  background: var(--background);
+  color: var(--text);
+  font: 400 17px/1.65 ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  max-width: var(--page);
+  margin: 0 auto;
+}
+
+/* ---- masthead ------------------------------------------------------------ */
+
+header {
+  padding: 72px 0 8px;
+}
+
+.wordmark {
+  width: 100%;
+  max-width: 460px;
+  height: auto;
+  display: block;
+}
+
+.tagline {
+  color: var(--text-dim);
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  margin: 6px 0 0;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 28px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.links a {
+  display: inline-block;
+  padding: 9px 16px;
+  border: 1px solid var(--outline);
+  border-radius: 4px;
+  background: var(--panel-alt);
+  color: var(--text);
+  font-size: 15px;
+  text-decoration: none;
+}
+
+.links a:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.links a.primary {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.links a.primary:hover {
+  background: var(--accent);
+  color: var(--background);
+}
+
+/* ---- text ---------------------------------------------------------------- */
+
+main {
+  padding-top: 8px;
+}
+
+section {
+  padding: 44px 0 0;
+}
+
+h2 {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 14px;
+}
+
+h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 28px 0 8px;
+}
+
+p,
+li,
+dd {
+  max-width: var(--measure);
+}
+
+p {
+  margin: 0 0 16px;
+}
+
+.lead {
+  font-size: 21px;
+  line-height: 1.55;
+}
+
+a {
+  color: var(--accent);
+}
+
+strong {
+  color: #fff;
+  font-weight: 600;
+}
+
+code {
+  font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: var(--groove);
+  border: 1px solid var(--outline);
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+
+pre {
+  background: var(--groove);
+  border: 1px solid var(--outline);
+  border-radius: 5px;
+  padding: 16px 18px;
+  overflow-x: auto;
+  max-width: var(--measure);
+}
+
+pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+/* ---- figures ------------------------------------------------------------- */
+
+figure {
+  margin: 28px 0 0;
+}
+
+figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--outline);
+  border-radius: 6px;
+}
+
+figcaption {
+  color: var(--text-dim);
+  font-size: 14px;
+  margin-top: 10px;
+}
+
+/* A tall crop beside its text, which folds under on a narrow window. */
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 316px;
+  gap: 40px;
+  align-items: start;
+}
+
+.split figure {
+  margin: 0;
+}
+
+.split figure img {
+  max-width: 316px;
+}
+
+/* ---- the row of facts ---------------------------------------------------- */
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 1px;
+  background: var(--outline);
+  border: 1px solid var(--outline);
+  border-radius: 6px;
+  overflow: hidden;
+  margin: 28px 0 0;
+  padding: 0;
+}
+
+.facts > div {
+  background: var(--panel);
+  padding: 18px 20px;
+}
+
+.facts dt {
+  color: var(--text-dim);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.facts dd {
+  margin: 4px 0 0;
+  font-size: 17px;
+}
+
+/* ---- footer -------------------------------------------------------------- */
+
+footer {
+  margin-top: 72px;
+  padding-top: 28px;
+  border-top: 1px solid var(--outline);
+  color: var(--text-dim);
+  font-size: 15px;
+}
+
+footer a {
+  color: var(--text-dim);
+}
+
+footer a:hover {
+  color: var(--accent);
+}
+
+.maker {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.maker img {
+  width: 58px;
+  height: auto;
+  opacity: 0.55;
+}
+
+@media (max-width: 860px) {
+  .split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  header {
+    padding-top: 44px;
+  }
+
+  body {
+    font-size: 16px;
+  }
+}
