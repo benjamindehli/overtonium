@@ -5,13 +5,6 @@
 namespace ovt::params {
 
 namespace {
-juce::NormalisableRange<float> rangeWithCentre(float lo, float hi,
-                                               float centre) {
-  juce::NormalisableRange<float> r(lo, hi);
-  r.setSkewForCentre(centre);
-  return r;
-}
-
 /// A range where equal turns of the knob are equal ratios.
 ///
 /// The natural shape for a time control, because a step from 1 ms to 2 ms
@@ -32,6 +25,36 @@ juce::NormalisableRange<float> logRange(float lo, float hi) {
           [](float a, float b, float v) {
             return juce::jlimit(0.0f, 1.0f,
                                 std::log(v / a) / std::log(b / a));
+          },
+          [](float a, float b, float v) { return juce::jlimit(a, b, v); }};
+}
+
+/// A range that has to include zero, curved so the bottom of it is usable.
+///
+/// A time that can be switched off cannot be logarithmic, since nothing has a
+/// ratio to zero. This grows exponentially from the low end instead, which
+/// gives the same thing that matters: a slope at the bottom that is small but
+/// never zero, so nudging the knob there always moves the value.
+///
+/// @param centre  the value at half travel, which fixes the curvature. It has
+///                to sit below the midpoint of the range, which for every
+///                control here it does by a wide margin.
+juce::NormalisableRange<float> expRange(float lo, float hi, float centre) {
+  const auto frac = juce::jlimit(0.001f, 0.45f, (centre - lo) / (hi - lo));
+
+  // Half travel lands on `centre` when exp(k/2) = 1/frac - 1.
+  const auto k = 2.0f * std::log(1.0f / frac - 1.0f);
+  const auto denom = std::exp(k) - 1.0f;
+
+  return {lo, hi,
+          [k, denom](float a, float b, float t) {
+            return a + (b - a) * (std::exp(k * t) - 1.0f) / denom;
+          },
+          [k, denom](float a, float b, float v) {
+            const auto y = (v - a) / (b - a) * denom + 1.0f;
+
+            return juce::jlimit(0.0f, 1.0f,
+                                std::log(std::max(1.0e-9f, y)) / k);
           },
           [](float a, float b, float v) { return juce::jlimit(a, b, v); }};
 }
@@ -217,7 +240,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
   layout.add(
       std::make_unique<FloatP>(juce::ParameterID{echoTimeId, 1}, "Echo Time",
-                               rangeWithCentre(0.02f, 2.0f, 0.35f), 0.35f,
+                               logRange(0.02f, 2.0f), 0.35f,
                                FAttr().withStringFromValueFunction(timeText)));
 
   layout.add(std::make_unique<FloatP>(
@@ -240,7 +263,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{reverbDecayId, 1}, "Reverb Decay",
-      rangeWithCentre(0.2f, 20.0f, 2.0f), 2.0f,
+      logRange(0.2f, 20.0f), 2.0f,
       FAttr().withStringFromValueFunction(timeText)));
 
   layout.add(std::make_unique<FloatP>(
@@ -250,7 +273,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{reverbPreDelayId, 1}, "Reverb Pre-delay",
-      rangeWithCentre(0.0f, 0.25f, 0.05f), 0.0f,
+      expRange(0.0f, 0.25f, 0.05f), 0.0f,
       FAttr().withStringFromValueFunction(timeText)));
 
   layout.add(std::make_unique<FloatP>(
@@ -270,11 +293,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(pmRateSuffix, i), 1}, p + "Pitch Mod Rate",
-        rangeWithCentre(0.01f, 30.0f, 2.0f), 4.0f, FAttr().withLabel("Hz")));
+        logRange(0.01f, 30.0f), 4.0f, FAttr().withLabel("Hz")));
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(pmDepthSuffix, i), 1},
-        p + "Pitch Mod Depth", rangeWithCentre(0.0f, 200.0f, 25.0f), 0.0f,
+        p + "Pitch Mod Depth", expRange(0.0f, 200.0f, 25.0f), 0.0f,
         FAttr().withLabel("ct")));
 
     layout.add(std::make_unique<FloatP>(
@@ -284,11 +307,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(driftSuffix, i), 1}, p + "Drift",
-        rangeWithCentre(0.0f, 25.0f, 6.0f), 0.0f, FAttr().withLabel("ct")));
+        expRange(0.0f, 25.0f, 6.0f), 0.0f, FAttr().withLabel("ct")));
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(delaySuffix, i), 1}, p + "Delay",
-        rangeWithCentre(0.0f, 5.0f, 0.2f), 0.0f,
+        expRange(0.0f, 5.0f, 0.2f), 0.0f,
         FAttr().withStringFromValueFunction(timeText)));
 
     layout.add(std::make_unique<FloatP>(
@@ -298,7 +321,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(decaySuffix, i), 1}, p + "Decay",
-        rangeWithCentre(0.001f, 20.0f, 0.5f), 0.6f,
+        logRange(0.001f, 20.0f), 0.6f,
         FAttr().withStringFromValueFunction(timeText)));
 
     layout.add(std::make_unique<FloatP>(
@@ -308,7 +331,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(swellSuffix, i), 1}, p + "Key-off Swell",
-        rangeWithCentre(0.0f, 5.0f, 0.1f), 0.005f,
+        expRange(0.0f, 5.0f, 0.1f), 0.005f,
         FAttr().withStringFromValueFunction(timeText)));
 
     layout.add(std::make_unique<FloatP>(
@@ -323,12 +346,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(releaseSuffix, i), 1}, p + "Release",
-        rangeWithCentre(0.001f, 20.0f, 0.5f), 0.4f,
+        logRange(0.001f, 20.0f), 0.4f,
         FAttr().withStringFromValueFunction(timeText)));
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(amRateSuffix, i), 1}, p + "Amp Mod Rate",
-        rangeWithCentre(0.01f, 30.0f, 4.0f), 4.0f, FAttr().withLabel("Hz")));
+        logRange(0.01f, 30.0f), 4.0f, FAttr().withLabel("Hz")));
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(amDepthSuffix, i), 1}, p + "Amp Mod Depth",
@@ -374,7 +397,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{noiseParamId(delaySuffix), 1}, "Noise Delay",
-      rangeWithCentre(0.0f, 5.0f, 0.2f), 0.0f,
+      expRange(0.0f, 5.0f, 0.2f), 0.0f,
       FAttr().withStringFromValueFunction(timeText)));
 
   layout.add(std::make_unique<FloatP>(
@@ -384,7 +407,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{noiseParamId(decaySuffix), 1}, "Noise Decay",
-      rangeWithCentre(0.001f, 20.0f, 0.5f), 0.6f,
+      logRange(0.001f, 20.0f), 0.6f,
       FAttr().withStringFromValueFunction(timeText)));
 
   layout.add(std::make_unique<FloatP>(
@@ -394,7 +417,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{noiseParamId(swellSuffix), 1}, "Noise Key-off Swell",
-      rangeWithCentre(0.0f, 5.0f, 0.1f), 0.005f,
+      expRange(0.0f, 5.0f, 0.1f), 0.005f,
       FAttr().withStringFromValueFunction(timeText)));
 
   layout.add(std::make_unique<FloatP>(
@@ -404,12 +427,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{noiseParamId(releaseSuffix), 1}, "Noise Release",
-      rangeWithCentre(0.001f, 20.0f, 0.5f), 0.4f,
+      logRange(0.001f, 20.0f), 0.4f,
       FAttr().withStringFromValueFunction(timeText)));
 
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{noiseParamId(amRateSuffix), 1}, "Noise Amp Mod Rate",
-      rangeWithCentre(0.01f, 30.0f, 4.0f), 4.0f, FAttr().withLabel("Hz")));
+      logRange(0.01f, 30.0f), 4.0f, FAttr().withLabel("Hz")));
 
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{noiseParamId(amDepthSuffix), 1}, "Noise Amp Mod Depth",

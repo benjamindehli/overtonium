@@ -1188,10 +1188,6 @@ void testPresetsAreReproducible(OvertoniumProcessor &p) {
             std::to_string(reproducible) + ")");
 }
 
-/// A knob whose first eighth does nothing is a knob with an eighth less of
-/// itself. That is what fitting a power curve through a midpoint across four
-/// and a half decades produces, and it is easy to reintroduce by reaching for
-/// setSkewForCentre on the next wide range somebody adds.
 /// Knobs come out whatever size the row they land in happens to be, so a row
 /// height typed a couple of pixels off is a knob a couple of pixels off, and
 /// nothing complains. The sizes that differ should differ on purpose.
@@ -1264,43 +1260,104 @@ void testKnobSizes(OvertoniumProcessor &p) {
         "and the noise strip uses exactly the same two (" + list(noise) + ")");
 }
 
+/// A knob whose bottom does nothing is a knob with less of itself.
+///
+/// That is what fitting a power curve through a midpoint across several
+/// decades produces: the curve leaves its low end with a slope of exactly
+/// zero, so the first stretch of travel moves the value by nothing at all. It
+/// is easy to reintroduce by reaching for setSkewForCentre on the next wide
+/// range somebody adds, so this checks every parameter rather than the handful
+/// known to have had it.
 void testNoDeadTravel(OvertoniumProcessor &p) {
   section("Knob travel");
 
-  // How far the knob turns before the value has moved 1% away from its
-  // minimum. Anything past a couple of percent is travel you cannot use.
-  const auto deadTravel = [](const juce::RangedAudioParameter &param) {
-    const auto &r = param.getNormalisableRange();
-    const auto base = (double)r.convertFrom0to1(0.0f);
+  const auto valueAt = [](const juce::RangedAudioParameter &param, float t) {
+    return (double)param.getNormalisableRange().convertFrom0to1(t);
+  };
 
-    for (float t = 0.0f; t <= 1.0f; t += 0.0005f) {
-      const auto v = (double)r.convertFrom0to1(t);
+  // How the knob's resolution at the bottom compares with its resolution at
+  // the top. A power curve through a distant midpoint gives exactly zero here,
+  // whatever its exponent. Anything else gives a small number, never nought.
+  const auto slopeRatio = [&](const juce::RangedAudioParameter &param) {
+    const auto step = 0.005f;
 
-      // A range starting at zero has no ratio to grow by, so it counts as
-      // moving as soon as it is off the floor at all.
-      if (base <= 0.0 ? v > 1.0e-6 : v > base * 1.01)
+    const auto bottom = std::abs(valueAt(param, step) - valueAt(param, 0.0f));
+    const auto top =
+        std::abs(valueAt(param, 1.0f) - valueAt(param, 1.0f - step));
+
+    return top > 0.0 ? bottom / top : 1.0;
+  };
+
+  // For a range that starts above zero the intuitive measure is a ratio: how
+  // far you have to turn before the value has grown by one percent of itself.
+  const auto deadTravel = [&](const juce::RangedAudioParameter &param) {
+    const auto base = valueAt(param, 0.0f);
+
+    for (float t = 0.0f; t <= 1.0f; t += 0.0005f)
+      if (valueAt(param, t) > base * 1.01)
         return 100.0f * t;
-    }
 
     return 100.0f;
   };
 
-  const auto attackId = ovt::params::oscParamId(ovt::params::attackSuffix, 0);
-  const auto noiseAttackId =
-      ovt::params::noiseParamId(ovt::params::attackSuffix);
+  double worstSlope = 1.0;
+  float worstDead = 0.0f;
+  juce::String slopeId, deadId;
+  int checked = 0, byRatio = 0;
 
-  for (const auto &id : {attackId, noiseAttackId}) {
-    auto *param = p.apvts.getParameter(id);
-    const auto dead = param != nullptr ? deadTravel(*param) : 100.0f;
+  for (auto *raw : p.getParameters()) {
+    auto *param = dynamic_cast<juce::RangedAudioParameter *>(raw);
 
-    std::printf("  %-16s dead travel %.1f%%\n", id.toRawUTF8(), dead);
+    // Choices and switches step, so travel means nothing for them.
+    if (param == nullptr || param->getNumSteps() < 100)
+      continue;
 
-    check(dead < 2.0f, id.toStdString() +
-                           " has no dead travel at the bottom (" +
-                           std::to_string(dead) + "%)");
+    ++checked;
+
+    const auto ratio = slopeRatio(*param);
+    if (ratio < worstSlope) {
+      worstSlope = ratio;
+      slopeId = param->paramID;
+    }
+
+    if (valueAt(*param, 0.0f) > 0.0) {
+      ++byRatio;
+      const auto dead = deadTravel(*param);
+
+      if (dead > worstDead) {
+        worstDead = dead;
+        deadId = param->paramID;
+      }
+    }
   }
 
+  std::printf("  %d continuous parameters. Thinnest slope at the bottom "
+              "1/%.0f of the top, on %s\n",
+              checked, 1.0 / std::max(1.0e-12, worstSlope),
+              slopeId.toRawUTF8());
+
+  std::printf("  %d of them start above zero. Worst dead travel %.1f%% on "
+              "%s\n",
+              byRatio, worstDead, deadId.toRawUTF8());
+
+  check(checked > 600, "there are continuous parameters to check");
+
+  // The defect being guarded against is a slope of nought, so the bound only
+  // has to be above nought. A thousandth of a percent is far below anything
+  // the curves here produce and far above what a power curve does.
+  check(worstSlope > 1.0e-5,
+        "no knob goes flat at the bottom (" + slopeId.toStdString() +
+            " is at " + std::to_string(worstSlope) + " of its top slope)");
+
+  // Where a ratio means something, the bottom of the knob should be usable
+  // rather than merely non-flat.
+  check(worstDead < 2.0f,
+        "and a knob that starts above zero moves as soon as you turn it (" +
+            deadId.toStdString() + " at " + std::to_string(worstDead) + "%)");
+
   // And the shortest attack really is 0.2 ms, not a number that rounds to it.
+  const auto attackId = ovt::params::oscParamId(ovt::params::attackSuffix, 0);
+
   if (auto *param = p.apvts.getParameter(attackId))
     check(std::abs(param->getNormalisableRange().start - 0.0002f) < 1.0e-7f,
           "the shortest attack is 0.2 ms");

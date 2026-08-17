@@ -418,7 +418,14 @@ That leaves enough headroom for the engine to stay a plain bank of oscillators w
 
 The attack knob is logarithmic rather than skewed towards a midpoint, so equal turns are equal ratios: the step from 1 ms to 2 ms gets the same travel as the one from 100 ms to 200 ms. That matters here because its range spans four and a half decades, and fitting a power curve through a midpoint across that needs an exponent of about 7.4, which leaves the bottom eighth of the knob flat enough that nudging it does nothing. Measured, that dead travel went from 13.7% to 0.1%, and 30 ms stayed within half a percent of the middle where it was. The trade is that sub-millisecond attacks now occupy 9% of the travel rather than 27%, of which half was unusable anyway. A test asserts the dead travel, so the next wide range somebody adds cannot quietly reintroduce it.
 
-The other time controls still use the older curve and still have a few percent of dead travel each: 7.7% on decay and release, 14.8% on swell. They are lower stakes than the attack, and changing them would move where every existing patch sits on those knobs.
+Every other skewed control got the same treatment, and `setSkewForCentre` is now gone from the project. Which curve depends only on whether the range can reach zero:
+
+| | Curve | Worst dead travel, was | Now |
+|---|---|---|---|
+| attack, decay, release, pitch mod rate, echo time, reverb decay | logarithmic | 15.5% | 0.3% |
+| swell, delay, reverb pre-delay, pitch mod depth, drift | exponential from the floor | 29.4% | 15.7% |
+
+The second family cannot do as well and never will. A control that has to reach zero has no ratio to grow by, so its bottom is compressed by construction: to give five seconds of swell any resolution at the top, the first millisecond has to go slowly. What the exponential curve fixes is the part that was actually broken, a slope of exactly zero at the low end, where turning the knob moved the value by nothing whatsoever. The slope is now small but never nought, and that is what the test asserts across all 635 continuous parameters: the thinnest is the attack, whose bottom moves at 1/23766 of the rate its top does, against a power curve's exact zero.
 
 ### Where a partial starts
 
