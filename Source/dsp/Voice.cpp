@@ -99,6 +99,8 @@ void Voice::noteOn(int note, float velocity, const SynthParams &p) noexcept {
     pt.velGain =
         amount >= 0.0f ? 1.0f - amount * (1.0f - vel) : 1.0f + amount * vel;
 
+    pt.liftAmount = std::clamp(op.liftAmount, -1.0f, 1.0f);
+
     pt.env.configure(op.delay, op.attack, op.decay, op.sustain, op.swell,
                      op.offLevel, op.release);
     pt.env.noteOn(p.global.phaseReset);
@@ -127,6 +129,8 @@ void Voice::noteOn(int note, float velocity, const SynthParams &p) noexcept {
     noise.velGain =
         amount >= 0.0f ? 1.0f - amount * (1.0f - vel) : 1.0f + amount * vel;
 
+    noise.liftAmount = std::clamp(np.liftAmount, -1.0f, 1.0f);
+
     noise.env.configure(np.delay, np.attack, np.decay, np.sustain, np.swell,
                         np.offLevel, np.release);
     noise.env.noteOn(p.global.phaseReset);
@@ -134,16 +138,23 @@ void Voice::noteOn(int note, float velocity, const SynthParams &p) noexcept {
   }
 }
 
-void Voice::noteOff() noexcept {
+void Voice::noteOff(float velocity) noexcept {
   if (!active)
     return;
 
   released = true;
 
-  for (auto &pt : partials)
-    pt.env.noteOff();
+  // The same shape the note-on velocity uses, so the two rows read the same
+  // way: zero ignores the gesture, positive means faster is louder, negative
+  // inverts it.
+  const auto scaleFor = [v = std::clamp(velocity, 0.0f, 1.0f)](float amount) {
+    return amount >= 0.0f ? 1.0f - amount * (1.0f - v) : 1.0f + amount * v;
+  };
 
-  noise.env.noteOff();
+  for (auto &pt : partials)
+    pt.env.noteOff(scaleFor(pt.liftAmount));
+
+  noise.env.noteOff(scaleFor(noise.liftAmount));
 }
 
 void Voice::steal() noexcept {

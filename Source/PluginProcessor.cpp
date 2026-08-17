@@ -84,7 +84,14 @@ void OvertoniumProcessor::handleMidiMessage(const juce::MidiMessage &m) {
   if (m.isNoteOn()) {
     engine.noteOn(m.getNoteNumber(), m.getFloatVelocity(), currentParams);
   } else if (m.isNoteOff()) {
-    engine.noteOff(m.getNoteNumber());
+    // A controller that ends a note with velocity zero, whether as a real
+    // note-off or as the note-on-with-zero many of them send, has said nothing
+    // about how the key came up. That gets the middle value rather than the
+    // slowest, which would otherwise silence every key-off on such a keyboard.
+    const auto lift =
+        m.getVelocity() == 0 ? 0.5f : m.getFloatVelocity();
+
+    engine.noteOff(m.getNoteNumber(), lift);
   } else if (m.isPitchWheel()) {
     pitchBendNormalised = ((float)m.getPitchWheelValue() - 8192.0f) / 8192.0f;
     currentParams.global.bendSemitones =

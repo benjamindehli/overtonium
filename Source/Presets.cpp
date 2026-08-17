@@ -51,6 +51,7 @@ struct Applier {
     allOsc(params::swellSuffix, [](int) { return 0.005; });
     allOsc(params::offLevelSuffix, [](int) { return 0.0; });
     allOsc(params::releaseSuffix, [](int) { return 0.4; });
+    allOsc(params::liftSuffix, [](int) { return 0.0; });
     allOsc(params::amRateSuffix, [](int) { return 4.0; });
     allOsc(params::amDepthSuffix, [](int) { return 0.0; });
     allOsc(params::velSuffix, [](int) { return 0.7; });
@@ -71,6 +72,7 @@ struct Applier {
     set(params::noiseParamId(params::swellSuffix), 0.005f);
     set(params::noiseParamId(params::offLevelSuffix), 0.0f);
     set(params::noiseParamId(params::releaseSuffix), 0.4f);
+    set(params::noiseParamId(params::liftSuffix), 0.0f);
     set(params::noiseParamId(params::amDepthSuffix), 0.0f);
     set(params::noiseParamId(params::muteSuffix), 0.0f);
     set(params::noiseParamId(params::soloSuffix), 0.0f);

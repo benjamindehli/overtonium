@@ -29,7 +29,8 @@ public:
   int getPolyphony() const noexcept { return polyphony; }
 
   void noteOn(int note, float velocity, const SynthParams &p) noexcept;
-  void noteOff(int note) noexcept;
+  /// @param velocity  how fast the key came up, 0 to 1.
+  void noteOff(int note, float velocity = 0.5f) noexcept;
   void setSustainPedal(bool down) noexcept;
 
   /// Routes polyphonic aftertouch to whichever voices are holding that note.

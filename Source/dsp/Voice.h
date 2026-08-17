@@ -88,7 +88,9 @@ public:
   void setRenderRate(double newSampleRate) noexcept;
 
   void noteOn(int note, float velocity, const SynthParams &p) noexcept;
-  void noteOff() noexcept;
+  /// @param velocity  how fast the key came up, 0 to 1. Scales each partial's
+  ///                   key-off level by its own lift amount.
+  void noteOff(float velocity = 0.5f) noexcept;
   void steal() noexcept; ///< fast fade-out so the voice can be reused
 
   /// Polyphonic aftertouch for this voice. Channel pressure arrives separately
@@ -129,6 +131,9 @@ private:
     float lastGain = 0.0f;
     /// Latched at note-on from this strip's own velocity sensitivity.
     float velGain = 1.0f;
+    /// Likewise for the release, since the amount belongs to the note and the
+    /// speed belongs to the gesture that ends it.
+    float liftAmount = 0.0f;
     bool gainPrimed = false;
   };
 
@@ -140,6 +145,7 @@ private:
     Xorshift rng;
     float lowpassState = 0.0f;
     float velGain = 1.0f;
+    float liftAmount = 0.0f;
     float lastGain = 0.0f;
     bool gainPrimed = false;
   };

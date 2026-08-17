@@ -238,6 +238,7 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   setUpKnob(swell, Role::Swell, secondary);
   setUpKnob(offLevel, Role::OffLevel, secondary);
   setUpKnob(release, Role::Release, secondary);
+  setUpKnob(lift, Role::Lift, secondary);
   setUpKnob(amRate, Role::AmRate, secondary);
   setUpKnob(amDepth, Role::AmDepth, secondary);
   setUpKnob(velocity, Role::Velocity, secondary);
@@ -247,6 +248,7 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
 
   // These all run either side of zero, so their arcs read out from twelve
   // o'clock rather than filling from the left.
+  lift.getProperties().set("bipolar", true);
   velocity.getProperties().set("bipolar", true);
   aftertouch.getProperties().set("bipolar", true);
   pan.getProperties().set("bipolar", true);
@@ -432,6 +434,8 @@ LinkableSlider *ChannelStrip::sliderForRole(Role role) {
     return &offLevel;
   case Role::Release:
     return &release;
+  case Role::Lift:
+    return &lift;
   case Role::AmRate:
     return &amRate;
   case Role::AmDepth:
@@ -535,6 +539,7 @@ void ChannelStrip::resized() {
   swell.setBounds(rows[rowIndex(Row::Swell)].reduced(1));
   offLevel.setBounds(rows[rowIndex(Row::OffLevel)].reduced(1));
   release.setBounds(rows[rowIndex(Row::Release)].reduced(1));
+  lift.setBounds(rows[rowIndex(Row::Lift)].reduced(1));
   amRate.setBounds(rows[rowIndex(Row::AmRate)].reduced(1));
   amDepth.setBounds(rows[rowIndex(Row::AmDepth)].reduced(1));
   velocity.setBounds(rows[rowIndex(Row::Velocity)].reduced(1));

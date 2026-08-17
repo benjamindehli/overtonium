@@ -77,10 +77,10 @@ juce::MidiBuffer noteOnAt(int note, float velocity, int sample) {
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
-  // 20 per partial, 10 global, 16 for the noise channel, 11 for the two master
+  // 21 per partial, 10 global, 17 for the noise channel, 11 for the two master
   // effects. Start phase is not among the noise channel's, since noise has no
   // phase to start at.
-  const int expected = ovt::kNumHarmonics * 20 + 10 + 16 + 11;
+  const int expected = ovt::kNumHarmonics * 21 + 10 + 17 + 11;
   check(p.getParameters().size() == expected,
         "parameter count is " + std::to_string(p.getParameters().size()) +
             ", expected " + std::to_string(expected));
@@ -114,7 +114,8 @@ void testParameterWiring(OvertoniumProcessor &p) {
       ovt::params::delaySuffix,   ovt::params::attackSuffix,
       ovt::params::decaySuffix,   ovt::params::sustainSuffix,
       ovt::params::swellSuffix,   ovt::params::offLevelSuffix,
-      ovt::params::releaseSuffix, ovt::params::amRateSuffix,
+      ovt::params::releaseSuffix, ovt::params::liftSuffix,
+      ovt::params::amRateSuffix,
       ovt::params::amDepthSuffix, ovt::params::velSuffix,
       ovt::params::atSuffix,      ovt::params::muteSuffix,
       ovt::params::soloSuffix,    ovt::params::volumeSuffix,
@@ -126,14 +127,15 @@ void testParameterWiring(OvertoniumProcessor &p) {
       allPresent &= p.apvts.getRawParameterValue(
                         ovt::params::oscParamId(s, i)) != nullptr;
 
-  check(allPresent, "all 640 per-partial parameters resolve");
+  check(allPresent, "all 672 per-partial parameters resolve");
 
   const char *noiseSuffixes[] = {
       ovt::params::colourSuffix,   ovt::params::delaySuffix,
       ovt::params::attackSuffix,   ovt::params::decaySuffix,
       ovt::params::sustainSuffix,  ovt::params::swellSuffix,
       ovt::params::offLevelSuffix, ovt::params::releaseSuffix,
-      ovt::params::amRateSuffix,   ovt::params::amDepthSuffix,
+      ovt::params::liftSuffix,     ovt::params::amRateSuffix,
+      ovt::params::amDepthSuffix,
       ovt::params::velSuffix,      ovt::params::atSuffix,
       ovt::params::muteSuffix,     ovt::params::soloSuffix,
       ovt::params::volumeSuffix,   ovt::params::panSuffix};
@@ -478,7 +480,8 @@ void testRowHover() {
        {Row::TuneKnob, Row::Phase, Row::PmRate, Row::PmDepth, Row::Drift,
         Row::Delay,
         Row::Attack, Row::Decay, Row::Sustain, Row::Swell, Row::OffLevel,
-        Row::Release, Row::AmRate, Row::AmDepth, Row::Velocity, Row::Aftertouch,
+        Row::Release, Row::Lift, Row::AmRate, Row::AmDepth,
+        Row::Velocity, Row::Aftertouch,
         Row::Pan, Row::MuteSolo, Row::Fader})
     identity &= rowAtCentre(r) == r;
 

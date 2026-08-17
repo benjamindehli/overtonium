@@ -165,7 +165,7 @@ void SynthEngine::noteOn(int note, float velocity,
   target->setAge(++ageCounter);
 }
 
-void SynthEngine::noteOff(int note) noexcept {
+void SynthEngine::noteOff(int note, float velocity) noexcept {
   for (size_t i = 0; i < voices.size(); ++i) {
     auto &v = voices[i];
 
@@ -173,7 +173,7 @@ void SynthEngine::noteOff(int note) noexcept {
       if (sustainDown)
         heldBySustain[i] = true;
       else
-        v.noteOff();
+        v.noteOff(velocity);
     }
   }
 }

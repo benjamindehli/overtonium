@@ -48,6 +48,7 @@ constexpr int kRowHeights[kNumRows] = {
     30, // Swell
     30, // OffLevel
     30, // Release
+    30, // Lift
     15, // AmpModHeading
     30, // AmRate
     30, // AmDepth
@@ -108,6 +109,7 @@ bool rowHasControl(Row r) {
   case Row::Swell:
   case Row::OffLevel:
   case Row::Release:
+  case Row::Lift:
   case Row::AmRate:
   case Row::AmDepth:
   case Row::Velocity:
@@ -227,6 +229,8 @@ const char *rowLabel(Row r) {
     return "level";
   case Row::Release:
     return "release";
+  case Row::Lift:
+    return "lift";
   case Row::AmpModHeading:
     return "AMP MOD";
   case Row::OutputHeading:
@@ -415,6 +419,8 @@ const char *roleSuffix(Role r) {
     return params::offLevelSuffix;
   case Role::Release:
     return params::releaseSuffix;
+  case Role::Lift:
+    return params::liftSuffix;
   case Role::AmRate:
     return params::amRateSuffix;
   case Role::AmDepth:
@@ -472,6 +478,9 @@ bool roleForRow(Row r, Role &out) {
     return true;
   case Row::Release:
     out = Role::Release;
+    return true;
+  case Row::Lift:
+    out = Role::Lift;
     return true;
   case Row::AmRate:
     out = Role::AmRate;

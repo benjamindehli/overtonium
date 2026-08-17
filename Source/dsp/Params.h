@@ -37,6 +37,11 @@ struct OscParams {
   /// Zero skips the stage, which is what it did before it had one.
   float swell = 0.005f;
   float offLevel = 0.0f;
+  /// How much the speed you let the key go at scales the key-off level, -1 to
+  /// 1. Positive means snatching the key back gives the loudest key-off, which
+  /// is what a jack or a damper does. Negative inverts it. Zero ignores the
+  /// release entirely, which is what it did before it had this.
+  float liftAmount = 0.0f;
   float amRateHz = 4.0f;
   float amDepth = 0.0f; ///< 0..1 tremolo depth
   /// How strongly key velocity scales this partial, -1 to 1. Positive means
@@ -75,6 +80,7 @@ struct NoiseParams {
   float swell = 0.005f;
   float offLevel = 0.0f;
   float release = 0.400f;
+  float liftAmount = 0.0f;
   float amRateHz = 4.0f;
   float amDepth = 0.0f;
   float velAmount = 0.7f;

@@ -190,7 +190,7 @@ Each of the 32 strips has, top to bottom:
 | PITCH MOD rate and depth | 0.01 to 30 Hz, 0 to 200 cents | Per-partial vibrato |
 | DRIFT | 0 to 25 cents | Smooth random pitch wander. See below |
 | ENVELOPE delay, A, D, S | 0 to 5 s, 0.2 ms to 5 s, 1 ms to 20 s, 0 to 100% | Exponential decay |
-| KEY OFF swell, level, release | 0 to 5 s, 0 to 100%, 1 ms to 20 s | A second envelope for letting go. See below |
+| KEY OFF swell, level, release, lift | 0 to 5 s, 0 to 100%, 1 ms to 20 s, -100 to +100% | A second envelope for letting go. See below |
 | AMP MOD rate and depth | 0.01 to 30 Hz, 0 to 100% | Per-partial tremolo |
 | VELOCITY | -100 to +100% | How much key velocity scales this partial. Negative inverts it |
 | AFTERTOUCH | -100 to +100% | How much key pressure moves this partial. Negative fades it out |
@@ -211,6 +211,10 @@ Above the sustain that is a release click or a bloom, the sound a damper landing
 A key-off level of zero skips the stage entirely and releases from wherever the level sat, which is the default and is exactly what the envelope did before it had one. So nothing you have already made sounds different, and the knob reads honestly: zero means no key-off stage.
 
 Two details that fall out of it. The swell time is exact rather than the "within 1%" the other stages use, because the release has to start when the knob says it does rather than whenever an exponential happens to arrive. And letting go of a key during the delay now still makes a key-off sound if you have asked for one, which is what a release click does on a real instrument, while a level of zero cancels the partial as before.
+
+LIFT aims release velocity at the key-off level, the same way the velocity row aims key velocity at the fader, and reads the same: zero ignores the gesture, positive means a faster release is louder, negative inverts it. On a harpsichord the jack falls back harder when you snatch the key away and barely speaks when you let it up slowly, and that is one control rather than a second envelope. Measured with the level at 90%, a full-amount partial peaks at 0.378 for a fast release against 0.019 for a slow one, and at zero amount both give 0.378.
+
+It defaults to zero, so no patch made before it existed sounds any different. A controller that ends notes with velocity zero, whether as a real note-off or as the note-on-with-zero many of them send, has said nothing about the gesture, so it gets the middle value rather than the slowest, which would otherwise silence every key-off on such a keyboard.
 
 A third case is the one worth watching for, since it is the shape a music box or a thumb piano has: no sustain at all, so the partial decays to silence while the key is still down, and then a key-off level that brings it back. Reaching zero is not the same as being finished. A partial in that state holds at silence and waits for the key rather than freeing itself, and costs nothing while it waits, since there is no point running an oscillator to produce zeroes.
 
@@ -488,7 +492,7 @@ Source/
     TapeEcho.*      the master echo
     Reverb.*        the master reverb, a feedback delay network
     SynthEngine.*   voice pool, allocation, stealing, effects, master stage
-  PluginParameters.*  APVTS layout, 677 parameters, and the audio-thread snapshot
+  PluginParameters.*  APVTS layout, 710 parameters, and the audio-thread snapshot
   Presets.*           factory presets
   PluginProcessor.*   MIDI handling, sample-accurate rendering, state
   PluginEditor.*      window, zoom, LINK, gutter
