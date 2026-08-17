@@ -34,7 +34,6 @@ inline constexpr const char *reverbMixId = "reverbMix";
 inline constexpr const char *reverbDecayId = "reverbDecay";
 inline constexpr const char *reverbDampId = "reverbDamp";
 inline constexpr const char *reverbPreDelayId = "reverbPreDelay";
-inline constexpr const char *reverbWidthId = "reverbWidth";
 
 // ---- per-partial parameter IDs ----------------------------------------------
 // Suffixes are appended to a stable "h01".."h32" prefix.
@@ -155,7 +154,6 @@ struct Cache {
     std::atomic<float> *decay = nullptr;
     std::atomic<float> *damp = nullptr;
     std::atomic<float> *preDelay = nullptr;
-    std::atomic<float> *width = nullptr;
   };
 
   Echo echo{};

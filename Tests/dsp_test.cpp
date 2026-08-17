@@ -2909,9 +2909,14 @@ void testTapeEcho() {
 
     const auto atFloor = correlationAt(TapeEcho::kMinAge);
 
-    std::printf("  channel correlation: %.3f at the lowest AGE the panel "
-                "allows, %.3f at full\n",
-                atFloor, correlationAt(1.0f));
+    // The floor is where the knob reads 0, so these are the two ends of the
+    // travel plus a point part way up. The readme quotes them.
+    const auto partWayUp =
+        TapeEcho::kMinAge + 0.13f * (1.0f - TapeEcho::kMinAge);
+
+    std::printf("  channel correlation: %.3f at the bottom of the AGE knob, "
+                "%.3f at 13 %%, %.3f at the top\n",
+                atFloor, correlationAt(partWayUp), correlationAt(1.0f));
 
     // Which is the reason for the floor: the least worn setting available has
     // to be doubled already.
@@ -3146,7 +3151,6 @@ void testReverb() {
     r.decaySeconds = decaySeconds;
     r.damping = 0.0f;
     r.preDelaySeconds = 0.0f;
-    r.width = 1.0f;
 
     auto s = impulse((size_t)(sr * 25.0));
     runBlocks(reverb, s, r);
@@ -3187,7 +3191,6 @@ void testReverb() {
     r.mix = 1.0f;
     r.decaySeconds = 3.0f;
     r.damping = 0.2f;
-    r.width = 1.0f;
 
     auto s = impulse((size_t)(sr * 3.0));
     runBlocks(reverb, s, r);
@@ -3226,7 +3229,6 @@ void testReverb() {
     r.decaySeconds = 2.0f;
     r.damping = 0.3f;
     r.preDelaySeconds = 0.1f;
-    r.width = 1.0f;
 
     auto s = impulse((size_t)(sr * 1.0));
     runBlocks(reverb, s, r);
@@ -3248,7 +3250,6 @@ void testReverb() {
       r.mix = 1.0f;
       r.decaySeconds = 3.0f;
       r.damping = damping;
-      r.width = 1.0f;
 
       auto s = impulse((size_t)(sr * 2.0));
       runBlocks(reverb, s, r);
@@ -3274,40 +3275,39 @@ void testReverb() {
           "the fixed low cut keeps the fundamental out of the tail");
   }
 
-  // ---- width
+  // ---- spread
   // -----------------------------------------------------------------
+  //
+  // There is no control over this. The two sides are drawn from different
+  // lines in different polarities, so the tail is wide because of how it is
+  // built, and the only thing worth checking is that it still is. A mono input
+  // is the hard case: if the network were symmetric this would come back
+  // perfectly correlated.
   {
-    const auto correlation = [&](float width) {
-      reverb.reset();
+    reverb.reset();
 
-      ReverbParams r;
-      r.enabled = true;
-      r.mix = 1.0f;
-      r.decaySeconds = 2.0f;
-      r.damping = 0.3f;
-      r.width = width;
+    ReverbParams r;
+    r.enabled = true;
+    r.mix = 1.0f;
+    r.decaySeconds = 2.0f;
+    r.damping = 0.3f;
 
-      auto s = impulse((size_t)(sr * 1.5));
-      runBlocks(reverb, s, r);
+    auto s = impulse((size_t)(sr * 1.5));
+    runBlocks(reverb, s, r);
 
-      double ll = 0.0, rr = 0.0, lr = 0.0;
-      for (size_t n = (size_t)(sr * 0.1); n < s.size(); ++n) {
-        ll += (double)s.l[n] * s.l[n];
-        rr += (double)s.r[n] * s.r[n];
-        lr += (double)s.l[n] * s.r[n];
-      }
+    double ll = 0.0, rr = 0.0, lr = 0.0;
+    for (size_t n = (size_t)(sr * 0.1); n < s.size(); ++n) {
+      ll += (double)s.l[n] * s.l[n];
+      rr += (double)s.r[n] * s.r[n];
+      lr += (double)s.l[n] * s.r[n];
+    }
 
-      return lr / std::sqrt(std::max(1.0e-12, ll * rr));
-    };
+    const auto correlation = lr / std::sqrt(std::max(1.0e-12, ll * rr));
 
-    const auto mono = correlation(0.0f);
-    const auto wide = correlation(1.0f);
+    std::printf("  channel correlation %.3f\n", correlation);
 
-    std::printf("  channel correlation: width 0 %.3f, width 1 %.3f\n", mono,
-                wide);
-
-    check(mono > 0.999, "at zero width the two sides are the same signal");
-    check(wide < 0.6, "at full width they are largely independent");
+    check(correlation < 0.6, "the two sides of the tail are largely "
+                             "independent from a mono input");
   }
 
   // ---- level
@@ -3320,7 +3320,6 @@ void testReverb() {
     r.mix = 1.0f;
     r.decaySeconds = 2.0f;
     r.damping = 0.4f;
-    r.width = 1.0f;
 
     // Broadband input, so this is a fair comparison rather than one frequency
     // landing on a mode.
@@ -3353,7 +3352,6 @@ void testReverb() {
     r.mix = 1.0f;
     r.decaySeconds = 30.0f;
     r.damping = 0.0f;
-    r.width = 1.0f;
 
     Stereo s((size_t)(sr * 60.0));
 

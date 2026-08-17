@@ -439,13 +439,15 @@ What separates them is the transport. The two motors run at slightly different s
 
 The rates are fixed rather than offered as controls. What matters is that they differ, not by how much, and a pair of knobs whose only wrong setting is "equal" is a pair of knobs nobody needs.
 
-How far the two disagree follows AGE, since holding speed is what a machine in good order does. AGE therefore starts at 8% rather than at zero: a transport that holds speed exactly would have both paths wander by the same nothing and put the repeat back in mono, and there is no such transport. Measured as the correlation between the two channels on a sustained tone, the floor sits at 0.77 and full wear at 0.19, so the doubling is always there and always has somewhere to go.
+How far the two disagree follows AGE, since holding speed is what a machine in good order does. That gives the control a floor. A transport that held speed exactly would have both paths wander by the same nothing and put the repeat back in mono, and there is no such transport, so AGE stops 8% up its own range and never reaches one. The knob does not show that. It reads 0 to 100 across the travel it has, because where the floor sits is a fact about the machine rather than a number the player should be made to carry, and the offset is folded in on the way through in both directions.
+
+Measured as the correlation between the two channels on a sustained tone, the bottom of the knob sits at 0.77 and the top at 0.19, so the doubling is always there and always has somewhere to go.
 
 | AGE | Channel correlation |
 |---|---|
-| 0, unreachable | 1.000 |
-| 8%, the floor | 0.768 |
-| 20% | 0.017 |
+| no wander, below the knob | 1.000 |
+| 0, the bottom of the knob | 0.768 |
+| 13% | 0.019 |
 | 100% | 0.186 |
 
 The tests check both ends: that a perfect transport would collapse to mono, which is why the panel cannot ask for one, and that the lowest setting it can ask for is already doubled without being a chorus. Feeding one channel only leaves the other at exactly zero, since nothing crosses over.
@@ -458,7 +460,8 @@ The tests check both ends: that a perfect transport would collapse to mono, whic
 | DECAY | how long the tail takes to fall 60 dB, 0.2 to 20 s |
 | DAMP | how quickly the top end dies out of the tail |
 | PRE | silence between the note and its reverb, up to 250 ms |
-| WIDTH | mono at zero, fully spread at the top |
+
+The two sides are drawn from different lines in different polarities, so the tail is wide by construction and there is nothing on the panel to narrow it. There used to be a WIDTH knob, and it went the way of the old stereo spread control on the mixer: a knob with one setting anyone reaches for is not a knob. The test that used to sweep it now checks the thing worth checking, that a mono hit still comes back with the two sides largely independent.
 
 The room is sized from the decay rather than set separately. A long tail in a small room is a spring rather than a place, and a short one in a hall is a gate, so the two were always turned together anyway.
 

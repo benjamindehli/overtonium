@@ -21,7 +21,7 @@ constexpr int kGroupPad = 6;
 
 /// Minimum width of each group, in the order they are laid out. Only the
 /// output group grows, because the meter is the one thing worth more room.
-constexpr int kGroupMinWidth[] = {144, 90, 60, 168, 222, 260, 186};
+constexpr int kGroupMinWidth[] = {144, 90, 60, 168, 222, 222, 186};
 constexpr int kOutputGroupIndex = 6;
 constexpr int kGroupCount = 7;
 
@@ -537,8 +537,6 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
           "Silence between the note and its reverb. A little of it keeps the "
           "attack clear of the wash.",
           popupParent);
-  addKnob(reverbControls, "WIDTH", params::reverbWidthId,
-          "Mono at zero, fully spread at the top", popupParent);
 
   updateLinkEnablement();
 }

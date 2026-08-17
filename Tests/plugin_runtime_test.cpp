@@ -21,6 +21,7 @@
 #include "UI/NoiseStrip.h"
 #include "UI/Theme.h"
 #include "UI/TopBar.h"
+#include "dsp/TapeEcho.h"
 
 namespace {
 
@@ -77,10 +78,10 @@ juce::MidiBuffer noteOnAt(int note, float velocity, int sample) {
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
-  // 21 per partial, 14 global, 17 for the noise channel, 11 for the two master
+  // 21 per partial, 14 global, 17 for the noise channel, 10 for the two master
   // effects. Start phase is not among the noise channel's, since noise has no
   // phase to start at.
-  const int expected = ovt::kNumHarmonics * 21 + 14 + 17 + 11;
+  const int expected = ovt::kNumHarmonics * 21 + 14 + 17 + 10;
   check(p.getParameters().size() == expected,
         "parameter count is " + std::to_string(p.getParameters().size()) +
             ", expected " + std::to_string(expected));
@@ -96,8 +97,7 @@ void testParameterWiring(OvertoniumProcessor &p) {
       ovt::params::echoTimeId,   ovt::params::echoFeedbackId,
       ovt::params::echoAgeId,    ovt::params::reverbOnId,
       ovt::params::reverbMixId,  ovt::params::reverbDecayId,
-      ovt::params::reverbDampId, ovt::params::reverbPreDelayId,
-      ovt::params::reverbWidthId};
+      ovt::params::reverbDampId, ovt::params::reverbPreDelayId};
 
   for (auto *id : effects)
     check(p.apvts.getRawParameterValue(id) != nullptr,
@@ -146,6 +146,35 @@ void testParameterWiring(OvertoniumProcessor &p) {
         p.apvts.getRawParameterValue(ovt::params::noiseParamId(n)) != nullptr;
 
   check(noisePresent, "the noise channel's parameters resolve");
+
+  // The echo age reads across its whole travel even though it never gets below
+  // TapeEcho::kMinAge. Worth checking both directions, since a host that shows
+  // 0 % and then cannot be typed back to 0 % is worse than one that never
+  // hid the floor in the first place.
+  if (auto *age = dynamic_cast<juce::RangedAudioParameter *>(
+          p.apvts.getParameter(ovt::params::echoAgeId))) {
+    const auto textAt = [age](float normalised) {
+      return age->getText(normalised, 0).trim().toStdString();
+    };
+
+    check(textAt(0.0f) == "0 %", "the bottom of the age knob reads 0 %, not " +
+                                     textAt(0.0f));
+    check(textAt(1.0f) == "100 %",
+          "the top of the age knob reads 100 %, not " + textAt(1.0f));
+
+    // Round trip. Typing back what was shown has to land where it started.
+    check(std::abs(age->getValueForText("0 %") - 0.0f) < 1.0e-6f,
+          "0 % typed in is the bottom of the range");
+    check(std::abs(age->getValueForText("100 %") - 1.0f) < 1.0e-6f,
+          "100 % typed in is the top of the range");
+
+    // And the plain value behind it is still the one the DSP wants.
+    check(std::abs(age->convertFrom0to1(0.0f) - ovt::TapeEcho::kMinAge) <
+              1.0e-6f,
+          "the floor is still under the bottom of the knob");
+  } else {
+    check(false, "the echo age parameter is ranged");
+  }
 
   // Defaults should give an immediately playable 1/n spectrum.
   for (int i = 0; i < ovt::kNumHarmonics; ++i) {

@@ -122,7 +122,6 @@ struct Applier {
     set(params::reverbDecayId, 2.0f);
     set(params::reverbDampId, 0.5f);
     set(params::reverbPreDelayId, 0.0f);
-    set(params::reverbWidthId, 1.0f);
   }
 
   /// The old stereo spread control, written out as pan positions.

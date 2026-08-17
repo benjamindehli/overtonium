@@ -145,7 +145,6 @@ struct ReverbParams {
   float decaySeconds = 2.0f;
   float damping = 0.5f; ///< how fast the top end dies away in the tail
   float preDelaySeconds = 0.0f;
-  float width = 1.0f;
 };
 
 /// Converter quality, downwards.

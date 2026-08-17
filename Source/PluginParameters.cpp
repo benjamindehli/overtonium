@@ -112,6 +112,26 @@ juce::String percentText(float v, int) {
   return juce::String(juce::roundToInt(v * 100.0f)) + " %";
 }
 
+/// The echo age has a floor under it that the player has no reason to know
+/// about. It exists so the two tape paths never wander by exactly the same
+/// amount, which is what would collapse the repeat to mono, and it is a fact
+/// about the machine rather than a setting. So the knob reads across its whole
+/// travel and the floor is folded in on the way through, in both directions,
+/// which keeps a typed value and a shown one agreeing.
+juce::String ageText(float v, int) {
+  const auto span = 1.0f - TapeEcho::kMinAge;
+  const auto shown = (v - TapeEcho::kMinAge) / span;
+
+  return juce::String(juce::roundToInt(shown * 100.0f)) + " %";
+}
+
+float ageValue(const juce::String &text) {
+  const auto span = 1.0f - TapeEcho::kMinAge;
+
+  return TapeEcho::kMinAge +
+         juce::jlimit(0.0f, 1.0f, text.getFloatValue() / 100.0f) * span;
+}
+
 /// Bipolar controls keep their sign, so the inverted half is unmistakable.
 juce::String signedPercentText(float v, int) {
   const auto pc = juce::roundToInt(v * 100.0f);
@@ -278,11 +298,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       FAttr().withStringFromValueFunction(percentText)));
 
   // Never quite new. See TapeEcho::kMinAge: at zero the two tape paths wander
-  // by the same nothing and the repeat comes back in mono.
+  // by the same nothing and the repeat comes back in mono. See ageText for why
+  // the knob still reads from nothing to everything.
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{echoAgeId, 1}, "Echo Age",
       juce::NormalisableRange<float>(TapeEcho::kMinAge, 1.0f), 0.35f,
-      FAttr().withStringFromValueFunction(percentText)));
+      FAttr()
+          .withStringFromValueFunction(ageText)
+          .withValueFromStringFunction(ageValue)));
 
   layout.add(std::make_unique<BoolP>(juce::ParameterID{reverbOnId, 1}, "Reverb",
                                      false));
@@ -306,11 +329,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::ParameterID{reverbPreDelayId, 1}, "Reverb Pre-delay",
       expRange(0.0f, 0.25f, 0.05f), 0.0f,
       FAttr().withStringFromValueFunction(timeText)));
-
-  layout.add(std::make_unique<FloatP>(
-      juce::ParameterID{reverbWidthId, 1}, "Reverb Width",
-      juce::NormalisableRange<float>(0.0f, 1.0f), 1.0f,
-      FAttr().withStringFromValueFunction(percentText)));
 
   // ---- per partial ----------------------------------------------------------
   for (int i = 0; i < kNumHarmonics; ++i) {
@@ -531,7 +549,6 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   reverb.decay = apvts.getRawParameterValue(reverbDecayId);
   reverb.damp = apvts.getRawParameterValue(reverbDampId);
   reverb.preDelay = apvts.getRawParameterValue(reverbPreDelayId);
-  reverb.width = apvts.getRawParameterValue(reverbWidthId);
 
   jassert(echo.on != nullptr && reverb.on != nullptr);
 
@@ -717,7 +734,6 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   out.reverb.decaySeconds = reverb.decay->load();
   out.reverb.damping = reverb.damp->load();
   out.reverb.preDelaySeconds = reverb.preDelay->load();
-  out.reverb.width = reverb.width->load();
 }
 
 } // namespace ovt::params

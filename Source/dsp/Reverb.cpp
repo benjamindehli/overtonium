@@ -184,7 +184,6 @@ void Reverb::process(float *outL, float *outR, int numSamples,
   wasEnabled = true;
 
   const auto mix = std::clamp(p.mix, 0.0f, 1.0f);
-  const auto width = std::clamp(p.width, 0.0f, 1.0f);
 
   const auto rt60 = std::clamp(p.decaySeconds, 0.1f, 30.0f);
 
@@ -299,14 +298,14 @@ void Reverb::process(float *outL, float *outR, int numSamples,
     // ---- out --------------------------------------------------------------
     // Alternating signs on the taps, so the two sides are built from different
     // lines in different polarities and the wash is wide by construction.
+    // Nothing narrows it afterwards. There used to be a width control and a
+    // mid/side stage here to serve it, and the only setting it was ever left
+    // at was the top, so both have gone and the taps go straight out.
     const auto wetL = (tap[0] - tap[2] + tap[4] - tap[6]) * kOutputScale;
     const auto wetR = (tap[1] - tap[3] + tap[5] - tap[7]) * kOutputScale;
 
-    const auto mid = 0.5f * (wetL + wetR);
-    const auto side = 0.5f * (wetL - wetR) * width;
-
-    outL[n] = dryL + ((mid + side) - dryL) * mix;
-    outR[n] = dryR + ((mid - side) - dryR) * mix;
+    outL[n] = dryL + (wetL - dryL) * mix;
+    outR[n] = dryR + (wetR - dryR) * mix;
   }
 }
 
