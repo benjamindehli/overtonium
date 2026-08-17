@@ -171,6 +171,20 @@ struct Cache {
 /// The polyphony choices, in parameter order.
 inline const std::array<int, 7> kPolyphonyChoices{1, 2, 4, 6, 8, 12, 16};
 
+/// What a preset leaves alone.
+///
+/// How you play the instrument, how loud it is, and what it is tuned to. A
+/// patch describes a sound, and none of these are part of one: a temperament
+/// and a reference pitch belong to the music you are playing, polyphony and
+/// bend range to the keyboard you are playing it on, and the master fader and
+/// the clipper to the desk. Loading a sound should move none of them.
+///
+/// Named here rather than in Presets.cpp so the code that honours the rule and
+/// the test that checks it cannot come to disagree about what the rule is.
+inline const std::array<const char *, 8> kSessionParamIds{
+    masterGainId,  polyphonyId,    bendRangeId,   atSourceId,
+    safetyClipId,  referenceHzId,  temperamentId, tuningRootId};
+
 /// The pitch classes a temperament can be built on, in parameter order.
 inline const std::array<const char *, 12> kPitchClassNames{
     "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};

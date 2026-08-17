@@ -1111,8 +1111,9 @@ void testPresetsAreReproducible(OvertoniumProcessor &p) {
   // opposed to what it sounds like.
   const juce::StringArray preserved{
       ovt::params::masterGainId, ovt::params::polyphonyId,
-      ovt::params::bendRangeId, ovt::params::atSourceId,
-      ovt::params::safetyClipId, ovt::params::referenceHzId};
+      ovt::params::bendRangeId,   ovt::params::atSourceId,
+      ovt::params::safetyClipId,  ovt::params::referenceHzId,
+      ovt::params::temperamentId, ovt::params::tuningRootId};
 
   const auto snapshot = [&p] {
     std::vector<std::pair<juce::String, float>> out;
@@ -1183,6 +1184,36 @@ void testPresetsAreReproducible(OvertoniumProcessor &p) {
   if (!drifted.isEmpty())
     std::printf("  parameters left over from the previous patch: %s\n",
                 drifted.joinIntoString(", ").toRawUTF8());
+
+  // The other half of the rule: what a preset is not allowed to touch has to
+  // still be there afterwards. Skipping these in the comparison above says
+  // nothing about that either way.
+  const auto set = [&p](const char *id, float plain) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1(plain));
+  };
+
+  const auto read = [&p](const char *id) {
+    auto *v = p.apvts.getRawParameterValue(id);
+    return v != nullptr ? (int)std::lround(v->load()) : -1;
+  };
+
+  set(ovt::params::temperamentId, (float)ovt::Temperament::Werckmeister3);
+  set(ovt::params::tuningRootId, 5.0f);  // F
+  set(ovt::params::referenceHzId, 0.0f); // A = 415
+  set(ovt::params::polyphonyId, 6.0f);   // 16 voices
+
+  for (int i = 0; i < names.size(); ++i)
+    ovt::presets::apply(p.apvts, i);
+
+  check(read(ovt::params::temperamentId) ==
+                (int)ovt::Temperament::Werckmeister3 &&
+            read(ovt::params::tuningRootId) == 5,
+        "loading every preset in turn leaves the temperament alone");
+
+  check(read(ovt::params::referenceHzId) == 0 &&
+            read(ovt::params::polyphonyId) == 6,
+        "and the reference pitch and polyphony with it");
 
   check(reproducible == names.size(),
         "all " + std::to_string(names.size()) +

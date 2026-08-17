@@ -105,7 +105,9 @@ The organs are deliberately left alone. A drawbar organ is electric and a pipe o
 
 A preset holds parameter values and nothing else. Not the window size, the zoom or the LINK settings, since loading a sound should not move your window or change your tools.
 
-Factory presets start from a neutral base rather than from wherever you happened to be, so one always gives the instrument it describes. That covers the globals that are part of the sound: STRETCH, TRACK, the converter and phase reset all go back to neutral unless the preset asks for otherwise. It deliberately leaves master gain, polyphony, bend range, the aftertouch source and the safety clipper where you set them, since those are how you play it and how loud rather than what it sounds like. A test loads every factory preset twice, once from clean and once after deliberately making a mess of everything, and requires the two to be identical.
+Factory presets start from a neutral base rather than from wherever you happened to be, so one always gives the instrument it describes. That covers the globals that are part of the sound: STRETCH, TRACK, the converter and phase reset all go back to neutral unless the preset asks for otherwise.
+
+What it will not touch is listed once, as `kSessionParamIds`, and holds for every preset including Init: master gain, polyphony, bend range, the aftertouch source, the safety clipper, the temperament, its root and the reference pitch. How you play the instrument, how loud it is and what it is tuned to are not part of a patch. Both halves are tested from that same list, so the code and the test cannot come to disagree about what the rule is: every preset is loaded twice, once clean and once after deliberately making a mess of everything, and required to come out identical, and then all fifteen are loaded in turn against a session set to Werckmeister on F at 415 Hz, which has to survive.
 
 Values are stored plain rather than normalised, so a preset survives a parameter's range being widened later, and anything a file does not mention keeps its default rather than being reset, so a preset saved by an older build loads into a newer one without silently zeroing whatever was added in between. The tests cover both of those directly.
 
@@ -169,7 +171,9 @@ They are derived from the circle of fifths rather than copied out as tables of c
 
 **Reference pitch** offers 415 through 466 Hz. A stays exactly there in every temperament, because the offsets are taken relative to A's own: a tuner tunes A first and works outwards. Only the other eleven notes move.
 
-Equal temperament at 440 is bit for bit what it was before, which the tests check across all 128 notes. The temperament and its root travel with a preset, since they are part of the sound. The reference pitch does not, since it is what the room is tuned to rather than what the patch is, and having a preset drag you off the pitch the rest of the ensemble is playing at would be no help at all.
+Equal temperament at 440 is bit for bit what it was before, which the tests check across all 128 notes.
+
+None of the three travels with a preset. A temperament is a property of the music you are playing rather than of any one sound in it: you set it once and work, and having a patch drag you back to equal in the middle of that would be no help. Init included, since Init is still a preset and clears the patch rather than the session.
 
 ### Stretch
 

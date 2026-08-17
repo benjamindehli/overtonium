@@ -30,10 +30,21 @@ struct Applier {
       osc(suffix, i, (float)fn(i + 1));
   }
 
+  /// Everything back to its default, except what a preset may not touch. Init
+  /// is still a preset: it clears the patch, not the session.
   void resetAllToDefault() const {
-    for (auto *p : apvts.processor.getParameters())
-      if (auto *ranged = dynamic_cast<juce::RangedAudioParameter *>(p))
+    for (auto *p : apvts.processor.getParameters()) {
+      auto *ranged = dynamic_cast<juce::RangedAudioParameter *>(p);
+      if (ranged == nullptr)
+        continue;
+
+      bool session = false;
+      for (auto *id : params::kSessionParamIds)
+        session |= ranged->paramID == id;
+
+      if (!session)
         ranged->setValueNotifyingHost(ranged->getDefaultValue());
+    }
   }
 
   /// Everything a preset does not explicitly set should start from a known
@@ -84,16 +95,17 @@ struct Applier {
     // converter down at eight bits, has to give the patch that was designed
     // rather than that patch through whatever was left over.
     //
-    // Deliberately not here: master gain, polyphony, bend range and what feeds
-    // aftertouch. Those are how you play it and how loud, not what it sounds
-    // like, and a preset that moved them would be overstepping.
+    // What a preset must not touch is listed once, as kSessionParamIds, and
+    // nothing here writes to any of it. The temperament is the one worth
+    // spelling out, since this instrument is otherwise full of tunings and it
+    // would be easy to file with them: it belongs with the reference pitch
+    // instead. You set it once for the music you are playing, and loading a
+    // sound in the middle of that should not drag you back to equal.
     set(params::stretchId, 0.0f);
     set(params::trackId, 0.0f);
     set(params::lofiRateId, 0.0f);
     set(params::lofiBitsId, 0.0f);
     set(params::phaseResetId, 1.0f);
-    set(params::temperamentId, 0.0f);
-    set(params::tuningRootId, 0.0f);
 
     // The master effects are off unless a preset switches them on, and their
     // settings go back to the panel defaults either way, so loading a preset
