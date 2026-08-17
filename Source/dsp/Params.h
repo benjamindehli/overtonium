@@ -3,6 +3,7 @@
 #include <array>
 
 #include "Harmonics.h"
+#include "Temperament.h"
 
 namespace ovt {
 
@@ -93,6 +94,13 @@ struct NoiseParams {
 
 struct GlobalParams {
   float masterGain = 0.25f;   ///< linear
+
+  /// How the keyboard is tuned, as opposed to how the partials above each note
+  /// are. See Temperament.h.
+  Temperament temperament = Temperament::Equal;
+  int tuningRoot = 0;          ///< pitch class the temperament is built on
+  double referenceHz = 440.0;  ///< where A sits, whatever the temperament
+
   float bendSemitones = 0.0f; ///< current pitch-bend offset
   float aftertouch = 0.0f;    ///< current channel pressure, 0..1
   bool phaseReset = true; ///< reset partial phase on note-on (coherent attack)

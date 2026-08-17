@@ -92,6 +92,8 @@ struct Applier {
     set(params::lofiRateId, 0.0f);
     set(params::lofiBitsId, 0.0f);
     set(params::phaseResetId, 1.0f);
+    set(params::temperamentId, 0.0f);
+    set(params::tuningRootId, 0.0f);
 
     // The master effects are off unless a preset switches them on, and their
     // settings go back to the panel defaults either way, so loading a preset

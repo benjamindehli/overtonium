@@ -14,6 +14,9 @@ inline constexpr const char *phaseResetId = "phaseReset";
 inline constexpr const char *stretchId = "stretch";
 inline constexpr const char *atSourceId = "atSource";
 inline constexpr const char *trackId = "track";
+inline constexpr const char *temperamentId = "temperament";
+inline constexpr const char *tuningRootId = "tuningRoot";
+inline constexpr const char *referenceHzId = "referenceHz";
 inline constexpr const char *safetyClipId = "safetyClip";
 inline constexpr const char *lofiRateId = "lofiRate";
 inline constexpr const char *lofiBitsId = "lofiBits";
@@ -129,6 +132,9 @@ struct Cache {
   std::atomic<float> *stretch = nullptr;
   std::atomic<float> *atSource = nullptr;
   std::atomic<float> *track = nullptr;
+  std::atomic<float> *temperament = nullptr;
+  std::atomic<float> *tuningRoot = nullptr;
+  std::atomic<float> *referenceHz = nullptr;
   std::atomic<float> *safetyClip = nullptr;
   std::atomic<float> *lofiRate = nullptr;
   std::atomic<float> *lofiBits = nullptr;
@@ -164,6 +170,17 @@ struct Cache {
 
 /// The polyphony choices, in parameter order.
 inline const std::array<int, 7> kPolyphonyChoices{1, 2, 4, 6, 8, 12, 16};
+
+/// The pitch classes a temperament can be built on, in parameter order.
+inline const std::array<const char *, 12> kPitchClassNames{
+    "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+
+/// Reference pitches worth offering, in parameter order. Baroque at one end,
+/// old concert pitch at the other, and the handful of values orchestras
+/// actually use in between.
+inline const std::array<int, 11> kReferenceHzChoices{415, 430, 432, 435, 438,
+                                                     440, 442, 443, 444, 446,
+                                                     466};
 
 /// What drives the per-channel AT amount, in parameter order.
 ///

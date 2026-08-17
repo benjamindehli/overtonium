@@ -785,6 +785,30 @@ void TopBar::showSettingsMenu() {
     sources.addItem(600 + i, params::kAftertouchSourceNames[(size_t)i], true,
                     i == sourceIndex);
 
+  // Tuning of the keyboard itself, which is a decision about the instrument
+  // and gets set once, so it belongs here rather than on the panel.
+  const auto pickedIndex = [this](const char *id) {
+    auto *p = apvts.getParameter(id);
+    return p != nullptr ? juce::roundToInt(p->convertFrom0to1(p->getValue()))
+                        : 0;
+  };
+
+  juce::PopupMenu temperaments, roots, references;
+
+  for (int i = 0; i < (int)Temperament::NumTemperaments; ++i)
+    temperaments.addItem(900 + i, temperamentName((Temperament)i), true,
+                         i == pickedIndex(params::temperamentId));
+
+  for (int i = 0; i < (int)params::kPitchClassNames.size(); ++i)
+    roots.addItem(1000 + i, params::kPitchClassNames[(size_t)i], true,
+                  i == pickedIndex(params::tuningRootId));
+
+  for (int i = 0; i < (int)params::kReferenceHzChoices.size(); ++i)
+    references.addItem(
+        1100 + i,
+        juce::String(params::kReferenceHzChoices[(size_t)i]) + " Hz", true,
+        i == pickedIndex(params::referenceHzId));
+
   juce::PopupMenu zooms;
 
   for (int i = 0; i < (int)std::size(kZoomChoices); ++i) {
@@ -793,6 +817,17 @@ void TopBar::showSettingsMenu() {
     zooms.addItem(800 + i, juce::String(percent) + "%", true,
                   std::abs(kZoomChoices[i] - zoom) < 0.01f);
   }
+
+  m.addSeparator();
+  m.addSectionHeader("Tuning");
+  m.addSubMenu("Temperament", temperaments);
+
+  // A temperament has to be built on something, and equal temperament is the
+  // one that does not care.
+  m.addSubMenu("Root", roots,
+               pickedIndex(params::temperamentId) != (int)Temperament::Equal);
+
+  m.addSubMenu("Reference pitch", references);
 
   m.addSeparator();
   m.addSubMenu("Aftertouch from", sources);
@@ -835,6 +870,15 @@ void TopBar::showSettingsMenu() {
                         p->setValueNotifyingHost(
                             p->convertTo0to1((float)index));
                     };
+
+                    if (result >= 1100)
+                      return choose(params::referenceHzId, result - 1100);
+
+                    if (result >= 1000)
+                      return choose(params::tuningRootId, result - 1000);
+
+                    if (result >= 900)
+                      return choose(params::temperamentId, result - 900);
 
                     if (result >= 800) {
                       const auto index = result - 800;

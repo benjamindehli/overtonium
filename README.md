@@ -148,6 +148,29 @@ At `blend = 1` this is exactly `n` times the fundamental. Nothing is hard-coded,
 
 The test suite asserts this table, so the derivation cannot silently drift from it.
 
+### Tuning the keyboard
+
+Everything above is about where a partial sits over the note you played. This is about where that note sits, which until now was always twelve-tone equal temperament, hard-wired as `440 * 2^((n - 69) / 12)`.
+
+For an instrument whose whole subject is tuning, that was a hole: you could put the partials in just intonation but not the keyboard they were played from. Settings now has a Temperament entry with six:
+
+| | Major third | Fifth | |
+|---|---|---|---|
+| Equal | 400.00 | 700.00 | the reference everything else is measured against |
+| Just (major) | 386.31 | 701.96 | pure by construction, chosen interval by interval |
+| Pythagorean | 407.82 | 701.96 | every fifth pure, the third pays for it |
+| Quarter-comma meantone | 386.31 | 696.58 | fifths narrowed a quarter comma, which makes the third pure |
+| Werckmeister III | 390.22 | 696.09 | four fifths narrowed, no wolf, every key playable |
+| Young | 392.18 | 698.04 | six narrowed by a sixth, gentler again |
+
+They are derived from the circle of fifths rather than copied out as tables of cents. Almost every historical temperament is described by how much each of the twelve fifths is narrowed, so that is what the code says, and the pitch classes fall out of it. The two commas it is all built from come out at 23.460 and 21.506 cents, which are the published figures, and the tests assert the property that defines each temperament rather than the numbers that happen to result: meantone's third pure to a thousandth of a cent, Pythagorean's fifth likewise, Werckmeister at its characteristic 390.2.
+
+**Root** picks which pitch class the temperament is built on, since an unequal temperament is only in tune in the keys near its centre, and that is the point of it. It is greyed out for equal temperament, which has no centre to have.
+
+**Reference pitch** offers 415 through 466 Hz. A stays exactly there in every temperament, because the offsets are taken relative to A's own: a tuner tunes A first and works outwards. Only the other eleven notes move.
+
+Equal temperament at 440 is bit for bit what it was before, which the tests check across all 128 notes. The temperament and its root travel with a preset, since they are part of the sound. The reference pitch does not, since it is what the room is tuned to rather than what the patch is, and having a preset drag you off the pitch the rest of the ensemble is playing at would be no help at all.
+
 ### Stretch
 
 TUNE decides how the series is spelled. STRETCH decides whether it is a series at all.

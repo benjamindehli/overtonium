@@ -77,10 +77,10 @@ juce::MidiBuffer noteOnAt(int note, float velocity, int sample) {
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
-  // 21 per partial, 10 global, 17 for the noise channel, 11 for the two master
+  // 21 per partial, 13 global, 17 for the noise channel, 11 for the two master
   // effects. Start phase is not among the noise channel's, since noise has no
   // phase to start at.
-  const int expected = ovt::kNumHarmonics * 21 + 10 + 17 + 11;
+  const int expected = ovt::kNumHarmonics * 21 + 13 + 17 + 11;
   check(p.getParameters().size() == expected,
         "parameter count is " + std::to_string(p.getParameters().size()) +
             ", expected " + std::to_string(expected));
@@ -1112,7 +1112,7 @@ void testPresetsAreReproducible(OvertoniumProcessor &p) {
   const juce::StringArray preserved{
       ovt::params::masterGainId, ovt::params::polyphonyId,
       ovt::params::bendRangeId, ovt::params::atSourceId,
-      ovt::params::safetyClipId};
+      ovt::params::safetyClipId, ovt::params::referenceHzId};
 
   const auto snapshot = [&p] {
     std::vector<std::pair<juce::String, float>> out;
@@ -1137,6 +1137,8 @@ void testPresetsAreReproducible(OvertoniumProcessor &p) {
     put(ovt::params::lofiRateId, 5.0f); // 8 kHz
     put(ovt::params::lofiBitsId, 4.0f); // 8 bit
     put(ovt::params::phaseResetId, 0.0f);
+    put(ovt::params::temperamentId, 3.0f); // quarter-comma meantone
+    put(ovt::params::tuningRootId, 5.0f);  // on F
     put(ovt::params::echoOnId, 1.0f);
     put(ovt::params::reverbOnId, 1.0f);
     put(ovt::params::reverbDecayId, 17.0f);

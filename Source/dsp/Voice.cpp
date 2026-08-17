@@ -74,7 +74,8 @@ void Voice::reset() noexcept {
 
 void Voice::noteOn(int note, float velocity, const SynthParams &p) noexcept {
   midiNote = note;
-  baseFreq = 440.0 * std::exp2((double)(note - 69) / 12.0);
+  baseFreq = noteFrequency(note, p.global.temperament, p.global.tuningRoot,
+                           p.global.referenceHz);
 
   const float vel = std::clamp(velocity, 0.0f, 1.0f);
 

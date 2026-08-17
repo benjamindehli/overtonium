@@ -207,6 +207,29 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::NormalisableRange<float>(0.0f, 12.0f, 0.1f), 0.0f,
       FAttr().withStringFromValueFunction(trackText)));
 
+  juce::StringArray temperamentChoices;
+  for (int i = 0; i < (int)Temperament::NumTemperaments; ++i)
+    temperamentChoices.add(temperamentName((Temperament)i));
+
+  layout.add(std::make_unique<juce::AudioParameterChoice>(
+      juce::ParameterID{temperamentId, 1}, "Temperament", temperamentChoices,
+      (int)Temperament::Equal));
+
+  juce::StringArray rootChoices;
+  for (auto *name : kPitchClassNames)
+    rootChoices.add(name);
+
+  layout.add(std::make_unique<juce::AudioParameterChoice>(
+      juce::ParameterID{tuningRootId, 1}, "Tuning Root", rootChoices, 0));
+
+  juce::StringArray referenceChoices;
+  for (auto hz : kReferenceHzChoices)
+    referenceChoices.add("A = " + juce::String(hz) + " Hz");
+
+  layout.add(std::make_unique<juce::AudioParameterChoice>(
+      juce::ParameterID{referenceHzId, 1}, "Reference Pitch", referenceChoices,
+      5)); // 440
+
   juce::StringArray atSourceChoices;
   for (auto *name : kAftertouchSourceNames)
     atSourceChoices.add(name);
@@ -481,6 +504,9 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   stretch = apvts.getRawParameterValue(stretchId);
   atSource = apvts.getRawParameterValue(atSourceId);
   track = apvts.getRawParameterValue(trackId);
+  temperament = apvts.getRawParameterValue(temperamentId);
+  tuningRoot = apvts.getRawParameterValue(tuningRootId);
+  referenceHz = apvts.getRawParameterValue(referenceHzId);
   safetyClip = apvts.getRawParameterValue(safetyClipId);
   lofiRate = apvts.getRawParameterValue(lofiRateId);
   lofiBits = apvts.getRawParameterValue(lofiBitsId);
@@ -641,6 +667,23 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   out.global.phaseReset = phaseReset->load() > 0.5f;
   out.global.stretchCents = stretch->load();
   out.global.trackDbPerOctave = track->load();
+
+  {
+    const auto pick = [](const std::atomic<float> *p, int count) {
+      return p == nullptr
+                 ? 0
+                 : juce::jlimit(0, count - 1,
+                                (int)std::lround(p->load()));
+    };
+
+    out.global.temperament = (Temperament)pick(
+        temperament, (int)Temperament::NumTemperaments);
+
+    out.global.tuningRoot = pick(tuningRoot, (int)kPitchClassNames.size());
+
+    out.global.referenceHz = (double)kReferenceHzChoices[(size_t)pick(
+        referenceHz, (int)kReferenceHzChoices.size())];
+  }
   out.global.safetyClip = safetyClip->load() > 0.5f;
 
   {

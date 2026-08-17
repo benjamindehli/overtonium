@@ -16,6 +16,7 @@
 #include "dsp/Reverb.h"
 #include "dsp/SineTable.h"
 #include "dsp/SynthEngine.h"
+#include "dsp/Temperament.h"
 #include "dsp/TapeEcho.h"
 #include "dsp/Voice.h"
 
@@ -421,6 +422,123 @@ void testStartPhase() {
 
   check(identical,
         "with phase reset off it has nothing to aim and does nothing");
+}
+
+/// The keyboard's own tuning, as opposed to the partials above each note.
+///
+/// The temperaments are derived from the circle of fifths rather than copied
+/// from a table of cents, so what is checked here is the property that defines
+/// each one, not the numbers that happen to fall out.
+void testTemperaments() {
+  section("Temperaments");
+
+  // The two commas everything else is built from.
+  check(std::abs(tuning::kPythagoreanComma - 23.460) < 0.001,
+        "the Pythagorean comma comes out at 23.460 cents (" +
+            std::to_string(tuning::kPythagoreanComma) + ")");
+
+  check(std::abs(tuning::kSyntonicComma - 21.506) < 0.001,
+        "the syntonic comma comes out at 21.506 cents (" +
+            std::to_string(tuning::kSyntonicComma) + ")");
+
+  const auto interval = [](Temperament t, int semitones) {
+    const auto &o = temperamentOffsets(t);
+    return 100.0 * semitones + o[(size_t)semitones] - o[0];
+  };
+
+  const auto pureThird = tuning::kPureMajorThird;
+
+  // Quarter-comma meantone exists to make the major third pure. If that is not
+  // exact, the quarter is not a quarter.
+  check(std::abs(interval(Temperament::QuarterComma, 4) - pureThird) < 0.001,
+        "quarter-comma meantone's major third is pure (" +
+            std::to_string(interval(Temperament::QuarterComma, 4)) + ")");
+
+  check(std::abs(interval(Temperament::Just, 4) - pureThird) < 0.001,
+        "and so is just intonation's");
+
+  // Pythagorean exists to make the fifth pure, at the third's expense.
+  check(std::abs(interval(Temperament::Pythagorean, 7) - tuning::kPureFifth) <
+            0.001,
+        "Pythagorean's fifth is pure (" +
+            std::to_string(interval(Temperament::Pythagorean, 7)) + ")");
+
+  check(interval(Temperament::Pythagorean, 4) > 407.0,
+        "and its major third is wide, which is the price (" +
+            std::to_string(interval(Temperament::Pythagorean, 4)) + ")");
+
+  // The two well temperaments are known by their thirds.
+  check(std::abs(interval(Temperament::Werckmeister3, 4) - 390.225) < 0.01,
+        "Werckmeister III's major third is 390.2 cents (" +
+            std::to_string(interval(Temperament::Werckmeister3, 4)) + ")");
+
+  check(std::abs(interval(Temperament::Young, 4) - 392.18) < 0.01,
+        "Young's is 392.2 (" +
+            std::to_string(interval(Temperament::Young, 4)) + ")");
+
+  std::printf("  major third and fifth, in cents:\n");
+  for (int t = 0; t < (int)Temperament::NumTemperaments; ++t) {
+    const auto which = (Temperament)t;
+    std::printf("    %-24s %7.2f %8.2f\n", temperamentName(which),
+                interval(which, 4), interval(which, 7));
+  }
+
+  // Every circle has to close, or the octaves drift.
+  for (int t = 0; t < (int)Temperament::NumTemperaments; ++t) {
+    const auto &o = temperamentOffsets((Temperament)t);
+
+    bool sane = true;
+    for (auto cents : o)
+      sane &= std::abs(cents) < 60.0;
+
+    check(sane, std::string(temperamentName((Temperament)t)) +
+                    " stays within a semitone of equal");
+  }
+
+  // A is where the reference says it is, whatever the temperament, because a
+  // tuner tunes A first and works outwards from it.
+  bool anchored = true;
+  for (int t = 0; t < (int)Temperament::NumTemperaments; ++t)
+    for (int root = 0; root < 12; ++root)
+      anchored &= std::abs(noteFrequency(69, (Temperament)t, root, 440.0) -
+                           440.0) < 1.0e-9;
+
+  check(anchored, "A stays on the reference in every temperament and root");
+
+  // Equal temperament has to be exactly what it always was.
+  bool unchanged = true;
+  for (int note = 0; note < 128; ++note) {
+    const auto was = 440.0 * std::exp2((double)(note - 69) / 12.0);
+    unchanged &= std::abs(noteFrequency(note, Temperament::Equal, 0, 440.0) -
+                          was) < 1.0e-9;
+  }
+
+  check(unchanged, "and equal temperament is bit for bit what it was before");
+
+  // The reference pitch moves everything together.
+  check(std::abs(noteFrequency(69, Temperament::Equal, 0, 415.0) - 415.0) <
+            1.0e-9,
+        "the reference pitch sets A");
+
+  const auto c4at415 = noteFrequency(60, Temperament::Equal, 0, 415.0);
+  const auto c4at440 = noteFrequency(60, Temperament::Equal, 0, 440.0);
+
+  check(std::abs(c4at415 / c4at440 - 415.0 / 440.0) < 1.0e-9,
+        "and moves the rest of the keyboard with it");
+
+  // The root rotates the pattern rather than reshaping it.
+  const auto thirdFromRoot = [](int root) {
+    const auto t = Temperament::QuarterComma;
+
+    return 1200.0 * std::log2(noteFrequency(64 + root, t, root, 440.0) /
+                              noteFrequency(60 + root, t, root, 440.0));
+  };
+
+  bool rotates = true;
+  for (int root = 0; root < 12; ++root)
+    rotates &= std::abs(thirdFromRoot(root) - pureThird) < 0.001;
+
+  check(rotates, "meantone's pure third follows the root wherever it is put");
 }
 
 void testBlendEndpoints() {
@@ -3375,6 +3493,7 @@ void benchmarkLofi() {
 
 int main() {
   testTuningTable();
+  testTemperaments();
   testBlendEndpoints();
   testStretch();
   testStartPhase();
