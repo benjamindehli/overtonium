@@ -1,17 +1,24 @@
 // Headless integration tests for the plugin layer: parameter wiring, MIDI
-// handling, factory presets, bus layouts and state round-tripping. No editor is
-// created, so this runs on a CI box with no display.
+// handling, factory presets, undo, bus layouts and state round-tripping, plus
+// the parts of the editor that can be measured rather than looked at.
+//
+// It does build an editor, for the layout checks, but never gives it a window,
+// so it still runs on a CI box with no display. Nothing here may open a
+// PopupMenu, which does need one.
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <set>
 #include <string>
 #include <vector>
 
+#include "PluginEditor.h"
 #include "PluginParameters.h"
 #include "PluginProcessor.h"
 #include "Presets.h"
+#include "UI/NoiseStrip.h"
 #include "UI/Theme.h"
 #include "UI/TopBar.h"
 
@@ -102,8 +109,8 @@ void testParameterWiring(OvertoniumProcessor &p) {
 
   const char *suffixes[] = {
       ovt::params::tuneSuffix,    ovt::params::phaseSuffix,
-      ovt::params::pmRateSuffix,
-      ovt::params::pmDepthSuffix, ovt::params::driftSuffix,
+      ovt::params::pmRateSuffix,  ovt::params::pmDepthSuffix,
+      ovt::params::driftSuffix,
       ovt::params::delaySuffix,   ovt::params::attackSuffix,
       ovt::params::decaySuffix,   ovt::params::sustainSuffix,
       ovt::params::swellSuffix,   ovt::params::offLevelSuffix,
@@ -1178,6 +1185,124 @@ void testPresetsAreReproducible(OvertoniumProcessor &p) {
             std::to_string(reproducible) + ")");
 }
 
+/// A knob whose first eighth does nothing is a knob with an eighth less of
+/// itself. That is what fitting a power curve through a midpoint across four
+/// and a half decades produces, and it is easy to reintroduce by reaching for
+/// setSkewForCentre on the next wide range somebody adds.
+/// Knobs come out whatever size the row they land in happens to be, so a row
+/// height typed a couple of pixels off is a knob a couple of pixels off, and
+/// nothing complains. The sizes that differ should differ on purpose.
+void testKnobSizes(OvertoniumProcessor &p) {
+  section("Knob sizes");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  editor->setSize(1348, 1000);
+
+  // The diameter the look and feel will draw, which is what the eye sees,
+  // rather than the bounds, which nobody sees.
+  const auto dialOf = [](const juce::Slider &s) {
+    const auto b = s.getBounds().reduced(1);
+    return juce::jmin(b.getWidth(), b.getHeight());
+  };
+
+  std::function<void(juce::Component &, std::set<int> &)> collect =
+      [&](juce::Component &c, std::set<int> &into) {
+        for (auto *child : c.getChildren()) {
+          if (auto *s = dynamic_cast<juce::Slider *>(child))
+            if (s->getSliderStyle() == juce::Slider::RotaryVerticalDrag &&
+                !s->getBounds().isEmpty())
+              into.insert(dialOf(*s));
+
+          collect(*child, into);
+        }
+      };
+
+  std::set<int> channel, noise, bar;
+
+  std::function<void(juce::Component &)> scan = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (dynamic_cast<ovt::ui::ChannelStrip *>(child))
+        collect(*child, channel);
+      else if (dynamic_cast<ovt::ui::NoiseStrip *>(child))
+        collect(*child, noise);
+      else if (dynamic_cast<ovt::ui::TopBar *>(child))
+        collect(*child, bar);
+      else
+        scan(*child);
+    }
+  };
+  scan(*editor);
+
+  const auto list = [](const std::set<int> &v) {
+    std::string out;
+    for (auto d : v)
+      out += (out.empty() ? "" : ", ") + std::to_string(d);
+    return out;
+  };
+
+  std::printf("  channel strip %s   noise strip %s   top bar %s\n",
+              list(channel).c_str(), list(noise).c_str(), list(bar).c_str());
+
+  check(bar.size() == 1,
+        "every knob in the top bar is one size (" + list(bar) + ")");
+
+  // Two on a strip: the headline tuning knob, and everything below it.
+  check(channel.size() == 2,
+        "a channel strip uses two sizes, the headline row and the rest (" +
+            list(channel) + ")");
+
+  check(noise == channel,
+        "and the noise strip uses exactly the same two (" + list(noise) + ")");
+}
+
+void testNoDeadTravel(OvertoniumProcessor &p) {
+  section("Knob travel");
+
+  // How far the knob turns before the value has moved 1% away from its
+  // minimum. Anything past a couple of percent is travel you cannot use.
+  const auto deadTravel = [](const juce::RangedAudioParameter &param) {
+    const auto &r = param.getNormalisableRange();
+    const auto base = (double)r.convertFrom0to1(0.0f);
+
+    for (float t = 0.0f; t <= 1.0f; t += 0.0005f) {
+      const auto v = (double)r.convertFrom0to1(t);
+
+      // A range starting at zero has no ratio to grow by, so it counts as
+      // moving as soon as it is off the floor at all.
+      if (base <= 0.0 ? v > 1.0e-6 : v > base * 1.01)
+        return 100.0f * t;
+    }
+
+    return 100.0f;
+  };
+
+  const auto attackId = ovt::params::oscParamId(ovt::params::attackSuffix, 0);
+  const auto noiseAttackId =
+      ovt::params::noiseParamId(ovt::params::attackSuffix);
+
+  for (const auto &id : {attackId, noiseAttackId}) {
+    auto *param = p.apvts.getParameter(id);
+    const auto dead = param != nullptr ? deadTravel(*param) : 100.0f;
+
+    std::printf("  %-16s dead travel %.1f%%\n", id.toRawUTF8(), dead);
+
+    check(dead < 2.0f, id.toStdString() +
+                           " has no dead travel at the bottom (" +
+                           std::to_string(dead) + "%)");
+  }
+
+  // And the shortest attack really is 0.2 ms, not a number that rounds to it.
+  if (auto *param = p.apvts.getParameter(attackId))
+    check(std::abs(param->getNormalisableRange().start - 0.0002f) < 1.0e-7f,
+          "the shortest attack is 0.2 ms");
+}
+
 void testUndo(OvertoniumProcessor &p) {
   section("Undo");
 
@@ -1377,6 +1502,8 @@ int main() {
   testLinkMenu();
   testTopBarLayout();
   testTopBarAlignment(processor);
+  testKnobSizes(processor);
+  testNoDeadTravel(processor);
   testPresetsAreReproducible(processor);
   testUndo(processor);
   testBusLayouts(processor);

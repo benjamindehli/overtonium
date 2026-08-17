@@ -184,6 +184,8 @@ void NoiseStrip::resized() {
 
   // Colour takes the tuning row, which is the one thing noise has that a
   // partial does not.
+  // No inset, matching the TUNE knob it sits in line with. Both headline knobs
+  // take their whole row where every knob below them gives a pixel back.
   colourKnob.setBounds(rows[rowIndex(Row::TuneKnob)]);
   colourReadout.setBounds(rows[rowIndex(Row::TuneText)]);
 

@@ -12,6 +12,30 @@ juce::NormalisableRange<float> rangeWithCentre(float lo, float hi,
   return r;
 }
 
+/// A range where equal turns of the knob are equal ratios.
+///
+/// The natural shape for a time control, because a step from 1 ms to 2 ms
+/// matters as much as one from 100 ms to 200 ms, and this gives them the same
+/// amount of travel.
+///
+/// setSkewForCentre cannot. Fitting a power curve through a midpoint across
+/// four and a half decades needs an exponent of about 7.4, and the bottom
+/// eighth of that curve is flat enough to be dead: nudging the knob there
+/// moves the value by nothing at all.
+///
+/// Needs a low end above zero, since nothing has a ratio to zero.
+juce::NormalisableRange<float> logRange(float lo, float hi) {
+  jassert(lo > 0.0f);
+
+  return {lo, hi,
+          [](float a, float b, float t) { return a * std::pow(b / a, t); },
+          [](float a, float b, float v) {
+            return juce::jlimit(0.0f, 1.0f,
+                                std::log(v / a) / std::log(b / a));
+          },
+          [](float a, float b, float v) { return juce::jlimit(a, b, v); }};
+}
+
 /// A bipolar range with its fine end in the middle.
 ///
 /// Piano stretch lives in the first hundred cents or so and a bell wants a
@@ -269,7 +293,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(attackSuffix, i), 1}, p + "Attack",
-        rangeWithCentre(0.0005f, 5.0f, 0.03f), 0.005f,
+        logRange(0.0002f, 5.0f), 0.005f,
         FAttr().withStringFromValueFunction(timeText)));
 
     layout.add(std::make_unique<FloatP>(
@@ -350,7 +374,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{noiseParamId(attackSuffix), 1}, "Noise Attack",
-      rangeWithCentre(0.0005f, 5.0f, 0.03f), 0.005f,
+      logRange(0.0002f, 5.0f), 0.005f,
       FAttr().withStringFromValueFunction(timeText)));
 
   layout.add(std::make_unique<FloatP>(

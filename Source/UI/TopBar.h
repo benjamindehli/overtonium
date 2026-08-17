@@ -150,8 +150,6 @@ public:
   /// quietly dropping controls.
   static int minimumWidth();
 
-  void setVoiceCount(int active, int limit);
-
   /// Refreshes the two converter readouts. The host rate has to be passed in
   /// because "leave it alone" is a setting whose value only the processor
   /// knows.
@@ -207,7 +205,6 @@ private:
     EchoGroup,
     ReverbGroup,
     OutputGroup,
-    ViewGroup,
     NumGroups
   };
 
@@ -255,8 +252,6 @@ private:
   /// image down to 150 on every repaint would be both slow and soft.
   juce::Image logo, logoScaled;
 
-  juce::ComboBox zoomBox;
-
   juce::TextButton presetButton, settingsButton, linkButton;
 
   /// Held between opening the menu and acting on it, so the ids the menu hands
@@ -266,8 +261,10 @@ private:
   std::unique_ptr<juce::AlertWindow> nameWindow;
   juce::TextButton echoButton, reverbButton;
 
-  /// Shown in the settings menu rather than on the panel.
-  int activeVoices = 0;
+  /// Likewise. Zoom is set once to suit the screen and then left, and giving
+  /// its box back to the bar is what lets the output group keep its readouts
+  /// legible at the width the window opens at.
+  float zoom = 1.0f;
 
   std::vector<Control> echoControls, reverbControls;
 

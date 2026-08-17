@@ -633,7 +633,6 @@ void OvertoniumEditor::timerCallback() {
     return p != nullptr && p->load() > 0.5f;
   };
 
-  topBar.setVoiceCount(processor.getActiveVoiceCount(), cache.polyphonyValue());
   topBar.updateConverterReadouts(processor.getSampleRate());
 
   // Dim whatever a solo elsewhere is silencing, so the mixer shows what you can

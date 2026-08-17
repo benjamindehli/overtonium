@@ -21,9 +21,9 @@ constexpr int kGroupPad = 6;
 
 /// Minimum width of each group, in the order they are laid out. Only the
 /// output group grows, because the meter is the one thing worth more room.
-constexpr int kGroupMinWidth[] = {144, 90, 60, 116, 222, 260, 186, 82};
+constexpr int kGroupMinWidth[] = {144, 90, 60, 116, 222, 260, 186};
 constexpr int kOutputGroupIndex = 6;
-constexpr int kGroupCount = 8;
+constexpr int kGroupCount = 7;
 
 /// Buttons, lists and the output meter all stand this tall, centred on the
 /// dials beside them, so a row reads as one line of controls.
@@ -471,19 +471,6 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   settingsButton.onClick = [this] { showSettingsMenu(); };
   addAndMakeVisible(settingsButton);
 
-  // ---- zoom -----------------------------------------------------------------
-  for (int i = 0; i < (int)std::size(kZoomChoices); ++i)
-    zoomBox.addItem(
-        juce::String(juce::roundToInt(kZoomChoices[i] * 100.0f)) + "%", i + 1);
-
-  zoomBox.setSelectedId(2, juce::dontSendNotification);
-  zoomBox.onChange = [this] {
-    const auto id = zoomBox.getSelectedId();
-    if (id > 0 && onZoomChanged)
-      onZoomChanged(kZoomChoices[id - 1]);
-  };
-  addAndMakeVisible(zoomBox);
-
   // ---- toggles --------------------------------------------------------------
   // One button rather than a switch and a chevron beside it. It always opens
   // the menu, and it lights when the switch inside is on, so the state is
@@ -759,9 +746,7 @@ void TopBar::showSettingsMenu() {
   m.addItem(701, "Redo", canRedo && canRedo());
   m.addSeparator();
 
-  // The count of what is actually sounding goes in the header rather than on
-  // the panel, where it was a readout nobody was watching.
-  m.addSectionHeader("Polyphony (" + juce::String(activeVoices) + " sounding)");
+  m.addSectionHeader("Polyphony");
 
   for (int i = 0; i < (int)params::kPolyphonyChoices.size(); ++i)
     m.addItem(100 + i,
@@ -800,8 +785,18 @@ void TopBar::showSettingsMenu() {
     sources.addItem(600 + i, params::kAftertouchSourceNames[(size_t)i], true,
                     i == sourceIndex);
 
+  juce::PopupMenu zooms;
+
+  for (int i = 0; i < (int)std::size(kZoomChoices); ++i) {
+    const auto percent = juce::roundToInt(kZoomChoices[i] * 100.0f);
+
+    zooms.addItem(800 + i, juce::String(percent) + "%", true,
+                  std::abs(kZoomChoices[i] - zoom) < 0.01f);
+  }
+
   m.addSeparator();
   m.addSubMenu("Aftertouch from", sources);
+  m.addSubMenu("Zoom", zooms);
 
   m.addSeparator();
   m.addSectionHeader("Output");
@@ -841,6 +836,15 @@ void TopBar::showSettingsMenu() {
                             p->convertTo0to1((float)index));
                     };
 
+                    if (result >= 800) {
+                      const auto index = result - 800;
+
+                      if (index < (int)std::size(kZoomChoices) && onZoomChanged)
+                        onZoomChanged(kZoomChoices[index]);
+
+                      return;
+                    }
+
                     if (result == 700)
                       return onUndo ? onUndo() : void();
 
@@ -859,8 +863,6 @@ void TopBar::showSettingsMenu() {
                       p->setValueNotifyingHost(p->convertTo0to1(plain));
                   });
 }
-
-void TopBar::setVoiceCount(int active, int) { activeVoices = active; }
 
 void TopBar::updateConverterReadouts(double hostSampleRate) {
   const auto chosen = [this](const char *id, int count) {
@@ -894,14 +896,7 @@ void TopBar::updateConverterReadouts(double hostSampleRate) {
   bitsDisplay.setReading(juce::String(bits > 0 ? bits : 32), bits > 0);
 }
 
-void TopBar::setZoomChoice(float zoom) {
-  for (int i = 0; i < (int)std::size(kZoomChoices); ++i) {
-    if (std::abs(kZoomChoices[i] - zoom) < 0.01f) {
-      zoomBox.setSelectedId(i + 1, juce::dontSendNotification);
-      return;
-    }
-  }
-}
+void TopBar::setZoomChoice(float newZoom) { zoom = newZoom; }
 
 TopBar::RowPlan TopBar::planRows(int firstRowWidth, int fullWidth,
                                  int maxRows) {
@@ -985,10 +980,10 @@ int TopBar::minimumWidth() {
 }
 
 void TopBar::parkControls() {
-  juce::Component *all[] = {&master,        &meter,       &presetButton,
-                            &zoomBox,       &linkButton,  &settingsButton,
-                            &echoButton,    &reverbButton, &stretch,
-                            &track,         &rateDisplay, &bitsDisplay};
+  juce::Component *all[] = {&master,      &meter,       &presetButton,
+                            &linkButton,  &settingsButton, &echoButton,
+                            &reverbButton, &stretch,    &track,
+                            &rateDisplay, &bitsDisplay};
 
   for (auto *c : all)
     c->setBounds({});
@@ -1083,10 +1078,6 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
     bitsDisplay.setBounds(pair);
     break;
   }
-
-  case ViewGroup:
-    alignedWithDials(zoomBox, r);
-    break;
 
   default:
     jassertfalse;

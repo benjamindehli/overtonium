@@ -174,6 +174,8 @@ The consequence falls out of where the corner sits. A bass note has most of its 
 
 Zero is off, and off is exact.
 
+Knobs come in three sizes and only three: 36 px in the top bar, 32 px for the headline tuning knob at the head of each strip, and 26 px for everything below it. Nothing else varies, in either the channel strips or the noise strip. That is worth stating because a knob takes the size of whatever row it lands in, so a row height typed two pixels off is a knob two pixels off and nothing complains. A test walks the built editor and asserts the count.
+
 Strips are colour-coded by interval class, which keeps the structure of the series visible while you scroll. The twelve classes sit in chromatic order along a narrow band running from blue at the octave, through magenta and red in the middle, to yellow at the major seventh. Octaves are therefore blue, fifths rose, major thirds magenta, sevenths amber and yellow.
 
 The band is deliberately narrow, a crop from the middle of a full blue to yellow sweep, so 32 channels read as one family rather than as a rainbow. Saturation and value fall towards the warm end because yellow reads far brighter than blue at the same nominal value, which keeps the sevenths from visually swamping the octaves. Nothing in the band enters green or cyan, which is where the accent used by the global controls lives, so chrome never reads as one of the channels.
@@ -187,7 +189,7 @@ Each of the 32 strips has, top to bottom:
 | TUNE | equal to just | Readout shows the resulting cent offset |
 | PITCH MOD rate and depth | 0.01 to 30 Hz, 0 to 200 cents | Per-partial vibrato |
 | DRIFT | 0 to 25 cents | Smooth random pitch wander. See below |
-| ENVELOPE delay, A, D, S | 0 to 5 s, 0.5 ms to 5 s, 1 ms to 20 s, 0 to 100% | Exponential decay |
+| ENVELOPE delay, A, D, S | 0 to 5 s, 0.2 ms to 5 s, 1 ms to 20 s, 0 to 100% | Exponential decay |
 | KEY OFF swell, level, release | 0 to 5 s, 0 to 100%, 1 ms to 20 s | A second envelope for letting go. See below |
 | AMP MOD rate and depth | 0.01 to 30 Hz, 0 to 100% | Per-partial tremolo |
 | VELOCITY | -100 to +100% | How much key velocity scales this partial. Negative inverts it |
@@ -223,13 +225,14 @@ The top bar holds everything that is not per partial, in signal order from left 
 | Group | Contains |
 |---|---|
 | Preset | the preset menu: factory, saved, and somewhere to put the one you are working on |
-| Settings | undo, polyphony, bend range, what feeds aftertouch, phase reset and the safety clipper |
+| Settings | undo, polyphony, bend range, what feeds aftertouch, phase reset, the safety clipper and zoom |
 | Link | **LINK**, and what it reaches and how. See below |
 | Series | **STRETCH** and **TRACK**, what the series does before anything is done to it. See below |
 | Echo | the tape echo. See below |
 | Reverb | the reverb. See below |
 | Output | **MASTER**, the stereo meter, and the converter readouts under it |
-| View | **ZOOM** |
+
+Zoom lives in the Settings menu rather than on the bar, and that is worth eighty-eight pixels. Before it moved, the bar needed 1202 px on its first row at the width the window opens at and had 1164, so it wrapped to two rows on a default-sized window. It now needs 1114 and fits, and the room that frees goes to the output meter, which is what makes the converter readouts wide enough to keep their units.
 
 Echo, Reverb and Output are drawn as boxes, because a box is what says "these belong together" and there is something in each of them to group. The rest are single controls standing on their own: a box around one button says nothing the button was not already saying, and four of them in a row turn the bar into a fence. Buttons, lists and the meter all stand on the line the knob dials stand on, rather than in the middle of their row, since a knob carries its caption underneath and anything centred beside one reads as sagging.
 
@@ -392,6 +395,10 @@ That leaves enough headroom for the engine to stay a plain bank of oscillators w
 - A 4096-point interpolated sine table, measured error -129 dB, instead of `std::sin` per sample.
 - LFOs, envelope coefficients and gain ramps update once per 32-sample control block. Only the oscillator and envelope run at sample rate.
 - Silent partials, whether muted, faded out above Nyquist or sitting at zero, skip the oscillator entirely and only advance their envelope.
+
+The attack knob is logarithmic rather than skewed towards a midpoint, so equal turns are equal ratios: the step from 1 ms to 2 ms gets the same travel as the one from 100 ms to 200 ms. That matters here because its range spans four and a half decades, and fitting a power curve through a midpoint across that needs an exponent of about 7.4, which leaves the bottom eighth of the knob flat enough that nudging it does nothing. Measured, that dead travel went from 13.7% to 0.1%, and 30 ms stayed within half a percent of the middle where it was. The trade is that sub-millisecond attacks now occupy 9% of the travel rather than 27%, of which half was unusable anyway. A test asserts the dead travel, so the next wide range somebody adds cannot quietly reintroduce it.
+
+The other time controls still use the older curve and still have a few percent of dead travel each: 7.7% on decay and release, 14.8% on swell. They are lower stakes than the attack, and changing them would move where every existing patch sits on those knobs.
 
 ### Where a partial starts
 

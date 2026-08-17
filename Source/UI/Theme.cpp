@@ -34,27 +34,27 @@ constexpr int kRowHeights[kNumRows] = {
     26, // Header
     38, // TuneKnob
     13, // TuneText
-    28, // Phase
+    30, // Phase
     15, // PitchModHeading
     30, // PmRate
     30, // PmDepth
     30, // Drift
     15, // EnvHeading
-    28, // Delay
-    28, // Attack
-    28, // Decay
-    28, // Sustain
+    30, // Delay
+    30, // Attack
+    30, // Decay
+    30, // Sustain
     15, // KeyOffHeading
-    28, // Swell
-    28, // OffLevel
-    28, // Release
+    30, // Swell
+    30, // OffLevel
+    30, // Release
     15, // AmpModHeading
     30, // AmRate
     30, // AmDepth
     15, // OutputHeading
-    28, // Velocity
-    28, // Aftertouch
-    28, // Pan
+    30, // Velocity
+    30, // Aftertouch
+    30, // Pan
     20, // MuteSolo
     -1, // Fader
     13  // FaderText
