@@ -3486,8 +3486,12 @@ void testLofi() {
   constexpr double sr = 48000.0;
   constexpr int N = 12000;
 
-  const auto renderNote = [](const SynthParams &p, int samples,
-                             std::vector<float> &l, std::vector<float> &r) {
+  // sr is captured rather than left to the constexpr rule. Using a constexpr
+  // as a plain value does not odr-use it, so no capture is needed and GCC and
+  // Clang both accept it, but MSVC asks for one regardless and the build only
+  // finds out on Windows.
+  const auto renderNote = [sr](const SynthParams &p, int samples,
+                               std::vector<float> &l, std::vector<float> &r) {
     SynthEngine engine;
     engine.prepare(sr);
     engine.setPolyphony(8);

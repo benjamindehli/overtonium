@@ -47,8 +47,14 @@ jobs:
           -DOVERTONIUM_INSTALL_AFTER_BUILD=OFF
           ${{ matrix.extra }}
 
+      # The job count is given rather than left to the build tool. Without a
+      # number, cmake passes a bare -j to make, which means no limit at all,
+      # and three targets each pulling in the JUCE modules puts dozens of
+      # translation units in flight at once. With link-time optimisation on top
+      # that exhausted the memory on the Linux runner, which does not report as
+      # a build failure: the runner simply stops answering.
       - name: Build
-        run: cmake --build build --config Release --parallel
+        run: cmake --build build --config Release --parallel 2
 
       # Neither suite opens an editor, so both run on a machine with no display.
       - name: Test
