@@ -14,6 +14,7 @@ inline constexpr const char *phaseResetId = "phaseReset";
 inline constexpr const char *stretchId = "stretch";
 inline constexpr const char *atSourceId = "atSource";
 inline constexpr const char *trackId = "track";
+inline constexpr const char *wobbleId = "wobble";
 inline constexpr const char *temperamentId = "temperament";
 inline constexpr const char *tuningRootId = "tuningRoot";
 inline constexpr const char *referenceHzId = "referenceHz";
@@ -132,6 +133,7 @@ struct Cache {
   std::atomic<float> *stretch = nullptr;
   std::atomic<float> *atSource = nullptr;
   std::atomic<float> *track = nullptr;
+  std::atomic<float> *wobble = nullptr;
   std::atomic<float> *temperament = nullptr;
   std::atomic<float> *tuningRoot = nullptr;
   std::atomic<float> *referenceHz = nullptr;

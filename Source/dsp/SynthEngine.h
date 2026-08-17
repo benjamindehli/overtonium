@@ -8,6 +8,7 @@
 
 #include "Reverb.h"
 #include "TapeEcho.h"
+#include "Wobble.h"
 #include "Voice.h"
 
 namespace ovt {
@@ -139,6 +140,12 @@ private:
   // The master effects. They sit after the voices and before the master fader,
   // so the fader is a true output level and moving it cannot change the wet to
   // dry balance underneath it.
+  //
+  // Wobble is first of the three. It bends the instrument itself, so the echo
+  // repeats what the wobble did rather than adding a wobble of their own,
+  // which is the difference between a warped record being played and a warped
+  // recording of one.
+  Wobble wobble;
   TapeEcho echo;
   Reverb reverb;
 };

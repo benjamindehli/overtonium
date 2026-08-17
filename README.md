@@ -267,7 +267,7 @@ The top bar holds everything that is not per partial, in signal order from left 
 | Preset | the preset menu: factory, saved, and somewhere to put the one you are working on |
 | Settings | undo, polyphony, bend range, what feeds aftertouch, phase reset, the safety clipper and zoom |
 | Link | **LINK**, and what it reaches and how. See below |
-| Series | **STRETCH** and **TRACK**, what the series does before anything is done to it. See below |
+| Series | **STRETCH**, **TRACK** and **WOBBLE**, what the instrument does before anything is done to it. See below |
 | Echo | the tape echo. See below |
 | Reverb | the reverb. See below |
 | Output | **MASTER**, the stereo meter, and the converter readouts under it |
@@ -394,6 +394,25 @@ Every channel has a PAN, the noise channel included, rather than one width contr
 The law is equal power, so the number on the knob is the number in the audio and the level holds as a partial crosses the field. The tests measure both, reading the positions back out of the rendered audio rather than taking them on trust: hard left and hard right land within 0.01 of the ends, half left images at half left within 0.02, and a partial swept across the whole field varies in loudness by under 0.1 dB.
 
 A good shape to start from is mirrored pairs, 1 and 2 in the centre widening out to 31 and 32 at the edges, with the sides alternating so the louder of each pair does not always land on the same one. That is what the old width control used to do, and *Slow Pad* and *Shimmer* now write it into their pans, where it can be taken apart by hand. It is worth understanding before you leave it: neighbouring partials have near-identical levels in any normal spectrum, so putting each pair on opposite sides keeps the image centred whatever shape you dial in, and because every position has a mirror, no partial ends up hard panned with nothing facing it.
+
+### Wobble
+
+A warped record under the whole instrument. Pitch is bent by reading the output back through a delay line whose length keeps moving, which is what happens when a platter runs eccentric or a capstan slips: the medium arrives early or late and the pitch goes with it.
+
+Three things move it at once. A slow warp near once round a 33 rpm record, a faster wobble on top that is too quick to follow and too slow to be vibrato, and now and then a nudge, a sharp slip that bends hard and settles back. The slips are the glitch, and both their rate and their size climb with the square of the control, so the bottom of the knob is a tired turntable and the top is a transport falling over itself.
+
+| Setting | Typical bend | Worst bend |
+|---|---|---|
+| 25% | 5 cents | 65 cents |
+| 100% | 34 cents | 322 cents |
+
+That gap between the typical and the worst is the whole character. A vibrato would have them close together.
+
+It sits between the voices and the echo, so the repeats inherit what the wobble did rather than adding a wobble of their own, which is the difference between a warped record being played and a warped recording of one. Both channels are driven from the same modulation, since it is one platter, and a centred source stays centred. That is deliberately the opposite of the echo below it, where the two sides are meant to disagree.
+
+The delay it introduces grows with the control rather than being switched in, so there is none at all at zero and turning it up cannot step. Getting that right took a fix: coming up from bypass, the line held nothing yet, and reading even one sample behind the write head returned the silence it had been cleared to, which was a step of 0.8 into a signal of 1. The read point is now allowed to sit exactly on the write head, and the glide guarantees it recedes more slowly than the line fills. Measured across a knob moved from zero to full over a second, the largest jump between neighbouring samples is 0.0164 against 0.0144 for the steepest part of the waveform itself.
+
+At zero it is bypassed and passes the signal through untouched, bit for bit, which the tests check rather than infer. At full it costs 0.17% of a core.
 
 ### The master effects
 

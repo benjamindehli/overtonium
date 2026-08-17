@@ -80,6 +80,7 @@ set(OVERTONIUM_SOURCES
     Source/dsp/SynthEngine.cpp
     Source/dsp/TapeEcho.cpp
     Source/dsp/Reverb.cpp
+    Source/dsp/Wobble.cpp
     Source/UI/ChannelStrip.cpp
     Source/UI/LookAndFeel.cpp
     Source/UI/NoiseStrip.cpp
@@ -146,7 +147,8 @@ if(OVERTONIUM_BUILD_TESTS)
         Source/dsp/Voice.cpp
         Source/dsp/SynthEngine.cpp
         Source/dsp/TapeEcho.cpp
-        Source/dsp/Reverb.cpp)
+        Source/dsp/Reverb.cpp
+        Source/dsp/Wobble.cpp)
 
     target_include_directories(overtonium_dsp_test PRIVATE Source)
     target_compile_features(overtonium_dsp_test PRIVATE cxx_std_17)

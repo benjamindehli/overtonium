@@ -239,7 +239,7 @@ private:
   /// What the series does, as opposed to what is done to it afterwards. Both
   /// are properties of the instrument, so they stand between the tools and the
   /// two effect boxes rather than among either.
-  LabelledKnob stretch{"STRETCH"}, track{"TRACK"};
+  LabelledKnob stretch{"STRETCH"}, track{"TRACK"}, wobble{"WOBBLE"};
 
   StereoOutputMeter meter;
 
@@ -272,7 +272,7 @@ private:
   LinkCurve curve = LinkCurve::Uniform;
 
   std::unique_ptr<SliderAttachment> masterAttachment, stretchAttachment,
-      trackAttachment;
+      trackAttachment, wobbleAttachment;
   std::unique_ptr<ButtonAttachment> echoAttachment, reverbAttachment;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(TopBar)

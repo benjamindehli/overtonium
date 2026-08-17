@@ -17,6 +17,7 @@
 #include "dsp/SineTable.h"
 #include "dsp/SynthEngine.h"
 #include "dsp/Temperament.h"
+#include "dsp/Wobble.h"
 #include "dsp/TapeEcho.h"
 #include "dsp/Voice.h"
 
@@ -2957,6 +2958,160 @@ void testTapeEcho() {
   }
 }
 
+/// The warped record under the whole instrument.
+void testWobble() {
+  section("Wobble");
+
+  constexpr double sr = 48000.0;
+  constexpr double f0 = 440.0;
+
+  // Cycle-by-cycle pitch of a steady tone put through it, which is the thing
+  // the control is for.
+  struct Bend {
+    double worst = 0.0, typical = 0.0;
+  };
+
+  const auto bendAt = [&](float amount) {
+    Wobble w;
+    w.prepare(sr);
+
+    const auto n = (size_t)(sr * 12.0);
+    std::vector<float> l(n), r(n);
+
+    for (size_t i = 0; i < n; ++i)
+      l[i] = r[i] = (float)std::sin(6.283185307179586 * f0 * (double)i / sr);
+
+    for (size_t at = 0; at < n; at += 256)
+      w.process(l.data() + at, r.data() + at,
+                (int)std::min<size_t>(256, n - at), amount);
+
+    std::vector<double> crossings;
+    for (size_t i = (size_t)sr + 1; i < n; ++i)
+      if (l[i - 1] <= 0.0f && l[i] > 0.0f) {
+        const auto frac = -l[i - 1] / (l[i] - l[i - 1]);
+        crossings.push_back(((double)(i - 1) + frac) / sr);
+      }
+
+    Bend b;
+    double sum = 0.0;
+
+    for (size_t k = 1; k < crossings.size(); ++k) {
+      const auto cents =
+          1200.0 * std::log2(1.0 / (crossings[k] - crossings[k - 1]) / f0);
+
+      b.worst = std::max(b.worst, std::abs(cents));
+      sum += std::abs(cents);
+    }
+
+    b.typical =
+        crossings.size() > 1 ? sum / (double)(crossings.size() - 1) : 0.0;
+    return b;
+  };
+
+  // Bit for bit, rather than by measuring the pitch: reading a sampled sine's
+  // period back has a jitter of its own, around a thousandth of a cent, which
+  // would be the only thing this saw.
+  {
+    Wobble w;
+    w.prepare(sr);
+
+    std::vector<float> l(4096), r(4096), wasL(4096);
+    for (size_t i = 0; i < l.size(); ++i)
+      l[i] = r[i] = wasL[i] =
+          (float)std::sin(6.283185307179586 * f0 * (double)i / sr);
+
+    w.process(l.data(), r.data(), (int)l.size(), 0.0f);
+
+    bool untouched = true;
+    for (size_t i = 0; i < l.size(); ++i)
+      untouched &= l[i] == wasL[i];
+
+    check(untouched, "at zero it passes the signal through untouched");
+  }
+
+  const auto low = bendAt(0.25f);
+  const auto high = bendAt(1.0f);
+
+  std::printf("  pitch bend: %.0f ct worst and %.0f ct typical at a quarter, "
+              "%.0f and %.0f at full\n",
+              low.worst, low.typical, high.worst, high.typical);
+
+  check(low.typical > 1.0 && low.typical < 15.0,
+        "a quarter turn is a wander rather than a warble (" +
+            std::to_string(low.typical) + " cents)");
+
+  check(high.typical > 2.0 * low.typical,
+        "and turning it up bends further (" + std::to_string(high.typical) +
+            " against " + std::to_string(low.typical) + ")");
+
+  // The slips are the point of the top of the knob: the worst moment has to be
+  // far worse than the average one, or it is only a vibrato.
+  check(high.worst > 4.0 * high.typical,
+        "the slips are much larger than the wander they sit on (" +
+            std::to_string(high.worst / std::max(1.0e-9, high.typical)) +
+            " times)");
+
+  // One platter, so a centred source stays centred. This is what separates it
+  // from the echo, where the two sides are meant to disagree.
+  {
+    Wobble w;
+    w.prepare(sr);
+
+    const auto n = (size_t)(sr * 4.0);
+    std::vector<float> l(n), r(n);
+
+    for (size_t i = 0; i < n; ++i)
+      l[i] = r[i] = (float)std::sin(6.283185307179586 * 220.0 * (double)i / sr);
+
+    for (size_t at = 0; at < n; at += 256)
+      w.process(l.data() + at, r.data() + at,
+                (int)std::min<size_t>(256, n - at), 1.0f);
+
+    double apart = 0.0;
+    for (size_t i = 0; i < n; ++i)
+      apart = std::max(apart, std::abs((double)l[i] - r[i]));
+
+    check(apart < 1.0e-6,
+          "both channels bend together, since it is one platter (" +
+              std::to_string(apart) + ")");
+  }
+
+  // Turning it up from nothing must not step, since the delay it introduces
+  // grows with the control rather than being switched in.
+  {
+    Wobble w;
+    w.prepare(sr);
+
+    const auto n = (size_t)(sr * 2.0);
+    std::vector<float> l(n), r(n);
+
+    for (size_t i = 0; i < n; ++i)
+      l[i] = r[i] = (float)std::sin(6.283185307179586 * 110.0 * (double)i / sr);
+
+    // Ramped on over a second, the way a hand moves a knob.
+    for (size_t at = 0; at < n; at += 64) {
+      const auto len = (int)std::min<size_t>(64, n - at);
+      const auto amount = std::min(1.0f, (float)at / (float)(sr * 1.0));
+
+      w.process(l.data() + at, r.data() + at, len, amount);
+    }
+
+    double step = 0.0;
+    for (size_t i = 1; i < n; ++i)
+      step = std::max(step, std::abs((double)l[i] - l[i - 1]));
+
+    // The waveform's own steepest slope, for comparison.
+    const auto perSample = 6.283185307179586 * 110.0 / sr;
+
+    std::printf("  ramping it on: biggest sample step %.5f against %.5f for "
+                "the waveform\n",
+                step, perSample);
+
+    check(step < 3.0 * perSample,
+          "and coming up from zero puts no step in the output");
+  }
+}
+
 void testReverb() {
   section("Reverb");
 
@@ -3607,6 +3762,7 @@ int main() {
   testReleaseVelocity();
   testNoiseChannel();
   testTapeEcho();
+  testWobble();
   testReverb();
   testLofi();
   benchmark();

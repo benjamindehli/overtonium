@@ -21,7 +21,7 @@ constexpr int kGroupPad = 6;
 
 /// Minimum width of each group, in the order they are laid out. Only the
 /// output group grows, because the meter is the one thing worth more room.
-constexpr int kGroupMinWidth[] = {144, 90, 60, 116, 222, 260, 186};
+constexpr int kGroupMinWidth[] = {144, 90, 60, 168, 222, 260, 186};
 constexpr int kOutputGroupIndex = 6;
 constexpr int kGroupCount = 7;
 
@@ -422,6 +422,17 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
 
   trackAttachment = std::make_unique<SliderAttachment>(
       apvts, params::trackId, track.slider);
+
+  wobble.slider.setPopupDisplayEnabled(true, true, &popupParent);
+  wobble.slider.setTooltip(
+      "A warped record under the whole instrument, ahead of the echo. A slow "
+      "wander with the odd sharp slip on top, both of which get worse as you "
+      "turn it up. Both channels bend together, since it is one platter.");
+  wobble.slider.setDoubleClickReturnValue(true, 0.0);
+  addAndMakeVisible(wobble);
+
+  wobbleAttachment = std::make_unique<SliderAttachment>(
+      apvts, params::wobbleId, wobble.slider);
 
   // Two bars beside the master fader, at the end of the signal path, need no
   // caption to say what they are.
@@ -1087,10 +1098,11 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
   case SeriesGroup: {
     // Split evenly rather than at the usual knob width, since STRETCH is a
     // longer caption than anything else in the bar and would otherwise be cut.
-    const auto half = r.getWidth() / 2;
+    const auto each = r.getWidth() / 3;
 
-    stretch.setBounds(r.removeFromLeft(half));
-    track.setBounds(r);
+    stretch.setBounds(r.removeFromLeft(each));
+    track.setBounds(r.removeFromLeft(each));
+    wobble.setBounds(r);
     break;
   }
 

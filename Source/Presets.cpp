@@ -103,6 +103,7 @@ struct Applier {
     // sound in the middle of that should not drag you back to equal.
     set(params::stretchId, 0.0f);
     set(params::trackId, 0.0f);
+    set(params::wobbleId, 0.0f);
     set(params::lofiRateId, 0.0f);
     set(params::lofiBitsId, 0.0f);
     set(params::phaseResetId, 1.0f);

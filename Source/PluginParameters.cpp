@@ -208,6 +208,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::NormalisableRange<float>(0.0f, 12.0f, 0.1f), 0.0f,
       FAttr().withStringFromValueFunction(trackText)));
 
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{wobbleId, 1}, "Wobble",
+      juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f,
+      FAttr().withStringFromValueFunction(percentText)));
+
   juce::StringArray temperamentChoices;
   for (int i = 0; i < (int)Temperament::NumTemperaments; ++i)
     temperamentChoices.add(temperamentName((Temperament)i));
@@ -507,6 +512,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   stretch = apvts.getRawParameterValue(stretchId);
   atSource = apvts.getRawParameterValue(atSourceId);
   track = apvts.getRawParameterValue(trackId);
+  wobble = apvts.getRawParameterValue(wobbleId);
   temperament = apvts.getRawParameterValue(temperamentId);
   tuningRoot = apvts.getRawParameterValue(tuningRootId);
   referenceHz = apvts.getRawParameterValue(referenceHzId);
@@ -670,6 +676,7 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   out.global.phaseReset = phaseReset->load() > 0.5f;
   out.global.stretchCents = stretch->load();
   out.global.trackDbPerOctave = track->load();
+  out.global.wobbleAmount = wobble->load();
 
   {
     const auto pick = [](const std::atomic<float> *p, int count) {

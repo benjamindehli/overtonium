@@ -111,6 +111,10 @@ struct GlobalParams {
   /// as you play up rather than turning high notes down. Zero is off. See
   /// trackingGain.
   float trackDbPerOctave = 0.0f;
+  /// A warped record under the whole instrument, 0 to 1. Sits between the
+  /// voices and the echo, so the repeats inherit whatever it did rather than
+  /// wobbling on their own. See Wobble.h.
+  float wobbleAmount = 0.0f;
   /// Soft-clip the sum; 32 faders make it very easy to overshoot.
   bool safetyClip = true;
 };

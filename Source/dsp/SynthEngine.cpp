@@ -29,6 +29,7 @@ void SynthEngine::prepare(double newSampleRate) noexcept {
   for (size_t i = 0; i < voices.size(); ++i)
     voices[i].prepare(sampleRate, (uint32_t)(i + 1) * 2654435761u);
 
+  wobble.prepare(sampleRate);
   echo.prepare(sampleRate);
   reverb.prepare(sampleRate);
 
@@ -39,6 +40,7 @@ void SynthEngine::reset() noexcept {
   for (auto &v : voices)
     v.reset();
 
+  wobble.reset();
   echo.reset();
   reverb.reset();
 
@@ -401,6 +403,7 @@ void SynthEngine::render(float *left, float *right, int numSamples,
   // before this point. The output meter is taken after it, which is why the
   // two disagree once a tail is ringing: that is the effects, and it should
   // show.
+  wobble.process(left, right, numSamples, p.global.wobbleAmount);
   echo.process(left, right, numSamples, p.echo);
   reverb.process(left, right, numSamples, p.reverb);
 
