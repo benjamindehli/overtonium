@@ -110,7 +110,7 @@ void Voice::noteOn(int note, float velocity, const SynthParams &p) noexcept {
     pt.drift.restart(rng, rate, sampleRate / (double)kControlBlock);
 
     if (p.global.phaseReset) {
-      pt.phase = 0.0;
+      pt.phase = (double)std::clamp(op.startPhase, 0.0f, 1.0f);
       pt.pitchLfoPhase = 0.0;
       pt.ampLfoPhase = 0.0;
     }

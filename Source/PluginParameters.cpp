@@ -39,6 +39,13 @@ juce::String stretchText(float cents, int) {
          " ct";
 }
 
+/// Where in its own cycle a partial starts, as degrees rather than turns,
+/// which is the unit anybody discussing phase already uses.
+juce::String phaseText(float turns, int) {
+  return juce::String(juce::roundToInt(turns * 360.0f)) +
+         juce::String::charToString(0xb0);
+}
+
 juce::String trackText(float dbPerOctave, int) {
   if (dbPerOctave < 0.05f)
     return "Off";
@@ -247,6 +254,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         FAttr().withLabel("ct")));
 
     layout.add(std::make_unique<FloatP>(
+        juce::ParameterID{oscParamId(phaseSuffix, i), 1}, p + "Start Phase",
+        juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f,
+        FAttr().withStringFromValueFunction(phaseText)));
+
+    layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(driftSuffix, i), 1}, p + "Drift",
         rangeWithCentre(0.0f, 25.0f, 6.0f), 0.0f, FAttr().withLabel("ct")));
 
@@ -435,6 +447,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
     auto &o = osc[(size_t)i];
 
     o.tune = apvts.getRawParameterValue(oscParamId(tuneSuffix, i));
+    o.phase = apvts.getRawParameterValue(oscParamId(phaseSuffix, i));
     o.pmRate = apvts.getRawParameterValue(oscParamId(pmRateSuffix, i));
     o.pmDepth = apvts.getRawParameterValue(oscParamId(pmDepthSuffix, i));
     o.drift = apvts.getRawParameterValue(oscParamId(driftSuffix, i));
@@ -515,6 +528,7 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     o.tuneBlend = c.tune->load();
     o.pmRateHz = c.pmRate->load();
     o.pmDepthCents = c.pmDepth->load();
+    o.startPhase = c.phase->load();
     o.driftCents = c.drift->load();
     o.delay = c.delay->load();
     o.attack = c.attack->load();

@@ -70,9 +70,10 @@ juce::MidiBuffer noteOnAt(int note, float velocity, int sample) {
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
-  // 19 per partial, 10 global, 16 for the noise channel, 11 for the two master
-  // effects.
-  const int expected = ovt::kNumHarmonics * 19 + 10 + 16 + 11;
+  // 20 per partial, 10 global, 16 for the noise channel, 11 for the two master
+  // effects. Start phase is not among the noise channel's, since noise has no
+  // phase to start at.
+  const int expected = ovt::kNumHarmonics * 20 + 10 + 16 + 11;
   check(p.getParameters().size() == expected,
         "parameter count is " + std::to_string(p.getParameters().size()) +
             ", expected " + std::to_string(expected));
@@ -100,7 +101,8 @@ void testParameterWiring(OvertoniumProcessor &p) {
           std::string("global param ") + id);
 
   const char *suffixes[] = {
-      ovt::params::tuneSuffix,    ovt::params::pmRateSuffix,
+      ovt::params::tuneSuffix,    ovt::params::phaseSuffix,
+      ovt::params::pmRateSuffix,
       ovt::params::pmDepthSuffix, ovt::params::driftSuffix,
       ovt::params::delaySuffix,   ovt::params::attackSuffix,
       ovt::params::decaySuffix,   ovt::params::sustainSuffix,
@@ -117,7 +119,7 @@ void testParameterWiring(OvertoniumProcessor &p) {
       allPresent &= p.apvts.getRawParameterValue(
                         ovt::params::oscParamId(s, i)) != nullptr;
 
-  check(allPresent, "all 608 per-partial parameters resolve");
+  check(allPresent, "all 640 per-partial parameters resolve");
 
   const char *noiseSuffixes[] = {
       ovt::params::colourSuffix,   ovt::params::delaySuffix,
@@ -466,7 +468,8 @@ void testRowHover() {
 
   bool identity = true;
   for (Row r :
-       {Row::TuneKnob, Row::PmRate, Row::PmDepth, Row::Drift, Row::Delay,
+       {Row::TuneKnob, Row::Phase, Row::PmRate, Row::PmDepth, Row::Drift,
+        Row::Delay,
         Row::Attack, Row::Decay, Row::Sustain, Row::Swell, Row::OffLevel,
         Row::Release, Row::AmRate, Row::AmDepth, Row::Velocity, Row::Aftertouch,
         Row::Pan, Row::MuteSolo, Row::Fader})
@@ -1131,6 +1134,7 @@ void testPresetsAreReproducible(OvertoniumProcessor &p) {
     for (int i = 0; i < ovt::kNumHarmonics; ++i) {
       put(ovt::params::oscParamId(ovt::params::volumeSuffix, i), 0.9f);
       put(ovt::params::oscParamId(ovt::params::driftSuffix, i), 20.0f);
+      put(ovt::params::oscParamId(ovt::params::phaseSuffix, i), 0.25f);
       put(ovt::params::oscParamId(ovt::params::panSuffix, i), -0.8f);
     }
   };

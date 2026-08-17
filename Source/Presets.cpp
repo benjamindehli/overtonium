@@ -40,6 +40,7 @@ struct Applier {
   /// state.
   void neutralBase() const {
     allOsc(params::tuneSuffix, [](int) { return 1.0; });
+    allOsc(params::phaseSuffix, [](int) { return 0.0; });
     allOsc(params::pmRateSuffix, [](int) { return 4.0; });
     allOsc(params::pmDepthSuffix, [](int) { return 0.0; });
     allOsc(params::driftSuffix, [](int) { return 0.0; });

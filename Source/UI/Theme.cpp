@@ -34,6 +34,7 @@ constexpr int kRowHeights[kNumRows] = {
     26, // Header
     38, // TuneKnob
     13, // TuneText
+    28, // Phase
     15, // PitchModHeading
     30, // PmRate
     30, // PmDepth
@@ -96,6 +97,7 @@ namespace {
 bool rowHasControl(Row r) {
   switch (r) {
   case Row::TuneKnob:
+  case Row::Phase:
   case Row::PmRate:
   case Row::PmDepth:
   case Row::Drift:
@@ -203,6 +205,8 @@ const char *rowLabel(Row r) {
     return "rate";
   case Row::PmDepth:
     return "depth";
+  case Row::Phase:
+    return "phase";
   case Row::Drift:
     return "drift";
   case Row::EnvHeading:
@@ -393,6 +397,8 @@ const char *roleSuffix(Role r) {
     return params::pmRateSuffix;
   case Role::PmDepth:
     return params::pmDepthSuffix;
+  case Role::Phase:
+    return params::phaseSuffix;
   case Role::Drift:
     return params::driftSuffix;
   case Role::Delay:
@@ -439,6 +445,9 @@ bool roleForRow(Row r, Role &out) {
     return true;
   case Row::PmDepth:
     out = Role::PmDepth;
+    return true;
+  case Row::Phase:
+    out = Role::Phase;
     return true;
   case Row::Drift:
     out = Role::Drift;

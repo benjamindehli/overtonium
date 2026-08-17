@@ -11,6 +11,12 @@ namespace ovt {
 struct OscParams {
   // Pitch
   float tuneBlend = 0.0f; ///< 0 = equal temperament, 1 = just intonation
+  /// Where in its own cycle this partial starts, 0 to 1 of a turn, when phase
+  /// reset is on. Zero is a rising zero crossing, which is the softest onset
+  /// available: the partial cannot reach its own peak until a quarter of its
+  /// period has passed, which below about 500 Hz is longer than any attack
+  /// setting. A quarter turn starts it at the peak instead.
+  float startPhase = 0.0f;
   float pmRateHz = 4.0f;
   float pmDepthCents = 0.0f;
   /// Depth of the smooth random pitch wander, in cents. Each partial of each

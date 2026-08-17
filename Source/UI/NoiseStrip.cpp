@@ -168,10 +168,11 @@ void NoiseStrip::paint(juce::Graphics &g) {
     g.fillRect(row.getX(), row.getY() + row.getHeight() / 2, row.getWidth(), 1);
   }
 
-  // The pitch modulation block has nothing to show, so say so once rather than
-  // leaving a stretch of blank panel that looks like a drawing bug.
+  // Start phase and the whole pitch modulation block have nothing to show, so
+  // say so once rather than leaving a stretch of blank panel that looks like a
+  // drawing bug. Noise has no phase to start at any more than it has a pitch.
   auto absent =
-      rows[rowIndex(Row::PmRate)].getUnion(rows[rowIndex(Row::Drift)]);
+      rows[rowIndex(Row::Phase)].getUnion(rows[rowIndex(Row::Drift)]);
 
   g.setColour(colours::textDim.withAlpha(0.5f));
   g.setFont(makeFont(9.0f));

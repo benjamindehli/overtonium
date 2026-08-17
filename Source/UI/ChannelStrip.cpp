@@ -229,6 +229,7 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   setUpKnob(tune, Role::Tune, colour);
   setUpKnob(pmRate, Role::PmRate, secondary);
   setUpKnob(pmDepth, Role::PmDepth, secondary);
+  setUpKnob(phase, Role::Phase, secondary);
   setUpKnob(drift, Role::Drift, secondary);
   setUpKnob(delay, Role::Delay, secondary);
   setUpKnob(attack, Role::Attack, secondary);
@@ -413,6 +414,8 @@ LinkableSlider *ChannelStrip::sliderForRole(Role role) {
     return &pmRate;
   case Role::PmDepth:
     return &pmDepth;
+  case Role::Phase:
+    return &phase;
   case Role::Drift:
     return &drift;
   case Role::Delay:
@@ -523,6 +526,7 @@ void ChannelStrip::resized() {
   tuneReadout.setBounds(rows[rowIndex(Row::TuneText)]);
   pmRate.setBounds(rows[rowIndex(Row::PmRate)].reduced(1));
   pmDepth.setBounds(rows[rowIndex(Row::PmDepth)].reduced(1));
+  phase.setBounds(rows[rowIndex(Row::Phase)].reduced(1));
   drift.setBounds(rows[rowIndex(Row::Drift)].reduced(1));
   delay.setBounds(rows[rowIndex(Row::Delay)].reduced(1));
   attack.setBounds(rows[rowIndex(Row::Attack)].reduced(1));

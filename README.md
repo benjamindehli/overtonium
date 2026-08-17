@@ -393,6 +393,26 @@ That leaves enough headroom for the engine to stay a plain bank of oscillators w
 - LFOs, envelope coefficients and gain ramps update once per 32-sample control block. Only the oscillator and envelope run at sample rate.
 - Silent partials, whether muted, faded out above Nyquist or sitting at zero, skip the oscillator entirely and only advance their envelope.
 
+### Where a partial starts
+
+PHASE sets where in its own cycle each partial begins, from 0 to 360 degrees, when phase reset is on. It defaults to zero, which is a rising zero crossing, and zero is the softest onset a partial can possibly have: from there it cannot reach its own peak until a quarter of its period has gone by.
+
+That is longer than the shortest attack available for most of the keyboard:
+
+| Note | Quarter cycle | What sets the onset |
+|---|---|---|
+| A1, 55 Hz | 4.55 ms | the note's own period |
+| A2, 110 Hz | 2.27 ms | the note's own period |
+| C4, 262 Hz | 0.96 ms | the note's own period |
+| A4, 440 Hz | 0.57 ms | the note's own period |
+| A5, 880 Hz | 0.28 ms | the attack knob |
+
+So below about 500 Hz, turning the attack down past a millisecond does nothing at all, and the note still arrives softly. Measured: at A1 with the shortest attack the sound is a third of the way up a millisecond in, which is just sin(20 degrees), the envelope having finished half a millisecond earlier.
+
+A quarter turn starts the partial at its own peak instead, and the same note is 99% there after that millisecond. The reason it is per channel rather than one global switch is the arithmetic of putting every partial at its peak at once: for a 1/n spectrum of eight that is a first sample 2.7 times the steady peak, for 32 partials it is 4.1, and for a flat 32 it is 32. Staggering the phase across the series gives the edge without the spike, and LINK will spread it across the channels in one drag.
+
+With phase reset switched off there is no reset for it to aim, and it does nothing.
+
 Partials fade out as they approach Nyquist. Without that, the 32nd harmonic of a high note would fold back down as aliasing, since it lands near 67 kHz for a C7. Measured alias images sit at -122 dB. Turning the converter down, below, deliberately switches that guard off.
 
 ### The converter
@@ -449,7 +469,7 @@ Source/
     TapeEcho.*      the master echo
     Reverb.*        the master reverb, a feedback delay network
     SynthEngine.*   voice pool, allocation, stealing, effects, master stage
-  PluginParameters.*  APVTS layout, 642 parameters, and the audio-thread snapshot
+  PluginParameters.*  APVTS layout, 677 parameters, and the audio-thread snapshot
   Presets.*           factory presets
   PluginProcessor.*   MIDI handling, sample-accurate rendering, state
   PluginEditor.*      window, zoom, LINK, gutter

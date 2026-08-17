@@ -37,6 +37,7 @@ inline constexpr const char *reverbWidthId = "reverbWidth";
 inline constexpr const char *tuneSuffix = "tune";
 inline constexpr const char *pmRateSuffix = "pmRate";
 inline constexpr const char *pmDepthSuffix = "pmDepth";
+inline constexpr const char *phaseSuffix = "phase";
 inline constexpr const char *driftSuffix = "drift";
 inline constexpr const char *delaySuffix = "delay";
 inline constexpr const char *attackSuffix = "attack";
@@ -76,6 +77,7 @@ struct Cache {
     std::atomic<float> *tune = nullptr;
     std::atomic<float> *pmRate = nullptr;
     std::atomic<float> *pmDepth = nullptr;
+    std::atomic<float> *phase = nullptr;
     std::atomic<float> *drift = nullptr;
     std::atomic<float> *delay = nullptr;
     std::atomic<float> *attack = nullptr;
