@@ -405,7 +405,22 @@ AGE is one control for the three things that go together as a tape machine wears
 
 The compression is in two stages, and they are not the same thing. The first is character and follows AGE, so a new machine really is untouched. The second is a backstop that is always there, because at 95% feedback a steady tone can otherwise pile up to twenty times what went into it. The tests drive it at maximum feedback with a new machine for twenty seconds and the output stays bounded.
 
-The repeats walk across the image rather than sitting where they were played, which is a fixed crossfeed rather than a control. The useful part of that range was a lean, and everything either side of it was either inaudible or a gimmick. It is worth knowing why it is not simply a crossfeed: swapping two identical signals changes neither, so on a centred source, which is nearly everything this gets fed, crossfeed alone does nothing at all. What makes it audible is feeding the repeats in unevenly and letting the crossfeed carry them over on each pass.
+Stereo is two tape paths side by side rather than one repeat walking across the image. Each takes its own channel, feeds only itself and comes back hard on the side it went out on, so nothing crosses over at any point and wherever the mixer put a partial is where its repeats stay. Hard panning is safe to do precisely because the two play at very nearly the same moment.
+
+What separates them is the transport. The two motors run at slightly different speeds, 0.70 against 0.83 Hz of wow and 6.3 against 5.31 Hz of flutter, wander by slightly different amounts, and draw from separate random streams so they can never fall into step. Two takes of the same part never drift together and neither do these: a centred source comes back as a pair that agrees about the note and disagrees about everything else, which is what doubling is.
+
+The rates are fixed rather than offered as controls. What matters is that they differ, not by how much, and a pair of knobs whose only wrong setting is "equal" is a pair of knobs nobody needs.
+
+How far the two disagree follows AGE, since holding speed is what a machine in good order does. AGE therefore starts at 8% rather than at zero: a transport that holds speed exactly would have both paths wander by the same nothing and put the repeat back in mono, and there is no such transport. Measured as the correlation between the two channels on a sustained tone, the floor sits at 0.77 and full wear at 0.19, so the doubling is always there and always has somewhere to go.
+
+| AGE | Channel correlation |
+|---|---|
+| 0, unreachable | 1.000 |
+| 8%, the floor | 0.768 |
+| 20% | 0.017 |
+| 100% | 0.186 |
+
+The tests check both ends: that a perfect transport would collapse to mono, which is why the panel cannot ask for one, and that the lowest setting it can ask for is already doubled without being a chorus. Feeding one channel only leaves the other at exactly zero, since nothing crosses over.
 
 **REVERB** is a feedback delay network: eight delay lines fed back through a Householder matrix, with four allpass stages per side in front of it to scatter a hit into a wash before it reaches the network.
 

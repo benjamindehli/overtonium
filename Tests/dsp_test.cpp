@@ -2835,36 +2835,125 @@ void testTapeEcho() {
           "a worn machine compresses what goes round and a new one does not");
   }
 
-  // ---- the fixed crossfeed -------------------------------------------------
-  // The input here is centred, which is the case that matters, since almost
-  // everything this thing is fed will be. Crossfeed alone does nothing to a
-  // centred source, so this is the test that would have caught the original
-  // bug: the repeats have to move even when the source does not.
+  // ---- two tape paths rather than one bouncing across ----------------------
+  //
+  // A centred source is the case that matters, since almost everything this
+  // thing is fed will be. Two independent motors have to pull the two repeats
+  // apart even though the same signal went into both.
   {
-    echo.reset();
-
     EchoParams e;
     e.enabled = true;
     e.mix = 1.0f;
     e.timeSeconds = 0.2f;
     e.feedback = 0.7f;
-    e.age = 0.0f;
 
-    auto s = impulse((size_t)(sr * 1.5));
+    // A worn machine: the wander follows AGE, so this is where the doubling
+    // lives.
+    e.age = 0.8f;
+
+    echo.reset();
+    auto worn = impulse((size_t)(sr * 2.0));
+    runBlocks(echo, worn, e);
+
+    // How far apart the two sides have drifted, against how loud they are.
+    const auto from = (size_t)(0.15 * sr), to = worn.l.size();
+
+    double difference = 0.0, loudest = 0.0;
+    for (auto n = from; n < to; ++n) {
+      difference =
+          std::max(difference, std::abs((double)worn.l[n] - worn.r[n]));
+      loudest = std::max(loudest, std::abs((double)worn.l[n]));
+    }
+
+    std::printf("  worn, centred source: sides differ by %.3f against a %.3f "
+                "signal\n",
+                difference, loudest);
+
+    check(difference > 0.3 * loudest,
+          "two motors pull the repeats apart on a centred source (" +
+              std::to_string(difference / std::max(1.0e-9, loudest)) + ")");
+
+    // How far apart the two sides have come, on a sustained tone where the
+    // repeats overlap. An impulse cannot measure this: any timing difference
+    // at all makes two sharp repeats miss each other completely, so it reads
+    // the same at two percent of wear as at a hundred.
+    const auto correlationAt = [&](float wear) {
+      echo.reset();
+
+      EchoParams tone = e;
+      tone.age = wear;
+
+      Stereo s((size_t)(sr * 3.0));
+      for (size_t n = 0; n < s.l.size(); ++n)
+        s.l[n] = s.r[n] =
+            0.4f * std::sin(6.2831853 * 440.0 * (double)n / sr);
+
+      runBlocks(echo, s, tone);
+
+      double ll = 0.0, rr = 0.0, lr = 0.0;
+      for (auto n = (size_t)(2.0 * sr); n < s.l.size(); ++n) {
+        ll += (double)s.l[n] * s.l[n];
+        rr += (double)s.r[n] * s.r[n];
+        lr += (double)s.l[n] * s.r[n];
+      }
+
+      return lr / std::max(1.0e-12, std::sqrt(ll * rr));
+    };
+
+    // Zero wear means a transport that holds speed exactly, so the two paths
+    // wander by the same nothing and the repeat is mono. That is the DSP's
+    // contract, and it is why the panel is not allowed to ask for it.
+    check(std::abs(correlationAt(0.0f) - 1.0) < 1.0e-6,
+          "a perfect transport would put the repeat back in mono");
+
+    const auto atFloor = correlationAt(TapeEcho::kMinAge);
+
+    std::printf("  channel correlation: %.3f at the lowest AGE the panel "
+                "allows, %.3f at full\n",
+                atFloor, correlationAt(1.0f));
+
+    // Which is the reason for the floor: the least worn setting available has
+    // to be doubled already.
+    check(atFloor < 0.9,
+          "the lowest AGE the panel allows is already doubled (" +
+              std::to_string(atFloor) + ")");
+
+    check(atFloor > 0.4,
+          "but not so far that the floor is a chorus (" +
+              std::to_string(atFloor) + ")");
+  }
+
+  // ---- each side stays on its side ------------------------------------------
+  //
+  // No crossfeed anywhere, so a repeat comes back where it went out and the
+  // panning the mixer dialled in survives into the echo.
+  {
+    EchoParams e;
+    e.enabled = true;
+    e.mix = 1.0f;
+    e.timeSeconds = 0.2f;
+    e.feedback = 0.7f;
+    e.age = 0.6f;
+
+    echo.reset();
+
+    Stereo s((size_t)(sr * 1.2));
+    s.l[100] = 1.0f; // left only, right silent
+
     runBlocks(echo, s, e);
 
-    const auto from1 = (size_t)(0.15 * sr), to1 = (size_t)(0.25 * sr);
-    const auto from2 = (size_t)(0.35 * sr), to2 = (size_t)(0.45 * sr);
+    const auto from = (size_t)(0.15 * sr);
+    const auto leftEcho = peak(s.l, from, s.l.size());
+    const auto rightEcho = peak(s.r, from, s.r.size());
 
-    const auto firstL = peak(s.l, from1, to1), firstR = peak(s.r, from1, to1);
-    const auto secondL = peak(s.l, from2, to2), secondR = peak(s.r, from2, to2);
+    std::printf("  left-only source: repeats L %.3f R %.3f\n", leftEcho,
+                rightEcho);
 
-    std::printf("  centred source: repeat 1 L %.3f R %.3f, "
-                "repeat 2 L %.3f R %.3f\n",
-                firstL, firstR, secondL, secondR);
+    check(leftEcho > 0.1, "a repeat comes back on the side it went out on");
 
-    check(firstL > firstR * 1.5, "the first repeat leans to one side");
-    check(secondR > secondL * 1.2, "and the next one leans to the other");
+    check(rightEcho < 1.0e-6,
+          "and nothing crosses to the other (" + std::to_string(rightEcho) +
+              ")");
   }
 }
 

@@ -8,14 +8,21 @@ namespace ovt {
 namespace {
 constexpr float kTwoPi = 6.283185307179586f;
 
-/// Where the wow sits. Slow enough to hear as drift rather than as vibrato.
-constexpr double kWowRateHz = 0.7;
-constexpr float kFlutterRateHz = 6.3f;
-
-/// Where the heads sit relative to each other. Fixed rather than offered: the
-/// useful part of the range is a lean, and every setting either side of it was
-/// either inaudible or a gimmick.
-constexpr float kCrossfeed = 0.7f;
+/// The two motors.
+///
+/// Slow enough to hear as drift rather than as vibrato, and deliberately not
+/// the same on both sides: the rates are close but share no common factor, so
+/// the two paths never fall into step and never repeat a relationship. The
+/// depths differ a little too, so one side is the loose take and the other the
+/// tighter one.
+///
+/// Fixed rather than offered as controls. What matters is that they differ,
+/// not by how much, and a pair of knobs whose only wrong setting is "equal" is
+/// a pair of knobs nobody needs.
+constexpr double kWowRateL = 0.70, kWowRateR = 0.83;
+constexpr float kFlutterRateL = 6.3f, kFlutterRateR = 5.31f;
+constexpr float kWowDepthL = 0.0060f, kWowDepthR = 0.0072f;
+constexpr float kFlutterDepthL = 0.0012f, kFlutterDepthR = 0.0009f;
 
 /// Soft compression above a threshold. Used twice, for two different jobs.
 inline float lean(float x, float threshold) noexcept {
@@ -55,6 +62,27 @@ void TapeEcho::Head::clear() noexcept {
   dc = 0.0f;
 }
 
+void TapeEcho::Head::restartMotor(double sampleRate, uint32_t seed,
+                                  float startPhase) noexcept {
+  rng.reseed(seed);
+  wow.restart(rng, wowRateHz, sampleRate);
+  flutterPhase = startPhase;
+}
+
+float TapeEcho::Head::wander(float delaySamples, float age,
+                             double sampleRate) noexcept {
+  flutterPhase += flutterRateHz / (float)sampleRate;
+  if (flutterPhase >= 1.0f)
+    flutterPhase -= 1.0f;
+
+  const auto flutter = std::sin(kTwoPi * flutterPhase);
+
+  // In proportion to the head distance, since a longer loop wanders further,
+  // and to the wear, since holding speed is what a machine in good order does.
+  return age * delaySamples *
+         (wowDepth * wow.advance(rng) + flutterDepth * flutter);
+}
+
 float TapeEcho::Head::read(float delaySamples) const noexcept {
   const auto length = (int)buffer.size();
 
@@ -85,6 +113,16 @@ float TapeEcho::Head::read(float delaySamples) const noexcept {
 void TapeEcho::prepare(double newSampleRate) noexcept {
   sampleRate = std::max(1.0, newSampleRate);
 
+  left.wowRateHz = kWowRateL;
+  left.flutterRateHz = kFlutterRateL;
+  left.wowDepth = kWowDepthL;
+  left.flutterDepth = kFlutterDepthL;
+
+  right.wowRateHz = kWowRateR;
+  right.flutterRateHz = kFlutterRateR;
+  right.wowDepth = kWowDepthR;
+  right.flutterDepth = kFlutterDepthR;
+
   // Room for the longest head distance, the motor wandering past it and a
   // couple of samples of interpolation slack.
   bufferLength = (int)(kMaxTimeSeconds * 1.15 * sampleRate) + 4;
@@ -99,12 +137,13 @@ void TapeEcho::reset() noexcept {
   left.clear();
   right.clear();
 
-  smoothedDelay = -1.0f;
-  flutterPhase = 0.0f;
-  wasEnabled = false;
+  // Different seeds and different starting phases, so the two are already
+  // apart before either has turned once.
+  left.restartMotor(sampleRate, 0x51ed270bu, 0.0f);
+  right.restartMotor(sampleRate, 0x9e3779b9u, 0.37f);
 
-  rng.reseed(0x51ed270bu);
-  wow.restart(rng, kWowRateHz, sampleRate);
+  smoothedDelay = -1.0f;
+  wasEnabled = false;
 }
 
 float TapeEcho::tailSeconds(const EchoParams &p) const noexcept {
@@ -160,27 +199,17 @@ void TapeEcho::process(float *outL, float *outR, int numSamples,
   const auto lpCoef = onePole(toneHz, sampleRate);
   const auto hpCoef = onePole(90.0f, sampleRate);
 
-  const auto flutterStep = kFlutterRateHz / (float)sampleRate;
-
   for (int n = 0; n < numSamples; ++n) {
     smoothedDelay = targetDelay + (smoothedDelay - targetDelay) * glide;
 
-    // The motor: a slow wander plus a periodic flutter, both in proportion to
-    // the head distance, since a longer loop wanders further.
-    const auto wowValue = wow.advance(rng);
+    // Two motors, each wandering off the same nominal head distance by its own
+    // amount. This is the whole of the stereo: everything downstream keeps the
+    // two paths apart rather than mixing them.
+    const auto wetL =
+        left.read(smoothedDelay + left.wander(smoothedDelay, age, sampleRate));
 
-    flutterPhase += flutterStep;
-    if (flutterPhase >= 1.0f)
-      flutterPhase -= 1.0f;
-
-    const auto flutter = std::sin(kTwoPi * flutterPhase);
-    const auto modulation =
-        age * smoothedDelay * (0.006f * wowValue + 0.0012f * flutter);
-
-    const auto delaySamples = smoothedDelay + modulation;
-
-    const auto wetL = left.read(delaySamples);
-    const auto wetR = right.read(delaySamples);
+    const auto wetR = right.read(smoothedDelay +
+                                 right.wander(smoothedDelay, age, sampleRate));
 
     // Each pass loses its top and its bottom, then leans over if it is loud.
     left.damp = wetL + (left.damp - wetL) * lpCoef;
@@ -196,23 +225,14 @@ void TapeEcho::process(float *outL, float *outR, int numSamples,
     const auto agedL = lean(worn(left.damp - left.dc, age), 0.95f);
     const auto agedR = lean(worn(right.damp - right.dc, age), 0.95f);
 
-    // Crossfeed sends each head into the other, so the repeats walk across the
-    // image instead of sitting where they landed.
-    const auto fedL = agedL * (1.0f - kCrossfeed) + agedR * kCrossfeed;
-    const auto fedR = agedR * (1.0f - kCrossfeed) + agedL * kCrossfeed;
-
     const auto dryL = outL[n];
     const auto dryR = outR[n];
 
-    // Crossfeed alone does nothing to a centred source, since swapping two
-    // identical signals changes neither. What makes the repeats move is feeding
-    // them in unevenly and letting the crossfeed carry them over on each pass.
-    const auto injectL =
-        dryL * (1.0f - 0.5f * kCrossfeed) + dryR * (0.5f * kCrossfeed);
-    const auto injectR = dryR * (1.0f - kCrossfeed);
-
-    left.buffer[(size_t)left.write] = injectL + fedL * feedback;
-    right.buffer[(size_t)right.write] = injectR + fedR * feedback;
+    // Each loop takes its own channel, feeds only itself, and comes back on
+    // the side it went out on. Nothing crosses over at any point, so wherever
+    // the mixer put a partial is where its repeats stay.
+    left.buffer[(size_t)left.write] = dryL + agedL * feedback;
+    right.buffer[(size_t)right.write] = dryR + agedR * feedback;
 
     if (++left.write >= bufferLength)
       left.write = 0;

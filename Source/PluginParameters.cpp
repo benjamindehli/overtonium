@@ -1,6 +1,7 @@
 #include "PluginParameters.h"
 
 #include "dsp/Harmonics.h"
+#include "dsp/TapeEcho.h"
 
 namespace ovt::params {
 
@@ -271,9 +272,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::NormalisableRange<float>(0.0f, 0.95f), 0.35f,
       FAttr().withStringFromValueFunction(percentText)));
 
+  // Never quite new. See TapeEcho::kMinAge: at zero the two tape paths wander
+  // by the same nothing and the repeat comes back in mono.
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{echoAgeId, 1}, "Echo Age",
-      juce::NormalisableRange<float>(0.0f, 1.0f), 0.35f,
+      juce::NormalisableRange<float>(TapeEcho::kMinAge, 1.0f), 0.35f,
       FAttr().withStringFromValueFunction(percentText)));
 
   layout.add(std::make_unique<BoolP>(juce::ParameterID{reverbOnId, 1}, "Reverb",
