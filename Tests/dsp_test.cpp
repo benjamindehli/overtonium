@@ -753,6 +753,150 @@ void testNoClickOnMute() {
 // -----------------------------------------------------------------------------
 // 8. Voice allocation and stealing.
 // -----------------------------------------------------------------------------
+/// One key is one voice. Tapping a key with a long release used to leave every
+/// tap ringing and sum them, which no physical instrument does.
+void testOneVoicePerKey() {
+  section("One voice per key");
+
+  constexpr double sr = 48000.0;
+
+  auto p = makeFlatParams(0.0f);
+  p.osc[0].volume = 0.6f;
+  p.osc[0].attack = 0.002f;
+  p.osc[0].decay = 8.0f;
+  p.osc[0].sustain = 1.0f;
+  p.osc[0].release = 8.0f; // a tail that is still loud a long time later
+  p.osc[0].velAmount = 0.0f;
+  p.global.masterGain = 1.0f;
+  p.global.safetyClip = false;
+
+  SynthEngine engine;
+  engine.prepare(sr);
+  engine.setPolyphony(8);
+
+  const auto render = [&](double seconds, std::vector<float> &l) {
+    const auto n = (size_t)(seconds * sr);
+    l.assign(n, 0.0f);
+    std::vector<float> r(n, 0.0f);
+    engine.render(l.data(), r.data(), (int)n, p);
+  };
+
+  const auto peakOf = [](const std::vector<float> &v) {
+    double m = 0.0;
+    for (auto x : v)
+      m = std::max(m, std::abs((double)x));
+    return m;
+  };
+
+  std::vector<float> buf;
+
+  // One tap, left to ring.
+  engine.noteOn(60, 1.0f, p);
+  render(0.2, buf);
+  engine.noteOff(60);
+  render(0.2, buf);
+
+  const auto single = peakOf(buf);
+  check(single > 0.05, "a tap rings on after the key is up (" +
+                           std::to_string(single) + ")");
+
+  // Tap the same key four more times while the first is still ringing.
+  for (int i = 0; i < 4; ++i) {
+    engine.noteOn(60, 1.0f, p);
+    render(0.05, buf);
+    engine.noteOff(60);
+    render(0.05, buf);
+  }
+
+  render(0.05, buf);
+  const auto stacked = peakOf(buf);
+
+  std::printf("  one tap peaks at %.3f, five overlapping taps at %.3f\n",
+              single, stacked);
+
+  // Two coherent copies of one note is exactly twice the amplitude, so
+  // anything approaching that is a stack rather than a retrigger.
+  check(stacked < 1.4 * single,
+        "repeated taps do not pile up on top of each other (" +
+            std::to_string(stacked / single) + " times one tap)");
+
+  check(engine.getActiveVoiceCount() == 1,
+        "and only one voice is left holding the key (" +
+            std::to_string(engine.getActiveVoiceCount()) + ")");
+
+  // The cut has to be quick but not a click: no step bigger than the signal.
+  engine.noteOn(60, 1.0f, p);
+  std::vector<float> across;
+  render(0.03, across);
+
+  double biggestStep = 0.0;
+  for (size_t n = 1; n < across.size(); ++n)
+    biggestStep =
+        std::max(biggestStep, std::abs((double)across[n] - across[n - 1]));
+
+  const auto perSample = 2.0 * 3.14159265 * 261.6 / sr * peakOf(across);
+
+  std::printf("  retrigger: biggest sample step %.5f against %.5f for the "
+              "waveform itself\n",
+              biggestStep, perSample);
+
+  check(biggestStep < 3.0 * perSample,
+        "and the cut does not put a step in the output");
+
+  // Different keys still stack, which is the whole point of polyphony.
+  SynthEngine chord;
+  chord.prepare(sr);
+  chord.setPolyphony(8);
+
+  for (int note : {60, 64, 67})
+    chord.noteOn(note, 1.0f, p);
+
+  std::vector<float> cl((size_t)(0.1 * sr)), cr((size_t)(0.1 * sr));
+  chord.render(cl.data(), cr.data(), (int)cl.size(), p);
+
+  check(chord.getActiveVoiceCount() == 3,
+        "three different keys are still three voices");
+
+  // ---- and it stops tails eating the pool --------------------------------
+  //
+  // The stacking was not only loud, it was expensive. Every tap held a voice
+  // for the whole of its release, so a repeatedly tapped key with a long tail
+  // could fill the pool on its own. Past that the allocator has nothing free
+  // and takes the oldest voice outright, with no fade and no regard for
+  // whether a key is still down on it.
+  SynthEngine pool;
+  pool.prepare(sr);
+  pool.setPolyphony(8);
+
+  for (int note : {48, 52, 55, 59})
+    pool.noteOn(note, 1.0f, p);
+
+  std::vector<float> pl((size_t)(0.02 * sr)), pr((size_t)(0.02 * sr));
+  pool.render(pl.data(), pr.data(), (int)pl.size(), p);
+
+  const auto heldBefore = pool.getActiveVoiceCount();
+
+  for (int i = 0; i < 25; ++i) {
+    pool.noteOn(72, 1.0f, p);
+    pool.render(pl.data(), pr.data(), (int)pl.size(), p);
+    pool.noteOff(72);
+    pool.render(pl.data(), pr.data(), (int)pl.size(), p);
+  }
+
+  pool.render(pl.data(), pr.data(), (int)pl.size(), p);
+
+  std::printf("  four keys held, one tapped 25 times: %d voices before, %d "
+              "after (pool holds %d)\n",
+              heldBefore, pool.getActiveVoiceCount(), SynthEngine::kPoolSize);
+
+  check(heldBefore == 4, "four held keys are four voices");
+
+  // Four still held plus at most the one tail from the last tap.
+  check(pool.getActiveVoiceCount() <= 5,
+        "and tapping a fifth key 25 times does not fill the pool (" +
+            std::to_string(pool.getActiveVoiceCount()) + ")");
+}
+
 void testVoiceAllocation() {
   section("Voice allocation");
 
@@ -3021,6 +3165,7 @@ int main() {
   testEnvelopeAndMuteSolo();
   testNoClickOnMute();
   testVoiceAllocation();
+  testOneVoicePerKey();
   testModulation();
   testPerPartialVelocity();
   testPanning();

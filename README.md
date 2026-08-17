@@ -256,6 +256,18 @@ The panel is lit from the top left throughout. Knob caps are machined discs with
 
 Cast shadows are built from a few overlapping shapes rather than from a real blur. JUCE has a proper `DropShadow`, but it is a software Gaussian and running one on several hundred controls every repaint would be far too slow.
 
+### One voice per key
+
+The instrument is polyphonic across the keyboard and monophonic within a key. A string, a tine or a bar is one object, and striking it again takes over whatever it was already doing rather than starting a second copy beside the first, so playing the same key twice does the same here.
+
+That includes tails. A key with a long release that is tapped repeatedly used to leave every tap ringing and sum them, which no physical instrument does. Five overlapping taps of one key now peak at 0.412 against 0.424 for a single tap, where before they reached 0.961, which is two coherent copies of the same note.
+
+A tail being taken over gets the same four millisecond fade a stolen voice gets, quick enough to read as instant and slow enough not to click. Measured across a retrigger, the largest jump between neighbouring samples is 0.01453, against 0.01455 for the steepest part of the waveform itself, so the cut adds nothing the signal was not already doing.
+
+A key that is still down, or held by the sustain pedal, is retriggered where it stands instead. That keeps two things a fade would lose: with phase reset off, a legato retrigger carries on from the level the envelope is at rather than restarting from silence, and re-striking a pedalled note takes it back off the pedal.
+
+It also stops tails eating the voice pool, which was the more expensive half of the problem. Every tap held one of the 24 voices for the whole of its release, so one repeatedly tapped key could fill the pool by itself: four keys held and a fifth tapped 25 times used to end with all 24 in use. Past that the allocator has nothing free and takes the oldest voice outright, with no fade and no regard for whether a key is still down on it, which is audible as notes being cut off mid-hold. The same sequence now ends with five voices in use.
+
 ### The noise channel
 
 Pinned on the right, after the series it does not belong to, is a noise channel marked NZ. It has the same envelope, tremolo, velocity, aftertouch, pan, mute, solo, level and meter as a partial, and takes part in solo alongside them. What it does not have is pitch, so the tuning, pitch modulation and drift rows are empty.

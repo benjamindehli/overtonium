@@ -103,17 +103,42 @@ Voice *SynthEngine::findOldestSounding() noexcept {
 
 void SynthEngine::noteOn(int note, float velocity,
                          const SynthParams &p) noexcept {
-  // Retrigger a still-held instance of the same note rather than stacking a
-  // second voice.
+  // One key, one voice. The instrument is polyphonic across the keyboard and
+  // monophonic within a key, because a string or a tine or a bar is one
+  // object: striking it again takes over whatever it was already doing rather
+  // than starting a second copy of it beside the first.
+  //
+  // Tails count. A key with a long release that is tapped repeatedly used to
+  // leave every tap ringing and sum them, which no physical instrument does
+  // and which is also the quickest way to reach the clipper.
+  Voice *held = nullptr;
+  size_t heldIndex = 0;
+
   for (size_t i = 0; i < voices.size(); ++i) {
     auto &v = voices[i];
 
-    if (v.isActive() && !v.isReleasing() && v.getNote() == note) {
-      heldBySustain[i] = false;
-      v.noteOn(note, velocity, p);
-      v.setAge(++ageCounter);
-      return;
+    if (!v.isActive() || v.getNote() != note)
+      continue;
+
+    if (v.isReleasing()) {
+      // Cut with the same short fade a stolen voice gets. Fast enough to read
+      // as instant, slow enough not to click.
+      v.steal();
+    } else {
+      held = &v;
+      heldIndex = i;
     }
+  }
+
+  // A key still down, or held by the pedal, is retriggered where it stands.
+  // That keeps two things the fade would lose: a legato retrigger continues
+  // from the level the envelope is at rather than restarting from silence,
+  // and re-striking a pedalled note takes it back off the pedal.
+  if (held != nullptr) {
+    heldBySustain[heldIndex] = false;
+    held->noteOn(note, velocity, p);
+    held->setAge(++ageCounter);
+    return;
   }
 
   if (countSounding() >= polyphony)
