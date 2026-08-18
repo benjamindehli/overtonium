@@ -125,6 +125,31 @@ public:
 
   float getNoisePeak() const noexcept { return noisePeak; }
 
+  /// Where each partial's envelope stands, signed by which half of it is
+  /// running: positive on the way in, negative once the key is up.
+  ///
+  /// The sign carries the stage because the two are only ever read together,
+  /// and a level of zero is a lamp that is off either way, so the one value
+  /// nothing can be said about is also the one nothing needs to be said about.
+  const std::array<float, kNumHarmonics> &getPartialEnvelopes() const noexcept {
+    return partialEnvelopes;
+  }
+
+  /// How far the tremolo has pulled each partial down, 0 to 1. Zero is a
+  /// partial with no tremolo on it as well as one at the top of its cycle,
+  /// which is the same thing to look at.
+  const std::array<float, kNumHarmonics> &getPartialTremolos() const noexcept {
+    return partialTremolos;
+  }
+
+  /// Where pitch modulation and drift have this partial now, in cents.
+  const std::array<float, kNumHarmonics> &getPartialPitches() const noexcept {
+    return partialPitches;
+  }
+
+  float getNoiseEnvelope() const noexcept { return noiseEnvelope; }
+  float getNoiseTremolo() const noexcept { return noiseTremolo; }
+
   /// Roughly how loud this voice was during the last render, for deciding
   /// which one it costs least to take away.
   ///
@@ -181,9 +206,19 @@ private:
 
   std::array<Partial, kNumHarmonics> partials{};
   std::array<float, kNumHarmonics> partialPeaks{};
+
+  /// Read by the strip lamps rather than by anything that makes sound. All
+  /// three are values the render loop has already worked out for its own
+  /// purposes, so capturing them is a store and nothing else.
+  std::array<float, kNumHarmonics> partialEnvelopes{};
+  std::array<float, kNumHarmonics> partialTremolos{};
+  std::array<float, kNumHarmonics> partialPitches{};
+
   Noise noise;
   double noiseAmPhase = 0.0;
   float noisePeak = 0.0f;
+  float noiseEnvelope = 0.0f;
+  float noiseTremolo = 0.0f;
   float lowpassCoef = 0.1f;
 
   double sampleRate = 44100.0;

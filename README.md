@@ -336,6 +336,31 @@ Each voice runs its own noise stream, so playing a chord does not layer 8 copies
 
 LINK gangs the 32 partials only. Its tuning, pitch modulation and drift have no noise counterpart, and having some ganged controls reach the noise channel while others could not would be worse than having none of them do.
 
+### Lamps on the rules
+
+The rules that divide a strip into groups carry a lamp each, showing what the group under them is doing to this partial right now. They cost no height, because the rule was already using that row to draw a line.
+
+| Rule | Shows |
+|---|---|
+| PITCH MOD | a needle, flat to the left and sharp to the right, where modulation and drift have the partial now |
+| ENVELOPE | how far up its envelope the partial is, while the key is down |
+| KEY OFF | the same, once the key is up and the key-off stage has taken over |
+| AMP MOD | how far the tremolo has pulled the level down, so it pulses at the rate and swings further at greater depth |
+
+The two envelope lamps hand over rather than both being lit. The value they are fed is signed: positive while the key is down, negative once the swell and release have it, and a lamp reading zero is dark either way, so the one value that says nothing about the stage is also the one where nothing needs saying.
+
+Three choices are worth knowing about. The lamps read from the voice pool rather than from the knobs, so they describe a note rather than a setting: nothing pulses over silence, and the needle parks instead of sitting in the centre when there is nothing modulating. They follow the loudest voice on that partial, which is the one the meter follows, because a lamp taking the maximum across a chord would describe no note in particular. And the needle's scale is the strip's own, the pitch modulation depth plus the drift, so a partial set to wander by three cents and one set to wander by two hundred both use the width.
+
+The tremolo lamp shows what the tremolo has taken off rather than what it has left, which is why a partial with no tremolo on it reads dark instead of sitting fully lit and never moving.
+
+At the display's fifteen frames a second, an LFO above about seven Hz is faster than the lamp can follow and reads as a shimmer rather than as a pulse. That is a limit of the frame rate rather than of the lamp, and raising the frame rate to fix it would cost far more than the lamps do.
+
+**What they cost.** Nothing measurable on the audio thread: every value they show was already worked out by the render loop for its own use, so capturing it is three stores per partial per control block. Against a control that renders 16 voices, the build with the lamps benchmarks inside the run-to-run noise of the one without, its fastest run being the faster of the two.
+
+The drawing is where the care went. Brightness is quantised to twelve steps and the needle to whole pixels, for the same reason the meters are segmented: a lamp that follows its value exactly repaints on every frame in which the value moves at all, which for anything modulated is every frame.
+
+The merging matters more than the quantising, and not in the way it looks. The lamps are handed back to the editor rather than invalidating themselves, and they are merged by row rather than by neighbour, because every strip's lamps sit at the same four heights. That was measured rather than assumed, and the first attempt was wrong: putting them through the general merge alongside the meter bands costs 762,000 pixels a frame on a mixer with all 32 channels modulating, since six rectangles is not enough to keep the rows apart and each merge pairs a lamp at the top of a strip with a meter band at the bottom. Merged by row it is 58,000, against the meters' own 22,000. On the factory presets it is smaller again: 12,000 for *Slow Pad* and 33,000 for *Shimmer*, against a mixer of 1,278,000 pixels.
+
 ### Meters
 
 Each channel meters what that partial is actually putting out, on a decibel scale floored at -48 dB. Since it reflects the final gain, it shows the envelope, tremolo, velocity, aftertouch, the Nyquist fade and mute or solo all at once, so the spectrum can be watched evolving as a note decays.

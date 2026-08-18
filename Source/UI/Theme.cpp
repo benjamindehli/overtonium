@@ -160,6 +160,23 @@ void repaintRowHighlight(juce::Component &c, const RowBounds &rows, Row row) {
   c.repaint(rows[(size_t)row]);
 }
 
+void mergeIntoRows(juce::Array<juce::Rectangle<int>> &regions) {
+  for (int i = 0; i < regions.size(); ++i) {
+    auto &band = regions.getReference(i);
+
+    for (int j = regions.size(); --j > i;) {
+      const auto &other = regions.getReference(j);
+
+      if (other.getY() != band.getY() ||
+          other.getHeight() != band.getHeight())
+        continue;
+
+      band = band.getUnion(other);
+      regions.remove(j);
+    }
+  }
+}
+
 void coalesceRegions(juce::Array<juce::Rectangle<int>> &regions, int limit) {
   limit = juce::jmax(1, limit);
 

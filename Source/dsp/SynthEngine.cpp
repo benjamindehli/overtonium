@@ -54,6 +54,8 @@ void SynthEngine::reset() noexcept {
   resamplePhase = 1.0;
   heldL = heldR = 0.0f;
 
+  publish({});
+
   for (auto &level : partialLevels)
     level.store(0.0f, std::memory_order_relaxed);
 
@@ -321,9 +323,7 @@ void SynthEngine::setRenderRate(double rate) noexcept {
 }
 
 void SynthEngine::sumVoices(float *left, float *right, int numFrames,
-                            const SynthParams &p,
-                            std::array<float, kNumHarmonics> &peaks,
-                            float &noisePeak) noexcept {
+                            const SynthParams &p, Activity &into) noexcept {
   std::fill(left, left + numFrames, 0.0f);
   std::fill(right, right + numFrames, 0.0f);
 
@@ -333,12 +333,45 @@ void SynthEngine::sumVoices(float *left, float *right, int numFrames,
 
     v.render(left, right, numFrames, p);
 
-    const auto &voicePeaks = v.getPartialPeaks();
-    for (size_t i = 0; i < peaks.size(); ++i)
-      peaks[i] = std::max(peaks[i], voicePeaks[i]);
+    // The lamps follow the meter rather than being gathered on their own
+    // terms. Whichever voice is loudest on a partial is the one you are
+    // listening to on that partial, so it is the one whose envelope and
+    // modulation are worth showing. Taking the maximum of each separately
+    // would describe no note in particular.
+    const auto &peaks = v.getPartialPeaks();
+    const auto &envelopes = v.getPartialEnvelopes();
+    const auto &tremolos = v.getPartialTremolos();
+    const auto &pitches = v.getPartialPitches();
 
-    noisePeak = std::max(noisePeak, v.getNoisePeak());
+    for (size_t i = 0; i < peaks.size(); ++i) {
+      if (peaks[i] <= into.peaks[i])
+        continue;
+
+      into.peaks[i] = peaks[i];
+      into.envelopes[i] = envelopes[i];
+      into.tremolos[i] = tremolos[i];
+      into.pitches[i] = pitches[i];
+    }
+
+    if (v.getNoisePeak() > into.noisePeak) {
+      into.noisePeak = v.getNoisePeak();
+      into.noiseEnvelope = v.getNoiseEnvelope();
+      into.noiseTremolo = v.getNoiseTremolo();
+    }
   }
+}
+
+void SynthEngine::publish(const Activity &a) noexcept {
+  for (size_t i = 0; i < a.peaks.size(); ++i) {
+    partialLevels[i].store(a.peaks[i], std::memory_order_relaxed);
+    partialEnvelopes[i].store(a.envelopes[i], std::memory_order_relaxed);
+    partialTremolos[i].store(a.tremolos[i], std::memory_order_relaxed);
+    partialPitches[i].store(a.pitches[i], std::memory_order_relaxed);
+  }
+
+  noiseLevel.store(a.noisePeak, std::memory_order_relaxed);
+  noiseEnvelope.store(a.noiseEnvelope, std::memory_order_relaxed);
+  noiseTremolo.store(a.noiseTremolo, std::memory_order_relaxed);
 }
 
 void SynthEngine::renderVoices(float *left, float *right, int numSamples,
@@ -346,12 +379,11 @@ void SynthEngine::renderVoices(float *left, float *right, int numSamples,
   const auto target = lofiRenderRate(p);
   const int bits = std::clamp(p.lofi.bits, 0, 24);
 
-  std::array<float, kNumHarmonics> peaks{};
-  float noisePeak = 0.0f;
+  Activity activity;
 
   if (target >= sampleRate) {
     setRenderRate(sampleRate);
-    sumVoices(left, right, numSamples, p, peaks, noisePeak);
+    sumVoices(left, right, numSamples, p, activity);
 
     if (bits > 0)
       quantise(left, right, numSamples, bits);
@@ -396,8 +428,7 @@ void SynthEngine::renderVoices(float *left, float *right, int numSamples,
         }
       }
 
-      sumVoices(lofiScratchL.data(), lofiScratchR.data(), frames, p, peaks,
-                noisePeak);
+      sumVoices(lofiScratchL.data(), lofiScratchR.data(), frames, p, activity);
 
       if (bits > 0)
         quantise(lofiScratchL.data(), lofiScratchR.data(), frames, bits);
@@ -422,10 +453,7 @@ void SynthEngine::renderVoices(float *left, float *right, int numSamples,
     }
   }
 
-  for (size_t i = 0; i < peaks.size(); ++i)
-    partialLevels[i].store(peaks[i], std::memory_order_relaxed);
-
-  noiseLevel.store(noisePeak, std::memory_order_relaxed);
+  publish(activity);
 }
 
 void SynthEngine::render(float *left, float *right, int numSamples,

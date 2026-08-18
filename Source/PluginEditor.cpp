@@ -605,14 +605,39 @@ void OvertoniumEditor::timerCallback() {
   for (int i = 0; i < kNumHarmonics; ++i) {
     auto &strip = *strips[(size_t)i];
     add(strip, strip.setMeterLevel(processor.getPartialLevel(i)));
+
+    // Kept apart from the meter bands, because the two want different
+    // merges. See mergeIntoRows.
+    strip.setActivity(processor.getPartialEnvelope(i),
+                      processor.getPartialTremolo(i),
+                      processor.getPartialPitch(i), stripLamps);
+
+    for (const auto &band : stripLamps)
+      lampRegions.add(content.getLocalArea(&strip, band));
+
+    stripLamps.clearQuick();
   }
 
   add(noiseStrip, noiseStrip.setMeterLevel(processor.getNoiseLevel()));
 
+  noiseStrip.setActivity(processor.getNoiseEnvelope(),
+                         processor.getNoiseTremolo(), stripLamps);
+
+  for (const auto &band : stripLamps)
+    lampRegions.add(content.getLocalArea(&noiseStrip, band));
+
+  stripLamps.clearQuick();
+
   coalesceRegions(dirtyRegions, kMaxDirtyRegions);
+  mergeIntoRows(lampRegions);
 
   for (const auto &region : dirtyRegions)
     content.repaint(region);
+
+  for (const auto &region : lampRegions)
+    content.repaint(region);
+
+  lampRegions.clearQuick();
 
   // Its own region, at the other end of the window from the mixer.
   topBar.setOutputLevels(processor.getOutputLevelLeft(),

@@ -37,6 +37,14 @@ public:
     return band.isEmpty() ? band : band.translated(meter.getX(), meter.getY());
   }
 
+  /// The lamps on the section rules. Noise has an envelope and a tremolo like
+  /// any other channel, so it gets those two. It has no pitch, so the pitch
+  /// rule stays a plain rule, which is the same thing the "no pitch" label
+  /// above it is saying.
+  /// See ChannelStrip::setActivity.
+  void setActivity(float envelope, float tremolo,
+                   juce::Array<juce::Rectangle<int>> &into);
+
   /// Takes part in the row highlight, so the band crosses the noise channel
   /// too. LINK never reaches it, so there is nothing here to arm.
   void setHighlightedRow(Row);
@@ -62,6 +70,7 @@ private:
   juce::TextButton muteButton{"M"}, soloButton{"S"};
   juce::Label colourReadout, levelReadout;
   LevelMeter meter;
+  ActivityLamp envLamp, keyOffLamp, tremoloLamp;
 
   std::vector<std::unique_ptr<SliderAttachment>> sliderAttachments;
   std::unique_ptr<ButtonAttachment> muteAttachment, soloAttachment;

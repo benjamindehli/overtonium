@@ -143,6 +143,76 @@ private:
   int lit = 0;
 };
 
+/// A lamp mounted on one of the rules that divide a strip into groups.
+///
+/// It says how hard the group below it is working on this partial right now:
+/// the envelope's position, the key-off stage that takes over from it, how far
+/// the tremolo has pulled the level down. The rule is already there, so the
+/// lamp costs no height at all and reads as something fitted to the divider
+/// rather than as another row of controls.
+///
+/// Brightness is quantised, for the same reason the level meter is segmented.
+/// A lamp that follows a value exactly is a lamp that repaints on every frame
+/// in which the value moves at all, which for anything modulated is every
+/// frame. In steps it repaints only when it has something new to show, and a
+/// slow envelope goes whole seconds without costing a frame.
+class ActivityLamp : public juce::Component {
+public:
+  explicit ActivityLamp(juce::Colour litColour) : colour(litColour) {
+    setInterceptsMouseClicks(false, false);
+  }
+
+  /// The channel background behind the lamp, so it can paint its own backdrop
+  /// and declare itself opaque. See LevelMeter::setBackdrop, which is the same
+  /// bargain: an opaque child is one the strip underneath need not redraw.
+  void setBackdrop(juce::Colour);
+
+  /// @param brightness  0 to 1, how hard the group is working.
+  /// @returns true when the lamp moved a step and needs repainting.
+  bool push(float brightness);
+
+  void paint(juce::Graphics &) override;
+
+  /// How many steps the brightness is rounded to. Enough to read as
+  /// continuous, few enough that a slow move is mostly free.
+  static constexpr int kSteps = 12;
+
+private:
+  juce::Colour colour, backdrop;
+  int step = 0;
+};
+
+/// A needle on a rule, showing where pitch modulation has this partial.
+///
+/// Reads like a tuner because that is the thing it is: centre is the note as
+/// written, right is sharp, left is flat. The scale is the strip's own,
+/// though, not a fixed number of cents. A partial set to wander by three cents
+/// and one set to wander by two hundred both use the full width, because the
+/// question the lamp answers is what this group is doing, and a needle that
+/// never leaves the centre answers nothing.
+class ActivityNeedle : public juce::Component {
+public:
+  explicit ActivityNeedle(juce::Colour needleColour) : colour(needleColour) {
+    setInterceptsMouseClicks(false, false);
+  }
+
+  void setBackdrop(juce::Colour);
+
+  /// @param position  -1 to 1, flat to sharp, already scaled by the caller.
+  /// @returns true when the needle moved a pixel and needs repainting.
+  bool push(float position);
+
+  void paint(juce::Graphics &) override;
+
+private:
+  /// Where the needle sits, in pixels from the left edge, or -1 for parked.
+  /// Quantised to the pixel because a needle that has not moved a whole pixel
+  /// has not moved.
+  int column = -1;
+
+  juce::Colour colour, backdrop;
+};
+
 /// One vertical channel: everything that belongs to a single partial.
 class ChannelStrip : public juce::Component,
                      public juce::SettableTooltipClient {
@@ -169,6 +239,39 @@ public:
     const auto band = meter.push(level);
     return band.isEmpty() ? band : band.translated(meter.getX(), meter.getY());
   }
+
+  /// What the lamps on the section rules show.
+  ///
+  /// @param envelope  signed: positive while the key is down, negative once
+  ///                  the key-off stage has it. The two lamps split on that
+  ///                  sign, so one hands over to the other rather than both
+  ///                  being lit at once.
+  /// @param tremolo   how far the tremolo has pulled the level down, 0 to 1.
+  /// @param pitch     displacement in cents, or the parked value when the
+  ///                  partial is silent.
+  ///
+  /// Appends the bounds of every lamp that moved, in this strip's own
+  /// coordinates, and leaves the frame with nothing appended when nothing
+  /// moved.
+  ///
+  /// They go back to the editor rather than each invalidating itself, so they
+  /// are merged along with the meter bands into the handful of rectangles the
+  /// window is given. A hundred and twenty-nine separate small invalidations
+  /// is the case the merging exists to avoid: past a handful the window gives
+  /// up and redraws their bounding box, which here is the whole mixer.
+  ///
+  /// They merge well, too. Every strip's lamps sit at the same height, so the
+  /// union of a row of them is a thin wide band with no wasted area in it,
+  /// which is the opposite of what the meter bands do.
+  void setActivity(float envelope, float tremolo, float pitch,
+                   juce::Array<juce::Rectangle<int>> &into);
+
+  /// The displacement a needle at full deflection stands for, in cents.
+  ///
+  /// Taken from what the strip is set to do rather than fixed, so a partial
+  /// wandering by three cents and one wandering by two hundred both use the
+  /// width. Zero means nothing is modulating it and the needle parks.
+  float pitchSpanCents() const;
 
   /// Picks out one row, or kNoRow to clear. Every strip is told the same row,
   /// so the highlight runs the width of the mixer.
@@ -213,6 +316,9 @@ private:
   juce::TextButton muteButton{"M"}, soloButton{"S"};
   juce::Label tuneReadout, levelReadout;
   LevelMeter meter;
+
+  ActivityNeedle pitchLamp;
+  ActivityLamp envLamp, keyOffLamp, tremoloLamp;
 
   std::vector<std::unique_ptr<SliderAttachment>> sliderAttachments;
   std::unique_ptr<ButtonAttachment> muteAttachment, soloAttachment;

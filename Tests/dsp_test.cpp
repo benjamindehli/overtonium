@@ -1016,6 +1016,184 @@ void testOneVoicePerKey() {
             std::to_string(pool.getActiveVoiceCount()) + ")");
 }
 
+/// What the lamps between the knob groups are told.
+///
+/// They are fed from the voice pool rather than from the parameters, so they
+/// show what is happening to a note rather than what the knobs are set to. The
+/// difference matters most at the ends: a lamp driven from the knobs would go
+/// on pulsing over silence, and would say nothing at all about which half of
+/// the envelope is running.
+void testActivity() {
+  section("Strip activity");
+
+  constexpr double sr = 48000.0;
+
+  auto p = makeFlatParams(0.0f);
+  p.osc[0].volume = 0.5f;
+  p.osc[0].attack = 0.005f;
+  p.osc[0].decay = 8.0f;
+  p.osc[0].sustain = 1.0f;
+  p.osc[0].swell = 0.005f;
+  p.osc[0].offLevel = 0.0f;
+  p.osc[0].release = 0.4f;
+  p.noise.release = 0.02f;
+  p.global.masterGain = 1.0f;
+  p.global.safetyClip = false;
+
+  SynthEngine engine;
+  engine.prepare(sr);
+  engine.setPolyphony(8);
+
+  std::vector<float> l, r;
+
+  const auto render = [&](double seconds) {
+    const auto n = (size_t)(seconds * sr);
+    l.assign(n, 0.0f);
+    r.assign(n, 0.0f);
+    engine.render(l.data(), r.data(), (int)n, p);
+  };
+
+  // ---- silence says nothing -------------------------------------------------
+  render(0.05);
+
+  check(engine.getPartialEnvelope(0) == 0.0f,
+        "with nothing sounding the envelope lamp is dark");
+  check(engine.getPartialTremolo(0) == 0.0f, "and so is the tremolo lamp");
+  check(engine.getPartialPitch(0) == 0.0f, "and the needle has nothing to say");
+
+  // ---- the two envelope lamps hand over at the key ------------------------
+  engine.noteOn(60, 1.0f, p);
+  render(0.2);
+
+  const auto held = engine.getPartialEnvelope(0);
+  std::printf("  key down: envelope reads %+.3f\n", held);
+
+  check(held > 0.5f,
+        "a held note lights the envelope lamp (" + std::to_string(held) + ")");
+
+  engine.noteOff(60);
+  render(0.05);
+
+  const auto letGo = engine.getPartialEnvelope(0);
+  std::printf("  key up:   envelope reads %+.3f\n", letGo);
+
+  check(letGo < 0.0f,
+        "letting go flips the sign, which is the key-off lamp taking over (" +
+            std::to_string(letGo) + ")");
+
+  check(std::abs(letGo) > 0.1f,
+        "and the level carries over rather than restarting");
+
+  // In blocks, the way a host calls it. One long call would end with whatever
+  // the envelope was doing on its last sample still published, which is not
+  // wrong but is not what a lamp sitting on screen afterwards would show.
+  for (int i = 0; i < 8; ++i)
+    render(0.25);
+
+  check(engine.getPartialEnvelope(0) == 0.0f,
+        "once the release is done both lamps are dark again (" +
+            std::to_string(engine.getPartialEnvelope(0)) + ")");
+
+  // ---- the tremolo lamp shows the excursion, not the level ----------------
+  //
+  // Zero depth has to read zero rather than full, or every strip with no
+  // tremolo on it would sit there lit and never move.
+  {
+    engine.allSoundOff();
+    p.osc[0].amDepth = 0.0f;
+    p.osc[0].amRateHz = 5.0f;
+
+    engine.noteOn(60, 1.0f, p);
+    render(0.3);
+
+    check(engine.getPartialTremolo(0) == 0.0f,
+          "a partial with no tremolo on it reads zero (" +
+              std::to_string(engine.getPartialTremolo(0)) + ")");
+
+    engine.allSoundOff();
+    p.osc[0].amDepth = 1.0f;
+    engine.noteOn(60, 1.0f, p);
+
+    // Sample across a cycle and check it uses the range rather than sitting
+    // at one value.
+    float lowest = 2.0f, highest = -1.0f;
+    for (int i = 0; i < 40; ++i) {
+      render(0.005);
+      const auto t = engine.getPartialTremolo(0);
+      lowest = std::min(lowest, t);
+      highest = std::max(highest, t);
+    }
+
+    std::printf("  at full depth the tremolo lamp swings %.2f to %.2f\n",
+                lowest, highest);
+
+    check(lowest < 0.15f && highest > 0.85f,
+          "at full depth it swings across the whole range");
+
+    p.osc[0].amDepth = 0.0f;
+  }
+
+  // ---- the needle follows the modulation ----------------------------------
+  {
+    engine.allSoundOff();
+    p.osc[0].pmDepthCents = 0.0f;
+    p.osc[0].driftCents = 0.0f;
+    p.osc[0].pmRateHz = 6.0f;
+
+    engine.noteOn(60, 1.0f, p);
+    render(0.3);
+
+    check(engine.getPartialPitch(0) == 0.0f,
+          "a partial with nothing modulating it parks at zero");
+
+    engine.allSoundOff();
+    p.osc[0].pmDepthCents = 50.0f;
+    engine.noteOn(60, 1.0f, p);
+
+    float lowest = 1000.0f, highest = -1000.0f;
+    for (int i = 0; i < 40; ++i) {
+      render(0.005);
+      const auto c = engine.getPartialPitch(0);
+      lowest = std::min(lowest, c);
+      highest = std::max(highest, c);
+    }
+
+    std::printf("  at 50 cents the needle covers %+.1f to %+.1f cents\n",
+                lowest, highest);
+
+    check(lowest < -40.0f && highest > 40.0f,
+          "and one set to 50 cents swings both ways by nearly that much");
+
+    // Never past what the strip is set to do, or the needle would peg.
+    check(lowest >= -50.5f && highest <= 50.5f,
+          "without ever exceeding the depth the knob asks for");
+  }
+
+  // ---- the lamps follow the loudest voice, like the meter ------------------
+  //
+  // Two notes, one much louder. The lamp should describe the one you can
+  // actually hear rather than the maximum of both, which would describe
+  // neither.
+  {
+    engine.allSoundOff();
+    p.osc[0].pmDepthCents = 0.0f;
+    p.osc[0].attack = 0.005f;
+
+    engine.noteOn(60, 1.0f, p);
+    render(0.3); // this one is up at sustain
+
+    engine.noteOn(67, 0.05f, p); // and this one has barely started
+    render(0.002);
+
+    const auto reading = engine.getPartialEnvelope(0);
+    std::printf("  a loud held note beside a quiet new one reads %+.3f\n",
+                reading);
+
+    check(reading > 0.5f,
+          "the lamp follows the voice the meter follows, not the newest one");
+  }
+}
+
 /// Notes that own a channel each, which is what an MPE controller sends.
 ///
 /// The rule for an ordinary keyboard is one voice per key. That rule is wrong
@@ -3987,6 +4165,7 @@ int main() {
   testVoiceAllocation();
   testOneVoicePerKey();
   testPerNoteChannels();
+  testActivity();
   testPoolExhaustion();
   testModulation();
   testPerPartialVelocity();

@@ -1,5 +1,7 @@
 #include "NoiseStrip.h"
 
+#include <cmath>
+
 #include "../PluginParameters.h"
 #include "LookAndFeel.h"
 
@@ -16,7 +18,11 @@ const juce::Colour kNoiseColour{0xff9aa4b0};
 NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
                        HoverTarget &hoverTarget, juce::Component &popupParent)
     : apvts(state), hover(hoverTarget), popupHost(popupParent),
-      colour(kNoiseColour), meter(kNoiseColour) {
+      colour(kNoiseColour), meter(kNoiseColour), envLamp(kNoiseColour),
+      keyOffLamp(kNoiseColour), tremoloLamp(kNoiseColour) {
+  for (auto *lamp : {&envLamp, &keyOffLamp, &tremoloLamp})
+    addAndMakeVisible(*lamp);
+
   addMouseListener(this, true);
 
   const auto secondary = colour.withSaturation(0.10f).withBrightness(0.68f);
@@ -165,9 +171,9 @@ void NoiseStrip::paint(juce::Graphics &g) {
   g.setFont(makeFont(9.0f));
   g.drawText("noise", header, juce::Justification::centred, false);
 
+  // The envelope, key-off and tremolo rules carry lamps and draw themselves.
   g.setColour(colours::outline.withAlpha(0.7f));
-  for (auto r : {Row::PitchModHeading, Row::EnvHeading, Row::KeyOffHeading,
-                 Row::AmpModHeading, Row::OutputHeading}) {
+  for (auto r : {Row::PitchModHeading, Row::OutputHeading}) {
     const auto row = rows[rowIndex(r)];
     g.fillRect(row.getX(), row.getY() + row.getHeight() / 2, row.getWidth(), 1);
   }
@@ -181,6 +187,21 @@ void NoiseStrip::paint(juce::Graphics &g) {
   g.setColour(colours::textDim.withAlpha(0.5f));
   g.setFont(makeFont(9.0f));
   g.drawText("no pitch", absent, juce::Justification::centred, false);
+}
+
+void NoiseStrip::setActivity(float envelope, float tremolo,
+                             juce::Array<juce::Rectangle<int>> &into) {
+  const auto refresh = [&into](juce::Component &lamp, bool moved) {
+    if (moved)
+      into.add(lamp.getBounds());
+  };
+
+  const auto level = std::abs(envelope);
+  const auto afterKeyOff = envelope < 0.0f;
+
+  refresh(envLamp, envLamp.push(afterKeyOff ? 0.0f : level));
+  refresh(keyOffLamp, keyOffLamp.push(afterKeyOff ? level : 0.0f));
+  refresh(tremoloLamp, tremoloLamp.push(level > 0.0f ? tremolo : 0.0f));
 }
 
 void NoiseStrip::resized() {
@@ -222,6 +243,16 @@ void NoiseStrip::resized() {
     };
 
     meter.setBackdrop(at(meter.getY()), at(meter.getBottom()));
+
+    const auto place = [&](ActivityLamp &lamp, Row row) {
+      const auto r = rows[rowIndex(row)];
+      lamp.setBounds(r);
+      lamp.setBackdrop(at(r.getCentreY()));
+    };
+
+    place(envLamp, Row::EnvHeading);
+    place(keyOffLamp, Row::KeyOffHeading);
+    place(tremoloLamp, Row::AmpModHeading);
   }
   volume.setBounds(faderRow.reduced(2, 1));
   levelReadout.setBounds(rows[rowIndex(Row::FaderText)]);

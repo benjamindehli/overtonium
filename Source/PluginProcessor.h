@@ -65,6 +65,24 @@ public:
   /// Polled by the editor to drive the noise channel meter.
   float getNoiseLevel() const noexcept { return engine.getNoiseLevel(); }
 
+  /// Polled by the editor to drive the lamps between the knob groups. All
+  /// taken from the loudest voice on that partial, the same one the meter
+  /// reads. See SynthEngine::sumVoices.
+  float getPartialEnvelope(int index0) const noexcept {
+    return engine.getPartialEnvelope(index0);
+  }
+
+  float getPartialTremolo(int index0) const noexcept {
+    return engine.getPartialTremolo(index0);
+  }
+
+  float getPartialPitch(int index0) const noexcept {
+    return engine.getPartialPitch(index0);
+  }
+
+  float getNoiseEnvelope() const noexcept { return engine.getNoiseEnvelope(); }
+  float getNoiseTremolo() const noexcept { return engine.getNoiseTremolo(); }
+
   /// Polled by the editor to drive the output meter.
   float getOutputLevelLeft() const noexcept {
     return engine.getOutputLevelLeft();

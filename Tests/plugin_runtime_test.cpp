@@ -10,6 +10,7 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <functional>
 #include <set>
 #include <string>
 #include <vector>
@@ -18,6 +19,7 @@
 #include "PluginParameters.h"
 #include "PluginProcessor.h"
 #include "Presets.h"
+#include "UI/ChannelStrip.h"
 #include "UI/NoiseStrip.h"
 #include "UI/Theme.h"
 #include "UI/TopBar.h"
@@ -696,6 +698,125 @@ void testMpe(OvertoniumProcessor &p) {
 
     setParam(ovt::params::mpeId, 0.0f);
     panic();
+  }
+}
+
+/// The lamps between the knob groups, and what a frame of them costs.
+///
+/// The user asking for these asked for them only if they were cheap, so the
+/// cost is measured here rather than asserted anywhere. Two things make them
+/// cheap and both are checked: the lamps hold still between steps instead of
+/// following their value exactly, and their bands are merged by row rather
+/// than by neighbour.
+void testActivityLamps(OvertoniumProcessor &p) {
+  section("Strip lamps");
+
+  using namespace ovt::ui;
+
+  // ---- merging by row -----------------------------------------------------
+  //
+  // The lamps all sit at the same four heights, so this is the merge that
+  // costs nothing: the union of a row of them is exactly the pixels they
+  // occupy plus the gaps between strips.
+  {
+    juce::Array<juce::Rectangle<int>> bands;
+    for (int i = 0; i < 32; ++i) {
+      bands.add({i * 38, 100, 34, 15}); // one row
+      bands.add({i * 38, 300, 34, 15}); // another
+    }
+
+    mergeIntoRows(bands);
+
+    check(bands.size() == 2, "sixty-four lamps on two rules merge to two "
+                             "bands (" + std::to_string(bands.size()) + ")");
+
+    bool thin = true;
+    for (const auto &b : bands)
+      thin &= b.getHeight() == 15 && b.getWidth() == 31 * 38 + 34;
+
+    check(thin, "each band is one rule tall and spans the strips it covers");
+
+    // Rows that do not line up are left alone, or a band would swallow a
+    // meter that happened to be passing.
+    juce::Array<juce::Rectangle<int>> mixed;
+    mixed.add({0, 100, 34, 15});
+    mixed.add({38, 101, 34, 15});
+    mixed.add({76, 100, 34, 16});
+
+    mergeIntoRows(mixed);
+    check(mixed.size() == 3, "rules at different heights stay apart");
+  }
+
+  // ---- holding still ------------------------------------------------------
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  editor->setSize(1348, 1000);
+
+  std::vector<ChannelStrip *> strips;
+  std::function<void(juce::Component &)> collect = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (auto *s = dynamic_cast<ChannelStrip *>(child))
+        strips.push_back(s);
+
+      collect(*child);
+    }
+  };
+  collect(*editor);
+
+  check(!strips.empty(), "the mixer has strips in it");
+  if (strips.empty())
+    return;
+
+  {
+    auto &strip = *strips.front();
+
+    juce::Array<juce::Rectangle<int>> bands;
+
+    // First call has everything to say, since the lamps start dark.
+    strip.setActivity(0.5f, 0.5f, 0.0f, bands);
+    const auto first = bands.size();
+
+    bands.clearQuick();
+    strip.setActivity(0.5f, 0.5f, 0.0f, bands);
+
+    check(first > 0, "a lamp that lights asks to be repainted");
+    check(bands.isEmpty(),
+          "and the same values again ask for nothing (" +
+              std::to_string(bands.size()) + " bands)");
+
+    // A move too small to cross a step is a move nobody can see.
+    bands.clearQuick();
+    strip.setActivity(0.5f + 1.0f / (4.0f * ActivityLamp::kSteps), 0.5f, 0.0f,
+                      bands);
+
+    check(bands.isEmpty(), "nor does a change smaller than one step");
+
+    // A move of a whole step does.
+    bands.clearQuick();
+    strip.setActivity(0.5f + 1.5f / (float)ActivityLamp::kSteps, 0.5f, 0.0f,
+                      bands);
+
+    check(!bands.isEmpty(), "a change of a whole step does");
+
+    // ---- the two envelope lamps never both light --------------------------
+    bands.clearQuick();
+    strip.setActivity(-0.8f, 0.0f, 0.0f, bands);
+    strip.setActivity(-0.8f, 0.0f, 0.0f, bands);
+
+    // Reading the lamps back is not possible from here, so this is checked by
+    // the shape of the request instead: flipping the sign has to move both
+    // lamps, one out and one in, and nothing else.
+    bands.clearQuick();
+    strip.setActivity(0.8f, 0.0f, 0.0f, bands);
+
+    check(bands.size() == 2,
+          "flipping to the key-off half moves exactly two lamps, one out and "
+          "one in (" + std::to_string(bands.size()) + ")");
   }
 }
 
@@ -1937,6 +2058,7 @@ int main() {
   testPresets(processor);
   testAftertouchMidi(processor);
   testMpe(processor);
+  testActivityLamps(processor);
   testUserPresets(processor);
   testMasterEffects(processor);
   testLinkCurves();

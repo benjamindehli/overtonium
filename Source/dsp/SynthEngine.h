@@ -82,6 +82,36 @@ public:
     return noiseLevel.load(std::memory_order_relaxed);
   }
 
+  // ---- what the strip lamps show -------------------------------------------
+  //
+  // All taken from the same voice that produced the meter reading for that
+  // partial, which is the loudest one. Reading each from whichever voice
+  // happened to be furthest through its own envelope would have the lamps
+  // describing a note you cannot pick out of the chord.
+
+  /// Envelope position, signed negative once the key-off stage has taken over.
+  float getPartialEnvelope(int index0) const noexcept {
+    return partialEnvelopes[(size_t)index0].load(std::memory_order_relaxed);
+  }
+
+  /// How far the tremolo has pulled this partial down, 0 to 1.
+  float getPartialTremolo(int index0) const noexcept {
+    return partialTremolos[(size_t)index0].load(std::memory_order_relaxed);
+  }
+
+  /// Pitch displacement in cents, modulation and drift together.
+  float getPartialPitch(int index0) const noexcept {
+    return partialPitches[(size_t)index0].load(std::memory_order_relaxed);
+  }
+
+  float getNoiseEnvelope() const noexcept {
+    return noiseEnvelope.load(std::memory_order_relaxed);
+  }
+
+  float getNoiseTremolo() const noexcept {
+    return noiseTremolo.load(std::memory_order_relaxed);
+  }
+
   /// Peak of the finished output per channel, after master gain and the
   /// clipper, so it reports what actually leaves the plugin. Kept separate
   /// because stereo spread is the whole reason the two can differ.
@@ -125,10 +155,27 @@ private:
   void renderVoices(float *left, float *right, int numSamples,
                     const SynthParams &p) noexcept;
 
+  /// What one render pass found worth showing, before it is published.
+  ///
+  /// Gathered rather than stored straight into the atomics because the lo-fi
+  /// path calls sumVoices several times for one block, and a lamp should show
+  /// where the block ended rather than flickering through its chunks.
+  struct Activity {
+    std::array<float, kNumHarmonics> peaks{};
+    std::array<float, kNumHarmonics> envelopes{};
+    std::array<float, kNumHarmonics> tremolos{};
+    std::array<float, kNumHarmonics> pitches{};
+
+    float noisePeak = 0.0f;
+    float noiseEnvelope = 0.0f;
+    float noiseTremolo = 0.0f;
+  };
+
   /// Sums every sounding voice into the buffers and takes the meter peaks.
   void sumVoices(float *left, float *right, int numFrames, const SynthParams &p,
-                 std::array<float, kNumHarmonics> &peaks,
-                 float &noisePeak) noexcept;
+                 Activity &into) noexcept;
+
+  void publish(const Activity &) noexcept;
 
   /// Moves the whole pool to a new render rate, if it is not there already.
   void setRenderRate(double rate) noexcept;
@@ -164,7 +211,12 @@ private:
 
   /// Negative == "snap to target on the next block".
   std::array<std::atomic<float>, kNumHarmonics> partialLevels{};
+  std::array<std::atomic<float>, kNumHarmonics> partialEnvelopes{};
+  std::array<std::atomic<float>, kNumHarmonics> partialTremolos{};
+  std::array<std::atomic<float>, kNumHarmonics> partialPitches{};
   std::atomic<float> noiseLevel{0.0f};
+  std::atomic<float> noiseEnvelope{0.0f};
+  std::atomic<float> noiseTremolo{0.0f};
   std::atomic<float> outputLevelL{0.0f};
   std::atomic<float> outputLevelR{0.0f};
 

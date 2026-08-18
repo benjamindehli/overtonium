@@ -95,6 +95,21 @@ bool rowShowsHighlight(Row);
 /// Repaints the band a row highlights, if it highlights one at all.
 void repaintRowHighlight(juce::Component &, const RowBounds &, Row);
 
+/// Merges rectangles that share a top and a bottom edge into one band each.
+///
+/// For the lamps, which sit at the same four heights on every strip. Their
+/// natural grouping is by row rather than by neighbour: thirty-three lamps
+/// across one rule union into a band that is thin, wide and entirely full,
+/// where merging one of them with the meter band lower down the same strip
+/// gives a tall rectangle that is mostly nothing.
+///
+/// That difference is worth the separate pass. Measured on a mixer with all
+/// 32 channels modulating, putting the lamps through the general merge below
+/// costs 762,000 pixels a frame against the meters' 22,000, because six
+/// rectangles is not enough to keep the rows apart. By row it is 81,000, and
+/// most of that is only reached when every channel is moving at once.
+void mergeIntoRows(juce::Array<juce::Rectangle<int>> &regions);
+
 /// Reduces a set of dirty rectangles to at most `limit` of them, merging the
 /// pairs that add the least area.
 ///

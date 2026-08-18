@@ -64,6 +64,8 @@ void Voice::reset() noexcept {
   noise.lastGain = 0.0f;
   noise.gainPrimed = false;
   noisePeak = 0.0f;
+  noiseEnvelope = 0.0f;
+  noiseTremolo = 0.0f;
 
   active = false;
   released = false;
@@ -221,7 +223,12 @@ void Voice::render(float *left, float *right, int numSamples,
   }
 
   partialPeaks.fill(0.0f);
+  partialEnvelopes.fill(0.0f);
+  partialTremolos.fill(0.0f);
+  partialPitches.fill(0.0f);
   noisePeak = 0.0f;
+  noiseEnvelope = 0.0f;
+  noiseTremolo = 0.0f;
 
   const float pressureTarget =
       std::max(std::clamp(p.global.aftertouch, 0.0f, 1.0f), polyPressure);
@@ -326,6 +333,25 @@ void Voice::render(float *left, float *right, int numSamples,
       partialPeaks[(size_t)i] =
           std::max(partialPeaks[(size_t)i], pt.env.getLevel() * gEnd);
 
+      // The same again for the lamps: everything here was worked out above for
+      // the oscillator's own use, so this is three stores and a compare.
+      //
+      // The envelope carries its stage in its sign. Swell and release are the
+      // two that run after the key is up, and they are the ones the second
+      // lamp takes over.
+      const auto stage = pt.env.getStage();
+      const auto afterKeyOff = stage == Envelope::Stage::Swell ||
+                               stage == Envelope::Stage::Release;
+
+      partialEnvelopes[(size_t)i] =
+          afterKeyOff ? -pt.env.getLevel() : pt.env.getLevel();
+
+      // What the tremolo has taken off, rather than what it has left. A
+      // partial with no tremolo on it then reads zero instead of full, which
+      // is a lamp that is dark rather than one that is on and never moves.
+      partialTremolos[(size_t)i] = 1.0f - amEnd;
+      partialPitches[(size_t)i] = (float)(pmCents + driftCents);
+
       if ((g <= 1.0e-7f && gEnd <= 1.0e-7f) || pt.env.isSilentlyHolding()) {
         // Inaudible right now: muted, faded out above Nyquist, fader at zero,
         // or decayed to a sustain of nothing and waiting for the key to come
@@ -411,6 +437,16 @@ void Voice::renderNoise(float *left, float *right, int len,
   noise.lastGain = gEnd;
 
   noisePeak = std::max(noisePeak, noise.env.getLevel() * gEnd);
+
+  {
+    const auto stage = noise.env.getStage();
+    const auto afterKeyOff = stage == Envelope::Stage::Swell ||
+                             stage == Envelope::Stage::Release;
+
+    noiseEnvelope =
+        afterKeyOff ? -noise.env.getLevel() : noise.env.getLevel();
+    noiseTremolo = 1.0f - amEnd;
+  }
 
   if (g <= 1.0e-7f && gEnd <= 1.0e-7f) {
     for (int n = 0; n < len; ++n)

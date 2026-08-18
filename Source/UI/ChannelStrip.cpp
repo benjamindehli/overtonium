@@ -1,5 +1,7 @@
 #include "ChannelStrip.h"
 
+#include <cmath>
+
 #include "../PluginParameters.h"
 #include "LookAndFeel.h"
 
@@ -79,6 +81,115 @@ namespace {
 /// than a column of slivers, and a tall one gets more rather than bars.
 int segmentsFor(int height) { return juce::jlimit(6, 24, height / 15); }
 } // namespace
+
+// =============================================================================
+
+void ActivityLamp::setBackdrop(juce::Colour behind) {
+  backdrop = behind;
+  setOpaque(true);
+  repaint();
+}
+
+bool ActivityLamp::push(float brightness) {
+  const auto exact = juce::jlimit(0.0f, 1.0f, brightness) * (float)kSteps;
+  const auto next = juce::jlimit(0, kSteps, (int)std::lround(exact));
+
+  if (next == step)
+    return false;
+
+  step = next;
+  return true;
+}
+
+void ActivityLamp::paint(juce::Graphics &g) {
+  const auto bounds = getLocalBounds().toFloat();
+
+  if (isOpaque()) {
+    g.setColour(backdrop);
+    g.fillRect(bounds);
+  }
+
+  // The rule the lamp is mounted on, drawn either side of it so the divider
+  // still reads as a continuous line across the strip.
+  const auto midY = std::floor(bounds.getCentreY());
+  const auto diameter = juce::jmin(bounds.getHeight() - 2.0f, 7.0f);
+  const auto lamp = juce::Rectangle<float>(diameter, diameter)
+                        .withCentre({bounds.getCentreX(), midY + 0.5f});
+
+  g.setColour(colours::outline.withAlpha(0.7f));
+  g.fillRect(bounds.getX(), midY, lamp.getX() - bounds.getX() - 2.0f, 1.0f);
+  g.fillRect(lamp.getRight() + 2.0f, midY,
+             bounds.getRight() - lamp.getRight() - 2.0f, 1.0f);
+
+  // Unlit is the channel colour at low alpha rather than nothing at all, so
+  // the divider reads as a lamp that is off rather than as a gap in the rule.
+  const auto lit = (float)step / (float)kSteps;
+
+  g.setColour(colour.withAlpha(0.16f + 0.84f * lit));
+  g.fillEllipse(lamp);
+}
+
+// =============================================================================
+
+void ActivityNeedle::setBackdrop(juce::Colour behind) {
+  backdrop = behind;
+  setOpaque(true);
+  repaint();
+}
+
+bool ActivityNeedle::push(float position) {
+  // Parked rather than centred when there is nothing to show, so a partial
+  // with no pitch modulation on it does not sit there implying it is in tune
+  // rather than idle.
+  if (position <= -2.0f) {
+    if (column < 0)
+      return false;
+
+    column = -1;
+    return true;
+  }
+
+  const auto usable = juce::jmax(1, getWidth() - 3);
+  const auto at =
+      1 + (int)std::lround(0.5 * (1.0 + juce::jlimit(-1.0f, 1.0f, position)) *
+                           (double)usable);
+
+  if (at == column)
+    return false;
+
+  column = at;
+  return true;
+}
+
+void ActivityNeedle::paint(juce::Graphics &g) {
+  const auto bounds = getLocalBounds().toFloat();
+
+  if (isOpaque()) {
+    g.setColour(backdrop);
+    g.fillRect(bounds);
+  }
+
+  const auto midY = std::floor(bounds.getCentreY());
+
+  // The rule doubles as the scale it reads against.
+  g.setColour(colours::outline.withAlpha(0.7f));
+  g.fillRect(bounds.getX(), midY, bounds.getWidth(), 1.0f);
+
+  // A centre mark, so sharp and flat mean something when the needle is near
+  // the middle.
+  g.setColour(colours::outline);
+  g.fillRect(bounds.getCentreX() - 0.5f, midY - 1.0f, 1.0f, 3.0f);
+
+  if (column < 0)
+    return;
+
+  const auto height = juce::jmin(bounds.getHeight() - 2.0f, 7.0f);
+
+  g.setColour(colour);
+  g.fillRect((float)column - 1.0f, midY - height * 0.5f + 0.5f, 2.0f, height);
+}
+
+// =============================================================================
 
 void LevelMeter::setBackdrop(juce::Colour top, juce::Colour bottom) {
   backdropTop = top;
@@ -211,10 +322,18 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
                            juce::Component &popupParent, int index0)
     : apvts(state), link(linkTarget), hover(hoverTarget),
       popupHost(popupParent), index(index0), info(harmonic(index0)),
-      colour(intervalColour(harmonic(index0).pitchClass)), meter(colour) {
+      colour(intervalColour(harmonic(index0).pitchClass)), meter(colour),
+      pitchLamp(colour), envLamp(colour), keyOffLamp(colour),
+      tremoloLamp(colour) {
   // Deep listener, so a pointer resting on a knob is reported by the strip that
   // owns it rather than being swallowed by the control.
   addMouseListener(this, true);
+
+  for (juce::Component *lamp : {(juce::Component *)&pitchLamp,
+                                (juce::Component *)&envLamp,
+                                (juce::Component *)&keyOffLamp,
+                                (juce::Component *)&tremoloLamp})
+    addAndMakeVisible(*lamp);
 
   // The strip decides the pointer for everything on it, which is how the LINK
   // tool shows itself. Children keep their own only where that would be wrong,
@@ -514,10 +633,11 @@ void ChannelStrip::paint(juce::Graphics &g) {
   g.drawText(intervalShortName(info.pitchClass), header,
              juce::Justification::centred, false);
 
-  // Section rules, aligned with the gutter headings.
+  // Section rules, aligned with the gutter headings. Four of the five carry a
+  // lamp, and those draw their own rule around it, so only the output divider
+  // is left for the strip to draw.
   g.setColour(colours::outline.withAlpha(0.7f));
-  for (auto r : {Row::PitchModHeading, Row::EnvHeading, Row::KeyOffHeading,
-                 Row::AmpModHeading, Row::OutputHeading}) {
+  for (auto r : {Row::OutputHeading}) {
     const auto row = rows[rowIndex(r)];
     g.fillRect(row.getX(), row.getY() + row.getHeight() / 2, row.getWidth(), 1);
   }
@@ -577,6 +697,81 @@ void ChannelStrip::resized() {
   auto ms = rows[rowIndex(Row::MuteSolo)];
   muteButton.setBounds(ms.removeFromLeft(ms.getWidth() / 2).reduced(1));
   soloButton.setBounds(ms.reduced(1));
+
+  // The lamps stand on the rules that divide the strip into groups, each one
+  // at the head of the group it reports on. No row grew to make space for
+  // them: the rule was already occupying that height to draw a single line.
+  {
+    const auto base = (index % 2) == 0 ? colours::panel : colours::panelAlt;
+    const auto top = base.brighter(0.10f);
+    const auto bottom = base.darker(0.06f);
+
+    const auto at = [&](int y) {
+      auto shade = top.interpolatedWith(
+          bottom, juce::jlimit(0.0f, 1.0f,
+                               (float)y / (float)juce::jmax(1, getHeight())));
+
+      if (info.pitchClass == 0)
+        shade = shade.overlaidWith(colour.withAlpha(0.055f));
+
+      return shade;
+    };
+
+    const auto place = [&](juce::Component &lamp, Row row) {
+      const auto r = rows[rowIndex(row)];
+      lamp.setBounds(r);
+      return at(r.getCentreY());
+    };
+
+    pitchLamp.setBackdrop(place(pitchLamp, Row::PitchModHeading));
+    envLamp.setBackdrop(place(envLamp, Row::EnvHeading));
+    keyOffLamp.setBackdrop(place(keyOffLamp, Row::KeyOffHeading));
+    tremoloLamp.setBackdrop(place(tremoloLamp, Row::AmpModHeading));
+  }
+}
+
+float ChannelStrip::pitchSpanCents() const {
+  const auto plain = [this](const char *suffix) {
+    auto *p = apvts.getRawParameterValue(params::oscParamId(suffix, index));
+    return p != nullptr ? p->load() : 0.0f;
+  };
+
+  // Both wanders add, so the needle's ends are where both are at once. Drift
+  // is random and rarely reaches its own limit, but the alternative is a scale
+  // that changes shape depending on which of the two is doing the work.
+  return plain(params::pmDepthSuffix) + plain(params::driftSuffix);
+}
+
+void ChannelStrip::setActivity(float envelope, float tremolo, float pitch,
+                               juce::Array<juce::Rectangle<int>> &into) {
+  const auto refresh = [&into](juce::Component &lamp, bool moved) {
+    if (moved)
+      into.add(lamp.getBounds());
+  };
+
+  // One lamp or the other, never both: the sign says which half of the
+  // envelope is running, and the half that is not gets zero rather than a
+  // stale value it would otherwise hold on to.
+  const auto level = std::abs(envelope);
+  const auto afterKeyOff = envelope < 0.0f;
+
+  refresh(envLamp, envLamp.push(afterKeyOff ? 0.0f : level));
+  refresh(keyOffLamp, keyOffLamp.push(afterKeyOff ? level : 0.0f));
+
+  // The tremolo lamp is gated on the envelope, so it stops when the note does
+  // rather than going on pulsing over silence.
+  refresh(tremoloLamp, tremoloLamp.push(level > 0.0f ? tremolo : 0.0f));
+
+  const auto span = pitchSpanCents();
+
+  // Parked when there is nothing modulating this partial, or nothing sounding
+  // to modulate. kParked is anything past the ends of the travel.
+  constexpr float kParked = -3.0f;
+
+  const auto position =
+      (span <= 0.0f || level <= 0.0f) ? kParked : pitch / span;
+
+  refresh(pitchLamp, pitchLamp.push(position));
 }
 
 } // namespace ovt::ui

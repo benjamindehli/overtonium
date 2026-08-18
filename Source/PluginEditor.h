@@ -162,6 +162,10 @@ private:
   /// Reused every frame rather than reallocated, since this runs at 30 Hz.
   juce::Array<juce::Rectangle<int>> dirtyRegions;
 
+  /// The lamp bands for a whole frame, and the scratch one strip fills. Both
+  /// members rather than locals so a frame does no allocating.
+  juce::Array<juce::Rectangle<int>> lampRegions, stripLamps;
+
   bool propagatingLink = false;
   bool macroGestureActive = false;
   ovt::ui::Role macroRole = ovt::ui::Role::Tune;
