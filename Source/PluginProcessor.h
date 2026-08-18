@@ -13,7 +13,8 @@
 #define JucePlugin_Name "Overtonium"
 #endif
 
-class OvertoniumProcessor : public juce::AudioProcessor {
+class OvertoniumProcessor : public juce::AudioProcessor,
+                            private juce::MPEInstrument::Listener {
 public:
   OvertoniumProcessor();
   ~OvertoniumProcessor() override = default;
@@ -33,6 +34,13 @@ public:
   const juce::String getName() const override { return JucePlugin_Name; }
 
   bool acceptsMidi() const override { return true; }
+
+  /// Read by the AU, AUv3 and VST2 wrappers. Follows the setting rather than
+  /// being always on, so a host that reconfigures its output when it sees this
+  /// only does so once MPE has actually been asked for. Nothing in JUCE's VST3
+  /// wrapper reads it, and there MPE arrives as ordinary per-channel MIDI,
+  /// which is what this parses anyway.
+  bool supportsMPE() const override { return mpeIsOn(); }
   bool producesMidi() const override { return false; }
   bool isMidiEffect() const override { return false; }
   double getTailLengthSeconds() const override;
@@ -88,6 +96,25 @@ public:
 private:
   void handleMidiMessage(const juce::MidiMessage &m);
 
+  /// Everything that is the same whichever kind of controller is playing:
+  /// notes without a channel of their own, the wheel, the pedal, the panics.
+  void handleOrdinaryMidiMessage(const juce::MidiMessage &m);
+
+  bool mpeIsOn() const noexcept;
+
+  /// Points the MPE parser at a fresh lower zone, or takes it out of use.
+  ///
+  /// Called when the setting changes rather than every block, because a
+  /// controller is allowed to announce its own bend ranges and rewriting the
+  /// layout underneath it would undo that as fast as it arrived.
+  void setMpeEnabled(bool on);
+
+  // ---- MPEInstrument::Listener ----------------------------------------------
+  void noteAdded(juce::MPENote note) override;
+  void notePressureChanged(juce::MPENote note) override;
+  void notePitchbendChanged(juce::MPENote note) override;
+  void noteReleased(juce::MPENote note) override;
+
   /// Folds the channel-wide expression sources down to the single value the
   /// per-channel AT amounts read, according to what the setting says to
   /// listen to.
@@ -101,6 +128,15 @@ private:
   /// The engine always writes here first; the host buffer may be mono, stereo
   /// or wider.
   juce::AudioBuffer<float> scratch;
+
+  /// Parses the channel layout an MPE controller uses and works out what each
+  /// note's bend and pressure add up to, master channel included. The voice
+  /// pool is this plugin's own, so only the parsing is borrowed.
+  juce::MPEInstrument mpeInstrument{juce::MPEZoneLayout{}};
+
+  /// What the setting was last time it was looked at, so the zone layout is
+  /// rebuilt on the change rather than on every block.
+  bool mpeWasOn = false;
 
   float pitchBendNormalised = 0.0f;
   float channelPressure = 0.0f;

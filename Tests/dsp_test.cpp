@@ -1016,6 +1016,241 @@ void testOneVoicePerKey() {
             std::to_string(pool.getActiveVoiceCount()) + ")");
 }
 
+/// Notes that own a channel each, which is what an MPE controller sends.
+///
+/// The rule for an ordinary keyboard is one voice per key. That rule is wrong
+/// for a controller giving every finger its own channel, where the same key
+/// being down twice on two channels is two notes bent in two directions rather
+/// than one note retriggering itself. Both rules have to hold at once, because
+/// both kinds of controller can be playing.
+void testPerNoteChannels() {
+  section("Per-note channels");
+
+  constexpr double sr = 48000.0;
+
+  auto p = makeFlatParams(0.0f);
+  p.osc[0].volume = 0.5f;
+  p.osc[0].tuneBlend = 0.0f; // the fundamental alone, so pitch is measurable
+  p.osc[0].attack = 0.002f;
+  p.osc[0].decay = 8.0f;
+  p.osc[0].sustain = 1.0f;
+  p.osc[0].release = 0.05f;
+  // The noise channel is silent here but its envelope still runs, and its
+  // default release is long enough to hold a voice open for a second after the
+  // key is up. Shortened so the checks below do not have to sit through it.
+  p.noise.release = 0.02f;
+  p.global.masterGain = 1.0f;
+  p.global.safetyClip = false;
+
+  SynthEngine engine;
+  engine.prepare(sr);
+  engine.setPolyphony(8);
+
+  std::vector<float> l, r;
+
+  const auto render = [&](double seconds) {
+    const auto n = (size_t)(seconds * sr);
+    l.assign(n, 0.0f);
+    r.assign(n, 0.0f);
+    engine.render(l.data(), r.data(), (int)n, p);
+  };
+
+  // Pitch from interpolated zero crossings. Whole crossings only resolve about
+  // ten cents, which is not enough to tell a bend of a semitone from one of a
+  // semitone and a bit.
+  const auto measureHz = [&]() {
+    std::vector<double> crossings;
+    for (size_t i = 1; i < l.size(); ++i)
+      if (l[i - 1] <= 0.0f && l[i] > 0.0f) {
+        const auto frac = -l[i - 1] / (l[i] - l[i - 1]);
+        crossings.push_back(((double)(i - 1) + frac) / sr);
+      }
+
+    if (crossings.size() < 2)
+      return 0.0;
+
+    return (double)(crossings.size() - 1) /
+           (crossings.back() - crossings.front());
+  };
+
+  const auto peak = [&]() {
+    double m = 0.0;
+    for (auto x : l)
+      m = std::max(m, std::abs((double)x));
+    return m;
+  };
+
+  // ---- the same key on two channels is two notes ---------------------------
+  {
+    engine.noteOnPerNote(2, 60, 1.0f, p);
+    render(0.05);
+    const auto one = engine.getActiveVoiceCount();
+
+    engine.noteOnPerNote(3, 60, 1.0f, p);
+    render(0.05);
+    const auto two = engine.getActiveVoiceCount();
+
+    check(one == 1, "one channel holding a key is one voice (" +
+                        std::to_string(one) + ")");
+    check(two == 2, "the same key on a second channel is a second voice (" +
+                        std::to_string(two) + ")");
+
+    // ...and the same key twice on one channel is still one voice, because
+    // within a channel the ordinary rule has not gone anywhere.
+    engine.noteOnPerNote(3, 60, 1.0f, p);
+    render(0.05);
+
+    check(engine.getActiveVoiceCount() == 2,
+          "but retriggering it on the same channel is not a third (" +
+              std::to_string(engine.getActiveVoiceCount()) + ")");
+
+    engine.noteOffPerNote(2, 60);
+    engine.noteOffPerNote(3, 60);
+    render(0.5);
+  }
+
+  // ---- an ordinary note and a per-note note do not find each other ---------
+  //
+  // The case that breaks if the channel is not part of the identity: a note
+  // arriving on the master channel would take over the per-note voice, or its
+  // key-up would silence it.
+  {
+    engine.allSoundOff();
+
+    engine.noteOnPerNote(2, 60, 1.0f, p);
+    engine.noteOn(60, 1.0f, p);
+    render(0.05);
+
+    check(engine.getActiveVoiceCount() == 2,
+          "an ordinary note on the same key is its own voice (" +
+              std::to_string(engine.getActiveVoiceCount()) + ")");
+
+    // The ordinary key comes up. The per-note one is still held.
+    engine.noteOff(60);
+    render(0.4);
+
+    check(engine.getActiveVoiceCount() == 1,
+          "letting the ordinary key up leaves the per-note voice sounding (" +
+              std::to_string(engine.getActiveVoiceCount()) + ")");
+
+    check(peak() > 0.05, "and it is still making sound (" +
+                             std::to_string(peak()) + ")");
+
+    engine.allSoundOff();
+  }
+
+  // ---- bend belongs to its own note ----------------------------------------
+  {
+    const auto a4 = 440.0;
+
+    engine.allSoundOff();
+    engine.noteOnPerNote(2, 69, 1.0f, p); // A4
+    render(0.3);
+
+    const auto plain = measureHz();
+
+    // Addressed to a channel that is not holding it. Nothing should move.
+    engine.setNoteBend(3, 69, 2.0f);
+    render(0.3);
+    const auto elsewhere = measureHz();
+
+    // Addressed to the channel that is.
+    engine.setNoteBend(2, 69, 2.0f);
+    render(0.3);
+    const auto bent = measureHz();
+
+    std::printf("  A4 renders at %.2f Hz, %.2f after a bend sent to another "
+                "channel, %.2f after one sent to its own\n",
+                plain, elsewhere, bent);
+
+    check(std::abs(plain - a4) < 1.0, "an unbent note renders at its pitch");
+    check(std::abs(elsewhere - a4) < 1.0,
+          "a bend on another channel leaves it alone");
+
+    const auto wanted = a4 * std::exp2(2.0 / 12.0);
+    check(std::abs(bent - wanted) < 2.0,
+          "and a bend on its own channel moves it two semitones (" +
+              std::to_string(bent) + " against " + std::to_string(wanted) +
+              ")");
+
+    // The wheel still works, and the two add rather than one winning.
+    p.global.bendSemitones = -2.0f;
+    render(0.3);
+    const auto cancelled = measureHz();
+
+    std::printf("  a wheel of -2 against a note bend of +2 gives %.2f Hz\n",
+                cancelled);
+
+    check(std::abs(cancelled - a4) < 1.0,
+          "the wheel adds to the note's own bend rather than replacing it");
+
+    p.global.bendSemitones = 0.0f;
+
+    // A new note on a channel starts unbent, or the last note's bend would be
+    // inherited by whatever lands on that channel next.
+    engine.noteOffPerNote(2, 69);
+    render(0.3);
+    engine.noteOnPerNote(2, 69, 1.0f, p);
+    render(0.3);
+
+    const auto fresh = measureHz();
+    check(std::abs(fresh - a4) < 1.0,
+          "and a new note on that channel starts unbent (" +
+              std::to_string(fresh) + ")");
+
+    engine.allSoundOff();
+  }
+
+  // ---- pressure belongs to its own note ------------------------------------
+  //
+  // Measured through a partial that is silent until pressed, so any level at
+  // all is the pressure arriving.
+  {
+    auto pressed = makeFlatParams(0.0f);
+    pressed.osc[0].volume = 0.0f;
+    pressed.osc[0].atAmount = 1.0f;
+    pressed.osc[0].attack = 0.002f;
+    pressed.osc[0].decay = 8.0f;
+    pressed.osc[0].sustain = 1.0f;
+    pressed.global.masterGain = 1.0f;
+    pressed.global.safetyClip = false;
+
+    SynthEngine e2;
+    e2.prepare(sr);
+    e2.setPolyphony(8);
+
+    const auto renderInto = [&](double seconds) {
+      const auto n = (size_t)(seconds * sr);
+      l.assign(n, 0.0f);
+      r.assign(n, 0.0f);
+      e2.render(l.data(), r.data(), (int)n, pressed);
+    };
+
+    e2.noteOnPerNote(2, 60, 1.0f, pressed);
+    renderInto(0.3);
+
+    check(peak() < 0.01, "a partial held down by pressure alone starts silent");
+
+    e2.setNotePressure(3, 60, 1.0f);
+    renderInto(0.3);
+
+    check(peak() < 0.01, "pressure on another channel does not reach it (" +
+                             std::to_string(peak()) + ")");
+
+    e2.setNotePressure(2, 60, 1.0f);
+    renderInto(0.3);
+
+    const auto pressedLevel = peak();
+    std::printf("  pressed on its own channel it reaches %.3f\n",
+                pressedLevel);
+
+    check(pressedLevel > 0.2,
+          "pressure on its own channel brings it in (" +
+              std::to_string(pressedLevel) + ")");
+  }
+}
+
+
 /// What happens when the pool genuinely runs out.
 ///
 /// Under the polyphony limit a voice is stolen with a fade and keeps rendering
@@ -3751,6 +3986,7 @@ int main() {
   testNoClickOnMute();
   testVoiceAllocation();
   testOneVoicePerKey();
+  testPerNoteChannels();
   testPoolExhaustion();
   testModulation();
   testPerPartialVelocity();

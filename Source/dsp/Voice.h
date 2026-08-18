@@ -87,7 +87,11 @@ public:
   /// slower rather than filtering the result.
   void setRenderRate(double newSampleRate) noexcept;
 
-  void noteOn(int note, float velocity, const SynthParams &p) noexcept;
+  /// @param channel  the MIDI channel the note arrived on. Carried so the
+  ///                  engine can tell two voices apart when a controller is
+  ///                  giving every note its own channel. Ignored otherwise.
+  void noteOn(int channel, int note, float velocity,
+              const SynthParams &p) noexcept;
   /// @param velocity  how fast the key came up, 0 to 1. Scales each partial's
   ///                   key-off level by its own lift amount.
   void noteOff(float velocity = 0.5f) noexcept;
@@ -97,9 +101,18 @@ public:
   /// through SynthParams, and whichever is higher wins.
   void setPolyPressure(float v) noexcept { polyPressure = v; }
 
+  /// Pitch bend belonging to this note alone, in semitones.
+  ///
+  /// Added to whatever the wheel is doing rather than replacing it, so the two
+  /// can coexist: an ordinary keyboard leaves this at zero and bends every
+  /// voice together, and a controller that bends each finger separately leaves
+  /// the wheel at zero and moves this. Nothing has to know which is in use.
+  void setNoteBend(float semitones) noexcept { noteBendSemitones = semitones; }
+
   bool isActive() const noexcept { return active; }
   bool isReleasing() const noexcept { return released; }
   int getNote() const noexcept { return midiNote; }
+  int getChannel() const noexcept { return midiChannel; }
 
   uint64_t getAge() const noexcept { return startOrder; }
   void setAge(uint64_t v) noexcept { startOrder = v; }
@@ -176,8 +189,10 @@ private:
   double sampleRate = 44100.0;
   double baseFreq = 440.0;
   int midiNote = -1;
+  int midiChannel = 0;
 
   Xorshift rng;
+  float noteBendSemitones = 0.0f;
   float polyPressure = 0.0f;
   /// Aftertouch drives gain directly, so it needs its own smoothing. Seven bits
   /// arriving at MIDI rate would otherwise step audibly.

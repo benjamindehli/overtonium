@@ -125,8 +125,22 @@ Voice *SynthEngine::findQuietestExpendable() noexcept {
   return best;
 }
 
+bool SynthEngine::matches(const Voice &v, int channel, int note) noexcept {
+  return v.isActive() && v.getNote() == note && v.getChannel() == channel;
+}
+
 void SynthEngine::noteOn(int note, float velocity,
                          const SynthParams &p) noexcept {
+  noteOnImpl(0, note, velocity, p);
+}
+
+void SynthEngine::noteOnPerNote(int channel, int note, float velocity,
+                                const SynthParams &p) noexcept {
+  noteOnImpl(channel, note, velocity, p);
+}
+
+void SynthEngine::noteOnImpl(int channel, int note, float velocity,
+                             const SynthParams &p) noexcept {
   // One key, one voice. The instrument is polyphonic across the keyboard and
   // monophonic within a key, because a string or a tine or a bar is one
   // object: striking it again takes over whatever it was already doing rather
@@ -141,7 +155,7 @@ void SynthEngine::noteOn(int note, float velocity,
   for (size_t i = 0; i < voices.size(); ++i) {
     auto &v = voices[i];
 
-    if (!v.isActive() || v.getNote() != note)
+    if (!matches(v, channel, note))
       continue;
 
     if (v.isReleasing()) {
@@ -160,7 +174,7 @@ void SynthEngine::noteOn(int note, float velocity,
   // and re-striking a pedalled note takes it back off the pedal.
   if (held != nullptr) {
     heldBySustain[heldIndex] = false;
-    held->noteOn(note, velocity, p);
+    held->noteOn(channel, note, velocity, p);
     held->setAge(++ageCounter);
     return;
   }
@@ -192,15 +206,24 @@ void SynthEngine::noteOn(int note, float velocity,
   const auto index = (size_t)std::distance(voices.data(), target);
   heldBySustain[index] = false;
 
-  target->noteOn(note, velocity, p);
+  target->noteOn(channel, note, velocity, p);
   target->setAge(++ageCounter);
 }
 
 void SynthEngine::noteOff(int note, float velocity) noexcept {
+  noteOffImpl(0, note, velocity);
+}
+
+void SynthEngine::noteOffPerNote(int channel, int note,
+                                 float velocity) noexcept {
+  noteOffImpl(channel, note, velocity);
+}
+
+void SynthEngine::noteOffImpl(int channel, int note, float velocity) noexcept {
   for (size_t i = 0; i < voices.size(); ++i) {
     auto &v = voices[i];
 
-    if (v.isActive() && !v.isReleasing() && v.getNote() == note) {
+    if (matches(v, channel, note) && !v.isReleasing()) {
       if (sustainDown)
         heldBySustain[i] = true;
       else
@@ -225,8 +248,22 @@ void SynthEngine::setSustainPedal(bool down) noexcept {
 
 void SynthEngine::setPolyPressure(int note, float pressure) noexcept {
   for (auto &v : voices)
-    if (v.isActive() && v.getNote() == note)
+    if (matches(v, 0, note))
       v.setPolyPressure(pressure);
+}
+
+void SynthEngine::setNotePressure(int channel, int note,
+                                  float pressure) noexcept {
+  for (auto &v : voices)
+    if (matches(v, channel, note))
+      v.setPolyPressure(pressure);
+}
+
+void SynthEngine::setNoteBend(int channel, int note,
+                              float semitones) noexcept {
+  for (auto &v : voices)
+    if (matches(v, channel, note))
+      v.setNoteBend(semitones);
 }
 
 void SynthEngine::allNotesOff() noexcept {

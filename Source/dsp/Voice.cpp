@@ -68,18 +68,25 @@ void Voice::reset() noexcept {
   active = false;
   released = false;
   midiNote = -1;
+  midiChannel = 0;
+  noteBendSemitones = 0.0f;
   polyPressure = 0.0f;
   pressureSmoothed = 0.0f;
 }
 
-void Voice::noteOn(int note, float velocity, const SynthParams &p) noexcept {
+void Voice::noteOn(int channel, int note, float velocity,
+                   const SynthParams &p) noexcept {
   midiNote = note;
+  midiChannel = channel;
   baseFreq = noteFrequency(note, p.global.temperament, p.global.tuningRoot,
                            p.global.referenceHz);
 
   const float vel = std::clamp(velocity, 0.0f, 1.0f);
 
-  // A fresh note starts unpressed and ramps in if the key is already leaned on.
+  // A fresh note starts unpressed and unbent, and ramps in if the key is
+  // already leaned on. A retrigger lands here too, which is what stops the
+  // previous note's bend carrying into the new one on a channel being reused.
+  noteBendSemitones = 0.0f;
   polyPressure = 0.0f;
   pressureSmoothed = 0.0f;
 
@@ -255,7 +262,8 @@ void Voice::render(float *left, float *right, int numSamples,
       const double semis =
           semitoneOffset(i, (double)op.tuneBlend,
                          (double)p.global.stretchCents) +
-          (pmCents + driftCents) * 0.01 + (double)p.global.bendSemitones;
+          (pmCents + driftCents) * 0.01 +
+          (double)(p.global.bendSemitones + noteBendSemitones);
 
       const double freq = baseFreq * std::exp2(semis / 12.0);
 

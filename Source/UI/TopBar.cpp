@@ -477,8 +477,8 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   // two switches that used to sit on the panel taking up room they had not
   // earned.
   settingsButton.setButtonText("SETTINGS");
-  settingsButton.setTooltip("Polyphony, pitch bend range, phase reset and the "
-                            "safety clipper");
+  settingsButton.setTooltip("Polyphony, pitch bend range, MPE, tuning, phase "
+                            "reset and the safety clipper");
   settingsButton.onClick = [this] { showSettingsMenu(); };
   addAndMakeVisible(settingsButton);
 
@@ -745,6 +745,7 @@ void TopBar::showSettingsMenu() {
   auto *bendRange = apvts.getParameter(params::bendRangeId);
   auto *phase = apvts.getParameter(params::phaseResetId);
   auto *clip = apvts.getParameter(params::safetyClipId);
+  auto *mpe = apvts.getParameter(params::mpeId);
 
   const auto polyIndex =
       polyphony != nullptr
@@ -778,6 +779,13 @@ void TopBar::showSettingsMenu() {
               juce::String(semitones) +
                   (semitones == 1 ? " semitone" : " semitones"),
               true, semitones == currentBend);
+
+  // Sits under the bend range because it is the thing that changes what bend
+  // means: with it on, each note is bent and pressed on a channel of its own,
+  // and the range above applies to the wheel across all of them. An ordinary
+  // keyboard plays either way.
+  m.addSeparator();
+  m.addItem(302, "MPE", true, mpe != nullptr && mpe->getValue() > 0.5f);
 
   // Which channel-wide control the AT row on every strip listens to. Most
   // keyboards have no aftertouch, so the wheel stands in for it, and by
@@ -868,6 +876,9 @@ void TopBar::showSettingsMenu() {
 
                     if (result == 301)
                       return flip(params::safetyClipId);
+
+                    if (result == 302)
+                      return flip(params::mpeId);
 
                     // The converter entries carry an index into their choice
                     // list rather than a value, since the lists are not

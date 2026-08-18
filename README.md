@@ -116,7 +116,7 @@ A preset holds parameter values and nothing else. Not the window size, the zoom 
 
 Factory presets start from a neutral base rather than from wherever you happened to be, so one always gives the instrument it describes. That covers the globals that are part of the sound: STRETCH, TRACK, the converter and phase reset all go back to neutral unless the preset asks for otherwise.
 
-What it will not touch is listed once, as `kSessionParamIds`, and holds for every preset including Init: master gain, polyphony, bend range, the aftertouch source, the safety clipper, the temperament, its root and the reference pitch. How you play the instrument, how loud it is and what it is tuned to are not part of a patch. Both halves are tested from that same list, so the code and the test cannot come to disagree about what the rule is: every preset is loaded twice, once clean and once after deliberately making a mess of everything, and required to come out identical, and then all fifteen are loaded in turn against a session set to Werckmeister on F at 415 Hz, which has to survive.
+What it will not touch is listed once, as `kSessionParamIds`, and holds for every preset including Init: master gain, polyphony, bend range, the aftertouch source, the safety clipper, the temperament, its root, the reference pitch and MPE. How you play the instrument, how loud it is and what it is tuned to are not part of a patch. Both halves are tested from that same list, so the code and the test cannot come to disagree about what the rule is: every preset is loaded twice, once clean and once after deliberately making a mess of everything, and required to come out identical, and then all fifteen are loaded in turn against a session set to Werckmeister on F at 415 Hz, which has to survive.
 
 Values are stored plain rather than normalised, so a preset survives a parameter's range being widened later, and anything a file does not mention keeps its default rather than being reset, so a preset saved by an older build loads into a newer one without silently zeroing whatever was added in between. The tests cover both of those directly.
 
@@ -260,12 +260,26 @@ Aftertouch works the same way but **adds** to the fader instead of scaling it, a
 
 The mod wheel can stand in for it, and by default does. Most keyboards have no aftertouch at all, and the wheel is the control your hand already goes to, so CC1 feeds the same destination. Nothing changes for a controller that does send pressure, since a wheel left alone reads zero. Settings has an "Aftertouch from" entry if you would rather have one or the other on its own. Polyphonic aftertouch is not on that list: it is per note rather than per channel, there is nothing ambiguous about where it should go, and it stays routed whatever the setting says.
 
+### MPE
+
+Off by default, and under Settings. With it on, a controller that gives every note its own MIDI channel can bend and press each note separately, which on this instrument means each finger gets its own copy of all 33 aftertouch destinations. Press into one note in a chord and only that note's upper partials come in.
+
+The reason it is a setting rather than something switched on permanently is that it changes what a channel number means. With it off, a channel is ignored: a key-up on channel 7 releases a note that went down on channel 1, which is what a single-channel keyboard needs and what every version before this did. With it on, the channel is part of who the note is, so the same key can be held twice on two channels, bent in two directions, as two voices rather than one retriggering the other.
+
+An ordinary keyboard plays either way. With MPE on, notes arriving on the master channel are notes of the master channel rather than notes of nowhere, so they sound, one voice per key, moved together by the wheel exactly as they would be with the setting off. That is worth stating because the alternative, which is what happens if you route only the member channels, is a plugin that goes silent when a normal keyboard is plugged into it.
+
+Three numbers describe the layout, and only one of them comes from the panel. The zone is the lower one with all fifteen remaining channels as members, which is what a controller sends unless it says otherwise, and it is free to say otherwise: the layout messages it sends are parsed and replace this. The per-note bend range is the 48 semitones the specification asks for, since that one belongs to the controller. The master range is taken from the BEND setting, so the wheel spans what the panel says it does whether MPE is on or not. The tests measure both ends of that: a wheel at maximum against a range of 2 takes A4 from 440.0 to 493.9 Hz, and a member-channel bend at maximum takes it to 7040.0 Hz, which is the four octaves 48 semitones buys.
+
+Switching the setting either way releases whatever is sounding. Voices started through one set of entry points cannot be found by the other, so without that they would hold with no key left to lift.
+
+Slide, the third MPE dimension, is parsed but not routed anywhere yet. Bend and pressure are.
+
 The top bar holds everything that is not per partial, in signal order from left to right:
 
 | Group | Contains |
 |---|---|
 | Preset | the preset menu: factory, saved, and somewhere to put the one you are working on |
-| Settings | undo, polyphony, bend range, what feeds aftertouch, phase reset, the safety clipper and zoom |
+| Settings | undo, polyphony, bend range, MPE, tuning, what feeds aftertouch, phase reset, the safety clipper and zoom |
 | Link | **LINK**, and what it reaches and how. See below |
 | Series | **STRETCH**, **TRACK** and **WOBBLE**, what the instrument does before anything is done to it. See below |
 | Echo | the tape echo. See below |

@@ -19,6 +19,7 @@ inline constexpr const char *temperamentId = "temperament";
 inline constexpr const char *tuningRootId = "tuningRoot";
 inline constexpr const char *referenceHzId = "referenceHz";
 inline constexpr const char *safetyClipId = "safetyClip";
+inline constexpr const char *mpeId = "mpe";
 inline constexpr const char *lofiRateId = "lofiRate";
 inline constexpr const char *lofiBitsId = "lofiBits";
 
@@ -137,6 +138,7 @@ struct Cache {
   std::atomic<float> *tuningRoot = nullptr;
   std::atomic<float> *referenceHz = nullptr;
   std::atomic<float> *safetyClip = nullptr;
+  std::atomic<float> *mpe = nullptr;
   std::atomic<float> *lofiRate = nullptr;
   std::atomic<float> *lofiBits = nullptr;
 
@@ -181,9 +183,9 @@ inline const std::array<int, 7> kPolyphonyChoices{1, 2, 4, 6, 8, 12, 16};
 ///
 /// Named here rather than in Presets.cpp so the code that honours the rule and
 /// the test that checks it cannot come to disagree about what the rule is.
-inline const std::array<const char *, 8> kSessionParamIds{
-    masterGainId,  polyphonyId,    bendRangeId,   atSourceId,
-    safetyClipId,  referenceHzId,  temperamentId, tuningRootId};
+inline const std::array<const char *, 9> kSessionParamIds{
+    masterGainId,  polyphonyId,    bendRangeId,   atSourceId,  safetyClipId,
+    referenceHzId, temperamentId,  tuningRootId,  mpeId};
 
 /// The pitch classes a temperament can be built on, in parameter order.
 inline const std::array<const char *, 12> kPitchClassNames{

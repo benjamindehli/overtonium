@@ -78,10 +78,10 @@ juce::MidiBuffer noteOnAt(int note, float velocity, int sample) {
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
-  // 21 per partial, 14 global, 17 for the noise channel, 10 for the two master
+  // 21 per partial, 15 global, 17 for the noise channel, 10 for the two master
   // effects. Start phase is not among the noise channel's, since noise has no
   // phase to start at.
-  const int expected = ovt::kNumHarmonics * 21 + 14 + 17 + 10;
+  const int expected = ovt::kNumHarmonics * 21 + 15 + 17 + 10;
   check(p.getParameters().size() == expected,
         "parameter count is " + std::to_string(p.getParameters().size()) +
             ", expected " + std::to_string(expected));
@@ -377,6 +377,326 @@ void testAftertouchMidi(OvertoniumProcessor &p) {
   p.reset();
   renderBlocks(p, 4, 512);
   ovt::presets::apply(p.apvts, 0);
+}
+
+/// Notes arriving on a channel each, which is what MPE is.
+///
+/// The engine's own handling of that is covered by the DSP suite. What is
+/// checked here is the routing: whether a message on channel N reaches the
+/// voice it was meant for and no other, whether an ordinary keyboard still
+/// plays with the setting on, and whether it plays exactly as it always did
+/// with the setting off.
+void testMpe(OvertoniumProcessor &p) {
+  section("MPE");
+
+  const auto setParam = [&p](const juce::String &id, float plain) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1(plain));
+  };
+
+  // One partial, held, with nothing downstream that would blur a pitch
+  // measurement.
+  ovt::presets::apply(p.apvts, 0);
+  setParam(ovt::params::echoOnId, 0.0f);
+  setParam(ovt::params::reverbOnId, 0.0f);
+  setParam(ovt::params::wobbleId, 0.0f);
+  setParam(ovt::params::masterGainId, 1.0f);
+  setParam(ovt::params::bendRangeId, 2.0f);
+
+  for (int i = 0; i < ovt::kNumHarmonics; ++i) {
+    const auto vol = i == 0 ? 1.0f : 0.0f;
+    setParam(ovt::params::oscParamId(ovt::params::volumeSuffix, i), vol);
+    setParam(ovt::params::oscParamId(ovt::params::atSuffix, i), 0.0f);
+    setParam(ovt::params::oscParamId(ovt::params::sustainSuffix, i), 1.0f);
+    setParam(ovt::params::oscParamId(ovt::params::decaySuffix, i), 8.0f);
+    setParam(ovt::params::oscParamId(ovt::params::velSuffix, i), 0.0f);
+  }
+
+  // Collects what comes out, so a pitch can be taken off it.
+  std::vector<float> rendered;
+
+  const auto play = [&](int blocks, juce::MidiBuffer midi) {
+    juce::AudioBuffer<float> buffer(2, 512);
+    rendered.clear();
+
+    for (int b = 0; b < blocks; ++b) {
+      juce::MidiBuffer m = (b == 0) ? midi : juce::MidiBuffer{};
+      buffer.clear();
+      p.processBlock(buffer, m);
+
+      const auto *d = buffer.getReadPointer(0);
+      rendered.insert(rendered.end(), d, d + 512);
+    }
+  };
+
+  const auto measureHz = [&]() {
+    std::vector<double> crossings;
+    for (size_t i = 1; i < rendered.size(); ++i)
+      if (rendered[i - 1] <= 0.0f && rendered[i] > 0.0f) {
+        const auto frac = -rendered[i - 1] / (rendered[i] - rendered[i - 1]);
+        crossings.push_back(((double)(i - 1) + frac) / 48000.0);
+      }
+
+    if (crossings.size() < 2)
+      return 0.0;
+
+    return (double)(crossings.size() - 1) /
+           (crossings.back() - crossings.front());
+  };
+
+  const auto peak = [&]() {
+    float m = 0.0f;
+    for (auto x : rendered)
+      m = std::max(m, std::abs(x));
+    return m;
+  };
+
+  const auto panic = [&]() {
+    juce::MidiBuffer m;
+    m.addEvent(juce::MidiMessage::allSoundOff(1), 0);
+    play(4, m);
+  };
+
+  const auto twoNotes = [](int chA, int chB, int note) {
+    juce::MidiBuffer m;
+    m.addEvent(juce::MidiMessage::noteOn(chA, note, 1.0f), 0);
+    m.addEvent(juce::MidiMessage::noteOn(chB, note, 1.0f), 1);
+    return m;
+  };
+
+  p.prepareToPlay(48000.0, 512);
+
+  // ---- off: the channel means nothing, which is what it always meant -------
+  {
+    setParam(ovt::params::mpeId, 0.0f);
+    panic();
+
+    play(8, twoNotes(2, 3, 60));
+
+    check(p.getActiveVoiceCount() == 1,
+          "with MPE off the same key on two channels is one voice, as before "
+          "(" + std::to_string(p.getActiveVoiceCount()) + ")");
+
+    // ...and a key-up on a different channel from the key-down still stops it,
+    // which is the omni behaviour a single-channel keyboard relies on.
+    juce::MidiBuffer up;
+    up.addEvent(juce::MidiMessage::noteOff(7, 60), 0);
+    play(8, up);
+
+    check(p.getActiveVoiceCount() <= 1,
+          "and a key-up on any channel releases it");
+
+    panic();
+  }
+
+  // ---- on: the channel is part of who the note is -------------------------
+  {
+    setParam(ovt::params::mpeId, 1.0f);
+    panic();
+
+    play(8, twoNotes(2, 3, 60));
+
+    check(p.getActiveVoiceCount() == 2,
+          "with MPE on the same key on two channels is two voices (" +
+              std::to_string(p.getActiveVoiceCount()) + ")");
+
+    // Letting one go leaves the other holding.
+    juce::MidiBuffer up;
+    up.addEvent(juce::MidiMessage::noteOff(2, 60), 0);
+    play(8, up);
+
+    check(p.getActiveVoiceCount() == 2,
+          "one key-up does not take both (still releasing, so still counted)");
+
+    check(peak() > 0.01f, "and something is still sounding");
+
+    panic();
+  }
+
+  // ---- on: an ordinary keyboard still plays -------------------------------
+  //
+  // Notes on the master channel are notes of the master channel rather than
+  // nothing at all, which is what stops this setting from silencing a keyboard
+  // that knows nothing about it.
+  {
+    juce::MidiBuffer m;
+    m.addEvent(juce::MidiMessage::noteOn(1, 69, 1.0f), 0);
+    play(16, m);
+
+    check(p.getActiveVoiceCount() == 1,
+          "a note on the master channel plays with MPE on (" +
+              std::to_string(p.getActiveVoiceCount()) + ")");
+
+    const auto plain = measureHz();
+    check(std::abs(plain - 440.0) < 2.0,
+          "at its own pitch (" + std::to_string(plain) + " Hz)");
+
+    // And the wheel still moves it, across the range the panel asks for.
+    juce::MidiBuffer wheel;
+    wheel.addEvent(juce::MidiMessage::pitchWheel(1, 16383), 0);
+    play(16, wheel);
+
+    const auto bent = measureHz();
+    const auto wanted = 440.0 * std::exp2(2.0 / 12.0);
+
+    std::printf("  master channel: %.1f Hz plain, %.1f Hz with the wheel up "
+                "(wanted %.1f)\n",
+                plain, bent, wanted);
+
+    check(std::abs(bent - wanted) < 4.0,
+          "and the wheel bends it by what the bend range says");
+
+    panic();
+  }
+
+  // ---- on: bend belongs to the channel it arrives on -----------------------
+  {
+    // The wheel is left where the player put it by a panic, deliberately, and
+    // the block above pushed it to the top. Master bend reaches every note, so
+    // without centring it here the baseline below would already be bent, which
+    // is correct behaviour and a confusing thing to measure against.
+    juce::MidiBuffer centre;
+    centre.addEvent(juce::MidiMessage::pitchWheel(1, 8192), 0);
+    play(4, centre);
+
+    juce::MidiBuffer m;
+    m.addEvent(juce::MidiMessage::noteOn(2, 69, 1.0f), 0);
+    play(16, m);
+
+    const auto plain = measureHz();
+
+    juce::MidiBuffer elsewhere;
+    elsewhere.addEvent(juce::MidiMessage::pitchWheel(4, 16383), 0);
+    play(16, elsewhere);
+    const auto unmoved = measureHz();
+
+    juce::MidiBuffer own;
+    own.addEvent(juce::MidiMessage::pitchWheel(2, 16383), 0);
+    play(16, own);
+    const auto moved = measureHz();
+
+    std::printf("  member channel: %.1f Hz plain, %.1f after a bend on another "
+                "channel, %.1f after one on its own\n",
+                plain, unmoved, moved);
+
+    check(std::abs(unmoved - plain) < 2.0,
+          "a bend on a channel that is not holding the note leaves it alone");
+
+    // 48 semitones is what the specification asks for on a member channel and
+    // what the zone is set up with, so full travel is four octaves.
+    check(moved > plain * 3.0,
+          "and a bend on its own channel moves it, over the wide per-note "
+          "range (" + std::to_string(moved) + " Hz from " +
+              std::to_string(plain) + ")");
+
+    panic();
+  }
+
+  // ---- on: pressure belongs to the channel it arrives on -------------------
+  {
+    // Partial 1 silent until pressed, so any level is the pressure arriving.
+    setParam(ovt::params::oscParamId(ovt::params::volumeSuffix, 0), 0.0f);
+    setParam(ovt::params::oscParamId(ovt::params::atSuffix, 0), 1.0f);
+
+    juce::MidiBuffer m;
+    m.addEvent(juce::MidiMessage::noteOn(2, 60, 1.0f), 0);
+    play(16, m);
+
+    check(peak() < 0.01f, "unpressed, the note is silent");
+
+    juce::MidiBuffer elsewhere;
+    elsewhere.addEvent(juce::MidiMessage::channelPressureChange(5, 127), 0);
+    play(16, elsewhere);
+
+    check(peak() < 0.01f,
+          "pressure on another channel does not reach it (" +
+              std::to_string(peak()) + ")");
+
+    juce::MidiBuffer own;
+    own.addEvent(juce::MidiMessage::channelPressureChange(2, 127), 0);
+    play(16, own);
+
+    const auto pressed = peak();
+    std::printf("  pressed on its own channel it reaches %.3f\n", pressed);
+
+    check(pressed > 0.01f, "pressure on its own channel brings it in");
+
+    setParam(ovt::params::oscParamId(ovt::params::volumeSuffix, 0), 1.0f);
+    setParam(ovt::params::oscParamId(ovt::params::atSuffix, 0), 0.0f);
+  }
+
+  // ---- on: the pedal still holds ------------------------------------------
+  //
+  // The parser takes CC 64 for itself, so the pool's own pedal handling never
+  // sees it in this mode. That is deliberate, and it only works if the parser
+  // then defers the release, which is what this checks. Getting it wrong in
+  // either direction is either a pedal that does nothing or a note released
+  // twice.
+  {
+    juce::MidiBuffer m;
+    m.addEvent(juce::MidiMessage::noteOn(2, 60, 1.0f), 0);
+    play(8, m);
+
+    juce::MidiBuffer down;
+    down.addEvent(juce::MidiMessage::controllerEvent(1, 64, 127), 0);
+    play(4, down);
+
+    juce::MidiBuffer up;
+    up.addEvent(juce::MidiMessage::noteOff(2, 60), 0);
+    play(40, up);
+
+    check(p.getActiveVoiceCount() == 1,
+          "with the pedal down the note holds after the key is up (" +
+              std::to_string(p.getActiveVoiceCount()) + ")");
+    check(peak() > 0.01f, "and it is still sounding");
+
+    juce::MidiBuffer lift;
+    lift.addEvent(juce::MidiMessage::controllerEvent(1, 64, 0), 0);
+    play(120, lift);
+
+    check(p.getActiveVoiceCount() == 0,
+          "and lifting the pedal lets it go (" +
+              std::to_string(p.getActiveVoiceCount()) + " left)");
+
+    panic();
+  }
+
+  // ---- switching it off does not leave notes hanging ----------------------
+  //
+  // The voices sounding were started through entry points the other mode
+  // cannot reach, so without a release on the way through they would hold for
+  // ever with no key left to lift.
+  {
+    juce::MidiBuffer m;
+    m.addEvent(juce::MidiMessage::noteOn(2, 60, 1.0f), 0);
+    m.addEvent(juce::MidiMessage::noteOn(3, 64, 1.0f), 0);
+    play(8, m);
+
+    check(p.getActiveVoiceCount() == 2, "two per-note voices are sounding");
+
+    setParam(ovt::params::mpeId, 0.0f);
+    play(120, {}); // long enough for a release to finish
+
+    check(p.getActiveVoiceCount() == 0,
+          "turning MPE off releases what it was holding (" +
+              std::to_string(p.getActiveVoiceCount()) + " left)");
+
+    // And the same the other way.
+    juce::MidiBuffer ordinary;
+    ordinary.addEvent(juce::MidiMessage::noteOn(1, 60, 1.0f), 0);
+    play(8, ordinary);
+    check(p.getActiveVoiceCount() == 1, "an ordinary note is sounding");
+
+    setParam(ovt::params::mpeId, 1.0f);
+    play(120, {});
+
+    check(p.getActiveVoiceCount() == 0,
+          "turning it on releases what was held the ordinary way (" +
+              std::to_string(p.getActiveVoiceCount()) + " left)");
+
+    setParam(ovt::params::mpeId, 0.0f);
+    panic();
+  }
 }
 
 void testLinkCurves() {
@@ -1616,6 +1936,7 @@ int main() {
   testRendering(processor);
   testPresets(processor);
   testAftertouchMidi(processor);
+  testMpe(processor);
   testUserPresets(processor);
   testMasterEffects(processor);
   testLinkCurves();

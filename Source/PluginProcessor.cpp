@@ -6,6 +6,7 @@ OvertoniumProcessor::OvertoniumProcessor()
       apvts(*this, &undoManager, "OVERTONIUM",
             ovt::params::createParameterLayout()) {
   paramCache.connect(apvts);
+  mpeInstrument.addListener(this);
 }
 
 void OvertoniumProcessor::prepareToPlay(double sampleRate,
@@ -16,6 +17,80 @@ void OvertoniumProcessor::prepareToPlay(double sampleRate,
   pitchBendNormalised = 0.0f;
   channelPressure = 0.0f;
   modWheel = 0.0f;
+}
+
+bool OvertoniumProcessor::mpeIsOn() const noexcept {
+  return paramCache.mpe != nullptr && paramCache.mpe->load() > 0.5f;
+}
+
+void OvertoniumProcessor::setMpeEnabled(bool on) {
+  mpeWasOn = on;
+
+  // Whatever is sounding was started by the other set of entry points and can
+  // no longer be reached by the one about to take over, so it would hang.
+  mpeInstrument.releaseAllNotes();
+  engine.allNotesOff();
+
+  if (!on) {
+    mpeInstrument.setZoneLayout({});
+    return;
+  }
+
+  // A lower zone with every remaining channel as a member, which is what a
+  // controller sends unless it says otherwise, and it is free to say
+  // otherwise: the layout messages it sends are parsed and will replace this.
+  //
+  // The master range is taken from the panel so that the wheel spans what the
+  // BEND knob says it does, the same as it would with MPE off. The per-note
+  // range is left at the 48 semitones the specification asks for, since that
+  // one belongs to the controller rather than to the panel.
+  const auto masterRange =
+      paramCache.bendRange != nullptr
+          ? juce::jlimit(1, 96, (int)std::lround(paramCache.bendRange->load()))
+          : 2;
+
+  juce::MPEZoneLayout layout;
+  layout.setLowerZone(15, 48, masterRange);
+  mpeInstrument.setZoneLayout(layout);
+
+  // The wheel's own contribution is folded into each note's bend from here on,
+  // and pressure arrives per note, so leaving either value behind would apply
+  // it a second time across everything.
+  pitchBendNormalised = 0.0f;
+  channelPressure = 0.0f;
+}
+
+// -----------------------------------------------------------------------------
+// The notes an MPE controller sends. Each owns a channel, and its bend and
+// pressure arrive on that channel rather than across the instrument.
+
+void OvertoniumProcessor::noteAdded(juce::MPENote note) {
+  engine.noteOnPerNote(note.midiChannel, note.initialNote,
+                       note.noteOnVelocity.asUnsignedFloat(), currentParams);
+
+  // A note can arrive already bent and already pressed, because the controller
+  // sets the channel up before it sends the note on. Applying both here is
+  // what stops a finger that lands on the way into a bend from starting flat
+  // and jumping.
+  notePitchbendChanged(note);
+  notePressureChanged(note);
+}
+
+void OvertoniumProcessor::notePressureChanged(juce::MPENote note) {
+  engine.setNotePressure(note.midiChannel, note.initialNote,
+                         note.pressure.asUnsignedFloat());
+}
+
+void OvertoniumProcessor::notePitchbendChanged(juce::MPENote note) {
+  // Already the sum of the note's own bend and the master channel's, each
+  // against its own range.
+  engine.setNoteBend(note.midiChannel, note.initialNote,
+                     (float)note.totalPitchbendInSemitones);
+}
+
+void OvertoniumProcessor::noteReleased(juce::MPENote note) {
+  engine.noteOffPerNote(note.midiChannel, note.initialNote,
+                        note.noteOffVelocity.asUnsignedFloat());
 }
 
 void OvertoniumProcessor::releaseResources() {
@@ -81,6 +156,34 @@ void OvertoniumProcessor::updateAftertouch() {
 }
 
 void OvertoniumProcessor::handleMidiMessage(const juce::MidiMessage &m) {
+  if (mpeWasOn) {
+    // Notes, bend, pressure, the pedal and the layout messages are all the
+    // parser's, on every channel it has been given. That includes the master
+    // channel, so an ordinary keyboard on channel 1 still plays: its notes
+    // become notes of the master channel, one voice per key, moved together by
+    // the wheel exactly as they would be with this switched off.
+    mpeInstrument.processNextMidiEvent(m);
+
+    // What it does not touch. The wheel is CC 1 rather than the pitch wheel,
+    // and all-sound-off is CC 120, which it leaves alone: only CC 123, let go
+    // of everything, is its business. So that one has to reach the pool
+    // directly, since it means stop now rather than let go.
+    if (m.isAllSoundOff())
+      mpeInstrument.releaseAllNotes(); // or it goes on holding notes that are
+                                       // already gone from the pool
+
+    const bool leftOver =
+        (m.isController() && m.getControllerNumber() == 1) || m.isAllSoundOff();
+
+    if (!leftOver)
+      return;
+  }
+
+  handleOrdinaryMidiMessage(m);
+}
+
+void OvertoniumProcessor::handleOrdinaryMidiMessage(
+    const juce::MidiMessage &m) {
   if (m.isNoteOn()) {
     engine.noteOn(m.getNoteNumber(), m.getFloatVelocity(), currentParams);
   } else if (m.isNoteOff()) {
@@ -144,6 +247,9 @@ void OvertoniumProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   // Hosts are allowed to exceed the block size they promised in prepareToPlay.
   if (scratch.getNumSamples() < numSamples)
     scratch.setSize(2, numSamples, false, true, true);
+
+  if (const auto on = mpeIsOn(); on != mpeWasOn)
+    setMpeEnabled(on);
 
   paramCache.snapshot(currentParams, pitchBendNormalised);
   updateAftertouch();

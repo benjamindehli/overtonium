@@ -37,6 +37,28 @@ public:
   /// Routes polyphonic aftertouch to whichever voices are holding that note.
   void setPolyPressure(int note, float pressure) noexcept;
 
+  // ---- notes that own a channel each ---------------------------------------
+  //
+  // For a controller that gives every note its own MIDI channel so it can bend
+  // and press each one separately. The channel is part of the note's identity
+  // here, which is the whole difference: the same key can be down twice at
+  // once on two channels, bent in two directions, and the two are different
+  // voices rather than one retriggering the other.
+  //
+  // These sit alongside the ordinary entry points rather than replacing them,
+  // and the two can be in use at the same time. A voice started by the calls
+  // above belongs to no channel and is only ever found by them, so an ordinary
+  // keyboard playing at the same time can neither steal nor stop one of these.
+
+  /// @param channel  1 to 16, and never 0, which is what an ordinary note uses.
+  void noteOnPerNote(int channel, int note, float velocity,
+                     const SynthParams &p) noexcept;
+  void noteOffPerNote(int channel, int note, float velocity = 0.5f) noexcept;
+  void setNotePressure(int channel, int note, float pressure) noexcept;
+
+  /// Bend belonging to one note, in semitones, on top of the wheel.
+  void setNoteBend(int channel, int note, float semitones) noexcept;
+
   void allNotesOff() noexcept; ///< graceful release (MIDI CC 123)
   void
   allSoundOff() noexcept; ///< immediate silence (MIDI CC 120 / transport stop)
@@ -78,6 +100,17 @@ public:
   }
 
 private:
+  /// Is this the voice holding that note on that channel?
+  ///
+  /// Channel 0 means an ordinary keyboard note, which belongs to no channel,
+  /// so the same comparison serves both kinds and keeps them from finding each
+  /// other. See the per-note entry points above.
+  static bool matches(const Voice &v, int channel, int note) noexcept;
+
+  void noteOnImpl(int channel, int note, float velocity,
+                  const SynthParams &p) noexcept;
+  void noteOffImpl(int channel, int note, float velocity) noexcept;
+
   Voice *findFreeVoice() noexcept;
   Voice *findOldestSounding() noexcept;
 

@@ -219,6 +219,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   layout.add(std::make_unique<BoolP>(juce::ParameterID{safetyClipId, 1},
                                      "Safety Clip", true));
 
+  // Off by default, because it changes what an incoming channel number means
+  // and most keyboards are not saying anything by it. See
+  // OvertoniumProcessor::handleMidiMessage.
+  layout.add(
+      std::make_unique<BoolP>(juce::ParameterID{mpeId, 1}, "MPE", false));
+
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{stretchId, 1}, "Stretch", squaredBipolarRange(1200.0f),
       0.0f, FAttr().withStringFromValueFunction(stretchText)));
@@ -535,6 +541,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   tuningRoot = apvts.getRawParameterValue(tuningRootId);
   referenceHz = apvts.getRawParameterValue(referenceHzId);
   safetyClip = apvts.getRawParameterValue(safetyClipId);
+  mpe = apvts.getRawParameterValue(mpeId);
   lofiRate = apvts.getRawParameterValue(lofiRateId);
   lofiBits = apvts.getRawParameterValue(lofiBitsId);
 
