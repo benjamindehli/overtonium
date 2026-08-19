@@ -342,16 +342,29 @@ The rules that divide a strip into groups carry a lamp each, showing what the gr
 
 | Rule | Shows |
 |---|---|
-| PITCH MOD | a needle, flat to the left and sharp to the right, where modulation and drift have the partial now |
+| PITCH MOD | a needle on a track, flat to the left and sharp to the right, where modulation and drift have the partial now |
 | ENVELOPE | how far up its envelope the partial is, while the key is down |
 | KEY OFF | the same, once the key is up and the key-off stage has taken over |
 | AMP MOD | how far the tremolo has pulled the level down, so it pulses at the rate and swings further at greater depth |
 
 The two envelope lamps hand over rather than both being lit. The value they are fed is signed: positive while the key is down, negative once the swell and release have it, and a lamp reading zero is dark either way, so the one value that says nothing about the stage is also the one where nothing needs saying.
 
-Three choices are worth knowing about. The lamps read from the voice pool rather than from the knobs, so they describe a note rather than a setting: nothing pulses over silence, and the needle parks instead of sitting in the centre when there is nothing modulating. They follow the loudest voice on that partial, which is the one the meter follows, because a lamp taking the maximum across a chord would describe no note in particular. And the needle's scale is the strip's own, the pitch modulation depth plus the drift, so a partial set to wander by three cents and one set to wander by two hundred both use the width.
+Two choices are worth knowing about. The lamps read from the voice pool rather than from the knobs, so they describe a note rather than a setting, and nothing pulses over silence. And they follow the loudest voice on that partial, which is the one the meter follows, because a lamp taking the maximum across a chord would describe no note in particular.
 
 The tremolo lamp shows what the tremolo has taken off rather than what it has left, which is why a partial with no tremolo on it reads dark instead of sitting fully lit and never moving.
+
+**The needle's scale.** Fixed, and the same on every strip, so two channels can be compared by eye. Full deflection is 225 cents, which is the widest displacement the two controls can produce together: 200 from pitch modulation and 25 from drift. Those two numbers are named once and the parameter ranges are built from them, with a test holding the constants against the ranges, so the scale cannot come to disagree with the knobs feeding it.
+
+It is compressed rather than linear, and that is deliberate. The travel is about fifteen pixels either side of centre. Spread linearly over 225 cents an ordinary vibrato of five cents moves the needle by a third of a pixel, so every subtle setting on the instrument would look the same as no setting at all. A square root keeps the ends where they belong and gives the shallow half of the range somewhere to be:
+
+| Depth | Linear | As drawn |
+|---|---|---|
+| 5 cents | 0.3 px | 2.2 px |
+| 25 cents | 1.7 px | 5.0 px |
+| 50 cents | 3.3 px | 7.1 px |
+| 200 cents | 13.3 px | 14.1 px |
+
+This replaced a scale that normalised to each strip's own depth, which had the needle running to both edges whatever the depth was set to, so it said nothing about how deep the modulation went. The needle now parks only when nothing is sounding: a partial with no modulation on it reads dead centre, which under the old scale meant nothing and now means in tune.
 
 At the display's fifteen frames a second, an LFO above about seven Hz is faster than the lamp can follow and reads as a shimmer rather than as a pulse. That is a limit of the frame rate rather than of the lamp, and raising the frame rate to fix it would cost far more than the lamps do.
 

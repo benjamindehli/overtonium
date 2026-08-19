@@ -747,6 +747,75 @@ void testActivityLamps(OvertoniumProcessor &p) {
     check(mixed.size() == 3, "rules at different heights stay apart");
   }
 
+  // ---- the needle's scale -------------------------------------------------
+  //
+  // Fixed, and fixed to what the knobs can actually reach. A scale that
+  // disagreed with the controls feeding it would be worse than no scale, so
+  // the constants the needle reads are held against the ranges themselves.
+  {
+    const auto rangeEnd = [&p](const char *suffix) {
+      auto *param = p.apvts.getParameter(ovt::params::oscParamId(suffix, 0));
+      return param != nullptr ? param->getNormalisableRange().end : -1.0f;
+    };
+
+    check(rangeEnd(ovt::params::pmDepthSuffix) ==
+              ovt::params::kMaxPitchModCents,
+          "the pitch modulation maximum matches its own knob (" +
+              std::to_string(rangeEnd(ovt::params::pmDepthSuffix)) + ")");
+
+    check(rangeEnd(ovt::params::driftSuffix) == ovt::params::kMaxDriftCents,
+          "and so does the drift maximum (" +
+              std::to_string(rangeEnd(ovt::params::driftSuffix)) + ")");
+
+    check(ChannelStrip::needlePosition(0.0f) == 0.0f,
+          "an unmodulated partial sits dead centre");
+
+    check(std::abs(ChannelStrip::needlePosition(
+                       ovt::params::kMaxPitchDisplacementCents) -
+                   1.0f) < 1.0e-6f,
+          "both wanders at once put it exactly at the end");
+
+    check(std::abs(ChannelStrip::needlePosition(
+                       -ovt::params::kMaxPitchDisplacementCents) +
+                   1.0f) < 1.0e-6f,
+          "and flat is the mirror of sharp");
+
+    // Nothing past the ends, whatever arrives.
+    check(ChannelStrip::needlePosition(10000.0f) == 1.0f &&
+              ChannelStrip::needlePosition(-10000.0f) == -1.0f,
+          "and it cannot be driven off the end");
+
+    // The thing that was wrong before: a shallow setting used the whole
+    // width, because the scale was the strip's own. It has to stay well
+    // inside now.
+    const auto shallow = ChannelStrip::needlePosition(5.0f);
+    const auto deep = ChannelStrip::needlePosition(200.0f);
+
+    std::printf("  needle at 5 cents %.3f, at 50 cents %.3f, at 200 cents "
+                "%.3f of full travel\n",
+                shallow, ChannelStrip::needlePosition(50.0f), deep);
+
+    check(shallow < 0.25f,
+          "a five cent wander stays near the middle (" +
+              std::to_string(shallow) + ")");
+
+    check(deep > 0.9f, "and a deep one nearly fills the travel (" +
+                           std::to_string(deep) + ")");
+
+    // ...but not so compressed that a shallow setting is invisible. Over
+    // fifteen pixels of travel, a tenth is a pixel and a half.
+    check(shallow > 0.1f,
+          "while still being far enough out to see (" +
+              std::to_string(shallow) + ")");
+
+    bool rising = true;
+    for (float c = 0.0f; c < 220.0f; c += 5.0f)
+      rising &= ChannelStrip::needlePosition(c + 5.0f) >
+                ChannelStrip::needlePosition(c);
+
+    check(rising, "and further out means sharper all the way up");
+  }
+
   // ---- holding still ------------------------------------------------------
   std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
   auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());

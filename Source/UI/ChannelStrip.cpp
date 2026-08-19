@@ -170,23 +170,28 @@ void ActivityNeedle::paint(juce::Graphics &g) {
   }
 
   const auto midY = std::floor(bounds.getCentreY());
+  const auto height = juce::jmin(bounds.getHeight() - 2.0f, 7.0f);
 
-  // The rule doubles as the scale it reads against.
-  g.setColour(colours::outline.withAlpha(0.7f));
-  g.fillRect(bounds.getX(), midY, bounds.getWidth(), 1.0f);
+  // The travel it reads against, in the channel colour held right down. The
+  // same bargain the unlit lamps make: a track that is dark rather than absent
+  // says the needle has somewhere to go, and doubles as the rule dividing the
+  // groups, so no separate line is drawn here.
+  const auto track = juce::Rectangle<float>(bounds.getWidth(), height)
+                         .withCentre({bounds.getCentreX(), midY + 0.5f});
 
-  // A centre mark, so sharp and flat mean something when the needle is near
-  // the middle.
-  g.setColour(colours::outline);
-  g.fillRect(bounds.getCentreX() - 0.5f, midY - 1.0f, 1.0f, 3.0f);
+  g.setColour(colour.withAlpha(0.16f));
+  g.fillRoundedRectangle(track, height * 0.35f);
+
+  // Centre, so sharp and flat mean something when the needle is near it.
+  g.setColour(colour.withAlpha(0.34f));
+  g.fillRect(bounds.getCentreX() - 0.5f, track.getY() + 1.0f, 1.0f,
+             track.getHeight() - 2.0f);
 
   if (column < 0)
     return;
 
-  const auto height = juce::jmin(bounds.getHeight() - 2.0f, 7.0f);
-
   g.setColour(colour);
-  g.fillRect((float)column - 1.0f, midY - height * 0.5f + 0.5f, 2.0f, height);
+  g.fillRect((float)column - 1.0f, track.getY(), 2.0f, track.getHeight());
 }
 
 // =============================================================================
@@ -730,16 +735,24 @@ void ChannelStrip::resized() {
   }
 }
 
-float ChannelStrip::pitchSpanCents() const {
-  const auto plain = [this](const char *suffix) {
-    auto *p = apvts.getRawParameterValue(params::oscParamId(suffix, index));
-    return p != nullptr ? p->load() : 0.0f;
-  };
+float ChannelStrip::needlePosition(float cents) {
+  // Compressed rather than linear, and that is the whole design of it.
+  //
+  // The travel is about fifteen pixels either side of centre. Spread linearly
+  // over the 225 cents the two controls can reach together, an ordinary
+  // vibrato of five cents moves the needle by a third of a pixel, so every
+  // subtle setting on the instrument would look identical to no setting at
+  // all. A square root keeps the ends where they belong and gives the shallow
+  // half of the range somewhere to be: five cents lands two pixels out,
+  // twenty-five lands five, and two hundred still nearly fills the travel.
+  //
+  // What it does not do is normalise per strip, which is what this used to do
+  // and why every channel ran to the edges whatever its depth. Two channels
+  // can now be compared by eye, which is the point of a fixed scale.
+  const auto span = juce::jmax(1.0f, params::kMaxPitchDisplacementCents);
+  const auto reach = juce::jlimit(-1.0f, 1.0f, cents / span);
 
-  // Both wanders add, so the needle's ends are where both are at once. Drift
-  // is random and rarely reaches its own limit, but the alternative is a scale
-  // that changes shape depending on which of the two is doing the work.
-  return plain(params::pmDepthSuffix) + plain(params::driftSuffix);
+  return reach < 0.0f ? -std::sqrt(-reach) : std::sqrt(reach);
 }
 
 void ChannelStrip::setActivity(float envelope, float tremolo, float pitch,
@@ -762,16 +775,14 @@ void ChannelStrip::setActivity(float envelope, float tremolo, float pitch,
   // rather than going on pulsing over silence.
   refresh(tremoloLamp, tremoloLamp.push(level > 0.0f ? tremolo : 0.0f));
 
-  const auto span = pitchSpanCents();
-
-  // Parked when there is nothing modulating this partial, or nothing sounding
-  // to modulate. kParked is anything past the ends of the travel.
+  // Parked only when nothing is sounding. With a fixed scale a partial that
+  // has no modulation on it reads dead centre, which is the truth about it and
+  // worth showing, where under the old per-strip scale centre meant nothing.
+  // kParked is anything past the ends of the travel.
   constexpr float kParked = -3.0f;
 
-  const auto position =
-      (span <= 0.0f || level <= 0.0f) ? kParked : pitch / span;
-
-  refresh(pitchLamp, pitchLamp.push(position));
+  refresh(pitchLamp, pitchLamp.push(level <= 0.0f ? kParked
+                                                  : needlePosition(pitch)));
 }
 
 } // namespace ovt::ui

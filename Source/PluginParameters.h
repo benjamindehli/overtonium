@@ -187,6 +187,18 @@ inline const std::array<const char *, 9> kSessionParamIds{
     masterGainId,  polyphonyId,    bendRangeId,   atSourceId,  safetyClipId,
     referenceHzId, temperamentId,  tuningRootId,  mpeId};
 
+/// How far the two pitch wanderers can each take a partial, in cents.
+///
+/// Named because the needle on the PITCH MOD rule reads full scale at the sum
+/// of them, and a scale that quietly disagreed with the knobs feeding it would
+/// be worse than no scale. A test holds these against the ranges themselves.
+inline constexpr float kMaxPitchModCents = 200.0f;
+inline constexpr float kMaxDriftCents = 25.0f;
+
+/// The widest displacement the two together can produce.
+inline constexpr float kMaxPitchDisplacementCents =
+    kMaxPitchModCents + kMaxDriftCents;
+
 /// The pitch classes a temperament can be built on, in parameter order.
 inline const std::array<const char *, 12> kPitchClassNames{
     "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};

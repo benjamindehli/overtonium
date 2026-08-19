@@ -352,7 +352,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(pmDepthSuffix, i), 1},
-        p + "Pitch Mod Depth", expRange(0.0f, 200.0f, 25.0f), 0.0f,
+        p + "Pitch Mod Depth", expRange(0.0f, kMaxPitchModCents, 25.0f),
+        0.0f,
         FAttr().withLabel("ct")));
 
     layout.add(std::make_unique<FloatP>(
@@ -362,7 +363,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(driftSuffix, i), 1}, p + "Drift",
-        expRange(0.0f, 25.0f, 6.0f), 0.0f, FAttr().withLabel("ct")));
+        expRange(0.0f, kMaxDriftCents, 6.0f), 0.0f,
+        FAttr().withLabel("ct")));
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(delaySuffix, i), 1}, p + "Delay",

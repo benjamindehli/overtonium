@@ -185,11 +185,10 @@ private:
 /// A needle on a rule, showing where pitch modulation has this partial.
 ///
 /// Reads like a tuner because that is the thing it is: centre is the note as
-/// written, right is sharp, left is flat. The scale is the strip's own,
-/// though, not a fixed number of cents. A partial set to wander by three cents
-/// and one set to wander by two hundred both use the full width, because the
-/// question the lamp answers is what this group is doing, and a needle that
-/// never leaves the centre answers nothing.
+/// written, right is sharp, left is flat, against a fixed scale that is the
+/// same on every strip. Full deflection is the widest displacement the two
+/// controls can produce together, so how far the needle swings says how deep
+/// the modulation is set and two channels can be compared by eye.
 class ActivityNeedle : public juce::Component {
 public:
   explicit ActivityNeedle(juce::Colour needleColour) : colour(needleColour) {
@@ -266,12 +265,12 @@ public:
   void setActivity(float envelope, float tremolo, float pitch,
                    juce::Array<juce::Rectangle<int>> &into);
 
-  /// The displacement a needle at full deflection stands for, in cents.
+  /// Where a displacement sits on the needle's travel, -1 to 1.
   ///
-  /// Taken from what the strip is set to do rather than fixed, so a partial
-  /// wandering by three cents and one wandering by two hundred both use the
-  /// width. Zero means nothing is modulating it and the needle parks.
-  float pitchSpanCents() const;
+  /// Fixed scale, not the strip's own: full deflection is always
+  /// params::kMaxPitchDisplacementCents, so a shallow setting stays near the
+  /// middle instead of using the whole width like a deep one.
+  static float needlePosition(float cents);
 
   /// Picks out one row, or kNoRow to clear. Every strip is told the same row,
   /// so the highlight runs the width of the mixer.
