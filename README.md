@@ -120,7 +120,7 @@ What it will not touch is listed once, as `kSessionParamIds`, and holds for ever
 
 Values are stored plain rather than normalised, so a preset survives a parameter's range being widened later, and anything a file does not mention keeps its default rather than being reset, so a preset saved by an older build loads into a newer one without silently zeroing whatever was added in between. The tests cover both of those directly.
 
-**Undo.** The parameter tree carries an undo history, which matters most because of LINK: one drag can move the same knob on all 32 channels, and before this the only way back from a drag you did not mean was to reload the preset.
+**Undo.** The parameter tree carries an undo history, which matters most because of LINK: one drag can move the same knob on all 32 channels, and without a history the only way back from a drag you did not mean is to reload the preset.
 
 A step is a gesture rather than a value change. Transactions are closed when the tree has been still for a moment rather than by hooking every parameter's gesture callbacks, which a host is free to call from the audio thread and which would mean allocating there. Watching for stillness needs no hooks and gives the same answer: a drag is one step however many values it moved, and letting go for a moment starts the next one.
 
@@ -216,11 +216,11 @@ Strips are colour-coded by interval class, which keeps the structure of the seri
 
 The band is deliberately narrow, a crop from the middle of a full blue to yellow sweep, so 32 channels read as one family rather than as a rainbow. Saturation and value fall towards the warm end because yellow reads far brighter than blue at the same nominal value, which keeps the sevenths from visually swamping the octaves. Nothing in the band enters green or cyan, which is where the accent used by the global controls lives, so chrome never reads as one of the channels.
 
-Every channel stands on the same grey. The strips used to alternate between two shades so you could tell one from the next, which was worth having when a channel was a column of grey knobs, and stopped being worth having once every knob carried its interval colour and the meters, the lamps and the readouts were all lit: a stripe running behind that is one more thing competing with it. The strips are still told apart by their own lit and shadowed edges, a one pixel groove at every boundary, which is how a console does it anyway.
+Every channel stands on the same grey. Alternating two shades to tell one strip from the next would put a stripe behind every knob's interval colour, behind the lit meters, the lamps and the readouts, competing with all of it. The strips are told apart by their own lit and shadowed edges instead, a one pixel groove at every boundary, which is how a console does it.
 
-There are two greys in the mixer and no third. Most channels stand on the darker one. The octaves stand a shade up from it, so the shape of the series is readable when you are scrolled out at harmonic 28, and the noise channel stands at that same shade, since it is also worth telling apart from the run of the series. The octaves used to carry a wash of their own blue instead, which was one more hue in a window that has plenty: what marking an octave has to say is where it is, not what it is, and a change of level says that without adding a colour.
+There are two greys in the mixer and no third. Most channels stand on the darker one. The octaves stand a shade up from it, so the shape of the series is readable when you are scrolled out at harmonic 28, and the noise channel stands at that same shade, since it is also worth telling apart from the run of the series. What marking an octave has to say is where it is, not what it is, so it is a change of level rather than a hue: a wash of the channel's own blue would be one more colour in a window that has plenty.
 
-Colour is then left to do one job, and does it at full strength. Every knob on a strip carries the channel's own colour in its value arc and its pointer, rather than only the tuning knob at the head with the nineteen below it desaturated. That hierarchy earned its place against a background that alternated, where the eye needed somewhere to land. On one flat grey the colour is the only thing separating a channel from its neighbours, and holding it back on nineteen knobs out of twenty was spending the one thing that was working.
+Colour is then left to do one job, and does it at full strength. Every knob on a strip carries the channel's own colour in its value arc and its pointer, not only the tuning knob at the head. On one flat grey the colour is the only thing separating a channel from its neighbours, so desaturating nineteen knobs out of twenty to give the head of the strip a hierarchy would spend the one thing that is working.
 
 ## Controls
 
@@ -270,7 +270,7 @@ The mod wheel can stand in for it, and by default does. Most keyboards have no a
 
 Off by default, and under Settings. With it on, a controller that gives every note its own MIDI channel can bend and press each note separately, which on this instrument means each finger gets its own copy of all 33 aftertouch destinations. Press into one note in a chord and only that note's upper partials come in.
 
-The reason it is a setting rather than something switched on permanently is that it changes what a channel number means. With it off, a channel is ignored: a key-up on channel 7 releases a note that went down on channel 1, which is what a single-channel keyboard needs and what every version before this did. With it on, the channel is part of who the note is, so the same key can be held twice on two channels, bent in two directions, as two voices rather than one retriggering the other.
+The reason it is a setting rather than something switched on permanently is that it changes what a channel number means. With it off, a channel is ignored: a key-up on channel 7 releases a note that went down on channel 1, which is what a single-channel keyboard needs. With it on, the channel is part of who the note is, so the same key can be held twice on two channels, bent in two directions, as two voices rather than one retriggering the other.
 
 An ordinary keyboard plays either way. With MPE on, notes arriving on the master channel are notes of the master channel rather than notes of nowhere, so they sound, one voice per key, moved together by the wheel exactly as they would be with the setting off. That is worth stating because the alternative, which is what happens if you route only the member channels, is a plugin that goes silent when a normal keyboard is plugged into it.
 
@@ -292,7 +292,7 @@ The top bar holds everything that is not per partial, in signal order from left 
 | Reverb | the reverb. See below |
 | Output | **MASTER**, the stereo meter, and the converter readouts under it |
 
-Zoom lives in the Settings menu rather than on the bar, and that is worth eighty-eight pixels. Before it moved, the bar needed 1202 px on its first row at the width the window opens at and had 1164, so it wrapped to two rows on a default-sized window. It now needs 1114 and fits, and the room that frees goes to the output meter, which is what makes the converter readouts wide enough to keep their units.
+Zoom lives in the Settings menu rather than on the bar, and that is worth eighty-eight pixels. On the bar the first row would need 1202 px at the width the window opens at and have 1164, so it would wrap to two rows on a default-sized window. It needs 1114 and fits, and the room that frees goes to the output meter, which is what makes the converter readouts wide enough to keep their units.
 
 Echo, Reverb and Output are drawn as boxes, because a box is what says "these belong together" and there is something in each of them to group. The rest are single controls standing on their own: a box around one button says nothing the button was not already saying, and four of them in a row turn the bar into a fence. Buttons, lists and the meter all stand on the line the knob dials stand on, rather than in the middle of their row, since a knob carries its caption underneath and anything centred beside one reads as sagging.
 
@@ -328,17 +328,17 @@ Cast shadows are built from a few overlapping shapes rather than from a real blu
 
 The instrument is polyphonic across the keyboard and monophonic within a key. A string, a tine or a bar is one object, and striking it again takes over whatever it was already doing rather than starting a second copy beside the first, so playing the same key twice does the same here.
 
-That includes tails. A key with a long release that is tapped repeatedly used to leave every tap ringing and sum them, which no physical instrument does. Five overlapping taps of one key now peak at 0.412 against 0.424 for a single tap, where before they reached 0.961, which is two coherent copies of the same note.
+That includes tails. A key with a long release that is tapped repeatedly must not leave every tap ringing and sum them, which no physical instrument does. Five overlapping taps of one key peak at 0.412 against 0.424 for a single tap. Left to stack they reach 0.961, which is two coherent copies of the same note.
 
 A tail being taken over gets the same four millisecond fade a stolen voice gets, quick enough to read as instant and slow enough not to click. Measured across a retrigger, the largest jump between neighbouring samples is 0.01453, against 0.01455 for the steepest part of the waveform itself, so the cut adds nothing the signal was not already doing.
 
 A key that is still down, or held by the sustain pedal, is retriggered where it stands instead. That keeps two things a fade would lose: with phase reset off, a legato retrigger carries on from the level the envelope is at rather than restarting from silence, and re-striking a pedalled note takes it back off the pedal.
 
-It also stops tails eating the voice pool, which was the more expensive half of the problem. Every tap held one of the 24 voices for the whole of its release, so one repeatedly tapped key could fill the pool by itself: four keys held and a fifth tapped 25 times used to end with all 24 in use. Past that the allocator has nothing free and takes the oldest voice outright, with no fade and no regard for whether a key is still down on it, which is audible as notes being cut off mid-hold. The same sequence now ends with five voices in use.
+It also keeps tails out of the voice pool, which is the more expensive half of the problem. A tap that held one of the 24 voices for the whole of its release would let one repeatedly tapped key fill the pool by itself, and past that the allocator has nothing free and takes the oldest voice outright, with no fade and no regard for whether a key is still down on it, which is audible as notes being cut off mid-hold. Four keys held and a fifth tapped 25 times ends with five voices in use.
 
 **When the pool runs out.** Under the polyphony limit a stolen voice is handed a four millisecond fade and keeps rendering out of the eight surplus voices, so stealing never clicks. Past that surplus there is nothing left to fade into: the new note cannot wait, so a voice has to go this instant, and that is a step in the output whichever one it is. The size of the step is that voice's current level, so the only lever is which voice gets taken.
 
-It used to take the oldest. That is the right rule for stealing under the limit and the wrong one here, because the oldest voice is often a note still being held while a tail three quarters of the way through its release sits beside it costing almost nothing to lose. It now takes the quietest, preferring one already on its way out. With one loud note held among quiet tails and the pool overflowing, the held note used to be cut outright and now survives.
+It takes the quietest, preferring one already on its way out. Taking the oldest is the right rule for stealing under the limit and the wrong one here, because the oldest voice is often a note still being held while a tail three quarters of the way through its release sits beside it costing almost nothing to lose. With one loud note held among quiet tails and the pool overflowing, the held note survives.
 
 ### The noise channel
 
@@ -362,7 +362,7 @@ Both rows grew from thirteen pixels to sixteen. Seven-segment digits are about a
 
 The risk in replacing a label with one of these is a reading the display has no way to draw: a label renders anything, a segment display quietly shows an unlit digit instead. So the test generates every reading the two readouts can produce across both their ranges and asserts that each character has a form.
 
-The noise channel's level now reads too. It had the display and never a reading, so it was the one strip with nothing under its fader.
+The noise channel's level reads the same way.
 
 ### Lamps on the rules
 
@@ -392,7 +392,7 @@ It is compressed rather than linear, and that is deliberate. The travel is about
 | 50 cents | 3.3 px | 7.1 px |
 | 200 cents | 13.3 px | 14.1 px |
 
-This replaced a scale that normalised to each strip's own depth, which had the needle running to both edges whatever the depth was set to, so it said nothing about how deep the modulation went. The needle now parks only when nothing is sounding: a partial with no modulation on it reads dead centre, which under the old scale meant nothing and now means in tune.
+A scale normalised to each strip's own depth would run the needle to both edges whatever the depth was set to, saying nothing about how deep the modulation goes. The needle parks only when nothing is sounding, so a partial with no modulation on it reads dead centre, which means in tune.
 
 At the display's fifteen frames a second, an LFO above about seven Hz is faster than the lamp can follow and reads as a shimmer rather than as a pulse. That is a limit of the frame rate rather than of the lamp, and raising the frame rate to fix it would cost far more than the lamps do.
 
@@ -400,7 +400,7 @@ At the display's fifteen frames a second, an LFO above about seven Hz is faster 
 
 The drawing is where the care went. Brightness is quantised to twelve steps and the needle to whole pixels, for the same reason the meters are segmented: a lamp that follows its value exactly repaints on every frame in which the value moves at all, which for anything modulated is every frame.
 
-The merging matters more than the quantising, and not in the way it looks. The lamps are handed back to the editor rather than invalidating themselves, and they are merged by row rather than by neighbour, because every strip's lamps sit at the same four heights. That was measured rather than assumed, and the first attempt was wrong: putting them through the general merge alongside the meter bands costs 762,000 pixels a frame on a mixer with all 32 channels modulating, since six rectangles is not enough to keep the rows apart and each merge pairs a lamp at the top of a strip with a meter band at the bottom. Merged by row it is 58,000, against the meters' own 22,000. On the factory presets it is smaller again: 12,000 for *Slow Pad* and 33,000 for *Shimmer*, against a mixer of 1,278,000 pixels.
+The merging matters more than the quantising, and not in the way it looks. The lamps are handed back to the editor rather than invalidating themselves, and they are merged by row rather than by neighbour, because every strip's lamps sit at the same four heights. Putting them through the general merge alongside the meter bands costs 762,000 pixels a frame on a mixer with all 32 channels modulating, since six rectangles is not enough to keep the rows apart and each merge pairs a lamp at the top of a strip with a meter band at the bottom. Merged by row it is 58,000, against the meters' own 22,000. On the factory presets it is smaller again: 12,000 for *Slow Pad* and 33,000 for *Shimmer*, against a mixer of 1,278,000 pixels.
 
 ### Meters
 
@@ -408,7 +408,7 @@ Each channel meters what that partial is actually putting out, on a decibel scal
 
 The meter fills the fader's own track rather than sitting beside it. A fader that also drew its set level would be showing you something the cap already says, so the whole track is given over to output instead. The cap is drawn as translucent glass, so the meter reads straight through it, and the knob pointers are drawn the same way so the value arc shows through them.
 
-The cap used to carry a bright line across its middle for reading the exact position, and it had to go. Between that line and an edge of nearly the same weight it came out as a pill with a slot cut in it, three light lines inside ten pixels, and it was the whitest thing on a strip that has since gone darker and more colourful around it. It reads as glass now: a light body the lit segments show through, a softer edge, and a lip along the top rather than a divider across the middle. Nothing is lost by dropping the line, because the exact position is printed in dB directly under the fader.
+It reads as glass: a light body the lit segments show through, a softer edge, and a lip along the top rather than a divider across the middle. A bright line across the middle for reading the exact position would sit at nearly the weight of the edge around it, three light lines inside ten pixels, and the cap would come out as a pill with a slot cut in it. Nothing needs that line, because the exact position is printed in dB directly under the fader.
 
 
 It reads the loudest instance of a partial across the sounding voices rather than the sum, so it shows the shape of the patch instead of pinning itself the moment you play a chord.
@@ -475,7 +475,7 @@ Every channel has a PAN, the noise channel included, rather than one width contr
 
 The law is equal power, so the number on the knob is the number in the audio and the level holds as a partial crosses the field. The tests measure both, reading the positions back out of the rendered audio rather than taking them on trust: hard left and hard right land within 0.01 of the ends, half left images at half left within 0.02, and a partial swept across the whole field varies in loudness by under 0.1 dB.
 
-A good shape to start from is mirrored pairs, 1 and 2 in the centre widening out to 31 and 32 at the edges, with the sides alternating so the louder of each pair does not always land on the same one. That is what the old width control used to do, and *Slow Pad* and *Shimmer* now write it into their pans, where it can be taken apart by hand. It is worth understanding before you leave it: neighbouring partials have near-identical levels in any normal spectrum, so putting each pair on opposite sides keeps the image centred whatever shape you dial in, and because every position has a mirror, no partial ends up hard panned with nothing facing it.
+A good shape to start from is mirrored pairs, 1 and 2 in the centre widening out to 31 and 32 at the edges, with the sides alternating so the louder of each pair does not always land on the same one. *Slow Pad* and *Shimmer* write it into their pans, where it can be taken apart by hand. It is worth understanding before you leave it: neighbouring partials have near-identical levels in any normal spectrum, so putting each pair on opposite sides keeps the image centred whatever shape you dial in, and because every position has a mirror, no partial ends up hard panned with nothing facing it.
 
 ### Wobble
 
@@ -543,7 +543,7 @@ The tests check both ends: that a perfect transport would collapse to mono, whic
 | DAMP | how quickly the top end dies out of the tail |
 | PRE | silence between the note and its reverb, up to 250 ms |
 
-The two sides are drawn from different lines in different polarities, so the tail is wide by construction and there is nothing on the panel to narrow it. There used to be a WIDTH knob, and it went the way of the old stereo spread control on the mixer: a knob with one setting anyone reaches for is not a knob. The test that used to sweep it now checks the thing worth checking, that a mono hit still comes back with the two sides largely independent.
+The two sides are drawn from different lines in different polarities, so the tail is wide by construction and there is nothing on the panel to narrow it. There is no width control, on the same grounds as the stereo spread the mixer does without: a knob with one setting anyone reaches for is not a knob. The test checks the thing worth checking, that a mono hit still comes back with the two sides largely independent.
 
 The room is sized from the decay rather than set separately. A long tail in a small room is a spring rather than a place, and a short one in a hall is a gate, so the two were always turned together anyway.
 
