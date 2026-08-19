@@ -406,7 +406,9 @@ The merging matters more than the quantising, and not in the way it looks. The l
 
 Each channel meters what that partial is actually putting out, on a decibel scale floored at -48 dB. Since it reflects the final gain, it shows the envelope, tremolo, velocity, aftertouch, the Nyquist fade and mute or solo all at once, so the spectrum can be watched evolving as a note decays.
 
-The meter fills the fader's own track rather than sitting beside it. A fader that also drew its set level would be showing you something the cap already says, so the whole track is given over to output instead. The cap is drawn as translucent glass with bright edges, so the meter reads straight through it, and the knob pointers are drawn the same way so the value arc shows through them.
+The meter fills the fader's own track rather than sitting beside it. A fader that also drew its set level would be showing you something the cap already says, so the whole track is given over to output instead. The cap is drawn as translucent glass, so the meter reads straight through it, and the knob pointers are drawn the same way so the value arc shows through them.
+
+The cap used to carry a bright line across its middle for reading the exact position, and it had to go. Between that line and an edge of nearly the same weight it came out as a pill with a slot cut in it, three light lines inside ten pixels, and it was the whitest thing on a strip that has since gone darker and more colourful around it. It reads as glass now: a light body the lit segments show through, a softer edge, and a lip along the top rather than a divider across the middle. Nothing is lost by dropping the line, because the exact position is printed in dB directly under the fader.
 
 
 It reads the loudest instance of a partial across the sounding voices rather than the sum, so it shows the shape of the patch instead of pinning itself the moment you play a chord.

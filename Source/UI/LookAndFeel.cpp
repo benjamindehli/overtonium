@@ -412,23 +412,35 @@ void OvertoniumLookAndFeel::drawLinearSlider(
     }
   }
 
-  // Glass cap: translucent body, bright edges and a bright centre line for
-  // reading the exact position. The meter behind shows through it.
+  // Glass cap: a translucent window on the meter, edged so it reads as a cap
+  // rather than as a gap, and lit along the top the way the buttons and the
+  // knob bodies are.
+  //
+  // It used to carry a bright line across its middle as well, for reading the
+  // exact position off the track. Between that line and an edge of nearly the
+  // same weight the cap came out as a pill with a slot cut in it, three light
+  // lines inside ten pixels, and it was the whitest thing on a strip that has
+  // since gone darker and more colourful around it. The line is also no longer
+  // needed: the exact position is printed in dB under the fader.
   const auto capH = juce::jmax(6.0f, bounds.getWidth() * 0.30f);
   const juce::Rectangle<float> cap(bounds.getX() + 0.5f, fillTop - capH * 0.5f,
                                    bounds.getWidth() - 1.0f, capH);
 
-  g.setColour(juce::Colours::black.withAlpha(0.30f * dim));
+  g.setColour(juce::Colours::black.withAlpha(0.34f * dim));
   g.fillRoundedRectangle(cap.translated(0.5f, 1.5f), 2.0f);
 
-  g.setColour(juce::Colours::white.withAlpha(0.22f * dim));
+  // Light enough that the lit segments behind it stay legible through the
+  // glass, which is the whole reason the meter runs under the fader.
+  g.setColour(juce::Colours::white.withAlpha(0.13f * dim));
   g.fillRoundedRectangle(cap, 2.0f);
 
-  g.setColour(juce::Colours::white.withAlpha(0.80f * dim));
+  g.setColour(juce::Colours::white.withAlpha(0.46f * dim));
   g.drawRoundedRectangle(cap.reduced(0.5f), 2.0f, 1.0f);
 
-  g.setColour(juce::Colours::white.withAlpha(0.55f * dim));
-  g.fillRect(cap.getX() + 2.0f, cap.getCentreY() - 0.5f, cap.getWidth() - 4.0f,
+  // The lip catches the light off centre, so it says glass rather than
+  // dividing the cap in half.
+  g.setColour(juce::Colours::white.withAlpha(0.26f * dim));
+  g.fillRect(cap.getX() + 2.5f, cap.getY() + 1.5f, cap.getWidth() - 5.0f,
              1.0f);
 }
 
