@@ -574,30 +574,32 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   // as on the mute and solo buttons.
   setMouseCursor(juce::MouseCursor::ParentCursor);
 
-  // Tune and Level carry the strip's identity colour; the modulation and
-  // envelope knobs are desaturated so they read as secondary at a glance across
-  // 32 channels.
-  const auto secondary = colour.withSaturation(0.28f).withBrightness(0.72f);
-
+  // Every knob carries the strip's colour at full strength. They used to be
+  // desaturated below the tuning knob so the head of the strip read as the
+  // important one, which was the right call against a background that
+  // alternated: the eye needed something to hold on to. With the mixer on one
+  // flat grey the colour is the only thing separating a channel from its
+  // neighbours, and holding it back on nineteen knobs out of twenty was
+  // spending the one thing that was working.
   setUpKnob(tune, Role::Tune, colour);
-  setUpKnob(pmRate, Role::PmRate, secondary);
-  setUpKnob(pmDepth, Role::PmDepth, secondary);
-  setUpKnob(phase, Role::Phase, secondary);
-  setUpKnob(drift, Role::Drift, secondary);
-  setUpKnob(delay, Role::Delay, secondary);
-  setUpKnob(attack, Role::Attack, secondary);
-  setUpKnob(decay, Role::Decay, secondary);
-  setUpKnob(sustain, Role::Sustain, secondary);
-  setUpKnob(swell, Role::Swell, secondary);
-  setUpKnob(offLevel, Role::OffLevel, secondary);
-  setUpKnob(release, Role::Release, secondary);
-  setUpKnob(lift, Role::Lift, secondary);
-  setUpKnob(amRate, Role::AmRate, secondary);
-  setUpKnob(amDepth, Role::AmDepth, secondary);
-  setUpKnob(velocity, Role::Velocity, secondary);
-  setUpKnob(aftertouch, Role::Aftertouch, secondary);
+  setUpKnob(pmRate, Role::PmRate, colour);
+  setUpKnob(pmDepth, Role::PmDepth, colour);
+  setUpKnob(phase, Role::Phase, colour);
+  setUpKnob(drift, Role::Drift, colour);
+  setUpKnob(delay, Role::Delay, colour);
+  setUpKnob(attack, Role::Attack, colour);
+  setUpKnob(decay, Role::Decay, colour);
+  setUpKnob(sustain, Role::Sustain, colour);
+  setUpKnob(swell, Role::Swell, colour);
+  setUpKnob(offLevel, Role::OffLevel, colour);
+  setUpKnob(release, Role::Release, colour);
+  setUpKnob(lift, Role::Lift, colour);
+  setUpKnob(amRate, Role::AmRate, colour);
+  setUpKnob(amDepth, Role::AmDepth, colour);
+  setUpKnob(velocity, Role::Velocity, colour);
+  setUpKnob(aftertouch, Role::Aftertouch, colour);
 
-  setUpKnob(pan, Role::Pan, secondary);
+  setUpKnob(pan, Role::Pan, colour);
 
   // These all run either side of zero, so their arcs read out from twelve
   // o'clock rather than filling from the left.
@@ -856,18 +858,20 @@ void ChannelStrip::setLinkGlow(Role role, float amount) {
   }
 }
 
+juce::Colour ChannelStrip::backdropBase() const {
+  // Octaves stand a shade brighter, which is the same shade the noise channel
+  // stands at. It used to be a wash of the channel's own blue, and that was
+  // one more colour in a mixer that has plenty: the point of marking the
+  // octaves is where they are, not what they are, and a change of level says
+  // that without adding a hue.
+  return info.pitchClass == 0 ? colours::channel.brighter(0.03f)
+                              : colours::channel;
+}
+
 void ChannelStrip::paint(juce::Graphics &g) {
   auto bounds = getLocalBounds();
 
-  paintChannelBackground(g, bounds,
-                         (index % 2) == 0 ? colours::panel : colours::panelAlt);
-
-  // A faint wash on the octave partials makes the shape of the series readable
-  // even when you are scrolled halfway along the mixer.
-  if (info.pitchClass == 0) {
-    g.setColour(colour.withAlpha(0.055f));
-    g.fillRect(bounds);
-  }
+  paintChannelBackground(g, bounds, backdropBase());
 
   const auto rows = layoutRows(bounds.reduced(2, 4));
 
@@ -932,10 +936,10 @@ void ChannelStrip::resized() {
   meter.setBounds(faderRow.reduced(2, 1));
 
   // The strip's background is a gradient down the whole channel, so the meter
-  // is told the two colours at its own edges. Kept in step with
-  // paintChannelBackground and the octave wash below it by construction.
+  // is told the two colours at its own edges. Both take their base from
+  // backdropBase, so an octave's shade cannot come adrift from the rest of it.
   {
-    const auto base = (index % 2) == 0 ? colours::panel : colours::panelAlt;
+    const auto base = backdropBase();
     const auto top = base.brighter(0.10f);
     const auto bottom = base.darker(0.06f);
 
@@ -943,9 +947,6 @@ void ChannelStrip::resized() {
       auto shade = top.interpolatedWith(
           bottom, juce::jlimit(0.0f, 1.0f,
                                (float)y / (float)juce::jmax(1, getHeight())));
-
-      if (info.pitchClass == 0)
-        shade = shade.overlaidWith(colour.withAlpha(0.055f));
 
       return shade;
     };
@@ -963,7 +964,7 @@ void ChannelStrip::resized() {
   // at the head of the group it reports on. No row grew to make space for
   // them: the rule was already occupying that height to draw a single line.
   {
-    const auto base = (index % 2) == 0 ? colours::panel : colours::panelAlt;
+    const auto base = backdropBase();
     const auto top = base.brighter(0.10f);
     const auto bottom = base.darker(0.06f);
 
@@ -971,9 +972,6 @@ void ChannelStrip::resized() {
       auto shade = top.interpolatedWith(
           bottom, juce::jlimit(0.0f, 1.0f,
                                (float)y / (float)juce::jmax(1, getHeight())));
-
-      if (info.pitchClass == 0)
-        shade = shade.overlaidWith(colour.withAlpha(0.055f));
 
       return shade;
     };

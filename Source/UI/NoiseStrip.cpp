@@ -25,31 +25,29 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
 
   addMouseListener(this, true);
 
-  const auto secondary = colour.withSaturation(0.10f).withBrightness(0.68f);
-
   setUpKnob(colourKnob, params::colourSuffix, colour,
             "Tilts the noise from dark rumble through flat to bright hiss");
-  setUpKnob(delay, params::delaySuffix, secondary, "Delay before the attack");
-  setUpKnob(attack, params::attackSuffix, secondary, "Attack");
-  setUpKnob(decay, params::decaySuffix, secondary, "Decay");
-  setUpKnob(sustain, params::sustainSuffix, secondary, "Sustain");
-  setUpKnob(swell, params::swellSuffix, secondary,
+  setUpKnob(delay, params::delaySuffix, colour, "Delay before the attack");
+  setUpKnob(attack, params::attackSuffix, colour, "Attack");
+  setUpKnob(decay, params::decaySuffix, colour, "Decay");
+  setUpKnob(sustain, params::sustainSuffix, colour, "Sustain");
+  setUpKnob(swell, params::swellSuffix, colour,
             "How long the key-off stage takes to reach its level");
-  setUpKnob(offLevel, params::offLevelSuffix, secondary,
+  setUpKnob(offLevel, params::offLevelSuffix, colour,
             "Where the envelope goes when the key is let go. Zero skips the "
             "stage and releases from wherever it was.");
-  setUpKnob(release, params::releaseSuffix, secondary, "Release");
-  setUpKnob(lift, params::liftSuffix, secondary,
+  setUpKnob(release, params::releaseSuffix, colour, "Release");
+  setUpKnob(lift, params::liftSuffix, colour,
             "How much the speed you let the key go at scales the key-off "
             "level. Negative inverts it.");
-  setUpKnob(amRate, params::amRateSuffix, secondary, "Tremolo rate");
-  setUpKnob(amDepth, params::amDepthSuffix, secondary, "Tremolo depth");
-  setUpKnob(velocity, params::velSuffix, secondary,
+  setUpKnob(amRate, params::amRateSuffix, colour, "Tremolo rate");
+  setUpKnob(amDepth, params::amDepthSuffix, colour, "Tremolo depth");
+  setUpKnob(velocity, params::velSuffix, colour,
             "How much key velocity scales the noise. Negative inverts it.");
-  setUpKnob(aftertouch, params::atSuffix, secondary,
+  setUpKnob(aftertouch, params::atSuffix, colour,
             "How much key pressure moves the noise. Negative fades it out.");
 
-  setUpKnob(pan, params::panSuffix, secondary,
+  setUpKnob(pan, params::panSuffix, colour,
             "Where the noise sits in the stereo field");
 
   lift.getProperties().set("bipolar", true);
@@ -167,7 +165,10 @@ void NoiseStrip::setHighlightedRow(Row row) {
 void NoiseStrip::paint(juce::Graphics &g) {
   auto bounds = getLocalBounds();
 
-  paintChannelBackground(g, bounds, colours::panel.brighter(0.03f));
+  // A shade off the numbered channels, which is the one background difference
+  // left in the mixer and the one that means something: this channel is not
+  // part of the series.
+  paintChannelBackground(g, bounds, colours::channel.brighter(0.03f));
 
   const auto rows = layoutRows(bounds.reduced(2, 4));
   auto header = rows[rowIndex(Row::Header)];
@@ -260,7 +261,7 @@ void NoiseStrip::resized() {
   meter.setBounds(faderRow.reduced(2, 1));
 
   {
-    const auto base = colours::panel.brighter(0.03f);
+    const auto base = colours::channel.brighter(0.03f);
     const auto top = base.brighter(0.10f);
     const auto bottom = base.darker(0.06f);
 

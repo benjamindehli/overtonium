@@ -12,6 +12,17 @@ namespace colours {
 inline const juce::Colour background{0xff0b0d10};
 inline const juce::Colour panel{0xff14181d};
 inline const juce::Colour panelAlt{0xff181d23};
+
+/// What every channel stands on, the noise channel included.
+///
+/// One shade rather than two. The strips used to alternate between panel and
+/// panelAlt so you could tell one from the next, which was worth having when
+/// a channel was a column of grey knobs. It is not any more: every knob
+/// carries its interval colour, the meters and the lamps are lit, and a
+/// stripe running behind all of that is one more thing competing with it. The
+/// strips are still told apart by their own lit and shadowed edges, which is
+/// how a console does it.
+inline const juce::Colour channel{0xff12151a};
 inline const juce::Colour groove{0xff090b0e};
 inline const juce::Colour outline{0xff272e37};
 inline const juce::Colour text{0xffd9dfe7};

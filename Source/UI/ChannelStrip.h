@@ -358,6 +358,11 @@ private:
   void setUpFader(LinkableSlider &, Role, juce::Colour fill);
   void wireUp(LinkableSlider &, Role);
 
+  /// What this channel stands on: the shared grey, or a shade up for an
+  /// octave. See NoiseStrip, which stands at the same shade for the same
+  /// reason, that it is worth telling apart from the run of the series.
+  juce::Colour backdropBase() const;
+
   void updateTuneReadout();
   void updateLevelReadout();
 

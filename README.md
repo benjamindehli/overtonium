@@ -216,6 +216,12 @@ Strips are colour-coded by interval class, which keeps the structure of the seri
 
 The band is deliberately narrow, a crop from the middle of a full blue to yellow sweep, so 32 channels read as one family rather than as a rainbow. Saturation and value fall towards the warm end because yellow reads far brighter than blue at the same nominal value, which keeps the sevenths from visually swamping the octaves. Nothing in the band enters green or cyan, which is where the accent used by the global controls lives, so chrome never reads as one of the channels.
 
+Every channel stands on the same grey. The strips used to alternate between two shades so you could tell one from the next, which was worth having when a channel was a column of grey knobs, and stopped being worth having once every knob carried its interval colour and the meters, the lamps and the readouts were all lit: a stripe running behind that is one more thing competing with it. The strips are still told apart by their own lit and shadowed edges, a one pixel groove at every boundary, which is how a console does it anyway.
+
+There are two greys in the mixer and no third. Most channels stand on the darker one. The octaves stand a shade up from it, so the shape of the series is readable when you are scrolled out at harmonic 28, and the noise channel stands at that same shade, since it is also worth telling apart from the run of the series. The octaves used to carry a wash of their own blue instead, which was one more hue in a window that has plenty: what marking an octave has to say is where it is, not what it is, and a change of level says that without adding a colour.
+
+Colour is then left to do one job, and does it at full strength. Every knob on a strip carries the channel's own colour in its value arc and its pointer, rather than only the tuning knob at the head with the nineteen below it desaturated. That hierarchy earned its place against a background that alternated, where the eye needed somewhere to land. On one flat grey the colour is the only thing separating a channel from its neighbours, and holding it back on nineteen knobs out of twenty was spending the one thing that was working.
+
 ## Controls
 
 Each of the 32 strips has, top to bottom:
@@ -304,7 +310,7 @@ Pointing at a knob picks out its row all the way across the mixer, through every
 
 The channel under the pointer is marked the same way, bracketed by a rule down each side with the same wash between them, and its number at the head of the strip goes accent exactly as the gutter caption does for the row. The row answers which of the twenty-one controls you are on and the column answers which of the thirty-three channels, and where the two cross is the knob a drag would actually move. Thirty-eight pixels of strip is not much to aim at with a mixer this wide.
 
-The lit number is what makes the rest of it work. A column at the row's weight is very nearly invisible on its own, because a row band crosses thirty-three channels of the same shade while a column stands between two neighbours that are already a different shade from it, since the strips alternate. Marking the number instead of leaning on the wash is both the legible answer and the consistent one: the row's whole gesture is that the name of the control lights up, and the number is the name of the channel.
+The lit number is what makes the rest of it work, and it is the consistent answer as well as the legible one: the row's whole gesture is that the name of the control lights up, and the number is the name of the channel. The wash then only has to join the lit number to the rest of the strip, which it does at the row's own weight now that every channel stands on the same grey and a hovered strip differs from its neighbours by the wash alone.
 
 One thing about the column does have to differ. It is drawn over the children rather than behind them. The row can sit underneath because what it crosses is knobs, which have transparent corners for it to show through, but a column crosses the meter and the lamps, and those paint their own backgrounds so the strip beneath them does not have to. Behind those it would simply disappear, leaving the channel marked everywhere except the parts with something in them.
 
