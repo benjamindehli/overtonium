@@ -60,41 +60,6 @@ private:
   Bar left, right;
 };
 
-/// A small seven-segment readout, the way a converter labels its front panel.
-///
-/// Lit means the setting is doing something. Left on the host's own rate and
-/// depth it shows what the host is running at, dimmed, so the display is a
-/// statement of fact either way rather than going blank when it is not in use.
-///
-/// Clicking it opens the same menu the value came from, so the readout is also
-/// the control.
-class SegmentDisplay : public juce::Component,
-                       public juce::SettableTooltipClient {
-public:
-  /// @param unit  drawn small beside the digits, or empty for none.
-  explicit SegmentDisplay(juce::String unit);
-
-  /// @param digits  0 to 9 and a decimal point. Anything else is drawn blank.
-  /// @param active  false dims it, meaning nothing is being changed.
-  void setReading(const juce::String &digits, bool active);
-
-  std::function<void()> onClick;
-
-  void paint(juce::Graphics &) override;
-  void mouseUp(const juce::MouseEvent &) override;
-  void mouseEnter(const juce::MouseEvent &) override;
-  void mouseExit(const juce::MouseEvent &) override;
-
-private:
-  /// Draws one character in the classic seven-bar arrangement.
-  void paintGlyph(juce::Graphics &, juce::Rectangle<float>, char,
-                  juce::Colour on, juce::Colour off) const;
-
-  juce::String reading, unitText;
-  bool active = false;
-  bool hovered = false;
-};
-
 class TopBar : public juce::Component {
 public:
   TopBar(juce::AudioProcessorValueTreeState &apvts,

@@ -94,6 +94,60 @@ private:
   juce::String caption;
 };
 
+/// A small seven-segment readout, the way a piece of hardware labels a value.
+///
+/// Used for the converter settings on the bar and for the two figures under
+/// each channel, the cents a partial is tuned by and the level its fader is
+/// at. Digits, a decimal point, a sign, and the few letters needed to say the
+/// things that are not numbers: ET for a partial left in equal temperament,
+/// and -inF for a fader all the way down.
+///
+/// Dimming means the value is a statement of fact rather than something being
+/// changed: a converter left at the host's own rate still says what that rate
+/// is, and a partial with no tuning to do still says so.
+///
+/// Give it an onClick and it becomes a control, opening whatever menu the
+/// value came from, and picks up a hover outline to say so. Without one it is
+/// a readout and stays quiet under the pointer.
+class SegmentDisplay : public juce::Component,
+                       public juce::SettableTooltipClient {
+public:
+  /// @param unit  drawn small beside the digits, or empty for none.
+  explicit SegmentDisplay(juce::String unit);
+
+  /// @param digits  0 to 9, a decimal point, a leading + or -, and the
+  ///                 letters in segmentsFor. Anything else is drawn blank.
+  /// @param active  false dims it, meaning nothing is being changed.
+  void setReading(const juce::String &digits, bool active);
+
+  /// What it is showing, and whether it is showing it lit. Read back by the
+  /// tests, which is the only way to check a component that is otherwise
+  /// nothing but paint.
+  const juce::String &getReading() const noexcept { return reading; }
+  bool isActive() const noexcept { return active; }
+
+  /// Whether this character has a form to draw, either as a glyph or as one
+  /// of the narrow cells. Anything else comes out as an unlit digit, so the
+  /// tests hold every reading the panel can produce against this.
+  static bool canDraw(char);
+
+  std::function<void()> onClick;
+
+  void paint(juce::Graphics &) override;
+  void mouseUp(const juce::MouseEvent &) override;
+  void mouseEnter(const juce::MouseEvent &) override;
+  void mouseExit(const juce::MouseEvent &) override;
+
+private:
+  /// Draws one character in the classic seven-bar arrangement.
+  void paintGlyph(juce::Graphics &, juce::Rectangle<float>, char,
+                  juce::Colour on, juce::Colour off) const;
+
+  juce::String reading, unitText;
+  bool active = false;
+  bool hovered = false;
+};
+
 /// A slim output meter for one partial.
 ///
 /// Segmented rather than a continuous bar, which is the old spectrum-analyser
@@ -313,7 +367,9 @@ private:
       aftertouch, pan,
       volume;
   juce::TextButton muteButton{"M"}, soloButton{"S"};
-  juce::Label tuneReadout, levelReadout;
+  /// No unit on either: the gutter caption beside them already says cents and
+  /// dB, and twenty-one pixels of "ct" would leave the digits nothing.
+  SegmentDisplay tuneReadout{{}}, levelReadout{{}};
   LevelMeter meter;
 
   ActivityNeedle pitchLamp;

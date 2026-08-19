@@ -889,6 +889,198 @@ void testActivityLamps(OvertoniumProcessor &p) {
   }
 }
 
+/// The seven-segment readouts under each channel.
+///
+/// They replaced two plain labels, and the risk in that is a reading the
+/// display has no way to draw: a label will render anything, a segment display
+/// will silently show an unlit digit. So every reading the two can produce is
+/// held against what the display can draw.
+void testSegmentReadouts(OvertoniumProcessor &p) {
+  section("Segment readouts");
+
+  using namespace ovt::ui;
+
+  // ---- everything asked for can be drawn ----------------------------------
+  {
+    // Both readouts, over the whole of both ranges, plus the two things they
+    // say that are not numbers.
+    juce::StringArray readings{"Et", "-inF"};
+
+    for (int i = 0; i <= 100; ++i) {
+      const auto v = (float)i / 100.0f;
+
+      if (v > 0.0005f)
+        readings.add((juce::String)(juce::Decibels::gainToDecibels(v) >= 0.0f
+                                        ? ""
+                                        : "-") +
+                     juce::String(std::abs(juce::Decibels::gainToDecibels(v)),
+                                  1));
+
+      // Cents run to about fifty either way, which is as far as any harmonic's
+      // just interval sits from equal temperament.
+      const auto cents = -50.0f + v * 100.0f;
+      readings.add((juce::String)(cents >= 0.0f ? "+" : "-") +
+                   juce::String(std::abs(cents), 1));
+    }
+
+    juce::String undrawable;
+
+    for (const auto &reading : readings)
+      for (int i = 0; i < reading.length(); ++i)
+        if (!SegmentDisplay::canDraw((char)reading[i]))
+          undrawable += reading[i];
+
+    check(undrawable.isEmpty(),
+          "every character the two readouts can produce has a form (" +
+              std::to_string(readings.size()) + " readings, stuck on \"" +
+              undrawable.toStdString() + "\")");
+  }
+
+  // ---- what the strips actually show --------------------------------------
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  editor->setSize(1348, 1000);
+
+  std::vector<SegmentDisplay *> displays;
+  std::function<void(juce::Component &)> collect = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (auto *d = dynamic_cast<SegmentDisplay *>(child))
+        displays.push_back(d);
+
+      collect(*child);
+    }
+  };
+  collect(*editor);
+
+  // Two on the bar and two on each of the thirty-two channels, plus the level
+  // on the noise strip, which never had a reading at all before.
+  check(displays.size() == 2 + 2 * ovt::kNumHarmonics + 1,
+        "every readout is a segment display now (" +
+            std::to_string(displays.size()) + ")");
+
+  bool allDrawable = true;
+  std::string firstBad;
+
+  for (auto *d : displays)
+    for (int i = 0; i < d->getReading().length(); ++i)
+      if (!SegmentDisplay::canDraw((char)d->getReading()[i])) {
+        allDrawable = false;
+        if (firstBad.empty())
+          firstBad = d->getReading().toStdString();
+      }
+
+  check(allDrawable, "and what they are showing right now is drawable" +
+                         (firstBad.empty() ? "" : " (" + firstBad + ")"));
+
+  // ---- the level readout, across its range --------------------------------
+  const auto setVolume = [&p](int channel, float plain) {
+    auto *param = p.apvts.getParameter(
+        ovt::params::oscParamId(ovt::params::volumeSuffix, channel));
+    if (param != nullptr)
+      param->setValueNotifyingHost(param->convertTo0to1(plain));
+  };
+
+  std::vector<ChannelStrip *> strips;
+  std::function<void(juce::Component &)> gather = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (auto *s = dynamic_cast<ChannelStrip *>(child))
+        strips.push_back(s);
+
+      gather(*child);
+    }
+  };
+  gather(*editor);
+
+  check(!strips.empty(), "the mixer has strips in it");
+  if (strips.empty())
+    return;
+
+  // The readouts are the strip's own children, so they are found by walking
+  // one strip rather than by being handed out.
+  std::vector<SegmentDisplay *> onFirst;
+  collect = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (auto *d = dynamic_cast<SegmentDisplay *>(child))
+        onFirst.push_back(d);
+
+      collect(*child);
+    }
+  };
+  collect(*strips.front());
+
+  check(onFirst.size() == 2, "a channel carries two of them (" +
+                                 std::to_string(onFirst.size()) + ")");
+  if (onFirst.size() != 2)
+    return;
+
+  auto &level = *onFirst.back();
+
+  setVolume(0, 1.0f);
+  check(level.getReading() == "0.0" && level.isActive(),
+        "a fader at unity reads 0.0, lit (" + level.getReading().toStdString() +
+            ")");
+
+  setVolume(0, 0.0f);
+  check(level.getReading() == "-inF" && !level.isActive(),
+        "and all the way down it reads -inF, dimmed, since that is a statement "
+        "rather than a level (" +
+            level.getReading().toStdString() + ")");
+
+  setVolume(0, 0.5f);
+  check(level.getReading() == "-6.0" && level.isActive(),
+        "half way is -6.0 dB (" + level.getReading().toStdString() + ")");
+
+  // ---- the cents readout --------------------------------------------------
+  //
+  // Partial 1 is the fundamental, whose just interval is the note itself, so
+  // there is nothing for its knob to do and the display says so rather than
+  // implying a choice.
+  auto &cents = *onFirst.front();
+
+  check(cents.getReading() == "0.0" && !cents.isActive(),
+        "the fundamental has no cents to report, and is dimmed (" +
+            cents.getReading().toStdString() + ")");
+
+  // A partial that does. Harmonic 3 sits just under two cents above equal
+  // temperament, and harmonic 7 a third of a semitone below it.
+  const auto readingFor = [&](int channel, float blend) -> juce::String {
+    auto *param = p.apvts.getParameter(
+        ovt::params::oscParamId(ovt::params::tuneSuffix, channel));
+    if (param != nullptr)
+      param->setValueNotifyingHost(param->convertTo0to1(blend));
+
+    std::vector<SegmentDisplay *> on;
+    std::function<void(juce::Component &)> walk = [&](juce::Component &c) {
+      for (auto *child : c.getChildren()) {
+        if (auto *d = dynamic_cast<SegmentDisplay *>(child))
+          on.push_back(d);
+
+        walk(*child);
+      }
+    };
+    walk(*strips[(size_t)channel]);
+
+    return on.empty() ? juce::String() : on.front()->getReading();
+  };
+
+  check(readingFor(2, 0.0f) == "Et",
+        "a partial left in equal temperament says so (" +
+            readingFor(2, 0.0f).toStdString() + ")");
+
+  check(readingFor(2, 1.0f) == "+2.0",
+        "and tuned across to just intonation it reads its offset (" +
+            readingFor(2, 1.0f).toStdString() + ")");
+
+  check(readingFor(6, 1.0f) == "-31.2",
+        "the seventh harmonic being the one that goes the other way (" +
+            readingFor(6, 1.0f).toStdString() + ")");
+}
+
 void testLinkCurves() {
   section("Link scopes and curves");
 
@@ -2128,6 +2320,7 @@ int main() {
   testAftertouchMidi(processor);
   testMpe(processor);
   testActivityLamps(processor);
+  testSegmentReadouts(processor);
   testUserPresets(processor);
   testMasterEffects(processor);
   testLinkCurves();

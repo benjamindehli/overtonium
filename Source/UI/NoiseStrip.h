@@ -40,8 +40,7 @@ public:
   /// The lamps on the section rules. Noise has an envelope and a tremolo like
   /// any other channel, so it gets those two. It has no pitch, so the pitch
   /// rule stays a plain rule, which is the same thing the "no pitch" label
-  /// above it is saying.
-  /// See ChannelStrip::setActivity.
+  /// above it is saying. See ChannelStrip::setActivity.
   void setActivity(float envelope, float tremolo,
                    juce::Array<juce::Rectangle<int>> &into);
 
@@ -50,6 +49,8 @@ public:
   void setHighlightedRow(Row);
 
 private:
+  void updateLevelReadout();
+
   using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
   using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
 
@@ -68,7 +69,10 @@ private:
       lift,
       release, amRate, amDepth, velocity, aftertouch, pan, volume;
   juce::TextButton muteButton{"M"}, soloButton{"S"};
-  juce::Label colourReadout, levelReadout;
+  /// COLOUR is a word rather than a figure, so it stays a label. The level is
+  /// the same reading a partial's is and is drawn the same way.
+  juce::Label colourReadout;
+  SegmentDisplay levelReadout{{}};
   LevelMeter meter;
   ActivityLamp envLamp, keyOffLamp, tremoloLamp;
 

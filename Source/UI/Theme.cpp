@@ -30,10 +30,15 @@ juce::Colour intervalColour(int pitchClass) {
 
 namespace {
 // -1 marks the one flexible row (the fader), which absorbs any leftover height.
+//
+// The two text rows are the height they are because of what stands in them.
+// Seven-segment digits are as wide as they are tall, so a row three pixels
+// shorter caps the cell width and a reading like -13.7 runs its figures into
+// each other. Three pixels on each of the two buys legible digits.
 constexpr int kRowHeights[kNumRows] = {
     26, // Header
     38, // TuneKnob
-    13, // TuneText
+    16, // TuneText
     30, // Phase
     15, // PitchModHeading
     30, // PmRate
@@ -58,7 +63,7 @@ constexpr int kRowHeights[kNumRows] = {
     30, // Pan
     20, // MuteSolo
     -1, // Fader
-    13  // FaderText
+    16  // FaderText
 };
 
 constexpr int kMinFaderHeight = 60;

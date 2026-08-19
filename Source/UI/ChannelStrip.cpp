@@ -84,6 +84,235 @@ int segmentsFor(int height) { return juce::jlimit(6, 24, height / 15); }
 
 // =============================================================================
 
+namespace {
+/// Which of the seven bars are lit for each character we can draw.
+///
+///      aaa
+///     f   b
+///      ggg
+///     e   c
+///      ddd
+constexpr uint8_t kSegA = 1, kSegB = 2, kSegC = 4, kSegD = 8, kSegE = 16,
+                  kSegF = 32, kSegG = 64;
+
+uint8_t segmentsFor(char c) {
+  switch (c) {
+  case '0':
+    return kSegA | kSegB | kSegC | kSegD | kSegE | kSegF;
+  case '1':
+    return kSegB | kSegC;
+  case '2':
+    return kSegA | kSegB | kSegG | kSegE | kSegD;
+  case '3':
+    return kSegA | kSegB | kSegG | kSegC | kSegD;
+  case '4':
+    return kSegF | kSegG | kSegB | kSegC;
+  case '5':
+    return kSegA | kSegF | kSegG | kSegC | kSegD;
+  case '6':
+    return kSegA | kSegF | kSegG | kSegE | kSegC | kSegD;
+  case '7':
+    return kSegA | kSegB | kSegC;
+  case '8':
+    return kSegA | kSegB | kSegC | kSegD | kSegE | kSegF | kSegG;
+  case '9':
+    return kSegA | kSegB | kSegC | kSegD | kSegF | kSegG;
+
+  // The few letters worth having. Enough for ET and for -inF, which are the
+  // two things these displays have to say that are not numbers. Lower case
+  // where the upper case letter has no seven-bar form, which is what a real
+  // display does rather than leaving the cell blank.
+  case 'E':
+    return kSegA | kSegD | kSegE | kSegF | kSegG;
+  case 'F':
+    return kSegA | kSegE | kSegF | kSegG;
+  case 't':
+    return kSegD | kSegE | kSegF | kSegG;
+  case 'n':
+    return kSegC | kSegE | kSegG;
+  case 'i':
+    return kSegC;
+
+  default:
+    return 0;
+  }
+}
+
+/// Whether a character rides in a narrow cell of its own rather than taking a
+/// whole digit's width.
+///
+/// The point and the sign both do, the way they do on a real display: the sign
+/// has a position rather than a digit, so +2.0 and -13.7 keep their figures in
+/// the same place instead of shuffling sideways.
+bool isNarrow(char c) { return c == '.' || c == '+' || c == '-'; }
+} // namespace
+
+bool SegmentDisplay::canDraw(char c) {
+  return isNarrow(c) || segmentsFor(c) != 0;
+}
+
+SegmentDisplay::SegmentDisplay(juce::String unit) : unitText(std::move(unit)) {}
+
+void SegmentDisplay::setReading(const juce::String &digits, bool isActive) {
+  if (digits == reading && isActive == active)
+    return;
+
+  reading = digits;
+  active = isActive;
+  repaint();
+}
+
+void SegmentDisplay::mouseUp(const juce::MouseEvent &e) {
+  if (onClick && contains(e.getPosition()))
+    onClick();
+}
+
+void SegmentDisplay::mouseEnter(const juce::MouseEvent &) {
+  // Only a display that does something answers the pointer. On a channel
+  // strip these are readouts, and thirty-three of them lighting up as the
+  // pointer crossed the mixer would be a lot of movement saying nothing.
+  if (onClick == nullptr)
+    return;
+
+  hovered = true;
+  repaint();
+}
+
+void SegmentDisplay::mouseExit(const juce::MouseEvent &) {
+  hovered = false;
+  repaint();
+}
+
+void SegmentDisplay::paintGlyph(juce::Graphics &g, juce::Rectangle<float> area,
+                                char c, juce::Colour on,
+                                juce::Colour off) const {
+  const auto lit = segmentsFor(c);
+
+  // Every bar is drawn whether it is on or not, which is what makes it read as
+  // a display with something switched off rather than as floating shapes.
+  const auto t = juce::jmax(1.0f, area.getHeight() * 0.16f);
+  const auto gap = t * 0.35f;
+  const auto w = area.getWidth();
+  const auto h = area.getHeight();
+  const auto mid = (h - t) * 0.5f;
+
+  struct Bar {
+    uint8_t flag;
+    juce::Rectangle<float> r;
+  };
+
+  const Bar bars[] = {
+      {kSegA, {t * 0.5f + gap, 0.0f, w - t - gap * 2.0f, t}},
+      {kSegB, {w - t, t * 0.5f + gap, t, mid - gap * 1.5f}},
+      {kSegC, {w - t, mid + t * 0.5f + gap * 0.5f, t, mid - gap * 1.5f}},
+      {kSegD, {t * 0.5f + gap, h - t, w - t - gap * 2.0f, t}},
+      {kSegE, {0.0f, mid + t * 0.5f + gap * 0.5f, t, mid - gap * 1.5f}},
+      {kSegF, {0.0f, t * 0.5f + gap, t, mid - gap * 1.5f}},
+      {kSegG, {t * 0.5f + gap, mid, w - t - gap * 2.0f, t}},
+  };
+
+  for (const auto &bar : bars) {
+    g.setColour((lit & bar.flag) != 0 ? on : off);
+    g.fillRoundedRectangle(bar.r.translated(area.getX(), area.getY()),
+                           t * 0.35f);
+  }
+}
+
+void SegmentDisplay::paint(juce::Graphics &g) {
+  auto area = getLocalBounds().toFloat().reduced(1.0f);
+
+  const auto on = active ? colours::accent : colours::textDim;
+  const auto off = on.withAlpha(hovered ? 0.20f : 0.12f);
+  const auto lit = on.withAlpha(active ? 0.95f : 0.75f);
+
+  // A recess, so the readout sits in the panel rather than on it, and so the
+  // unlit bars have something to be dark against.
+  g.setColour(colours::groove);
+  g.fillRoundedRectangle(area, 2.5f);
+
+  if (hovered) {
+    g.setColour(colours::outline);
+    g.drawRoundedRectangle(area.reduced(0.5f), 2.5f, 1.0f);
+  }
+
+  area = area.reduced(3.0f, 2.0f);
+
+  if (reading.isEmpty())
+    return;
+
+  // The point and the sign ride on narrow stripes of their own rather than
+  // taking a whole cell, the way they do on a real display.
+  int cells = 0, points = 0;
+
+  for (auto c : reading)
+    (isNarrow((char)c) ? points : cells) += 1;
+
+  if (cells < 1)
+    return;
+
+  // The unit only earns its place once the digits have what they need.
+  const auto unitW =
+      unitText.isNotEmpty() && area.getWidth() > 44.0f ? 21.0f : 0.0f;
+
+  // A point costs about a third of a digit, which is what the extra term in
+  // the denominator is buying.
+  const auto cellW =
+      juce::jmin((area.getWidth() - unitW) /
+                     ((float)cells + 0.32f * (float)points),
+                 area.getHeight() * 0.72f);
+
+  const auto glyphW = cellW * 0.82f;
+  const auto pointW = cellW * 0.32f;
+  const auto runW = cellW * (float)cells + pointW * (float)points;
+
+  // Centred as one block, so a three-character reading does not sit off to one
+  // side of a display sized for four.
+  auto x = area.getCentreX() - (runW + unitW) * 0.5f;
+
+  const auto digitArea = area.withX(x).withWidth(runW);
+
+  if (unitW > 0.0f) {
+    g.setColour(colours::textDim.withAlpha(0.8f));
+    g.setFont(makeFont(7.5f, true));
+    g.drawText(unitText,
+               area.withX(digitArea.getRight() + 2.0f).withWidth(unitW - 2.0f),
+               juce::Justification::centredLeft, false);
+  }
+
+  for (int i = 0; i < reading.length(); ++i) {
+    const auto c = (char)reading[i];
+
+    if (isNarrow(c)) {
+      // Same weight as a segment. The point sits on the baseline the segments
+      // end on, the sign across the middle where the g bar runs.
+      const auto t = juce::jmax(1.0f, digitArea.getHeight() * 0.16f);
+      const auto midY = digitArea.getCentreY() - t * 0.5f;
+
+      g.setColour(lit);
+
+      if (c == '.')
+        g.fillRoundedRectangle(x + (pointW - t) * 0.5f,
+                               digitArea.getBottom() - t, t, t, t * 0.35f);
+      else
+        g.fillRoundedRectangle(x, midY, pointW, t, t * 0.35f);
+
+      // ...and the upright that makes a plus out of a minus.
+      if (c == '+')
+        g.fillRoundedRectangle(x + (pointW - t) * 0.5f, midY - pointW * 0.5f,
+                               t, pointW, t * 0.35f);
+
+      x += pointW;
+      continue;
+    }
+
+    paintGlyph(g, {x, digitArea.getY(), glyphW, digitArea.getHeight()}, c, lit,
+               off);
+    x += cellW;
+  }
+}
+
+// =============================================================================
+
 void ActivityLamp::setBackdrop(juce::Colour behind) {
   backdrop = behind;
   setOpaque(true);
@@ -392,12 +621,11 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   soloAttachment = std::make_unique<ButtonAttachment>(
       apvts, params::oscParamId(params::soloSuffix, index), soloButton);
 
-  for (auto *l : {&tuneReadout, &levelReadout}) {
-    l->setJustificationType(juce::Justification::centred);
-    l->setFont(makeFont(10.0f));
-    l->setColour(juce::Label::textColourId, colours::textDim);
-    l->setInterceptsMouseClicks(false, false);
-    addAndMakeVisible(*l);
+  // Readouts rather than controls, so they take no clicks of their own and
+  // the strip underneath goes on reporting which row the pointer is over.
+  for (auto *d : {&tuneReadout, &levelReadout}) {
+    d->setInterceptsMouseClicks(false, false);
+    addAndMakeVisible(*d);
   }
 
   addAndMakeVisible(meter);
@@ -470,24 +698,36 @@ void ChannelStrip::updateTuneReadout() {
   const auto cents = blend * info.jiCents;
 
   juce::String text;
+  auto active = true;
 
-  if (std::abs(info.jiCents) < 0.05)
-    text = "0.0"; // the octaves are the same either way
-  else if (blend <= 0.0005)
-    text = "ET";
-  else
-    text = (cents >= 0.0 ? "+" : "") + juce::String(cents, 1);
+  if (std::abs(info.jiCents) < 0.05) {
+    // The octaves land in the same place either way, so there is nothing for
+    // the knob to do and the display says so rather than implying a choice.
+    text = "0.0";
+    active = false;
+  } else if (blend <= 0.0005) {
+    text = "Et";
+    active = false;
+  } else {
+    text = (cents >= 0.0 ? "+" : "-") + juce::String(std::abs(cents), 1);
+  }
 
-  tuneReadout.setText(text, juce::dontSendNotification);
+  tuneReadout.setReading(text, active);
 }
 
 void ChannelStrip::updateLevelReadout() {
   const auto v = (float)volume.getValue();
 
-  levelReadout.setText(v <= 0.0005f
-                           ? juce::String("-inf")
-                           : juce::String(juce::Decibels::gainToDecibels(v), 1),
-                       juce::dontSendNotification);
+  // A fader all the way down has no decibels to report, and saying so is more
+  // use than a floor figure that looks like a setting. Dimmed, since it is the
+  // one reading that is not a level.
+  if (v <= 0.0005f)
+    return levelReadout.setReading("-inF", false);
+
+  const auto db = juce::Decibels::gainToDecibels(v);
+
+  levelReadout.setReading(
+      (db >= 0.0f ? "" : "-") + juce::String(std::abs(db), 1), true);
 }
 
 void ChannelStrip::setSilencedByOthers(bool shouldDim) {

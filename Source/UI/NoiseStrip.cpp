@@ -84,15 +84,20 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
   soloAttachment = std::make_unique<ButtonAttachment>(
       apvts, params::noiseParamId(params::soloSuffix), soloButton);
 
-  for (auto *l : {&colourReadout, &levelReadout}) {
-    l->setJustificationType(juce::Justification::centred);
-    l->setFont(makeFont(10.0f));
-    l->setColour(juce::Label::textColourId, colours::textDim);
-    l->setInterceptsMouseClicks(false, false);
-    addAndMakeVisible(*l);
-  }
-
+  colourReadout.setJustificationType(juce::Justification::centred);
+  colourReadout.setFont(makeFont(10.0f));
+  colourReadout.setColour(juce::Label::textColourId, colours::textDim);
+  colourReadout.setInterceptsMouseClicks(false, false);
+  addAndMakeVisible(colourReadout);
   colourReadout.setText("colour", juce::dontSendNotification);
+
+  levelReadout.setInterceptsMouseClicks(false, false);
+  addAndMakeVisible(levelReadout);
+
+  // It never had a reading before, so the noise channel was the one strip with
+  // nothing under its fader.
+  volume.onValueChange = [this] { updateLevelReadout(); };
+  updateLevelReadout();
 
   setTooltip("Noise channel. It has the same envelope, tremolo, velocity and "
              "aftertouch as a partial, but no pitch, so no tuning, pitch "
@@ -187,6 +192,18 @@ void NoiseStrip::paint(juce::Graphics &g) {
   g.setColour(colours::textDim.withAlpha(0.5f));
   g.setFont(makeFont(9.0f));
   g.drawText("no pitch", absent, juce::Justification::centred, false);
+}
+
+void NoiseStrip::updateLevelReadout() {
+  const auto v = (float)volume.getValue();
+
+  if (v <= 0.0005f)
+    return levelReadout.setReading("-inF", false);
+
+  const auto db = juce::Decibels::gainToDecibels(v);
+
+  levelReadout.setReading(
+      (db >= 0.0f ? "" : "-") + juce::String(std::abs(db), 1), true);
 }
 
 void NoiseStrip::setActivity(float envelope, float tremolo,

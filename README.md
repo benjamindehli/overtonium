@@ -336,6 +336,20 @@ Each voice runs its own noise stream, so playing a chord does not layer 8 copies
 
 LINK gangs the 32 partials only. Its tuning, pitch modulation and drift have no noise counterpart, and having some ganged controls reach the noise channel while others could not would be worse than having none of them do.
 
+### The two readouts
+
+Each channel carries two figures, the cents its tuning knob is worth and the level its fader is at, and both are drawn as seven-segment displays rather than as text. They are the same component as the converter readouts on the bar, which is the point: a number the instrument is reporting back looks different from a number you typed, and there are enough of them on a mixer this wide for that to be worth saying.
+
+Two of the things they show are not numbers. A partial left in equal temperament reads **Et**, and a fader all the way down reads **-inF**, both dimmed, because a statement of fact is not a level. The lower case t is what a real display does with a letter that has no seven-bar form, rather than leaving the cell blank. The fundamental and the octaves read a dimmed **0.0**: their just interval is the note itself, so there is nothing for the knob to do and saying so beats implying a choice.
+
+The sign rides on a narrow cell of its own rather than taking a digit, again the way a real display does it, so **+2.0** and **-13.7** keep their figures in the same place instead of shuffling sideways as the value crosses zero.
+
+Both rows grew from thirteen pixels to sixteen. Seven-segment digits are about as wide as they are tall, so the row height caps the cell width, and at thirteen a reading like -13.7 ran its figures into each other. Three pixels on each of the two rows is what it costs to be able to read them.
+
+The risk in replacing a label with one of these is a reading the display has no way to draw: a label renders anything, a segment display quietly shows an unlit digit instead. So the test generates every reading the two readouts can produce across both their ranges and asserts that each character has a form.
+
+The noise channel's level now reads too. It had the display and never a reading, so it was the one strip with nothing under its fader.
+
 ### Lamps on the rules
 
 The rules that divide a strip into groups carry a lamp each, showing what the group under them is doing to this partial right now. They cost no height, because the rule was already using that row to draw a line.
