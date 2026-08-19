@@ -18,6 +18,11 @@ jobs:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
 
+    # A ceiling rather than a target. Nothing here should come near it, and the
+    # default is six hours, which is what a step that hangs rather than fails
+    # will happily sit through.
+    timeout-minutes: 45
+
     strategy:
       # One platform failing should not hide what the other two would have
       # said, which is usually the thing that tells you which it is.
@@ -38,10 +43,30 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # The hosted runners reach apt through an Azure mirror that intermittently
+      # stops answering. Apt's own default is to wait on it for a very long
+      # time and then fall back, which turns a mirror having a bad afternoon
+      # into a job that sits for hours instead of failing. Short timeouts and a
+      # few retries make it either work or give up quickly enough to re-run.
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
+        timeout-minutes: 10
         run: |
-          sudo apt-get update
+          sudo tee /etc/apt/apt.conf.d/99-overtonium-timeouts >/dev/null <<'CONF'
+          Acquire::Retries "3";
+          Acquire::http::Timeout "20";
+          Acquire::https::Timeout "20";
+          CONF
+
+          for attempt in 1 2 3; do
+            if sudo apt-get update; then
+              break
+            fi
+
+            echo "apt-get update failed on attempt $attempt, retrying"
+            sleep 10
+          done
+
           sudo apt-get install --no-install-recommends -y \
             libasound2-dev libfreetype-dev libfontconfig1-dev libx11-dev \
             libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev \
@@ -70,6 +95,7 @@ jobs:
   dsp-core:
     name: DSP core, no build system
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     # The README claims the DSP core has no JUCE dependency and compiles from a
     # bare compiler. That is worth holding to, so it is checked rather than
