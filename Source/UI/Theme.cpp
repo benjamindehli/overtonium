@@ -167,10 +167,15 @@ void repaintRowHighlight(juce::Component &c, const RowBounds &rows, Row row) {
 
 void mergeIntoRows(juce::Array<juce::Rectangle<int>> &regions) {
   for (int i = 0; i < regions.size(); ++i) {
-    auto &band = regions.getReference(i);
+    // Copies, not references into the array. Array::remove shrinks the
+    // storage once the capacity is more than twice the size, and a reference
+    // held across that is pointing at freed memory. Whether it survives comes
+    // down to the allocator: shrinking in place, as glibc does, hides it, and
+    // moving the block, as macOS does, gives garbage.
+    auto band = regions.getUnchecked(i);
 
     for (int j = regions.size(); --j > i;) {
-      const auto &other = regions.getReference(j);
+      const auto other = regions.getUnchecked(j);
 
       if (other.getY() != band.getY() ||
           other.getHeight() != band.getHeight())
@@ -179,6 +184,8 @@ void mergeIntoRows(juce::Array<juce::Rectangle<int>> &regions) {
       band = band.getUnion(other);
       regions.remove(j);
     }
+
+    regions.set(i, band);
   }
 }
 
