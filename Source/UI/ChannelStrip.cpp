@@ -750,12 +750,25 @@ void ChannelStrip::mouseExit(const juce::MouseEvent &e) { reportHover(e); }
 void ChannelStrip::reportHover(const juce::MouseEvent &e) {
   const auto p = e.getEventRelativeTo(this).getPosition();
   const auto rows = layoutRows(getLocalBounds().reduced(2, 4));
+  const auto inside = getLocalBounds().contains(p);
 
   // Leaving one knob for the next fires the exit before the enter, so the
   // answer is always worked out from where the pointer now is rather than from
   // which callback arrived.
-  hover.hoverChanged(index, getLocalBounds().contains(p) ? controlRowAt(rows, p)
-                                                         : kNoRow);
+  hover.hoverChanged(index, inside ? controlRowAt(rows, p) : kNoRow);
+
+  // The channel highlight is the strip's own business rather than the
+  // editor's, for the same reason: worked out from the pointer, it cannot be
+  // left lit by an exit and an enter arriving in the wrong order.
+  if (inside != hovered) {
+    hovered = inside;
+    repaint();
+  }
+}
+
+void ChannelStrip::paintOverChildren(juce::Graphics &g) {
+  if (hovered)
+    paintColumnHighlight(g, getLocalBounds());
 }
 
 void ChannelStrip::setHighlightedRow(Row row) {
@@ -868,7 +881,10 @@ void ChannelStrip::paint(juce::Graphics &g) {
 
   header.removeFromTop(1);
 
-  g.setColour(colours::text);
+  // Accent when the pointer is on this channel, which is exactly what the
+  // gutter does to the caption of the row it is on. The number is the name of
+  // the channel, so lighting it is the same gesture.
+  g.setColour(hovered ? colours::accent : colours::text);
   g.setFont(makeFont(14.0f, true));
   g.drawText(juce::String(info.harmonic), header.removeFromTop(14),
              juce::Justification::centred, false);

@@ -302,6 +302,14 @@ Double-clicking any knob restores its default. Hovering a harmonic number shows 
 
 Pointing at a knob picks out its row all the way across the mixer, through every strip and the noise channel, and brightens the one caption in the gutter that names it. Out at harmonic 28 that caption is a long way to the left, and following a band back to it beats counting rows. The two readouts count as part of the control above them, so drifting off the tuning knob onto its cent figure does not put the highlight out.
 
+The channel under the pointer is marked the same way, bracketed by a rule down each side with the same wash between them, and its number at the head of the strip goes accent exactly as the gutter caption does for the row. The row answers which of the twenty-one controls you are on and the column answers which of the thirty-three channels, and where the two cross is the knob a drag would actually move. Thirty-eight pixels of strip is not much to aim at with a mixer this wide.
+
+The lit number is what makes the rest of it work. A column at the row's weight is very nearly invisible on its own, because a row band crosses thirty-three channels of the same shade while a column stands between two neighbours that are already a different shade from it, since the strips alternate. Marking the number instead of leaning on the wash is both the legible answer and the consistent one: the row's whole gesture is that the name of the control lights up, and the number is the name of the channel.
+
+One thing about the column does have to differ. It is drawn over the children rather than behind them. The row can sit underneath because what it crosses is knobs, which have transparent corners for it to show through, but a column crosses the meter and the lamps, and those paint their own backgrounds so the strip beneath them does not have to. Behind those it would simply disappear, leaving the channel marked everywhere except the parts with something in them.
+
+Each strip works out whether it is the hovered one from where the pointer is, rather than being told by the editor. Leaving one strip for the next fires an exit and an enter that can arrive either way round, and reading the pointer gives the same answer whichever order they come in. The test drives both orders.
+
 The faders and the mute and solo buttons are left out of it. Those two rows are unmistakable already, and a wash the height of a whole fader was a lot of paint to say so.
 
 Knobs show their value as a ring of discrete ticks rather than a continuous arc, which suits an instrument that is itself built from 32 discrete partials and reads more like a measurement device than a mixing desk. Faders carry a scale in the same tick language.

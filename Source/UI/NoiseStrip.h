@@ -23,6 +23,11 @@ public:
              HoverTarget &hoverTarget, juce::Component &popupParent);
 
   void paint(juce::Graphics &) override;
+
+  /// The channel highlight. See ChannelStrip::paintOverChildren for why it
+  /// goes over the children rather than behind them.
+  void paintOverChildren(juce::Graphics &) override;
+
   void resized() override;
 
   void mouseEnter(const juce::MouseEvent &) override;
@@ -43,6 +48,9 @@ public:
   /// above it is saying. See ChannelStrip::setActivity.
   void setActivity(float envelope, float tremolo,
                    juce::Array<juce::Rectangle<int>> &into);
+
+  /// Whether the pointer is on this channel, which is what lights the column.
+  bool isHovered() const noexcept { return hovered; }
 
   /// Takes part in the row highlight, so the band crosses the noise channel
   /// too. LINK never reaches it, so there is nothing here to arm.
@@ -81,6 +89,7 @@ private:
 
   bool silenced = false;
   Row highlighted = kNoRow;
+  bool hovered = false;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NoiseStrip)
 };

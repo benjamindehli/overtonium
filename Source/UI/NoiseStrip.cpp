@@ -136,11 +136,21 @@ void NoiseStrip::mouseExit(const juce::MouseEvent &e) { reportHover(e); }
 void NoiseStrip::reportHover(const juce::MouseEvent &e) {
   const auto p = e.getEventRelativeTo(this).getPosition();
   const auto rows = layoutRows(getLocalBounds().reduced(2, 4));
+  const auto inside = getLocalBounds().contains(p);
 
   // -1 says the pointer is off the harmonic series, which is what stops a
   // hover here from arming a LINK preview.
-  hover.hoverChanged(-1, getLocalBounds().contains(p) ? controlRowAt(rows, p)
-                                                      : kNoRow);
+  hover.hoverChanged(-1, inside ? controlRowAt(rows, p) : kNoRow);
+
+  if (inside != hovered) {
+    hovered = inside;
+    repaint();
+  }
+}
+
+void NoiseStrip::paintOverChildren(juce::Graphics &g) {
+  if (hovered)
+    paintColumnHighlight(g, getLocalBounds());
 }
 
 void NoiseStrip::setHighlightedRow(Row row) {
@@ -167,7 +177,8 @@ void NoiseStrip::paint(juce::Graphics &g) {
 
   header.removeFromTop(1);
 
-  g.setColour(colours::text);
+  // Accent when hovered, the same as a numbered channel. See ChannelStrip.
+  g.setColour(hovered ? colours::accent : colours::text);
   g.setFont(makeFont(11.0f, true));
   g.drawText("NZ", header.removeFromTop(14), juce::Justification::centred,
              false);

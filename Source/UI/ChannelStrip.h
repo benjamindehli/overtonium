@@ -275,6 +275,17 @@ public:
                juce::Component &popupParent, int index0);
 
   void paint(juce::Graphics &) override;
+
+  /// The channel highlight, drawn over everything rather than behind it.
+  ///
+  /// The row wash can sit behind the children because the things it crosses
+  /// are knobs, which have transparent corners for it to show through. A
+  /// column crosses the meter and the lamps, which paint their own backgrounds
+  /// so the strip underneath does not have to, and behind those it would
+  /// simply disappear, leaving the channel marked everywhere except the parts
+  /// with something in them.
+  void paintOverChildren(juce::Graphics &) override;
+
   void resized() override;
 
   void mouseEnter(const juce::MouseEvent &) override;
@@ -325,6 +336,9 @@ public:
   /// params::kMaxPitchDisplacementCents, so a shallow setting stays near the
   /// middle instead of using the whole width like a deep one.
   static float needlePosition(float cents);
+
+  /// Whether the pointer is on this channel, which is what lights the column.
+  bool isHovered() const noexcept { return hovered; }
 
   /// Picks out one row, or kNoRow to clear. Every strip is told the same row,
   /// so the highlight runs the width of the mixer.
@@ -381,6 +395,7 @@ private:
   bool silenced = false;
 
   Row highlighted = kNoRow;
+  bool hovered = false;
   Role glowRole = Role::Tune;
   float glowAmount = 0.0f;
 

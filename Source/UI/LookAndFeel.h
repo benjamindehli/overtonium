@@ -54,6 +54,13 @@ void paintChannelBackground(juce::Graphics &, juce::Rectangle<int> bounds,
 /// caption in the gutter to the channel your hand is on.
 void paintRowHighlight(juce::Graphics &, juce::Rectangle<int> row);
 
+/// The same wash turned on its side, marking the channel under the pointer.
+///
+/// The row highlight answers which control you are on, out of twenty-one. This
+/// answers which channel, out of thirty-three, and the two crossing is what
+/// tells you at a glance that you are about to drag the decay of harmonic 19.
+void paintColumnHighlight(juce::Graphics &, juce::Rectangle<int> strip);
+
 /// The product wordmark, for the corner of the bar.
 juce::Image logoWordmark();
 

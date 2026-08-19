@@ -60,6 +60,25 @@ void paintRowHighlight(juce::Graphics &g, juce::Rectangle<int> row) {
   g.fillRect(r.getX(), r.getBottom() - 1.0f, r.getWidth(), 1.0f);
 }
 
+void paintColumnHighlight(juce::Graphics &g, juce::Rectangle<int> strip) {
+  const auto r = strip.toFloat();
+
+  // The same wash and the same edges as the row, at the same weights, so a
+  // channel and a row read as one idea seen twice.
+  //
+  // Light enough to disappear into the shading between neighbouring strips if
+  // it had to carry the job on its own, which it does not: the channel number
+  // at the head of the strip goes accent, the way the gutter caption does for
+  // the row. The mark that says which is the lit label, and the wash is only
+  // there to join it to the rest of the channel.
+  g.setColour(colours::accent.withAlpha(0.045f));
+  g.fillRect(r);
+
+  g.setColour(colours::accent.withAlpha(0.16f));
+  g.fillRect(r.getX(), r.getY(), 1.0f, r.getHeight());
+  g.fillRect(r.getRight() - 1.0f, r.getY(), 1.0f, r.getHeight());
+}
+
 juce::Image linkCursorImage(LinkCurve curve, float scale) {
   constexpr int size = 30;
 

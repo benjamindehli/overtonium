@@ -1081,6 +1081,143 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
             readingFor(6, 1.0f).toStdString() + ")");
 }
 
+/// The channel highlight, which marks the column the pointer is on.
+///
+/// The row band answers which of the twenty-one controls you are on. This
+/// answers which of the thirty-three channels, and the two crossing is what
+/// tells you at a glance which knob a drag would actually move.
+///
+/// Each strip works it out from where the pointer is rather than being told by
+/// the editor, so what is checked here is that the answer follows the pointer
+/// and that exactly one channel ever claims it.
+void testChannelHover(OvertoniumProcessor &p) {
+  section("Channel hover");
+
+  using namespace ovt::ui;
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  editor->setSize(1348, 1010);
+
+  std::vector<ChannelStrip *> strips;
+  std::vector<NoiseStrip *> noise;
+
+  std::function<void(juce::Component &)> gather = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (auto *s = dynamic_cast<ChannelStrip *>(child))
+        strips.push_back(s);
+      if (auto *n = dynamic_cast<NoiseStrip *>(child))
+        noise.push_back(n);
+
+      gather(*child);
+    }
+  };
+  gather(*editor);
+
+  check(strips.size() == (size_t)ovt::kNumHarmonics && noise.size() == 1,
+        "the mixer is all there");
+  if (strips.empty() || noise.empty())
+    return;
+
+  // A pointer event landing on a component at a point of our choosing, which
+  // is the only way to move a pointer with no pointer.
+  const auto pointAt = [](juce::Component &c, juce::Point<int> local) {
+    return juce::MouseEvent(juce::Desktop::getInstance().getMainMouseSource(),
+                            local.toFloat(), juce::ModifierKeys(), 1.0f, 0.0f,
+                            0.0f, 0.0f, 0.0f, &c, &c,
+                            juce::Time::getCurrentTime(), local.toFloat(),
+                            juce::Time::getCurrentTime(), 1, false);
+  };
+
+  const auto litCount = [&]() {
+    int n = 0;
+    for (auto *s : strips)
+      n += s->isHovered() ? 1 : 0;
+
+    return n + (noise.front()->isHovered() ? 1 : 0);
+  };
+
+  check(litCount() == 0, "nothing is lit before the pointer arrives (" +
+                             std::to_string(litCount()) + ")");
+
+  // ---- it follows the pointer ---------------------------------------------
+  auto &first = *strips[3];
+  const juce::Point<int> inside{first.getWidth() / 2, first.getHeight() / 2};
+
+  first.mouseEnter(pointAt(first, inside));
+
+  check(first.isHovered(), "the channel under the pointer lights");
+  check(litCount() == 1, "and it is the only one (" +
+                             std::to_string(litCount()) + ")");
+
+  // ---- crossing to the next one -------------------------------------------
+  //
+  // Leaving one strip for the next fires the exit before the enter, and the
+  // answer has to come out the same either way round, which is why each strip
+  // reads the pointer rather than trusting the order it is told things in.
+  auto &second = *strips[4];
+
+  first.mouseExit(pointAt(first, {first.getWidth() + 4, inside.y}));
+  second.mouseEnter(pointAt(second, inside));
+
+  check(!first.isHovered() && second.isHovered(),
+        "moving along hands the highlight over");
+  check(litCount() == 1, "still only one channel lit");
+
+  // ...and in the other order, which is the case that catches a highlight
+  // being cleared by an exit that arrives late.
+  auto &third = *strips[5];
+
+  third.mouseEnter(pointAt(third, inside));
+  second.mouseExit(pointAt(second, {-4, inside.y}));
+
+  check(!second.isHovered() && third.isHovered(),
+        "and so does an exit arriving after the next enter");
+  check(litCount() == 1, "with no channel left lit behind it");
+
+  // ---- the noise channel counts as a channel ------------------------------
+  auto &nz = *noise.front();
+  const juce::Point<int> inNoise{nz.getWidth() / 2, nz.getHeight() / 2};
+
+  nz.mouseEnter(pointAt(nz, inNoise));
+  third.mouseExit(pointAt(third, {-4, inside.y}));
+
+  check(nz.isHovered(), "the noise channel lights like any other");
+  check(litCount() == 1, "and nothing else is (" + std::to_string(litCount()) +
+                             ")");
+
+  // ---- leaving the mixer --------------------------------------------------
+  nz.mouseExit(pointAt(nz, {inNoise.x, nz.getHeight() + 40}));
+
+  check(litCount() == 0, "and taking the pointer off the mixer clears it (" +
+                             std::to_string(litCount()) + ")");
+
+  // A point inside the strip but on a row that has nothing to point at, such
+  // as a section rule, still belongs to that channel: the column says which
+  // channel, not which control.
+  auto &fourth = *strips[7];
+  const auto rules =
+      layoutRows(juce::Rectangle<int>(0, 0, kStripWidth, fourth.getHeight())
+                     .reduced(2, 4));
+  const auto onRule = rules[(size_t)Row::EnvHeading].getCentre();
+
+  fourth.mouseEnter(pointAt(fourth, onRule));
+
+  check(controlRowAt(rules, onRule) == kNoRow,
+        "a section rule is not a control");
+  check(fourth.isHovered(),
+        "but the channel it is on still lights, since the column answers a "
+        "different question from the row");
+
+  fourth.mouseExit(pointAt(fourth, {-4, onRule.y}));
+  check(litCount() == 0, "and clears again");
+}
+
 void testLinkCurves() {
   section("Link scopes and curves");
 
@@ -2321,6 +2458,7 @@ int main() {
   testMpe(processor);
   testActivityLamps(processor);
   testSegmentReadouts(processor);
+  testChannelHover(processor);
   testUserPresets(processor);
   testMasterEffects(processor);
   testLinkCurves();
