@@ -49,13 +49,25 @@ std::unique_ptr<juce::Drawable> logoMakersMark() {
                                              BinaryData::dehlimusikk_svgSize);
 }
 
+namespace {
+/// How hard the hover marks sit on the panel.
+///
+/// Named once and shared by the row and the column, because the two are meant
+/// to be one idea seen twice and would be worth nothing as a pair if they
+/// could drift apart. Light: neither has to carry the job alone, since the
+/// gutter caption and the channel number both go accent to say which is which,
+/// and the wash is only there to join the lit label to the rest of its band.
+constexpr float kHoverWash = 0.035f;
+constexpr float kHoverEdge = 0.13f;
+} // namespace
+
 void paintRowHighlight(juce::Graphics &g, juce::Rectangle<int> row) {
   const auto r = row.toFloat();
 
-  g.setColour(colours::accent.withAlpha(0.045f));
+  g.setColour(colours::accent.withAlpha(kHoverWash));
   g.fillRect(r);
 
-  g.setColour(colours::accent.withAlpha(0.16f));
+  g.setColour(colours::accent.withAlpha(kHoverEdge));
   g.fillRect(r.getX(), r.getY(), r.getWidth(), 1.0f);
   g.fillRect(r.getX(), r.getBottom() - 1.0f, r.getWidth(), 1.0f);
 }
@@ -63,18 +75,10 @@ void paintRowHighlight(juce::Graphics &g, juce::Rectangle<int> row) {
 void paintColumnHighlight(juce::Graphics &g, juce::Rectangle<int> strip) {
   const auto r = strip.toFloat();
 
-  // The same wash and the same edges as the row, at the same weights, so a
-  // channel and a row read as one idea seen twice.
-  //
-  // Light enough to disappear into the shading between neighbouring strips if
-  // it had to carry the job on its own, which it does not: the channel number
-  // at the head of the strip goes accent, the way the gutter caption does for
-  // the row. The mark that says which is the lit label, and the wash is only
-  // there to join it to the rest of the channel.
-  g.setColour(colours::accent.withAlpha(0.045f));
+  g.setColour(colours::accent.withAlpha(kHoverWash));
   g.fillRect(r);
 
-  g.setColour(colours::accent.withAlpha(0.16f));
+  g.setColour(colours::accent.withAlpha(kHoverEdge));
   g.fillRect(r.getX(), r.getY(), 1.0f, r.getHeight());
   g.fillRect(r.getRight() - 1.0f, r.getY(), 1.0f, r.getHeight());
 }
