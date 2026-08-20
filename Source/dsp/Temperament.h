@@ -34,9 +34,15 @@ inline const char *temperamentName(Temperament t) {
     return "Werckmeister III";
   case Temperament::Young:
     return "Young";
-  default:
-    return "Equal";
+
+  // Listed rather than left to a default, so adding a temperament is a
+  // compiler error here until it has been given a name.
+  case Temperament::Equal:
+  case Temperament::NumTemperaments:
+    break;
   }
+
+  return "Equal";
 }
 
 namespace tuning {

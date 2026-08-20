@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include "Exact.h"
+
 namespace ovt {
 
 /// Per-partial envelope: delay plus ADSR on the way in, and a two-stage key-off
@@ -42,9 +44,10 @@ public:
   /// moves.
   void configure(float delay, float a, float d, float s, float swell,
                  float offLvl, float r) noexcept {
-    if (!dirty && delay == delayTime && a == attackTime && d == decayTime &&
-        s == sustainLevel && swell == swellTime && offLvl == offLevel &&
-        r == releaseTime)
+    if (!dirty && exactly(delay, delayTime) && exactly(a, attackTime) &&
+        exactly(d, decayTime) && exactly(s, sustainLevel) &&
+        exactly(swell, swellTime) && exactly(offLvl, offLevel) &&
+        exactly(r, releaseTime))
       return;
 
     delayTime = delay;

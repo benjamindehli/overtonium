@@ -3,6 +3,8 @@
 #include <array>
 #include <cmath>
 
+#include "Exact.h"
+
 namespace ovt {
 
 /// Number of sine partials per voice.
@@ -88,7 +90,7 @@ inline const HarmonicInfo &harmonic(int index0) noexcept {
 ///                      and says nothing to anyone. Zero is the plain harmonic
 ///                      series, negative compresses it.
 inline double inharmonicCents(int index0, double stretchCents) noexcept {
-  if (stretchCents == 0.0)
+  if (exactly(stretchCents, 0.0))
     return 0.0;
 
   constexpr double top = (double)kNumHarmonics;

@@ -313,7 +313,7 @@ double SynthEngine::lofiRenderRate(const SynthParams &p) const noexcept {
 }
 
 void SynthEngine::setRenderRate(double rate) noexcept {
-  if (rate == renderRate)
+  if (exactly(rate, renderRate))
     return;
 
   renderRate = rate;

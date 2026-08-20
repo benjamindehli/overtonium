@@ -149,7 +149,7 @@ void OvertoniumProcessor::updateAftertouch() {
     currentParams.global.aftertouch = modWheel;
     break;
 
-  default:
+  case AftertouchSource::Either:
     currentParams.global.aftertouch = juce::jmax(channelPressure, modWheel);
     break;
   }

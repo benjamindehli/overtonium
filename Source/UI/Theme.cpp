@@ -124,9 +124,23 @@ bool rowHasControl(Row r) {
   case Row::Fader:
     return true;
 
-  default:
+  // The rest carry no control: the header, the rules between the groups, and
+  // the two readouts, which answer with the control above them instead. Spelt
+  // out rather than left to a default so a new row has to be placed on one
+  // side or the other before it will build.
+  case Row::Header:
+  case Row::TuneText:
+  case Row::PitchModHeading:
+  case Row::EnvHeading:
+  case Row::KeyOffHeading:
+  case Row::AmpModHeading:
+  case Row::OutputHeading:
+  case Row::FaderText:
+  case Row::NumRows:
     return false;
   }
+
+  return false;
 }
 } // namespace
 
@@ -140,15 +154,18 @@ Row controlRowAt(const RowBounds &rows, juce::Point<int> p) {
     if (p.y < row.getY() || p.y >= row.getBottom())
       continue;
 
-    switch ((Row)i) {
-    case Row::TuneText:
+    // Two rows answer with the control above them, and everything else
+    // answers for itself. Two exceptions read better as exceptions than as a
+    // switch over twenty-eight rows to say something about two of them.
+    const auto here = (Row)i;
+
+    if (here == Row::TuneText)
       return Row::TuneKnob;
-    case Row::FaderText:
+
+    if (here == Row::FaderText)
       return Row::Fader;
 
-    default:
-      return rowHasControl((Row)i) ? (Row)i : kNoRow;
-    }
+    return rowHasControl(here) ? here : kNoRow;
   }
 
   return kNoRow;
@@ -530,9 +547,22 @@ bool roleForRow(Row r, Role &out) {
     out = Role::Volume;
     return true;
 
-  default:
+  // The rows LINK has nothing to reach: the header, the rules, the two
+  // readouts, and mute and solo, which are switches rather than values.
+  case Row::Header:
+  case Row::TuneText:
+  case Row::PitchModHeading:
+  case Row::EnvHeading:
+  case Row::KeyOffHeading:
+  case Row::AmpModHeading:
+  case Row::OutputHeading:
+  case Row::MuteSolo:
+  case Row::FaderText:
+  case Row::NumRows:
     return false;
   }
+
+  return false;
 }
 
 } // namespace ovt::ui

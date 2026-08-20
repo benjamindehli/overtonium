@@ -23,6 +23,7 @@
 #include "UI/NoiseStrip.h"
 #include "UI/Theme.h"
 #include "UI/TopBar.h"
+#include "dsp/Exact.h"
 #include "dsp/TapeEcho.h"
 
 namespace {
@@ -758,16 +759,17 @@ void testActivityLamps(OvertoniumProcessor &p) {
       return param != nullptr ? param->getNormalisableRange().end : -1.0f;
     };
 
-    check(rangeEnd(ovt::params::pmDepthSuffix) ==
-              ovt::params::kMaxPitchModCents,
+    check(ovt::exactly(rangeEnd(ovt::params::pmDepthSuffix),
+                       ovt::params::kMaxPitchModCents),
           "the pitch modulation maximum matches its own knob (" +
               std::to_string(rangeEnd(ovt::params::pmDepthSuffix)) + ")");
 
-    check(rangeEnd(ovt::params::driftSuffix) == ovt::params::kMaxDriftCents,
+    check(ovt::exactly(rangeEnd(ovt::params::driftSuffix),
+                       ovt::params::kMaxDriftCents),
           "and so does the drift maximum (" +
               std::to_string(rangeEnd(ovt::params::driftSuffix)) + ")");
 
-    check(ChannelStrip::needlePosition(0.0f) == 0.0f,
+    check(ovt::exactly(ChannelStrip::needlePosition(0.0f), 0.0f),
           "an unmodulated partial sits dead centre");
 
     check(std::abs(ChannelStrip::needlePosition(
@@ -781,13 +783,12 @@ void testActivityLamps(OvertoniumProcessor &p) {
           "and flat is the mirror of sharp");
 
     // Nothing past the ends, whatever arrives.
-    check(ChannelStrip::needlePosition(10000.0f) == 1.0f &&
-              ChannelStrip::needlePosition(-10000.0f) == -1.0f,
+    check(ovt::exactly(ChannelStrip::needlePosition(10000.0f), 1.0f) &&
+              ovt::exactly(ChannelStrip::needlePosition(-10000.0f), -1.0f),
           "and it cannot be driven off the end");
 
-    // The thing that was wrong before: a shallow setting used the whole
-    // width, because the scale was the strip's own. It has to stay well
-    // inside now.
+    // A shallow setting has to stay well inside the travel, which is what a
+    // scale normalised to each strip's own depth would not do.
     const auto shallow = ChannelStrip::needlePosition(5.0f);
     const auto deep = ChannelStrip::needlePosition(200.0f);
 
