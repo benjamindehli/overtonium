@@ -41,7 +41,7 @@ jobs:
             os: windows-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # The hosted runners reach apt through an Azure mirror that intermittently
       # stops answering. Apt's own default is to wait on it for a very long
@@ -101,7 +101,7 @@ jobs:
     # bare compiler. That is worth holding to, so it is checked rather than
     # asserted: no CMake, no JUCE, no third-party headers.
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Compile and run
         run: |

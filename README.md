@@ -76,6 +76,21 @@ Both run in CI on macOS, Windows and Linux on every push and pull request, build
 
 Pass `-DOVERTONIUM_INSTALL_AFTER_BUILD=OFF` to skip copying the built plugins into your user plugin folders, which is what CI does and what you want on any machine with no host to rescan them.
 
+### Releases
+
+Pushing a tag that starts with `v` builds the plugin on all three platforms and attaches the archives to a GitHub release:
+
+```
+git tag -a v0.1.0 -m "Overtonium 0.1.0"
+git push origin v0.1.0
+```
+
+Each platform gets one zip holding every format it can build, plus the readme and the licence. macOS gets VST3, AU and Standalone as a universal binary covering Apple Silicon and Intel, Linux gets VST3, LV2 and Standalone, and Windows gets VST3 and Standalone. The tests run before anything is packaged, so a tag that does not pass them produces no release.
+
+The same workflow can be started by hand from the Actions tab. That builds and uploads the archives against the run without publishing anything, which is how to exercise the packaging without spending a version number on it.
+
+The macOS bundles are signed ad-hoc. That is what lets them load on Apple Silicon at all, where an unsigned bundle is refused outright, and it is not the same as being notarised: a download still has to have its quarantine flag cleared, which the release notes explain. Notarising properly needs a Developer ID certificate and an app-specific password held as repository secrets.
+
 ### The page
 
 `docs/` holds a single static page, served by GitHub Pages from the `main` branch. There is no generator and no build step: it is one HTML file, one stylesheet and four images, so what is in the repo is what gets served. `.nojekyll` is there to stop GitHub running Jekyll over it.
