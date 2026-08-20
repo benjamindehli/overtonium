@@ -51,6 +51,15 @@ bool save(juce::AudioProcessorValueTreeState &, const juce::String &name,
 bool load(juce::AudioProcessorValueTreeState &, const juce::File &,
           juce::String &error);
 
+/// The state every factory preset starts from, before it sets anything.
+///
+/// Not the same as the parameter defaults, which is the point of naming it:
+/// the per-partial levels default to a 1/n spectrum and this takes them to
+/// zero, so a preset says what it wants to hear rather than inheriting a
+/// spectrum it never asked for. Exposed so the generator below can be held to
+/// it, and so a test can prove the code it writes reproduces the patch.
+void neutralBase(juce::AudioProcessorValueTreeState &);
+
 /// The current state written out as the C++ that would add it to Presets.cpp
 /// as a factory preset.
 ///

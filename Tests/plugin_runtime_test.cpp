@@ -11,6 +11,7 @@
 #include <cmath>
 #include <cstdio>
 #include <functional>
+#include <map>
 #include <set>
 #include <string>
 #include <vector>
@@ -1217,6 +1218,133 @@ void testChannelHover(OvertoniumProcessor &p) {
 
   fourth.mouseExit(pointAt(fourth, {-4, onRule.y}));
   check(litCount() == 0, "and clears again");
+}
+
+/// The generator that turns a patch into a factory preset.
+///
+/// This is the step between dialling a sound in and it shipping, and the way
+/// it goes wrong is silent: a parameter the generated code fails to mention is
+/// not left as it was, it is left wherever neutralBase put it. So the test
+/// runs the generated code the way the compiler would and checks the patch
+/// comes back.
+void testFactoryCodeGenerator(OvertoniumProcessor &p) {
+  section("Factory code generator");
+
+  const auto plainOf = [](juce::RangedAudioParameter *r) {
+    return r->convertFrom0to1(r->getValue());
+  };
+
+  const auto snapshot = [&p, &plainOf]() {
+    std::map<std::string, float> out;
+
+    for (auto *raw : p.getParameters())
+      if (auto *r = dynamic_cast<juce::RangedAudioParameter *>(raw))
+        out[r->paramID.toStdString()] = plainOf(r);
+
+    return out;
+  };
+
+  // Everything the generated case would do, read back out of the text it
+  // wrote. Anything it did not say is a parameter left at neutralBase.
+  const auto parse = [](const juce::String &code) {
+    std::map<std::string, float> sets;
+
+    for (const auto &line : juce::StringArray::fromLines(code)) {
+      if (!line.contains("ap.set(\""))
+        continue;
+
+      const auto id = line.fromFirstOccurrenceOf("ap.set(\"", false, false)
+                          .upToFirstOccurrenceOf("\"", false, false);
+      const auto value = line.fromFirstOccurrenceOf(", ", false, false)
+                             .upToFirstOccurrenceOf("f)", false, false);
+
+      sets[id.toStdString()] = value.getFloatValue();
+    }
+
+    return sets;
+  };
+
+  // Every factory preset, since between them they exercise far more of the
+  // parameter space than any one patch would.
+  const auto count = ovt::presets::names().size();
+  int worstPreset = -1;
+  float worstError = 0.0f;
+  std::string worstParam;
+
+  for (int i = 0; i < count; ++i) {
+    ovt::presets::apply(p.apvts, i);
+
+    const auto wanted = snapshot();
+    const auto code =
+        ovt::presets::factoryCode(p.apvts, ovt::presets::names()[i]);
+    const auto sets = parse(code);
+
+    // What the compiler would do with that case: start neutral, then apply
+    // exactly the lines it wrote.
+    ovt::presets::neutralBase(p.apvts);
+
+    for (const auto &pair : sets)
+      if (auto *param = p.apvts.getParameter(juce::String(pair.first)))
+        param->setValueNotifyingHost(param->convertTo0to1(pair.second));
+
+    const auto got = snapshot();
+
+    for (const auto &pair : wanted) {
+      // The session is the one thing a preset may not carry, so the generator
+      // leaves it alone and it is not expected to come back.
+      bool session = false;
+      for (auto *id : ovt::params::kSessionParamIds)
+        session |= pair.first == id;
+
+      if (session)
+        continue;
+
+      const auto found = got.find(pair.first);
+      const auto error =
+          found == got.end() ? 1.0f : std::abs(found->second - pair.second);
+
+      if (error > worstError) {
+        worstError = error;
+        worstParam = pair.first;
+        worstPreset = i;
+      }
+    }
+  }
+
+  std::printf("  %d presets round-tripped, worst error %.6f%s\n", count,
+              worstError,
+              worstParam.empty()
+                  ? ""
+                  : (" on " + worstParam + " in " +
+                     ovt::presets::names()[worstPreset].toStdString())
+                        .c_str());
+
+  // The generator writes values to four decimal places, so anything under a
+  // thousandth is the printing rather than a parameter going missing.
+  check(worstError < 1.0e-3f,
+        "a generated factory preset reproduces the patch it came from");
+
+  // ...and it must not carry the session across. Dialling a patch in on a
+  // Werckmeister session should not ship Werckmeister with it.
+  {
+    const auto setSession = [&p](const char *id, float plain) {
+      if (auto *param = p.apvts.getParameter(id))
+        param->setValueNotifyingHost(param->convertTo0to1(plain));
+    };
+
+    ovt::presets::apply(p.apvts, 1);
+    setSession(ovt::params::temperamentId,
+               (float)(int)ovt::Temperament::Werckmeister3);
+    setSession(ovt::params::polyphonyId, 4.0f);
+
+    const auto code = ovt::presets::factoryCode(p.apvts, "Probe");
+
+    bool carries = false;
+    for (auto *id : ovt::params::kSessionParamIds)
+      carries |= code.contains(juce::String("\"") + id + "\"");
+
+    check(!carries, "and carries none of the session it was dialled in on");
+  }
 }
 
 void testLinkCurves() {
@@ -2460,6 +2588,7 @@ int main() {
   testActivityLamps(processor);
   testSegmentReadouts(processor);
   testChannelHover(processor);
+  testFactoryCodeGenerator(processor);
   testUserPresets(processor);
   testMasterEffects(processor);
   testLinkCurves();

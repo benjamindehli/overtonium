@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <map>
 
 #include "PluginParameters.h"
 #include "dsp/Harmonics.h"
@@ -306,7 +307,11 @@ bool load(APVTS &apvts, const juce::File &file, juce::String &error) {
   return true;
 }
 
+void neutralBase(APVTS &apvts) { Applier{apvts}.neutralBase(); }
+
 juce::String factoryCode(APVTS &apvts, const juce::String &name) {
+  const Applier ap{apvts};
+
   juce::StringArray lines;
 
   lines.add("  case N: // " + name);
@@ -320,23 +325,60 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
            "f";
   };
 
-  // Only what differs from the default, so the generated case reads as a
-  // description of the patch rather than as a dump of all 640 values. It is a
-  // starting point to tidy by hand, which is why the ones already in this file
-  // use formulas where the shape has one.
+  const auto plainOf = [](juce::RangedAudioParameter *r) {
+    return r->convertFrom0to1(r->getValue());
+  };
+
+  // What the generated case has to differ from is what neutralBase leaves,
+  // which is not what the parameters default to. The per-partial levels are
+  // the case that matters: they default to a 1/n spectrum and neutralBase
+  // takes them all to zero, so measuring against the defaults drops any
+  // partial the patch happens to leave at its default and the preset comes
+  // back missing it. A fundamental at full level is exactly that.
+  //
+  // So the baseline is read rather than assumed: the patch is put aside,
+  // neutralBase is run, the result is recorded, and the patch is put back.
+  // That does mean the instrument passes through a neutral state on the way,
+  // which is momentary and only happens when this is deliberately called.
+  const auto patch = capture(apvts, name);
+
+  ap.neutralBase();
+
+  std::map<juce::String, float> baseline;
+  for (auto *p : apvts.processor.getParameters())
+    if (auto *ranged = dynamic_cast<juce::RangedAudioParameter *>(p))
+      baseline[ranged->paramID] = plainOf(ranged);
+
+  if (patch != nullptr)
+    restore(apvts, *patch);
+
+  // Only what differs, so the generated case reads as a description of the
+  // patch rather than as a dump of all 640 values. It is a starting point to
+  // tidy by hand, which is why the ones already in this file use formulas
+  // where the shape has one.
   for (auto *p : apvts.processor.getParameters()) {
     auto *ranged = dynamic_cast<juce::RangedAudioParameter *>(p);
     if (ranged == nullptr)
       continue;
 
-    const auto plain = ranged->convertFrom0to1(ranged->getValue());
-    const auto fallback = ranged->convertFrom0to1(ranged->getDefaultValue());
+    // A preset may not touch the session. Emitting these would put the
+    // temperament and the polyphony of whoever dialled the patch in into a
+    // factory preset, which the test for that rule would then fail.
+    bool session = false;
+    for (auto *id : params::kSessionParamIds)
+      session |= ranged->paramID == id;
 
-    if (std::abs(plain - fallback) < 1.0e-6f)
+    if (session)
       continue;
 
-    lines.add("    ap.set(\"" + ranged->paramID + "\", " + number(plain) +
-              ");");
+    const auto found = baseline.find(ranged->paramID);
+    const auto from = found == baseline.end() ? plainOf(ranged) : found->second;
+
+    if (std::abs(plainOf(ranged) - from) < 1.0e-6f)
+      continue;
+
+    lines.add("    ap.set(\"" + ranged->paramID + "\", " +
+              number(plainOf(ranged)) + ");");
   }
 
   lines.add("    break;");
