@@ -680,6 +680,7 @@ There is no splash screen to worry about. JUCE 6 and 7 had one, and disabling it
 Resources/
   logo.png            the overtonium wordmark, compiled into the binary
   dehli-musikk.svg    the maker's mark, vector since it is drawn small
+  icon.png            the standalone build's program icon, 1024 square
 Source/
   dsp/            JUCE-free DSP core, unit tested standalone
     Harmonics.h     tuning table and blend maths

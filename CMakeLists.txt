@@ -69,6 +69,12 @@ juce_add_plugin(Overtonium
     VST3_CATEGORIES             Instrument Synth
     AU_MAIN_TYPE                kAudioUnitType_MusicDevice
     DESCRIPTION                 "32-partial overtone synthesiser"
+    # The program icon. JUCE builds the whole icon set from this one square, so
+    # there is no smaller second file to keep in step, and it reaches every
+    # format that is a bundle: the standalone in the Dock and the task bar, and
+    # the VST3 and the component in Finder. LV2 is not a bundle and Linux has
+    # no icon step at all, so neither takes it.
+    ICON_BIG                    "${CMAKE_CURRENT_SOURCE_DIR}/Resources/icon.png"
     MICROPHONE_PERMISSION_ENABLED FALSE)
 
 set(OVERTONIUM_SOURCES
