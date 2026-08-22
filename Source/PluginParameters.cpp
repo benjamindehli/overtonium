@@ -165,7 +165,7 @@ juce::String blendText(float v, int) {
   return juce::String(juce::roundToInt(v * 100.0f)) + "% just";
 }
 
-/// "H7 " — short enough to keep host parameter lists readable.
+/// "H7 ", short enough to keep host parameter lists readable.
 juce::String prefixFor(int index0) {
   return "H" + juce::String(index0 + 1) + " ";
 }
