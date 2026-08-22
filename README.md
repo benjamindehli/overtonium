@@ -13,6 +13,20 @@ The control worth reaching for first is TUNE. It sweeps each partial continuousl
 - **Page:** [benjamindehli.github.io/overtonium](https://benjamindehli.github.io/overtonium/), built from `docs/`
 - **By:** Benjamin Dehli for Dehli Musikk. Hosts list it under DehliMusikk (manufacturer code `Dhmk`, plugin code `Ovtn`)
 
+## Background
+
+This is the third instrument in a line, and the first that computes its sound rather than playing it back.
+
+[Voltage Controlled Cassette Organ](https://github.com/benjamindehli/VoltageControlledCassetteOrgan) came first, in 2023. A Korg CX-3 sampled through cassette tape, every note of every drawbar recorded as its own file. The tape was the point: wow, flutter and random warbles gave the organ a movement like a chorus or a rotary speaker without the fixed rate a modulation effect has. It was recorded to tape twice, which doubled it, and since no tape deck plays back the same way twice the two passes never quite agreed.
+
+[EDB-Orgel](https://github.com/benjamindehli/EDB-Orgel) followed in 2024, keeping the drawbar workflow and putting four digital synthesis types under it instead of an organ.
+
+Both gave every drawbar its own envelope and LFO, which is the idea this one is built out of. A drawbar is a partial. Nine of them shaped separately already sounds unlike an organ, so thirty-two of them, each with a full channel of controls, is that idea taken as far as it goes. Computing them is also what makes TUNE possible: a sampled partial is stuck at the pitch it was recorded at, and a computed one can be swept between equal temperament and its exact integer ratio.
+
+The ancestry is visible in the details rather than only in the shape. DRIFT is the cassette's random warble, one per partial. WOBBLE is the same thing under the whole instrument. The tape echo's two paths, each with its own motor speed and its own random stream, are the double tracking, and `TapeEcho::kMinAge` exists for the same reason the two tape passes never agreed: a transport that held speed exactly would put the repeat back in mono, and there is no such transport.
+
+Both earlier instruments are sample libraries with a plugin wrapper, sold at [Dehli Musikk](https://store.dehlimusikk.no/). This one is free software, and none of their code is in it.
+
 ## Building
 
 You need CMake 3.22 or newer and a C++17 compiler. JUCE is downloaded at configure time. Pass `-DJUCE_PATH=/path/to/JUCE` to use a local checkout instead.

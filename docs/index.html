@@ -259,6 +259,22 @@
 </section>
 
 <section>
+  <h2>Where it came from</h2>
+
+  <p>Overtonium is the third instrument in a line, and the first that generates its sound rather than playing it back.</p>
+
+  <p>The first was the <a href="https://github.com/benjamindehli/VoltageControlledCassetteOrgan">Voltage Controlled Cassette Organ</a>, in 2023. A Korg CX-3 sampled through cassette tape, every note of every drawbar recorded as its own file. The tape was the point of it: wow, flutter and random warbles gave the organ a movement like a chorus or a rotary speaker, but without the fixed rate a modulation effect has. It was recorded to tape twice, which doubled it, and because no tape deck plays back the same way twice the two passes never quite agreed with each other.</p>
+
+  <p>The second was <a href="https://github.com/benjamindehli/EDB-Orgel">EDB-Orgel</a>, in 2024, which kept the drawbar workflow and put four digital synthesis types under it instead of an organ.</p>
+
+  <p>Both gave every drawbar its own envelope and LFO, and that is the idea this one is built out of. A drawbar is a partial. Nine of them shaped separately already sounds unlike an organ, so thirty-two of them, each with a full channel of controls, is the same idea taken as far as it goes. Computing them rather than playing them back is what makes TUNE possible at all: a sampled partial is stuck at the pitch it was recorded at, and a computed one can be swept between equal temperament and its exact whole-number ratio.</p>
+
+  <p>The ancestry shows up in the details. DRIFT is the cassette's random warble, per partial. WOBBLE is the same thing under the whole instrument. The tape echo's two paths, each with its own motor speed and its own random stream, are the double tracking, and its AGE control never quite reaches zero for the same reason the two tape passes never agreed: a transport that held speed exactly would put the repeat back in mono, and there is no such transport.</p>
+
+  <p>Both earlier instruments are sample libraries, sold at <a href="https://store.dehlimusikk.no/">Dehli Musikk</a>. This one is free software.</p>
+</section>
+
+<section>
   <h2>Getting it</h2>
 
   <p>Overtonium is free software under the AGPLv3, and there are no binaries yet. You need CMake 3.22 or newer and a C++17 compiler. JUCE is downloaded at configure time, so there is nothing else to install on macOS or Windows.</p>
