@@ -3,20 +3,130 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Overtonium, a 32-partial overtone synthesiser</title>
-<meta name="description" content="An additive synthesiser laid out like a 32-channel mixer. Every channel is one sine partial with its own tuning, envelope, modulation and pan.">
-<meta property="og:title" content="Overtonium">
-<meta property="og:description" content="An additive synthesiser laid out like a 32-channel mixer. Every channel is one sine partial with its own tuning, envelope, modulation and pan.">
-<meta property="og:image" content="overtonium.png">
+<title>Overtonium, a 32-partial additive synthesiser plugin</title>
+<meta name="description" content="A free additive synthesiser laid out like a 32-channel mixer. Every channel is one sine partial with its own tuning, envelope, modulation and pan, and TUNE sweeps the whole series between equal temperament and just intonation. VST3, AU and LV2 for macOS, Windows and Linux.">
+<link rel="canonical" href="https://benjamindehli.github.io/overtonium/">
+<meta name="theme-color" content="#0b0d10">
+
 <meta property="og:type" content="website">
+<meta property="og:site_name" content="Overtonium">
+<meta property="og:url" content="https://benjamindehli.github.io/overtonium/">
+<meta property="og:title" content="Overtonium, a 32-partial additive synthesiser">
+<meta property="og:description" content="Additive synthesis with all 32 partials on the surface, as faders. Each one has its own tuning, envelope, modulation and pan, and TUNE sweeps the series between equal temperament and just intonation.">
+<meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium.png">
+<meta property="og:image:width" content="1348">
+<meta property="og:image:height" content="1010">
+<meta property="og:image:alt" content="The Overtonium window: 32 channel strips and a noise channel under a bar of global controls, meters lit by a held chord.">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Overtonium, a 32-partial additive synthesiser">
+<meta name="twitter:description" content="Additive synthesis with all 32 partials on the surface, as faders. Free software for macOS, Windows and Linux.">
+<meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium.png">
+
 <link rel="icon" href="dehli-musikk.svg">
 <link rel="stylesheet" href="style.css">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Overtonium",
+  "url": "https://benjamindehli.github.io/overtonium/",
+  "applicationCategory": "MultimediaApplication",
+  "applicationSubCategory": "Audio plugin",
+  "operatingSystem": "macOS, Windows, Linux",
+  "description": "An additive synthesiser laid out like a 32-channel mixer. Every channel is one sine partial locked to a harmonic of the played note, with its own tuning, envelope, modulation and pan.",
+  "image": "https://benjamindehli.github.io/overtonium/overtonium.png",
+  "screenshot": "https://benjamindehli.github.io/overtonium/overtonium.png",
+  "isAccessibleForFree": true,
+  "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+  "codeRepository": "https://github.com/benjamindehli/overtonium",
+  "programmingLanguage": "C++",
+  "author": {
+    "@type": "Person",
+    "name": "Benjamin Dehli"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Dehli Musikk",
+    "url": "https://www.dehlimusikk.no/"
+  },
+  "featureList": [
+    "32 sine partials plus a noise channel",
+    "Continuous blend between equal temperament and just intonation",
+    "Six keyboard temperaments on any root",
+    "Inharmonic stretch and keyboard tracking",
+    "Per-partial envelope, tremolo, pitch modulation and pan",
+    "MPE, with pitch bend and pressure per note",
+    "Tape echo, feedback delay network reverb and a lo-fi converter"
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Which hosts does Overtonium run in?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "It builds as a VST3 on macOS, Windows and Linux, an Audio Unit on macOS and an LV2 on Linux, so it loads anywhere those formats do. There is a standalone build as well."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is Overtonium free?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes, and free software rather than only free of charge. It is released under the AGPLv3, which follows from JUCE, and the whole source is on GitHub."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What is additive synthesis?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Building a sound by adding sine waves together rather than by filtering a rich one down. Every timbre is a stack of partials at different frequencies and levels, and additive synthesis hands you those partials directly. Overtonium gives you 32 of them, one per mixer channel."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can Overtonium do microtonal tunings and just intonation?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Both, and separately. TUNE sweeps each partial between its equal-tempered position and its exact whole-number ratio. The keyboard underneath is tuned on its own, to equal, just, Pythagorean, quarter-comma meantone, Werckmeister III or Young, on any root, at any reference pitch from 415 to 466 Hz."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does Overtonium support MPE?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. With MPE switched on, pitch bend and pressure arrive per note, and pressure has its own amount on every one of the 33 channels. An ordinary single-channel keyboard plays either way."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How much CPU does Overtonium use?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Eight voices of 32 partials each, with every modulator running, costs about 7% of one core, and sixteen voices about 14%. Turning the render rate down is a real saving: at 8 kHz the whole voice pool costs a fifth as much."
+      }
+    }
+  ]
+}
+</script>
 </head>
 <body>
 <div class="page">
 
 <header>
-  <img class="wordmark" src="overtonium-wordmark.png" alt="Overtonium">
+  <h1>
+    <img class="wordmark" src="overtonium-wordmark.png" alt="">
+    <span class="offscreen">Overtonium, a 32-partial additive overtone synthesiser</span>
+  </h1>
   <p class="tagline">32-partial overtone synthesiser</p>
 
   <ul class="links">
@@ -112,6 +222,40 @@
   <p>A reverb built as a feedback delay network, whose room is sized from its decay time, since a long tail in a small room is a spring rather than a place.</p>
 
   <p>And a converter, shown as two seven-segment readouts under the output meter. Turning the sample rate down is a genuine cut rather than a filter over the top: the whole voice pool renders slower, which costs a fifth as much at 8 kHz, and the partials above the new ceiling fold back down instead of disappearing.</p>
+</section>
+
+<section>
+  <h2>The presets</h2>
+
+  <p>Sixteen ship with it, and all but a handful were dialled in on the panel and converted straight from the saved file, so what ships is what was played rather than something written afterwards to approximate it.</p>
+
+  <p><strong>Big Saw</strong>, <strong>Cathedral</strong>, <strong>Drawbar Organ</strong>, <strong>Equal Saw</strong>, <strong>Glass Armonica</strong>, <strong>Init</strong>, <strong>Just Saw</strong>, <strong>Lo-fi</strong>, <strong>Music Box</strong>, <strong>Odd Harmonics</strong>, <strong>Shimmer</strong>, <strong>Slow Pad</strong>, <strong>Struck Bell</strong>, <strong>Tape Choir</strong>, <strong>Vibraphone</strong> and <strong>Wurli</strong>.</p>
+
+  <p>Saving your own writes one small file per preset into your user application data folder, and the menu reads that folder every time it opens. A preset carries the patch and nothing else: loading one never moves your master fader, your tuning or your window.</p>
+</section>
+
+<section>
+  <h2>Questions</h2>
+
+  <dl class="qa">
+    <dt>Which hosts does it run in?</dt>
+    <dd>It builds as a VST3 on all three platforms, an Audio Unit on macOS and an LV2 on Linux, so it loads anywhere those formats do. There is a standalone build as well, if you would rather not open a DAW at all.</dd>
+
+    <dt>Is it free?</dt>
+    <dd>Yes, and free software rather than only free of charge. It is released under the AGPLv3, which follows from JUCE, and the whole source is on GitHub.</dd>
+
+    <dt>What is additive synthesis?</dt>
+    <dd>Building a sound by adding sine waves together rather than by filtering a rich one down. Every timbre is a stack of partials at different frequencies and levels, and additive synthesis hands you those partials directly. Overtonium gives you 32 of them, one per mixer channel.</dd>
+
+    <dt>Can it do microtonal and just intonation?</dt>
+    <dd>Both, and separately. TUNE sweeps each partial between its equal-tempered position and its exact whole-number ratio, which is about how the timbre itself is spelled. The keyboard underneath is tuned on its own, to equal, just, Pythagorean, quarter-comma meantone, Werckmeister III or Young, on any root, at any reference pitch from 415 to 466 Hz.</dd>
+
+    <dt>Does it support MPE?</dt>
+    <dd>Yes. With MPE switched on, pitch bend and pressure arrive per note, and pressure has its own amount on every one of the 33 channels, so pressing into one note of a chord brings in that note's upper partials and leaves the rest alone. An ordinary single-channel keyboard plays either way.</dd>
+
+    <dt>How heavy is it?</dt>
+    <dd>Eight voices of 32 partials each, with every modulator running, costs about 7% of one core. Sixteen voices costs about 14%. Turning the render rate down is a real saving rather than an effect: at 8 kHz the whole voice pool costs a fifth as much.</dd>
+  </dl>
 </section>
 
 <section>

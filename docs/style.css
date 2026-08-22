@@ -45,11 +45,30 @@ header {
   padding: 72px 0 8px;
 }
 
+h1 {
+  margin: 0;
+}
+
 .wordmark {
   width: 100%;
   max-width: 460px;
   height: auto;
   display: block;
+}
+
+/* The heading a search engine and a screen reader read, where the wordmark is
+   the one everyone else does. */
+.offscreen {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 .tagline {
@@ -231,6 +250,26 @@ figcaption {
 .facts dd {
   margin: 4px 0 0;
   font-size: 17px;
+}
+
+/* ---- the questions ------------------------------------------------------- */
+
+.qa {
+  margin: 0;
+}
+
+.qa dt {
+  font-weight: 600;
+  color: #fff;
+  margin: 24px 0 6px;
+}
+
+.qa dt:first-of-type {
+  margin-top: 0;
+}
+
+.qa dd {
+  margin: 0;
 }
 
 /* ---- footer -------------------------------------------------------------- */
