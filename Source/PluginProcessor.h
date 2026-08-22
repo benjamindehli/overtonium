@@ -137,7 +137,10 @@ private:
   /// per-channel AT amounts read, according to what the setting says to
   /// listen to.
   void updateAftertouch();
-  void renderSegment(int startSample, int numSamples);
+  /// Renders into the scratch at an offset from its start, not from the start
+  /// of the host's block: when a block is cut into pieces the scratch holds
+  /// one piece at a time.
+  void renderSegment(int scratchOffset, int numSamples);
 
   ovt::params::Cache paramCache;
   ovt::SynthEngine engine;

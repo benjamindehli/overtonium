@@ -1347,6 +1347,86 @@ void testFactoryCodeGenerator(OvertoniumProcessor &p) {
   }
 }
 
+/// Blocks bigger than the host promised.
+///
+/// A host is allowed to do that, and growing the scratch to fit would be an
+/// allocation on the audio thread. The block is cut into pieces the scratch
+/// already holds instead, which is only worth doing if the seam is invisible:
+/// the same notes at the same sample positions have to come out the same
+/// whether they arrived in one block or several.
+void testOversizedBlocks(OvertoniumProcessor &p) {
+  section("Oversized blocks");
+
+  ovt::presets::apply(p.apvts, 3);
+
+  // Renders the same musical passage, telling the plugin one block size and
+  // then handing it another.
+  const auto render = [&p](int promised, int actual) {
+    p.setRateAndBufferSizeDetails(48000.0, promised);
+    p.prepareToPlay(48000.0, promised);
+    p.reset();
+
+    juce::AudioBuffer<float> buffer(2, actual);
+    juce::MidiBuffer midi;
+
+    // Spread across the block, so the pieces have to carry events at the
+    // right offsets rather than all of them landing in the first one.
+    midi.addEvent(juce::MidiMessage::noteOn(1, 48, 0.9f), 0);
+    midi.addEvent(juce::MidiMessage::noteOn(1, 55, 0.8f), actual / 3);
+    midi.addEvent(juce::MidiMessage::noteOn(1, 60, 0.7f), actual / 2);
+    midi.addEvent(juce::MidiMessage::noteOff(1, 48), (actual * 3) / 4);
+    midi.addEvent(juce::MidiMessage::pitchWheel(1, 12000), actual - 2);
+
+    buffer.clear();
+    p.processBlock(buffer, midi);
+
+    std::vector<float> out((size_t)actual * 2);
+    for (int n = 0; n < actual; ++n) {
+      out[(size_t)n * 2] = buffer.getSample(0, n);
+      out[(size_t)n * 2 + 1] = buffer.getSample(1, n);
+    }
+
+    return out;
+  };
+
+  // The reference: the host keeps its word, so nothing is cut up.
+  const auto honest = render(4096, 4096);
+
+  // The same block, from a host that promised far less. This is the case that
+  // used to allocate.
+  const auto cutUp = render(256, 4096);
+
+  check(honest.size() == cutUp.size(), "both runs produced a full block");
+
+  double worst = 0.0;
+  for (size_t i = 0; i < honest.size() && i < cutUp.size(); ++i)
+    worst = std::max(worst, std::abs((double)honest[i] - cutUp[i]));
+
+  std::printf("  4096 frames promised as 4096 against promised as 256: worst "
+              "sample difference %.2e\n",
+              worst);
+
+  check(worst < 1.0e-6,
+        "a block cut into pieces sounds the same as one that was not");
+
+  // And it made sound at all, so the comparison is not two silences.
+  double loudest = 0.0;
+  for (auto v : honest)
+    loudest = std::max(loudest, std::abs((double)v));
+
+  check(loudest > 0.01, "the passage is audible (" + std::to_string(loudest) +
+                            ")");
+
+  // A block far larger than the floor the scratch is given, so it really is
+  // cut into many pieces rather than one or two.
+  const auto many = render(64, 8192);
+  check(many.size() == (size_t)8192 * 2 && std::isfinite(many[0]),
+        "and a block many times the promised size still renders");
+
+  p.setRateAndBufferSizeDetails(48000.0, 512);
+  p.prepareToPlay(48000.0, 512);
+}
+
 void testLinkCurves() {
   section("Link scopes and curves");
 
@@ -2589,6 +2669,7 @@ int main() {
   testSegmentReadouts(processor);
   testChannelHover(processor);
   testFactoryCodeGenerator(processor);
+  testOversizedBlocks(processor);
   testUserPresets(processor);
   testMasterEffects(processor);
   testLinkCurves();

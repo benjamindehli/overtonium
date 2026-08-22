@@ -12,8 +12,12 @@ OvertoniumProcessor::OvertoniumProcessor()
 void OvertoniumProcessor::prepareToPlay(double sampleRate,
                                         int maximumExpectedSamplesPerBlock) {
   engine.prepare(sampleRate);
-  scratch.setSize(2, juce::jmax(1, maximumExpectedSamplesPerBlock), false, true,
-                  true);
+
+  // A floor under whatever the host asks for, so a host that promises a very
+  // small block and then hands over a large one is not cut into a great many
+  // pieces. Two channels of 512 frames is four kilobytes.
+  scratch.setSize(2, juce::jmax(512, maximumExpectedSamplesPerBlock), false,
+                  true, true);
   pitchBendNormalised = 0.0f;
   channelPressure = 0.0f;
   modWheel = 0.0f;
@@ -226,12 +230,12 @@ void OvertoniumProcessor::handleOrdinaryMidiMessage(
   }
 }
 
-void OvertoniumProcessor::renderSegment(int startSample, int numSamples) {
+void OvertoniumProcessor::renderSegment(int scratchOffset, int numSamples) {
   if (numSamples <= 0)
     return;
 
-  engine.render(scratch.getWritePointer(0, startSample),
-                scratch.getWritePointer(1, startSample), numSamples,
+  engine.render(scratch.getWritePointer(0, scratchOffset),
+                scratch.getWritePointer(1, scratchOffset), numSamples,
                 currentParams);
 }
 
@@ -244,10 +248,6 @@ void OvertoniumProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   if (numSamples <= 0)
     return;
 
-  // Hosts are allowed to exceed the block size they promised in prepareToPlay.
-  if (scratch.getNumSamples() < numSamples)
-    scratch.setSize(2, numSamples, false, true, true);
-
   if (const auto on = mpeIsOn(); on != mpeWasOn)
     setMpeEnabled(on);
 
@@ -255,40 +255,66 @@ void OvertoniumProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   updateAftertouch();
   engine.setPolyphony(paramCache.polyphonyValue());
 
-  // Render in segments split on MIDI timestamps so note timing is sample
-  // accurate.
-  int position = 0;
+  // Hosts are allowed to hand over a bigger block than the one they promised
+  // in prepareToPlay. Growing the scratch here would be an allocation on the
+  // audio thread, which takes the allocator's lock and can be made to wait by
+  // whatever the message thread happens to be doing, so the block is cut into
+  // pieces the scratch already holds instead. The common case is one piece.
+  const auto capacity = juce::jmax(1, scratch.getNumSamples());
 
-  for (const auto metadata : midi) {
-    // Clamping against `position` rather than 0 keeps the segments monotonic
-    // even if a host hands us out-of-order timestamps; otherwise we would
-    // render backwards over audio we had already written.
-    const int eventTime =
-        juce::jlimit(position, numSamples, metadata.samplePosition);
+  auto event = midi.begin();
+  const auto noMoreEvents = midi.end();
 
-    renderSegment(position, eventTime - position);
-    position = eventTime;
+  for (int done = 0; done < numSamples;) {
+    const auto length = juce::jmin(capacity, numSamples - done);
+    const auto chunkEnd = done + length;
+    const bool lastChunk = chunkEnd >= numSamples;
 
-    handleMidiMessage(metadata.getMessage());
-  }
+    // Render in segments split on MIDI timestamps so note timing is sample
+    // accurate.
+    auto position = done;
 
-  renderSegment(position, numSamples - position);
+    while (event != noMoreEvents) {
+      const auto metadata = *event;
+      const auto at = juce::jlimit(0, numSamples, metadata.samplePosition);
 
-  // ---- fan the stereo render out to whatever the host asked for -------------
-  const int numOut = buffer.getNumChannels();
-  const auto *left = scratch.getReadPointer(0);
-  const auto *right = scratch.getReadPointer(1);
+      // Anything past this piece waits for the next one. On the last piece
+      // there is no next one, so the rest is taken here rather than dropped.
+      if (at >= chunkEnd && !lastChunk)
+        break;
 
-  if (numOut == 1) {
-    auto *dest = buffer.getWritePointer(0);
-    for (int n = 0; n < numSamples; ++n)
-      dest[n] = 0.5f * (left[n] + right[n]);
-  } else if (numOut >= 2) {
-    buffer.copyFrom(0, 0, left, numSamples);
-    buffer.copyFrom(1, 0, right, numSamples);
+      // Clamping against `position` rather than the start keeps the segments
+      // monotonic even if a host hands us out-of-order timestamps; otherwise
+      // we would render backwards over audio we had already written.
+      const auto eventTime = juce::jlimit(position, chunkEnd, at);
 
-    for (int ch = 2; ch < numOut; ++ch)
-      buffer.clear(ch, 0, numSamples);
+      renderSegment(position - done, eventTime - position);
+      position = eventTime;
+
+      handleMidiMessage(metadata.getMessage());
+      ++event;
+    }
+
+    renderSegment(position - done, chunkEnd - position);
+
+    // ---- fan the stereo render out to whatever the host asked for -----------
+    const int numOut = buffer.getNumChannels();
+    const auto *left = scratch.getReadPointer(0);
+    const auto *right = scratch.getReadPointer(1);
+
+    if (numOut == 1) {
+      auto *dest = buffer.getWritePointer(0, done);
+      for (int n = 0; n < length; ++n)
+        dest[n] = 0.5f * (left[n] + right[n]);
+    } else if (numOut >= 2) {
+      buffer.copyFrom(0, done, left, length);
+      buffer.copyFrom(1, done, right, length);
+
+      for (int ch = 2; ch < numOut; ++ch)
+        buffer.clear(ch, done, length);
+    }
+
+    done = chunkEnd;
   }
 
   activeVoices.store(engine.getActiveVoiceCount());
