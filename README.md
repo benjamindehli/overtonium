@@ -103,29 +103,31 @@ The stylesheet takes its palette from `Source/UI/Theme.h`, so the page and the i
 
 ## Presets
 
-Fifteen factory presets ship with it. The first nine are the original ones. The six after them were built on what came later, and each is there to show one thing:
+Sixteen ship with it, listed alphabetically. Most were dialled in by hand on the panel and converted straight from the saved file, so what ships is what was played rather than something written afterwards to approximate it. Where a row of the mixer has a shape the preset says so, as the saws do with `1.0 / n`, and where it was drawn by hand the thirty-two values are written out as a list so the curve is at least visible.
 
-| Preset | What it is for |
-|---|---|
-| Harpsichord | the key-off stage: the jack falls back louder than the note was holding |
-| Music Box | a comb of six teeth, each ringing for a different length and sitting somewhere different in the field |
-| Kalimba | a soft key-off thud below the sustain, and the noise channel as the gourd |
-| Cathedral | a principal chorus arriving slowly, in a nine second room |
-| Tape Choir | a worn echo and 14 cents of drift, with the partials fanned across the field |
-| Glass Armonica | rubbed glass, and a key-off level above the sustain so lifting the finger lets the rim ring on |
+*Init* is one of them rather than a reset to the parameter defaults. It clears the patch down to a short, bright three-partial pluck, which is a better place to start building from than silence. Like every other preset it leaves the session alone, so your tuning, polyphony, bend range and master fader survive loading it.
 
-Six of them use STRETCH or TRACK, since six of them are modelling something with a body. Picking odd partials was always a stand-in for inharmonicity, and three of these now have the real thing on top of it:
+Eight of them use STRETCH or TRACK, since eight of them are modelling something with a body. Picking odd partials was always a stand-in for inharmonicity, and three of these have the real thing on top of it:
 
 | Preset | Stretch | Tracking | Why |
 |---|---|---|---|
-| Vibraphone | | 3.0 dB/oct | a short bar carries less above its fundamental than a long one |
-| Harpsichord | | 2.5 dB/oct | a short treble string carries less of the pluck's edge |
-| Music Box | +300 ct | 3.0 dB/oct | a comb tooth is a bar and does not ring in whole numbers. The 23rd tooth ends up 168 cents sharp |
-| Kalimba | +500 ct | 3.0 dB/oct | tines are further out than a comb, not less. The 15th partial lands 137 cents sharp |
-| Tape Choir | | 3.5 dB/oct | voices thin out at the top of a range rather than brightening |
+| Big Saw | +2 ct | 1.3 dB/oct | barely any of either, just enough to stop the partials locking dead in phase |
+| Drawbar Organ | | 3.2 dB/oct | |
+| Equal Saw | | 1.0 dB/oct | |
 | Glass Armonica | +180 ct | 4.0 dB/oct | barely any, but enough that the upper partials beat against the fundamental instead of locking to it |
+| Just Saw | | 1.0 dB/oct | |
+| Lo-fi | | 4.0 dB/oct | |
+| Music Box | -23 ct | 1.5 dB/oct | a comb tooth is a bar and does not ring in whole numbers |
+| Slow Pad | | 2.5 dB/oct | |
+| Tape Choir | | 3.5 dB/oct | voices thin out at the top of a range rather than brightening |
+| Vibraphone | | 3.0 dB/oct | a short bar carries less above its fundamental than a long one |
+| Wurli | | 3.1 dB/oct | |
 
-The organs are deliberately left alone. A drawbar organ is electric and a pipe organ is voiced rank by rank, so neither loses its top as you play up, and pretending otherwise would be modelling the wrong instrument. So are the four synthetic patches, where the raw spectrum is the point.
+*Cathedral* is a principal chorus arriving slowly, in a nine second room. *Glass Armonica* is rubbed glass, with a key-off level above the sustain so lifting the finger lets the rim ring on. *Music Box* is a comb of teeth, each ringing for a different length and sitting somewhere different in the field. *Tape Choir* is a worn echo and drift, with the partials fanned across the field.
+
+Two of them use the converter rather than avoiding it. *Big Saw* quantises to 8 bits at the host's own rate, and *Lo-fi* runs the whole voice pool at 8 kHz and 8 bits, which is the setting paying for itself rather than being an effect over the top.
+
+The organs are deliberately left alone by STRETCH. A drawbar organ is electric and a pipe organ is voiced rank by rank, so neither loses its top as you play up, and pretending otherwise would be modelling the wrong instrument. So are the synthetic patches, where the raw spectrum is the point.
 
 **Saving your own.** The preset menu writes to `Dehli Musikk/Overtonium/Presets` under your user application data folder, one small `.ovtpreset` file each, and lists whatever it finds there under the factory list. The menu reads the folder every time it opens, so a preset saved a moment ago is in it and one deleted in Finder is not.
 
@@ -133,7 +135,7 @@ A preset holds parameter values and nothing else. Not the window size, the zoom 
 
 Factory presets start from a neutral base rather than from wherever you happened to be, so one always gives the instrument it describes. That covers the globals that are part of the sound: STRETCH, TRACK, the converter and phase reset all go back to neutral unless the preset asks for otherwise.
 
-What it will not touch is listed once, as `kSessionParamIds`, and holds for every preset including Init: master gain, polyphony, bend range, the aftertouch source, the safety clipper, the temperament, its root, the reference pitch and MPE. How you play the instrument, how loud it is and what it is tuned to are not part of a patch. Both halves are tested from that same list, so the code and the test cannot come to disagree about what the rule is: every preset is loaded twice, once clean and once after deliberately making a mess of everything, and required to come out identical, and then all fifteen are loaded in turn against a session set to Werckmeister on F at 415 Hz, which has to survive.
+What it will not touch is listed once, as `kSessionParamIds`, and holds for every preset including Init: master gain, polyphony, bend range, the aftertouch source, the safety clipper, the temperament, its root, the reference pitch and MPE. How you play the instrument, how loud it is and what it is tuned to are not part of a patch. Both halves are tested from that same list, so the code and the test cannot come to disagree about what the rule is: every preset is loaded twice, once clean and once after deliberately making a mess of everything, and required to come out identical, and then all sixteen are loaded in turn against a session set to Werckmeister on F at 415 Hz, which has to survive.
 
 Values are stored plain rather than normalised, so a preset survives a parameter's range being widened later, and anything a file does not mention keeps its default rather than being reset, so a preset saved by an older build loads into a newer one without silently zeroing whatever was added in between. The tests cover both of those directly.
 

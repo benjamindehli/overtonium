@@ -69,6 +69,17 @@ Stats renderBlocks(OvertoniumProcessor &p, int blocks, int blockSize,
   return s;
 }
 
+/// A factory preset by name.
+///
+/// The menu is alphabetical and gains entries over time, so a test that wants
+/// a particular sound has to ask for it rather than for whatever is sitting at
+/// a given position today.
+int presetIndex(const juce::String &name) {
+  const auto at = ovt::presets::names().indexOf(name);
+  jassert(at >= 0);
+  return juce::jmax(0, at);
+}
+
 juce::MidiBuffer noteOnAt(int note, float velocity, int sample) {
   juce::MidiBuffer m;
   m.addEvent(juce::MidiMessage::noteOn(1, note, velocity), sample);
@@ -240,7 +251,7 @@ void testPresets(OvertoniumProcessor &p) {
   section("Factory presets");
 
   const auto names = ovt::presets::names();
-  check(names.size() == 15, "fifteen factory presets");
+  check(names.size() == 16, "sixteen factory presets");
 
   for (int i = 0; i < names.size(); ++i) {
     ovt::presets::apply(p.apvts, i);
@@ -261,13 +272,13 @@ void testPresets(OvertoniumProcessor &p) {
     renderBlocks(p, 4, 512);
   }
 
-  ovt::presets::apply(p.apvts, 0); // back to Init
+  ovt::presets::apply(p.apvts, presetIndex("Init")); // back to Init
 }
 
 void testAftertouchMidi(OvertoniumProcessor &p) {
   section("Aftertouch over MIDI");
 
-  ovt::presets::apply(p.apvts, 0);
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
 
   // Park every fader at silence and let pressure be the only way in.
   for (int i = 0; i < ovt::kNumHarmonics; ++i) {
@@ -380,7 +391,7 @@ void testAftertouchMidi(OvertoniumProcessor &p) {
 
   p.reset();
   renderBlocks(p, 4, 512);
-  ovt::presets::apply(p.apvts, 0);
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
 }
 
 /// Notes arriving on a channel each, which is what MPE is.
@@ -400,7 +411,7 @@ void testMpe(OvertoniumProcessor &p) {
 
   // One partial, held, with nothing downstream that would blur a pitch
   // measurement.
-  ovt::presets::apply(p.apvts, 0);
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
   setParam(ovt::params::echoOnId, 0.0f);
   setParam(ovt::params::reverbOnId, 0.0f);
   setParam(ovt::params::wobbleId, 0.0f);
@@ -1332,7 +1343,7 @@ void testFactoryCodeGenerator(OvertoniumProcessor &p) {
         param->setValueNotifyingHost(param->convertTo0to1(plain));
     };
 
-    ovt::presets::apply(p.apvts, 1);
+    ovt::presets::apply(p.apvts, presetIndex("Drawbar Organ"));
     setSession(ovt::params::temperamentId,
                (float)(int)ovt::Temperament::Werckmeister3);
     setSession(ovt::params::polyphonyId, 4.0f);
@@ -1357,7 +1368,13 @@ void testFactoryCodeGenerator(OvertoniumProcessor &p) {
 void testOversizedBlocks(OvertoniumProcessor &p) {
   section("Oversized blocks");
 
-  ovt::presets::apply(p.apvts, 3);
+  // A sustained patch with nothing random in it. Drift is a random walk
+  // redrawn once per control block, and the control blocks fall at different
+  // places when a block is cut up, so a patch carrying drift cannot be
+  // compared sample for sample across the two paths. That is a property of a
+  // random modulator rather than of the cutting, and comparing a patch that
+  // has one would be measuring the wrong thing.
+  ovt::presets::apply(p.apvts, presetIndex("Equal Saw"));
 
   // Renders the same musical passage, telling the plugin one block size and
   // then handing it another.
@@ -1640,7 +1657,7 @@ void testUserPresets(OvertoniumProcessor &p) {
       "absurd names are cut down to something a menu can show");
 
   // ---- capture and restore --------------------------------------------------
-  presets::apply(p.apvts, 0);
+  presets::apply(p.apvts, presetIndex("Init"));
 
   auto *tune = p.apvts.getParameter(params::oscParamId(params::tuneSuffix, 4));
   auto *level =
@@ -1659,7 +1676,7 @@ void testUserPresets(OvertoniumProcessor &p) {
             ")");
 
   // Move everything somewhere else, then put it back.
-  presets::apply(p.apvts, 1);
+  presets::apply(p.apvts, presetIndex("Drawbar Organ"));
 
   check(std::abs(tune->convertFrom0to1(tune->getValue()) - 0.25f) > 0.1f,
         "the test actually disturbed the values it is about to restore");
@@ -1707,7 +1724,7 @@ void testUserPresets(OvertoniumProcessor &p) {
     const auto doc = presets::capture(p.apvts, "On disk");
     check(doc->writeTo(file), "a preset writes to disk");
 
-    presets::apply(p.apvts, 2);
+    presets::apply(p.apvts, presetIndex("Struck Bell"));
 
     juce::String error;
     check(presets::load(p.apvts, file, error),
@@ -1725,7 +1742,7 @@ void testUserPresets(OvertoniumProcessor &p) {
 
   // ---- the factory code generator ------------------------------------------
   {
-    presets::apply(p.apvts, 0);
+    presets::apply(p.apvts, presetIndex("Init"));
 
     auto *drift =
         p.apvts.getParameter(params::oscParamId(params::driftSuffix, 0));
@@ -1744,7 +1761,7 @@ void testUserPresets(OvertoniumProcessor &p) {
           "but not the ones left at their default");
   }
 
-  presets::apply(p.apvts, 0);
+  presets::apply(p.apvts, presetIndex("Init"));
 }
 
 void testMasterEffects(OvertoniumProcessor &p) {
@@ -1774,7 +1791,7 @@ void testMasterEffects(OvertoniumProcessor &p) {
     return renderBlocks(p, 40, 512).peak;
   };
 
-  ovt::presets::apply(p.apvts, 0);
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
 
   const auto dry = tailAfterNote();
   check(dry < 1.0e-5f, "with the effects off the note stops when it stops");
@@ -1811,7 +1828,7 @@ void testMasterEffects(OvertoniumProcessor &p) {
         "the reported tail covers the repeats (" +
             std::to_string(p.getTailLengthSeconds()) + " s)");
 
-  ovt::presets::apply(p.apvts, 0);
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
   p.reset();
 
   check(tailAfterNote() < 1.0e-5f, "Init puts both of them away again");
@@ -2495,7 +2512,7 @@ void testUndo(OvertoniumProcessor &p) {
         ->setValueNotifyingHost(v);
   };
 
-  ovt::presets::apply(p.apvts, 0);
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
   settle();
   undo.clearUndoHistory();
   undo.beginNewTransaction();
@@ -2616,7 +2633,8 @@ void testStateRoundTrip(OvertoniumProcessor &p) {
 void testSoloAndMute(OvertoniumProcessor &p) {
   section("Solo and mute");
 
-  ovt::presets::apply(p.apvts, 5); // Just Saw: every partial up
+  // Just Saw: every partial up, so muting one is visible in the output.
+  ovt::presets::apply(p.apvts, presetIndex("Just Saw"));
 
   // Headroom matters here: with the safety clipper engaged every variant would
   // peak at the same ceiling and the comparisons below would be meaningless.
