@@ -67,7 +67,7 @@ The VST3 lands in `build/Overtonium_artefacts/Release/VST3/`.
 ```sh
 sudo apt install build-essential cmake pkg-config libasound2-dev libfreetype-dev \
   libfontconfig1-dev libx11-dev libxext-dev libxinerama-dev libxrandr-dev \
-  libxcursor-dev libxcomposite-dev libgl-dev
+  libxcursor-dev libxcomposite-dev libgl-dev libcurl4-openssl-dev
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ```

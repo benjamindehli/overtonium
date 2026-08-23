@@ -20,6 +20,7 @@
 #include "PluginParameters.h"
 #include "PluginProcessor.h"
 #include "Presets.h"
+#include "UpdateCheck.h"
 #include "UI/ChannelStrip.h"
 #include "UI/NoiseStrip.h"
 #include "UI/Theme.h"
@@ -2847,6 +2848,65 @@ void testCollapsibleSections() {
         "the heading of a folded section is still the way back");
 }
 
+/// Deciding whether a release is newer, and reading the feed that says so.
+///
+/// The fetch itself needs a network and is not exercised here. These two are
+/// the parts that can be wrong quietly: a comparison that comes out backwards
+/// nags every user forever, and one that is too eager treats a malformed feed
+/// as an upgrade.
+void testUpdateCheck() {
+  section("Update check");
+
+  using ovt::isNewerVersion;
+
+  check(isNewerVersion("1.1.0", "1.0.0"), "a higher minor is newer");
+  check(isNewerVersion("2.0.0", "1.9.9"), "a higher major is newer");
+  check(isNewerVersion("1.0.1", "1.0.0"), "a higher patch is newer");
+  check(!isNewerVersion("1.0.0", "1.0.0"), "the same version is not newer");
+  check(!isNewerVersion("0.9.9", "1.0.0"), "an older version is not newer");
+  check(!isNewerVersion("1.0.0", "1.0.1"), "and not in the other direction");
+
+  // The one a string comparison gets wrong.
+  check(isNewerVersion("1.0.10", "1.0.9"),
+        "10 is newer than 9, which sorting as text would deny");
+  check(!isNewerVersion("1.0.9", "1.0.10"), "and the reverse");
+
+  check(isNewerVersion("v1.1.0", "1.0.0"), "a leading v is ignored");
+  check(isNewerVersion("1.1.0", "v1.0.0"), "on either side");
+
+  check(isNewerVersion("1.1", "1.0.9"), "a missing component counts as zero");
+  check(!isNewerVersion("1.1", "1.1.0"), "so 1.1 and 1.1.0 are one release");
+
+  // Nothing that fails to parse may read as an upgrade, or a web server having
+  // a bad day turns into a badge nobody can clear.
+  for (const char *junk : {"", "  ", "latest", "1.0.0-beta", "v", "1..0",
+                           "<!doctype html>", "1.0.0a"})
+    check(!isNewerVersion(junk, "1.0.0"),
+          std::string("\"") + junk + "\" is not a newer version");
+
+  check(!isNewerVersion("2.0.0", "garbage"),
+        "an unreadable current version blocks the comparison too");
+
+  // The feed.
+  using ovt::parseReleaseJson;
+
+  const auto good = parseReleaseJson(
+      R"({"version":"1.1.0","url":"https://example.invalid/v1.1.0"})");
+  check(good.has_value(), "a well-formed feed parses");
+  check(good && good->version == "1.1.0", "and carries the version");
+  check(good && good->url == "https://example.invalid/v1.1.0",
+        "and the page to send someone to");
+
+  const auto noUrl = parseReleaseJson(R"({"version":"1.1.0"})");
+  check(noUrl.has_value() && noUrl->url.isNotEmpty(),
+        "a feed with no url still works, falling back to the releases page");
+
+  for (const char *bad : {"", "{}", "[]", "not json", R"({"version":""})",
+                          R"({"version":null})", "null"})
+    check(!parseReleaseJson(bad).has_value(),
+          std::string("a feed of \"") + bad + "\" yields nothing");
+}
+
 void testSoloAndMute(OvertoniumProcessor &p) {
   section("Solo and mute");
 
@@ -2923,6 +2983,7 @@ int main() {
   testStateRoundTrip(processor);
   testPrograms(processor);
   testCollapsibleSections();
+  testUpdateCheck();
   testSoloAndMute(processor);
 
   std::printf("\n%d checks, %d failures\n", checks, failures);

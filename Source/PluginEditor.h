@@ -11,6 +11,7 @@
 #include "UI/ChannelStrip.h"
 #include "UI/LookAndFeel.h"
 #include "UI/NoiseStrip.h"
+#include "UpdateCheck.h"
 #include "UI/TopBar.h"
 #include "dsp/Drift.h"
 
@@ -83,6 +84,14 @@ private:
   /// Hands the current fold state to the gutter and every strip, which is the
   /// only way any of them find out about it.
   void publishCollapsedSections();
+
+  /// Asks once, the first time an editor is opened, whether to look for new
+  /// versions, and remembers the answer. Nothing leaves the machine before
+  /// someone has said yes.
+  void offerUpdateCheck();
+
+  /// Starts a check if the setting allows one.
+  void maybeCheckForUpdates();
 
   /// Says something went wrong, or that something worked, without stopping
   /// what the message thread is doing.
@@ -159,6 +168,11 @@ private:
   /// Which groups of rows are folded away. Restored from the saved state and
   /// written back when it changes, alongside the window size and the zoom.
   ovt::ui::SectionMask collapsedSections = 0;
+
+  /// Opt-in, and off until it is. Declared after the components it calls back
+  /// into so it is destroyed first, which stops its thread before anything it
+  /// might touch goes away.
+  ovt::UpdateCheck updateCheck;
 
   /// Counts timer callbacks, so the meters and the housekeeping can each run
   /// at their own fraction of it.

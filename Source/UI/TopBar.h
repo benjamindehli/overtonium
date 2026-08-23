@@ -35,6 +35,7 @@ public:
   void paint(juce::Graphics &) override;
 
 private:
+
   /// How many lamps fit across the meter.
   int segments() const;
 
@@ -68,6 +69,15 @@ public:
   void paint(juce::Graphics &) override;
   void resized() override;
 
+  /// Puts a newer release in the credit line under the wordmark, where the
+  /// tagline usually sits, and makes it clickable. Called with an empty
+  /// version to say nothing, which is the state it starts in and stays in for
+  /// anyone who has not turned the check on.
+  void setUpdateAvailable(const juce::String &version, const juce::String &url);
+
+  void mouseUp(const juce::MouseEvent &) override;
+  void mouseMove(const juce::MouseEvent &) override;
+
   // ---- callbacks the editor fills in ----
   std::function<void(int)> onPresetChosen;
   std::function<void(juce::File)> onUserPresetChosen;
@@ -79,6 +89,12 @@ public:
   /// only menu the window has, and because a keyboard shortcut cannot be
   /// relied on: most hosts keep Cmd-Z for themselves.
   std::function<void()> onUndo, onRedo;
+
+  /// The update-check setting, read when the menu opens and written when it is
+  /// toggled. The editor owns the value, since it is the editor that saves it
+  /// with the session and starts the check.
+  std::function<bool()> isUpdateCheckAllowed;
+  std::function<void(bool)> onUpdateCheckToggled;
   std::function<bool()> canUndo, canRedo;
 
   /// Shown on the preset button, so the bar says what is loaded.
@@ -123,6 +139,15 @@ public:
   void setZoomChoice(float zoom);
 
 private:
+  /// The release the credit line is currently advertising, and where it sends
+  /// someone who clicks. Empty when there is nothing to say.
+  juce::String updateVersion, updateUrl;
+
+  /// Where that text landed, so a click can be tested against it. Filled in
+  /// while painting, since that is where the block is worked out.
+  juce::Rectangle<int> updateBounds;
+
+  void paintCreditLine(juce::Graphics &, juce::Rectangle<int>);
   using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
   using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
 

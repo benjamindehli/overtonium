@@ -104,7 +104,7 @@ jobs:
           sudo apt-get install --no-install-recommends -y \
             libasound2-dev libfreetype-dev libfontconfig1-dev libx11-dev \
             libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev \
-            libxcomposite-dev libgl-dev
+            libxcomposite-dev libgl-dev libcurl4-openssl-dev
 
       # No architecture override here, unlike the build workflow. That one
       # builds for the runner's own architecture to keep every push quick.
@@ -452,3 +452,40 @@ jobs:
               --verify-tag \
               archives/*
           fi
+
+      # The plugin asks docs/latest.json whether it is behind, so publishing a
+      # release and updating that file have to be the same act. Doing it by
+      # hand would mean every user's check quietly reporting the previous
+      # version until somebody remembered.
+      #
+      # main rather than the tag, since the tag is a detached head and the
+      # Pages site is served from the branch.
+      - name: Point the update feed at this release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.naming.outputs.version }}
+        run: |
+          version="${VERSION#v}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin main
+          git checkout -B main origin/main
+
+          cat > docs/latest.json <<JSON
+          {
+            "version": "$version",
+            "url": "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
+          }
+          JSON
+
+          if git diff --quiet -- docs/latest.json; then
+            echo "the feed already names $version"
+            exit 0
+          fi
+
+          git add docs/latest.json
+          git commit -m "Point the update feed at $GITHUB_REF_NAME"
+          git push origin main

@@ -574,6 +574,13 @@ void TopBar::showSettingsMenu() {
   m.addItem(701, "Redo", canRedo && canRedo());
   m.addSeparator();
 
+  // A tick rather than a submenu. It is one decision with two answers, and it
+  // is the only thing in this menu that reaches outside the machine, so it
+  // reads better stated plainly than buried a level down.
+  m.addItem(702, "Check for new versions", true,
+            isUpdateCheckAllowed && isUpdateCheckAllowed());
+  m.addSeparator();
+
   m.addSectionHeader("Polyphony");
 
   for (int i = 0; i < (int)params::kPolyphonyChoices.size(); ++i)
@@ -732,6 +739,16 @@ void TopBar::showSettingsMenu() {
 
                     if (result == 701)
                       return onRedo ? onRedo() : void();
+
+                    if (result == 702) {
+                      const bool now =
+                          isUpdateCheckAllowed && isUpdateCheckAllowed();
+
+                      if (onUpdateCheckToggled)
+                        onUpdateCheckToggled(!now);
+
+                      return;
+                    }
 
                     if (result >= 600)
                       return choose(params::atSourceId, result - 600);
@@ -1091,9 +1108,7 @@ void TopBar::paint(juce::Graphics &g) {
 
     block.removeFromTop(2);
 
-    g.setColour(colours::textDim);
-    g.setFont(makeFont(9.5f));
-    g.drawText(kCredit, block, juce::Justification::centredLeft, false);
+    paintCreditLine(g, block);
     return;
   }
 
@@ -1103,10 +1118,57 @@ void TopBar::paint(juce::Graphics &g) {
   g.drawText("OVERTONIUM", title.removeFromTop(24),
              juce::Justification::centredLeft, false);
 
-  g.setColour(colours::textDim);
-  g.setFont(makeFont(9.5f));
-  g.drawText(kCredit, title.removeFromTop(13), juce::Justification::centredLeft,
-             false);
+  paintCreditLine(g, title.removeFromTop(13));
+}
+
+/// The line under the wordmark. Ordinarily the tagline, and an offer to update
+/// when there is one, because it is the one piece of text in the bar that is
+/// already saying something nobody needs to read twice.
+void TopBar::paintCreditLine(juce::Graphics &g, juce::Rectangle<int> area) {
+  if (updateVersion.isEmpty()) {
+    updateBounds = {};
+    g.setColour(colours::textDim);
+    g.setFont(makeFont(9.5f));
+    g.drawText(kCredit, area, juce::Justification::centredLeft, false);
+    return;
+  }
+
+  const auto text = "Version " + updateVersion + " available";
+
+  g.setFont(makeFont(9.5f, true));
+  g.setColour(colours::accent);
+  g.drawText(text, area, juce::Justification::centredLeft, false);
+
+  // Only the text is clickable, not the width of the whole title block, so the
+  // pointer does not turn into a hand over empty panel.
+  const auto measured = juce::GlyphArrangement::getStringWidth(
+      g.getCurrentFont(), text);
+  const auto width =
+      juce::jmin(area.getWidth(), juce::roundToInt(measured) + 2);
+  updateBounds = area.withWidth(width);
+}
+
+void TopBar::setUpdateAvailable(const juce::String &version,
+                                const juce::String &url) {
+  if (version == updateVersion)
+    return;
+
+  updateVersion = version;
+  updateUrl = url;
+  repaint();
+}
+
+void TopBar::mouseUp(const juce::MouseEvent &e) {
+  if (updateUrl.isNotEmpty() && updateBounds.contains(e.getPosition()))
+    juce::URL(updateUrl).launchInDefaultBrowser();
+}
+
+void TopBar::mouseMove(const juce::MouseEvent &e) {
+  const bool over =
+      updateUrl.isNotEmpty() && updateBounds.contains(e.getPosition());
+
+  setMouseCursor(over ? juce::MouseCursor::PointingHandCursor
+                      : juce::MouseCursor::NormalCursor);
 }
 
 } // namespace ovt::ui

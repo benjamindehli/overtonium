@@ -91,6 +91,7 @@ set(OVERTONIUM_SOURCES
     Source/PluginEditor.cpp
     Source/PluginParameters.cpp
     Source/Presets.cpp
+    Source/UpdateCheck.cpp
     Source/dsp/Voice.cpp
     Source/dsp/SynthEngine.cpp
     Source/dsp/TapeEcho.cpp
@@ -115,9 +116,19 @@ target_include_directories(Overtonium PRIVATE Source)
 
 target_compile_definitions(Overtonium PUBLIC
     JUCE_WEB_BROWSER=0
-    JUCE_USE_CURL=0
     JUCE_VST3_CAN_REPLACE_VST2=0
     JUCE_STRICT_REFCOUNTEDPOINTER=1)
+
+# The update check needs to reach an https address, and only on Linux does that
+# take a dependency. macOS and Windows go through the platform's own networking
+# whatever this says. JUCE's own Linux fallback is a plain socket with no TLS in
+# it at all: it knows port 80 and nothing else, so without curl the check cannot
+# work there.
+if(UNIX AND NOT APPLE)
+    target_compile_definitions(Overtonium PUBLIC JUCE_USE_CURL=1)
+else()
+    target_compile_definitions(Overtonium PUBLIC JUCE_USE_CURL=0)
+endif()
 
 if(APPLE)
     # Backs the editor with a CAMetalLayer instead of the ordinary CoreGraphics one.

@@ -27,6 +27,10 @@ const juce::Identifier kLinkScope{"linkScope"};
 const juce::Identifier kLinkCurve{"linkCurve"};
 const juce::Identifier kCollapsedSections{"collapsedSections"};
 
+/// Tri-state on purpose: absent means nobody has been asked yet, which is not
+/// the same as having said no.
+const juce::Identifier kUpdateCheckAllowed{"updateCheckAllowed"};
+
 bool isHeadingRow(Row r) {
   return r == Row::PitchModHeading || r == Row::EnvHeading ||
          r == Row::KeyOffHeading || r == Row::AmpModHeading ||
@@ -204,6 +208,20 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     strips.push_back(std::move(strip));
   }
 
+  topBar.isUpdateCheckAllowed = [this] {
+    return (int)plugin().apvts.state.getProperty(kUpdateCheckAllowed, -1) == 1;
+  };
+
+  topBar.onUpdateCheckToggled = [this](bool allowed) {
+    plugin().apvts.state.setProperty(kUpdateCheckAllowed, allowed ? 1 : 0,
+                                     nullptr);
+
+    if (allowed)
+      maybeCheckForUpdates();
+    else
+      topBar.setUpdateAvailable({}, {});
+  };
+
   topBar.onPresetChosen = [this](int index) {
     applyPreset(index);
     topBar.setPresetName(presets::names()[index]);
@@ -308,6 +326,9 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
           juce::roundToInt((float)savedHeight * zoom));
 
   startTimerHz(30);
+
+  // Last, so a prompt cannot appear over a half-built window.
+  offerUpdateCheck();
 }
 
 OvertoniumEditor::~OvertoniumEditor() {
@@ -438,6 +459,40 @@ void OvertoniumEditor::toggleSection(Section section) {
   // setSize does nothing when the height was already at a limit, and the
   // strips still have to be laid out again for the rows that just changed.
   resized();
+}
+
+void OvertoniumEditor::maybeCheckForUpdates() {
+  if ((int)plugin().apvts.state.getProperty(kUpdateCheckAllowed, -1) != 1)
+    return;
+
+  updateCheck.onResult = [this] {
+    if (const auto release = updateCheck.newerRelease())
+      topBar.setUpdateAvailable(release->version, release->url);
+  };
+
+  updateCheck.start(JucePlugin_VersionString);
+}
+
+void OvertoniumEditor::offerUpdateCheck() {
+  auto &state = plugin().apvts.state;
+
+  // Asked and answered, either way.
+  if ((int)state.getProperty(kUpdateCheckAllowed, -1) >= 0) {
+    maybeCheckForUpdates();
+    return;
+  }
+
+  juce::NativeMessageBox::showYesNoBox(
+      juce::MessageBoxIconType::NoIcon, "Check for new versions?",
+      "Overtonium can look at its own project page now and then and tell you "
+      "when a newer version is out. Nothing else is sent, and nothing is sent "
+      "at all unless you say yes.\n\nThis can be changed later under "
+      "Settings.",
+      this, juce::ModalCallbackFunction::create([this](int result) {
+        plugin().apvts.state.setProperty(kUpdateCheckAllowed,
+                                         result == 1 ? 1 : 0, nullptr);
+        maybeCheckForUpdates();
+      }));
 }
 
 void OvertoniumEditor::applyPreset(int index) {

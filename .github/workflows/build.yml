@@ -72,7 +72,7 @@ jobs:
           sudo apt-get install --no-install-recommends -y \
             libasound2-dev libfreetype-dev libfontconfig1-dev libx11-dev \
             libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev \
-            libxcomposite-dev libgl-dev xvfb
+            libxcomposite-dev libgl-dev libcurl4-openssl-dev xvfb
 
       # Warnings are errors here and nowhere else. JUCE's recommended set is
       # already asked for in CMakeLists and it is a broad one, but a warning
