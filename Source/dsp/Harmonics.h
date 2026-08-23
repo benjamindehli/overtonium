@@ -126,10 +126,4 @@ inline const char *intervalName(int pitchClass) noexcept {
   return names[(size_t)(((pitchClass % 12) + 12) % 12)];
 }
 
-inline const char *intervalShortName(int pitchClass) noexcept {
-  static const char *names[12] = {"8ve", "m2", "M2", "m3", "M3", "P4",
-                                  "TT",  "P5", "m6", "M6", "m7", "M7"};
-  return names[(size_t)(((pitchClass % 12) + 12) % 12)];
-}
-
 } // namespace ovt

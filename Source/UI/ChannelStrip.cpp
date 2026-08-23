@@ -963,15 +963,12 @@ void ChannelStrip::paint(juce::Graphics &g) {
   // Accent when the pointer is on this channel, which is exactly what the
   // gutter does to the caption of the row it is on. The number is the name of
   // the channel, so lighting it is the same gesture.
+  // Centred in what is left of the header rather than pinned to the top of
+  // it. The number is the only thing standing here.
   g.setColour(hovered ? colours::accent : colours::text);
   g.setFont(makeFont(14.0f, true));
-  g.drawText(juce::String(info.harmonic), header.removeFromTop(14),
-             juce::Justification::centred, false);
-
-  g.setColour(colour.withAlpha(0.85f));
-  g.setFont(makeFont(9.0f));
-  g.drawText(intervalShortName(info.pitchClass), header,
-             juce::Justification::centred, false);
+  g.drawText(juce::String(info.harmonic), header, juce::Justification::centred,
+             false);
 
   // Section rules, aligned with the gutter headings. Four of the five carry a
   // lamp, and those draw their own rule around it, so only the output divider

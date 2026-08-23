@@ -402,7 +402,7 @@ const char *rowLabel(Row r) {
   case Row::AmDepth:
     return "depth";
   case Row::MuteSolo:
-    return "M / S";
+    return "MUTE / SOLO";
   case Row::Fader:
     return "LEVEL";
 
