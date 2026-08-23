@@ -95,7 +95,9 @@ h1 {
 }
 
 .links a {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     padding: 9px 16px;
     border: 1px solid var(--outline);
     border-radius: 4px;
@@ -468,4 +470,14 @@ main h1 {
    capture of six channel strips is an upscaled blur. */
 .narrow img {
     max-width: 316px;
+}
+
+/* Icons inside a link button. currentColor rather than a fixed fill, so the
+   mark follows the text through the hover and the accent state instead of
+   staying black on a dark panel, which is what an SVG with no fill does. */
+.links a svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+    flex: none;
 }
