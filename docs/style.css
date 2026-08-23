@@ -1,318 +1,471 @@
 /* The plugin's own palette, taken from Source/UI/Theme.h so the page and the
    instrument cannot drift apart. */
 :root {
-  --background: #0b0d10;
-  --panel: #14181d;
-  --panel-alt: #181d23;
-  --groove: #090b0e;
-  --outline: #272e37;
-  --text: #d9dfe7;
-  --text-dim: #6f7a86;
-  --accent: #62bbd9;
-  --warn: #e0733d;
-  --hold: #e8c34a;
+    --background: #0b0d10;
+    --panel: #14181d;
+    --panel-alt: #181d23;
+    --groove: #090b0e;
+    --outline: #272e37;
+    --text: #d9dfe7;
+    --text-dim: #6f7a86;
+    --accent: #62bbd9;
+    --warn: #e0733d;
+    --hold: #e8c34a;
 
-  --measure: 74ch;
-  --page: 1180px;
+    --measure: 74ch;
+    --page: 1180px;
 }
 
 * {
-  box-sizing: border-box;
+    box-sizing: border-box;
 }
 
 html {
-  scroll-behavior: smooth;
+    scroll-behavior: smooth;
 }
 
 body {
-  margin: 0;
-  padding: 0 24px 96px;
-  background: var(--background);
-  color: var(--text);
-  font: 400 17px/1.65 ui-sans-serif, system-ui, -apple-system, "Segoe UI",
-    Roboto, Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
+    margin: 0;
+    padding: 0 24px 96px;
+    background: var(--background);
+    color: var(--text);
+    font:
+        400 17px/1.65 ui-sans-serif,
+        system-ui,
+        -apple-system,
+        "Segoe UI",
+        Roboto,
+        Helvetica,
+        Arial,
+        sans-serif;
+    -webkit-font-smoothing: antialiased;
 }
 
 .page {
-  max-width: var(--page);
-  margin: 0 auto;
+    max-width: var(--page);
+    margin: 0 auto;
 }
 
 /* ---- masthead ------------------------------------------------------------ */
 
 header {
-  padding: 72px 0 8px;
+    padding: 72px 0 8px;
 }
 
 h1 {
-  margin: 0;
+    margin: 0;
 }
 
 .wordmark {
-  width: 100%;
-  max-width: 460px;
-  height: auto;
-  display: block;
+    width: 100%;
+    max-width: 460px;
+    height: auto;
+    display: block;
 }
 
 /* The heading a search engine and a screen reader read, where the wordmark is
    the one everyone else does. */
 .offscreen {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  clip-path: inset(50%);
-  white-space: nowrap;
-  border: 0;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
 }
 
 .tagline {
-  color: var(--text-dim);
-  font-size: 15px;
-  letter-spacing: 0.04em;
-  margin: 6px 0 0;
+    color: var(--text-dim);
+    font-size: 15px;
+    letter-spacing: 0.04em;
+    margin: 6px 0 0;
 }
 
 .links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin: 28px 0 0;
-  padding: 0;
-  list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 28px 0 0;
+    padding: 0;
+    list-style: none;
 }
 
 .links a {
-  display: inline-block;
-  padding: 9px 16px;
-  border: 1px solid var(--outline);
-  border-radius: 4px;
-  background: var(--panel-alt);
-  color: var(--text);
-  font-size: 15px;
-  text-decoration: none;
+    display: inline-block;
+    padding: 9px 16px;
+    border: 1px solid var(--outline);
+    border-radius: 4px;
+    background: var(--panel-alt);
+    color: var(--text);
+    font-size: 15px;
+    text-decoration: none;
 }
 
 .links a:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent);
 }
 
 .links a.primary {
-  border-color: var(--accent);
-  color: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent);
 }
 
 .links a.primary:hover {
-  background: var(--accent);
-  color: var(--background);
+    background: var(--accent);
+    color: var(--background);
 }
 
 /* ---- text ---------------------------------------------------------------- */
 
 main {
-  padding-top: 8px;
+    padding-top: 8px;
 }
 
 section {
-  padding: 44px 0 0;
+    padding: 44px 0 0;
 }
 
 h2 {
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--accent);
-  margin: 0 0 14px;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 14px;
 }
 
 h3 {
-  font-size: 18px;
-  font-weight: 600;
-  margin: 28px 0 8px;
+    font-size: 18px;
+    font-weight: 600;
+    margin: 28px 0 8px;
 }
 
 p,
 li,
 dd {
-  max-width: var(--measure);
+    max-width: var(--measure);
 }
 
 p {
-  margin: 0 0 16px;
+    margin: 0 0 16px;
 }
 
 .lead {
-  font-size: 21px;
-  line-height: 1.55;
+    font-size: 21px;
+    line-height: 1.55;
 }
 
 a {
-  color: var(--accent);
+    color: var(--accent);
 }
 
 strong {
-  color: #fff;
-  font-weight: 600;
+    color: #fff;
+    font-weight: 600;
 }
 
 code {
-  font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  background: var(--groove);
-  border: 1px solid var(--outline);
-  border-radius: 3px;
-  padding: 1px 5px;
+    font:
+        14px/1.5 ui-monospace,
+        SFMono-Regular,
+        Menlo,
+        Consolas,
+        monospace;
+    background: var(--groove);
+    border: 1px solid var(--outline);
+    border-radius: 3px;
+    padding: 1px 5px;
 }
 
 pre {
-  background: var(--groove);
-  border: 1px solid var(--outline);
-  border-radius: 5px;
-  padding: 16px 18px;
-  overflow-x: auto;
-  max-width: var(--measure);
+    background: var(--groove);
+    border: 1px solid var(--outline);
+    border-radius: 5px;
+    padding: 16px 18px;
+    overflow-x: auto;
+    max-width: var(--measure);
 }
 
 pre code {
-  background: none;
-  border: 0;
-  padding: 0;
+    background: none;
+    border: 0;
+    padding: 0;
 }
 
 /* ---- figures ------------------------------------------------------------- */
 
 figure {
-  margin: 28px 0 0;
+    margin: 28px 0 0;
 }
 
 figure img {
-  display: block;
-  width: 100%;
-  height: auto;
-  border: 1px solid var(--outline);
-  border-radius: 6px;
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 1px solid var(--outline);
+    border-radius: 6px;
 }
 
 figcaption {
-  color: var(--text-dim);
-  font-size: 14px;
-  margin-top: 10px;
+    color: var(--text-dim);
+    font-size: 14px;
+    margin-top: 10px;
 }
 
 /* A tall crop beside its text, which folds under on a narrow window. */
 .split {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 316px;
-  gap: 40px;
-  align-items: start;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 316px;
+    gap: 40px;
+    align-items: start;
 }
 
 .split figure {
-  margin: 0;
+    margin: 0;
 }
 
 .split figure img {
-  max-width: 316px;
+    max-width: 316px;
 }
 
 /* ---- the row of facts ---------------------------------------------------- */
 
 .facts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 1px;
-  background: var(--outline);
-  border: 1px solid var(--outline);
-  border-radius: 6px;
-  overflow: hidden;
-  margin: 28px 0 0;
-  padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 1px;
+    background: var(--outline);
+    border: 1px solid var(--outline);
+    border-radius: 6px;
+    overflow: hidden;
+    margin: 28px 0 0;
+    padding: 0;
 }
 
 .facts > div {
-  background: var(--panel);
-  padding: 18px 20px;
+    background: var(--panel);
+    padding: 18px 20px;
 }
 
 .facts dt {
-  color: var(--text-dim);
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+    color: var(--text-dim);
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
 }
 
 .facts dd {
-  margin: 4px 0 0;
-  font-size: 17px;
+    margin: 4px 0 0;
+    font-size: 17px;
 }
 
 /* ---- the questions ------------------------------------------------------- */
 
 .qa {
-  margin: 0;
+    margin: 0;
 }
 
 .qa dt {
-  font-weight: 600;
-  color: #fff;
-  margin: 24px 0 6px;
+    font-weight: 600;
+    color: #fff;
+    margin: 24px 0 6px;
 }
 
 .qa dt:first-of-type {
-  margin-top: 0;
+    margin-top: 0;
 }
 
 .qa dd {
-  margin: 0;
+    margin: 0;
 }
 
 /* ---- footer -------------------------------------------------------------- */
 
 footer {
-  margin-top: 72px;
-  padding-top: 28px;
-  border-top: 1px solid var(--outline);
-  color: var(--text-dim);
-  font-size: 15px;
+    margin-top: 72px;
+    padding-top: 28px;
+    border-top: 1px solid var(--outline);
+    color: var(--text-dim);
+    font-size: 15px;
 }
 
 footer a {
-  color: var(--text-dim);
+    color: var(--text-dim);
 }
 
 footer a:hover {
-  color: var(--accent);
+    color: var(--accent);
 }
 
 .maker {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 18px;
 }
 
 .maker img {
-  width: 58px;
-  height: auto;
-  opacity: 0.55;
+    width: 58px;
+    height: auto;
+    opacity: 0.55;
 }
 
 @media (max-width: 860px) {
-  .split {
-    grid-template-columns: minmax(0, 1fr);
-  }
+    .split {
+        grid-template-columns: minmax(0, 1fr);
+    }
 
-  header {
-    padding-top: 44px;
-  }
+    header {
+        padding-top: 44px;
+    }
 
-  body {
+    body {
+        font-size: 16px;
+    }
+}
+
+/* Section nav. The same list on every page, with the current one marked by
+   aria-current rather than by a class, so the marker cannot drift from what a
+   screen reader is told. */
+.sections {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    margin: 30px 0 0;
+    padding: 0;
+    list-style: none;
+    border-bottom: 1px solid var(--outline);
+}
+.sections a {
+    display: inline-block;
+    padding: 10px 16px;
+    color: var(--text-dim);
+    font-size: 15px;
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+}
+.sections a:hover {
+    color: var(--text);
+}
+.sections a[aria-current="page"] {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+/* Breadcrumb, on the inner pages only. */
+.crumbs {
+    margin: 24px 0 0;
+    color: var(--text-dim);
+    font-size: 14px;
+}
+.crumbs a {
+    color: var(--text-dim);
+}
+.crumbs a:hover {
+    color: var(--accent);
+}
+
+/* Cards linking the sections from the overview. */
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 14px;
+    margin: 28px 0 0;
+    padding: 0;
+    list-style: none;
+}
+.cards li {
+    border: 1px solid var(--outline);
+    border-radius: 4px;
+    background: var(--panel);
+}
+.cards a {
+    display: block;
+    padding: 18px 20px;
+    text-decoration: none;
+    color: var(--text);
+    height: 100%;
+    box-sizing: border-box;
+}
+.cards a:hover {
+    border-color: var(--accent);
+}
+.cards strong {
+    display: block;
+    color: var(--accent);
     font-size: 16px;
-  }
+    margin-bottom: 6px;
+}
+.cards span {
+    color: var(--text-dim);
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+/* Wide reference tables. They scroll inside themselves rather than pushing the
+   page sideways on a phone. */
+.scroll {
+    overflow-x: auto;
+    margin: 22px 0;
+}
+table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 15px;
+}
+th,
+td {
+    text-align: left;
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--outline);
+    vertical-align: top;
+}
+th {
+    color: var(--accent);
+    font-weight: 600;
+    white-space: nowrap;
+}
+td code {
+    white-space: nowrap;
+}
+
+/* The next/previous pair at the foot of an inner page. */
+.onward {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 44px 0 0;
+    padding: 22px 0 0;
+    border-top: 1px solid var(--outline);
+}
+
+/* On the inner pages the wordmark is a link home rather than the heading, so
+   the h1 can be the subject of the page. */
+.brand {
+    margin: 0;
+}
+.brand img {
+    width: 100%;
+    max-width: 300px;
+    height: auto;
+    display: block;
+}
+main h1 {
+    font-size: 34px;
+    line-height: 1.2;
+    margin: 30px 0 0;
+    letter-spacing: -0.01em;
+}
+
+/* A figure whose image is narrower than the column it sits in. Without this
+   the shared rule stretches it to the page width, which for a 316 pixel
+   capture of six channel strips is an upscaled blur. */
+.narrow img {
+    max-width: 316px;
 }

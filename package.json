@@ -1,0 +1,12 @@
+{
+    "name": "overtonium-tooling",
+    "private": true,
+    "description": "Formatting tools for the docs, the readme and the workflows. The plugin itself is C++ and CMake and needs none of this.",
+    "scripts": {
+        "format": "prettier --write .",
+        "format:check": "prettier --check ."
+    },
+    "devDependencies": {
+        "prettier": "3.6.2"
+    }
+}

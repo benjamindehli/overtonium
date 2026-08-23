@@ -2,7 +2,7 @@
 
 A 32-partial additive synthesiser laid out like a 32-channel mixer. Every channel is one sine oscillator locked to a harmonic of the played note, and every channel has its own tuning, envelope and modulation.
 
-The control worth reaching for first is TUNE. It sweeps each partial continuously between equal temperament and just intonation. At the just end the partial sits at an exact integer ratio with the fundamental and the whole stack fuses into a single timbre. At the equal end each partial snaps to the nearest 12-TET semitone and the same stack smears into a chord. The factory presets *Just Saw* and *Equal Saw* are identical except for that one control, and they sound nothing alike.
+The control worth reaching for first is TUNE. It sweeps each partial continuously between equal temperament and just intonation. At the just end the partial sits at an exact integer ratio with the fundamental and the whole stack fuses into a single timbre. At the equal end each partial snaps to the nearest 12-TET semitone and the same stack smears into a chord. The factory presets _Just Saw_ and _Equal Saw_ are identical except for that one control, and they sound nothing alike.
 
 ## What is in it
 
@@ -20,11 +20,11 @@ The control worth reaching for first is TUNE. It sweeps each partial continuousl
 
 Take the installer for your platform. The zip beside it holds the same builds loose, for anyone without administrator rights or with plugin folders of their own.
 
-| Platform | Installer | Formats |
-|---|---|---|
-| macOS | `.pkg`, with a chooser | VST3, Audio Unit, Standalone |
-| Windows | `.exe` | VST3, Standalone |
-| Linux | none, use the zip | VST3, LV2, Standalone |
+| Platform | Installer              | Formats                      |
+| -------- | ---------------------- | ---------------------------- |
+| macOS    | `.pkg`, with a chooser | VST3, Audio Unit, Standalone |
+| Windows  | `.exe`                 | VST3, Standalone             |
+| Linux    | none, use the zip      | VST3, LV2, Standalone        |
 
 The macOS build is a universal binary and runs on both Apple Silicon and Intel. Logic and GarageBand only look for new Audio Units when they start, so restart them after installing.
 

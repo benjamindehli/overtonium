@@ -2,7 +2,7 @@
 
 A 32-partial additive synthesiser laid out like a 32-channel mixer. Every channel is one sine oscillator locked to a harmonic of the played note, and every channel has its own tuning, envelope and modulation.
 
-The control worth reaching for first is TUNE. It sweeps each partial continuously between equal temperament and just intonation. At the just end the partial sits at an exact integer ratio with the fundamental and the whole stack fuses into a single timbre. At the equal end each partial snaps to the nearest 12-TET semitone and the same stack smears into a chord. The factory presets *Just Saw* and *Equal Saw* are identical except for that one control, and they sound nothing alike.
+The control worth reaching for first is TUNE. It sweeps each partial continuously between equal temperament and just intonation. At the just end the partial sits at an exact integer ratio with the fundamental and the whole stack fuses into a single timbre. At the equal end each partial snaps to the nearest 12-TET semitone and the same stack smears into a chord. The factory presets _Just Saw_ and _Equal Saw_ are identical except for that one control, and they sound nothing alike.
 
 [![Build and test](https://github.com/benjamindehli/overtonium/actions/workflows/build.yml/badge.svg)](https://github.com/benjamindehli/overtonium/actions/workflows/build.yml)
 
@@ -113,15 +113,15 @@ The tag has to match `project(Overtonium VERSION ...)` in CMakeLists, and the wo
 
 **Signing.** The macOS side signs and notarises when the repository has the secrets for it, and falls back to an ad-hoc signature when it does not, so the workflow can be rehearsed before any of them exist. Ad-hoc is what lets a bundle load at all on Apple Silicon, where an unsigned one is refused outright, but it is not notarisation and a download still has to be opened past Gatekeeper.
 
-| Secret | What it is |
-|---|---|
-| `APPLE_CERTIFICATE_P12` | Developer ID Application certificate and key, as a base64 `.p12` |
-| `APPLE_CERTIFICATE_PASSWORD` | the password that `.p12` was exported with |
-| `APPLE_INSTALLER_CERTIFICATE_P12` | Developer ID Installer certificate, base64 `.p12`, for signing the package itself |
-| `APPLE_INSTALLER_CERTIFICATE_PASSWORD` | its export password |
-| `APPLE_ID` | the Apple ID to submit for notarisation with |
-| `APPLE_APP_SPECIFIC_PASSWORD` | an app-specific password for that Apple ID, not the account password |
-| `APPLE_TEAM_ID` | the ten-character team identifier |
+| Secret                                 | What it is                                                                        |
+| -------------------------------------- | --------------------------------------------------------------------------------- |
+| `APPLE_CERTIFICATE_P12`                | Developer ID Application certificate and key, as a base64 `.p12`                  |
+| `APPLE_CERTIFICATE_PASSWORD`           | the password that `.p12` was exported with                                        |
+| `APPLE_INSTALLER_CERTIFICATE_P12`      | Developer ID Installer certificate, base64 `.p12`, for signing the package itself |
+| `APPLE_INSTALLER_CERTIFICATE_PASSWORD` | its export password                                                               |
+| `APPLE_ID`                             | the Apple ID to submit for notarisation with                                      |
+| `APPLE_APP_SPECIFIC_PASSWORD`          | an app-specific password for that Apple ID, not the account password              |
+| `APPLE_TEAM_ID`                        | the ten-character team identifier                                                 |
 
 Base64 a certificate with `base64 -i cert.p12 | pbcopy`. The two certificates are different: Application signs the bundles, Installer signs the `.pkg`, and notarisation refuses a package signed with the wrong one.
 
@@ -139,27 +139,27 @@ The stylesheet takes its palette from `Source/UI/Theme.h`, so the page and the i
 
 Sixteen ship with it, listed alphabetically. Most were dialled in by hand on the panel and converted straight from the saved file, so what ships is what was played rather than something written afterwards to approximate it. Where a row of the mixer has a shape the preset says so, as the saws do with `1.0 / n`, and where it was drawn by hand the thirty-two values are written out as a list so the curve is at least visible.
 
-*Init* is one of them rather than a reset to the parameter defaults. It clears the patch down to a short, bright three-partial pluck, which is a better place to start building from than silence. Like every other preset it leaves the session alone, so your tuning, polyphony, bend range and master fader survive loading it.
+_Init_ is one of them rather than a reset to the parameter defaults. It clears the patch down to a short, bright three-partial pluck, which is a better place to start building from than silence. Like every other preset it leaves the session alone, so your tuning, polyphony, bend range and master fader survive loading it.
 
 Eight of them use STRETCH or TRACK, since eight of them are modelling something with a body. Picking odd partials was always a stand-in for inharmonicity, and three of these have the real thing on top of it:
 
-| Preset | Stretch | Tracking | Why |
-|---|---|---|---|
-| Big Saw | +2 ct | 1.3 dB/oct | barely any of either, just enough to stop the partials locking dead in phase |
-| Drawbar Organ | | 3.2 dB/oct | |
-| Equal Saw | | 1.0 dB/oct | |
+| Preset         | Stretch | Tracking   | Why                                                                                                  |
+| -------------- | ------- | ---------- | ---------------------------------------------------------------------------------------------------- |
+| Big Saw        | +2 ct   | 1.3 dB/oct | barely any of either, just enough to stop the partials locking dead in phase                         |
+| Drawbar Organ  |         | 3.2 dB/oct |                                                                                                      |
+| Equal Saw      |         | 1.0 dB/oct |                                                                                                      |
 | Glass Armonica | +180 ct | 4.0 dB/oct | barely any, but enough that the upper partials beat against the fundamental instead of locking to it |
-| Just Saw | | 1.0 dB/oct | |
-| Lo-fi | | 4.0 dB/oct | |
-| Music Box | -23 ct | 1.5 dB/oct | a comb tooth is a bar and does not ring in whole numbers |
-| Slow Pad | | 2.5 dB/oct | |
-| Tape Choir | | 3.5 dB/oct | voices thin out at the top of a range rather than brightening |
-| Vibraphone | | 3.0 dB/oct | a short bar carries less above its fundamental than a long one |
-| Wurli | | 3.1 dB/oct | |
+| Just Saw       |         | 1.0 dB/oct |                                                                                                      |
+| Lo-fi          |         | 4.0 dB/oct |                                                                                                      |
+| Music Box      | -23 ct  | 1.5 dB/oct | a comb tooth is a bar and does not ring in whole numbers                                             |
+| Slow Pad       |         | 2.5 dB/oct |                                                                                                      |
+| Tape Choir     |         | 3.5 dB/oct | voices thin out at the top of a range rather than brightening                                        |
+| Vibraphone     |         | 3.0 dB/oct | a short bar carries less above its fundamental than a long one                                       |
+| Wurli          |         | 3.1 dB/oct |                                                                                                      |
 
-*Cathedral* is a principal chorus arriving slowly, in a nine second room. *Glass Armonica* is rubbed glass, with a key-off level above the sustain so lifting the finger lets the rim ring on. *Music Box* is a comb of teeth, each ringing for a different length and sitting somewhere different in the field. *Tape Choir* is a worn echo and drift, with the partials fanned across the field.
+_Cathedral_ is a principal chorus arriving slowly, in a nine second room. _Glass Armonica_ is rubbed glass, with a key-off level above the sustain so lifting the finger lets the rim ring on. _Music Box_ is a comb of teeth, each ringing for a different length and sitting somewhere different in the field. _Tape Choir_ is a worn echo and drift, with the partials fanned across the field.
 
-Two of them use the converter rather than avoiding it. *Big Saw* quantises to 8 bits at the host's own rate, and *Lo-fi* runs the whole voice pool at 8 kHz and 8 bits, which is the setting paying for itself rather than being an effect over the top.
+Two of them use the converter rather than avoiding it. _Big Saw_ quantises to 8 bits at the host's own rate, and _Lo-fi_ runs the whole voice pool at 8 kHz and 8 bits, which is the setting paying for itself rather than being an effect over the top.
 
 The organs are deliberately left alone by STRETCH. A drawbar organ is electric and a pipe organ is voiced rank by rank, so neither loses its top as you play up, and pretending otherwise would be modelling the wrong instrument. So are the synthetic patches, where the raw spectrum is the point.
 
@@ -191,24 +191,24 @@ semitoneOffset(n, blend) = round(1200*log2(n)/100) + blend * (1200*log2(n) mod 1
 
 At `blend = 1` this is exactly `n` times the fundamental. Nothing is hard-coded, but rounded to whole cents the table comes out as the familiar one:
 
-| n | semis | cents | interval | | n | semis | cents | interval |
-|---|-------|-------|----------|-|---|-------|-------|----------|
-| 1 | 0 | 0 | prime/octave | | 17 | 49 | +5 | minor second |
-| 2 | 12 | 0 | prime/octave | | 18 | 50 | +4 | major second |
-| 3 | 19 | +2 | fifth | | 19 | 51 | -2 | minor third |
-| 4 | 24 | 0 | prime/octave | | 20 | 52 | -14 | major third |
-| 5 | 28 | -14 | major third | | 21 | 53 | -29 | fourth |
-| 6 | 31 | +2 | fifth | | 22 | 54 | -49 | tritone |
-| 7 | 34 | -31 | minor seventh | | 23 | 54 | +28 | tritone |
-| 8 | 36 | 0 | prime/octave | | 24 | 55 | +2 | fifth |
-| 9 | 38 | +4 | major second | | 25 | 56 | -27 | minor sixth |
-| 10 | 40 | -14 | major third | | 26 | 56 | +41 | minor sixth |
-| 11 | 42 | -49 | tritone | | 27 | 57 | +6 | major sixth |
-| 12 | 43 | +2 | fifth | | 28 | 58 | -31 | minor seventh |
-| 13 | 44 | +41 | minor sixth | | 29 | 58 | +30 | minor seventh |
-| 14 | 46 | -31 | minor seventh | | 30 | 59 | -12 | major seventh |
-| 15 | 47 | -12 | major seventh | | 31 | 59 | +45 | major seventh |
-| 16 | 48 | 0 | prime/octave | | 32 | 60 | 0 | prime/octave |
+| n   | semis | cents | interval      |     | n   | semis | cents | interval      |
+| --- | ----- | ----- | ------------- | --- | --- | ----- | ----- | ------------- |
+| 1   | 0     | 0     | prime/octave  |     | 17  | 49    | +5    | minor second  |
+| 2   | 12    | 0     | prime/octave  |     | 18  | 50    | +4    | major second  |
+| 3   | 19    | +2    | fifth         |     | 19  | 51    | -2    | minor third   |
+| 4   | 24    | 0     | prime/octave  |     | 20  | 52    | -14   | major third   |
+| 5   | 28    | -14   | major third   |     | 21  | 53    | -29   | fourth        |
+| 6   | 31    | +2    | fifth         |     | 22  | 54    | -49   | tritone       |
+| 7   | 34    | -31   | minor seventh |     | 23  | 54    | +28   | tritone       |
+| 8   | 36    | 0     | prime/octave  |     | 24  | 55    | +2    | fifth         |
+| 9   | 38    | +4    | major second  |     | 25  | 56    | -27   | minor sixth   |
+| 10  | 40    | -14   | major third   |     | 26  | 56    | +41   | minor sixth   |
+| 11  | 42    | -49   | tritone       |     | 27  | 57    | +6    | major sixth   |
+| 12  | 43    | +2    | fifth         |     | 28  | 58    | -31   | minor seventh |
+| 13  | 44    | +41   | minor sixth   |     | 29  | 58    | +30   | minor seventh |
+| 14  | 46    | -31   | minor seventh |     | 30  | 59    | -12   | major seventh |
+| 15  | 47    | -12   | major seventh |     | 31  | 59    | +45   | major seventh |
+| 16  | 48    | 0     | prime/octave  |     | 32  | 60    | 0     | prime/octave  |
 
 The test suite asserts this table, so the derivation cannot silently drift from it.
 
@@ -218,14 +218,14 @@ Everything above is about where a partial sits over the note you played. This is
 
 For an instrument whose whole subject is tuning, that was a hole: you could put the partials in just intonation but not the keyboard they were played from. Settings now has a Temperament entry with six:
 
-| | Major third | Fifth | |
-|---|---|---|---|
-| Equal | 400.00 | 700.00 | the reference everything else is measured against |
-| Just (major) | 386.31 | 701.96 | pure by construction, chosen interval by interval |
-| Pythagorean | 407.82 | 701.96 | every fifth pure, the third pays for it |
-| Quarter-comma meantone | 386.31 | 696.58 | fifths narrowed a quarter comma, which makes the third pure |
-| Werckmeister III | 390.22 | 696.09 | four fifths narrowed, no wolf, every key playable |
-| Young | 392.18 | 698.04 | six narrowed by a sixth, gentler again |
+|                        | Major third | Fifth  |                                                             |
+| ---------------------- | ----------- | ------ | ----------------------------------------------------------- |
+| Equal                  | 400.00      | 700.00 | the reference everything else is measured against           |
+| Just (major)           | 386.31      | 701.96 | pure by construction, chosen interval by interval           |
+| Pythagorean            | 407.82      | 701.96 | every fifth pure, the third pays for it                     |
+| Quarter-comma meantone | 386.31      | 696.58 | fifths narrowed a quarter comma, which makes the third pure |
+| Werckmeister III       | 390.22      | 696.09 | four fifths narrowed, no wolf, every key playable           |
+| Young                  | 392.18      | 698.04 | six narrowed by a sixth, gentler again                      |
 
 They are derived from the circle of fifths rather than copied out as tables of cents. Almost every historical temperament is described by how much each of the twelve fifths is narrowed, so that is what the code says, and the pitch classes fall out of it. The two commas it is all built from come out at 23.460 and 21.506 cents, which are the published figures, and the tests assert the property that defines each temperament rather than the numbers that happen to result: meantone's third pure to a thousandth of a cent, Pythagorean's fifth likewise, Werckmeister at its characteristic 390.2.
 
@@ -245,8 +245,8 @@ Nothing real rings at integer multiples of anything. A string with any bending s
 
 STRETCH is B, dialled by what it does to the top partial rather than by its own value, which lives between 0.00003 and 0.008 and means nothing to anyone. At +150 cents, which is a real piano:
 
-| Partial | 2 | 8 | 16 | 32 |
-|---|---|---|---|---|
+| Partial                 | 2    | 8     | 16    | 32     |
+| ----------------------- | ---- | ----- | ----- | ------ |
 | Cents sharp of harmonic | +0.6 | +10.2 | +40.0 | +150.0 |
 
 The bottom of the series barely moves and the top of it walks away, which is the shape that matters. Push further and the partials stop agreeing on a fundamental, and the sound stops being a note with a timbre and becomes a bell. Negative pulls them inward instead, which no physical string does and which is worth having anyway.
@@ -279,21 +279,21 @@ Colour is then left to do one job, and does it at full strength. Every knob on a
 
 Each of the 32 strips has, top to bottom:
 
-| Control | Range | Notes |
-|---|---|---|
-| TUNE | equal to just | Readout shows the resulting cent offset |
-| PITCH MOD rate and depth | 0.01 to 30 Hz, 0 to 200 cents | Per-partial vibrato |
-| DRIFT | 0 to 25 cents | Smooth random pitch wander. See below |
-| ENVELOPE delay, A, D, S | 0 to 5 s, 0.2 ms to 5 s, 1 ms to 20 s, 0 to 100% | Exponential decay |
-| KEY OFF swell, level, release, lift | 0 to 5 s, 0 to 100%, 1 ms to 20 s, -100 to +100% | A second envelope for letting go. See below |
-| AMP MOD rate and depth | 0.01 to 30 Hz, 0 to 100% | Per-partial tremolo |
-| VELOCITY | -100 to +100% | How much key velocity scales this partial. Negative inverts it |
-| AFTERTOUCH | -100 to +100% | How much key pressure moves this partial. Negative fades it out |
-| PAN | hard left to hard right | Where this partial sits in the field. Equal power, so the level holds as it crosses |
-| M and S | | Mute wins over solo |
-| LEVEL | -inf to 0 dB | Square-law fader, with the meter filling its track |
+| Control                             | Range                                            | Notes                                                                               |
+| ----------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| TUNE                                | equal to just                                    | Readout shows the resulting cent offset                                             |
+| PITCH MOD rate and depth            | 0.01 to 30 Hz, 0 to 200 cents                    | Per-partial vibrato                                                                 |
+| DRIFT                               | 0 to 25 cents                                    | Smooth random pitch wander. See below                                               |
+| ENVELOPE delay, A, D, S             | 0 to 5 s, 0.2 ms to 5 s, 1 ms to 20 s, 0 to 100% | Exponential decay                                                                   |
+| KEY OFF swell, level, release, lift | 0 to 5 s, 0 to 100%, 1 ms to 20 s, -100 to +100% | A second envelope for letting go. See below                                         |
+| AMP MOD rate and depth              | 0.01 to 30 Hz, 0 to 100%                         | Per-partial tremolo                                                                 |
+| VELOCITY                            | -100 to +100%                                    | How much key velocity scales this partial. Negative inverts it                      |
+| AFTERTOUCH                          | -100 to +100%                                    | How much key pressure moves this partial. Negative fades it out                     |
+| PAN                                 | hard left to hard right                          | Where this partial sits in the field. Equal power, so the level holds as it crosses |
+| M and S                             |                                                  | Mute wins over solo                                                                 |
+| LEVEL                               | -inf to 0 dB                                     | Square-law fader, with the meter filling its track                                  |
 
-Velocity being per partial is what lets a soft note be a different timbre rather than just a quieter one. Set the fundamental to 0% and the upper partials to 100% and the tone opens up as you play harder, which is roughly what a struck string or bar does. *Struck Bell* and *Odd Harmonics* ship with that curve already dialled in.
+Velocity being per partial is what lets a soft note be a different timbre rather than just a quieter one. Set the fundamental to 0% and the upper partials to 100% and the tone opens up as you play harder, which is roughly what a struck string or bar does. _Struck Bell_ and _Odd Harmonics_ ship with that curve already dialled in.
 
 Both controls run either side of zero. A positive amount means harder or heavier is louder. A negative amount inverts that, so the partial is at its loudest when you play softly or lift off the key. The two halves are exact mirrors, so -50% at a given velocity matches +50% at the opposite velocity.
 
@@ -301,7 +301,7 @@ The reason to want the negative half is crossfading. Give one set of partials a 
 
 Letting go of a key runs its own little envelope rather than simply fading out. The KEY OFF rows say where the level goes when the key is released and how long it takes to get there, and only then does the release run from that level down to silence.
 
-Above the sustain that is a release click or a bloom, the sound a damper landing or a hammer returning makes, and it can be louder than the note was while you were holding it. *Drawbar Organ* uses it that way: the upper drawbars jump to 55% for two milliseconds as the contacts break. Below the sustain it is the fast initial drop into a long tail that a piano or a struck bell actually has, which is the half of it that probably gets more use.
+Above the sustain that is a release click or a bloom, the sound a damper landing or a hammer returning makes, and it can be louder than the note was while you were holding it. _Drawbar Organ_ uses it that way: the upper drawbars jump to 55% for two milliseconds as the contacts break. Below the sustain it is the fast initial drop into a long tail that a piano or a struck bell actually has, which is the half of it that probably gets more use.
 
 A key-off level of zero skips the stage entirely and releases from wherever the level sat, which is the default and is exactly what the envelope did before it had one. So nothing you have already made sounds different, and the knob reads honestly: zero means no key-off stage.
 
@@ -313,7 +313,7 @@ It defaults to zero, so no patch made before it existed sounds any different. A 
 
 A third case is the one worth watching for, since it is the shape a music box or a thumb piano has: no sustain at all, so the partial decays to silence while the key is still down, and then a key-off level that brings it back. Reaching zero is not the same as being finished. A partial in that state holds at silence and waits for the key rather than freeing itself, and costs nothing while it waits, since there is no point running an oscillator to produce zeroes.
 
-The envelope's delay stage holds a partial silent before its attack begins. Staggering it across the series makes the spectrum unfold rather than arrive all at once, which is how *Slow Pad* and *Shimmer* now open up. It is latched in samples at note-on, so moving the knob cannot retime a note already waiting, and releasing a key before the delay elapses cancels that partial rather than letting it burst in afterwards.
+The envelope's delay stage holds a partial silent before its attack begins. Staggering it across the series makes the spectrum unfold rather than arrive all at once, which is how _Slow Pad_ and _Shimmer_ now open up. It is latched in samples at note-on, so moving the knob cannot retime a note already waiting, and releasing a key before the delay elapses cancels that partial rather than letting it burst in afterwards.
 
 Aftertouch works the same way but **adds** to the fader instead of scaling it, and it ignores velocity entirely. That means a strip with its fader all the way down is silent until you lean on the key, and then it fades in under your finger, while a negative amount fades an open strip back out again. Put a few upper partials on positive aftertouch and the note grows brighter the harder you press, without touching the partials you left alone. Both channel pressure and polyphonic aftertouch are accepted, and whichever is higher wins. Pressure is smoothed over about 15 ms, so seven-bit MIDI does not step the gain.
 
@@ -335,15 +335,15 @@ Slide, the third MPE dimension, is parsed but not routed anywhere yet. Bend and 
 
 The top bar holds everything that is not per partial, in signal order from left to right:
 
-| Group | Contains |
-|---|---|
-| Preset | the preset menu: factory, saved, and somewhere to put the one you are working on |
+| Group    | Contains                                                                                                  |
+| -------- | --------------------------------------------------------------------------------------------------------- |
+| Preset   | the preset menu: factory, saved, and somewhere to put the one you are working on                          |
 | Settings | undo, polyphony, bend range, MPE, tuning, what feeds aftertouch, phase reset, the safety clipper and zoom |
-| Link | **LINK**, and what it reaches and how. See below |
-| Series | **STRETCH**, **TRACK** and **WOBBLE**, what the instrument does before anything is done to it. See below |
-| Echo | the tape echo. See below |
-| Reverb | the reverb. See below |
-| Output | **MASTER**, the stereo meter, and the converter readouts under it |
+| Link     | **LINK**, and what it reaches and how. See below                                                          |
+| Series   | **STRETCH**, **TRACK** and **WOBBLE**, what the instrument does before anything is done to it. See below  |
+| Echo     | the tape echo. See below                                                                                  |
+| Reverb   | the reverb. See below                                                                                     |
+| Output   | **MASTER**, the stereo meter, and the converter readouts under it                                         |
 
 Zoom lives in the Settings menu rather than on the bar, and that is worth eighty-eight pixels. On the bar the first row would need 1202 px at the width the window opens at and have 1164, so it would wrap to two rows on a default-sized window. It needs 1114 and fits, and the room that frees goes to the output meter, which is what makes the converter readouts wide enough to keep their units.
 
@@ -421,12 +421,12 @@ The noise channel's level reads the same way.
 
 The rules that divide a strip into groups carry a lamp each, showing what the group under them is doing to this partial right now. They cost no height, because the rule was already using that row to draw a line.
 
-| Rule | Shows |
-|---|---|
+| Rule      | Shows                                                                                                         |
+| --------- | ------------------------------------------------------------------------------------------------------------- |
 | PITCH MOD | a needle on a track, flat to the left and sharp to the right, where modulation and drift have the partial now |
-| ENVELOPE | how far up its envelope the partial is, while the key is down |
-| KEY OFF | the same, once the key is up and the key-off stage has taken over |
-| AMP MOD | how far the tremolo has pulled the level down, so it pulses at the rate and swings further at greater depth |
+| ENVELOPE  | how far up its envelope the partial is, while the key is down                                                 |
+| KEY OFF   | the same, once the key is up and the key-off stage has taken over                                             |
+| AMP MOD   | how far the tremolo has pulled the level down, so it pulses at the rate and swings further at greater depth   |
 
 The two envelope lamps hand over rather than both being lit. The value they are fed is signed: positive while the key is down, negative once the swell and release have it, and a lamp reading zero is dark either way, so the one value that says nothing about the stage is also the one where nothing needs saying.
 
@@ -438,12 +438,12 @@ The tremolo lamp shows what the tremolo has taken off rather than what it has le
 
 It is compressed rather than linear, and that is deliberate. The travel is about fifteen pixels either side of centre. Spread linearly over 225 cents an ordinary vibrato of five cents moves the needle by a third of a pixel, so every subtle setting on the instrument would look the same as no setting at all. A square root keeps the ends where they belong and gives the shallow half of the range somewhere to be:
 
-| Depth | Linear | As drawn |
-|---|---|---|
-| 5 cents | 0.3 px | 2.2 px |
-| 25 cents | 1.7 px | 5.0 px |
-| 50 cents | 3.3 px | 7.1 px |
-| 200 cents | 13.3 px | 14.1 px |
+| Depth     | Linear  | As drawn |
+| --------- | ------- | -------- |
+| 5 cents   | 0.3 px  | 2.2 px   |
+| 25 cents  | 1.7 px  | 5.0 px   |
+| 50 cents  | 3.3 px  | 7.1 px   |
+| 200 cents | 13.3 px | 14.1 px  |
 
 A scale normalised to each strip's own depth would run the needle to both edges whatever the depth was set to, saying nothing about how deep the modulation goes. The needle parks only when nothing is sounding, so a partial with no modulation on it reads dead centre, which means in tune.
 
@@ -453,7 +453,7 @@ At the display's fifteen frames a second, an LFO above about seven Hz is faster 
 
 The drawing is where the care went. Brightness is quantised to twelve steps and the needle to whole pixels, for the same reason the meters are segmented: a lamp that follows its value exactly repaints on every frame in which the value moves at all, which for anything modulated is every frame.
 
-The merging matters more than the quantising, and not in the way it looks. The lamps are handed back to the editor rather than invalidating themselves, and they are merged by row rather than by neighbour, because every strip's lamps sit at the same four heights. Putting them through the general merge alongside the meter bands costs 762,000 pixels a frame on a mixer with all 32 channels modulating, since six rectangles is not enough to keep the rows apart and each merge pairs a lamp at the top of a strip with a meter band at the bottom. Merged by row it is 58,000, against the meters' own 22,000. On the factory presets it is smaller again: 12,000 for *Slow Pad* and 33,000 for *Shimmer*, against a mixer of 1,278,000 pixels.
+The merging matters more than the quantising, and not in the way it looks. The lamps are handed back to the editor rather than invalidating themselves, and they are merged by row rather than by neighbour, because every strip's lamps sit at the same four heights. Putting them through the general merge alongside the meter bands costs 762,000 pixels a frame on a mixer with all 32 channels modulating, since six rectangles is not enough to keep the rows apart and each merge pairs a lamp at the top of a strip with a meter band at the bottom. Merged by row it is 58,000, against the meters' own 22,000. On the factory presets it is smaller again: 12,000 for _Slow Pad_ and 33,000 for _Shimmer_, against a mixer of 1,278,000 pixels.
 
 ### Meters
 
@@ -462,7 +462,6 @@ Each channel meters what that partial is actually putting out, on a decibel scal
 The meter fills the fader's own track rather than sitting beside it. A fader that also drew its set level would be showing you something the cap already says, so the whole track is given over to output instead. The cap is drawn as translucent glass, so the meter reads straight through it, and the knob pointers are drawn the same way so the value arc shows through them.
 
 It reads as glass: a light body the lit segments show through, a softer edge, and a lip along the top rather than a divider across the middle. A bright line across the middle for reading the exact position would sit at nearly the weight of the edge around it, three light lines inside ten pixels, and the cap would come out as a pill with a slot cut in it. Nothing needs that line, because the exact position is printed in dB directly under the fader.
-
 
 It reads the loudest instance of a partial across the sounding voices rather than the sum, so it shows the shape of the patch instead of pinning itself the moment you play a chord.
 
@@ -492,20 +491,20 @@ With LINK engaged, pointing at a knob arms every knob a drag from it would move,
 
 **LINK SCOPE** picks the channels:
 
-| Scope | Reaches |
-|---|---|
-| All | every partial |
-| Same interval | only the strips sharing the interval class of the one you grab, so you can move just the fifths, or just the octaves |
-| Odd harmonics | 1, 3, 5 and so on, the hollow half of the series |
-| Even harmonics | 2, 4, 6 and so on |
+| Scope          | Reaches                                                                                                              |
+| -------------- | -------------------------------------------------------------------------------------------------------------------- |
+| All            | every partial                                                                                                        |
+| Same interval  | only the strips sharing the interval class of the one you grab, so you can move just the fifths, or just the octaves |
+| Odd harmonics  | 1, 3, 5 and so on, the hollow half of the series                                                                     |
+| Even harmonics | 2, 4, 6 and so on                                                                                                    |
 
 **LINK CURVE** picks how the drag is shared out:
 
-| Curve | Effect |
-|---|---|
-| Uniform | every selected strip moves by the same amount |
-| Tilt up | partials above the one you grabbed move more, those below move less |
-| Tilt down | the same tilt reversed |
+| Curve           | Effect                                                                                                                  |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Uniform         | every selected strip moves by the same amount                                                                           |
+| Tilt up         | partials above the one you grabbed move more, those below move less                                                     |
+| Tilt down       | the same tilt reversed                                                                                                  |
 | Spread / gather | pushing up scatters the strips apart along random directions, pulling down gathers them onto the strip you are dragging |
 
 The tilts are anchored on the strip you grabbed, which always gets exactly its full share of the drag. That has to be true: the knob under the mouse follows the mouse, so any other weighting would put it visibly out of step with the strips beside it. Tilting is therefore relative to where you reach in, and the weighting is geometric, reaching about 1.8 times at the far end of the series and about 0.6 at the near end when you grab the middle. Neither direction falls to zero, so the quiet end still follows.
@@ -528,7 +527,7 @@ Every channel has a PAN, the noise channel included, rather than one width contr
 
 The law is equal power, so the number on the knob is the number in the audio and the level holds as a partial crosses the field. The tests measure both, reading the positions back out of the rendered audio rather than taking them on trust: hard left and hard right land within 0.01 of the ends, half left images at half left within 0.02, and a partial swept across the whole field varies in loudness by under 0.1 dB.
 
-A good shape to start from is mirrored pairs, 1 and 2 in the centre widening out to 31 and 32 at the edges, with the sides alternating so the louder of each pair does not always land on the same one. *Slow Pad* and *Shimmer* write it into their pans, where it can be taken apart by hand. It is worth understanding before you leave it: neighbouring partials have near-identical levels in any normal spectrum, so putting each pair on opposite sides keeps the image centred whatever shape you dial in, and because every position has a mirror, no partial ends up hard panned with nothing facing it.
+A good shape to start from is mirrored pairs, 1 and 2 in the centre widening out to 31 and 32 at the edges, with the sides alternating so the louder of each pair does not always land on the same one. _Slow Pad_ and _Shimmer_ write it into their pans, where it can be taken apart by hand. It is worth understanding before you leave it: neighbouring partials have near-identical levels in any normal spectrum, so putting each pair on opposite sides keeps the image centred whatever shape you dial in, and because every position has a mirror, no partial ends up hard panned with nothing facing it.
 
 ### Wobble
 
@@ -537,9 +536,9 @@ A warped record under the whole instrument. Pitch is bent by reading the output 
 Three things move it at once. A slow warp near once round a 33 rpm record, a faster wobble on top that is too quick to follow and too slow to be vibrato, and now and then a nudge, a sharp slip that bends hard and settles back. The slips are the glitch, and both their rate and their size climb with the square of the control, so the bottom of the knob is a tired turntable and the top is a transport falling over itself.
 
 | Setting | Typical bend | Worst bend |
-|---|---|---|
-| 25% | 5 cents | 65 cents |
-| 100% | 34 cents | 322 cents |
+| ------- | ------------ | ---------- |
+| 25%     | 5 cents      | 65 cents   |
+| 100%    | 34 cents     | 322 cents  |
 
 That gap between the typical and the worst is the whole character. A vibrato would have them close together.
 
@@ -555,12 +554,12 @@ Two of the groups in the top bar work on the finished mix rather than on any one
 
 **ECHO** is a tape loop rather than a digital delay:
 
-| Control | Does |
-|---|---|
-| MIX | how much of the output is repeats |
-| TIME | distance between the heads, 20 ms to 2 s |
-| FDBK | how much of each repeat goes round again, up to 95% |
-| AGE | how worn the machine is |
+| Control | Does                                                |
+| ------- | --------------------------------------------------- |
+| MIX     | how much of the output is repeats                   |
+| TIME    | distance between the heads, 20 ms to 2 s            |
+| FDBK    | how much of each repeat goes round again, up to 95% |
+| AGE     | how worn the machine is                             |
 
 TIME is reached by winding rather than by jumping, so moving the knob slides the repeats in pitch on the way to the new setting, which is the sound a tape delay is mostly wanted for.
 
@@ -578,23 +577,23 @@ How far the two disagree follows AGE, since holding speed is what a machine in g
 
 Measured as the correlation between the two channels on a sustained tone, the bottom of the knob sits at 0.77 and the top at 0.19, so the doubling is always there and always has somewhere to go.
 
-| AGE | Channel correlation |
-|---|---|
-| no wander, below the knob | 1.000 |
-| 0, the bottom of the knob | 0.768 |
-| 13% | 0.019 |
-| 100% | 0.186 |
+| AGE                       | Channel correlation |
+| ------------------------- | ------------------- |
+| no wander, below the knob | 1.000               |
+| 0, the bottom of the knob | 0.768               |
+| 13%                       | 0.019               |
+| 100%                      | 0.186               |
 
 The tests check both ends: that a perfect transport would collapse to mono, which is why the panel cannot ask for one, and that the lowest setting it can ask for is already doubled without being a chorus. Feeding one channel only leaves the other at exactly zero, since nothing crosses over.
 
 **REVERB** is a feedback delay network: eight delay lines fed back through a Householder matrix, with four allpass stages per side in front of it to scatter a hit into a wash before it reaches the network.
 
-| Control | Does |
-|---|---|
-| MIX | how much of the output is reverb |
-| DECAY | how long the tail takes to fall 60 dB, 0.2 to 20 s |
-| DAMP | how quickly the top end dies out of the tail |
-| PRE | silence between the note and its reverb, up to 250 ms |
+| Control | Does                                                  |
+| ------- | ----------------------------------------------------- |
+| MIX     | how much of the output is reverb                      |
+| DECAY   | how long the tail takes to fall 60 dB, 0.2 to 20 s    |
+| DAMP    | how quickly the top end dies out of the tail          |
+| PRE     | silence between the note and its reverb, up to 250 ms |
 
 The two sides are drawn from different lines in different polarities, so the tail is wide by construction and there is nothing on the panel to narrow it. There is no width control, on the same grounds as the stereo spread the mixer does without: a knob with one setting anyone reaches for is not a knob. The test checks the thing worth checking, that a mono hit still comes back with the two sides largely independent.
 
@@ -610,11 +609,11 @@ The input is cut off below 175 Hz for the same reason, and that is fixed rather 
 
 Polyphony is the multiplier that matters, since eight voices means 256 sine oscillators. Measured on one core of an x86 container at 48 kHz with every modulator running:
 
-| Voices | Oscillators | Load |
-|---|---|---|
-| 1 | 32 | about 1% |
-| 8 | 256 | about 7% |
-| 16 | 512 | 14 to 15% |
+| Voices | Oscillators | Load      |
+| ------ | ----------- | --------- |
+| 1      | 32          | about 1%  |
+| 8      | 256         | about 7%  |
+| 16     | 512         | 14 to 15% |
 
 Those figures are with everything running at once: both LFOs, drift, velocity, aftertouch, the meters and the noise channel. The two master effects add well under 1% on top of that, whatever the polyphony, since they work on the sum rather than per voice.
 
@@ -628,10 +627,10 @@ The attack knob is logarithmic rather than skewed towards a midpoint, so equal t
 
 Every other skewed control got the same treatment, and `setSkewForCentre` is now gone from the project. Which curve depends only on whether the range can reach zero:
 
-| | Curve | Worst dead travel, was | Now |
-|---|---|---|---|
-| attack, decay, release, pitch mod rate, echo time, reverb decay | logarithmic | 15.5% | 0.3% |
-| swell, delay, reverb pre-delay, pitch mod depth, drift | exponential from the floor | 29.4% | 15.7% |
+|                                                                 | Curve                      | Worst dead travel, was | Now   |
+| --------------------------------------------------------------- | -------------------------- | ---------------------- | ----- |
+| attack, decay, release, pitch mod rate, echo time, reverb decay | logarithmic                | 15.5%                  | 0.3%  |
+| swell, delay, reverb pre-delay, pitch mod depth, drift          | exponential from the floor | 29.4%                  | 15.7% |
 
 The second family cannot do as well and never will. A control that has to reach zero has no ratio to grow by, so its bottom is compressed by construction: to give five seconds of swell any resolution at the top, the first millisecond has to go slowly. What the exponential curve fixes is the part that was actually broken, a slope of exactly zero at the low end, where turning the knob moved the value by nothing whatsoever. The slope is now small but never nought, and that is what the test asserts across all 635 continuous parameters: the thinnest is the attack, whose bottom moves at 1/23766 of the rate its top does, against a power curve's exact zero.
 
@@ -641,13 +640,13 @@ PHASE sets where in its own cycle each partial begins, from 0 to 360 degrees, wh
 
 That is longer than the shortest attack available for most of the keyboard:
 
-| Note | Quarter cycle | What sets the onset |
-|---|---|---|
-| A1, 55 Hz | 4.55 ms | the note's own period |
-| A2, 110 Hz | 2.27 ms | the note's own period |
-| C4, 262 Hz | 0.96 ms | the note's own period |
-| A4, 440 Hz | 0.57 ms | the note's own period |
-| A5, 880 Hz | 0.28 ms | the attack knob |
+| Note       | Quarter cycle | What sets the onset   |
+| ---------- | ------------- | --------------------- |
+| A1, 55 Hz  | 4.55 ms       | the note's own period |
+| A2, 110 Hz | 2.27 ms       | the note's own period |
+| C4, 262 Hz | 0.96 ms       | the note's own period |
+| A4, 440 Hz | 0.57 ms       | the note's own period |
+| A5, 880 Hz | 0.28 ms       | the attack knob       |
 
 So below about 500 Hz, turning the attack down past a millisecond does nothing at all, and the note still arrives softly. Measured: at A1 with the shortest attack the sound is a third of the way up a millisecond in, which is just sin(20 degrees), the envelope having finished half a millisecond earlier.
 
@@ -669,12 +668,12 @@ Lit means something is being cut. Left alone they show what the host is running 
 
 Measured on one core at 48 kHz, eight voices, the same patch throughout:
 
-| Render rate | Load | Against full rate |
-|---|---|---|
-| host, 48 kHz | 7.8% | |
-| 22.05 kHz | 3.8% | 48% |
-| 11.025 kHz | 2.0% | 25% |
-| 8 kHz | 1.5% | 19% |
+| Render rate  | Load | Against full rate |
+| ------------ | ---- | ----------------- |
+| host, 48 kHz | 7.8% |                   |
+| 22.05 kHz    | 3.8% | 48%               |
+| 11.025 kHz   | 2.0% | 25%               |
+| 8 kHz        | 1.5% | 19%               |
 
 The aliasing is the point, so the Nyquist guard comes off with it. A converter running at 8 kHz does not quietly mute everything above 4 kHz, it wraps it back down, and so does this: the 32nd partial of A3 sits at 7040 Hz and reappears at 960. The original frequency stays faintly audible above it, because holding a sample puts an image either side of the rate, about seven times quieter at that spacing.
 

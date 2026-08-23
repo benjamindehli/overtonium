@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Installing Overtonium on macOS, Windows and Linux</title>
+        <meta
+            name="description"
+            content="How to install Overtonium: a signed and notarised universal package for macOS, an installer for Windows, and a zip for Linux, plus what to do when a host does not see the plugin and how to build it from source."
+        />
+        <link rel="canonical" href="https://benjamindehli.github.io/overtonium/install/" />
+        <meta name="theme-color" content="#0b0d10" />
+
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Overtonium" />
+        <meta property="og:url" content="https://benjamindehli.github.io/overtonium/install/" />
+        <meta property="og:title" content="Installing Overtonium on macOS, Windows and Linux" />
+        <meta
+            property="og:description"
+            content="How to install Overtonium: a signed and notarised universal package for macOS, an installer for Windows, and a zip for Linux, plus what to do when a host does not see the plugin and how to build it from source."
+        />
+        <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium.png" />
+
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Installing Overtonium on macOS, Windows and Linux" />
+        <meta
+            name="twitter:description"
+            content="How to install Overtonium: a signed and notarised universal package for macOS, an installer for Windows, and a zip for Linux, plus what to do when a host does not see the plugin and how to build it from source."
+        />
+        <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium.png" />
+
+        <link rel="icon" href="../dehli-musikk.svg" />
+        <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
+        <link rel="stylesheet" href="../style.css" />
+
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    {
+                        "@type": "ListItem",
+                        "position": 1,
+                        "name": "Overtonium",
+                        "item": "https://benjamindehli.github.io/overtonium/"
+                    },
+                    {
+                        "@type": "ListItem",
+                        "position": 2,
+                        "name": "Install",
+                        "item": "https://benjamindehli.github.io/overtonium/install/"
+                    }
+                ]
+            }
+        </script>
+    </head>
+    <body>
+        <div class="page">
+            <header>
+                <p class="brand">
+                    <a href="../"><img class="wordmark" src="../overtonium-wordmark.png" alt="Overtonium" /></a>
+                </p>
+
+                <ul class="sections">
+                    <li><a href="../">Overview</a></li>
+                    <li><a href="../tuning/">Tuning</a></li>
+                    <li><a href="../controls/">Controls</a></li>
+                    <li><a href="../presets/">Presets</a></li>
+                    <li><a href="../install/" aria-current="page">Install</a></li>
+                </ul>
+            </header>
+
+            <main>
+                <p class="crumbs"><a href="../">Overtonium</a> / Install</p>
+
+                <h1>Installing</h1>
+
+                <p class="lead">
+                    Installers for macOS and Windows, and a zip for Linux, are on the
+                    <a href="https://github.com/benjamindehli/overtonium/releases/latest">releases page</a>. Every release carries a zip alongside the
+                    installer holding the same builds loose, for anyone without administrator rights or with plugin folders of their own.
+                </p>
+
+                <section>
+                    <h2>What each platform gets</h2>
+
+                    <div class="scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Platform</th>
+                                    <th>Installer</th>
+                                    <th>Formats</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>macOS</td>
+                                    <td><code>.pkg</code>, with a chooser</td>
+                                    <td>VST3, Audio Unit, Standalone</td>
+                                </tr>
+                                <tr>
+                                    <td>Windows</td>
+                                    <td><code>.exe</code></td>
+                                    <td>VST3, Standalone</td>
+                                </tr>
+                                <tr>
+                                    <td>Linux</td>
+                                    <td>none, use the zip</td>
+                                    <td>VST3, LV2, Standalone</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3>macOS</h3>
+                    <p>
+                        The package asks which of the three formats you want and installs only those. It is a universal binary, so one download covers
+                        Apple Silicon and Intel, and it is signed and notarised, so it opens without a warning. The minimum is macOS 10.13 on Intel
+                        and 11.0 on Apple Silicon, which is the floor the toolchain sets for that architecture.
+                    </p>
+
+                    <h3>Windows</h3>
+                    <p>
+                        The installer is not signed, so SmartScreen says the publisher is unknown. Choose "More info" and then "Run anyway". If you
+                        would rather not, build from source instead, which takes one command. The VST3 goes to the shared plugin folder, so the
+                        installer asks for administrator rights.
+                    </p>
+
+                    <h3>Linux</h3>
+                    <p>
+                        No installer, since there is no install location a distribution would agree on. The zip holds VST3, LV2 and standalone, and
+                        the two plugin folders go in <code>~/.vst3</code> and <code>~/.lv2</code>.
+                    </p>
+                </section>
+
+                <section>
+                    <h2>When a host does not see it</h2>
+
+                    <div class="scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Symptom</th>
+                                    <th>What to try</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Logic or GarageBand shows no Overtonium</td>
+                                    <td>They only look for new Audio Units when they start. Quit and reopen, rather than rescanning</td>
+                                </tr>
+                                <tr>
+                                    <td>A host lists it but will not load it</td>
+                                    <td>
+                                        Check you have the right format. Logic uses the Audio Unit, most others use the VST3, and installing only one
+                                        of the two is easy to do by accident in the chooser
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Nothing appears after installing on macOS</td>
+                                    <td>
+                                        Confirm where the files went with <code>pkgutil --files com.dehlimusikk.overtonium.vst3</code>. The plugins
+                                        belong in <code>/Library/Audio/Plug-Ins</code> and the app in <code>/Applications</code>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>The plugin loads but is silent</td>
+                                    <td>
+                                        Check the master fader and whether a channel is soloed. Solo is per channel and mute wins over solo, so a
+                                        strip can be muted inside a solo
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Held notes sound but nothing new does</td>
+                                    <td>Overtonium is a synthesiser and needs MIDI. Check the track's input rather than the plugin</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <p>
+                        Anything else is worth reporting on the <a href="https://github.com/benjamindehli/overtonium/issues">issue tracker</a>,
+                        particularly on Windows and Linux, for the reason below.
+                    </p>
+                </section>
+
+                <section>
+                    <h2>What has actually been tried</h2>
+
+                    <p>
+                        All three platforms are built and run through the test suite on every push, and the VST3 is put through pluginval at
+                        strictness 8 on each of them. macOS is the only platform where the plugin has been loaded into a real host, where the Audio
+                        Unit and the VST3 also pass <code>auval</code>. Nobody has run the Windows or Linux builds in a DAW yet, so treat those as
+                        untried.
+                    </p>
+                </section>
+
+                <section>
+                    <h2>Building from source</h2>
+
+                    <p>
+                        You need CMake 3.22 or newer and a C++17 compiler. JUCE is downloaded at configure time, so there is nothing else to install
+                        on macOS or Windows.
+                    </p>
+
+                    <pre><code>git clone https://github.com/benjamindehli/overtonium.git
+cd overtonium
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build</code></pre>
+
+                    <p>
+                        The plugins are copied into your user plugin folders as part of the build. Pass
+                        <code>-DOVERTONIUM_INSTALL_AFTER_BUILD=OFF</code> to skip that. Linux needs a handful of development packages first, which the
+                        <a href="https://github.com/benjamindehli/overtonium#linux">readme</a> lists.
+                    </p>
+
+                    <p>
+                        Overtonium is free software under the AGPLv3, which follows from JUCE. The whole source, including the tests and the
+                        packaging, is in the
+                        <a href="https://github.com/benjamindehli/overtonium">repository</a>.
+                    </p>
+                </section>
+
+                <div class="onward">
+                    <ul class="links">
+                        <li><a class="primary" href="https://github.com/benjamindehli/overtonium/releases/latest">Download</a></li>
+                        <li><a href="../controls/">Controls</a></li>
+                    </ul>
+                </div>
+            </main>
+
+            <footer>
+                <div class="maker">
+                    <img src="../dehli-musikk.svg" alt="" />
+                    <div>By Benjamin Dehli for <a href="https://www.dehlimusikk.no/">Dehli Musikk</a>. Hosts list it under DehliMusikk.</div>
+                </div>
+
+                <p>
+                    Released under the
+                    <a href="https://github.com/benjamindehli/overtonium/blob/main/LICENSE">GNU Affero General Public License v3</a>, which follows
+                    from JUCE. Built with <a href="https://juce.com/">JUCE 8</a>.
+                </p>
+            </footer>
+        </div>
+    </body>
+</html>

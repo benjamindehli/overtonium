@@ -21,6 +21,10 @@ DerivedData/
 *.sln
 *.user
 
+# Prettier is the only thing here that needs node, and it is pinned in
+# package-lock.json, which is committed so CI installs the same version.
+node_modules/
+
 # Editors
 .vscode/
 .idea/

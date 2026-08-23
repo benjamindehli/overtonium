@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Overtonium controls: every knob on a channel and on the bar</title>
+        <meta
+            name="description"
+            content="A reference for every Overtonium control: the twenty-one on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, and the wobble, tape echo, reverb and converter on the bar."
+        />
+        <link rel="canonical" href="https://benjamindehli.github.io/overtonium/controls/" />
+        <meta name="theme-color" content="#0b0d10" />
+
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Overtonium" />
+        <meta property="og:url" content="https://benjamindehli.github.io/overtonium/controls/" />
+        <meta property="og:title" content="Overtonium controls: every knob on a channel and on the bar" />
+        <meta
+            property="og:description"
+            content="A reference for every Overtonium control: the twenty-one on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, and the wobble, tape echo, reverb and converter on the bar."
+        />
+        <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-strips.png" />
+
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Overtonium controls: every knob on a channel and on the bar" />
+        <meta
+            name="twitter:description"
+            content="A reference for every Overtonium control: the twenty-one on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, and the wobble, tape echo, reverb and converter on the bar."
+        />
+        <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-strips.png" />
+
+        <link rel="icon" href="../dehli-musikk.svg" />
+        <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
+        <link rel="stylesheet" href="../style.css" />
+
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    {
+                        "@type": "ListItem",
+                        "position": 1,
+                        "name": "Overtonium",
+                        "item": "https://benjamindehli.github.io/overtonium/"
+                    },
+                    {
+                        "@type": "ListItem",
+                        "position": 2,
+                        "name": "Controls",
+                        "item": "https://benjamindehli.github.io/overtonium/controls/"
+                    }
+                ]
+            }
+        </script>
+    </head>
+    <body>
+        <div class="page">
+            <header>
+                <p class="brand">
+                    <a href="../"><img class="wordmark" src="../overtonium-wordmark.png" alt="Overtonium" /></a>
+                </p>
+
+                <ul class="sections">
+                    <li><a href="../">Overview</a></li>
+                    <li><a href="../tuning/">Tuning</a></li>
+                    <li><a href="../controls/" aria-current="page">Controls</a></li>
+                    <li><a href="../presets/">Presets</a></li>
+                    <li><a href="../install/">Install</a></li>
+                </ul>
+            </header>
+
+            <main>
+                <p class="crumbs"><a href="../">Overtonium</a> / Controls</p>
+
+                <h1>Controls</h1>
+
+                <p class="lead">
+                    Thirty-two channel strips, a noise channel, and a bar of global controls across the top. Every strip carries the same twenty-one
+                    controls, which is six hundred and seventy-two of them before the bar is counted, so a good deal of the design is about not having
+                    to move them one at a time.
+                </p>
+
+                <section>
+                    <h2>A channel strip</h2>
+
+                    <figure class="narrow">
+                        <img
+                            src="../overtonium-strips.png"
+                            alt="A close view of the first six channels, showing the row captions in the gutter and the interval colour of each channel."
+                            width="316"
+                            height="948"
+                        />
+                        <figcaption>
+                            Six channels and the caption gutter. Captions are named once on the left rather than repeated across every strip.
+                        </figcaption>
+                    </figure>
+
+                    <div class="scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Control</th>
+                                    <th>Range</th>
+                                    <th>What it does</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>TUNE</td>
+                                    <td>equal to just</td>
+                                    <td>
+                                        Where this partial sits between the tempered position and the exact ratio. The readout shows the resulting
+                                        cent offset
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>PHASE</td>
+                                    <td>0 to 1 turn</td>
+                                    <td>Where in its cycle the partial starts</td>
+                                </tr>
+                                <tr>
+                                    <td>PITCH MOD rate, depth</td>
+                                    <td>0.01 to 30 Hz, 0 to 200 cents</td>
+                                    <td>Per-partial vibrato</td>
+                                </tr>
+                                <tr>
+                                    <td>DRIFT</td>
+                                    <td>0 to 25 cents</td>
+                                    <td>Smooth random pitch wander, its own stream per partial</td>
+                                </tr>
+                                <tr>
+                                    <td>ENVELOPE delay, A, D, S</td>
+                                    <td>0 to 5 s, 0.2 ms to 5 s, 1 ms to 20 s, 0 to 100%</td>
+                                    <td>Exponential decay</td>
+                                </tr>
+                                <tr>
+                                    <td>KEY OFF swell, level, release, lift</td>
+                                    <td>0 to 5 s, 0 to 100%, 1 ms to 20 s, -100 to +100%</td>
+                                    <td>A second envelope for letting go</td>
+                                </tr>
+                                <tr>
+                                    <td>AMP MOD rate, depth</td>
+                                    <td>0.01 to 30 Hz, 0 to 100%</td>
+                                    <td>Per-partial tremolo</td>
+                                </tr>
+                                <tr>
+                                    <td>VELOCITY</td>
+                                    <td>-100 to +100%</td>
+                                    <td>How much key velocity scales this partial. Negative inverts it</td>
+                                </tr>
+                                <tr>
+                                    <td>AFTERTOUCH</td>
+                                    <td>-100 to +100%</td>
+                                    <td>How much key pressure moves this partial. Negative fades it out</td>
+                                </tr>
+                                <tr>
+                                    <td>PAN</td>
+                                    <td>hard left to hard right</td>
+                                    <td>Equal power, so the level holds as the partial crosses the field</td>
+                                </tr>
+                                <tr>
+                                    <td>M and S</td>
+                                    <td></td>
+                                    <td>Mute wins over solo</td>
+                                </tr>
+                                <tr>
+                                    <td>LEVEL</td>
+                                    <td>-inf to 0 dB</td>
+                                    <td>Square-law fader, with the meter filling its track</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section>
+                    <h2>Velocity and pressure, per partial</h2>
+
+                    <p>
+                        Velocity being per partial is what lets a soft note be a different timbre rather than just a quieter one. Set the fundamental
+                        to 0% and the upper partials to 100% and the tone opens up as you play harder, which is roughly what a struck string or bar
+                        does.
+                    </p>
+
+                    <p>
+                        Both controls run either side of zero. A positive amount means harder or heavier is louder. A negative amount inverts that, so
+                        the partial is at its loudest when you play softly. The two halves are exact mirrors, so -50% at a given velocity matches +50%
+                        at the opposite velocity. The reason to want the negative half is crossfading: give one set of partials a positive amount and
+                        another set a negative one, and the two timbres trade places across the velocity range instead of one simply fading in.
+                    </p>
+
+                    <p>
+                        Aftertouch works the same way but <strong>adds</strong> to the fader instead of scaling it, and it ignores velocity entirely.
+                        A strip with its fader all the way down is silent until you lean on the key, and then it fades in under your finger, while a
+                        negative amount fades an open strip back out. Both channel pressure and polyphonic aftertouch are accepted and whichever is
+                        higher wins. Pressure is smoothed over about 15 ms, so seven-bit MIDI does not step the gain.
+                    </p>
+
+                    <p>
+                        The mod wheel stands in for it by default, since most keyboards have no aftertouch at all and the wheel is the control your
+                        hand already goes to. A wheel left alone reads zero, so nothing changes for a controller that does send pressure. Settings has
+                        an "Aftertouch from" entry if you would rather have one or the other on its own.
+                    </p>
+                </section>
+
+                <section>
+                    <h2>The two-part envelope</h2>
+
+                    <p>
+                        Delay, attack, decay and sustain on the way in. Letting go of a key then runs its own little envelope rather than simply
+                        fading out: the KEY OFF rows say where the level goes when the key is released and how long it takes to get there, and only
+                        then does the release run from that level down to silence.
+                    </p>
+
+                    <p>
+                        Above the sustain that is a release click or a bloom, the sound a damper landing or a hammer returning makes, and it can be
+                        louder than the note was while you were holding it. <em>Drawbar Organ</em> uses it that way: the upper drawbars jump to 55%
+                        for two milliseconds as the contacts break. Below the sustain it is the fast initial drop into a long tail that a piano or a
+                        struck bell actually has, which is probably the half that gets more use. A key-off level of zero skips the stage entirely and
+                        releases from wherever the level sat.
+                    </p>
+
+                    <p>
+                        <strong>LIFT</strong> aims release velocity at the key-off level, the same way the velocity row aims key velocity at the
+                        fader. Zero ignores the gesture, positive means a faster release is louder, negative inverts it. On a harpsichord the jack
+                        falls back harder when you snatch the key away and barely speaks when you let it up slowly, and that is one control rather
+                        than a second envelope. A controller that ends notes with velocity zero has said nothing about the gesture, so it gets the
+                        middle value rather than the slowest.
+                    </p>
+
+                    <p>
+                        The delay stage holds a partial silent before its attack begins. Staggering it across the series makes the spectrum unfold
+                        rather than arrive all at once, which is how <em>Slow Pad</em> and <em>Shimmer</em> open up. It is latched in samples at
+                        note-on, so moving the knob cannot retime a note already waiting.
+                    </p>
+
+                    <p>
+                        One shape worth knowing, because it is what a music box or a thumb piano has: no sustain at all, so the partial decays to
+                        silence while the key is still down, and then a key-off level that brings it back. Reaching zero is not the same as being
+                        finished.
+                    </p>
+                </section>
+
+                <section>
+                    <h2>Ganging the channels</h2>
+
+                    <p>
+                        <strong>LINK</strong> in the top bar gangs the strips: dragging any knob moves the same knob on the others. It works
+                        relatively, applying an offset to wherever each strip already sits rather than dragging everything to one shared value, so a
+                        spectrum you have shaped by hand keeps its shape. The offset is always measured from the values captured when the drag
+                        started, so returning the knob to where you began restores the strips exactly, even if some of them hit an end stop along the
+                        way.
+                    </p>
+
+                    <p>
+                        The button opens a menu rather than toggling, and the same menu is on a right-click anywhere in the mixer, which is where you
+                        are when you want it. With LINK engaged, pointing at a knob arms every knob a drag from it would move, before you touch
+                        anything, and how brightly each one lights follows the curve.
+                    </p>
+
+                    <div class="scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Scope</th>
+                                    <th>Reaches</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>All</td>
+                                    <td>every partial</td>
+                                </tr>
+                                <tr>
+                                    <td>Same interval</td>
+                                    <td>
+                                        only the strips sharing the interval class of the one you grab, so you can move just the fifths, or just the
+                                        octaves
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Odd harmonics</td>
+                                    <td>1, 3, 5 and so on, the hollow half of the series</td>
+                                </tr>
+                                <tr>
+                                    <td>Even harmonics</td>
+                                    <td>2, 4, 6 and so on</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Curve</th>
+                                    <th>How the drag is shared out</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Uniform</td>
+                                    <td>every selected strip moves by the same amount</td>
+                                </tr>
+                                <tr>
+                                    <td>Tilt up</td>
+                                    <td>partials above the one you grabbed move more, those below move less</td>
+                                </tr>
+                                <tr>
+                                    <td>Tilt down</td>
+                                    <td>the same tilt reversed</td>
+                                </tr>
+                                <tr>
+                                    <td>Spread / gather</td>
+                                    <td>
+                                        pushing up scatters the strips apart along random directions, pulling down gathers them onto the strip you are
+                                        dragging
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <p>
+                        The tilts are anchored on the strip you grabbed, which always gets exactly its full share of the drag. That has to be true,
+                        since the knob under the mouse follows the mouse. The weighting is geometric, reaching about 1.8 times at the far end of the
+                        series and about 0.6 at the near end when you grab the middle, and neither direction falls to zero, so the quiet end still
+                        follows.
+                    </p>
+
+                    <p>LINK gangs the 32 partials only. The noise channel has no tuning, pitch modulation or drift to gang.</p>
+                </section>
+
+                <section>
+                    <h2>Reading the mixer</h2>
+
+                    <h3>The two readouts</h3>
+                    <p>
+                        Each channel carries two figures, the cents its tuning knob is worth and the level its fader is at, both drawn as
+                        seven-segment displays rather than as text: a number the instrument is reporting back should look different from a number you
+                        typed. Two of the things they show are not numbers. A partial left in equal temperament reads <strong>Et</strong> and a fader
+                        all the way down reads <strong>-inF</strong>, both dimmed, because a statement of fact is not a level. The fundamental and the
+                        octaves read a dimmed <strong>0.0</strong>, since their just interval is the note itself.
+                    </p>
+
+                    <h3>Lamps on the rules</h3>
+                    <p>
+                        The rules dividing a strip into groups carry a lamp each, showing what the group under them is doing to this partial right
+                        now.
+                    </p>
+
+                    <div class="scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Rule</th>
+                                    <th>Shows</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>PITCH MOD</td>
+                                    <td>
+                                        a needle on a track, flat to the left and sharp to the right, where modulation and drift have the partial now
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>ENVELOPE</td>
+                                    <td>how far up its envelope the partial is, while the key is down</td>
+                                </tr>
+                                <tr>
+                                    <td>KEY OFF</td>
+                                    <td>the same, once the key is up and the key-off stage has taken over</td>
+                                </tr>
+                                <tr>
+                                    <td>AMP MOD</td>
+                                    <td>
+                                        how far the tremolo has pulled the level down, so it pulses at the rate and swings further at greater depth
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <p>
+                        They read from the voice pool rather than from the knobs, so they describe a note rather than a setting and nothing pulses
+                        over silence, and they follow the loudest voice on that partial, which is the one the meter follows. The needle's scale is
+                        fixed and the same on every strip, so two channels can be compared by eye. Full deflection is 225 cents, the widest the two
+                        controls can produce together.
+                    </p>
+
+                    <h3>Meters</h3>
+                    <p>
+                        Each channel meters what that partial is actually putting out, on a decibel scale floored at -48 dB, so the envelope, tremolo,
+                        velocity, aftertouch and mute or solo all show at once and the spectrum can be watched evolving as a note decays. The meter
+                        fills the fader's own track rather than sitting beside it, and the cap is drawn as translucent glass so the meter reads
+                        through it. It reads the loudest instance of a partial across the sounding voices rather than the sum, so it shows the shape
+                        of the patch instead of pinning itself the moment you play a chord.
+                    </p>
+
+                    <h3>Colour and hover</h3>
+                    <p>
+                        Channels are coloured by interval class, in chromatic order along a narrow band from blue at the octave, through magenta and
+                        red, to yellow at the major seventh, so octaves, fifths and thirds stay visible while you scroll. The band is deliberately
+                        narrow so 32 channels read as one family rather than a rainbow, and nothing in it enters the green and cyan the global
+                        controls use. Pointing at a knob picks out its row all the way across the mixer and brackets the channel it is on, so where
+                        the two cross is the control a drag would move.
+                    </p>
+
+                    <h3>Folding the mixer down</h3>
+                    <p>
+                        Clicking a section heading in the caption gutter folds that group of rows away across every channel at once, and the window
+                        loses exactly the height those rows were taking. Pitch modulation, envelope, key off, amp mod and output each fold. The tuning
+                        at the top and the faders at the bottom always stay. The heading keeps its activity lamp while folded, so a group you cannot
+                        see still reports whether it is doing anything, and the fold state is remembered with the session rather than with the patch.
+                    </p>
+                </section>
+
+                <section>
+                    <h2>The noise channel</h2>
+
+                    <p>
+                        Pinned on the right, after the series it does not belong to, is a noise channel marked NZ. It has the same envelope, tremolo,
+                        velocity, aftertouch, pan, mute, solo, level and meter as a partial, and takes part in solo alongside them. What it does not
+                        have is pitch, so the tuning, pitch modulation and drift rows are empty.
+                    </p>
+
+                    <p>
+                        COLOUR takes the tuning row instead, tilting the noise from dark rumble at one end, through flat in the middle, to bright hiss
+                        at the other. The middle really is flat rather than merely filtered less. Each voice runs its own noise stream, so playing a
+                        chord does not layer eight copies of the identical signal.
+                    </p>
+                </section>
+
+                <section>
+                    <h2>MPE</h2>
+
+                    <p>
+                        Off by default, and under Settings. With it on, a controller that gives every note its own MIDI channel can bend and press
+                        each note separately, which on this instrument means each finger gets its own copy of all 33 aftertouch destinations. Press
+                        into one note in a chord and only that note's upper partials come in.
+                    </p>
+
+                    <p>
+                        It is a setting rather than something permanently on because it changes what a channel number means. With it off, a channel is
+                        ignored: a key-up on channel 7 releases a note that went down on channel 1, which is what a single-channel keyboard needs.
+                        With it on, the channel is part of who the note is, so the same key can be held twice on two channels, bent in two directions,
+                        as two voices rather than one retriggering the other.
+                    </p>
+                </section>
+
+                <section>
+                    <h2>Across the whole instrument</h2>
+
+                    <figure>
+                        <img
+                            src="../overtonium-bar.png"
+                            alt="The top bar: preset and settings buttons, LINK, the stretch, track and wobble controls, the tape echo, the reverb, the master fader and the output meter with two seven-segment converter readouts."
+                            width="1348"
+                            height="74"
+                        />
+                    </figure>
+
+                    <h3>Wobble</h3>
+                    <p>
+                        A warped record under the whole instrument. Pitch is bent by reading the output back through a delay line whose length keeps
+                        moving, which is what happens when a platter runs eccentric or a capstan slips. A slow warp near once round a 33 rpm disc, a
+                        faster wander on top, and now and then a sharp slip that bends hard and settles back. The slips grow in both rate and size
+                        with the square of the control, so a low setting is a tired turntable and a high one is a transport falling over itself. It
+                        sits ahead of the echo, so the repeats inherit what it did rather than wobbling on their own.
+                    </p>
+
+                    <h3>Tape echo</h3>
+                    <p>
+                        Modelled on the parts of a tape loop the ear notices. Moving the time knob winds the tape rather than cutting to the new
+                        setting, so the repeats slide in pitch on the way. Stereo is two tape paths side by side, each fed its own channel and coming
+                        back on the side it went out on, with motors running at slightly different speeds so the repeat comes back doubled rather than
+                        bounced. AGE never quite reaches zero, because a transport that held speed exactly would put the repeat back in mono and there
+                        is no such transport.
+                    </p>
+
+                    <h3>Reverb</h3>
+                    <p>
+                        A feedback delay network whose room is sized from its decay time, since a long tail in a small room is a spring rather than a
+                        place.
+                    </p>
+
+                    <h3>The converter</h3>
+                    <p>
+                        Shown as two seven-segment readouts under the output meter. Turning the sample rate down is a genuine cut rather than a filter
+                        over the top: the whole voice pool renders slower, which costs a fifth as much at 8 kHz, and the partials above the new
+                        ceiling fold back down instead of disappearing.
+                    </p>
+
+                    <h3>The output meter</h3>
+                    <p>
+                        Horizontal, split into left and right, because the two channels are identical until something is panned off centre and a
+                        summed meter would hide precisely that. It reads the finished output after master gain and the clipper. Lamps run from teal
+                        through amber to orange as they approach full scale, anchored to their decibel positions rather than stretching with the
+                        level, with a scale beneath marked at -48, -36, -24, -12, -6 and 0 dB. Each bar carries a peak hold for a couple of seconds.
+                    </p>
+                </section>
+
+                <div class="onward">
+                    <ul class="links">
+                        <li><a class="primary" href="../presets/">Presets</a></li>
+                        <li><a href="../tuning/">Tuning</a></li>
+                    </ul>
+                </div>
+            </main>
+
+            <footer>
+                <div class="maker">
+                    <img src="../dehli-musikk.svg" alt="" />
+                    <div>By Benjamin Dehli for <a href="https://www.dehlimusikk.no/">Dehli Musikk</a>. Hosts list it under DehliMusikk.</div>
+                </div>
+
+                <p>
+                    Released under the
+                    <a href="https://github.com/benjamindehli/overtonium/blob/main/LICENSE">GNU Affero General Public License v3</a>, which follows
+                    from JUCE. Built with <a href="https://juce.com/">JUCE 8</a>.
+                </p>
+            </footer>
+        </div>
+    </body>
+</html>

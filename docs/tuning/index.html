@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>The Overtonium tuning system: TUNE, stretch and six temperaments</title>
+        <meta
+            name="description"
+            content="How Overtonium tunes: TUNE blends every partial between equal temperament and just intonation, STRETCH gives the series a string's inharmonicity, and the keyboard can be set to equal, just, Pythagorean, quarter-comma meantone, Werckmeister III or Young on any root."
+        />
+        <link rel="canonical" href="https://benjamindehli.github.io/overtonium/tuning/" />
+        <meta name="theme-color" content="#0b0d10" />
+
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Overtonium" />
+        <meta property="og:url" content="https://benjamindehli.github.io/overtonium/tuning/" />
+        <meta property="og:title" content="The Overtonium tuning system: TUNE, stretch and six temperaments" />
+        <meta
+            property="og:description"
+            content="How Overtonium tunes: TUNE blends every partial between equal temperament and just intonation, STRETCH gives the series a string's inharmonicity, and the keyboard can be set to equal, just, Pythagorean, quarter-comma meantone, Werckmeister III or Young on any root."
+        />
+        <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium.png" />
+
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="The Overtonium tuning system: TUNE, stretch and six temperaments" />
+        <meta
+            name="twitter:description"
+            content="How Overtonium tunes: TUNE blends every partial between equal temperament and just intonation, STRETCH gives the series a string's inharmonicity, and the keyboard can be set to equal, just, Pythagorean, quarter-comma meantone, Werckmeister III or Young on any root."
+        />
+        <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium.png" />
+
+        <link rel="icon" href="../dehli-musikk.svg" />
+        <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
+        <link rel="stylesheet" href="../style.css" />
+
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    {
+                        "@type": "ListItem",
+                        "position": 1,
+                        "name": "Overtonium",
+                        "item": "https://benjamindehli.github.io/overtonium/"
+                    },
+                    {
+                        "@type": "ListItem",
+                        "position": 2,
+                        "name": "Tuning",
+                        "item": "https://benjamindehli.github.io/overtonium/tuning/"
+                    }
+                ]
+            }
+        </script>
+    </head>
+    <body>
+        <div class="page">
+            <header>
+                <p class="brand">
+                    <a href="../"><img class="wordmark" src="../overtonium-wordmark.png" alt="Overtonium" /></a>
+                </p>
+
+                <ul class="sections">
+                    <li><a href="../">Overview</a></li>
+                    <li><a href="../tuning/" aria-current="page">Tuning</a></li>
+                    <li><a href="../controls/">Controls</a></li>
+                    <li><a href="../presets/">Presets</a></li>
+                    <li><a href="../install/">Install</a></li>
+                </ul>
+            </header>
+
+            <main>
+                <p class="crumbs"><a href="../">Overtonium</a> / Tuning</p>
+
+                <h1>The tuning system</h1>
+
+                <p class="lead">
+                    Three separate axes. TUNE decides how the overtone series is spelled, STRETCH decides whether it is a series at all, and the
+                    temperament decides what the keyboard underneath is tuned to. They combine rather than overlap.
+                </p>
+
+                <section>
+                    <h2>TUNE, from equal to just</h2>
+
+                    <p>
+                        For harmonic <code>n</code>, the just interval above the fundamental is <code>1200 * log2(n)</code> cents. Overtonium rounds
+                        that to the nearest semitone to get the equal-tempered position, and the remainder is the cent offset the TUNE knob dials in.
+                    </p>
+
+                    <pre><code>semitoneOffset(n, blend) = round(1200*log2(n)/100) + blend * (1200*log2(n) mod 100) / 100</code></pre>
+
+                    <p>
+                        At <code>blend = 1</code> this is exactly <code>n</code> times the fundamental, so the stack fuses into one timbre. At
+                        <code>blend = 0</code> every partial is on a semitone of the chromatic scale and the same stack reads as a chord. Nothing is
+                        written down as a constant, but rounded to whole cents the derivation reproduces the familiar table, which the test suite
+                        asserts so it cannot quietly drift.
+                    </p>
+
+                    <div class="scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>n</th>
+                                    <th>Semitones</th>
+                                    <th>Cents</th>
+                                    <th>Interval</th>
+                                    <th>n</th>
+                                    <th>Semitones</th>
+                                    <th>Cents</th>
+                                    <th>Interval</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>1</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>prime/octave</td>
+                                    <td>17</td>
+                                    <td>49</td>
+                                    <td>+5</td>
+                                    <td>minor second</td>
+                                </tr>
+                                <tr>
+                                    <td>2</td>
+                                    <td>12</td>
+                                    <td>0</td>
+                                    <td>prime/octave</td>
+                                    <td>18</td>
+                                    <td>50</td>
+                                    <td>+4</td>
+                                    <td>major second</td>
+                                </tr>
+                                <tr>
+                                    <td>3</td>
+                                    <td>19</td>
+                                    <td>+2</td>
+                                    <td>fifth</td>
+                                    <td>19</td>
+                                    <td>51</td>
+                                    <td>-2</td>
+                                    <td>minor third</td>
+                                </tr>
+                                <tr>
+                                    <td>4</td>
+                                    <td>24</td>
+                                    <td>0</td>
+                                    <td>prime/octave</td>
+                                    <td>20</td>
+                                    <td>52</td>
+                                    <td>-14</td>
+                                    <td>major third</td>
+                                </tr>
+                                <tr>
+                                    <td>5</td>
+                                    <td>28</td>
+                                    <td>-14</td>
+                                    <td>major third</td>
+                                    <td>21</td>
+                                    <td>53</td>
+                                    <td>-29</td>
+                                    <td>fourth</td>
+                                </tr>
+                                <tr>
+                                    <td>6</td>
+                                    <td>31</td>
+                                    <td>+2</td>
+                                    <td>fifth</td>
+                                    <td>22</td>
+                                    <td>54</td>
+                                    <td>-49</td>
+                                    <td>tritone</td>
+                                </tr>
+                                <tr>
+                                    <td>7</td>
+                                    <td>34</td>
+                                    <td>-31</td>
+                                    <td>minor seventh</td>
+                                    <td>23</td>
+                                    <td>54</td>
+                                    <td>+28</td>
+                                    <td>tritone</td>
+                                </tr>
+                                <tr>
+                                    <td>8</td>
+                                    <td>36</td>
+                                    <td>0</td>
+                                    <td>prime/octave</td>
+                                    <td>24</td>
+                                    <td>55</td>
+                                    <td>+2</td>
+                                    <td>fifth</td>
+                                </tr>
+                                <tr>
+                                    <td>9</td>
+                                    <td>38</td>
+                                    <td>+4</td>
+                                    <td>major second</td>
+                                    <td>25</td>
+                                    <td>56</td>
+                                    <td>-27</td>
+                                    <td>minor sixth</td>
+                                </tr>
+                                <tr>
+                                    <td>10</td>
+                                    <td>40</td>
+                                    <td>-14</td>
+                                    <td>major third</td>
+                                    <td>26</td>
+                                    <td>56</td>
+                                    <td>+41</td>
+                                    <td>minor sixth</td>
+                                </tr>
+                                <tr>
+                                    <td>11</td>
+                                    <td>42</td>
+                                    <td>-49</td>
+                                    <td>tritone</td>
+                                    <td>27</td>
+                                    <td>57</td>
+                                    <td>+6</td>
+                                    <td>major sixth</td>
+                                </tr>
+                                <tr>
+                                    <td>12</td>
+                                    <td>43</td>
+                                    <td>+2</td>
+                                    <td>fifth</td>
+                                    <td>28</td>
+                                    <td>58</td>
+                                    <td>-31</td>
+                                    <td>minor seventh</td>
+                                </tr>
+                                <tr>
+                                    <td>13</td>
+                                    <td>44</td>
+                                    <td>+41</td>
+                                    <td>minor sixth</td>
+                                    <td>29</td>
+                                    <td>58</td>
+                                    <td>+30</td>
+                                    <td>minor seventh</td>
+                                </tr>
+                                <tr>
+                                    <td>14</td>
+                                    <td>46</td>
+                                    <td>-31</td>
+                                    <td>minor seventh</td>
+                                    <td>30</td>
+                                    <td>59</td>
+                                    <td>-12</td>
+                                    <td>major seventh</td>
+                                </tr>
+                                <tr>
+                                    <td>15</td>
+                                    <td>47</td>
+                                    <td>-12</td>
+                                    <td>major seventh</td>
+                                    <td>31</td>
+                                    <td>59</td>
+                                    <td>+45</td>
+                                    <td>major seventh</td>
+                                </tr>
+                                <tr>
+                                    <td>16</td>
+                                    <td>48</td>
+                                    <td>0</td>
+                                    <td>prime/octave</td>
+                                    <td>32</td>
+                                    <td>60</td>
+                                    <td>0</td>
+                                    <td>prime/octave</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <p>
+                        The two big offsets are the ones worth knowing by ear. The seventh partial lands 31 cents flat of a minor seventh and the
+                        eleventh 49 cents flat of a tritone, which is to say halfway between two keys. Those are the partials that make a just-tuned
+                        stack sound unlike anything a keyboard can play.
+                    </p>
+                </section>
+
+                <section>
+                    <h2>Stretch</h2>
+
+                    <p>
+                        Nothing real rings at integer multiples of anything. A string with any bending stiffness has partials at
+                        <code>n * f0 * sqrt(1 + B * n^2)</code>, sharp of the harmonic and increasingly so up the series, and it is that, not the
+                        hammer or the soundboard, that makes a piano sound like a piano rather than like a sawtooth. It is also what a tuner is
+                        matching when they stretch the octaves: tune the top of the instrument to the theory and it beats against its own overtones.
+                    </p>
+
+                    <p>
+                        STRETCH is that stiffness, dialled by what it does to the top partial rather than by its own value, which lives between
+                        0.00003 and 0.008 and means nothing to anyone. At +150 cents, which is a real piano:
+                    </p>
+
+                    <div class="scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Partial</th>
+                                    <th>2</th>
+                                    <th>8</th>
+                                    <th>16</th>
+                                    <th>32</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Cents sharp of harmonic</td>
+                                    <td>+0.6</td>
+                                    <td>+10.2</td>
+                                    <td>+40.0</td>
+                                    <td>+150.0</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <p>
+                        The bottom of the series barely moves and the top of it walks away, which is the shape that matters. Push further and the
+                        partials stop agreeing on a fundamental, and the sound stops being a note with a timbre and becomes a bell. Negative pulls
+                        them inward instead, which no physical string does and which is worth having anyway.
+                    </p>
+
+                    <p>
+                        It is a separate axis from TUNE rather than more of it, and the two combine: equal temperament with heavy stretch is a
+                        different object from just intonation with the same stretch. Zero is the plain harmonic series.
+                    </p>
+                </section>
+
+                <section>
+                    <h2>Tuning the keyboard</h2>
+
+                    <p>
+                        Everything above is about where a partial sits over the note you played. This is about where that note sits. Settings carries
+                        six temperaments.
+                    </p>
+
+                    <div class="scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Temperament</th>
+                                    <th>Major third</th>
+                                    <th>Fifth</th>
+                                    <th>What it is</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Equal</td>
+                                    <td>400.00</td>
+                                    <td>700.00</td>
+                                    <td>the reference everything else is measured against</td>
+                                </tr>
+                                <tr>
+                                    <td>Just (major)</td>
+                                    <td>386.31</td>
+                                    <td>701.96</td>
+                                    <td>pure by construction, chosen interval by interval</td>
+                                </tr>
+                                <tr>
+                                    <td>Pythagorean</td>
+                                    <td>407.82</td>
+                                    <td>701.96</td>
+                                    <td>every fifth pure, the third pays for it</td>
+                                </tr>
+                                <tr>
+                                    <td>Quarter-comma meantone</td>
+                                    <td>386.31</td>
+                                    <td>696.58</td>
+                                    <td>fifths narrowed a quarter comma, which makes the third pure</td>
+                                </tr>
+                                <tr>
+                                    <td>Werckmeister III</td>
+                                    <td>390.22</td>
+                                    <td>696.09</td>
+                                    <td>four fifths narrowed, no wolf, every key playable</td>
+                                </tr>
+                                <tr>
+                                    <td>Young</td>
+                                    <td>392.18</td>
+                                    <td>698.04</td>
+                                    <td>six narrowed by a sixth, gentler again</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <p>
+                        They are derived from the circle of fifths rather than copied out as tables of cents. Almost every historical temperament is
+                        described by how much each of the twelve fifths is narrowed, so that is what the code says, and the pitch classes fall out of
+                        it. The two commas it is all built from come out at 23.460 and 21.506 cents, which are the published figures, and the tests
+                        assert the property that defines each temperament rather than the numbers that happen to result: meantone's third pure to a
+                        thousandth of a cent, Pythagorean's fifth likewise, Werckmeister at its characteristic 390.2.
+                    </p>
+
+                    <h3>Root</h3>
+                    <p>
+                        Picks which pitch class the temperament is built on, since an unequal temperament is only in tune in the keys near its centre,
+                        and that is the point of it. It is greyed out for equal temperament, which has no centre to have.
+                    </p>
+
+                    <h3>Reference pitch</h3>
+                    <p>
+                        415 through 466 Hz. A stays exactly there in every temperament, because the offsets are taken relative to A's own: a tuner
+                        tunes A first and works outwards. Only the other eleven notes move.
+                    </p>
+
+                    <p>
+                        None of the three travels with a preset. A temperament is a property of the music you are playing rather than of any one sound
+                        in it: you set it once and work, and having a patch drag you back to equal in the middle of that would be no help. That
+                        includes Init, which clears the patch rather than the session.
+                    </p>
+                </section>
+
+                <section>
+                    <h2>Tracking</h2>
+
+                    <p>
+                        Without TRACK, a patch has the same spectrum at every pitch. Nothing real does. Play up a piano and the top of the series
+                        thins out, not because the note changed but because the body has a rolloff that stays where it is while the partials climb up
+                        through it.
+                    </p>
+
+                    <p>
+                        TRACK is that rolloff, in dB per octave above a fixed corner of 1 kHz, which is around C6. It is measured against the
+                        fundamental rather than absolutely, and that is the part that matters: taken absolutely it would be a shelf, making high notes
+                        quieter rather than duller, which is not the thing worth having. Normalised, the fundamental keeps its level at every pitch
+                        and only the spectrum above it thins.
+                    </p>
+
+                    <p>
+                        The consequence falls out of where the corner sits. A bass note has most of its series below 1 kHz and keeps nearly all of it.
+                        A treble note whose fundamental is already above the corner loses the full slope across every partial it has. At 6 dB per
+                        octave, the 32nd partial keeps 57% of its level at A1 and 4% at A5. Zero is off, and off is exact.
+                    </p>
+                </section>
+
+                <section>
+                    <h2>Drift, the fourth kind of detuning</h2>
+
+                    <p>
+                        Per channel rather than global, and random rather than periodic. DRIFT gives a partial a smooth random walk of up to 25 cents,
+                        redrawn as the note plays, which is the cassette warble the earlier instruments in this line got from tape. Every partial
+                        draws from its own stream, so a stack with drift on it never quite settles, and no two notes drift the same way.
+                    </p>
+
+                    <p>
+                        It is the reason a held chord keeps moving without any modulation being dialled in, and it is why the pitch lamp on the PITCH
+                        MOD rule reads a needle rather than a pulse: what it shows is where modulation and drift together have the partial at this
+                        instant.
+                    </p>
+                </section>
+
+                <div class="onward">
+                    <ul class="links">
+                        <li><a class="primary" href="../controls/">Controls</a></li>
+                        <li><a href="../presets/">Presets</a></li>
+                    </ul>
+                </div>
+            </main>
+
+            <footer>
+                <div class="maker">
+                    <img src="../dehli-musikk.svg" alt="" />
+                    <div>By Benjamin Dehli for <a href="https://www.dehlimusikk.no/">Dehli Musikk</a>. Hosts list it under DehliMusikk.</div>
+                </div>
+
+                <p>
+                    Released under the
+                    <a href="https://github.com/benjamindehli/overtonium/blob/main/LICENSE">GNU Affero General Public License v3</a>, which follows
+                    from JUCE. Built with <a href="https://juce.com/">JUCE 8</a>.
+                </p>
+            </footer>
+        </div>
+    </body>
+</html>

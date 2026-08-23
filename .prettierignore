@@ -1,0 +1,15 @@
+# Build trees. build-*/ catches the throwaway ones, like the warnings-as-errors
+# check, and everything CMake fetches underneath them.
+build/
+build-*/
+
+# Not ours: cloned for reference, and the editor's own settings.
+temp/
+.claude/
+
+node_modules/
+package-lock.json
+
+# Written by hand to a shape search engines read rather than a shape prettier
+# would choose.
+docs/sitemap.xml

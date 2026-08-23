@@ -6,8 +6,8 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Both jobs do the same two things: read the repository and build it. Nothing
-# here writes a release, comments on a pull request or touches a package, so
+# Every job here does the same two things: read the repository and check it.
+# Nothing writes a release, comments on a pull request or touches a package, so
 # the token they are handed should not be able to either. Stating it here means
 # a job that starts wanting more has to say so.
 permissions:
@@ -163,6 +163,31 @@ jobs:
           esac
 
           "${run[@]}" --strictness-level 8 --validate "$vst3"
+
+  format:
+    name: Formatting
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # The docs, the readme and the workflows are the parts of this repository
+    # that are not C++, so clang-format never sees them. Prettier does, and
+    # checking rather than writing means a pull request says so instead of
+    # arriving with a reformat mixed into the change it was actually making.
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      # ci rather than install, so the pinned version in the lockfile is the
+      # one that runs. Prettier's output changes between minor versions, and a
+      # check that formats differently from the developer's copy is worse than
+      # no check.
+      - run: npm ci
+
+      - run: npm run format:check
 
   dsp-core:
     name: DSP core, no build system

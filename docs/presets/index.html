@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Overtonium presets: the sixteen that ship, and saving your own</title>
+        <meta
+            name="description"
+            content="The sixteen factory presets in Overtonium, which controls each one demonstrates, what a preset carries and deliberately does not, and where your own presets are stored on macOS, Windows and Linux."
+        />
+        <link rel="canonical" href="https://benjamindehli.github.io/overtonium/presets/" />
+        <meta name="theme-color" content="#0b0d10" />
+
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Overtonium" />
+        <meta property="og:url" content="https://benjamindehli.github.io/overtonium/presets/" />
+        <meta property="og:title" content="Overtonium presets: the sixteen that ship, and saving your own" />
+        <meta
+            property="og:description"
+            content="The sixteen factory presets in Overtonium, which controls each one demonstrates, what a preset carries and deliberately does not, and where your own presets are stored on macOS, Windows and Linux."
+        />
+        <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium.png" />
+
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Overtonium presets: the sixteen that ship, and saving your own" />
+        <meta
+            name="twitter:description"
+            content="The sixteen factory presets in Overtonium, which controls each one demonstrates, what a preset carries and deliberately does not, and where your own presets are stored on macOS, Windows and Linux."
+        />
+        <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium.png" />
+
+        <link rel="icon" href="../dehli-musikk.svg" />
+        <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
+        <link rel="stylesheet" href="../style.css" />
+
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    {
+                        "@type": "ListItem",
+                        "position": 1,
+                        "name": "Overtonium",
+                        "item": "https://benjamindehli.github.io/overtonium/"
+                    },
+                    {
+                        "@type": "ListItem",
+                        "position": 2,
+                        "name": "Presets",
+                        "item": "https://benjamindehli.github.io/overtonium/presets/"
+                    }
+                ]
+            }
+        </script>
+    </head>
+    <body>
+        <div class="page">
+            <header>
+                <p class="brand">
+                    <a href="../"><img class="wordmark" src="../overtonium-wordmark.png" alt="Overtonium" /></a>
+                </p>
+
+                <ul class="sections">
+                    <li><a href="../">Overview</a></li>
+                    <li><a href="../tuning/">Tuning</a></li>
+                    <li><a href="../controls/">Controls</a></li>
+                    <li><a href="../presets/" aria-current="page">Presets</a></li>
+                    <li><a href="../install/">Install</a></li>
+                </ul>
+            </header>
+
+            <main>
+                <p class="crumbs"><a href="../">Overtonium</a> / Presets</p>
+
+                <h1>Presets</h1>
+
+                <p class="lead">
+                    Sixteen ship with the plugin. All but a handful were dialled in on the panel and converted straight from the saved file, so what
+                    ships is what was played rather than something written afterwards to approximate it.
+                </p>
+
+                <section>
+                    <h2>What ships</h2>
+
+                    <p>
+                        <strong>Big Saw</strong>, <strong>Cathedral</strong>, <strong>Drawbar Organ</strong>, <strong>Equal Saw</strong>,
+                        <strong>Glass Armonica</strong>, <strong>Init</strong>, <strong>Just Saw</strong>, <strong>Lo-fi</strong>,
+                        <strong>Music Box</strong>, <strong>Odd Harmonics</strong>, <strong>Shimmer</strong>, <strong>Slow Pad</strong>,
+                        <strong>Struck Bell</strong>, <strong>Tape Choir</strong>, <strong>Vibraphone</strong> and <strong>Wurli</strong>.
+                    </p>
+
+                    <p>A few are worth opening up rather than only playing, because each one demonstrates a control that is hard to describe:</p>
+
+                    <div class="scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Preset</th>
+                                    <th>What it shows</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Just Saw and Equal Saw</td>
+                                    <td>
+                                        Identical patches except for TUNE. The clearest demonstration of what the control does, and they sound nothing
+                                        alike
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Drawbar Organ</td>
+                                    <td>
+                                        The key-off stage used as a release click. The upper drawbars jump to 55% for two milliseconds as the contacts
+                                        break
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Struck Bell and Odd Harmonics</td>
+                                    <td>
+                                        Per-partial velocity, with the fundamental flat and the upper partials steep, so playing harder opens the tone
+                                        rather than only raising it
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Slow Pad and Shimmer</td>
+                                    <td>
+                                        Staggered envelope delays, so the spectrum unfolds rather than arriving at once, and mirrored pans across the
+                                        series
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Init</td>
+                                    <td>The neutral starting point. It clears the patch and leaves the session alone</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section>
+                    <h2>What a preset carries</h2>
+
+                    <p>
+                        The patch and nothing else. Loading one never moves your master fader, your temperament, your reference pitch, your window
+                        size or your LINK settings. Those are properties of the session you are working in rather than of any one sound in it, and
+                        having a patch drag you back to equal temperament in the middle of a piece would be no help.
+                    </p>
+
+                    <p>That includes Init. It is still a preset, so it clears the patch and leaves the session where you set it.</p>
+
+                    <p>
+                        Values are stored plain rather than normalised, so a preset survives a parameter's range being widened later, and anything a
+                        file does not mention keeps its default rather than being reset.
+                    </p>
+                </section>
+
+                <section>
+                    <h2>Saving your own</h2>
+
+                    <p>
+                        Saving writes one small file per preset, and the menu reads that folder every time it opens, so a preset added from outside
+                        the plugin shows up without a restart. The folder is created on demand.
+                    </p>
+
+                    <div class="scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Platform</th>
+                                    <th>Where they live</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>macOS</td>
+                                    <td><code>~/Library/Application Support/Dehli Musikk/Overtonium/Presets</code></td>
+                                </tr>
+                                <tr>
+                                    <td>Windows</td>
+                                    <td><code>%APPDATA%\Dehli Musikk\Overtonium\Presets</code></td>
+                                </tr>
+                                <tr>
+                                    <td>Linux</td>
+                                    <td><code>~/.config/Dehli Musikk/Overtonium/Presets</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <p>
+                        They are small XML files holding parameter values, so they can be read, edited, kept under version control and passed to
+                        someone else by copying the file. The menu sorts by name rather than by whatever order the filesystem hands them back.
+                    </p>
+                </section>
+
+                <div class="onward">
+                    <ul class="links">
+                        <li><a class="primary" href="../install/">Install</a></li>
+                        <li><a href="../controls/">Controls</a></li>
+                    </ul>
+                </div>
+            </main>
+
+            <footer>
+                <div class="maker">
+                    <img src="../dehli-musikk.svg" alt="" />
+                    <div>By Benjamin Dehli for <a href="https://www.dehlimusikk.no/">Dehli Musikk</a>. Hosts list it under DehliMusikk.</div>
+                </div>
+
+                <p>
+                    Released under the
+                    <a href="https://github.com/benjamindehli/overtonium/blob/main/LICENSE">GNU Affero General Public License v3</a>, which follows
+                    from JUCE. Built with <a href="https://juce.com/">JUCE 8</a>.
+                </p>
+            </footer>
+        </div>
+    </body>
+</html>
