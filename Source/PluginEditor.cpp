@@ -302,8 +302,10 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   setResizable(true, true);
   applyResizeLimits();
 
-  setSize(juce::roundToInt(savedWidth * zoom),
-          juce::roundToInt(savedHeight * zoom));
+  // Cast rather than left to the compiler. int times float is a conversion
+  // that can lose precision in principle, and newer clang says so.
+  setSize(juce::roundToInt((float)savedWidth * zoom),
+          juce::roundToInt((float)savedHeight * zoom));
 
   startTimerHz(30);
 }
