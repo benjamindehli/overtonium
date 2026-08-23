@@ -67,10 +67,12 @@ jobs:
             sleep 10
           done
 
+          # xvfb is for pluginval rather than the build. It opens the editor,
+          # and the runner has no display for one to open on.
           sudo apt-get install --no-install-recommends -y \
             libasound2-dev libfreetype-dev libfontconfig1-dev libx11-dev \
             libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev \
-            libxcomposite-dev libgl-dev
+            libxcomposite-dev libgl-dev xvfb
 
       # Warnings are errors here and nowhere else. JUCE's recommended set is
       # already asked for in CMakeLists and it is a broad one, but a warning
@@ -97,6 +99,70 @@ jobs:
       # Neither suite opens an editor, so both run on a machine with no display.
       - name: Test
         run: ctest --test-dir build --build-config Release --output-on-failure
+
+      # pluginval is a host that loads the plugin and misuses it on purpose:
+      # silly block sizes, parameters set from the wrong thread, state saved
+      # and restored mid-render, buses enabled that nothing asked for. None of
+      # that is reachable from our own tests, which drive the processor
+      # directly rather than through a plugin format.
+      #
+      # It runs on all three platforms because that is the point. macOS gets
+      # checked by hand before a release, so the value here is Windows and
+      # Linux, where nobody loads the plugin into a DAW and a format-level
+      # regression would otherwise reach a user first.
+      #
+      # The VST3 only. The Audio Unit is validated by hand with auval, and
+      # loading one from a path rather than an installed location is its own
+      # argument with the component registrar that is not worth having here.
+      - name: Fetch pluginval
+        shell: bash
+        env:
+          PLUGINVAL_VERSION: v1.0.4
+        run: |
+          base="https://github.com/Tracktion/pluginval/releases/download"
+
+          case "$RUNNER_OS" in
+            macOS)   asset=pluginval_macOS.zip ;;
+            Windows) asset=pluginval_Windows.zip ;;
+            Linux)   asset=pluginval_Linux.zip ;;
+          esac
+
+          # --fail so a wrong tag or a renamed asset fails here. Without it
+          # curl writes the 404 page into the zip and the first complaint
+          # comes from unzip, about a file that looks like it downloaded.
+          curl -sSL --fail --retry 3 -o pluginval.zip \
+            "$base/$PLUGINVAL_VERSION/$asset"
+
+          # The bash on the Windows runners is the one Git ships and it has no
+          # unzip, the same reason the release workflow archives with pwsh.
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            powershell -Command "Expand-Archive -Force pluginval.zip ."
+          else
+            unzip -q -o pluginval.zip
+            # The archive does not reliably carry the executable bit through.
+            chmod +x pluginval 2>/dev/null || true
+            chmod +x pluginval.app/Contents/MacOS/pluginval 2>/dev/null || true
+          fi
+
+          # Printed so that a layout that differs from the one expected below
+          # reads as a wrong path rather than a mysteriously missing command.
+          ls -l
+
+      - name: Validate the VST3
+        shell: bash
+        run: |
+          vst3=build/Overtonium_artefacts/Release/VST3/Overtonium.vst3
+
+          case "$RUNNER_OS" in
+            macOS)   run=(./pluginval.app/Contents/MacOS/pluginval) ;;
+            Windows) run=(./pluginval.exe) ;;
+            # No display on the runner, so pluginval gets a virtual one. -a
+            # picks a free server number rather than colliding with a stale
+            # lock file from an earlier step.
+            Linux)   run=(xvfb-run -a ./pluginval) ;;
+          esac
+
+          "${run[@]}" --strictness-level 8 --validate "$vst3"
 
   dsp-core:
     name: DSP core, no build system
