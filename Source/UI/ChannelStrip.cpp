@@ -59,17 +59,35 @@ LabelledKnob::LabelledKnob(juce::String captionText, juce::Colour fill)
   addAndMakeVisible(slider);
 }
 
+namespace {
+// Top to bottom through a labelled knob: room above the dial, the dial, the
+// gap, the caption, room under it.
+//
+// The gap used to take three of these pixels and the two margins one between
+// them, which read as the caption belonging to whatever stood underneath it
+// rather than to the knob above. Moving two pixels out of the gap and into the
+// margins ties the pair together and gives the group some air. The four still
+// add to what they always did, so the dial keeps its diameter.
+constexpr int kAboveDial = 3;
+constexpr int kCaptionGap = 1;
+constexpr int kCaptionHeight = 11;
+constexpr int kBelowCaption = 1;
+} // namespace
+
 void LabelledKnob::paint(juce::Graphics &g) {
+  auto area = getLocalBounds();
+  area.removeFromBottom(kBelowCaption);
+
   g.setColour(colours::textDim);
   g.setFont(makeFont(9.0f, true));
-  g.drawText(caption, getLocalBounds().removeFromBottom(11),
+  g.drawText(caption, area.removeFromBottom(kCaptionHeight),
              juce::Justification::centred, false);
 }
 
 juce::Rectangle<int> LabelledKnob::dialBounds(juce::Rectangle<int> bounds) {
-  // The caption takes the bottom, and then a little vertical inset, or the
-  // tick ring sits right on the group border.
-  return bounds.withTrimmedBottom(12).reduced(0, 2);
+  bounds.removeFromBottom(kBelowCaption + kCaptionHeight + kCaptionGap);
+  bounds.removeFromTop(kAboveDial);
+  return bounds;
 }
 
 void LabelledKnob::resized() { slider.setBounds(dialBounds(getLocalBounds())); }
@@ -811,7 +829,8 @@ void ChannelStrip::mouseExit(const juce::MouseEvent &e) { reportHover(e); }
 
 void ChannelStrip::reportHover(const juce::MouseEvent &e) {
   const auto p = e.getEventRelativeTo(this).getPosition();
-  const auto rows = layoutRows(getLocalBounds().reduced(2, 4), collapsed);
+  const auto rows =
+      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
   const auto inside = getLocalBounds().contains(p);
 
   // Leaving one knob for the next fires the exit before the enter, so the
@@ -837,7 +856,8 @@ void ChannelStrip::setHighlightedRow(Row row) {
   if (row == highlighted)
     return;
 
-  const auto rows = layoutRows(getLocalBounds().reduced(2, 4), collapsed);
+  const auto rows =
+      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
 
   // Only the two bands that changed are repainted. With 33 strips answering
   // every time the pointer crosses a row, repainting whole channels would
@@ -948,7 +968,8 @@ void ChannelStrip::paint(juce::Graphics &g) {
 
   paintChannelBackground(g, bounds, backdropBase());
 
-  const auto rows = layoutRows(bounds.reduced(2, 4), collapsed);
+  const auto rows =
+      layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed);
 
   if (rowShowsHighlight(highlighted))
     paintRowHighlight(g, rows[rowIndex(highlighted)]);
@@ -987,7 +1008,8 @@ void ChannelStrip::paint(juce::Graphics &g) {
 }
 
 void ChannelStrip::resized() {
-  const auto rows = layoutRows(getLocalBounds().reduced(2, 4), collapsed);
+  const auto rows =
+      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
 
   // Hidden rather than left at zero height. A knob with no height still takes
   // the mouse and still answers a hover, so a folded section would go on

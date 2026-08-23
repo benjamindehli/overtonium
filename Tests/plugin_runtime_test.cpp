@@ -1219,7 +1219,7 @@ void testChannelHover(OvertoniumProcessor &p) {
   auto &fourth = *strips[7];
   const auto rules =
       layoutRows(juce::Rectangle<int>(0, 0, kStripWidth, fourth.getHeight())
-                     .reduced(2, 4));
+                     .reduced(kStripPadX, kStripPadY));
   const auto onRule = rules[(size_t)Row::EnvHeading].getCentre();
 
   fourth.mouseEnter(pointAt(fourth, onRule));
@@ -1565,7 +1565,7 @@ void testRowHover() {
   // off the bottom of the test without the test noticing.
   const auto rows = layoutRows(
       juce::Rectangle<int>(0, 0, kStripWidth, preferredStripHeight() + 8)
-          .reduced(2, 4));
+          .reduced(kStripPadX, kStripPadY));
 
   const auto rowAtCentre = [&rows](Row r) {
     const auto band = rows[(size_t)r];

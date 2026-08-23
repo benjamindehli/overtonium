@@ -146,7 +146,8 @@ void NoiseStrip::mouseExit(const juce::MouseEvent &e) { reportHover(e); }
 
 void NoiseStrip::reportHover(const juce::MouseEvent &e) {
   const auto p = e.getEventRelativeTo(this).getPosition();
-  const auto rows = layoutRows(getLocalBounds().reduced(2, 4), collapsed);
+  const auto rows =
+      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
   const auto inside = getLocalBounds().contains(p);
 
   // -1 says the pointer is off the harmonic series, which is what stops a
@@ -168,7 +169,8 @@ void NoiseStrip::setHighlightedRow(Row row) {
   if (row == highlighted)
     return;
 
-  const auto rows = layoutRows(getLocalBounds().reduced(2, 4), collapsed);
+  const auto rows =
+      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
 
   repaintRowHighlight(*this, rows, highlighted);
   highlighted = row;
@@ -183,7 +185,8 @@ void NoiseStrip::paint(juce::Graphics &g) {
   // part of the series.
   paintChannelBackground(g, bounds, colours::channel.brighter(0.03f));
 
-  const auto rows = layoutRows(bounds.reduced(2, 4), collapsed);
+  const auto rows =
+      layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed);
   auto header = rows[rowIndex(Row::Header)];
 
   g.setColour(colour);
@@ -247,7 +250,8 @@ void NoiseStrip::setActivity(float envelope, float tremolo,
 }
 
 void NoiseStrip::resized() {
-  const auto rows = layoutRows(getLocalBounds().reduced(2, 4), collapsed);
+  const auto rows =
+      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
 
   // Colour takes the tuning row, which is the one thing noise has that a
   // partial does not.

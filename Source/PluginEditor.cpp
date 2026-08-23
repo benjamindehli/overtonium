@@ -7,7 +7,6 @@ using namespace ovt;
 using namespace ovt::ui;
 
 namespace {
-constexpr int kEdge = 4;
 constexpr int kScrollBarThickness = 10;
 /// Breathing room between the noise channel and the scrolling series.
 constexpr int kMasterGap = 8;
@@ -15,8 +14,7 @@ constexpr int kMasterGap = 8;
 /// Everything above and below the strips. The top bar reflows onto a second
 /// row when narrow, so its height depends on the width it is given.
 int chromeHeight(int logicalWidth) {
-  return ovt::ui::TopBar::heightForWidth(logicalWidth) + 2 * kEdge +
-         kScrollBarThickness;
+  return ovt::ui::TopBar::heightForWidth(logicalWidth) + kScrollBarThickness;
 }
 
 /// State keys stored alongside the parameters so window size survives a reopen.
@@ -44,7 +42,8 @@ void RowGutter::setHighlightedRow(Row row) {
   if (row == highlighted)
     return;
 
-  const auto rows = layoutRows(getLocalBounds().reduced(0, 4), collapsed);
+  const auto rows =
+      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed);
 
   repaintRowHighlight(*this, rows, highlighted);
   highlighted = row;
@@ -60,7 +59,8 @@ void RowGutter::setCollapsedSections(SectionMask mask) {
 }
 
 void RowGutter::mouseDown(const juce::MouseEvent &e) {
-  const auto rows = layoutRows(getLocalBounds().reduced(0, 4), collapsed);
+  const auto rows =
+      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed);
   const auto section = headingSectionAt(rows, e.getPosition());
 
   if (section != Section::NumSections && onSectionToggled != nullptr)
@@ -68,7 +68,8 @@ void RowGutter::mouseDown(const juce::MouseEvent &e) {
 }
 
 void RowGutter::mouseMove(const juce::MouseEvent &e) {
-  const auto rows = layoutRows(getLocalBounds().reduced(0, 4), collapsed);
+  const auto rows =
+      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed);
   const bool onHeading =
       headingSectionAt(rows, e.getPosition()) != Section::NumSections;
 
@@ -79,7 +80,8 @@ void RowGutter::mouseMove(const juce::MouseEvent &e) {
 void RowGutter::paint(juce::Graphics &g) {
   paintChannelBackground(g, getLocalBounds(), colours::panel.darker(0.25f));
 
-  const auto rows = layoutRows(getLocalBounds().reduced(0, 4), collapsed);
+  const auto rows =
+      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed);
 
   if (rowShowsHighlight(highlighted))
     paintRowHighlight(g, rows[(size_t)highlighted]);
@@ -301,7 +303,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   // Default size shows all 32 strips at once, which is the whole point of the
   // layout.
   const int defaultWidth = kGutterWidth + kStripWidth + kMasterGap +
-                           kNumHarmonics * kStripWidth + 2 * kEdge;
+                           kNumHarmonics * kStripWidth;
   // Read before the heights below, both of which depend on how much of the
   // strip is folded away.
   collapsedSections =
@@ -363,8 +365,9 @@ void OvertoniumEditor::resized() {
   topBar.setBounds(
       area.removeFromTop(ovt::ui::TopBar::heightForWidth(logicalWidth)));
 
-  area.reduce(kEdge, kEdge);
-
+  // No inset here. The mixer runs to the window edges and the breathing room
+  // it used to get from this border is now kStripPadY inside each column, so
+  // the space is above and below the controls rather than around the block.
   const auto gutterArea = area.removeFromLeft(kGutterWidth);
 
   // Noise is pinned on the far right, after the series it does not belong to,
@@ -404,7 +407,7 @@ void OvertoniumEditor::applyResizeLimits() {
   // Wide enough for a usable stretch of mixer, and never narrower than the top
   // bar can lay itself out without dropping a group.
   const int minWidth = juce::jmax(kGutterWidth + kStripWidth + kMasterGap +
-                                      6 * kStripWidth + 2 * kEdge,
+                                      6 * kStripWidth,
                                   ovt::ui::TopBar::minimumWidth());
   // The narrowest window is also the one where the bar takes two rows, so
   // the minimum height has to leave room for that.

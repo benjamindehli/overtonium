@@ -92,6 +92,19 @@ inline constexpr int kNumRows = (int)Row::NumRows;
 inline constexpr int kStripWidth = 38;
 inline constexpr int kGutterWidth = 78;
 
+/// The inset every column lays its rows inside.
+///
+/// Named because the gutter, the 32 strips and the noise strip all have to
+/// agree about it to the pixel: they each call layoutRows with their own
+/// rectangle, and a caption that disagrees with the knob beside it by one
+/// pixel is a caption pointing at the wrong row further down.
+///
+/// The vertical figure is also the mixer's top and bottom margin. The area
+/// below the bar has no border of its own, so the breathing room lives inside
+/// the channels instead of around them.
+inline constexpr int kStripPadX = 2;
+inline constexpr int kStripPadY = 9;
+
 /// Stands for "no row", which is what a hover over a heading or a gap reports.
 inline constexpr Row kNoRow = Row::NumRows;
 
