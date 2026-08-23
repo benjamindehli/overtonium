@@ -126,7 +126,14 @@ private:
 
   juce::RangedAudioParameter *oscParameter(ovt::ui::Role, int index) const;
 
-  OvertoniumProcessor &processor;
+  /// The object the base class already holds, with its real type back on.
+  ///
+  /// AudioProcessorEditor keeps it as an AudioProcessor&, and declaring a
+  /// second reference beside it shadows that one and stores the same address
+  /// twice. Casting on the way past costs nothing and does neither.
+  OvertoniumProcessor &plugin() const {
+    return static_cast<OvertoniumProcessor &>(processor);
+  }
 
   // Declared first so it outlives every component that borrows it.
   ovt::ui::OvertoniumLookAndFeel lookAndFeel;
@@ -192,8 +199,6 @@ private:
   juce::Array<juce::Rectangle<int>> lampRegions, stripLamps;
 
   bool propagatingLink = false;
-  bool macroGestureActive = false;
-  ovt::ui::Role macroRole = ovt::ui::Role::Tune;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OvertoniumEditor)
 };

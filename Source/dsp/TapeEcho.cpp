@@ -62,16 +62,18 @@ void TapeEcho::Head::clear() noexcept {
   dc = 0.0f;
 }
 
-void TapeEcho::Head::restartMotor(double sampleRate, uint32_t seed,
+// sr rather than sampleRate: Head is nested inside TapeEcho, which has a
+// sampleRate of its own, and a parameter of that name hides it.
+void TapeEcho::Head::restartMotor(double sr, uint32_t seed,
                                   float startPhase) noexcept {
   rng.reseed(seed);
-  wow.restart(rng, wowRateHz, sampleRate);
+  wow.restart(rng, wowRateHz, sr);
   flutterPhase = startPhase;
 }
 
 float TapeEcho::Head::wander(float delaySamples, float age,
-                             double sampleRate) noexcept {
-  flutterPhase += flutterRateHz / (float)sampleRate;
+                             double sr) noexcept {
+  flutterPhase += flutterRateHz / (float)sr;
   if (flutterPhase >= 1.0f)
     flutterPhase -= 1.0f;
 

@@ -177,7 +177,7 @@ void RowGutter::paint(juce::Graphics &g) {
 // =============================================================================
 
 OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
-    : juce::AudioProcessorEditor(&p), processor(p), topBar(p.apvts, *this),
+    : juce::AudioProcessorEditor(&p), topBar(p.apvts, *this),
       noiseStrip(p.apvts, *this, *this) {
   setLookAndFeel(&lookAndFeel);
 
@@ -199,7 +199,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   strips.reserve(kNumHarmonics);
   for (int i = 0; i < kNumHarmonics; ++i) {
     auto strip =
-        std::make_unique<ChannelStrip>(processor.apvts, *this, *this, *this, i);
+        std::make_unique<ChannelStrip>(plugin().apvts, *this, *this, *this, i);
     stripsHolder.addAndMakeVisible(*strip);
     strips.push_back(std::move(strip));
   }
@@ -212,7 +212,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   topBar.onUserPresetChosen = [this](juce::File file) {
     juce::String error;
 
-    if (presets::load(processor.apvts, file, error))
+    if (presets::load(plugin().apvts, file, error))
       topBar.setPresetName(file.getFileNameWithoutExtension());
     else
       complain("Could not load that preset", error);
@@ -221,7 +221,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   topBar.onSaveUserPreset = [this](juce::String name) {
     juce::String error;
 
-    if (presets::save(processor.apvts, name, error))
+    if (presets::save(plugin().apvts, name, error))
       topBar.setPresetName(presets::sanitiseName(name));
     else
       complain("Could not save that preset", error);
@@ -231,7 +231,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     const auto name = presets::sanitiseName(topBar.getPresetName());
 
     juce::SystemClipboard::copyTextToClipboard(presets::factoryCode(
-        processor.apvts, name.isEmpty() ? "Untitled" : name));
+        plugin().apvts, name.isEmpty() ? "Untitled" : name));
 
     complain("Copied", "The C++ for this patch is on the clipboard. Paste it "
                        "into Presets.cpp as a new case and add its name to "
@@ -242,8 +242,8 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
 
   topBar.onUndo = [this] { stepHistory(false); };
   topBar.onRedo = [this] { stepHistory(true); };
-  topBar.canUndo = [this] { return processor.undo().canUndo(); };
-  topBar.canRedo = [this] { return processor.undo().canRedo(); };
+  topBar.canUndo = [this] { return plugin().undo().canUndo(); };
+  topBar.canRedo = [this] { return plugin().undo().canRedo(); };
 
   // Without this the editor is never focused and never sees a key press. Note
   // that plenty of hosts keep Cmd-Z for their own history and it will not reach
@@ -251,7 +251,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   setWantsKeyboardFocus(true);
 
   // ---- restore the last window size -----------------------------------------
-  const auto &state = processor.apvts.state;
+  const auto &state = plugin().apvts.state;
 
   zoom = (float)(double)state.getProperty(kEditorZoom, 1.0);
   zoom = juce::jlimit(0.5f, 2.0f, zoom);
@@ -263,7 +263,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
       0, (int)LinkCurve::NumCurves - 1, (int)state.getProperty(kLinkCurve, 0)));
 
   topBar.onLinkSettingsChanged = [this] {
-    auto &tree = processor.apvts.state;
+    auto &tree = plugin().apvts.state;
     tree.setProperty(kLinkScope, (int)topBar.getLinkScope(), nullptr);
     tree.setProperty(kLinkCurve, (int)topBar.getLinkCurve(), nullptr);
 
@@ -278,7 +278,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
 
   // Housekeeping runs at 4 Hz, and a readout that is blank for the first
   // quarter second of the window being open reads as broken.
-  topBar.updateConverterReadouts(processor.getSampleRate());
+  topBar.updateConverterReadouts(plugin().getSampleRate());
 
   // Default size shows all 32 strips at once, which is the whole point of the
   // layout.
@@ -356,7 +356,7 @@ void OvertoniumEditor::resized() {
   // Only write when something actually moved: a live resize drag fires this
   // constantly, and every property set notifies the APVTS listener on the state
   // tree.
-  auto &state = processor.apvts.state;
+  auto &state = plugin().apvts.state;
 
   if ((int)state.getProperty(kEditorWidth, -1) != logicalWidth)
     state.setProperty(kEditorWidth, logicalWidth, nullptr);
@@ -420,7 +420,7 @@ void OvertoniumEditor::toggleSection(Section section) {
   const int nowFolded = collapsedRowsHeight(collapsedSections);
 
   publishCollapsedSections();
-  processor.apvts.state.setProperty(kCollapsedSections, (int)collapsedSections,
+  plugin().apvts.state.setProperty(kCollapsedSections, (int)collapsedSections,
                                     nullptr);
 
   // The window follows, which is the point: left alone the fader would stretch
@@ -443,7 +443,7 @@ void OvertoniumEditor::applyPreset(int index) {
   // keeps up: it is the processor that knows which program is current, and a
   // host showing "Big Saw" while the plugin shows "Wurli" is worse than a host
   // showing nothing.
-  processor.applyFactoryPreset(index);
+  plugin().applyFactoryPreset(index);
 }
 
 void OvertoniumEditor::complain(const juce::String &title,
@@ -462,7 +462,7 @@ void OvertoniumEditor::complain(const juce::String &title,
 
 juce::RangedAudioParameter *OvertoniumEditor::oscParameter(Role role,
                                                            int index) const {
-  return processor.apvts.getParameter(
+  return plugin().apvts.getParameter(
       params::oscParamId(roleSuffix(role), index));
 }
 
@@ -655,7 +655,7 @@ void OvertoniumEditor::updateLinkGlow() {
 // ---- polling ----------------------------------------------------------------
 
 void OvertoniumEditor::closeUndoTransactionWhenIdle() {
-  auto &undo = processor.undo();
+  auto &undo = plugin().undo();
   const auto count = undo.getNumActionsInCurrentTransaction();
 
   // Still moving. Whatever it is belongs with what came before it, so that a
@@ -673,7 +673,7 @@ void OvertoniumEditor::closeUndoTransactionWhenIdle() {
 }
 
 void OvertoniumEditor::stepHistory(bool redo) {
-  auto &undo = processor.undo();
+  auto &undo = plugin().undo();
 
   // Whatever is still open has to be closed first, or the most recent move is
   // not yet a step of its own and undo would reach straight past it.
@@ -721,13 +721,13 @@ void OvertoniumEditor::timerCallback() {
 
   for (int i = 0; i < kNumHarmonics; ++i) {
     auto &strip = *strips[(size_t)i];
-    add(strip, strip.setMeterLevel(processor.getPartialLevel(i)));
+    add(strip, strip.setMeterLevel(plugin().getPartialLevel(i)));
 
     // Kept apart from the meter bands, because the two want different
     // merges. See mergeIntoRows.
-    strip.setActivity(processor.getPartialEnvelope(i),
-                      processor.getPartialTremolo(i),
-                      processor.getPartialPitch(i), stripLamps);
+    strip.setActivity(plugin().getPartialEnvelope(i),
+                      plugin().getPartialTremolo(i),
+                      plugin().getPartialPitch(i), stripLamps);
 
     for (const auto &band : stripLamps)
       lampRegions.add(content.getLocalArea(&strip, band));
@@ -735,10 +735,10 @@ void OvertoniumEditor::timerCallback() {
     stripLamps.clearQuick();
   }
 
-  add(noiseStrip, noiseStrip.setMeterLevel(processor.getNoiseLevel()));
+  add(noiseStrip, noiseStrip.setMeterLevel(plugin().getNoiseLevel()));
 
-  noiseStrip.setActivity(processor.getNoiseEnvelope(),
-                         processor.getNoiseTremolo(), stripLamps);
+  noiseStrip.setActivity(plugin().getNoiseEnvelope(),
+                         plugin().getNoiseTremolo(), stripLamps);
 
   for (const auto &band : stripLamps)
     lampRegions.add(content.getLocalArea(&noiseStrip, band));
@@ -757,8 +757,8 @@ void OvertoniumEditor::timerCallback() {
   lampRegions.clearQuick();
 
   // Its own region, at the other end of the window from the mixer.
-  topBar.setOutputLevels(processor.getOutputLevelLeft(),
-                         processor.getOutputLevelRight());
+  topBar.setOutputLevels(plugin().getOutputLevelLeft(),
+                         plugin().getOutputLevelRight());
 
   // The rest is housekeeping that nobody can see at 30 Hz, so it runs at a
   // fraction of the rate.
@@ -769,13 +769,13 @@ void OvertoniumEditor::timerCallback() {
 
   // Read through the cached atomics rather than the parameter map: the map
   // wants a string per lookup, and this runs several times a second.
-  const auto &cache = processor.parameters();
+  const auto &cache = plugin().parameters();
 
   const auto on = [](const std::atomic<float> *p) {
     return p != nullptr && p->load() > 0.5f;
   };
 
-  topBar.updateConverterReadouts(processor.getSampleRate());
+  topBar.updateConverterReadouts(plugin().getSampleRate());
 
   // Dim whatever a solo elsewhere is silencing, so the mixer shows what you can
   // hear. Solo spans the noise channel too, so it takes part in the dimming.

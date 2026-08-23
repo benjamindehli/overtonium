@@ -86,9 +86,11 @@ juce::MidiBuffer noteOnAt(int note, float velocity, int sample) {
   return m;
 }
 
-} // namespace
-
 // -----------------------------------------------------------------------------
+//
+// The tests stay inside the anonymous namespace the helpers opened. Nothing
+// here is called from another translation unit, and a file-scope function with
+// no declaration is an external symbol nobody can reach.
 
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
@@ -2864,6 +2866,8 @@ void testSoloAndMute(OvertoniumProcessor &p) {
   solo5->setValueNotifyingHost(0.0f);
   p.reset();
 }
+
+} // namespace
 
 int main() {
   juce::ScopedJuceInitialiser_GUI juceInit;
