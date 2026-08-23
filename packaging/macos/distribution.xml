@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+    <title>Overtonium</title>
+    <organization>no.dehlimusikk</organization>
+    <license file="LICENSE.txt"/>
+
+    <!-- Universal binaries, and the deployment target the plugin is built
+         against. Anything older is told so rather than left to fail later. -->
+    <options customize="always" require-scripts="false" hostArchitectures="arm64,x86_64"/>
+    <volume-check>
+        <allowed-os-versions>
+            <os-version min="10.13"/>
+        </allowed-os-versions>
+    </volume-check>
+
+    <!-- Each format is its own choice, because a lot of people want the
+         plugin without the standalone, or one plugin format and not the
+         other. -->
+    <choices-outline>
+        <line choice="vst3"/>
+        <line choice="au"/>
+        <line choice="app"/>
+    </choices-outline>
+
+    <choice id="vst3" title="VST3 plugin"
+            description="Installs Overtonium.vst3 into /Library/Audio/Plug-Ins/VST3.">
+        <pkg-ref id="com.dehlimusikk.overtonium.vst3"/>
+    </choice>
+
+    <choice id="au" title="Audio Unit"
+            description="Installs Overtonium.component into /Library/Audio/Plug-Ins/Components. Logic and GarageBand only rescan after a restart.">
+        <pkg-ref id="com.dehlimusikk.overtonium.au"/>
+    </choice>
+
+    <choice id="app" title="Standalone application"
+            description="Installs Overtonium.app into /Applications, for playing without a host.">
+        <pkg-ref id="com.dehlimusikk.overtonium.app"/>
+    </choice>
+
+    <pkg-ref id="com.dehlimusikk.overtonium.vst3" version="__VERSION__">VST3.pkg</pkg-ref>
+    <pkg-ref id="com.dehlimusikk.overtonium.au" version="__VERSION__">AU.pkg</pkg-ref>
+    <pkg-ref id="com.dehlimusikk.overtonium.app" version="__VERSION__">Standalone.pkg</pkg-ref>
+</installer-gui-script>

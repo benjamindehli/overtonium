@@ -34,6 +34,26 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # The archive is named from the tag, but the version a host displays
+      # comes from CMakeLists. Left unchecked, tagging v1.0.0 against a
+      # project still saying 0.1.0 ships a file whose name and contents
+      # disagree, and nobody notices until someone reads the plugin's version
+      # in a host.
+      - name: The tag has to match the project version
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          project=$(sed -n 's/^project(Overtonium VERSION \([0-9.]*\).*/\1/p' \
+                    CMakeLists.txt)
+          tagged="${GITHUB_REF_NAME#v}"
+
+          echo "CMakeLists says $project, the tag says $tagged"
+
+          if [ "$project" != "$tagged" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match project version $project"
+            exit 1
+          fi
+
       # Same treatment as the build workflow: the hosted runners reach apt
       # through a mirror that intermittently stops answering, and apt's own
       # defaults wait on it far longer than anyone wants to watch.
@@ -79,22 +99,86 @@ jobs:
       - name: Test
         run: ctest --test-dir build --build-config Release --output-on-failure
 
-      # Ad-hoc signing, which is not the same thing as being notarised and does
-      # not stop Gatekeeper warning about a download. It is what lets the AU
-      # and the VST3 load at all on Apple Silicon, where an unsigned bundle is
-      # refused outright.
+      # Signing, with or without a certificate.
+      #
+      # With one, the bundles get a Developer ID Application signature and the
+      # hardened runtime, which is what notarisation later requires. Without
+      # one they get an ad-hoc signature, which notarises nothing but is still
+      # what lets them load at all on Apple Silicon, where an unsigned bundle
+      # is refused outright. The workflow has to work either way so that it can
+      # be rehearsed before the secrets exist.
       #
       # No --deep, which Apple discourages and which nothing here needs: JUCE
       # is linked statically, so none of these bundles carry nested code.
-      - name: Sign for Apple Silicon
+      - name: Sign the macOS bundles
+        id: macsign
         if: runner.os == 'macOS'
+        shell: bash
+        env:
+          CERT_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          CERT_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          INSTALLER_P12: ${{ secrets.APPLE_INSTALLER_CERTIFICATE_P12 }}
+          INSTALLER_PASSWORD: ${{ secrets.APPLE_INSTALLER_CERTIFICATE_PASSWORD }}
         run: |
+          identity=""
+          installer_identity=""
+
+          if [ -n "$CERT_P12" ]; then
+            keychain="$RUNNER_TEMP/overtonium.keychain-db"
+            password="$(uuidgen)"
+
+            security create-keychain -p "$password" "$keychain"
+            security set-keychain-settings -lut 21600 "$keychain"
+            security unlock-keychain -p "$password" "$keychain"
+
+            echo "$CERT_P12" | base64 --decode > "$RUNNER_TEMP/app.p12"
+            security import "$RUNNER_TEMP/app.p12" -k "$keychain" \
+              -P "$CERT_PASSWORD" -T /usr/bin/codesign
+            rm -f "$RUNNER_TEMP/app.p12"
+
+            if [ -n "$INSTALLER_P12" ]; then
+              echo "$INSTALLER_P12" | base64 --decode > "$RUNNER_TEMP/inst.p12"
+              security import "$RUNNER_TEMP/inst.p12" -k "$keychain" \
+                -P "$INSTALLER_PASSWORD" -T /usr/bin/productbuild
+              rm -f "$RUNNER_TEMP/inst.p12"
+            fi
+
+            security set-key-partition-list -S apple-tool:,apple: \
+              -k "$password" "$keychain" >/dev/null
+            security list-keychains -d user -s "$keychain" login.keychain-db
+
+            identity=$(security find-identity -v -p codesigning "$keychain" \
+                       | sed -n 's/.*"\(Developer ID Application[^"]*\)".*/\1/p' \
+                       | head -1)
+            installer_identity=$(security find-identity -v "$keychain" \
+                       | sed -n 's/.*"\(Developer ID Installer[^"]*\)".*/\1/p' \
+                       | head -1)
+
+            echo "signing as: ${identity:-none found}"
+            echo "installer:  ${installer_identity:-none found}"
+          fi
+
           for bundle in build/Overtonium_artefacts/Release/*/Overtonium.*; do
             [ -e "$bundle" ] || continue
-            codesign --force --sign - "$bundle"
+
+            entitlements="build/Overtonium_artefacts/JuceLibraryCode/$(basename "$(dirname "$bundle")")"
+            args=(--force --timestamp)
+
+            if [ -n "$identity" ]; then
+              # The hardened runtime is not optional: notarisation refuses
+              # anything without it.
+              args+=(--options runtime --sign "$identity")
+            else
+              args+=(--sign -)
+            fi
+
+            codesign "${args[@]}" "$bundle"
             codesign --verify --strict "$bundle"
             echo "signed $bundle"
           done
+
+          echo "identity=$identity" >> "$GITHUB_OUTPUT"
+          echo "installer_identity=$installer_identity" >> "$GITHUB_OUTPUT"
 
       # Through the environment rather than interpolated into the script.
       # These are all values we control, but a workflow expression pasted into
@@ -164,10 +248,90 @@ jobs:
         run: |
           Compress-Archive -Path $env:ARCHIVE -DestinationPath "$env:ARCHIVE.zip"
 
+      # ---- installers -------------------------------------------------------
+      #
+      # The archive above stays, because it is what somebody without
+      # administrator rights, or with plugin folders somewhere of their own,
+      # actually needs. The installer is what everyone else wants.
+
+      - name: Build the macOS installer
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          VERSION: ${{ steps.naming.outputs.version }}
+          INSTALLER_IDENTITY: ${{ steps.macsign.outputs.installer_identity }}
+        run: |
+          packaging/macos/build-pkg.sh "${VERSION#v}" \
+            build/Overtonium_artefacts/Release \
+            "Overtonium-$VERSION-macOS.pkg" \
+            "$INSTALLER_IDENTITY"
+
+      # Notarisation is what stops Gatekeeper refusing the installer on a
+      # machine that has never seen it. It only runs when there is an account
+      # to submit with, so a rehearsal without the secrets still produces a
+      # package, just one that has to be opened past a warning.
+      #
+      # Stapling matters as much as the submission: it writes the ticket into
+      # the package so the machine opening it does not have to ask Apple, which
+      # is the difference between working offline and not.
+      - name: Notarise the macOS installer
+        if: runner.os == 'macOS' && steps.macsign.outputs.installer_identity != ''
+        shell: bash
+        env:
+          VERSION: ${{ steps.naming.outputs.version }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -z "$APPLE_ID" ] || [ -z "$APPLE_PASSWORD" ]; then
+            echo "::warning::signed but not notarised, no Apple ID secrets set"
+            exit 0
+          fi
+
+          xcrun notarytool submit "Overtonium-$VERSION-macOS.pkg" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+
+          xcrun stapler staple "Overtonium-$VERSION-macOS.pkg"
+          xcrun stapler validate "Overtonium-$VERSION-macOS.pkg"
+
+          # What a machine downloading it will actually decide.
+          spctl --assess --type install -vv "Overtonium-$VERSION-macOS.pkg"
+
+      # Inno Setup is on the Windows runners already. Installing it through a
+      # package manager on every release would be one more thing to go down.
+      - name: Build the Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.naming.outputs.version }}
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+
+          if (-not (Test-Path $iscc)) {
+            Write-Host "Inno Setup not on the image, installing it"
+            choco install innosetup --no-progress -y
+          }
+
+          $version = $env:VERSION -replace '^v', ''
+          $artefacts = "$PWD\build\Overtonium_artefacts\Release"
+
+          & $iscc "/DVersion=$version" "/DArtefacts=$artefacts" `
+            "/FOvertonium-$env:VERSION-Windows" `
+            "/Opackaging\windows\out" `
+            "packaging\windows\overtonium.iss"
+
+          Move-Item "packaging\windows\out\Overtonium-$env:VERSION-Windows.exe" .
+
       - uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.naming.outputs.archive }}
-          path: ${{ steps.naming.outputs.archive }}.zip
+          path: |
+            ${{ steps.naming.outputs.archive }}.zip
+            Overtonium-${{ steps.naming.outputs.version }}-macOS.pkg
+            Overtonium-${{ steps.naming.outputs.version }}-Windows.exe
           if-no-files-found: error
 
   publish:
@@ -200,33 +364,39 @@ jobs:
           cat > notes.md <<'NOTES'
           ## Installing
 
-          | Platform | Formats | Where they go |
+          Take the installer for your platform. The zip beside it holds the
+          same builds loose, for anyone without administrator rights or with
+          plugin folders of their own.
+
+          | Platform | Installer | Formats |
           |---|---|---|
-          | macOS | VST3, AU, Standalone | `~/Library/Audio/Plug-Ins/VST3` and `~/Library/Audio/Plug-Ins/Components` |
-          | Linux | VST3, LV2, Standalone | `~/.vst3` and `~/.lv2` |
-          | Windows | VST3, Standalone | `C:\Program Files\Common Files\VST3` |
+          | macOS | `.pkg`, with a chooser | VST3, Audio Unit, Standalone |
+          | Windows | `.exe` | VST3, Standalone |
+          | Linux | none, use the zip | VST3, LV2, Standalone |
 
           The macOS build is a universal binary and runs on both Apple Silicon
           and Intel. Logic and GarageBand only rescan Audio Units after a
           restart.
 
-          ### macOS and Gatekeeper
+          On Linux the zip's contents go in `~/.vst3` and `~/.lv2`.
 
-          These builds are signed ad-hoc rather than notarised, which is what
-          lets them load on Apple Silicon but is not enough for Gatekeeper to
-          accept a download without complaint. If macOS refuses to open them,
-          clear the quarantine flag:
+          ### Windows will warn you
 
-          ```
-          xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Overtonium.vst3
-          xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/Overtonium.component
-          ```
+          The Windows installer is not signed, so SmartScreen will say the
+          publisher is unknown. Choose "More info" and then "Run anyway". If
+          you would rather not, build from source: the readme says how, and it
+          takes one CMake command.
 
-          Building from source avoids this entirely, and the readme says how.
+          ### macOS
+
+          The installer is signed and notarised, so it should open without a
+          warning. If it does not, the release was built before the signing
+          certificates were in place, and right-clicking it and choosing Open
+          gets past Gatekeeper.
           NOTES
 
           gh release create "$GITHUB_REF_NAME" \
             --title "Overtonium $GITHUB_REF_NAME" \
             --notes-file notes.md \
             --verify-tag \
-            archives/*.zip
+            archives/*

@@ -101,11 +101,29 @@ git tag -a v0.1.0 -m "Overtonium 0.1.0"
 git push origin v0.1.0
 ```
 
-Each platform gets one zip holding every format it can build, plus the readme and the licence. macOS gets VST3, AU and Standalone as a universal binary covering Apple Silicon and Intel, Linux gets VST3, LV2 and Standalone, and Windows gets VST3 and Standalone. The tests run before anything is packaged, so a tag that does not pass them produces no release.
+Each platform gets an installer where there is a sensible one, and a zip holding every format it can build alongside it, plus the readme and the licence. macOS gets VST3, AU and Standalone as a universal binary covering Apple Silicon and Intel, Linux gets VST3, LV2 and Standalone, and Windows gets VST3 and Standalone. The tests run before anything is packaged, so a tag that does not pass them produces no release.
 
 The same workflow can be started by hand from the Actions tab. That builds and uploads the archives against the run without publishing anything, which is how to exercise the packaging without spending a version number on it.
 
-The macOS bundles are signed ad-hoc. That is what lets them load on Apple Silicon at all, where an unsigned bundle is refused outright, and it is not the same as being notarised: a download still has to have its quarantine flag cleared, which the release notes explain. Notarising properly needs a Developer ID certificate and an app-specific password held as repository secrets.
+Each platform also gets an installer. macOS gets a `.pkg` built by `packaging/macos/build-pkg.sh`, with a chooser so VST3, the Audio Unit and the standalone can be taken separately, and Windows gets an `.exe` from `packaging/windows/overtonium.iss`. The zips stay alongside them, for anyone without administrator rights or with plugin folders of their own. Linux gets the zip only, since there is no install location a distribution would agree on.
+
+The tag has to match `project(Overtonium VERSION ...)` in CMakeLists, and the workflow fails the release if it does not. The archive is named from the tag while the version a host displays comes from CMake, so without that check the two can disagree and nothing says so.
+
+**Signing.** The macOS side signs and notarises when the repository has the secrets for it, and falls back to an ad-hoc signature when it does not, so the workflow can be rehearsed before any of them exist. Ad-hoc is what lets a bundle load at all on Apple Silicon, where an unsigned one is refused outright, but it is not notarisation and a download still has to be opened past Gatekeeper.
+
+| Secret | What it is |
+|---|---|
+| `APPLE_CERTIFICATE_P12` | Developer ID Application certificate and key, as a base64 `.p12` |
+| `APPLE_CERTIFICATE_PASSWORD` | the password that `.p12` was exported with |
+| `APPLE_INSTALLER_CERTIFICATE_P12` | Developer ID Installer certificate, base64 `.p12`, for signing the package itself |
+| `APPLE_INSTALLER_CERTIFICATE_PASSWORD` | its export password |
+| `APPLE_ID` | the Apple ID to submit for notarisation with |
+| `APPLE_APP_SPECIFIC_PASSWORD` | an app-specific password for that Apple ID, not the account password |
+| `APPLE_TEAM_ID` | the ten-character team identifier |
+
+Base64 a certificate with `base64 -i cert.p12 | pbcopy`. The two certificates are different: Application signs the bundles, Installer signs the `.pkg`, and notarisation refuses a package signed with the wrong one.
+
+The Windows installer is not signed, so SmartScreen tells the user the publisher is unknown and they have to choose "More info" and then "Run anyway". A certificate that would remove that is an ongoing cost, and the release notes explain the warning instead.
 
 ### The page
 
@@ -677,6 +695,9 @@ There is no splash screen to worry about. JUCE 6 and 7 had one, and disabling it
 ## Layout
 
 ```
+packaging/
+  macos/              pkgbuild and productbuild into a .pkg with a chooser
+  windows/            Inno Setup script for the installer .exe
 Resources/
   logo.png            the overtonium wordmark, compiled into the binary
   dehli-musikk.svg    the maker's mark, vector since it is drawn small
