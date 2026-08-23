@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+title: Overtonium
+message: If you use this software, please cite it using these metadata.
+type: software
+abstract: >-
+  A 32-partial additive synthesiser laid out like a 32-channel mixer. Every
+  channel is one sine oscillator locked to a harmonic of the played note, with
+  its own tuning, envelope, modulation and pan. A continuous blend sweeps each
+  partial between equal temperament and just intonation, and the keyboard
+  underneath can be tuned to any of six historical temperaments on any root.
+authors:
+  - family-names: Dehli
+    given-names: Benjamin
+    affiliation: Dehli Musikk
+repository-code: https://github.com/benjamindehli/overtonium
+url: https://benjamindehli.github.io/overtonium/
+license: AGPL-3.0-or-later
+version: 1.0.0
+date-released: "2026-08-23"
+keywords:
+  - additive synthesis
+  - audio plugin
+  - synthesiser
+  - just intonation
+  - microtonal
+  - temperament
+  - overtone series
+  - VST3
+  - audio unit
+  - LV2
+  - JUCE
+  - MPE

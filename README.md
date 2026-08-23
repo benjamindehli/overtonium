@@ -12,6 +12,7 @@ The control worth reaching for first is TUNE. It sweeps each partial continuousl
 - **Licence:** AGPLv3. See [Licensing](#licensing)
 - **Page:** [benjamindehli.github.io/overtonium](https://benjamindehli.github.io/overtonium/), built from `docs/`
 - **By:** Benjamin Dehli for Dehli Musikk. Hosts list it under DehliMusikk (manufacturer code `Dhmk`, plugin code `Ovtn`)
+- **Also here:** [contributing](CONTRIBUTING.md), [architecture](ARCHITECTURE.md), [security policy](SECURITY.md), [code of conduct](CODE_OF_CONDUCT.md)
 
 CI builds all three platforms and runs the test suite on each of them on every push, and macOS is the only one where the plugin has been loaded into a host. The Audio Unit and the VST3 pass `auval` and pluginval at strictness 8 there. Nobody has yet run the Windows or Linux builds in a DAW, so treat those as untried and please report what you find.
 
@@ -29,111 +30,16 @@ The ancestry is visible in the details rather than only in the shape. DRIFT is t
 
 Both earlier instruments are sample libraries with a plugin wrapper, sold at [Dehli Musikk](https://store.dehlimusikk.no/). This one is free software, and none of their code is in it.
 
-## Building
+## Building and contributing
 
-You need CMake 3.22 or newer and a C++17 compiler. JUCE is downloaded at configure time. Pass `-DJUCE_PATH=/path/to/JUCE` to use a local checkout instead.
-
-### macOS
+You need CMake 3.22 or newer and a C++17 compiler. JUCE is downloaded at configure time.
 
 ```sh
-cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
 
-Drop `-G Ninja` to use Makefiles instead. Neither needs Xcode.app, the Command Line Tools (`xcode-select --install`) are enough.
-
-If you have full Xcode installed and want a project to debug in, use `cmake -B build-xcode -G Xcode` followed by `cmake --build build-xcode --config Release`. That generator needs Xcode.app specifically. With only the Command Line Tools, CMake misreads the version and fails with `Xcode 1.5 not supported`. Point it at a real install with `sudo xcode-select -s /Applications/Xcode.app` if you hit that.
-
-`COPY_PLUGIN_AFTER_BUILD` is on, so the plugins are installed to `~/Library/Audio/Plug-Ins/VST3` and `~/Library/Audio/Plug-Ins/Components` as part of the build. Logic and GarageBand only rescan the AU after you quit and relaunch them. If the component does not show up, run `auval -v aumu Ovtn Dhmk` to see why.
-
-The build produces a universal arm64 and x86_64 binary. For a faster local build, add `-DCMAKE_OSX_ARCHITECTURES=arm64`.
-
-### Windows
-
-```sh
-cmake -B build -G "Visual Studio 17 2022" -A x64
-cmake --build build --config Release
-```
-
-The VST3 lands in `build/Overtonium_artefacts/Release/VST3/`.
-
-### Linux
-
-```sh
-sudo apt install build-essential cmake pkg-config libasound2-dev libfreetype-dev \
-  libfontconfig1-dev libx11-dev libxext-dev libxinerama-dev libxrandr-dev \
-  libxcursor-dev libxcomposite-dev libgl-dev
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j
-```
-
-### Tests
-
-The DSP core has no JUCE dependency, so its tests compile straight from a compiler with no build system and no third-party headers involved:
-
-```sh
-c++ -std=c++17 -O2 -I Source Tests/dsp_test.cpp Source/dsp/*.cpp -o dsp_test
-./dsp_test
-```
-
-Through CMake, which also gets you the JUCE-linked tests:
-
-```sh
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --target overtonium_dsp_test
-./build/overtonium_dsp_test
-```
-
-They cover the tuning table, blend endpoints, sine table accuracy, the anti-aliasing guard, envelope behaviour, mute and solo, click-free parameter changes, voice allocation, modulation and the two master effects, and they finish by printing a CPU benchmark.
-
-There is a second target, `overtonium_runtime_test`, which builds the plugin sources as a console app and exercises parameter wiring, MIDI handling, the factory presets, user preset round-tripping, bus layouts, undo and state round-tripping. It never opens an editor, so it runs on a machine with no display. Both targets are registered with CTest, so `ctest` from the build directory runs them together.
-
-The audio thread allocates nothing. A host is allowed to hand over a bigger block than the one it promised in `prepareToPlay`, and growing the scratch buffer to fit would take the allocator's lock on the audio thread, where whatever the message thread is doing can make it wait. The block is cut into pieces the scratch already holds instead, and the scratch is given a floor of 512 frames so a host that promises very little and delivers a lot is not cut into a great many of them. The seam has to be inaudible for that to be worth doing, so the test renders the same passage twice, once to a host that keeps its word and once to a host that promised a sixteenth of what it sent, and compares them sample by sample. They come out identical, sample for sample. The patch it uses has no random modulation in it, because drift is a random walk redrawn once per control block and those blocks fall in different places when a block is cut up, so a patch carrying drift would differ for reasons that have nothing to do with the cutting.
-
-Both run in CI on macOS, Windows and Linux on every push and pull request, building the plugin itself along the way so a compile error in the JUCE half cannot pass unnoticed. A second job compiles the DSP core with the bare-compiler line above, and with `-Werror`, so the claim that it has no build system dependency is checked rather than asserted.
-
-Pass `-DOVERTONIUM_INSTALL_AFTER_BUILD=OFF` to skip copying the built plugins into your user plugin folders, which is what CI does and what you want on any machine with no host to rescan them.
-
-### Releases
-
-Pushing a tag that starts with `v` builds the plugin on all three platforms and attaches the archives to a GitHub release:
-
-```
-git tag -a v1.0.0 -m "Overtonium 1.0.0"
-git push origin v1.0.0
-```
-
-Each platform gets an installer where there is a sensible one, and a zip holding every format it can build alongside it, plus the readme and the licence. macOS gets VST3, AU and Standalone as a universal binary covering Apple Silicon and Intel, Linux gets VST3, LV2 and Standalone, and Windows gets VST3 and Standalone. The tests run before anything is packaged, so a tag that does not pass them produces no release.
-
-The same workflow can be started by hand from the Actions tab. That builds and uploads the archives against the run without publishing anything, which is how to exercise the packaging without spending a version number on it.
-
-Each platform also gets an installer. macOS gets a `.pkg` built by `packaging/macos/build-pkg.sh`, with a chooser so VST3, the Audio Unit and the standalone can be taken separately, and Windows gets an `.exe` from `packaging/windows/overtonium.iss`. The zips stay alongside them, for anyone without administrator rights or with plugin folders of their own. Linux gets the zip only, since there is no install location a distribution would agree on.
-
-The tag has to match `project(Overtonium VERSION ...)` in CMakeLists, and the workflow fails the release if it does not. The archive is named from the tag while the version a host displays comes from CMake, so without that check the two can disagree and nothing says so.
-
-**Signing.** The macOS side signs and notarises when the repository has the secrets for it, and falls back to an ad-hoc signature when it does not, so the workflow can be rehearsed before any of them exist. Ad-hoc is what lets a bundle load at all on Apple Silicon, where an unsigned one is refused outright, but it is not notarisation and a download still has to be opened past Gatekeeper.
-
-| Secret                                 | What it is                                                                        |
-| -------------------------------------- | --------------------------------------------------------------------------------- |
-| `APPLE_CERTIFICATE_P12`                | Developer ID Application certificate and key, as a base64 `.p12`                  |
-| `APPLE_CERTIFICATE_PASSWORD`           | the password that `.p12` was exported with                                        |
-| `APPLE_INSTALLER_CERTIFICATE_P12`      | Developer ID Installer certificate, base64 `.p12`, for signing the package itself |
-| `APPLE_INSTALLER_CERTIFICATE_PASSWORD` | its export password                                                               |
-| `APPLE_ID`                             | the Apple ID to submit for notarisation with                                      |
-| `APPLE_APP_SPECIFIC_PASSWORD`          | an app-specific password for that Apple ID, not the account password              |
-| `APPLE_TEAM_ID`                        | the ten-character team identifier                                                 |
-
-Base64 a certificate with `base64 -i cert.p12 | pbcopy`. The two certificates are different: Application signs the bundles, Installer signs the `.pkg`, and notarisation refuses a package signed with the wrong one.
-
-The Windows installer is not signed, so SmartScreen tells the user the publisher is unknown and they have to choose "More info" and then "Run anyway". A certificate that would remove that is an ongoing cost, and the release notes explain the warning instead.
-
-### The page
-
-`docs/` holds a single static page, served by GitHub Pages from the `main` branch. There is no generator and no build step: it is one HTML file, one stylesheet and four images, so what is in the repo is what gets served. `.nojekyll` is there to stop GitHub running Jekyll over it.
-
-The screenshots are rendered rather than captured. The plugin has no dependency on a display, so a scratch program builds the editor, plays a chord into it, hands the strips the levels the engine measured, and writes the window out with `createComponentSnapshot`. That means the pictures can be regenerated after a layout change instead of going stale, and it works on a machine with no window server.
-
-The stylesheet takes its palette from `Source/UI/Theme.h`, so the page and the instrument stay the same colour.
+[CONTRIBUTING.md](CONTRIBUTING.md) has the rest: per-platform notes, the two test suites, formatting, warnings as errors, how a release is cut and how the project page is served. [ARCHITECTURE.md](ARCHITECTURE.md) describes how the code is arranged.
 
 ## Presets
 
@@ -692,34 +598,3 @@ That follows from what it is built on. The JUCE 8 framework modules are dual-lic
 If you want to build on this and ship something closed-source, that needs a commercial JUCE licence from the JUCE side and a separate arrangement on this side, since the AGPL does not permit it.
 
 There is no splash screen to worry about. JUCE 6 and 7 had one, and disabling it was the thing that required a paid licence. JUCE 8 removed it, and `JUCE_DISPLAY_SPLASH_SCREEN` is now ignored with a compiler warning if you define it.
-
-## Layout
-
-```
-packaging/
-  macos/              pkgbuild and productbuild into a .pkg with a chooser
-  windows/            Inno Setup script for the installer .exe
-Resources/
-  logo.png            the overtonium wordmark, compiled into the binary
-  dehli-musikk.svg    the maker's mark, vector since it is drawn small
-  icon.png            the standalone build's program icon, 1024 square
-Source/
-  dsp/            JUCE-free DSP core, unit tested standalone
-    Harmonics.h     tuning table and blend maths
-    SineTable.h     interpolated sine lookup
-    Drift.h         seeded PRNG and the smooth random contour
-    Envelope.h      per-partial delay, ADSR and the two-stage key-off
-    Params.h        plain-data parameter snapshot
-    Voice.*         32 partials, one note
-    TapeEcho.*      the master echo
-    Reverb.*        the master reverb, a feedback delay network
-    SynthEngine.*   voice pool, allocation, stealing, effects, master stage
-  PluginParameters.*  APVTS layout, 710 parameters, and the audio-thread snapshot
-  Presets.*           factory presets
-  PluginProcessor.*   MIDI handling, sample-accurate rendering, state
-  PluginEditor.*      window, zoom, LINK, gutter
-  UI/                 theme, look and feel, channel and noise strips, top bar
-Tests/
-  dsp_test.cpp            standalone DSP tests and CPU benchmark
-  plugin_runtime_test.cpp headless plugin integration tests
-```

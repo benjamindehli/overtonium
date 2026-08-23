@@ -14,7 +14,7 @@
             "options": { "tabWidth": 2 }
         },
         {
-            "files": ["*.yml", "*.yaml"],
+            "files": ["*.yml", "*.yaml", "*.cff"],
             "options": { "tabWidth": 2 }
         }
     ]
