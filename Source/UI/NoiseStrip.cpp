@@ -119,6 +119,19 @@ void NoiseStrip::setUpKnob(juce::Slider &s, const char *suffix,
         true, (double)p->convertFrom0to1(p->getDefaultValue()));
 }
 
+void NoiseStrip::setCollapsedSections(SectionMask mask) {
+  if (mask == collapsed)
+    return;
+
+  collapsed = mask;
+
+  if (rowIsCollapsed(highlighted, collapsed))
+    highlighted = kNoRow;
+
+  resized();
+  repaint();
+}
+
 void NoiseStrip::setSilencedByOthers(bool shouldDim) {
   if (silenced == shouldDim)
     return;
@@ -133,7 +146,7 @@ void NoiseStrip::mouseExit(const juce::MouseEvent &e) { reportHover(e); }
 
 void NoiseStrip::reportHover(const juce::MouseEvent &e) {
   const auto p = e.getEventRelativeTo(this).getPosition();
-  const auto rows = layoutRows(getLocalBounds().reduced(2, 4));
+  const auto rows = layoutRows(getLocalBounds().reduced(2, 4), collapsed);
   const auto inside = getLocalBounds().contains(p);
 
   // -1 says the pointer is off the harmonic series, which is what stops a
@@ -155,7 +168,7 @@ void NoiseStrip::setHighlightedRow(Row row) {
   if (row == highlighted)
     return;
 
-  const auto rows = layoutRows(getLocalBounds().reduced(2, 4));
+  const auto rows = layoutRows(getLocalBounds().reduced(2, 4), collapsed);
 
   repaintRowHighlight(*this, rows, highlighted);
   highlighted = row;
@@ -170,7 +183,7 @@ void NoiseStrip::paint(juce::Graphics &g) {
   // part of the series.
   paintChannelBackground(g, bounds, colours::channel.brighter(0.03f));
 
-  const auto rows = layoutRows(bounds.reduced(2, 4));
+  const auto rows = layoutRows(bounds.reduced(2, 4), collapsed);
   auto header = rows[rowIndex(Row::Header)];
 
   g.setColour(colour);
@@ -234,28 +247,40 @@ void NoiseStrip::setActivity(float envelope, float tremolo,
 }
 
 void NoiseStrip::resized() {
-  const auto rows = layoutRows(getLocalBounds().reduced(2, 4));
+  const auto rows = layoutRows(getLocalBounds().reduced(2, 4), collapsed);
 
   // Colour takes the tuning row, which is the one thing noise has that a
   // partial does not.
   // No inset, matching the TUNE knob it sits in line with. Both headline knobs
   // take their whole row where every knob below them gives a pixel back.
+  // See ChannelStrip::resized: a folded row's control is hidden, not merely
+  // flattened, so it stops taking the mouse.
+  const auto placeRow = [&](juce::Component &c, Row r, int shrink) {
+    if (rowIsCollapsed(r, collapsed)) {
+      c.setVisible(false);
+      return;
+    }
+
+    c.setVisible(true);
+    c.setBounds(rows[rowIndex(r)].reduced(shrink));
+  };
+
   colourKnob.setBounds(rows[rowIndex(Row::TuneKnob)]);
   colourReadout.setBounds(rows[rowIndex(Row::TuneText)]);
 
-  delay.setBounds(rows[rowIndex(Row::Delay)].reduced(1));
-  attack.setBounds(rows[rowIndex(Row::Attack)].reduced(1));
-  decay.setBounds(rows[rowIndex(Row::Decay)].reduced(1));
-  sustain.setBounds(rows[rowIndex(Row::Sustain)].reduced(1));
-  swell.setBounds(rows[rowIndex(Row::Swell)].reduced(1));
-  offLevel.setBounds(rows[rowIndex(Row::OffLevel)].reduced(1));
-  release.setBounds(rows[rowIndex(Row::Release)].reduced(1));
-  lift.setBounds(rows[rowIndex(Row::Lift)].reduced(1));
-  amRate.setBounds(rows[rowIndex(Row::AmRate)].reduced(1));
-  amDepth.setBounds(rows[rowIndex(Row::AmDepth)].reduced(1));
-  velocity.setBounds(rows[rowIndex(Row::Velocity)].reduced(1));
-  aftertouch.setBounds(rows[rowIndex(Row::Aftertouch)].reduced(1));
-  pan.setBounds(rows[rowIndex(Row::Pan)].reduced(1));
+  placeRow(delay, Row::Delay, 1);
+  placeRow(attack, Row::Attack, 1);
+  placeRow(decay, Row::Decay, 1);
+  placeRow(sustain, Row::Sustain, 1);
+  placeRow(swell, Row::Swell, 1);
+  placeRow(offLevel, Row::OffLevel, 1);
+  placeRow(release, Row::Release, 1);
+  placeRow(lift, Row::Lift, 1);
+  placeRow(amRate, Row::AmRate, 1);
+  placeRow(amDepth, Row::AmDepth, 1);
+  placeRow(velocity, Row::Velocity, 1);
+  placeRow(aftertouch, Row::Aftertouch, 1);
+  placeRow(pan, Row::Pan, 1);
 
   const auto faderRow = rows[rowIndex(Row::Fader)];
   meter.setBounds(faderRow.reduced(2, 1));

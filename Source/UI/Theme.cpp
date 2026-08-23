@@ -69,29 +69,139 @@ constexpr int kRowHeights[kNumRows] = {
 constexpr int kMinFaderHeight = 60;
 constexpr int kIdealFaderHeight = 92;
 
-constexpr int fixedHeight() {
+int fixedHeight(SectionMask collapsed) {
   int total = 0;
-  for (auto h : kRowHeights)
-    if (h > 0)
-      total += h;
+
+  for (int i = 0; i < kNumRows; ++i)
+    if (kRowHeights[i] > 0 && !rowIsCollapsed((Row)i, collapsed))
+      total += kRowHeights[i];
 
   return total;
 }
 } // namespace
 
-int preferredStripHeight() { return fixedHeight() + kIdealFaderHeight; }
+Row sectionHeading(Section s) {
+  switch (s) {
+  case Section::PitchMod:
+    return Row::PitchModHeading;
+  case Section::Envelope:
+    return Row::EnvHeading;
+  case Section::KeyOff:
+    return Row::KeyOffHeading;
+  case Section::AmpMod:
+    return Row::AmpModHeading;
+  case Section::Output:
+    return Row::OutputHeading;
+  case Section::NumSections:
+    break;
+  }
 
-int minimumStripHeight() { return fixedHeight() + kMinFaderHeight; }
+  return kNoRow;
+}
 
-RowBounds layoutRows(juce::Rectangle<int> area) {
+Section sectionOf(Row r) {
+  switch (r) {
+  case Row::PitchModHeading:
+  case Row::PmRate:
+  case Row::PmDepth:
+  case Row::Drift:
+    return Section::PitchMod;
+
+  case Row::EnvHeading:
+  case Row::Delay:
+  case Row::Attack:
+  case Row::Decay:
+  case Row::Sustain:
+    return Section::Envelope;
+
+  case Row::KeyOffHeading:
+  case Row::Swell:
+  case Row::OffLevel:
+  case Row::Release:
+  case Row::Lift:
+    return Section::KeyOff;
+
+  case Row::AmpModHeading:
+  case Row::AmRate:
+  case Row::AmDepth:
+    return Section::AmpMod;
+
+  case Row::OutputHeading:
+  case Row::Velocity:
+  case Row::Aftertouch:
+  case Row::Pan:
+    return Section::Output;
+
+  // Always on screen. Spelt out rather than left to a default so a new row
+  // has to be put in a section, or deliberately kept out of one, before it
+  // will build.
+  case Row::Header:
+  case Row::TuneKnob:
+  case Row::TuneText:
+  case Row::Phase:
+  case Row::MuteSolo:
+  case Row::Fader:
+  case Row::FaderText:
+  case Row::NumRows:
+    break;
+  }
+
+  return Section::NumSections;
+}
+
+bool rowIsCollapsed(Row r, SectionMask collapsed) {
+  const auto s = sectionOf(r);
+
+  // The heading is what is left to click on, so it never folds with the rest.
+  return s != Section::NumSections && sectionHeading(s) != r &&
+         isCollapsed(collapsed, s);
+}
+
+Section headingSectionAt(const RowBounds &rows, juce::Point<int> p) {
+  for (int i = 0; i < kNumSections; ++i) {
+    const auto s = (Section)i;
+
+    if (rows[(size_t)sectionHeading(s)].contains(p))
+      return s;
+  }
+
+  return Section::NumSections;
+}
+
+int collapsedRowsHeight(SectionMask collapsed) {
+  int total = 0;
+
+  for (int i = 0; i < kNumRows; ++i)
+    if (kRowHeights[i] > 0 && rowIsCollapsed((Row)i, collapsed))
+      total += kRowHeights[i];
+
+  return total;
+}
+
+int preferredStripHeight(SectionMask collapsed) {
+  return fixedHeight(collapsed) + kIdealFaderHeight;
+}
+
+int minimumStripHeight(SectionMask collapsed) {
+  return fixedHeight(collapsed) + kMinFaderHeight;
+}
+
+RowBounds layoutRows(juce::Rectangle<int> area, SectionMask collapsed) {
   const int flexible =
-      juce::jmax(kMinFaderHeight, area.getHeight() - fixedHeight());
+      juce::jmax(kMinFaderHeight, area.getHeight() - fixedHeight(collapsed));
 
   RowBounds out;
   auto remaining = area;
 
   for (int i = 0; i < kNumRows; ++i) {
-    const int h = kRowHeights[i] > 0 ? kRowHeights[i] : flexible;
+    // A folded row keeps its place in the array and takes no height, so
+    // everything that reads RowBounds carries on working and simply lays out
+    // an empty rectangle. The window shrinks by the same amount, so the fader
+    // keeps the height it had rather than stretching into the gap.
+    const int h = rowIsCollapsed((Row)i, collapsed) ? 0
+                  : kRowHeights[i] > 0              ? kRowHeights[i]
+                                                    : flexible;
+
     out[(size_t)i] = remaining.removeFromTop(h);
   }
 

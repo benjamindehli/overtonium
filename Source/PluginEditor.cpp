@@ -25,6 +25,7 @@ const juce::Identifier kEditorHeight{"editorHeight"};
 const juce::Identifier kEditorZoom{"editorZoom"};
 const juce::Identifier kLinkScope{"linkScope"};
 const juce::Identifier kLinkCurve{"linkCurve"};
+const juce::Identifier kCollapsedSections{"collapsedSections"};
 
 bool isHeadingRow(Row r) {
   return r == Row::PitchModHeading || r == Row::EnvHeading ||
@@ -39,17 +40,42 @@ void RowGutter::setHighlightedRow(Row row) {
   if (row == highlighted)
     return;
 
-  const auto rows = layoutRows(getLocalBounds().reduced(0, 4));
+  const auto rows = layoutRows(getLocalBounds().reduced(0, 4), collapsed);
 
   repaintRowHighlight(*this, rows, highlighted);
   highlighted = row;
   repaintRowHighlight(*this, rows, highlighted);
 }
 
+void RowGutter::setCollapsedSections(SectionMask mask) {
+  if (mask == collapsed)
+    return;
+
+  collapsed = mask;
+  repaint();
+}
+
+void RowGutter::mouseDown(const juce::MouseEvent &e) {
+  const auto rows = layoutRows(getLocalBounds().reduced(0, 4), collapsed);
+  const auto section = headingSectionAt(rows, e.getPosition());
+
+  if (section != Section::NumSections && onSectionToggled != nullptr)
+    onSectionToggled(section);
+}
+
+void RowGutter::mouseMove(const juce::MouseEvent &e) {
+  const auto rows = layoutRows(getLocalBounds().reduced(0, 4), collapsed);
+  const bool onHeading =
+      headingSectionAt(rows, e.getPosition()) != Section::NumSections;
+
+  setMouseCursor(onHeading ? juce::MouseCursor::PointingHandCursor
+                           : juce::MouseCursor::NormalCursor);
+}
+
 void RowGutter::paint(juce::Graphics &g) {
   paintChannelBackground(g, getLocalBounds(), colours::panel.darker(0.25f));
 
-  const auto rows = layoutRows(getLocalBounds().reduced(0, 4));
+  const auto rows = layoutRows(getLocalBounds().reduced(0, 4), collapsed);
 
   if (rowShowsHighlight(highlighted))
     paintRowHighlight(g, rows[(size_t)highlighted]);
@@ -68,6 +94,11 @@ void RowGutter::paint(juce::Graphics &g) {
     if (row == Row::Fader)
       area = area.removeFromTop(16);
 
+    // A folded row has no height, so its caption would be drawn into a
+    // sliver and overlap the heading above it.
+    if (rowIsCollapsed(row, collapsed))
+      continue;
+
     const bool heading = isHeadingRow(row);
     const bool lit = row == highlighted && rowShowsHighlight(row);
 
@@ -75,6 +106,42 @@ void RowGutter::paint(juce::Graphics &g) {
     g.setColour(lit ? colours::accent
                     : (heading ? colours::text : colours::textDim));
     g.drawText(text, area, juce::Justification::centredRight, false);
+
+    // The disclosure mark, at the far left of the heading so it clears the
+    // right-aligned caption whatever the caption says. Pointing down when the
+    // group is open and right when it is folded, which is the way every file
+    // list has done it for thirty years.
+    if (heading) {
+      const auto section = sectionOf(row);
+      const bool folded = isCollapsed(collapsed, section);
+      // Both orientations are one triangle turned a quarter, so the folded
+      // one stands tall and narrow instead of the squat, wide shape a single
+      // box gives when the arrow points sideways.
+      //
+      // The centre is where it is because of PITCH MOD. Captions are
+      // right-aligned and that is the longest the gutter carries, so it
+      // reaches nearer the mark than any other and sets how much room there
+      // is to sit clear of both it and the gutter's own edge.
+      constexpr float kAlong = 7.0f;
+      constexpr float kAcross = 4.0f;
+
+      const float cx = 9.5f;
+      const float cy = (float)rows[(size_t)i].getCentreY();
+
+      juce::Path mark;
+
+      if (folded)
+        mark.addTriangle(cx - kAcross * 0.5f, cy - kAlong * 0.5f,
+                         cx - kAcross * 0.5f, cy + kAlong * 0.5f,
+                         cx + kAcross * 0.5f, cy);
+      else
+        mark.addTriangle(cx - kAlong * 0.5f, cy - kAcross * 0.5f,
+                         cx + kAlong * 0.5f, cy - kAcross * 0.5f, cx,
+                         cy + kAcross * 0.5f);
+
+      g.setColour(colours::textDim);
+      g.fillPath(mark);
+    }
   }
 
   g.setColour(colours::outline);
@@ -217,7 +284,17 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   // layout.
   const int defaultWidth = kGutterWidth + kStripWidth + kMasterGap +
                            kNumHarmonics * kStripWidth + 2 * kEdge;
-  const int defaultHeight = chromeHeight(defaultWidth) + preferredStripHeight();
+  // Read before the heights below, both of which depend on how much of the
+  // strip is folded away.
+  collapsedSections =
+      (SectionMask)(int)state.getProperty(kCollapsedSections, 0) &
+      ((1u << kNumSections) - 1u);
+  publishCollapsedSections();
+
+  gutter.onSectionToggled = [this](Section s) { toggleSection(s); };
+
+  const int defaultHeight =
+      chromeHeight(defaultWidth) + preferredStripHeight(collapsedSections);
 
   const int savedWidth = (int)state.getProperty(kEditorWidth, defaultWidth);
   const int savedHeight = (int)state.getProperty(kEditorHeight, defaultHeight);
@@ -301,7 +378,8 @@ void OvertoniumEditor::applyResizeLimits() {
                                   ovt::ui::TopBar::minimumWidth());
   // The narrowest window is also the one where the bar takes two rows, so
   // the minimum height has to leave room for that.
-  const int minHeight = chromeHeight(minWidth) + minimumStripHeight();
+  const int minHeight =
+      chromeHeight(minWidth) + minimumStripHeight(collapsedSections);
 
   setResizeLimits(juce::roundToInt((float)minWidth * zoom),
                   juce::roundToInt((float)minHeight * zoom),
@@ -323,6 +401,41 @@ void OvertoniumEditor::setZoom(float newZoom) {
 
   setSize(juce::roundToInt(logicalWidth * zoom),
           juce::roundToInt(logicalHeight * zoom));
+}
+
+void OvertoniumEditor::publishCollapsedSections() {
+  gutter.setCollapsedSections(collapsedSections);
+  noiseStrip.setCollapsedSections(collapsedSections);
+
+  for (auto &strip : strips)
+    strip->setCollapsedSections(collapsedSections);
+}
+
+void OvertoniumEditor::toggleSection(Section section) {
+  if (section == Section::NumSections)
+    return;
+
+  const int wasFolded = collapsedRowsHeight(collapsedSections);
+  collapsedSections ^= sectionBit(section);
+  const int nowFolded = collapsedRowsHeight(collapsedSections);
+
+  publishCollapsedSections();
+  processor.apvts.state.setProperty(kCollapsedSections, (int)collapsedSections,
+                                    nullptr);
+
+  // The window follows, which is the point: left alone the fader would stretch
+  // into the space and the mixer would be exactly as tall as before. Limits
+  // are applied first, since folding lowers the floor and the new height may
+  // be below the old one.
+  applyResizeLimits();
+
+  const int logicalHeight = juce::roundToInt((float)getHeight() / zoom);
+  const int wanted = logicalHeight - (nowFolded - wasFolded);
+  setSize(getWidth(), juce::roundToInt((float)wanted * zoom));
+
+  // setSize does nothing when the height was already at a limit, and the
+  // strips still have to be laid out again for the rows that just changed.
+  resized();
 }
 
 void OvertoniumEditor::applyPreset(int index) {

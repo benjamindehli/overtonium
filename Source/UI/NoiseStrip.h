@@ -30,6 +30,10 @@ public:
 
   void resized() override;
 
+  /// See ChannelStrip::setCollapsedSections. The noise channel shares the
+  /// mixer's rows, so it folds with everything else.
+  void setCollapsedSections(SectionMask);
+
   void mouseEnter(const juce::MouseEvent &) override;
   void mouseMove(const juce::MouseEvent &) override;
   void mouseExit(const juce::MouseEvent &) override;
@@ -89,6 +93,9 @@ private:
 
   bool silenced = false;
   Row highlighted = kNoRow;
+
+  /// Folded groups, set by the editor. See ChannelStrip.
+  SectionMask collapsed = 0;
   bool hovered = false;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NoiseStrip)

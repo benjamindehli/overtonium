@@ -751,7 +751,7 @@ void ChannelStrip::mouseExit(const juce::MouseEvent &e) { reportHover(e); }
 
 void ChannelStrip::reportHover(const juce::MouseEvent &e) {
   const auto p = e.getEventRelativeTo(this).getPosition();
-  const auto rows = layoutRows(getLocalBounds().reduced(2, 4));
+  const auto rows = layoutRows(getLocalBounds().reduced(2, 4), collapsed);
   const auto inside = getLocalBounds().contains(p);
 
   // Leaving one knob for the next fires the exit before the enter, so the
@@ -777,7 +777,7 @@ void ChannelStrip::setHighlightedRow(Row row) {
   if (row == highlighted)
     return;
 
-  const auto rows = layoutRows(getLocalBounds().reduced(2, 4));
+  const auto rows = layoutRows(getLocalBounds().reduced(2, 4), collapsed);
 
   // Only the two bands that changed are repainted. With 33 strips answering
   // every time the pointer crosses a row, repainting whole channels would
@@ -785,6 +785,21 @@ void ChannelStrip::setHighlightedRow(Row row) {
   repaintRowHighlight(*this, rows, highlighted);
   highlighted = row;
   repaintRowHighlight(*this, rows, highlighted);
+}
+
+void ChannelStrip::setCollapsedSections(SectionMask mask) {
+  if (mask == collapsed)
+    return;
+
+  collapsed = mask;
+
+  // A hover held on a row that just folded away would keep the gutter caption
+  // lit for a knob nobody can see.
+  if (rowIsCollapsed(highlighted, collapsed))
+    highlighted = kNoRow;
+
+  resized();
+  repaint();
 }
 
 LinkableSlider *ChannelStrip::sliderForRole(Role role) {
@@ -873,7 +888,7 @@ void ChannelStrip::paint(juce::Graphics &g) {
 
   paintChannelBackground(g, bounds, backdropBase());
 
-  const auto rows = layoutRows(bounds.reduced(2, 4));
+  const auto rows = layoutRows(bounds.reduced(2, 4), collapsed);
 
   if (rowShowsHighlight(highlighted))
     paintRowHighlight(g, rows[rowIndex(highlighted)]);
@@ -909,27 +924,40 @@ void ChannelStrip::paint(juce::Graphics &g) {
 }
 
 void ChannelStrip::resized() {
-  const auto rows = layoutRows(getLocalBounds().reduced(2, 4));
+  const auto rows = layoutRows(getLocalBounds().reduced(2, 4), collapsed);
 
-  tune.setBounds(rows[rowIndex(Row::TuneKnob)]);
-  tuneReadout.setBounds(rows[rowIndex(Row::TuneText)]);
-  pmRate.setBounds(rows[rowIndex(Row::PmRate)].reduced(1));
-  pmDepth.setBounds(rows[rowIndex(Row::PmDepth)].reduced(1));
-  phase.setBounds(rows[rowIndex(Row::Phase)].reduced(1));
-  drift.setBounds(rows[rowIndex(Row::Drift)].reduced(1));
-  delay.setBounds(rows[rowIndex(Row::Delay)].reduced(1));
-  attack.setBounds(rows[rowIndex(Row::Attack)].reduced(1));
-  decay.setBounds(rows[rowIndex(Row::Decay)].reduced(1));
-  sustain.setBounds(rows[rowIndex(Row::Sustain)].reduced(1));
-  swell.setBounds(rows[rowIndex(Row::Swell)].reduced(1));
-  offLevel.setBounds(rows[rowIndex(Row::OffLevel)].reduced(1));
-  release.setBounds(rows[rowIndex(Row::Release)].reduced(1));
-  lift.setBounds(rows[rowIndex(Row::Lift)].reduced(1));
-  amRate.setBounds(rows[rowIndex(Row::AmRate)].reduced(1));
-  amDepth.setBounds(rows[rowIndex(Row::AmDepth)].reduced(1));
-  velocity.setBounds(rows[rowIndex(Row::Velocity)].reduced(1));
-  aftertouch.setBounds(rows[rowIndex(Row::Aftertouch)].reduced(1));
-  pan.setBounds(rows[rowIndex(Row::Pan)].reduced(1));
+  // Hidden rather than left at zero height. A knob with no height still takes
+  // the mouse and still answers a hover, so a folded section would go on
+  // lighting gutter captions and opening LINK menus for knobs nobody can see.
+  const auto placeRow = [&](juce::Component &c, Row r, int shrink) {
+    if (rowIsCollapsed(r, collapsed)) {
+      c.setVisible(false);
+      return;
+    }
+
+    c.setVisible(true);
+    c.setBounds(rows[rowIndex(r)].reduced(shrink));
+  };
+
+  placeRow(tune, Row::TuneKnob, 0);
+  placeRow(tuneReadout, Row::TuneText, 0);
+  placeRow(pmRate, Row::PmRate, 1);
+  placeRow(pmDepth, Row::PmDepth, 1);
+  placeRow(phase, Row::Phase, 1);
+  placeRow(drift, Row::Drift, 1);
+  placeRow(delay, Row::Delay, 1);
+  placeRow(attack, Row::Attack, 1);
+  placeRow(decay, Row::Decay, 1);
+  placeRow(sustain, Row::Sustain, 1);
+  placeRow(swell, Row::Swell, 1);
+  placeRow(offLevel, Row::OffLevel, 1);
+  placeRow(release, Row::Release, 1);
+  placeRow(lift, Row::Lift, 1);
+  placeRow(amRate, Row::AmRate, 1);
+  placeRow(amDepth, Row::AmDepth, 1);
+  placeRow(velocity, Row::Velocity, 1);
+  placeRow(aftertouch, Row::Aftertouch, 1);
+  placeRow(pan, Row::Pan, 1);
   // Meter and fader share the same rectangle. The meter draws the track and
   // the fader draws only its cap on top, so the output fills the fader itself.
   const auto faderRow = rows[rowIndex(Row::Fader)];

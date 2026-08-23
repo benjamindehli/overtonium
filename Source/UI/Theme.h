@@ -86,7 +86,54 @@ inline constexpr Row kNoRow = Row::NumRows;
 
 using RowBounds = std::array<juce::Rectangle<int>, kNumRows>;
 
-RowBounds layoutRows(juce::Rectangle<int> area);
+/// The groups of rows that can be folded away to get the mixer's height down.
+///
+/// Each is named by its heading row, which stays put when the group is folded
+/// so there is something left to click to bring it back. The rows above the
+/// first heading, and the fader and its neighbours at the foot, are not in a
+/// section: the tuning is what the instrument is for and the fader is what you
+/// mix with, so neither is ever the thing in the way.
+enum class Section {
+  PitchMod = 0,
+  Envelope,
+  KeyOff,
+  AmpMod,
+  Output,
+  NumSections
+};
+
+inline constexpr int kNumSections = (int)Section::NumSections;
+
+/// Which sections are folded, one bit each.
+///
+/// A whole-mixer property rather than a per-strip one, because the strips are
+/// columns sharing one set of rows. Folding a section on one channel and not
+/// the next would put every row below it out of step with the gutter captions,
+/// which are the only thing naming the knobs.
+using SectionMask = unsigned int;
+
+inline constexpr SectionMask sectionBit(Section s) {
+  return (SectionMask)1 << (int)s;
+}
+
+inline constexpr bool isCollapsed(SectionMask mask, Section s) {
+  return (mask & sectionBit(s)) != 0;
+}
+
+/// The heading row that names a section, and the reverse.
+Row sectionHeading(Section);
+
+/// The section a row is folded away with, or NumSections for a row that always
+/// shows. A heading belongs to its own section but never hides with it.
+Section sectionOf(Row);
+
+/// Whether this row is hidden under the given mask.
+bool rowIsCollapsed(Row, SectionMask);
+
+/// The section whose heading row is under this point, or NumSections.
+Section headingSectionAt(const RowBounds &, juce::Point<int>);
+
+RowBounds layoutRows(juce::Rectangle<int> area, SectionMask collapsed = 0);
 
 /// The row a point in a strip belongs to, or kNoRow for the header and the
 /// section rules, which have nothing to point at.
@@ -136,11 +183,18 @@ void mergeIntoRows(juce::Array<juce::Rectangle<int>> &regions);
 /// The result always covers every rectangle that went in.
 void coalesceRegions(juce::Array<juce::Rectangle<int>> &regions, int limit);
 
+/// The height the folded rows are no longer taking.
+///
+/// What the window shrinks by when a section is folded. Without this the fader
+/// simply absorbs the slack and the mixer is exactly as tall as it was, which
+/// is not what folding a section is for.
+int collapsedRowsHeight(SectionMask collapsed);
+
 /// Total height needed before the fader starts being squeezed.
-int preferredStripHeight();
+int preferredStripHeight(SectionMask collapsed = 0);
 
 /// Height below which the fader would be unusably short.
-int minimumStripHeight();
+int minimumStripHeight(SectionMask collapsed = 0);
 
 /// Left-gutter caption for a row, or nullptr for rows that need no caption.
 const char *rowLabel(Row r);

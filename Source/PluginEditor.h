@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -24,8 +25,20 @@ public:
   /// away, is the one thing that lights up.
   void setHighlightedRow(ovt::ui::Row);
 
+  /// Which sections are folded, so the captions of folded rows are not drawn
+  /// and the headings can show which way they point.
+  void setCollapsedSections(ovt::ui::SectionMask);
+
+  /// Fired when a heading is clicked. The editor owns the decision, since the
+  /// strips have to be told about it too.
+  std::function<void(ovt::ui::Section)> onSectionToggled;
+
+  void mouseDown(const juce::MouseEvent &) override;
+  void mouseMove(const juce::MouseEvent &) override;
+
 private:
   ovt::ui::Row highlighted = ovt::ui::kNoRow;
+  ovt::ui::SectionMask collapsed = 0;
 
   /// The maker's badge, in the empty foot of the gutter.
   std::unique_ptr<juce::Drawable> makersMark{ovt::ui::logoMakersMark()};
@@ -62,6 +75,14 @@ private:
   void setZoom(float newZoom);
   void applyResizeLimits();
   void applyPreset(int index);
+
+  /// Folds or unfolds one group of rows across the whole mixer, and takes the
+  /// window's height with it.
+  void toggleSection(ovt::ui::Section);
+
+  /// Hands the current fold state to the gutter and every strip, which is the
+  /// only way any of them find out about it.
+  void publishCollapsedSections();
 
   /// Says something went wrong, or that something worked, without stopping
   /// what the message thread is doing.
@@ -127,6 +148,10 @@ private:
   std::vector<std::unique_ptr<ovt::ui::ChannelStrip>> strips;
 
   float zoom = 1.0f;
+
+  /// Which groups of rows are folded away. Restored from the saved state and
+  /// written back when it changes, alongside the window size and the zoom.
+  ovt::ui::SectionMask collapsedSections = 0;
 
   /// Counts timer callbacks, so the meters and the housekeeping can each run
   /// at their own fraction of it.

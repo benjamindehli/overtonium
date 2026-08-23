@@ -288,6 +288,10 @@ public:
 
   void resized() override;
 
+  /// Which groups of rows are folded away. Set by the editor on every strip at
+  /// once, since the rows are shared across the whole mixer.
+  void setCollapsedSections(SectionMask);
+
   void mouseEnter(const juce::MouseEvent &) override;
   void mouseMove(const juce::MouseEvent &) override;
   void mouseExit(const juce::MouseEvent &) override;
@@ -400,6 +404,10 @@ private:
   bool silenced = false;
 
   Row highlighted = kNoRow;
+
+  /// Folded groups. Nothing here decides it, the editor does, but every
+  /// layout and hit test in this strip has to agree with it.
+  SectionMask collapsed = 0;
   bool hovered = false;
   Role glowRole = Role::Tune;
   float glowAmount = 0.0f;

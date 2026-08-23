@@ -2712,8 +2712,11 @@ void testPrograms(OvertoniumProcessor &p) {
   juce::MemoryBlock legacy;
   p.getStateInformation(legacy);
 
-  if (auto xml = juce::AudioProcessor::getXmlFromBinary(legacy.getData(),
-                                                        (int)legacy.getSize())) {
+  const auto size = (int)legacy.getSize();
+
+  auto xml = juce::AudioProcessor::getXmlFromBinary(legacy.getData(), size);
+
+  if (xml != nullptr) {
     xml->removeAttribute("overtoniumProgram");
     juce::MemoryBlock stripped;
     juce::AudioProcessor::copyXmlToBinary(*xml, stripped);
@@ -2726,6 +2729,97 @@ void testPrograms(OvertoniumProcessor &p) {
   } else {
     check(false, "the legacy state could be reread");
   }
+}
+
+/// Folding a section away.
+///
+/// Everything in the mixer lays itself out from one RowBounds, so this is
+/// mostly a test of layoutRows: get that right and the gutter, the strips, the
+/// lamps and the hover all follow. What it has to prove is that a folded
+/// section takes no height, that its heading stays to be clicked, and that the
+/// height the window loses is exactly the height the rows gave up.
+void testCollapsibleSections() {
+  section("Collapsible sections");
+
+  using namespace ovt::ui;
+
+  const juce::Rectangle<int> area(0, 0, kStripWidth, preferredStripHeight());
+  const auto open = layoutRows(area);
+
+  const auto envMask = sectionBit(Section::Envelope);
+  const auto folded = layoutRows(area, envMask);
+
+  check(folded[(size_t)Row::EnvHeading].getHeight() ==
+            open[(size_t)Row::EnvHeading].getHeight(),
+        "the heading keeps its height, so there is something left to click");
+
+  for (auto r : {Row::Delay, Row::Attack, Row::Decay, Row::Sustain})
+    check(folded[(size_t)r].getHeight() == 0,
+          std::string("the folded ") + rowLabel(r) + " row takes no height");
+
+  check(open[(size_t)Row::Delay].getHeight() > 0,
+        "and takes height again when the section is open");
+
+  // Only that section. A fold that quietly took a neighbour with it would be
+  // hard to see and worse to use.
+  for (auto r : {Row::PmRate, Row::Swell, Row::AmRate, Row::Velocity})
+    check(folded[(size_t)r].getHeight() == open[(size_t)r].getHeight(),
+          std::string("folding the envelope leaves ") + rowLabel(r) + " alone");
+
+  check(collapsedRowsHeight(0) == 0, "nothing folded is no height");
+  check(collapsedRowsHeight(envMask) ==
+            open[(size_t)Row::Delay].getHeight() +
+                open[(size_t)Row::Attack].getHeight() +
+                open[(size_t)Row::Decay].getHeight() +
+                open[(size_t)Row::Sustain].getHeight(),
+        "the height given up is the sum of the rows that went");
+
+  check(preferredStripHeight(envMask) ==
+            preferredStripHeight() - collapsedRowsHeight(envMask),
+        "the strip wants exactly that much less room");
+  check(minimumStripHeight(envMask) ==
+            minimumStripHeight() - collapsedRowsHeight(envMask),
+        "and will go exactly that much shorter");
+
+  // The rows below close up rather than leaving a hole, and the fader keeps
+  // the height it had rather than stretching into it.
+  check(folded[(size_t)Row::KeyOffHeading].getY() <
+            open[(size_t)Row::KeyOffHeading].getY(),
+        "what was below the folded section moves up");
+
+  const auto shorter = layoutRows(
+      area.withHeight(area.getHeight() - collapsedRowsHeight(envMask)),
+      envMask);
+  check(shorter[(size_t)Row::Fader].getHeight() ==
+            open[(size_t)Row::Fader].getHeight(),
+        "in a window shortened to match, the fader is the size it was");
+
+  // Every section folds, and all of them together still leaves a usable strip.
+  SectionMask all = 0;
+  for (int i = 0; i < kNumSections; ++i) {
+    const auto one = sectionBit((Section)i);
+    check(collapsedRowsHeight(one) > 0,
+          std::string("section ") + std::to_string(i) + " has rows to fold");
+    all |= one;
+  }
+
+  const auto allFolded = layoutRows(area, all);
+  for (auto r : {Row::TuneKnob, Row::Phase, Row::MuteSolo, Row::Fader})
+    check(allFolded[(size_t)r].getHeight() > 0,
+          std::string(rowLabel(r) == nullptr ? "the fader" : rowLabel(r)) +
+              " survives every section being folded");
+
+  // Clicking. The heading is the target and nothing else is.
+  check(headingSectionAt(open, open[(size_t)Row::EnvHeading].getCentre()) ==
+            Section::Envelope,
+        "a click on the envelope heading names the envelope");
+  check(headingSectionAt(open, open[(size_t)Row::Attack].getCentre()) ==
+            Section::NumSections,
+        "a click on a knob row names no section");
+  check(headingSectionAt(folded,
+                         folded[(size_t)Row::EnvHeading].getCentre()) ==
+            Section::Envelope,
+        "the heading of a folded section is still the way back");
 }
 
 void testSoloAndMute(OvertoniumProcessor &p) {
@@ -2801,6 +2895,7 @@ int main() {
   testBusLayouts(processor);
   testStateRoundTrip(processor);
   testPrograms(processor);
+  testCollapsibleSections();
   testSoloAndMute(processor);
 
   std::printf("\n%d checks, %d failures\n", checks, failures);
