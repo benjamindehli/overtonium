@@ -464,9 +464,17 @@ jobs:
         if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.naming.outputs.version }}
         run: |
-          version="${VERSION#v}"
+          # From the tag, not from the naming step. That step runs in the
+          # package job, and a step output does not cross a job boundary, so
+          # reading it here yields an empty string and writes a feed naming no
+          # version at all.
+          version="${GITHUB_REF_NAME#v}"
+
+          if [ -z "$version" ]; then
+            echo "::error::no version to write into the feed"
+            exit 1
+          fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
