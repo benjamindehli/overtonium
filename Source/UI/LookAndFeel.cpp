@@ -19,7 +19,7 @@ namespace {
 /// How much of the grain shows. Small enough that it reads as surface rather
 /// than as texture: at anything higher the panel starts to look like sandpaper
 /// and the thin lit edges lose against it.
-constexpr float kGrainStrength = 0.035f;
+constexpr float kGrainStrength = 0.020f;
 
 /// Square, and a power of two, so the tiling has no visible period at the
 /// sizes the window is ever drawn at.
@@ -41,11 +41,17 @@ const juce::Image &grainTile() {
       for (int x = 0; x < kGrainSize; ++x) {
         // Signed noise, so the grain lifts and lowers the surface rather than
         // only darkening it, which is what stops it reading as dirt.
+        //
+        // Cubed, which is what makes it a surface rather than static. Straight
+        // noise puts as many loud pixels as quiet ones on the panel and reads
+        // as television snow. Cubing leaves most of the tile nearly clear and
+        // lets the few strong grains carry it.
         const auto n = rng.nextFloat() - 0.5f;
-        const auto level = (juce::uint8)juce::jlimit(0, 255,
-                                                     128 + (int)(n * 255.0f));
+        const auto shaped = n * n * n * 8.0f;
+        const auto level = (juce::uint8)juce::jlimit(
+            0, 255, 128 + (int)(shaped * 255.0f));
         data.setPixelColour(x, y, juce::Colour(level, level, level)
-                                      .withAlpha(std::abs(n) * 2.0f));
+                                      .withAlpha(std::abs(shaped)));
       }
     }
 

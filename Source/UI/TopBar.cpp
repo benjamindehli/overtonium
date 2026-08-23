@@ -1089,22 +1089,28 @@ void TopBar::paint(juce::Graphics &g) {
 
     // Read as a pocket milled into the bar rather than a box drawn on it.
     // Light comes from above, so the inside of the top edge is in shadow and
-    // the inside of the bottom edge catches it. Two arcs rather than a blur,
-    // which is all the depth a four pixel radius can carry anyway.
-    juce::Path top, bottom;
-    top.addArc(f.getX(), f.getY(), f.getWidth(), f.getHeight() * 0.9f,
-               -juce::MathConstants<float>::halfPi * 1.6f,
-               juce::MathConstants<float>::halfPi * 1.6f, true);
-    bottom.addArc(f.getX(), f.getY() + f.getHeight() * 0.1f, f.getWidth(),
-                  f.getHeight() * 0.9f,
-                  juce::MathConstants<float>::halfPi * 0.4f,
-                  juce::MathConstants<float>::pi * 1.6f, true);
+    // the inside of the bottom edge catches it.
+    //
+    // The whole outline is stroked each time and then clipped to the half it
+    // belongs in, which is what keeps both marks on the box's own rounded
+    // edge. An arc inscribed in the rectangle instead would sweep across the
+    // middle of the box, straight through the controls standing in it.
+    const auto inner = f.reduced(0.5f);
+    const auto middle = f.getCentreY();
 
-    g.setColour(juce::Colours::black.withAlpha(0.30f));
-    g.strokePath(top, juce::PathStrokeType(1.4f));
+    {
+        juce::Graphics::ScopedSaveState clip(g);
+        g.reduceClipRegion(f.withBottom(middle).getSmallestIntegerContainer());
+        g.setColour(juce::Colours::black.withAlpha(0.34f));
+        g.drawRoundedRectangle(inner.translated(0.0f, 1.0f), 4.0f, 1.3f);
+    }
 
-    g.setColour(juce::Colours::white.withAlpha(0.055f));
-    g.strokePath(bottom, juce::PathStrokeType(1.0f));
+    {
+        juce::Graphics::ScopedSaveState clip(g);
+        g.reduceClipRegion(f.withTop(middle).getSmallestIntegerContainer());
+        g.setColour(juce::Colours::white.withAlpha(0.06f));
+        g.drawRoundedRectangle(inner.translated(0.0f, -1.0f), 4.0f, 1.0f);
+    }
 
     g.setColour(colours::outline.withAlpha(0.9f));
     g.drawRoundedRectangle(f.reduced(0.5f), 4.0f, 1.0f);
