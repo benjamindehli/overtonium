@@ -34,6 +34,17 @@ inline const juce::Colour muteOn{0xffe0733d};
 inline const juce::Colour soloOn{0xffe8c34a};
 } // namespace colours
 
+/// A tile of fine monochrome noise, built once and shared.
+///
+/// Real panels are not perfectly smooth, and a flat fill is the main thing
+/// that reads as a drawing rather than an object. Deterministic, so two
+/// windows of the same size are identical and a screenshot test can rely on
+/// it.
+const juce::Image &grainTile();
+
+/// Lays the grain over an area at the weight the panels use.
+void paintGrain(juce::Graphics &, juce::Rectangle<int> area);
+
 /// Colour for an interval class, so the eye can group octaves, fifths and
 /// thirds while scanning 32 strips.
 ///

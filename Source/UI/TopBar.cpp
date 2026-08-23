@@ -1086,6 +1086,26 @@ void TopBar::paint(juce::Graphics &g) {
 
     g.setColour(colours::panelAlt.withAlpha(0.75f));
     g.fillRoundedRectangle(f, 4.0f);
+
+    // Read as a pocket milled into the bar rather than a box drawn on it.
+    // Light comes from above, so the inside of the top edge is in shadow and
+    // the inside of the bottom edge catches it. Two arcs rather than a blur,
+    // which is all the depth a four pixel radius can carry anyway.
+    juce::Path top, bottom;
+    top.addArc(f.getX(), f.getY(), f.getWidth(), f.getHeight() * 0.9f,
+               -juce::MathConstants<float>::halfPi * 1.6f,
+               juce::MathConstants<float>::halfPi * 1.6f, true);
+    bottom.addArc(f.getX(), f.getY() + f.getHeight() * 0.1f, f.getWidth(),
+                  f.getHeight() * 0.9f,
+                  juce::MathConstants<float>::halfPi * 0.4f,
+                  juce::MathConstants<float>::pi * 1.6f, true);
+
+    g.setColour(juce::Colours::black.withAlpha(0.30f));
+    g.strokePath(top, juce::PathStrokeType(1.4f));
+
+    g.setColour(juce::Colours::white.withAlpha(0.055f));
+    g.strokePath(bottom, juce::PathStrokeType(1.0f));
+
     g.setColour(colours::outline.withAlpha(0.9f));
     g.drawRoundedRectangle(f.reduced(0.5f), 4.0f, 1.0f);
   }

@@ -15,6 +15,54 @@ juce::Font makeFont(float height, bool bold) {
   return juce::Font(options);
 }
 
+namespace {
+/// How much of the grain shows. Small enough that it reads as surface rather
+/// than as texture: at anything higher the panel starts to look like sandpaper
+/// and the thin lit edges lose against it.
+constexpr float kGrainStrength = 0.035f;
+
+/// Square, and a power of two, so the tiling has no visible period at the
+/// sizes the window is ever drawn at.
+constexpr int kGrainSize = 128;
+} // namespace
+
+const juce::Image &grainTile() {
+  // Built on first use and kept. One image for the life of the process, shared
+  // by every window, which is the whole reason this is not per-component.
+  static const juce::Image tile = [] {
+    juce::Image img(juce::Image::ARGB, kGrainSize, kGrainSize, true);
+    juce::Image::BitmapData data(img, juce::Image::BitmapData::writeOnly);
+
+    // Fixed seed. A texture that differed between runs would make every
+    // screenshot comparison useless and would serve no purpose at all.
+    juce::Random rng(0x5EED0001);
+
+    for (int y = 0; y < kGrainSize; ++y) {
+      for (int x = 0; x < kGrainSize; ++x) {
+        // Signed noise, so the grain lifts and lowers the surface rather than
+        // only darkening it, which is what stops it reading as dirt.
+        const auto n = rng.nextFloat() - 0.5f;
+        const auto level = (juce::uint8)juce::jlimit(0, 255,
+                                                     128 + (int)(n * 255.0f));
+        data.setPixelColour(x, y, juce::Colour(level, level, level)
+                                      .withAlpha(std::abs(n) * 2.0f));
+      }
+    }
+
+    return img;
+  }();
+
+  return tile;
+}
+
+void paintGrain(juce::Graphics &g, juce::Rectangle<int> area) {
+  if (area.isEmpty())
+    return;
+
+  g.setTiledImageFill(grainTile(), 0, 0, kGrainStrength);
+  g.fillRect(area);
+}
+
 void paintChannelBackground(juce::Graphics &g, juce::Rectangle<int> bounds,
                             juce::Colour base) {
   const auto r = bounds.toFloat();
@@ -31,7 +79,10 @@ void paintChannelBackground(juce::Graphics &g, juce::Rectangle<int> bounds,
       juce::Colours::black.withAlpha(0.0f), r.getX(), r.getY() + shade, false));
   g.fillRect(r.withHeight(shade));
 
-  // Lit edge on the left, shadowed on the right.
+  paintGrain(g, bounds);
+
+  // Lit edge on the left, shadowed on the right. After the grain, so the two
+  // one-pixel borders are not eaten by it.
   g.setColour(juce::Colours::white.withAlpha(0.05f));
   g.fillRect(r.getX(), r.getY(), 1.0f, r.getHeight());
 

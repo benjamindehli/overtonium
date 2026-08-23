@@ -343,6 +343,13 @@ void OvertoniumEditor::paint(juce::Graphics &g) {
       colours::background.brighter(0.16f), r.getX(), r.getY(),
       colours::background.darker(0.35f), r.getRight(), r.getBottom(), false));
   g.fillRect(r);
+
+  // No grain and no vignette here. The strips are opaque and cover all but
+  // about one and a half percent of the window, so anything painted on the
+  // backdrop is painted where nothing can see it, and it measured at 75ms of a
+  // full repaint for that privilege. Making a vignette visible would mean
+  // paintOverChildren, which JUCE calls for every invalidated region including
+  // the meter bands, and those are the one thing that must stay cheap.
 }
 
 void OvertoniumEditor::resized() {

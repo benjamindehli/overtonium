@@ -345,14 +345,35 @@ void ActivityLamp::paint(juce::Graphics &g) {
   const auto lamp = juce::Rectangle<float>(diameter, diameter)
                         .withCentre({bounds.getCentreX(), midY + 0.5f});
 
+  const auto leftRun = lamp.getX() - bounds.getX() - 2.0f;
+  const auto rightRun = bounds.getRight() - lamp.getRight() - 2.0f;
+
   g.setColour(colours::outline.withAlpha(0.7f));
-  g.fillRect(bounds.getX(), midY, lamp.getX() - bounds.getX() - 2.0f, 1.0f);
-  g.fillRect(lamp.getRight() + 2.0f, midY,
-             bounds.getRight() - lamp.getRight() - 2.0f, 1.0f);
+  g.fillRect(bounds.getX(), midY, leftRun, 1.0f);
+  g.fillRect(lamp.getRight() + 2.0f, midY, rightRun, 1.0f);
+
+  // A lit lip immediately under the score, which is what turns a drawn line
+  // into a groove cut into the panel: the far wall of the cut catches the
+  // light coming from above. One pixel, inside the lamp's own bounds, so the
+  // band it already invalidates covers it and nothing else has to repaint.
+  g.setColour(juce::Colours::white.withAlpha(0.055f));
+  g.fillRect(bounds.getX(), midY + 1.0f, leftRun, 1.0f);
+  g.fillRect(lamp.getRight() + 2.0f, midY + 1.0f, rightRun, 1.0f);
 
   // Unlit is the channel colour at low alpha rather than nothing at all, so
   // the divider reads as a lamp that is off rather than as a gap in the rule.
   const auto lit = (float)step / (float)kSteps;
+
+  // The same bloom the meters get, and for the same reason. Two fills, only
+  // when the lamp is actually lit, and both inside the row the lamp already
+  // owns, so the band that gets invalidated is unchanged.
+  if (lit > 0.02f) {
+    g.setColour(colour.withAlpha(0.10f * lit));
+    g.fillEllipse(lamp.expanded(diameter * 0.42f));
+
+    g.setColour(colour.withAlpha(0.12f * lit));
+    g.fillEllipse(lamp.expanded(diameter * 0.18f));
+  }
 
   g.setColour(colour.withAlpha(0.16f + 0.84f * lit));
   g.fillEllipse(lamp);
@@ -437,6 +458,16 @@ void LevelMeter::setBackdrop(juce::Colour top, juce::Colour bottom) {
 
 int LevelMeter::segments() const { return segmentsFor(getHeight()); }
 
+namespace {
+/// How far the bloom around a lit meter run reaches beyond it, in pixels.
+///
+/// Named once because two places have to agree about it: the paint that draws
+/// it, and the dirty band push() hands back. A band that does not cover the
+/// bloom leaves a smear of the previous level behind, which is what the
+/// repaint test checks for.
+constexpr float kMeterGlowSpread = 3.0f;
+} // namespace
+
 juce::Rectangle<int> LevelMeter::push(float level) {
   // A decibel scale with a floor at -48 dB. On a linear amplitude scale
   // everything above the fundamental sits squashed against the bottom.
@@ -492,8 +523,12 @@ juce::Rectangle<int> LevelMeter::push(float level) {
   const auto bottom =
       (float)getHeight() - (float)juce::jmin(before, after) * step;
 
-  return juce::Rectangle<int>(0, juce::roundToInt(top) - 2, getWidth(),
-                              juce::roundToInt(bottom - top) + 4)
+  // The margin covers the bloom, which reaches kMeterGlowSpread beyond the
+  // run, plus a pixel for the rounding above.
+  const auto margin = (int)kMeterGlowSpread + 1;
+
+  return juce::Rectangle<int>(0, juce::roundToInt(top) - margin, getWidth(),
+                              juce::roundToInt(bottom - top) + 2 * margin)
       .getIntersection(getLocalBounds());
 }
 
@@ -536,6 +571,31 @@ void LevelMeter::paint(juce::Graphics &g) {
   // which channel it belongs to.
   const auto on = colour.withAlpha(0.92f);
   const auto off = colour.withAlpha(0.13f);
+
+  // Bloom around the lit run, so the meter reads as something emitting light
+  // into the panel rather than as coloured rectangles.
+  //
+  // Once for the whole run rather than once per segment: twenty fills a frame
+  // times thirty-three meters is a real cost, and at this size the eye cannot
+  // tell the two apart anyway. Kept inside the component's own bounds, which
+  // is what stops the invalidated band having to grow and the strip behind
+  // having to repaint.
+  if (onNow > 0) {
+    const auto litTop = track.getBottom() - (float)onNow * step;
+    const auto run = juce::Rectangle<float>(track.getX(), litTop,
+                                            track.getWidth(),
+                                            track.getBottom() - litTop);
+
+    const auto room = juce::jmax(0.0f, (full.getWidth() - trackW) * 0.5f);
+    const auto spread = juce::jmin(kMeterGlowSpread, room);
+
+    g.setColour(colour.withAlpha(0.09f));
+    g.fillRoundedRectangle(
+        run.expanded(spread, juce::jmin(kMeterGlowSpread, spread)), 4.0f);
+
+    g.setColour(colour.withAlpha(0.10f));
+    g.fillRoundedRectangle(run.expanded(spread * 0.45f, spread * 0.45f), 3.0f);
+  }
 
   for (int i = 0; i < count; ++i) {
     const auto lamp =
@@ -916,10 +976,16 @@ void ChannelStrip::paint(juce::Graphics &g) {
   // Section rules, aligned with the gutter headings. Four of the five carry a
   // lamp, and those draw their own rule around it, so only the output divider
   // is left for the strip to draw.
-  g.setColour(colours::outline.withAlpha(0.7f));
   for (auto r : {Row::OutputHeading}) {
     const auto row = rows[rowIndex(r)];
-    g.fillRect(row.getX(), row.getY() + row.getHeight() / 2, row.getWidth(), 1);
+    const auto y = row.getY() + row.getHeight() / 2;
+
+    // Scored, like the rules the lamps sit on. See ActivityLamp::paint.
+    g.setColour(colours::outline.withAlpha(0.7f));
+    g.fillRect(row.getX(), y, row.getWidth(), 1);
+
+    g.setColour(juce::Colours::white.withAlpha(0.055f));
+    g.fillRect(row.getX(), y + 1, row.getWidth(), 1);
   }
 }
 
