@@ -75,6 +75,14 @@ public:
   /// anyone who has not turned the check on.
   void setUpdateAvailable(const juce::String &version, const juce::String &url);
 
+  /// Offers the update check in the credit line, once, instead of putting a
+  /// dialog in front of someone who has not asked for one. A plugin cannot
+  /// tell whether it is being opened by a person or by a host scanning its
+  /// folder, and a modal in the second case stops the scan.
+  void setUpdateOffer(bool);
+
+  std::function<void()> onUpdateOfferAccepted;
+
   void mouseUp(const juce::MouseEvent &) override;
   void mouseMove(const juce::MouseEvent &) override;
 
@@ -142,6 +150,7 @@ private:
   /// The release the credit line is currently advertising, and where it sends
   /// someone who clicks. Empty when there is nothing to say.
   juce::String updateVersion, updateUrl;
+  bool offeringUpdateCheck = false;
 
   /// Where that text landed, so a click can be tested against it. Filled in
   /// while painting, since that is where the block is worked out.

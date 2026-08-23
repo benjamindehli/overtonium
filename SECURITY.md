@@ -31,9 +31,11 @@ A crash on its own is a bug rather than a vulnerability, and an ordinary issue i
 
 ## The update check
 
-Off until asked. The first time an editor opens, the plugin asks whether it may look, and nothing leaves the machine before that is answered yes. The answer is saved with the session and the setting is under Settings.
+Off until asked. The first time an editor opens, the credit line under the wordmark offers to turn it on, and nothing leaves the machine unless that offer is taken. The offer is made once and never repeated, and the setting lives under Settings from then on. It is deliberately not a dialog: a plugin cannot tell a person opening it from a host walking the plugin folder at startup, and a modal in the second case stops the scan.
 
 It is a GET for one static file on the project's own GitHub Pages site. No identifier, no version, no telemetry: the request carries nothing the plugin chose to put in it, and the server it reaches is the same one serving the documentation.
+
+The preference is kept in a settings file beside the presets rather than in the plugin's own state, so it belongs to the machine rather than to a patch. Kept in the state it would be asked afresh by every new instance.
 
 ## What this policy does not cover
 

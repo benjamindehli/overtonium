@@ -1151,7 +1151,7 @@ void TopBar::paint(juce::Graphics &g) {
 /// when there is one, because it is the one piece of text in the bar that is
 /// already saying something nobody needs to read twice.
 void TopBar::paintCreditLine(juce::Graphics &g, juce::Rectangle<int> area) {
-  if (updateVersion.isEmpty()) {
+  if (updateVersion.isEmpty() && !offeringUpdateCheck) {
     updateBounds = {};
     g.setColour(colours::textDim);
     g.setFont(makeFont(9.5f));
@@ -1159,7 +1159,9 @@ void TopBar::paintCreditLine(juce::Graphics &g, juce::Rectangle<int> area) {
     return;
   }
 
-  const auto text = "Version " + updateVersion + " available";
+  const auto text = updateVersion.isNotEmpty()
+                        ? "Version " + updateVersion + " available"
+                        : juce::String("Check for new versions?");
 
   g.setFont(makeFont(9.5f, true));
   g.setColour(colours::accent);
@@ -1184,14 +1186,27 @@ void TopBar::setUpdateAvailable(const juce::String &version,
   repaint();
 }
 
+void TopBar::setUpdateOffer(bool offering) {
+  if (offering == offeringUpdateCheck)
+    return;
+
+  offeringUpdateCheck = offering;
+  repaint();
+}
+
 void TopBar::mouseUp(const juce::MouseEvent &e) {
-  if (updateUrl.isNotEmpty() && updateBounds.contains(e.getPosition()))
+  if (updateBounds.isEmpty() || !updateBounds.contains(e.getPosition()))
+    return;
+
+  if (updateUrl.isNotEmpty())
     juce::URL(updateUrl).launchInDefaultBrowser();
+  else if (offeringUpdateCheck && onUpdateOfferAccepted != nullptr)
+    onUpdateOfferAccepted();
 }
 
 void TopBar::mouseMove(const juce::MouseEvent &e) {
   const bool over =
-      updateUrl.isNotEmpty() && updateBounds.contains(e.getPosition());
+      !updateBounds.isEmpty() && updateBounds.contains(e.getPosition());
 
   setMouseCursor(over ? juce::MouseCursor::PointingHandCursor
                       : juce::MouseCursor::NormalCursor);

@@ -25,9 +25,6 @@ const juce::Identifier kLinkScope{"linkScope"};
 const juce::Identifier kLinkCurve{"linkCurve"};
 const juce::Identifier kCollapsedSections{"collapsedSections"};
 
-/// Tri-state on purpose: absent means nobody has been asked yet, which is not
-/// the same as having said no.
-const juce::Identifier kUpdateCheckAllowed{"updateCheckAllowed"};
 
 bool isHeadingRow(Row r) {
   return r == Row::PitchModHeading || r == Row::EnvHeading ||
@@ -210,18 +207,22 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     strips.push_back(std::move(strip));
   }
 
-  topBar.isUpdateCheckAllowed = [this] {
-    return (int)plugin().apvts.state.getProperty(kUpdateCheckAllowed, -1) == 1;
-  };
+  topBar.isUpdateCheckAllowed = [] { return ovt::updateCheckAllowed(); };
 
   topBar.onUpdateCheckToggled = [this](bool allowed) {
-    plugin().apvts.state.setProperty(kUpdateCheckAllowed, allowed ? 1 : 0,
-                                     nullptr);
+    ovt::setUpdateCheckAllowed(allowed);
+    topBar.setUpdateOffer(false);
 
     if (allowed)
       maybeCheckForUpdates();
     else
       topBar.setUpdateAvailable({}, {});
+  };
+
+  topBar.onUpdateOfferAccepted = [this] {
+    ovt::setUpdateCheckAllowed(true);
+    topBar.setUpdateOffer(false);
+    maybeCheckForUpdates();
   };
 
   topBar.onPresetChosen = [this](int index) {
@@ -472,7 +473,7 @@ void OvertoniumEditor::toggleSection(Section section) {
 }
 
 void OvertoniumEditor::maybeCheckForUpdates() {
-  if ((int)plugin().apvts.state.getProperty(kUpdateCheckAllowed, -1) != 1)
+  if (!ovt::updateCheckAllowed())
     return;
 
   updateCheck.onResult = [this] {
@@ -484,25 +485,24 @@ void OvertoniumEditor::maybeCheckForUpdates() {
 }
 
 void OvertoniumEditor::offerUpdateCheck() {
-  auto &state = plugin().apvts.state;
-
-  // Asked and answered, either way.
-  if ((int)state.getProperty(kUpdateCheckAllowed, -1) >= 0) {
+  if (ovt::updateCheckAllowed()) {
     maybeCheckForUpdates();
     return;
   }
 
-  juce::NativeMessageBox::showYesNoBox(
-      juce::MessageBoxIconType::NoIcon, "Check for new versions?",
-      "Overtonium can look at its own project page now and then and tell you "
-      "when a newer version is out. Nothing else is sent, and nothing is sent "
-      "at all unless you say yes.\n\nThis can be changed later under "
-      "Settings.",
-      this, juce::ModalCallbackFunction::create([this](int result) {
-        plugin().apvts.state.setProperty(kUpdateCheckAllowed,
-                                         result == 1 ? 1 : 0, nullptr);
-        maybeCheckForUpdates();
-      }));
+  // Offered once, in the credit line, and never again. No dialog: a plugin
+  // cannot tell a person opening it from a host walking the plugin folder at
+  // startup, and a modal in the second case stops the scan dead. pluginval
+  // does exactly that, several editors in a row.
+  //
+  // The mark is written before the offer is shown rather than after it is
+  // answered, because an offer nobody takes is still an offer made, and asking
+  // again every time the window opens is nagging.
+  if (ovt::updateCheckOffered())
+    return;
+
+  ovt::markUpdateCheckOffered();
+  topBar.setUpdateOffer(true);
 }
 
 void OvertoniumEditor::applyPreset(int index) {

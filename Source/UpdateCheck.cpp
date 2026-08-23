@@ -2,6 +2,7 @@
 
 // For MessageManager::callAsync. The header stays on juce_core alone, so
 // anything that only needs the comparison does not pull in the event loop.
+#include <juce_data_structures/juce_data_structures.h>
 #include <juce_events/juce_events.h>
 
 namespace ovt {
@@ -68,6 +69,39 @@ std::optional<ReleaseInfo> parseReleaseJson(const juce::String &json) {
     info.url = "https://github.com/benjamindehli/overtonium/releases/latest";
 
   return info;
+}
+
+namespace {
+/// The settings file, opened once and shared.
+juce::PropertiesFile &settings() {
+  static auto file = [] {
+    juce::PropertiesFile::Options o;
+    o.applicationName = "Overtonium";
+    o.folderName = "Dehli Musikk/Overtonium";
+    o.filenameSuffix = "settings";
+    o.osxLibrarySubFolder = "Application Support";
+    return std::make_unique<juce::PropertiesFile>(o);
+  }();
+
+  return *file;
+}
+
+const char *const kAllowed = "updateCheckAllowed";
+const char *const kOffered = "updateCheckOffered";
+} // namespace
+
+bool updateCheckAllowed() { return settings().getBoolValue(kAllowed, false); }
+
+void setUpdateCheckAllowed(bool allowed) {
+  settings().setValue(kAllowed, allowed);
+  settings().saveIfNeeded();
+}
+
+bool updateCheckOffered() { return settings().getBoolValue(kOffered, false); }
+
+void markUpdateCheckOffered() {
+  settings().setValue(kOffered, true);
+  settings().saveIfNeeded();
 }
 
 UpdateCheck::UpdateCheck() : juce::Thread("Overtonium update check") {}

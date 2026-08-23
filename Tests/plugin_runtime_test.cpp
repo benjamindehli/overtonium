@@ -2907,6 +2907,43 @@ void testUpdateCheck() {
           std::string("a feed of \"") + bad + "\" yields nothing");
 }
 
+/// Opening editors must not turn the update check on, or ask anything.
+///
+/// This is the shape that crashed pluginval: a host walking its plugin folder
+/// makes instances and opens editors with nobody there to answer, and it does
+/// it dozens of times. The preference is deliberately not asserted to any
+/// particular value, since it is machine-wide and whoever is running the tests
+/// may legitimately have it either way. What must hold is that none of this
+/// changes it.
+void testUpdateCheckIsQuiet(OvertoniumProcessor &p) {
+  section("Update check stays quiet");
+
+  const bool before = ovt::updateCheckAllowed();
+
+  for (int instance = 0; instance < 3; ++instance) {
+    OvertoniumProcessor fresh;
+
+    for (int open = 0; open < 3; ++open) {
+      std::unique_ptr<juce::AudioProcessorEditor> ed(fresh.createEditor());
+      ed->setSize(1340, 869);
+    }
+  }
+
+  check(ovt::updateCheckAllowed() == before,
+        "nine editors across three instances leave the preference alone");
+
+  // And the same for the one the rest of the suite is using, since an editor
+  // on an instance that has been played is a different path through the
+  // constructor.
+  {
+    std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
+    ed->setSize(1340, 869);
+  }
+
+  check(ovt::updateCheckAllowed() == before,
+        "and so does one on an instance that has been used");
+}
+
 void testSoloAndMute(OvertoniumProcessor &p) {
   section("Solo and mute");
 
@@ -2984,6 +3021,7 @@ int main() {
   testPrograms(processor);
   testCollapsibleSections();
   testUpdateCheck();
+  testUpdateCheckIsQuiet(processor);
   testSoloAndMute(processor);
 
   std::printf("\n%d checks, %d failures\n", checks, failures);

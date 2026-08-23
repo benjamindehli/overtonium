@@ -15,6 +15,20 @@ namespace ovt {
 /// that is not a version cannot read as an upgrade.
 bool isNewerVersion(const juce::String &candidate, const juce::String &current);
 
+/// Whether the update check is allowed to run, and whether the offer to turn
+/// it on has been made.
+///
+/// Machine-wide, in a settings file beside the presets, rather than in the
+/// plugin's own state. A preference about reaching the network belongs to the
+/// person, not to a patch or a session: kept in the state it would be asked
+/// again by every new instance, which is what a host scanning its plugin
+/// folder does dozens of times in a row.
+bool updateCheckAllowed();
+void setUpdateCheckAllowed(bool);
+
+bool updateCheckOffered();
+void markUpdateCheckOffered();
+
 /// The one release the plugin asks about.
 struct ReleaseInfo {
   juce::String version;
