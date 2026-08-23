@@ -42,7 +42,13 @@
   "isAccessibleForFree": true,
   "license": "https://www.gnu.org/licenses/agpl-3.0.html",
   "codeRepository": "https://github.com/benjamindehli/overtonium",
+  "downloadUrl": "https://github.com/benjamindehli/overtonium/releases/latest",
   "programmingLanguage": "C++",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
   "author": {
     "@type": "Person",
     "name": "Benjamin Dehli"
@@ -278,7 +284,17 @@
 <section>
   <h2>Getting it</h2>
 
-  <p>Overtonium is free software under the AGPLv3, and there are no binaries yet. You need CMake 3.22 or newer and a C++17 compiler. JUCE is downloaded at configure time, so there is nothing else to install on macOS or Windows.</p>
+  <p>Overtonium is free software under the AGPLv3. Installers for macOS and Windows, and a zip for Linux, are on the <a href="https://github.com/benjamindehli/overtonium/releases/latest">releases page</a>. Every release carries a zip alongside the installer holding the same builds loose, for anyone without administrator rights or with plugin folders of their own.</p>
+
+  <p>macOS gets a <code>.pkg</code> with VST3, Audio Unit and standalone, and you choose which of the three to install. It is a universal binary, so one download covers Apple Silicon and Intel, and it is signed and notarised, so it opens without a warning. Logic and GarageBand only look for new Audio Units when they start, so restart them after installing.</p>
+
+  <p>Windows gets an <code>.exe</code> with VST3 and standalone. It is not signed, so SmartScreen says the publisher is unknown: choose "More info" and then "Run anyway", or build from source instead, which takes one command.</p>
+
+  <p>Linux has no installer. The zip holds VST3, LV2 and standalone, and the two plugin folders go in <code>~/.vst3</code> and <code>~/.lv2</code>.</p>
+
+  <h3>Building from source</h3>
+
+  <p>You need CMake 3.22 or newer and a C++17 compiler. JUCE is downloaded at configure time, so there is nothing else to install on macOS or Windows.</p>
 
 <pre><code>git clone https://github.com/benjamindehli/overtonium.git
 cd overtonium
