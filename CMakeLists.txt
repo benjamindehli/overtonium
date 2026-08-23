@@ -1,16 +1,25 @@
 cmake_minimum_required(VERSION 3.22)
 
+# Before project(), and it has to be. project() creates both of these as empty
+# cache entries while it works out the platform, and a set(... CACHE ...) after
+# that is ignored because the entry already exists. Set afterwards they read as
+# if they work and do nothing: the architecture list comes out empty, which
+# means the host's own, so an Apple Silicon build machine quietly produces
+# something no Intel Mac will run.
+#
+# CMAKE_HOST_APPLE rather than APPLE, since APPLE is one of the things project()
+# is what defines.
+if(CMAKE_HOST_APPLE)
+    # Universal binary so the same build runs on Apple Silicon and Intel hosts.
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13" CACHE STRING "Minimum macOS version")
+    set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Build architectures")
+endif()
+
 project(Overtonium VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-
-if(APPLE)
-    # Universal binary so the same build runs on Apple Silicon and Intel hosts.
-    set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13" CACHE STRING "Minimum macOS version")
-    set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Build architectures")
-endif()
 
 # ------------------------------------------------------------------------------------------
 # JUCE

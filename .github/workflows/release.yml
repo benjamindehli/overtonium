@@ -94,6 +94,53 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel 2
 
+      # Checked rather than trusted, because every way this can go wrong is
+      # silent on the build machine. The runners are Apple Silicon, so an
+      # arm64-only build tests clean, signs, notarises and installs, and the
+      # first thing to report a problem is an Intel Mac refusing to open it.
+      #
+      # The minimum macOS each slice carries is printed alongside, since it is
+      # set from the same two variables and is lost the same quiet way. Expect
+      # 10.13 for x86_64 and 11.0 for arm64, which is the floor the toolchain
+      # raises that slice to and cannot go below.
+      - name: Check the macOS binaries are universal
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          status=0
+          found=0
+
+          while IFS= read -r binary; do
+            file -b "$binary" | grep -q Mach-O || continue
+
+            found=$((found + 1))
+            archs=$(lipo -archs "$binary")
+            echo "$binary: $archs"
+
+            for want in arm64 x86_64; do
+              case " $archs " in
+                *" $want "*)
+                  echo "  $want minos $(otool -l -arch "$want" "$binary" \
+                    | awk '/minos/ { print $2; exit }')"
+                  ;;
+                *)
+                  echo "::error::$binary has no $want slice"
+                  status=1
+                  ;;
+              esac
+            done
+          done < <(find build/Overtonium_artefacts/Release -type f)
+
+          # A find that matches nothing would otherwise pass this step by
+          # checking nothing at all, which is the failure it exists to catch.
+          if [ "$found" -eq 0 ]; then
+            echo "::error::no Mach-O binaries found to check"
+            status=1
+          fi
+
+          echo "checked $found binaries"
+          exit $status
+
       # A release is exactly when it is worth knowing the tests still pass,
       # even though the same commit has usually been through them already.
       - name: Test
