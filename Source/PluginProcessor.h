@@ -26,6 +26,14 @@ public:
   void processBlock(juce::AudioBuffer<float> &buffer,
                     juce::MidiBuffer &midi) override;
 
+  /// Overriding one processBlock hides the rest of the overload set, the
+  /// double-precision one included. Nothing calls it, since
+  /// supportsDoublePrecisionProcessing is left at its default of false, but
+  /// hiding a base overload rather than inheriting it is worth not doing:
+  /// the day the plugin does support doubles, the host would silently get
+  /// the base class's empty implementation instead of a compile error.
+  using juce::AudioProcessor::processBlock;
+
   /// Defined in PluginEditor.cpp so this translation unit stays free of GUI
   /// dependencies.
   juce::AudioProcessorEditor *createEditor() override;

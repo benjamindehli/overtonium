@@ -72,11 +72,17 @@ jobs:
             libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev \
             libxcomposite-dev libgl-dev
 
+      # Warnings are errors here and nowhere else. JUCE's recommended set is
+      # already asked for in CMakeLists and it is a broad one, but a warning
+      # that only prints is a warning that survives, and the log is long
+      # enough that nobody reads all of it. Someone building from source on a
+      # compiler none of these three runners covers still gets a plugin.
       - name: Configure
         run: >
           cmake -B build
           -DCMAKE_BUILD_TYPE=Release
           -DOVERTONIUM_INSTALL_AFTER_BUILD=OFF
+          -DOVERTONIUM_WARNINGS_AS_ERRORS=ON
           ${{ matrix.extra }}
 
       # The job count is given rather than left to the build tool. Without a

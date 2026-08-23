@@ -147,6 +147,36 @@ target_link_libraries(Overtonium
         juce::juce_recommended_warning_flags)
 
 # ------------------------------------------------------------------------------------------
+# Warnings as errors, off by default and turned on in CI.
+#
+# juce_recommended_warning_flags already asks for a great deal, including
+# -Wconversion and -Wsign-conversion, but nothing makes any of it fatal, so a
+# new warning can sit in the log until the log is long enough that nobody reads
+# it. CI turns this on and a pull request that adds one fails.
+#
+# Off by default because a warning is not a reason for someone building from
+# source on a compiler nobody here has tried to end up with no plugin at all.
+# Applied to our own targets rather than globally, for the same reason in the
+# other direction: a warning from inside JUCE is not something a change here
+# can fix, and it should not be able to fail the build.
+# ------------------------------------------------------------------------------------------
+option(OVERTONIUM_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
+
+function(overtonium_set_warnings_as_errors target)
+    if(NOT OVERTONIUM_WARNINGS_AS_ERRORS)
+        return()
+    endif()
+
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /WX)
+    else()
+        target_compile_options(${target} PRIVATE -Werror)
+    endif()
+endfunction()
+
+overtonium_set_warnings_as_errors(Overtonium)
+
+# ------------------------------------------------------------------------------------------
 # DSP tests
 #
 # The DSP core has no JUCE dependency at all, so the tests build and run anywhere with a
@@ -193,6 +223,11 @@ if(OVERTONIUM_BUILD_TESTS)
         PUBLIC
             juce::juce_recommended_config_flags
             juce::juce_recommended_warning_flags)
+
+    # overtonium_dsp_test is left out on purpose. It carries no warning flags
+    # here, and the DSP core is already compiled with -Wall -Wextra -Werror by
+    # the job that checks it builds without a build system at all.
+    overtonium_set_warnings_as_errors(overtonium_runtime_test)
 
     add_test(NAME plugin COMMAND overtonium_runtime_test)
 endif()
