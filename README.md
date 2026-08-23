@@ -13,6 +13,8 @@ The control worth reaching for first is TUNE. It sweeps each partial continuousl
 - **Page:** [benjamindehli.github.io/overtonium](https://benjamindehli.github.io/overtonium/), built from `docs/`
 - **By:** Benjamin Dehli for Dehli Musikk. Hosts list it under DehliMusikk (manufacturer code `Dhmk`, plugin code `Ovtn`)
 
+CI builds all three platforms and runs the test suite on each of them on every push, and macOS is the only one where the plugin has been loaded into a host. The Audio Unit and the VST3 pass `auval` and pluginval at strictness 8 there. Nobody has yet run the Windows or Linux builds in a DAW, so treat those as untried and please report what you find.
+
 ## Background
 
 This is the third instrument in a line, and the first that computes its sound rather than playing it back.
@@ -86,7 +88,7 @@ They cover the tuning table, blend endpoints, sine table accuracy, the anti-alia
 
 There is a second target, `overtonium_runtime_test`, which builds the plugin sources as a console app and exercises parameter wiring, MIDI handling, the factory presets, user preset round-tripping, bus layouts, undo and state round-tripping. It never opens an editor, so it runs on a machine with no display. Both targets are registered with CTest, so `ctest` from the build directory runs them together.
 
-The audio thread allocates nothing. A host is allowed to hand over a bigger block than the one it promised in `prepareToPlay`, and growing the scratch buffer to fit would take the allocator's lock on the audio thread, where whatever the message thread is doing can make it wait. The block is cut into pieces the scratch already holds instead, and the scratch is given a floor of 512 frames so a host that promises very little and delivers a lot is not cut into a great many of them. The seam has to be inaudible for that to be worth doing, so the test renders the same passage twice, once to a host that keeps its word and once to a host that promised a sixteenth of what it sent, and compares them sample by sample. They differ by 3e-07, which is the per-partial control blocks landing at different offsets rather than anything in the signal.
+The audio thread allocates nothing. A host is allowed to hand over a bigger block than the one it promised in `prepareToPlay`, and growing the scratch buffer to fit would take the allocator's lock on the audio thread, where whatever the message thread is doing can make it wait. The block is cut into pieces the scratch already holds instead, and the scratch is given a floor of 512 frames so a host that promises very little and delivers a lot is not cut into a great many of them. The seam has to be inaudible for that to be worth doing, so the test renders the same passage twice, once to a host that keeps its word and once to a host that promised a sixteenth of what it sent, and compares them sample by sample. They come out identical, sample for sample. The patch it uses has no random modulation in it, because drift is a random walk redrawn once per control block and those blocks fall in different places when a block is cut up, so a patch carrying drift would differ for reasons that have nothing to do with the cutting.
 
 Both run in CI on macOS, Windows and Linux on every push and pull request, building the plugin itself along the way so a compile error in the JUCE half cannot pass unnoticed. A second job compiles the DSP core with the bare-compiler line above, and with `-Werror`, so the claim that it has no build system dependency is checked rather than asserted.
 
@@ -97,8 +99,8 @@ Pass `-DOVERTONIUM_INSTALL_AFTER_BUILD=OFF` to skip copying the built plugins in
 Pushing a tag that starts with `v` builds the plugin on all three platforms and attaches the archives to a GitHub release:
 
 ```
-git tag -a v0.1.0 -m "Overtonium 0.1.0"
-git push origin v0.1.0
+git tag -a v1.0.0 -m "Overtonium 1.0.0"
+git push origin v1.0.0
 ```
 
 Each platform gets an installer where there is a sensible one, and a zip holding every format it can build alongside it, plus the readme and the licence. macOS gets VST3, AU and Standalone as a universal binary covering Apple Silicon and Intel, Linux gets VST3, LV2 and Standalone, and Windows gets VST3 and Standalone. The tests run before anything is packaged, so a tag that does not pass them produces no release.

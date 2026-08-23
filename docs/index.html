@@ -292,6 +292,8 @@
 
   <p>Linux has no installer. The zip holds VST3, LV2 and standalone, and the two plugin folders go in <code>~/.vst3</code> and <code>~/.lv2</code>.</p>
 
+  <p>All three platforms are built and run through the test suite on every push, and macOS is the only one where the plugin has been loaded into a host. The Audio Unit and the VST3 pass <code>auval</code> and pluginval at strictness 8 there. The Windows and Linux builds are untried in a DAW, so reports of how they behave are welcome on the <a href="https://github.com/benjamindehli/overtonium/issues">issue tracker</a>.</p>
+
   <h3>Building from source</h3>
 
   <p>You need CMake 3.22 or newer and a C++17 compiler. JUCE is downloaded at configure time, so there is nothing else to install on macOS or Windows.</p>

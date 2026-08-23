@@ -35,8 +35,8 @@ jobs:
       - uses: actions/checkout@v7
 
       # The archive is named from the tag, but the version a host displays
-      # comes from CMakeLists. Left unchecked, tagging v1.0.0 against a
-      # project still saying 0.1.0 ships a file whose name and contents
+      # comes from CMakeLists. Left unchecked, tagging v2.0.0 against a
+      # project still saying 1.0.0 ships a file whose name and contents
       # disagree, and nobody notices until someone reads the plugin's version
       # in a host.
       - name: The tag has to match the project version
@@ -426,6 +426,15 @@ jobs:
           restart.
 
           On Linux the zip's contents go in `~/.vst3` and `~/.lv2`.
+
+          ### What has actually been tried
+
+          All three platforms are built and run through the test suite here on
+          every push, and macOS is the only one where the plugin has been
+          loaded into a host. The Audio Unit and the VST3 pass `auval` and
+          pluginval at strictness 8 there. Nobody has run the Windows or Linux
+          builds in a DAW yet, so treat those as untried and please open an
+          issue with whatever you find.
 
           ### Windows will warn you
 
