@@ -34,25 +34,50 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # The archive is named from the tag, but the version a host displays
-      # comes from CMakeLists. Left unchecked, tagging v2.0.0 against a
-      # project still saying 1.0.0 ships a file whose name and contents
-      # disagree, and nobody notices until someone reads the plugin's version
-      # in a host.
-      - name: The tag has to match the project version
+      # Three places name the version and all three have to agree. The archive
+      # is named from the tag, the version a host displays comes from
+      # CMakeLists, and the notes on the release page come from
+      # RELEASE_NOTES.md. Tagging v2.0.0 against a project still saying 1.0.0
+      # ships a file whose name and contents disagree, and notes still headed
+      # 1.0.0 describe the previous release to everyone who reads the page.
+      # Neither shows up anywhere the person cutting the release is looking.
+      #
+      # Both are reported before giving up, so a release that got two of them
+      # wrong takes one round trip rather than two.
+      - name: The tag has to match the project version and the notes
         if: github.ref_type == 'tag'
         shell: bash
         run: |
+          tagged="${GITHUB_REF_NAME#v}"
+          status=0
+
           project=$(sed -n 's/^project(Overtonium VERSION \([0-9.]*\).*/\1/p' \
                     CMakeLists.txt)
-          tagged="${GITHUB_REF_NAME#v}"
 
-          echo "CMakeLists says $project, the tag says $tagged"
+          echo "CMakeLists says ${project:-nothing}, the tag says $tagged"
 
           if [ "$project" != "$tagged" ]; then
             echo "::error::tag $GITHUB_REF_NAME does not match project version $project"
-            exit 1
+            status=1
           fi
+
+          # The first heading in the file rather than the first one that
+          # happens to match, so a version named further down cannot stand in
+          # for the title itself being right.
+          notes=$(grep -m1 '^# ' RELEASE_NOTES.md \
+                  | sed -n 's/^# Overtonium \([0-9][0-9.]*\) *$/\1/p')
+
+          echo "RELEASE_NOTES.md is headed ${notes:-nothing recognisable}"
+
+          if [ -z "$notes" ]; then
+            echo "::error::RELEASE_NOTES.md needs to start with '# Overtonium $tagged'"
+            status=1
+          elif [ "$notes" != "$tagged" ]; then
+            echo "::error::RELEASE_NOTES.md is headed $notes but the tag says $tagged"
+            status=1
+          fi
+
+          exit $status
 
       # Same treatment as the build workflow: the hosted runners reach apt
       # through a mirror that intermittently stops answering, and apt's own
