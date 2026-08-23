@@ -1,20 +1,20 @@
-# Overtonium 1.0.0
+# Overtonium 1.1.0
 
 A 32-partial additive synthesiser laid out like a 32-channel mixer. Every channel is one sine oscillator locked to a harmonic of the played note, and every channel has its own tuning, envelope and modulation.
 
-The control worth reaching for first is TUNE. It sweeps each partial continuously between equal temperament and just intonation. At the just end the partial sits at an exact integer ratio with the fundamental and the whole stack fuses into a single timbre. At the equal end each partial snaps to the nearest 12-TET semitone and the same stack smears into a chord. The factory presets _Just Saw_ and _Equal Saw_ are identical except for that one control, and they sound nothing alike.
+## What is new in 1.1.0
 
-## What is in it
+**Fold the mixer down.** Click a section heading in the caption gutter and that group of rows folds away across every channel at once, taking the window's height with it. Pitch modulation, envelope, key off, amp mod and output each fold. All five is 480 pixels shorter. The tuning at the top and the faders at the bottom always stay, and a folded heading keeps its activity lamp, so a group you cannot see still reports whether it is doing anything. What you had folded is remembered with the session.
 
-- 32 sine partials plus a noise channel, each with its own fader, tuning, envelope, tremolo, pitch modulation and pan
-- TUNE, a continuous blend between equal temperament and just intonation, per partial
-- Six keyboard temperaments on any root: equal, just major, Pythagorean, quarter-comma meantone, Werckmeister III and Young
-- Inharmonic stretch and keyboard tracking
-- Per-partial drift, a random walk that detunes each partial independently, and wobble, the same idea applied to the whole instrument
-- MPE, with pitch bend and pressure per note, alongside ordinary MIDI
-- A tape echo with two independent paths, a feedback delay network reverb and a lo-fi converter
-- Channel ganging, so a change on one channel can be applied across a selection
-- 16 factory presets: Big Saw, Cathedral, Drawbar Organ, Equal Saw, Glass Armonica, Init, Just Saw, Lo-fi, Music Box, Odd Harmonics, Shimmer, Slow Pad, Struck Bell, Tape Choir, Vibraphone and Wurli
+**The factory presets appear in Logic's own preset menu.** Logic and GarageBand read presets through the Audio Unit's program interface, which previously offered a single entry. All sixteen are listed now. Other formats are unchanged, deliberately: a program count above one makes the VST3 wrapper publish an automatable parameter that rewrites every other parameter when it moves, which is a poor thing to put in an automation lane.
+
+**A panel you can almost touch.** A fine grain across the strips, the section rules scored as grooves cut into the surface rather than lines drawn on it, the effect groups in the bar recessed into it, and the lamps and meters blooming into the panel around them.
+
+**It can tell you when a new version is out.** Off unless you ask. The first time you open the window the credit line under the wordmark offers to turn it on, once, and nothing reaches the network unless you take the offer. It fetches one small file from the project page and reads a version number out of it. No identifier, no telemetry, nothing about you. The setting lives under Settings, and the security policy in the repository spells out exactly what is sent.
+
+**Layout.** The mixer runs to the window edges instead of floating inside a border, with the breathing room moved inside the channels. In the bar, captions sit closer to the knob they name. The short interval label under each channel number is gone, since the colour of the strip already says which interval class a channel is, and the gutter says MUTE / SOLO rather than M / S.
+
+Nothing about the sound has changed. A patch saved in 1.0.0 loads identically.
 
 ## Installing
 
@@ -32,15 +32,15 @@ On Linux the zip's contents go in `~/.vst3` and `~/.lv2`.
 
 ## What has actually been tried
 
-All three platforms are built and run through the test suite on every push, and macOS is the only one where the plugin has been loaded into a host. The Audio Unit and the VST3 pass `auval` and pluginval at strictness 8 there. Nobody has run the Windows or Linux builds in a DAW yet, so treat those as untried and please open an issue with whatever you find.
-
-## macOS
-
-The installer is signed and notarised, so it opens without a warning. It asks which of the three formats you want and installs only those.
+All three platforms are built on every push, run through both test suites, and put through pluginval at strictness 8. macOS is the only platform where the plugin has been loaded into a real host, where the Audio Unit and the VST3 also pass `auval`. Nobody has run the Windows or Linux builds in a DAW yet, so treat those as untried and please open an issue with whatever you find.
 
 ## Windows will warn you
 
 The Windows installer is not signed, so SmartScreen says the publisher is unknown. Choose "More info" and then "Run anyway". If you would rather not, build from source: the readme says how, and it takes one CMake command.
+
+## macOS
+
+The installer is signed and notarised, so it opens without a warning. It asks which of the three formats you want and installs only those.
 
 ## Licence
 

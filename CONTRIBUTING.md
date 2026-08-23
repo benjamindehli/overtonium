@@ -104,8 +104,8 @@ Pass `-DOVERTONIUM_INSTALL_AFTER_BUILD=OFF` to skip copying the built plugins in
 Pushing a tag that starts with `v` builds the plugin on all three platforms and attaches the archives to a GitHub release:
 
 ```
-git tag -a v1.0.0 -m "Overtonium 1.0.0"
-git push origin v1.0.0
+git tag -a v1.1.0 -m "Overtonium 1.1.0"
+git push origin v1.1.0
 ```
 
 Each platform gets an installer where there is a sensible one, and a zip holding every format it can build alongside it, plus the readme and the licence. macOS gets VST3, AU and Standalone as a universal binary covering Apple Silicon and Intel, Linux gets VST3, LV2 and Standalone, and Windows gets VST3 and Standalone. The tests run before anything is packaged, so a tag that does not pass them produces no release.

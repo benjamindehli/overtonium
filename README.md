@@ -385,6 +385,16 @@ Together those took a decaying chord from 141% of a core to 1%. And it was still
 
 One thing that looks like it should help and does not: splitting the mixer into halves that update on alternate frames. Each meter still updates at the same rate and each frame covers half the width, so the area per frame halves, but the number of frames doubles. Frames are the more expensive of the two.
 
+### Folding the mixer down
+
+Clicking a section heading in the caption gutter folds that group of rows away, and the window loses exactly the height those rows were taking. Pitch modulation, envelope, key off, amp mod and output each fold. All five together is 480 pixels. The tuning at the head of the strip and the faders at the foot never fold: the first is what the instrument is for and the second is what you mix with, so neither is ever the thing in the way.
+
+It folds across the whole mixer rather than per channel. The strips are columns sharing one set of rows, and folding a group on one channel and not the next would put every row below it out of step with the gutter captions, which are the only thing naming the knobs.
+
+A folded heading keeps its activity lamp, so a group you cannot see still says whether it is doing anything. The state is remembered with the session rather than with the patch, alongside the window size and the zoom, so loading a preset never rearranges your screen.
+
+Rows in a folded section are hidden rather than left at zero height. A knob with no height still takes the mouse and still answers a hover, so it would go on lighting gutter captions and opening LINK menus for controls nobody can see.
+
 ### Ganging the channels
 
 **LINK** in the top bar gangs the strips: dragging any knob moves the same knob on the others. It works relatively, applying an offset to wherever each strip already sits rather than dragging everything to one shared value, so a spectrum you have shaped by hand keeps its shape.
@@ -588,6 +598,18 @@ Modulation gets coarser along with everything else. The LFOs, drift and gain ram
 **Bit depth** picks from 16 bits down to 2, quantising to 2^(n-1) steps either side of zero. It sits with the rate, ahead of the echo, the reverb and the master fader, so those behave like outboard on a lo-fi source rather than being crushed themselves. It does not clip: that is the safety clipper's job further down, and a bit-depth setting that also distorted would be doing something the panel does not mention.
 
 Both settings are stored with a preset, since at that point they are part of the sound rather than part of the setup.
+
+## Checking for updates
+
+Off unless asked for. The first time an editor opens, the credit line under the wordmark offers to turn the check on, once, and nothing reaches the network unless that offer is taken. Ignoring it costs nothing and it is not asked again. The setting lives under Settings from then on.
+
+With it on, a background thread fetches `docs/latest.json` from the project page and compares the version in it against this build. If the file names something newer, the credit line says so and clicking it opens the release page. It is a plain GET for one small static file: no identifier, no version, nothing about the machine, and the server it reaches is the same one serving the documentation.
+
+The preference is kept in a settings file beside the presets rather than in the plugin's state. It belongs to the person rather than to a patch, and kept in the state it would be asked afresh by every new instance, which is what a host walking its plugin folder makes dozens of.
+
+There is deliberately no dialog. A plugin cannot tell someone opening it from a host scanning at startup, and a modal in the second case stops the scan.
+
+The release workflow rewrites `docs/latest.json` as part of publishing, so the feed cannot name a version that was never shipped, and cannot lag one that was.
 
 ## Licensing
 
