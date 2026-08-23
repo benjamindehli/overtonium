@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+#include "Presets.h"
 
 OvertoniumProcessor::OvertoniumProcessor()
     : juce::AudioProcessor(BusesProperties().withOutput(
@@ -320,16 +321,76 @@ void OvertoniumProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   activeVoices.store(engine.getActiveVoiceCount());
 }
 
+int OvertoniumProcessor::getNumPrograms() {
+  return ovt::presets::names().size();
+}
+
+const juce::String OvertoniumProcessor::getProgramName(int index) {
+  const auto all = ovt::presets::names();
+
+  // Hosts ask about indices they have cached, and a cache outlives the list it
+  // was taken from. An empty string is a name a host can show.
+  return juce::isPositiveAndBelow(index, all.size()) ? all[index]
+                                                     : juce::String();
+}
+
+void OvertoniumProcessor::setCurrentProgram(int index) {
+  // Hosts call this on their own account, not only when someone picks from a
+  // menu. Restoring a VST3 session sets every parameter, and JUCE's wrapper
+  // makes the program one of them, so a session saved on preset 3 arrives here
+  // asking for preset 3 with the user's edits to it already restored. Loading
+  // it again would throw those edits away.
+  //
+  // Doing nothing when the index has not changed is what makes that safe, and
+  // it is why currentProgram travels in the saved state.
+  if (index == currentProgram)
+    return;
+
+  applyFactoryPreset(index);
+}
+
+void OvertoniumProcessor::applyFactoryPreset(int index) {
+  if (!juce::isPositiveAndBelow(index, getNumPrograms()))
+    return;
+
+  currentProgram = index;
+  ovt::presets::apply(apvts, index);
+
+  // So a host showing the preset name updates when the change came from the
+  // plugin's own menu rather than from the host's.
+  updateHostDisplay(
+      juce::AudioProcessorListener::ChangeDetails{}.withProgramChanged(true));
+}
+
+/// The property the current program travels under. Namespaced enough not to
+/// collide with a parameter id, since both live in the same tree.
+static const juce::Identifier kCurrentProgramProperty{"overtoniumProgram"};
+
 void OvertoniumProcessor::getStateInformation(juce::MemoryBlock &destData) {
-  if (auto xml = apvts.copyState().createXml())
+  auto state = apvts.copyState();
+  state.setProperty(kCurrentProgramProperty, currentProgram, nullptr);
+
+  if (auto xml = state.createXml())
     copyXmlToBinary(*xml, destData);
 }
 
 void OvertoniumProcessor::setStateInformation(const void *data,
                                               int sizeInBytes) {
-  if (auto xml = getXmlFromBinary(data, sizeInBytes))
-    if (xml->hasTagName(apvts.state.getType()))
-      apvts.replaceState(juce::ValueTree::fromXml(*xml));
+  if (auto xml = getXmlFromBinary(data, sizeInBytes)) {
+    if (xml->hasTagName(apvts.state.getType())) {
+      const auto tree = juce::ValueTree::fromXml(*xml);
+
+      // Read before replaceState, which is what makes the host's own program
+      // restore a no-op rather than a reload. A state written before this
+      // property existed has no such value and lands on the first preset,
+      // which is the same answer the old build gave.
+      const int saved = tree.getProperty(kCurrentProgramProperty, 0);
+      currentProgram =
+          juce::isPositiveAndBelow(saved, getNumPrograms()) ? saved : 0;
+
+      apvts.replaceState(tree);
+    }
+  }
 }
 
 juce::AudioProcessor *JUCE_CALLTYPE createPluginFilter() {

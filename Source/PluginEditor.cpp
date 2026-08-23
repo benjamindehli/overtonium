@@ -326,7 +326,11 @@ void OvertoniumEditor::setZoom(float newZoom) {
 }
 
 void OvertoniumEditor::applyPreset(int index) {
-  presets::apply(processor.apvts, index);
+  // Through the processor rather than straight to presets::apply, so the host
+  // keeps up: it is the processor that knows which program is current, and a
+  // host showing "Big Saw" while the plugin shows "Wurli" is worse than a host
+  // showing nothing.
+  processor.applyFactoryPreset(index);
 }
 
 void OvertoniumEditor::complain(const juce::String &title,

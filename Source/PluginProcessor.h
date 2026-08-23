@@ -53,11 +53,25 @@ public:
   bool isMidiEffect() const override { return false; }
   double getTailLengthSeconds() const override;
 
-  int getNumPrograms() override { return 1; }
-  int getCurrentProgram() override { return 0; }
-  void setCurrentProgram(int) override {}
-  const juce::String getProgramName(int) override { return "Default"; }
+  // The factory presets, exposed to the host so they appear in its own preset
+  // menu rather than only in the plugin's. Logic and GarageBand read this and
+  // nothing else, so without it their preset list is a single entry.
+  //
+  // Names are fixed, hence changeProgramName does nothing. A host that offers
+  // to rename a factory preset is offering something this plugin does not do,
+  // and quietly ignoring it beats storing a name nothing will ever read back.
+  int getNumPrograms() override;
+  int getCurrentProgram() override { return currentProgram; }
+  void setCurrentProgram(int index) override;
+  const juce::String getProgramName(int index) override;
   void changeProgramName(int, const juce::String &) override {}
+
+  /// Loads a factory preset and records it as the current program, whether or
+  /// not it already was. The plugin's own preset menu goes through here rather
+  /// than setCurrentProgram, so choosing the preset you are already on really
+  /// does reload it and discard what you changed, which is what picking a
+  /// preset by hand is usually for.
+  void applyFactoryPreset(int index);
 
   void getStateInformation(juce::MemoryBlock &destData) override;
   void setStateInformation(const void *data, int sizeInBytes) override;
@@ -174,6 +188,12 @@ private:
   /// left the wheel in rather than an event.
   float modWheel = 0.0f;
   std::atomic<int> activeVoices{0};
+
+  /// The factory preset the host believes is loaded. Saved with the state so
+  /// that restoring a session does not look like a program change, which a
+  /// host would answer by loading that preset over the top of everything the
+  /// session just restored.
+  int currentProgram = 0;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OvertoniumProcessor)
 };

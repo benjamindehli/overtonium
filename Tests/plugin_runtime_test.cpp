@@ -2630,6 +2630,104 @@ void testStateRoundTrip(OvertoniumProcessor &p) {
       "invalid state is ignored");
 }
 
+/// The factory presets as the host sees them.
+///
+/// Exposing programs is what puts the presets in Logic's own menu, and it also
+/// hands the host a lever it pulls without being asked. A VST3 session restore
+/// sets every parameter, and JUCE makes the program one of them, so the
+/// dangerous case is not choosing a preset: it is reopening a session built on
+/// one. The plugin has to come back with the edits, not with the preset.
+void testPrograms(OvertoniumProcessor &p) {
+  section("Programs");
+
+  const auto names = ovt::presets::names();
+
+  check(p.getNumPrograms() == names.size(),
+        "every factory preset is offered as a program (" +
+            std::to_string(p.getNumPrograms()) + ")");
+  check(p.getProgramName(0) == names[0],
+        "program 0 is named " + names[0].toStdString());
+
+  // Out of range on both sides, since hosts ask about cached indices.
+  check(p.getProgramName(-1).isEmpty() &&
+            p.getProgramName(names.size()).isEmpty(),
+        "an index that does not exist has no name rather than a crash");
+
+  const int chosen = names.indexOf("Wurli");
+  check(chosen > 0, "the preset the rest of this test uses exists");
+
+  p.applyFactoryPreset(chosen);
+  check(p.getCurrentProgram() == chosen,
+        "choosing a preset reports it as the current program");
+
+  // A parameter the presets actually set. Master gain is a session parameter
+  // and presets leave it alone, so an edit to it survives everything here and
+  // would make every check below pass without proving anything.
+  auto *volume = p.apvts.getParameter(
+      ovt::params::oscParamId(ovt::params::volumeSuffix, 0));
+
+  const auto edited = [volume] { return volume->getValue(); };
+
+  // What a player does next: load a preset, then change something.
+  const float fromPreset = edited();
+  const float editedTo = fromPreset > 0.5f ? 0.1f : 0.9f;
+  volume->setValueNotifyingHost(editedTo);
+
+  check(std::abs(edited() - fromPreset) > 0.05f,
+        "the edit moved the parameter away from what the preset set");
+
+  juce::MemoryBlock saved;
+  p.getStateInformation(saved);
+
+  // Somewhere else entirely, so a restore that quietly does nothing fails
+  // rather than passes.
+  p.applyFactoryPreset(names.indexOf("Cathedral"));
+
+  p.setStateInformation(saved.getData(), (int)saved.getSize());
+
+  check(p.getCurrentProgram() == chosen,
+        "the current program survives a state round trip");
+  check(std::abs(edited() - editedTo) < 0.005f,
+        "an edit made on top of a preset survives a state round trip");
+
+  // The host now does what a host does after restoring: tells the plugin which
+  // program the session was on. It is the one already loaded, so this has to
+  // be a no-op. Were it not, the edit above would be replaced by the pristine
+  // preset and the session would open sounding wrong.
+  p.setCurrentProgram(chosen);
+
+  check(std::abs(edited() - editedTo) < 0.005f,
+        "the host re-selecting the current program does not discard the edit");
+
+  // The plugin's own menu is the other way round. Picking the preset you are
+  // already on is how you get back to it.
+  p.applyFactoryPreset(chosen);
+
+  check(std::abs(edited() - fromPreset) < 0.005f,
+        "choosing the same preset in the plugin's menu does reload it");
+
+  // A state from before programs existed has no stored index.
+  const int before = p.getCurrentProgram();
+  p.applyFactoryPreset(names.indexOf("Big Saw"));
+  juce::MemoryBlock legacy;
+  p.getStateInformation(legacy);
+
+  if (auto xml = juce::AudioProcessor::getXmlFromBinary(legacy.getData(),
+                                                        (int)legacy.getSize())) {
+    xml->removeAttribute("overtoniumProgram");
+    juce::MemoryBlock stripped;
+    juce::AudioProcessor::copyXmlToBinary(*xml, stripped);
+
+    p.setCurrentProgram(before == 0 ? 1 : 0);
+    p.setStateInformation(stripped.getData(), (int)stripped.getSize());
+
+    check(p.getCurrentProgram() == 0,
+          "a state saved without a program lands on the first one");
+  } else {
+    check(false, "the legacy state could be reread");
+  }
+}
+
 void testSoloAndMute(OvertoniumProcessor &p) {
   section("Solo and mute");
 
@@ -2702,6 +2800,7 @@ int main() {
   testUndo(processor);
   testBusLayouts(processor);
   testStateRoundTrip(processor);
+  testPrograms(processor);
   testSoloAndMute(processor);
 
   std::printf("\n%d checks, %d failures\n", checks, failures);
