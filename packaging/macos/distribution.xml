@@ -22,17 +22,23 @@
         <line choice="app"/>
     </choices-outline>
 
-    <choice id="vst3" title="VST3 plugin"
+    <!-- visible and start_selected are spelt out rather than left to their
+         defaults. A choice is not shown unless it says so, so without this the
+         customise pane comes up empty and the chooser does not exist. -->
+    <choice id="vst3" title="VST3 plugin" visible="true"
+            start_selected="true" start_enabled="true"
             description="Installs Overtonium.vst3 into /Library/Audio/Plug-Ins/VST3.">
         <pkg-ref id="com.dehlimusikk.overtonium.vst3"/>
     </choice>
 
-    <choice id="au" title="Audio Unit"
+    <choice id="au" title="Audio Unit" visible="true"
+            start_selected="true" start_enabled="true"
             description="Installs Overtonium.component into /Library/Audio/Plug-Ins/Components. Logic and GarageBand only rescan after a restart.">
         <pkg-ref id="com.dehlimusikk.overtonium.au"/>
     </choice>
 
-    <choice id="app" title="Standalone application"
+    <choice id="app" title="Standalone application" visible="true"
+            start_selected="true" start_enabled="true"
             description="Installs Overtonium.app into /Applications, for playing without a host.">
         <pkg-ref id="com.dehlimusikk.overtonium.app"/>
     </choice>

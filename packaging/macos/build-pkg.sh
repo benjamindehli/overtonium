@@ -33,14 +33,29 @@ component() {
   mkdir -p "$work/root/$format"
   cp -R "$src" "$work/root/$format/"
 
+  # Installer relocates a bundle by default: if Spotlight finds the same
+  # bundle identifier anywhere on the disk, the install goes there instead of
+  # the location asked for above. On a machine that has ever built this from
+  # source that means the copy in the build tree gets overwritten and nothing
+  # arrives where the user was told it would. Version checking has to go the
+  # same way, or a locally built copy with a higher version silently wins.
+  #
+  # Each root holds exactly one bundle, which is why index zero is the whole
+  # story here.
+  local plist="$work/$format-component.plist"
+  pkgbuild --analyze --root "$work/root/$format" "$plist"
+  plutil -replace 0.BundleIsRelocatable -bool NO "$plist"
+  plutil -replace 0.BundleIsVersionChecked -bool NO "$plist"
+
   pkgbuild \
     --root "$work/root/$format" \
+    --component-plist "$plist" \
     --identifier "$identifier" \
     --version "$version" \
     --install-location "$location" \
     "$work/$format.pkg"
 
-  echo "built $format.pkg"
+  echo "built $format.pkg, fixed to $location"
 }
 
 component VST3 Overtonium.vst3 com.dehlimusikk.overtonium.vst3 \
