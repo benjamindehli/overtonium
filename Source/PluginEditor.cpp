@@ -477,7 +477,7 @@ void OvertoniumEditor::maybeCheckForUpdates() {
       topBar.setUpdateAvailable(release->version, release->url);
   };
 
-  updateCheck.start(JucePlugin_VersionString);
+  updateCheck.start(OVERTONIUM_VERSION);
 }
 
 void OvertoniumEditor::offerUpdateCheck() {
