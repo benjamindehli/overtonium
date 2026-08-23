@@ -2,6 +2,10 @@ build/
 build-*/
 cmake-build-*/
 _deps/
+
+# Where the release workflow stages the installers and zips, and where
+# gh run download puts them when they are fetched back to attach by hand.
+archives/
 .claude/
 CLAUDE.md
 temp/

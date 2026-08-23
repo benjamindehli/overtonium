@@ -408,51 +408,22 @@ jobs:
         run: |
           ls -l archives
 
-          cat > notes.md <<'NOTES'
-          ## Installing
-
-          Take the installer for your platform. The zip beside it holds the
-          same builds loose, for anyone without administrator rights or with
-          plugin folders of their own.
-
-          | Platform | Installer | Formats |
-          |---|---|---|
-          | macOS | `.pkg`, with a chooser | VST3, Audio Unit, Standalone |
-          | Windows | `.exe` | VST3, Standalone |
-          | Linux | none, use the zip | VST3, LV2, Standalone |
-
-          The macOS build is a universal binary and runs on both Apple Silicon
-          and Intel. Logic and GarageBand only rescan Audio Units after a
-          restart.
-
-          On Linux the zip's contents go in `~/.vst3` and `~/.lv2`.
-
-          ### What has actually been tried
-
-          All three platforms are built and run through the test suite here on
-          every push, and macOS is the only one where the plugin has been
-          loaded into a host. The Audio Unit and the VST3 pass `auval` and
-          pluginval at strictness 8 there. Nobody has run the Windows or Linux
-          builds in a DAW yet, so treat those as untried and please open an
-          issue with whatever you find.
-
-          ### Windows will warn you
-
-          The Windows installer is not signed, so SmartScreen will say the
-          publisher is unknown. Choose "More info" and then "Run anyway". If
-          you would rather not, build from source: the readme says how, and it
-          takes one CMake command.
-
-          ### macOS
-
-          The installer is signed and notarised, so it should open without a
-          warning. If it does not, the release was built before the signing
-          certificates were in place, and right-clicking it and choosing Open
-          gets past Gatekeeper.
-          NOTES
-
-          gh release create "$GITHUB_REF_NAME" \
-            --title "Overtonium $GITHUB_REF_NAME" \
-            --notes-file notes.md \
-            --verify-tag \
-            archives/*
+          # Idempotent, because the release may already exist. Writing the
+          # notes by hand in the web interface creates it, and this job then
+          # arrives at a published tag with no release of its own to attach
+          # anything to. Uploading to whichever release is there covers that,
+          # and covers a re-run after a later step failed, which is the other
+          # way this step meets a release it did not create.
+          #
+          # Creating and uploading are kept apart so hand-written notes are
+          # never overwritten by the file. Whoever wrote them meant them.
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "$GITHUB_REF_NAME is already published, attaching the archives"
+            gh release upload "$GITHUB_REF_NAME" archives/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --title "Overtonium $GITHUB_REF_NAME" \
+              --notes-file RELEASE_NOTES.md \
+              --verify-tag \
+              archives/*
+          fi
