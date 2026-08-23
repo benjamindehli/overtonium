@@ -74,6 +74,16 @@ juce_add_plugin(Overtonium
     NEEDS_MIDI_OUTPUT           FALSE
     IS_MIDI_EFFECT              FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
+    # The update check reaches an https address, and only on Linux does that
+    # take a dependency. macOS and Windows go through the platform's own
+    # networking whatever this says, while JUCE's Linux fallback is a plain
+    # socket with no TLS in it: it knows port 80 and nothing else.
+    #
+    # JUCE's own switch rather than defining JUCE_USE_CURL by hand. It sets the
+    # macro and links pkgconfig_JUCE_CURL_LINUX_DEPS together, which is the
+    # half that is easy to forget: the define alone compiles and then fails at
+    # the link with every curl symbol missing.
+    NEEDS_CURL                  TRUE
     COPY_PLUGIN_AFTER_BUILD     ${OVERTONIUM_INSTALL_AFTER_BUILD}
     VST3_CATEGORIES             Instrument Synth
     AU_MAIN_TYPE                kAudioUnitType_MusicDevice
@@ -123,17 +133,6 @@ target_compile_definitions(Overtonium PUBLIC
     # build, so anything shared between the two cannot reach it. This comes
     # from project(), which the release workflow already checks against the tag.
     OVERTONIUM_VERSION="${PROJECT_VERSION}")
-
-# The update check needs to reach an https address, and only on Linux does that
-# take a dependency. macOS and Windows go through the platform's own networking
-# whatever this says. JUCE's own Linux fallback is a plain socket with no TLS in
-# it at all: it knows port 80 and nothing else, so without curl the check cannot
-# work there.
-if(UNIX AND NOT APPLE)
-    target_compile_definitions(Overtonium PUBLIC JUCE_USE_CURL=1)
-else()
-    target_compile_definitions(Overtonium PUBLIC JUCE_USE_CURL=0)
-endif()
 
 if(APPLE)
     # Backs the editor with a CAMetalLayer instead of the ordinary CoreGraphics one.
@@ -227,6 +226,8 @@ if(OVERTONIUM_BUILD_TESTS)
 
     target_include_directories(overtonium_runtime_test PRIVATE Source)
 
+    # No curl here, unlike the plugin. The tests compile UpdateCheck but never
+    # fetch anything, so the test build does not need libcurl on the machine.
     target_compile_definitions(overtonium_runtime_test PUBLIC
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
