@@ -2644,11 +2644,21 @@ void testPrograms(OvertoniumProcessor &p) {
 
   const auto names = ovt::presets::names();
 
-  check(p.getNumPrograms() == names.size(),
-        "every factory preset is offered as a program (" +
+  // Programs are the Audio Unit's alone. Everything else reports one, so the
+  // VST3 wrapper does not publish a Program parameter that would rewrite every
+  // other parameter when a host moves it. This harness is a console app, so
+  // the wrapper type is undefined and the count is the collapsed one.
+  check(p.wrapperType != juce::AudioProcessor::wrapperType_AudioUnit,
+        "the test harness is not the Audio Unit");
+  check(p.getNumPrograms() == 1,
+        "formats other than the Audio Unit report a single program (" +
             std::to_string(p.getNumPrograms()) + ")");
+
   check(p.getProgramName(0) == names[0],
         "program 0 is named " + names[0].toStdString());
+  check(p.getProgramName(names.size() - 1) == names[names.size() - 1],
+        "names are readable past the program count, which is what a host "
+        "asking about a cached index does");
 
   // Out of range on both sides, since hosts ask about cached indices.
   check(p.getProgramName(-1).isEmpty() &&
@@ -2658,9 +2668,22 @@ void testPrograms(OvertoniumProcessor &p) {
   const int chosen = names.indexOf("Wurli");
   check(chosen > 0, "the preset the rest of this test uses exists");
 
+  // The plugin's own menu reaches every preset whatever the program count
+  // says. Guarding this path with getNumPrograms would leave a VST3 able to
+  // load nothing but the first one.
   p.applyFactoryPreset(chosen);
   check(p.getCurrentProgram() == chosen,
-        "choosing a preset reports it as the current program");
+        "the plugin's own menu reaches a preset past the program count");
+
+  p.applyFactoryPreset(names.size() - 1);
+  check(p.getCurrentProgram() == names.size() - 1,
+        "including the last one");
+
+  p.applyFactoryPreset(names.size());
+  check(p.getCurrentProgram() == names.size() - 1,
+        "and an index past the end changes nothing");
+
+  p.applyFactoryPreset(chosen);
 
   // A parameter the presets actually set. Master gain is a session parameter
   // and presets leave it alone, so an edit to it survives everything here and

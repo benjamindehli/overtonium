@@ -322,7 +322,20 @@ void OvertoniumProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 }
 
 int OvertoniumProcessor::getNumPrograms() {
-  return ovt::presets::names().size();
+  // The Audio Unit only, and that is the whole reason this exists: Logic and
+  // GarageBand read factory presets through the program interface and through
+  // nothing else, so without it their preset menus list one entry.
+  //
+  // Every other format gets one. A program count above one makes JUCE's VST3
+  // wrapper publish an automatable "Program" parameter, and moving that
+  // parameter rewrites all six hundred and seventy of the others. That is a
+  // poor thing to hand an automation lane, it changes the parameter set of a
+  // plugin already released without it, and pluginval's state restoration
+  // test fails against it. VST3 hosts have preset handling of their own and
+  // lose nothing, since the plugin's own preset menu reaches all sixteen on
+  // every format regardless.
+  return wrapperType == wrapperType_AudioUnit ? ovt::presets::names().size()
+                                              : 1;
 }
 
 const juce::String OvertoniumProcessor::getProgramName(int index) {
@@ -350,7 +363,10 @@ void OvertoniumProcessor::setCurrentProgram(int index) {
 }
 
 void OvertoniumProcessor::applyFactoryPreset(int index) {
-  if (!juce::isPositiveAndBelow(index, getNumPrograms()))
+  // Against the number of presets, not getNumPrograms. Those differ on every
+  // format except the Audio Unit, and this is the path the plugin's own menu
+  // takes, which reaches all sixteen everywhere.
+  if (!juce::isPositiveAndBelow(index, ovt::presets::names().size()))
     return;
 
   currentProgram = index;
@@ -386,7 +402,8 @@ void OvertoniumProcessor::setStateInformation(const void *data,
       // which is the same answer the old build gave.
       const int saved = tree.getProperty(kCurrentProgramProperty, 0);
       currentProgram =
-          juce::isPositiveAndBelow(saved, getNumPrograms()) ? saved : 0;
+          juce::isPositiveAndBelow(saved, ovt::presets::names().size()) ? saved
+                                                                       : 0;
 
       apvts.replaceState(tree);
     }
