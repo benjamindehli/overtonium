@@ -101,7 +101,7 @@ cmake --build build --target overtonium_dsp_test
 
 They cover the tuning table, blend endpoints, sine table accuracy, the anti-aliasing guard, envelope behaviour, mute and solo, click-free parameter changes, voice allocation, modulation and the two master effects, and they finish by printing a CPU benchmark.
 
-There is a second target, `overtonium_runtime_test`, which builds the plugin sources as a console app and exercises parameter wiring, MIDI handling, the factory presets, user preset round-tripping, bus layouts, undo and state round-tripping. It never opens an editor, so it runs on a machine with no display. Both targets are registered with CTest, so `ctest` from the build directory runs them together.
+There is a second target, `overtonium_runtime_test`, which builds the plugin sources as a console app and exercises parameter wiring, MIDI handling, the factory presets, user preset round-tripping, bus layouts, undo and state round-tripping. The editors it opens are never put on the desktop, so it runs on a machine with no display. Both targets are registered with CTest, so `ctest` from the build directory runs them together.
 
 The audio thread allocates nothing. A host is allowed to hand over a bigger block than the one it promised in `prepareToPlay`, and growing the scratch buffer to fit would take the allocator's lock on the audio thread, where whatever the message thread is doing can make it wait. The block is cut into pieces the scratch already holds instead, and the scratch is given a floor of 512 frames so a host that promises very little and delivers a lot is not cut into a great many of them. The seam has to be inaudible for that to be worth doing, so the test renders the same passage twice, once to a host that keeps its word and once to a host that promised a sixteenth of what it sent, and compares them sample by sample. They come out identical, sample for sample. The patch it uses has no random modulation in it, because drift is a random walk redrawn once per control block and those blocks fall in different places when a block is cut up, so a patch carrying drift would differ for reasons that have nothing to do with the cutting.
 
@@ -148,7 +148,24 @@ The Windows installer is not signed, so SmartScreen tells the user the publisher
 
 The shared header, nav and footer are repeated in each page and have to be kept in step by hand. That is the price of having no build step, and it was the deliberate choice over a generator whose output would have to be committed anyway.
 
-The screenshots are rendered rather than captured. The plugin has no dependency on a display, so a scratch program builds the editor, plays a chord into it, hands the strips the levels the engine measured, and writes the window out with `createComponentSnapshot`. That means the pictures can be regenerated after a layout change instead of going stale, and it works on a machine with no window server.
+The screenshots are rendered rather than captured. The plugin has no dependency on a display, so `Tools/render_docs_images.cpp` builds the editor, plays a chord into it, hands the strips the levels the engine measured, and writes the window out with `createComponentSnapshot`. That means the pictures can be regenerated after a layout change instead of going stale, and it works on a machine with no window server.
+
+```
+cmake --build build --target overtonium_render_docs
+./build/overtonium_render_docs_artefacts/overtonium_render_docs out
+```
+
+That writes the window, the six-channel detail and the top bar. Where each crop falls comes from `kGutterWidth`, `kStripWidth` and `TopBar::heightForWidth` rather than from numbers typed in, so a taller bar or a wider strip moves the crops with it instead of slicing one through the middle of a row. A second argument scales the window, and it is a genuine redraw rather than an upscale, which is where artwork needing the window larger than the page shows it comes from.
+
+It writes PNG, because JUCE has no WebP encoder, so producing what the pages actually load is a second step with a lossless encoder:
+
+```
+cwebp -lossless out/overtonium.png -o docs/overtonium.webp
+```
+
+Regenerating always shows a diff, even with nothing changed. DRIFT is random per voice, so the meters and the lamps land somewhere slightly different every run, which moves about one percent of the pixels. Everything that is a setting rather than a measurement comes out identical, the tuning readouts included.
+
+The target is built by default so that it cannot quietly stop compiling, which is how the program that made the first set of pictures was lost. `-DOVERTONIUM_BUILD_TOOLS=OFF` skips it.
 
 The pages load WebP, encoded losslessly, which is a third smaller than the PNG for a screenshot and pixel-identical. Lossy is worse here rather than better: the panel grain is high-frequency noise, and at quality 95 the window shot comes out larger than the PNG. Some images in `docs/` are never loaded by a browser at all. They are the `og:image` files, and they avoid WebP because social card renderers cannot be relied on to read it. `overtonium.png` and `overtonium-strips.png` are the screenshots the inner pages point at, so regenerating a screenshot means writing the PNG as well as the WebP. `overtonium-card.jpg` is the front page's card, composed at the 1200x630 every renderer expects, and it is a JPEG because the graded background is grainy enough that the PNG of it runs four times the size for no visible gain.
 

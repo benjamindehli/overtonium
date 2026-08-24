@@ -216,8 +216,8 @@ if(OVERTONIUM_BUILD_TESTS)
     add_test(NAME dsp COMMAND overtonium_dsp_test)
 
     # Headless integration test: builds the plugin sources as a console app and exercises
-    # parameter wiring, MIDI, presets, bus layouts and state round-tripping. It never
-    # creates an editor, so it runs fine on a machine with no display.
+    # parameter wiring, MIDI, presets, bus layouts and state round-tripping. The editors it
+    # opens are never put on the desktop, so it runs fine on a machine with no display.
     juce_add_console_app(overtonium_runtime_test PRODUCT_NAME "overtonium_runtime_test")
 
     target_sources(overtonium_runtime_test PRIVATE
@@ -248,4 +248,42 @@ if(OVERTONIUM_BUILD_TESTS)
     overtonium_set_warnings_as_errors(overtonium_runtime_test)
 
     add_test(NAME plugin COMMAND overtonium_runtime_test)
+endif()
+
+# ------------------------------------------------------------------------------------------
+# The renderer behind the pictures on the project page.
+#
+# On by default so that it is compiled whenever anything else is. A tool that only builds
+# when someone remembers to ask for it is a tool that stops building, and this one already
+# went missing once. Turn it off with -DOVERTONIUM_BUILD_TOOLS=OFF if the extra link is not
+# worth it. CONTRIBUTING.md covers running it.
+# ------------------------------------------------------------------------------------------
+option(OVERTONIUM_BUILD_TOOLS "Build the docs image renderer" ON)
+
+if(OVERTONIUM_BUILD_TOOLS)
+    juce_add_console_app(overtonium_render_docs PRODUCT_NAME "overtonium_render_docs")
+
+    target_sources(overtonium_render_docs PRIVATE
+        Tools/render_docs_images.cpp
+        ${OVERTONIUM_SOURCES})
+
+    target_include_directories(overtonium_render_docs PRIVATE Source)
+
+    # Same reasoning as the runtime test: UpdateCheck is compiled but never fetches, so the
+    # machine building this does not need libcurl.
+    target_compile_definitions(overtonium_render_docs PUBLIC
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0
+        JUCE_STANDALONE_APPLICATION=1
+        OVERTONIUM_VERSION="${PROJECT_VERSION}")
+
+    target_link_libraries(overtonium_render_docs
+        PRIVATE
+            OvertoniumResources
+            juce::juce_audio_utils
+        PUBLIC
+            juce::juce_recommended_config_flags
+            juce::juce_recommended_warning_flags)
+
+    overtonium_set_warnings_as_errors(overtonium_render_docs)
 endif()
