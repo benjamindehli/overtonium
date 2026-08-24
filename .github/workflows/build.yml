@@ -178,11 +178,15 @@ jobs:
         run: |
           vst3=build/Overtonium_artefacts/Release/VST3/Overtonium.vst3
 
-          # Chosen here rather than in a ${{ }} ternary. That idiom returns its
-          # third operand whenever the second is falsy, and 0 is the most
-          # likely value in the language to be treated that way, which would
-          # quietly pin the scheduled run as well and cost exactly the coverage
-          # it exists to provide.
+          # Chosen here rather than in a workflow expression. The usual
+          # "cond and A or B" idiom returns B whenever A is falsy, and 0 is
+          # the most likely value in that language to be treated that way,
+          # which would quietly pin the scheduled run as well and cost exactly
+          # the coverage it exists to provide.
+          #
+          # Writing that idiom out here is not possible either: expressions are
+          # substituted into a run block before the shell sees it, comments
+          # included, so an example of one in a comment is evaluated.
           #
           # pluginval reads a seed of 0 as "pick one" (PluginTests.h), and
           # prints whichever it picked either way.
