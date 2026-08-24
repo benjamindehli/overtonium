@@ -1,9 +1,19 @@
 #include "PluginProcessor.h"
 #include "Presets.h"
 
+juce::AudioProcessor::BusesProperties OvertoniumProcessor::buses() {
+  auto layout = BusesProperties().withOutput(
+      "Output", juce::AudioChannelSet::stereo(), true);
+
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    layout = layout.withOutput("H" + juce::String(i + 1),
+                               juce::AudioChannelSet::mono(), false);
+
+  return layout.withOutput("Noise", juce::AudioChannelSet::mono(), false);
+}
+
 OvertoniumProcessor::OvertoniumProcessor()
-    : juce::AudioProcessor(BusesProperties().withOutput(
-          "Output", juce::AudioChannelSet::stereo(), true)),
+    : juce::AudioProcessor(buses()),
       apvts(*this, &undoManager, "OVERTONIUM",
             ovt::params::createParameterLayout()) {
   paramCache.connect(apvts);
@@ -19,6 +29,9 @@ void OvertoniumProcessor::prepareToPlay(double sampleRate,
   // pieces. Two channels of 512 frames is four kilobytes.
   scratch.setSize(2, juce::jmax(512, maximumExpectedSamplesPerBlock), false,
                   true, true);
+  tapScratch.setSize(ovt::kNumHarmonics + 1,
+                     juce::jmax(512, maximumExpectedSamplesPerBlock), false,
+                     true, true);
   pitchBendNormalised = 0.0f;
   channelPressure = 0.0f;
   modWheel = 0.0f;
@@ -121,8 +134,23 @@ bool OvertoniumProcessor::isBusesLayoutSupported(
     return false;
 
   const auto out = layouts.getMainOutputChannelSet();
-  return out == juce::AudioChannelSet::mono() ||
-         out == juce::AudioChannelSet::stereo();
+
+  if (out != juce::AudioChannelSet::mono() &&
+      out != juce::AudioChannelSet::stereo())
+    return false;
+
+  // Any subset of the channel outputs, each either off or the one mono
+  // channel it was declared with. Any subset rather than all or nothing,
+  // since wanting two partials out and the rest in the mix is a reasonable
+  // thing to ask for and costs nothing to allow.
+  for (int i = 1; i < layouts.outputBuses.size(); ++i) {
+    const auto &bus = layouts.outputBuses.getReference(i);
+
+    if (!bus.isDisabled() && bus != juce::AudioChannelSet::mono())
+      return false;
+  }
+
+  return true;
 }
 
 double OvertoniumProcessor::getTailLengthSeconds() const {
@@ -247,8 +275,17 @@ void OvertoniumProcessor::renderSegment(int scratchOffset, int numSamples) {
   if (numSamples <= 0)
     return;
 
+  // Only the channels a host actually asked for. A null entry costs the render
+  // nothing, so a plain stereo instance does exactly the work it always did.
+  ovt::ChannelTaps taps;
+
+  for (int i = 0; i < ovt::kNumHarmonics + 1; ++i)
+    if (const auto *bus = getBus(false, i + 1);
+        bus != nullptr && bus->isEnabled())
+      taps.out[(size_t)i] = tapScratch.getWritePointer(i, scratchOffset);
+
   engine.render(scratch.getWritePointer(0, scratchOffset),
-                scratch.getWritePointer(1, scratchOffset), numSamples,
+                scratch.getWritePointer(1, scratchOffset), taps, numSamples,
                 currentParams);
 }
 
@@ -311,20 +348,36 @@ void OvertoniumProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     renderSegment(position - done, chunkEnd - position);
 
     // ---- fan the stereo render out to whatever the host asked for -----------
-    const int numOut = buffer.getNumChannels();
+    //
+    // The main bus only. Everything past it is a channel output and is filled
+    // below, so the old blanket clear of channels 2 and up would wipe them.
+    auto main = getBusBuffer(buffer, false, 0);
+    const int numOut = main.getNumChannels();
     const auto *left = scratch.getReadPointer(0);
     const auto *right = scratch.getReadPointer(1);
 
     if (numOut == 1) {
-      auto *dest = buffer.getWritePointer(0, done);
+      auto *dest = main.getWritePointer(0, done);
       for (int n = 0; n < length; ++n)
         dest[n] = 0.5f * (left[n] + right[n]);
     } else if (numOut >= 2) {
-      buffer.copyFrom(0, done, left, length);
-      buffer.copyFrom(1, done, right, length);
+      main.copyFrom(0, done, left, length);
+      main.copyFrom(1, done, right, length);
 
       for (int ch = 2; ch < numOut; ++ch)
-        buffer.clear(ch, done, length);
+        main.clear(ch, done, length);
+    }
+
+    for (int i = 0; i < ovt::kNumHarmonics + 1; ++i) {
+      const auto *bus = getBus(false, i + 1);
+
+      if (bus == nullptr || !bus->isEnabled())
+        continue;
+
+      auto out = getBusBuffer(buffer, false, i + 1);
+
+      if (out.getNumChannels() > 0)
+        out.copyFrom(0, done, tapScratch.getReadPointer(i), length);
     }
 
     done = chunkEnd;

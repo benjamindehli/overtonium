@@ -70,6 +70,14 @@ The meters and lamps are the only things that move on their own, so they set the
 
 `JUCE_COREGRAPHICS_RENDER_WITH_MULTIPLE_PAINT_CALLS` is set for Apple builds in `CMakeLists.txt`. Without it CoreGraphics answers a list of scattered dirty rectangles by redrawing the one rectangle enclosing them, which for this layout is the whole window, and none of the care above shows up.
 
+## Channel outputs
+
+The plugin declares the stereo mix plus one mono output per channel, all of the extras disabled, so a host sees a plain stereo instrument unless it asks for more. `isBusesLayoutSupported` accepts any subset of them.
+
+The render carries a `ChannelTaps`, an array of destination pointers with one entry per channel and null for the ones nobody wanted. It is threaded from `render` down to the per-partial loop in `Voice::render`, where the write is chosen once per partial by instantiating the loop twice rather than branching once per sample. That is what keeps a stereo-only instance costing exactly what it did before the feature existed.
+
+The lo-fi path needs its own copy of the arrangement: it renders the pool at a reduced rate into scratch and holds the result between frames, so each tap has a low-rate scratch and a held value beside the mix's.
+
 ## Parameters and state
 
 Parameters are declared once in `PluginParameters.cpp` and reached by string id, built from a suffix and a channel index by `oscParamId`. Adding a control means adding it there, giving it a `Row`, and placing that row in a section.

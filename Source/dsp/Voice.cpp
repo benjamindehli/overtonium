@@ -1,5 +1,7 @@
 #include "Voice.h"
 
+#include <type_traits>
+
 #include <algorithm>
 
 #include "SineTable.h"
@@ -181,8 +183,8 @@ void Voice::steal() noexcept {
   noise.env.forceRelease(0.004f);
 }
 
-void Voice::render(float *left, float *right, int numSamples,
-                   const SynthParams &p) noexcept {
+void Voice::render(float *left, float *right, const ChannelTaps &taps,
+                   int numSamples, const SynthParams &p) noexcept {
   if (!active || numSamples <= 0)
     return;
 
@@ -379,27 +381,54 @@ void Voice::render(float *left, float *right, int numSamples,
       float *l = left + start;
       float *r = right + start;
 
+      // Null unless the host asked for this channel on its own.
+      float *tap = taps.out[(size_t)i] != nullptr ? taps.out[(size_t)i] + start
+                                                  : nullptr;
+
       double ph = pt.phase;
       const float pl = panL[(size_t)i];
       const float pr = panR[(size_t)i];
 
-      for (int n = 0; n < len; ++n) {
-        const float s = sine(ph) * pt.env.tick() * g;
+      // One body, compiled twice, chosen once per partial rather than tested
+      // once per sample. A plain `if (tap)` inside the loop measured at about
+      // three percent of the whole voice render with every tap null, which is
+      // a real cost for a feature nobody switched on. This is the same source
+      // either way, so the two cannot drift apart.
+      const auto run = [&](auto writesTap) {
+        for (int n = 0; n < len; ++n) {
+          const float s = sine(ph) * pt.env.tick() * g;
 
-        l[n] += s * pl;
-        r[n] += s * pr;
+          l[n] += s * pl;
+          r[n] += s * pr;
 
-        ph += inc;
-        if (ph >= 1.0)
-          ph -= 1.0;
+          // Before the pan, so the tap is the channel itself rather than its
+          // share of a stereo image.
+          if constexpr (decltype(writesTap)::value)
+            tap[n] += s;
 
-        g += gInc;
-      }
+          ph += inc;
+          if (ph >= 1.0)
+            ph -= 1.0;
+
+          g += gInc;
+        }
+      };
+
+      if (tap != nullptr)
+        run(std::true_type{});
+      else
+        run(std::false_type{});
 
       pt.phase = ph;
     }
 
-    renderNoise(left + start, right + start, len, p, pressure);
+    // The noise channel's tap sits after the partials, so the array is one
+    // entry per channel in the order the mixer shows them.
+    float *noiseTap = taps.out[(size_t)ChannelTaps::noiseIndex];
+
+    renderNoise(left + start, right + start,
+                noiseTap != nullptr ? noiseTap + start : nullptr, len, p,
+                pressure);
   }
 
   active = noise.env.isActive() ||
@@ -412,7 +441,7 @@ void Voice::render(float *left, float *right, int numSamples,
   }
 }
 
-void Voice::renderNoise(float *left, float *right, int len,
+void Voice::renderNoise(float *left, float *right, float *tap, int len,
                         const SynthParams &p, float pressure) noexcept {
   const auto &np = p.noise;
 
@@ -491,6 +520,9 @@ void Voice::renderNoise(float *left, float *right, int len,
 
     left[n] += s * panL;
     right[n] += s * panR;
+
+    if (tap != nullptr)
+      tap[n] += s;
 
     g += gInc;
   }

@@ -2579,20 +2579,146 @@ void testUndo(OvertoniumProcessor &p) {
 void testBusLayouts(OvertoniumProcessor &p) {
   section("Bus layouts");
 
-  juce::AudioProcessor::BusesLayout stereo;
-  stereo.outputBuses.add(juce::AudioChannelSet::stereo());
-  check(p.checkBusesLayoutSupported(stereo), "stereo output supported");
+  // Every layout has to name all the buses the plugin declares, not just the
+  // ones it wants: a channel output that is switched off is an empty set
+  // rather than an absent entry.
+  const auto layout = [](juce::AudioChannelSet main, bool tapsOn) {
+    juce::AudioProcessor::BusesLayout out;
+    out.outputBuses.add(main);
 
-  juce::AudioProcessor::BusesLayout mono;
-  mono.outputBuses.add(juce::AudioChannelSet::mono());
-  check(p.checkBusesLayoutSupported(mono), "mono output supported");
+    for (int i = 0; i < ovt::kNumHarmonics + 1; ++i)
+      out.outputBuses.add(tapsOn ? juce::AudioChannelSet::mono()
+                                 : juce::AudioChannelSet::disabled());
 
-  juce::AudioProcessor::BusesLayout surround;
-  surround.outputBuses.add(juce::AudioChannelSet::create5point1());
-  check(!p.checkBusesLayoutSupported(surround), "5.1 output rejected");
+    return out;
+  };
+
+  check(p.getBusCount(false) == ovt::kNumHarmonics + 2,
+        "the mix plus one output per channel (" +
+            std::to_string(p.getBusCount(false)) + ")");
+
+  check(p.checkBusesLayoutSupported(
+            layout(juce::AudioChannelSet::stereo(), false)),
+        "stereo out, channel outputs off");
+  check(
+      p.checkBusesLayoutSupported(layout(juce::AudioChannelSet::mono(), false)),
+      "mono out, channel outputs off");
+  check(p.checkBusesLayoutSupported(
+            layout(juce::AudioChannelSet::stereo(), true)),
+        "stereo out with every channel output on");
+
+  check(!p.checkBusesLayoutSupported(
+            layout(juce::AudioChannelSet::create5point1(), false)),
+        "5.1 main output rejected");
+
+  // A subset, since wanting two channels out and the rest in the mix is a
+  // reasonable thing to ask a host for.
+  {
+    auto some = layout(juce::AudioChannelSet::stereo(), false);
+    some.outputBuses.set(1, juce::AudioChannelSet::mono());
+    some.outputBuses.set(4, juce::AudioChannelSet::mono());
+    check(p.checkBusesLayoutSupported(some), "and any subset of them");
+  }
+
+  // A channel output is one channel. Anything else is a host guessing.
+  {
+    auto wide = layout(juce::AudioChannelSet::stereo(), false);
+    wide.outputBuses.set(1, juce::AudioChannelSet::stereo());
+    check(!p.checkBusesLayoutSupported(wide),
+          "a stereo channel output is rejected");
+  }
+
+  // The default is the plain instrument: nobody who does not ask gets 33 more
+  // outputs in their mixer.
+  int enabled = 0;
+  for (int i = 1; i < p.getBusCount(false); ++i)
+    if (auto *bus = p.getBus(false, i); bus != nullptr && bus->isEnabled())
+      ++enabled;
+
+  check(enabled == 0, "and none of them are on to begin with (" +
+                          std::to_string(enabled) + ")");
 
   check(p.acceptsMidi(), "accepts MIDI");
   check(!p.producesMidi(), "produces no MIDI");
+}
+
+/// The channel outputs end to end, through the host-facing path.
+///
+/// The DSP test covers what a tap carries. This covers the half that only
+/// exists on this side: the bus layout being accepted, the buffer JUCE hands
+/// over being sliced correctly, and the main mix surviving the fan-out. Its
+/// own processor, since it changes the bus layout.
+void testChannelOutputs() {
+  section("Channel outputs");
+
+  OvertoniumProcessor p;
+
+  auto layout = p.getBusesLayout();
+  for (int i = 1; i < layout.outputBuses.size(); ++i)
+    layout.outputBuses.set(i, juce::AudioChannelSet::mono());
+
+  check(p.setBusesLayout(layout), "the host can switch the channel outputs on");
+
+  const auto setParam = [&p](const juce::String &id, float plain) {
+    if (auto *q = p.apvts.getParameter(id))
+      q->setValueNotifyingHost(q->convertTo0to1(plain));
+  };
+
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+  setParam(ovt::params::echoOnId, 0.0f);
+  setParam(ovt::params::reverbOnId, 0.0f);
+  setParam(ovt::params::wobbleId, 0.0f);
+
+  // Two partials only, so a tap carrying its neighbour would show.
+  for (int i = 0; i < ovt::kNumHarmonics; ++i) {
+    setParam(ovt::params::oscParamId(ovt::params::volumeSuffix, i),
+             (i == 0 || i == 3) ? 1.0f : 0.0f);
+    setParam(ovt::params::oscParamId(ovt::params::sustainSuffix, i), 1.0f);
+    setParam(ovt::params::oscParamId(ovt::params::velSuffix, i), 0.0f);
+  }
+
+  p.setRateAndBufferSizeDetails(48000.0, 512);
+  p.prepareToPlay(48000.0, 512);
+
+  const int channels = p.getTotalNumOutputChannels();
+  check(channels == 2 + ovt::kNumHarmonics + 1,
+        "the buffer carries the mix and every channel (" +
+            std::to_string(channels) + ")");
+
+  juce::AudioBuffer<float> buffer(channels, 512);
+  juce::MidiBuffer midi;
+  midi.addEvent(juce::MidiMessage::noteOn(1, 45, 0.9f), 0);
+
+  std::vector<float> peak((size_t)channels, 0.0f);
+
+  for (int b = 0; b < 25; ++b) {
+    buffer.clear();
+    p.processBlock(buffer, midi);
+    midi.clear();
+
+    if (b < 10)
+      continue;
+
+    for (int ch = 0; ch < channels; ++ch)
+      peak[(size_t)ch] =
+          std::max(peak[(size_t)ch], buffer.getMagnitude(ch, 0, 512));
+  }
+
+  check(peak[0] > 1.0e-4f && peak[1] > 1.0e-4f,
+        "the stereo mix still comes out of the main bus");
+
+  // Bus 1 is the first channel output, which is channel 2 of the buffer.
+  check(peak[2] > 1.0e-4f, "the first partial has its own output");
+  check(peak[5] > 1.0e-4f, "and so does the fourth");
+
+  int silent = 0;
+  for (int i = 0; i < ovt::kNumHarmonics + 1; ++i)
+    if (i != 0 && i != 3 && peak[(size_t)(2 + i)] < 1.0e-6f)
+      ++silent;
+
+  check(silent == ovt::kNumHarmonics - 1,
+        "and the channels nobody played are silent (" +
+            std::to_string(silent) + ")");
 }
 
 void testStateRoundTrip(OvertoniumProcessor &p) {
@@ -3200,6 +3326,7 @@ int main() {
   testPresetsAreReproducible(processor);
   testUndo(processor);
   testBusLayouts(processor);
+  testChannelOutputs();
   testStateRoundTrip(processor);
   testPrograms(processor);
   testCollapsibleSections();

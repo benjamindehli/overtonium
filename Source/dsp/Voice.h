@@ -179,11 +179,13 @@ public:
 
   /// Adds this voice into the (already-sized) stereo buffers. Master gain is
   /// applied downstream by the engine.
-  void render(float *left, float *right, int numSamples,
+  void render(float *left, float *right, const ChannelTaps &taps,
+              int numSamples,
               const SynthParams &p) noexcept;
 
 private:
-  void renderNoise(float *left, float *right, int len, const SynthParams &,
+  void renderNoise(float *left, float *right, float *tap, int len,
+                   const SynthParams &,
                    float pressure) noexcept;
 
   struct Partial {

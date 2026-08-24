@@ -134,6 +134,18 @@ public:
   const ovt::params::Cache &parameters() const noexcept { return paramCache; }
 
 private:
+  /// The stereo mix, then one mono output per channel of the mixer.
+  ///
+  /// The per-channel outputs start switched off, so the plugin is an ordinary
+  /// stereo instrument until a host asks for more. Mono because a tap is the
+  /// channel itself: pan is an arrangement inside the stereo image and a
+  /// single channel's own output has no image to arrange.
+  ///
+  /// A member rather than a free function because BusesProperties is
+  /// protected, and static because the constructor needs it before there is
+  /// an object.
+  static BusesProperties buses();
+
   void handleMidiMessage(const juce::MidiMessage &m);
 
   /// Everything that is the same whichever kind of controller is playing:
@@ -172,6 +184,14 @@ private:
   /// The engine always writes here first; the host buffer may be mono, stereo
   /// or wider.
   juce::AudioBuffer<float> scratch;
+
+  /// The same again for the per-channel outputs, one mono channel each.
+  ///
+  /// Rendered into here and copied out per chunk, exactly as the mix is, so
+  /// the offsets a split block produces are worked out in one place rather
+  /// than two. Sized once in prepareToPlay, since the audio thread allocates
+  /// nothing.
+  juce::AudioBuffer<float> tapScratch;
 
   /// Parses the channel layout an MPE controller uses and works out what each
   /// note's bend and pressure add up to, master channel included. The voice
