@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # Once a week, so pluginval gets a seed nobody chose. See the validate step.
+  schedule:
+    - cron: "17 6 * * 1"
 
 # Every job here does the same two things: read the repository and check it.
 # Nothing writes a release, comments on a pull request or touches a package, so
@@ -148,10 +151,43 @@ jobs:
           # reads as a wrong path rather than a mysteriously missing command.
           ls -l
 
+      # The seed is pinned on a push and left to chance on the weekly run.
+      #
+      # pluginval randomises its parameter values, so an unpinned gate reports
+      # a different subset of the space every time: a real defect can pass on
+      # Monday and fail on Thursday against code nobody touched, and a failure
+      # is awkward to reproduce. That happened here, and the cause was only
+      # found by re-running one seed by hand.
+      #
+      # The pinned value is that seed. It is the one that caught the factory
+      # presets being exposed to the VST3, so it is known to reach a part of
+      # the space that mattered once, which is a better reason to keep a
+      # number than picking a fresh one.
+      #
+      # Pinning alone would trade a flaky gate for a narrow one, since one seed
+      # explores one path. The scheduled run covers the rest: a failure there
+      # is information rather than a blocked merge, and its log prints the seed
+      # so it can be reproduced exactly.
       - name: Validate the VST3
         shell: bash
         run: |
           vst3=build/Overtonium_artefacts/Release/VST3/Overtonium.vst3
+
+          # Chosen here rather than in a ${{ }} ternary. That idiom returns its
+          # third operand whenever the second is falsy, and 0 is the most
+          # likely value in the language to be treated that way, which would
+          # quietly pin the scheduled run as well and cost exactly the coverage
+          # it exists to provide.
+          #
+          # pluginval reads a seed of 0 as "pick one" (PluginTests.h), and
+          # prints whichever it picked either way.
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
+            seed=0
+          else
+            seed=0x63cc70f
+          fi
+
+          echo "random seed: $seed"
 
           case "$RUNNER_OS" in
             macOS)   run=(./pluginval.app/Contents/MacOS/pluginval) ;;
@@ -162,7 +198,8 @@ jobs:
             Linux)   run=(xvfb-run -a ./pluginval) ;;
           esac
 
-          "${run[@]}" --strictness-level 8 --validate "$vst3"
+          "${run[@]}" --strictness-level 8 --random-seed "$seed" \
+            --validate "$vst3"
 
   format:
     name: Formatting

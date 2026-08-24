@@ -28,6 +28,14 @@ npm run format
 
 `npm run format:check` is what CI runs. Prettier is pinned in `package-lock.json` because its output moves between versions, and a check that disagrees with your copy is worse than no check.
 
+**pluginval.** CI loads the built VST3 into [pluginval](https://github.com/Tracktion/pluginval) at strictness 8 on all three platforms. It is a host that misuses the plugin on purpose, and it reaches things our own tests cannot, since they drive the processor directly rather than through a plugin format. To run it yourself, point it at a built or installed plugin:
+
+```sh
+pluginval --strictness-level 8 --validate ~/Library/Audio/Plug-Ins/VST3/Overtonium.vst3
+```
+
+It randomises its parameter values, so CI pins the seed on a push and leaves it to chance on a weekly scheduled run. A failure prints the seed it used, and passing that back with `--random-seed` reproduces it exactly. That is the only way some of these are reproducible at all.
+
 ## Style
 
 Comments explain why, not what. The repository has a lot of them, and the ones worth having record a measurement, a rejected alternative or a trap: why the lamps merge by row and what the other way cost, why the scratch buffer has a floor, why the program count is what it is on each format. A comment restating the line below it is noise.
