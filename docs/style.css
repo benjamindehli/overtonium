@@ -85,6 +85,69 @@ h1 {
     margin: 6px 0 0;
 }
 
+/* ---- hero ---------------------------------------------------------------- */
+
+/* The front page carries its name inside the hero picture, so its masthead is
+   the section nav on its own with no wordmark to leave room for. */
+header.nav-only {
+    padding-top: 28px;
+}
+
+header.nav-only .sections {
+    margin-top: 0;
+}
+
+/* The wordmark is part of the picture, which is why the h1 is the picture and
+   the offscreen span carries the heading everything else reads. */
+.hero {
+    margin-top: 28px;
+}
+
+.hero h1 {
+    margin: 0;
+}
+
+/* The name is a layer over the picture rather than part of it, so the frame can
+   crop the window as hard as it likes without ever reaching the mark. That is
+   also what lets the mark take a larger share of the width on a phone than on a
+   desktop, which a single flattened image cannot do. */
+.hero-frame {
+    position: relative;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    aspect-ratio: 12 / 5;
+    border: 1px solid var(--outline);
+    border-radius: 6px;
+    background: var(--groove);
+}
+
+/* Texture, and nothing a reader has to make out, so cover may crop it freely. */
+.hero-back {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* The mark carries its own halo, so it needs no drop-shadow here. That halo is
+   also why the width is 66 rather than 62: the glyphs stop at 93% of the
+   canvas and the rest is the glow spreading out. */
+.hero-mark {
+    position: relative;
+    width: 66%;
+    height: auto;
+}
+
+.hero .tagline {
+    margin-top: 20px;
+}
+
+.hero .lead {
+    margin-top: 8px;
+}
+
 .links {
     display: flex;
     flex-wrap: wrap;
@@ -326,8 +389,29 @@ footer a:hover {
         padding-top: 44px;
     }
 
+    header.nav-only {
+        padding-top: 20px;
+    }
+
+    .hero-frame {
+        aspect-ratio: 2 / 1;
+    }
+
     body {
         font-size: 16px;
+    }
+}
+
+/* A narrow screen gets a squarer frame and a proportionally larger mark, so the
+   name stays as readable as it is on a desktop rather than shrinking with the
+   column. */
+@media (max-width: 560px) {
+    .hero-frame {
+        aspect-ratio: 3 / 2;
+    }
+
+    .hero-mark {
+        width: 84%;
     }
 }
 

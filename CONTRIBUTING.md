@@ -152,4 +152,6 @@ The screenshots are rendered rather than captured. The plugin has no dependency 
 
 The pages load WebP, encoded losslessly, which is a third smaller than the PNG for a screenshot and pixel-identical. Lossy is worse here rather than better: the panel grain is high-frequency noise, and at quality 95 the window shot comes out larger than the PNG. Two PNGs stay in `docs/` and are never loaded by a browser: they are the `og:image` for the two pages that have one, since social card renderers cannot be relied on for WebP. Regenerating the screenshots means writing both.
 
+The front page hero is layered rather than flattened. The window shot is a background that `object-fit: cover` crops to the frame, and the wordmark is a separate image with an alpha channel centred over it. Because the stylesheet sizes the mark as a share of the frame, the background can be cropped to any band without the crop ever reaching the name, and the mark can take a larger share of the width on a phone than on a desktop. Flattening the two would give up both.
+
 The stylesheet takes its palette from `Source/UI/Theme.h`, so the page and the instrument stay the same colour.

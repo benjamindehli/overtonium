@@ -142,13 +142,7 @@
     </head>
     <body>
         <div class="page">
-            <header>
-                <h1>
-                    <img class="wordmark" src="overtonium-wordmark.webp" width="2464" height="448" alt="" />
-                    <span class="offscreen">Overtonium, a 32-partial additive overtone synthesiser</span>
-                </h1>
-                <p class="tagline">32-partial overtone synthesiser</p>
-
+            <header class="nav-only">
                 <ul class="sections">
                     <li><a href="./" aria-current="page">Overview</a></li>
                     <li><a href="tuning/">Tuning</a></li>
@@ -159,35 +153,36 @@
             </header>
 
             <main>
-                <section>
+                <section class="hero">
+                    <h1 class="hero-frame">
+                        <img
+                            class="hero-back"
+                            fetchpriority="high"
+                            src="overtonium-hero-back.webp"
+                            srcset="overtonium-hero-back-1180.webp 1180w, overtonium-hero-back.webp 2360w"
+                            sizes="(max-width: 1228px) calc(100vw - 48px), 1180px"
+                            width="2360"
+                            height="1445"
+                            alt=""
+                        />
+                        <img
+                            class="hero-mark"
+                            src="overtonium-hero-mark.webp"
+                            srcset="overtonium-hero-mark-800.webp 800w, overtonium-hero-mark.webp 1600w"
+                            sizes="(max-width: 560px) calc((100vw - 48px) * 0.84), (max-width: 1228px) calc((100vw - 48px) * 0.66), 779px"
+                            width="1600"
+                            height="383"
+                            alt=""
+                        />
+                        <span class="offscreen">Overtonium, a 32-partial additive overtone synthesiser</span>
+                    </h1>
+
+                    <p class="tagline">32-partial overtone synthesiser</p>
+
                     <p class="lead">
                         An additive synthesiser laid out like a 32-channel mixer. Every channel is one sine oscillator locked to a harmonic of the
                         played note, and every channel has its own tuning, envelope, modulation and place in the stereo field.
                     </p>
-
-                    <p>
-                        Additive synthesis usually hides its partials behind a spectrum drawing or a handful of macro controls. This puts all of them
-                        on the surface, as faders, and gives each one the controls a channel on a desk would have. Shaping a sound is mixing it.
-                    </p>
-
-                    <dl class="facts">
-                        <div>
-                            <dt>Formats</dt>
-                            <dd>VST3, Standalone, AU on macOS, LV2 on Linux</dd>
-                        </div>
-                        <div>
-                            <dt>Platforms</dt>
-                            <dd>macOS, Windows, Linux</dd>
-                        </div>
-                        <div>
-                            <dt>Partials</dt>
-                            <dd>32, plus a noise channel</dd>
-                        </div>
-                        <div>
-                            <dt>Licence</dt>
-                            <dd>AGPLv3</dd>
-                        </div>
-                    </dl>
 
                     <ul class="links">
                         <li><a class="primary" href="https://github.com/benjamindehli/overtonium/releases/latest">Download</a></li>
@@ -214,10 +209,35 @@
                         </li>
                         <li><a href="https://store.dehlimusikk.no/">Dehli Musikk</a></li>
                     </ul>
+                </section>
+
+                <section>
+                    <p>
+                        Additive synthesis usually hides its partials behind a spectrum drawing or a handful of macro controls. This puts all of them
+                        on the surface, as faders, and gives each one the controls a channel on a desk would have. Shaping a sound is mixing it.
+                    </p>
+
+                    <dl class="facts">
+                        <div>
+                            <dt>Formats</dt>
+                            <dd>VST3, Standalone, AU on macOS, LV2 on Linux</dd>
+                        </div>
+                        <div>
+                            <dt>Platforms</dt>
+                            <dd>macOS, Windows, Linux</dd>
+                        </div>
+                        <div>
+                            <dt>Partials</dt>
+                            <dd>32, plus a noise channel</dd>
+                        </div>
+                        <div>
+                            <dt>Licence</dt>
+                            <dd>AGPLv3</dd>
+                        </div>
+                    </dl>
 
                     <figure>
                         <img
-                            fetchpriority="high"
                             src="overtonium.webp"
                             alt="The Overtonium window: a top bar of global controls above 32 channel strips and a noise channel, with the meters lit by a held chord."
                             width="1348"
