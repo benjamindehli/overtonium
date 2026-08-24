@@ -53,6 +53,14 @@ void RelativeKnob::stoppedDragging() {
 
 LabelledKnob::LabelledKnob(juce::String captionText, juce::Colour fill)
     : caption(std::move(captionText)) {
+  // The caption is the visible name, so it is the spoken one too. addKnob
+  // overrides it where a caption repeats between groups: three of them say
+  // MIX, and which mix is exactly what a screen reader cannot see.
+  //
+  // The member, not the parameter. The initialiser above moved out of
+  // captionText, so reading it here gives an empty string and a nameless knob.
+  slider.setTitle(caption);
+
   slider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
   slider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
   slider.setColour(juce::Slider::rotarySliderFillColourId, fill);
@@ -693,6 +701,8 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   soloButton.setColour(juce::TextButton::buttonOnColourId, colours::soloOn);
   muteButton.setTooltip("Mute harmonic " + juce::String(info.harmonic));
   soloButton.setTooltip("Solo harmonic " + juce::String(info.harmonic));
+  muteButton.setTitle("Harmonic " + juce::String(info.harmonic) + " mute");
+  soloButton.setTitle("Harmonic " + juce::String(info.harmonic) + " solo");
   addAndMakeVisible(muteButton);
   addAndMakeVisible(soloButton);
 
@@ -723,6 +733,12 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
 }
 
 void ChannelStrip::setUpKnob(LinkableSlider &s, Role role, juce::Colour fill) {
+  // What a screen reader announces. JUCE gives a slider a role and reads its
+  // value out already; the name is the only part it cannot work out, and
+  // without one a mixer of six hundred controls is six hundred things all
+  // called "slider".
+  s.setTitle("Harmonic " + juce::String(info.harmonic) + " " + roleLabel(role));
+
   s.setMouseCursor(juce::MouseCursor::ParentCursor);
   s.setSliderStyle(juce::Slider::RotaryVerticalDrag);
   s.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
@@ -734,6 +750,8 @@ void ChannelStrip::setUpKnob(LinkableSlider &s, Role role, juce::Colour fill) {
 }
 
 void ChannelStrip::setUpFader(LinkableSlider &s, Role role, juce::Colour fill) {
+  s.setTitle("Harmonic " + juce::String(info.harmonic) + " " + roleLabel(role));
+
   s.setMouseCursor(juce::MouseCursor::ParentCursor);
   s.setSliderStyle(juce::Slider::LinearVertical);
   s.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);

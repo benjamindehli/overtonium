@@ -2944,6 +2944,68 @@ void testUpdateCheckIsQuiet(OvertoniumProcessor &p) {
         "and so does one on an instance that has been used");
 }
 
+/// Every control says what it is.
+///
+/// JUCE reads a control's accessible name from Component::getTitle, gives it a
+/// role and reads its value out on its own. The name is the one part it cannot
+/// work out, and its own documentation says an element with neither a name nor
+/// a description may be skipped by accessibility clients entirely. On a mixer
+/// of six hundred sliders that is the difference between an instrument someone
+/// can use without seeing it and one they cannot.
+///
+/// Buttons are excluded: JUCE falls back to their text, which is why the mute
+/// and solo buttons are named explicitly here anyway. Their text is M and S.
+void testEveryControlIsNamed(OvertoniumProcessor &p) {
+  section("Accessible names");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  editor->setSize(1348, 1000);
+
+  std::vector<std::string> nameless;
+  std::set<std::string> names;
+  int sliders = 0;
+
+  std::function<void(juce::Component &)> walk = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (auto *s = dynamic_cast<juce::Slider *>(child)) {
+        ++sliders;
+
+        if (s->getTitle().isEmpty())
+          nameless.push_back(s->getName().toStdString());
+        else
+          names.insert(s->getTitle().toStdString());
+      }
+
+      walk(*child);
+    }
+  };
+  walk(*editor);
+
+  std::printf("  %d sliders, %d distinct names\n", sliders, (int)names.size());
+
+  check(sliders > 600, "the walk reached the whole mixer");
+  check(nameless.empty(), "every slider has a name (" +
+                              std::to_string(nameless.size()) + " without)");
+
+  // A name that repeats is a name that does not identify anything. Two
+  // harmonics both called "attack" would leave a listener no better off.
+  check((int)names.size() == sliders,
+        "and no two sliders share one (" + std::to_string(sliders) +
+            " sliders, " + std::to_string(names.size()) + " names)");
+
+  // Spot checks, so the shape of a name is fixed rather than merely non-empty.
+  check(names.count("Harmonic 1 attack") == 1, "a partial names its harmonic");
+  check(names.count("Noise attack") == 1, "the noise channel names itself");
+  check(names.count("Echo mix") == 1 && names.count("Reverb mix") == 1,
+        "and the two mix knobs are told apart by their group");
+}
+
 void testSoloAndMute(OvertoniumProcessor &p) {
   section("Solo and mute");
 
@@ -3022,6 +3084,7 @@ int main() {
   testCollapsibleSections();
   testUpdateCheck();
   testUpdateCheckIsQuiet(processor);
+  testEveryControlIsNamed(processor);
   testSoloAndMute(processor);
 
   std::printf("\n%d checks, %d failures\n", checks, failures);

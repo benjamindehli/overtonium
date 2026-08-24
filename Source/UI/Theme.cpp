@@ -549,6 +549,67 @@ float linkedValue(LinkCurve curve, float baseline, float delta, float weight,
   return juce::jlimit(0.0f, 1.0f, value);
 }
 
+const char *roleLabel(Role r) {
+  switch (r) {
+  case Role::Tune:
+    return "tuning";
+  case Role::Phase:
+    return "start phase";
+  case Role::PmRate:
+    return "pitch modulation rate";
+  case Role::PmDepth:
+    return "pitch modulation depth";
+  case Role::Drift:
+    return "drift";
+  case Role::Delay:
+    return "envelope delay";
+  case Role::Attack:
+    return "attack";
+  case Role::Decay:
+    return "decay";
+  case Role::Sustain:
+    return "sustain";
+  case Role::Swell:
+    return "key off swell";
+  case Role::OffLevel:
+    return "key off level";
+  case Role::Release:
+    return "release";
+  case Role::Lift:
+    return "lift";
+  case Role::AmRate:
+    return "tremolo rate";
+  case Role::AmDepth:
+    return "tremolo depth";
+  case Role::Velocity:
+    return "velocity amount";
+  case Role::Aftertouch:
+    return "pressure amount";
+  case Role::Pan:
+    return "pan";
+  case Role::Volume:
+    return "level";
+
+  // Listed rather than defaulted, so a new role has to be given a name before
+  // it will build. An unnamed control is invisible to a screen reader.
+  case Role::NumRoles:
+    break;
+  }
+
+  return "";
+}
+
+Role roleForSuffix(const char *suffix) {
+  if (suffix == nullptr)
+    return Role::NumRoles;
+
+  for (int i = 0; i < (int)Role::NumRoles; ++i)
+    if (juce::String(roleSuffix((Role)i)) == suffix)
+      return (Role)i;
+
+  return Role::NumRoles;
+}
+
 const char *roleSuffix(Role r) {
   switch (r) {
   case Role::Tune:

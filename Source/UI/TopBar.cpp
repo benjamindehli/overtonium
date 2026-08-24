@@ -329,29 +329,29 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   reverbAttachment = std::make_unique<ButtonAttachment>(
       apvts, params::reverbOnId, reverbButton);
 
-  addKnob(echoControls, "MIX", params::echoMixId,
+  addKnob(echoControls, "Echo", "MIX", params::echoMixId,
           "How much of the output is repeats", popupParent);
-  addKnob(echoControls, "TIME", params::echoTimeId,
+  addKnob(echoControls, "Echo", "TIME", params::echoTimeId,
           "Distance between the heads. Moving it winds the tape rather than "
           "cutting to the new time, so the repeats slide in pitch on the way.",
           popupParent);
-  addKnob(echoControls, "FDBK", params::echoFeedbackId,
+  addKnob(echoControls, "Echo", "FDBK", params::echoFeedbackId,
           "How much of each repeat goes round again", popupParent);
-  addKnob(echoControls, "AGE", params::echoAgeId,
+  addKnob(echoControls, "Echo", "AGE", params::echoAgeId,
           "How worn the machine is. Turning it up takes the top off every "
           "repeat, sets the motor wandering and lets the tape lean over when "
           "it is driven. New is clean and bright, old is dark and unsteady.",
           popupParent);
 
-  addKnob(reverbControls, "MIX", params::reverbMixId,
+  addKnob(reverbControls, "Reverb", "MIX", params::reverbMixId,
           "How much of the output is reverb", popupParent);
-  addKnob(reverbControls, "DECAY", params::reverbDecayId,
+  addKnob(reverbControls, "Reverb", "DECAY", params::reverbDecayId,
           "How long the tail takes to fall away. The room is sized to match, "
           "since a long tail in a small room is a spring rather than a place.",
           popupParent);
-  addKnob(reverbControls, "DAMP", params::reverbDampId,
+  addKnob(reverbControls, "Reverb", "DAMP", params::reverbDampId,
           "How quickly the top end dies out of the tail", popupParent);
-  addKnob(reverbControls, "PRE", params::reverbPreDelayId,
+  addKnob(reverbControls, "Reverb", "PRE", params::reverbPreDelayId,
           "Silence between the note and its reverb. A little of it keeps the "
           "attack clear of the wash.",
           popupParent);
@@ -367,12 +367,21 @@ void TopBar::styleToggle(juce::TextButton &b, const juce::String &text,
   addAndMakeVisible(b);
 }
 
-void TopBar::addKnob(std::vector<Control> &into, const juce::String &caption,
-                     const juce::String &paramId, const juce::String &tooltip,
+void TopBar::addKnob(std::vector<Control> &into, const juce::String &group,
+                     const juce::String &caption, const juce::String &paramId,
+                     const juce::String &tooltip,
                      juce::Component &popupParent) {
   Control c;
   c.knob = std::make_unique<LabelledKnob>(caption);
   c.knob->slider.setTooltip(tooltip);
+
+  // Prefixed with the group, since MIX appears in both the echo and the
+  // reverb and the box around them is not something a screen reader conveys.
+  // The tooltip is the description rather than the name: several are whole
+  // sentences, and a name has to be short enough to be read out every time
+  // the control is reached.
+  c.knob->slider.setTitle(group + " " + caption.toLowerCase());
+  c.knob->slider.setDescription(tooltip);
   c.knob->slider.setPopupDisplayEnabled(true, true, &popupParent);
 
   if (auto *p = apvts.getParameter(paramId))

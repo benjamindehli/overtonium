@@ -61,6 +61,7 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
   volume.getProperties().set("meteredGroove", true);
   volume.setPopupDisplayEnabled(true, true, &popupHost);
   volume.setTooltip("Noise level");
+  volume.setTitle("Noise level");
   addAndMakeVisible(volume);
   sliderAttachments.push_back(std::make_unique<SliderAttachment>(
       apvts, params::noiseParamId(params::volumeSuffix), volume));
@@ -74,6 +75,8 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
   soloButton.setColour(juce::TextButton::buttonOnColourId, colours::soloOn);
   muteButton.setTooltip("Mute the noise channel");
   soloButton.setTooltip("Solo the noise channel");
+  muteButton.setTitle("Noise mute");
+  soloButton.setTitle("Noise solo");
   addAndMakeVisible(muteButton);
   addAndMakeVisible(soloButton);
 
@@ -109,6 +112,16 @@ void NoiseStrip::setUpKnob(juce::Slider &s, const char *suffix,
   s.setColour(juce::Slider::rotarySliderFillColourId, fill);
   s.setPopupDisplayEnabled(true, true, &popupHost);
   s.setTooltip(tooltip);
+
+  // See ChannelStrip::setUpKnob. The name comes from the same table the
+  // strips use, so the noise channel's attack is called what a partial's
+  // attack is called. A title has to be short, which several of these
+  // tooltips are not, so the tooltip becomes the description instead: that is
+  // the field for the longer explanation.
+  const auto role = roleForSuffix(suffix);
+  s.setTitle(role != Role::NumRoles ? "Noise " + juce::String(roleLabel(role))
+                                    : "Noise colour");
+  s.setDescription(tooltip);
   addAndMakeVisible(s);
 
   const auto id = params::noiseParamId(suffix);

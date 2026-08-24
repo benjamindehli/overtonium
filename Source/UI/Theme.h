@@ -252,6 +252,20 @@ inline constexpr int kNumRoles = (int)Role::NumRoles;
 /// Maps a role onto the matching parameter-ID suffix from ovt::params.
 const char *roleSuffix(Role r);
 
+/// What a control is called out loud.
+///
+/// Distinct from rowLabel, which names a row for the gutter and can repeat
+/// itself: two rows both read "rate" there, and the column they sit in says
+/// which is which. A screen reader has no column, so these spell it out.
+const char *roleLabel(Role r);
+
+/// The role a parameter suffix belongs to, or NumRoles if none does.
+///
+/// The noise channel is built from suffixes rather than roles, but its
+/// controls are the same controls, so this lets both take their spoken names
+/// from one table instead of two that can drift.
+Role roleForSuffix(const char *suffix);
+
 /// The role a row carries, if it carries one at all.
 ///
 /// @returns false for the mute and solo row, which holds buttons rather than a

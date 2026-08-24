@@ -173,7 +173,8 @@ private:
     std::unique_ptr<SliderAttachment> attachment;
   };
 
-  void addKnob(std::vector<Control> &into, const juce::String &caption,
+  void addKnob(std::vector<Control> &into, const juce::String &group,
+               const juce::String &caption,
                const juce::String &paramId, const juce::String &tooltip,
                juce::Component &popupParent);
 
