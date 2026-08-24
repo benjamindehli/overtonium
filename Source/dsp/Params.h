@@ -7,6 +7,18 @@
 
 namespace ovt {
 
+/// Where MPE slide goes, which is the forward and back axis under a finger on
+/// a Seaboard or a Linnstrument.
+///
+/// Brightness is what a player's hands expect from it, so it is the default.
+/// Tuning is the one only this instrument can offer: push a finger forward and
+/// that note alone slides between equal temperament and just intonation while
+/// the rest of the chord stays where it is.
+///
+/// Declared here rather than beside the parameter it comes from, because the
+/// voice branches on it and the DSP core is not allowed to include JUCE.
+enum class SlideDestination { Off = 0, Brightness, Tuning };
+
 /// A per-block snapshot of one channel strip. Deliberately plain data: the DSP
 /// core never touches JUCE, which keeps it unit-testable and portable.
 struct OscParams {
@@ -111,6 +123,10 @@ struct GlobalParams {
   /// as you play up rather than turning high notes down. Zero is off. See
   /// trackingGain.
   float trackDbPerOctave = 0.0f;
+
+  /// Where a note's MPE slide goes. Stored as the raw choice so the voice can
+  /// branch on it without the DSP core knowing what a parameter is.
+  SlideDestination slideDest = SlideDestination::Brightness;
   /// A warped record under the whole instrument, 0 to 1. Sits between the
   /// voices and the echo, so the repeats inherit whatever it did rather than
   /// wobbling on their own. See Wobble.h.

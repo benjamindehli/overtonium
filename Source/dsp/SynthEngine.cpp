@@ -261,6 +261,12 @@ void SynthEngine::setNotePressure(int channel, int note,
       v.setPolyPressure(pressure);
 }
 
+void SynthEngine::setNoteSlide(int channel, int note, float slide) noexcept {
+  for (auto &v : voices)
+    if (matches(v, channel, note))
+      v.setSlide(slide);
+}
+
 void SynthEngine::setNoteBend(int channel, int note,
                               float semitones) noexcept {
   for (auto &v : voices)

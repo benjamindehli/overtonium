@@ -79,11 +79,23 @@ void OvertoniumProcessor::noteAdded(juce::MPENote note) {
   // and jumping.
   notePitchbendChanged(note);
   notePressureChanged(note);
+
+  // And the slide, for the same reason: a finger that lands forward on the pad
+  // has already set the timbre before the note arrives.
+  noteTimbreChanged(note);
 }
 
 void OvertoniumProcessor::notePressureChanged(juce::MPENote note) {
   engine.setNotePressure(note.midiChannel, note.initialNote,
                          note.pressure.asUnsignedFloat());
+}
+
+void OvertoniumProcessor::noteTimbreChanged(juce::MPENote note) {
+  // Bipolar around the rest position. JUCE starts a note's timbre at the
+  // centre value, so a controller that sends no CC74 at all lands on zero here
+  // and changes nothing, which is what it should do.
+  engine.setNoteSlide(note.midiChannel, note.initialNote,
+                      note.timbre.asUnsignedFloat() * 2.0f - 1.0f);
 }
 
 void OvertoniumProcessor::notePitchbendChanged(juce::MPENote note) {

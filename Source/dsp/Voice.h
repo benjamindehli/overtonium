@@ -47,6 +47,12 @@ inline constexpr double kTrackingCornerHz = 1000.0;
 /// already above the corner loses the full slope across every partial.
 ///
 /// @param dbPerOctave  0 switches it off entirely.
+/// How far MPE slide moves the keyboard tracking, in dB per octave.
+///
+/// Half the range of the control itself, so a finger has real authority
+/// without a small movement crossing the whole of it.
+inline constexpr float kSlideTrackDb = 6.0f;
+
 inline float trackingGain(double partialHz, double fundamentalHz,
                           double dbPerOctave) noexcept {
   if (dbPerOctave <= 0.0)
@@ -100,6 +106,11 @@ public:
   /// Polyphonic aftertouch for this voice. Channel pressure arrives separately
   /// through SynthParams, and whichever is higher wins.
   void setPolyPressure(float v) noexcept { polyPressure = v; }
+
+  /// MPE slide for this note, bipolar. Zero is the rest position, which is
+  /// also what a controller that never sends CC74 leaves it at, since JUCE
+  /// starts a note's timbre at the centre value.
+  void setSlide(float v) noexcept { slide = v; }
 
   /// Pitch bend belonging to this note alone, in semitones.
   ///
@@ -229,6 +240,19 @@ private:
   Xorshift rng;
   float noteBendSemitones = 0.0f;
   float polyPressure = 0.0f;
+  float slide = 0.0f;
+
+  /// A partial's tuning blend, with this note's slide folded in when slide is
+  /// aimed there. Clamped, since the blend has no meaning outside nought to
+  /// one: past either end the partial is no longer between the two tunings.
+  float blendOf(const SynthParams &p, int i) const noexcept {
+    const auto base = p.osc[(size_t)i].tuneBlend;
+
+    if (p.global.slideDest != SlideDestination::Tuning)
+      return base;
+
+    return std::clamp(base + slide, 0.0f, 1.0f);
+  }
   /// Aftertouch drives gain directly, so it needs its own smoothing. Seven bits
   /// arriving at MIDI rate would otherwise step audibly.
   float pressureSmoothed = 0.0f;

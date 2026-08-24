@@ -56,6 +56,9 @@ public:
   void noteOffPerNote(int channel, int note, float velocity = 0.5f) noexcept;
   void setNotePressure(int channel, int note, float pressure) noexcept;
 
+  /// Per-note slide, routed like per-note pressure.
+  void setNoteSlide(int channel, int note, float slide) noexcept;
+
   /// Bend belonging to one note, in semitones, on top of the wheel.
   void setNoteBend(int channel, int note, float semitones) noexcept;
 

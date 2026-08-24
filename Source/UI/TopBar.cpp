@@ -636,6 +636,21 @@ void TopBar::showSettingsMenu() {
     sources.addItem(600 + i, params::kAftertouchSourceNames[(size_t)i], true,
                     i == sourceIndex);
 
+  // Where MPE slide goes, beside the aftertouch source for the same reason:
+  // both are decisions about the controller in front of you rather than about
+  // the sound, and neither travels with a preset.
+  juce::PopupMenu slideTargets;
+
+  {
+    auto *p = apvts.getParameter(params::slideDestId);
+    const auto current =
+        p != nullptr ? juce::roundToInt(p->convertFrom0to1(p->getValue())) : 0;
+
+    for (int i = 0; i < params::slideDestChoices.size(); ++i)
+      slideTargets.addItem(1200 + i, params::slideDestChoices[i], true,
+                           i == current);
+  }
+
   // Tuning of the keyboard itself, which is a decision about the instrument
   // and gets set once, so it belongs here rather than on the panel.
   const auto pickedIndex = [this](const char *id) {
@@ -682,6 +697,7 @@ void TopBar::showSettingsMenu() {
 
   m.addSeparator();
   m.addSubMenu("Aftertouch from", sources);
+  m.addSubMenu("Slide to", slideTargets);
   m.addSubMenu("Zoom", zooms);
 
   m.addSeparator();
@@ -724,6 +740,9 @@ void TopBar::showSettingsMenu() {
                         p->setValueNotifyingHost(
                             p->convertTo0to1((float)index));
                     };
+
+                    if (result >= 1200)
+                      return choose(params::slideDestId, result - 1200);
 
                     if (result >= 1100)
                       return choose(params::referenceHzId, result - 1100);

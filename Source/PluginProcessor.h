@@ -152,6 +152,7 @@ private:
   // ---- MPEInstrument::Listener ----------------------------------------------
   void noteAdded(juce::MPENote note) override;
   void notePressureChanged(juce::MPENote note) override;
+  void noteTimbreChanged(juce::MPENote note) override;
   void notePitchbendChanged(juce::MPENote note) override;
   void noteReleased(juce::MPENote note) override;
 

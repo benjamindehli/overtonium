@@ -73,6 +73,7 @@ void Voice::reset() noexcept {
   midiChannel = 0;
   noteBendSemitones = 0.0f;
   polyPressure = 0.0f;
+  slide = 0.0f;
   pressureSmoothed = 0.0f;
 }
 
@@ -90,6 +91,7 @@ void Voice::noteOn(int channel, int note, float velocity,
   // previous note's bend carrying into the new one on a channel being reused.
   noteBendSemitones = 0.0f;
   polyPressure = 0.0f;
+  slide = 0.0f;
   pressureSmoothed = 0.0f;
 
   active = true;
@@ -209,14 +211,24 @@ void Voice::render(float *left, float *right, int numSamples,
   // block, since none of it moves while a note sounds.
   std::array<float, kNumHarmonics> track{};
 
-  if (p.global.trackDbPerOctave > 0.0f) {
+  // MPE slide, where it is aimed at brightness. Tracking thins the top of the
+  // series, so a finger pushed forward takes tracking away and pulled back
+  // adds more. It cannot brighten past what the patch already is: there is no
+  // negative tracking, since trackingGain returns 1 for anything at or below
+  // zero. A patch with tracking off is therefore as bright as it gets, and
+  // slide can only darken it.
+  const auto tracking =
+      p.global.slideDest == SlideDestination::Brightness
+          ? std::max(0.0f, p.global.trackDbPerOctave - slide * kSlideTrackDb)
+          : p.global.trackDbPerOctave;
+
+  if (tracking > 0.0f) {
     for (int i = 0; i < kNumHarmonics; ++i) {
-      const auto semis = semitoneOffset(i, (double)p.osc[(size_t)i].tuneBlend,
+      const auto semis = semitoneOffset(i, (double)blendOf(p, i),
                                         (double)p.global.stretchCents);
 
-      track[(size_t)i] =
-          trackingGain(baseFreq * std::exp2(semis / 12.0), baseFreq,
-                       (double)p.global.trackDbPerOctave);
+      track[(size_t)i] = trackingGain(baseFreq * std::exp2(semis / 12.0),
+                                      baseFreq, (double)tracking);
     }
   } else {
     track.fill(1.0f);
@@ -267,7 +279,7 @@ void Voice::render(float *left, float *right, int numSamples,
       const double driftCents = (double)(pt.drift.advance(rng) * op.driftCents);
 
       const double semis =
-          semitoneOffset(i, (double)op.tuneBlend,
+          semitoneOffset(i, (double)blendOf(p, i),
                          (double)p.global.stretchCents) +
           (pmCents + driftCents) * 0.01 +
           (double)(p.global.bendSemitones + noteBendSemitones);

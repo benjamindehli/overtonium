@@ -96,10 +96,10 @@ juce::MidiBuffer noteOnAt(int note, float velocity, int sample) {
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
-  // 21 per partial, 15 global, 17 for the noise channel, 10 for the two master
+  // 21 per partial, 16 global, 17 for the noise channel, 10 for the two master
   // effects. Start phase is not among the noise channel's, since noise has no
   // phase to start at.
-  const int expected = ovt::kNumHarmonics * 21 + 15 + 17 + 10;
+  const int expected = ovt::kNumHarmonics * 21 + 16 + 17 + 10;
   check(p.getParameters().size() == expected,
         "parameter count is " + std::to_string(p.getParameters().size()) +
             ", expected " + std::to_string(expected));
@@ -3006,6 +3006,126 @@ void testEveryControlIsNamed(OvertoniumProcessor &p) {
         "and the two mix knobs are told apart by their group");
 }
 
+/// MPE slide, both places it can go.
+///
+/// Driven through the real MIDI path rather than by poking the voice, because
+/// the wiring is most of what could be wrong: a missing listener override, a
+/// note that never gets its channel's timbre, a routing switch read from the
+/// wrong parameter.
+void testMpeSlide() {
+  section("MPE slide");
+
+  // Its own processor, not the one the rest of the suite shares. An earlier
+  // test leaves notes decaying and a master gain of its own, and this
+  // measures loudness, so borrowing that state measures the leftovers instead.
+  OvertoniumProcessor p;
+
+  const auto setParam = [&p](const juce::String &id, float plain) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1(plain));
+  };
+
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+  setParam(ovt::params::echoOnId, 0.0f);
+  setParam(ovt::params::reverbOnId, 0.0f);
+  setParam(ovt::params::wobbleId, 0.0f);
+  setParam(ovt::params::mpeId, 1.0f);
+
+  // Half the series at full level, so thinning the top is a measurable change
+  // in total energy, and tracking on, since brightness is what slide moves.
+  for (int i = 0; i < ovt::kNumHarmonics; ++i) {
+    setParam(ovt::params::oscParamId(ovt::params::volumeSuffix, i),
+             i < 16 ? 1.0f : 0.0f);
+    setParam(ovt::params::oscParamId(ovt::params::sustainSuffix, i), 1.0f);
+    setParam(ovt::params::oscParamId(ovt::params::velSuffix, i), 0.0f);
+    setParam(ovt::params::oscParamId(ovt::params::atSuffix, i), 0.0f);
+  }
+  setParam(ovt::params::trackId, 6.0f);
+
+  p.setRateAndBufferSizeDetails(48000.0, 512);
+  p.prepareToPlay(48000.0, 512);
+
+  // The CC after the note, which is what moving a finger sends. Before the
+  // note it sets the note's initial timbre instead, and JUCE hands a new note
+  // the centre value whenever another is already sounding on that channel, so
+  // the order matters more than it looks.
+  const auto rms = [&](int cc74) {
+    juce::MidiBuffer off;
+    off.addEvent(juce::MidiMessage::allNotesOff(2), 0);
+    juce::AudioBuffer<float> flush(2, 512);
+
+    for (int b = 0; b < 6; ++b) {
+      flush.clear();
+      p.processBlock(flush, off);
+      off.clear();
+    }
+
+    p.reset();
+
+    juce::MidiBuffer midi;
+    midi.addEvent(juce::MidiMessage::noteOn(2, 72, 0.9f), 0);
+    midi.addEvent(juce::MidiMessage::controllerEvent(2, 74, cc74), 1);
+
+    juce::AudioBuffer<float> buffer(2, 512);
+    double sum = 0.0;
+    int n = 0;
+
+    for (int b = 0; b < 40; ++b) {
+      buffer.clear();
+      p.processBlock(buffer, midi);
+      midi.clear();
+
+      // The first blocks are the attack, which says nothing about the
+      // steady-state spectrum.
+      if (b < 20)
+        continue;
+
+      for (int i = 0; i < buffer.getNumSamples(); ++i) {
+        const auto v = (double)buffer.getSample(0, i);
+        sum += v * v;
+        ++n;
+      }
+    }
+
+    return n > 0 ? std::sqrt(sum / (double)n) : 0.0;
+  };
+
+  setParam(ovt::params::slideDestId, (float)ovt::SlideDestination::Brightness);
+
+  const auto back = rms(0);
+  const auto centre = rms(64);
+  const auto forward = rms(127);
+
+  check(back > 1.0e-5 && forward > 1.0e-5, "the note sounds at both ends");
+
+  // Three points rather than two, so the direction and the middle are both
+  // pinned. Forward takes tracking away and brightens, back adds more and
+  // darkens, and the rest position leaves the patch alone.
+  check(forward > centre * 1.1 && centre > back * 1.1,
+        "brightness rises across the travel (" + std::to_string(back) + ", " +
+            std::to_string(centre) + ", " + std::to_string(forward) + ")");
+
+  // The rest position has to be the patch untouched, or every note from a
+  // controller that never moves would sound wrong.
+  setParam(ovt::params::slideDestId, (float)ovt::SlideDestination::Off);
+  const auto untouched = rms(64);
+
+  check(std::abs(centre - untouched) < untouched * 0.01,
+        "the rest position is the patch as dialled");
+
+  // Off means off, whatever the controller sends.
+  check(std::abs(rms(0) - untouched) < untouched * 0.01 &&
+            std::abs(rms(127) - untouched) < untouched * 0.01,
+        "and with slide off the whole travel is that same sound");
+
+  // Aimed at tuning it moves pitch rather than level, so both ends still
+  // sound. Which pitches is the tuning table's business, tested elsewhere.
+  setParam(ovt::params::slideDestId, (float)ovt::SlideDestination::Tuning);
+
+  check(rms(0) > 1.0e-5 && rms(127) > 1.0e-5,
+        "both ends sound with slide aimed at tuning");
+}
+
 void testSoloAndMute(OvertoniumProcessor &p) {
   section("Solo and mute");
 
@@ -3061,6 +3181,7 @@ int main() {
   testPresets(processor);
   testAftertouchMidi(processor);
   testMpe(processor);
+  testMpeSlide();
   testActivityLamps(processor);
   testSegmentReadouts(processor);
   testChannelHover(processor);

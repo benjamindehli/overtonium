@@ -283,6 +283,16 @@ The panel is lit from the top left throughout. Knob caps are machined discs with
 
 Cast shadows are built from a few overlapping shapes rather than from a real blur. JUCE has a proper `DropShadow`, but it is a software Gaussian and running one on several hundred controls every repaint would be far too slow.
 
+**Slide.** The third MPE dimension, which is the forward and back axis under a finger, arriving as CC74 on the note's own channel. Settings has a **Slide to** entry with three answers.
+
+**Brightness** is the default, because it is what a player's hands expect from that axis. It moves the keyboard tracking for that note alone: pushing forward takes tracking away and the note opens up, pulling back adds more and it thins. It cannot brighten past what the patch already is, since there is no negative tracking, so a patch with TRACK at zero is already as open as it gets and slide can only darken it. The travel is six dB per octave either way, half the range of the control itself.
+
+**Tuning** is the one only this instrument can offer. Slide moves that note's blend between equal temperament and just intonation, so holding a chord and pushing one finger forward fuses that note while the rest stay smeared. It is not the default because it will surprise anyone whose hands expect brightness.
+
+**Off** ignores it.
+
+The rest position is the middle of the travel, and that is also where a controller that never sends CC74 leaves it, so a keyboard with no slide axis changes nothing. Which destination is chosen does not travel with a preset: it is a fact about the controller in front of you, like the aftertouch source and the temperament.
+
 ### One voice per key
 
 The instrument is polyphonic across the keyboard and monophonic within a key. A string, a tine or a bar is one object, and striking it again takes over whatever it was already doing rather than starting a second copy beside the first, so playing the same key twice does the same here.

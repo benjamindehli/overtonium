@@ -13,6 +13,7 @@ inline constexpr const char *bendRangeId = "bendRange";
 inline constexpr const char *phaseResetId = "phaseReset";
 inline constexpr const char *stretchId = "stretch";
 inline constexpr const char *atSourceId = "atSource";
+inline constexpr const char *slideDestId = "slideDest";
 inline constexpr const char *trackId = "track";
 inline constexpr const char *wobbleId = "wobble";
 inline constexpr const char *temperamentId = "temperament";
@@ -132,6 +133,7 @@ struct Cache {
   std::atomic<float> *phaseReset = nullptr;
   std::atomic<float> *stretch = nullptr;
   std::atomic<float> *atSource = nullptr;
+  std::atomic<float> *slideDest = nullptr;
   std::atomic<float> *track = nullptr;
   std::atomic<float> *wobble = nullptr;
   std::atomic<float> *temperament = nullptr;
@@ -183,9 +185,9 @@ inline const std::array<int, 7> kPolyphonyChoices{1, 2, 4, 6, 8, 12, 16};
 ///
 /// Named here rather than in Presets.cpp so the code that honours the rule and
 /// the test that checks it cannot come to disagree about what the rule is.
-inline const std::array<const char *, 9> kSessionParamIds{
-    masterGainId,  polyphonyId,    bendRangeId,   atSourceId,  safetyClipId,
-    referenceHzId, temperamentId,  tuningRootId,  mpeId};
+inline const std::array<const char *, 10> kSessionParamIds{
+    masterGainId,  polyphonyId,   bendRangeId,  atSourceId, safetyClipId,
+    referenceHzId, temperamentId, tuningRootId, mpeId,      slideDestId};
 
 /// How far the two pitch wanderers can each take a partial, in cents.
 ///
@@ -222,6 +224,9 @@ inline const std::array<int, 11> kReferenceHzChoices{415, 430, 432, 435, 438,
 /// channel, there is nothing ambiguous about where it should go, and it stays
 /// routed whatever this says.
 enum class AftertouchSource { ChannelPressure = 0, ModWheel, Either };
+
+
+inline const juce::StringArray slideDestChoices{"Off", "Brightness", "Tuning"};
 
 inline const std::array<const char *, 3> kAftertouchSourceNames{
     "Channel pressure", "Mod wheel", "Either"};

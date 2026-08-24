@@ -270,6 +270,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::ParameterID{atSourceId, 1}, "Aftertouch From", atSourceChoices,
       (int)AftertouchSource::Either));
 
+  layout.add(std::make_unique<juce::AudioParameterChoice>(
+      juce::ParameterID{slideDestId, 1}, "Slide To", slideDestChoices,
+      (int)SlideDestination::Brightness));
+
   juce::StringArray rateChoices;
   for (auto hz : kLofiRateChoices)
     rateChoices.add(lofiRateName(hz));
@@ -537,6 +541,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   phaseReset = apvts.getRawParameterValue(phaseResetId);
   stretch = apvts.getRawParameterValue(stretchId);
   atSource = apvts.getRawParameterValue(atSourceId);
+  slideDest = apvts.getRawParameterValue(slideDestId);
   track = apvts.getRawParameterValue(trackId);
   wobble = apvts.getRawParameterValue(wobbleId);
   temperament = apvts.getRawParameterValue(temperamentId);
@@ -702,6 +707,7 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   out.global.phaseReset = phaseReset->load() > 0.5f;
   out.global.stretchCents = stretch->load();
   out.global.trackDbPerOctave = track->load();
+  out.global.slideDest = (SlideDestination)(int)slideDest->load();
   out.global.wobbleAmount = wobble->load();
 
   {
