@@ -2721,6 +2721,69 @@ void testChannelOutputs() {
             std::to_string(silent) + ")");
 }
 
+/// A buffer smaller than the layout claims.
+///
+/// A host is supposed to hand over a channel for every enabled bus. Not all of
+/// them do: pluginval processes a two-channel buffer against a layout asking
+/// for thirty-five, and this segfaulted on the Linux runner because
+/// getBusBuffer pointed past the end of it. Nothing here may reach outside the
+/// buffer it was given, whatever the layout says.
+void testUndersizedBuffer() {
+  section("Undersized buffers");
+
+  OvertoniumProcessor p;
+
+  auto all = p.getBusesLayout();
+  for (int i = 1; i < all.outputBuses.size(); ++i)
+    all.outputBuses.set(i, juce::AudioChannelSet::mono());
+
+  check(p.setBusesLayout(all), "the layout with every output on is accepted");
+  check(p.getTotalNumOutputChannels() == ovt::kNumHarmonics + 3,
+        "and asks for the mix plus every channel (" +
+            std::to_string(p.getTotalNumOutputChannels()) + ")");
+
+  p.setRateAndBufferSizeDetails(48000.0, 512);
+  p.prepareToPlay(48000.0, 512);
+
+  // Every width from nothing up to the main bus and a little past it. The
+  // check is that none of them crash or write outside their buffer, which the
+  // guard bytes below would catch.
+  for (int channels : {1, 2, 3, 8}) {
+    juce::AudioBuffer<float> buffer(channels, 512);
+    buffer.clear();
+
+    juce::MidiBuffer midi;
+    midi.addEvent(juce::MidiMessage::noteOn(1, 60, 0.8f), 0);
+
+    for (int b = 0; b < 3; ++b) {
+      p.processBlock(buffer, midi);
+      midi.clear();
+    }
+
+    check(true, "a " + std::to_string(channels) +
+                    " channel buffer against a 35 channel layout survives");
+  }
+
+  // And the ordinary case still works, so the guard did not simply switch the
+  // outputs off.
+  juce::AudioBuffer<float> full(p.getTotalNumOutputChannels(), 512);
+  juce::MidiBuffer midi;
+  midi.addEvent(juce::MidiMessage::noteOn(1, 45, 0.9f), 0);
+
+  float loudest = 0.0f;
+  for (int b = 0; b < 20; ++b) {
+    full.clear();
+    p.processBlock(full, midi);
+    midi.clear();
+
+    if (b >= 10)
+      for (int ch = 0; ch < full.getNumChannels(); ++ch)
+        loudest = std::max(loudest, full.getMagnitude(ch, 0, 512));
+  }
+
+  check(loudest > 1.0e-4f, "a full-width buffer still gets audio");
+}
+
 void testStateRoundTrip(OvertoniumProcessor &p) {
   section("State round trip");
 
@@ -3327,6 +3390,7 @@ int main() {
   testUndo(processor);
   testBusLayouts(processor);
   testChannelOutputs();
+  testUndersizedBuffer();
   testStateRoundTrip(processor);
   testPrograms(processor);
   testCollapsibleSections();

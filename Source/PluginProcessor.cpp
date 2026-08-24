@@ -347,25 +347,46 @@ void OvertoniumProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
     renderSegment(position - done, chunkEnd - position);
 
-    // ---- fan the stereo render out to whatever the host asked for -----------
+    // ---- fan the render out to whatever the host asked for ------------------
     //
-    // The main bus only. Everything past it is a channel output and is filled
-    // below, so the old blanket clear of channels 2 and up would wipe them.
-    auto main = getBusBuffer(buffer, false, 0);
-    const int numOut = main.getNumChannels();
+    // Channel indices worked out here and bounds-checked, rather than through
+    // getBusBuffer. A host is supposed to hand over a buffer with a channel
+    // for every enabled bus and not all of them do: pluginval processes a
+    // two-channel buffer against a layout asking for thirty-five, and
+    // getBusBuffer points confidently past the end of it.
+    //
+    // The main bus is written first, then each channel output. Only the main
+    // bus's own spare channels are cleared: the blanket clear of everything
+    // past channel two that used to live here would wipe the outputs below.
+    const int available = buffer.getNumChannels();
     const auto *left = scratch.getReadPointer(0);
     const auto *right = scratch.getReadPointer(1);
 
-    if (numOut == 1) {
-      auto *dest = main.getWritePointer(0, done);
-      for (int n = 0; n < length; ++n)
-        dest[n] = 0.5f * (left[n] + right[n]);
-    } else if (numOut >= 2) {
-      main.copyFrom(0, done, left, length);
-      main.copyFrom(1, done, right, length);
+    const auto channelOf = [this, available](int bus, int channel) {
+      const int index =
+          getChannelIndexInProcessBlockBuffer(false, bus, channel);
+      return index >= 0 && index < available ? index : -1;
+    };
 
-      for (int ch = 2; ch < numOut; ++ch)
-        main.clear(ch, done, length);
+    const int mainChannels =
+        getChannelCountOfBus(false, 0) > 0 ? getChannelCountOfBus(false, 0) : 0;
+
+    if (mainChannels == 1) {
+      if (const int ch = channelOf(0, 0); ch >= 0) {
+        auto *dest = buffer.getWritePointer(ch, done);
+        for (int n = 0; n < length; ++n)
+          dest[n] = 0.5f * (left[n] + right[n]);
+      }
+    } else if (mainChannels >= 2) {
+      if (const int ch = channelOf(0, 0); ch >= 0)
+        buffer.copyFrom(ch, done, left, length);
+
+      if (const int ch = channelOf(0, 1); ch >= 0)
+        buffer.copyFrom(ch, done, right, length);
+
+      for (int c = 2; c < mainChannels; ++c)
+        if (const int ch = channelOf(0, c); ch >= 0)
+          buffer.clear(ch, done, length);
     }
 
     for (int i = 0; i < ovt::kNumHarmonics + 1; ++i) {
@@ -374,10 +395,8 @@ void OvertoniumProcessor::processBlock(juce::AudioBuffer<float> &buffer,
       if (bus == nullptr || !bus->isEnabled())
         continue;
 
-      auto out = getBusBuffer(buffer, false, i + 1);
-
-      if (out.getNumChannels() > 0)
-        out.copyFrom(0, done, tapScratch.getReadPointer(i), length);
+      if (const int ch = channelOf(i + 1, 0); ch >= 0)
+        buffer.copyFrom(ch, done, tapScratch.getReadPointer(i), length);
     }
 
     done = chunkEnd;
