@@ -36,6 +36,8 @@ pluginval --strictness-level 8 --validate ~/Library/Audio/Plug-Ins/VST3/Overtoni
 
 It randomises its parameter values, so CI pins the seed on a push and leaves it to chance on a weekly scheduled run. A failure prints the seed it used, and passing that back with `--random-seed` reproduces it exactly. That is the only way some of these are reproducible at all.
 
+**The VST3 validator.** Steinberg's own conformance suite, which is a different thing from pluginval: it checks the VST3 contracts rather than misusing the plugin through a host. CI builds it from a pinned revision of the SDK and runs it on Linux, where the build is cheapest. To run it yourself, build the `validator` target out of [the SDK](https://github.com/steinbergmedia/vst3sdk) with `-DSMTG_ENABLE_VST3_PLUGIN_EXAMPLES=OFF -DSMTG_ENABLE_VSTGUI_SUPPORT=OFF`, which skips the parts it does not link, and point the result at a built `.vst3`.
+
 ## Style
 
 Comments explain why, not what. The repository has a lot of them, and the ones worth having record a measurement, a rejected alternative or a trap: why the lamps merge by row and what the other way cost, why the scratch buffer has a floor, why the program count is what it is on each format. A comment restating the line below it is noise.

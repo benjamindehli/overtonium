@@ -16,6 +16,11 @@ on:
 permissions:
   contents: read
 
+env:
+  # Steinberg's VST3 SDK, for the conformance validator. Pinned so the check
+  # cannot change underneath a commit that did not touch it.
+  VST3_SDK_REV: 3cdf9ca5d1f5b1b21e0a86832aa4abe55607bd96
+
 jobs:
   build:
     name: ${{ matrix.name }}
@@ -200,6 +205,72 @@ jobs:
 
           "${run[@]}" --strictness-level 8 --random-seed "$seed" \
             --validate "$vst3"
+
+      # Steinberg's own conformance suite, which is a different thing from
+      # pluginval. pluginval is a JUCE host that misuses the plugin; this
+      # checks the VST3 contracts themselves, and the last VST3 bug here was
+      # exactly that shape: exposing factory presets made the wrapper publish a
+      # parameter that rewrote every other parameter when a host moved it.
+      #
+      # Linux only. Conformance is largely platform-independent, the SDK has to
+      # be built from source wherever it runs, and this is the cheapest runner.
+      # Extend it if it earns the minutes elsewhere.
+      #
+      # The revision is pinned, so the check cannot change underneath a commit
+      # that did not touch it. Bump the one line when there is reason to.
+      - name: Cache the VST3 validator
+        if: runner.os == 'Linux'
+        id: validator-cache
+        uses: actions/cache@v6
+        with:
+          path: vst3-validator
+          key: vst3-validator-${{ env.VST3_SDK_REV }}-${{ runner.os }}
+
+      - name: Build the VST3 validator
+        if: runner.os == 'Linux' && steps.validator-cache.outputs.cache-hit != 'true'
+        run: |
+          # Shallow, pinned, and only the four submodules the validator needs.
+          # doc and tutorials are most of the repository and none of the build.
+          git init -q sdk
+          cd sdk
+          git remote add origin https://github.com/steinbergmedia/vst3sdk.git
+          git fetch -q --depth 1 origin "$VST3_SDK_REV"
+          git checkout -q FETCH_HEAD
+          git submodule update -q --init --depth 1 base cmake pluginterfaces public.sdk
+
+          # The plugin examples and VSTGUI are the bulk of the SDK and the
+          # validator links neither. It wants sdk_hosting and nothing else.
+          cmake -B ../sdk-build -S . \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSMTG_ENABLE_VST3_PLUGIN_EXAMPLES=OFF \
+            -DSMTG_ENABLE_VSTGUI_SUPPORT=OFF \
+            -DSMTG_CREATE_PLUGIN_LINK=OFF
+
+          cmake --build ../sdk-build --target validator --parallel 2
+
+          # Found rather than assumed: the SDK does not pin its output
+          # directory, and a hard-coded path here would break on a layout
+          # change with a confusing "no such file".
+          found=$(find ../sdk-build -type f -name validator -perm -u+x | head -1)
+
+          if [ -z "$found" ]; then
+            echo "::error::built the validator but cannot find the binary"
+            find ../sdk-build -name "validator*" | head
+            exit 1
+          fi
+
+          cp "$found" ../vst3-validator
+          echo "validator built from $found"
+
+      - name: Validate the VST3 against the SDK
+        if: runner.os == 'Linux'
+        run: |
+          chmod +x vst3-validator
+
+          # Under xvfb for the same reason pluginval is: the suite opens the
+          # editor and the runner has no display.
+          xvfb-run -a ./vst3-validator \
+            build/Overtonium_artefacts/Release/VST3/Overtonium.vst3
 
   format:
     name: Formatting
