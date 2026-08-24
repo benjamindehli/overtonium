@@ -242,11 +242,14 @@ jobs:
           git checkout -q FETCH_HEAD
           git submodule update -q --init --depth 1 base cmake pluginterfaces public.sdk
 
-          # The plugin examples and VSTGUI are the bulk of the SDK and the
-          # validator links neither. It wants sdk_hosting and nothing else.
+          # The validator links sdk_hosting and nothing else, so the plugin
+          # examples and VSTGUI can go. So can the hosting examples, which
+          # the validator is not one of: its sibling editorhost requires
+          # GTK 3 on Linux, and the runner has no reason to carry that.
           cmake -B ../sdk-build -S . \
             -DCMAKE_BUILD_TYPE=Release \
             -DSMTG_ENABLE_VST3_PLUGIN_EXAMPLES=OFF \
+            -DSMTG_ENABLE_VST3_HOSTING_EXAMPLES=OFF \
             -DSMTG_ENABLE_VSTGUI_SUPPORT=OFF \
             -DSMTG_CREATE_PLUGIN_LINK=OFF
 
