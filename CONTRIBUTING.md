@@ -150,4 +150,6 @@ The shared header, nav and footer are repeated in each page and have to be kept 
 
 The screenshots are rendered rather than captured. The plugin has no dependency on a display, so a scratch program builds the editor, plays a chord into it, hands the strips the levels the engine measured, and writes the window out with `createComponentSnapshot`. That means the pictures can be regenerated after a layout change instead of going stale, and it works on a machine with no window server.
 
+The pages load WebP, encoded losslessly, which is a third smaller than the PNG for a screenshot and pixel-identical. Lossy is worse here rather than better: the panel grain is high-frequency noise, and at quality 95 the window shot comes out larger than the PNG. Two PNGs stay in `docs/` and are never loaded by a browser: they are the `og:image` for the two pages that have one, since social card renderers cannot be relied on for WebP. Regenerating the screenshots means writing both.
+
 The stylesheet takes its palette from `Source/UI/Theme.h`, so the page and the instrument stay the same colour.
