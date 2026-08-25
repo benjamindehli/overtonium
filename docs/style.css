@@ -394,6 +394,20 @@ p {
     line-height: 1.55;
 }
 
+/* The single paragraph between the row of facts and the window shot, both of
+   which run the full width of the page. At the ordinary measure it hangs off
+   the left edge and reads as a stranded column, so it is centred and a size up.
+   That makes the short line length look chosen rather than left over, and
+   carries the hero's centred block one step further before the page settles
+   into left-aligned prose. */
+.intro {
+    max-width: 62ch;
+    margin: 30px auto 0;
+    font-size: 19px;
+    line-height: 1.6;
+    text-align: center;
+}
+
 a {
     color: var(--accent);
 }
