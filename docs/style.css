@@ -121,15 +121,23 @@ header.nav-only .sections {
     background: var(--groove);
 }
 
-/* Texture, and nothing a reader has to make out, so cover may crop it freely.
-   The scale is headroom for the parallax below: it drifts 14% of the frame
-   height in total, and 26% of zoom leaves 13% of overhang on each edge to
-   spend. Kept on whether the drift runs or not, so the framing does not change
-   between browsers. */
+/* Two elements rather than one because two transforms have to compose: the
+   wrapper carries the scroll parallax and the picture inside it carries a slow
+   drift of its own. One element cannot run both, since they would be the same
+   property fighting over the same value. */
 .hero-back {
     position: absolute;
     inset: 0;
     z-index: 0;
+}
+
+/* Texture, and nothing a reader has to make out, so cover may crop it freely.
+   The zoom is headroom for the motion: at its smallest it leaves 13% of
+   overhang on each edge, and the parallax and the drift together never ask for
+   more than 10%. Kept on whether they run or not, so the framing does not
+   change between browsers. */
+.hero-back-img {
+    display: block;
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -203,11 +211,15 @@ header.nav-only .sections {
 }
 
 /* Translucent over the picture, where the flat panel fill the buttons use
-   elsewhere would read as a row of holes punched through it. */
+   elsewhere would read as a row of holes punched through it.
+
+   No backdrop-filter. A blurred backdrop has to be recomputed from the pixels
+   underneath on every frame, and the pixels underneath are a large picture that
+   moves as you scroll, which made the whole page stutter. The extra opacity
+   does the same job for nothing. */
 .hero .links a {
-    background: rgba(20, 24, 29, 0.68);
+    background: rgba(20, 24, 29, 0.82);
     border-color: rgba(217, 223, 231, 0.18);
-    backdrop-filter: blur(8px);
 }
 
 .hero .links a:hover {
@@ -228,19 +240,19 @@ header.nav-only .sections {
 
 /* ---- hero motion ----------------------------------------------------------
 
-   Two slow breaths on different periods, so they drift in and out of step
-   rather than pulsing together, and a parallax drift on scroll. All of it is
-   decoration, so all of it is behind prefers-reduced-motion.
-   -------------------------------------------------------------------------- */
+   Three movements: the picture drifts slowly on its own, it lags the page on
+   scroll, and the mark breathes. All decoration, so all behind
+   prefers-reduced-motion.
 
-@keyframes hero-breathe {
-    from {
-        filter: saturate(0.86) brightness(0.88);
-    }
-    to {
-        filter: saturate(1.16) brightness(1.1);
-    }
-}
+   Only transform and opacity are animated on the picture, never filter. A
+   filter has to repaint the element every frame, and this one is 2360 pixels
+   wide, which is enough to make the whole page stutter while scrolling.
+   Transforms are handed to the compositor and cost nothing per frame.
+
+   The mark keeps a filter because there it is both cheap and visible: it is a
+   600 pixel element, and its pixels are bright, so the same swing that moves a
+   near-black picture by 4 levels of 255 moves the glyphs by 15.
+   -------------------------------------------------------------------------- */
 
 @keyframes hero-mark-lift {
     from {
@@ -251,18 +263,29 @@ header.nav-only .sections {
     }
 }
 
-@keyframes hero-parallax {
+/* Slow enough to read as the picture being alive rather than as something
+   sliding. Geometry, unlike tone, is visible on an image this dark. */
+@keyframes hero-drift {
     from {
-        transform: scale(1.26) translate3d(0, -6%, 0);
+        transform: scale(1.26) translate3d(-1.2%, -0.8%, 0);
     }
     to {
-        transform: scale(1.26) translate3d(0, 8%, 0);
+        transform: scale(1.36) translate3d(1.2%, 1.2%, 0);
+    }
+}
+
+@keyframes hero-parallax {
+    from {
+        transform: translate3d(0, -6%, 0);
+    }
+    to {
+        transform: translate3d(0, 8%, 0);
     }
 }
 
 @media (prefers-reduced-motion: no-preference) {
-    .hero-back {
-        animation: hero-breathe 12s ease-in-out infinite alternate;
+    .hero-back-img {
+        animation: hero-drift 44s ease-in-out infinite alternate;
     }
 
     .hero-mark {
@@ -280,18 +303,15 @@ header.nav-only .sections {
    never does, so half the travel would be unreachable and the rest too small to
    notice.
 
-   Two animations on one element, each on its own timeline: the breath runs on
-   time, the drift on scroll position. */
+   animation-timeline and animation-range come after the shorthand on purpose.
+   The animation shorthand resets both to their initial values, so declaring
+   them above it would leave the parallax running on the document clock. */
 @supports (animation-timeline: scroll()) {
     @media (prefers-reduced-motion: no-preference) {
         .hero-back {
-            animation:
-                hero-breathe 12s ease-in-out infinite alternate,
-                hero-parallax linear both;
-            animation-timeline: auto, scroll(root block);
-            animation-range:
-                normal,
-                0 90vh;
+            animation: hero-parallax linear both;
+            animation-timeline: scroll(root block);
+            animation-range: 0 90vh;
             will-change: transform;
         }
     }
