@@ -22,6 +22,13 @@ const juce::Identifier kEditorWidth{"editorWidth"};
 const juce::Identifier kEditorHeight{"editorHeight"};
 const juce::Identifier kEditorZoom{"editorZoom"};
 const juce::Identifier kLinkScope{"linkScope"};
+
+/// The curve, by name. See linkCurveFromState.
+const juce::Identifier kLinkCurveId{"linkCurveId"};
+
+/// What held the curve before the names, as an index into a list that has since
+/// changed. Read when kLinkCurveId is absent, and dropped on the next write so
+/// a state cannot carry two answers.
 const juce::Identifier kLinkCurve{"linkCurve"};
 const juce::Identifier kCollapsedSections{"collapsedSections"};
 
@@ -280,13 +287,15 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
 
   topBar.setLinkScope((LinkScope)juce::jlimit(
       0, (int)LinkScope::NumScopes - 1, (int)state.getProperty(kLinkScope, 0)));
-  topBar.setLinkCurve((LinkCurve)juce::jlimit(
-      0, (int)LinkCurve::NumCurves - 1, (int)state.getProperty(kLinkCurve, 0)));
+  topBar.setLinkCurve(
+      linkCurveFromState(state.getProperty(kLinkCurveId).toString(),
+                         (int)state.getProperty(kLinkCurve, -1)));
 
   topBar.onLinkSettingsChanged = [this] {
     auto &tree = plugin().apvts.state;
     tree.setProperty(kLinkScope, (int)topBar.getLinkScope(), nullptr);
-    tree.setProperty(kLinkCurve, (int)topBar.getLinkCurve(), nullptr);
+    tree.setProperty(kLinkCurveId, linkCurveId(topBar.getLinkCurve()), nullptr);
+    tree.removeProperty(kLinkCurve, nullptr);
 
     // Switching LINK on, or changing what it reaches, changes the answer to
     // "what would this knob take with it", so the preview follows immediately

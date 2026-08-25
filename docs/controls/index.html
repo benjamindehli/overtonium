@@ -311,12 +311,8 @@
                                     <td>every selected strip moves by the same amount</td>
                                 </tr>
                                 <tr>
-                                    <td>Tilt up</td>
-                                    <td>partials above the one you grabbed move more, those below move less</td>
-                                </tr>
-                                <tr>
-                                    <td>Tilt down</td>
-                                    <td>the same tilt reversed</td>
+                                    <td>Taper from the grab</td>
+                                    <td>a strip moves less the further along the series it sits from the one you grabbed</td>
                                 </tr>
                                 <tr>
                                     <td>Spread / gather</td>
@@ -330,10 +326,17 @@
                     </div>
 
                     <p>
-                        The tilts are anchored on the strip you grabbed, which always gets exactly its full share of the drag. That has to be true,
-                        since the knob under the mouse follows the mouse. The weighting is geometric, reaching about 1.8 times at the far end of the
-                        series and about 0.6 at the near end when you grab the middle, and neither direction falls to zero, so the quiet end still
-                        follows.
+                        Taper is anchored on the strip you grabbed, which always gets exactly its full share of the drag. That has to be true, since
+                        the knob under the mouse follows the mouse. From there a strip's share falls off in a straight line with distance, reaching
+                        nothing thirty-one channels away.
+                    </p>
+
+                    <p>
+                        Where you reach in is therefore the whole control. Grab channel 1 and the mixer tilts down across its full width, from
+                        everything to nothing. Grab channel 32 and it tilts up instead. Grab channel 10 and the curve peaks under your hand and falls
+                        away on both sides, to 0.71 at channel 1 and 0.29 at channel 32. Distance is measured against the full width rather than
+                        against whichever end is nearer, so the reach stays the same wherever you grab: scaling it to the nearer end would make a grab
+                        on channel 2 drop channel 1 to nothing in a single step.
                     </p>
 
                     <p>LINK gangs the 32 partials only. The noise channel has no tuning, pitch modulation or drift to gang.</p>

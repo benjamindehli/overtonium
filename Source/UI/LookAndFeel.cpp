@@ -173,11 +173,11 @@ juce::Image linkCursorImage(LinkCurve curve, float scale) {
     std::array<float, 5> heights{};
 
     switch (curve) {
-    case LinkCurve::TiltUp:
-      heights = {0.25f, 0.42f, 0.6f, 0.78f, 0.96f};
-      break;
-    case LinkCurve::TiltDown:
-      heights = {0.96f, 0.78f, 0.6f, 0.42f, 0.25f};
+    case LinkCurve::Taper:
+      // Peaked in the middle and falling away on both sides, which is the
+      // shape of the drag when the grab is somewhere in the middle of the
+      // mixer. Grab an end and the same curve shows as a plain tilt.
+      heights = {0.28f, 0.62f, 0.96f, 0.62f, 0.28f};
       break;
     case LinkCurve::Spread:
       heights = {0.9f, 0.3f, 0.75f, 0.35f, 0.95f};

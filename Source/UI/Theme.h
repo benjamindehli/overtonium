@@ -284,14 +284,26 @@ enum class LinkScope {
 /// How a LINK drag is distributed across the strips it reaches.
 enum class LinkCurve {
   Uniform = 0, ///< every strip moves by the same amount
-  TiltUp,      ///< higher partials move more
-  TiltDown,    ///< lower partials move more
+  Taper,       ///< strips move less the further they sit from the one grabbed
   Spread,      ///< pushing up scatters them, pulling down gathers them
   NumCurves
 };
 
 const char *linkScopeName(LinkScope);
 const char *linkCurveName(LinkCurve);
+
+/// The curve as a saved state writes it, and reads it back.
+///
+/// A name rather than the enum's index, because the list has already changed
+/// once: an index written by an older version does not mean the same curve now.
+/// A name cannot drift that way.
+const char *linkCurveId(LinkCurve);
+
+/// @param id      what the current property held, empty if it is absent
+/// @param legacy  what the older integer property held, negative if absent.
+///                That list ran Uniform, Tilt up, Tilt down, Spread, and Taper
+///                is what replaced the two tilts, so both of them land on it.
+LinkCurve linkCurveFromState(const juce::String &id, int legacy);
 
 /// Everything the LINK switch is currently set to.
 struct LinkSettings {
@@ -318,9 +330,14 @@ bool applyLinkMenuChoice(int id, LinkSettings &);
 /// Anchored on the strip being dragged, which always comes out at exactly 1.
 /// That matters: the knob under the mouse has to follow the mouse, so if the
 /// curve gave it anything other than its full share it would disagree with
-/// every strip around it. Tilting is therefore relative to where you grabbed,
-/// and partials further up or down the series move progressively more or less
-/// than the one in your hand.
+/// every strip around it.
+///
+/// Taper is therefore measured from where you grabbed: a strip's share falls
+/// off with how far along the series it sits from the one in your hand, down to
+/// nothing at thirty-one channels away. Grab the first channel and the mixer
+/// tilts down across its whole width, grab the last and it tilts up, and grab
+/// anywhere between and the curve peaks under your hand and falls away on both
+/// sides.
 float linkCurveWeight(LinkCurve, int index0, int sourceIndex);
 
 /// Where one linked strip lands partway through a LINK drag.

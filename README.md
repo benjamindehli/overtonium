@@ -411,9 +411,9 @@ Rows in a folded section are hidden rather than left at zero height. A knob with
 
 The button opens a menu rather than toggling, since what a drag reaches and how it shares itself out matter as much as whether it is on at all, and it lights when the switch inside is engaged. The same menu is on a right-click anywhere in the mixer, which is where you are when you want it. Both settings are latched when a drag begins, so changing one midway cannot half-apply two different rules.
 
-While LINK is on, the pointer over the mixer says which curve is loaded: five bars, level for uniform, rising or falling for the tilts and scattered for spread. A mode you cannot see is a mode you forget you are in, and this one changes what every drag does.
+While LINK is on, the pointer over the mixer says which curve is loaded: five bars, level for uniform, peaked in the middle for taper and scattered for spread. A mode you cannot see is a mode you forget you are in, and this one changes what every drag does.
 
-With LINK engaged, pointing at a knob arms every knob a drag from it would move, before you touch anything. How brightly each one lights follows the curve, so under a tilt the end of the series that would take the biggest share is the end that glows most, and a scope that leaves channels out leaves them dark. Changing the scope or the curve redraws it under the pointer, which makes the difference between the four scopes and the four curves something you can see rather than something you have to try.
+With LINK engaged, pointing at a knob arms every knob a drag from it would move, before you touch anything. How brightly each one lights follows the curve, so under taper the strips nearest the one you are pointing at glow most and the far end of the mixer barely at all, and a scope that leaves channels out leaves them dark. Changing the scope or the curve redraws it under the pointer, which makes the difference between the scopes and the curves something you can see rather than something you have to try.
 
 **LINK SCOPE** picks the channels:
 
@@ -426,14 +426,15 @@ With LINK engaged, pointing at a knob arms every knob a drag from it would move,
 
 **LINK CURVE** picks how the drag is shared out:
 
-| Curve           | Effect                                                                                                                  |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Uniform         | every selected strip moves by the same amount                                                                           |
-| Tilt up         | partials above the one you grabbed move more, those below move less                                                     |
-| Tilt down       | the same tilt reversed                                                                                                  |
-| Spread / gather | pushing up scatters the strips apart along random directions, pulling down gathers them onto the strip you are dragging |
+| Curve               | Effect                                                                                                                  |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Uniform             | every selected strip moves by the same amount                                                                           |
+| Taper from the grab | a strip moves less the further along the series it sits from the one you grabbed                                        |
+| Spread / gather     | pushing up scatters the strips apart along random directions, pulling down gathers them onto the strip you are dragging |
 
-The tilts are anchored on the strip you grabbed, which always gets exactly its full share of the drag. That has to be true: the knob under the mouse follows the mouse, so any other weighting would put it visibly out of step with the strips beside it. Tilting is therefore relative to where you reach in, and the weighting is geometric, reaching about 1.8 times at the far end of the series and about 0.6 at the near end when you grab the middle. Neither direction falls to zero, so the quiet end still follows.
+Taper is anchored on the strip you grabbed, which always gets exactly its full share of the drag. That has to be true: the knob under the mouse follows the mouse, so any other weighting would put it visibly out of step with the strips beside it. From there a strip's share falls off in a straight line with distance, reaching nothing thirty-one channels away.
+
+Where you reach in is therefore the whole control. Grab channel 1 and the mixer tilts down across its full width, from everything to nothing. Grab channel 32 and it tilts up instead. Grab channel 10 and the curve peaks under your hand and falls away on both sides, to 0.71 at channel 1 and 0.29 at channel 32. The distance is always measured against the full width rather than against whichever end is nearer, so the reach stays the same wherever you grab: scaling it to the nearer end would make a grab on channel 2 drop channel 1 to nothing in a single step.
 
 Spread draws its scatter directions once when the drag begins, so the pattern holds still while you move rather than boiling. Gathering collapses onto the strip you are dragging rather than onto a fixed average, which keeps the knob in your hand as the thing everything converges towards. Half a drag downwards is enough to arrive.
 

@@ -440,10 +440,8 @@ const char *linkCurveName(LinkCurve c) {
   switch (c) {
   case LinkCurve::Uniform:
     return "Uniform";
-  case LinkCurve::TiltUp:
-    return "Tilt up";
-  case LinkCurve::TiltDown:
-    return "Tilt down";
+  case LinkCurve::Taper:
+    return "Taper from the grab";
   case LinkCurve::Spread:
     return "Spread / gather";
 
@@ -451,6 +449,42 @@ const char *linkCurveName(LinkCurve c) {
   default:
     jassertfalse;
     return "Uniform";
+  }
+}
+
+const char *linkCurveId(LinkCurve c) {
+  switch (c) {
+  case LinkCurve::Uniform:
+    return "uniform";
+  case LinkCurve::Taper:
+    return "taper";
+  case LinkCurve::Spread:
+    return "spread";
+
+  case LinkCurve::NumCurves:
+  default:
+    jassertfalse;
+    return "uniform";
+  }
+}
+
+LinkCurve linkCurveFromState(const juce::String &id, int legacy) {
+  for (int i = 0; i < (int)LinkCurve::NumCurves; ++i)
+    if (id == linkCurveId((LinkCurve)i))
+      return (LinkCurve)i;
+
+  // Written before the names went in, when the list ran Uniform, Tilt up, Tilt
+  // down, Spread. Both tilts become the curve that replaced them, and Spread
+  // has to be moved down a place rather than left where its old index now
+  // points, which is a different curve entirely.
+  switch (legacy) {
+  case 1:
+  case 2:
+    return LinkCurve::Taper;
+  case 3:
+    return LinkCurve::Spread;
+  default:
+    return LinkCurve::Uniform;
   }
 }
 
@@ -504,21 +538,20 @@ bool applyLinkMenuChoice(int id, LinkSettings &settings) {
 }
 
 float linkCurveWeight(LinkCurve c, int index0, int sourceIndex) {
-  // How far up or down the series this strip sits from the one being dragged,
-  // as -1 to +1.
+  // How far along the series this strip sits from the one being dragged, as 0
+  // to 1, where 1 is the full width of the mixer.
   const auto distance =
-      (float)(juce::jlimit(0, kNumHarmonics - 1, index0) - sourceIndex) /
+      (float)std::abs(juce::jlimit(0, kNumHarmonics - 1, index0) -
+                      juce::jlimit(0, kNumHarmonics - 1, sourceIndex)) /
       (float)(kNumHarmonics - 1);
 
-  // Geometric rather than linear, so the far ends stay in proportion and the
-  // grabbed strip lands on exactly 1 whichever direction the tilt runs.
-  constexpr float ratio = 3.0f;
-
   switch (c) {
-  case LinkCurve::TiltUp:
-    return std::pow(ratio, distance);
-  case LinkCurve::TiltDown:
-    return std::pow(ratio, -distance);
+  case LinkCurve::Taper:
+    // Measured against the full width rather than against whichever end
+    // happens to be nearer, so the reach is the same wherever you grab. Scaling
+    // it to the nearer end would make a grab on channel 2 drop channel 1 to
+    // nothing in a single step.
+    return 1.0f - distance;
 
   case LinkCurve::Uniform:
   case LinkCurve::Spread:

@@ -1477,27 +1477,53 @@ void testLinkCurves() {
   check(anchored,
         "the dragged strip's own weight is exactly 1 for every curve");
 
-  // Tilts weight by distance from the grabbed strip, in opposite directions.
-  const int src = 15;
-  const auto upAbove = linkCurveWeight(LinkCurve::TiltUp, 31, src);
-  const auto upBelow = linkCurveWeight(LinkCurve::TiltUp, 0, src);
-  const auto downAbove = linkCurveWeight(LinkCurve::TiltDown, 31, src);
-  const auto downBelow = linkCurveWeight(LinkCurve::TiltDown, 0, src);
+  // Taper falls away from wherever the grab is, by distance alone.
+  const auto taper = [](int i, int src) {
+    return linkCurveWeight(LinkCurve::Taper, i, src);
+  };
 
-  std::printf("  grabbing h16, tilt up: h1 %.2f h32 %.2f, tilt down: h1 %.2f "
-              "h32 %.2f\n",
-              upBelow, upAbove, downBelow, downAbove);
+  bool fallsOff = true;
+  bool symmetric = true;
 
-  check(upAbove > 1.0f && upBelow < 1.0f,
-        "tilt up moves partials above the grab more and below it less");
-  check(downAbove < 1.0f && downBelow > 1.0f, "tilt down does the opposite");
-  check(upBelow > 0.0f && downAbove > 0.0f,
-        "neither tilt freezes its quiet end completely");
+  for (int src : {0, 9, 15, 31}) {
+    for (int i = 1; i < ovt::kNumHarmonics; ++i) {
+      // Strictly further from the grab means strictly less share.
+      const auto nearer = std::abs(i - 1 - src);
+      const auto further = std::abs(i - src);
 
-  // Geometric, so equal distances either side are reciprocal.
-  check(std::abs(upAbove * linkCurveWeight(LinkCurve::TiltUp, 0, 16) - 1.0f) <
-            0.2f,
-        "the tilt is symmetric in proportion either side of the grab");
+      if (further > nearer)
+        fallsOff &= taper(i, src) < taper(i - 1, src);
+      else if (further < nearer)
+        fallsOff &= taper(i, src) > taper(i - 1, src);
+    }
+
+    // Equal distances either side of the grab get equal shares.
+    for (int d = 1; d < ovt::kNumHarmonics; ++d)
+      if (src - d >= 0 && src + d < ovt::kNumHarmonics)
+        symmetric &=
+            std::abs(taper(src - d, src) - taper(src + d, src)) < 1.0e-6f;
+  }
+
+  check(fallsOff, "taper gives a strip less the further it sits from the grab");
+  check(symmetric, "taper depends on distance alone, not on direction");
+
+  std::printf("  taper grabbing h1: h1 %.2f h16 %.2f h32 %.2f\n", taper(0, 0),
+              taper(15, 0), taper(31, 0));
+  std::printf("  taper grabbing h10: h1 %.2f h10 %.2f h32 %.2f\n", taper(0, 9),
+              taper(9, 9), taper(31, 9));
+
+  // Grabbing either end is the old pair of tilts: a straight ramp across the
+  // whole mixer, one way or the other.
+  check(taper(0, 0) > 0.99f && taper(31, 0) < 0.01f,
+        "grabbing the first channel tilts the mixer down across its width");
+  check(taper(31, 31) > 0.99f && taper(0, 31) < 0.01f,
+        "grabbing the last channel tilts it up instead");
+
+  // Grabbing anywhere between is what the tilts could not do.
+  check(taper(9, 9) > taper(0, 9) && taper(9, 9) > taper(31, 9),
+        "grabbing the middle peaks under the hand and falls away both ways");
+  check(taper(0, 9) > taper(31, 9),
+        "and leans towards whichever end the grab is nearer");
 
   check(std::abs(linkCurveWeight(LinkCurve::Uniform, 5, 20) - 1.0f) < 1.0e-6f,
         "uniform weights every strip equally");
@@ -1973,7 +1999,7 @@ void testLinkMenu() {
   LinkSettings settings;
   settings.enabled = false;
   settings.scope = LinkScope::Odd;
-  settings.curve = LinkCurve::TiltDown;
+  settings.curve = LinkCurve::Taper;
 
   auto menu = buildLinkMenu(settings);
 
@@ -2004,12 +2030,12 @@ void testLinkMenu() {
 
   check(headers == 2, "the menu is in two named sections");
   check(items == 1 + (int)LinkScope::NumScopes + (int)LinkCurve::NumCurves,
-        "the switch, four scopes and four curves are all there (" +
+        "the switch, every scope and every curve are all there (" +
             std::to_string(items) + ")");
 
   // Exactly the two current settings are ticked, and nothing else.
   check(ticked == 2, "two items are ticked");
-  check(tickedNames == "Odd harmonics Tilt down ",
+  check(tickedNames == "Odd harmonics Taper from the grab ",
         "and they are the current ones: " + tickedNames);
 
   // With LINK off the lists are shown but greyed, so the menu does not change
@@ -2056,9 +2082,42 @@ void testLinkMenu() {
 
   // Picking a curve must not disturb the scope, or the two lists would fight.
   state.scope = LinkScope::SameInterval;
-  applyLinkMenuChoice(203, state);
+  check(applyLinkMenuChoice(200 + (int)LinkCurve::Spread, state),
+        "the last curve's id is still one of ours");
   check(state.scope == LinkScope::SameInterval,
         "picking a curve leaves the scope alone");
+
+  // ---- what a saved state carries -------------------------------------------
+  //
+  // The curve is written by name, because the list has changed once already and
+  // an index written by an older version no longer means the same curve.
+  bool names = true;
+  for (int i = 0; i < (int)LinkCurve::NumCurves; ++i)
+    names &= linkCurveFromState(linkCurveId((LinkCurve)i), -1) == (LinkCurve)i;
+
+  check(names, "every curve round-trips through its saved name");
+
+  check(linkCurveFromState("", -1) == LinkCurve::Uniform,
+        "a state with no curve at all opens on Uniform");
+  check(linkCurveFromState("not a curve", -1) == LinkCurve::Uniform,
+        "and so does a name this version does not know");
+
+  // The old list ran Uniform, Tilt up, Tilt down, Spread. Both tilts are what
+  // Taper replaced, and Spread has to move down a place rather than stay at an
+  // index that now means something else.
+  check(linkCurveFromState("", 0) == LinkCurve::Uniform,
+        "an old state's Uniform still opens on Uniform");
+  check(linkCurveFromState("", 1) == LinkCurve::Taper,
+        "an old state's Tilt up opens on Taper");
+  check(linkCurveFromState("", 2) == LinkCurve::Taper,
+        "an old state's Tilt down opens on Taper as well");
+  check(linkCurveFromState("", 3) == LinkCurve::Spread,
+        "an old state's Spread is still Spread, not the curve at index 3");
+
+  // A state holding both answers takes the name, since that is the one this
+  // version wrote.
+  check(linkCurveFromState("spread", 1) == LinkCurve::Spread,
+        "the name wins over a leftover index");
 }
 
 void testTopBarLayout() {
