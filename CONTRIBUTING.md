@@ -167,6 +167,8 @@ It writes PNG, because JUCE has no WebP encoder, so producing what the pages act
 cwebp -lossless out/overtonium.png -o docs/overtonium.webp
 ```
 
+Through Pillow instead, it is `save(lossless=True, quality=100, method=6)`. The `quality` is not optional: on a lossless save it sets how hard the encoder works rather than how much it throws away, and leaving it at the default of 80 makes the window shot 341 KB where 100 makes it 204 KB, which is larger than the PNG it was supposed to beat.
+
 Regenerating always shows a diff, even with nothing changed. DRIFT is random per voice, so the meters and the lamps land somewhere slightly different every run, which moves about one percent of the pixels. Everything that is a setting rather than a measurement comes out identical, the tuning readouts included.
 
 The target is built by default so that it cannot quietly stop compiling, which is how the program that made the first set of pictures was lost. `-DOVERTONIUM_BUILD_TOOLS=OFF` skips it.

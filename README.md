@@ -325,7 +325,7 @@ Each channel carries two figures, the cents its tuning knob is worth and the lev
 
 Two of the things they show are not numbers. A partial left in equal temperament reads **Et**, and a fader all the way down reads **-inF**, both dimmed, because a statement of fact is not a level. The lower case t is what a real display does with a letter that has no seven-bar form, rather than leaving the cell blank. The fundamental and the octaves read a dimmed **0.0**: their just interval is the note itself, so there is nothing for the knob to do and saying so beats implying a choice.
 
-The sign rides on a narrow cell of its own rather than taking a digit, again the way a real display does it, so **+2.0** and **-13.7** keep their figures in the same place instead of shuffling sideways as the value crosses zero.
+The minus rides on a narrow cell of its own rather than taking a digit, again the way a real display does it, so **-2.0** spends no more of the display on its sign than **-13.7** does. There is no plus: seven bars cannot draw one that reads as anything but a speck beside the minus, so a partial sharp of equal temperament is the one with no sign, which is how a tuner writes it too. Nothing shuffles as a result, since a harmonic sits on one side of equal temperament and stays there.
 
 Both rows grew from thirteen pixels to sixteen. Seven-segment digits are about as wide as they are tall, so the row height caps the cell width, and at thirteen a reading like -13.7 ran its figures into each other. Three pixels on each of the two rows is what it costs to be able to read them.
 

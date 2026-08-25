@@ -167,10 +167,14 @@ uint8_t segmentsFor(char c) {
 /// Whether a character rides in a narrow cell of its own rather than taking a
 /// whole digit's width.
 ///
-/// The point and the sign both do, the way they do on a real display: the sign
-/// has a position rather than a digit, so +2.0 and -13.7 keep their figures in
-/// the same place instead of shuffling sideways.
-bool isNarrow(char c) { return c == '.' || c == '+' || c == '-'; }
+/// The point and the minus both do, the way they do on a real display: a sign
+/// has a position rather than a digit, so -13.7 spends no more of the display
+/// on its sign than -2.0 does.
+///
+/// There is no plus. Seven bars cannot make one worth reading, so nothing
+/// asks for one, and a character with no form here comes out blank rather
+/// than as the speck a plus would be.
+bool isNarrow(char c) { return c == '.' || c == '-'; }
 } // namespace
 
 bool SegmentDisplay::canDraw(char c) {
@@ -321,11 +325,6 @@ void SegmentDisplay::paint(juce::Graphics &g) {
                                digitArea.getBottom() - t, t, t, t * 0.35f);
       else
         g.fillRoundedRectangle(x, midY, pointW, t, t * 0.35f);
-
-      // ...and the upright that makes a plus out of a minus.
-      if (c == '+')
-        g.fillRoundedRectangle(x + (pointW - t) * 0.5f, midY - pointW * 0.5f,
-                               t, pointW, t * 0.35f);
 
       x += pointW;
       continue;
@@ -807,7 +806,17 @@ void ChannelStrip::updateTuneReadout() {
     text = "Et";
     active = false;
   } else {
-    text = (cents >= 0.0 ? "+" : "-") + juce::String(std::abs(cents), 1);
+    // Only the minus is shown. Seven bars can make a convincing minus but not
+    // a plus: the upright has to be drawn into the same narrow cell, and what
+    // comes out reads as a speck beside the minus rather than as its opposite.
+    // A sharp partial is then the one with no sign, which is how a tuner
+    // writes it too.
+    //
+    // Nothing shuffles as a result. A harmonic's just interval sits on one
+    // side of equal temperament or the other and stays there, so a given
+    // channel's reading never changes sign.
+    text = std::abs(cents) < 0.05 ? juce::String("0.0")
+                                  : juce::String(cents, 1);
   }
 
   tuneReadout.setReading(text, active);

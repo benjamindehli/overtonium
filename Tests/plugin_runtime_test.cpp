@@ -935,8 +935,7 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
       // Cents run to about fifty either way, which is as far as any harmonic's
       // just interval sits from equal temperament.
       const auto cents = -50.0f + v * 100.0f;
-      readings.add((juce::String)(cents >= 0.0f ? "+" : "-") +
-                   juce::String(std::abs(cents), 1));
+      readings.add(juce::String(cents, 1));
     }
 
     juce::String undrawable;
@@ -1175,9 +1174,16 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
         "a partial left in equal temperament says so (" +
             readingFor(2, 0.0f).toStdString() + ")");
 
-  check(readingFor(2, 1.0f) == "+2.0",
-        "and tuned across to just intonation it reads its offset (" +
+  // No plus sign: seven bars cannot draw one that reads as anything but a
+  // speck, so a sharp partial is the one with no sign at all.
+  check(readingFor(2, 1.0f) == "2.0",
+        "and tuned across to just intonation it reads its offset, unsigned "
+        "when sharp (" +
             readingFor(2, 1.0f).toStdString() + ")");
+
+  check(!readingFor(2, 1.0f).containsChar('+') &&
+            !ovt::ui::SegmentDisplay::canDraw('+'),
+        "and the display has no plus to draw in the first place");
 
   check(readingFor(6, 1.0f) == "-31.2",
         "the seventh harmonic being the one that goes the other way (" +
