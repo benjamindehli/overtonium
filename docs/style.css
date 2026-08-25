@@ -1,5 +1,12 @@
 /* The plugin's own palette, taken from Source/UI/Theme.h so the page and the
-   instrument cannot drift apart. */
+   instrument cannot drift apart.
+
+   One colour deliberately does. The instrument's dim text is #6f7a86, which
+   comes to 4.45 against the page background and 4.08 against a panel, either
+   side of the 4.5 the contrast standard asks for at this size. The page lifts
+   it to clear that on every surface it lands on: 5.76 on the background, 5.28
+   on a panel, 5.02 on the alternate. Everything else here is the instrument's
+   value unchanged. */
 :root {
     --background: #0b0d10;
     --panel: #14181d;
@@ -7,7 +14,7 @@
     --groove: #090b0e;
     --outline: #272e37;
     --text: #d9dfe7;
-    --text-dim: #6f7a86;
+    --text-dim: #838d97;
     --accent: #62bbd9;
     --warn: #e0733d;
     --hold: #e8c34a;
