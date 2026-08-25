@@ -182,6 +182,16 @@ private:
   /// once and left, which is a menu rather than a panel.
   void showSettingsMenu();
 
+public:
+  /// The same menu as data, built rather than shown.
+  ///
+  /// Kept apart from showing it for the reason the LINK menu is: a menu that
+  /// can only be reached by clicking is a menu that never gets tested, and
+  /// showing one needs a real window. This can be walked without either.
+  juce::PopupMenu buildSettingsMenu();
+
+private:
+
   /// The factory list, then whatever has been saved, then what can be done
   /// with them.
   void showPresetMenu();

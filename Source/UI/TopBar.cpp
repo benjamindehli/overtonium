@@ -295,8 +295,9 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   // two switches that used to sit on the panel taking up room they had not
   // earned.
   settingsButton.setButtonText("SETTINGS");
-  settingsButton.setTooltip("Polyphony, pitch bend range, MPE, tuning, phase "
-                            "reset and the safety clipper");
+  // The sections it opens, in the order it opens them.
+  settingsButton.setTooltip("Polyphony, pitch bend range, expression, tuning, "
+                            "output and zoom");
   settingsButton.onClick = [this] { showSettingsMenu(); };
   addAndMakeVisible(settingsButton);
 
@@ -564,7 +565,7 @@ void TopBar::askForPresetName() {
       }));
 }
 
-void TopBar::showSettingsMenu() {
+juce::PopupMenu TopBar::buildSettingsMenu() {
   juce::PopupMenu m;
   m.setLookAndFeel(&getLookAndFeel());
 
@@ -614,13 +615,6 @@ void TopBar::showSettingsMenu() {
                   (semitones == 1 ? " semitone" : " semitones"),
               true, semitones == currentBend);
 
-  // Sits under the bend range because it is the thing that changes what bend
-  // means: with it on, each note is bent and pressed on a channel of its own,
-  // and the range above applies to the wheel across all of them. An ordinary
-  // keyboard plays either way.
-  m.addSeparator();
-  m.addItem(302, "MPE", true, mpe != nullptr && mpe->getValue() > 0.5f);
-
   // Which channel-wide control the AT row on every strip listens to. Most
   // keyboards have no aftertouch, so the wheel stands in for it, and by
   // default either will do.
@@ -636,9 +630,6 @@ void TopBar::showSettingsMenu() {
     sources.addItem(600 + i, params::kAftertouchSourceNames[(size_t)i], true,
                     i == sourceIndex);
 
-  // Where MPE slide goes, beside the aftertouch source for the same reason:
-  // both are decisions about the controller in front of you rather than about
-  // the sound, and neither travels with a preset.
   juce::PopupMenu slideTargets;
 
   {
@@ -650,6 +641,21 @@ void TopBar::showSettingsMenu() {
       slideTargets.addItem(1200 + i, params::slideDestChoices[i], true,
                            i == current);
   }
+
+  // One subject, so one group. Each of the three says how something the
+  // controller sends should reach the sound, none of them describes the sound
+  // itself, and none travels with a preset. Expression rather than any of the
+  // other names for it, since it is what the E in MPE already stands for.
+  //
+  // Still directly under the bend range, because MPE is the thing that changes
+  // what bend means: with it on, each note is bent and pressed on a channel of
+  // its own, and the range above applies to the wheel across all of them. An
+  // ordinary keyboard plays either way.
+  m.addSeparator();
+  m.addSectionHeader("Expression");
+  m.addItem(302, "MPE", true, mpe != nullptr && mpe->getValue() > 0.5f);
+  m.addSubMenu("Aftertouch from", sources);
+  m.addSubMenu("Slide to", slideTargets);
 
   // Tuning of the keyboard itself, which is a decision about the instrument
   // and gets set once, so it belongs here rather than on the panel.
@@ -696,17 +702,24 @@ void TopBar::showSettingsMenu() {
   m.addSubMenu("Reference pitch", references);
 
   m.addSeparator();
-  m.addSubMenu("Aftertouch from", sources);
-  m.addSubMenu("Slide to", slideTargets);
-  m.addSubMenu("Zoom", zooms);
-
-  m.addSeparator();
   m.addSectionHeader("Output");
   m.addItem(300, "Phase reset", true,
             phase != nullptr && phase->getValue() > 0.5f);
   m.addItem(301, "Safety clip", true,
             clip != nullptr && clip->getValue() > 0.5f);
 
+  // Last, and on its own. Everything above it is the instrument: how many
+  // voices, what the controller sends, how the keyboard is tuned, what leaves
+  // the outputs. How big the window is on your screen is not, and grouping it
+  // with any of them would imply it was.
+  m.addSeparator();
+  m.addSubMenu("Zoom", zooms);
+
+  return m;
+}
+
+void TopBar::showSettingsMenu() {
+  auto m = buildSettingsMenu();
 
   m.showMenuAsync(juce::PopupMenu::Options()
                       .withTargetComponent(&settingsButton)

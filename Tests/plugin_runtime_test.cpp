@@ -2252,6 +2252,66 @@ void testTopBarLayout() {
 /// middle of the row. Anything laid out down the middle instead reads as
 /// sagging next to the knobs, which is easy to reintroduce by adding a control
 /// and centring it, and hard to notice in a screenshot.
+/// What the SETTINGS menu is, and the order it says it in.
+///
+/// The order is the whole point of the grouping, and nothing else would notice
+/// if it drifted: the menu is only reachable by clicking, and a click needs a
+/// window the tests do not have.
+void testSettingsMenu(OvertoniumProcessor &p) {
+  section("Settings menu");
+
+  using namespace ovt::ui;
+
+  juce::Component popupParent;
+  TopBar bar(p.apvts, popupParent);
+
+  std::vector<std::string> headers, entries;
+
+  // Held in a named menu rather than iterated straight off the call: the
+  // iterator keeps a reference, and a temporary would be gone before the first
+  // step of the loop.
+  auto menu = bar.buildSettingsMenu();
+
+  for (juce::PopupMenu::MenuItemIterator it(menu); it.next();) {
+    const auto &item = it.getItem();
+
+    if (item.isSectionHeader)
+      headers.push_back(item.text.toStdString());
+    else if (item.itemID != 0 || item.subMenu != nullptr)
+      entries.push_back(item.text.toStdString());
+  }
+
+  const auto joined = [](const std::vector<std::string> &v) {
+    std::string s;
+    for (const auto &x : v)
+      s += x + " / ";
+    return s;
+  };
+
+  check(joined(headers) ==
+            "Polyphony / Pitch bend range / Expression / Tuning / Output / ",
+        "the sections read in order (" + joined(headers) + ")");
+
+  const auto at = [&entries](const std::string &name) {
+    const auto it = std::find(entries.begin(), entries.end(), name);
+    return it == entries.end() ? -1 : (int)(it - entries.begin());
+  };
+
+  // The three that answer "what does the controller in front of you send".
+  check(at("MPE") >= 0 && at("Aftertouch from") == at("MPE") + 1 &&
+            at("Slide to") == at("MPE") + 2,
+        "MPE, the aftertouch source and the slide destination sit together");
+
+  check(!entries.empty() && entries.back() == "Zoom",
+        "and Zoom is last, on its own (" +
+            (entries.empty() ? std::string("nothing") : entries.back()) + ")");
+
+  // A window size is not a property of the instrument, so nothing else may
+  // follow it into the same group.
+  check(at("Zoom") > at("Safety clip"),
+        "below everything that is about the instrument itself");
+}
+
 void testTopBarAlignment(OvertoniumProcessor &p) {
   section("Top bar alignment");
 
@@ -3535,6 +3595,7 @@ int main() {
   testMeterRepaint();
   testLinkMenu();
   testTopBarLayout();
+  testSettingsMenu(processor);
   testTopBarAlignment(processor);
   testKnobSizes(processor);
   testNoDeadTravel(processor);
