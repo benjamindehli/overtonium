@@ -238,10 +238,11 @@ void NoiseStrip::paint(juce::Graphics &g) {
 void NoiseStrip::updateLevelReadout() {
   const auto v = (float)volume.getValue();
 
-  if (v <= 0.0005f)
+  // See ChannelStrip::updateLevelReadout.
+  if (params::isSilentGain(v))
     return levelReadout.setReading("-inF", false);
 
-  const auto db = juce::Decibels::gainToDecibels(v);
+  const auto db = params::levelDecibels(v);
 
   levelReadout.setReading(
       (db >= 0.0f ? "" : "-") + juce::String(std::abs(db), 1), true);

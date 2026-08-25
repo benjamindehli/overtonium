@@ -150,10 +150,10 @@ juce::String panText(float v, int) {
 }
 
 juce::String gainText(float v, int) {
-  if (v <= 0.0001f)
+  if (isSilentGain(v))
     return "-inf dB";
 
-  return juce::String(juce::Decibels::gainToDecibels(v), 1) + " dB";
+  return juce::String(levelDecibels(v), 1) + " dB";
 }
 
 juce::String blendText(float v, int) {

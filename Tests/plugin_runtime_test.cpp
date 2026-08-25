@@ -1051,6 +1051,44 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   check(level.getReading() == "-6.0" && level.isActive(),
         "half way is -6.0 dB (" + level.getReading().toStdString() + ")");
 
+  // The readout counts down to the quietest figure the cells can hold rather
+  // than giving up partway, which it used to do at -66 dB.
+  const auto atDb = [&](float db) {
+    setVolume(0, juce::Decibels::decibelsToGain(db));
+    return level.getReading();
+  };
+
+  bool counts = true;
+  for (float db : {-40.0f, -66.0f, -70.0f, -80.0f, -95.0f, -99.9f})
+    counts &= atDb(db) != "-inF";
+
+  check(counts, "every level down to the floor reads as a number");
+
+  check(atDb(-70.0f) == "-70.0",
+        "a level far below the old cut-off reads back (" +
+            atDb(-70.0f).toStdString() + ")");
+  check(atDb(-99.9f) == "-99.9", "and the floor itself reads -99.9 (" +
+                                     atDb(-99.9f).toStdString() + ")");
+
+  // Below the floor there is no figure that fits, so it says so instead.
+  check(atDb(-100.5f) == "-inF" && !level.isActive(),
+        "quieter than the floor reads -inF, dimmed (" +
+            atDb(-100.5f).toStdString() + ")");
+
+  // Whatever it shows has to fit the cells: a sign and four digits.
+  bool fits = true;
+  for (int i = 0; i <= 200; ++i) {
+    const auto reading = atDb(-0.5f * (float)i);
+    fits &= reading.length() <= 5;
+
+    for (auto c : reading)
+      fits &= ovt::ui::SegmentDisplay::canDraw((char)c);
+  }
+
+  check(fits, "no level anywhere in the range overflows the display");
+
+  setVolume(0, 1.0f);
+
   // ---- the cents readout --------------------------------------------------
   //
   // Partial 1 is the fundamental, whose just interval is the note itself, so

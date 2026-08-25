@@ -244,4 +244,33 @@ inline const std::array<int, 9> kLofiBitChoices{0, 16, 12, 10, 8, 6, 4, 3, 2};
 juce::String lofiRateName(int hz);
 juce::String lofiBitName(int bits);
 
+// ---- reading a level back -----------------------------------------------
+//
+// Three places turn a level into text: the channel readout, the noise readout
+// and the string the host is given. They have to agree, so the floor and the
+// test for silence live here rather than three times over.
+
+/// The quietest level a readout counts down to, in decibels.
+///
+/// Set by the width of a seven-segment readout, which holds a sign and four
+/// digits: -99.9 is the quietest figure that fits and -100.0 is the first that
+/// does not. Nothing about the fader stops below it, and the range from here to
+/// silence is a hair of travel, so this is a limit on what can be said rather
+/// than on what can be set.
+inline constexpr float kQuietestLevelDb = -99.9f;
+
+/// Whether a gain is quieter than any reading could describe.
+inline bool isSilentGain(float gain) noexcept {
+  // Half a display step below the floor, so a level that would round up to the
+  // floor is still given its number instead of being called silence.
+  return gain <= juce::Decibels::decibelsToGain(kQuietestLevelDb - 0.05f);
+}
+
+/// The decibel figure a readout shows for a gain.
+///
+/// Floored, so it can never ask for a character the display has no cell for.
+inline float levelDecibels(float gain) noexcept {
+  return juce::Decibels::gainToDecibels(gain, kQuietestLevelDb);
+}
+
 } // namespace ovt::params

@@ -818,11 +818,12 @@ void ChannelStrip::updateLevelReadout() {
 
   // A fader all the way down has no decibels to report, and saying so is more
   // use than a floor figure that looks like a setting. Dimmed, since it is the
-  // one reading that is not a level.
-  if (v <= 0.0005f)
+  // one reading that is not a level. Everything above that counts down to
+  // params::kQuietestLevelDb, which is as far as the cells reach.
+  if (params::isSilentGain(v))
     return levelReadout.setReading("-inF", false);
 
-  const auto db = juce::Decibels::gainToDecibels(v);
+  const auto db = params::levelDecibels(v);
 
   levelReadout.setReading(
       (db >= 0.0f ? "" : "-") + juce::String(std::abs(db), 1), true);
