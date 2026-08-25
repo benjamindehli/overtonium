@@ -26,6 +26,22 @@ public:
   void processBlock(juce::AudioBuffer<float> &buffer,
                     juce::MidiBuffer &midi) override;
 
+  // ---- a bus count the host may change -------------------------------------
+  //
+  // Without these three the Audio Unit tells the host its output element count
+  // is fixed, and Logic offers no multi-output option at all: it configures
+  // multi-output by writing that count and then setting each element's format,
+  // so a count it cannot write is a plugin it cannot open with more than the
+  // main pair. JUCE's wrapper decides the flag from canAddBus and canRemoveBus
+  // alone, both of which default to false.
+  //
+  // Nothing about this is visible to auval, which is why a plugin Logic does
+  // offer multi-output for reports exactly what this one did.
+  bool canAddBus(bool isInput) const override;
+  bool canRemoveBus(bool isInput) const override;
+  bool canApplyBusCountChange(bool isInput, bool isAddingBuses,
+                              BusProperties &outNewBusProperties) override;
+
   /// Overriding one processBlock hides the rest of the overload set, the
   /// double-precision one included. Nothing calls it, since
   /// supportsDoublePrecisionProcessing is left at its default of false, but

@@ -72,7 +72,7 @@ The meters and lamps are the only things that move on their own, so they set the
 
 ## Channel outputs
 
-The plugin declares the stereo mix plus one mono output per channel, all of the extras disabled, so a host sees a plain stereo instrument unless it asks for more. `isBusesLayoutSupported` accepts any subset of them.
+The plugin declares the stereo mix plus one output per channel, all of the extras disabled, so a host sees a plain stereo instrument unless it asks for more. `isBusesLayoutSupported` accepts any subset of them, each mono or stereo. Both matter for the Audio Unit: Logic enumerates a plugin's extra outputs in mixtures of the two, so refusing either narrows what it can offer.
 
 The render carries a `ChannelTaps`, an array of destination pointers with one entry per channel and null for the ones nobody wanted. It is threaded from `render` down to the per-partial loop in `Voice::render`, where the write is chosen once per partial by instantiating the loop twice rather than branching once per sample. That is what keeps a stereo-only instance costing exactly what it did before the feature existed.
 

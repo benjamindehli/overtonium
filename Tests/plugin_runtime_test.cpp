@@ -10,6 +10,7 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <functional>
 #include <map>
 #include <set>
@@ -2832,12 +2833,21 @@ void testBusLayouts(OvertoniumProcessor &p) {
     check(p.checkBusesLayoutSupported(some), "and any subset of them");
   }
 
-  // A channel output is one channel. Anything else is a host guessing.
+  // A channel output carries one signal, but a host may want to hand it a
+  // stereo pair to carry it in, and Logic will only ask about pairs.
   {
     auto wide = layout(juce::AudioChannelSet::stereo(), false);
     wide.outputBuses.set(1, juce::AudioChannelSet::stereo());
-    check(!p.checkBusesLayoutSupported(wide),
-          "a stereo channel output is rejected");
+    check(p.checkBusesLayoutSupported(wide),
+          "a stereo channel output is allowed");
+  }
+
+  // Anything wider than a pair is a host guessing.
+  {
+    auto wider = layout(juce::AudioChannelSet::stereo(), false);
+    wider.outputBuses.set(1, juce::AudioChannelSet::create5point1());
+    check(!p.checkBusesLayoutSupported(wider),
+          "but a surround channel output is not");
   }
 
   // The default is the plain instrument: nobody who does not ask gets 33 more
@@ -2864,6 +2874,57 @@ void testChannelOutputs() {
   section("Channel outputs");
 
   OvertoniumProcessor p;
+
+  // A host may want these as mono or as stereo pairs, and Logic only asks
+  // about stereo: it offers an Audio Unit's extra outputs in pairs, so a
+  // plugin that refuses stereo here is offered no multi-output option at all.
+  const auto accepts = [&p](juce::AudioChannelSet extra) {
+    auto l = p.getBusesLayout();
+    for (int i = 1; i < l.outputBuses.size(); ++i)
+      l.outputBuses.set(i, extra);
+    return p.checkBusesLayoutSupported(l);
+  };
+
+  check(accepts(juce::AudioChannelSet::mono()), "the taps can be mono");
+  check(accepts(juce::AudioChannelSet::stereo()), "or stereo pairs");
+  check(accepts(juce::AudioChannelSet::disabled()), "or off");
+  check(!accepts(juce::AudioChannelSet::create5point1()),
+        "but not something with no meaning for a single channel");
+
+  // Declared as a stereo pair, which is the shape Logic needs an Audio Unit's
+  // extra outputs to have before it offers multi-output at all. Mono stays
+  // available for a host that would rather have it.
+  check(p.getBus(false, 1)->getDefaultLayout() ==
+            juce::AudioChannelSet::stereo(),
+        "and a tap is declared as a stereo pair");
+
+  // The host has to be able to change how many outputs there are, not only
+  // what shape they take. Logic asks for multi-output by writing the output
+  // element count, and an Audio Unit that reports the count as fixed is
+  // offered no multi-output option at all. JUCE decides that flag from these
+  // two alone, and both default to false.
+  check(p.canRemoveBus(false), "the host can take an output bus away");
+  check(!p.canRemoveBus(true), "but not an input, of which there are none");
+  check(!p.canAddBus(false),
+        "and at the mixer's full width it will not add another");
+  check(!p.canAddBus(true), "and still not an input");
+
+  {
+    const int before = p.getBusCount(false);
+
+    check(p.removeBus(false) && p.getBusCount(false) == before - 1,
+          "removing one really removes it");
+    check(p.canAddBus(false), "and with one gone it can add one back");
+    check(p.addBus(false) && p.getBusCount(false) == before,
+          "which puts it back");
+    check(p.getBus(false, before - 1)->getName() == "Noise",
+          "under the name the fixed list gave it (" +
+              p.getBus(false, before - 1)->getName().toStdString() + ")");
+    check(p.getBus(false, before - 1)->getDefaultLayout() ==
+              juce::AudioChannelSet::stereo(),
+          "and as a stereo pair");
+    check(!p.canAddBus(false), "and it is full again");
+  }
 
   auto layout = p.getBusesLayout();
   for (int i = 1; i < layout.outputBuses.size(); ++i)
@@ -2931,6 +2992,56 @@ void testChannelOutputs() {
   check(silent == ovt::kNumHarmonics - 1,
         "and the channels nobody played are silent (" +
             std::to_string(silent) + ")");
+
+  // ---- the same again, as stereo pairs ------------------------------------
+  //
+  // What Logic asks for. Both channels of a pair carry the tap, since a tap is
+  // one signal and the pair is the host's shape rather than the sound's.
+  auto pairs = p.getBusesLayout();
+  for (int i = 1; i < pairs.outputBuses.size(); ++i)
+    pairs.outputBuses.set(i, juce::AudioChannelSet::stereo());
+
+  check(p.setBusesLayout(pairs), "the host can ask for stereo taps instead");
+
+  p.prepareToPlay(48000.0, 512);
+
+  const int wide = p.getTotalNumOutputChannels();
+  check(wide == 2 + 2 * (ovt::kNumHarmonics + 1),
+        "which is two channels each (" + std::to_string(wide) + ")");
+
+  juce::AudioBuffer<float> stereoBuffer(wide, 512);
+  midi.addEvent(juce::MidiMessage::noteOn(1, 45, 0.9f), 0);
+
+  std::vector<float> widePeak((size_t)wide, 0.0f);
+  bool matched = true;
+
+  for (int b = 0; b < 25; ++b) {
+    stereoBuffer.clear();
+    p.processBlock(stereoBuffer, midi);
+    midi.clear();
+
+    if (b < 10)
+      continue;
+
+    for (int ch = 0; ch < wide; ++ch)
+      widePeak[(size_t)ch] =
+          std::max(widePeak[(size_t)ch], stereoBuffer.getMagnitude(ch, 0, 512));
+
+    // Left and right of every tap have to be the same signal, sample for
+    // sample, not merely the same loudness. Compared as bytes rather than as
+    // floats: one is a copy of the other, so they are identical or the copy is
+    // wrong, and == on a float is a warning this build treats as an error.
+    for (int i = 0; i < ovt::kNumHarmonics + 1; ++i) {
+      const auto *l = stereoBuffer.getReadPointer(2 + 2 * i);
+      const auto *r = stereoBuffer.getReadPointer(3 + 2 * i);
+
+      matched = matched && std::memcmp(l, r, sizeof(float) * 512) == 0;
+    }
+  }
+
+  check(widePeak[2] > 1.0e-4f && widePeak[3] > 1.0e-4f,
+        "the first partial fills both channels of its pair");
+  check(matched, "and every pair carries the same signal in both");
 }
 
 /// A buffer smaller than the layout claims.
