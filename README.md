@@ -452,6 +452,8 @@ Each bar carries a peak hold, since what an output meter is mostly wanted for is
 
 Off by default, and the plugin is an ordinary stereo instrument until a host asks. Switch the extra outputs on and every channel gets one of its own: thirty-two partials and the noise channel, alongside the stereo mix that is always there.
 
+Through the VST3. The Audio Unit declares the same outputs, but Logic offers no multi-output option for it and loads it as a plain stereo instrument. Logic reads VST3s, so the routing is still available on macOS, and LV2 and the standalone are unaffected.
+
 Each one carries one signal and is dry. One signal because a tap is the channel itself rather than its share of a stereo image: pan is an arrangement inside the mix, and a channel taken out of the mix has left that arrangement behind. The host may take it as a mono output or as a stereo pair with the same signal in both, whichever it asks for. A pair is what it is declared as, because Logic offers no multi-output option for an Audio Unit whose extra outputs present as single channels. Dry because it is taken after the envelope, tremolo, velocity, pressure and fader but before wobble, the echo, the reverb, the converter and the master gain, which is the whole reason to route a channel out. You want to treat it yourself rather than inherit a reverb tail somebody else chose. The outputs therefore do not sum to the mix, and are not meant to.
 
 Any subset works. Wanting two partials on their own and the rest in the mix is a reasonable thing to ask a host for, so each output is enabled independently.

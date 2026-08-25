@@ -15,8 +15,8 @@ authors:
 repository-code: https://github.com/benjamindehli/overtonium
 url: https://benjamindehli.github.io/overtonium/
 license: AGPL-3.0-or-later
-version: 1.1.0
-date-released: "2026-08-23"
+version: 1.2.0
+date-released: "2026-08-25"
 keywords:
   - additive synthesis
   - audio plugin

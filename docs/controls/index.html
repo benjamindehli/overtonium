@@ -437,6 +437,12 @@
                     </p>
 
                     <p>
+                        Through the VST3. The Audio Unit declares the same outputs, but Logic offers no multi-output option for it and loads it as a
+                        plain stereo instrument. Logic reads VST3s, so the routing is still available on macOS, and LV2 and the standalone are
+                        unaffected.
+                    </p>
+
+                    <p>
                         Each one carries one signal and is dry. One signal because a channel's own output has no stereo image to arrange, and pan is
                         an arrangement inside the mix. Dry because it is taken after the envelope, tremolo, velocity, pressure and fader but before
                         the wobble, the echo, the reverb and the converter, which is the point of routing a channel out: you treat it yourself rather
