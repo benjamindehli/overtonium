@@ -12,7 +12,7 @@
     --warn: #e0733d;
     --hold: #e8c34a;
 
-    --measure: 74ch;
+    --measure: 77ch;
     --page: 1180px;
 }
 
@@ -385,8 +385,14 @@ dd {
     max-width: var(--measure);
 }
 
+/* text-wrap: pretty is what actually keeps a lone word off the last line. A
+   wider measure only moves the breaks around, so whether any given paragraph
+   ends in one word stays a matter of where its words happen to fall. This asks
+   the browser to solve it for every paragraph at once, and browsers without it
+   wrap as they always did. */
 p {
     margin: 0 0 16px;
+    text-wrap: pretty;
 }
 
 .lead {
