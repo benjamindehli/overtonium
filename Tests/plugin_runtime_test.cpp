@@ -1087,6 +1087,55 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
 
   check(fits, "no level anywhere in the range overflows the display");
 
+  // ---- where those levels sit on the fader --------------------------------
+  //
+  // Reading a level is no use if it cannot be set. The travel is spaced by
+  // decibels, so the quiet end has room rather than being crushed into the
+  // last few pixels.
+  auto *fader = p.apvts.getParameter(
+      ovt::params::oscParamId(ovt::params::volumeSuffix, 0));
+
+  check(fader != nullptr, "the level parameter is there");
+  if (fader == nullptr)
+    return;
+
+  const auto travelAt = [&](float db) {
+    return fader->convertTo0to1(juce::Decibels::decibelsToGain(db));
+  };
+
+  std::printf("  fader travel: -12 dB at %.0f%%, -40 at %.0f%%, -66 at %.0f%%, "
+              "-99.9 at %.1f%%\n",
+              100.0 * travelAt(-12.0f), 100.0 * travelAt(-40.0f),
+              100.0 * travelAt(-66.0f), 100.0 * travelAt(-99.9f));
+
+  check(travelAt(0.0f) > 0.999f, "unity sits at the top of the travel");
+  check(fader->convertTo0to1(0.0f) < 0.001f, "and silence at the bottom");
+
+  // A gain law left everything below -66 dB inside the bottom 2% of a 223
+  // pixel fader, which is five pixels for thirty-four decibels.
+  check(travelAt(-66.0f) > 0.15f,
+        "-66 dB is well clear of the bottom of the fader");
+  check(travelAt(-99.9f) < 0.03f && travelAt(-99.9f) > 0.0f,
+        "and the floor is near the bottom of it, but clear of silence");
+
+  // Every step down has to move the fader down, or a level would be
+  // unreachable between two positions.
+  bool monotonic = true;
+  for (int i = 1; i <= 200; ++i)
+    monotonic &= travelAt(-0.5f * (float)i) < travelAt(-0.5f * (float)(i - 1));
+
+  check(monotonic, "the travel falls with the level all the way down");
+
+  // A level set on the fader has to come back as the level that was asked for.
+  bool roundTrips = true;
+  for (int i = 0; i <= 100; ++i) {
+    const auto norm = (float)i / 100.0f;
+    const auto gain = fader->convertFrom0to1(norm);
+    roundTrips &= std::abs(fader->convertTo0to1(gain) - norm) < 1.0e-3f;
+  }
+
+  check(roundTrips, "and a position round-trips through the gain it means");
+
   setVolume(0, 1.0f);
 
   // ---- the cents readout --------------------------------------------------

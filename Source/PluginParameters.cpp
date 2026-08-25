@@ -156,6 +156,66 @@ juce::String gainText(float v, int) {
   return juce::String(levelDecibels(v), 1) + " dB";
 }
 
+constexpr float kLevelShape = 2.0f;
+
+/// The fader reaches a shade below the quietest level a readout can name.
+///
+/// Without the margin, -99.9 dB lands on the very bottom of the travel, and
+/// the very bottom is silence, so the floor could be read but never set. The
+/// margin puts it about a hundredth of the way up, leaving a couple of pixels
+/// below it that are too quiet to name and then silence itself.
+constexpr float kFaderFloorDb = kQuietestLevelDb - 2.1f;
+
+/// How a level fader's travel maps to gain.
+///
+/// A square law in decibels, where a plain gain fader is a square law in gain.
+/// The difference is what happens at the quiet end. Spacing the travel by gain
+/// spends almost all of it on the loudest few decibels and leaves everything
+/// below -66 dB inside the last five pixels of a 223 pixel fader, which is why
+/// that end could be read but never set. Spacing it by decibels instead puts
+/// -66 dB about a fifth of the way up, with -99.9 dB at the bottom of the
+/// travel and silence in the last pixel.
+///
+/// Squared rather than straight: a fader linear in decibels would give the top
+/// twelve decibels a tenth of its travel, a quarter of what a gain law gives
+/// them, and that is where most of the mixing happens.
+///
+/// The stored value is still a gain, so presets and saved state mean what they
+/// always did. What changes is where a given level sits along the fader, and
+/// with it any host automation written against the old shape.
+juce::NormalisableRange<float> levelRange() {
+  return {
+      0.0f, 1.0f,
+
+      // Travel into gain.
+      [](float, float, float norm) {
+        // The bottom of the travel is silence rather than the quietest
+        // readable level, so a fader pulled all the way down is off rather
+        // than very nearly off.
+        if (norm <= 0.0f)
+          return 0.0f;
+
+        // The floor has to be handed over rather than left to its default,
+        // which is -100 dB. This fader reaches below that, and a default that
+        // rounds everything past it to silence would make the bottom hundredth
+        // of the travel dead.
+        return juce::Decibels::decibelsToGain(
+            kFaderFloorDb * std::pow(1.0f - norm, kLevelShape), kFaderFloorDb);
+      },
+
+      // Gain back into travel.
+      [](float, float, float gain) {
+        if (gain <= 0.0f)
+          return 0.0f;
+
+        const auto db = juce::Decibels::gainToDecibels(gain, kFaderFloorDb);
+
+        return juce::jlimit(
+            0.0f, 1.0f,
+            1.0f - std::pow(db / kFaderFloorDb, 1.0f / kLevelShape));
+      }};
+}
+
 juce::String blendText(float v, int) {
   if (v <= 0.0005f)
     return "Equal temp.";
@@ -440,12 +500,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::NormalisableRange<float>(-1.0f, 1.0f), 0.0f,
         FAttr().withStringFromValueFunction(panText)));
 
-    // Square-law fader: half travel lands at a quarter of full amplitude, which
-    // is roughly where the ear expects "half as loud".
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(volumeSuffix, i), 1}, p + "Level",
-        juce::NormalisableRange<float>(0.0f, 1.0f, 0.0f, 0.5f),
-        defaultVolumeFor(i), FAttr().withStringFromValueFunction(gainText)));
+        levelRange(), defaultVolumeFor(i),
+        FAttr().withStringFromValueFunction(gainText)));
   }
 
   // ---- noise channel --------------------------------------------------------
@@ -528,8 +586,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{noiseParamId(volumeSuffix), 1}, "Noise Level",
-      juce::NormalisableRange<float>(0.0f, 1.0f, 0.0f, 0.5f), 0.0f,
-      FAttr().withStringFromValueFunction(gainText)));
+      levelRange(), 0.0f, FAttr().withStringFromValueFunction(gainText)));
 
   return layout;
 }

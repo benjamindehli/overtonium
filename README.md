@@ -197,7 +197,7 @@ Each of the 32 strips has, top to bottom:
 | AFTERTOUCH                          | -100 to +100%                                    | How much key pressure moves this partial. Negative fades it out                     |
 | PAN                                 | hard left to hard right                          | Where this partial sits in the field. Equal power, so the level holds as it crosses |
 | M and S                             |                                                  | Mute wins over solo                                                                 |
-| LEVEL                               | -inf to 0 dB                                     | Square-law fader, with the meter filling its track                                  |
+| LEVEL                               | -inf to 0 dB                                     | Fader spaced by decibels, with the meter filling its track                          |
 
 Velocity being per partial is what lets a soft note be a different timbre rather than just a quieter one. Set the fundamental to 0% and the upper partials to 100% and the tone opens up as you play harder, which is roughly what a struck string or bar does. _Struck Bell_ and _Odd Harmonics_ ship with that curve already dialled in.
 

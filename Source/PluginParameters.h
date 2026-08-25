@@ -273,4 +273,7 @@ inline float levelDecibels(float gain) noexcept {
   return juce::Decibels::gainToDecibels(gain, kQuietestLevelDb);
 }
 
+// The shape of a level fader's travel is levelRange in PluginParameters.cpp,
+// which nothing outside it needs to name.
+
 } // namespace ovt::params
