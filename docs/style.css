@@ -97,55 +97,204 @@ header.nav-only .sections {
     margin-top: 0;
 }
 
-/* The wordmark is part of the picture, which is why the h1 is the picture and
-   the offscreen span carries the heading everything else reads. */
 .hero {
     margin-top: 28px;
 }
 
-.hero h1 {
-    margin: 0;
-}
+/* The frame stacks three layers: the window shot, a scrim, and the reading
+   matter. Its height comes from that content rather than from an aspect ratio,
+   because the copy inside it wraps differently at every width and a fixed ratio
+   would either crop the buttons off or leave a gap under them.
 
-/* The name is a layer over the picture rather than part of it, so the frame can
-   crop the window as hard as it likes without ever reaching the mark. That is
-   also what lets the mark take a larger share of the width on a phone than on a
-   desktop, which a single flattened image cannot do. */
+   isolation keeps the z-indexes below from competing with anything on the rest
+   of the page. */
 .hero-frame {
     position: relative;
+    isolation: isolate;
     display: grid;
     place-items: center;
     overflow: hidden;
-    aspect-ratio: 12 / 5;
+    min-height: 520px;
+    padding: clamp(40px, 5.5vw, 76px) clamp(20px, 4vw, 56px);
     border: 1px solid var(--outline);
     border-radius: 6px;
     background: var(--groove);
 }
 
-/* Texture, and nothing a reader has to make out, so cover may crop it freely. */
+/* Texture, and nothing a reader has to make out, so cover may crop it freely.
+   The scale is headroom for the parallax below: it drifts 14% of the frame
+   height in total, and 26% of zoom leaves 13% of overhang on each edge to
+   spend. Kept on whether the drift runs or not, so the framing does not change
+   between browsers. */
 .hero-back {
     position: absolute;
     inset: 0;
+    z-index: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
+    transform: scale(1.26);
 }
 
-/* The mark carries its own halo, so it needs no drop-shadow here. That halo is
-   also why the width is 66 rather than 62: the glyphs stop at 93% of the
-   canvas and the rest is the glow spreading out. */
-.hero-mark {
+/* Held as light as the text will allow, so the mixer stays legible as a picture
+   rather than becoming a dark smear behind a paragraph. Measured against the
+   brightest patch under each line with the breath at its peak: the tagline
+   lands at 6.2:1 and the paragraph at 8.7:1, where the standard asks 4.5.
+
+   The colour is --background, which a gradient cannot take from a custom
+   property without losing the alpha. */
+.hero-frame::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: radial-gradient(82% 76% at 50% 44%, rgba(11, 13, 16, 0.16) 0%, rgba(11, 13, 16, 0.5) 58%, rgba(11, 13, 16, 0.78) 100%);
+}
+
+/* Wide enough for the four buttons to sit on one row, which needs about 690px
+   at the widest font a browser is likely to pick. The mark and the paragraph
+   have their own narrower caps, so only the button row spends the extra. */
+.hero-body {
     position: relative;
-    width: 66%;
+    z-index: 2;
+    display: grid;
+    justify-items: center;
+    max-width: 760px;
+    text-align: center;
+}
+
+.hero-body h1 {
+    margin: 0;
+    width: 100%;
+}
+
+/* The mark carries its own halo, so it needs no drop-shadow here. */
+.hero-mark {
+    display: block;
+    width: 100%;
+    max-width: 600px;
     height: auto;
+    margin: 0 auto;
 }
 
+/* Full strength rather than --text-dim: the dim tone is set for the page
+   background, and over a picture at this scrim it stops carrying enough
+   contrast to read at 15px. */
 .hero .tagline {
-    margin-top: 20px;
+    margin-top: 22px;
+    color: var(--text);
+    opacity: 0.85;
+    text-shadow: 0 1px 10px rgba(11, 13, 16, 0.7);
 }
 
+/* Smaller than the 21px a lead runs at on the page. Centred over a picture it
+   is read in a glance rather than settled into, and four lines glance better
+   than five. */
 .hero .lead {
-    margin-top: 8px;
+    margin-top: 10px;
+    max-width: 58ch;
+    font-size: 19px;
+    text-shadow: 0 1px 12px rgba(11, 13, 16, 0.8);
+}
+
+.hero .links {
+    justify-content: center;
+    margin-top: 30px;
+}
+
+/* Translucent over the picture, where the flat panel fill the buttons use
+   elsewhere would read as a row of holes punched through it. */
+.hero .links a {
+    background: rgba(20, 24, 29, 0.68);
+    border-color: rgba(217, 223, 231, 0.18);
+    backdrop-filter: blur(8px);
+}
+
+.hero .links a:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.hero .links a.primary {
+    border-color: var(--accent);
+    background: rgba(98, 187, 217, 0.16);
+    color: var(--accent);
+}
+
+.hero .links a.primary:hover {
+    background: var(--accent);
+    color: var(--background);
+}
+
+/* ---- hero motion ----------------------------------------------------------
+
+   Two slow breaths on different periods, so they drift in and out of step
+   rather than pulsing together, and a parallax drift on scroll. All of it is
+   decoration, so all of it is behind prefers-reduced-motion.
+   -------------------------------------------------------------------------- */
+
+@keyframes hero-breathe {
+    from {
+        filter: saturate(0.86) brightness(0.88);
+    }
+    to {
+        filter: saturate(1.16) brightness(1.1);
+    }
+}
+
+@keyframes hero-mark-lift {
+    from {
+        filter: saturate(0.94) brightness(0.96);
+    }
+    to {
+        filter: saturate(1.18) brightness(1.1);
+    }
+}
+
+@keyframes hero-parallax {
+    from {
+        transform: scale(1.26) translate3d(0, -6%, 0);
+    }
+    to {
+        transform: scale(1.26) translate3d(0, 8%, 0);
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .hero-back {
+        animation: hero-breathe 12s ease-in-out infinite alternate;
+    }
+
+    .hero-mark {
+        animation: hero-mark-lift 9s ease-in-out infinite alternate;
+    }
+}
+
+/* The parallax is scroll-driven rather than scripted, so the page stays free of
+   JavaScript. Browsers without scroll-driven animations keep the still picture
+   and lose nothing else.
+
+   The timeline is the document's own scroll over the first 90vh rather than the
+   hero's passage through the viewport. A view() timeline spends half its range
+   on the element entering, which an element already at the top of the page
+   never does, so half the travel would be unreachable and the rest too small to
+   notice.
+
+   Two animations on one element, each on its own timeline: the breath runs on
+   time, the drift on scroll position. */
+@supports (animation-timeline: scroll()) {
+    @media (prefers-reduced-motion: no-preference) {
+        .hero-back {
+            animation:
+                hero-breathe 12s ease-in-out infinite alternate,
+                hero-parallax linear both;
+            animation-timeline: auto, scroll(root block);
+            animation-range:
+                normal,
+                0 90vh;
+            will-change: transform;
+        }
+    }
 }
 
 .links {
@@ -394,7 +543,7 @@ footer a:hover {
     }
 
     .hero-frame {
-        aspect-ratio: 2 / 1;
+        min-height: 460px;
     }
 
     body {
@@ -402,16 +551,15 @@ footer a:hover {
     }
 }
 
-/* A narrow screen gets a squarer frame and a proportionally larger mark, so the
-   name stays as readable as it is on a desktop rather than shrinking with the
-   column. */
+/* On a phone the copy alone fills the frame, so a floor on the height would
+   only add empty space under the buttons. */
 @media (max-width: 560px) {
     .hero-frame {
-        aspect-ratio: 3 / 2;
+        min-height: 0;
     }
 
-    .hero-mark {
-        width: 84%;
+    .hero .lead {
+        font-size: 17px;
     }
 }
 
