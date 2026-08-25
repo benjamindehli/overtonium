@@ -466,14 +466,15 @@ jobs:
               archives/*
           fi
 
-      # The plugin asks docs/latest.json whether it is behind, so publishing a
-      # release and updating that file have to be the same act. Doing it by
-      # hand would mean every user's check quietly reporting the previous
-      # version until somebody remembered.
+      # Two things on the site name this release: docs/latest.json, which the
+      # plugin asks whether it is behind, and the five download links on the
+      # install page. Publishing and updating them have to be the same act, or
+      # every user's check quietly reports the previous version and the
+      # download buttons hand out the previous build.
       #
       # main rather than the tag, since the tag is a detached head and the
       # Pages site is served from the branch.
-      - name: Point the update feed at this release
+      - name: Point the update feed and the download links at this release
         if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -502,11 +503,41 @@ jobs:
           }
           JSON
 
-          if git diff --quiet -- docs/latest.json; then
-            echo "the feed already names $version"
+          # The install page links each asset by name, and both halves of that
+          # name carry the tag:
+          #   .../releases/download/<tag>/Overtonium-<tag>-<platform>.<ext>
+          page=docs/install/index.html
+          pattern='releases/download/v[0-9][0-9.]*/Overtonium-v[0-9][0-9.]*-'
+
+          # Counted before and after, and the job fails if either number is
+          # wrong. A substitution that silently matches nothing would leave the
+          # page advertising an old release with no sign that anything was
+          # missed, which is the one way this can go wrong unnoticed.
+          expected=5
+          found=$(grep -c -E "$pattern" "$page" || true)
+
+          if [ "$found" -ne "$expected" ]; then
+            echo "::error::expected $expected download links in $page, found $found"
+            grep -n -E 'releases/download' "$page" || true
+            exit 1
+          fi
+
+          sed -i -E "s|$pattern|releases/download/$GITHUB_REF_NAME/Overtonium-$GITHUB_REF_NAME-|g" "$page"
+
+          current=$(grep -c "releases/download/$GITHUB_REF_NAME/Overtonium-$GITHUB_REF_NAME-" "$page" || true)
+
+          if [ "$current" -ne "$expected" ]; then
+            echo "::error::rewrote $current of $expected download links"
+            exit 1
+          fi
+
+          echo "the install page points at $GITHUB_REF_NAME"
+
+          if git diff --quiet -- docs/latest.json "$page"; then
+            echo "the feed and the links already name $version"
             exit 0
           fi
 
-          git add docs/latest.json
-          git commit -m "Point the update feed at $GITHUB_REF_NAME"
+          git add docs/latest.json "$page"
+          git commit -m "Point the update feed and the download links at $GITHUB_REF_NAME"
           git push origin main

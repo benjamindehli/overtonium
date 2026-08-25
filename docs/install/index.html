@@ -82,10 +82,82 @@
                 <h1>Installing</h1>
 
                 <p class="lead">
-                    Installers for macOS and Windows, and a zip for Linux, are on the
-                    <a href="https://github.com/benjamindehli/overtonium/releases/latest">releases page</a>. Every release carries a zip alongside the
-                    installer holding the same builds loose, for anyone without administrator rights or with plugin folders of their own.
+                    Installers for macOS and Windows, and a zip for Linux. Every release carries a zip alongside the installer holding the same builds
+                    loose, for anyone without administrator rights or with plugin folders of their own.
                 </p>
+
+                <!-- The five links below are rewritten by the release workflow, which
+                     checks that it found all of them. Keep the shape of the URLs:
+                     .../releases/download/<tag>/Overtonium-<tag>-<platform>.<ext> -->
+                <section id="downloads">
+                    <h2>Download</h2>
+
+                    <p>Five files, because one size does not fit everyone. Take the installer for your platform unless a row below describes you.</p>
+
+                    <div class="scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>File</th>
+                                    <th>Holds</th>
+                                    <th>Take this one if</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>
+                                        <a href="https://github.com/benjamindehli/overtonium/releases/download/v1.1.0/Overtonium-v1.1.0-macOS.pkg"
+                                            >macOS installer</a
+                                        >
+                                    </td>
+                                    <td>VST3, Audio Unit, Standalone</td>
+                                    <td>You are on a Mac. It asks which of the three you want and installs only those</td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <a href="https://github.com/benjamindehli/overtonium/releases/download/v1.1.0/Overtonium-v1.1.0-macOS.zip"
+                                            >macOS zip</a
+                                        >
+                                    </td>
+                                    <td>VST3, Audio Unit, Standalone</td>
+                                    <td>You have no administrator rights, or you keep plugins somewhere of your own</td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <a href="https://github.com/benjamindehli/overtonium/releases/download/v1.1.0/Overtonium-v1.1.0-Windows.exe"
+                                            >Windows installer</a
+                                        >
+                                    </td>
+                                    <td>VST3, Standalone</td>
+                                    <td>You are on Windows. It needs administrator rights, and SmartScreen will say the publisher is unknown</td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <a href="https://github.com/benjamindehli/overtonium/releases/download/v1.1.0/Overtonium-v1.1.0-Windows.zip"
+                                            >Windows zip</a
+                                        >
+                                    </td>
+                                    <td>VST3, Standalone</td>
+                                    <td>Same three reasons, or you would rather not run an unsigned installer</td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <a href="https://github.com/benjamindehli/overtonium/releases/download/v1.1.0/Overtonium-v1.1.0-Linux.zip"
+                                            >Linux zip</a
+                                        >
+                                    </td>
+                                    <td>VST3, LV2, Standalone</td>
+                                    <td>You are on Linux. There is no installer, since no two distributions agree on where a plugin goes</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <p>
+                        Every file above is from the current release. Older ones, the release notes and the source are on the
+                        <a href="https://github.com/benjamindehli/overtonium/releases/latest">releases page</a>.
+                    </p>
+                </section>
 
                 <section>
                     <h2>What each platform gets</h2>
@@ -253,7 +325,7 @@ cmake --build build</code></pre>
 
                 <div class="onward">
                     <ul class="links">
-                        <li><a class="primary" href="https://github.com/benjamindehli/overtonium/releases/latest">Download</a></li>
+                        <li><a class="primary" href="#downloads">Download</a></li>
                         <li><a href="../controls/">Controls</a></li>
                     </ul>
                 </div>
