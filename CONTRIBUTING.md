@@ -118,6 +118,10 @@ git tag -a v1.1.0 -m "Overtonium 1.1.0"
 git push origin v1.1.0
 ```
 
+The notes for the release page come from `release-notes/`, one file per version, named after the tag without its `v`. So `v1.2.0` is written up in `release-notes/1.2.0.md`, and it has to exist and be headed `# Overtonium 1.2.0` before the tag is pushed. A file per release rather than one that gets rewritten means the notes for a version stay readable in the tree after the next one lands, and the tag picks its own out by name instead of taking whatever the file happens to say.
+
+The heading is checked as well as the filename, since copying the previous release's notes to a new name and forgetting to edit them is exactly the mistake that would otherwise reach the release page.
+
 Each platform gets an installer where there is a sensible one, and a zip holding every format it can build alongside it, plus the readme and the licence. macOS gets VST3, AU and Standalone as a universal binary covering Apple Silicon and Intel, Linux gets VST3, LV2 and Standalone, and Windows gets VST3 and Standalone. The tests run before anything is packaged, so a tag that does not pass them produces no release.
 
 The same workflow can be started by hand from the Actions tab. That builds and uploads the archives against the run without publishing anything, which is how to exercise the packaging without spending a version number on it.

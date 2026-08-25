@@ -36,19 +36,21 @@ jobs:
 
       # Three places name the version and all three have to agree. The archive
       # is named from the tag, the version a host displays comes from
-      # CMakeLists, and the notes on the release page come from
-      # RELEASE_NOTES.md. Tagging v2.0.0 against a project still saying 1.0.0
-      # ships a file whose name and contents disagree, and notes still headed
-      # 1.0.0 describe the previous release to everyone who reads the page.
-      # Neither shows up anywhere the person cutting the release is looking.
+      # CMakeLists, and the notes on the release page come from the file in
+      # release-notes/ named after the tag. Tagging v2.0.0 against a project
+      # still saying 1.0.0 ships a file whose name and contents disagree, and a
+      # tag with no notes beside it would publish a release page with nothing
+      # on it. Neither shows up anywhere the person cutting the release is
+      # looking.
       #
-      # Both are reported before giving up, so a release that got two of them
-      # wrong takes one round trip rather than two.
+      # Everything is reported before giving up, so a release that got two of
+      # them wrong takes one round trip rather than two.
       - name: The tag has to match the project version and the notes
         if: github.ref_type == 'tag'
         shell: bash
         run: |
           tagged="${GITHUB_REF_NAME#v}"
+          notes="release-notes/$tagged.md"
           status=0
 
           project=$(sed -n 's/^project(Overtonium VERSION \([0-9.]*\).*/\1/p' \
@@ -61,20 +63,31 @@ jobs:
             status=1
           fi
 
-          # The first heading in the file rather than the first one that
-          # happens to match, so a version named further down cannot stand in
-          # for the title itself being right.
-          notes=$(grep -m1 '^# ' RELEASE_NOTES.md \
-                  | sed -n 's/^# Overtonium \([0-9][0-9.]*\) *$/\1/p')
-
-          echo "RELEASE_NOTES.md is headed ${notes:-nothing recognisable}"
-
-          if [ -z "$notes" ]; then
-            echo "::error::RELEASE_NOTES.md needs to start with '# Overtonium $tagged'"
+          # One file per release, so the notes for a version cannot be
+          # overwritten by the next one and the tag picks its own out by name.
+          if [ ! -f "$notes" ]; then
+            echo "::error::$notes does not exist"
+            echo "release-notes/ holds:"
+            ls release-notes/ || true
             status=1
-          elif [ "$notes" != "$tagged" ]; then
-            echo "::error::RELEASE_NOTES.md is headed $notes but the tag says $tagged"
-            status=1
+          else
+            # The first heading in the file rather than the first one that
+            # happens to match, so a version named further down cannot stand in
+            # for the title itself being right. The filename alone is not
+            # enough: copying last release's notes to a new name is exactly the
+            # mistake this catches.
+            headed=$(grep -m1 '^# ' "$notes" \
+                     | sed -n 's/^# Overtonium \([0-9][0-9.]*\) *$/\1/p')
+
+            echo "$notes is headed ${headed:-nothing recognisable}"
+
+            if [ -z "$headed" ]; then
+              echo "::error::$notes needs to start with '# Overtonium $tagged'"
+              status=1
+            elif [ "$headed" != "$tagged" ]; then
+              echo "::error::$notes is headed $headed but the tag says $tagged"
+              status=1
+            fi
           fi
 
           exit $status
@@ -448,7 +461,7 @@ jobs:
           else
             gh release create "$GITHUB_REF_NAME" \
               --title "Overtonium $GITHUB_REF_NAME" \
-              --notes-file RELEASE_NOTES.md \
+              --notes-file "release-notes/${GITHUB_REF_NAME#v}.md" \
               --verify-tag \
               archives/*
           fi
