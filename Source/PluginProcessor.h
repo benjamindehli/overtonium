@@ -26,21 +26,6 @@ public:
   void processBlock(juce::AudioBuffer<float> &buffer,
                     juce::MidiBuffer &midi) override;
 
-  // ---- a bus count the host may change -------------------------------------
-  //
-  // Without these three the Audio Unit tells the host its output element count
-  // is fixed, since JUCE's wrapper decides that flag from canAddBus and
-  // canRemoveBus alone and both default to false. A host that configures
-  // multi-output by writing the count then has nothing it can write.
-  //
-  // Whether any host needs it is untested: they were added while a stale
-  // component was shadowing every build, so the evidence they were reasoned
-  // from was worthless. They are kept because a fixed count is a fair thing
-  // for a plugin with 33 optional outputs not to claim.
-  bool canAddBus(bool isInput) const override;
-  bool canRemoveBus(bool isInput) const override;
-  bool canApplyBusCountChange(bool isInput, bool isAddingBuses,
-                              BusProperties &outNewBusProperties) override;
 
   /// Overriding one processBlock hides the rest of the overload set, the
   /// double-precision one included. Nothing calls it, since
@@ -150,12 +135,7 @@ public:
   const ovt::params::Cache &parameters() const noexcept { return paramCache; }
 
 private:
-  /// The stereo mix, then one mono output per channel of the mixer.
-  ///
-  /// The per-channel outputs start switched off, so the plugin is an ordinary
-  /// stereo instrument until a host asks for more. Mono because a tap is the
-  /// channel itself: pan is an arrangement inside the stereo image and a
-  /// single channel's own output has no image to arrange.
+  /// One stereo output, which is the mix.
   ///
   /// A member rather than a free function because BusesProperties is
   /// protected, and static because the constructor needs it before there is
@@ -200,14 +180,6 @@ private:
   /// The engine always writes here first; the host buffer may be mono, stereo
   /// or wider.
   juce::AudioBuffer<float> scratch;
-
-  /// The same again for the per-channel outputs, one mono channel each.
-  ///
-  /// Rendered into here and copied out per chunk, exactly as the mix is, so
-  /// the offsets a split block produces are worked out in one place rather
-  /// than two. Sized once in prepareToPlay, since the audio thread allocates
-  /// nothing.
-  juce::AudioBuffer<float> tapScratch;
 
   /// Parses the channel layout an MPE controller uses and works out what each
   /// note's bend and pressure add up to, master channel included. The voice

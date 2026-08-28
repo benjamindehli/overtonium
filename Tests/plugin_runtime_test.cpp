@@ -2826,286 +2826,45 @@ void testUndo(OvertoniumProcessor &p) {
 void testBusLayouts(OvertoniumProcessor &p) {
   section("Bus layouts");
 
-  // Every layout has to name all the buses the plugin declares, not just the
-  // ones it wants: a channel output that is switched off is an empty set
-  // rather than an absent entry.
-  const auto layout = [](juce::AudioChannelSet main, bool tapsOn) {
+  const auto layout = [](juce::AudioChannelSet main) {
     juce::AudioProcessor::BusesLayout out;
     out.outputBuses.add(main);
-
-    for (int i = 0; i < ovt::kNumHarmonics + 1; ++i)
-      out.outputBuses.add(tapsOn ? juce::AudioChannelSet::mono()
-                                 : juce::AudioChannelSet::disabled());
-
     return out;
   };
 
-  check(p.getBusCount(false) == ovt::kNumHarmonics + 2,
-        "the mix plus one output per channel (" +
-            std::to_string(p.getBusCount(false)) + ")");
+  check(p.getBusCount(false) == 1, "one output bus, the mix (" +
+                                       std::to_string(p.getBusCount(false)) +
+                                       ")");
+  check(p.getBusCount(true) == 0, "and no inputs");
 
-  check(p.checkBusesLayoutSupported(
-            layout(juce::AudioChannelSet::stereo(), false)),
-        "stereo out, channel outputs off");
-  check(
-      p.checkBusesLayoutSupported(layout(juce::AudioChannelSet::mono(), false)),
-      "mono out, channel outputs off");
-  check(p.checkBusesLayoutSupported(
-            layout(juce::AudioChannelSet::stereo(), true)),
-        "stereo out with every channel output on");
+  check(p.checkBusesLayoutSupported(layout(juce::AudioChannelSet::stereo())),
+        "stereo out is supported");
+  check(p.checkBusesLayoutSupported(layout(juce::AudioChannelSet::mono())),
+        "so is mono, for a host that only has one channel to give");
 
   check(!p.checkBusesLayoutSupported(
-            layout(juce::AudioChannelSet::create5point1(), false)),
-        "5.1 main output rejected");
-
-  // A subset, since wanting two channels out and the rest in the mix is a
-  // reasonable thing to ask a host for.
-  {
-    auto some = layout(juce::AudioChannelSet::stereo(), false);
-    some.outputBuses.set(1, juce::AudioChannelSet::mono());
-    some.outputBuses.set(4, juce::AudioChannelSet::mono());
-    check(p.checkBusesLayoutSupported(some), "and any subset of them");
-  }
-
-  // A channel output carries one signal, but a host may want to hand it a
-  // stereo pair to carry it in, and Logic will only ask about pairs.
-  {
-    auto wide = layout(juce::AudioChannelSet::stereo(), false);
-    wide.outputBuses.set(1, juce::AudioChannelSet::stereo());
-    check(p.checkBusesLayoutSupported(wide),
-          "a stereo channel output is allowed");
-  }
-
-  // Anything wider than a pair is a host guessing.
-  {
-    auto wider = layout(juce::AudioChannelSet::stereo(), false);
-    wider.outputBuses.set(1, juce::AudioChannelSet::create5point1());
-    check(!p.checkBusesLayoutSupported(wider),
-          "but a surround channel output is not");
-  }
-
-  // The default is the plain instrument: nobody who does not ask gets 33 more
-  // outputs in their mixer.
-  int enabled = 0;
-  for (int i = 1; i < p.getBusCount(false); ++i)
-    if (auto *bus = p.getBus(false, i); bus != nullptr && bus->isEnabled())
-      ++enabled;
-
-  check(enabled == 0, "and none of them are on to begin with (" +
-                          std::to_string(enabled) + ")");
+            layout(juce::AudioChannelSet::create5point1())),
+        "5.1 is not");
 
   check(p.acceptsMidi(), "accepts MIDI");
   check(!p.producesMidi(), "produces no MIDI");
 }
 
-/// The channel outputs end to end, through the host-facing path.
+/// A buffer narrower than the layout claims.
 ///
-/// The DSP test covers what a tap carries. This covers the half that only
-/// exists on this side: the bus layout being accepted, the buffer JUCE hands
-/// over being sliced correctly, and the main mix surviving the fan-out. Its
-/// own processor, since it changes the bus layout.
-void testChannelOutputs() {
-  section("Channel outputs");
-
-  OvertoniumProcessor p;
-
-  // A host may want these as mono or as stereo pairs, and Logic only asks
-  // about stereo: it offers an Audio Unit's extra outputs in pairs, so a
-  // plugin that refuses stereo here is offered no multi-output option at all.
-  const auto accepts = [&p](juce::AudioChannelSet extra) {
-    auto l = p.getBusesLayout();
-    for (int i = 1; i < l.outputBuses.size(); ++i)
-      l.outputBuses.set(i, extra);
-    return p.checkBusesLayoutSupported(l);
-  };
-
-  check(accepts(juce::AudioChannelSet::mono()), "the taps can be mono");
-  check(accepts(juce::AudioChannelSet::stereo()), "or stereo pairs");
-  check(accepts(juce::AudioChannelSet::disabled()), "or off");
-  check(!accepts(juce::AudioChannelSet::create5point1()),
-        "but not something with no meaning for a single channel");
-
-  // Declared as a stereo pair, which is the shape Logic needs an Audio Unit's
-  // extra outputs to have before it offers multi-output at all. Mono stays
-  // available for a host that would rather have it.
-  check(p.getBus(false, 1)->getDefaultLayout() ==
-            juce::AudioChannelSet::stereo(),
-        "and a tap is declared as a stereo pair");
-
-  // The host has to be able to change how many outputs there are, not only
-  // what shape they take. Logic asks for multi-output by writing the output
-  // element count, and an Audio Unit that reports the count as fixed is
-  // offered no multi-output option at all. JUCE decides that flag from these
-  // two alone, and both default to false.
-  check(p.canRemoveBus(false), "the host can take an output bus away");
-  check(!p.canRemoveBus(true), "but not an input, of which there are none");
-  check(!p.canAddBus(false),
-        "and at the mixer's full width it will not add another");
-  check(!p.canAddBus(true), "and still not an input");
-
-  {
-    const int before = p.getBusCount(false);
-
-    check(p.removeBus(false) && p.getBusCount(false) == before - 1,
-          "removing one really removes it");
-    check(p.canAddBus(false), "and with one gone it can add one back");
-    check(p.addBus(false) && p.getBusCount(false) == before,
-          "which puts it back");
-    check(p.getBus(false, before - 1)->getName() == "Noise",
-          "under the name the fixed list gave it (" +
-              p.getBus(false, before - 1)->getName().toStdString() + ")");
-    check(p.getBus(false, before - 1)->getDefaultLayout() ==
-              juce::AudioChannelSet::stereo(),
-          "and as a stereo pair");
-    check(!p.canAddBus(false), "and it is full again");
-  }
-
-  auto layout = p.getBusesLayout();
-  for (int i = 1; i < layout.outputBuses.size(); ++i)
-    layout.outputBuses.set(i, juce::AudioChannelSet::mono());
-
-  check(p.setBusesLayout(layout), "the host can switch the channel outputs on");
-
-  const auto setParam = [&p](const juce::String &id, float plain) {
-    if (auto *q = p.apvts.getParameter(id))
-      q->setValueNotifyingHost(q->convertTo0to1(plain));
-  };
-
-  ovt::presets::apply(p.apvts, presetIndex("Init"));
-  setParam(ovt::params::echoOnId, 0.0f);
-  setParam(ovt::params::reverbOnId, 0.0f);
-  setParam(ovt::params::wobbleId, 0.0f);
-
-  // Two partials only, so a tap carrying its neighbour would show.
-  for (int i = 0; i < ovt::kNumHarmonics; ++i) {
-    setParam(ovt::params::oscParamId(ovt::params::volumeSuffix, i),
-             (i == 0 || i == 3) ? 1.0f : 0.0f);
-    setParam(ovt::params::oscParamId(ovt::params::sustainSuffix, i), 1.0f);
-    setParam(ovt::params::oscParamId(ovt::params::velSuffix, i), 0.0f);
-  }
-
-  p.setRateAndBufferSizeDetails(48000.0, 512);
-  p.prepareToPlay(48000.0, 512);
-
-  const int channels = p.getTotalNumOutputChannels();
-  check(channels == 2 + ovt::kNumHarmonics + 1,
-        "the buffer carries the mix and every channel (" +
-            std::to_string(channels) + ")");
-
-  juce::AudioBuffer<float> buffer(channels, 512);
-  juce::MidiBuffer midi;
-  midi.addEvent(juce::MidiMessage::noteOn(1, 45, 0.9f), 0);
-
-  std::vector<float> peak((size_t)channels, 0.0f);
-
-  for (int b = 0; b < 25; ++b) {
-    buffer.clear();
-    p.processBlock(buffer, midi);
-    midi.clear();
-
-    if (b < 10)
-      continue;
-
-    for (int ch = 0; ch < channels; ++ch)
-      peak[(size_t)ch] =
-          std::max(peak[(size_t)ch], buffer.getMagnitude(ch, 0, 512));
-  }
-
-  check(peak[0] > 1.0e-4f && peak[1] > 1.0e-4f,
-        "the stereo mix still comes out of the main bus");
-
-  // Bus 1 is the first channel output, which is channel 2 of the buffer.
-  check(peak[2] > 1.0e-4f, "the first partial has its own output");
-  check(peak[5] > 1.0e-4f, "and so does the fourth");
-
-  int silent = 0;
-  for (int i = 0; i < ovt::kNumHarmonics + 1; ++i)
-    if (i != 0 && i != 3 && peak[(size_t)(2 + i)] < 1.0e-6f)
-      ++silent;
-
-  check(silent == ovt::kNumHarmonics - 1,
-        "and the channels nobody played are silent (" +
-            std::to_string(silent) + ")");
-
-  // ---- the same again, as stereo pairs ------------------------------------
-  //
-  // What Logic asks for. Both channels of a pair carry the tap, since a tap is
-  // one signal and the pair is the host's shape rather than the sound's.
-  auto pairs = p.getBusesLayout();
-  for (int i = 1; i < pairs.outputBuses.size(); ++i)
-    pairs.outputBuses.set(i, juce::AudioChannelSet::stereo());
-
-  check(p.setBusesLayout(pairs), "the host can ask for stereo taps instead");
-
-  p.prepareToPlay(48000.0, 512);
-
-  const int wide = p.getTotalNumOutputChannels();
-  check(wide == 2 + 2 * (ovt::kNumHarmonics + 1),
-        "which is two channels each (" + std::to_string(wide) + ")");
-
-  juce::AudioBuffer<float> stereoBuffer(wide, 512);
-  midi.addEvent(juce::MidiMessage::noteOn(1, 45, 0.9f), 0);
-
-  std::vector<float> widePeak((size_t)wide, 0.0f);
-  bool matched = true;
-
-  for (int b = 0; b < 25; ++b) {
-    stereoBuffer.clear();
-    p.processBlock(stereoBuffer, midi);
-    midi.clear();
-
-    if (b < 10)
-      continue;
-
-    for (int ch = 0; ch < wide; ++ch)
-      widePeak[(size_t)ch] =
-          std::max(widePeak[(size_t)ch], stereoBuffer.getMagnitude(ch, 0, 512));
-
-    // Left and right of every tap have to be the same signal, sample for
-    // sample, not merely the same loudness. Compared as bytes rather than as
-    // floats: one is a copy of the other, so they are identical or the copy is
-    // wrong, and == on a float is a warning this build treats as an error.
-    for (int i = 0; i < ovt::kNumHarmonics + 1; ++i) {
-      const auto *l = stereoBuffer.getReadPointer(2 + 2 * i);
-      const auto *r = stereoBuffer.getReadPointer(3 + 2 * i);
-
-      matched = matched && std::memcmp(l, r, sizeof(float) * 512) == 0;
-    }
-  }
-
-  check(widePeak[2] > 1.0e-4f && widePeak[3] > 1.0e-4f,
-        "the first partial fills both channels of its pair");
-  check(matched, "and every pair carries the same signal in both");
-}
-
-/// A buffer smaller than the layout claims.
-///
-/// A host is supposed to hand over a channel for every enabled bus. Not all of
-/// them do: pluginval processes a two-channel buffer against a layout asking
-/// for thirty-five, and this segfaulted on the Linux runner because
-/// getBusBuffer pointed past the end of it. Nothing here may reach outside the
-/// buffer it was given, whatever the layout says.
+/// A host is supposed to hand over a channel for every enabled bus, and not
+/// all of them do. pluginval once processed a two-channel buffer against a
+/// wider layout and segfaulted on the Linux runner, because the write went by
+/// what the layout said rather than by what the buffer held. Nothing here may
+/// reach outside the buffer it was given, whatever the layout says.
 void testUndersizedBuffer() {
   section("Undersized buffers");
 
   OvertoniumProcessor p;
-
-  auto all = p.getBusesLayout();
-  for (int i = 1; i < all.outputBuses.size(); ++i)
-    all.outputBuses.set(i, juce::AudioChannelSet::mono());
-
-  check(p.setBusesLayout(all), "the layout with every output on is accepted");
-  check(p.getTotalNumOutputChannels() == ovt::kNumHarmonics + 3,
-        "and asks for the mix plus every channel (" +
-            std::to_string(p.getTotalNumOutputChannels()) + ")");
-
   p.setRateAndBufferSizeDetails(48000.0, 512);
   p.prepareToPlay(48000.0, 512);
 
-  // Every width from nothing up to the main bus and a little past it. The
-  // check is that none of them crash or write outside their buffer, which the
-  // guard bytes below would catch.
-  for (int channels : {1, 2, 3, 8}) {
+  for (int channels : {1, 2, 3}) {
     juce::AudioBuffer<float> buffer(channels, 512);
     buffer.clear();
 
@@ -3118,12 +2877,11 @@ void testUndersizedBuffer() {
     }
 
     check(true, "a " + std::to_string(channels) +
-                    " channel buffer against a 35 channel layout survives");
+                    " channel buffer against a stereo layout survives");
   }
 
-  // And the ordinary case still works, so the guard did not simply switch the
-  // outputs off.
-  juce::AudioBuffer<float> full(p.getTotalNumOutputChannels(), 512);
+  // And the ordinary case still works, so the guard did not simply silence it.
+  juce::AudioBuffer<float> full(2, 512);
   juce::MidiBuffer midi;
   midi.addEvent(juce::MidiMessage::noteOn(1, 45, 0.9f), 0);
 
@@ -3138,7 +2896,7 @@ void testUndersizedBuffer() {
         loudest = std::max(loudest, full.getMagnitude(ch, 0, 512));
   }
 
-  check(loudest > 1.0e-4f, "a full-width buffer still gets audio");
+  check(loudest > 1.0e-4f, "and a full-width buffer still gets audio");
 }
 
 void testStateRoundTrip(OvertoniumProcessor &p) {
@@ -3747,7 +3505,6 @@ int main() {
   testPresetsAreReproducible(processor);
   testUndo(processor);
   testBusLayouts(processor);
-  testChannelOutputs();
   testUndersizedBuffer();
   testStateRoundTrip(processor);
   testPrograms(processor);

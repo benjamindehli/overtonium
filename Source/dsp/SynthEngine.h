@@ -67,15 +67,8 @@ public:
   allSoundOff() noexcept; ///< immediate silence (MIDI CC 120 / transport stop)
 
   /// Overwrites both channels with the rendered mix.
-  void render(float *left, float *right, const ChannelTaps &taps,
-              int numSamples,
-              const SynthParams &p) noexcept;
-
-  /// The stereo mix alone, for a host that asked for no channel outputs.
   void render(float *left, float *right, int numSamples,
-              const SynthParams &p) noexcept {
-    render(left, right, ChannelTaps{}, numSamples, p);
-  }
+              const SynthParams &p) noexcept;
 
   int getActiveVoiceCount() const noexcept;
 
@@ -162,8 +155,7 @@ private:
   /// The voice pool and the lo-fi converter, which are the same stage.
   ///
   /// Overwrites both channels and publishes the partial meters.
-  void renderVoices(float *left, float *right, const ChannelTaps &taps,
-                    int numSamples,
+  void renderVoices(float *left, float *right, int numSamples,
                     const SynthParams &p) noexcept;
 
   /// What one render pass found worth showing, before it is published.
@@ -183,9 +175,8 @@ private:
   };
 
   /// Sums every sounding voice into the buffers and takes the meter peaks.
-  void sumVoices(float *left, float *right, const ChannelTaps &taps,
-                 int numFrames, const SynthParams &p,
-                 Activity &into) noexcept;
+  void sumVoices(float *left, float *right, int numFrames,
+                 const SynthParams &p, Activity &into) noexcept;
 
   void publish(const Activity &) noexcept;
 
@@ -211,8 +202,6 @@ private:
   /// tap has to be held the same way or it would run at a different rate from
   /// the mix it belongs to. One buffer per channel, sized like the mix's, and
   /// only the ones a host actually asked for are touched.
-  std::array<std::array<float, kLofiChunk>, kNumHarmonics + 1> lofiTap{};
-  std::array<float, kNumHarmonics + 1> heldTap{};
 
   std::array<float, kLofiChunk> lofiScratchL{};
   std::array<float, kLofiChunk> lofiScratchR{};

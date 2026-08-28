@@ -12,7 +12,7 @@ Written in C++ with JUCE 8 by Benjamin Dehli for Dehli Musikk. Hosts list it und
 
 - [Overview](https://benjamindehli.github.io/overtonium/): what the instrument is, what TUNE does, common questions, and the two sample instruments it descends from.
 - [Tuning](https://benjamindehli.github.io/overtonium/tuning/): TUNE from equal to just, inharmonic stretch, six historical temperaments on any root, at a reference pitch from a list running 415 to 466 Hz, keyboard tracking, and per-partial drift.
-- [Controls](https://benjamindehli.github.io/overtonium/controls/): every knob on a channel strip and on the global bar, the two-part envelope, per-partial velocity and pressure, LINK for ganging the 32 channels, the lamps and meters, the noise channel, MPE, and the per-channel outputs.
+- [Controls](https://benjamindehli.github.io/overtonium/controls/): every knob on a channel strip and on the global bar, the two-part envelope, per-partial velocity and pressure, LINK for ganging the 32 channels, the lamps and meters, the noise channel and MPE.
 - [Presets](https://benjamindehli.github.io/overtonium/presets/): the sixteen that ship, what a preset carries and deliberately does not, and where user presets are kept on each platform.
 - [Install](https://benjamindehli.github.io/overtonium/install/): which download to take on each platform, what to do when a host does not see the plugin, the opt-in update check, and building from source.
 
@@ -34,7 +34,6 @@ Written in C++ with JUCE 8 by Benjamin Dehli for Dehli Musikk. Hosts list it und
 - Tuning: a continuous blend from equal temperament to just intonation, inharmonic stretch, keyboard tracking, and six keyboard temperaments (equal, just, Pythagorean, quarter-comma meantone, Werckmeister III, Young).
 - Effects: a tape echo, a feedback delay network reverb, a wobble across the whole series, and a converter that reduces render rate and bit depth.
 - MPE: pitch bend and pressure per note, with the slide axis routable to brightness or tuning.
-- Outputs: a stereo mix, and optionally one output per channel so a patch can arrive in the host as 33 tracks. Available in every format. In Logic, take one of the sixteen-output arrangements: it offers larger ones it cannot complete.
 - Factory presets: Big Saw, Cathedral, Drawbar Organ, Equal Saw, Glass Armonica, Init, Just Saw, Lo-fi, Music Box, Odd Harmonics, Shimmer, Slow Pad, Struck Bell, Tape Choir, Vibraphone, Wurli.
 - Privacy: nothing reaches the network unless the update check is switched on, which is off by default and offered once.
 

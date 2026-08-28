@@ -1,61 +1,9 @@
 #include "PluginProcessor.h"
 #include "Presets.h"
 
-namespace {
-/// The main mix plus one tap for every channel of the mixer.
-constexpr int kMaxOutputBuses = ovt::kNumHarmonics + 2;
-
-/// What the tap at this bus index is called. Bus 0 is the mix.
-juce::String tapBusName(int busIndex) {
-  return busIndex > ovt::kNumHarmonics ? juce::String("Noise")
-                                       : "H" + juce::String(busIndex);
-}
-} // namespace
-
 juce::AudioProcessor::BusesProperties OvertoniumProcessor::buses() {
-  auto layout = BusesProperties().withOutput(
-      "Output", juce::AudioChannelSet::stereo(), true);
-
-  // Declared as stereo pairs, though a tap is one signal and both channels of
-  // a pair carry it. Mono is the honest shape for one signal and
-  // isBusesLayoutSupported still accepts it, so a host may ask for either and
-  // Logic offers several arrangements of the two. Pairs are what has been
-  // tried in a host, which is the only reason they are what is declared.
-  for (int i = 1; i <= ovt::kNumHarmonics + 1; ++i)
-    layout = layout.withOutput(tapBusName(i), juce::AudioChannelSet::stereo(),
-                               false);
-
-  return layout;
-}
-
-bool OvertoniumProcessor::canAddBus(bool isInput) const {
-  return !isInput && getBusCount(false) < kMaxOutputBuses;
-}
-
-bool OvertoniumProcessor::canRemoveBus(bool isInput) const {
-  // Never the main mix. A synthesiser with no output is not a configuration
-  // worth offering a host.
-  return !isInput && getBusCount(false) > 1;
-}
-
-bool OvertoniumProcessor::canApplyBusCountChange(
-    bool isInput, bool isAddingBuses, BusProperties &outNewBusProperties) {
-  if (isInput)
-    return false;
-
-  if (!isAddingBuses)
-    return canRemoveBus(false);
-
-  if (!canAddBus(false))
-    return false;
-
-  // The bus about to be created sits at the end, so its name is the one the
-  // fixed list would have given it.
-  outNewBusProperties.busName = tapBusName(getBusCount(false));
-  outNewBusProperties.defaultLayout = juce::AudioChannelSet::stereo();
-  outNewBusProperties.isActivatedByDefault = true;
-
-  return true;
+  return BusesProperties().withOutput("Output",
+                                      juce::AudioChannelSet::stereo(), true);
 }
 
 OvertoniumProcessor::OvertoniumProcessor()
@@ -75,9 +23,6 @@ void OvertoniumProcessor::prepareToPlay(double sampleRate,
   // pieces. Two channels of 512 frames is four kilobytes.
   scratch.setSize(2, juce::jmax(512, maximumExpectedSamplesPerBlock), false,
                   true, true);
-  tapScratch.setSize(ovt::kNumHarmonics + 1,
-                     juce::jmax(512, maximumExpectedSamplesPerBlock), false,
-                     true, true);
   pitchBendNormalised = 0.0f;
   channelPressure = 0.0f;
   modWheel = 0.0f;
@@ -184,25 +129,6 @@ bool OvertoniumProcessor::isBusesLayoutSupported(
   if (out != juce::AudioChannelSet::mono() &&
       out != juce::AudioChannelSet::stereo())
     return false;
-
-  // Any subset of the channel outputs, each off, mono or stereo. Any subset
-  // rather than all or nothing, since wanting two partials out and the rest in
-  // the mix is a reasonable thing to ask for and costs nothing to allow.
-  //
-  // Stereo as well as mono because a tap is mono by nature but hosts are not.
-  // Logic enumerates an Audio Unit's extra outputs in mixtures of both, so
-  // refusing either narrows what it can offer. A stereo tap carries the same
-  // signal in both channels.
-  for (int i = 1; i < layouts.outputBuses.size(); ++i) {
-    const auto &bus = layouts.outputBuses.getReference(i);
-
-    if (bus.isDisabled())
-      continue;
-
-    if (bus != juce::AudioChannelSet::mono() &&
-        bus != juce::AudioChannelSet::stereo())
-      return false;
-  }
 
   return true;
 }
@@ -329,17 +255,8 @@ void OvertoniumProcessor::renderSegment(int scratchOffset, int numSamples) {
   if (numSamples <= 0)
     return;
 
-  // Only the channels a host actually asked for. A null entry costs the render
-  // nothing, so a plain stereo instance does exactly the work it always did.
-  ovt::ChannelTaps taps;
-
-  for (int i = 0; i < ovt::kNumHarmonics + 1; ++i)
-    if (const auto *bus = getBus(false, i + 1);
-        bus != nullptr && bus->isEnabled())
-      taps.out[(size_t)i] = tapScratch.getWritePointer(i, scratchOffset);
-
   engine.render(scratch.getWritePointer(0, scratchOffset),
-                scratch.getWritePointer(1, scratchOffset), taps, numSamples,
+                scratch.getWritePointer(1, scratchOffset), numSamples,
                 currentParams);
 }
 
@@ -441,21 +358,6 @@ void OvertoniumProcessor::processBlock(juce::AudioBuffer<float> &buffer,
       for (int c = 2; c < mainChannels; ++c)
         if (const int ch = channelOf(0, c); ch >= 0)
           buffer.clear(ch, done, length);
-    }
-
-    for (int i = 0; i < ovt::kNumHarmonics + 1; ++i) {
-      const auto *bus = getBus(false, i + 1);
-
-      if (bus == nullptr || !bus->isEnabled())
-        continue;
-
-      // Every channel the host gave this tap, which is one or two. A tap is
-      // one signal either way, so a stereo pair gets the same in both rather
-      // than the channel's pan position: pan is an arrangement inside the mix,
-      // and a channel taken out of the mix has left that arrangement behind.
-      for (int c = 0; c < getChannelCountOfBus(false, i + 1); ++c)
-        if (const int ch = channelOf(i + 1, c); ch >= 0)
-          buffer.copyFrom(ch, done, tapScratch.getReadPointer(i), length);
     }
 
     done = chunkEnd;

@@ -19,30 +19,6 @@ namespace ovt {
 /// voice branches on it and the DSP core is not allowed to include JUCE.
 enum class SlideDestination { Off = 0, Brightness, Tuning };
 
-/// Where each channel's own output goes, when a host has asked for one.
-///
-/// Mono and dry on purpose. A tap carries the channel after its envelope,
-/// tremolo, velocity, pressure and fader, but before the pan, which belongs to
-/// the stereo mix, and before the master effects, which is the whole reason to
-/// route a channel out: you want to treat it yourself, not inherit a reverb
-/// tail somebody else chose.
-///
-/// A null entry means nobody asked for that channel, and costs nothing.
-struct ChannelTaps {
-  /// One per partial, then the noise channel last.
-  std::array<float *, kNumHarmonics + 1> out{};
-
-  static constexpr int noiseIndex = kNumHarmonics;
-
-  bool any() const noexcept {
-    for (auto *p : out)
-      if (p != nullptr)
-        return true;
-
-    return false;
-  }
-};
-
 /// A per-block snapshot of one channel strip. Deliberately plain data: the DSP
 /// core never touches JUCE, which keeps it unit-testable and portable.
 struct OscParams {

@@ -328,23 +328,16 @@ void SynthEngine::setRenderRate(double rate) noexcept {
     v.setRenderRate(rate);
 }
 
-void SynthEngine::sumVoices(float *left, float *right, const ChannelTaps &taps,
-                            int numFrames, const SynthParams &p,
-                            Activity &into) noexcept {
+void SynthEngine::sumVoices(float *left, float *right, int numFrames,
+                            const SynthParams &p, Activity &into) noexcept {
   std::fill(left, left + numFrames, 0.0f);
   std::fill(right, right + numFrames, 0.0f);
-
-  // Cleared here rather than by the caller, so a tap is the sum of the voices
-  // in this block and nothing left over from the last one.
-  for (auto *tap : taps.out)
-    if (tap != nullptr)
-      std::fill(tap, tap + numFrames, 0.0f);
 
   for (auto &v : voices) {
     if (!v.isActive())
       continue;
 
-    v.render(left, right, taps, numFrames, p);
+    v.render(left, right, numFrames, p);
 
     // The lamps follow the meter rather than being gathered on their own
     // terms. Whichever voice is loudest on a partial is the one you are
@@ -387,8 +380,7 @@ void SynthEngine::publish(const Activity &a) noexcept {
   noiseTremolo.store(a.noiseTremolo, std::memory_order_relaxed);
 }
 
-void SynthEngine::renderVoices(float *left, float *right,
-                               const ChannelTaps &taps, int numSamples,
+void SynthEngine::renderVoices(float *left, float *right, int numSamples,
                                const SynthParams &p) noexcept {
   const auto target = lofiRenderRate(p);
   const int bits = std::clamp(p.lofi.bits, 0, 24);
@@ -397,7 +389,7 @@ void SynthEngine::renderVoices(float *left, float *right,
 
   if (target >= sampleRate) {
     setRenderRate(sampleRate);
-    sumVoices(left, right, taps, numSamples, p, activity);
+    sumVoices(left, right, numSamples, p, activity);
 
     if (bits > 0)
       quantise(left, right, numSamples, bits);
@@ -442,16 +434,7 @@ void SynthEngine::renderVoices(float *left, float *right,
         }
       }
 
-      // The taps render at the low rate too, into scratch of their own, and
-      // are held up below with the mix. Anything else would leave a channel's
-      // own output running at a different rate from the mix it came from.
-      ChannelTaps lofiTaps;
-
-      for (size_t i = 0; i < taps.out.size(); ++i)
-        if (taps.out[i] != nullptr)
-          lofiTaps.out[i] = lofiTap[i].data();
-
-      sumVoices(lofiScratchL.data(), lofiScratchR.data(), lofiTaps, frames, p,
+      sumVoices(lofiScratchL.data(), lofiScratchR.data(), frames, p,
                 activity);
 
       if (bits > 0)
@@ -466,20 +449,11 @@ void SynthEngine::renderVoices(float *left, float *right,
           resamplePhase -= 1.0;
           heldL = lofiScratchL[(size_t)src];
           heldR = lofiScratchR[(size_t)src];
-
-          for (size_t i = 0; i < taps.out.size(); ++i)
-            if (taps.out[i] != nullptr)
-              heldTap[i] = lofiTap[i][(size_t)src];
-
           ++src;
         }
 
         left[done + n] = heldL;
         right[done + n] = heldR;
-
-        for (size_t i = 0; i < taps.out.size(); ++i)
-          if (taps.out[i] != nullptr)
-            taps.out[i][done + n] = heldTap[i];
       }
 
       done += len;
@@ -489,13 +463,12 @@ void SynthEngine::renderVoices(float *left, float *right,
   publish(activity);
 }
 
-void SynthEngine::render(float *left, float *right, const ChannelTaps &taps,
-                         int numSamples,
+void SynthEngine::render(float *left, float *right, int numSamples,
                          const SynthParams &p) noexcept {
   if (numSamples <= 0)
     return;
 
-  renderVoices(left, right, taps, numSamples, p);
+  renderVoices(left, right, numSamples, p);
 
   // ---- master effects, ahead of the fader ----------------------------------
   // The channel meters above read the partials themselves, so they are taken

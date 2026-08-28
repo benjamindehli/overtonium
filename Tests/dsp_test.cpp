@@ -3063,110 +3063,6 @@ Stereo tone(size_t length, double freq, double sampleRate,
 
 } // namespace
 
-/// The per-channel outputs.
-///
-/// Mono, dry, and taken before the master effects, so a tap is that channel
-/// and nothing else. The things worth pinning are that a tap carries only its
-/// own channel, that it holds up at the same rate as the mix when the
-/// converter is reducing, and that asking for none costs nothing.
-void testChannelTaps() {
-  section("Channel taps");
-
-  constexpr double sr = 48000.0;
-  constexpr int block = 512;
-
-  SynthEngine engine;
-  engine.prepare(sr);
-
-  auto p = makeFlatParams(0.0f);
-  for (int i = 0; i < kNumHarmonics; ++i) {
-    p.osc[(size_t)i].tuneBlend = 1.0f;
-    // Two partials only, at different levels, so a tap that picked up its
-    // neighbour would be obvious.
-    p.osc[(size_t)i].volume = i == 0 ? 0.8f : (i == 3 ? 0.4f : 0.0f);
-  }
-
-  std::vector<float> l((size_t)block), r((size_t)block);
-  std::array<std::vector<float>, kNumHarmonics + 1> tapBuf;
-  ChannelTaps taps;
-
-  for (int i = 0; i < kNumHarmonics + 1; ++i) {
-    tapBuf[(size_t)i].assign((size_t)block, 0.0f);
-    taps.out[(size_t)i] = tapBuf[(size_t)i].data();
-  }
-
-  const auto peak = [](const std::vector<float> &v) {
-    float m = 0.0f;
-    for (auto s : v)
-      m = std::max(m, std::abs(s));
-    return m;
-  };
-
-  engine.noteOn(45, 1.0f, p);
-  for (int b = 0; b < 20; ++b)
-    engine.render(l.data(), r.data(), taps, block, p);
-
-  check(peak(tapBuf[0]) > 1.0e-4f, "the first partial's tap carries it");
-  check(peak(tapBuf[3]) > 1.0e-4f, "and so does the fourth's");
-
-  // Level follows the fader, so a tap is the channel rather than a copy of
-  // the mix. The fourth partial is half the first.
-  const auto ratio = peak(tapBuf[3]) / peak(tapBuf[0]);
-  check(ratio > 0.4f && ratio < 0.6f,
-        "each tap is at its own channel's level (" + std::to_string(ratio) +
-            ")");
-
-  // Everything else asked for nothing to be played on it.
-  bool othersSilent = true;
-  for (int i = 0; i < kNumHarmonics; ++i)
-    if (i != 0 && i != 3)
-      othersSilent &= peak(tapBuf[(size_t)i]) < 1.0e-6f;
-
-  check(othersSilent, "a silent channel's tap is silent");
-
-  // Dry: the tap has no pan on it, so a hard-panned partial still comes out
-  // whole rather than at the level its side of the mix gets.
-  p.osc[0].pan = -1.0f;
-  engine.allNotesOff();
-  engine.noteOn(45, 1.0f, p);
-  for (int b = 0; b < 20; ++b)
-    engine.render(l.data(), r.data(), taps, block, p);
-
-  const auto panned = peak(tapBuf[0]);
-  p.osc[0].pan = 0.0f;
-  engine.allNotesOff();
-  engine.noteOn(45, 1.0f, p);
-  for (int b = 0; b < 20; ++b)
-    engine.render(l.data(), r.data(), taps, block, p);
-
-  const auto centred = peak(tapBuf[0]);
-  check(std::abs(panned - centred) < centred * 0.02f,
-        "pan does not reach the tap (" + std::to_string(panned) + " vs " +
-            std::to_string(centred) + ")");
-
-  // Under the converter the pool renders slowly and the mix is held between
-  // frames. A tap has to be held the same way or it would run at a rate of
-  // its own.
-  p.lofi.rateHz = 8000.0;
-  engine.allNotesOff();
-  engine.noteOn(45, 1.0f, p);
-  for (int b = 0; b < 20; ++b)
-    engine.render(l.data(), r.data(), taps, block, p);
-
-  check(peak(tapBuf[0]) > 1.0e-4f, "a tap still sounds with the rate reduced");
-
-  int mixSteps = 0, tapSteps = 0;
-  for (int n = 1; n < block; ++n) {
-    if (l[(size_t)n] != l[(size_t)n - 1])
-      ++mixSteps;
-    if (tapBuf[0][(size_t)n] != tapBuf[0][(size_t)n - 1])
-      ++tapSteps;
-  }
-
-  check(mixSteps > 0 && std::abs(mixSteps - tapSteps) <= 2,
-        "and holds at the same rate as the mix (" + std::to_string(mixSteps) +
-            " against " + std::to_string(tapSteps) + ")");
-}
 
 void testTapeEcho() {
   section("Tape echo");
@@ -4283,7 +4179,6 @@ int main() {
   testKeyOffAfterSilentDecay();
   testReleaseVelocity();
   testNoiseChannel();
-  testChannelTaps();
   testTapeEcho();
   testWobble();
   testReverb();

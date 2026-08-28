@@ -448,22 +448,6 @@ It is segmented like the channel meters, for the same two reasons: it reads at a
 
 Each bar carries a peak hold, since what an output meter is mostly wanted for is what it hit a moment ago. The peak stays alight as a single lamp above the bar for a couple of seconds, then falls with it.
 
-### Channel outputs
-
-Off by default, and the plugin is an ordinary stereo instrument until a host asks. Switch the extra outputs on and every channel gets one of its own: thirty-two partials and the noise channel, alongside the stereo mix that is always there.
-
-Each one carries one signal and is dry. One signal because a tap is the channel itself rather than its share of a stereo image: pan is an arrangement inside the mix, and a channel taken out of the mix has left that arrangement behind. The host may take it as a mono output or as a stereo pair with the same signal in both, whichever it asks for. A pair is what it is declared as, and Logic offers several arrangements of them. Dry because it is taken after the envelope, tremolo, velocity, pressure and fader but before wobble, the echo, the reverb, the converter and the master gain, which is the whole reason to route a channel out. You want to treat it yourself rather than inherit a reverb tail somebody else chose. The outputs therefore do not sum to the mix, and are not meant to.
-
-Any subset works. Wanting two partials on their own and the rest in the mix is a reasonable thing to ask a host for, so each output is enabled independently.
-
-**In Logic, take one of the sixteen-output arrangements.** Logic lists larger ones as well, 25xMono and 25xStereo among them, and cannot complete them: they fail to load, and with some other plugins they crash Logic outright, in a stack that is entirely Logic's own code. Sixteen outputs is one mix plus fifteen taps.
-
-The VST3 declares all thirty-three and imposes no limit of its own, but Logic is the only host any of this has been used in. The routing is conformance-tested there and by Steinberg's validator in CI, and the audio path is the same one Logic proves, so reports from other hosts are welcome either way.
-
-They follow the converter. With the rate reduced the whole pool renders slowly and the mix is held between frames, so a channel output is held the same way. Anything else would leave it running at a rate of its own.
-
-Asking for none costs nothing. The write is compiled out per partial rather than tested per sample, and the difference between a build with this and the one before it measures at 0.4% of the voice render, which is inside the run-to-run noise of the benchmark.
-
 ### Panning
 
 Every channel has a PAN, the noise channel included, rather than one width control fanning the series out. A single knob can only ever make one shape. Placing the partials by hand is what lets you put a partial opposite the one a semitone away from it, or the octaves left and the sevenths right, and none of those are shapes a width control could have produced.
