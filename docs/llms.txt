@@ -34,7 +34,7 @@ Written in C++ with JUCE 8 by Benjamin Dehli for Dehli Musikk. Hosts list it und
 - Tuning: a continuous blend from equal temperament to just intonation, inharmonic stretch, keyboard tracking, and six keyboard temperaments (equal, just, Pythagorean, quarter-comma meantone, Werckmeister III, Young).
 - Effects: a tape echo, a feedback delay network reverb, a wobble across the whole series, and a converter that reduces render rate and bit depth.
 - MPE: pitch bend and pressure per note, with the slide axis routable to brightness or tuning.
-- Outputs: a stereo mix, and optionally one output per channel so a patch can arrive in the host as 33 tracks. Available in every format.
+- Outputs: a stereo mix, and optionally one output per channel so a patch can arrive in the host as 33 tracks. Available in every format. In Logic, take one of the sixteen-output arrangements: it offers larger ones it cannot complete.
 - Factory presets: Big Saw, Cathedral, Drawbar Organ, Equal Saw, Glass Armonica, Init, Just Saw, Lo-fi, Music Box, Odd Harmonics, Shimmer, Slow Pad, Struck Bell, Tape Choir, Vibraphone, Wurli.
 - Privacy: nothing reaches the network unless the update check is switched on, which is off by default and offered once.
 
