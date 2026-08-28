@@ -134,6 +134,26 @@ target_compile_definitions(Overtonium PUBLIC
     # from project(), which the release workflow already checks against the tag.
     OVERTONIUM_VERSION="${PROJECT_VERSION}")
 
+# The preset menu's "Copy as factory preset code", which puts the C++ for the
+# current patch on the clipboard for pasting into Presets.cpp. That is the
+# workflow for adding a factory preset and it is no use to anybody who is not
+# going to rebuild the plugin, so a released build does not carry it.
+#
+# Off rather than tied to a debug build: authoring a preset means listening to
+# it, and a debug build of thirty-three voices is not something to judge a
+# sound by.
+option(OVERTONIUM_PRESET_AUTHORING
+    "Offer the factory preset code generator in the preset menu" OFF)
+
+# Always defined, as 1 or 0, so the guard in TopBar.cpp is a comparison rather
+# than a test for existence. An undefined macro there evaluates to 0 and works,
+# but -Wundef is right to call that a typo waiting to happen.
+if(OVERTONIUM_PRESET_AUTHORING)
+    target_compile_definitions(Overtonium PUBLIC OVERTONIUM_PRESET_AUTHORING=1)
+else()
+    target_compile_definitions(Overtonium PUBLIC OVERTONIUM_PRESET_AUTHORING=0)
+endif()
+
 if(APPLE)
     # Backs the editor with a CAMetalLayer instead of the ordinary CoreGraphics one.
     #
@@ -228,10 +248,14 @@ if(OVERTONIUM_BUILD_TESTS)
 
     # No curl here, unlike the plugin. The tests compile UpdateCheck but never
     # fetch anything, so the test build does not need libcurl on the machine.
+    # The authoring entry is off here whatever the plugin was configured with:
+    # these targets compile TopBar.cpp too, and a macro left undefined is a
+    # warning under -Wundef rather than a silent zero.
     target_compile_definitions(overtonium_runtime_test PUBLIC
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
         JUCE_STANDALONE_APPLICATION=1
+        OVERTONIUM_PRESET_AUTHORING=0
         OVERTONIUM_VERSION="${PROJECT_VERSION}")
 
     target_link_libraries(overtonium_runtime_test
@@ -275,6 +299,7 @@ if(OVERTONIUM_BUILD_TOOLS)
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
         JUCE_STANDALONE_APPLICATION=1
+        OVERTONIUM_PRESET_AUTHORING=0
         OVERTONIUM_VERSION="${PROJECT_VERSION}")
 
     target_link_libraries(overtonium_render_docs

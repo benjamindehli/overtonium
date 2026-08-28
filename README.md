@@ -85,7 +85,7 @@ A step is a gesture rather than a value change. Transactions are closed when the
 
 Cmd-Z and Cmd-Shift-Z work where the host lets them through, which many do not, since a DAW usually keeps those for its own history. Undo and Redo are therefore also at the top of the Settings menu, which always works. Loading a session clears the history, since undoing your way back into someone else's edits is not useful.
 
-**Making a factory one.** Dial in a patch, then pick "Copy as factory preset code". That puts the C++ for it on the clipboard, as a `case` that starts from `neutralBase()` and then sets only what differs from the default. Paste it into `Presets.cpp`, add the name to `kNames`, and tidy it by hand where the shape has a formula rather than 32 separate numbers. Factory presets stay as code rather than as embedded data precisely so they can say `1.0 / n` instead of listing values.
+**Making a factory one.** Configure with `-DOVERTONIUM_PRESET_AUTHORING=ON`, which adds "Copy as factory preset code" to the preset menu. It is off by default, since what it produces is of no use to anyone who is not about to rebuild the plugin. Dial in a patch and pick it, and the C++ for that patch goes on the clipboard as a `case` that starts from `neutralBase()` and then sets only what differs from the default. Paste it into `Presets.cpp`, add the name to `kNames`, and tidy it by hand where the shape has a formula rather than 32 separate numbers. Factory presets stay as code rather than as embedded data precisely so they can say `1.0 / n` instead of listing values.
 
 ## The tuning system
 

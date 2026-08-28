@@ -505,8 +505,13 @@ void TopBar::showPresetMenu() {
   m.addSeparator();
   m.addItem(1, "Save preset...");
   m.addItem(2, "Open the preset folder");
+  // Absent unless the build asked for it. It puts C++ on the clipboard for
+  // pasting into Presets.cpp, which is no use to anyone who is not about to
+  // rebuild the plugin. See OVERTONIUM_PRESET_AUTHORING in CMakeLists.
+#if OVERTONIUM_PRESET_AUTHORING
   m.addSeparator();
   m.addItem(3, "Copy as factory preset code");
+#endif
 
   m.showMenuAsync(juce::PopupMenu::Options()
                       .withTargetComponent(&presetButton)
