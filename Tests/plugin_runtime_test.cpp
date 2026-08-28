@@ -2698,6 +2698,40 @@ void testNoDeadTravel(OvertoniumProcessor &p) {
         "and a knob that starts above zero moves as soon as you turn it (" +
             deadId.toStdString() + " at " + std::to_string(worstDead) + "%)");
 
+  // ---- every default survives being set --------------------------------
+  //
+  // A host sets a parameter to its default and reads it straight back. If the
+  // value it gets is not the one it wrote, auval reports the parameter as one
+  // that would not hold its default, which it did for all 66 decay and release
+  // knobs while the logarithmic range converted in float.
+  //
+  // Exact equality on purpose. A tolerance here would pass the thing being
+  // guarded against, since the discrepancy was a single bit.
+  int inexact = 0;
+  juce::String worstDefault;
+
+  for (auto *param : p.getParameters()) {
+    auto *ranged = dynamic_cast<juce::RangedAudioParameter *>(param);
+    if (ranged == nullptr)
+      continue;
+
+    const auto def = ranged->getDefaultValue();
+
+    // juce::exactlyEqual rather than ==, which is the same comparison with the
+    // float-equality warning suppressed, and says that the exactness is meant.
+    if (!juce::exactlyEqual(ranged->convertTo0to1(ranged->convertFrom0to1(def)),
+                            def)) {
+      ++inexact;
+      worstDefault = ranged->paramID;
+    }
+  }
+
+  check(inexact == 0, "every parameter holds the default it is given (" +
+                          std::to_string(inexact) + " do not" +
+                          (inexact ? ", such as " + worstDefault.toStdString()
+                                   : "") +
+                          ")");
+
   // And the shortest attack really is 0.2 ms, not a number that rounds to it.
   const auto attackId = ovt::params::oscParamId(ovt::params::attackSuffix, 0);
 

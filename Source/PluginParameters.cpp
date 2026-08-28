@@ -18,14 +18,30 @@ namespace {
 /// moves the value by nothing at all.
 ///
 /// Needs a low end above zero, since nothing has a ratio to zero.
+///
+/// The two conversions work in double and narrow only on the way out. In float
+/// throughout, a value converted to the knob's position and straight back does
+/// not always land on the value it started from: the decay and release
+/// defaults were two such, and auval reports every one of them as a parameter
+/// that would not hold its default. Round-tripping a float through a logarithm
+/// cannot be made exact, since the position is a float too, but double takes
+/// the positions that fail from more than four in ten to about one in twenty,
+/// and every default this plugin ships lands on one that holds. None of this
+/// is on the audio thread: the engine reads cached atomics rather than going
+/// through a range.
 juce::NormalisableRange<float> logRange(float lo, float hi) {
   jassert(lo > 0.0f);
 
   return {lo, hi,
-          [](float a, float b, float t) { return a * std::pow(b / a, t); },
+          [](float a, float b, float t) {
+            return (float)((double)a *
+                           std::pow((double)b / (double)a, (double)t));
+          },
           [](float a, float b, float v) {
-            return juce::jlimit(0.0f, 1.0f,
-                                std::log(v / a) / std::log(b / a));
+            const auto t = std::log((double)v / (double)a) /
+                           std::log((double)b / (double)a);
+
+            return (float)juce::jlimit(0.0, 1.0, t);
           },
           [](float a, float b, float v) { return juce::jlimit(a, b, v); }};
 }
