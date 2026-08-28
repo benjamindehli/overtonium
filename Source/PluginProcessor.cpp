@@ -17,12 +17,10 @@ juce::AudioProcessor::BusesProperties OvertoniumProcessor::buses() {
       "Output", juce::AudioChannelSet::stereo(), true);
 
   // Declared as stereo pairs, though a tap is one signal and both channels of
-  // a pair carry it. Mono is the honest shape and a host may still ask for it,
-  // but an Audio Unit whose extra outputs present as one channel each is
-  // offered no multi-output option by Logic, where the same plugin with pairs
-  // is. Compared against DecentSampler, which Logic does offer it for: the two
-  // report identical channel capabilities and identical published layouts, and
-  // differ only in this and in how many buses there are.
+  // a pair carry it. Mono is the honest shape for one signal and
+  // isBusesLayoutSupported still accepts it, so a host may ask for either and
+  // Logic offers several arrangements of the two. Pairs are what has been
+  // tried in a host, which is the only reason they are what is declared.
   for (int i = 1; i <= ovt::kNumHarmonics + 1; ++i)
     layout = layout.withOutput(tapBusName(i), juce::AudioChannelSet::stereo(),
                                false);

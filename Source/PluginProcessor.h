@@ -29,14 +29,14 @@ public:
   // ---- a bus count the host may change -------------------------------------
   //
   // Without these three the Audio Unit tells the host its output element count
-  // is fixed, and Logic offers no multi-output option at all: it configures
-  // multi-output by writing that count and then setting each element's format,
-  // so a count it cannot write is a plugin it cannot open with more than the
-  // main pair. JUCE's wrapper decides the flag from canAddBus and canRemoveBus
-  // alone, both of which default to false.
+  // is fixed, since JUCE's wrapper decides that flag from canAddBus and
+  // canRemoveBus alone and both default to false. A host that configures
+  // multi-output by writing the count then has nothing it can write.
   //
-  // Nothing about this is visible to auval, which is why a plugin Logic does
-  // offer multi-output for reports exactly what this one did.
+  // Whether any host needs it is untested: they were added while a stale
+  // component was shadowing every build, so the evidence they were reasoned
+  // from was worthless. They are kept because a fixed count is a fair thing
+  // for a plugin with 33 optional outputs not to claim.
   bool canAddBus(bool isInput) const override;
   bool canRemoveBus(bool isInput) const override;
   bool canApplyBusCountChange(bool isInput, bool isAddingBuses,

@@ -61,6 +61,15 @@ If you have full Xcode installed and want a project to debug in, use `cmake -B b
 
 `COPY_PLUGIN_AFTER_BUILD` is on, so the plugins are installed to `~/Library/Audio/Plug-Ins/VST3` and `~/Library/Audio/Plug-Ins/Components` as part of the build. Logic and GarageBand only rescan the AU after you quit and relaunch them. If the component does not show up, run `auval -v aumu Ovtn Dhmk` to see why.
 
+Building installs into your own folder under `~/Library`, while the `.pkg` installs system-wide under `/Library`. When both hold an `Overtonium.component`, macOS registers one of them and the host uses whichever that is, which need not be the one you just built. A host can then sit on a build months old while `auval` reports the new one, and every change you make appears to do nothing. If a change to the Audio Unit has no effect, check for a second copy before doubting the change:
+
+```sh
+ls -d /Library/Audio/Plug-Ins/Components/Overtonium.component \
+      ~/Library/Audio/Plug-Ins/Components/Overtonium.component 2>/dev/null
+```
+
+Logic shows the version it loaded beside the plugin name, which is the quickest way to tell whether it is looking at your build.
+
 The build produces a universal arm64 and x86_64 binary. For a faster local build, add `-DCMAKE_OSX_ARCHITECTURES=arm64`.
 
 ### Windows
