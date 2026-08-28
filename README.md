@@ -456,7 +456,9 @@ Each one carries one signal and is dry. One signal because a tap is the channel 
 
 Any subset works. Wanting two partials on their own and the rest in the mix is a reasonable thing to ask a host for, so each output is enabled independently.
 
-**In Logic, take one of the sixteen-output arrangements.** Logic lists larger ones as well, 25xMono and 25xStereo among them, and cannot complete them: they fail to load, and with some other plugins they crash Logic outright, in a stack that is entirely Logic's own code. Sixteen outputs is one mix plus fifteen taps. The other formats have no such limit, so the VST3 carries all thirty-three.
+**In Logic, take one of the sixteen-output arrangements.** Logic lists larger ones as well, 25xMono and 25xStereo among them, and cannot complete them: they fail to load, and with some other plugins they crash Logic outright, in a stack that is entirely Logic's own code. Sixteen outputs is one mix plus fifteen taps.
+
+The VST3 declares all thirty-three and imposes no limit of its own, but Logic is the only host any of this has been used in. The routing is conformance-tested there and by Steinberg's validator in CI, and the audio path is the same one Logic proves, so reports from other hosts are welcome either way.
 
 They follow the converter. With the rate reduced the whole pool renders slowly and the mix is held between frames, so a channel output is held the same way. Anything else would leave it running at a rate of its own.
 
