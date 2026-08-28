@@ -1,0 +1,45 @@
+# Overtonium
+
+> A free, open source additive synthesiser plugin laid out like a 32-channel mixer. Every channel is one sine oscillator locked to a harmonic of the played note, and every channel has its own tuning, envelope, modulation and place in the stereo field. VST3, Audio Unit, LV2 and standalone, for macOS, Windows and Linux, under the AGPLv3.
+
+The control worth reaching for first is TUNE. It sweeps each partial continuously between equal temperament and just intonation. At the just end a partial sits at an exact whole-number ratio with the fundamental and the stack fuses into one timbre. At the equal end each partial snaps to the nearest semitone and the same stack smears into a chord. The factory presets Just Saw and Equal Saw differ in that one control alone and sound nothing alike.
+
+Additive synthesis usually hides its partials behind a spectrum drawing or a handful of macro controls. This puts all of them on the surface, as faders, and gives each one the controls a channel on a mixing desk would have, so shaping a sound is mixing it.
+
+Written in C++ with JUCE 8 by Benjamin Dehli for Dehli Musikk. Hosts list it under DehliMusikk.
+
+## Documentation
+
+- [Overview](https://benjamindehli.github.io/overtonium/): what the instrument is, what TUNE does, common questions, and the two sample instruments it descends from.
+- [Tuning](https://benjamindehli.github.io/overtonium/tuning/): TUNE from equal to just, inharmonic stretch, six historical temperaments on any root, at a reference pitch from a list running 415 to 466 Hz, keyboard tracking, and per-partial drift.
+- [Controls](https://benjamindehli.github.io/overtonium/controls/): every knob on a channel strip and on the global bar, the two-part envelope, per-partial velocity and pressure, LINK for ganging the 32 channels, the lamps and meters, the noise channel, MPE, and the per-channel outputs.
+- [Presets](https://benjamindehli.github.io/overtonium/presets/): the sixteen that ship, what a preset carries and deliberately does not, and where user presets are kept on each platform.
+- [Install](https://benjamindehli.github.io/overtonium/install/): which download to take on each platform, what to do when a host does not see the plugin, the opt-in update check, and building from source.
+
+## Source
+
+- [Repository](https://github.com/benjamindehli/overtonium): the whole source, AGPLv3.
+- [Releases](https://github.com/benjamindehli/overtonium/releases): installers for macOS and Windows, and a zip for each platform holding the same builds loose.
+- [README](https://github.com/benjamindehli/overtonium/blob/main/README.md): the reference for every control and how the synthesis works, longer than the project page.
+- [Architecture](https://github.com/benjamindehli/overtonium/blob/main/ARCHITECTURE.md): how the code is arranged, and which decisions are load-bearing.
+- [Contributing](https://github.com/benjamindehli/overtonium/blob/main/CONTRIBUTING.md): building, the two test suites, style, and how releases are cut.
+
+## Facts
+
+- Formats: VST3, Audio Unit on macOS, LV2 on Linux, and a standalone application.
+- Platforms: macOS as a universal binary for Apple Silicon and Intel, Windows, Linux.
+- Licence: GNU Affero General Public License v3, which follows from JUCE.
+- Price: free, and free software rather than only free of charge.
+- Partials: 32 sine oscillators plus a noise channel, each with its own tuning, envelope, key-off envelope, tremolo, pitch modulation, drift, velocity and pressure amounts, pan, mute, solo and fader.
+- Tuning: a continuous blend from equal temperament to just intonation, inharmonic stretch, keyboard tracking, and six keyboard temperaments (equal, just, Pythagorean, quarter-comma meantone, Werckmeister III, Young).
+- Effects: a tape echo, a feedback delay network reverb, a wobble across the whole series, and a converter that reduces render rate and bit depth.
+- MPE: pitch bend and pressure per note, with the slide axis routable to brightness or tuning.
+- Outputs: a stereo mix, and optionally one output per channel so a patch can arrive in the host as 33 tracks. Use the VST3 for this: Logic offers no multi-output option for the Audio Unit.
+- Factory presets: Big Saw, Cathedral, Drawbar Organ, Equal Saw, Glass Armonica, Init, Just Saw, Lo-fi, Music Box, Odd Harmonics, Shimmer, Slow Pad, Struck Bell, Tape Choir, Vibraphone, Wurli.
+- Privacy: nothing reaches the network unless the update check is switched on, which is off by default and offered once.
+
+## Optional
+
+- [Update feed](https://benjamindehli.github.io/overtonium/latest.json): the version the plugin's opt-in check reads.
+- [Security policy](https://github.com/benjamindehli/overtonium/blob/main/SECURITY.md): what the update check sends, and how to report a vulnerability.
+- [Dehli Musikk](https://www.dehlimusikk.no/): the other instruments, most of them sample libraries rather than plugins.

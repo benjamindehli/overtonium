@@ -150,6 +150,8 @@ The Windows installer is not signed, so SmartScreen tells the user the publisher
 
 `docs/` is served by GitHub Pages from the `main` branch, one folder per URL so the site has addresses like `/tuning/` rather than `/tuning.html`. There is no generator and no build step: what is in the repository is what gets served. `.nojekyll` stops GitHub running Jekyll over it.
 
+`llms.txt` is a summary of the project for language models, in the shape [llmstxt.org](https://llmstxt.org/) describes: what the instrument is, then links to each page with a line saying what is on it. It duplicates facts that live elsewhere, so it goes stale the same way the shared header does. Worth a glance when a release changes what the plugin can do, and `robots.txt` names it since no crawler is obliged to look for it.
+
 The shared header, nav and footer are repeated in each page and have to be kept in step by hand. That is the price of having no build step, and it was the deliberate choice over a generator whose output would have to be committed anyway.
 
 The screenshots are rendered rather than captured. The plugin has no dependency on a display, so `Tools/render_docs_images.cpp` builds the editor, plays a chord into it, hands the strips the levels the engine measured, and writes the window out with `createComponentSnapshot`. That means the pictures can be regenerated after a layout change instead of going stale, and it works on a machine with no window server.
