@@ -255,7 +255,7 @@ void testPresets(OvertoniumProcessor &p) {
   section("Factory presets");
 
   const auto names = ovt::presets::names();
-  check(names.size() == 16, "sixteen factory presets");
+  check(names.size() == 19, "nineteen factory presets");
 
   for (int i = 0; i < names.size(); ++i) {
     ovt::presets::apply(p.apvts, i);
@@ -1354,19 +1354,78 @@ void testFactoryCodeGenerator(OvertoniumProcessor &p) {
 
   // Everything the generated case would do, read back out of the text it
   // wrote. Anything it did not say is a parameter left at neutralBase.
+  //
+  // Three forms, because the generator collapses a row the whole series shares
+  // into one allOsc and a row that was dragged across it into one oscTable.
+  // Reading only ap.set would see those rows as absent and call every value in
+  // them a parameter that went missing.
   const auto parse = [](const juce::String &code) {
     std::map<std::string, float> sets;
 
+    // A table runs to several lines, so gather whole statements first.
+    juce::StringArray statements;
+    juce::String current;
+
     for (const auto &line : juce::StringArray::fromLines(code)) {
-      if (!line.contains("ap.set(\""))
+      current += line.trim() + " ";
+
+      if (line.contains(";")) {
+        statements.add(current.trim());
+        current.clear();
+      }
+    }
+
+    // params::atSuffix is the one constant not named after the id it makes.
+    const auto suffixOf = [](const juce::String &constant) {
+      const auto stem = constant.upToFirstOccurrenceOf("Suffix", false, false);
+      return stem == "at" ? juce::String("aftertouch") : stem;
+    };
+
+    for (const auto &statement : statements) {
+      if (statement.contains("ap.set(\"")) {
+        const auto id =
+            statement.fromFirstOccurrenceOf("ap.set(\"", false, false)
+                .upToFirstOccurrenceOf("\"", false, false);
+        const auto value = statement.fromFirstOccurrenceOf(", ", false, false)
+                               .upToFirstOccurrenceOf("f)", false, false);
+
+        sets[id.toStdString()] = value.getFloatValue();
         continue;
+      }
 
-      const auto id = line.fromFirstOccurrenceOf("ap.set(\"", false, false)
-                          .upToFirstOccurrenceOf("\"", false, false);
-      const auto value = line.fromFirstOccurrenceOf(", ", false, false)
-                             .upToFirstOccurrenceOf("f)", false, false);
+      if (statement.contains("ap.allOsc(params::")) {
+        const auto suffix = suffixOf(
+            statement.fromFirstOccurrenceOf("params::", false, false)
+                .upToFirstOccurrenceOf(",", false, false));
+        const auto value =
+            statement.fromFirstOccurrenceOf("return ", false, false)
+                .upToFirstOccurrenceOf(";", false, false);
 
-      sets[id.toStdString()] = value.getFloatValue();
+        for (int i = 0; i < ovt::kNumHarmonics; ++i)
+          sets[ovt::params::oscParamId(suffix.toRawUTF8(), i).toStdString()] =
+              value.getFloatValue();
+
+        continue;
+      }
+
+      if (statement.contains("ap.oscTable(params::")) {
+        const auto suffix = suffixOf(
+            statement.fromFirstOccurrenceOf("params::", false, false)
+                .upToFirstOccurrenceOf(",", false, false));
+
+        const auto body = statement.fromFirstOccurrenceOf("{", false, false)
+                              .upToFirstOccurrenceOf("}", false, false);
+
+        auto values = juce::StringArray::fromTokens(body, ",", "");
+        values.trim();
+        values.removeEmptyStrings();
+
+        for (int i = 0; i < values.size() && i < ovt::kNumHarmonics; ++i)
+          sets[ovt::params::oscParamId(suffix.toRawUTF8(), i).toStdString()] =
+              values[i].getFloatValue();
+
+        continue;
+      }
     }
 
     return sets;
