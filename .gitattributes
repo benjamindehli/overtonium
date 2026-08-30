@@ -1,0 +1,27 @@
+# Normalise line endings on the way in and check out whatever the platform
+# expects. Without this, Git for Windows checks out CRLF by default and a
+# contributor there can commit it back into a shell script, which the macOS
+# packaging step then refuses to run with an error about a bad interpreter that
+# says nothing about line endings.
+* text=auto
+
+# LF whichever platform they are checked out on, since these are read by a
+# shell or a build tool rather than by an editor.
+*.sh text eol=lf
+*.cmake text eol=lf
+CMakeLists.txt text eol=lf
+
+# Not text. Left alone entirely, and never shown as a diff, which for a 300 KiB
+# WAV is a kindness to whoever runs git show by accident.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.wav binary
+*.ogg binary
+*.icns binary
+
+# The project page rather than the instrument. It is HTML and CSS by weight,
+# and counting it as source would say this repository is a website with some
+# C++ in it, which is the wrong way round.
+docs/** linguist-documentation

@@ -1,0 +1,25 @@
+# Monthly rather than weekly. Five actions and one dev dependency do not move
+# often enough to be worth a pull request every week, and a bot that opens more
+# than it closes is a bot people stop reading.
+#
+# JUCE is not here. It is pinned as a git tag in CMakeLists.txt, which nothing
+# in this file can see, so moving it stays a deliberate act.
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "Update"
+
+  # Prettier alone, and it is pinned on purpose: its output moves between
+  # versions, so a bump reformats files and wants looking at rather than
+  # merging. CONTRIBUTING.md says why.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "Update"
