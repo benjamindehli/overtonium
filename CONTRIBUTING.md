@@ -123,8 +123,8 @@ Pass `-DOVERTONIUM_INSTALL_AFTER_BUILD=OFF` to skip copying the built plugins in
 Pushing a tag that starts with `v` builds the plugin on all three platforms and attaches the archives to a GitHub release:
 
 ```
-git tag -a v1.3.0 -m "Overtonium 1.3.0"
-git push origin v1.3.0
+git tag -a v1.4.0 -m "Overtonium 1.4.0"
+git push origin v1.4.0
 ```
 
 The notes for the release page come from `release-notes/`, one file per version, named after the tag without its `v`. So `v1.2.0` is written up in `release-notes/1.2.0.md`, and it has to exist and be headed `# Overtonium 1.2.0` before the tag is pushed. A file per release rather than one that gets rewritten means the notes for a version stay readable in the tree after the next one lands, and the tag picks its own out by name instead of taking whatever the file happens to say.
