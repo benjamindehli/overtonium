@@ -511,6 +511,66 @@ figcaption {
     margin-bottom: 4px;
 }
 
+/* The harmonic series drawn against the semitone grid. Inline rather than a
+   file so it takes the page's own colours and stays sharp at any size, and so
+   it costs no request of its own.
+
+   It says the same thing the table under it says. The table is there for the
+   exact figures and this is there for the shape, which is that the octaves
+   land on the line and nothing else does. */
+.diagram {
+    margin: 28px 0 0;
+}
+
+.series {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.series .grid {
+    stroke: var(--outline);
+    stroke-width: 1;
+}
+
+.series .axis {
+    stroke: var(--text-dim);
+    stroke-width: 1;
+}
+
+/* The reach from the semitone to the ratio: the thing the knob dials. */
+.series .gap {
+    stroke: var(--outline);
+    stroke-width: 1;
+}
+
+.series .dot {
+    fill: var(--accent);
+}
+
+/* The octaves are the ones that do not move, so they are the ones worth
+   telling apart. */
+.series .dot.oct {
+    fill: var(--hold);
+}
+
+.series text {
+    font:
+        400 11px/1 ui-sans-serif,
+        system-ui,
+        sans-serif;
+    fill: var(--text-dim);
+}
+
+.series .n.oct {
+    fill: var(--hold);
+}
+
+.series .axis-label,
+.series .callout {
+    fill: var(--text);
+}
+
 /* A tall crop beside its text, which folds under on a narrow window. */
 .split {
     display: grid;
