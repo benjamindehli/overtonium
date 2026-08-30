@@ -484,6 +484,79 @@
                 <section>
                     <h2>Across the whole instrument</h2>
 
+                    <figure class="diagram">
+                        <svg class="chain" viewBox="0 0 674 268" role="img" aria-labelledby="chainTitle chainDesc" xmlns="http://www.w3.org/2000/svg">
+                            <title id="chainTitle">The order the signal passes through</title>
+                            <desc id="chainDesc">
+                                Each of the thirty-three channels runs a sine partial through its envelope and key-off stage, its tremolo, its
+                                velocity and pressure amounts, its fader and its pan. The thirty-three are summed, and the mix then passes the
+                                converter, the wobble, the tape echo, the reverb, the master fader and the safety clipper before it leaves.
+                            </desc>
+                            <text x="10" y="38" class="lane">each of the thirty-three channels</text>
+                            <rect x="10" y="52" width="88" height="46" rx="5" class="box" />
+                            <text x="54" y="72" class="stage" text-anchor="middle">sine</text>
+                            <text x="54" y="85" class="sub" text-anchor="middle">partial n</text>
+                            <path d="M 101 75 L 110 75" class="wire" />
+                            <path d="M 105 72 L 110 75 L 105 78" class="head" />
+                            <rect x="114" y="52" width="88" height="46" rx="5" class="box" />
+                            <text x="158" y="72" class="stage" text-anchor="middle">envelope</text>
+                            <text x="158" y="85" class="sub" text-anchor="middle">and key off</text>
+                            <path d="M 205 75 L 214 75" class="wire" />
+                            <path d="M 209 72 L 214 75 L 209 78" class="head" />
+                            <rect x="218" y="52" width="88" height="46" rx="5" class="box" />
+                            <text x="262" y="79" class="stage" text-anchor="middle">tremolo</text>
+                            <path d="M 309 75 L 318 75" class="wire" />
+                            <path d="M 313 72 L 318 75 L 313 78" class="head" />
+                            <rect x="322" y="52" width="88" height="46" rx="5" class="box" />
+                            <text x="366" y="72" class="stage" text-anchor="middle">velocity</text>
+                            <text x="366" y="85" class="sub" text-anchor="middle">and pressure</text>
+                            <path d="M 413 75 L 422 75" class="wire" />
+                            <path d="M 417 72 L 422 75 L 417 78" class="head" />
+                            <rect x="426" y="52" width="88" height="46" rx="5" class="box" />
+                            <text x="470" y="79" class="stage" text-anchor="middle">fader</text>
+                            <path d="M 517 75 L 526 75" class="wire" />
+                            <path d="M 521 72 L 526 75 L 521 78" class="head" />
+                            <rect x="530" y="52" width="88" height="46" rx="5" class="box" />
+                            <text x="574" y="79" class="stage" text-anchor="middle">pan</text>
+                            <text x="10" y="172" class="lane">then the mix of all of them</text>
+                            <rect x="10" y="186" width="88" height="46" rx="5" class="box" />
+                            <text x="54" y="206" class="stage" text-anchor="middle">converter</text>
+                            <text x="54" y="219" class="sub" text-anchor="middle">rate and bits</text>
+                            <path d="M 101 209 L 110 209" class="wire" />
+                            <path d="M 105 206 L 110 209 L 105 212" class="head" />
+                            <rect x="114" y="186" width="88" height="46" rx="5" class="box" />
+                            <text x="158" y="213" class="stage" text-anchor="middle">wobble</text>
+                            <path d="M 205 209 L 214 209" class="wire" />
+                            <path d="M 209 206 L 214 209 L 209 212" class="head" />
+                            <rect x="218" y="186" width="88" height="46" rx="5" class="box" />
+                            <text x="262" y="213" class="stage" text-anchor="middle">tape echo</text>
+                            <path d="M 309 209 L 318 209" class="wire" />
+                            <path d="M 313 206 L 318 209 L 313 212" class="head" />
+                            <rect x="322" y="186" width="88" height="46" rx="5" class="box" />
+                            <text x="366" y="213" class="stage" text-anchor="middle">reverb</text>
+                            <path d="M 413 209 L 422 209" class="wire" />
+                            <path d="M 417 206 L 422 209 L 417 212" class="head" />
+                            <rect x="426" y="186" width="88" height="46" rx="5" class="box" />
+                            <text x="470" y="206" class="stage" text-anchor="middle">master</text>
+                            <text x="470" y="219" class="sub" text-anchor="middle">fader</text>
+                            <path d="M 517 209 L 526 209" class="wire" />
+                            <path d="M 521 206 L 526 209 L 521 212" class="head" />
+                            <rect x="530" y="186" width="88" height="46" rx="5" class="box" />
+                            <text x="574" y="213" class="stage" text-anchor="middle">clipper</text>
+                            <path d="M 314 98 L 314 156" class="wire" />
+                            <path d="M 310 151 L 314 156 L 318 151" class="head" />
+                            <text x="324" y="131" class="sub">summed</text>
+                            <path d="M 621 209 L 642 209" class="wire" />
+                            <path d="M 637 206 L 642 209 L 637 212" class="head" />
+                            <text x="647" y="213" class="sub">out</text>
+                        </svg>
+
+                        <figcaption>
+                            The order things happen in. Everything on a channel strip runs before the mix is made, and everything on the bar runs
+                            after it, which is why a channel meter and the output meter disagree while a tail is ringing.
+                        </figcaption>
+                    </figure>
+
                     <figure>
                         <img
                             loading="lazy"

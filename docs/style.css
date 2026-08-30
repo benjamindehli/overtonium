@@ -571,6 +571,61 @@ figcaption {
     fill: var(--text);
 }
 
+/* The order the signal passes through, which the pages state in prose in
+   several places and drew nowhere. Same reasoning as the series drawing: inline
+   so it takes the page's colours, and it says something the surrounding tables
+   cannot, which is what happens before what. */
+.chain {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.chain .box {
+    fill: var(--panel);
+    stroke: var(--outline);
+    stroke-width: 1;
+}
+
+.chain .wire {
+    stroke: var(--text-dim);
+    stroke-width: 1.2;
+    fill: none;
+}
+
+.chain .head {
+    stroke: var(--text-dim);
+    stroke-width: 1.2;
+    fill: none;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+
+.chain text {
+    font:
+        400 11px/1 ui-sans-serif,
+        system-ui,
+        sans-serif;
+}
+
+.chain .stage {
+    fill: var(--text);
+    font-weight: 600;
+}
+
+.chain .sub {
+    fill: var(--text-dim);
+}
+
+/* Which half of the instrument a lane is. */
+.chain .lane {
+    fill: var(--accent);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
 /* A tall crop beside its text, which folds under on a narrow window. */
 .split {
     display: grid;
