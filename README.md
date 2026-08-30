@@ -4,6 +4,8 @@ A 32-partial additive synthesiser laid out like a 32-channel mixer. Every channe
 
 The control worth reaching for first is TUNE. It sweeps each partial continuously between equal temperament and just intonation. At the just end the partial sits at an exact integer ratio with the fundamental and the whole stack fuses into a single timbre. At the equal end each partial snaps to the nearest 12-TET semitone and the same stack smears into a chord. The factory presets _Just Saw_ and _Equal Saw_ are identical except for that one control, and they sound nothing alike.
 
+![The Overtonium window: a top bar of global controls above 32 channel strips and a noise channel, with the meters lit by a held chord.](docs/overtonium.webp)
+
 [![Build and test](https://github.com/benjamindehli/overtonium/actions/workflows/build.yml/badge.svg)](https://github.com/benjamindehli/overtonium/actions/workflows/build.yml)
 
 - **Formats:** VST3, AU (macOS), Standalone, LV2 (Linux)
@@ -31,6 +33,10 @@ The ancestry is visible in the details rather than only in the shape. DRIFT is t
 Both earlier instruments are sample libraries with a plugin wrapper, sold at [Dehli Musikk](https://store.dehlimusikk.no/). This one is free software, and none of their code is in it.
 
 ## What is in it
+
+Every channel is a strip, and every strip carries the same twenty-one controls. The captions are named once down the left rather than repeated across all thirty-three, and each channel takes the colour of its interval against the fundamental.
+
+<img src="docs/overtonium-strips.webp" alt="A close view of the first six channels, showing the row captions in the gutter and the interval colour of each channel." width="306" />
 
 The [project page](https://benjamindehli.github.io/overtonium/) is the place to start, and it has a page each for the parts worth reading about:
 
