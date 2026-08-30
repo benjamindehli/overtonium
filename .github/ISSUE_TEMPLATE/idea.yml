@@ -1,0 +1,19 @@
+name: An idea
+description: Something it could do, or do differently.
+labels: [idea]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What, and what for
+      description: >
+        The musical reason as much as the feature. What are you trying to play
+        that the instrument makes awkward?
+    validations:
+      required: true
+
+  - type: textarea
+    id: instead
+    attributes:
+      label: What you do now instead
+      description: If there is a way round it already, knowing it helps.

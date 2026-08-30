@@ -2,6 +2,8 @@
 
 Bug reports, patches and reports of how it behaves in hosts nobody here has tried are all welcome. Windows and Linux in particular are built and tested on every push but have never been loaded into a DAW by anyone, so anything you find there is new information.
 
+There is a form for each of those when you open an issue, including one for a host report that went fine. "It loaded and behaved" is worth filing on a platform nobody has run it on.
+
 By taking part you agree to the [code of conduct](CODE_OF_CONDUCT.md). For how the code is arranged, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Before a pull request

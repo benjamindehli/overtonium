@@ -1,0 +1,69 @@
+name: How it went in your host
+description: It loaded, or it did not. Either is worth knowing.
+labels: [host report]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        macOS is the only platform this has been loaded into a real host on.
+        Windows and Linux are built and tested on every push and have never
+        been opened in a DAW by anybody, so whatever you find there is new
+        information, including "it was fine".
+
+  - type: input
+    id: host
+    attributes:
+      label: Host
+      placeholder: "Reaper 7.22"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - macOS, Apple Silicon
+        - macOS, Intel
+        - Windows
+        - Linux
+    validations:
+      required: true
+
+  - type: dropdown
+    id: format
+    attributes:
+      label: Format
+      options: [VST3, Audio Unit, LV2, Standalone]
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: "1.4.0"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: worked
+    attributes:
+      label: What worked
+      description: Tick what you got to. Anything left unticked reads as untried.
+      options:
+        - label: The host found it in a scan
+        - label: It opened without complaint
+        - label: It made a sound
+        - label: The window drew properly, at whatever zoom
+        - label: Parameters automated
+        - label: A saved session came back the way it went in
+        - label: Presets loaded
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything odd
+      description: >
+        Wrong sizes, a control that would not move, a crackle, a scan that took
+        a long time. Nothing is too small, and "nothing odd" is an answer.

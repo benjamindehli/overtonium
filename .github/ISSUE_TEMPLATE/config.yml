@@ -1,0 +1,10 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Something exploitable
+    url: https://github.com/benjamindehli/overtonium/blob/main/SECURITY.md
+    about: >
+      Do not open an issue for it. Issues are public the moment they are filed,
+      and the security policy says where to send it instead.
+  - name: Building, testing and the house style
+    url: https://github.com/benjamindehli/overtonium/blob/main/CONTRIBUTING.md
+    about: How to build it, the two test suites, and how a release is cut.

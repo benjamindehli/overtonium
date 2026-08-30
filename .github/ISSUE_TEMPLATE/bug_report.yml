@@ -1,0 +1,76 @@
+name: Something is wrong
+description: A crash, a wrong sound, a control that does not do what it says.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Only what you actually know. An empty field is better than a guess, and
+        "I did not check" is a useful answer.
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Under SETTINGS, or the credit line under the wordmark.
+      placeholder: "1.4.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: format
+    attributes:
+      label: Format
+      options: [VST3, Audio Unit, LV2, Standalone]
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - macOS, Apple Silicon
+        - macOS, Intel
+        - Windows
+        - Linux
+    validations:
+      required: true
+
+  - type: input
+    id: host
+    attributes:
+      label: Host
+      description: Which one, and its version. Leave empty for the standalone.
+      placeholder: "Logic Pro 11.1.2"
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens
+      description: What you did, what happened, and what you expected instead.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: standalone
+    attributes:
+      label: Does the standalone do it too?
+      description: >
+        The quickest way to tell a plugin fault from a host one. Worth a minute
+        if the bug is reachable without a DAW.
+      options:
+        - Not tried
+        - "Yes, the standalone does it too"
+        - "No, only in the host"
+
+  - type: checkboxes
+    id: duplicates
+    attributes:
+      label: If this is the Audio Unit on macOS
+      options:
+        - label: >
+            I checked there is only one Overtonium.component. Two copies, one
+            under /Library and one under ~/Library, means the host may be
+            loading a different build from the one auval reports.
+          required: false
