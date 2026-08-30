@@ -529,6 +529,9 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
+    // An organ at 8 kHz and 2 bits. The aliasing and the quantisation noise are
+    // the distortion, so the converter is the sound rather than an effect on
+    // it. Aftertouch blends the root note towards a fifth.
     ap.oscTable(params::attackSuffix,
                 {0.0002f, 0.0002f, 0.0002f, 0.0008f, 0.0008f, 0.0008f, 0.0008f,
                  0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f,
@@ -580,6 +583,8 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
+    // A sawtooth with a little randomness in it, so it drifts and beats rather
+    // than sitting still.
     ap.oscTable(params::tuneSuffix,
                 {0.9873f, 0.9868f, 0.9863f, 0.9858f, 0.9853f, 0.9848f, 0.9842f,
                  0.9837f, 0.9831f, 0.9825f, 0.9818f, 0.9812f, 0.9805f, 0.9798f,
@@ -684,6 +689,8 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
+    // Nine drawbars, with the key-off stage used as a release click: the upper
+    // drawbars jump for two milliseconds as the contacts break.
     ap.oscTable(params::tuneSuffix,
                 {0.051f, 0.051f, 0.051f, 0.051f, 0.051f, 0.051f, 0.051f,
                  0.051f, 0.0504f, 0.051f, 0.051f, 0.051f, 0.051f, 0.051f,
@@ -778,6 +785,8 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
+    // Wet fingers on glass. Each partial arrives later and vibrates faster than
+    // the one below it.
     ap.oscTable(params::pmRateSuffix,
                 {4.8f, 5.1f, 5.4f, 5.7f, 6.0f, 6.3f, 6.6f, 6.9f, 7.2f, 7.5f,
                  7.8f, 8.1f, 8.4f, 8.7f, 9.0f, 9.3f, 9.6f, 9.9f, 10.2f, 10.5f,
@@ -822,6 +831,7 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
+    // The neutral starting point: the first three partials and nothing else.
     ap.allOsc(params::attackSuffix, [](int) { return 0.0008; });
     ap.allOsc(params::releaseSuffix, [](int) { return 0.008; });
     ap.oscTable(params::volumeSuffix,
@@ -852,6 +862,9 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
+    // 8 kHz and 8 bits, soft, with very short partials arriving at different
+    // times. The territory of a Roland D-50, a Korg Wavestation or a granular
+    // synthesiser.
     ap.oscTable(params::pmRateSuffix,
                 {3.8834f, 21.2852f, 0.0972f, 4.9283f, 17.7814f, 2.8067f,
                  0.1676f, 0.9272f, 1.6633f, 3.7316f, 0.1116f, 14.545f, 6.5233f,
@@ -937,6 +950,7 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
+    // A thin, metallic upright piano.
     ap.allOsc(params::tuneSuffix, [](int) { return 0.9749; });
     ap.allOsc(params::driftSuffix, [](int) { return 2.4495; });
     ap.oscTable(params::attackSuffix,
@@ -1039,6 +1053,8 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
+    // Plucked steel teeth: irregular vibrato per partial, with one bent far
+    // further than the rest.
     ap.oscTable(params::pmRateSuffix,
                 {0.7705f, 1.3255f, 2.0219f, 4.0f, 4.0f, 4.0f, 1.6645f, 4.0f,
                  4.0f, 4.0f, 1.4444f, 4.0f, 1.209f, 1.7045f, 1.3253f, 4.0f,
@@ -1150,6 +1166,8 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
+    // Every even partial silent, which is the hollow tone of a stopped pipe.
+    // Velocity opens the top of the series.
     ap.allOsc(params::attackSuffix, [](int) { return 0.0002; });
     ap.allOsc(params::releaseSuffix, [](int) { return 0.001; });
     ap.oscTable(params::velSuffix,
@@ -1169,6 +1187,7 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
+    // The SonicStrings Voice 2 from a Suzuki Omnichord OM-84 System Two.
     ap.allOsc(params::phaseSuffix, [](int) { return 0.0114; });
     ap.allOsc(params::driftSuffix, [](int) { return 0.2417; });
     ap.oscTable(params::attackSuffix,
@@ -1249,6 +1268,8 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
+    // Staggered envelope delays, so the spectrum unfolds rather than arriving
+    // at once, with mirrored pans across the series.
     ap.oscTable(params::pmRateSuffix,
                 {1.2542f, 1.6849f, 2.4576f, 0.153f, 0.2013f, 2.5563f, 3.209f,
                  0.5424f, 0.1855f, 3.0829f, 0.4622f, 0.1945f, 1.9676f, 2.1286f,
@@ -1366,6 +1387,8 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
+    // A fast strike where the fundamental rings for seconds and everything
+    // above it is gone inside one.
     ap.oscTable(params::driftSuffix,
                 {0.0183f, 0.0f, 0.0f, 0.0637f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                  0.0647f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
@@ -1431,6 +1454,7 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
+    // A Wurlitzer 200A electric piano.
     ap.allOsc(params::driftSuffix, [](int) { return 1.463; });
     ap.oscTable(params::delaySuffix,
                 {0.0f, 0.0005f, 0.0036f, 0.0034f, 0.0032f, 0.003f, 0.0028f,
