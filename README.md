@@ -43,31 +43,36 @@ cmake --build build
 
 ## Presets
 
-Sixteen ship with it, listed alphabetically. Most were dialled in by hand on the panel and converted straight from the saved file, so what ships is what was played rather than something written afterwards to approximate it. Where a row of the mixer has a shape the preset says so, as the saws do with `1.0 / n`, and where it was drawn by hand the thirty-two values are written out as a list so the curve is at least visible.
+Nineteen ship with it, listed alphabetically. Most were dialled in by hand on the panel and converted straight from the saved file, so what ships is what was played rather than something written afterwards to approximate it. Where a row of the mixer has a shape the preset says so, as the saws do with `1.0 / n`, and where it was drawn by hand the thirty-two values are written out as a list so the curve is at least visible.
 
 _Init_ is one of them rather than a reset to the parameter defaults. It clears the patch down to a short, bright three-partial pluck, which is a better place to start building from than silence. Like every other preset it leaves the session alone, so your tuning, polyphony, bend range and master fader survive loading it.
 
-Eight of them use STRETCH or TRACK, since eight of them are modelling something with a body. Picking odd partials was always a stand-in for inharmonicity, and three of these have the real thing on top of it:
+Fourteen of them use STRETCH or TRACK, since most of them are modelling something with a body. Picking odd partials was always a stand-in for inharmonicity, and five of these have the real thing on top of it:
 
-| Preset         | Stretch | Tracking   | Why                                                                                                  |
-| -------------- | ------- | ---------- | ---------------------------------------------------------------------------------------------------- |
-| Big Saw        | +2 ct   | 1.3 dB/oct | barely any of either, just enough to stop the partials locking dead in phase                         |
-| Drawbar Organ  |         | 3.2 dB/oct |                                                                                                      |
-| Equal Saw      |         | 1.0 dB/oct |                                                                                                      |
-| Glass Armonica | +180 ct | 4.0 dB/oct | barely any, but enough that the upper partials beat against the fundamental instead of locking to it |
-| Just Saw       |         | 1.0 dB/oct |                                                                                                      |
-| Lo-fi          |         | 4.0 dB/oct |                                                                                                      |
-| Music Box      | -23 ct  | 1.5 dB/oct | a comb tooth is a bar and does not ring in whole numbers                                             |
-| Slow Pad       |         | 2.5 dB/oct |                                                                                                      |
-| Tape Choir     |         | 3.5 dB/oct | voices thin out at the top of a range rather than brightening                                        |
-| Vibraphone     |         | 3.0 dB/oct | a short bar carries less above its fundamental than a long one                                       |
-| Wurli          |         | 3.1 dB/oct |                                                                                                      |
+| Preset           | Stretch | Tracking   | Why                                                                                                  |
+| ---------------- | ------- | ---------- | ---------------------------------------------------------------------------------------------------- |
+| 2-bit Fuzz Organ | +7 ct   | 1.6 dB/oct |                                                                                                      |
+| Big Saw          | +2 ct   | 1.3 dB/oct | barely any of either, just enough to stop the partials locking dead in phase                         |
+| Drawbar Organ    |         | 3.2 dB/oct |                                                                                                      |
+| Equal Saw        |         | 1.0 dB/oct |                                                                                                      |
+| Glass Armonica   | +180 ct | 4.0 dB/oct | barely any, but enough that the upper partials beat against the fundamental instead of locking to it |
+| Just Saw         |         | 1.0 dB/oct |                                                                                                      |
+| Lo-fi            |         | 4.0 dB/oct |                                                                                                      |
+| Metallic Piano   | +24 ct  | 9.0 dB/oct | a piano string is stiff, and a thin one rings further from whole numbers                             |
+| Music Box        | -23 ct  | 1.5 dB/oct | a comb tooth is a bar and does not ring in whole numbers                                             |
+| Omni-84          |         | 7.0 dB/oct |                                                                                                      |
+| Slow Pad         |         | 2.5 dB/oct |                                                                                                      |
+| Tape Choir       |         | 3.5 dB/oct | voices thin out at the top of a range rather than brightening                                        |
+| Vibraphone       |         | 3.0 dB/oct | a short bar carries less above its fundamental than a long one                                       |
+| Wurli            |         | 3.1 dB/oct |                                                                                                      |
 
 _Cathedral_ is a principal chorus arriving slowly, in a nine second room. _Glass Armonica_ is rubbed glass, with a key-off level above the sustain so lifting the finger lets the rim ring on. _Music Box_ is a comb of teeth, each ringing for a different length and sitting somewhere different in the field. _Tape Choir_ is a worn echo and drift, with the partials fanned across the field.
 
-Two of them use the converter rather than avoiding it. _Big Saw_ quantises to 8 bits at the host's own rate, and _Lo-fi_ runs the whole voice pool at 8 kHz and 8 bits, which is the setting paying for itself rather than being an effect over the top.
+Three of them are after a particular instrument. _Wurli_ is a Wurlitzer 200A, _Metallic Piano_ a thin, metallic upright, and _Omni-84_ the SonicStrings Voice 2 from a Suzuki Omnichord OM-84 System Two.
 
-The organs are deliberately left alone by STRETCH. A drawbar organ is electric and a pipe organ is voiced rank by rank, so neither loses its top as you play up, and pretending otherwise would be modelling the wrong instrument. So are the synthetic patches, where the raw spectrum is the point.
+Four of them use the converter rather than avoiding it. _Big Saw_ and _Metallic Piano_ quantise to 8 bits at the host's own rate. _Lo-fi_ runs the whole voice pool at 8 kHz and 8 bits, and _2-bit Fuzz Organ_ at 8 kHz and 2 bits, where the aliasing and the quantisation noise are the distortion rather than an effect laid over the top. On that one the aftertouch blends the root note towards a fifth.
+
+_Drawbar Organ_ and _Cathedral_ are deliberately left alone by STRETCH. A drawbar organ is electric and a pipe organ is voiced rank by rank, so neither loses its top as you play up, and pretending otherwise would be modelling the wrong instrument. So are the saws, where the raw spectrum is the point.
 
 **Saving your own.** The preset menu writes to `Dehli Musikk/Overtonium/Presets` under your user application data folder, one small `.ovtpreset` file each, and lists whatever it finds there under the factory list. The menu reads the folder every time it opens, so a preset saved a moment ago is in it and one deleted in Finder is not.
 
