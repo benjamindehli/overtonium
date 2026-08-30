@@ -184,6 +184,17 @@ Regenerating always shows a diff, even with nothing changed. DRIFT is random per
 
 The target is built by default so that it cannot quietly stop compiling, which is how the program that made the first set of pictures was lost. `-DOVERTONIUM_BUILD_TOOLS=OFF` skips it.
 
+**The audio examples.** The tuning page and the front page carry a clip each of _Just Saw_ and _Equal Saw_, which differ in TUNE and in nothing else. They are rendered by the plugin rather than recorded, on the same switch and for the same reason:
+
+```sh
+cmake --build build --target overtonium_render_docs_audio
+./build/overtonium_render_docs_audio_artefacts/overtonium_render_docs_audio docs/audio
+```
+
+One note each, held and let go, with a short fade at both ends so a file cannot start or stop on a step. Mono, because neither patch pans anything and a stereo file would be two copies of one signal, which the renderer asserts rather than assumes. Both come out at the same RMS, so the pair can be played against each other without the louder one seeming better.
+
+Ogg for the browsers that take it and WAV for the rest, which is the only pair JUCE can write and every browser can read. The `<audio>` elements carry `preload="none"`, so a page with audio on it costs what a page of text costs until somebody presses play. Re-rendering gives a byte-identical WAV and a different Ogg every time, since the container carries a random stream serial.
+
 The pages load WebP, encoded losslessly, which is a third smaller than the PNG for a screenshot and pixel-identical. Lossy is worse here rather than better: the panel grain is high-frequency noise, and at quality 95 the window shot comes out larger than the PNG. Some images in `docs/` are never loaded by a browser at all. They are the `og:image` files, and they avoid WebP because social card renderers cannot be relied on to read it. `overtonium.png` and `overtonium-strips.png` are the screenshots the inner pages point at, so regenerating a screenshot means writing the PNG as well as the WebP. `overtonium-card.jpg` is the front page's card, composed at the 1200x630 every renderer expects, and it is a JPEG because the graded background is grainy enough that the PNG of it runs four times the size for no visible gain.
 
 The front page hero is layered rather than flattened. The window shot is a background that `object-fit: cover` crops to the frame, and the wordmark is a separate image with an alpha channel centred over it. Because the stylesheet sizes the mark as a share of the frame, the background can be cropped to any band without the crop ever reaching the name, and the mark can take a larger share of the width on a phone than on a desktop. Flattening the two would give up both.

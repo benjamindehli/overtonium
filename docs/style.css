@@ -478,6 +478,39 @@ figcaption {
     margin-top: 10px;
 }
 
+/* The two clips that let somebody hear what the paragraph above them is
+   describing. Side by side on a wide window, since the whole point is playing
+   one against the other, and stacked when there is no room for that.
+
+   preload="none" on purpose: nothing is fetched until somebody presses play,
+   so a page that happens to carry audio still costs what a page of text
+   costs. */
+.listen .players {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px 28px;
+    margin-top: 14px;
+}
+
+.listen .players p {
+    margin: 0;
+    flex: 1 1 260px;
+}
+
+.listen audio {
+    width: 100%;
+    margin-top: 8px;
+}
+
+/* On the tuning page the caption says what to listen for and reads before the
+   players. On the front page the claim is already in the paragraph above, so
+   the caption is a footnote and reads after them. Whichever way round, it sits
+   against the players rather than floating. */
+.listen figcaption:first-child {
+    margin-top: 0;
+    margin-bottom: 4px;
+}
+
 /* A tall crop beside its text, which folds under on a narrow window. */
 .split {
     display: grid;

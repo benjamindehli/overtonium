@@ -283,7 +283,7 @@ endif()
 # went missing once. Turn it off with -DOVERTONIUM_BUILD_TOOLS=OFF if the extra link is not
 # worth it. CONTRIBUTING.md covers running it.
 # ------------------------------------------------------------------------------------------
-option(OVERTONIUM_BUILD_TOOLS "Build the docs image renderer" ON)
+option(OVERTONIUM_BUILD_TOOLS "Build the docs image and audio renderers" ON)
 
 if(OVERTONIUM_BUILD_TOOLS)
     juce_add_console_app(overtonium_render_docs PRODUCT_NAME "overtonium_render_docs")
@@ -312,4 +312,34 @@ if(OVERTONIUM_BUILD_TOOLS)
             juce::juce_recommended_warning_flags)
 
     overtonium_set_warnings_as_errors(overtonium_render_docs)
+
+    # And the two audio clips, for the same reason and on the same switch. This
+    # one needs juce_audio_formats for the Ogg and WAV writers, which the plugin
+    # itself has no use for.
+    juce_add_console_app(overtonium_render_docs_audio
+        PRODUCT_NAME "overtonium_render_docs_audio")
+
+    target_sources(overtonium_render_docs_audio PRIVATE
+        Tools/render_docs_audio.cpp
+        ${OVERTONIUM_SOURCES})
+
+    target_include_directories(overtonium_render_docs_audio PRIVATE Source)
+
+    target_compile_definitions(overtonium_render_docs_audio PUBLIC
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0
+        JUCE_STANDALONE_APPLICATION=1
+        OVERTONIUM_PRESET_AUTHORING=0
+        OVERTONIUM_VERSION="${PROJECT_VERSION}")
+
+    target_link_libraries(overtonium_render_docs_audio
+        PRIVATE
+            OvertoniumResources
+            juce::juce_audio_formats
+            juce::juce_audio_utils
+        PUBLIC
+            juce::juce_recommended_config_flags
+            juce::juce_recommended_warning_flags)
+
+    overtonium_set_warnings_as_errors(overtonium_render_docs_audio)
 endif()
