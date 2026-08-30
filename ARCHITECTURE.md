@@ -1,6 +1,6 @@
 # Architecture
 
-Where things live and why they are arranged this way. For how to build and test, see [CONTRIBUTING.md](CONTRIBUTING.md). For what the instrument does, see the [readme](README.md).
+Where things live and why they are arranged this way. For how to build and test, see [CONTRIBUTING.md](CONTRIBUTING.md). For what the instrument does and why it does it that way, see [DESIGN.md](DESIGN.md).
 
 ## The shape of it
 

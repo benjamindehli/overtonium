@@ -20,7 +20,8 @@ Written in C++ with JUCE 8 by Benjamin Dehli for Dehli Musikk. Hosts list it und
 
 - [Repository](https://github.com/benjamindehli/overtonium): the whole source, AGPLv3.
 - [Releases](https://github.com/benjamindehli/overtonium/releases): installers for macOS and Windows, and a zip for each platform holding the same builds loose.
-- [README](https://github.com/benjamindehli/overtonium/blob/main/README.md): the reference for every control and how the synthesis works, longer than the project page.
+- [README](https://github.com/benjamindehli/overtonium/blob/main/README.md): what the instrument is, how to build it, the update check and the licensing.
+- [Design notes](https://github.com/benjamindehli/overtonium/blob/main/DESIGN.md): every control and how the synthesis works, with the reasoning and the measurements behind each decision. Longer than the project page.
 - [Architecture](https://github.com/benjamindehli/overtonium/blob/main/ARCHITECTURE.md): how the code is arranged, and which decisions are load-bearing.
 - [Contributing](https://github.com/benjamindehli/overtonium/blob/main/CONTRIBUTING.md): building, the two test suites, style, and how releases are cut.
 
