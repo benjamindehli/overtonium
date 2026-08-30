@@ -1313,6 +1313,99 @@ void testChannelHover(OvertoniumProcessor &p) {
   check(litCount() == 0, "and taking the pointer off the mixer clears it (" +
                              std::to_string(litCount()) + ")");
 
+  // ---- a right-click lets the hover go ------------------------------------
+  //
+  // Whatever menu that opens is modal, so the strip is never told the pointer
+  // has left it. The highlight used to be left lit on the channel the menu was
+  // opened from, and hovering that channel again was the only way to clear it.
+  //
+  // Driven through a mute button, which is the case that returns before any
+  // menu is shown. A plain right-click on the strip takes the same path and
+  // then opens the LINK menu, and a modal menu is not something this suite can
+  // put on a screen it does not have.
+  {
+    const auto rightClickOn = [&pointAt](juce::Component &c,
+                                         juce::Point<int> local,
+                                         juce::Component *origin) {
+      const auto e = pointAt(c, local);
+      return juce::MouseEvent(
+          e.source, local.toFloat(),
+          juce::ModifierKeys(juce::ModifierKeys::rightButtonModifier), 1.0f,
+          0.0f, 0.0f, 0.0f, 0.0f, &c, origin, juce::Time::getCurrentTime(),
+          local.toFloat(), juce::Time::getCurrentTime(), 1, false);
+    };
+
+    const auto muteButtonIn = [](juce::Component &c) -> juce::Component * {
+      std::function<juce::Component *(juce::Component &)> find =
+          [&](juce::Component &parent) -> juce::Component * {
+        for (auto *child : parent.getChildren()) {
+          if (dynamic_cast<MuteSoloButton *>(child) != nullptr)
+            return child;
+
+          if (auto *found = find(*child))
+            return found;
+        }
+
+        return nullptr;
+      };
+
+      return find(c);
+    };
+
+    auto &lit = *strips[9];
+    auto *button = muteButtonIn(lit);
+
+    check(button != nullptr, "a channel has a mute button to right-click");
+
+    if (button != nullptr) {
+      lit.mouseEnter(pointAt(lit, inside));
+      check(lit.isHovered(), "a channel is lit before the right-click");
+
+      lit.mouseDown(rightClickOn(lit, inside, button));
+
+      check(!lit.isHovered() && litCount() == 0,
+            "and the right-click lets it go (" + std::to_string(litCount()) +
+                ")");
+
+      // The button carries its own menu, so the strip must not also open the
+      // LINK menu on top of it. Both used to appear, one after the other.
+      // Losing this fix crashes the suite rather than failing it, since a
+      // modal menu needs a screen, but stating it says what the code is for.
+      check(juce::Component::getCurrentlyModalComponent() == nullptr,
+            "and the strip opens no menu of its own over the button's");
+
+      // And it has to stay let go. Opening a menu takes the mouse away, and
+      // the exit JUCE sends on the way arrives while the pointer is still
+      // geometrically inside the strip, which reads as "still hovering".
+      lit.mouseExit(pointAt(lit, inside));
+
+      check(!lit.isHovered() && litCount() == 0,
+            "and an exit arriving with the pointer still inside does not "
+            "light it again (" +
+                std::to_string(litCount()) + ")");
+
+      // The pointer coming back is what ends it, so the channel is not left
+      // dead to the mouse once a menu has been opened over it.
+      lit.mouseEnter(pointAt(lit, inside));
+
+      check(lit.isHovered() && litCount() == 1,
+            "and hovering it again lights it as before");
+
+      lit.mouseExit(pointAt(lit, {-4, inside.y}));
+      check(litCount() == 0, "and leaving clears it");
+    }
+
+    // The noise channel opens no menu of its own, but its buttons do, so it
+    // has to let go the same way.
+    nz.mouseEnter(pointAt(nz, inNoise));
+    check(nz.isHovered(), "the noise channel is lit before its right-click");
+
+    nz.mouseDown(rightClickOn(nz, inNoise, &nz));
+
+    check(!nz.isHovered() && litCount() == 0,
+          "and it lets go too (" + std::to_string(litCount()) + ")");
+  }
+
   // A point inside the strip but on a row that has nothing to point at, such
   // as a section rule, still belongs to that channel: the column says which
   // channel, not which control.

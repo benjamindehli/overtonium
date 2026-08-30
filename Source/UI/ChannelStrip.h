@@ -375,6 +375,10 @@ private:
   /// mouse events and for those of every control on it.
   void reportHover(const juce::MouseEvent &);
 
+  /// Lets go of the hover without a mouse event to say so, for when a modal
+  /// menu is about to take the pointer away.
+  void clearHover();
+
   LinkableSlider *sliderForRole(Role);
 
   juce::AudioProcessorValueTreeState &apvts;
@@ -410,6 +414,10 @@ private:
   /// layout and hit test in this strip has to agree with it.
   SectionMask collapsed = 0;
   bool hovered = false;
+
+  /// Set when a menu takes the pointer away, and cleared when the pointer
+  /// moves under its own steam again. See clearHover.
+  bool hoverSuppressed = false;
   Role glowRole = Role::Tune;
   float glowAmount = 0.0f;
 

@@ -846,19 +846,60 @@ void ChannelStrip::setSilencedByOthers(bool shouldDim) {
 }
 
 void ChannelStrip::mouseDown(const juce::MouseEvent &e) {
-  if (e.mods.isPopupMenu())
-    link.showLinkMenu();
+  if (!e.mods.isPopupMenu())
+    return;
+
+  // Whatever menu is about to open is modal, and a modal menu means this strip
+  // is never told the pointer has left it. Letting the hover go now is what
+  // stops the column being left lit on a channel the pointer has long since
+  // moved away from, which used to need hovering that channel again to clear.
+  clearHover();
+
+  // The strip listens to every one of its children, so a right-click on a mute
+  // or solo button arrives here as well as at the button. Those carry a menu of
+  // their own and it is the one that should open, rather than both in turn.
+  //
+  // originalComponent rather than eventComponent, since that is the one JUCE
+  // promises still names where the click landed after any retargeting.
+  if (dynamic_cast<const MuteSoloButton *>(e.originalComponent) != nullptr)
+    return;
+
+  link.showLinkMenu();
 }
 
-void ChannelStrip::mouseEnter(const juce::MouseEvent &e) { reportHover(e); }
-void ChannelStrip::mouseMove(const juce::MouseEvent &e) { reportHover(e); }
+void ChannelStrip::clearHover() {
+  // Held until the pointer moves of its own accord again. Opening a menu takes
+  // the mouse away, and the exit that arrives on the way out carries a
+  // position still inside this strip, which reportHover reads as "the pointer
+  // is here" and would light it straight back up.
+  hoverSuppressed = true;
+
+  hover.hoverChanged(index, kNoRow);
+
+  if (hovered) {
+    hovered = false;
+    repaint();
+  }
+}
+
+// A pointer that moves under its own steam is the thing that ends a
+// suppression, and an exit is not that: see clearHover.
+void ChannelStrip::mouseEnter(const juce::MouseEvent &e) {
+  hoverSuppressed = false;
+  reportHover(e);
+}
+
+void ChannelStrip::mouseMove(const juce::MouseEvent &e) {
+  hoverSuppressed = false;
+  reportHover(e);
+}
 void ChannelStrip::mouseExit(const juce::MouseEvent &e) { reportHover(e); }
 
 void ChannelStrip::reportHover(const juce::MouseEvent &e) {
   const auto p = e.getEventRelativeTo(this).getPosition();
   const auto rows =
       layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
-  const auto inside = getLocalBounds().contains(p);
+  const auto inside = getLocalBounds().contains(p) && !hoverSuppressed;
 
   // Leaving one knob for the next fires the exit before the enter, so the
   // answer is always worked out from where the pointer now is rather than from

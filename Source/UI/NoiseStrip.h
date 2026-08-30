@@ -35,6 +35,7 @@ public:
   /// mixer's rows, so it folds with everything else.
   void setCollapsedSections(SectionMask);
 
+  void mouseDown(const juce::MouseEvent &) override;
   void mouseEnter(const juce::MouseEvent &) override;
   void mouseMove(const juce::MouseEvent &) override;
   void mouseExit(const juce::MouseEvent &) override;
@@ -72,6 +73,10 @@ private:
 
   void reportHover(const juce::MouseEvent &);
 
+  /// Lets go of the hover without a mouse event to say so, for when a modal
+  /// menu is about to take the pointer away.
+  void clearHover();
+
   juce::AudioProcessorValueTreeState &apvts;
   HoverTarget &hover;
   juce::Component &popupHost;
@@ -98,6 +103,10 @@ private:
   /// Folded groups, set by the editor. See ChannelStrip.
   SectionMask collapsed = 0;
   bool hovered = false;
+
+  /// Set when a menu takes the pointer away, and cleared when the pointer
+  /// moves under its own steam again. See clearHover.
+  bool hoverSuppressed = false;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NoiseStrip)
 };

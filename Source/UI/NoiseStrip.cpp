@@ -152,15 +152,47 @@ void NoiseStrip::setSilencedByOthers(bool shouldDim) {
   setAlpha(silenced ? 0.4f : 1.0f);
 }
 
-void NoiseStrip::mouseEnter(const juce::MouseEvent &e) { reportHover(e); }
-void NoiseStrip::mouseMove(const juce::MouseEvent &e) { reportHover(e); }
+void NoiseStrip::mouseDown(const juce::MouseEvent &e) {
+  // The noise channel opens no menu of its own, but its mute and solo buttons
+  // do, and the same modal-menu problem applies: without this the column stays
+  // lit once the pointer has moved on. See ChannelStrip::mouseDown.
+  if (e.mods.isPopupMenu())
+    clearHover();
+}
+
+void NoiseStrip::clearHover() {
+  // Held until the pointer moves of its own accord again. Opening a menu takes
+  // the mouse away, and the exit that arrives on the way out carries a
+  // position still inside this strip, which reportHover reads as "the pointer
+  // is here" and would light it straight back up.
+  hoverSuppressed = true;
+
+  hover.hoverChanged(-1, kNoRow);
+
+  if (hovered) {
+    hovered = false;
+    repaint();
+  }
+}
+
+// A pointer that moves under its own steam is the thing that ends a
+// suppression, and an exit is not that: see clearHover.
+void NoiseStrip::mouseEnter(const juce::MouseEvent &e) {
+  hoverSuppressed = false;
+  reportHover(e);
+}
+
+void NoiseStrip::mouseMove(const juce::MouseEvent &e) {
+  hoverSuppressed = false;
+  reportHover(e);
+}
 void NoiseStrip::mouseExit(const juce::MouseEvent &e) { reportHover(e); }
 
 void NoiseStrip::reportHover(const juce::MouseEvent &e) {
   const auto p = e.getEventRelativeTo(this).getPosition();
   const auto rows =
       layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
-  const auto inside = getLocalBounds().contains(p);
+  const auto inside = getLocalBounds().contains(p) && !hoverSuppressed;
 
   // -1 says the pointer is off the harmonic series, which is what stops a
   // hover here from arming a LINK preview.
