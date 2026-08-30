@@ -3513,6 +3513,95 @@ void testMpeSlide() {
         "both ends sound with slide aimed at tuning");
 }
 
+/// Clearing every mute or every solo at once.
+///
+/// The menu a right-click on an M or an S opens. Thirty-three strips is a lot
+/// of places for a solo to be left on, and the whole point is not having to
+/// find it.
+void testClearMuteAndSolo(OvertoniumProcessor &p) {
+  section("Clearing mutes and solos");
+
+  using namespace ovt::ui;
+
+  const auto on = [&p](const char *suffix) {
+    return ovt::params::channelsSwitchedOn(p.apvts, suffix);
+  };
+
+  const auto set = [&p](const juce::String &id, bool state) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(state ? 1.0f : 0.0f);
+  };
+
+  ovt::params::clearChannelSwitch(p.apvts, ovt::params::muteSuffix);
+  ovt::params::clearChannelSwitch(p.apvts, ovt::params::soloSuffix);
+
+  check(on(ovt::params::muteSuffix) == 0 && on(ovt::params::soloSuffix) == 0,
+        "nothing is muted or soloed to begin with");
+
+  // Scattered rather than contiguous, and the noise channel among them, since
+  // it carries the same two switches and sits outside the series.
+  for (int i : {0, 7, 19, 31})
+    set(ovt::params::oscParamId(ovt::params::muteSuffix, i), true);
+
+  set(ovt::params::noiseParamId(ovt::params::muteSuffix), true);
+  set(ovt::params::oscParamId(ovt::params::soloSuffix, 4), true);
+  set(ovt::params::oscParamId(ovt::params::soloSuffix, 5), true);
+
+  check(on(ovt::params::muteSuffix) == 5,
+        "five channels muted, the noise channel among them (" +
+            std::to_string(on(ovt::params::muteSuffix)) + ")");
+  check(on(ovt::params::soloSuffix) == 2,
+        "and two soloed (" + std::to_string(on(ovt::params::soloSuffix)) + ")");
+
+  // The menu says how many there are to clear, which is the other question a
+  // player opens it to ask.
+  {
+    juce::Component parent;
+    MuteSoloButton button(p.apvts, "M");
+    auto menu = button.buildMenu();
+
+    std::vector<std::string> entries;
+    for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+      entries.push_back(it.getItem().text.toStdString());
+
+    check(entries.size() == 2 && entries[0] == "Clear all mutes (5)" &&
+              entries[1] == "Clear all solos (2)",
+          "the menu counts what it would clear (" +
+              (entries.empty() ? std::string("nothing")
+                               : entries[0] + " / " + entries[1]) +
+              ")");
+  }
+
+  ovt::params::clearChannelSwitch(p.apvts, ovt::params::soloSuffix);
+
+  check(on(ovt::params::soloSuffix) == 0, "clearing the solos clears them all");
+  check(on(ovt::params::muteSuffix) == 5,
+        "and leaves the mutes alone (" +
+            std::to_string(on(ovt::params::muteSuffix)) + ")");
+
+  ovt::params::clearChannelSwitch(p.apvts, ovt::params::muteSuffix);
+  check(on(ovt::params::muteSuffix) == 0, "and then the mutes go too");
+
+  // Nothing to clear is not an error, and the entries say so rather than
+  // disappearing.
+  {
+    MuteSoloButton button(p.apvts, "S");
+    auto menu = button.buildMenu();
+
+    std::vector<std::pair<std::string, bool>> entries;
+    for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+      entries.emplace_back(it.getItem().text.toStdString(),
+                           it.getItem().isEnabled);
+
+    check(entries.size() == 2 && entries[0].first == "Clear all mutes" &&
+              !entries[0].second && !entries[1].second,
+          "with none on, both entries are there and both are greyed out");
+  }
+
+  ovt::params::clearChannelSwitch(p.apvts, ovt::params::muteSuffix);
+  check(on(ovt::params::muteSuffix) == 0, "and clearing nothing is harmless");
+}
+
 void testSoloAndMute(OvertoniumProcessor &p) {
   section("Solo and mute");
 
@@ -3596,6 +3685,7 @@ int main() {
   testUpdateCheckIsQuiet(processor);
   testEveryControlIsNamed(processor);
   testSoloAndMute(processor);
+  testClearMuteAndSolo(processor);
 
   std::printf("\n%d checks, %d failures\n", checks, failures);
   return failures == 0 ? 0 : 1;

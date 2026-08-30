@@ -69,6 +69,20 @@ juce::String oscParamId(const char *suffix, int index0);
 /// apply, and adds one of its own.
 juce::String noiseParamId(const char *suffix);
 
+// ---- a switch across the whole mixer ----------------------------------------
+//
+// For mute and solo, which every channel carries and which are easy to leave
+// on somewhere down a series of thirty-three.
+
+/// How many channels have this switch on, the noise channel among them.
+int channelsSwitchedOn(juce::AudioProcessorValueTreeState &,
+                       const char *suffix);
+
+/// Turns it off wherever it is on, and leaves the rest untouched, so a host
+/// sees a gesture only on the channels that actually moved.
+void clearChannelSwitch(juce::AudioProcessorValueTreeState &,
+                        const char *suffix);
+
 inline constexpr const char *colourSuffix = "colour";
 
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();

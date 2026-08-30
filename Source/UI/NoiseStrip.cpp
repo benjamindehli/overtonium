@@ -18,8 +18,9 @@ const juce::Colour kNoiseColour{0xff9aa4b0};
 NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
                        HoverTarget &hoverTarget, juce::Component &popupParent)
     : apvts(state), hover(hoverTarget), popupHost(popupParent),
-      colour(kNoiseColour), meter(kNoiseColour), envLamp(kNoiseColour),
-      keyOffLamp(kNoiseColour), tremoloLamp(kNoiseColour) {
+      colour(kNoiseColour), muteButton(state, "M"), soloButton(state, "S"),
+      meter(kNoiseColour), envLamp(kNoiseColour), keyOffLamp(kNoiseColour),
+      tremoloLamp(kNoiseColour) {
   for (auto *lamp : {&envLamp, &keyOffLamp, &tremoloLamp})
     addAndMakeVisible(*lamp);
 
@@ -69,8 +70,6 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
   addAndMakeVisible(meter);
   meter.toBack(); // the fader cap has to draw over it
 
-  muteButton.setClickingTogglesState(true);
-  soloButton.setClickingTogglesState(true);
   muteButton.setColour(juce::TextButton::buttonOnColourId, colours::muteOn);
   soloButton.setColour(juce::TextButton::buttonOnColourId, colours::soloOn);
   muteButton.setTooltip("Mute the noise channel");

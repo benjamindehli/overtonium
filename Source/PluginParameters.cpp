@@ -255,6 +255,48 @@ juce::String noiseParamId(const char *suffix) {
   return juce::String("noise_") + suffix;
 }
 
+namespace {
+/// Every channel that carries a per-channel switch, in mixer order, with the
+/// noise channel last the way the strip sits.
+std::array<juce::String, kNumHarmonics + 1> channelIds(const char *suffix) {
+  std::array<juce::String, kNumHarmonics + 1> ids;
+
+  for (int i = 0; i < kNumHarmonics; ++i)
+    ids[(size_t)i] = oscParamId(suffix, i);
+
+  ids[kNumHarmonics] = noiseParamId(suffix);
+  return ids;
+}
+} // namespace
+
+int channelsSwitchedOn(juce::AudioProcessorValueTreeState &apvts,
+                       const char *suffix) {
+  int on = 0;
+
+  for (const auto &id : channelIds(suffix))
+    if (auto *value = apvts.getRawParameterValue(id))
+      on += value->load() > 0.5f ? 1 : 0;
+
+  return on;
+}
+
+void clearChannelSwitch(juce::AudioProcessorValueTreeState &apvts,
+                        const char *suffix) {
+  for (const auto &id : channelIds(suffix)) {
+    auto *param = apvts.getParameter(id);
+
+    // Only what is actually on. Writing zero over a zero would report a
+    // gesture on all thirty-three whatever the mixer looked like, and would
+    // put a step in the undo history that changed nothing.
+    if (param == nullptr || param->getValue() <= 0.5f)
+      continue;
+
+    param->beginChangeGesture();
+    param->setValueNotifyingHost(0.0f);
+    param->endChangeGesture();
+  }
+}
+
 float defaultVolumeFor(int index0) {
   // 1/n over the first eight partials, silence above: a soft sawtooth / drawbar
   // blend that is immediately playable without being a wall of sound.

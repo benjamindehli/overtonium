@@ -641,7 +641,8 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
                            juce::Component &popupParent, int index0)
     : apvts(state), link(linkTarget), hover(hoverTarget),
       popupHost(popupParent), index(index0), info(harmonic(index0)),
-      colour(intervalColour(harmonic(index0).pitchClass)), meter(colour),
+      colour(intervalColour(harmonic(index0).pitchClass)),
+      muteButton(state, "M"), soloButton(state, "S"), meter(colour),
       pitchLamp(colour), envLamp(colour), keyOffLamp(colour),
       tremoloLamp(colour) {
   // Deep listener, so a pointer resting on a knob is reported by the strip that
@@ -694,8 +695,6 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   pan.getProperties().set("bipolar", true);
   setUpFader(volume, Role::Volume, colour);
 
-  muteButton.setClickingTogglesState(true);
-  soloButton.setClickingTogglesState(true);
   muteButton.setColour(juce::TextButton::buttonOnColourId, colours::muteOn);
   soloButton.setColour(juce::TextButton::buttonOnColourId, colours::soloOn);
   muteButton.setTooltip("Mute harmonic " + juce::String(info.harmonic));

@@ -164,8 +164,12 @@ Each of the 32 strips has, top to bottom:
 | VELOCITY                            | -100 to +100%                                    | How much key velocity scales this partial. Negative inverts it                      |
 | AFTERTOUCH                          | -100 to +100%                                    | How much key pressure moves this partial. Negative fades it out                     |
 | PAN                                 | hard left to hard right                          | Where this partial sits in the field. Equal power, so the level holds as it crosses |
-| M and S                             |                                                  | Mute wins over solo                                                                 |
+| M and S                             |                                                  | Mute wins over solo. Right-click either to clear them across the mixer              |
 | LEVEL                               | -inf to 0 dB                                     | Fader spaced by decibels, with the meter filling its track                          |
+
+**Clearing them.** Right-clicking an M or an S offers to clear either switch across the whole mixer, and says how many there are to clear before you do. Thirty-three strips is a great many places for a solo to be left on, and finding it by eye means reading thirty-three pairs of buttons four pixels apart. The entries stay in the menu when there is nothing to clear, greyed out, because the count is also the answer to the question that made you open it.
+
+The buttons carry that menu rather than the strip, since a right-click anywhere else in the mixer opens the LINK menu and these swallow the click on its way past. Right-clicking a switch acts on switches. Only the channels actually switched on are written to, so the host sees a gesture on those alone and an undo step covers what moved rather than all thirty-three.
 
 Velocity being per partial is what lets a soft note be a different timbre rather than just a quieter one. Set the fundamental to 0% and the upper partials to 100% and the tone opens up as you play harder, which is roughly what a struck string or bar does. _Struck Bell_ and _Odd Harmonics_ ship with that curve already dialled in.
 

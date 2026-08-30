@@ -7,6 +7,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "ChannelStrip.h"
+#include "MuteSoloButton.h"
 #include "Theme.h"
 
 namespace ovt::ui {
@@ -80,7 +81,7 @@ private:
   juce::Slider colourKnob, delay, attack, decay, sustain, swell, offLevel,
       lift,
       release, amRate, amDepth, velocity, aftertouch, pan, volume;
-  juce::TextButton muteButton{"M"}, soloButton{"S"};
+  MuteSoloButton muteButton, soloButton;
   /// COLOUR is a word rather than a figure, so it stays a label. The level is
   /// the same reading a partial's is and is drawn the same way.
   juce::Label colourReadout;

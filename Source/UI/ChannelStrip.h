@@ -6,6 +6,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include "MuteSoloButton.h"
 #include "Theme.h"
 
 namespace ovt::ui {
@@ -389,7 +390,7 @@ private:
       sustain, swell, offLevel, release, lift, amRate, amDepth, velocity,
       aftertouch, pan,
       volume;
-  juce::TextButton muteButton{"M"}, soloButton{"S"};
+  MuteSoloButton muteButton, soloButton;
   /// No unit on either: the gutter caption beside them already says cents and
   /// dB, and twenty-one pixels of "ct" would leave the digits nothing.
   SegmentDisplay tuneReadout{{}}, levelReadout{{}};
