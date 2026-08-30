@@ -184,14 +184,14 @@ Regenerating always shows a diff, even with nothing changed. DRIFT is random per
 
 The target is built by default so that it cannot quietly stop compiling, which is how the program that made the first set of pictures was lost. `-DOVERTONIUM_BUILD_TOOLS=OFF` skips it.
 
-**The audio examples.** The tuning page and the front page carry a clip each of _Just Saw_ and _Equal Saw_, which differ in TUNE and in nothing else. They are rendered by the plugin rather than recorded, on the same switch and for the same reason:
+**The audio examples.** The tuning page is about things you hear, so it carries six clips: _Just Saw_ against _Equal Saw_ and the sweep between them, STRETCH taken from a harmonic series out past a piano, and one chord in equal against the same chord in Werckmeister III. The front page carries the first two. They are rendered by the plugin rather than recorded, on the same switch and for the same reason:
 
 ```sh
 cmake --build build --target overtonium_render_docs_audio
 ./build/overtonium_render_docs_audio_artefacts/overtonium_render_docs_audio docs/audio
 ```
 
-One note each, held and let go, with a short fade at both ends so a file cannot start or stop on a step. Mono, because neither patch pans anything and a stereo file would be two copies of one signal, which the renderer asserts rather than assumes. Both come out at the same RMS, so the pair can be played against each other without the louder one seeming better.
+A note or a chord, held and let go, with a short fade at both ends so a file cannot start or stop on a step. A clip may sweep a control as it runs, which is what the TUNE and STRETCH ones do: the page claims those knobs move through a range rather than switching between two states, and a pair of fixed clips cannot show that. Mono, because neither patch pans anything and a stereo file would be two copies of one signal, which the renderer asserts rather than assumes. Both come out at the same RMS, so the pair can be played against each other without the louder one seeming better.
 
 Ogg for the browsers that take it and WAV for the rest, which is the only pair JUCE can write and every browser can read. The `<audio>` elements carry `preload="none"`, so a page with audio on it costs what a page of text costs until somebody presses play. Re-rendering gives a byte-identical WAV and a different Ogg every time, since the container carries a random stream serial.
 

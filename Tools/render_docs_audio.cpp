@@ -17,6 +17,8 @@
 // CONTRIBUTING.md has the rest.
 
 #include <cstdio>
+#include <functional>
+#include <vector>
 #include <juce_audio_formats/juce_audio_formats.h>
 
 #include "PluginProcessor.h"
@@ -30,16 +32,33 @@ int indexOf(const juce::String &name) {
   return ovt::presets::names().indexOf(name);
 }
 
-/// One note, held, then let go, with the last few milliseconds faded so the
-/// file cannot end on a step.
-juce::AudioBuffer<float> renderNote(OvertoniumProcessor &p,
-                                    const juce::String &preset, int note,
-                                    double heldSeconds, double tailSeconds) {
+/// What to do to the controls as a clip runs.
+///
+/// Called once per block with how far through the held section it is, 0 to 1,
+/// which is what lets a clip sweep a knob rather than only sit at one end of
+/// it. Empty for a clip that holds still.
+using Move = std::function<void(OvertoniumProcessor &, double)>;
+
+void setPlain(OvertoniumProcessor &p, const juce::String &id, float plain) {
+  if (auto *param = p.apvts.getParameter(id))
+    param->setValueNotifyingHost(param->convertTo0to1(plain));
+}
+
+/// Notes held together, then let go, with a short fade at each end so a file
+/// cannot begin or end on a step.
+juce::AudioBuffer<float> render(OvertoniumProcessor &p,
+                                const juce::String &preset,
+                                const std::vector<int> &notes,
+                                double heldSeconds, double tailSeconds,
+                                const Move &move = {}) {
   ovt::presets::apply(p.apvts, indexOf(preset));
 
   p.setRateAndBufferSizeDetails(kRate, kBlock);
   p.prepareToPlay(kRate, kBlock);
   p.reset();
+
+  if (move)
+    move(p, 0.0);
 
   const int held = (int)(heldSeconds * kRate);
   const int tail = (int)(tailSeconds * kRate);
@@ -49,7 +68,9 @@ juce::AudioBuffer<float> renderNote(OvertoniumProcessor &p,
 
   juce::AudioBuffer<float> chunk(2, kBlock);
   juce::MidiBuffer midi;
-  midi.addEvent(juce::MidiMessage::noteOn(1, note, 0.85f), 0);
+
+  for (auto note : notes)
+    midi.addEvent(juce::MidiMessage::noteOn(1, note, 0.85f), 0);
 
   int done = 0;
   bool releasedYet = false;
@@ -58,9 +79,14 @@ juce::AudioBuffer<float> renderNote(OvertoniumProcessor &p,
     const int n = juce::jmin(kBlock, out.getNumSamples() - done);
 
     if (!releasedYet && done >= held) {
-      midi.addEvent(juce::MidiMessage::noteOff(1, note), 0);
+      for (auto note : notes)
+        midi.addEvent(juce::MidiMessage::noteOff(1, note), 0);
+
       releasedYet = true;
     }
+
+    if (move && !releasedYet)
+      move(p, juce::jlimit(0.0, 1.0, (double)done / (double)held));
 
     chunk.setSize(2, n, false, false, true);
     chunk.clear();
@@ -77,11 +103,12 @@ juce::AudioBuffer<float> renderNote(OvertoniumProcessor &p,
   out.applyGainRamp(out.getNumSamples() - fade, fade, 1.0f, 0.0f);
   out.applyGainRamp(0, (int)(0.005 * kRate), 0.0f, 1.0f);
 
-  // These two patches pan nothing, so both channels carry the same samples and
-  // a stereo file would be two copies of one signal. Checked rather than
-  // assumed: the two channels are identical to the last bit.
+  // None of these patches pans anything, so both channels carry the same
+  // samples and a stereo file would be two copies of one signal. Checked
+  // rather than assumed, and kept stereo if that ever stops being true.
   for (int n = 0; n < out.getNumSamples(); ++n)
-    jassert(out.getSample(0, n) == out.getSample(1, n));
+    if (!juce::exactlyEqual(out.getSample(0, n), out.getSample(1, n)))
+      return out;
 
   juce::AudioBuffer<float> mono(1, out.getNumSamples());
   mono.copyFrom(0, 0, out, 0, 0, out.getNumSamples());
@@ -120,22 +147,79 @@ int main(int argc, char **argv) {
   juce::WavAudioFormat wav;
   juce::OggVorbisAudioFormat ogg;
 
-  for (const auto *name : {"Just Saw", "Equal Saw"}) {
-    OvertoniumProcessor p;
-    const auto buffer = renderNote(p, name, 48, 3.2, 0.6);
-
-    auto slug = juce::String(name).toLowerCase().replace(" ", "-");
-
+  const auto save = [&](const juce::String &slug,
+                        const juce::AudioBuffer<float> &buffer) {
     const auto peak = buffer.getMagnitude(0, 0, buffer.getNumSamples());
 
-    std::printf("  %-10s peak %.3f  %d samples\n", name, peak,
-                buffer.getNumSamples());
+    double sum = 0.0;
+    for (int n = 0; n < buffer.getNumSamples(); ++n)
+      sum += (double)buffer.getSample(0, n) * buffer.getSample(0, n);
+
+    const auto rms = std::sqrt(sum / (double)buffer.getNumSamples());
+
+    std::printf("  %-22s %d ch  peak %.3f  rms %6.1f dBFS  %5.1f s\n",
+                slug.toRawUTF8(), buffer.getNumChannels(), peak,
+                20.0 * std::log10(juce::jmax(1.0e-9, rms)),
+                buffer.getNumSamples() / kRate);
 
     if (!write(buffer, dir.getChildFile(slug + ".ogg"), ogg, 5))
       std::printf("    ogg FAILED\n");
 
     if (!write(buffer, dir.getChildFile(slug + ".wav"), wav, 0))
       std::printf("    wav FAILED\n");
+  };
+
+  // ---- TUNE, at each end and then across the whole of it --------------------
+  for (const auto *name : {"Just Saw", "Equal Saw"}) {
+    OvertoniumProcessor p;
+    save(juce::String(name).toLowerCase().replace(" ", "-"),
+         render(p, name, {48}, 3.2, 0.6));
+  }
+
+  // The two above give the ends. This gives the middle, which is the part the
+  // page actually claims: that it sweeps rather than switches.
+  //
+  // Equal first and just last, so it starts where every other synthesiser
+  // starts and arrives at the thing this one can do, rather than the reverse.
+  {
+    OvertoniumProcessor p;
+    save("tune-sweep",
+         render(p, "Just Saw", {48}, 7.0, 0.6, [](auto &proc, double t) {
+           for (int i = 0; i < ovt::kNumHarmonics; ++i)
+             setPlain(proc, ovt::params::oscParamId(ovt::params::tuneSuffix, i),
+                      (float)t);
+         }));
+  }
+
+  // ---- STRETCH, from a harmonic series out past a piano ---------------------
+  //
+  // Through +150, which the page calls a real piano, and on to where the
+  // partials stop agreeing on a fundamental at all.
+  {
+    OvertoniumProcessor p;
+    save("stretch-sweep",
+         render(p, "Just Saw", {48}, 7.0, 0.6, [](auto &proc, double t) {
+           setPlain(proc, ovt::params::stretchId, (float)(t * 500.0));
+         }));
+  }
+
+  // ---- a keyboard temperament, on one chord --------------------------------
+  //
+  // C major on a temperament built on C, so this is the home key a well
+  // temperament is meant to flatter rather than a remote one it roughens.
+  for (const auto temperament :
+       {ovt::Temperament::Equal, ovt::Temperament::Werckmeister3}) {
+    OvertoniumProcessor p;
+    const auto slug = temperament == ovt::Temperament::Equal
+                          ? "chord-equal"
+                          : "chord-werckmeister";
+
+    save(slug, render(p, "Just Saw", {48, 52, 55}, 4.0, 0.6,
+                      [temperament](auto &proc, double) {
+                        setPlain(proc, ovt::params::temperamentId,
+                                 (float)(int)temperament);
+                        setPlain(proc, ovt::params::tuningRootId, 0.0f);
+                      }));
   }
 
   return 0;
