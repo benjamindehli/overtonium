@@ -286,6 +286,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::ParameterID{polyphonyId, 1}, "Polyphony", polyChoices,
       4)); // 8 voices
 
+  // On, because an acoustic instrument works this way and because a key with
+  // a long release that is tapped repeatedly otherwise stacks every tap. Off
+  // is for anyone who wants the tails to sum, which is a sound rather than a
+  // fault.
+  layout.add(std::make_unique<BoolP>(juce::ParameterID{oneVoicePerKeyId, 1},
+                                     "One Voice Per Key", true));
+
   layout.add(std::make_unique<juce::AudioParameterInt>(
       juce::ParameterID{bendRangeId, 1}, "Pitch Bend Range", 0, 24, 2));
 
@@ -610,6 +617,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   masterGain = apvts.getRawParameterValue(masterGainId);
   polyphony = apvts.getRawParameterValue(polyphonyId);
+  oneVoicePerKey = apvts.getRawParameterValue(oneVoicePerKeyId);
   bendRange = apvts.getRawParameterValue(bendRangeId);
   phaseReset = apvts.getRawParameterValue(phaseResetId);
   stretch = apvts.getRawParameterValue(stretchId);
@@ -800,6 +808,7 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
         referenceHz, (int)kReferenceHzChoices.size())];
   }
   out.global.safetyClip = safetyClip->load() > 0.5f;
+  out.global.oneVoicePerKey = oneVoicePerKey->load() > 0.5f;
 
   {
     const auto r = juce::jlimit(0, (int)kLofiRateChoices.size() - 1,

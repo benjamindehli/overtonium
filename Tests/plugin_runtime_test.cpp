@@ -97,10 +97,16 @@ juce::MidiBuffer noteOnAt(int note, float velocity, int sample) {
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
-  // 21 per partial, 16 global, 17 for the noise channel, 10 for the two master
+  // 21 per partial, 17 global, 17 for the noise channel, 10 for the two master
   // effects. Start phase is not among the noise channel's, since noise has no
   // phase to start at.
-  const int expected = ovt::kNumHarmonics * 21 + 16 + 17 + 10;
+  const int expected = ovt::kNumHarmonics * 21 + 17 + 17 + 10;
+
+  // The behaviour that was there before it became a choice. Asked of the
+  // parameter rather than of the tree, so the answer does not depend on what
+  // an earlier test left behind.
+  if (auto *v = p.apvts.getParameter(ovt::params::oneVoicePerKeyId))
+    check(v->getDefaultValue() > 0.5f, "one voice per key defaults to on");
   check(p.getParameters().size() == expected,
         "parameter count is " + std::to_string(p.getParameters().size()) +
             ", expected " + std::to_string(expected));
@@ -2370,6 +2376,15 @@ void testSettingsMenu(OvertoniumProcessor &p) {
   // follow it into the same group.
   check(at("Zoom") > at("Safety clip"),
         "below everything that is about the instrument itself");
+
+  // It answers the other half of the polyphony question, so it sits with the
+  // voice counts rather than off among the output switches. Bounded by
+  // entries rather than by the headers around them, since the headers are
+  // collected separately above.
+  check(at("One voice per key") > at("16 voices") &&
+            at("One voice per key") < at("0 semitones"),
+        "one voice per key sits with the voice counts (" +
+            std::to_string(at("One voice per key")) + ")");
 }
 
 void testTopBarAlignment(OvertoniumProcessor &p) {
@@ -2572,6 +2587,10 @@ void testPresetsAreReproducible(OvertoniumProcessor &p) {
   set(ovt::params::referenceHzId, 0.0f); // A = 415
   set(ovt::params::polyphonyId, 6.0f);   // 16 voices
 
+  // Away from its default, so that a preset quietly restoring the default
+  // would read as a change rather than as agreement.
+  set(ovt::params::oneVoicePerKeyId, 0.0f);
+
   for (int i = 0; i < names.size(); ++i)
     ovt::presets::apply(p.apvts, i);
 
@@ -2583,6 +2602,11 @@ void testPresetsAreReproducible(OvertoniumProcessor &p) {
   check(read(ovt::params::referenceHzId) == 0 &&
             read(ovt::params::polyphonyId) == 6,
         "and the reference pitch and polyphony with it");
+
+  check(read(ovt::params::oneVoicePerKeyId) == 0,
+        "and how many voices one key may take");
+
+  set(ovt::params::oneVoicePerKeyId, 1.0f);
 
   check(reproducible == names.size(),
         "all " + std::to_string(names.size()) +

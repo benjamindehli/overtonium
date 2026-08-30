@@ -1014,6 +1014,56 @@ void testOneVoicePerKey() {
   check(pool.getActiveVoiceCount() <= 5,
         "and tapping a fifth key 25 times does not fill the pool (" +
             std::to_string(pool.getActiveVoiceCount()) + ")");
+
+  // ---- and the same keyboard with the rule switched off --------------------
+  //
+  // Off has to actually stack, because that is what it is for: a bell struck
+  // over and over builds up, and somebody who wants that should get it. The
+  // checks here are the ones above with their inequalities turned round, so
+  // the two settings cannot quietly become the same thing.
+  auto stacking = p;
+  stacking.global.oneVoicePerKey = false;
+
+  SynthEngine loose;
+  loose.prepare(sr);
+  loose.setPolyphony(8);
+
+  const auto renderLoose = [&](double seconds, std::vector<float> &l) {
+    const auto n = (size_t)(seconds * sr);
+    l.assign(n, 0.0f);
+    std::vector<float> r(n, 0.0f);
+    loose.render(l.data(), r.data(), (int)n, stacking);
+  };
+
+  std::vector<float> loose_buf;
+
+  loose.noteOn(60, 1.0f, stacking);
+  renderLoose(0.2, loose_buf);
+  loose.noteOff(60);
+  renderLoose(0.2, loose_buf);
+
+  const auto looseSingle = peakOf(loose_buf);
+
+  for (int i = 0; i < 4; ++i) {
+    loose.noteOn(60, 1.0f, stacking);
+    renderLoose(0.05, loose_buf);
+    loose.noteOff(60);
+    renderLoose(0.05, loose_buf);
+  }
+
+  renderLoose(0.05, loose_buf);
+  const auto loosePiled = peakOf(loose_buf);
+
+  std::printf("  with the rule off: one tap %.3f, five overlapping taps %.3f\n",
+              looseSingle, loosePiled);
+
+  check(loosePiled > 1.4 * looseSingle,
+        "with the rule off the taps do pile up (" +
+            std::to_string(loosePiled / looseSingle) + " times one tap)");
+
+  check(loose.getActiveVoiceCount() > 1,
+        "and each strike keeps a voice of its own (" +
+            std::to_string(loose.getActiveVoiceCount()) + ")");
 }
 
 /// What the lamps between the knob groups are told.

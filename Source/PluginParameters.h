@@ -9,6 +9,7 @@ namespace ovt::params {
 // ---- global parameter IDs ---------------------------------------------------
 inline constexpr const char *masterGainId = "masterGain";
 inline constexpr const char *polyphonyId = "polyphony";
+inline constexpr const char *oneVoicePerKeyId = "oneVoicePerKey";
 inline constexpr const char *bendRangeId = "bendRange";
 inline constexpr const char *phaseResetId = "phaseReset";
 inline constexpr const char *stretchId = "stretch";
@@ -129,6 +130,7 @@ struct Cache {
 
   std::atomic<float> *masterGain = nullptr;
   std::atomic<float> *polyphony = nullptr;
+  std::atomic<float> *oneVoicePerKey = nullptr;
   std::atomic<float> *bendRange = nullptr;
   std::atomic<float> *phaseReset = nullptr;
   std::atomic<float> *stretch = nullptr;
@@ -185,9 +187,10 @@ inline const std::array<int, 7> kPolyphonyChoices{1, 2, 4, 6, 8, 12, 16};
 ///
 /// Named here rather than in Presets.cpp so the code that honours the rule and
 /// the test that checks it cannot come to disagree about what the rule is.
-inline const std::array<const char *, 10> kSessionParamIds{
-    masterGainId,  polyphonyId,   bendRangeId,  atSourceId, safetyClipId,
-    referenceHzId, temperamentId, tuningRootId, mpeId,      slideDestId};
+inline const std::array<const char *, 11> kSessionParamIds{
+    masterGainId,  polyphonyId,   bendRangeId,  atSourceId,
+    safetyClipId,  referenceHzId, temperamentId, tuningRootId,
+    mpeId,         slideDestId,   oneVoicePerKeyId};
 
 /// How far the two pitch wanderers can each take a partial, in cents.
 ///

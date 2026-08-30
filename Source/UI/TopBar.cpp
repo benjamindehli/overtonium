@@ -578,6 +578,7 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
   auto *bendRange = apvts.getParameter(params::bendRangeId);
   auto *phase = apvts.getParameter(params::phaseResetId);
   auto *clip = apvts.getParameter(params::safetyClipId);
+  auto *onePerKey = apvts.getParameter(params::oneVoicePerKeyId);
   auto *mpe = apvts.getParameter(params::mpeId);
 
   const auto polyIndex =
@@ -602,6 +603,11 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
     m.addItem(100 + i,
               juce::String(params::kPolyphonyChoices[(size_t)i]) + " voices",
               true, i == polyIndex);
+
+  // Beside the voice count because it is the other half of the same question:
+  // how many voices there are, and how many one key may take.
+  m.addItem(303, "One voice per key", true,
+            onePerKey != nullptr && onePerKey->getValue() > 0.5f);
 
   const auto currentBend =
       bendRange != nullptr
@@ -747,6 +753,9 @@ void TopBar::showSettingsMenu() {
 
                     if (result == 302)
                       return flip(params::mpeId);
+
+                    if (result == 303)
+                      return flip(params::oneVoicePerKeyId);
 
                     // The converter entries carry an index into their choice
                     // list rather than a value, since the lists are not

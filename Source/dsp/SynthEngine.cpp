@@ -148,37 +148,45 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
   // object: striking it again takes over whatever it was already doing rather
   // than starting a second copy of it beside the first.
   //
-  // Tails count. A key with a long release that is tapped repeatedly used to
-  // leave every tap ringing and sum them, which no physical instrument does
-  // and which is also the quickest way to reach the clipper.
-  Voice *held = nullptr;
-  size_t heldIndex = 0;
+  // Tails count. A key with a long release that is tapped repeatedly would
+  // otherwise leave every tap ringing and sum them, which no physical
+  // instrument does and which is also the quickest way to reach the clipper.
+  //
+  // Switchable, because summing the tails is a sound as well as a fault: a
+  // bell struck over and over builds up, and somebody wanting that should be
+  // able to have it. The whole rule goes with the switch rather than half of
+  // it, so that off means every strike gets a voice of its own and nothing
+  // about the previous strike is disturbed.
+  if (p.global.oneVoicePerKey) {
+    Voice *held = nullptr;
+    size_t heldIndex = 0;
 
-  for (size_t i = 0; i < voices.size(); ++i) {
-    auto &v = voices[i];
+    for (size_t i = 0; i < voices.size(); ++i) {
+      auto &v = voices[i];
 
-    if (!matches(v, channel, note))
-      continue;
+      if (!matches(v, channel, note))
+        continue;
 
-    if (v.isReleasing()) {
-      // Cut with the same short fade a stolen voice gets. Fast enough to read
-      // as instant, slow enough not to click.
-      v.steal();
-    } else {
-      held = &v;
-      heldIndex = i;
+      if (v.isReleasing()) {
+        // Cut with the same short fade a stolen voice gets. Fast enough to
+        // read as instant, slow enough not to click.
+        v.steal();
+      } else {
+        held = &v;
+        heldIndex = i;
+      }
     }
-  }
 
-  // A key still down, or held by the pedal, is retriggered where it stands.
-  // That keeps two things the fade would lose: a legato retrigger continues
-  // from the level the envelope is at rather than restarting from silence,
-  // and re-striking a pedalled note takes it back off the pedal.
-  if (held != nullptr) {
-    heldBySustain[heldIndex] = false;
-    held->noteOn(channel, note, velocity, p);
-    held->setAge(++ageCounter);
-    return;
+    // A key still down, or held by the pedal, is retriggered where it stands.
+    // That keeps two things the fade would lose: a legato retrigger continues
+    // from the level the envelope is at rather than restarting from silence,
+    // and re-striking a pedalled note takes it back off the pedal.
+    if (held != nullptr) {
+      heldBySustain[heldIndex] = false;
+      held->noteOn(channel, note, velocity, p);
+      held->setAge(++ageCounter);
+      return;
+    }
   }
 
   if (countSounding() >= polyphony)

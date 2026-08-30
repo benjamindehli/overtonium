@@ -133,6 +133,10 @@ struct GlobalParams {
   float wobbleAmount = 0.0f;
   /// Soft-clip the sum; 32 faders make it very easy to overshoot.
   bool safetyClip = true;
+  /// Whether striking a key that is already sounding takes over the voice it
+  /// is already using, rather than starting a second one beside it. See
+  /// SynthEngine::noteOnImpl.
+  bool oneVoicePerKey = true;
 };
 
 /// The tape echo, which sits across the whole instrument rather than on any one
