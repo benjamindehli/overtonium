@@ -6,7 +6,7 @@
         <title>The Overtonium tuning system: TUNE, stretch and six temperaments</title>
         <meta
             name="description"
-            content="Hear it: TUNE blending every partial between equal temperament and just intonation, STRETCH taking the series from harmonic out past a piano, and one chord in equal against the same chord in Werckmeister III. With a diagram of where each partial falls against the semitone it snaps to."
+            content="Hear all of it: TUNE blending every partial between equal temperament and just intonation, STRETCH from harmonic out past a piano, a chord in equal against Werckmeister III, keyboard tracking thinning the series as you play up, and per-partial drift. With a diagram of where each partial falls against the semitone it snaps to."
         />
         <link rel="canonical" href="https://benjamindehli.github.io/overtonium/tuning/" />
         <meta name="theme-color" content="#0b0d10" />
@@ -17,7 +17,7 @@
         <meta property="og:title" content="The Overtonium tuning system: TUNE, stretch and six temperaments" />
         <meta
             property="og:description"
-            content="Hear it: TUNE blending every partial between equal temperament and just intonation, STRETCH taking the series from harmonic out past a piano, and one chord in equal against the same chord in Werckmeister III. With a diagram of where each partial falls against the semitone it snaps to."
+            content="Hear all of it: TUNE blending every partial between equal temperament and just intonation, STRETCH from harmonic out past a piano, a chord in equal against Werckmeister III, keyboard tracking thinning the series as you play up, and per-partial drift. With a diagram of where each partial falls against the semitone it snaps to."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-tuning.jpg" />
         <meta property="og:image:width" content="1200" />
@@ -28,7 +28,7 @@
         <meta name="twitter:title" content="The Overtonium tuning system: TUNE, stretch and six temperaments" />
         <meta
             name="twitter:description"
-            content="Hear it: TUNE blending every partial between equal temperament and just intonation, STRETCH taking the series from harmonic out past a piano, and one chord in equal against the same chord in Werckmeister III. With a diagram of where each partial falls against the semitone it snaps to."
+            content="Hear all of it: TUNE blending every partial between equal temperament and just intonation, STRETCH from harmonic out past a piano, a chord in equal against Werckmeister III, keyboard tracking thinning the series as you play up, and per-partial drift. With a diagram of where each partial falls against the semitone it snaps to."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-tuning.jpg" />
 
@@ -658,6 +658,37 @@
                         A treble note whose fundamental is already above the corner loses the full slope across every partial it has. At 6 dB per
                         octave, the 32nd partial keeps 57% of its level at A1 and 4% at A5. Zero is off, and off is exact.
                     </p>
+
+                    <figure class="listen">
+                        <figcaption>
+                            The same five notes an octave apart, twice. With it off the spectrum is the same at every pitch. With it on the bass note
+                            keeps nearly all of its series, since most of it sits below the corner, and the top note has walked most of its into the
+                            rolloff. Measured on these two files, the partials above the fundamental come to 1.43 times it at C2 either way, and at C6
+                            to 1.45 with tracking off against 0.49 with it on.
+                        </figcaption>
+
+                        <div class="players">
+                            <p>
+                                <strong>TRACK off</strong><br />
+                                <audio controls preload="none">
+                                    <source src="../audio/track-off.ogg" type="audio/ogg" />
+                                    <source src="../audio/track-off.wav" type="audio/wav" />
+                                    Your browser cannot play this. The file is
+                                    <a href="../audio/track-off.wav">track-off.wav</a>.
+                                </audio>
+                            </p>
+
+                            <p>
+                                <strong>TRACK at 6 dB/oct</strong><br />
+                                <audio controls preload="none">
+                                    <source src="../audio/track-on.ogg" type="audio/ogg" />
+                                    <source src="../audio/track-on.wav" type="audio/wav" />
+                                    Your browser cannot play this. The file is
+                                    <a href="../audio/track-on.wav">track-on.wav</a>.
+                                </audio>
+                            </p>
+                        </div>
+                    </figure>
                 </section>
 
                 <section>
@@ -674,6 +705,36 @@
                         MOD rule reads a needle rather than a pulse: what it shows is where modulation and drift together have the partial at this
                         instant.
                     </p>
+
+                    <figure class="listen">
+                        <figcaption>
+                            One held chord, twice. With drift off a partial sits exactly where it was put. With it on every partial walks its own way
+                            and the stack never settles: measured across these files, the eighth partial holds at 0 cents in the first and wanders
+                            over 12 cents in the second.
+                        </figcaption>
+
+                        <div class="players">
+                            <p>
+                                <strong>DRIFT off</strong><br />
+                                <audio controls preload="none">
+                                    <source src="../audio/drift-off.ogg" type="audio/ogg" />
+                                    <source src="../audio/drift-off.wav" type="audio/wav" />
+                                    Your browser cannot play this. The file is
+                                    <a href="../audio/drift-off.wav">drift-off.wav</a>.
+                                </audio>
+                            </p>
+
+                            <p>
+                                <strong>DRIFT at 18 cents</strong><br />
+                                <audio controls preload="none">
+                                    <source src="../audio/drift-on.ogg" type="audio/ogg" />
+                                    <source src="../audio/drift-on.wav" type="audio/wav" />
+                                    Your browser cannot play this. The file is
+                                    <a href="../audio/drift-on.wav">drift-on.wav</a>.
+                                </audio>
+                            </p>
+                        </div>
+                    </figure>
                 </section>
 
                 <div class="onward">

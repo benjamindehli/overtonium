@@ -116,6 +116,82 @@ juce::AudioBuffer<float> render(OvertoniumProcessor &p,
   return mono;
 }
 
+/// One note in a run: which, when it goes down, and how long it is held.
+struct Step {
+  int note;
+  double at;
+  double hold;
+};
+
+/// A run of notes rather than a chord, for the things that only show up as you
+/// play across the keyboard.
+juce::AudioBuffer<float> renderRun(OvertoniumProcessor &p,
+                                   const juce::String &preset,
+                                   const std::vector<Step> &steps,
+                                   double totalSeconds, const Move &move = {}) {
+  ovt::presets::apply(p.apvts, indexOf(preset));
+
+  p.setRateAndBufferSizeDetails(kRate, kBlock);
+  p.prepareToPlay(kRate, kBlock);
+  p.reset();
+
+  if (move)
+    move(p, 0.0);
+
+  juce::AudioBuffer<float> out(2, (int)(totalSeconds * kRate));
+  out.clear();
+
+  juce::AudioBuffer<float> chunk(2, kBlock);
+
+  int done = 0;
+
+  while (done < out.getNumSamples()) {
+    const int n = juce::jmin(kBlock, out.getNumSamples() - done);
+
+    // Whatever falls inside this block, placed at the sample it belongs on
+    // rather than at the top of the block.
+    juce::MidiBuffer midi;
+
+    for (const auto &step : steps) {
+      const auto on = (int)(step.at * kRate);
+      const auto off = (int)((step.at + step.hold) * kRate);
+
+      if (on >= done && on < done + n)
+        midi.addEvent(juce::MidiMessage::noteOn(1, step.note, 0.85f),
+                      on - done);
+
+      if (off >= done && off < done + n)
+        midi.addEvent(juce::MidiMessage::noteOff(1, step.note), off - done);
+    }
+
+    if (move)
+      move(p, juce::jlimit(0.0, 1.0,
+                           (double)done / (double)out.getNumSamples()));
+
+    chunk.setSize(2, n, false, false, true);
+    chunk.clear();
+    p.processBlock(chunk, midi);
+
+    for (int c = 0; c < 2; ++c)
+      out.copyFrom(c, done, chunk, c, 0, n);
+
+    done += n;
+  }
+
+  const int fade = (int)(0.03 * kRate);
+  out.applyGainRamp(out.getNumSamples() - fade, fade, 1.0f, 0.0f);
+  out.applyGainRamp(0, (int)(0.005 * kRate), 0.0f, 1.0f);
+
+  for (int n = 0; n < out.getNumSamples(); ++n)
+    if (!juce::exactlyEqual(out.getSample(0, n), out.getSample(1, n)))
+      return out;
+
+  juce::AudioBuffer<float> mono(1, out.getNumSamples());
+  mono.copyFrom(0, 0, out, 0, 0, out.getNumSamples());
+
+  return mono;
+}
+
 bool write(const juce::AudioBuffer<float> &buffer, const juce::File &file,
            juce::AudioFormat &format, int quality) {
   file.deleteFile();
@@ -220,6 +296,43 @@ int main(int argc, char **argv) {
                                  (float)(int)temperament);
                         setPlain(proc, ovt::params::tuningRootId, 0.0f);
                       }));
+  }
+
+  // ---- TRACK, heard by playing up the keyboard -----------------------------
+  //
+  // The rolloff sits at a fixed 1 kHz while the partials climb through it, so
+  // it only shows across a run: a bass note keeps nearly all of its series and
+  // a treble note has walked most of its into the rolloff. One note would show
+  // nothing, since the fundamental holds its level either way.
+  {
+    const std::vector<Step> run{{36, 0.0, 1.0},  {48, 1.2, 1.0},
+                                {60, 2.4, 1.0},  {72, 3.6, 1.0},
+                                {84, 4.8, 1.4}};
+
+    for (const auto track : {0.0f, 6.0f}) {
+      OvertoniumProcessor p;
+      save(track > 0.0f ? "track-on" : "track-off",
+           renderRun(p, "Just Saw", run, 6.6, [track](auto &proc, double) {
+             setPlain(proc, ovt::params::trackId, track);
+           }));
+    }
+  }
+
+  // ---- DRIFT, which is a texture rather than an event ----------------------
+  //
+  // A held chord, which is where the page says it shows: every partial walks
+  // its own way, so the stack never settles.
+  for (const auto drift : {0.0f, 18.0f}) {
+    OvertoniumProcessor p;
+    save(drift > 0.0f ? "drift-on" : "drift-off",
+         render(p, "Just Saw", {48, 55, 60}, 5.0, 0.6,
+                [drift](auto &proc, double) {
+                  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+                    setPlain(
+                        proc,
+                        ovt::params::oscParamId(ovt::params::driftSuffix, i),
+                        drift);
+                }));
   }
 
   return 0;

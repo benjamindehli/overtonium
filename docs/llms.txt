@@ -36,7 +36,7 @@ Written in C++ with JUCE 8 by Benjamin Dehli for Dehli Musikk. Hosts list it und
 - Effects: a tape echo, a feedback delay network reverb, a wobble across the whole series, and a converter that reduces render rate and bit depth.
 - MPE: pitch bend and pressure per note, with the slide axis routable to brightness or tuning.
 - Factory presets: 2-bit Fuzz Organ, Big Saw, Cathedral, Drawbar Organ, Equal Saw, Glass Armonica, Init, Just Saw, Lo-fi, Metallic Piano, Music Box, Odd Harmonics, Omni-84, Shimmer, Slow Pad, Struck Bell, Tape Choir, Vibraphone, Wurli.
-- Audio examples: the project page carries rendered clips of the presets Just Saw and Equal Saw, the TUNE sweep between them, a STRETCH sweep, and one chord in equal against Werckmeister III. They are rendered by the plugin rather than recorded, so they cannot drift from what it does.
+- Audio examples: every section of the tuning page can be heard. Just Saw against Equal Saw and the TUNE sweep between them, a STRETCH sweep from harmonic out past a piano, one chord in equal against Werckmeister III, a run up the keyboard with tracking off and on, and a held chord with and without drift. They are rendered by the plugin rather than recorded, so they cannot drift from what it does.
 - Privacy: nothing reaches the network unless the update check is switched on, which is off by default and offered once.
 
 ## Optional
