@@ -11,8 +11,8 @@ Written in C++ with JUCE 8 by Benjamin Dehli for Dehli Musikk. Hosts list it und
 ## Documentation
 
 - [Overview](https://benjamindehli.github.io/overtonium/): what the instrument is, what TUNE does, common questions, and the two sample instruments it descends from.
-- [Tuning](https://benjamindehli.github.io/overtonium/tuning/): TUNE from equal to just, inharmonic stretch, six historical temperaments on any root, at a reference pitch from a list running 415 to 466 Hz, keyboard tracking, and per-partial drift.
-- [Controls](https://benjamindehli.github.io/overtonium/controls/): every knob on a channel strip and on the global bar, the two-part envelope, per-partial velocity and pressure, LINK for ganging the 32 channels, the lamps and meters, the noise channel and MPE.
+- [Tuning](https://benjamindehli.github.io/overtonium/tuning/): TUNE from equal to just, inharmonic stretch, six historical temperaments on any root, at a reference pitch from a list running 415 to 466 Hz, keyboard tracking, and per-partial drift. Carries audio of each of those and a diagram of where every partial falls against the semitone it snaps to.
+- [Controls](https://benjamindehli.github.io/overtonium/controls/): every knob on a channel strip and on the global bar, the two-part envelope, per-partial velocity and pressure, LINK for ganging the 32 channels, the lamps and meters, the noise channel and MPE, and a diagram of the order the signal passes through.
 - [Presets](https://benjamindehli.github.io/overtonium/presets/): the nineteen that ship, what a preset carries and deliberately does not, and where user presets are kept on each platform.
 - [Install](https://benjamindehli.github.io/overtonium/install/): which download to take on each platform, what to do when a host does not see the plugin, the opt-in update check, and building from source.
 
@@ -36,6 +36,7 @@ Written in C++ with JUCE 8 by Benjamin Dehli for Dehli Musikk. Hosts list it und
 - Effects: a tape echo, a feedback delay network reverb, a wobble across the whole series, and a converter that reduces render rate and bit depth.
 - MPE: pitch bend and pressure per note, with the slide axis routable to brightness or tuning.
 - Factory presets: 2-bit Fuzz Organ, Big Saw, Cathedral, Drawbar Organ, Equal Saw, Glass Armonica, Init, Just Saw, Lo-fi, Metallic Piano, Music Box, Odd Harmonics, Omni-84, Shimmer, Slow Pad, Struck Bell, Tape Choir, Vibraphone, Wurli.
+- Audio examples: the project page carries rendered clips of the presets Just Saw and Equal Saw, the TUNE sweep between them, a STRETCH sweep, and one chord in equal against Werckmeister III. They are rendered by the plugin rather than recorded, so they cannot drift from what it does.
 - Privacy: nothing reaches the network unless the update check is switched on, which is off by default and offered once.
 
 ## Optional
