@@ -600,9 +600,7 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
   m.addSectionHeader("Polyphony");
 
   for (int i = 0; i < (int)params::kPolyphonyChoices.size(); ++i)
-    m.addItem(100 + i,
-              juce::String(params::kPolyphonyChoices[(size_t)i]) + " voices",
-              true, i == polyIndex);
+    m.addItem(100 + i, params::polyphonyName(i), true, i == polyIndex);
 
   // Beside the voice count because it is the other half of the same question:
   // how many voices there are, and how many one key may take.

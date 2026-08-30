@@ -265,6 +265,14 @@ Cast shadows are built from a few overlapping shapes rather than from a real blu
 
 The rest position is the middle of the travel, and that is also where a controller that never sends CC74 leaves it, so a keyboard with no slide axis changes nothing. Which destination is chosen does not travel with a preset: it is a fact about the controller in front of you, like the aftertouch source and the temperament.
 
+### Legato
+
+The first entry in the polyphony list, above one voice, and the one place where the instrument stops being polyphonic at all. One voice, and a key going down while another is still held moves the note rather than starting it again: the envelopes, the phases and the drift all carry on, so a run keeps the shape the first key gave it. The velocity of the note that began the phrase is kept, since the key that would set a new one was never released and a run that changed timbre under the fingers is not a run.
+
+Letting a key go while others are still down falls back to the most recent of them rather than stopping, which is what makes a trill work. Only the last key coming up releases the note. The keys that are down are kept in the order they went down, in a fixed array of the 128 there are, because this is worked out on the audio thread and nothing there may allocate.
+
+It is one voice, so it heads the polyphony list rather than sitting beside it as a switch. Legato and one voice are the same count and differ only in what a second key does.
+
 ### One voice per key
 
 The instrument is polyphonic across the keyboard and monophonic within a key. A string, a tine or a bar is one object, and striking it again takes over whatever it was already doing rather than starting a second copy beside the first, so playing the same key twice does the same here.

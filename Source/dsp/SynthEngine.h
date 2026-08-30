@@ -27,6 +27,10 @@ public:
   void reset() noexcept;
 
   void setPolyphony(int n) noexcept;
+
+  /// Monophonic, and the envelope carries on rather than starting again while
+  /// any key is still down.
+  void setLegato(bool on) noexcept { legato = on; }
   int getPolyphony() const noexcept { return polyphony; }
 
   void noteOn(int note, float velocity, const SynthParams &p) noexcept;
@@ -217,6 +221,26 @@ private:
 
   double sampleRate = 44100.0;
   int polyphony = 8;
+  bool legato = false;
+
+  /// The keys that are down in legato, oldest first, so releasing the one
+  /// sounding can fall back to whichever is still held rather than leaving the
+  /// phrase stranded on a key nobody is touching.
+  ///
+  /// A fixed array because this is reached from the audio thread and there are
+  /// only ever 128 keys to hold down at once.
+  std::array<int, 128> legatoHeld{};
+  int legatoDepth = 0;
+
+  /// The tuning the phrase started under. A note-off carries no parameters and
+  /// still has to work out where the key it falls back to sits.
+  Temperament legatoTemperament = Temperament::Equal;
+  int legatoRoot = 0;
+  double legatoReferenceHz = 440.0;
+
+  /// Drops a key from the stack. Nothing happens if it was not in it, which a
+  /// note-off arriving without its note-on will do.
+  void legatoRelease(int note) noexcept;
   uint64_t ageCounter = 0;
   bool sustainDown = false;
 

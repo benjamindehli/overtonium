@@ -101,6 +101,20 @@ public:
   /// @param velocity  how fast the key came up, 0 to 1. Scales each partial's
   ///                   key-off level by its own lift amount.
   void noteOff(float velocity = 0.5f) noexcept;
+
+  /// Moves a sounding note to a different key without starting it again.
+  ///
+  /// Legato: the envelopes, the phases and the drift all carry on where they
+  /// were, and only the pitch changes. The velocity of the note that began the
+  /// phrase is kept, since the key that would set a new one was never
+  /// released, and taking a fresh one would make a legato run change timbre
+  /// under the fingers.
+  void noteOnLegato(int channel, int note, const SynthParams &p) noexcept;
+
+  /// The same, for a caller that has worked out the frequency already. A
+  /// note-off has no parameters to hand and still has to move the phrase to
+  /// whichever key is left holding it.
+  void retune(int channel, int note, double frequency) noexcept;
   void steal() noexcept; ///< fast fade-out so the voice can be reused
 
   /// Polyphonic aftertouch for this voice. Channel pressure arrives separately

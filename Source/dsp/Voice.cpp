@@ -152,6 +152,24 @@ void Voice::noteOn(int channel, int note, float velocity,
   }
 }
 
+void Voice::noteOnLegato(int channel, int note,
+                         const SynthParams &p) noexcept {
+  retune(channel, note,
+         noteFrequency(note, p.global.temperament, p.global.tuningRoot,
+                       p.global.referenceHz));
+}
+
+void Voice::retune(int channel, int note, double frequency) noexcept {
+  midiNote = note;
+  midiChannel = channel;
+  baseFreq = frequency;
+
+  // A key going down while the phrase is still sounding says nothing about
+  // bend or pressure, and the ones already in hand belong to the phrase rather
+  // than to the key that started it. Left alone on purpose.
+  released = false;
+}
+
 void Voice::noteOff(float velocity) noexcept {
   if (!active)
     return;

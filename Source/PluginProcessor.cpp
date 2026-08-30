@@ -275,6 +275,7 @@ void OvertoniumProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   paramCache.snapshot(currentParams, pitchBendNormalised);
   updateAftertouch();
   engine.setPolyphony(paramCache.polyphonyValue());
+  engine.setLegato(paramCache.legatoValue());
 
   // Hosts are allowed to hand over a bigger block than the one they promised
   // in prepareToPlay. Growing the scratch here would be an allocation on the

@@ -874,6 +874,171 @@ void testNoClickOnMute() {
 // -----------------------------------------------------------------------------
 /// One key is one voice. Tapping a key with a long release used to leave every
 /// tap ringing and sum them, which no physical instrument does.
+/// Legato: one voice, and the envelope carries on while a key is still down.
+///
+/// The three things that make it legato rather than one voice: a second key
+/// moves the pitch without restarting the attack, letting a key go while
+/// another is held falls back to that one, and only the last key coming up
+/// releases the note.
+void testLegato() {
+  section("Legato");
+
+  constexpr double sr = 48000.0;
+
+  auto p = makeFlatParams(0.0f);
+  p.osc[0].volume = 0.6f;
+  p.osc[0].attack = 0.25f; // long enough that a restart is unmistakable
+  p.osc[0].decay = 8.0f;
+  p.osc[0].sustain = 1.0f;
+  p.osc[0].release = 4.0f;
+  p.osc[0].velAmount = 0.0f;
+  p.global.masterGain = 1.0f;
+  p.global.safetyClip = false;
+
+  SynthEngine engine;
+  engine.prepare(sr);
+  engine.setPolyphony(1);
+  engine.setLegato(true);
+
+  std::vector<float> l, r;
+  const auto render = [&](double seconds) {
+    const auto n = (size_t)(seconds * sr);
+    l.assign(n, 0.0f);
+    r.assign(n, 0.0f);
+    engine.render(l.data(), r.data(), (int)n, p);
+  };
+
+  const auto peak = [&]() {
+    double m = 0.0;
+    for (auto x : l)
+      m = std::max(m, std::abs((double)x));
+    return m;
+  };
+
+  // ---- the attack is not started again -------------------------------------
+  engine.noteOn(60, 1.0f, p);
+  render(0.5); // well past the attack
+
+  const auto sustained = peak();
+  check(sustained > 0.05, "a held note reaches its sustain (" +
+                              std::to_string(sustained) + ")");
+
+  engine.noteOn(64, 1.0f, p); // second key, first still down
+  render(0.02);
+
+  const auto afterSecond = peak();
+
+  std::printf("  sustained %.3f, just after the second key %.3f\n", sustained,
+              afterSecond);
+
+  // A restart would put the level back at the bottom of a quarter-second
+  // attack, so anything near the sustain says the envelope carried on.
+  check(afterSecond > 0.7 * sustained,
+        "and a second key does not start the attack again (" +
+            std::to_string(afterSecond / sustained) + " of it)");
+
+  check(engine.getActiveVoiceCount() == 1,
+        "with one voice doing both (" +
+            std::to_string(engine.getActiveVoiceCount()) + ")");
+
+  // ---- releasing the newer key falls back to the one still held ------------
+  //
+  // Measured as a pitch rather than a level. Letting the note release instead
+  // would look almost the same for a moment, since a four second release has
+  // barely moved after twenty milliseconds, and the pitch says plainly which
+  // key the phrase is on.
+  const auto hz = [sr](const std::vector<float> &x) {
+    int crossings = 0;
+    size_t first = 0, last = 0;
+
+    for (size_t n = 1; n < x.size(); ++n)
+      if (x[n - 1] <= 0.0f && x[n] > 0.0f) {
+        if (crossings == 0)
+          first = n;
+
+        last = n;
+        ++crossings;
+      }
+
+    if (crossings < 2)
+      return 0.0;
+
+    return (double)(crossings - 1) * sr / (double)(last - first);
+  };
+
+  render(0.2);
+  const auto onSecond = hz(l);
+
+  engine.noteOff(64);
+  render(0.2);
+
+  const auto onFallback = hz(l);
+
+  std::printf("  second key at %.1f Hz, after letting it go %.1f Hz\n",
+              onSecond, onFallback);
+
+  check(std::abs(onSecond - 329.63) < 4.0,
+        "the second key is the one sounding (" + std::to_string(onSecond) +
+            " Hz)");
+  check(std::abs(onFallback - 261.63) < 4.0,
+        "and letting it go falls back to the key still held (" +
+            std::to_string(onFallback) + " Hz)");
+
+  check(engine.getActiveVoiceCount() == 1,
+        "letting the second key go does not end the note");
+
+  // Long enough that a release would be unmistakable.
+  render(1.5);
+
+  const auto afterFallback = peak();
+  check(afterFallback > 0.7 * sustained,
+        "and the note is still held rather than releasing (" +
+            std::to_string(afterFallback / sustained) + " of the sustain)");
+
+  // ---- and the last key up does end it -------------------------------------
+  engine.noteOff(60);
+  render(3.0);
+  render(3.0);
+
+  const auto afterAll = peak();
+  std::printf("  after the last key came up: %.4f\n", afterAll);
+
+  check(afterAll < 0.25 * sustained,
+        "the last key coming up releases it (" +
+            std::to_string(afterAll / sustained) + " of the sustain)");
+
+  // ---- and it is monophonic ------------------------------------------------
+  SynthEngine mono;
+  mono.prepare(sr);
+  mono.setPolyphony(1);
+  mono.setLegato(true);
+
+  for (int note : {60, 64, 67})
+    mono.noteOn(note, 1.0f, p);
+
+  std::vector<float> ml((size_t)(0.05 * sr)), mr((size_t)(0.05 * sr));
+  mono.render(ml.data(), mr.data(), (int)ml.size(), p);
+
+  check(mono.getActiveVoiceCount() == 1,
+        "three keys at once are still one voice (" +
+            std::to_string(mono.getActiveVoiceCount()) + ")");
+
+  // ---- switched off, the same keys behave as they always did ---------------
+  SynthEngine poly;
+  poly.prepare(sr);
+  poly.setPolyphony(8);
+  poly.setLegato(false);
+
+  for (int note : {60, 64, 67})
+    poly.noteOn(note, 1.0f, p);
+
+  poly.render(ml.data(), mr.data(), (int)ml.size(), p);
+
+  check(poly.getActiveVoiceCount() == 3,
+        "and with legato off they are three again (" +
+            std::to_string(poly.getActiveVoiceCount()) + ")");
+}
+
 void testOneVoicePerKey() {
   section("One voice per key");
 
@@ -4214,6 +4379,7 @@ int main() {
   testEnvelopeAndMuteSolo();
   testNoClickOnMute();
   testVoiceAllocation();
+  testLegato();
   testOneVoicePerKey();
   testPerNoteChannels();
   testActivity();

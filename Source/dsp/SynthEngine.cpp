@@ -141,8 +141,55 @@ void SynthEngine::noteOnPerNote(int channel, int note, float velocity,
   noteOnImpl(channel, note, velocity, p);
 }
 
+void SynthEngine::legatoRelease(int note) noexcept {
+  for (int i = 0; i < legatoDepth; ++i) {
+    if (legatoHeld[(size_t)i] != note)
+      continue;
+
+    for (int j = i; j + 1 < legatoDepth; ++j)
+      legatoHeld[(size_t)j] = legatoHeld[(size_t)j + 1];
+
+    --legatoDepth;
+    return;
+  }
+}
+
 void SynthEngine::noteOnImpl(int channel, int note, float velocity,
                              const SynthParams &p) noexcept {
+  // ---- legato ---------------------------------------------------------------
+  //
+  // One voice, and a key going down while another is still held moves the note
+  // rather than starting it again: the envelopes carry on and a run keeps the
+  // shape the first key gave it. The phrase ends when the last key comes up,
+  // which is the whole difference from one voice without it.
+  if (legato) {
+    legatoRelease(note);
+
+    if (legatoDepth < (int)legatoHeld.size())
+      legatoHeld[(size_t)legatoDepth++] = note;
+
+    legatoTemperament = p.global.temperament;
+    legatoRoot = p.global.tuningRoot;
+    legatoReferenceHz = p.global.referenceHz;
+
+    // Whatever is still sounding and has not been let go carries the phrase.
+    for (auto &v : voices) {
+      if (!v.isActive() || v.isReleasing())
+        continue;
+
+      v.noteOnLegato(channel, note, p);
+      v.setAge(++ageCounter);
+      return;
+    }
+
+    // Nothing to carry it, so this key starts the phrase. Any tail still
+    // fading from the last one is cut, since a second voice is what legato
+    // exists to avoid.
+    for (auto &v : voices)
+      if (v.isActive())
+        v.steal();
+  }
+
   // One key, one voice. The instrument is polyphonic across the keyboard and
   // monophonic within a key, because a string or a tine or a bar is one
   // object: striking it again takes over whatever it was already doing rather
@@ -230,6 +277,26 @@ void SynthEngine::noteOffPerNote(int channel, int note,
 }
 
 void SynthEngine::noteOffImpl(int channel, int note, float velocity) noexcept {
+  if (legato) {
+    legatoRelease(note);
+
+    // Another key is still down, so the phrase moves to it rather than
+    // stopping. Falling back to the most recent is what makes a trill work.
+    if (legatoDepth > 0) {
+      for (auto &v : voices)
+        if (v.isActive() && !v.isReleasing()) {
+          const auto back = legatoHeld[(size_t)legatoDepth - 1];
+
+          v.retune(channel, back,
+                   noteFrequency(back, legatoTemperament, legatoRoot,
+                                 legatoReferenceHz));
+          return;
+        }
+
+      return;
+    }
+  }
+
   for (size_t i = 0; i < voices.size(); ++i) {
     auto &v = voices[i];
 

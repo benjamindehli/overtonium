@@ -251,6 +251,17 @@ juce::String oscParamId(const char *suffix, int index0) {
   return "h" + juce::String(index0 + 1).paddedLeft('0', 2) + "_" + suffix;
 }
 
+juce::String polyphonyName(int index) {
+  if (index == kLegatoIndex)
+    return "Legato";
+
+  const auto at =
+      juce::jlimit(0, (int)kPolyphonyChoices.size() - 1, index);
+  const auto voices = kPolyphonyChoices[(size_t)at];
+
+  return juce::String(voices) + (voices == 1 ? " voice" : " voices");
+}
+
 juce::String noiseParamId(const char *suffix) {
   return juce::String("noise_") + suffix;
 }
@@ -321,12 +332,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       FAttr().withLabel("dB")));
 
   juce::StringArray polyChoices;
-  for (auto n : kPolyphonyChoices)
-    polyChoices.add(juce::String(n));
+  for (int i = 0; i < (int)kPolyphonyChoices.size(); ++i)
+    polyChoices.add(polyphonyName(i));
 
   layout.add(std::make_unique<juce::AudioParameterChoice>(
       juce::ParameterID{polyphonyId, 1}, "Polyphony", polyChoices,
-      4)); // 8 voices
+      5)); // 8 voices
 
   // On, because an acoustic instrument works this way and because a key with
   // a long release that is tapped repeatedly otherwise stacks every tap. Off
@@ -756,6 +767,10 @@ int Cache::polyphonyValue() const {
   const auto index = juce::jlimit(0, (int)kPolyphonyChoices.size() - 1,
                                   (int)polyphony->load());
   return kPolyphonyChoices[(size_t)index];
+}
+
+bool Cache::legatoValue() const {
+  return (int)polyphony->load() == kLegatoIndex;
 }
 
 void Cache::snapshot(SynthParams &out, float bendNormalised) const {

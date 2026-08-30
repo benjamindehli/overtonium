@@ -186,10 +186,26 @@ struct Cache {
   void snapshot(SynthParams &out, float bendNormalised) const;
 
   int polyphonyValue() const;
+
+  /// Whether the polyphony choice is the legato one.
+  bool legatoValue() const;
 };
 
 /// The polyphony choices, in parameter order.
-inline const std::array<int, 7> kPolyphonyChoices{1, 2, 4, 6, 8, 12, 16};
+/// The voice count each choice allows, in parameter order.
+///
+/// Legato heads the list and is also one voice, so the first two entries agree
+/// on the number and differ in what happens when a key goes down while another
+/// is still held. See kLegatoIndex.
+inline const std::array<int, 8> kPolyphonyChoices{1, 1, 2, 4, 6, 8, 12, 16};
+
+/// Monophonic, and the envelope carries on rather than starting again while
+/// any key is still down. The note follows the last key pressed, and falls
+/// back to whichever is still held when that one comes up.
+inline constexpr int kLegatoIndex = 0;
+
+/// "Legato", "1 voice", "2 voices" and so on.
+juce::String polyphonyName(int index);
 
 /// What a preset leaves alone.
 ///
