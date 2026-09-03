@@ -199,14 +199,8 @@ private:
   /// enough that the per-chunk setup is lost in the noise.
   static constexpr int kLofiChunk = 512;
 
-  /// Low-rate scratch for the per-channel outputs, and what each is holding
-  /// between frames.
-  ///
-  /// The converter renders the whole pool slowly and holds the result, so a
-  /// tap has to be held the same way or it would run at a different rate from
-  /// the mix it belongs to. One buffer per channel, sized like the mix's, and
-  /// only the ones a host actually asked for are touched.
-
+  /// Where the pool is rendered when the converter is running, before the
+  /// result is stretched back out to the host rate.
   std::array<float, kLofiChunk> lofiScratchL{};
   std::array<float, kLofiChunk> lofiScratchR{};
 

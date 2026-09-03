@@ -3075,6 +3075,63 @@ void testUndersizedBuffer() {
   check(loudest > 1.0e-4f, "and a full-width buffer still gets audio");
 }
 
+/// A host that took the mono layout gets the mix folded down, not half of it.
+///
+/// The stereo path copies two channels straight across, so nothing about it
+/// would notice the fold being wrong. Mono is the only output that runs a sum,
+/// and it is the layout a host with one channel to give will ask for, so it
+/// wants exercising rather than merely being declared supported.
+void testMonoOutput() {
+  section("Mono output");
+
+  const auto renderPeak = [](juce::AudioChannelSet main) {
+    OvertoniumProcessor p;
+
+    juce::AudioProcessor::BusesLayout layout;
+    layout.outputBuses.add(main);
+
+    if (!p.setBusesLayout(layout))
+      return -1.0f;
+
+    p.setRateAndBufferSizeDetails(48000.0, 512);
+    p.prepareToPlay(48000.0, 512);
+
+    juce::AudioBuffer<float> buffer(main.size(), 512);
+    juce::MidiBuffer midi;
+    midi.addEvent(juce::MidiMessage::noteOn(1, 45, 0.9f), 0);
+
+    float peak = 0.0f;
+
+    for (int b = 0; b < 20; ++b) {
+      buffer.clear();
+      p.processBlock(buffer, midi);
+      midi.clear();
+
+      // The first blocks are the attack climbing, so the level is taken once
+      // the note is up rather than from the ramp.
+      if (b >= 10)
+        for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+          peak = std::max(peak, buffer.getMagnitude(ch, 0, 512));
+    }
+
+    return peak;
+  };
+
+  const auto mono = renderPeak(juce::AudioChannelSet::mono());
+  const auto stereo = renderPeak(juce::AudioChannelSet::stereo());
+
+  check(mono > 1.0e-4f, "a mono layout is given audio");
+  check(stereo > 1.0e-4f, "and so is a stereo one");
+
+  // The default patch is centred, so both channels carry the same thing and
+  // averaging them gives back what either one held. A fold that dropped a
+  // channel or halved the sum of two identical ones would land at half this,
+  // which is well outside the tolerance.
+  check(mono > stereo * 0.8f && mono < stereo * 1.25f,
+        "and the fold keeps the level of a centred patch rather than halving "
+        "it");
+}
+
 void testStateRoundTrip(OvertoniumProcessor &p) {
   section("State round trip");
 
@@ -3807,6 +3864,7 @@ int main() {
   testUndo(processor);
   testBusLayouts(processor);
   testUndersizedBuffer();
+  testMonoOutput();
   testStateRoundTrip(processor);
   testPrograms(processor);
   testCollapsibleSections();

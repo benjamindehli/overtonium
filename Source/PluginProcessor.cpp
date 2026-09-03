@@ -319,46 +319,41 @@ void OvertoniumProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
     renderSegment(position - done, chunkEnd - position);
 
-    // ---- fan the render out to whatever the host asked for ------------------
+    // ---- write the mix out --------------------------------------------------
     //
     // Channel indices worked out here and bounds-checked, rather than through
     // getBusBuffer. A host is supposed to hand over a buffer with a channel
-    // for every enabled bus and not all of them do: pluginval processes a
-    // two-channel buffer against a layout asking for thirty-five, and
-    // getBusBuffer points confidently past the end of it.
+    // for every enabled bus and not all of them do, and getBusBuffer points
+    // confidently past the end of one that is short.
     //
-    // The main bus is written first, then each channel output. Only the main
-    // bus's own spare channels are cleared: the blanket clear of everything
-    // past channel two that used to live here would wipe the outputs below.
+    // There is a single output bus and isBusesLayoutSupported takes only mono
+    // or stereo, so the widest thing written here is two channels and the bus
+    // never has a spare one to clear. The count is still read rather than
+    // assumed, since it is the host that decides which of the two it asked
+    // for.
     const int available = buffer.getNumChannels();
     const auto *left = scratch.getReadPointer(0);
     const auto *right = scratch.getReadPointer(1);
 
-    const auto channelOf = [this, available](int bus, int channel) {
-      const int index =
-          getChannelIndexInProcessBlockBuffer(false, bus, channel);
+    const auto channelOf = [this, available](int channel) {
+      const int index = getChannelIndexInProcessBlockBuffer(false, 0, channel);
       return index >= 0 && index < available ? index : -1;
     };
 
-    const int mainChannels =
-        getChannelCountOfBus(false, 0) > 0 ? getChannelCountOfBus(false, 0) : 0;
+    const int mainChannels = juce::jmax(0, getChannelCountOfBus(false, 0));
 
     if (mainChannels == 1) {
-      if (const int ch = channelOf(0, 0); ch >= 0) {
+      if (const int ch = channelOf(0); ch >= 0) {
         auto *dest = buffer.getWritePointer(ch, done);
         for (int n = 0; n < length; ++n)
           dest[n] = 0.5f * (left[n] + right[n]);
       }
     } else if (mainChannels >= 2) {
-      if (const int ch = channelOf(0, 0); ch >= 0)
+      if (const int ch = channelOf(0); ch >= 0)
         buffer.copyFrom(ch, done, left, length);
 
-      if (const int ch = channelOf(0, 1); ch >= 0)
+      if (const int ch = channelOf(1); ch >= 0)
         buffer.copyFrom(ch, done, right, length);
-
-      for (int c = 2; c < mainChannels; ++c)
-        if (const int ch = channelOf(0, c); ch >= 0)
-          buffer.clear(ch, done, length);
     }
 
     done = chunkEnd;
@@ -378,8 +373,8 @@ int OvertoniumProcessor::getNumPrograms() {
   // poor thing to hand an automation lane, it changes the parameter set of a
   // plugin already released without it, and pluginval's state restoration
   // test fails against it. VST3 hosts have preset handling of their own and
-  // lose nothing, since the plugin's own preset menu reaches all sixteen on
-  // every format regardless.
+  // lose nothing, since the plugin's own preset menu reaches every factory
+  // preset on every format regardless.
   return wrapperType == wrapperType_AudioUnit ? ovt::presets::names().size()
                                               : 1;
 }
@@ -411,7 +406,7 @@ void OvertoniumProcessor::setCurrentProgram(int index) {
 void OvertoniumProcessor::applyFactoryPreset(int index) {
   // Against the number of presets, not getNumPrograms. Those differ on every
   // format except the Audio Unit, and this is the path the plugin's own menu
-  // takes, which reaches all sixteen everywhere.
+  // takes, which reaches every one of them everywhere.
   if (!juce::isPositiveAndBelow(index, ovt::presets::names().size()))
     return;
 
