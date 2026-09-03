@@ -304,6 +304,84 @@ jobs:
 
       - run: npm run format:check
 
+  sanitizers:
+    name: Sanitizers
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    # Both suites again, this time built with the address and undefined
+    # behaviour sanitizers. The other jobs answer whether the plugin does the
+    # right thing. This one answers whether it does it without reading past an
+    # array or leaning on behaviour the standard does not define, which the
+    # others cannot see: pluginval drives the plugin as a host, and a read one
+    # byte off the end of a buffer hands back a plausible number rather than
+    # failing a check.
+    #
+    # Linux alone. These are bugs in the code rather than in a platform, so a
+    # second runner would mostly buy a second copy of the same answer, and a
+    # sanitized build is slow enough that one is the right number.
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Linux dependencies
+        timeout-minutes: 10
+        run: |
+          for attempt in 1 2 3; do
+            if sudo apt-get update; then
+              break
+            fi
+
+            echo "apt-get update failed on attempt $attempt, retrying"
+            sleep 10
+          done
+
+          sudo apt-get install --no-install-recommends -y \
+            libasound2-dev libfreetype-dev libfontconfig1-dev libx11-dev \
+            libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev \
+            libxcomposite-dev libgl-dev libcurl4-openssl-dev
+
+      # The tests only. The plugin targets are not built here: nothing runs
+      # them, and a sanitized VST3 is not something anyone should load.
+      #
+      # RelWithDebInfo rather than Debug, and the reason is JUCE rather than
+      # speed. Debug leaves NDEBUG undefined, which arms every jassert in the
+      # framework, and a headless test run trips ones that say nothing about
+      # this code. The build the other jobs check is the one worth sanitizing.
+      - name: Configure
+        run: >
+          cmake -B build-san
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DOVERTONIUM_SANITIZE=ON
+          -DOVERTONIUM_INSTALL_AFTER_BUILD=OFF
+
+      - name: Build
+        run: >
+          cmake --build build-san --parallel 2
+          --target overtonium_dsp_test overtonium_runtime_test
+
+      # The log is checked rather than only the exit status. Recovery is left
+      # on so one run reports everything it finds, and that means a run can
+      # report a fault and still exit zero. detect_leaks is asked for
+      # explicitly rather than relied on, since it is on by default on Linux
+      # and off elsewhere, and this job should not quietly stop checking for
+      # them if it ever moves.
+      - name: Run both suites
+        env:
+          ASAN_OPTIONS: detect_leaks=1:detect_stack_use_after_return=1
+          UBSAN_OPTIONS: print_stacktrace=1
+        run: |
+          set -o pipefail
+          ctest --test-dir build-san --output-on-failure 2>&1 | tee sanitizer.log
+
+      - name: Fail on anything the sanitizers reported
+        run: |
+          if grep -nE "runtime error:|ERROR: AddressSanitizer|ERROR: LeakSanitizer|SUMMARY: (Address|Undefined)" sanitizer.log; then
+            echo "::error::the sanitizers reported the lines above"
+            exit 1
+          fi
+
+          echo "clean"
+
   dsp-core:
     name: DSP core, no build system
     runs-on: ubuntu-latest

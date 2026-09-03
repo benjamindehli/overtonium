@@ -40,6 +40,16 @@ It randomises its parameter values, so CI pins the seed on a push and leaves it 
 
 **The VST3 validator.** Steinberg's own conformance suite, which is a different thing from pluginval: it checks the VST3 contracts rather than misusing the plugin through a host. CI builds it from a pinned revision of the SDK and runs it on Linux, where the build is cheapest. To run it yourself, build the `validator` target out of [the SDK](https://github.com/steinbergmedia/vst3sdk) with `-DSMTG_ENABLE_VST3_PLUGIN_EXAMPLES=OFF -DSMTG_ENABLE_VSTGUI_SUPPORT=OFF`, which skips the parts it does not link, and point the result at a built `.vst3`.
 
+**Sanitizers.** Both suites run again on Linux with the address and undefined behaviour sanitizers on. Everything above says whether the plugin does the right thing. This says whether it does it without reading past an array or relying on behaviour the standard leaves undefined, neither of which the other checks can see. A read one byte off the end of a buffer returns a plausible number and passes.
+
+```sh
+cmake -B build-san -DCMAKE_BUILD_TYPE=RelWithDebInfo -DOVERTONIUM_SANITIZE=ON
+cmake --build build-san --target overtonium_dsp_test overtonium_runtime_test
+ctest --test-dir build-san --output-on-failure
+```
+
+Off by default, and worth keeping to a tree of its own: the build is instrumented throughout and the result is several times slower than a plugin you would want to listen to. The sanitizers are asked to report everything rather than stop at the first thing, so a run can find a fault and still exit zero. CI reads the log for that reason, and a leak counts the same as an overflow.
+
 ## Style
 
 Comments explain why, not what. The repository has a lot of them, and the ones worth having record a measurement, a rejected alternative or a trap: why the lamps merge by row and what the other way cost, why the scratch buffer has a floor, why the program count is what it is on each format. A comment restating the line below it is noise.

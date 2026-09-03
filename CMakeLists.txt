@@ -213,6 +213,47 @@ endfunction()
 overtonium_set_warnings_as_errors(Overtonium)
 
 # ------------------------------------------------------------------------------------------
+# Sanitizers
+#
+# Address and undefined behaviour, for the test targets. The gates that already run say
+# whether the plugin does the right thing. These say whether it does it without reading past
+# an array or relying on behaviour the standard does not define. pluginval exercises the
+# plugin as a host and cannot see either, since a read one byte off the end of a buffer
+# usually returns a plausible number.
+#
+# Off by default, and CI turns it on in a job of its own rather than in the build that
+# produces the binaries: sanitized code is several times slower and is not what anybody
+# should be shipping or listening to.
+#
+# Recover is left on. A run reports everything it finds rather than stopping at the first
+# thing, which is what makes one CI log worth reading. The job checks the log rather than
+# only the exit status, and a leak is a finding as much as an overflow is.
+# ------------------------------------------------------------------------------------------
+option(OVERTONIUM_SANITIZE "Build the tests with address and UB sanitizers" OFF)
+
+function(overtonium_set_sanitizers target)
+    if(NOT OVERTONIUM_SANITIZE)
+        return()
+    endif()
+
+    if(MSVC)
+        message(WARNING "OVERTONIUM_SANITIZE is a no-op on MSVC")
+        return()
+    endif()
+
+    # Frame pointers so a report names the functions it came through, and no tail-call
+    # elimination for the same reason: without them a stack trace can skip the frame that
+    # actually did it.
+    target_compile_options(${target} PRIVATE
+        -fsanitize=address,undefined
+        -fno-omit-frame-pointer
+        -fno-optimize-sibling-calls
+        -g)
+
+    target_link_options(${target} PRIVATE -fsanitize=address,undefined)
+endfunction()
+
+# ------------------------------------------------------------------------------------------
 # DSP tests
 #
 # The DSP core has no JUCE dependency at all, so the tests build and run anywhere with a
@@ -233,6 +274,8 @@ if(OVERTONIUM_BUILD_TESTS)
 
     target_include_directories(overtonium_dsp_test PRIVATE Source)
     target_compile_features(overtonium_dsp_test PRIVATE cxx_std_17)
+
+    overtonium_set_sanitizers(overtonium_dsp_test)
 
     add_test(NAME dsp COMMAND overtonium_dsp_test)
 
@@ -271,6 +314,7 @@ if(OVERTONIUM_BUILD_TESTS)
     # here, and the DSP core is already compiled with -Wall -Wextra -Werror by
     # the job that checks it builds without a build system at all.
     overtonium_set_warnings_as_errors(overtonium_runtime_test)
+    overtonium_set_sanitizers(overtonium_runtime_test)
 
     add_test(NAME plugin COMMAND overtonium_runtime_test)
 endif()
