@@ -11,7 +11,6 @@
 #include "UI/ChannelStrip.h"
 #include "UI/LookAndFeel.h"
 #include "UI/NoiseStrip.h"
-#include "UpdateCheck.h"
 #include "UI/TopBar.h"
 #include "dsp/Drift.h"
 
@@ -168,11 +167,6 @@ private:
   /// Which groups of rows are folded away. Restored from the saved state and
   /// written back when it changes, alongside the window size and the zoom.
   ovt::ui::SectionMask collapsedSections = 0;
-
-  /// Opt-in, and off until it is. Declared after the components it calls back
-  /// into so it is destroyed first, which stops its thread before anything it
-  /// might touch goes away.
-  ovt::UpdateCheck updateCheck;
 
   /// Counts timer callbacks, so the meters and the housekeeping can each run
   /// at their own fraction of it.

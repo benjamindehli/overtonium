@@ -2,6 +2,7 @@
 
 #include "Presets.h"
 #include "UI/Theme.h"
+#include "UpdateCheck.h"
 
 using namespace ovt;
 using namespace ovt::ui;
@@ -345,6 +346,13 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
 
 OvertoniumEditor::~OvertoniumEditor() {
   stopTimer();
+
+  // Asked to stop, never waited for. Nothing is left to show the answer to, so
+  // the work is pointless from here, but waiting for it on the message thread
+  // is the thing that must not happen.
+  plugin().updates().cancel();
+  plugin().updates().setListener(nullptr);
+
   setLookAndFeel(nullptr);
 }
 
@@ -485,12 +493,18 @@ void OvertoniumEditor::maybeCheckForUpdates() {
   if (!ovt::updateCheckAllowed())
     return;
 
-  updateCheck.onResult = [this] {
-    if (const auto release = updateCheck.newerRelease())
-      topBar.setUpdateAvailable(release->version, release->url);
-  };
+  // A SafePointer rather than this, because the fetch outlives the window. The
+  // answer arrives on the message thread, which is also where an editor is
+  // destroyed, so by the time this runs the pointer is either good or null and
+  // cannot be anything in between.
+  plugin().updates().setListener(
+      [safe = juce::Component::SafePointer<OvertoniumEditor>(this)] {
+        if (auto *editor = safe.getComponent())
+          if (const auto release = editor->plugin().updates().newerRelease())
+            editor->topBar.setUpdateAvailable(release->version, release->url);
+      });
 
-  updateCheck.start(OVERTONIUM_VERSION);
+  plugin().updates().start(OVERTONIUM_VERSION);
 }
 
 void OvertoniumEditor::offerUpdateCheck() {

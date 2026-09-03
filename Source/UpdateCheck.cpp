@@ -107,9 +107,29 @@ void markUpdateCheckOffered() {
 UpdateCheck::UpdateCheck() : juce::Thread("Overtonium update check") {}
 
 UpdateCheck::~UpdateCheck() {
-  // A short wait. The request has its own timeout well inside this, and an
-  // editor closing should not sit on a socket that is not answering.
-  stopThread(3000);
+  // The wait has to outlast the request, and the arithmetic is what decides
+  // the number rather than taste. The fetch allows five seconds of silence, so
+  // a server that accepts and then says nothing holds the thread for five
+  // seconds by design, and a wait shorter than that would expire while the
+  // thread is still inside the network stack.
+  //
+  // Expiring is not a harmless timeout. stopThread kills the thread outright
+  // at that point, and JUCE's own comment on that path warns of "locks and
+  // events left in silly states": a thread killed holding an allocator or
+  // socket lock takes the next thread that wants it with it. In a plugin that
+  // is the message thread, which looks from the outside like the host hanging
+  // while the audio carries on.
+  //
+  // Ten is never reached in practice. Anything destroying this has called
+  // cancel() first, and the fetch checks that flag as it reads.
+  stopThread(10000);
+}
+
+void UpdateCheck::cancel() { signalThreadShouldExit(); }
+
+void UpdateCheck::setListener(std::function<void()> fn) {
+  const juce::ScopedLock sl(lock);
+  listener = std::move(fn);
 }
 
 void UpdateCheck::start(const juce::String &currentVersion) {
@@ -136,15 +156,36 @@ void UpdateCheck::run() {
   if (stream == nullptr || threadShouldExit())
     return;
 
-  // Bounded, because the far end is a web server and a plugin should not read
-  // whatever it feels like sending. The real file is a couple of hundred
-  // bytes.
-  const auto body = stream->readString().substring(0, 4096);
+  // In pieces, for two reasons that both come from the far end being a web
+  // server nobody here controls.
+  //
+  // It is bounded: the real feed is a couple of hundred bytes, and a plugin
+  // should not hold whatever a server feels like sending. Reading it whole and
+  // trimming afterwards would bound the string and not the memory.
+  //
+  // And it can be given up on. Each pass looks at the exit flag, so cancel()
+  // takes effect within one chunk. A single long read would not look at it
+  // until the far end had finished, which is a decision that belongs to the
+  // server rather than to us.
+  juce::MemoryOutputStream body;
+
+  while (body.getDataSize() < kMaxFeedBytes) {
+    if (threadShouldExit())
+      return;
+
+    char chunk[1024];
+    const auto got = stream->read(chunk, static_cast<int>(sizeof(chunk)));
+
+    if (got <= 0)
+      break;
+
+    body.write(chunk, static_cast<size_t>(got));
+  }
 
   if (threadShouldExit())
     return;
 
-  const auto info = parseReleaseJson(body);
+  const auto info = parseReleaseJson(body.toString());
 
   if (!info.has_value() || !isNewerVersion(info->version, current))
     return;
@@ -154,11 +195,18 @@ void UpdateCheck::run() {
     found = info;
   }
 
-  // The editor owns what happens next, and it lives on the message thread.
-  if (onResult != nullptr) {
-    auto callback = onResult;
-    juce::MessageManager::callAsync([callback] { callback(); });
+  // Taken under the lock, since the message thread is free to replace it while
+  // this runs. What it captures has to tolerate being called after whoever set
+  // it has gone, because nothing joins this thread on the way out.
+  std::function<void()> callback;
+
+  {
+    const juce::ScopedLock sl(lock);
+    callback = listener;
   }
+
+  if (callback != nullptr)
+    juce::MessageManager::callAsync([callback] { callback(); });
 }
 
 } // namespace ovt

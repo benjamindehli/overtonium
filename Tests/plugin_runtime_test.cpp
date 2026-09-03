@@ -3424,6 +3424,42 @@ void testUpdateCheckIsQuiet(OvertoniumProcessor &p) {
         "and so does one on an instance that has been used");
 }
 
+/// The fetch belongs to the instance, not to the window.
+///
+/// Which is what lets a window close without waiting for a socket. If the
+/// editor owned the fetch, closing one would join a network thread on the
+/// message thread, and a server that accepts and then goes quiet is allowed
+/// five seconds of that: long enough for the join to expire, for JUCE to kill
+/// the thread where it stands, and for whatever lock it held to take the
+/// message thread with it.
+///
+/// Nothing here reaches the network, so what is pinned is the ownership rather
+/// than the timing. A check that stays put across nine windows is one that
+/// cannot be joined by any of them.
+void testUpdateCheckOutlivesEditors(OvertoniumProcessor &p) {
+  section("Update check outlives its editors");
+
+  const auto *first = &p.updates();
+
+  for (int open = 0; open < 9; ++open) {
+    std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
+    ed->setSize(1340, 869);
+  }
+
+  check(&p.updates() == first,
+        "nine windows come and go and the fetch is the same one throughout");
+
+  // Both of the things a closing editor does, on a check that never started.
+  // An editor closed before its fetch begins is the ordinary case, not an edge
+  // one, since the offer to switch the check on is declined by default.
+  p.updates().cancel();
+  p.updates().cancel();
+  p.updates().setListener(nullptr);
+
+  check(!p.updates().newerRelease().has_value(),
+        "cancelling an idle check is safe and finds nothing");
+}
+
 /// Every control says what it is.
 ///
 /// JUCE reads a control's accessible name from Component::getTitle, gives it a
@@ -3776,6 +3812,7 @@ int main() {
   testCollapsibleSections();
   testUpdateCheck();
   testUpdateCheckIsQuiet(processor);
+  testUpdateCheckOutlivesEditors(processor);
   testEveryControlIsNamed(processor);
   testSoloAndMute(processor);
   testClearMuteAndSolo(processor);

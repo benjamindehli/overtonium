@@ -5,6 +5,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "PluginParameters.h"
+#include "UpdateCheck.h"
 #include "dsp/SynthEngine.h"
 
 // juce_add_plugin defines this for the plugin targets. The headless integration
@@ -128,6 +129,16 @@ public:
 
   juce::UndoManager &undo() { return undoManager; }
 
+  /// The update check, which lives here rather than with the editor.
+  ///
+  /// An editor closing must not wait for a network thread. The wait would be
+  /// on the message thread, and a fetch is allowed five seconds of silence
+  /// before it gives up, so a window closing over a stalled socket would take
+  /// the host with it. Owned here, a closing window only asks the fetch to
+  /// stop, and the one place that waits is this object going away, which is
+  /// the whole plugin being removed rather than a window being shut.
+  ovt::UpdateCheck &updates() noexcept { return updateCheck; }
+
   /// The same cached atomics the audio thread reads. The editor polls mute and
   /// solo several times a second, and going through the parameter map for that
   /// builds a string per lookup, which is a hundred allocations a tick on the
@@ -203,6 +214,12 @@ private:
   /// host would answer by loading that preset over the top of everything the
   /// session just restored.
   int currentProgram = 0;
+
+  /// Last, so that it is the first thing destroyed. Its destructor joins a
+  /// network thread, and doing that before the rest of the instance goes means
+  /// there is nothing left running while the engine and the buffers are torn
+  /// down. See `updates()` for why the editor does not own this.
+  ovt::UpdateCheck updateCheck;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OvertoniumProcessor)
 };
