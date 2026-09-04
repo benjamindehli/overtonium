@@ -13,6 +13,7 @@ The control worth reaching for first is TUNE. It sweeps each partial continuousl
 - **Framework:** JUCE 8
 - **Licence:** AGPLv3. See [Licensing](#licensing)
 - **Page:** [benjamindehli.github.io/overtonium](https://benjamindehli.github.io/overtonium/), built from `docs/`
+- **Listed at:** [KVR Audio](https://www.kvraudio.com/product/overtonium-by-dehli-musikk)
 - **By:** Benjamin Dehli for Dehli Musikk. Hosts list it under DehliMusikk (manufacturer code `Dhmk`, plugin code `Ovtn`)
 - **Also here:** [design notes](DESIGN.md), [contributing](CONTRIBUTING.md), [architecture](ARCHITECTURE.md), [security policy](SECURITY.md), [code of conduct](CODE_OF_CONDUCT.md)
 
