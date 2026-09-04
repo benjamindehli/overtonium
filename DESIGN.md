@@ -10,6 +10,8 @@ Nineteen ship with it, listed alphabetically. Most were dialled in by hand on th
 
 _Init_ is one of them rather than a reset to the parameter defaults. It clears the patch down to a short, bright three-partial pluck, which is a better place to start building from than silence. Like every other preset it leaves the session alone, so your tuning, polyphony, bend range and master fader survive loading it.
 
+What counts as the session is drawn along the interface rather than decided case by case: everything the Settings menu offers, plus the master fader. The menu is where the instrument is set up and the panel is where the sound is made, so a control's place says which it is, and adding a setting means adding it to `kSessionParamIds` in the same commit. Both kinds of preset are held to that list and to each other. A preset you save carries the same set of controls a factory one does, which a test checks by comparing what `capture` writes against what `neutralBase` decides, in both directions.
+
 Fourteen of them use STRETCH or TRACK, since most of them are modelling something with a body. Picking odd partials was always a stand-in for inharmonicity, and five of these have the real thing on top of it:
 
 | Preset           | Stretch | Tracking   | Why                                                                                                  |

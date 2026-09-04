@@ -1613,6 +1613,111 @@ void testFactoryCodeGenerator(OvertoniumProcessor &p) {
   }
 }
 
+/// A preset someone saves carries exactly what a factory preset carries.
+///
+/// Two paths write a preset and they have to agree. A factory preset is
+/// neutralBase() followed by the lines of its case, so what it decides is what
+/// neutralBase() touches. A user preset is every parameter capture() walks. If
+/// those sets drift apart, saving a sound and recalling it stops being the
+/// same operation as picking one from the menu, and the difference shows up as
+/// a control that moves when the other kind of preset loads.
+///
+/// The session is the other half of the same rule. Nothing in the settings
+/// menu belongs to either kind, so it must be in neither set.
+void testBothPresetKindsCarryTheSame() {
+  section("Both kinds of preset carry the same set");
+
+  OvertoniumProcessor p;
+
+  const auto everyParam = [&p] {
+    std::vector<juce::RangedAudioParameter *> out;
+
+    for (auto *param : p.apvts.processor.getParameters())
+      if (auto *r = dynamic_cast<juce::RangedAudioParameter *>(param))
+        out.push_back(r);
+
+    return out;
+  }();
+
+  // What neutralBase() decides, found by running it from both extremes.
+  // Anything it writes lands on the same value twice. Anything it leaves alone
+  // keeps whichever end it started from.
+  const auto runFrom = [&](float normalised) {
+    for (auto *r : everyParam)
+      r->setValueNotifyingHost(normalised);
+
+    ovt::presets::neutralBase(p.apvts);
+
+    std::map<std::string, float> out;
+    for (auto *r : everyParam)
+      out[r->paramID.toStdString()] = r->getValue();
+
+    return out;
+  };
+
+  const auto fromLow = runFrom(0.0f);
+  const auto fromHigh = runFrom(1.0f);
+
+  std::set<std::string> decidedByFactory;
+
+  for (const auto &pair : fromLow) {
+    const auto other = fromHigh.find(pair.first);
+
+    if (other != fromHigh.end() &&
+        juce::exactlyEqual(pair.second, other->second))
+      decidedByFactory.insert(pair.first);
+  }
+
+  // What a user preset stores, read off the file it writes rather than off
+  // capture()'s source, so the test covers what actually lands on disk.
+  std::set<std::string> storedByUser;
+
+  {
+    const auto doc = ovt::presets::capture(p.apvts, "Probe");
+
+    for (auto *entry : doc->getChildWithTagNameIterator("PARAM"))
+      storedByUser.insert(
+          entry->getStringAttribute("id").toStdString());
+  }
+
+  std::vector<std::string> onlyFactory, onlyUser, sessionLeaks;
+
+  for (const auto &id : decidedByFactory)
+    if (storedByUser.count(id) == 0)
+      onlyFactory.push_back(id);
+
+  for (const auto &id : storedByUser)
+    if (decidedByFactory.count(id) == 0)
+      onlyUser.push_back(id);
+
+  for (auto *id : ovt::params::kSessionParamIds)
+    if (decidedByFactory.count(id) > 0 || storedByUser.count(id) > 0)
+      sessionLeaks.push_back(id);
+
+  const auto list = [](const std::vector<std::string> &ids) {
+    std::string out;
+
+    for (const auto &id : ids)
+      out += (out.empty() ? "" : ", ") + id;
+
+    return out;
+  };
+
+  check(onlyFactory.empty(),
+        "a factory preset decides nothing a user preset drops (" +
+            list(onlyFactory) + ")");
+  check(onlyUser.empty(),
+        "and a user preset stores nothing a factory preset leaves undecided (" +
+            list(onlyUser) + ")");
+  check(sessionLeaks.empty(),
+        "and neither kind carries a settings-menu parameter (" +
+            list(sessionLeaks) + ")");
+
+  std::printf("  %d parameters in a preset, %d in the session\n",
+              (int)storedByUser.size(),
+              (int)ovt::params::kSessionParamIds.size());
+}
+
 /// Blocks bigger than the host promised.
 ///
 /// A host is allowed to do that, and growing the scratch to fit would be an
@@ -2585,12 +2690,9 @@ void testPresetsAreReproducible(OvertoniumProcessor &p) {
   section("Presets start from a known state");
 
   // What a preset deliberately leaves alone: how you play it and how loud, as
-  // opposed to what it sounds like.
-  const juce::StringArray preserved{
-      ovt::params::masterGainId, ovt::params::polyphonyId,
-      ovt::params::bendRangeId,   ovt::params::atSourceId,
-      ovt::params::safetyClipId,  ovt::params::referenceHzId,
-      ovt::params::temperamentId, ovt::params::tuningRootId};
+  // opposed to what it sounds like. Asked of the one list rather than copied
+  // into a second one here, which is the whole reason that list is shared. The
+  // copy this replaced had already fallen three settings behind it.
 
   const auto snapshot = [&p] {
     std::vector<std::pair<juce::String, float>> out;
@@ -2643,7 +2745,7 @@ void testPresetsAreReproducible(OvertoniumProcessor &p) {
 
     bool same = true;
     for (size_t k = 0; k < clean.size(); ++k) {
-      if (preserved.contains(clean[k].first))
+      if (ovt::params::isSessionParam(clean[k].first))
         continue;
 
       if (std::abs(clean[k].second - afterMess[k].second) > 1.0e-4f) {
@@ -3848,6 +3950,7 @@ int main() {
   testSegmentReadouts(processor);
   testChannelHover(processor);
   testFactoryCodeGenerator(processor);
+  testBothPresetKindsCarryTheSame();
   testOversizedBlocks(processor);
   testUserPresets(processor);
   testMasterEffects(processor);

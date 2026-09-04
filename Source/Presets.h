@@ -31,13 +31,22 @@ juce::Array<juce::File> userPresets();
 /// Returns an empty string if nothing usable is left.
 juce::String sanitiseName(const juce::String &);
 
-/// Every parameter, as it stands, ready to be written out.
+/// The sound as it stands, ready to be written out.
+///
+/// Every parameter except the session, which is the same set a factory preset
+/// decides. Saving a sound and picking one from the menu are the same
+/// operation, so they carry the same things.
 std::unique_ptr<juce::XmlElement> capture(juce::AudioProcessorValueTreeState &,
                                           const juce::String &name);
 
 /// Applies a captured preset. Parameters the document does not mention are
 /// left alone rather than reset, so an older file loads into a newer build
 /// without silently zeroing whatever was added in between.
+///
+/// Session parameters are ignored even when a file does name them. Presets
+/// saved before the rule existed carry the polyphony and the temperament of
+/// whoever saved them, and honouring that now would reach over and change
+/// settings the file has no business touching.
 ///
 /// @returns how many parameters it recognised, or -1 if the document is not
 /// one of ours.

@@ -90,7 +90,10 @@ struct Applier {
     set(params::noiseParamId(params::offLevelSuffix), 0.0f);
     set(params::noiseParamId(params::releaseSuffix), 0.4f);
     set(params::noiseParamId(params::liftSuffix), 0.0f);
+    set(params::noiseParamId(params::amRateSuffix), 4.0f);
     set(params::noiseParamId(params::amDepthSuffix), 0.0f);
+    set(params::noiseParamId(params::velSuffix), 0.7f);
+    set(params::noiseParamId(params::atSuffix), 0.0f);
     set(params::noiseParamId(params::muteSuffix), 0.0f);
     set(params::noiseParamId(params::soloSuffix), 0.0f);
     set(params::noiseParamId(params::panSuffix), 0.0f);
@@ -112,7 +115,6 @@ struct Applier {
     set(params::wobbleId, 0.0f);
     set(params::lofiRateId, 0.0f);
     set(params::lofiBitsId, 0.0f);
-    set(params::phaseResetId, 1.0f);
 
     // The master effects are off unless a preset switches them on, and their
     // settings go back to the panel defaults either way, so loading a preset
@@ -262,6 +264,13 @@ std::unique_ptr<juce::XmlElement> capture(APVTS &apvts,
     if (ranged == nullptr)
       continue;
 
+    // The same rule the factory presets follow. A preset someone saves is a
+    // sound they liked, not the state of their keyboard, and writing the
+    // polyphony and the temperament into it would mean recalling that sound
+    // later reached over and changed both.
+    if (params::isSessionParam(ranged->paramID))
+      continue;
+
     auto *entry = doc->createNewChildElement(kParamTag);
     entry->setAttribute("id", ranged->paramID);
 
@@ -282,6 +291,12 @@ int restore(APVTS &apvts, const juce::XmlElement &doc) {
 
   for (auto *entry : doc.getChildWithTagNameIterator(kParamTag)) {
     const auto id = entry->getStringAttribute("id");
+
+    // Files written before the rule existed name these. Skipped rather than
+    // honoured, so an old preset stops dragging its author's polyphony and
+    // temperament along with the sound.
+    if (params::isSessionParam(id))
+      continue;
 
     if (auto *p = apvts.getParameter(id)) {
       const auto plain = (float)entry->getDoubleAttribute("value");
@@ -391,11 +406,7 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
     // A preset may not touch the session. Emitting these would put the
     // temperament and the polyphony of whoever dialled the patch in into a
     // factory preset, which the test for that rule would then fail.
-    bool session = false;
-    for (auto *id : params::kSessionParamIds)
-      session |= ranged->paramID == id;
-
-    if (session)
+    if (params::isSessionParam(ranged->paramID))
       continue;
 
     const auto found = baseline.find(ranged->paramID);

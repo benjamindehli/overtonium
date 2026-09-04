@@ -215,12 +215,26 @@ juce::String polyphonyName(int index);
 /// bend range to the keyboard you are playing it on, and the master fader and
 /// the clipper to the desk. Loading a sound should move none of them.
 ///
+/// This is everything the settings menu offers, plus the master fader. That is
+/// the rule rather than a coincidence: the menu is where the instrument is set
+/// up and the panel is where the sound is made, so anything that appears in
+/// the menu belongs here. Adding a setting means adding it here too.
+///
 /// Named here rather than in Presets.cpp so the code that honours the rule and
 /// the test that checks it cannot come to disagree about what the rule is.
-inline const std::array<const char *, 11> kSessionParamIds{
-    masterGainId,  polyphonyId,   bendRangeId,  atSourceId,
+inline const std::array<const char *, 12> kSessionParamIds{
+    masterGainId,  polyphonyId,   bendRangeId,   atSourceId,
     safetyClipId,  referenceHzId, temperamentId, tuningRootId,
-    mpeId,         slideDestId,   oneVoicePerKeyId};
+    mpeId,         slideDestId,   oneVoicePerKeyId, phaseResetId};
+
+/// Whether `id` is one of those, for the several places that have to ask.
+inline bool isSessionParam(juce::StringRef id) {
+  for (auto *session : kSessionParamIds)
+    if (id == juce::StringRef(session))
+      return true;
+
+  return false;
+}
 
 /// How far the two pitch wanderers can each take a partial, in cents.
 ///
