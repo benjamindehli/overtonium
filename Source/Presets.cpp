@@ -186,19 +186,26 @@ const char *const kNames[] = {
     "2-bit Fuzz Organ",
     "Big Saw",
     "Cathedral",
+    "DigiLog",
+    "Dire Dire EP",
     "Drawbar Organ",
+    "EP Chimes",
     "Equal Saw",
+    "FM Piano",
     "Glass Armonica",
     "Init",
     "Just Saw",
     "Lo-fi",
     "Metallic Piano",
     "Music Box",
+    "Nylon EP",
     "Odd Harmonics",
     "Omni-84",
     "Shimmer",
     "Slow Pad",
+    "Space Flute",
     "Struck Bell",
+    "Synth Ensemble",
     "Tape Choir",
     "Vibraphone",
     "Wurli",
@@ -589,7 +596,6 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.0762f);
     break;
   }
-
   case 1: // Big Saw
   {
     ap.neutralBase();
@@ -663,7 +669,6 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.0337f);
     break;
   }
-
   case 2: // Cathedral
   {
     ap.neutralBase();
@@ -695,8 +700,290 @@ void apply(APVTS &apvts, int index) {
     ap.reverb(0.5f, 9.0f, 0.35f);
     break;
   }
+  case 3: // DigiLog
+  {
+    ap.neutralBase();
 
-  case 3: // Drawbar Organ
+    // A digital instrument through analogue gear that has seen better days,
+    // which is where the name comes from. The envelope delay climbs with the
+    // partial, from almost nothing on the fundamental to five seconds on the
+    // 32nd, so the series arrives from the bottom up and reads as a filter
+    // opening in steps rather than sweeping. The converter at 16 kHz and 8
+    // bits is what makes the steps audible as steps, and the echo, at as much
+    // feedback as it will take, carries what is left of them.
+
+    ap.oscTable(params::pmRateSuffix,
+                {1.2239f, 1.3432f, 1.4753f, 1.6203f, 1.6266f, 1.6328f, 1.6391f,
+                 1.6454f, 1.6517f, 1.6581f, 1.6644f, 1.6708f, 1.6772f, 1.6837f,
+                 1.6901f, 1.6966f, 1.7032f, 1.7097f, 1.7163f, 1.7229f, 1.7295f,
+                 1.7361f, 1.7428f, 1.7495f, 1.7562f, 1.7629f, 1.7697f, 1.7765f,
+                 1.7833f, 1.7902f, 1.7971f, 1.8027f});
+    ap.oscTable(params::pmDepthSuffix,
+                {2.2198f, 2.5433f, 2.8887f, 3.252f, 3.6339f, 4.0354f, 4.4577f,
+                 4.9017f, 5.3685f, 5.8594f, 6.3755f, 6.9182f, 7.4888f, 8.0889f,
+                 8.7198f, 9.3831f, 10.0808f, 10.8142f, 11.5855f, 12.3963f,
+                 13.2491f, 14.1456f, 15.0882f, 16.0794f, 17.1217f, 18.2177f,
+                 19.3701f, 20.5819f, 21.8559f, 23.1956f, 24.6042f, 26.0618f});
+    ap.oscTable(params::driftSuffix,
+                {0.8449f, 0.8787f, 0.9131f, 0.9478f, 0.9828f, 1.0182f, 1.0538f,
+                 1.0899f, 1.1262f, 1.1629f, 1.2f, 1.2374f, 1.2751f, 1.3132f,
+                 1.3517f, 1.3905f, 1.4297f, 1.4693f, 1.5092f, 1.5495f, 1.5902f,
+                 1.6313f, 1.6728f, 1.7146f, 1.7569f, 1.7995f, 1.8426f, 1.886f,
+                 1.9299f, 1.9741f, 2.0188f, 2.0459f});
+    ap.oscTable(params::delaySuffix,
+                {0.0001f, 0.002f, 0.0044f, 0.0074f, 0.0111f, 0.0155f, 0.0211f,
+                 0.0278f, 0.0361f, 0.0463f, 0.0589f, 0.0743f, 0.0931f, 0.1163f,
+                 0.1447f, 0.1797f, 0.2225f, 0.2751f, 0.3397f, 0.419f, 0.5164f,
+                 0.6359f, 0.7825f, 0.9626f, 1.1836f, 1.455f, 1.7881f, 2.197f,
+                 2.6989f, 3.3151f, 4.0715f, 5.0f});
+    ap.oscTable(params::attackSuffix,
+                {0.0228f, 0.0199f, 0.0173f, 0.0151f, 0.0132f, 0.0115f, 0.01f,
+                 0.0087f, 0.0076f, 0.0066f, 0.0057f, 0.005f, 0.0044f, 0.0038f,
+                 0.0033f, 0.0029f, 0.0025f, 0.0022f, 0.0019f, 0.0017f, 0.0014f,
+                 0.0013f, 0.0011f, 0.001f, 0.0008f, 0.0007f, 0.0006f, 0.0006f,
+                 0.0005f, 0.0004f, 0.0004f, 0.0003f});
+    ap.allOsc(params::decaySuffix, [](int) { return 0.278; });
+    ap.oscTable(params::sustainSuffix,
+                {0.7177f, 0.6958f, 0.6739f, 0.652f, 0.6301f, 0.6082f, 0.5863f,
+                 0.5644f, 0.5425f, 0.5207f, 0.4988f, 0.4769f, 0.455f, 0.4331f,
+                 0.4112f, 0.3893f, 0.3674f, 0.3455f, 0.3236f, 0.3017f, 0.2798f,
+                 0.2579f, 0.236f, 0.2141f, 0.1922f, 0.1703f, 0.1484f, 0.1265f,
+                 0.1047f, 0.0828f, 0.0609f, 0.0396f});
+    ap.oscTable(params::swellSuffix,
+                {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0004f,
+                 0.0009f, 0.0015f});
+    ap.oscTable(params::releaseSuffix,
+                {0.681f, 0.5768f, 0.4885f, 0.4138f, 0.3504f, 0.2968f, 0.2514f,
+                 0.2129f, 0.1803f, 0.1527f, 0.1294f, 0.1096f, 0.0928f, 0.0786f,
+                 0.0666f, 0.0564f, 0.0477f, 0.0404f, 0.0343f, 0.029f, 0.0246f,
+                 0.0208f, 0.0176f, 0.0149f, 0.0126f, 0.0107f, 0.0091f, 0.0077f,
+                 0.0065f, 0.0055f, 0.0047f, 0.004f});
+    ap.oscTable(params::amRateSuffix,
+                {0.455f, 0.4903f, 0.5284f, 0.5694f, 0.6136f, 0.6613f, 0.7126f,
+                 0.768f, 0.8276f, 0.8919f, 0.9611f, 1.0358f, 1.1162f, 1.2029f,
+                 1.2963f, 1.397f, 1.5055f, 1.6224f, 1.7484f, 1.8842f, 2.0305f,
+                 2.1882f, 2.3582f, 2.5413f, 2.7387f, 2.9514f, 3.1806f, 3.4276f,
+                 3.6938f, 3.9806f, 4.2898f, 4.6129f});
+    ap.oscTable(params::amDepthSuffix,
+                {0.5523f, 0.5572f, 0.5623f, 0.5673f, 0.5723f, 0.5774f, 0.5824f,
+                 0.5875f, 0.5925f, 0.5976f, 0.6026f, 0.6077f, 0.6127f, 0.6178f,
+                 0.6228f, 0.6279f, 0.6329f, 0.638f, 0.643f, 0.6481f, 0.6531f,
+                 0.6581f, 0.6632f, 0.6682f, 0.6733f, 0.6783f, 0.6834f, 0.6884f,
+                 0.6935f, 0.6985f, 0.7036f, 0.7086f});
+    ap.oscTable(params::velSuffix,
+                {0.1063f, 0.1599f, 0.2144f, 0.2689f, 0.3235f, 0.378f, 0.4325f,
+                 0.487f, 0.5416f, 0.5961f, 0.6506f, 0.7051f, 0.7597f, 0.8142f,
+                 0.8687f, 0.8949f, 0.9015f, 0.908f, 0.9146f, 0.9212f, 0.9277f,
+                 0.9343f, 0.9409f, 0.9475f, 0.954f, 0.9606f, 0.9672f, 0.9737f,
+                 0.9803f, 0.9869f, 0.9934f, 0.9998f});
+    ap.allOsc(params::volumeSuffix, [](int) { return 1.0; });
+    ap.set("h02_pan", 0.2531f);
+    ap.set("h03_pan", -0.5048f);
+    ap.set("h04_pan", 0.7488f);
+    ap.set("h05_pan", -1.0f);
+    ap.set("h06_pan", 1.0f);
+    ap.set("h07_pan", -1.0f);
+    ap.set("h08_pan", 1.0f);
+    ap.set("h09_pan", -1.0f);
+    ap.set("h10_pan", 1.0f);
+    ap.set("h11_pan", -1.0f);
+    ap.set("h12_pan", 1.0f);
+    ap.set("h13_pan", -1.0f);
+    ap.set("h14_pan", 1.0f);
+    ap.set("h15_pan", -1.0f);
+    ap.set("h16_pan", 1.0f);
+    ap.set("h17_pan", -1.0f);
+    ap.set("h18_pan", 1.0f);
+    ap.set("h19_pan", -1.0f);
+    ap.set("h20_pan", 1.0f);
+    ap.set("h21_pan", -1.0f);
+    ap.set("h22_pan", 1.0f);
+    ap.set("h23_pan", -1.0f);
+    ap.set("h24_pan", 1.0f);
+    ap.set("h25_pan", -1.0f);
+    ap.set("h26_pan", 1.0f);
+    ap.set("h27_pan", -1.0f);
+    ap.set("h28_pan", 1.0f);
+    ap.set("h29_pan", -1.0f);
+    ap.set("h30_pan", 1.0f);
+    ap.set("h31_pan", -1.0f);
+    ap.set("h32_pan", 1.0f);
+    ap.set("echoAge", 0.6872f);
+    ap.set("echoFeedback", 0.95f);
+    ap.set("echoMix", 0.2348f);
+    ap.set("echoOn", 1.0f);
+    ap.set("echoTime", 0.1882f);
+    ap.set("lofiBits", 4.0f);
+    ap.set("lofiRate", 3.0f);
+    ap.set("noise_amDepth", 1.0f);
+    ap.set("noise_amRate", 11.6296f);
+    ap.set("noise_attack", 2.5622f);
+    ap.set("noise_colour", 0.4131f);
+    ap.set("noise_decay", 4.1039f);
+    ap.set("noise_release", 3.5761f);
+    ap.set("noise_sustain", 0.0388f);
+    ap.set("noise_swell", 0.0045f);
+    ap.set("noise_vel", 0.4984f);
+    ap.set("noise_volume", 0.3251f);
+    ap.set("reverbDamp", 0.0214f);
+    ap.set("reverbDecay", 3.9958f);
+    ap.set("reverbMix", 0.3029f);
+    ap.set("reverbOn", 1.0f);
+    ap.set("reverbPreDelay", 0.0528f);
+    ap.set("stretch", 29.8091f);
+    ap.set("track", 3.0f);
+    ap.set("wobble", 0.1476f);
+    break;
+  }
+  case 4: // Dire Dire EP
+  {
+    ap.neutralBase();
+
+    // A soft, round electric piano of the kind written for underwater music.
+    // The body is the fundamental and a few low partials, with the 13th and
+    // the 15th left standing well clear of their neighbours, which is the
+    // tine ringing over the top of an otherwise dark sound. Tracking at
+    // 6 dB per octave is what keeps the right hand from turning glassy.
+
+    ap.allOsc(params::tuneSuffix, [](int) { return 0.9655; });
+    ap.oscTable(params::pmRateSuffix,
+                {1.4995f, 2.0553f, 1.1046f, 3.5403f, 1.7097f, 1.75f, 0.7069f,
+                 1.0506f, 1.0513f, 1.9392f, 0.9656f, 0.7603f, 1.6567f, 1.4603f,
+                 1.8324f, 1.1882f, 1.6998f, 2.3397f, 1.7239f, 1.833f, 0.8004f,
+                 2.6916f, 1.5028f, 1.9406f, 1.8941f, 0.6804f, 1.5446f, 1.7461f,
+                 2.2189f, 2.3081f, 0.6875f, 1.1212f});
+    ap.allOsc(params::pmDepthSuffix, [](int) { return 2.8852; });
+    ap.allOsc(params::driftSuffix, [](int) { return 1.4501; });
+    ap.oscTable(params::attackSuffix,
+                {0.0338f, 0.0293f, 0.251f, 0.2223f, 0.0244f, 0.0158f, 0.0138f,
+                 0.0161f, 0.0152f, 0.0139f, 0.0146f, 0.0154f, 0.0328f, 0.0136f,
+                 0.0205f, 0.008f, 0.0145f, 0.0136f, 0.0136f, 0.0136f, 0.0136f,
+                 0.0136f, 0.0136f, 0.0136f, 0.0136f, 0.0136f, 0.0163f, 0.0136f,
+                 0.0136f, 0.0136f, 0.0136f, 0.0119f});
+    ap.oscTable(params::decaySuffix,
+                {1.587f, 1.4717f, 2.1773f, 1.349f, 2.0845f, 1.587f, 1.5019f,
+                 1.251f, 1.2012f, 1.6055f, 1.6102f, 1.6148f, 1.0181f, 1.4717f,
+                 0.9171f, 1.2223f, 1.1236f, 1.1074f, 1.648f, 1.6528f, 1.6576f,
+                 1.6624f, 1.6672f, 1.6721f, 1.6769f, 1.6818f, 1.6867f, 1.6916f,
+                 1.6965f, 1.7014f, 1.7064f, 1.3765f});
+    ap.allOsc(params::sustainSuffix, [](int) { return 0.0; });
+    ap.oscTable(params::releaseSuffix,
+                {0.4193f, 0.4015f, 0.3664f, 0.367f, 0.3357f, 0.3213f, 0.3075f,
+                 0.3067f, 0.2817f, 0.2696f, 0.258f, 0.247f, 0.2364f, 0.2262f,
+                 0.2165f, 0.2142f, 0.1983f, 0.1898f, 0.1817f, 0.1739f, 0.1664f,
+                 0.1593f, 0.1525f, 0.1459f, 0.1397f, 0.1337f, 0.1279f, 0.1225f,
+                 0.1172f, 0.1122f, 0.1074f, 0.1045f});
+    ap.oscTable(params::amRateSuffix,
+                {2.0505f, 0.0739f, 1.6377f, 0.2203f, 0.112f, 5.9227f, 4.7012f,
+                 1.6992f, 0.7001f, 3.5127f, 1.4771f, 0.0739f, 0.1476f, 1.5035f,
+                 0.9039f, 0.1121f, 0.0739f, 0.4694f, 2.1529f, 0.0739f, 0.0739f,
+                 0.3548f, 0.0923f, 2.7419f, 10.3041f, 1.0737f, 3.5348f, 0.0739f,
+                 1.3994f, 0.0739f, 0.1197f, 0.1328f});
+    ap.oscTable(params::amDepthSuffix,
+                {0.5319f, 0.5319f, 0.5827f, 0.5319f, 0.5319f, 0.5827f, 0.5319f,
+                 0.5319f, 0.5319f, 0.5319f, 0.5319f, 0.5827f, 0.5319f, 0.5319f,
+                 0.5319f, 0.5319f, 0.5319f, 0.5319f, 0.5319f, 0.5319f, 0.5319f,
+                 0.5319f, 0.5319f, 0.5827f, 0.5319f, 0.5319f, 0.5319f, 0.5319f,
+                 0.5319f, 0.5319f, 0.5319f, 0.5319f});
+    ap.oscTable(params::velSuffix,
+                {0.0401f, 0.1531f, 0.2946f, 0.2554f, 0.3661f, 0.4129f, 0.4663f,
+                 0.4896f, 0.5789f, 0.6194f, 0.6788f, 0.7382f, 0.7976f, 0.8468f,
+                 0.8936f, 0.8594f, 0.9096f, 0.9136f, 0.9161f, 0.9172f, 0.925f,
+                 0.9266f, 0.9377f, 0.945f, 0.9468f, 0.9585f, 0.9553f, 0.9703f,
+                 0.9795f, 0.9864f, 1.0f, 0.9622f});
+    ap.oscTable(params::volumeSuffix,
+                {0.9995f, 0.1429f, 0.3142f, 0.2962f, 0.1049f, 0.0767f, 0.0283f,
+                 0.0102f, 0.0042f, 0.0039f, 0.0041f, 0.0033f, 0.321f, 0.0066f,
+                 0.2578f, 0.0144f, 0.0128f, 0.0114f, 0.0096f, 0.0088f, 0.007f,
+                 0.006f, 0.0071f, 0.0116f, 0.0117f, 0.0135f, 0.0148f, 0.011f,
+                 0.0098f, 0.0091f, 0.0097f, 0.0228f});
+    ap.set("h01_aftertouch", 0.0016f);
+    ap.set("h02_pan", 0.2552f);
+    ap.set("h03_aftertouch", 0.0016f);
+    ap.set("h03_pan", -0.5046f);
+    ap.set("h04_pan", 0.7443f);
+    ap.set("h05_aftertouch", 0.0015f);
+    ap.set("h05_pan", -1.0f);
+    ap.set("h06_aftertouch", 0.0014f);
+    ap.set("h06_pan", 1.0f);
+    ap.set("h07_aftertouch", 0.0014f);
+    ap.set("h07_pan", -1.0f);
+    ap.set("h08_aftertouch", 0.0013f);
+    ap.set("h08_pan", 1.0f);
+    ap.set("h09_aftertouch", 0.0013f);
+    ap.set("h09_pan", -1.0f);
+    ap.set("h10_aftertouch", 0.0012f);
+    ap.set("h10_pan", 1.0f);
+    ap.set("h11_aftertouch", 0.0012f);
+    ap.set("h11_pan", -1.0f);
+    ap.set("h12_aftertouch", 0.0011f);
+    ap.set("h12_pan", 1.0f);
+    ap.set("h13_aftertouch", 0.0011f);
+    ap.set("h13_pan", -1.0f);
+    ap.set("h14_aftertouch", 0.001f);
+    ap.set("h14_pan", -1.0f);
+    ap.set("h15_aftertouch", 0.0009f);
+    ap.set("h15_lift", -0.0013f);
+    ap.set("h15_pan", 1.0f);
+    ap.set("h16_aftertouch", 0.0009f);
+    ap.set("h16_pan", 1.0f);
+    ap.set("h17_aftertouch", 0.0008f);
+    ap.set("h17_pan", -1.0f);
+    ap.set("h18_aftertouch", 0.0008f);
+    ap.set("h18_pan", 1.0f);
+    ap.set("h19_aftertouch", 0.0007f);
+    ap.set("h19_pan", -1.0f);
+    ap.set("h20_aftertouch", 0.0007f);
+    ap.set("h20_pan", 1.0f);
+    ap.set("h21_aftertouch", 0.0006f);
+    ap.set("h21_pan", -1.0f);
+    ap.set("h22_aftertouch", 0.0006f);
+    ap.set("h22_pan", 1.0f);
+    ap.set("h23_aftertouch", 0.0005f);
+    ap.set("h23_pan", -1.0f);
+    ap.set("h24_aftertouch", 0.0005f);
+    ap.set("h24_pan", 1.0f);
+    ap.set("h25_aftertouch", 0.0004f);
+    ap.set("h25_pan", -1.0f);
+    ap.set("h26_aftertouch", 0.0004f);
+    ap.set("h26_pan", 1.0f);
+    ap.set("h27_aftertouch", 0.0003f);
+    ap.set("h27_pan", -1.0f);
+    ap.set("h28_aftertouch", 0.0003f);
+    ap.set("h28_pan", 1.0f);
+    ap.set("h29_aftertouch", 0.0002f);
+    ap.set("h29_pan", -1.0f);
+    ap.set("h30_aftertouch", 0.0002f);
+    ap.set("h30_pan", 1.0f);
+    ap.set("h31_aftertouch", 0.0001f);
+    ap.set("h31_pan", -1.0f);
+    ap.set("h32_aftertouch", 0.0001f);
+    ap.set("h32_pan", -1.0f);
+    ap.set("echoAge", 0.3847f);
+    ap.set("echoFeedback", 0.1458f);
+    ap.set("echoMix", 0.2236f);
+    ap.set("echoOn", 1.0f);
+    ap.set("echoTime", 0.0882f);
+    ap.set("lofiBits", 1.0f);
+    ap.set("noise_attack", 0.0088f);
+    ap.set("noise_colour", 0.0f);
+    ap.set("noise_decay", 1.6672f);
+    ap.set("noise_release", 0.3174f);
+    ap.set("noise_sustain", 0.0165f);
+    ap.set("noise_vel", 0.8135f);
+    ap.set("noise_volume", 0.055f);
+    ap.set("reverbDamp", 0.186f);
+    ap.set("reverbDecay", 0.473f);
+    ap.set("reverbMix", 0.2511f);
+    ap.set("reverbOn", 1.0f);
+    ap.set("reverbPreDelay", 0.0132f);
+    ap.set("stretch", 7.9525f);
+    ap.set("track", 6.0f);
+    break;
+  }
+  case 5: // Drawbar Organ
   {
     ap.neutralBase();
 
@@ -774,8 +1061,191 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.5171f);
     break;
   }
+  case 6: // EP Chimes
+  {
+    ap.neutralBase();
 
-  case 4: // Equal Saw
+    // A round electric piano with bright chimes above it, and the converter
+    // at 16 kHz and 8 bits left on hard enough that the artefacts belong to
+    // the sound rather than sitting on top of it.
+
+    ap.oscTable(params::pmRateSuffix,
+                {2.0212f, 2.0445f, 2.0681f, 2.092f, 2.1162f, 2.1406f, 2.1653f,
+                 2.1406f, 2.1162f, 2.092f, 2.0681f, 2.0445f, 2.0212f, 1.9981f,
+                 1.9753f, 1.9527f, 1.9305f, 1.9084f, 1.8866f, 1.8651f, 1.8438f,
+                 1.8228f, 1.802f, 1.7814f, 1.7611f, 1.7409f, 1.7211f, 1.7014f,
+                 1.682f, 1.6628f, 1.6438f, 1.6251f});
+    ap.oscTable(params::pmDepthSuffix,
+                {0.0602f, 2.0839f, 2.0839f, 2.0839f, 2.0839f, 2.0839f, 2.0839f,
+                 2.0839f, 2.0839f, 2.0839f, 2.0839f, 2.0839f, 2.0839f, 2.0839f,
+                 2.0839f, 2.0839f, 2.0839f, 2.0839f, 2.0839f, 2.0839f, 2.0839f,
+                 2.0839f, 2.0839f, 2.0839f, 2.0839f, 2.0839f, 2.0839f, 2.0839f,
+                 2.0839f, 2.0839f, 2.0839f, 2.0839f});
+    ap.oscTable(params::driftSuffix,
+                {0.2939f, 1.2828f, 1.9086f, 25.0f, 25.0f, 25.0f, 25.0f, 25.0f,
+                 25.0f, 25.0f, 25.0f, 25.0f, 25.0f, 25.0f, 25.0f, 25.0f, 25.0f,
+                 25.0f, 25.0f, 25.0f, 25.0f, 25.0f, 25.0f, 25.0f, 25.0f, 25.0f,
+                 25.0f, 25.0f, 25.0f, 25.0f, 25.0f, 25.0f});
+    ap.oscTable(params::attackSuffix,
+                {0.0007f, 0.0005f, 0.0003f, 0.2243f, 0.0002f, 1.3673f, 0.0002f,
+                 0.2243f, 0.0002f, 0.0002f, 0.0002f, 1.3673f, 0.0002f, 0.0002f,
+                 0.0002f, 0.2243f, 0.0002f, 0.0002f, 0.0002f, 0.0002f, 0.0002f,
+                 0.0002f, 0.0002f, 1.3673f, 0.0002f, 0.0002f, 0.0002f, 0.0002f,
+                 0.0002f, 0.0002f, 0.0002f, 0.2243f});
+    ap.oscTable(params::decaySuffix,
+                {10.7627f, 4.8774f, 2.2301f, 0.8181f, 0.2377f, 1.5354f, 0.2377f,
+                 0.8181f, 0.2377f, 0.2377f, 0.2377f, 1.5354f, 0.2377f, 0.2377f,
+                 0.2377f, 0.8181f, 0.2377f, 0.2377f, 0.2377f, 0.2377f, 0.2377f,
+                 0.2377f, 0.2377f, 1.5354f, 0.2377f, 0.2377f, 0.2377f, 0.2377f,
+                 0.2377f, 0.2377f, 0.2377f, 0.8181f});
+    ap.oscTable(params::sustainSuffix,
+                {0.2128f, 0.2073f, 0.1966f, 0.1962f, 0.1023f, 0.1799f, 0.0994f,
+                 0.1739f, 0.1014f, 0.0745f, 0.0754f, 0.1466f, 0.0766f, 0.0605f,
+                 0.0731f, 0.1295f, 0.0834f, 0.0514f, 0.0722f, 0.0189f, 0.0611f,
+                 0.0143f, 0.0087f, 0.0799f, 0.0099f, 0.0043f, 0.0278f, 0.0f,
+                 0.0f, 0.0f, 0.0f, 0.0425f});
+    ap.oscTable(params::offLevelSuffix,
+                {0.675f, 0.558f, 0.4963f, 0.0735f, 0.0735f, 0.0735f, 0.0735f,
+                 0.0735f, 0.0735f, 0.0735f, 0.0735f, 0.0735f, 0.0735f, 0.0735f,
+                 0.0735f, 0.0735f, 0.0735f, 0.0735f, 0.0735f, 0.0735f, 0.0735f,
+                 0.0735f, 0.0735f, 0.0735f, 0.0735f, 0.0735f, 0.0735f, 0.0735f,
+                 0.0735f, 0.0735f, 0.0735f, 0.0735f});
+    ap.oscTable(params::releaseSuffix,
+                {0.0526f, 0.0306f, 0.0288f, 0.1675f, 0.1675f, 0.1675f, 0.1675f,
+                 0.1675f, 0.1675f, 0.1675f, 0.1675f, 0.1675f, 0.1675f, 0.1675f,
+                 0.1675f, 0.1675f, 0.1675f, 0.1675f, 0.1675f, 0.1675f, 0.1675f,
+                 0.1675f, 0.1675f, 0.1675f, 0.1675f, 0.1675f, 0.1675f, 0.1675f,
+                 0.1675f, 0.1675f, 0.1675f, 0.1675f});
+    ap.allOsc(params::amDepthSuffix, [](int) { return 1.0; });
+    ap.oscTable(params::velSuffix,
+                {-0.0103f, 0.2514f, 0.4978f, 0.2438f, 0.2763f, 0.3087f, 0.3412f,
+                 0.3737f, 0.4062f, 0.4387f, 0.4712f, 0.5037f, 0.5362f, 0.5687f,
+                 0.6012f, 0.6337f, 0.6661f, 0.6986f, 0.7311f, 0.7636f, 0.7961f,
+                 0.8286f, 0.8611f, 0.8936f, 0.9261f, 0.9586f, 0.9911f, 1.0f,
+                 1.0f, 1.0f, 1.0f, 1.0f});
+    ap.oscTable(params::volumeSuffix,
+                {1.0f, 0.8316f, 0.8701f, 0.0001f, 0.0001f, 0.0003f, 0.0005f,
+                 0.0009f, 0.0016f, 0.0027f, 0.0046f, 0.0075f, 0.0121f, 0.0191f,
+                 0.0293f, 0.0438f, 0.064f, 0.0912f, 0.1268f, 0.1721f, 0.228f,
+                 0.2946f, 0.3717f, 0.4575f, 0.5495f, 0.6441f, 0.7368f, 0.8224f,
+                 0.8959f, 0.9523f, 0.9879f, 1.0f});
+    ap.set("h02_delay", 0.0096f);
+    ap.set("h02_pan", -0.2194f);
+    ap.set("h03_delay", 0.0048f);
+    ap.set("h03_pan", 0.3014f);
+    ap.set("h03_swell", 0.0032f);
+    ap.set("h04_amRate", 4.9055f);
+    ap.set("h04_delay", 0.0265f);
+    ap.set("h04_pan", -1.0f);
+    ap.set("h05_amRate", 5.1774f);
+    ap.set("h05_delay", 0.0852f);
+    ap.set("h05_pan", 1.0f);
+    ap.set("h06_amRate", 4.2217f);
+    ap.set("h06_delay", 0.3104f);
+    ap.set("h06_pan", -1.0f);
+    ap.set("h07_amRate", 2.514f);
+    ap.set("h07_delay", 0.0358f);
+    ap.set("h07_pan", 1.0f);
+    ap.set("h08_amRate", 5.3881f);
+    ap.set("h08_delay", 0.0265f);
+    ap.set("h08_pan", -1.0f);
+    ap.set("h09_amRate", 2.8136f);
+    ap.set("h09_delay", 0.0745f);
+    ap.set("h09_pan", 1.0f);
+    ap.set("h10_amRate", 6.7805f);
+    ap.set("h10_delay", 0.0265f);
+    ap.set("h10_pan", -1.0f);
+    ap.set("h11_amRate", 2.8268f);
+    ap.set("h11_delay", 0.3872f);
+    ap.set("h11_pan", 1.0f);
+    ap.set("h12_amRate", 5.3252f);
+    ap.set("h12_delay", 0.1107f);
+    ap.set("h12_pan", -1.0f);
+    ap.set("h13_amRate", 3.0543f);
+    ap.set("h13_delay", 0.1749f);
+    ap.set("h13_pan", 1.0f);
+    ap.set("h14_amRate", 5.8628f);
+    ap.set("h14_delay", 0.1333f);
+    ap.set("h14_pan", -1.0f);
+    ap.set("h15_amRate", 1.1757f);
+    ap.set("h15_delay", 0.1339f);
+    ap.set("h15_pan", 1.0f);
+    ap.set("h16_amRate", 5.214f);
+    ap.set("h16_delay", 0.0265f);
+    ap.set("h16_pan", -1.0f);
+    ap.set("h17_amRate", 5.503f);
+    ap.set("h17_delay", 0.0265f);
+    ap.set("h17_pan", 1.0f);
+    ap.set("h18_amRate", 0.7654f);
+    ap.set("h18_delay", 0.0265f);
+    ap.set("h18_pan", -1.0f);
+    ap.set("h19_amRate", 1.5005f);
+    ap.set("h19_delay", 0.1248f);
+    ap.set("h19_pan", 1.0f);
+    ap.set("h20_amRate", 6.5769f);
+    ap.set("h20_delay", 0.0265f);
+    ap.set("h20_pan", -1.0f);
+    ap.set("h21_amRate", 1.8018f);
+    ap.set("h21_delay", 0.0453f);
+    ap.set("h21_pan", 1.0f);
+    ap.set("h22_amRate", 5.1171f);
+    ap.set("h22_delay", 0.084f);
+    ap.set("h22_pan", -1.0f);
+    ap.set("h23_amRate", 1.4487f);
+    ap.set("h23_delay", 0.09f);
+    ap.set("h23_pan", 1.0f);
+    ap.set("h24_amRate", 5.1291f);
+    ap.set("h24_delay", 0.0265f);
+    ap.set("h24_pan", -0.7346f);
+    ap.set("h25_amRate", 2.514f);
+    ap.set("h25_delay", 0.0265f);
+    ap.set("h25_pan", 1.0f);
+    ap.set("h26_amRate", 5.1291f);
+    ap.set("h26_delay", 0.1138f);
+    ap.set("h26_pan", -1.0f);
+    ap.set("h27_amRate", 4.3219f);
+    ap.set("h27_delay", 0.087f);
+    ap.set("h27_pan", 1.0f);
+    ap.set("h28_amRate", 3.254f);
+    ap.set("h28_delay", 0.0265f);
+    ap.set("h28_pan", -1.0f);
+    ap.set("h29_amRate", 3.6503f);
+    ap.set("h29_delay", 0.1107f);
+    ap.set("h29_pan", 1.0f);
+    ap.set("h30_amRate", 4.1725f);
+    ap.set("h30_delay", 0.1772f);
+    ap.set("h30_pan", -1.0f);
+    ap.set("h31_amRate", 3.7545f);
+    ap.set("h31_delay", 0.0573f);
+    ap.set("h31_pan", 1.0f);
+    ap.set("h32_amRate", 6.504f);
+    ap.set("h32_delay", 0.0333f);
+    ap.set("h32_pan", 0.8254f);
+    ap.set("echoAge", 0.5331f);
+    ap.set("echoFeedback", 0.7306f);
+    ap.set("echoMix", 0.2036f);
+    ap.set("echoOn", 1.0f);
+    ap.set("echoTime", 0.1111f);
+    ap.set("lofiBits", 5.0f);
+    ap.set("lofiRate", 3.0f);
+    ap.set("noise_amDepth", 0.2146f);
+    ap.set("noise_attack", 0.4561f);
+    ap.set("noise_colour", 0.0f);
+    ap.set("noise_decay", 4.5598f);
+    ap.set("noise_release", 1.9861f);
+    ap.set("noise_sustain", 0.2844f);
+    ap.set("noise_volume", 0.2953f);
+    ap.set("reverbDamp", 0.0595f);
+    ap.set("reverbDecay", 2.5658f);
+    ap.set("reverbMix", 0.2589f);
+    ap.set("reverbOn", 1.0f);
+    ap.set("reverbPreDelay", 0.0235f);
+    ap.set("stretch", -1200.0f);
+    ap.set("track", 1.4f);
+    ap.set("wobble", 0.1275f);
+    break;
+  }
+  case 7: // Equal Saw
   {
     ap.neutralBase();
 
@@ -791,8 +1261,108 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 1.0f);
     break;
   }
+  case 8: // FM Piano
+  {
+    ap.neutralBase();
 
-  case 5: // Glass Armonica
+    // The electric piano an FM synthesiser makes rather than the instrument
+    // it is imitating, in the manner of a DX7: a hard, metallic attack over a
+    // body that is very nearly a sine, and none of the mechanical noise a
+    // real one would bring with it.
+
+    ap.oscTable(params::pmRateSuffix,
+                {1.2435f, 1.0877f, 1.2055f, 1.183f, 1.7273f, 1.2281f, 1.2413f,
+                 1.2522f, 1.1691f, 1.2177f, 1.1633f, 1.2417f, 1.1634f, 1.2007f,
+                 1.1684f, 1.2354f, 1.2022f, 1.2484f, 1.2646f, 1.1916f, 1.1955f,
+                 1.3187f, 1.1851f, 1.2198f, 1.2068f, 1.1997f, 1.2944f, 1.2163f,
+                 1.1961f, 1.2879f, 1.1693f, 1.1692f});
+    ap.allOsc(params::pmDepthSuffix, [](int) { return 4.12; });
+    ap.allOsc(params::driftSuffix, [](int) { return 0.9608; });
+    ap.oscTable(params::delaySuffix,
+                {0.0028f, 0.0027f, 0.0026f, 0.0026f, 0.0025f, 0.0024f, 0.0024f,
+                 0.0023f, 0.0022f, 0.0022f, 0.0021f, 0.002f, 0.002f, 0.0019f,
+                 0.0018f, 0.0018f, 0.0017f, 0.0016f, 0.0016f, 0.0015f, 0.0014f,
+                 0.0014f, 0.0013f, 0.0013f, 0.0012f, 0.0011f, 0.0011f, 0.001f,
+                 0.0009f, 0.0009f, 0.0008f, 0.0008f});
+    ap.oscTable(params::attackSuffix,
+                {0.0006f, 0.0051f, 0.0003f, 0.0002f, 0.0002f, 0.0002f, 0.0002f,
+                 0.0002f, 0.0002f, 0.0002f, 0.0002f, 0.0002f, 0.0002f, 0.0002f,
+                 0.0002f, 0.0002f, 0.0002f, 0.0002f, 0.0002f, 0.0002f, 0.0002f,
+                 0.0002f, 0.0002f, 0.0002f, 0.0002f, 0.0002f, 0.0002f, 0.0002f,
+                 0.0002f, 0.0002f, 0.0002f, 0.0002f});
+    ap.oscTable(params::decaySuffix,
+                {6.8352f, 10.5209f, 7.0829f, 5.8589f, 4.241f, 2.7255f, 2.146f,
+                 1.5489f, 1.2446f, 1.163f, 1.0679f, 0.9978f, 1.1357f, 0.8317f,
+                 0.9887f, 0.7325f, 0.717f, 0.668f, 0.637f, 0.5424f, 0.5708f,
+                 0.5475f, 0.5057f, 0.4446f, 0.4402f, 0.491f, 0.5167f, 0.3895f,
+                 0.4357f, 0.2858f, 0.2905f, 0.3193f});
+    ap.allOsc(params::sustainSuffix, [](int) { return 0.0; });
+    ap.oscTable(params::offLevelSuffix,
+                {0.1092f, 0.1152f, 0.1211f, 0.1271f, 0.1331f, 0.139f, 0.145f,
+                 0.151f, 0.1569f, 0.1629f, 0.1688f, 0.1748f, 0.1808f, 0.1702f,
+                 0.1597f, 0.1492f, 0.1386f, 0.1281f, 0.1175f, 0.107f, 0.0965f,
+                 0.0859f, 0.0754f, 0.0649f, 0.0543f, 0.0438f, 0.0332f, 0.0227f,
+                 0.0122f, 0.0016f, 0.0006f, 0.0006f});
+    ap.oscTable(params::releaseSuffix,
+                {0.0446f, 0.0408f, 0.0373f, 0.0342f, 0.0313f, 0.0286f, 0.0262f,
+                 0.024f, 0.022f, 0.0201f, 0.0184f, 0.0169f, 0.0154f, 0.0141f,
+                 0.0129f, 0.0118f, 0.0108f, 0.0099f, 0.0091f, 0.0083f, 0.0076f,
+                 0.007f, 0.0064f, 0.0058f, 0.0053f, 0.0049f, 0.0045f, 0.0041f,
+                 0.0038f, 0.0034f, 0.0031f, 0.0029f});
+    ap.oscTable(params::amRateSuffix,
+                {2.1275f, 2.1575f, 5.6868f, 2.254f, 1.7752f, 1.996f, 1.8788f,
+                 1.6722f, 2.0979f, 2.2037f, 1.6736f, 1.9153f, 2.6665f, 1.9615f,
+                 2.1298f, 1.826f, 2.0965f, 2.045f, 2.2632f, 1.593f, 2.2169f,
+                 1.9549f, 2.1513f, 1.7142f, 1.6222f, 1.8771f, 1.9052f, 2.006f,
+                 1.8367f, 1.9262f, 2.1904f, 1.8642f});
+    ap.oscTable(params::amDepthSuffix,
+                {0.066f, 0.0902f, 0.1147f, 0.1392f, 0.1637f, 0.1882f, 0.2126f,
+                 0.2371f, 0.2616f, 0.2861f, 0.3106f, 0.3351f, 0.3596f, 0.384f,
+                 0.4085f, 0.433f, 0.4575f, 0.482f, 0.5065f, 0.531f, 0.5555f,
+                 0.5799f, 0.6044f, 0.6289f, 0.6534f, 0.6779f, 0.7024f, 0.7269f,
+                 0.7513f, 0.7758f, 0.8003f, 0.8244f});
+    ap.oscTable(params::velSuffix,
+                {-0.0154f, 0.9429f, 0.946f, 0.962f, 0.9768f, 0.9893f, 1.0f,
+                 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+                 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+                 1.0f, 1.0f, 1.0f, 1.0f, 1.0f});
+    ap.oscTable(params::volumeSuffix,
+                {1.0f, 0.5898f, 0.3532f, 0.394f, 0.3633f, 0.4792f, 0.2375f,
+                 0.3199f, 0.2007f, 0.1309f, 0.0884f, 0.0774f, 0.0835f, 0.0472f,
+                 0.1112f, 0.0361f, 0.0365f, 0.0324f, 0.0274f, 0.0324f, 0.0203f,
+                 0.0169f, 0.0167f, 0.0131f, 0.0116f, 0.0092f, 0.0125f, 0.0124f,
+                 0.0179f, 0.0124f, 0.0123f, 0.0099f});
+    ap.oscTable(params::panSuffix,
+                {-0.0014f, 0.2998f, -0.4736f, 0.618f, -0.7979f, -0.833f,
+                 0.8219f, 0.8318f, -0.8703f, -0.9529f, 0.898f, 1.0f, -1.0f,
+                 -1.0f, 1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f,
+                 1.0f, 1.0f, -1.0f, -0.9084f, 1.0f, 1.0f, -1.0f, -1.0f, 1.0f,
+                 -0.0014f});
+    ap.set("h03_aftertouch", -0.0035f);
+    ap.set("echoAge", 0.5969f);
+    ap.set("echoFeedback", 0.4577f);
+    ap.set("echoMix", 0.2131f);
+    ap.set("echoOn", 1.0f);
+    ap.set("echoTime", 0.1318f);
+    ap.set("lofiBits", 2.0f);
+    ap.set("noise_attack", 0.0009f);
+    ap.set("noise_colour", 0.0311f);
+    ap.set("noise_decay", 0.0348f);
+    ap.set("noise_offLevel", 0.6442f);
+    ap.set("noise_release", 0.0182f);
+    ap.set("noise_sustain", 0.0f);
+    ap.set("noise_volume", 0.1653f);
+    ap.set("reverbDamp", 0.5012f);
+    ap.set("reverbDecay", 1.6182f);
+    ap.set("reverbMix", 0.1683f);
+    ap.set("reverbOn", 1.0f);
+    ap.set("reverbPreDelay", 0.0142f);
+    ap.set("stretch", -0.3302f);
+    ap.set("track", 2.1f);
+    ap.set("wobble", 0.0823f);
+    break;
+  }
+  case 9: // Glass Armonica
   {
     ap.neutralBase();
 
@@ -837,8 +1407,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbDamp", 0.25f);
     break;
   }
-
-  case 6: // Init
+  case 10: // Init
   {
     ap.neutralBase();
 
@@ -852,8 +1421,7 @@ void apply(APVTS &apvts, int index) {
                  0.0f, 0.0f, 0.0f});
     break;
   }
-
-  case 7: // Just Saw
+  case 11: // Just Saw
   {
     ap.neutralBase();
 
@@ -868,8 +1436,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 1.0f);
     break;
   }
-
-  case 8: // Lo-fi
+  case 12: // Lo-fi
   {
     ap.neutralBase();
 
@@ -956,8 +1523,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.0635f);
     break;
   }
-
-  case 9: // Metallic Piano
+  case 13: // Metallic Piano
   {
     ap.neutralBase();
 
@@ -1059,8 +1625,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 9.0f);
     break;
   }
-
-  case 10: // Music Box
+  case 14: // Music Box
   {
     ap.neutralBase();
 
@@ -1172,8 +1737,160 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.0992f);
     break;
   }
+  case 15: // Nylon EP
+  {
+    ap.neutralBase();
 
-  case 11: // Odd Harmonics
+    // A very round electric piano, with almost nothing above the low
+    // partials, as though the tines were nylon rather than steel.
+
+    ap.oscTable(params::pmRateSuffix,
+                {0.1924f, 0.6835f, 0.1908f, 2.0106f, 1.2654f, 0.2465f, 2.4615f,
+                 0.2566f, 0.8773f, 2.3143f, 1.2027f, 0.1709f, 0.7525f, 0.4563f,
+                 0.3095f, 1.271f, 0.8649f, 1.3264f, 0.5464f, 0.856f, 0.3618f,
+                 0.1528f, 0.2403f, 0.2119f, 0.9838f, 1.6601f, 0.6853f, 1.4073f,
+                 0.8813f, 0.1804f, 0.1609f, 0.5087f});
+    ap.oscTable(params::pmDepthSuffix,
+                {4.0594f, 4.0314f, 4.0594f, 4.0594f, 4.0594f, 4.0594f, 4.1706f,
+                 4.0594f, 4.0594f, 4.0594f, 4.0594f, 4.0594f, 4.0594f, 4.0594f,
+                 4.0594f, 4.0594f, 4.0594f, 4.0594f, 4.0594f, 4.0594f, 4.0594f,
+                 4.0594f, 4.0594f, 4.0594f, 4.0594f, 4.0594f, 4.0594f, 4.0594f,
+                 4.0594f, 4.0594f, 4.0594f, 4.0594f});
+    ap.allOsc(params::driftSuffix, [](int) { return 1.9507; });
+    ap.oscTable(params::attackSuffix,
+                {0.0015f, 0.0006f, 0.0003f, 0.0002f, 0.0002f, 0.0002f, 0.0002f,
+                 0.0002f, 0.0002f, 0.0002f, 0.0002f, 0.0002f, 0.0002f, 0.0002f,
+                 0.0002f, 0.0002f, 0.0002f, 0.0002f, 0.0002f, 0.0002f, 0.0002f,
+                 0.0002f, 0.0002f, 0.0002f, 0.0002f, 0.0002f, 0.0002f, 0.0002f,
+                 0.0002f, 0.0002f, 0.0002f, 0.0002f});
+    ap.oscTable(params::decaySuffix,
+                {0.0817f, 4.1684f, 1.6022f, 3.1345f, 1.5865f, 2.3494f, 1.5173f,
+                 1.7918f, 1.4511f, 1.1786f, 1.3878f, 0.9389f, 1.2415f, 1.1624f,
+                 1.0122f, 0.6223f, 0.6283f, 0.4857f, 0.546f, 0.9512f, 0.5598f,
+                 0.4681f, 0.474f, 1.0384f, 0.3238f, 0.4524f, 0.507f, 0.4047f,
+                 0.4219f, 0.2955f, 0.8883f, 0.5541f});
+    ap.allOsc(params::sustainSuffix, [](int) { return 0.0; });
+    ap.oscTable(params::swellSuffix,
+                {0.002f, 0.0058f, 0.002f, 0.002f, 0.002f, 0.002f, 0.002f,
+                 0.002f, 0.002f, 0.002f, 0.002f, 0.002f, 0.002f, 0.002f, 0.002f,
+                 0.002f, 0.002f, 0.002f, 0.002f, 0.002f, 0.002f, 0.002f, 0.002f,
+                 0.002f, 0.002f, 0.002f, 0.002f, 0.002f, 0.002f, 0.002f, 0.002f,
+                 0.002f});
+    ap.oscTable(params::offLevelSuffix,
+                {0.048f, 0.048f, 0.048f, 0.048f, 0.048f, 0.048f, 0.048f, 0.598f,
+                 0.598f, 0.598f, 0.598f, 0.598f, 0.598f, 0.598f, 0.598f, 0.598f,
+                 0.598f, 0.598f, 0.598f, 0.598f, 0.598f, 0.598f, 0.598f, 0.598f,
+                 0.598f, 0.598f, 0.598f, 0.598f, 0.598f, 0.598f, 0.598f,
+                 0.598f});
+    ap.allOsc(params::releaseSuffix, [](int) { return 0.0072; });
+    ap.oscTable(params::amRateSuffix,
+                {1.0589f, 0.8387f, 0.1593f, 1.7338f, 3.2337f, 1.4543f, 0.0796f,
+                 0.1256f, 0.1441f, 0.1811f, 0.2038f, 0.0773f, 1.2413f, 1.0639f,
+                 0.2857f, 2.9269f, 2.1182f, 0.1632f, 0.2891f, 0.1482f, 1.8377f,
+                 0.8554f, 0.2548f, 0.121f, 0.7715f, 0.0723f, 2.473f, 2.7724f,
+                 0.1429f, 0.8732f, 2.8851f, 2.5137f});
+    ap.oscTable(params::amDepthSuffix,
+                {0.3447f, 0.3462f, 0.3447f, 0.3447f, 0.3447f, 0.3447f, 0.3447f,
+                 0.3447f, 0.3447f, 0.3447f, 0.3447f, 0.3447f, 0.3447f, 0.3447f,
+                 0.3447f, 0.3447f, 0.3447f, 0.3447f, 0.3447f, 0.3447f, 0.3447f,
+                 0.3447f, 0.3447f, 0.3447f, 0.3447f, 0.3447f, 0.3447f, 0.3447f,
+                 0.3447f, 0.3447f, 0.3447f, 0.3447f});
+    ap.oscTable(params::velSuffix,
+                {-0.0187f, 0.0835f, 0.1861f, 0.2888f, 0.3914f, 0.494f, 0.5966f,
+                 0.6992f, 0.8019f, 0.9045f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+                 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+                 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f});
+    ap.set("h01_volume", 0.096f);
+    ap.set("h02_delay", 0.0008f);
+    ap.set("h02_volume", 1.0f);
+    ap.set("h03_delay", 0.0027f);
+    ap.set("h03_pan", -0.252f);
+    ap.set("h04_delay", 0.0017f);
+    ap.set("h04_pan", 0.2496f);
+    ap.set("h04_volume", 0.0663f);
+    ap.set("h05_delay", 0.0035f);
+    ap.set("h05_pan", 0.5004f);
+    ap.set("h06_delay", 0.0054f);
+    ap.set("h06_pan", -0.7501f);
+    ap.set("h06_volume", 0.0452f);
+    ap.set("h07_pan", -1.0f);
+    ap.set("h08_delay", 0.0045f);
+    ap.set("h08_pan", 0.509f);
+    ap.set("h08_volume", 0.0184f);
+    ap.set("h09_pan", 1.0f);
+    ap.set("h10_delay", 0.0038f);
+    ap.set("h10_pan", -1.0f);
+    ap.set("h10_volume", 0.0125f);
+    ap.set("h11_pan", -1.0f);
+    ap.set("h12_delay", 0.0f);
+    ap.set("h12_pan", 0.4429f);
+    ap.set("h12_volume", 0.0093f);
+    ap.set("h13_pan", 0.915f);
+    ap.set("h13_volume", 0.002f);
+    ap.set("h14_pan", -0.9854f);
+    ap.set("h14_volume", 0.0016f);
+    ap.set("h15_pan", -0.9801f);
+    ap.set("h15_volume", 0.0011f);
+    ap.set("h16_delay", 0.0076f);
+    ap.set("h16_pan", 0.8506f);
+    ap.set("h16_volume", 0.0071f);
+    ap.set("h17_pan", 1.0f);
+    ap.set("h17_volume", 0.0003f);
+    ap.set("h18_pan", -1.0f);
+    ap.set("h18_volume", 0.0021f);
+    ap.set("h19_pan", -0.9966f);
+    ap.set("h19_volume", 0.0007f);
+    ap.set("h20_pan", 1.0f);
+    ap.set("h20_volume", 0.0032f);
+    ap.set("h21_pan", 1.0f);
+    ap.set("h21_volume", 0.0008f);
+    ap.set("h22_pan", -1.0f);
+    ap.set("h22_volume", 0.0023f);
+    ap.set("h23_pan", -1.0f);
+    ap.set("h23_volume", 0.0006f);
+    ap.set("h24_pan", 0.9449f);
+    ap.set("h24_volume", 0.003f);
+    ap.set("h25_pan", 0.9801f);
+    ap.set("h25_volume", 0.0012f);
+    ap.set("h26_pan", -1.0f);
+    ap.set("h26_volume", 0.0053f);
+    ap.set("h27_pan", -1.0f);
+    ap.set("h27_volume", 0.0003f);
+    ap.set("h28_pan", 1.0f);
+    ap.set("h28_volume", 0.0014f);
+    ap.set("h29_pan", 1.0f);
+    ap.set("h29_volume", 0.0002f);
+    ap.set("h30_pan", -1.0f);
+    ap.set("h30_volume", 0.0006f);
+    ap.set("h31_pan", -1.0f);
+    ap.set("h31_volume", 0.0001f);
+    ap.set("h32_volume", 0.0003f);
+    ap.set("echoAge", 0.5121f);
+    ap.set("echoFeedback", 0.2587f);
+    ap.set("echoMix", 0.1569f);
+    ap.set("echoOn", 1.0f);
+    ap.set("echoTime", 0.0528f);
+    ap.set("noise_aftertouch", 0.0f);
+    ap.set("noise_amRate", 0.3122f);
+    ap.set("noise_attack", 0.0005f);
+    ap.set("noise_colour", 0.0322f);
+    ap.set("noise_decay", 0.013f);
+    ap.set("noise_offLevel", 0.3948f);
+    ap.set("noise_release", 0.0029f);
+    ap.set("noise_sustain", 0.0f);
+    ap.set("noise_vel", 0.4097f);
+    ap.set("noise_volume", 0.1882f);
+    ap.set("reverbDamp", 0.2438f);
+    ap.set("reverbDecay", 0.4754f);
+    ap.set("reverbMix", 0.2022f);
+    ap.set("reverbOn", 1.0f);
+    ap.set("reverbPreDelay", 0.0073f);
+    ap.set("stretch", 7.3773f);
+    ap.set("track", 3.2f);
+    ap.set("wobble", 0.1946f);
+    break;
+  }
+  case 16: // Odd Harmonics
   {
     ap.neutralBase();
 
@@ -1193,8 +1910,7 @@ void apply(APVTS &apvts, int index) {
                  0.0f, 0.037f, 0.0f, 0.0345f, 0.0f, 0.0323f, 0.0f});
     break;
   }
-
-  case 12: // Omni-84
+  case 17: // Omni-84
   {
     ap.neutralBase();
 
@@ -1251,8 +1967,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 7.0f);
     break;
   }
-
-  case 13: // Shimmer
+  case 18: // Shimmer
   {
     ap.neutralBase();
 
@@ -1274,8 +1989,7 @@ void apply(APVTS &apvts, int index) {
     ap.echo(0.28f, 0.66f, 0.55f, 0.6f);
     break;
   }
-
-  case 14: // Slow Pad
+  case 19: // Slow Pad
   {
     ap.neutralBase();
 
@@ -1339,8 +2053,131 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.015f);
     break;
   }
+  case 20: // Space Flute
+  {
+    ap.neutralBase();
 
-  case 15: // Struck Bell
+    // A synthesised pan flute a long way off. The breath is the noise
+    // channel, held rather than struck so it stays under the note, and the
+    // echo and the reverb between them do the work of putting it somewhere.
+
+    ap.oscTable(params::pmRateSuffix,
+                {1.3544f, 2.1602f, 2.7113f, 3.7712f, 7.7323f, 0.3224f, 2.9698f,
+                 4.5685f, 1.4947f, 0.5585f, 2.9589f, 0.6277f, 1.3749f, 4.194f,
+                 0.5581f, 1.3022f, 0.9668f, 3.5491f, 1.328f, 1.3924f, 0.4854f,
+                 5.1963f, 0.7553f, 3.1087f, 1.4386f, 3.986f, 3.5834f, 5.5584f,
+                 4.1209f, 3.085f, 6.2335f, 1.9861f});
+    ap.oscTable(params::pmDepthSuffix,
+                {5.5184f, 5.8528f, 6.1986f, 6.5565f, 6.9267f, 6.5565f, 6.1986f,
+                 5.8528f, 5.5184f, 5.1952f, 4.8828f, 4.5808f, 4.2889f, 4.0067f,
+                 3.734f, 3.4703f, 3.2155f, 2.9691f, 2.731f, 2.5008f, 2.2783f,
+                 2.0633f, 1.8554f, 1.6544f, 1.4602f, 1.2724f, 1.0909f, 0.9154f,
+                 0.7458f, 0.5819f, 0.4235f, 0.2703f});
+    ap.allOsc(params::driftSuffix, [](int) { return 1.6123; });
+    ap.oscTable(params::attackSuffix,
+                {0.0557f, 0.0471f, 0.0392f, 0.0304f, 0.0467f, 0.0342f, 0.0523f,
+                 0.0712f, 0.0469f, 0.0672f, 0.0409f, 0.101f, 0.0366f, 0.1181f,
+                 0.0694f, 0.1054f, 0.0724f, 0.0513f, 0.0398f, 0.0634f, 0.0398f,
+                 0.0406f, 0.0435f, 0.0155f, 0.0286f, 0.0288f, 0.0295f, 0.0165f,
+                 0.007f, 0.0051f, 0.0165f, 0.0241f});
+    ap.oscTable(params::sustainSuffix,
+                {0.7145f, 0.2628f, 0.2763f, 0.053f, 0.2089f, 0.0577f, 0.1523f,
+                 0.069f, 0.0214f, 0.0146f, 0.0305f, 0.009f, 0.0193f, 0.0117f,
+                 0.0085f, 0.0138f, 0.0094f, 0.0144f, 0.0111f, 0.0214f, 0.0366f,
+                 0.0328f, 0.0548f, 0.0932f, 0.1641f, 0.0f, 0.0876f, 0.114f,
+                 0.082f, 0.0908f, 0.0858f, 0.0f});
+    ap.allOsc(params::releaseSuffix, [](int) { return 0.008; });
+    ap.allOsc(params::amDepthSuffix, [](int) { return 0.4792; });
+    ap.oscTable(params::velSuffix,
+                {-0.126f, -0.0906f, -0.0543f, -0.0179f, 0.0184f, 0.0548f,
+                 0.0911f, 0.1275f, 0.1638f, 0.2002f, 0.2365f, 0.2729f, 0.3093f,
+                 0.3456f, 0.382f, 0.4183f, 0.4547f, 0.491f, 0.5274f, 0.5637f,
+                 0.6001f, 0.6365f, 0.6728f, 0.7092f, 0.7455f, 0.7819f, 0.8182f,
+                 0.8546f, 0.8909f, 0.9273f, 0.9636f, 0.9999f});
+    ap.oscTable(params::volumeSuffix,
+                {1.0f, 0.0409f, 0.332f, 0.0138f, 0.1832f, 0.0228f, 0.1528f,
+                 0.015f, 0.1055f, 0.04f, 0.0774f, 0.0549f, 0.106f, 0.0466f,
+                 0.0903f, 0.0634f, 0.0746f, 0.085f, 0.076f, 0.0222f, 0.0121f,
+                 0.0143f, 0.0054f, 0.0042f, 0.0024f, 0.0187f, 0.0037f, 0.0028f,
+                 0.0031f, 0.002f, 0.0018f, 0.0077f});
+    ap.set("h02_decay", 0.2074f);
+    ap.set("h02_pan", -1.0f);
+    ap.set("h03_pan", 0.2326f);
+    ap.set("h04_decay", 0.4813f);
+    ap.set("h04_pan", 1.0f);
+    ap.set("h05_pan", -0.7375f);
+    ap.set("h06_pan", -1.0f);
+    ap.set("h07_decay", 0.3087f);
+    ap.set("h07_pan", 0.943f);
+    ap.set("h08_decay", 0.5518f);
+    ap.set("h08_pan", -1.0f);
+    ap.set("h09_decay", 0.0399f);
+    ap.set("h09_pan", 1.0f);
+    ap.set("h10_decay", 0.2134f);
+    ap.set("h10_pan", 1.0f);
+    ap.set("h11_decay", 0.331f);
+    ap.set("h11_pan", 1.0f);
+    ap.set("h12_decay", 0.0912f);
+    ap.set("h12_pan", -1.0f);
+    ap.set("h13_decay", 0.1252f);
+    ap.set("h13_pan", -1.0f);
+    ap.set("h14_decay", 0.0534f);
+    ap.set("h14_pan", 1.0f);
+    ap.set("h15_decay", 0.0127f);
+    ap.set("h15_pan", -1.0f);
+    ap.set("h16_decay", 0.0218f);
+    ap.set("h16_pan", 1.0f);
+    ap.set("h17_decay", 0.0154f);
+    ap.set("h17_pan", -1.0f);
+    ap.set("h18_decay", 0.0116f);
+    ap.set("h18_pan", 1.0f);
+    ap.set("h19_decay", 0.0145f);
+    ap.set("h19_pan", -1.0f);
+    ap.set("h20_decay", 0.4036f);
+    ap.set("h20_pan", 1.0f);
+    ap.set("h21_decay", 0.4702f);
+    ap.set("h21_pan", -1.0f);
+    ap.set("h22_decay", 0.2632f);
+    ap.set("h22_pan", 1.0f);
+    ap.set("h23_decay", 0.6719f);
+    ap.set("h23_pan", -1.0f);
+    ap.set("h24_pan", -1.0f);
+    ap.set("h25_decay", 0.5645f);
+    ap.set("h25_pan", 1.0f);
+    ap.set("h26_decay", 0.1013f);
+    ap.set("h26_pan", -1.0f);
+    ap.set("h27_decay", 0.4502f);
+    ap.set("h27_pan", 1.0f);
+    ap.set("h28_pan", -1.0f);
+    ap.set("h29_decay", 0.558f);
+    ap.set("h29_pan", 1.0f);
+    ap.set("h30_pan", -1.0f);
+    ap.set("h31_pan", 1.0f);
+    ap.set("h32_decay", 0.0926f);
+    ap.set("h32_pan", -1.0f);
+    ap.set("echoAge", 0.4097f);
+    ap.set("echoFeedback", 0.7189f);
+    ap.set("echoMix", 0.2533f);
+    ap.set("echoOn", 1.0f);
+    ap.set("echoTime", 0.3583f);
+    ap.set("lofiBits", 4.0f);
+    ap.set("noise_attack", 0.0645f);
+    ap.set("noise_colour", 0.1192f);
+    ap.set("noise_decay", 0.1374f);
+    ap.set("noise_sustain", 0.2331f);
+    ap.set("noise_vel", 0.8135f);
+    ap.set("noise_volume", 0.1882f);
+    ap.set("reverbDamp", 0.0716f);
+    ap.set("reverbDecay", 3.5185f);
+    ap.set("reverbMix", 0.1989f);
+    ap.set("reverbOn", 1.0f);
+    ap.set("reverbPreDelay", 0.0233f);
+    ap.set("stretch", 154.4952f);
+    ap.set("track", 2.0f);
+    ap.set("wobble", 0.2795f);
+    break;
+  }
+  case 21: // Struck Bell
   {
     ap.neutralBase();
 
@@ -1363,8 +2200,192 @@ void apply(APVTS &apvts, int index) {
     ap.reverb(0.22f, 1.8f, 0.5f);
     break;
   }
+  case 22: // Synth Ensemble
+  {
+    ap.neutralBase();
 
-  case 16: // Tape Choir
+    // Strings and brass in one patch, synthesised rather than either of them
+    // sampled. A third of a second of attack across the whole series is what
+    // makes it an ensemble rather than one player, since nothing in it
+    // arrives at the same moment.
+
+    ap.oscTable(params::pmDepthSuffix,
+                {3.0539f, 7.5661f, 10.6856f, 10.8007f, 10.9168f, 11.0337f,
+                 11.1516f, 11.2704f, 11.3901f, 11.5107f, 11.6322f, 11.7547f,
+                 11.8782f, 12.0026f, 12.128f, 12.2543f, 12.3816f, 12.5099f,
+                 12.6392f, 12.7695f, 12.9009f, 13.0332f, 13.1666f, 13.3009f,
+                 13.4364f, 13.5729f, 13.7105f, 13.8491f, 13.9887f, 14.1295f,
+                 14.2714f, 14.4099f});
+    ap.oscTable(params::driftSuffix,
+                {1.0325f, 2.4834f, 3.2579f, 3.2727f, 3.2876f, 3.3026f, 3.3175f,
+                 3.3325f, 3.3476f, 3.3627f, 3.3778f, 3.3929f, 3.4081f, 3.4233f,
+                 3.4386f, 3.4539f, 3.4692f, 3.4846f, 3.5f, 3.5155f, 3.531f,
+                 3.5465f, 3.5621f, 3.5777f, 3.5933f, 3.609f, 3.6247f, 3.6405f,
+                 3.6563f, 3.6721f, 3.688f, 3.7034f});
+    ap.allOsc(params::attackSuffix, [](int) { return 0.3332; });
+    ap.allOsc(params::decaySuffix, [](int) { return 2.5173; });
+    ap.allOsc(params::releaseSuffix, [](int) { return 0.252; });
+    ap.oscTable(params::amRateSuffix,
+                {1.6249f, 1.6249f, 1.1034f, 1.6249f, 1.3157f, 1.1034f, 0.9767f,
+                 1.6249f, 1.435f, 1.3157f, 1.9557f, 1.1034f, 1.3692f, 0.9767f,
+                 1.7434f, 1.6249f, 1.8058f, 1.435f, 2.2094f, 1.3157f, 2.3705f,
+                 1.9557f, 1.9557f, 1.1034f, 1.3692f, 1.3692f, 2.4382f, 0.9767f,
+                 0.9767f, 1.7434f, 1.7434f, 1.6249f});
+    ap.oscTable(params::amDepthSuffix,
+                {0.0009f, 0.0297f, 0.0595f, 0.0892f, 0.119f, 0.1487f, 0.1784f,
+                 0.2082f, 0.2379f, 0.2677f, 0.2974f, 0.3271f, 0.3569f, 0.3866f,
+                 0.4164f, 0.4461f, 0.4758f, 0.5056f, 0.5353f, 0.565f, 0.5948f,
+                 0.6245f, 0.6543f, 0.684f, 0.7137f, 0.7435f, 0.7732f, 0.803f,
+                 0.8327f, 0.8624f, 0.8922f, 0.9219f});
+    ap.oscTable(params::velSuffix,
+                {0.1084f, 0.6396f, 0.7476f, 0.8385f, 0.9294f, 0.932f, 0.9347f,
+                 0.9373f, 0.9399f, 0.9425f, 0.9451f, 0.9477f, 0.9503f, 0.953f,
+                 0.9556f, 0.9582f, 0.9608f, 0.9634f, 0.966f, 0.9686f, 0.9713f,
+                 0.9739f, 0.9765f, 0.9791f, 0.9817f, 0.9843f, 0.9869f, 0.9895f,
+                 0.9922f, 0.9948f, 0.9974f, 0.9999f});
+    ap.oscTable(params::volumeSuffix,
+                {0.9945f, 0.969f, 0.9224f, 0.8584f, 0.7809f, 0.6944f, 0.6036f,
+                 0.5129f, 0.426f, 0.3459f, 0.2745f, 0.213f, 0.1615f, 0.1198f,
+                 0.0868f, 0.0615f, 0.0426f, 0.0288f, 0.0191f, 0.0123f, 0.0078f,
+                 0.0048f, 0.0029f, 0.0017f, 0.001f, 0.0006f, 0.0003f, 0.0002f,
+                 0.0001f, 0.0f, 0.0f, 0.0f});
+    ap.set("h01_aftertouch", 0.0023f);
+    ap.set("h02_pan", 0.246f);
+    ap.set("h02_sustain", 0.7132f);
+    ap.set("h03_delay", 0.05f);
+    ap.set("h03_pan", -0.5008f);
+    ap.set("h03_pmRate", 3.2236f);
+    ap.set("h03_sustain", 0.4396f);
+    ap.set("h04_pan", 0.749f);
+    ap.set("h04_sustain", 0.9032f);
+    ap.set("h05_delay", 0.1004f);
+    ap.set("h05_pan", -1.0f);
+    ap.set("h05_pmRate", 2.6973f);
+    ap.set("h05_sustain", 0.3751f);
+    ap.set("h06_delay", 0.05f);
+    ap.set("h06_pan", -1.0f);
+    ap.set("h06_pmRate", 3.2236f);
+    ap.set("h06_sustain", 0.8387f);
+    ap.set("h07_delay", 0.1509f);
+    ap.set("h07_pan", 1.0f);
+    ap.set("h07_pmRate", 2.9626f);
+    ap.set("h07_sustain", 0.3106f);
+    ap.set("h08_pan", 1.0f);
+    ap.set("h08_sustain", 0.7742f);
+    ap.set("h09_delay", 0.1999f);
+    ap.set("h09_pan", -1.0f);
+    ap.set("h09_pmRate", 2.0403f);
+    ap.set("h09_sustain", 0.2461f);
+    ap.set("h10_delay", 0.1004f);
+    ap.set("h10_pan", -1.0f);
+    ap.set("h10_pmRate", 2.6973f);
+    ap.set("h10_sustain", 0.7097f);
+    ap.set("h11_delay", 0.2504f);
+    ap.set("h11_pan", 1.0f);
+    ap.set("h11_pmRate", 4.4038f);
+    ap.set("h11_sustain", 0.1815f);
+    ap.set("h12_delay", 0.05f);
+    ap.set("h12_pan", 1.0f);
+    ap.set("h12_pmRate", 3.2236f);
+    ap.set("h12_sustain", 0.6452f);
+    ap.set("h13_delay", 0.3f);
+    ap.set("h13_pan", -1.0f);
+    ap.set("h13_pmRate", 1.4318f);
+    ap.set("h13_sustain", 0.117f);
+    ap.set("h14_delay", 0.1509f);
+    ap.set("h14_pan", -1.0f);
+    ap.set("h14_pmRate", 2.9626f);
+    ap.set("h14_sustain", 0.5806f);
+    ap.set("h15_delay", 0.35f);
+    ap.set("h15_pan", 1.0f);
+    ap.set("h15_pmRate", 3.8436f);
+    ap.set("h15_sustain", 0.0525f);
+    ap.set("h16_pan", 1.0f);
+    ap.set("h16_sustain", 0.5161f);
+    ap.set("h17_delay", 0.4f);
+    ap.set("h17_pan", -1.0f);
+    ap.set("h17_pmRate", 4.5083f);
+    ap.set("h17_sustain", 0.0f);
+    ap.set("h18_delay", 0.1999f);
+    ap.set("h18_pan", -1.0f);
+    ap.set("h18_pmRate", 2.0403f);
+    ap.set("h18_sustain", 0.4516f);
+    ap.set("h19_delay", 0.45f);
+    ap.set("h19_pan", 1.0f);
+    ap.set("h19_pmRate", 2.7099f);
+    ap.set("h19_sustain", 0.0f);
+    ap.set("h20_delay", 0.1004f);
+    ap.set("h20_pan", 1.0f);
+    ap.set("h20_pmRate", 2.6973f);
+    ap.set("h20_sustain", 0.3871f);
+    ap.set("h21_delay", 0.5001f);
+    ap.set("h21_pan", -1.0f);
+    ap.set("h21_pmRate", 1.5076f);
+    ap.set("h21_sustain", 0.0f);
+    ap.set("h22_delay", 0.2504f);
+    ap.set("h22_pan", -1.0f);
+    ap.set("h22_pmRate", 4.4038f);
+    ap.set("h22_sustain", 0.3226f);
+    ap.set("h23_delay", 0.2504f);
+    ap.set("h23_pan", 1.0f);
+    ap.set("h23_pmRate", 4.4038f);
+    ap.set("h23_sustain", 0.0f);
+    ap.set("h24_delay", 0.05f);
+    ap.set("h24_pan", 1.0f);
+    ap.set("h24_pmRate", 3.2236f);
+    ap.set("h24_sustain", 0.2581f);
+    ap.set("h25_delay", 0.3f);
+    ap.set("h25_pan", -1.0f);
+    ap.set("h25_pmRate", 1.4318f);
+    ap.set("h25_sustain", 0.0f);
+    ap.set("h26_delay", 0.3f);
+    ap.set("h26_pan", -1.0f);
+    ap.set("h26_pmRate", 1.4318f);
+    ap.set("h26_sustain", 0.1935f);
+    ap.set("h27_delay", 0.55f);
+    ap.set("h27_pan", 1.0f);
+    ap.set("h27_pmRate", 4.4557f);
+    ap.set("h27_sustain", 0.0f);
+    ap.set("h28_delay", 0.1509f);
+    ap.set("h28_pan", 1.0f);
+    ap.set("h28_pmRate", 2.9626f);
+    ap.set("h28_sustain", 0.129f);
+    ap.set("h29_delay", 0.1509f);
+    ap.set("h29_pan", -1.0f);
+    ap.set("h29_pmRate", 2.9626f);
+    ap.set("h29_sustain", 0.0f);
+    ap.set("h30_delay", 0.35f);
+    ap.set("h30_pan", -1.0f);
+    ap.set("h30_pmRate", 3.8436f);
+    ap.set("h30_sustain", 0.0645f);
+    ap.set("h31_delay", 0.35f);
+    ap.set("h31_pan", 1.0f);
+    ap.set("h31_pmRate", 3.8436f);
+    ap.set("h31_sustain", 0.0f);
+    ap.set("h32_sustain", 0.001f);
+    ap.set("echoAge", 0.6465f);
+    ap.set("echoFeedback", 0.6923f);
+    ap.set("echoMix", 0.248f);
+    ap.set("echoOn", 1.0f);
+    ap.set("echoTime", 0.1305f);
+    ap.set("noise_amDepth", 0.7486f);
+    ap.set("noise_amRate", 0.2475f);
+    ap.set("noise_attack", 0.9905f);
+    ap.set("noise_colour", 0.1525f);
+    ap.set("noise_decay", 2.7863f);
+    ap.set("noise_sustain", 0.4616f);
+    ap.set("noise_vel", 0.7797f);
+    ap.set("noise_volume", 0.157f);
+    ap.set("reverbDamp", 0.2763f);
+    ap.set("reverbDecay", 2.9417f);
+    ap.set("reverbOn", 1.0f);
+    ap.set("reverbPreDelay", 0.0228f);
+    ap.set("stretch", 9.5576f);
+    ap.set("track", 3.0f);
+    ap.set("wobble", 0.1011f);
+    break;
+  }
+  case 23: // Tape Choir
   {
     ap.neutralBase();
 
@@ -1393,8 +2414,7 @@ void apply(APVTS &apvts, int index) {
     ap.reverb(0.4f, 4.5f, 0.5f);
     break;
   }
-
-  case 17: // Vibraphone
+  case 24: // Vibraphone
   {
     ap.neutralBase();
 
@@ -1460,8 +2480,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.1882f);
     break;
   }
-
-  case 18: // Wurli
+  case 25: // Wurli
   {
     ap.neutralBase();
 
