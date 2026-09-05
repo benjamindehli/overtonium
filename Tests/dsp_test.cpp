@@ -1127,6 +1127,59 @@ void testOneVoicePerKey() {
   check(biggestStep < 3.0 * perSample,
         "and the cut does not put a step in the output");
 
+  // The same again, but with the note held by the sustain pedal.
+  //
+  // This is the case the check above cannot reach. A key that has been let go
+  // is releasing, and a releasing voice gets the short fade. A pedalled note
+  // is not releasing, so it is retriggered where it stands, and where it
+  // stands is its sustain level. Restarting the envelope from silence there
+  // put a step in the output the size of the whole note, which is what a
+  // repeated key under the pedal sounded like.
+  {
+    SynthEngine pedal;
+    pedal.prepare(sr);
+    pedal.setPolyphony(8);
+
+    auto held = p;
+    held.osc[0].decay = 0.05f;
+    held.osc[0].sustain = 1.0f; // holds at full, so the step would be full size
+
+    const auto renderInto = [&](double seconds, std::vector<float> &out) {
+      const auto n = (size_t)(seconds * sr);
+      std::vector<float> bl(n, 0.0f), br(n, 0.0f);
+      pedal.render(bl.data(), br.data(), (int)n, held);
+      out.insert(out.end(), bl.begin(), bl.end());
+    };
+
+    std::vector<float> warm;
+    pedal.setSustainPedal(true);
+    pedal.noteOn(60, 0.9f, held);
+    renderInto(0.30, warm); // let it reach sustain
+    pedal.noteOff(60);      // the pedal keeps it sounding
+    renderInto(0.05, warm);
+
+    std::vector<float> second;
+    pedal.noteOn(60, 0.9f, held); // struck again, still ringing
+    renderInto(0.10, second);
+
+    double step = 0.0;
+    for (size_t n = 1; n < second.size(); ++n)
+      step = std::max(step, std::abs((double)second[n] - second[n - 1]));
+
+    // Across the seam as well, not only inside the new block.
+    if (!warm.empty() && !second.empty())
+      step = std::max(step, std::abs((double)second[0] - warm.back()));
+
+    const auto slope = 2.0 * 3.14159265 * 261.6 / sr * peakOf(second);
+
+    std::printf("  pedalled retrigger: biggest sample step %.5f against %.5f "
+                "for the waveform itself\n",
+                step, slope);
+
+    check(step < 3.0 * slope,
+          "striking a pedalled note again does not put a step in the output");
+  }
+
   // Different keys still stack, which is the whole point of polyphony.
   SynthEngine chord;
   chord.prepare(sr);

@@ -18,6 +18,10 @@ constexpr double kDriftMaxHz = 1.10;
 /// Corner of the one-pole pair that tilts the noise. Around a kilohertz splits
 /// it into a usable "body" and "air" either side.
 constexpr double kNoiseTiltHz = 1000.0;
+
+/// Below this an envelope is silent, so restarting it costs nothing. The same
+/// figure the envelope itself calls the end of a release.
+constexpr float kSilent = 1.0e-5f;
 } // namespace
 
 void Voice::setRenderRate(double newSampleRate) noexcept {
@@ -117,7 +121,23 @@ void Voice::noteOn(int channel, int note, float velocity,
 
     pt.env.configure(op.delay, op.attack, op.decay, op.sustain, op.swell,
                      op.offLevel, op.release);
-    pt.env.noteOn(p.global.phaseReset);
+
+    // Starting from silence is only free while the partial is silent.
+    //
+    // Almost always it is: a note lands on a voice nothing else is using. The
+    // exception is a note struck again while it is still sounding, which one
+    // voice per key answers by retriggering where it stands rather than by
+    // taking a second voice. Zeroing the level there, or moving the phase,
+    // puts a step in the output the size of whatever was ringing, and a note
+    // held by the sustain pedal is ringing at its sustain level.
+    //
+    // So the choice is made per partial from what it is actually doing. One
+    // that has decayed away starts clean, with the coherent attack the setting
+    // asks for. One still sounding keeps its level and its phase, and the new
+    // note's attack takes over from there.
+    const bool fresh = pt.env.getLevel() <= kSilent;
+
+    pt.env.noteOn(fresh && p.global.phaseReset);
 
     // A fresh rate per partial per note. Reusing one rate would turn 32
     // independent wanders into a single detune.
@@ -125,15 +145,19 @@ void Voice::noteOn(int channel, int note, float velocity,
                                                (double)rng.unipolar());
     pt.drift.restart(rng, rate, sampleRate / (double)kControlBlock);
 
-    if (p.global.phaseReset) {
+    if (fresh && p.global.phaseReset) {
       pt.phase = (double)std::clamp(op.startPhase, 0.0f, 1.0f);
       pt.pitchLfoPhase = 0.0;
       pt.ampLfoPhase = 0.0;
     }
 
     // The gain ramp restarts from whatever this partial's strip currently asks
-    // for rather than from the previous note's trailing value.
-    pt.gainPrimed = false;
+    // for rather than from the previous note's trailing value. Only for a
+    // partial starting clean: one carrying on wants the ramp, since a second
+    // strike at a different velocity moves the gain and the ramp is what keeps
+    // that from being a step of its own.
+    if (fresh)
+      pt.gainPrimed = false;
   }
 
   {
@@ -147,8 +171,15 @@ void Voice::noteOn(int channel, int note, float velocity,
 
     noise.env.configure(np.delay, np.attack, np.decay, np.sustain, np.swell,
                         np.offLevel, np.release);
-    noise.env.noteOn(p.global.phaseReset);
-    noise.gainPrimed = false;
+
+    // The same rule as the partials. Noise has no phase worth resetting, but
+    // its level steps just as audibly.
+    const bool fresh = noise.env.getLevel() <= kSilent;
+
+    noise.env.noteOn(fresh && p.global.phaseReset);
+
+    if (fresh)
+      noise.gainPrimed = false;
   }
 }
 
