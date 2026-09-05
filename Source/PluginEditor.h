@@ -76,6 +76,13 @@ private:
   void applyResizeLimits();
   void applyPreset(int index);
 
+  /// Records the name on the processor and shows it, in that order.
+  ///
+  /// Both halves, because the button is what you read and the processor is
+  /// what remembers. A preset of your own has no program index, so this is the
+  /// only thing that knows it was loaded.
+  void setPresetName(const juce::String &name);
+
   /// Folds or unfolds one group of rows across the whole mixer, and takes the
   /// window's height with it.
   void toggleSection(ovt::ui::Section);

@@ -233,16 +233,18 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     maybeCheckForUpdates();
   };
 
+  // applyPreset goes through the processor, which records the name itself, so
+  // this only has to show what is now loaded.
   topBar.onPresetChosen = [this](int index) {
     applyPreset(index);
-    topBar.setPresetName(presets::names()[index]);
+    topBar.setPresetName(plugin().presetName());
   };
 
   topBar.onUserPresetChosen = [this](juce::File file) {
     juce::String error;
 
     if (presets::load(plugin().apvts, file, error))
-      topBar.setPresetName(file.getFileNameWithoutExtension());
+      setPresetName(file.getFileNameWithoutExtension());
     else
       complain("Could not load that preset", error);
   };
@@ -251,7 +253,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     juce::String error;
 
     if (presets::save(plugin().apvts, name, error))
-      topBar.setPresetName(presets::sanitiseName(name));
+      setPresetName(presets::sanitiseName(name));
     else
       complain("Could not save that preset", error);
   };
@@ -340,8 +342,19 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
 
   startTimerHz(30);
 
+  // What was already loaded before this window existed, which is the usual
+  // case: a window is opened and closed far more often than a preset is
+  // chosen, and a session restored from disk has no window at all until
+  // someone asks for one. Empty is a new instance, which shows the placeholder.
+  topBar.setPresetName(plugin().presetName());
+
   // Last, so a prompt cannot appear over a half-built window.
   offerUpdateCheck();
+}
+
+void OvertoniumEditor::setPresetName(const juce::String &name) {
+  plugin().setLoadedPresetName(name);
+  topBar.setPresetName(name);
 }
 
 OvertoniumEditor::~OvertoniumEditor() {

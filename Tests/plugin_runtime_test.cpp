@@ -2633,6 +2633,112 @@ void testPresetMenuGroups(OvertoniumProcessor &p) {
         "and the test leaves nothing behind in the preset folder");
 }
 
+/// A new instance is on no preset, whatever number it has to report.
+///
+/// getCurrentProgram has to answer from the moment the plugin exists and zero
+/// is the only honest number, but the sound is the parameter defaults rather
+/// than the first preset. A host draws its menu from that number, so the first
+/// entry looks selected on an instance that has never loaded it, and picking it
+/// used to be swallowed by the guard that protects a restored session.
+void testFirstProgramIsReachable() {
+  section("The first preset on a new instance");
+
+  OvertoniumProcessor fresh;
+
+  auto *volume = fresh.apvts.getParameter(
+      ovt::params::oscParamId(ovt::params::volumeSuffix, 0));
+
+  const auto before = volume->getValue();
+
+  check(fresh.getCurrentProgram() == 0,
+        "a new instance reports the first program, since it must report one");
+  check(fresh.presetName().isEmpty(),
+        "but nothing is loaded, which is what the button shows");
+
+  // Exactly what a host does when someone picks the first entry.
+  fresh.setCurrentProgram(0);
+
+  check(std::abs(volume->getValue() - before) > 1.0e-4f,
+        "picking it from the host loads it rather than doing nothing");
+  check(fresh.presetName() == ovt::presets::names()[0],
+        "and the name follows (" + fresh.presetName().toStdString() + ")");
+
+  // And the guard it must not have broken: asking again for the one already
+  // loaded still does nothing, which is what keeps a restored session intact.
+  const auto loaded = volume->getValue();
+  volume->setValueNotifyingHost(loaded > 0.5f ? 0.1f : 0.9f);
+  const auto editedTo = volume->getValue();
+
+  fresh.setCurrentProgram(0);
+
+  check(std::abs(volume->getValue() - editedTo) < 0.005f,
+        "and asking for it a second time leaves an edit alone");
+}
+
+/// The preset button survives the window being shut.
+///
+/// A window is opened and closed far more often than a preset is chosen, and a
+/// session restored from disk has no window at all until someone asks for one.
+/// The name lives on the processor for that reason: the editor cannot work it
+/// out, since a preset of your own has no program index to be found by.
+void testPresetNameOutlivesTheWindow() {
+  section("The preset name outlives the window");
+
+  const auto findBar = [](juce::Component &root) -> ovt::ui::TopBar * {
+    std::function<ovt::ui::TopBar *(juce::Component &)> walk =
+        [&walk](juce::Component &c) -> ovt::ui::TopBar * {
+      if (auto *bar = dynamic_cast<ovt::ui::TopBar *>(&c))
+        return bar;
+
+      for (auto *child : c.getChildren())
+        if (auto *found = walk(*child))
+          return found;
+
+      return nullptr;
+    };
+
+    return walk(root);
+  };
+
+  const auto shownBy = [&findBar](OvertoniumProcessor &proc) {
+    std::unique_ptr<juce::AudioProcessorEditor> ed(proc.createEditor());
+    ed->setSize(1340, 869);
+
+    auto *bar = findBar(*ed);
+    return bar != nullptr ? bar->getPresetName() : juce::String("(no bar)");
+  };
+
+  OvertoniumProcessor proc;
+
+  check(shownBy(proc).isEmpty(),
+        "a window on a new instance shows nothing loaded");
+
+  const auto wanted = ovt::presets::names()[13];
+  proc.applyFactoryPreset(13);
+
+  check(shownBy(proc) == wanted,
+        "a window opened after a preset was loaded shows it (" +
+            shownBy(proc).toStdString() + ")");
+
+  // A preset of your own, which has no program index at all.
+  proc.setLoadedPresetName("Something Of My Own");
+  check(shownBy(proc) == "Something Of My Own",
+        "and so does one named by a user preset");
+
+  // And it travels, so a session reopened a week later still says so.
+  juce::MemoryBlock saved;
+  proc.getStateInformation(saved);
+
+  OvertoniumProcessor restored;
+  restored.setStateInformation(saved.getData(), (int)saved.getSize());
+
+  check(restored.presetName() == "Something Of My Own",
+        "the name survives a state round trip (" +
+            restored.presetName().toStdString() + ")");
+  check(shownBy(restored) == "Something Of My Own",
+        "and a window opened on the restored session shows it");
+}
+
 void testSettingsMenu(OvertoniumProcessor &p) {
   section("Settings menu");
 
@@ -4073,6 +4179,8 @@ int main() {
   testTopBarLayout();
   testSettingsMenu(processor);
   testPresetMenuGroups(processor);
+  testFirstProgramIsReachable();
+  testPresetNameOutlivesTheWindow();
   testTopBarAlignment(processor);
   testKnobSizes(processor);
   testNoDeadTravel(processor);

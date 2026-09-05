@@ -139,6 +139,18 @@ public:
   /// the whole plugin being removed rather than a window being shut.
   ovt::UpdateCheck &updates() noexcept { return updateCheck; }
 
+  /// What is loaded, by name, for the editor to show and for the state to
+  /// carry.
+  ///
+  /// Held here rather than on the editor because it has to outlive one. A
+  /// window is closed and reopened far more often than a preset is chosen, and
+  /// the button read as empty every time until this existed. Empty means
+  /// nothing has been loaded, which is what a new instance is.
+  const juce::String &presetName() const noexcept { return loadedPresetName; }
+
+  /// For a preset of your own, which has no program index to be found by.
+  void setLoadedPresetName(const juce::String &name);
+
   /// The same cached atomics the audio thread reads. The editor polls mute and
   /// solo several times a second, and going through the parameter map for that
   /// builds a string per lookup, which is a hundred allocations a tick on the
@@ -214,6 +226,18 @@ private:
   /// host would answer by loading that preset over the top of everything the
   /// session just restored.
   int currentProgram = 0;
+
+  /// Whether currentProgram describes something that was actually loaded.
+  ///
+  /// It has to report a number from the moment the plugin exists, and zero is
+  /// the only honest one to pick, but a new instance sounds like the parameter
+  /// defaults rather than like the first preset. Without this, a host's menu
+  /// showed that preset selected and picking it was a no-op. See
+  /// setCurrentProgram.
+  bool programApplied = false;
+
+  /// The name shown on the preset button. See presetName().
+  juce::String loadedPresetName;
 
   /// Last, so that it is the first thing destroyed. Its destructor joins a
   /// network thread, and doing that before the rest of the instance goes means

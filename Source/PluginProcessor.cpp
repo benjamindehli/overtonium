@@ -397,7 +397,14 @@ void OvertoniumProcessor::setCurrentProgram(int index) {
   //
   // Doing nothing when the index has not changed is what makes that safe, and
   // it is why currentProgram travels in the saved state.
-  if (index == currentProgram)
+  //
+  // Unless nothing has been loaded yet. A new instance reports program zero
+  // because some number has to be reported, while the sound is the parameter
+  // defaults rather than that preset, so the first entry in a host's menu
+  // looks selected and picking it did nothing at all. The flag is what tells
+  // the two apart: an index that matches because a preset was loaded, and one
+  // that matches because none has been.
+  if (index == currentProgram && programApplied)
     return;
 
   applyFactoryPreset(index);
@@ -411,6 +418,8 @@ void OvertoniumProcessor::applyFactoryPreset(int index) {
     return;
 
   currentProgram = index;
+  programApplied = true;
+  loadedPresetName = ovt::presets::names()[index];
   ovt::presets::apply(apvts, index);
 
   // So a host showing the preset name updates when the change came from the
@@ -419,13 +428,30 @@ void OvertoniumProcessor::applyFactoryPreset(int index) {
       juce::AudioProcessorListener::ChangeDetails{}.withProgramChanged(true));
 }
 
+void OvertoniumProcessor::setLoadedPresetName(const juce::String &name) {
+  loadedPresetName = name;
+
+  // A preset of your own is not one of the factory programs, so the host's
+  // program index no longer describes what is loaded. Saying so stops a
+  // redundant program change from the host reaching in and replacing it.
+  programApplied = true;
+}
+
 /// The property the current program travels under. Namespaced enough not to
 /// collide with a parameter id, since both live in the same tree.
 static const juce::Identifier kCurrentProgramProperty{"overtoniumProgram"};
 
+/// What the preset button says, which the editor cannot work out on its own.
+///
+/// The program index only names a factory preset, and a preset of your own is
+/// not one of those, so the name travels separately. Without it a window
+/// reopened on a session showed nothing loaded whatever was.
+static const juce::Identifier kPresetNameProperty{"overtoniumPresetName"};
+
 void OvertoniumProcessor::getStateInformation(juce::MemoryBlock &destData) {
   auto state = apvts.copyState();
   state.setProperty(kCurrentProgramProperty, currentProgram, nullptr);
+  state.setProperty(kPresetNameProperty, loadedPresetName, nullptr);
 
   if (auto xml = state.createXml())
     copyXmlToBinary(*xml, destData);
@@ -445,6 +471,15 @@ void OvertoniumProcessor::setStateInformation(const void *data,
       currentProgram =
           juce::isPositiveAndBelow(saved, ovt::presets::names().size()) ? saved
                                                                        : 0;
+
+      loadedPresetName = tree.getProperty(kPresetNameProperty, juce::String());
+
+      // Whatever the state said, it is a state, so a program change from the
+      // host asking for the index just restored has nothing left to do. Set
+      // even when the properties were absent, since a session written before
+      // they existed still restored a sound that must not be overwritten by
+      // the preset its index happens to name.
+      programApplied = true;
 
       apvts.replaceState(tree);
     }
