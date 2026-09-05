@@ -243,11 +243,20 @@ juce::File userDirectory() {
 }
 
 juce::Array<juce::File> userPresets() {
-  auto found = userDirectory().findChildFiles(juce::File::findFiles, false,
-                                              juce::String("*") + kExtension);
+  // Recursive, because a folder in the preset directory is a group in the
+  // menu. Making one is how you get a group, which means the filesystem is the
+  // interface for this and there is no second place to manage it.
+  //
+  // Symlinks are not followed. One pointing at a directory above itself would
+  // send this round until it ran out of path, and grouping presets does not
+  // need them.
+  auto found = userDirectory().findChildFiles(
+      juce::File::findFiles, true, juce::String("*") + kExtension,
+      juce::File::FollowSymlinks::no);
 
   // Sorted, so the menu does not reorder itself when the filesystem feels like
-  // handing them back in another order.
+  // handing them back in another order. On the whole path rather than the
+  // name, which keeps each folder's presets together and in order inside it.
   found.sort();
   return found;
 }

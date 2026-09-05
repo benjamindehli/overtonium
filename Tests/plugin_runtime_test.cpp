@@ -2521,6 +2521,118 @@ void testTopBarLayout() {
 /// The order is the whole point of the grouping, and nothing else would notice
 /// if it drifted: the menu is only reachable by clicking, and a click needs a
 /// window the tests do not have.
+/// The preset menu is two submenus and the actions, not one long list.
+///
+/// Twenty-six factory presets and however many of your own will not fit on a
+/// short screen, and a menu that scrolls hides its own shape. What is checked
+/// here is the shape: that the top level stays short whatever is saved, that
+/// every factory preset is reachable one level down, and that a folder in the
+/// preset directory becomes a group rather than being flattened away or, worse,
+/// its presets going missing.
+void testPresetMenuGroups(OvertoniumProcessor &p) {
+  section("Preset menu");
+
+  using namespace ovt::ui;
+
+  // Real files in the real preset folder, since that is what the menu reads.
+  // Named so that nothing anyone has actually saved could collide with them,
+  // and removed at the end whatever happens.
+  const auto root = ovt::presets::userDirectory();
+  const auto group = root.getChildFile("ZZ Test Group");
+  const auto nested = group.getChildFile("Deeper");
+
+  const auto loose = root.getChildFile("ZZ Test Loose.ovtpreset");
+  const auto inGroup = group.getChildFile("ZZ Test Grouped.ovtpreset");
+  const auto inNested = nested.getChildFile("ZZ Test Nested.ovtpreset");
+
+  nested.createDirectory();
+
+  const auto doc = ovt::presets::capture(p.apvts, "ZZ Test");
+  for (const auto &f : {loose, inGroup, inNested})
+    doc->writeTo(f);
+
+  {
+    juce::Component popupParent;
+    TopBar bar(p.apvts, popupParent);
+
+    auto menu = bar.buildPresetMenu();
+
+    std::vector<std::string> top;
+    juce::PopupMenu factory, saved;
+
+    for (juce::PopupMenu::MenuItemIterator it(menu); it.next();) {
+      const auto &item = it.getItem();
+
+      if (item.itemID == 0 && item.subMenu == nullptr)
+        continue;
+
+      top.push_back(item.text.toStdString());
+
+      if (item.text == "Factory" && item.subMenu != nullptr)
+        factory = *item.subMenu;
+      else if (item.text == "Saved" && item.subMenu != nullptr)
+        saved = *item.subMenu;
+    }
+
+    // Factory, Saved, and the two actions. The authoring build adds a third,
+    // which is why this is a ceiling rather than an equality.
+    check(top.size() <= 5, "the top level stays short (" +
+                               std::to_string(top.size()) + " entries)");
+    check(!top.empty() && top[0] == "Factory",
+          "the factory list is one entry, not twenty-six");
+    check(top.size() > 1 && top[1] == "Saved",
+          "and the saved presets are another");
+
+    int factoryItems = 0;
+    for (juce::PopupMenu::MenuItemIterator it(factory); it.next();)
+      if (it.getItem().itemID != 0)
+        ++factoryItems;
+
+    check(factoryItems == ovt::presets::names().size(),
+          "every factory preset is one level down (" +
+              std::to_string(factoryItems) + ")");
+
+    // The saved side: one loose preset and one folder, which itself holds a
+    // preset and another folder.
+    std::vector<std::string> savedTop;
+    juce::PopupMenu groupMenu;
+
+    for (juce::PopupMenu::MenuItemIterator it(saved); it.next();) {
+      const auto &item = it.getItem();
+      savedTop.push_back(item.text.toStdString());
+
+      if (item.text == "ZZ Test Group" && item.subMenu != nullptr)
+        groupMenu = *item.subMenu;
+    }
+
+    const auto has = [](const std::vector<std::string> &v,
+                        const std::string &s) {
+      return std::find(v.begin(), v.end(), s) != v.end();
+    };
+
+    check(has(savedTop, "ZZ Test Group"), "a folder becomes a group");
+    check(has(savedTop, "ZZ Test Loose"),
+          "and a preset beside it is still listed");
+
+    // Folders come before the presets loose in the same level.
+    check(!savedTop.empty() && savedTop[0] == "ZZ Test Group",
+          "groups are listed before loose presets");
+
+    std::vector<std::string> inside;
+    for (juce::PopupMenu::MenuItemIterator it(groupMenu); it.next();)
+      inside.push_back(it.getItem().text.toStdString());
+
+    check(has(inside, "ZZ Test Grouped"), "the group holds its own preset");
+    check(has(inside, "Deeper"), "and a folder inside it nests again");
+  }
+
+  loose.deleteFile();
+  group.deleteRecursively();
+
+  check(!loose.existsAsFile() && !group.exists(),
+        "and the test leaves nothing behind in the preset folder");
+}
+
 void testSettingsMenu(OvertoniumProcessor &p) {
   section("Settings menu");
 
@@ -3960,6 +4072,7 @@ int main() {
   testLinkMenu();
   testTopBarLayout();
   testSettingsMenu(processor);
+  testPresetMenuGroups(processor);
   testTopBarAlignment(processor);
   testKnobSizes(processor);
   testNoDeadTravel(processor);

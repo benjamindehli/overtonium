@@ -196,6 +196,22 @@ private:
   /// with them.
   void showPresetMenu();
 
+public:
+  /// The same menu as data, built rather than shown.
+  ///
+  /// Two submenus and then the actions, rather than one flat list. Twenty-six
+  /// factory presets and however many of your own runs off the bottom of a
+  /// short screen, and a menu that scrolls is a menu you cannot see the shape
+  /// of. Folders inside the preset directory become groups under Saved, nested
+  /// as deeply as they are on disk.
+  ///
+  /// Split from showing it for the reason the settings menu is: showing one
+  /// needs a real window, and a menu that can only be reached by clicking is a
+  /// menu no test ever walks.
+  juce::PopupMenu buildPresetMenu();
+
+private:
+
   /// The converter lists. Hung off the readout that opens them, and built here
   /// rather than inline so the readout and anything else share one list.
   void showConverterMenu(const char *paramId,

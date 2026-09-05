@@ -3,6 +3,9 @@
 #include "../PluginParameters.h"
 #include "../Presets.h"
 #include <limits>
+#include <map>
+#include <utility>
+#include <vector>
 
 #include "LookAndFeel.h"
 
@@ -479,27 +482,85 @@ void TopBar::showConverterMenu(const char *paramId,
                   });
 }
 
-void TopBar::showPresetMenu() {
+namespace {
+/// One level of the saved-preset menu: the folders inside it, and the presets
+/// sitting loose in it.
+///
+/// A map rather than a list, because the order a menu shows folders in should
+/// not depend on the order the filesystem handed them over.
+struct SavedFolder {
+  std::map<juce::String, SavedFolder> folders;
+  std::vector<std::pair<juce::String, int>> presets;
+};
+
+/// Folders first, then the presets loose in this one.
+///
+/// Folders first because a preset sitting between two of them is easy to lose,
+/// and because it is the order every file browser already uses. Depth is
+/// whatever the folders are: nesting one inside another nests the menu, which
+/// is the behaviour anyone who made the folders would expect.
+juce::PopupMenu buildSavedMenu(const SavedFolder &folder,
+                               const juce::String &current) {
+  juce::PopupMenu m;
+
+  for (const auto &child : folder.folders)
+    m.addSubMenu(child.first, buildSavedMenu(child.second, current));
+
+  for (const auto &preset : folder.presets)
+    m.addItem(preset.second, preset.first, true, preset.first == current);
+
+  return m;
+}
+} // namespace
+
+juce::PopupMenu TopBar::buildPresetMenu() {
   juce::PopupMenu m;
   m.setLookAndFeel(&getLookAndFeel());
 
+  // Ticked in the submenu it lives in, which is the thing a submenu costs: the
+  // list is no longer in front of you, so which one is loaded has to be
+  // findable once you are inside. The button says so too, but only for as long
+  // as the menu is shut.
+  const auto current = getPresetName();
+
+  juce::PopupMenu factoryMenu;
   const auto factory = presets::names();
 
-  m.addSectionHeader("Factory");
   for (int i = 0; i < factory.size(); ++i)
-    m.addItem(100 + i, factory[i]);
+    factoryMenu.addItem(100 + i, factory[i], true, factory[i] == current);
+
+  m.addSubMenu("Factory", factoryMenu);
 
   // Read fresh every time it opens, so a preset saved a moment ago is there
   // and one deleted in Finder is not.
   userPresetFiles = presets::userPresets();
 
+  // Only when there is something in it. An empty submenu is a dead end, and
+  // the two items below say where saved presets come from anyway.
   if (!userPresetFiles.isEmpty()) {
-    m.addSeparator();
-    m.addSectionHeader("Saved");
+    const auto root = presets::userDirectory();
+    SavedFolder tree;
 
-    for (int i = 0; i < userPresetFiles.size(); ++i)
-      m.addItem(1000 + i,
-                userPresetFiles.getReference(i).getFileNameWithoutExtension());
+    for (int i = 0; i < userPresetFiles.size(); ++i) {
+      const auto &file = userPresetFiles.getReference(i);
+
+      // Where a preset sits under the preset folder is which group it lands
+      // in. One straight in the folder has no parts to walk and stays here.
+      const auto relative =
+          file.getParentDirectory().getRelativePathFrom(root);
+
+      auto *folder = &tree;
+
+      for (const auto &part :
+           juce::StringArray::fromTokens(relative, "/\\", ""))
+        if (part.isNotEmpty() && part != ".")
+          folder = &folder->folders[part];
+
+      folder->presets.emplace_back(file.getFileNameWithoutExtension(),
+                                  1000 + i);
+    }
+
+    m.addSubMenu("Saved", buildSavedMenu(tree, current));
   }
 
   m.addSeparator();
@@ -512,6 +573,12 @@ void TopBar::showPresetMenu() {
   m.addSeparator();
   m.addItem(3, "Copy as factory preset code");
 #endif
+
+  return m;
+}
+
+void TopBar::showPresetMenu() {
+  auto m = buildPresetMenu();
 
   m.showMenuAsync(juce::PopupMenu::Options()
                       .withTargetComponent(&presetButton)
