@@ -398,3 +398,96 @@ jobs:
           c++ -std=c++17 -O2 -Wall -Wextra -Werror \
             -I Source Tests/dsp_test.cpp Source/dsp/*.cpp -o dsp_test
           ./dsp_test
+
+  structured-data:
+    name: Structured data
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # The project page carries a machine-readable copy of what the prose says:
+    # what the instrument is, what it costs, which version it is. Nothing
+    # renders it and no test parses it, so a block broken by an edit fails
+    # silently and is discovered by a search engine months later, if at all.
+    #
+    # The version is checked against CMakeLists rather than rewritten at
+    # release time. It is knowable the moment the version is bumped, unlike the
+    # download links, which name a tag that does not exist yet and are written
+    # by the release workflow for that reason.
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Every block parses, and the version agrees with CMakeLists
+        run: |
+          python3 - <<'PY'
+          import json
+          import re
+          import sys
+          from pathlib import Path
+
+          project = re.search(
+              r"^project\(Overtonium VERSION ([0-9.]+)",
+              Path("CMakeLists.txt").read_text(encoding="utf-8"), re.M).group(1)
+
+          failed = []
+          versions = []
+          nodes = {}
+
+          for path in sorted(Path("docs").rglob("*.html")):
+              html = path.read_text(encoding="utf-8")
+
+              for i, block in enumerate(re.finditer(
+                      r'<script type="application/ld\+json">(.*?)</script>',
+                      html, re.S)):
+                  try:
+                      data = json.loads(block.group(1))
+                  except ValueError as e:
+                      failed.append(f"{path} block {i} is not valid JSON: {e}")
+                      continue
+
+                  if not isinstance(data, dict):
+                      continue
+
+                  if "softwareVersion" in data:
+                      versions.append((path, data["softwareVersion"]))
+
+                  if "@id" in data:
+                      nodes.setdefault(data["@id"], []).append((path, data))
+
+          for problem in failed:
+              print(f"::error::{problem}")
+
+          if not versions:
+              print("::error::no block declares softwareVersion")
+              failed.append("missing version")
+
+          for path, version in versions:
+              print(f"CMakeLists says {project}, {path} says {version}")
+
+              if version != project:
+                  print(f"::error::{path} claims {version}, CMakeLists says "
+                        f"{project}. Bump both together.")
+                  failed.append(str(path))
+
+          # Blocks sharing an @id describe one thing, so anything reading them
+          # together gets whatever they disagree about. Two pages here already
+          # claimed a different version and release date for the same product,
+          # which is how this half earned its place.
+          for node, claims in sorted(nodes.items()):
+              fields = {k for _, block in claims for k in block}
+
+              for field in sorted(fields):
+                  seen = {}
+
+                  for path, block in claims:
+                      if field in block:
+                          seen.setdefault(json.dumps(block[field], sort_keys=True),
+                                          []).append(str(path))
+
+                  if len(seen) > 1:
+                      print(f"::error::{node} disagrees about {field}: " +
+                            "; ".join(f"{value} in {' and '.join(where)}"
+                                      for value, where in sorted(seen.items())))
+                      failed.append(node)
+
+          sys.exit(1 if failed else 0)
+          PY
