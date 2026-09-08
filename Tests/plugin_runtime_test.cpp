@@ -23,6 +23,7 @@
 #include "Presets.h"
 #include "UpdateCheck.h"
 #include "UI/ChannelStrip.h"
+#include "UI/ShapeButton.h"
 #include "UI/NoiseStrip.h"
 #include "UI/Theme.h"
 #include "UI/TopBar.h"
@@ -2750,6 +2751,76 @@ void testPresetNameOutlivesTheWindow() {
         "and a window opened on the restored session shows it");
 }
 
+/// The glyph is drawn from the parameter, never from a remembered choice.
+///
+/// A preset always did reset the parameter. What it did not reset was the
+/// picture, because nothing told the button to paint again when something
+/// other than a click moved the value. The repaint itself is scheduled through
+/// a ParameterAttachment and is not observable from here: there is no peer to
+/// collect a dirty region and no message loop to deliver the callback.
+///
+/// What is observable, and what this holds, is that the button never caches
+/// the shape. Anyone later storing it in a member set only from the menu would
+/// reintroduce exactly the bug this fixed, and would fail here.
+void testShapeButtonFollowsTheParameter(OvertoniumProcessor &p) {
+  section("The shape glyph follows the parameter");
+
+  using namespace ovt::ui;
+
+  std::function<std::vector<ShapeButton *>(juce::Component &)> gather =
+      [&gather](juce::Component &c) {
+        std::vector<ShapeButton *> found;
+
+        if (auto *b = dynamic_cast<ShapeButton *>(&c))
+          found.push_back(b);
+
+        for (auto *child : c.getChildren())
+          for (auto *b : gather(*child))
+            found.push_back(b);
+
+        return found;
+      };
+
+  std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
+  ed->setSize(1340, 869);
+
+  const auto buttons = gather(*ed);
+
+  // Two per strip across the series, plus the noise channel's tremolo.
+  check(buttons.size() == (size_t)(ovt::kNumHarmonics * 2 + 1),
+        "every channel has its shape controls (" +
+            std::to_string(buttons.size()) + ")");
+
+  const auto pmId = ovt::params::oscParamId(ovt::params::pmShapeSuffix, 0);
+  auto *param = p.apvts.getParameter(pmId);
+
+  const auto shown = [&buttons]() {
+    for (auto *b : buttons)
+      if (b->getTitle().contains("Harmonic 1 pitch"))
+        return b->currentName();
+
+    return juce::String("(not found)");
+  };
+
+  check(param != nullptr, "the first partial has a pitch shape");
+
+  // Moved the way a host or an automation lane would, not through the button.
+  param->setValueNotifyingHost(param->convertTo0to1(4.0f));
+
+  check(shown() != "Sine",
+        "a change from outside is what the button reports (" +
+            shown().toStdString() + ")");
+
+  // And a factory preset, which is how this was noticed. Every preset that
+  // ships leaves both modulators on sine, so this is also the check that they
+  // sound as they did before shapes existed.
+  p.applyFactoryPreset(ovt::presets::names().indexOf("Drawbar Organ"));
+
+  check(shown() == "Sine",
+        "and loading a preset puts it back to sine (" + shown().toStdString() +
+            ")");
+}
+
 void testSettingsMenu(OvertoniumProcessor &p) {
   section("Settings menu");
 
@@ -4190,6 +4261,7 @@ int main() {
   testTopBarLayout();
   testSettingsMenu(processor);
   testPresetMenuGroups(processor);
+  testShapeButtonFollowsTheParameter(processor);
   testFirstProgramIsReachable();
   testPresetNameOutlivesTheWindow();
   testTopBarAlignment(processor);

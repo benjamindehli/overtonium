@@ -51,6 +51,16 @@ public:
 private:
   void applyToEveryChannel(int index);
 
+  /// Repaints when the parameter moves, which is mostly not from here.
+  ///
+  /// A preset load, an undo or a host's automation all change the shape
+  /// without anyone touching this button, and the glyph is drawn from the
+  /// parameter at paint time, so without a listener it kept showing the last
+  /// shape chosen by hand while the sound had already moved on. The attachment
+  /// carries the other direction too, so JUCE owns the gesture and the undo
+  /// transaction rather than this doing it by hand.
+  std::unique_ptr<juce::ParameterAttachment> attachment;
+
   juce::AudioProcessorValueTreeState &apvts;
   juce::String id;
   const char *sharedSuffix;

@@ -126,6 +126,10 @@ ShapeButton::ShapeButton(juce::AudioProcessorValueTreeState &state,
     : apvts(state), id(parameterId), sharedSuffix(suffix), offered(shapes),
       names(std::move(shapeNames)) {
   setWantsKeyboardFocus(false);
+
+  if (auto *param = apvts.getParameter(id))
+    attachment = std::make_unique<juce::ParameterAttachment>(
+        *param, [this](float) { repaint(); }, apvts.undoManager);
 }
 
 int ShapeButton::selectedIndex() const {
@@ -193,8 +197,7 @@ void ShapeButton::mouseDown(const juce::MouseEvent &e) {
   if (e.mods.isPopupMenu())
     return;
 
-  auto *param = apvts.getParameter(id);
-  if (param == nullptr)
+  if (apvts.getParameter(id) == nullptr)
     return;
 
   juce::PopupMenu m;
@@ -214,20 +217,15 @@ void ShapeButton::mouseDown(const juce::MouseEvent &e) {
       juce::PopupMenu::Options()
           .withTargetComponent(this)
           .withStandardItemHeight(22),
-      [this, param](int result) {
+      [this](int result) {
         if (result <= 0)
           return;
 
         if (result == kEveryChannel)
           return applyToEveryChannel(selectedIndex());
 
-        // Through the parameter rather than straight to the tree, so a host
-        // sees the gesture and undo has something to put back.
-        param->beginChangeGesture();
-        param->setValueNotifyingHost(param->convertTo0to1((float)(result - 1)));
-        param->endChangeGesture();
-
-        repaint();
+        if (attachment != nullptr)
+          attachment->setValueAsCompleteGesture((float)(result - 1));
       });
 }
 
