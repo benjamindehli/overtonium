@@ -276,15 +276,32 @@ inline bool isSessionParam(juce::StringRef id) {
 
 /// How far the two pitch wanderers can each take a partial, in cents.
 ///
-/// Named because the needle on the PITCH MOD rule reads full scale at the sum
-/// of them, and a scale that quietly disagreed with the knobs feeding it would
-/// be worse than no scale. A test holds these against the ranges themselves.
-inline constexpr float kMaxPitchModCents = 200.0f;
+/// An octave for the modulator, which is there for the shapes that step rather
+/// than sweep: a square on the pitch is a trill and sample and hold is a run
+/// of random notes, and both want real intervals rather than a vibrato's worth
+/// of one. The taper keeps the bottom of the knob where it was, both settings
+/// reaching 25 cents at half travel, and what used to be the whole range now
+/// ends at about three quarters.
+///
+/// The range belongs to the knob rather than to any one shape. A knob whose
+/// end moved with the shape beside it would either read out a number it was
+/// not doing or have a dead stretch at the top, and both are worse than a
+/// sine that can sweep further than anyone needs.
+inline constexpr float kMaxPitchModCents = 1200.0f;
 inline constexpr float kMaxDriftCents = 25.0f;
 
-/// The widest displacement the two together can produce.
-inline constexpr float kMaxPitchDisplacementCents =
-    kMaxPitchModCents + kMaxDriftCents;
+/// Where the needle on the PITCH MOD lamp reads full scale, in cents.
+///
+/// Deliberately not the knob's maximum, which is the one place in this
+/// instrument a readout and the control feeding it are allowed to disagree.
+/// The needle is for watching vibrato and drift, and those live in the first
+/// tens of cents: scaled to the octave a square can now jump, ordinary
+/// modulation would sit within a couple of percent of centre and the lamp
+/// would show nothing at all. Past this it pegs, which is honest about being
+/// off the end of a scale rather than pretending to a resolution it does not
+/// have. A test holds it against the drift range so it cannot quietly shrink
+/// below what the other wanderer alone can produce.
+inline constexpr float kPitchNeedleFullScaleCents = 225.0f;
 
 /// The pitch classes a temperament can be built on, in parameter order.
 inline const std::array<const char *, 12> kPitchClassNames{

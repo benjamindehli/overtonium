@@ -123,8 +123,8 @@
                                     <td>Where in its cycle the partial starts</td>
                                 </tr>
                                 <tr>
-                                    <td>PITCH MOD rate, shape, depth</td>
-                                    <td>0.01 to 30 Hz, eight shapes, 0 to 200 cents</td>
+                                    <td>PITCH MOD shape, rate, depth</td>
+                                    <td>Eight shapes, 0.01 to 30 Hz, 0 to 1200 cents</td>
                                     <td>Per-partial vibrato</td>
                                 </tr>
                                 <tr>
@@ -143,8 +143,8 @@
                                     <td>A second envelope for letting go</td>
                                 </tr>
                                 <tr>
-                                    <td>AMP MOD rate, shape, depth</td>
-                                    <td>0.01 to 30 Hz, seven shapes, 0 to 100%</td>
+                                    <td>AMP MOD shape, rate, depth</td>
+                                    <td>Seven shapes, 0.01 to 30 Hz, 0 to 100%</td>
                                     <td>Per-partial tremolo</td>
                                 </tr>
                                 <tr>
@@ -216,7 +216,10 @@
                                 </tr>
                                 <tr>
                                     <td>Sample &amp; Hold</td>
-                                    <td>A new random value each cycle, held until the next</td>
+                                    <td>
+                                        A new random value each cycle, held until the next. On pitch, with the depth wide open, that is a run of
+                                        random notes anywhere within an octave either side
+                                    </td>
                                 </tr>
                                 <tr>
                                     <td>Random</td>
@@ -460,8 +463,10 @@
                     <p>
                         They read from the voice pool rather than from the knobs, so they describe a note rather than a setting and nothing pulses
                         over silence, and they follow the loudest voice on that partial, which is the one the meter follows. The needle's scale is
-                        fixed and the same on every strip, so two channels can be compared by eye. Full deflection is 225 cents, the widest the two
-                        controls can produce together.
+                        fixed and the same on every strip, so two channels can be compared by eye. Full deflection is 225 cents, which is a vibrato
+                        and a drift at full stretch rather than the widest the depth knob now reaches. A square set to jump an octave pegs it, which
+                        is the honest thing for a needle to do when it is off the end of its scale: scaled to the octave instead, an ordinary vibrato
+                        would not move it at all.
                     </p>
 
                     <h3>Meters</h3>

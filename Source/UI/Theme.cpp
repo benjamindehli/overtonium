@@ -41,8 +41,8 @@ constexpr int kRowHeights[kNumRows] = {
     16, // TuneText
     30, // Phase
     15, // PitchModHeading
-    30, // PmRate
     22, // PmShape
+    30, // PmRate
     30, // PmDepth
     30, // Drift
     15, // EnvHeading
@@ -56,8 +56,8 @@ constexpr int kRowHeights[kNumRows] = {
     30, // Release
     30, // Lift
     15, // AmpModHeading
-    30, // AmRate
     22, // AmShape
+    30, // AmRate
     30, // AmDepth
     15, // OutputHeading
     30, // Velocity
@@ -365,10 +365,10 @@ const char *rowLabel(Row r) {
     return "TUNE";
   case Row::PitchModHeading:
     return "PITCH MOD";
-  case Row::PmRate:
-    return "rate";
   case Row::PmShape:
     return "shape";
+  case Row::PmRate:
+    return "rate";
   case Row::PmDepth:
     return "depth";
   case Row::Phase:
@@ -405,10 +405,10 @@ const char *rowLabel(Row r) {
     return "aftertouch";
   case Row::Pan:
     return "pan";
-  case Row::AmRate:
-    return "rate";
   case Row::AmShape:
     return "shape";
+  case Row::AmRate:
+    return "rate";
   case Row::AmDepth:
     return "depth";
   case Row::MuteSolo:

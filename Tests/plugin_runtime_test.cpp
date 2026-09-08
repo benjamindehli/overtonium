@@ -787,6 +787,16 @@ void testActivityLamps(OvertoniumProcessor &p) {
           "the pitch modulation maximum matches its own knob (" +
               std::to_string(rangeEnd(ovt::params::pmDepthSuffix)) + ")");
 
+    // The needle is scaled for vibrato rather than for the octave a square can
+    // jump, which is the one deliberate disagreement between a readout and the
+    // control feeding it. What still has to hold is that the other wanderer
+    // cannot peg it on its own, or the lamp would be at the end all the time.
+    check(ovt::params::kPitchNeedleFullScaleCents > ovt::params::kMaxDriftCents,
+          "drift alone cannot peg the needle");
+    check(ovt::params::kPitchNeedleFullScaleCents <
+              ovt::params::kMaxPitchModCents,
+          "and the needle is scaled for vibrato, not for the widest jump");
+
     check(ovt::exactly(rangeEnd(ovt::params::driftSuffix),
                        ovt::params::kMaxDriftCents),
           "and so does the drift maximum (" +
@@ -796,12 +806,12 @@ void testActivityLamps(OvertoniumProcessor &p) {
           "an unmodulated partial sits dead centre");
 
     check(std::abs(ChannelStrip::needlePosition(
-                       ovt::params::kMaxPitchDisplacementCents) -
+                       ovt::params::kPitchNeedleFullScaleCents) -
                    1.0f) < 1.0e-6f,
           "both wanders at once put it exactly at the end");
 
     check(std::abs(ChannelStrip::needlePosition(
-                       -ovt::params::kMaxPitchDisplacementCents) +
+                       -ovt::params::kPitchNeedleFullScaleCents) +
                    1.0f) < 1.0e-6f,
           "and flat is the mirror of sharp");
 

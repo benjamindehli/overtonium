@@ -1200,7 +1200,7 @@ float ChannelStrip::needlePosition(float cents) {
   // What it does not do is normalise per strip, which is what this used to do
   // and why every channel ran to the edges whatever its depth. Two channels
   // can now be compared by eye, which is the point of a fixed scale.
-  const auto span = juce::jmax(1.0f, params::kMaxPitchDisplacementCents);
+  const auto span = juce::jmax(1.0f, params::kPitchNeedleFullScaleCents);
   const auto reach = juce::jlimit(-1.0f, 1.0f, cents / span);
 
   return reach < 0.0f ? -std::sqrt(-reach) : std::sqrt(reach);

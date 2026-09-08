@@ -339,7 +339,7 @@ public:
   /// Where a displacement sits on the needle's travel, -1 to 1.
   ///
   /// Fixed scale, not the strip's own: full deflection is always
-  /// params::kMaxPitchDisplacementCents, so a shallow setting stays near the
+  /// params::kPitchNeedleFullScaleCents, so a shallow setting stays near the
   /// middle instead of using the whole width like a deep one.
   static float needlePosition(float cents);
 
