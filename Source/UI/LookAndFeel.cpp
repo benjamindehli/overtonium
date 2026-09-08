@@ -116,7 +116,46 @@ namespace {
 /// and the wash is only there to join the lit label to the rest of its band.
 constexpr float kHoverWash = 0.035f;
 constexpr float kHoverEdge = 0.13f;
+
+/// How lit a display's ground is before anything is done to it.
+///
+/// A shade above the hover wash, because it has to carry the look on its own
+/// rather than joining a band that is already marked. Hovering adds its own on
+/// top of this, and the strip's column wash adds a third, so the pointer still
+/// has somewhere to go from here.
+constexpr float kDisplayWash = 0.055f;
+constexpr float kDisplayWashHover = 0.10f;
 } // namespace
+
+void paintDisplayGround(juce::Graphics &g, juce::Rectangle<float> area,
+                        float corner, bool hovered) {
+  g.setColour(colours::groove);
+  g.fillRoundedRectangle(area, corner);
+
+  g.setColour(colours::accent.withAlpha(hovered ? kDisplayWashHover
+                                                : kDisplayWash));
+  g.fillRoundedRectangle(area, corner);
+}
+
+void strokeGlowing(juce::Graphics &g, const juce::Path &path,
+                   juce::Colour colour, float thickness) {
+  struct Pass {
+    float width;
+    float alpha;
+  };
+
+  // Widest and faintest first, so each pass lands on the one before it.
+  const Pass passes[] = {{thickness * 3.2f, 0.10f},
+                         {thickness * 1.9f, 0.18f},
+                         {thickness, 1.0f}};
+
+  for (const auto &pass : passes) {
+    g.setColour(colour.withMultipliedAlpha(pass.alpha));
+    g.strokePath(path, juce::PathStrokeType(pass.width,
+                                            juce::PathStrokeType::curved,
+                                            juce::PathStrokeType::rounded));
+  }
+}
 
 void paintRowHighlight(juce::Graphics &g, juce::Rectangle<int> row) {
   const auto r = row.toFloat();

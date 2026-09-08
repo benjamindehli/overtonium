@@ -255,10 +255,10 @@ void SegmentDisplay::paint(juce::Graphics &g) {
   const auto off = on.withAlpha(hovered ? 0.20f : 0.12f);
   const auto lit = on.withAlpha(active ? 0.95f : 0.75f);
 
-  // A recess, so the readout sits in the panel rather than on it, and so the
-  // unlit bars have something to be dark against.
-  g.setColour(colours::groove);
-  g.fillRoundedRectangle(area, 2.5f);
+  // A screen rather than a recess. The unlit bars still have something dark to
+  // be dark against, but the ground itself is lit, which is what the strip's
+  // hover used to be the only thing providing.
+  paintDisplayGround(g, area, 2.5f, hovered);
 
   if (hovered) {
     g.setColour(colours::outline);

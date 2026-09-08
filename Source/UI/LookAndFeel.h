@@ -61,6 +61,25 @@ void paintRowHighlight(juce::Graphics &, juce::Rectangle<int> row);
 /// tells you at a glance that you are about to drag the decay of harmonic 19.
 void paintColumnHighlight(juce::Graphics &, juce::Rectangle<int> strip);
 
+/// The ground a lit readout sits on: the tuning digits and the shape glyph.
+///
+/// Not the plain groove the other recesses use. These two are screens rather
+/// than holes in the panel, and a screen is never quite off. The wash of
+/// accent under them is the tint the strip's hover used to be the only source
+/// of, which is where it came from: it looked right there, so it belongs there
+/// all the time. Hovering still lifts it further, so the pointer has somewhere
+/// to go.
+void paintDisplayGround(juce::Graphics &, juce::Rectangle<float> area,
+                        float corner, bool hovered);
+
+/// Strokes a path the way a phosphor screen shows one.
+///
+/// Three passes: a wide faint bloom, a narrower brighter one, then the trace
+/// itself. A line drawn once at full strength reads as ink on paper, and these
+/// are meant to read as something lit from behind.
+void strokeGlowing(juce::Graphics &, const juce::Path &, juce::Colour,
+                   float thickness);
+
 /// The product wordmark, for the corner of the bar.
 juce::Image logoWordmark();
 

@@ -1,5 +1,6 @@
 #include "ShapeButton.h"
 
+#include "LookAndFeel.h"
 #include "Theme.h"
 
 namespace ovt::ui {
@@ -114,9 +115,7 @@ void ShapeButton::drawShape(juce::Graphics &g, juce::Rectangle<float> area,
     break;
   }
 
-  g.setColour(colour);
-  g.strokePath(path, juce::PathStrokeType(1.4f, juce::PathStrokeType::curved,
-                                          juce::PathStrokeType::rounded));
+  strokeGlowing(g, path, colour, 1.3f);
 }
 
 ShapeButton::ShapeButton(juce::AudioProcessorValueTreeState &state,
@@ -151,13 +150,14 @@ juce::String ShapeButton::currentName() const {
 }
 
 void ShapeButton::paint(juce::Graphics &g) {
-  auto area = getLocalBounds().toFloat().reduced(3.0f, 2.0f);
+  const auto area = getLocalBounds().toFloat().reduced(3.0f, 2.0f);
 
-  g.setColour(colours::groove.withAlpha(hovered ? 0.9f : 0.55f));
-  g.fillRoundedRectangle(area, 2.0f);
+  paintDisplayGround(g, area, 2.0f, hovered);
 
+  // The same accent the tuning digits light up in, so the two displays on a
+  // strip read as the same kind of thing rather than as a screen and a label.
   drawShape(g, area.reduced(3.0f, 2.5f), selectedShape(),
-            hovered ? colours::text : colours::textDim);
+            colours::accent.withAlpha(hovered ? 1.0f : 0.88f));
 }
 
 void ShapeButton::mouseEnter(const juce::MouseEvent &) {
