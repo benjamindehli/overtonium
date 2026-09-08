@@ -22,6 +22,27 @@ constexpr double kNoiseTiltHz = 1000.0;
 /// Below this an envelope is silent, so restarting it costs nothing. The same
 /// figure the envelope itself calls the end of a release.
 constexpr float kSilent = 1.0e-5f;
+
+/// How far ahead the amplitude reads its shape, in turns.
+///
+/// A quarter, which is what turns Sine into the cosine the tremolo has always
+/// used: a note begins at full level and dips, rather than starting half
+/// attenuated. Every other shape takes the same quarter turn rather than each
+/// arguing for a starting point of its own.
+constexpr double kAmpShapeOffset = 0.25;
+
+/// What the tremolo leaves of the fader.
+///
+/// Only ever takes away. At the top of its travel the shape reads 1 and
+/// nothing is removed, at the bottom it reads -1 and the whole depth is, which
+/// is why the amplitude offers one square rather than two: there is no second
+/// direction for a unipolar one to go in.
+///
+/// Clamped because Random is a spline through its points and overshoots them
+/// by a few percent, which would otherwise lift a partial above its own fader.
+inline float tremoloGain(float shape, float depth) noexcept {
+  return std::clamp(1.0f - depth * 0.5f * (1.0f - shape), 0.0f, 1.0f);
+}
 } // namespace
 
 void Voice::setRenderRate(double newSampleRate) noexcept {
@@ -59,13 +80,14 @@ void Voice::reset() noexcept {
     pt.env.reset();
     pt.drift.reset();
     pt.phase = 0.0;
-    pt.pitchLfoPhase = 0.0;
-    pt.ampLfoPhase = 0.0;
+    pt.pitchLfo.reset();
+    pt.ampLfo.reset();
     pt.lastGain = 0.0f;
     pt.gainPrimed = false;
   }
 
   noise.env.reset();
+  noise.ampLfo.reset();
   noise.lowpassState = 0.0f;
   noise.lastGain = 0.0f;
   noise.gainPrimed = false;
@@ -147,8 +169,12 @@ void Voice::noteOn(int channel, int note, float velocity,
 
     if (fresh && p.global.phaseReset) {
       pt.phase = (double)std::clamp(op.startPhase, 0.0f, 1.0f);
-      pt.pitchLfoPhase = 0.0;
-      pt.ampLfoPhase = 0.0;
+
+      // Fresh points per note per partial, so the random shapes wander
+      // independently rather than all 32 tracing one contour, which is the
+      // same reason the drift draws its own.
+      pt.pitchLfo.restart(rng);
+      pt.ampLfo.restart(rng);
     }
 
     // The gain ramp restarts from whatever this partial's strip currently asks
@@ -177,6 +203,9 @@ void Voice::noteOn(int channel, int note, float velocity,
     const bool fresh = noise.env.getLevel() <= kSilent;
 
     noise.env.noteOn(fresh && p.global.phaseReset);
+
+    if (fresh && p.global.phaseReset)
+      noise.ampLfo.restart(noise.rng);
 
     if (fresh)
       noise.gainPrimed = false;
@@ -320,9 +349,15 @@ void Voice::render(float *left, float *right, int numSamples,
 
       // ---- pitch ------------------------------------------------------------
       const double pmPhaseInc = (double)op.pmRateHz / sampleRate;
+
+      // Read where the shape is now and step it at the end of the block, so
+      // the figure used is the one the block starts on. Which shape it is
+      // changes what comes out and nothing about the timing: the square ones
+      // land their edge on a block boundary, two thirds of a millisecond of
+      // grid, which no ear finds on a modulator running at a few hertz.
       const double pmCents =
           op.pmDepthCents > 0.0f
-              ? (double)(sine(pt.pitchLfoPhase) * op.pmDepthCents)
+              ? (double)(pt.pitchLfo.value(op.pmShape) * op.pmDepthCents)
               : 0.0;
 
       // Advanced unconditionally so that turning the knob up mid-note joins the
@@ -347,14 +382,18 @@ void Voice::render(float *left, float *right, int numSamples,
       // ---- amplitude --------------------------------------------------------
       const double amPhaseInc = (double)op.amRateHz / sampleRate;
 
-      float amEnd = 1.0f;
-      if (op.amDepth > 0.0f) {
-        // cos() so the tremolo starts at full level on note-on and dips
-        // downwards.
-        const double endPhase =
-            wrapPhase(pt.ampLfoPhase + amPhaseInc * (double)len);
-        amEnd = 1.0f - op.amDepth * 0.5f * (1.0f - sine.cosine(endPhase));
-      }
+      // Both ends of the block, because the gain ramps between them: where the
+      // shape is now, and where stepping it lands. That ramp is also what makes
+      // a square edge survivable here. The level does not jump, it slides
+      // across the block, which at 32 samples is a couple of thirds of a
+      // millisecond and reads as an edge rather than as a click.
+      const float amStart =
+          tremoloGain(pt.ampLfo.value(op.amShape, kAmpShapeOffset), op.amDepth);
+
+      const float amEnd = tremoloGain(
+          pt.ampLfo.advance(rng, amPhaseInc * (double)len, op.amShape,
+                            kAmpShapeOffset),
+          op.amDepth);
 
       const float nyq = foldAliases ? 1.0f : nyquistGain(freq, sampleRate);
 
@@ -372,11 +411,6 @@ void Voice::render(float *left, float *right, int numSamples,
       const float gEnd = base * amEnd;
 
       if (!pt.gainPrimed) {
-        float amStart = 1.0f;
-        if (op.amDepth > 0.0f)
-          amStart =
-              1.0f - op.amDepth * 0.5f * (1.0f - sine.cosine(pt.ampLfoPhase));
-
         pt.lastGain = base * amStart;
         pt.gainPrimed = true;
       }
@@ -387,8 +421,11 @@ void Voice::render(float *left, float *right, int numSamples,
       float g = pt.lastGain;
       const float gInc = (gEnd - g) / (float)len;
 
-      pt.pitchLfoPhase = wrapPhase(pt.pitchLfoPhase + pmPhaseInc * (double)len);
-      pt.ampLfoPhase = wrapPhase(pt.ampLfoPhase + amPhaseInc * (double)len);
+      // Stepped whatever the depth says, so turning the knob up mid-note joins
+      // the motion already under way instead of starting it again. The
+      // amplitude was stepped above, where its value was needed.
+      pt.pitchLfo.advance(rng, pmPhaseInc * (double)len, op.pmShape);
+
       pt.lastGain = gEnd;
 
       // One multiply and one compare per partial per control block. Both terms
@@ -475,12 +512,15 @@ void Voice::renderNoise(float *left, float *right, int len,
 
   const double amPhaseInc = (double)np.amRateHz / sampleRate;
 
-  float amEnd = 1.0f;
-  if (np.amDepth > 0.0f) {
-    const double endPhase = wrapPhase(noiseAmPhase + amPhaseInc * (double)len);
-    amEnd = 1.0f -
-            np.amDepth * 0.5f * (1.0f - SineTable::instance().cosine(endPhase));
-  }
+  // The same two reads the partials take, for the same reason: the gain ramps
+  // between them across the block.
+  const float amStart =
+      tremoloGain(noise.ampLfo.value(np.amShape, kAmpShapeOffset), np.amDepth);
+
+  const float amEnd = tremoloGain(
+      noise.ampLfo.advance(noise.rng, amPhaseInc * (double)len, np.amShape,
+                           kAmpShapeOffset),
+      np.amDepth);
 
   const float level =
       std::clamp(np.volume * noise.velGain +
@@ -489,14 +529,13 @@ void Voice::renderNoise(float *left, float *right, int len,
   const float gEnd = (np.audible ? level : 0.0f) * amEnd;
 
   if (!noise.gainPrimed) {
-    noise.lastGain = np.audible ? level : 0.0f;
+    noise.lastGain = (np.audible ? level : 0.0f) * amStart;
     noise.gainPrimed = true;
   }
 
   float g = noise.lastGain;
   const float gInc = (gEnd - g) / (float)len;
 
-  noiseAmPhase = wrapPhase(noiseAmPhase + amPhaseInc * (double)len);
   noise.lastGain = gEnd;
 
   noisePeak = std::max(noisePeak, noise.env.getLevel() * gEnd);

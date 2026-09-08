@@ -18,13 +18,20 @@ const juce::Colour kNoiseColour{0xff9aa4b0};
 NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
                        HoverTarget &hoverTarget, juce::Component &popupParent)
     : apvts(state), hover(hoverTarget), popupHost(popupParent),
-      colour(kNoiseColour), muteButton(state, "M"), soloButton(state, "S"),
+      colour(kNoiseColour),
+      amShape(state, params::noiseParamId(params::amShapeSuffix),
+              params::amShapeSuffix, params::kAmpShapes,
+              params::ampShapeNames()),
+      muteButton(state, "M"), soloButton(state, "S"),
       meter(kNoiseColour), envLamp(kNoiseColour), keyOffLamp(kNoiseColour),
       tremoloLamp(kNoiseColour) {
   for (auto *lamp : {&envLamp, &keyOffLamp, &tremoloLamp})
     addAndMakeVisible(*lamp);
 
   addMouseListener(this, true);
+
+  addAndMakeVisible(amShape);
+  amShape.setTitle("Noise amp mod shape");
 
   setUpKnob(colourKnob, params::colourSuffix, colour,
             "Tilts the noise from dark rumble through flat to bright hiss");
@@ -326,6 +333,7 @@ void NoiseStrip::resized() {
   placeRow(release, Row::Release, 1);
   placeRow(lift, Row::Lift, 1);
   placeRow(amRate, Row::AmRate, 1);
+  placeRow(amShape, Row::AmShape, 0);
   placeRow(amDepth, Row::AmDepth, 1);
   placeRow(velocity, Row::Velocity, 1);
   placeRow(aftertouch, Row::Aftertouch, 1);

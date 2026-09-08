@@ -42,6 +42,7 @@ constexpr int kRowHeights[kNumRows] = {
     30, // Phase
     15, // PitchModHeading
     30, // PmRate
+    22, // PmShape
     30, // PmDepth
     30, // Drift
     15, // EnvHeading
@@ -56,6 +57,7 @@ constexpr int kRowHeights[kNumRows] = {
     30, // Lift
     15, // AmpModHeading
     30, // AmRate
+    22, // AmShape
     30, // AmDepth
     15, // OutputHeading
     30, // Velocity
@@ -103,6 +105,7 @@ Section sectionOf(Row r) {
   switch (r) {
   case Row::PitchModHeading:
   case Row::PmRate:
+  case Row::PmShape:
   case Row::PmDepth:
   case Row::Drift:
     return Section::PitchMod;
@@ -123,6 +126,7 @@ Section sectionOf(Row r) {
 
   case Row::AmpModHeading:
   case Row::AmRate:
+  case Row::AmShape:
   case Row::AmDepth:
     return Section::AmpMod;
 
@@ -215,6 +219,7 @@ bool rowHasControl(Row r) {
   case Row::TuneKnob:
   case Row::Phase:
   case Row::PmRate:
+  case Row::PmShape:
   case Row::PmDepth:
   case Row::Drift:
   case Row::Delay:
@@ -226,6 +231,7 @@ bool rowHasControl(Row r) {
   case Row::Release:
   case Row::Lift:
   case Row::AmRate:
+  case Row::AmShape:
   case Row::AmDepth:
   case Row::Velocity:
   case Row::Aftertouch:
@@ -361,6 +367,8 @@ const char *rowLabel(Row r) {
     return "PITCH MOD";
   case Row::PmRate:
     return "rate";
+  case Row::PmShape:
+    return "shape";
   case Row::PmDepth:
     return "depth";
   case Row::Phase:
@@ -399,6 +407,8 @@ const char *rowLabel(Row r) {
     return "pan";
   case Row::AmRate:
     return "rate";
+  case Row::AmShape:
+    return "shape";
   case Row::AmDepth:
     return "depth";
   case Row::MuteSolo:
@@ -693,6 +703,14 @@ const char *roleSuffix(Role r) {
 
 bool roleForRow(Row r, Role &out) {
   switch (r) {
+  // The shape rows deliberately have none. LINK drags a value across the
+  // series by a weighted curve, and there is no weighting a list of named
+  // shapes: half a sawtooth is not a shape. Setting them all at once is
+  // offered by the shape menu itself instead.
+  case Row::PmShape:
+  case Row::AmShape:
+    return false;
+
   case Row::TuneKnob:
     out = Role::Tune;
     return true;

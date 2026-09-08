@@ -3,6 +3,7 @@
 #include <array>
 
 #include "Harmonics.h"
+#include "Lfo.h"
 #include "Temperament.h"
 
 namespace ovt {
@@ -31,6 +32,7 @@ struct OscParams {
   /// setting. A quarter turn starts it at the peak instead.
   float startPhase = 0.0f;
   float pmRateHz = 4.0f;
+  LfoShape pmShape = LfoShape::Sine;
   float pmDepthCents = 0.0f;
   /// Depth of the smooth random pitch wander, in cents. Each partial of each
   /// note gets its own rate, so nothing ever locks together.
@@ -56,6 +58,7 @@ struct OscParams {
   /// release entirely, which is what it did before it had this.
   float liftAmount = 0.0f;
   float amRateHz = 4.0f;
+  LfoShape amShape = LfoShape::Sine;
   float amDepth = 0.0f; ///< 0..1 tremolo depth
   /// How strongly key velocity scales this partial, -1 to 1. Positive means
   /// harder is louder, the way most acoustic instruments behave. Negative
@@ -95,6 +98,7 @@ struct NoiseParams {
   float release = 0.400f;
   float liftAmount = 0.0f;
   float amRateHz = 4.0f;
+  LfoShape amShape = LfoShape::Sine;
   float amDepth = 0.0f;
   float velAmount = 0.7f;
   float atAmount = 0.0f;

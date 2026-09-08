@@ -3187,6 +3187,184 @@ void testNoiseChannel() {
   }
 }
 
+/// Every shape a modulator can be set to, checked against its own definition.
+///
+/// The values are the shape, not an approximation of it, so they are asserted
+/// exactly where they are exact. What matters most here is the last block: the
+/// amplitude reads a quarter turn ahead, which is what keeps Sine the cosine
+/// the tremolo has always been. Get that wrong and every preset with a tremolo
+/// on it starts in a different place.
+void testLfoShapes() {
+  section("LFO shapes");
+
+  const auto at = [](LfoShape shape, double turns, double offset = 0.0) {
+    Xorshift rng(1);
+    Lfo lfo;
+    lfo.advance(rng, turns, shape, offset);
+    return lfo.value(shape, offset);
+  };
+
+  const auto near = [](float a, float b) { return std::abs(a - b) < 1.0e-4f; };
+
+  check(near(at(LfoShape::Sine, 0.0), 0.0f) &&
+            near(at(LfoShape::Sine, 0.25), 1.0f) &&
+            near(at(LfoShape::Sine, 0.75), -1.0f),
+        "sine rises from zero, peaks at a quarter and troughs at three");
+
+  check(near(at(LfoShape::Triangle, 0.0), 0.0f) &&
+            near(at(LfoShape::Triangle, 0.125), 0.5f) &&
+            near(at(LfoShape::Triangle, 0.25), 1.0f) &&
+            near(at(LfoShape::Triangle, 0.75), -1.0f),
+        "the triangle is straight between its corners");
+
+  check(near(at(LfoShape::Sawtooth, 0.0), -1.0f) &&
+            near(at(LfoShape::Sawtooth, 0.5), 0.0f),
+        "the sawtooth climbs from the bottom");
+  check(near(at(LfoShape::ReverseSawtooth, 0.0), 1.0f) &&
+            near(at(LfoShape::ReverseSawtooth, 0.5), 0.0f),
+        "and the reverse one falls from the top");
+
+  check(near(at(LfoShape::BipolarSquare, 0.25), 1.0f) &&
+            near(at(LfoShape::BipolarSquare, 0.75), -1.0f),
+        "the bipolar square goes the same distance either side");
+  check(near(at(LfoShape::UnipolarSquare, 0.25), 1.0f) &&
+            near(at(LfoShape::UnipolarSquare, 0.75), 0.0f),
+        "and the unipolar one only ever adds");
+
+  // The whole turn, since a shape that is right at four points can still be
+  // wrong between them.
+  for (int s = 0; s < 6; ++s) {
+    const auto shape = (LfoShape)s;
+
+    Xorshift rng(7);
+    Lfo lfo;
+    float lo = 2.0f, hi = -2.0f;
+
+    for (int i = 0; i < 4096; ++i) {
+      const auto v = lfo.advance(rng, 1.0 / 4096.0, shape);
+      lo = std::min(lo, v);
+      hi = std::max(hi, v);
+    }
+
+    const auto floorFor = shape == LfoShape::UnipolarSquare ? 0.0f : -1.0f;
+
+    check(hi <= 1.0001f && lo >= floorFor - 0.0001f,
+          "shape " + std::to_string(s) + " stays inside its range (" +
+              std::to_string(lo) + " to " + std::to_string(hi) + ")");
+  }
+
+  // What every preset written before shapes existed depends on.
+  check(near(at(LfoShape::Sine, 0.0, 0.25), 1.0f),
+        "read a quarter turn ahead, sine is the cosine the tremolo has always "
+        "used, so a note still begins at full level and dips");
+
+  // Sample and hold and the smooth random draw the same points, one stepping
+  // between them and one gliding.
+  {
+    Xorshift a(42), b(42);
+    Lfo stepped, glided;
+    stepped.restart(a);
+    glided.restart(b);
+
+    bool held = true;
+    bool moved = false;
+    float last = stepped.value(LfoShape::SampleAndHold);
+
+    for (int i = 0; i < 24; ++i) {
+      const auto s1 = stepped.advance(a, 0.1, LfoShape::SampleAndHold);
+      const auto s2 = glided.advance(b, 0.1, LfoShape::Random);
+
+      // The stepped one only ever sits on a value it has been given.
+      if (std::abs(s1 - last) > 0.0f) {
+        last = s1;
+        moved = true;
+      }
+
+      if (std::abs(s2) > 1.25f)
+        held = false;
+    }
+
+    check(moved, "sample and hold does move on");
+    check(held, "and the smooth one stays near its points");
+  }
+}
+
+/// No shape puts a step in the output, the square ones included.
+///
+/// This is the thing worth checking about square and stepped modulators, and
+/// the reason they are affordable here at all: the gain already ramps across a
+/// control block, so an edge arrives as a slew of two thirds of a millisecond
+/// rather than as a jump. Measured against the slope of the tone itself, which
+/// is what a continuous waveform is allowed to move by in one sample.
+void testEveryAmpShapeIsClickFree() {
+  section("Every tremolo shape is click free");
+
+  constexpr double sr = 48000.0;
+
+  float worst = 0.0f;
+  int worstShape = -1;
+  float aboveFader = 0.0f;
+
+  for (int s = 0; s < kNumLfoShapes; ++s) {
+    SynthEngine engine;
+    engine.prepare(sr);
+    engine.setPolyphony(8);
+
+    auto p = makeFlatParams(0.0f);
+    for (auto &o : p.osc)
+      o.audible = false;
+
+    p.osc[0].audible = true;
+    p.osc[0].volume = 1.0f;
+    p.osc[0].amRateHz = 6.0f;
+    p.osc[0].amDepth = 1.0f; // the whole way down, so an edge is full size
+    p.osc[0].amShape = (LfoShape)s;
+
+    engine.noteOn(45, 1.0f, p);
+
+    std::vector<float> out;
+    for (int b = 0; b < 100; ++b) {
+      std::vector<float> l(512, 0.0f), r(512, 0.0f);
+      engine.render(l.data(), r.data(), 512, p);
+      out.insert(out.end(), l.begin(), l.end());
+    }
+
+    // Past the attack, so the note arriving is not counted as an edge.
+    const size_t from = (size_t)(0.1 * sr);
+    float step = 0.0f, peak = 0.0f;
+
+    for (size_t n = from + 1; n < out.size(); ++n) {
+      step = std::max(step, std::abs(out[n] - out[n - 1]));
+      peak = std::max(peak, std::abs(out[n]));
+    }
+
+    const auto slope =
+        (float)(2.0 * 3.14159265358979324 * 110.0 / sr) * std::max(peak, 1e-9f);
+
+    if (step / slope > worst) {
+      worst = step / slope;
+      worstShape = s;
+    }
+
+    // The tremolo only ever takes away, so nothing may come out louder than
+    // the partial's own fader. Random is a spline and overshoots its points,
+    // which is exactly what the clamp is there for.
+    aboveFader = std::max(aboveFader, peak);
+  }
+
+  std::printf("  worst step is %.2f times the waveform's own slope, on shape "
+              "%d\n",
+              worst, worstShape);
+
+  check(worst < 3.0f,
+        "no shape steps more than the tone does by itself (" +
+            std::to_string(worst) + " times)");
+
+  check(aboveFader <= 1.0f,
+        "and none of them lifts a partial above its fader (" +
+            std::to_string(aboveFader) + ")");
+}
+
 void testModulation() {
   section("Pitch and amplitude modulation");
 
@@ -4437,6 +4615,8 @@ int main() {
   testPerNoteChannels();
   testActivity();
   testPoolExhaustion();
+  testLfoShapes();
+  testEveryAmpShapeIsClickFree();
   testModulation();
   testPerPartialVelocity();
   testPanning();

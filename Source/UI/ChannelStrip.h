@@ -7,6 +7,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "MuteSoloButton.h"
+#include "ShapeButton.h"
 #include "Theme.h"
 
 namespace ovt::ui {
@@ -394,6 +395,10 @@ private:
       sustain, swell, offLevel, release, lift, amRate, amDepth, velocity,
       aftertouch, pan,
       volume;
+  /// What each modulator traces. A glyph rather than a knob, since eight
+  /// named shapes are a list and not a range.
+  ShapeButton pmShape, amShape;
+
   MuteSoloButton muteButton, soloButton;
   /// No unit on either: the gutter caption beside them already says cents and
   /// dB, and twenty-one pixels of "ct" would leave the digits nothing.

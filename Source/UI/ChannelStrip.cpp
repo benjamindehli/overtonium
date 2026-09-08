@@ -642,6 +642,12 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
     : apvts(state), link(linkTarget), hover(hoverTarget),
       popupHost(popupParent), index(index0), info(harmonic(index0)),
       colour(intervalColour(harmonic(index0).pitchClass)),
+      pmShape(state, params::oscParamId(params::pmShapeSuffix, index0),
+              params::pmShapeSuffix, params::kPitchShapes,
+              params::pitchShapeNames()),
+      amShape(state, params::oscParamId(params::amShapeSuffix, index0),
+              params::amShapeSuffix, params::kAmpShapes,
+              params::ampShapeNames()),
       muteButton(state, "M"), soloButton(state, "S"), meter(colour),
       pitchLamp(colour), envLamp(colour), keyOffLamp(colour),
       tremoloLamp(colour) {
@@ -667,6 +673,14 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   // flat grey the colour is the only thing separating a channel from its
   // neighbours, and holding it back on nineteen knobs out of twenty was
   // spending the one thing that was working.
+  for (auto *shape : {&pmShape, &amShape})
+    addAndMakeVisible(*shape);
+
+  pmShape.setTitle("Harmonic " + juce::String(info.harmonic) +
+                   " pitch mod shape");
+  amShape.setTitle("Harmonic " + juce::String(info.harmonic) +
+                   " amp mod shape");
+
   setUpKnob(tune, Role::Tune, colour);
   setUpKnob(pmRate, Role::PmRate, colour);
   setUpKnob(pmDepth, Role::PmDepth, colour);
@@ -1095,6 +1109,7 @@ void ChannelStrip::resized() {
   placeRow(tune, Row::TuneKnob, 0);
   placeRow(tuneReadout, Row::TuneText, 0);
   placeRow(pmRate, Row::PmRate, 1);
+  placeRow(pmShape, Row::PmShape, 0);
   placeRow(pmDepth, Row::PmDepth, 1);
   placeRow(phase, Row::Phase, 1);
   placeRow(drift, Row::Drift, 1);
@@ -1107,6 +1122,7 @@ void ChannelStrip::resized() {
   placeRow(release, Row::Release, 1);
   placeRow(lift, Row::Lift, 1);
   placeRow(amRate, Row::AmRate, 1);
+  placeRow(amShape, Row::AmShape, 0);
   placeRow(amDepth, Row::AmDepth, 1);
   placeRow(velocity, Row::Velocity, 1);
   placeRow(aftertouch, Row::Aftertouch, 1);

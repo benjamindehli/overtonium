@@ -31,7 +31,7 @@ Written in C++ with JUCE 8 by Benjamin Dehli for Dehli Musikk. Hosts list it und
 - Platforms: macOS as a universal binary for Apple Silicon and Intel, Windows, Linux.
 - Licence: GNU Affero General Public License v3, which follows from JUCE.
 - Price: free, and free software rather than only free of charge.
-- Partials: 32 sine oscillators plus a noise channel, each with its own tuning, envelope, key-off envelope, tremolo, pitch modulation, drift, velocity and pressure amounts, pan, mute, solo and fader.
+- Partials: 32 sine oscillators plus a noise channel, each with its own tuning, envelope, key-off envelope, tremolo, pitch modulation, drift, velocity and pressure amounts, pan, mute, solo and fader. Both modulators pick a waveform per channel: sine, triangle, sawtooth, reverse sawtooth, square, sample and hold, or a smooth random glide, with pitch also offering a unipolar square that only bends upward.
 - Tuning: a continuous blend from equal temperament to just intonation, inharmonic stretch, keyboard tracking, and six keyboard temperaments (equal, just, Pythagorean, quarter-comma meantone, Werckmeister III, Young).
 - Effects: a tape echo, a feedback delay network reverb, a wobble across the whole series, and a converter that reduces render rate and bit depth.
 - MPE: pitch bend and pressure per note, with the slide axis routable to brightness or tuning.

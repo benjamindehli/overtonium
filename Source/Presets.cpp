@@ -59,6 +59,7 @@ struct Applier {
     allOsc(params::tuneSuffix, [](int) { return 1.0; });
     allOsc(params::phaseSuffix, [](int) { return 0.0; });
     allOsc(params::pmRateSuffix, [](int) { return 4.0; });
+    allOsc(params::pmShapeSuffix, [](int) { return 0.0; });
     allOsc(params::pmDepthSuffix, [](int) { return 0.0; });
     allOsc(params::driftSuffix, [](int) { return 0.0; });
     allOsc(params::delaySuffix, [](int) { return 0.0; });
@@ -70,6 +71,7 @@ struct Applier {
     allOsc(params::releaseSuffix, [](int) { return 0.4; });
     allOsc(params::liftSuffix, [](int) { return 0.0; });
     allOsc(params::amRateSuffix, [](int) { return 4.0; });
+    allOsc(params::amShapeSuffix, [](int) { return 0.0; });
     allOsc(params::amDepthSuffix, [](int) { return 0.0; });
     allOsc(params::velSuffix, [](int) { return 0.7; });
     allOsc(params::atSuffix, [](int) { return 0.0; });
@@ -91,6 +93,7 @@ struct Applier {
     set(params::noiseParamId(params::releaseSuffix), 0.4f);
     set(params::noiseParamId(params::liftSuffix), 0.0f);
     set(params::noiseParamId(params::amRateSuffix), 4.0f);
+    set(params::noiseParamId(params::amShapeSuffix), 0.0f);
     set(params::noiseParamId(params::amDepthSuffix), 0.0f);
     set(params::noiseParamId(params::velSuffix), 0.7f);
     set(params::noiseParamId(params::atSuffix), 0.0f);

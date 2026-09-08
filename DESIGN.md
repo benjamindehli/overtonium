@@ -120,6 +120,20 @@ Equal temperament at 440 is bit for bit what it was before, which the tests chec
 
 None of the three travels with a preset. A temperament is a property of the music you are playing rather than of any one sound in it: you set it once and work, and having a patch drag you back to equal in the middle of that would be no help. Init included, since Init is still a preset and clears the patch rather than the session.
 
+### The shape a modulator traces
+
+Both per-partial modulators pick a shape as well as a rate and a depth. Pitch offers eight, amplitude seven, and each of the thirty-three channels carries its own, which is the point: gating the fifth partial while the fourth breathes is not something one global LFO could do.
+
+Two of the eight cost almost nothing. The smooth random contour already existed as DRIFT, drawn as a Catmull-Rom spline through random points, and sample and hold is the same points read without the interpolation. They now share one implementation, so the two cannot come to disagree about what random-but-smooth sounds like.
+
+The square and stepped shapes are affordable because of where modulation already happens. Every modulator is stepped once per 32-sample control block, and the gain a partial is given slides linearly across that block rather than jumping to it. An edge therefore arrives as a slew of about two thirds of a millisecond: short enough to read as an edge, long enough not to tick. Measured, the worst sample-to-sample step across every shape at full depth is 2.2 times the slope of the tone itself, against a threshold of 3 that the click tests already used.
+
+Amplitude gets seven rather than eight because a tremolo only ever comes down from the fader. There is nowhere for a unipolar shape to go that a bipolar one does not already reach, so that side has one square and it gates the whole depth. Everything on that side is also read a quarter turn ahead, which is what keeps Sine the cosine the tremolo has always been: a note begins at full level and dips. Without that, every preset carrying a tremolo would have started somewhere new.
+
+Random is a spline through its points and overshoots them by a few percent, so the amplitude clamps. Otherwise the one shape that is meant to duck a partial could briefly lift it above its own fader.
+
+LINK does not reach the shapes. It drags a value across the series along a weighted curve, and half a sawtooth is not a shape. The shape menu offers to set every channel at once instead, which is the same intent by the only means that makes sense for a list.
+
 ### Stretch
 
 TUNE decides how the series is spelled. STRETCH decides whether it is a series at all.

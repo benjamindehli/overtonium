@@ -2,6 +2,8 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include <array>
+
 #include "dsp/Params.h"
 
 namespace ovt::params {
@@ -43,6 +45,7 @@ inline constexpr const char *reverbPreDelayId = "reverbPreDelay";
 inline constexpr const char *tuneSuffix = "tune";
 inline constexpr const char *pmRateSuffix = "pmRate";
 inline constexpr const char *pmDepthSuffix = "pmDepth";
+inline constexpr const char *pmShapeSuffix = "pmShape";
 inline constexpr const char *phaseSuffix = "phase";
 inline constexpr const char *driftSuffix = "drift";
 inline constexpr const char *delaySuffix = "delay";
@@ -54,6 +57,7 @@ inline constexpr const char *offLevelSuffix = "offLevel";
 inline constexpr const char *releaseSuffix = "release";
 inline constexpr const char *amRateSuffix = "amRate";
 inline constexpr const char *amDepthSuffix = "amDepth";
+inline constexpr const char *amShapeSuffix = "amShape";
 inline constexpr const char *liftSuffix = "lift";
 inline constexpr const char *velSuffix = "vel";
 inline constexpr const char *atSuffix = "aftertouch";
@@ -61,6 +65,37 @@ inline constexpr const char *muteSuffix = "mute";
 inline constexpr const char *soloSuffix = "solo";
 inline constexpr const char *volumeSuffix = "volume";
 inline constexpr const char *panSuffix = "pan";
+
+/// What each modulation destination offers, in the order its parameter stores.
+///
+/// Two lists rather than one, because the destinations are not symmetrical.
+/// Pitch can be pushed either side of the note, so both squares mean something
+/// there. Amplitude only ever comes down from the fader, so a unipolar square
+/// would reach nowhere a bipolar one does not, and it offers one square that
+/// gates the whole depth.
+///
+/// Order is storage, not presentation: an index travels in every preset and
+/// every session, so entries are appended and never inserted or removed.
+inline const std::array<LfoShape, 8> kPitchShapes{
+    LfoShape::Sine,           LfoShape::Triangle,
+    LfoShape::Sawtooth,       LfoShape::ReverseSawtooth,
+    LfoShape::BipolarSquare,  LfoShape::UnipolarSquare,
+    LfoShape::SampleAndHold,  LfoShape::Random};
+
+inline const std::array<LfoShape, 7> kAmpShapes{
+    LfoShape::Sine,          LfoShape::Triangle,
+    LfoShape::Sawtooth,      LfoShape::ReverseSawtooth,
+    LfoShape::BipolarSquare, LfoShape::SampleAndHold,
+    LfoShape::Random};
+
+/// What the menus call them. Indexed the same as the lists above.
+juce::StringArray pitchShapeNames();
+juce::StringArray ampShapeNames();
+
+/// The shape a stored index means, clamped, so a file written by a later build
+/// that knows more shapes lands on one this build has rather than out of range.
+LfoShape pitchShapeAt(int index);
+LfoShape ampShapeAt(int index);
 
 /// "h07_tune" for index0 == 6. Zero-padded so the IDs sort naturally.
 juce::String oscParamId(const char *suffix, int index0);
@@ -98,6 +133,7 @@ struct Cache {
     std::atomic<float> *tune = nullptr;
     std::atomic<float> *pmRate = nullptr;
     std::atomic<float> *pmDepth = nullptr;
+    std::atomic<float> *pmShape = nullptr;
     std::atomic<float> *phase = nullptr;
     std::atomic<float> *drift = nullptr;
     std::atomic<float> *delay = nullptr;
@@ -109,6 +145,7 @@ struct Cache {
     std::atomic<float> *release = nullptr;
     std::atomic<float> *amRate = nullptr;
     std::atomic<float> *amDepth = nullptr;
+    std::atomic<float> *amShape = nullptr;
     std::atomic<float> *lift = nullptr;
     std::atomic<float> *vel = nullptr;
     std::atomic<float> *at = nullptr;
@@ -131,6 +168,7 @@ struct Cache {
     std::atomic<float> *release = nullptr;
     std::atomic<float> *amRate = nullptr;
     std::atomic<float> *amDepth = nullptr;
+    std::atomic<float> *amShape = nullptr;
     std::atomic<float> *lift = nullptr;
     std::atomic<float> *vel = nullptr;
     std::atomic<float> *at = nullptr;

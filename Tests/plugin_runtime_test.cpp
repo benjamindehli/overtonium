@@ -97,10 +97,11 @@ juce::MidiBuffer noteOnAt(int note, float velocity, int sample) {
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
-  // 21 per partial, 17 global, 17 for the noise channel, 10 for the two master
-  // effects. Start phase is not among the noise channel's, since noise has no
-  // phase to start at.
-  const int expected = ovt::kNumHarmonics * 21 + 17 + 17 + 10;
+  // 23 per partial, 17 global, 18 for the noise channel, 10 for the two master
+  // effects. Start phase and the whole pitch modulator are not among the noise
+  // channel's, since noise has no pitch: it takes the amp mod shape and not
+  // the pitch one, which is why the two counts differ by more than one.
+  const int expected = ovt::kNumHarmonics * 23 + 17 + 18 + 10;
 
   // The behaviour that was there before it became a choice. Asked of the
   // parameter rather than of the tree, so the answer does not depend on what

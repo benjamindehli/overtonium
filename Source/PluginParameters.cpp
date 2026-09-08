@@ -317,6 +317,35 @@ float defaultVolumeFor(int index0) {
   return 1.0f / (float)(index0 + 1);
 }
 
+namespace {
+/// One name per entry of the list beside it, in the same order.
+const char *const kShapeNames[kNumLfoShapes] = {
+    "Sine",     "Triangle",      "Sawtooth",       "Reverse Sawtooth",
+    "Square",   "Square (up)",   "Sample & Hold",  "Random"};
+
+template <size_t N>
+juce::StringArray namesOf(const std::array<LfoShape, N> &shapes) {
+  juce::StringArray out;
+
+  for (auto shape : shapes)
+    out.add(kShapeNames[(int)shape]);
+
+  return out;
+}
+} // namespace
+
+juce::StringArray pitchShapeNames() { return namesOf(kPitchShapes); }
+juce::StringArray ampShapeNames() { return namesOf(kAmpShapes); }
+
+LfoShape pitchShapeAt(int index) {
+  return kPitchShapes[(size_t)juce::jlimit(0, (int)kPitchShapes.size() - 1,
+                                           index)];
+}
+
+LfoShape ampShapeAt(int index) {
+  return kAmpShapes[(size_t)juce::jlimit(0, (int)kAmpShapes.size() - 1, index)];
+}
+
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   using Layout = juce::AudioProcessorValueTreeState::ParameterLayout;
   using FloatP = juce::AudioParameterFloat;
@@ -496,6 +525,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         0.0f,
         FAttr().withLabel("ct")));
 
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{oscParamId(pmShapeSuffix, i), 1},
+        p + "Pitch Mod Shape", pitchShapeNames(), 0));
+
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(phaseSuffix, i), 1}, p + "Start Phase",
         juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f,
@@ -554,6 +587,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::ParameterID{oscParamId(amDepthSuffix, i), 1}, p + "Amp Mod Depth",
         juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f,
         FAttr().withStringFromValueFunction(percentText)));
+
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{oscParamId(amShapeSuffix, i), 1}, p + "Amp Mod Shape",
+        ampShapeNames(), 0));
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(velSuffix, i), 1}, p + "Velocity",
@@ -634,6 +671,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f,
       FAttr().withStringFromValueFunction(percentText)));
 
+  layout.add(std::make_unique<juce::AudioParameterChoice>(
+      juce::ParameterID{noiseParamId(amShapeSuffix), 1}, "Noise Amp Mod Shape",
+      ampShapeNames(), 0));
+
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{noiseParamId(liftSuffix), 1}, "Noise Release Velocity",
       juce::NormalisableRange<float>(-1.0f, 1.0f), 0.0f,
@@ -707,6 +748,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
     o.phase = apvts.getRawParameterValue(oscParamId(phaseSuffix, i));
     o.pmRate = apvts.getRawParameterValue(oscParamId(pmRateSuffix, i));
     o.pmDepth = apvts.getRawParameterValue(oscParamId(pmDepthSuffix, i));
+    o.pmShape = apvts.getRawParameterValue(oscParamId(pmShapeSuffix, i));
     o.drift = apvts.getRawParameterValue(oscParamId(driftSuffix, i));
     o.delay = apvts.getRawParameterValue(oscParamId(delaySuffix, i));
     o.attack = apvts.getRawParameterValue(oscParamId(attackSuffix, i));
@@ -717,6 +759,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
     o.release = apvts.getRawParameterValue(oscParamId(releaseSuffix, i));
     o.amRate = apvts.getRawParameterValue(oscParamId(amRateSuffix, i));
     o.amDepth = apvts.getRawParameterValue(oscParamId(amDepthSuffix, i));
+    o.amShape = apvts.getRawParameterValue(oscParamId(amShapeSuffix, i));
     o.lift = apvts.getRawParameterValue(oscParamId(liftSuffix, i));
     o.vel = apvts.getRawParameterValue(oscParamId(velSuffix, i));
     o.at = apvts.getRawParameterValue(oscParamId(atSuffix, i));
@@ -738,6 +781,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   noise.release = apvts.getRawParameterValue(noiseParamId(releaseSuffix));
   noise.amRate = apvts.getRawParameterValue(noiseParamId(amRateSuffix));
   noise.amDepth = apvts.getRawParameterValue(noiseParamId(amDepthSuffix));
+  noise.amShape = apvts.getRawParameterValue(noiseParamId(amShapeSuffix));
   noise.lift = apvts.getRawParameterValue(noiseParamId(liftSuffix));
   noise.vel = apvts.getRawParameterValue(noiseParamId(velSuffix));
   noise.at = apvts.getRawParameterValue(noiseParamId(atSuffix));
@@ -790,6 +834,7 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
 
     o.tuneBlend = c.tune->load();
     o.pmRateHz = c.pmRate->load();
+    o.pmShape = pitchShapeAt((int)c.pmShape->load());
     o.pmDepthCents = c.pmDepth->load();
     o.startPhase = c.phase->load();
     o.driftCents = c.drift->load();
@@ -801,6 +846,7 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     o.offLevel = c.offLevel->load();
     o.release = c.release->load();
     o.amRateHz = c.amRate->load();
+    o.amShape = ampShapeAt((int)c.amShape->load());
     o.amDepth = c.amDepth->load();
     o.liftAmount = c.lift->load();
     o.velAmount = c.vel->load();
@@ -827,6 +873,7 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     n.offLevel = noise.offLevel->load();
     n.release = noise.release->load();
     n.amRateHz = noise.amRate->load();
+    n.amShape = ampShapeAt((int)noise.amShape->load());
     n.amDepth = noise.amDepth->load();
     n.liftAmount = noise.lift->load();
     n.velAmount = noise.vel->load();
