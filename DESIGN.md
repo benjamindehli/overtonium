@@ -187,7 +187,7 @@ Each of the 32 strips has, top to bottom:
 | DRIFT                               | 0 to 25 cents                                    | Smooth random pitch wander. See below                                               |
 | ENVELOPE delay, A, D, S             | 0 to 5 s, 0.2 ms to 5 s, 1 ms to 20 s, 0 to 100% | Exponential decay                                                                   |
 | KEY OFF swell, level, release, lift | 0 to 5 s, 0 to 100%, 1 ms to 20 s, -100 to +100% | A second envelope for letting go. See below                                         |
-| AMP MOD rate and depth              | 0.01 to 30 Hz, 0 to 100%                         | Per-partial tremolo                                                                 |
+| AMP MOD shape, rate and depth       | Seven shapes, 0.01 to 30 Hz, 0 to 100%           | Per-partial tremolo                                                                 |
 | VELOCITY                            | -100 to +100%                                    | How much key velocity scales this partial. Negative inverts it                      |
 | AFTERTOUCH                          | -100 to +100%                                    | How much key pressure moves this partial. Negative fades it out                     |
 | PAN                                 | hard left to hard right                          | Where this partial sits in the field. Equal power, so the level holds as it crosses |

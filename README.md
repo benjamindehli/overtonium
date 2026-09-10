@@ -35,7 +35,7 @@ Both earlier instruments are sample libraries with a plugin wrapper, sold at [De
 
 ## What is in it
 
-Every channel is a strip, and every strip carries the same twenty-one controls. The captions are named once down the left rather than repeated across all thirty-three, and each channel takes the colour of its interval against the fundamental.
+Every channel is a strip, and every strip carries the same twenty-three controls. The captions are named once down the left rather than repeated across all thirty-three, and each channel takes the colour of its interval against the fundamental.
 
 <img src="docs/overtonium-strips.webp" alt="A close view of the first six channels, showing the row captions in the gutter and the interval colour of each channel." width="306" />
 

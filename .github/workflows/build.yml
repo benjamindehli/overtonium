@@ -450,6 +450,24 @@ jobs:
           versions = []
           nodes = {}
 
+          # CITATION.cff is the other place a version is written down, and the
+          # one nothing was watching: it sat three releases behind before
+          # anybody looked. Read as text rather than parsed, so this needs no
+          # YAML library on the runner.
+          citation = Path("CITATION.cff").read_text(encoding="utf-8")
+          stated = re.search(r"^version: *(\S+)", citation, re.M)
+
+          if stated is None:
+              print("::error::CITATION.cff states no version")
+              failed.append("CITATION.cff")
+          else:
+              print(f"CMakeLists says {project}, CITATION.cff says {stated.group(1)}")
+
+              if stated.group(1) != project:
+                  print(f"::error::CITATION.cff claims {stated.group(1)}, "
+                        f"CMakeLists says {project}. Bump both together.")
+                  failed.append("CITATION.cff")
+
           for path in sorted(Path("docs").rglob("*.html")):
               html = path.read_text(encoding="utf-8")
 
