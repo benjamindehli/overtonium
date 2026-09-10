@@ -2821,6 +2821,82 @@ void testShapeButtonFollowsTheParameter(OvertoniumProcessor &p) {
             ")");
 }
 
+/// A preset tells the host what changed, and nothing else.
+///
+/// This instrument has 781 parameters, which is far outside what a host
+/// expects, and a preset is written as a neutral base plus the rows that
+/// differ. Sent as they were decided that is over a thousand parameter
+/// changes for one preset, most of them either immediately overwritten or not
+/// changes at all. A host keeps per-parameter bookkeeping for automation and
+/// undo and is entitled to believe every one of them.
+///
+/// So the applier collects and sends once, skipping anything already at the
+/// value asked for. What is held here is the property rather than a number:
+/// no parameter is written twice, and nothing is reported that did not move.
+void testPresetsTellTheHostOnlyWhatChanged(OvertoniumProcessor &p) {
+  section("A preset reports only what it changed");
+
+  struct Counter : juce::AudioProcessorListener {
+    int changes = 0;
+    void audioProcessorParameterChanged(juce::AudioProcessor *, int,
+                                        float) override {
+      ++changes;
+    }
+    void audioProcessorChanged(juce::AudioProcessor *,
+                               const ChangeDetails &) override {}
+  };
+
+  const auto snapshot = [&p] {
+    std::map<juce::String, float> out;
+
+    for (auto *raw : p.getParameters())
+      if (auto *r = dynamic_cast<juce::RangedAudioParameter *>(raw))
+        out[r->paramID] = r->getValue();
+
+    return out;
+  };
+
+  Counter counter;
+  p.addListener(&counter);
+
+  const auto names = ovt::presets::names();
+  int worstExtra = 0;
+  std::string worstName;
+
+  for (const char *name :
+       {"Cathedral", "Wurli", "Big Saw", "Init", "Shimmer"}) {
+    const auto before = snapshot();
+    counter.changes = 0;
+    p.applyFactoryPreset(names.indexOf(name));
+    const auto after = snapshot();
+
+    int moved = 0;
+    for (const auto &entry : after)
+      if (std::abs(entry.second - before.at(entry.first)) > 1.0e-7f)
+        ++moved;
+
+    if (counter.changes - moved > worstExtra) {
+      worstExtra = counter.changes - moved;
+      worstName = name;
+    }
+  }
+
+  check(worstExtra == 0,
+        "no preset reports more changes than it made (worst was " +
+            std::to_string(worstExtra) + " extra, on " + worstName + ")");
+
+  // The case that used to be worst: the preset already loaded.
+  p.applyFactoryPreset(names.indexOf("Wurli"));
+  counter.changes = 0;
+  p.applyFactoryPreset(names.indexOf("Wurli"));
+
+  check(counter.changes == 0,
+        "and loading the preset already loaded says nothing at all (" +
+            std::to_string(counter.changes) + ")");
+
+  p.removeListener(&counter);
+}
+
 void testSettingsMenu(OvertoniumProcessor &p) {
   section("Settings menu");
 
@@ -4261,6 +4337,7 @@ int main() {
   testTopBarLayout();
   testSettingsMenu(processor);
   testPresetMenuGroups(processor);
+  testPresetsTellTheHostOnlyWhatChanged(processor);
   testShapeButtonFollowsTheParameter(processor);
   testFirstProgramIsReachable();
   testPresetNameOutlivesTheWindow();

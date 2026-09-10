@@ -18,9 +18,46 @@ using APVTS = juce::AudioProcessorValueTreeState;
 struct Applier {
   APVTS &apvts;
 
+  /// What the patch asks for, collected rather than sent as it is decided.
+  ///
+  /// A preset is written as a neutral base and then the handful of rows that
+  /// differ, which reads well and means most parameters are decided twice.
+  /// Sending both is two parameter changes to the host for one final value,
+  /// and the host has no way to know the first was going to be replaced a
+  /// microsecond later. Collecting first means the last word wins and only
+  /// the last word is sent.
+  mutable std::map<juce::String, float> pending{};
+
   void set(const juce::String &id, float plainValue) const {
-    if (auto *p = apvts.getParameter(id))
-      p->setValueNotifyingHost(p->convertTo0to1(plainValue));
+    pending[id] = plainValue;
+  }
+
+  /// Sends what actually differs, once each.
+  ///
+  /// The check matters as much as the collecting. Loading the preset already
+  /// loaded used to report every parameter as having changed when none had,
+  /// and switching between two patches that share most of their rows reported
+  /// the shared ones too. A host is entitled to believe us: Logic keeps
+  /// per-parameter bookkeeping for automation and undo, and this instrument
+  /// has 781 parameters to keep it for.
+  void flush() const {
+    for (const auto &wanted : pending) {
+      auto *p = apvts.getParameter(wanted.first);
+
+      if (p == nullptr)
+        continue;
+
+      const auto target = p->convertTo0to1(wanted.second);
+
+      // Normalised, so the tolerance is the same for every parameter whatever
+      // its range, and far below the smallest step a choice parameter has.
+      if (std::abs(p->getValue() - target) <= 1.0e-6f)
+        continue;
+
+      p->setValueNotifyingHost(target);
+    }
+
+    pending.clear();
   }
 
   void osc(const char *suffix, int index0, float plainValue) const {
@@ -362,7 +399,11 @@ bool load(APVTS &apvts, const juce::File &file, juce::String &error) {
   return true;
 }
 
-void neutralBase(APVTS &apvts) { Applier{apvts}.neutralBase(); }
+void neutralBase(APVTS &apvts) {
+  const Applier ap{apvts};
+  ap.neutralBase();
+  ap.flush();
+}
 
 juce::String factoryCode(APVTS &apvts, const juce::String &name) {
   const Applier ap{apvts};
@@ -404,6 +445,7 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
   const auto patch = capture(apvts, name);
 
   ap.neutralBase();
+  ap.flush();
 
   std::map<juce::String, float> baseline;
   for (auto *p : apvts.processor.getParameters())
@@ -2575,6 +2617,11 @@ void apply(APVTS &apvts, int index) {
   default:
     break;
   }
+
+  // Everything above decided what it wanted. This is the only place any of it
+  // reaches the host, as one write per parameter and none at all for the ones
+  // already there.
+  ap.flush();
 }
 
 } // namespace ovt::presets
