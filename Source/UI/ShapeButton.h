@@ -51,6 +51,13 @@ public:
 private:
   void applyToEveryChannel(int index);
 
+  juce::AudioProcessorValueTreeState &apvts;
+  juce::String id;
+  const char *sharedSuffix;
+  juce::Span<const LfoShape> offered;
+  juce::StringArray names;
+  bool hovered = false;
+
   /// Repaints when the parameter moves, which is mostly not from here.
   ///
   /// A preset load, an undo or a host's automation all change the shape
@@ -59,14 +66,14 @@ private:
   /// shape chosen by hand while the sound had already moved on. The attachment
   /// carries the other direction too, so JUCE owns the gesture and the undo
   /// transaction rather than this doing it by hand.
+  ///
+  /// Last, and that matters. Members are destroyed in reverse declaration
+  /// order, so anything below this would still be listening to the parameter
+  /// after the fields it draws from had gone. A parameter moved on the message
+  /// thread calls the listener straight through rather than queueing it, so
+  /// that window is reachable rather than theoretical. Declared last, it stops
+  /// listening first.
   std::unique_ptr<juce::ParameterAttachment> attachment;
-
-  juce::AudioProcessorValueTreeState &apvts;
-  juce::String id;
-  const char *sharedSuffix;
-  juce::Span<const LfoShape> offered;
-  juce::StringArray names;
-  bool hovered = false;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ShapeButton)
 };
