@@ -263,7 +263,7 @@ void testPresets(OvertoniumProcessor &p) {
   section("Factory presets");
 
   const auto names = ovt::presets::names();
-  check(names.size() == 26, "twenty-six factory presets");
+  check(names.size() == 28, "twenty-eight factory presets");
 
   for (int i = 0; i < names.size(); ++i) {
     ovt::presets::apply(p.apvts, i);

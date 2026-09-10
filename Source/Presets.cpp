@@ -244,7 +244,9 @@ const char *const kNames[] = {
     "Shimmer",
     "Slow Pad",
     "Space Flute",
+    "Stepped",
     "Struck Bell",
+    "StyloPoly",
     "Synth Ensemble",
     "Tape Choir",
     "Vibraphone",
@@ -492,6 +494,7 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
   static const Row rows[] = {
       {params::tuneSuffix, "tuneSuffix"},
       {params::phaseSuffix, "phaseSuffix"},
+      {params::pmShapeSuffix, "pmShapeSuffix"},
       {params::pmRateSuffix, "pmRateSuffix"},
       {params::pmDepthSuffix, "pmDepthSuffix"},
       {params::driftSuffix, "driftSuffix"},
@@ -503,6 +506,7 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
       {params::offLevelSuffix, "offLevelSuffix"},
       {params::releaseSuffix, "releaseSuffix"},
       {params::liftSuffix, "liftSuffix"},
+      {params::amShapeSuffix, "amShapeSuffix"},
       {params::amRateSuffix, "amRateSuffix"},
       {params::amDepthSuffix, "amDepthSuffix"},
       {params::velSuffix, "velSuffix"},
@@ -2231,7 +2235,197 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.2795f);
     break;
   }
-  case 21: // Struck Bell
+  case 21: // Stepped
+  {
+    ap.neutralBase();
+
+    // A slow pad that will not hold still. Seven partials trill rather than
+    // waver, on squares set to whole intervals: two of them a fifth and five
+    // an octave, some swinging both ways and some only upward, so each one
+    // steps between two notes of the chord instead of wobbling around one.
+    // The 30th and 31st slide back down a fifth rather than jumping, on
+    // reverse sawtooths, and the top three take their level from sample and
+    // hold, so which of them is loudest changes at random. Five seconds of
+    // attack under all of it.
+
+    ap.oscTable(params::driftSuffix,
+                {0.1189f, 1.4916f, 1.4916f, 1.4916f, 1.4916f, 1.4916f, 1.4916f,
+                 1.4916f, 1.4916f, 1.4916f, 1.4916f, 1.4916f, 1.4916f, 1.4916f,
+                 1.4916f, 1.4916f, 1.4916f, 1.4916f, 1.4916f, 1.4916f, 1.4916f,
+                 1.4916f, 1.4916f, 1.4916f, 1.4916f, 1.4916f, 1.4916f, 1.4916f,
+                 1.4916f, 1.4916f, 1.4916f, 1.4916f});
+    ap.set("h01_attack", 0.2625f);
+    ap.set("h01_pan", 0.0034f);
+    ap.set("h01_vel", -0.0019f);
+    ap.set("h01_volume", 0.6595f);
+    ap.set("h02_amDepth", 1.0f);
+    ap.set("h02_amRate", 0.2552f);
+    ap.set("h02_attack", 0.7752f);
+    ap.set("h02_pan", -0.001f);
+    ap.set("h02_pmDepth", 700.2922f);
+    ap.set("h02_pmRate", 0.5538f);
+    ap.set("h02_pmShape", 5.0f);
+    ap.set("h02_vel", 0.7979f);
+    ap.set("h02_volume", 0.1407f);
+    ap.set("h03_amDepth", 1.0f);
+    ap.set("h03_amRate", 0.2087f);
+    ap.set("h03_attack", 0.6925f);
+    ap.set("h03_pan", -1.0f);
+    ap.set("h03_pmDepth", 1200.0f);
+    ap.set("h03_pmRate", 0.5859f);
+    ap.set("h03_pmShape", 5.0f);
+    ap.set("h03_vel", 0.9379f);
+    ap.set("h03_volume", 0.0972f);
+    ap.set("h04_amDepth", 1.0f);
+    ap.set("h04_amRate", 0.0749f);
+    ap.set("h04_attack", 0.8832f);
+    ap.set("h04_pan", 1.0f);
+    ap.set("h04_pmDepth", 1200.0f);
+    ap.set("h04_pmRate", 1.109f);
+    ap.set("h04_pmShape", 5.0f);
+    ap.set("h04_vel", 0.9355f);
+    ap.set("h04_volume", 0.0976f);
+    ap.set("h05_tune", 0.0f);
+    ap.set("h06_amDepth", 1.0f);
+    ap.set("h06_amRate", 0.4777f);
+    ap.set("h06_attack", 0.6077f);
+    ap.set("h06_pan", 1.0f);
+    ap.set("h06_pmDepth", 1200.0f);
+    ap.set("h06_pmRate", 1.8755f);
+    ap.set("h06_pmShape", 4.0f);
+    ap.set("h06_vel", 1.0f);
+    ap.set("h06_volume", 0.0763f);
+    ap.set("h07_pan", 0.0034f);
+    ap.set("h07_pmRate", 0.5031f);
+    ap.set("h07_volume", 0.0001f);
+    ap.set("h08_amDepth", 1.0f);
+    ap.set("h08_attack", 0.8008f);
+    ap.set("h08_pan", -1.0f);
+    ap.set("h08_pmDepth", 700.2922f);
+    ap.set("h08_pmRate", 0.6141f);
+    ap.set("h08_pmShape", 4.0f);
+    ap.set("h08_vel", 1.0f);
+    ap.set("h08_volume", 0.0765f);
+    ap.set("h09_attack", 0.0186f);
+    ap.set("h09_pan", 0.0034f);
+    ap.set("h09_pmRate", 0.5031f);
+    ap.set("h10_pan", 0.0034f);
+    ap.set("h10_pmRate", 0.5031f);
+    ap.set("h11_pan", 0.0034f);
+    ap.set("h11_pmRate", 0.5031f);
+    ap.set("h12_amDepth", 1.0f);
+    ap.set("h12_amRate", 0.7582f);
+    ap.set("h12_amShape", 4.0f);
+    ap.set("h12_attack", 0.5952f);
+    ap.set("h12_pan", 0.0034f);
+    ap.set("h12_pmDepth", 1200.0f);
+    ap.set("h12_pmRate", 0.6991f);
+    ap.set("h12_pmShape", 5.0f);
+    ap.set("h12_vel", 0.9771f);
+    ap.set("h12_volume", 0.0471f);
+    ap.set("h13_pan", 0.0034f);
+    ap.set("h13_pmRate", 0.5031f);
+    ap.set("h14_pan", 0.0034f);
+    ap.set("h14_pmRate", 0.5031f);
+    ap.set("h15_pan", 0.0034f);
+    ap.set("h15_pmRate", 0.5031f);
+    ap.set("h16_amDepth", 1.0f);
+    ap.set("h16_amRate", 14.3157f);
+    ap.set("h16_amShape", 4.0f);
+    ap.set("h16_attack", 4.3908f);
+    ap.set("h16_decay", 5.5907f);
+    ap.set("h16_pan", -1.0f);
+    ap.set("h16_pmRate", 0.5031f);
+    ap.set("h16_sustain", 0.0f);
+    ap.set("h16_vel", 0.7018f);
+    ap.set("h16_volume", 0.1972f);
+    ap.set("h17_pan", 0.0034f);
+    ap.set("h17_pmRate", 0.5031f);
+    ap.set("h18_pan", 0.0034f);
+    ap.set("h18_pmRate", 0.5031f);
+    ap.set("h19_pan", 0.0034f);
+    ap.set("h19_pmRate", 0.5031f);
+    ap.set("h20_pan", 0.0034f);
+    ap.set("h20_pmRate", 0.5031f);
+    ap.set("h21_pan", 0.0034f);
+    ap.set("h21_pmRate", 0.5031f);
+    ap.set("h22_pan", 0.0034f);
+    ap.set("h22_pmRate", 0.5031f);
+    ap.set("h23_pan", 0.0034f);
+    ap.set("h23_pmRate", 0.5031f);
+    ap.set("h24_amDepth", 1.0f);
+    ap.set("h24_amRate", 1.2322f);
+    ap.set("h24_amShape", 4.0f);
+    ap.set("h24_attack", 0.3714f);
+    ap.set("h24_pan", -0.0046f);
+    ap.set("h24_pmDepth", 1200.0f);
+    ap.set("h24_pmRate", 0.9425f);
+    ap.set("h24_pmShape", 4.0f);
+    ap.set("h24_vel", 0.9754f);
+    ap.set("h24_volume", 0.0472f);
+    ap.set("h25_pan", 0.0034f);
+    ap.set("h25_pmRate", 0.5031f);
+    ap.set("h26_pan", 0.0034f);
+    ap.set("h26_pmRate", 0.5031f);
+    ap.set("h27_pan", 0.0034f);
+    ap.set("h27_pmRate", 0.5031f);
+    ap.set("h28_pan", 0.0034f);
+    ap.set("h28_pmRate", 0.5031f);
+    ap.set("h29_pan", 0.0034f);
+    ap.set("h29_pmRate", 0.5031f);
+    ap.set("h30_amDepth", 1.0f);
+    ap.set("h30_amShape", 5.0f);
+    ap.set("h30_attack", 5.0f);
+    ap.set("h30_decay", 8.8957f);
+    ap.set("h30_pan", -1.0f);
+    ap.set("h30_pmDepth", 700.2922f);
+    ap.set("h30_pmRate", 0.5031f);
+    ap.set("h30_pmShape", 3.0f);
+    ap.set("h30_sustain", 0.2021f);
+    ap.set("h30_tune", 0.1866f);
+    ap.set("h30_volume", 0.0767f);
+    ap.set("h31_amDepth", 1.0f);
+    ap.set("h31_amShape", 5.0f);
+    ap.set("h31_attack", 5.0f);
+    ap.set("h31_decay", 8.9916f);
+    ap.set("h31_pan", 1.0f);
+    ap.set("h31_pmDepth", 700.2922f);
+    ap.set("h31_pmRate", 0.5031f);
+    ap.set("h31_pmShape", 3.0f);
+    ap.set("h31_sustain", 0.2022f);
+    ap.set("h31_tune", 0.0492f);
+    ap.set("h31_volume", 0.0768f);
+    ap.set("h32_amDepth", 1.0f);
+    ap.set("h32_amRate", 22.1272f);
+    ap.set("h32_amShape", 5.0f);
+    ap.set("h32_attack", 1.8875f);
+    ap.set("h32_decay", 3.7216f);
+    ap.set("h32_delay", 0.1151f);
+    ap.set("h32_pan", 1.0f);
+    ap.set("h32_pmDepth", 0.3157f);
+    ap.set("h32_pmRate", 0.6561f);
+    ap.set("h32_sustain", 0.0f);
+    ap.set("h32_volume", 0.5076f);
+    ap.set("echoAge", 0.6984f);
+    ap.set("echoFeedback", 0.5293f);
+    ap.set("echoMix", 0.3064f);
+    ap.set("echoOn", 1.0f);
+    ap.set("echoTime", 0.236f);
+    ap.set("noise_amDepth", 1.0f);
+    ap.set("noise_amRate", 0.2139f);
+    ap.set("noise_colour", 0.0172f);
+    ap.set("noise_volume", 0.0723f);
+    ap.set("reverbDamp", 0.1766f);
+    ap.set("reverbDecay", 1.4466f);
+    ap.set("reverbMix", 0.1912f);
+    ap.set("reverbOn", 1.0f);
+    ap.set("reverbPreDelay", 0.0235f);
+    ap.set("stretch", 0.4895f);
+    ap.set("track", 2.0f);
+    ap.set("wobble", 0.1661f);
+    break;
+  }
+  case 22: // Struck Bell
   {
     ap.neutralBase();
 
@@ -2254,7 +2448,79 @@ void apply(APVTS &apvts, int index) {
     ap.reverb(0.22f, 1.8f, 0.5f);
     break;
   }
-  case 22: // Synth Ensemble
+  case 23: // StyloPoly
+  {
+    ap.neutralBase();
+
+    // Voice 3 of a Dubreq Stylophone S-1, the last of its three positions,
+    // with the vibrato switched on: thirty cents at six hertz across the whole
+    // series, which is about what the original gives with both its controls
+    // centred. Polyphonic, which a Stylophone is not, after the plugin it is
+    // named for.
+    //
+    // Every partial's level wanders on a smooth random contour of its own, at
+    // a little over a tenth of full depth. That is what keeps thirty-two sine
+    // waves from sounding like thirty-two sine waves.
+
+    ap.oscTable(params::phaseSuffix,
+                {0.0271f, 0.527f, 0.4389f, 0.8953f, 0.9337f, 0.4876f, 0.7924f,
+                 0.3737f, 1.0f, 0.6035f, 0.3958f, 0.7714f, 0.7855f, 0.1659f,
+                 0.4698f, 0.9663f, 0.2894f, 0.5922f, 0.2256f, 0.0697f, 0.4588f,
+                 0.6127f, 0.5288f, 0.0226f, 0.6728f, 0.1714f, 0.7453f, 0.8897f,
+                 0.0381f, 0.3909f, 0.2162f, 0.2664f});
+    ap.allOsc(params::pmRateSuffix, [](int) { return 6.002; });
+    ap.allOsc(params::pmDepthSuffix, [](int) { return 30.1444; });
+    ap.allOsc(params::driftSuffix, [](int) { return 2.1512; });
+    ap.allOsc(params::attackSuffix, [](int) { return 0.0002; });
+    ap.oscTable(params::decaySuffix,
+                {0.0027f, 0.0026f, 0.0025f, 0.0024f, 0.0023f, 0.0022f, 0.0021f,
+                 0.002f, 0.0019f, 0.0019f, 0.0018f, 0.0017f, 0.0017f, 0.0016f,
+                 0.0015f, 0.0015f, 0.0014f, 0.0013f, 0.0013f, 0.0012f, 0.0012f,
+                 0.0011f, 0.0011f, 0.0011f, 0.001f, 0.001f, 0.001f, 0.001f,
+                 0.001f, 0.001f, 0.001f, 0.001f});
+    ap.allOsc(params::sustainSuffix, [](int) { return 0.7991; });
+    ap.allOsc(params::swellSuffix, [](int) { return 0.0011; });
+    ap.allOsc(params::offLevelSuffix, [](int) { return 1.0; });
+    ap.allOsc(params::releaseSuffix, [](int) { return 0.0249; });
+    ap.allOsc(params::amShapeSuffix, [](int) { return 6.0; });
+    ap.oscTable(params::amRateSuffix,
+                {1.7667f, 1.5616f, 1.8157f, 1.3786f, 2.7784f, 1.8007f, 6.2394f,
+                 1.2782f, 1.3791f, 1.679f, 1.4983f, 1.3381f, 1.4857f, 1.4298f,
+                 1.6941f, 1.4838f, 1.6384f, 1.4848f, 1.6887f, 1.7927f, 1.5606f,
+                 1.4428f, 1.724f, 1.6796f, 1.4274f, 1.6022f, 1.6394f, 1.6795f,
+                 1.4798f, 1.8367f, 1.9196f, 1.8068f});
+    ap.allOsc(params::amDepthSuffix, [](int) { return 0.1238; });
+    ap.oscTable(params::volumeSuffix,
+                {0.1983f, 0.9375f, 0.2666f, 0.229f, 0.2245f, 0.3247f, 0.3589f,
+                 0.3902f, 0.4767f, 0.7254f, 0.4595f, 0.1583f, 0.1028f, 0.0581f,
+                 0.0443f, 0.1287f, 0.0653f, 0.0906f, 0.0541f, 0.1366f, 0.1482f,
+                 0.0762f, 0.0833f, 0.0991f, 0.0809f, 0.0906f, 0.1218f, 0.1214f,
+                 0.0997f, 0.1145f, 0.1916f, 0.4775f});
+    ap.set("echoAge", 0.728f);
+    ap.set("echoFeedback", 0.1156f);
+    ap.set("echoMix", 0.1424f);
+    ap.set("echoOn", 1.0f);
+    ap.set("echoTime", 0.0632f);
+    ap.set("noise_amShape", 6.0f);
+    ap.set("noise_attack", 0.0002f);
+    ap.set("noise_colour", 0.1722f);
+    ap.set("noise_decay", 0.0039f);
+    ap.set("noise_offLevel", 1.0f);
+    ap.set("noise_release", 0.0081f);
+    ap.set("noise_sustain", 0.0288f);
+    ap.set("noise_swell", 0.0009f);
+    ap.set("noise_volume", 0.5019f);
+    ap.set("reverbDamp", 0.5339f);
+    ap.set("reverbDecay", 0.2018f);
+    ap.set("reverbMix", 0.1421f);
+    ap.set("reverbOn", 1.0f);
+    ap.set("reverbPreDelay", 0.0063f);
+    ap.set("stretch", 0.2714f);
+    ap.set("track", 0.4f);
+    ap.set("wobble", 0.0408f);
+    break;
+  }
+  case 24: // Synth Ensemble
   {
     ap.neutralBase();
 
@@ -2439,7 +2705,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1011f);
     break;
   }
-  case 23: // Tape Choir
+  case 25: // Tape Choir
   {
     ap.neutralBase();
 
@@ -2468,7 +2734,7 @@ void apply(APVTS &apvts, int index) {
     ap.reverb(0.4f, 4.5f, 0.5f);
     break;
   }
-  case 24: // Vibraphone
+  case 26: // Vibraphone
   {
     ap.neutralBase();
 
@@ -2534,7 +2800,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.1882f);
     break;
   }
-  case 25: // Wurli
+  case 27: // Wurli
   {
     ap.neutralBase();
 
