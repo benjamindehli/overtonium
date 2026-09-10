@@ -123,8 +123,8 @@
                                     <td>Where in its cycle the partial starts</td>
                                 </tr>
                                 <tr>
-                                    <td>PITCH MOD rate, depth</td>
-                                    <td>0.01 to 30 Hz, 0 to 200 cents</td>
+                                    <td>PITCH MOD shape, rate, depth</td>
+                                    <td>Eight shapes, 0.01 to 30 Hz, 0 to 1200 cents</td>
                                     <td>Per-partial vibrato</td>
                                 </tr>
                                 <tr>
@@ -143,8 +143,8 @@
                                     <td>A second envelope for letting go</td>
                                 </tr>
                                 <tr>
-                                    <td>AMP MOD rate, depth</td>
-                                    <td>0.01 to 30 Hz, 0 to 100%</td>
+                                    <td>AMP MOD shape, rate, depth</td>
+                                    <td>Seven shapes, 0.01 to 30 Hz, 0 to 100%</td>
                                     <td>Per-partial tremolo</td>
                                 </tr>
                                 <tr>
@@ -175,6 +175,76 @@
                             </tbody>
                         </table>
                     </div>
+                </section>
+
+                <section>
+                    <h2>What the modulators trace</h2>
+
+                    <p>
+                        Both per-partial modulators have a shape as well as a rate and a depth, picked from a small drawing of the wave between the
+                        two knobs. Click it for the list by name. Pitch offers eight, amplitude seven, and each channel has its own, the noise channel
+                        included, which is the point: the fifth partial can be gated while the fourth breathes.
+                    </p>
+
+                    <div class="scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Shape</th>
+                                    <th>What it does</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Sine</td>
+                                    <td>The default, and what both modulators were before there was a choice</td>
+                                </tr>
+                                <tr>
+                                    <td>Triangle</td>
+                                    <td>The same travel at an even speed, which reads as more mechanical than a sine</td>
+                                </tr>
+                                <tr>
+                                    <td>Sawtooth, Reverse Sawtooth</td>
+                                    <td>A ramp and a snap back, either way round</td>
+                                </tr>
+                                <tr>
+                                    <td>Square</td>
+                                    <td>
+                                        Two values and nothing in between. On pitch it is a trill, and comes in a bipolar form that goes the same
+                                        distance either side of the note and a unipolar one that only ever goes up
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Sample &amp; Hold</td>
+                                    <td>
+                                        A new random value each cycle, held until the next. On pitch, with the depth wide open, that is a run of
+                                        random notes anywhere within an octave either side
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Random</td>
+                                    <td>The same values, glided between rather than stepped. The contour DRIFT traces, under your own rate</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <p>
+                        <strong>Amplitude has one square, not two.</strong> A tremolo only ever comes down from the fader, so there is no second
+                        direction for a unipolar shape to go in and the one square gates the whole depth. For the same reason every shape on that side
+                        is read a quarter turn ahead: a note begins at full level and dips, rather than starting half attenuated.
+                    </p>
+
+                    <p>
+                        The square and stepped shapes do not click. The gain a partial is given already slides across each control block rather than
+                        jumping, so an edge arrives as a slew of about two thirds of a millisecond, which is short enough to read as an edge and long
+                        enough not to be heard as a tick.
+                    </p>
+
+                    <p>
+                        LINK does not reach these. It drags a value across the series along a weighted curve and there is no weighting a list of named
+                        shapes, so the shape menu offers to set every channel at once instead.
+                    </p>
                 </section>
 
                 <section>
@@ -393,8 +463,10 @@
                     <p>
                         They read from the voice pool rather than from the knobs, so they describe a note rather than a setting and nothing pulses
                         over silence, and they follow the loudest voice on that partial, which is the one the meter follows. The needle's scale is
-                        fixed and the same on every strip, so two channels can be compared by eye. Full deflection is 225 cents, the widest the two
-                        controls can produce together.
+                        fixed and the same on every strip, so two channels can be compared by eye. Full deflection is 225 cents, which is a vibrato
+                        and a drift at full stretch rather than the widest the depth knob now reaches. A square set to jump an octave pegs it, which
+                        is the honest thing for a needle to do when it is off the end of its scale: scaled to the octave instead, an ordinary vibrato
+                        would not move it at all.
                     </p>
 
                     <h3>Meters</h3>

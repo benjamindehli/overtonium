@@ -120,6 +120,22 @@ Equal temperament at 440 is bit for bit what it was before, which the tests chec
 
 None of the three travels with a preset. A temperament is a property of the music you are playing rather than of any one sound in it: you set it once and work, and having a patch drag you back to equal in the middle of that would be no help. Init included, since Init is still a preset and clears the patch rather than the session.
 
+### The shape a modulator traces
+
+Both per-partial modulators pick a shape as well as a rate and a depth. Pitch offers eight, amplitude seven, and each of the thirty-three channels carries its own, which is the point: gating the fifth partial while the fourth breathes is not something one global LFO could do.
+
+Two of the eight cost almost nothing. The smooth random contour already existed as DRIFT, drawn as a Catmull-Rom spline through random points, and sample and hold is the same points read without the interpolation. They now share one implementation, so the two cannot come to disagree about what random-but-smooth sounds like.
+
+The square and stepped shapes are affordable because of where modulation already happens. Every modulator is stepped once per 32-sample control block, and the gain a partial is given slides linearly across that block rather than jumping to it. An edge therefore arrives as a slew of about two thirds of a millisecond: short enough to read as an edge, long enough not to tick. Measured, the worst sample-to-sample step across every shape at full depth is 2.2 times the slope of the tone itself, against a threshold of 3 that the click tests already used.
+
+Amplitude gets seven rather than eight because a tremolo only ever comes down from the fader. There is nowhere for a unipolar shape to go that a bipolar one does not already reach, so that side has one square and it gates the whole depth. Everything on that side is also read a quarter turn ahead, which is what keeps Sine the cosine the tremolo has always been: a note begins at full level and dips. Without that, every preset carrying a tremolo would have started somewhere new.
+
+Random is a spline through its points and overshoots them by a few percent, so the amplitude clamps. Otherwise the one shape that is meant to duck a partial could briefly lift it above its own fader.
+
+The pitch depth reaches an octave, which is for the shapes that step rather than sweep. A square on the pitch is a trill and sample and hold is a run of random notes, and both are worth having at real intervals rather than at a vibrato's worth of one: at full depth the bipolar square jumps an octave either side of the note, the unipolar one an octave up, and sample and hold lands anywhere in between, measured at -1167 to +1098 cents over a few seconds. The range belongs to the knob rather than to the shape beside it, so a sine can sweep further than anyone needs. That is the lesser evil. A knob whose end moved with the shape would either read out a number it was not doing or grow a dead stretch at the top, and the taper keeps the bottom where it was in any case: both settings reach 25 cents at half travel, and what used to be the whole range now ends at about three quarters.
+
+LINK does not reach the shapes. It drags a value across the series along a weighted curve, and half a sawtooth is not a shape. The shape menu offers to set every channel at once instead, which is the same intent by the only means that makes sense for a list.
+
 ### Stretch
 
 TUNE decides how the series is spelled. STRETCH decides whether it is a series at all.
@@ -165,7 +181,7 @@ Each of the 32 strips has, top to bottom:
 | Control                             | Range                                            | Notes                                                                               |
 | ----------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------- |
 | TUNE                                | equal to just                                    | Readout shows the resulting cent offset                                             |
-| PITCH MOD rate and depth            | 0.01 to 30 Hz, 0 to 200 cents                    | Per-partial vibrato                                                                 |
+| PITCH MOD shape, rate and depth     | Eight shapes, 0.01 to 30 Hz, 0 to 1200 cents     | Per-partial vibrato, or a trill at any interval up to an octave                     |
 | DRIFT                               | 0 to 25 cents                                    | Smooth random pitch wander. See below                                               |
 | ENVELOPE delay, A, D, S             | 0 to 5 s, 0.2 ms to 5 s, 1 ms to 20 s, 0 to 100% | Exponential decay                                                                   |
 | KEY OFF swell, level, release, lift | 0 to 5 s, 0 to 100%, 1 ms to 20 s, -100 to +100% | A second envelope for letting go. See below                                         |
@@ -341,7 +357,9 @@ Two choices are worth knowing about. The lamps read from the voice pool rather t
 
 The tremolo lamp shows what the tremolo has taken off rather than what it has left, which is why a partial with no tremolo on it reads dark instead of sitting fully lit and never moving.
 
-**The needle's scale.** Fixed, and the same on every strip, so two channels can be compared by eye. Full deflection is 225 cents, which is the widest displacement the two controls can produce together: 200 from pitch modulation and 25 from drift. Those two numbers are named once and the parameter ranges are built from them, with a test holding the constants against the ranges, so the scale cannot come to disagree with the knobs feeding it.
+**The needle's scale.** Fixed, and the same on every strip, so two channels can be compared by eye. Full deflection is 225 cents, a vibrato and a drift at full stretch together.
+
+This is the one place in the instrument where a readout and the control feeding it are allowed to disagree, and it is deliberate. The depth knob reaches 1200 cents so that a square can trill at a real interval, but almost nothing anyone dials lives up there: scaled to the octave, an ordinary vibrato of five cents would sit inside a single pixel of centre and the lamp would show nothing at all. Past 225 the needle pegs, which is what a needle should do off the end of its scale. The scale is named once and a test holds it above the drift range, so it cannot quietly shrink below what the other wanderer alone produces.
 
 It is compressed rather than linear, and that is deliberate. The travel is about fifteen pixels either side of centre. Spread linearly over 225 cents an ordinary vibrato of five cents moves the needle by a third of a pixel, so every subtle setting on the instrument would look the same as no setting at all. A square root keeps the ends where they belong and gives the shallow half of the range somewhere to be:
 

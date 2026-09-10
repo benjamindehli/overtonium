@@ -48,6 +48,20 @@ private:
   uint32_t state = 1u;
 };
 
+/// Catmull-Rom through four points, at `t` between the middle two.
+///
+/// Free rather than a member because two things draw the same contour: the
+/// per-partial drift, and the Random shape an LFO can be set to. One copy so
+/// the two cannot come to disagree about what "random but smooth" sounds like.
+inline float catmullRom(const float (&p)[4], float t) noexcept {
+  const float a = p[1];
+  const float b = 0.5f * (p[2] - p[0]);
+  const float c = p[0] - 2.5f * p[1] + 2.0f * p[2] - 0.5f * p[3];
+  const float d = 0.5f * (p[3] - p[0]) + 1.5f * (p[1] - p[2]);
+
+  return ((d * t + c) * t + b) * t + a;
+}
+
 /// A smooth random contour.
 ///
 /// Random points are drawn at a fixed rate and joined with a Catmull-Rom
@@ -92,16 +106,7 @@ public:
   float current() const noexcept { return interpolate((float)phase); }
 
 private:
-  float interpolate(float t) const noexcept {
-    const float a = points[1];
-    const float b = 0.5f * (points[2] - points[0]);
-    const float c =
-        points[0] - 2.5f * points[1] + 2.0f * points[2] - 0.5f * points[3];
-    const float d =
-        0.5f * (points[3] - points[0]) + 1.5f * (points[1] - points[2]);
-
-    return ((d * t + c) * t + b) * t + a;
-  }
+  float interpolate(float t) const noexcept { return catmullRom(points, t); }
 
   float points[4]{};
   double phase = 0.0;

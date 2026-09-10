@@ -4,6 +4,7 @@
 #include <cstdint>
 
 #include "Drift.h"
+#include "Lfo.h"
 #include "Envelope.h"
 #include "Harmonics.h"
 #include "Params.h"
@@ -202,8 +203,8 @@ private:
 
   struct Partial {
     double phase = 0.0;
-    double pitchLfoPhase = 0.0;
-    double ampLfoPhase = 0.0;
+    Lfo pitchLfo;
+    Lfo ampLfo;
     Envelope env;
     SmoothRandom drift;
     /// Carried across control blocks so gain never steps.
@@ -222,6 +223,7 @@ private:
   struct Noise {
     Envelope env;
     Xorshift rng;
+    Lfo ampLfo;
     float lowpassState = 0.0f;
     float velGain = 1.0f;
     float liftAmount = 0.0f;
@@ -240,7 +242,6 @@ private:
   std::array<float, kNumHarmonics> partialPitches{};
 
   Noise noise;
-  double noiseAmPhase = 0.0;
   float noisePeak = 0.0f;
   float noiseEnvelope = 0.0f;
   float noiseTremolo = 0.0f;

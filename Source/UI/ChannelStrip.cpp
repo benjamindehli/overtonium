@@ -255,10 +255,10 @@ void SegmentDisplay::paint(juce::Graphics &g) {
   const auto off = on.withAlpha(hovered ? 0.20f : 0.12f);
   const auto lit = on.withAlpha(active ? 0.95f : 0.75f);
 
-  // A recess, so the readout sits in the panel rather than on it, and so the
-  // unlit bars have something to be dark against.
-  g.setColour(colours::groove);
-  g.fillRoundedRectangle(area, 2.5f);
+  // A screen rather than a recess. The unlit bars still have something dark to
+  // be dark against, but the ground itself is lit, which is what the strip's
+  // hover used to be the only thing providing.
+  paintDisplayGround(g, area, 2.5f, hovered);
 
   if (hovered) {
     g.setColour(colours::outline);
@@ -642,6 +642,12 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
     : apvts(state), link(linkTarget), hover(hoverTarget),
       popupHost(popupParent), index(index0), info(harmonic(index0)),
       colour(intervalColour(harmonic(index0).pitchClass)),
+      pmShape(state, params::oscParamId(params::pmShapeSuffix, index0),
+              params::pmShapeSuffix, params::kPitchShapes,
+              params::pitchShapeNames()),
+      amShape(state, params::oscParamId(params::amShapeSuffix, index0),
+              params::amShapeSuffix, params::kAmpShapes,
+              params::ampShapeNames()),
       muteButton(state, "M"), soloButton(state, "S"), meter(colour),
       pitchLamp(colour), envLamp(colour), keyOffLamp(colour),
       tremoloLamp(colour) {
@@ -667,6 +673,14 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   // flat grey the colour is the only thing separating a channel from its
   // neighbours, and holding it back on nineteen knobs out of twenty was
   // spending the one thing that was working.
+  for (auto *shape : {&pmShape, &amShape})
+    addAndMakeVisible(*shape);
+
+  pmShape.setTitle("Harmonic " + juce::String(info.harmonic) +
+                   " pitch mod shape");
+  amShape.setTitle("Harmonic " + juce::String(info.harmonic) +
+                   " amp mod shape");
+
   setUpKnob(tune, Role::Tune, colour);
   setUpKnob(pmRate, Role::PmRate, colour);
   setUpKnob(pmDepth, Role::PmDepth, colour);
@@ -1095,6 +1109,7 @@ void ChannelStrip::resized() {
   placeRow(tune, Row::TuneKnob, 0);
   placeRow(tuneReadout, Row::TuneText, 0);
   placeRow(pmRate, Row::PmRate, 1);
+  placeRow(pmShape, Row::PmShape, 0);
   placeRow(pmDepth, Row::PmDepth, 1);
   placeRow(phase, Row::Phase, 1);
   placeRow(drift, Row::Drift, 1);
@@ -1107,6 +1122,7 @@ void ChannelStrip::resized() {
   placeRow(release, Row::Release, 1);
   placeRow(lift, Row::Lift, 1);
   placeRow(amRate, Row::AmRate, 1);
+  placeRow(amShape, Row::AmShape, 0);
   placeRow(amDepth, Row::AmDepth, 1);
   placeRow(velocity, Row::Velocity, 1);
   placeRow(aftertouch, Row::Aftertouch, 1);
@@ -1184,7 +1200,7 @@ float ChannelStrip::needlePosition(float cents) {
   // What it does not do is normalise per strip, which is what this used to do
   // and why every channel ran to the edges whatever its depth. Two channels
   // can now be compared by eye, which is the point of a fixed scale.
-  const auto span = juce::jmax(1.0f, params::kMaxPitchDisplacementCents);
+  const auto span = juce::jmax(1.0f, params::kPitchNeedleFullScaleCents);
   const auto reach = juce::jlimit(-1.0f, 1.0f, cents / span);
 
   return reach < 0.0f ? -std::sqrt(-reach) : std::sqrt(reach);

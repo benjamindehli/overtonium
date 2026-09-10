@@ -2,6 +2,8 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include <array>
+
 #include "dsp/Params.h"
 
 namespace ovt::params {
@@ -43,6 +45,7 @@ inline constexpr const char *reverbPreDelayId = "reverbPreDelay";
 inline constexpr const char *tuneSuffix = "tune";
 inline constexpr const char *pmRateSuffix = "pmRate";
 inline constexpr const char *pmDepthSuffix = "pmDepth";
+inline constexpr const char *pmShapeSuffix = "pmShape";
 inline constexpr const char *phaseSuffix = "phase";
 inline constexpr const char *driftSuffix = "drift";
 inline constexpr const char *delaySuffix = "delay";
@@ -54,6 +57,7 @@ inline constexpr const char *offLevelSuffix = "offLevel";
 inline constexpr const char *releaseSuffix = "release";
 inline constexpr const char *amRateSuffix = "amRate";
 inline constexpr const char *amDepthSuffix = "amDepth";
+inline constexpr const char *amShapeSuffix = "amShape";
 inline constexpr const char *liftSuffix = "lift";
 inline constexpr const char *velSuffix = "vel";
 inline constexpr const char *atSuffix = "aftertouch";
@@ -61,6 +65,37 @@ inline constexpr const char *muteSuffix = "mute";
 inline constexpr const char *soloSuffix = "solo";
 inline constexpr const char *volumeSuffix = "volume";
 inline constexpr const char *panSuffix = "pan";
+
+/// What each modulation destination offers, in the order its parameter stores.
+///
+/// Two lists rather than one, because the destinations are not symmetrical.
+/// Pitch can be pushed either side of the note, so both squares mean something
+/// there. Amplitude only ever comes down from the fader, so a unipolar square
+/// would reach nowhere a bipolar one does not, and it offers one square that
+/// gates the whole depth.
+///
+/// Order is storage, not presentation: an index travels in every preset and
+/// every session, so entries are appended and never inserted or removed.
+inline const std::array<LfoShape, 8> kPitchShapes{
+    LfoShape::Sine,           LfoShape::Triangle,
+    LfoShape::Sawtooth,       LfoShape::ReverseSawtooth,
+    LfoShape::BipolarSquare,  LfoShape::UnipolarSquare,
+    LfoShape::SampleAndHold,  LfoShape::Random};
+
+inline const std::array<LfoShape, 7> kAmpShapes{
+    LfoShape::Sine,          LfoShape::Triangle,
+    LfoShape::Sawtooth,      LfoShape::ReverseSawtooth,
+    LfoShape::BipolarSquare, LfoShape::SampleAndHold,
+    LfoShape::Random};
+
+/// What the menus call them. Indexed the same as the lists above.
+juce::StringArray pitchShapeNames();
+juce::StringArray ampShapeNames();
+
+/// The shape a stored index means, clamped, so a file written by a later build
+/// that knows more shapes lands on one this build has rather than out of range.
+LfoShape pitchShapeAt(int index);
+LfoShape ampShapeAt(int index);
 
 /// "h07_tune" for index0 == 6. Zero-padded so the IDs sort naturally.
 juce::String oscParamId(const char *suffix, int index0);
@@ -98,6 +133,7 @@ struct Cache {
     std::atomic<float> *tune = nullptr;
     std::atomic<float> *pmRate = nullptr;
     std::atomic<float> *pmDepth = nullptr;
+    std::atomic<float> *pmShape = nullptr;
     std::atomic<float> *phase = nullptr;
     std::atomic<float> *drift = nullptr;
     std::atomic<float> *delay = nullptr;
@@ -109,6 +145,7 @@ struct Cache {
     std::atomic<float> *release = nullptr;
     std::atomic<float> *amRate = nullptr;
     std::atomic<float> *amDepth = nullptr;
+    std::atomic<float> *amShape = nullptr;
     std::atomic<float> *lift = nullptr;
     std::atomic<float> *vel = nullptr;
     std::atomic<float> *at = nullptr;
@@ -131,6 +168,7 @@ struct Cache {
     std::atomic<float> *release = nullptr;
     std::atomic<float> *amRate = nullptr;
     std::atomic<float> *amDepth = nullptr;
+    std::atomic<float> *amShape = nullptr;
     std::atomic<float> *lift = nullptr;
     std::atomic<float> *vel = nullptr;
     std::atomic<float> *at = nullptr;
@@ -238,15 +276,32 @@ inline bool isSessionParam(juce::StringRef id) {
 
 /// How far the two pitch wanderers can each take a partial, in cents.
 ///
-/// Named because the needle on the PITCH MOD rule reads full scale at the sum
-/// of them, and a scale that quietly disagreed with the knobs feeding it would
-/// be worse than no scale. A test holds these against the ranges themselves.
-inline constexpr float kMaxPitchModCents = 200.0f;
+/// An octave for the modulator, which is there for the shapes that step rather
+/// than sweep: a square on the pitch is a trill and sample and hold is a run
+/// of random notes, and both want real intervals rather than a vibrato's worth
+/// of one. The taper keeps the bottom of the knob where it was, both settings
+/// reaching 25 cents at half travel, and what used to be the whole range now
+/// ends at about three quarters.
+///
+/// The range belongs to the knob rather than to any one shape. A knob whose
+/// end moved with the shape beside it would either read out a number it was
+/// not doing or have a dead stretch at the top, and both are worse than a
+/// sine that can sweep further than anyone needs.
+inline constexpr float kMaxPitchModCents = 1200.0f;
 inline constexpr float kMaxDriftCents = 25.0f;
 
-/// The widest displacement the two together can produce.
-inline constexpr float kMaxPitchDisplacementCents =
-    kMaxPitchModCents + kMaxDriftCents;
+/// Where the needle on the PITCH MOD lamp reads full scale, in cents.
+///
+/// Deliberately not the knob's maximum, which is the one place in this
+/// instrument a readout and the control feeding it are allowed to disagree.
+/// The needle is for watching vibrato and drift, and those live in the first
+/// tens of cents: scaled to the octave a square can now jump, ordinary
+/// modulation would sit within a couple of percent of centre and the lamp
+/// would show nothing at all. Past this it pegs, which is honest about being
+/// off the end of a scale rather than pretending to a resolution it does not
+/// have. A test holds it against the drift range so it cannot quietly shrink
+/// below what the other wanderer alone can produce.
+inline constexpr float kPitchNeedleFullScaleCents = 225.0f;
 
 /// The pitch classes a temperament can be built on, in parameter order.
 inline const std::array<const char *, 12> kPitchClassNames{
