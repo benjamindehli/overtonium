@@ -9,9 +9,9 @@
 // quietly out of date.
 //
 // Mono wherever a patch pans nothing, so a stereo file cannot be two copies of
-// one signal. Ogg for the browsers that take it and FLAC for Safari, which
-// takes neither Ogg nor anything else lossy that JUCE can write. Both are what
-// the pages ask for, in that order.
+// one signal. Ogg first and FLAC behind it, which is the only pair JUCE can
+// write that covers every browser, and the order the pages ask for them in.
+// CONTRIBUTING.md says why the fallback is lossless.
 //
 //   cmake --build build --target overtonium_render_docs_audio
 //   ./build/overtonium_render_docs_audio_artefacts/
