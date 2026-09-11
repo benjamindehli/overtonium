@@ -151,6 +151,22 @@ Each platform also gets an installer. macOS gets a `.pkg` built by `packaging/ma
 
 The tag has to match `project(Overtonium VERSION ...)` in CMakeLists, and the workflow fails the release if it does not. The archive is named from the tag while the version a host displays comes from CMake, so without that check the two can disagree and nothing says so.
 
+It also has to have a section on `docs/releases/index.html`, headed with the version and the date. That page is the site's own account of what changed, written for somebody reading the site rather than somebody standing on the release page, so it cannot be generated from the notes file and has to be written before the tag goes up. The check runs before anything is built, so a forgotten entry costs a commit and a second tag rather than a published release with a site that stops one version short.
+
+**What the release writes back.** Publishing and updating the site are the same act, so the workflow commits to `main` after the release lands:
+
+| What                                                         | Why it cannot wait                                                 |
+| ------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `docs/latest.json`                                           | the plugin's update check reads it and would report the old one    |
+| the five download links on the install page                  | the buttons would hand out the previous build                      |
+| the version and date printed under them                      | the page would name a release nobody can download                  |
+| `softwareVersion` and `datePublished` in both JSON-LD blocks | a crawler would carry the old version into search results          |
+| `lastmod` for the three pages a release changes              | a sitemap that misdates a page is worse than one that says nothing |
+
+Every one of those is counted before and after it is rewritten, and the job fails if a substitution matched a different number of times than expected. A `sed` that silently matches nothing is the one way this goes wrong with nothing to show for it. The download links are visible the moment somebody clicks them, but a `softwareVersion` a release behind is visible to nothing but a crawler, which is why it is checked rather than trusted: it was hand-edited until 1.6.1 and was already a day out.
+
+The step reformats the pages it touched with Prettier before committing, because a longer version number can push a line past the width Prettier wraps at, and the format job checks `main` on every push including this one.
+
 **Signing.** The macOS side signs and notarises when the repository has the secrets for it, and falls back to an ad-hoc signature when it does not, so the workflow can be rehearsed before any of them exist. Ad-hoc is what lets a bundle load at all on Apple Silicon, where an unsigned one is refused outright, but it is not notarisation and a download still has to be opened past Gatekeeper.
 
 | Secret                                 | What it is                                                                        |

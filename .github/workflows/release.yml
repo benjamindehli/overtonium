@@ -34,18 +34,22 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Three places name the version and all three have to agree. The archive
-      # is named from the tag, the version a host displays comes from
-      # CMakeLists, and the notes on the release page come from the file in
-      # release-notes/ named after the tag. Tagging v2.0.0 against a project
-      # still saying 1.0.0 ships a file whose name and contents disagree, and a
-      # tag with no notes beside it would publish a release page with nothing
-      # on it. Neither shows up anywhere the person cutting the release is
-      # looking.
+      # Four places name the version and all four have to agree. The archive is
+      # named from the tag, the version a host displays comes from CMakeLists,
+      # the notes on the release page come from the file in release-notes/
+      # named after the tag, and the site's releases page has to carry a
+      # section for it. Tagging v2.0.0 against a project still saying 1.0.0
+      # ships a file whose name and contents disagree, a tag with no notes
+      # beside it would publish a release page with nothing on it, and a
+      # releases page that stops at the version before would quietly become a
+      # list of everything except what people just downloaded. None of the
+      # three shows up anywhere the person cutting the release is looking.
       #
       # Everything is reported before giving up, so a release that got two of
-      # them wrong takes one round trip rather than two.
-      - name: The tag has to match the project version and the notes
+      # them wrong takes one round trip rather than two. This runs before
+      # anything is built, so the fix is a commit and another tag rather than a
+      # published release with a stale site behind it.
+      - name: The tag has to match the project version, the notes and the site
         if: github.ref_type == 'tag'
         shell: bash
         run: |
@@ -88,6 +92,22 @@ jobs:
               echo "::error::$notes is headed $headed but the tag says $tagged"
               status=1
             fi
+          fi
+
+          # The site's own account of what changed. The notes file is written
+          # for somebody standing on the release page and this is written for
+          # somebody reading the site, so one cannot be generated from the
+          # other, and a heading is the one part of it a machine can insist on.
+          page=docs/releases/index.html
+          heading="<h2>$tagged,"
+
+          if ! grep -qF "$heading" "$page"; then
+            echo "::error::$page has no section headed '$tagged, <date>'"
+            echo "it currently opens with:"
+            grep -m3 -o '<h2>[^<]*</h2>' "$page" || true
+            status=1
+          else
+            echo "$page carries a section for $tagged"
           fi
 
           exit $status
@@ -466,15 +486,21 @@ jobs:
               archives/*
           fi
 
-      # Two things on the site name this release: docs/latest.json, which the
-      # plugin asks whether it is behind, and the five download links on the
-      # install page. Publishing and updating them have to be the same act, or
-      # every user's check quietly reports the previous version and the
-      # download buttons hand out the previous build.
+      # Several things on the site name this release: docs/latest.json, which
+      # the plugin asks whether it is behind, the five download links on the
+      # install page, the version and date printed under them, and the two
+      # JSON-LD blocks a search engine reads. Publishing and updating them have
+      # to be the same act, or every user's check quietly reports the previous
+      # version and the download buttons hand out the previous build.
+      #
+      # The metadata is the half nobody would notice: a download link that is a
+      # release behind is visible the moment anyone clicks it, and a
+      # softwareVersion that is a release behind is visible to nothing but a
+      # crawler. It was hand-edited until 1.6.1, and was already a day out.
       #
       # main rather than the tag, since the tag is a detached head and the
       # Pages site is served from the branch.
-      - name: Point the update feed and the download links at this release
+      - name: Point the update feed, the download links and the metadata at this release
         if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -536,11 +562,81 @@ jobs:
 
           echo "the install page points at $GITHUB_REF_NAME"
 
-          if git diff --quiet -- docs/latest.json "$page"; then
-            echo "the feed and the links already name $version"
+          # Everything else that names the version or the day it went out.
+          # Counted the same way and for the same reason: a substitution that
+          # matched nothing would leave the page describing the release before
+          # this one with nothing to show that it had been missed.
+          day=$(date -u +%F)
+          spoken=$(date -u +'%-d %B %Y')
+
+          # Rewrites one pattern in one file, and gives up unless it found
+          # exactly as many as it was told to expect.
+          stamp() {
+            local file="$1" pattern="$2" replacement="$3" expected="$4" found
+
+            found=$(grep -c -E "$pattern" "$file" || true)
+
+            if [ "$found" -ne "$expected" ]; then
+              echo "::error::expected $expected of /$pattern/ in $file, found $found"
+              exit 1
+            fi
+
+            sed -i -E "s|$pattern|$replacement|g" "$file"
+          }
+
+          front=docs/index.html
+
+          for marked in "$front" "$page"; do
+            stamp "$marked" '"softwareVersion": "[0-9][0-9.]*"' \
+                            "\"softwareVersion\": \"$version\"" 1
+            stamp "$marked" '"datePublished": "[0-9]{4}-[0-9]{2}-[0-9]{2}"' \
+                            "\"datePublished\": \"$day\"" 1
+          done
+
+          # The line under the download table, which is the only place on the
+          # site that says in words which version these files are.
+          stamp "$page" '<strong>version [0-9][0-9.]*</strong>' \
+                        "<strong>version $version</strong>" 1
+          stamp "$page" '<time datetime="[0-9]{4}-[0-9]{2}-[0-9]{2}">[^<]+</time>' \
+                        "<time datetime=\"$day\">$spoken</time>" 1
+
+          # The sitemap dates the three pages this release actually changes.
+          # The others keep whatever they last said, since claiming a page
+          # changed when it did not is the only way a sitemap misleads.
+          for changed in "" "install/" "releases/"; do
+            python3 - "$changed" "$day" <<'PY'
+          import re, sys
+
+          where, day = sys.argv[1], sys.argv[2]
+          loc = "https://benjamindehli.github.io/overtonium/" + where
+          path = "docs/sitemap.xml"
+
+          with open(path) as f:
+              sitemap = f.read()
+
+          pattern = r"(<loc>" + re.escape(loc) + r"</loc>\s*<lastmod>)[^<]*"
+          stamped, hits = re.subn(pattern, lambda m: m.group(1) + day, sitemap)
+
+          if hits != 1:
+              raise SystemExit(f"::error::{path} has {hits} entries for {loc}")
+
+          with open(path, "w") as f:
+              f.write(stamped)
+          PY
+          done
+
+          # Prettier checks docs/ on every push to main, this commit included,
+          # and a longer version number can push a line past the width it wants
+          # to wrap at. Cheaper to reformat here than to land a commit on main
+          # that fails its own format job.
+          npm ci --silent
+          npx prettier --write "$front" "$page" docs/latest.json
+
+          if git diff --quiet -- docs/; then
+            echo "the site already names $version"
             exit 0
           fi
 
-          git add docs/latest.json "$page"
-          git commit -m "Point the update feed and the download links at $GITHUB_REF_NAME"
+          git add docs/
+          git commit -m "Point the site at $GITHUB_REF_NAME"
           git push origin main

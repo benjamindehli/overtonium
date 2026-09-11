@@ -56,7 +56,7 @@
                 "codeRepository": "https://github.com/benjamindehli/overtonium",
                 "programmingLanguage": "C++",
                 "softwareVersion": "1.6.1",
-                "datePublished": "2026-09-10",
+                "datePublished": "2026-09-11",
                 "offers": {
                     "@type": "Offer",
                     "price": 0,
@@ -133,7 +133,13 @@
 
                 <!-- The five links below are rewritten by the release workflow, which
                      checks that it found all of them. Keep the shape of the URLs:
-                     .../releases/download/<tag>/Overtonium-<tag>-<platform>.<ext> -->
+                     .../releases/download/<tag>/Overtonium-<tag>-<platform>.<ext>
+
+                     So are the version and the date under the table, and the
+                     softwareVersion and datePublished above. Each is matched by
+                     its own pattern and counted, so keep them one to a page:
+                     a second <strong>version 1.2.3</strong> anywhere on this
+                     page fails the release rather than being rewritten twice. -->
                 <section id="downloads">
                     <h2>Download</h2>
 
@@ -199,9 +205,9 @@
                     </div>
 
                     <p>
-                        Every file above is from the current release. <a href="../releases/">What changed in it</a>, and in every version before it,
-                        has a page of its own. Older builds and the source are on the
-                        <a href="https://github.com/benjamindehli/overtonium/releases/latest">releases page</a>.
+                        Every file above is from <strong>version 1.6.1</strong>, released <time datetime="2026-09-11">11 September 2026</time>.
+                        <a href="../releases/">What changed in it</a>, and in every version before it, has a page of its own. Older builds and the
+                        source are on the <a href="https://github.com/benjamindehli/overtonium/releases/latest">releases page</a>.
                     </p>
                 </section>
 
