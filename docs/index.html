@@ -147,14 +147,16 @@
     <body>
         <div class="page">
             <header class="nav-only">
-                <ul class="sections">
-                    <li><a href="./" aria-current="page">Overview</a></li>
-                    <li><a href="tuning/">Tuning</a></li>
-                    <li><a href="controls/">Controls</a></li>
-                    <li><a href="presets/">Presets</a></li>
-                    <li><a href="install/">Install</a></li>
-                    <li><a href="releases/">Releases</a></li>
-                </ul>
+                <nav aria-label="Sections">
+                    <ul class="sections">
+                        <li><a href="./" aria-current="page">Overview</a></li>
+                        <li><a href="tuning/">Tuning</a></li>
+                        <li><a href="controls/">Controls</a></li>
+                        <li><a href="presets/">Presets</a></li>
+                        <li><a href="install/">Install</a></li>
+                        <li><a href="releases/">Releases</a></li>
+                    </ul>
+                </nav>
             </header>
 
             <main>
@@ -281,7 +283,7 @@
                         <div class="players">
                             <p>
                                 <strong>Just Saw</strong><br />
-                                <audio controls preload="none">
+                                <audio controls preload="none" aria-label="Just Saw">
                                     <source src="audio/just-saw.ogg" type="audio/ogg" />
                                     <source src="audio/just-saw.flac" type="audio/flac" />
                                     Your browser cannot play this. The file is <a href="audio/just-saw.flac">just-saw.flac</a>.
@@ -290,7 +292,7 @@
 
                             <p>
                                 <strong>Equal Saw</strong><br />
-                                <audio controls preload="none">
+                                <audio controls preload="none" aria-label="Equal Saw">
                                     <source src="audio/equal-saw.ogg" type="audio/ogg" />
                                     <source src="audio/equal-saw.flac" type="audio/flac" />
                                     Your browser cannot play this. The file is <a href="audio/equal-saw.flac">equal-saw.flac</a>.

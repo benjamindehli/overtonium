@@ -21,14 +21,33 @@
 
     --measure: 77ch;
     --page: 1180px;
+
+    /* The one thing on this page the browser draws rather than the stylesheet
+       is the audio player, and without this it arrives in light chrome on a
+       #0b0d10 ground. Scrollbars and focus rings take their cue from it too. */
+    color-scheme: dark;
 }
 
 * {
     box-sizing: border-box;
 }
 
-html {
-    scroll-behavior: smooth;
+/* Behind the preference like the hero's three movements, since a jump to an
+   anchor that animates is motion whoever asked for less did not ask for. */
+@media (prefers-reduced-motion: no-preference) {
+    html {
+        scroll-behavior: smooth;
+    }
+}
+
+/* The keyboard's version of the hover that picks out a row: without it the
+   only way to tell where tabbing has reached is whatever the browser draws by
+   default, which on a ground this dark is next to nothing. Focus-visible
+   rather than focus, so a click on a link does not leave a ring behind it. */
+:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 2px;
 }
 
 body {
