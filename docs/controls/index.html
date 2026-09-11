@@ -6,7 +6,7 @@
         <title>Overtonium controls: every knob on a channel and on the bar</title>
         <meta
             name="description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, and the wobble, tape echo, reverb and converter on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 781 parameters are named for a host, and the wobble, tape echo, reverb and converter on the bar."
         />
         <link rel="canonical" href="https://benjamindehli.github.io/overtonium/controls/" />
         <meta name="theme-color" content="#0b0d10" />
@@ -17,7 +17,7 @@
         <meta property="og:title" content="Overtonium controls: every knob on a channel and on the bar" />
         <meta
             property="og:description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, and the wobble, tape echo, reverb and converter on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 781 parameters are named for a host, and the wobble, tape echo, reverb and converter on the bar."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-controls.jpg" />
         <meta property="og:image:width" content="1200" />
@@ -28,7 +28,7 @@
         <meta name="twitter:title" content="Overtonium controls: every knob on a channel and on the bar" />
         <meta
             name="twitter:description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, and the wobble, tape echo, reverb and converter on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 781 parameters are named for a host, and the wobble, tape echo, reverb and converter on the bar."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-controls.jpg" />
 
@@ -699,6 +699,79 @@
                         one. How you play the instrument, how loud it is and what it is tuned to are properties of the session rather than of any one
                         sound in it. The master fader is in the same position for the same reason, and so are the zoom, the window size and which
                         groups of rows you have folded away.
+                    </p>
+                </section>
+
+                <section>
+                    <h2>Automating it from the host</h2>
+
+                    <p>
+                        Seven hundred and eighty-one parameters reach the host: twenty-seven global ones, twenty-three on each of the 32 partials, and
+                        eighteen on the noise channel. They are listed in the order the panel reads, the globals first and then channel by channel
+                        with the noise channel last.
+                    </p>
+
+                    <p>
+                        Every per-channel name carries its channel, so a parameter list answers both ways of looking for something. Type
+                        <code>H7</code> and you have that partial, type <code>Tune</code> and you have that row across the whole mixer. The same names
+                        are what a screen reader reads, which is why they are words rather than numbers.
+                    </p>
+
+                    <div class="scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>What you are after</th>
+                                    <th>What the host calls it</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>The master fader</td>
+                                    <td><code>Master</code></td>
+                                </tr>
+                                <tr>
+                                    <td>The seventh partial's tuning</td>
+                                    <td><code>H7 Tune</code></td>
+                                </tr>
+                                <tr>
+                                    <td>The eleventh partial's fader</td>
+                                    <td><code>H11 Level</code></td>
+                                </tr>
+                                <tr>
+                                    <td>The noise channel's brightness</td>
+                                    <td><code>Noise Colour</code></td>
+                                </tr>
+                                <tr>
+                                    <td>How long the echo's repeats are</td>
+                                    <td><code>Echo Time</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <p>
+                        The noise channel has eighteen rather than twenty-three because it has no tuning, pitch modulation, drift or start phase, and
+                        gains COLOUR in their place.
+                    </p>
+
+                    <p>
+                        Everything in Settings is in the list too, even though no preset will ever move it. The temperament, the polyphony and the
+                        bend range are all automatable, so a piece that changes temperament partway through is something a host can do, whatever the
+                        panel thinks a setting is for.
+                    </p>
+
+                    <p>
+                        <strong>A parameter is identified by an id of its own rather than by its position</strong>, in the Audio Unit as in the VST3.
+                        That is what lets a release add controls without breaking what you have already written: 1.6.0 put 65 new parameters among the
+                        existing ones rather than after them, and every automation lane written before it still points at the control it was pointing
+                        at.
+                    </p>
+
+                    <p>
+                        LINK is not a parameter, since it is a tool for the mouse rather than part of the sound. A drag under it opens a gesture on
+                        every channel it reaches, writes each one, and closes them together, so what a host records is what actually moved: thirty-two
+                        lanes if the drag moved thirty-two channels.
                     </p>
                 </section>
 
