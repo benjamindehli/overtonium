@@ -15,6 +15,7 @@ Written in C++ with JUCE 8 by Benjamin Dehli for Dehli Musikk. Hosts list it und
 - [Controls](https://benjamindehli.github.io/overtonium/controls/): every knob on a channel strip and on the global bar, the two-part envelope, per-partial velocity and pressure, LINK for ganging the 32 channels, the lamps and meters, the noise channel and MPE, the gestures the panel answers to and every entry in the Settings menu with its default, and a diagram of the order the signal passes through.
 - [Presets](https://benjamindehli.github.io/overtonium/presets/): the twenty-eight that ship, what a preset carries and deliberately does not, where user presets are kept on each platform, and how folders in that directory become groups in the menu.
 - [Install](https://benjamindehli.github.io/overtonium/install/): which download to take on each platform, what to do when a host does not see the plugin, the opt-in update check, and building from source.
+- [Releases](https://benjamindehli.github.io/overtonium/releases/): what changed in each version since 1.0.0, newest first, with what to know before upgrading and a link to the full notes for each.
 
 ## Source
 

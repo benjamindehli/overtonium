@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Overtonium releases: what changed in each version</title>
+        <meta
+            name="description"
+            content="Every Overtonium release since 1.0.0, newest first: what each one added, what it fixed, and what to know before upgrading. The full notes for each are on GitHub."
+        />
+        <link rel="canonical" href="https://benjamindehli.github.io/overtonium/releases/" />
+        <meta name="theme-color" content="#0b0d10" />
+
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Overtonium" />
+        <meta property="og:url" content="https://benjamindehli.github.io/overtonium/releases/" />
+        <meta property="og:title" content="Overtonium releases: what changed in each version" />
+        <meta
+            property="og:description"
+            content="Every Overtonium release since 1.0.0, newest first: what each one added, what it fixed, and what to know before upgrading. The full notes for each are on GitHub."
+        />
+        <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card.jpg" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta
+            property="og:image:alt"
+            content="The Overtonium wordmark over the plugin window: rows of per-partial knobs above 32 channel faders and lit meters."
+        />
+
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Overtonium releases: what changed in each version" />
+        <meta
+            name="twitter:description"
+            content="Every Overtonium release since 1.0.0, newest first: what each one added, what it fixed, and what to know before upgrading. The full notes for each are on GitHub."
+        />
+        <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card.jpg" />
+
+        <link rel="icon" href="../dehli-musikk.svg" />
+        <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
+        <link rel="stylesheet" href="../style.css" />
+
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    {
+                        "@type": "ListItem",
+                        "position": 1,
+                        "name": "Overtonium",
+                        "item": "https://benjamindehli.github.io/overtonium/"
+                    },
+                    {
+                        "@type": "ListItem",
+                        "position": 2,
+                        "name": "Releases",
+                        "item": "https://benjamindehli.github.io/overtonium/releases/"
+                    }
+                ]
+            }
+        </script>
+    </head>
+    <body>
+        <div class="page">
+            <header>
+                <p class="brand">
+                    <a href="../"><img class="wordmark" src="../overtonium-wordmark.webp" width="2464" height="448" alt="Overtonium" /></a>
+                </p>
+
+                <ul class="sections">
+                    <li><a href="../">Overview</a></li>
+                    <li><a href="../tuning/">Tuning</a></li>
+                    <li><a href="../controls/">Controls</a></li>
+                    <li><a href="../presets/">Presets</a></li>
+                    <li><a href="../install/">Install</a></li>
+                    <li><a href="../releases/" aria-current="page">Releases</a></li>
+                </ul>
+            </header>
+
+            <main>
+                <p class="crumbs"><a href="../">Overtonium</a> / Releases</p>
+
+                <h1>Releases</h1>
+
+                <p class="lead">
+                    What changed in each version, newest first. Each one links to its full notes, which say more and carry the installing and
+                    upgrading detail as well.
+                </p>
+
+                <section>
+                    <h2>1.6.1, 11 September 2026</h2>
+
+                    <p>
+                        One fix, and nothing else. The waveform selectors added in 1.6.0 kept listening to their parameter fractionally longer than
+                        they should have, into the moment they were being taken apart, so a value arriving at exactly that instant landed on a control
+                        that was already half gone. Closing a plugin window while automation plays is the everyday version of that, which is why it
+                        was worth a release of its own rather than waiting.
+                    </p>
+
+                    <p class="more"><a href="https://github.com/benjamindehli/overtonium/releases/tag/v1.6.1">The full notes for 1.6.1</a></p>
+                </section>
+
+                <section>
+                    <h2>1.6.0, 10 September 2026</h2>
+
+                    <p>
+                        <strong>Both modulators pick a waveform.</strong> Eight shapes on pitch and seven on amplitude, on every one of the
+                        thirty-three channels, so the fifth partial can be gated while the fourth breathes. The pitch depth reaches an octave now,
+                        which is what the shapes that step rather than sweep are worth having: a square on the pitch is a trill and sample and hold is
+                        a run of random notes. The tuning digits and the shape glyph are lit, so a strip has two displays rather than a screen and a
+                        label.
+                    </p>
+
+                    <p>
+                        Two more factory presets, <em>Stepped</em> and <em>StyloPoly</em>, twenty-eight in all. Loading a preset used to tell the host
+                        about a thousand parameter changes, most of which were not changes, and now tells it only what moved.
+                    </p>
+
+                    <p>
+                        <strong>Before upgrading.</strong> The factory presets are renumbered, since the two new ones sort into alphabetical place
+                        rather than onto the end, so a session that stored a preset by number opens on a different one. The sound is stored with the
+                        session either way. Automation is unaffected: the 65 new parameters are inserted among the existing ones, and both formats
+                        identify a parameter by name rather than by position.
+                    </p>
+
+                    <p class="more"><a href="https://github.com/benjamindehli/overtonium/releases/tag/v1.6.0">The full notes for 1.6.0</a></p>
+                </section>
+
+                <section>
+                    <h2>1.5.0, 5 September 2026</h2>
+
+                    <p>
+                        Seven more factory presets, twenty-six in all, six of them the same electric piano seen from different angles, because that is
+                        what a stack of sine waves is good at. The preset menu became two submenus rather than one long list, and folders in your
+                        preset folder became groups in the menu.
+                    </p>
+
+                    <p>
+                        <strong>Nothing in the Settings menu travels with a preset any more.</strong> Saving one used to write your polyphony,
+                        temperament, bend range and MPE into the file, so recalling a sound reached over and changed how the instrument was set up.
+                        The factory presets already knew better, and both kinds follow the same rule now.
+                    </p>
+
+                    <p>
+                        Four fixes, the audible one being a note held by the sustain pedal clicking when you played it again. Its envelope restarted
+                        from silence while the note was still ringing at its sustain level.
+                    </p>
+
+                    <p class="more"><a href="https://github.com/benjamindehli/overtonium/releases/tag/v1.5.0">The full notes for 1.5.0</a></p>
+                </section>
+
+                <section>
+                    <h2>1.4.0, 30 August 2026</h2>
+
+                    <p>
+                        Three more factory presets, nineteen in all. <strong>Legato</strong> arrived at the head of the polyphony list, where pressing
+                        a key while another is held moves the note rather than starting it again. <strong>One voice per key</strong> became a switch,
+                        so a bell struck over and over can be made to build up rather than take over its own voice. Right-clicking a mute or a solo
+                        clears every one of them across the mixer, which beats hunting for a stray solo among sixty-six buttons four pixels apart.
+                    </p>
+
+                    <p>
+                        <strong>Before upgrading.</strong> Both lists gained an entry at the top, so polyphony indices shifted by one and a session
+                        saved on 8 voices opens on 6. The factory presets are renumbered for the same reason.
+                    </p>
+
+                    <p class="more"><a href="https://github.com/benjamindehli/overtonium/releases/tag/v1.4.0">The full notes for 1.4.0</a></p>
+                </section>
+
+                <section>
+                    <h2>1.3.0, 28 August 2026</h2>
+
+                    <p>
+                        <strong>The per-channel outputs are gone again</strong>, and the release is mostly that removal. Logic offers a fixed menu of
+                        multi-output arrangements and cannot complete the larger ones, which arrangements work varies with the version and the
+                        processor underneath it, and the one shape that would actually suit a 32-partial mixer, 32 mono outputs, was never on the menu
+                        at all. A convenience that half worked in the one host it had been tried in is not part of the instrument.
+                    </p>
+
+                    <p>
+                        Also fixed: parameters hold the values they are given. Two conversions between a knob position and a value were done in single
+                        precision, and 66 defaults fell where that round trip loses a bit.
+                    </p>
+
+                    <p class="more"><a href="https://github.com/benjamindehli/overtonium/releases/tag/v1.3.0">The full notes for 1.3.0</a></p>
+                </section>
+
+                <section>
+                    <h2>1.2.0, 26 August 2026</h2>
+
+                    <p>
+                        An output per channel, 33 of them alongside the stereo mix, which 1.3.0 then removed. MPE slide gained a destination, off,
+                        brightness or tuning. The two LINK tilts became one <strong>taper from wherever you grab</strong>, which can peak under your
+                        hand in the middle of the series rather than only at an end. The level readout counts down to -99.9 dB rather than giving up
+                        at -66, which was two thirds of the fader's usable bottom end. Every control got a name a screen reader can read, all 635 of
+                        them.
+                    </p>
+
+                    <p>
+                        <strong>Before upgrading.</strong> Automation written against the old level fader plays back at different levels, because the
+                        fader's travel is spaced by decibels now rather than by gain.
+                    </p>
+
+                    <p class="more"><a href="https://github.com/benjamindehli/overtonium/releases/tag/v1.2.0">The full notes for 1.2.0</a></p>
+                </section>
+
+                <section>
+                    <h2>1.1.0, 24 August 2026</h2>
+
+                    <p>
+                        <strong>Folding the mixer down.</strong> Click a section heading in the caption gutter and that group of rows folds away
+                        across every channel at once, taking the window's height with it. All five groups is 480 pixels shorter.
+                    </p>
+
+                    <p>
+                        The factory presets appeared in Logic's own preset menu, the panel gained its grain, its grooves and its bloom, and the
+                        <a href="../install/">update check</a> arrived, off unless you ask for it. Nothing about the sound changed, and a patch saved
+                        in 1.0.0 loads identically.
+                    </p>
+
+                    <p class="more"><a href="https://github.com/benjamindehli/overtonium/releases/tag/v1.1.0">The full notes for 1.1.0</a></p>
+                </section>
+
+                <section>
+                    <h2>1.0.0, 23 August 2026</h2>
+
+                    <p>
+                        The first release. 32 sine partials and a noise channel, each with its own fader, tuning, envelope, tremolo, pitch modulation
+                        and pan. <a href="../tuning/">TUNE</a>, six keyboard temperaments, inharmonic stretch, keyboard tracking, drift and wobble.
+                        MPE alongside ordinary MIDI, a tape echo, a feedback delay network reverb, a lo-fi converter, channel ganging, and 16 factory
+                        presets.
+                    </p>
+
+                    <p class="more"><a href="https://github.com/benjamindehli/overtonium/releases/tag/v1.0.0">The full notes for 1.0.0</a></p>
+                </section>
+
+                <section>
+                    <h2>Being told about a new one</h2>
+
+                    <p>
+                        The plugin can check for itself, and does not unless you ask it to. The
+                        <a href="../install/">install page</a> says what that costs, which is one request for a static file and nothing about you.
+                        Every release is also on the <a href="https://github.com/benjamindehli/overtonium/releases">releases page</a>, which GitHub
+                        publishes as <a href="https://github.com/benjamindehli/overtonium/releases.atom">a feed</a> for anyone who would rather
+                        subscribe than be asked.
+                    </p>
+                </section>
+
+                <div class="onward">
+                    <ul class="links">
+                        <li><a class="primary" href="../install/#downloads">Download the current release</a></li>
+                        <li><a href="../controls/">Controls</a></li>
+                    </ul>
+                </div>
+            </main>
+
+            <footer>
+                <div class="maker">
+                    <img src="../dehli-musikk.svg" alt="" width="392" height="232" loading="lazy" />
+                    <div>By Benjamin Dehli for <a href="https://www.dehlimusikk.no/">Dehli Musikk</a>. Hosts list it under DehliMusikk.</div>
+                </div>
+
+                <p>
+                    Released under the
+                    <a href="https://github.com/benjamindehli/overtonium/blob/main/LICENSE">GNU Affero General Public License v3</a>, which follows
+                    from JUCE. Built with <a href="https://juce.com/">JUCE 8</a>.
+                </p>
+            </footer>
+        </div>
+    </body>
+</html>

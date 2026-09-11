@@ -407,6 +407,16 @@ p {
     line-height: 1.55;
 }
 
+/* The pointer at the foot of a release, out to the notes that say the rest. It
+   sits a size down and the page's dim grey, because it closes a block rather
+   than belonging to the paragraph above it, and a run of them down the page
+   should read as a margin rather than as a list of links. */
+.more {
+    margin: 20px 0 0;
+    font-size: 15px;
+    color: var(--text-dim);
+}
+
 /* The single paragraph between the row of facts and the window shot, both of
    which run the full width of the page. At the ordinary measure it hangs off
    the left edge and reads as a stranded column, so it is centred and a size up.
