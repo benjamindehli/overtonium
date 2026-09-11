@@ -773,6 +773,27 @@ footer a:hover {
     margin-bottom: 18px;
 }
 
+/* The rest of the project, which is not documentation and so has no place in
+   the section nav at the top. It wraps rather than scrolls, since a footer that
+   has to be dragged sideways is a footer nobody reads. */
+.elsewhere {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    margin: 0 0 16px;
+    padding: 0;
+    list-style: none;
+}
+
+.elsewhere a {
+    text-decoration: none;
+    border-bottom: 1px solid var(--outline);
+}
+
+.elsewhere a:hover {
+    border-bottom-color: var(--accent);
+}
+
 .maker img {
     width: 58px;
     height: auto;

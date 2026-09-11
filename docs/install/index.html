@@ -6,7 +6,7 @@
         <title>Installing Overtonium on macOS, Windows and Linux</title>
         <meta
             name="description"
-            content="How to install Overtonium: a signed and notarised universal package for macOS, an installer for Windows, and a zip for Linux, plus what to do when a host does not see the plugin and how to build it from source."
+            content="How to install Overtonium: a signed and notarised universal package for macOS, an installer for Windows, and a zip for Linux, what to do when a host does not see the plugin, what it costs to run, and how to build it from source."
         />
         <link rel="canonical" href="https://benjamindehli.github.io/overtonium/install/" />
         <meta name="theme-color" content="#0b0d10" />
@@ -17,7 +17,7 @@
         <meta property="og:title" content="Installing Overtonium on macOS, Windows and Linux" />
         <meta
             property="og:description"
-            content="How to install Overtonium: a signed and notarised universal package for macOS, an installer for Windows, and a zip for Linux, plus what to do when a host does not see the plugin and how to build it from source."
+            content="How to install Overtonium: a signed and notarised universal package for macOS, an installer for Windows, and a zip for Linux, what to do when a host does not see the plugin, what it costs to run, and how to build it from source."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-install.jpg" />
         <meta property="og:image:width" content="1200" />
@@ -28,7 +28,7 @@
         <meta name="twitter:title" content="Installing Overtonium on macOS, Windows and Linux" />
         <meta
             name="twitter:description"
-            content="How to install Overtonium: a signed and notarised universal package for macOS, an installer for Windows, and a zip for Linux, plus what to do when a host does not see the plugin and how to build it from source."
+            content="How to install Overtonium: a signed and notarised universal package for macOS, an installer for Windows, and a zip for Linux, what to do when a host does not see the plugin, what it costs to run, and how to build it from source."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-install.jpg" />
 
@@ -332,6 +332,65 @@
                     </p>
                 </section>
 
+                <section id="cost">
+                    <h2>What it costs to run</h2>
+
+                    <p>
+                        Polyphony is the multiplier that matters, since eight voices of 32 partials is 256 sine oscillators. Measured on one core at
+                        48 kHz with everything running at once: both modulators on every channel, drift, velocity, aftertouch, the meters and the
+                        noise channel.
+                    </p>
+
+                    <div class="scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Voices</th>
+                                    <th>Oscillators</th>
+                                    <th>One core</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>1</td>
+                                    <td>32</td>
+                                    <td>about 1%</td>
+                                </tr>
+                                <tr>
+                                    <td>8, the default</td>
+                                    <td>256</td>
+                                    <td>about 7%</td>
+                                </tr>
+                                <tr>
+                                    <td>16</td>
+                                    <td>512</td>
+                                    <td>14 to 15%</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <p>
+                        The tape echo and the reverb add well under 1% on top of whatever that comes to, at any polyphony, since they work on the sum
+                        rather than once per voice. One machine's figures rather than a promise about yours, but the shape of them holds: the voices
+                        are the cost and nothing else comes close.
+                    </p>
+
+                    <p>
+                        <strong>The render rate is the control to reach for</strong> if you need it cheaper. Turning it down is a genuine cut rather
+                        than a filter laid over the top, because the whole voice pool renders slower: at 8 kHz it costs a fifth as much. It is also
+                        audible, which is the point of having it on the panel rather than in a preferences dialog. Dropping the polyphony works too,
+                        and proportionally.
+                    </p>
+
+                    <p>
+                        What keeps it affordable at all is that the engine stays a plain bank of oscillators. A 4096-point interpolated sine table
+                        rather than a sine call per sample, modulators and envelope coefficients updating once per 32-sample block while only the
+                        oscillator and the envelope run at sample rate, and a partial that is muted, faded out or sitting at zero skipping the
+                        oscillator entirely.
+                    </p>
+                </section>
+
                 <section>
                     <h2>What has actually been tried</h2>
 
@@ -382,6 +441,14 @@ cmake --build build</code></pre>
                     <img src="../dehli-musikk.svg" alt="" width="392" height="232" loading="lazy" />
                     <div>By Benjamin Dehli for <a href="https://www.dehlimusikk.no/">Dehli Musikk</a>. Hosts list it under DehliMusikk.</div>
                 </div>
+
+                <ul class="elsewhere">
+                    <li><a href="https://github.com/benjamindehli/overtonium">Source</a></li>
+                    <li><a href="https://github.com/benjamindehli/overtonium/blob/main/DESIGN.md">Design notes</a></li>
+                    <li><a href="https://github.com/benjamindehli/overtonium/blob/main/ARCHITECTURE.md">Architecture</a></li>
+                    <li><a href="https://github.com/benjamindehli/overtonium/issues">Issue tracker</a></li>
+                    <li><a href="https://www.kvraudio.com/product/overtonium-by-dehli-musikk">KVR listing</a></li>
+                </ul>
 
                 <p>
                     Released under the
