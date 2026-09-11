@@ -6,7 +6,7 @@
         <title>Overtonium controls: every knob on a channel and on the bar</title>
         <meta
             name="description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, and the wobble, tape echo, reverb and converter on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, and the wobble, tape echo, reverb and converter on the bar."
         />
         <link rel="canonical" href="https://benjamindehli.github.io/overtonium/controls/" />
         <meta name="theme-color" content="#0b0d10" />
@@ -17,7 +17,7 @@
         <meta property="og:title" content="Overtonium controls: every knob on a channel and on the bar" />
         <meta
             property="og:description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, and the wobble, tape echo, reverb and converter on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, and the wobble, tape echo, reverb and converter on the bar."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-controls.jpg" />
         <meta property="og:image:width" content="1200" />
@@ -28,7 +28,7 @@
         <meta name="twitter:title" content="Overtonium controls: every knob on a channel and on the bar" />
         <meta
             name="twitter:description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, and the wobble, tape echo, reverb and converter on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, and the wobble, tape echo, reverb and converter on the bar."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-controls.jpg" />
 
@@ -120,7 +120,10 @@
                                 <tr>
                                     <td>PHASE</td>
                                     <td>0 to 1 turn</td>
-                                    <td>Where in its cycle the partial starts</td>
+                                    <td>
+                                        Where in its cycle the partial starts, when phase reset is on. With it off there is no reset for it to aim and
+                                        the knob does nothing
+                                    </td>
                                 </tr>
                                 <tr>
                                     <td>PITCH MOD shape, rate, depth</td>
@@ -410,6 +413,36 @@
                 </section>
 
                 <section>
+                    <h2>Working the panel</h2>
+
+                    <p>
+                        <strong>Double-clicking a knob restores its default</strong>, which is that control's own default rather than the bottom of
+                        its range. On a fader that is 0 dB rather than silence.
+                    </p>
+
+                    <p>
+                        <strong>Undo and redo</strong> matter here more than they would on a smaller instrument, because one LINK drag moves the same
+                        knob on all 32 channels and without a history the only way back is to reload the preset. A step is a gesture rather than a
+                        value change, so that drag comes back in one rather than thirty-two. Cmd-Z and Cmd-Shift-Z, or Ctrl with the same two keys
+                        away from a Mac, work where the host lets them through, which many do not, since a DAW usually keeps those for its own
+                        history. Both are also at the top of the Settings menu, which always works. Loading a session starts you with an empty history
+                        rather than with whatever the last person did.
+                    </p>
+
+                    <p>
+                        <strong>Resting on a strip</strong> names the partial it belongs to: the harmonic number, the interval that harmonic makes
+                        with the fundamental, how many semitones above the played note the tempered position is, and how far the exact ratio sits from
+                        that in cents. It is the row that channel has in <a href="../tuning/">the table of the series</a>, without leaving the mixer.
+                        The mute and solo buttons say which harmonic they would silence.
+                    </p>
+
+                    <p>
+                        <strong>Right-clicking anywhere in the mixer</strong> opens the LINK menu, which is where your hand already is when you want
+                        it. The mute and solo buttons take the click instead and clear every mute or every solo at once.
+                    </p>
+                </section>
+
+                <section>
                     <h2>Reading the mixer</h2>
 
                     <h3>The two readouts</h3>
@@ -550,6 +583,121 @@
                     <p>
                         Letting a key go while others are still down falls back to the most recent of them, which is what makes a trill work. Only the
                         last key coming up releases the note.
+                    </p>
+                </section>
+
+                <section>
+                    <h2>The Settings menu</h2>
+
+                    <p>
+                        Everything set once and then left. The menu is where the instrument is set up and the panel is where the sound is made, and a
+                        control's place says which of the two it is.
+                    </p>
+
+                    <div class="scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Entry</th>
+                                    <th>Choices</th>
+                                    <th>What it decides</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Undo, Redo</td>
+                                    <td></td>
+                                    <td>The same steps Cmd-Z reaches, for the hosts that keep that shortcut for themselves</td>
+                                </tr>
+                                <tr>
+                                    <td>Check for new versions</td>
+                                    <td>off by default</td>
+                                    <td>
+                                        The one entry that reaches outside the machine. <a href="../install/">What it sends</a> is nothing but a
+                                        request for a file
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Polyphony</td>
+                                    <td>Legato, then 1, 2, 4, 6, 8, 12 or 16 voices. 8 by default</td>
+                                    <td>
+                                        How many notes can sound at once. Legato heads the list because it is one voice too, differing only in what a
+                                        second key does
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>One voice per key</td>
+                                    <td>on by default</td>
+                                    <td>
+                                        Striking a key again takes over the note it is already sounding rather than laying a second copy beside it,
+                                        which is what a string or a bar does. Off, every strike gets a voice of its own and the tails sum, so a
+                                        repeatedly struck bell builds up
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Pitch bend range</td>
+                                    <td>0, 1, 2, 3, 4, 5, 7, 12 or 24 semitones. 2 by default</td>
+                                    <td>How far the wheel bends. The counts anyone actually uses rather than all twenty-five</td>
+                                </tr>
+                                <tr>
+                                    <td>MPE</td>
+                                    <td>off by default</td>
+                                    <td>
+                                        Whether a note's channel is part of who that note is, which is what lets pitch bend and pressure arrive per
+                                        note
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Aftertouch from</td>
+                                    <td>Channel pressure, Mod wheel, Either. Either by default</td>
+                                    <td>
+                                        What feeds the AT row on every strip. Polyphonic aftertouch is not on the list because it stays routed
+                                        whatever this says
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Slide to</td>
+                                    <td>Off, Brightness, Tuning. Brightness by default</td>
+                                    <td>Where the forward and back axis under an MPE finger goes</td>
+                                </tr>
+                                <tr>
+                                    <td>Temperament, Root, Reference pitch</td>
+                                    <td>Six temperaments, twelve roots, 415 to 466 Hz</td>
+                                    <td>
+                                        What the keyboard underneath is tuned to, which <a href="../tuning/">the tuning system</a> works through. Root
+                                        is greyed out for equal temperament, which has no centre to have
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Phase reset</td>
+                                    <td>on by default</td>
+                                    <td>
+                                        Restarts each partial's phase at note-on, which gives a coherent, percussive attack and is what makes the
+                                        PHASE knob mean anything
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Safety clip</td>
+                                    <td>on by default</td>
+                                    <td>The clipper at the end of the chain, worth leaving on when you push 32 faders up</td>
+                                </tr>
+                                <tr>
+                                    <td>Zoom</td>
+                                    <td>75, 100, 125 or 150%</td>
+                                    <td>
+                                        How big the window is on your screen. Last in the menu and on its own, since everything above it is the
+                                        instrument and this is not
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <p>
+                        None of it travels with a <a href="../presets/">preset</a>, and that is the rule rather than a list that might fall behind
+                        one. How you play the instrument, how loud it is and what it is tuned to are properties of the session rather than of any one
+                        sound in it. The master fader is in the same position for the same reason, and so are the zoom, the window size and which
+                        groups of rows you have folded away.
                     </p>
                 </section>
 
