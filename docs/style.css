@@ -703,6 +703,51 @@ figcaption {
     margin: 0;
 }
 
+/* ---- the factory presets --------------------------------------------------
+
+   A list rather than a table, because each row now carries a player and a
+   native one will not go below about 240 pixels. Two columns at that width and
+   a table would be wider than the page on anything but a desktop, leaving the
+   one thing a reader came to press behind a horizontal scroll. As a grid the
+   same two columns fold into one when there is no room for them. */
+.presets {
+    margin: 28px 0 0;
+}
+
+.presets > div {
+    display: grid;
+    grid-template-columns: 264px 1fr;
+    gap: 4px 28px;
+    align-items: start;
+    padding: 18px 0;
+    border-top: 1px solid var(--outline);
+}
+
+.presets dt {
+    font-weight: 600;
+    color: #fff;
+}
+
+.presets dd {
+    margin: 0;
+}
+
+.presets audio {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+}
+
+@media (max-width: 720px) {
+    .presets > div {
+        grid-template-columns: 1fr;
+    }
+
+    .presets audio {
+        margin-bottom: 6px;
+    }
+}
+
 /* ---- footer -------------------------------------------------------------- */
 
 footer {

@@ -358,8 +358,8 @@ if(OVERTONIUM_BUILD_TOOLS)
 
     overtonium_set_warnings_as_errors(overtonium_render_docs)
 
-    # And the two audio clips, for the same reason and on the same switch. This
-    # one needs juce_audio_formats for the Ogg and WAV writers, which the plugin
+    # And the audio clips, for the same reason and on the same switch. This one
+    # needs juce_audio_formats for the Ogg and FLAC writers, which the plugin
     # itself has no use for.
     juce_add_console_app(overtonium_render_docs_audio
         PRODUCT_NAME "overtonium_render_docs_audio")

@@ -12,12 +12,12 @@
 CMakeLists.txt text eol=lf
 
 # Not text. Left alone entirely, and never shown as a diff, which for a 300 KiB
-# WAV is a kindness to whoever runs git show by accident.
+# audio clip is a kindness to whoever runs git show by accident.
 *.png binary
 *.jpg binary
 *.jpeg binary
 *.webp binary
-*.wav binary
+*.flac binary
 *.ogg binary
 *.icns binary
 

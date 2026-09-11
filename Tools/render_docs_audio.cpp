@@ -1,14 +1,17 @@
-// The two clips on the project page, rendered by the plugin itself.
+// Every clip the project pages play, rendered by the plugin itself.
 //
-// Just Saw and Equal Saw differ in TUNE and in nothing else, which makes them
-// the one pair worth hearing rather than reading about. Both are rendered from
-// the shipped presets rather than recorded, so a change to either preset or to
-// the tuning maths is one command away from being audible on the page rather
-// than quietly out of date.
+// The pairs come first: Just Saw and Equal Saw differ in TUNE and in nothing
+// else, which makes them the one pair worth hearing rather than reading about,
+// and the rest of the tuning page is built the same way. Then one clip per
+// factory preset, on a gesture they all share. All of them are rendered from
+// the shipped presets rather than recorded, so a change to a preset or to the
+// tuning maths is one command away from being audible on the page rather than
+// quietly out of date.
 //
-// Mono because neither patch pans anything, so a stereo file would be two
-// copies of one signal. Ogg for the browsers that take it and WAV for the rest,
-// which is the only pair of formats JUCE can write and every browser can read.
+// Mono wherever a patch pans nothing, so a stereo file cannot be two copies of
+// one signal. Ogg for the browsers that take it and FLAC for Safari, which
+// takes neither Ogg nor anything else lossy that JUCE can write. Both are what
+// the pages ask for, in that order.
 //
 //   cmake --build build --target overtonium_render_docs_audio
 //   ./build/overtonium_render_docs_audio_artefacts/
@@ -30,6 +33,25 @@ constexpr int kBlock = 512;
 
 int indexOf(const juce::String &name) {
   return ovt::presets::names().indexOf(name);
+}
+
+/// A preset's name as the file it is written to and the page links it by.
+///
+/// Lowercased, spaces to hyphens, and anything else that is not a letter, a
+/// digit or a hyphen dropped, which leaves "2-bit Fuzz Organ" as
+/// "2-bit-fuzz-organ" and "Lo-fi" as "lo-fi". The presets page has to spell
+/// these the same way, so it is worth them falling out of the name rather than
+/// being a second list to keep.
+juce::String slugOf(const juce::String &name) {
+  juce::String out;
+
+  for (auto c : name.toLowerCase())
+    if (juce::CharacterFunctions::isLetterOrDigit(c) || c == '-')
+      out += juce::String::charToString(c);
+    else if (c == ' ')
+      out += "-";
+
+  return out;
 }
 
 /// What to do to the controls as a clip runs.
@@ -220,8 +242,8 @@ int main(int argc, char **argv) {
 
   const juce::File dir{juce::String(argc > 1 ? argv[1] : ".")};
 
-  juce::WavAudioFormat wav;
   juce::OggVorbisAudioFormat ogg;
+  juce::FlacAudioFormat flac;
 
   const auto save = [&](const juce::String &slug,
                         const juce::AudioBuffer<float> &buffer) {
@@ -241,8 +263,11 @@ int main(int argc, char **argv) {
     if (!write(buffer, dir.getChildFile(slug + ".ogg"), ogg, 5))
       std::printf("    ogg FAILED\n");
 
-    if (!write(buffer, dir.getChildFile(slug + ".wav"), wav, 0))
-      std::printf("    wav FAILED\n");
+    // The fallback is lossless, so it is the file the page links to for anyone
+    // who cannot play either. Level 8 is the encoder working hardest, which
+    // costs nothing here: these are rendered once and served thereafter.
+    if (!write(buffer, dir.getChildFile(slug + ".flac"), flac, 8))
+      std::printf("    flac FAILED\n");
   };
 
   // ---- TUNE, at each end and then across the whole of it --------------------
@@ -315,6 +340,29 @@ int main(int argc, char **argv) {
            renderRun(p, "Just Saw", run, 6.6, [track](auto &proc, double) {
              setPlain(proc, ovt::params::trackId, track);
            }));
+    }
+  }
+
+  // ---- one clip per factory preset ------------------------------------------
+  //
+  // The same gesture on every one of them, so the presets page can be played
+  // down rather than each patch showing itself off in its own way. A spread C
+  // major arriving a note at a time, held together, then let go with room for
+  // whatever rings on: that is an attack, an ensemble and a release, which is
+  // most of what a patch is. Anything that needs the keyboard to show, like
+  // tracking, has its own clip on the tuning page already.
+  //
+  // Levels are left where the presets put them rather than matched to each
+  // other. Two clips meant to be compared have to be the same loudness, and
+  // twenty-eight meant to be browsed have to be honest about which patches are
+  // quiet ones.
+  {
+    const std::vector<Step> chord{
+        {48, 0.00, 3.0}, {55, 0.30, 2.7}, {60, 0.60, 2.4}, {64, 0.90, 2.1}};
+
+    for (const auto &name : ovt::presets::names()) {
+      OvertoniumProcessor p;
+      save("preset-" + slugOf(name), renderRun(p, name, chord, 4.4));
     }
   }
 
