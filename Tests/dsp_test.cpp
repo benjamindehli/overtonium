@@ -2934,6 +2934,22 @@ void testStrikeVelocity() {
         "across the whole of both travels the delay only ever comes in and "
         "the attack only ever stretches");
 
+  // The three rows are one shape read three ways, which the header claims and
+  // this holds it to: what the fader gives up is exactly what the times take.
+  bool oneShape = true;
+  for (int i = -10; i <= 10; ++i)
+    for (int j = 0; j <= 10; ++j) {
+      const auto a = (float)i / 10.0f;
+      const auto v = (float)j / 10.0f;
+
+      oneShape &=
+          std::abs(velocityGain(a, v) - (1.0f - velocityReach(a, v))) < 1.0e-6f;
+    }
+
+  check(oneShape,
+        "the velocity row and the strike row are the same curve read in "
+        "opposite directions");
+
   constexpr double sr = 48000.0;
 
   // How long the partial takes to get halfway to its held level, in seconds.

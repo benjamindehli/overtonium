@@ -5,15 +5,45 @@
 
 namespace ovt {
 
-/// What key velocity does to the front of an envelope.
+/// Everything key velocity does to a partial.
 ///
-/// The STRIKE row on every channel strip. It sits in a header of its own rather
-/// than beside the voice that latches it, because the panel needs the same
-/// arithmetic: a knob reading "+81 %" says nothing a player can act on, and the
-/// popup under it turns that into the two times it actually produces. Both have
-/// to agree to the millisecond, which they can only do by asking the same
-/// functions. JUCE-free like the rest of the core, so the UI including it costs
-/// nothing.
+/// Three destinations off one shape: the fader, through the VELOCITY row, and
+/// the attack and the delay, through STRIKE. They are the same curve read in
+/// different directions, which is what the panel already claims by giving both
+/// rows the same bipolar knob and the same reading, and saying it once here is
+/// what makes that true rather than a coincidence.
+///
+/// A header of its own rather than a corner of the voice that latches it,
+/// because the panel needs the same arithmetic: a knob reading "+81 %" says
+/// nothing a player can act on, and the popup under it turns that into the two
+/// times it actually produces. Both have to agree to the millisecond, which
+/// they can only do by asking the same functions. JUCE-free like the rest of
+/// the core, so the UI including it costs nothing.
+
+/// How much of a bipolar velocity amount a blow of this speed earns, 0 to 1.
+///
+/// The shape everything below is built on. Zero amount earns nothing whatever
+/// the velocity, and the sign decides which end of the keyboard's travel the
+/// full amount lands on: positive spends itself on soft notes, negative on hard
+/// ones. The two halves are exact mirrors, so -50% at a given velocity earns
+/// what +50% earns at the opposite velocity.
+inline float velocityReach(float amount, float velocity) noexcept {
+  const auto a = std::clamp(amount, -1.0f, 1.0f);
+  const auto v = std::clamp(velocity, 0.0f, 1.0f);
+
+  return a >= 0.0f ? a * (1.0f - v) : -a * v;
+}
+
+/// What the VELOCITY row leaves of a partial's fader, 0 to 1.
+///
+/// The reach taken away rather than spent, which is the whole difference
+/// between this row and STRIKE: one subtracts level as the blow softens, the
+/// other adds time. At zero amount nothing is taken and every note is as loud
+/// as the fader says, which is what a strip does before anybody touches the
+/// row.
+inline float velocityGain(float amount, float velocity) noexcept {
+  return 1.0f - velocityReach(amount, velocity);
+}
 
 /// The longest attack the ATTACK row can be set to, in seconds.
 ///
@@ -40,17 +70,6 @@ inline constexpr float kMaxAttackSeconds = 5.0f;
 /// thing said at the front: hit it hard and the partial is simply there.
 inline constexpr float kStrikeOctaves = 8.0f;
 
-/// How much of the strike amount a blow of this speed earns, 0 to 1.
-///
-/// The shape both halves are built on. Zero amount earns nothing whatever the
-/// velocity, and the sign decides which end of the keyboard's travel the full
-/// amount lands on, which is how the velocity row already reads.
-inline float strikeReach(float amount, float velocity) noexcept {
-  const auto a = std::clamp(amount, -1.0f, 1.0f);
-  const auto v = std::clamp(velocity, 0.0f, 1.0f);
-
-  return a >= 0.0f ? a * (1.0f - v) : -a * v;
-}
 
 /// What the strike amount does to a partial's attack time.
 ///
@@ -68,7 +87,7 @@ inline float strikeReach(float amount, float velocity) noexcept {
 /// The figure this returns is a ratio and can be large. What it is allowed to
 /// do to a real attack is bounded by struckAttack, which is where the two meet.
 inline float strikeAttackScale(float amount, float velocity) noexcept {
-  return std::exp2(kStrikeOctaves * strikeReach(amount, velocity));
+  return std::exp2(kStrikeOctaves * velocityReach(amount, velocity));
 }
 
 /// A partial's attack once the blow has been folded in, in seconds.
@@ -104,7 +123,7 @@ inline float struckAttack(float attack, float scale) noexcept {
 inline float strikeDelayScale(float amount, float velocity) noexcept {
   const auto v = std::clamp(velocity, 0.0f, 1.0f);
 
-  return std::exp2(-kStrikeOctaves * strikeReach(amount, 1.0f - v));
+  return std::exp2(-kStrikeOctaves * velocityReach(amount, 1.0f - v));
 }
 
 /// The two ends of a partial's onset across the velocity range, in seconds.

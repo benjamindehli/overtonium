@@ -118,9 +118,9 @@ public:
 
   /// Declared before the APVTS, which borrows it, so it outlives it.
   ///
-  /// Thirty-two channels ganged by LINK means one drag can move six hundred
-  /// values at once, and before this the only way back from a drag you did not
-  /// mean was to reload the preset. Transactions are opened by the editor once
+  /// Thirty-two channels ganged by LINK means one drag moves thirty-two values
+  /// at once, and before this the only way back from a drag you did not mean
+  /// was to reload the preset. Transactions are opened by the editor once
   /// the tree has been quiet for a moment, so a drag is one step rather than
   /// fifty. See OvertoniumEditor::timerCallback.
   juce::UndoManager undoManager{30 * 1024 * 1024};

@@ -95,6 +95,36 @@ juce::MidiBuffer noteOnAt(int note, float velocity, int sample) {
 // here is called from another translation unit, and a file-scope function with
 // no declaration is an external symbol nobody can reach.
 
+/// Sizes an editor to something it can actually be.
+///
+/// Every call site used to type a pair of numbers, and they went stale the
+/// moment the mixer gained a row: 1000 px was eight short of what the strips
+/// then asked for, so the fader and its readout laid out past the bottom edge
+/// with nothing failing to say so. A plain setSize does not consult the
+/// constrainer, so nothing catches it.
+///
+/// Taken from the editor's own limits instead. The rows above the fader are
+/// fixed heights and the fader absorbs the rest, so the smallest legal window
+/// lays every row out properly and is the one size that cannot go out of date.
+///
+/// The width stays a number, since it decides how much mixer is on screen and
+/// each caller wants its own. Only the height is derived, because the height is
+/// the half that a new row moves.
+///
+/// @param extraHeight  room above the minimum, for a test that wants the fader
+///                     at a comfortable length rather than its shortest.
+void sizeEditor(juce::AudioProcessorEditor &editor, int width,
+                int extraHeight = 0) {
+  const auto *limits = editor.getConstrainer();
+
+  // Every editor here sets resize limits in its constructor, so this is a
+  // guard against a future one that forgets rather than a case that happens.
+  const auto height =
+      limits != nullptr ? limits->getMinimumHeight() + extraHeight : 1040;
+
+  editor.setSize(width, height);
+}
+
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
@@ -153,7 +183,9 @@ void testParameterWiring(OvertoniumProcessor &p) {
       allPresent &= p.apvts.getRawParameterValue(
                         ovt::params::oscParamId(s, i)) != nullptr;
 
-  check(allPresent, "all 736 per-partial parameters resolve");
+  check(allPresent,
+        "all " + std::to_string(ovt::kNumHarmonics * (int)std::size(suffixes)) +
+            " per-partial parameters resolve");
 
   const char *noiseSuffixes[] = {
       ovt::params::colourSuffix,  ovt::params::strikeSuffix,
@@ -858,7 +890,7 @@ void testActivityLamps(OvertoniumProcessor &p) {
   if (editor == nullptr)
     return;
 
-  editor->setSize(1348, 1000);
+  sizeEditor(*editor, 1348, 160);
 
   std::vector<ChannelStrip *> strips;
   std::function<void(juce::Component &)> collect = [&](juce::Component &c) {
@@ -1030,7 +1062,7 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   if (editor == nullptr)
     return;
 
-  editor->setSize(1348, 1000);
+  sizeEditor(*editor, 1348, 160);
 
   std::vector<SegmentDisplay *> displays;
   std::function<void(juce::Component &)> collect = [&](juce::Component &c) {
@@ -1282,7 +1314,7 @@ void testChannelHover(OvertoniumProcessor &p) {
   if (editor == nullptr)
     return;
 
-  editor->setSize(1348, 1010);
+  sizeEditor(*editor, 1348, 160);
 
   std::vector<ChannelStrip *> strips;
   std::vector<NoiseStrip *> noise;
@@ -2070,7 +2102,8 @@ void testRowHover() {
   for (auto n : found)
     oneEach &= n == 1;
 
-  check(oneEach, "each of the 19 linkable roles sits on exactly one row");
+  check(oneEach, "each of the " + std::to_string((int)kNumRoles) +
+                     " linkable roles sits on exactly one row");
 
   check(!roleForRow(Row::MuteSolo, role),
         "the mute and solo row carries no linkable role");
@@ -2764,7 +2797,7 @@ void testPresetNameOutlivesTheWindow() {
 
   const auto shownBy = [&findBar](OvertoniumProcessor &proc) {
     std::unique_ptr<juce::AudioProcessorEditor> ed(proc.createEditor());
-    ed->setSize(1340, 869);
+    sizeEditor(*ed, 1340);
 
     auto *bar = findBar(*ed);
     return bar != nullptr ? bar->getPresetName() : juce::String("(no bar)");
@@ -2832,7 +2865,7 @@ void testShapeButtonFollowsTheParameter(OvertoniumProcessor &p) {
       };
 
   std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
-  ed->setSize(1340, 869);
+  sizeEditor(*ed, 1340);
 
   const auto buttons = gather(*ed);
 
@@ -3248,7 +3281,7 @@ void testKnobSizes(OvertoniumProcessor &p) {
   if (editor == nullptr)
     return;
 
-  editor->setSize(1348, 1000);
+  sizeEditor(*editor, 1348, 160);
 
   // The diameter the look and feel will draw, which is what the eye sees,
   // rather than the bounds, which nobody sees.
@@ -3992,7 +4025,7 @@ void testUpdateCheckIsQuiet(OvertoniumProcessor &p) {
 
     for (int open = 0; open < 3; ++open) {
       std::unique_ptr<juce::AudioProcessorEditor> ed(fresh.createEditor());
-      ed->setSize(1340, 869);
+      sizeEditor(*ed, 1340);
     }
   }
 
@@ -4004,7 +4037,7 @@ void testUpdateCheckIsQuiet(OvertoniumProcessor &p) {
   // constructor.
   {
     std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
-    ed->setSize(1340, 869);
+    sizeEditor(*ed, 1340);
   }
 
   check(ovt::updateCheckAllowed() == before,
@@ -4030,7 +4063,7 @@ void testUpdateCheckOutlivesEditors(OvertoniumProcessor &p) {
 
   for (int open = 0; open < 9; ++open) {
     std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
-    ed->setSize(1340, 869);
+    sizeEditor(*ed, 1340);
   }
 
   check(&p.updates() == first,
@@ -4068,7 +4101,7 @@ void testEveryControlIsNamed(OvertoniumProcessor &p) {
   if (editor == nullptr)
     return;
 
-  editor->setSize(1348, 1000);
+  sizeEditor(*editor, 1348, 160);
 
   std::vector<std::string> nameless;
   std::set<std::string> names;

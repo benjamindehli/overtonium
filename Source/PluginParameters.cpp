@@ -1,7 +1,7 @@
 #include "PluginParameters.h"
 
 #include "dsp/Harmonics.h"
-#include "dsp/Strike.h"
+#include "dsp/Velocity.h"
 #include "dsp/TapeEcho.h"
 
 namespace ovt::params {

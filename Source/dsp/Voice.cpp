@@ -131,13 +131,9 @@ void Voice::noteOn(int channel, int note, float velocity,
 
     // Each strip decides for itself how much of the key velocity it takes,
     // latched here so a velocity change cannot alter a note already sounding.
-    //
-    // Both halves give 1 at zero amount and reach vel and 1 - vel at the
-    // extremes, so a negative setting makes the partial loudest when played
-    // softly rather than hardest.
-    const float amount = std::clamp(op.velAmount, -1.0f, 1.0f);
-    pt.velGain =
-        amount >= 0.0f ? 1.0f - amount * (1.0f - vel) : 1.0f + amount * vel;
+    // The same shape the two strike scales below are built on, which is what
+    // makes the three rows read alike: see Velocity.h.
+    pt.velGain = velocityGain(op.velAmount, vel);
 
     // The rest of what the blow is worth. The gain above says how loud the
     // partial comes out, these two say how soon it starts and how quickly it
@@ -193,10 +189,8 @@ void Voice::noteOn(int channel, int note, float velocity,
 
   {
     const auto &np = p.noise;
-    const float amount = std::clamp(np.velAmount, -1.0f, 1.0f);
 
-    noise.velGain =
-        amount >= 0.0f ? 1.0f - amount * (1.0f - vel) : 1.0f + amount * vel;
+    noise.velGain = velocityGain(np.velAmount, vel);
 
     noise.delayScale = strikeDelayScale(np.strikeAmount, vel);
     noise.attackScale = strikeAttackScale(np.strikeAmount, vel);

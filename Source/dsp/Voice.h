@@ -8,7 +8,7 @@
 #include "Envelope.h"
 #include "Harmonics.h"
 #include "Params.h"
-#include "Strike.h"
+#include "Velocity.h"
 
 namespace ovt {
 
