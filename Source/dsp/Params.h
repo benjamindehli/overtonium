@@ -20,15 +20,6 @@ namespace ovt {
 /// voice branches on it and the DSP core is not allowed to include JUCE.
 enum class SlideDestination { Off = 0, Brightness, Tuning };
 
-/// The longest attack the ATTACK row can be set to, in seconds.
-///
-/// Named here rather than only in the parameter layout because STRIKE stretches
-/// the attack towards it and stops there. A blow can take the onset anywhere
-/// the knob itself could have gone and no further, which is what keeps a very
-/// short attack at a full strike amount from reaching a figure the control
-/// could never have been set to. See struckAttack.
-inline constexpr float kMaxAttackSeconds = 5.0f;
-
 /// A per-block snapshot of one channel strip. Deliberately plain data: the DSP
 /// core never touches JUCE, which keeps it unit-testable and portable.
 struct OscParams {

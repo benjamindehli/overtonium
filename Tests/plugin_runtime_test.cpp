@@ -929,6 +929,59 @@ void testActivityLamps(OvertoniumProcessor &p) {
 /// display has no way to draw: a label will render anything, a segment display
 /// will silently show an unlit digit. So every reading the two can produce is
 /// held against what the display can draw.
+/// The STRIKE popup, which is the only reading on the panel worked out from
+/// more than one control.
+void testStrikeReadout() {
+  section("Strike readout");
+
+  using namespace ovt;
+
+  // Off: nothing is being done to the onset, so the reading is the value and
+  // nothing else. Anything further would be two figures that never move.
+  check(params::strikeRangeText(0.0f, 0.0f, 0.005f) == "0 %",
+        "at nought the reading is the percentage alone (" +
+            params::strikeRangeText(0.0f, 0.0f, 0.005f).toStdString() + ")");
+
+  // The case the control exists for, and the one that was impossible to find
+  // out without playing a note: a short attack at a full amount.
+  const auto full = params::strikeRangeText(1.0f, 0.0f, 0.002f);
+  std::printf("  2 ms attack at +100%%: %s\n", full.toRawUTF8());
+
+  check(full.startsWith("+100 %"), "the value still leads the reading");
+  check(full.contains("2.0 ms") && full.contains("512 ms"),
+        "and it names both ends of the onset (" + full.toStdString() + ")");
+
+  // The delay is folded in rather than reported separately, so a strip that
+  // has one reads as the whole wait from key-down to full level.
+  const auto delayed = params::strikeRangeText(1.0f, 0.4f, 0.002f);
+  std::printf("  the same with a 400 ms delay: %s\n", delayed.toRawUTF8());
+
+  // Both ends move: the slow one gains the whole delay on top of the stretched
+  // attack, 400 plus 512, and the quick one gains the sliver the delay is
+  // pulled in to, 1.6 plus the 2 ms attack.
+  check(delayed.contains("912 ms") && delayed.contains("3.6 ms"),
+        "a delay lands on both ends of the onset (" + delayed.toStdString() +
+            ")");
+
+  // The panel and the engine have to agree, or the reading is a second opinion
+  // rather than a readout. Held against the arithmetic the voice itself runs.
+  const auto range = strikeRange(1.0f, 0.4f, 0.002f);
+  const auto quick = 0.4f * strikeDelayScale(1.0f, 1.0f) +
+                     struckAttack(0.002f, strikeAttackScale(1.0f, 1.0f));
+
+  check(std::abs(range.quickest - quick) < 1.0e-9f,
+        "the reading is the engine's own figure rather than a copy of it");
+
+  // Whatever the amount and whichever way it leans, the pair is a range.
+  bool ordered = true;
+  for (int i = -10; i <= 10; ++i) {
+    const auto r = strikeRange((float)i / 10.0f, 0.4f, 0.02f);
+    ordered &= r.quickest <= r.slowest;
+  }
+
+  check(ordered, "and it comes back smallest first at every amount");
+}
+
 void testSegmentReadouts(OvertoniumProcessor &p) {
   section("Segment readouts");
 
@@ -4322,6 +4375,7 @@ int main() {
   testMpe(processor);
   testMpeSlide();
   testActivityLamps(processor);
+  testStrikeReadout();
   testSegmentReadouts(processor);
   testChannelHover(processor);
   testFactoryCodeGenerator(processor);

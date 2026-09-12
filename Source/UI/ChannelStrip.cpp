@@ -687,6 +687,16 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   setUpKnob(phase, Role::Phase, colour);
   setUpKnob(drift, Role::Drift, colour);
   setUpKnob(strike, Role::Strike, colour);
+
+  // The one knob whose own value says nothing useful. Turning it reads as the
+  // two times it produces on this strip rather than as a percentage, which is
+  // the question anybody dialling it in is actually asking. Read at the moment
+  // the popup opens, so it follows the ATTACK and DELAY rows underneath it.
+  strike.textFromValueFunction = [this](double amount) {
+    return params::strikeRangeText((float)amount, (float)delay.getValue(),
+                                   (float)attack.getValue());
+  };
+
   setUpKnob(delay, Role::Delay, colour);
   setUpKnob(attack, Role::Attack, colour);
   setUpKnob(decay, Role::Decay, colour);

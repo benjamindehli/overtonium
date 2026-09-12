@@ -126,6 +126,23 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 /// a-bit, which lands somewhere between a drawbar organ and a soft sawtooth.
 float defaultVolumeFor(int index0);
 
+/// What a strike amount comes to on this strip, as the popup under the knob
+/// shows it: "+81 %  2.0 ms to 512 ms".
+///
+/// The percentage on its own is not something a player can act on. It is the
+/// two times it produces that are being dialled in, and until the panel said
+/// them there was no way to find out but to play a note and listen.
+///
+/// Deliberately not what the host is told. A generic parameter lane can only be
+/// given the parameter's own value, since the figure below depends on two other
+/// controls on the same strip, and a lane that quietly disagreed with the panel
+/// would be worse than one that says less.
+///
+/// @param delay,attack  this strip's own two rows, in seconds. At an amount of
+///                      nought there is nothing to say about them, so only the
+///                      percentage comes back.
+juce::String strikeRangeText(float amount, float delay, float attack);
+
 /// Cached atomic pointers, resolved once so the audio thread never does a
 /// string lookup.
 struct Cache {

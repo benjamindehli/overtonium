@@ -38,6 +38,12 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
   setUpKnob(strike, params::strikeSuffix, colour,
             "How much the speed you strike the key at brings the delay in and "
             "shortens the attack. Negative inverts it.");
+  // See ChannelStrip: the percentage is not the thing being dialled in.
+  strike.textFromValueFunction = [this](double amount) {
+    return params::strikeRangeText((float)amount, (float)delay.getValue(),
+                                   (float)attack.getValue());
+  };
+
   setUpKnob(delay, params::delaySuffix, colour, "Delay before the attack");
   setUpKnob(attack, params::attackSuffix, colour, "Attack");
   setUpKnob(decay, params::decaySuffix, colour, "Decay");

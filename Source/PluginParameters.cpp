@@ -1,6 +1,7 @@
 #include "PluginParameters.h"
 
 #include "dsp/Harmonics.h"
+#include "dsp/Strike.h"
 #include "dsp/TapeEcho.h"
 
 namespace ovt::params {
@@ -791,6 +792,20 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   noise.pan = apvts.getRawParameterValue(noiseParamId(panSuffix));
 
   jassert(noise.colour != nullptr && noise.volume != nullptr);
+}
+
+juce::String strikeRangeText(float amount, float delay, float attack) {
+  const auto shown = signedPercentText(amount, 0);
+
+  // The same threshold the percentage rounds by, so the two halves of the
+  // reading cannot disagree about whether the knob is doing anything.
+  if (std::abs(amount) < 0.005f)
+    return shown;
+
+  const auto range = strikeRange(amount, delay, attack);
+
+  return shown + "  " + timeText(range.quickest, 0) + " to " +
+         timeText(range.slowest, 0);
 }
 
 juce::String lofiRateName(int hz) {
