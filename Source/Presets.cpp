@@ -2524,9 +2524,13 @@ void apply(APVTS &apvts, int index) {
     ap.neutralBase();
 
     // Strings and brass in one patch, synthesised rather than either of them
-    // sampled. A third of a second of attack across the whole series is what
-    // makes it an ensemble rather than one player, since nothing in it
-    // arrives at the same moment.
+    // sampled. What makes it an ensemble rather than one player is that nothing
+    // in it arrives at the same moment, and the blow is what decides by how
+    // much: the attack is twenty-odd milliseconds, and a strike amount of about
+    // 80% stretches that towards two seconds as the touch softens. A hard chord
+    // is simply there, a quiet one swells in with the series drifting apart on
+    // the way. The tremolo is random and deepens up the series, so the players
+    // never settle together.
 
     ap.oscTable(params::pmDepthSuffix,
                 {3.0539f, 7.5661f, 10.6856f, 10.8007f, 10.9168f, 11.0337f,
@@ -2541,9 +2545,21 @@ void apply(APVTS &apvts, int index) {
                  3.4386f, 3.4539f, 3.4692f, 3.4846f, 3.5f, 3.5155f, 3.531f,
                  3.5465f, 3.5621f, 3.5777f, 3.5933f, 3.609f, 3.6247f, 3.6405f,
                  3.6563f, 3.6721f, 3.688f, 3.7034f});
-    ap.allOsc(params::attackSuffix, [](int) { return 0.3332; });
+    ap.oscTable(params::strikeSuffix,
+                {0.8098f, 0.8081f, 0.8064f, 0.8047f, 0.803f, 0.8013f, 0.7997f,
+                 0.798f, 0.7963f, 0.7946f, 0.7929f, 0.7913f, 0.7896f, 0.7879f,
+                 0.7862f, 0.7845f, 0.7828f, 0.7812f, 0.7795f, 0.7778f, 0.7761f,
+                 0.7744f, 0.7727f, 0.7711f, 0.7694f, 0.7677f, 0.766f, 0.7643f,
+                 0.7627f, 0.761f, 0.7593f, 0.7577f});
+    ap.oscTable(params::attackSuffix,
+                {0.0221f, 0.0223f, 0.0221f, 0.0222f, 0.0221f, 0.022f, 0.0221f,
+                 0.0219f, 0.0221f, 0.0217f, 0.0221f, 0.0216f, 0.0221f, 0.0214f,
+                 0.0221f, 0.0213f, 0.0221f, 0.0212f, 0.0221f, 0.021f, 0.0221f,
+                 0.0209f, 0.0221f, 0.0207f, 0.0221f, 0.0206f, 0.0221f, 0.0205f,
+                 0.0221f, 0.0203f, 0.0221f, 0.0202f});
     ap.allOsc(params::decaySuffix, [](int) { return 2.5173; });
     ap.allOsc(params::releaseSuffix, [](int) { return 0.252; });
+    ap.allOsc(params::amShapeSuffix, [](int) { return 6.0; });
     ap.oscTable(params::amRateSuffix,
                 {1.6249f, 1.6249f, 1.1034f, 1.6249f, 1.3157f, 1.1034f, 0.9767f,
                  1.6249f, 1.435f, 1.3157f, 1.9557f, 1.1034f, 1.3692f, 0.9767f,
@@ -2551,24 +2567,29 @@ void apply(APVTS &apvts, int index) {
                  1.9557f, 1.9557f, 1.1034f, 1.3692f, 1.3692f, 2.4382f, 0.9767f,
                  0.9767f, 1.7434f, 1.7434f, 1.6249f});
     ap.oscTable(params::amDepthSuffix,
-                {0.0009f, 0.0297f, 0.0595f, 0.0892f, 0.119f, 0.1487f, 0.1784f,
-                 0.2082f, 0.2379f, 0.2677f, 0.2974f, 0.3271f, 0.3569f, 0.3866f,
-                 0.4164f, 0.4461f, 0.4758f, 0.5056f, 0.5353f, 0.565f, 0.5948f,
-                 0.6245f, 0.6543f, 0.684f, 0.7137f, 0.7435f, 0.7732f, 0.803f,
-                 0.8327f, 0.8624f, 0.8922f, 0.9219f});
+                {0.0555f, 0.0843f, 0.1141f, 0.1438f, 0.1736f, 0.2033f, 0.233f,
+                 0.2628f, 0.2925f, 0.3223f, 0.352f, 0.3817f, 0.4115f, 0.4412f,
+                 0.471f, 0.5007f, 0.5304f, 0.5602f, 0.5899f, 0.6196f, 0.6494f,
+                 0.6791f, 0.7089f, 0.7386f, 0.7683f, 0.7981f, 0.8278f, 0.8576f,
+                 0.8873f, 0.917f, 0.9468f, 0.9765f});
     ap.oscTable(params::velSuffix,
                 {0.1084f, 0.6396f, 0.7476f, 0.8385f, 0.9294f, 0.932f, 0.9347f,
                  0.9373f, 0.9399f, 0.9425f, 0.9451f, 0.9477f, 0.9503f, 0.953f,
                  0.9556f, 0.9582f, 0.9608f, 0.9634f, 0.966f, 0.9686f, 0.9713f,
                  0.9739f, 0.9765f, 0.9791f, 0.9817f, 0.9843f, 0.9869f, 0.9895f,
                  0.9922f, 0.9948f, 0.9974f, 0.9999f});
+    ap.oscTable(params::atSuffix,
+                {0.2469f, 0.293f, 0.2446f, 0.2736f, 0.2253f, 0.2543f, 0.2059f,
+                 0.2349f, 0.1866f, 0.2156f, 0.1672f, 0.1962f, 0.1478f, 0.1768f,
+                 0.1285f, 0.1575f, 0.1091f, 0.1381f, 0.0898f, 0.1188f, 0.0704f,
+                 0.0994f, 0.0511f, 0.0801f, 0.0317f, 0.0607f, 0.0143f, 0.0529f,
+                 0.0143f, 0.0529f, 0.0143f, 0.0529f});
     ap.oscTable(params::volumeSuffix,
-                {0.9945f, 0.969f, 0.9224f, 0.8584f, 0.7809f, 0.6944f, 0.6036f,
-                 0.5129f, 0.426f, 0.3459f, 0.2745f, 0.213f, 0.1615f, 0.1198f,
-                 0.0868f, 0.0615f, 0.0426f, 0.0288f, 0.0191f, 0.0123f, 0.0078f,
-                 0.0048f, 0.0029f, 0.0017f, 0.001f, 0.0006f, 0.0003f, 0.0002f,
+                {0.9945f, 0.9681f, 0.9197f, 0.8532f, 0.7729f, 0.6836f, 0.5904f,
+                 0.498f, 0.41f, 0.3297f, 0.2588f, 0.1984f, 0.1485f, 0.1086f,
+                 0.0775f, 0.054f, 0.0368f, 0.0244f, 0.0159f, 0.01f, 0.0062f,
+                 0.0037f, 0.0022f, 0.0013f, 0.0007f, 0.0004f, 0.0002f, 0.0001f,
                  0.0001f, 0.0f, 0.0f, 0.0f});
-    ap.set("h01_aftertouch", 0.0023f);
     ap.set("h02_pan", 0.246f);
     ap.set("h02_sustain", 0.7132f);
     ap.set("h03_delay", 0.05f);
@@ -2687,14 +2708,17 @@ void apply(APVTS &apvts, int index) {
     ap.set("echoMix", 0.248f);
     ap.set("echoOn", 1.0f);
     ap.set("echoTime", 0.1305f);
-    ap.set("noise_amDepth", 0.7486f);
-    ap.set("noise_amRate", 0.2475f);
-    ap.set("noise_attack", 0.9905f);
-    ap.set("noise_colour", 0.1525f);
+    ap.set("noise_aftertouch", 0.068f);
+    ap.set("noise_amDepth", 0.8133f);
+    ap.set("noise_amRate", 0.3334f);
+    ap.set("noise_amShape", 6.0f);
+    ap.set("noise_attack", 0.0152f);
+    ap.set("noise_colour", 0.0945f);
     ap.set("noise_decay", 2.7863f);
+    ap.set("noise_strike", 0.9973f);
     ap.set("noise_sustain", 0.4616f);
-    ap.set("noise_vel", 0.7797f);
-    ap.set("noise_volume", 0.157f);
+    ap.set("noise_vel", 0.5576f);
+    ap.set("noise_volume", 0.0754f);
     ap.set("reverbDamp", 0.2763f);
     ap.set("reverbDecay", 2.9417f);
     ap.set("reverbOn", 1.0f);
