@@ -139,9 +139,14 @@
 
                      So are the version and the date under the table, and the
                      softwareVersion and datePublished above. Each is matched by
-                     its own pattern and counted, so keep them one to a page:
-                     a second <strong>version 1.2.3</strong> anywhere on this
-                     page fails the release rather than being rewritten twice. -->
+                     its own pattern and counted, so keep them one to a page: a
+                     second version line anywhere here fails the release rather
+                     than being rewritten twice.
+
+                     Which this comment must not spell out. The counting is a
+                     grep and a grep cannot see a comment, so writing that line
+                     out as an example made two of it and failed the release it
+                     was warning about. -->
                 <section id="downloads">
                     <h2>Download</h2>
 
