@@ -48,10 +48,16 @@ void paintChannelBackground(juce::Graphics &, juce::Rectangle<int> bounds,
 
 /// Picks out the row under the pointer.
 ///
-/// Drawn in the chrome colour rather than a channel colour, since it belongs to
-/// the pointer rather than to any one partial, and drawn as a ruled band so
-/// that it reads as a single line running the width of the mixer, from the
-/// caption in the gutter to the channel your hand is on.
+/// Drawn as a ruled band, so that it reads as a single line running the width
+/// of the mixer, from the caption in the gutter to the channel your hand is on.
+///
+/// In plain light rather than in a colour. It belongs to the pointer rather
+/// than to any one partial, and a band crossing thirty-three channels lands on
+/// thirty-three different hues at once: a tint of its own agrees with a few of
+/// them and argues with the rest, where clear light lifts all of them by the
+/// same amount and leaves the colour underneath saying what it was already
+/// saying. Naming which row and which channel is left to the gutter caption and
+/// the channel number, which both go accent.
 void paintRowHighlight(juce::Graphics &, juce::Rectangle<int> row);
 
 /// The same wash turned on its side, marking the channel under the pointer.

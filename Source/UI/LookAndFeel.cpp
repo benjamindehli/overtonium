@@ -114,8 +114,14 @@ namespace {
 /// could drift apart. Light: neither has to carry the job alone, since the
 /// gutter caption and the channel number both go accent to say which is which,
 /// and the wash is only there to join the lit label to the rest of its band.
-constexpr float kHoverWash = 0.035f;
-constexpr float kHoverEdge = 0.13f;
+///
+/// A shade under what the accent used to take, because the light the marks are
+/// now drawn in is brighter than the cyan was and would otherwise land harder
+/// at the same figures. Measured against the channel grey, the band lifts it by
+/// about as much as it always did, and lifts every channel by the same amount
+/// rather than by three different ones.
+constexpr float kHoverWash = 0.030f;
+constexpr float kHoverEdge = 0.10f;
 
 /// How lit a display's ground is before anything is done to it.
 ///
@@ -160,10 +166,10 @@ void strokeGlowing(juce::Graphics &g, const juce::Path &path,
 void paintRowHighlight(juce::Graphics &g, juce::Rectangle<int> row) {
   const auto r = row.toFloat();
 
-  g.setColour(colours::accent.withAlpha(kHoverWash));
+  g.setColour(colours::text.withAlpha(kHoverWash));
   g.fillRect(r);
 
-  g.setColour(colours::accent.withAlpha(kHoverEdge));
+  g.setColour(colours::text.withAlpha(kHoverEdge));
   g.fillRect(r.getX(), r.getY(), r.getWidth(), 1.0f);
   g.fillRect(r.getX(), r.getBottom() - 1.0f, r.getWidth(), 1.0f);
 }
@@ -171,10 +177,10 @@ void paintRowHighlight(juce::Graphics &g, juce::Rectangle<int> row) {
 void paintColumnHighlight(juce::Graphics &g, juce::Rectangle<int> strip) {
   const auto r = strip.toFloat();
 
-  g.setColour(colours::accent.withAlpha(kHoverWash));
+  g.setColour(colours::text.withAlpha(kHoverWash));
   g.fillRect(r);
 
-  g.setColour(colours::accent.withAlpha(kHoverEdge));
+  g.setColour(colours::text.withAlpha(kHoverEdge));
   g.fillRect(r.getX(), r.getY(), 1.0f, r.getHeight());
   g.fillRect(r.getRight() - 1.0f, r.getY(), 1.0f, r.getHeight());
 }
