@@ -75,18 +75,31 @@ inline float trackingGain(double partialHz, double fundamentalHz,
 
 /// Where a slide axis has moved to, against where this note found it.
 ///
-/// Normalised against the travel left in the direction being moved, so a push
-/// to the end of the axis is full slide wherever it set out from: a note whose
-/// rest is the bottom has twice the physical distance in front of it as one
-/// resting at the centre, and both should mean the same thing by "all the way".
+/// Scaled so that the longer of the two directions away from the rest is the
+/// whole of the slide. A note whose rest is the bottom of the axis has the
+/// entire travel in front of it and reaches full slide at the top of it, and a
+/// note resting at the centre behaves as it always did.
 ///
-/// @returns -1 to 1, and 0 when the axis has nowhere left to go that way.
+/// One scale for the note rather than one per direction, which is the part that
+/// took two goes to get right. Scaling each direction to fill the slide on its
+/// own looks tidier and is unplayable: a rest near the bottom leaves a sliver
+/// of travel underneath it, and dividing by that sliver turns it into a
+/// hair-trigger. On an Osmose, whose rest lands a few codes up from the bottom,
+/// ten codes of lift swung the note from untouched to fully dark while twenty
+/// codes of press moved it a sixth of the way the other way. Pressing in was
+/// smooth and coming back out snapped.
+///
+/// So the short side keeps the sensitivity of the long one and simply reaches
+/// less, which is honest: there is less of it. The result cannot leave -1 to 1,
+/// since the scale is the larger half by construction.
 inline float slideDisplacement(float rest, float now) noexcept {
   const auto from = std::clamp(rest, -1.0f, 1.0f);
   const auto to = std::clamp(now, -1.0f, 1.0f);
-  const auto room = to >= from ? 1.0f - from : from + 1.0f;
 
-  return room > 1.0e-6f ? (to - from) / room : 0.0f;
+  // Between 1 and 2, so never near zero and never in need of a guard.
+  const auto room = std::max(1.0f - from, from + 1.0f);
+
+  return (to - from) / room;
 }
 
 /// One polyphonic voice: 32 independently tuned, enveloped and modulated sine

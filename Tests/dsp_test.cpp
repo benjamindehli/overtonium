@@ -2894,16 +2894,43 @@ void testSlideDisplacement() {
         "halfway along is half of it, so the axis is not squashed into one "
         "half of its own travel");
 
-  // The same from the other end, and from anywhere in between.
-  check(std::abs(slideDisplacement(1.0f, -1.0f) + 1.0f) < 1.0e-6f &&
-            std::abs(slideDisplacement(0.5f, 1.0f) - 1.0f) < 1.0e-6f &&
-            std::abs(slideDisplacement(-0.5f, -1.0f) + 1.0f) < 1.0e-6f,
-        "a full push is the whole slide from every rest");
+  // The same from the other end.
+  check(std::abs(slideDisplacement(1.0f, -1.0f) + 1.0f) < 1.0e-6f,
+        "a rest at the top reaches the whole slide going the other way");
+
+  // ---- the short side keeps the long side's sensitivity -------------------
+  //
+  // The part that took two goes. Scaling each direction to fill the slide on
+  // its own leaves a rest near the bottom with a sliver of travel underneath
+  // it, and dividing by the sliver makes that sliver the whole slide. On an
+  // Osmose that is ten codes of lift between untouched and fully dark, which
+  // reads as a snap when the key comes back out of the zone.
+  const auto nearBottom = 10.0f / 127.0f * 2.0f - 1.0f;
+
+  const auto lifted = slideDisplacement(nearBottom, -1.0f);
+  const auto pressed = slideDisplacement(nearBottom, -0.528f);
+
+  std::printf("  resting near the bottom: ten codes down %.3f, twenty up "
+              "%.3f\n",
+              lifted, pressed);
+
+  check(std::abs(lifted) < 0.1f,
+        "lifting back off a rest near the bottom is a small move, not the "
+        "whole slide (" +
+            std::to_string(lifted) + ")");
+
+  // Both directions move at one rate, which is what stops either being a
+  // hair-trigger. Ten codes down against twenty up should be half as far.
+  check(std::abs(std::abs(pressed) / std::max(1.0e-9f, std::abs(lifted)) -
+                 2.0f) < 0.1f,
+        "and the two directions move at the same rate (" +
+            std::to_string(pressed) + " up against " + std::to_string(lifted) +
+            " down)");
 
   // Nowhere left to go is nought rather than a division by nothing.
   check(std::abs(slideDisplacement(1.0f, 1.0f)) < 1.0e-6f &&
             std::abs(slideDisplacement(-1.0f, -1.0f)) < 1.0e-6f,
-        "an axis already at its end reads nought rather than infinity");
+        "an axis already at its end reads nought");
 
   // Nothing here may leave the range the voice expects.
   bool bounded = true;
