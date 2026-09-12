@@ -43,6 +43,12 @@ struct OscParams {
   /// the series makes the spectrum unfold rather than arrive all at once.
   float delay = 0.0f;
   float attack = 0.005f; ///< seconds
+  /// How much the speed you strike the key at shortens the attack, -1 to 1.
+  /// Positive means a hard note arrives exactly as the attack knob says and a
+  /// soft one takes longer to get there, which is what a hammer or a bow does.
+  /// Negative inverts it. Zero ignores velocity, which is what the attack did
+  /// before it had this. See strikeScale.
+  float strikeAmount = 0.0f;
   float decay = 0.400f;
   float sustain = 1.0f; ///< 0..1
   float release = 0.400f;
@@ -91,6 +97,7 @@ struct NoiseParams {
 
   float delay = 0.0f;
   float attack = 0.005f;
+  float strikeAmount = 0.0f;
   float decay = 0.600f;
   float sustain = 1.0f;
   float swell = 0.005f;

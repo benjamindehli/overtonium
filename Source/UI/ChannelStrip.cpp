@@ -688,6 +688,7 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   setUpKnob(drift, Role::Drift, colour);
   setUpKnob(delay, Role::Delay, colour);
   setUpKnob(attack, Role::Attack, colour);
+  setUpKnob(strike, Role::Strike, colour);
   setUpKnob(decay, Role::Decay, colour);
   setUpKnob(sustain, Role::Sustain, colour);
   setUpKnob(swell, Role::Swell, colour);
@@ -703,6 +704,7 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
 
   // These all run either side of zero, so their arcs read out from twelve
   // o'clock rather than filling from the left.
+  strike.getProperties().set("bipolar", true);
   lift.getProperties().set("bipolar", true);
   velocity.getProperties().set("bipolar", true);
   aftertouch.getProperties().set("bipolar", true);
@@ -980,6 +982,8 @@ LinkableSlider *ChannelStrip::sliderForRole(Role role) {
     return &delay;
   case Role::Attack:
     return &attack;
+  case Role::Strike:
+    return &strike;
   case Role::Decay:
     return &decay;
   case Role::Sustain:
@@ -1115,6 +1119,7 @@ void ChannelStrip::resized() {
   placeRow(drift, Row::Drift, 1);
   placeRow(delay, Row::Delay, 1);
   placeRow(attack, Row::Attack, 1);
+  placeRow(strike, Row::Strike, 1);
   placeRow(decay, Row::Decay, 1);
   placeRow(sustain, Row::Sustain, 1);
   placeRow(swell, Row::Swell, 1);

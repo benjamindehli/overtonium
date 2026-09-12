@@ -48,6 +48,7 @@ constexpr int kRowHeights[kNumRows] = {
     15, // EnvHeading
     30, // Delay
     30, // Attack
+    30, // Strike
     30, // Decay
     30, // Sustain
     15, // KeyOffHeading
@@ -113,6 +114,7 @@ Section sectionOf(Row r) {
   case Row::EnvHeading:
   case Row::Delay:
   case Row::Attack:
+  case Row::Strike:
   case Row::Decay:
   case Row::Sustain:
     return Section::Envelope;
@@ -224,6 +226,7 @@ bool rowHasControl(Row r) {
   case Row::Drift:
   case Row::Delay:
   case Row::Attack:
+  case Row::Strike:
   case Row::Decay:
   case Row::Sustain:
   case Row::Swell:
@@ -381,6 +384,8 @@ const char *rowLabel(Row r) {
     return "delay";
   case Row::Attack:
     return "attack";
+  case Row::Strike:
+    return "strike";
   case Row::Decay:
     return "decay";
   case Row::Sustain:
@@ -608,6 +613,8 @@ const char *roleLabel(Role r) {
     return "envelope delay";
   case Role::Attack:
     return "attack";
+  case Role::Strike:
+    return "attack velocity";
   case Role::Decay:
     return "decay";
   case Role::Sustain:
@@ -669,6 +676,8 @@ const char *roleSuffix(Role r) {
     return params::delaySuffix;
   case Role::Attack:
     return params::attackSuffix;
+  case Role::Strike:
+    return params::strikeSuffix;
   case Role::Decay:
     return params::decaySuffix;
   case Role::Sustain:
@@ -731,6 +740,9 @@ bool roleForRow(Row r, Role &out) {
     return true;
   case Row::Attack:
     out = Role::Attack;
+    return true;
+  case Row::Strike:
+    out = Role::Strike;
     return true;
   case Row::Decay:
     out = Role::Decay;

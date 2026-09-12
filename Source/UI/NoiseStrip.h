@@ -84,9 +84,9 @@ private:
 
   const juce::Colour colour;
 
-  juce::Slider colourKnob, delay, attack, decay, sustain, swell, offLevel,
-      lift,
-      release, amRate, amDepth, velocity, aftertouch, pan, volume;
+  juce::Slider colourKnob, delay, attack, strike, decay, sustain, swell,
+      offLevel, lift, release, amRate, amDepth, velocity, aftertouch, pan,
+      volume;
   /// The tremolo's shape. No pitch modulator here to give one to.
   ShapeButton amShape;
 

@@ -391,10 +391,9 @@ private:
   const HarmonicInfo info;
   const juce::Colour colour;
 
-  LinkableSlider tune, phase, pmRate, pmDepth, drift, delay, attack, decay,
-      sustain, swell, offLevel, release, lift, amRate, amDepth, velocity,
-      aftertouch, pan,
-      volume;
+  LinkableSlider tune, phase, pmRate, pmDepth, drift, delay, attack, strike,
+      decay, sustain, swell, offLevel, release, lift, amRate, amDepth, velocity,
+      aftertouch, pan, volume;
   /// What each modulator traces. A glyph rather than a knob, since eight
   /// named shapes are a list and not a range.
   ShapeButton pmShape, amShape;

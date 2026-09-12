@@ -72,6 +72,34 @@ inline float trackingGain(double partialHz, double fundamentalHz,
   return (float)std::exp2(-dbPerOctave * octaves / 6.020599913279624);
 }
 
+/// How far the strike amount can stretch an attack, in octaves of time.
+///
+/// Four, so a partial set to 5 ms arrives in 5 ms at the top of the keyboard's
+/// travel and takes 80 ms at the bottom of it. Enough that the onset audibly
+/// softens rather than merely lags, and short of the point where a quiet note
+/// stops sounding struck at all.
+inline constexpr float kStrikeOctaves = 4.0f;
+
+/// What the strike amount does to a partial's attack time.
+///
+/// Velocity only ever lengthens the attack, never shortens it past what the
+/// knob says, so the ATTACK row goes on meaning the fastest this partial gets
+/// and turning the amount up cannot outrun it. A positive amount spends that
+/// on the quiet end: a note at full velocity attacks exactly as set, and the
+/// onset softens the lighter it is played. A negative amount is the mirror,
+/// anchored at the quiet end instead, which is how the velocity and lift rows
+/// already read.
+///
+/// Octaves rather than a straight multiply, because attack time is heard in
+/// ratios: the step from 5 to 10 ms is the audible change that the step from
+/// 2 to 2.005 s is not.
+inline float strikeScale(float amount, float velocity) noexcept {
+  const auto a = std::clamp(amount, -1.0f, 1.0f);
+  const auto v = std::clamp(velocity, 0.0f, 1.0f);
+
+  return std::exp2(kStrikeOctaves * (a >= 0.0f ? a * (1.0f - v) : -a * v));
+}
+
 /// One polyphonic voice: 32 independently tuned, enveloped and modulated sine
 /// partials.
 class Voice {
@@ -211,6 +239,11 @@ private:
     float lastGain = 0.0f;
     /// Latched at note-on from this strip's own velocity sensitivity.
     float velGain = 1.0f;
+    /// What the strike amount made of that same velocity, as a multiplier on
+    /// the attack time. Latched for the same reason the gain is: the blow has
+    /// already landed, and moving the knob afterwards cannot change how hard
+    /// it was.
+    float attackScale = 1.0f;
     /// Likewise for the release, since the amount belongs to the note and the
     /// speed belongs to the gesture that ends it.
     float liftAmount = 0.0f;
@@ -226,6 +259,7 @@ private:
     Lfo ampLfo;
     float lowpassState = 0.0f;
     float velGain = 1.0f;
+    float attackScale = 1.0f;
     float liftAmount = 0.0f;
     float lastGain = 0.0f;
     bool gainPrimed = false;

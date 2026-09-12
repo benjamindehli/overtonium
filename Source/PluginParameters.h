@@ -50,6 +50,7 @@ inline constexpr const char *phaseSuffix = "phase";
 inline constexpr const char *driftSuffix = "drift";
 inline constexpr const char *delaySuffix = "delay";
 inline constexpr const char *attackSuffix = "attack";
+inline constexpr const char *strikeSuffix = "strike";
 inline constexpr const char *decaySuffix = "decay";
 inline constexpr const char *sustainSuffix = "sustain";
 inline constexpr const char *swellSuffix = "swell";
@@ -138,6 +139,7 @@ struct Cache {
     std::atomic<float> *drift = nullptr;
     std::atomic<float> *delay = nullptr;
     std::atomic<float> *attack = nullptr;
+    std::atomic<float> *strike = nullptr;
     std::atomic<float> *decay = nullptr;
     std::atomic<float> *sustain = nullptr;
     std::atomic<float> *swell = nullptr;
@@ -161,6 +163,7 @@ struct Cache {
     std::atomic<float> *colour = nullptr;
     std::atomic<float> *delay = nullptr;
     std::atomic<float> *attack = nullptr;
+    std::atomic<float> *strike = nullptr;
     std::atomic<float> *decay = nullptr;
     std::atomic<float> *sustain = nullptr;
     std::atomic<float> *swell = nullptr;

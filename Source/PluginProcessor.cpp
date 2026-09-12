@@ -369,7 +369,7 @@ int OvertoniumProcessor::getNumPrograms() {
   //
   // Every other format gets one. A program count above one makes JUCE's VST3
   // wrapper publish an automatable "Program" parameter, and moving that
-  // parameter rewrites all six hundred and seventy of the others. That is a
+  // parameter rewrites all eight hundred of the others. That is a
   // poor thing to hand an automation lane, it changes the parameter set of a
   // plugin already released without it, and pluginval's state restoration
   // test fails against it. VST3 hosts have preset handling of their own and

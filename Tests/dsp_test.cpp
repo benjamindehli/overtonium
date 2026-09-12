@@ -2949,6 +2949,101 @@ void testReleaseVelocity() {
         "and it is off in a fresh patch, so nothing already made changes");
 }
 
+/// Attack velocity, aimed at the attack time. How hard a key is struck decides
+/// how quickly the note arrives as well as how loudly, which is the difference
+/// between a hammer and a swell.
+void testAttackVelocity() {
+  section("Attack velocity");
+
+  // The mapping first. The timing below only says the ordering came out right;
+  // this says by how much.
+  check(std::abs(strikeScale(0.0f, 0.0f) - 1.0f) < 1.0e-6f &&
+            std::abs(strikeScale(0.0f, 1.0f) - 1.0f) < 1.0e-6f,
+        "at zero amount the attack is exactly what the knob set");
+
+  check(std::abs(strikeScale(1.0f, 1.0f) - 1.0f) < 1.0e-6f,
+        "and a note at full velocity attacks as set whatever the amount, so "
+        "the knob is always the fastest the partial gets");
+
+  check(std::abs(strikeScale(1.0f, 0.0f) - 16.0f) < 1.0e-3f,
+        "the softest note at full amount takes sixteen times as long");
+
+  check(std::abs(strikeScale(-1.0f, 1.0f) - 16.0f) < 1.0e-3f &&
+            std::abs(strikeScale(-1.0f, 0.0f) - 1.0f) < 1.0e-6f,
+        "and a negative amount is the mirror of that");
+
+  constexpr double sr = 48000.0;
+
+  // How long the partial takes to get halfway to its held level, in seconds.
+  // A linear attack passes half at half the attack time, so this is the attack
+  // the envelope actually ran, to within the cycle the sine is on.
+  const auto riseTimeFor = [&](float amount, float velocity) {
+    SynthEngine engine;
+    engine.prepare(sr);
+    engine.setPolyphony(4);
+
+    auto p = makeFlatParams(0.0f);
+    p.osc[0].volume = 1.0f;
+    p.osc[0].attack = 0.02f;
+    p.osc[0].sustain = 1.0f; // held, so the level after the attack is flat
+    p.osc[0].strikeAmount = amount;
+
+    engine.noteOn(60, velocity, p);
+
+    std::vector<float> l((size_t)(1.0 * sr)), r(l.size());
+    engine.render(l.data(), r.data(), (int)l.size(), p);
+
+    // The held level, taken from the last tenth of the second, by which point
+    // even the longest attack here has arrived.
+    double held = 0.0;
+    for (size_t n = l.size() - (size_t)(0.1 * sr); n < l.size(); ++n)
+      held = std::max(held, std::abs((double)l[n]));
+
+    for (size_t n = 0; n < l.size(); ++n)
+      if (std::abs((double)l[n]) >= 0.5 * held)
+        return (double)n / sr;
+
+    return 1.0;
+  };
+
+  // Off by default: the blow decides the level and nothing else.
+  const auto ignoredSoft = riseTimeFor(0.0f, 0.1f);
+  const auto ignoredHard = riseTimeFor(0.0f, 1.0f);
+
+  check(std::abs(ignoredSoft - ignoredHard) < 0.005,
+        "at zero amount velocity does not move the attack (" +
+            std::to_string(ignoredSoft) + " s against " +
+            std::to_string(ignoredHard) + " s)");
+
+  // Turned up, the soft note is the slow one.
+  const auto soft = riseTimeFor(1.0f, 0.1f);
+  const auto hard = riseTimeFor(1.0f, 1.0f);
+
+  std::printf("  half level at: soft %.1f ms, hard %.1f ms, ignored %.1f ms\n",
+              soft * 1000.0, hard * 1000.0, ignoredHard * 1000.0);
+
+  check(soft > 6.0 * hard,
+        "at full amount a soft note takes far longer to arrive (" +
+            std::to_string(soft / std::max(1.0e-9, hard)) + " times)");
+
+  check(std::abs(hard - ignoredHard) < 0.005,
+        "and a note at full velocity arrives when it always did");
+
+  // Negative inverts it, the way the velocity and lift rows do.
+  const auto invertedSoft = riseTimeFor(-1.0f, 0.1f);
+  const auto invertedHard = riseTimeFor(-1.0f, 1.0f);
+
+  check(invertedHard > 6.0 * invertedSoft,
+        "a negative amount makes the hard note the slow one (" +
+            std::to_string(invertedHard / std::max(1.0e-9, invertedSoft)) +
+            " times)");
+
+  // Nothing in a fresh patch asks for it.
+  SynthParams fresh;
+  check(fresh.osc[0].strikeAmount == 0.0f && fresh.noise.strikeAmount == 0.0f,
+        "and it is off in a fresh patch, so nothing already made changes");
+}
+
 /// The same fault from the outside, where it was heard: a whole voice going
 /// quiet before it could make its key-off sound.
 void testKeyOffAfterSilentDecay() {
@@ -4627,6 +4722,7 @@ int main() {
   testKeyOffEnvelope();
   testKeyOffAfterSilentDecay();
   testReleaseVelocity();
+  testAttackVelocity();
   testNoiseChannel();
   testTapeEcho();
   testWobble();

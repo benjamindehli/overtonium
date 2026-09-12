@@ -37,6 +37,9 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
             "Tilts the noise from dark rumble through flat to bright hiss");
   setUpKnob(delay, params::delaySuffix, colour, "Delay before the attack");
   setUpKnob(attack, params::attackSuffix, colour, "Attack");
+  setUpKnob(strike, params::strikeSuffix, colour,
+            "How much the speed you strike the key at shortens the attack. "
+            "Negative inverts it.");
   setUpKnob(decay, params::decaySuffix, colour, "Decay");
   setUpKnob(sustain, params::sustainSuffix, colour, "Sustain");
   setUpKnob(swell, params::swellSuffix, colour,
@@ -58,6 +61,7 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
   setUpKnob(pan, params::panSuffix, colour,
             "Where the noise sits in the stereo field");
 
+  strike.getProperties().set("bipolar", true);
   lift.getProperties().set("bipolar", true);
   velocity.getProperties().set("bipolar", true);
   aftertouch.getProperties().set("bipolar", true);
@@ -326,6 +330,7 @@ void NoiseStrip::resized() {
 
   placeRow(delay, Row::Delay, 1);
   placeRow(attack, Row::Attack, 1);
+  placeRow(strike, Row::Strike, 1);
   placeRow(decay, Row::Decay, 1);
   placeRow(sustain, Row::Sustain, 1);
   placeRow(swell, Row::Swell, 1);
