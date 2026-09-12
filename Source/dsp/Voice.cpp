@@ -139,12 +139,14 @@ void Voice::noteOn(int channel, int note, float velocity,
     pt.velGain =
         amount >= 0.0f ? 1.0f - amount * (1.0f - vel) : 1.0f + amount * vel;
 
-    // The other half of what the blow is worth. The gain above says how loud
-    // the partial comes out, this says how quickly it gets there.
-    pt.attackScale = strikeScale(op.strikeAmount, vel);
+    // The rest of what the blow is worth. The gain above says how loud the
+    // partial comes out, these two say how soon it starts and how quickly it
+    // gets there.
+    pt.delayScale = strikeDelayScale(op.strikeAmount, vel);
+    pt.attackScale = strikeAttackScale(op.strikeAmount, vel);
 
-    pt.env.configure(op.delay, op.attack * pt.attackScale, op.decay, op.sustain,
-                     op.swell, op.offLevel, op.release);
+    pt.env.configure(op.delay * pt.delayScale, op.attack * pt.attackScale,
+                     op.decay, op.sustain, op.swell, op.offLevel, op.release);
 
     // Starting from silence is only free while the partial is silent.
     //
@@ -195,10 +197,12 @@ void Voice::noteOn(int channel, int note, float velocity,
     noise.velGain =
         amount >= 0.0f ? 1.0f - amount * (1.0f - vel) : 1.0f + amount * vel;
 
-    noise.attackScale = strikeScale(np.strikeAmount, vel);
+    noise.delayScale = strikeDelayScale(np.strikeAmount, vel);
+    noise.attackScale = strikeAttackScale(np.strikeAmount, vel);
 
-    noise.env.configure(np.delay, np.attack * noise.attackScale, np.decay,
-                        np.sustain, np.swell, np.offLevel, np.release);
+    noise.env.configure(np.delay * noise.delayScale,
+                        np.attack * noise.attackScale, np.decay, np.sustain,
+                        np.swell, np.offLevel, np.release);
 
     // The same rule as the partials. Noise has no phase worth resetting, but
     // its level steps just as audibly.
@@ -336,11 +340,13 @@ void Voice::render(float *left, float *right, int numSamples,
       auto &pt = partials[(size_t)i];
       const auto &op = p.osc[(size_t)i];
 
-      // Scaled by what the note-on made of the velocity, so turning the attack
+      // Scaled by what the note-on made of the velocity, so turning either
       // knob under a sounding note moves it by the same proportion the blow
-      // earned rather than throwing that away.
-      pt.env.configure(op.delay, op.attack * pt.attackScale, op.decay,
-                       op.sustain, op.swell, op.offLevel, op.release);
+      // earned rather than throwing that away. The delay is latched in samples
+      // at note-on and only read again by the next one, so it is scaled here to
+      // keep the two calls agreeing rather than because this one uses it.
+      pt.env.configure(op.delay * pt.delayScale, op.attack * pt.attackScale,
+                       op.decay, op.sustain, op.swell, op.offLevel, op.release);
 
       if (!pt.env.isActive())
         continue;
@@ -502,8 +508,9 @@ void Voice::renderNoise(float *left, float *right, int len,
                         const SynthParams &p, float pressure) noexcept {
   const auto &np = p.noise;
 
-  noise.env.configure(np.delay, np.attack * noise.attackScale, np.decay,
-                      np.sustain, np.swell, np.offLevel, np.release);
+  noise.env.configure(np.delay * noise.delayScale,
+                      np.attack * noise.attackScale, np.decay, np.sustain,
+                      np.swell, np.offLevel, np.release);
 
   if (!noise.env.isActive())
     return;

@@ -686,9 +686,9 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   setUpKnob(pmDepth, Role::PmDepth, colour);
   setUpKnob(phase, Role::Phase, colour);
   setUpKnob(drift, Role::Drift, colour);
+  setUpKnob(strike, Role::Strike, colour);
   setUpKnob(delay, Role::Delay, colour);
   setUpKnob(attack, Role::Attack, colour);
-  setUpKnob(strike, Role::Strike, colour);
   setUpKnob(decay, Role::Decay, colour);
   setUpKnob(sustain, Role::Sustain, colour);
   setUpKnob(swell, Role::Swell, colour);
@@ -976,12 +976,12 @@ LinkableSlider *ChannelStrip::sliderForRole(Role role) {
     return &phase;
   case Role::Drift:
     return &drift;
+  case Role::Strike:
+    return &strike;
   case Role::Delay:
     return &delay;
   case Role::Attack:
     return &attack;
-  case Role::Strike:
-    return &strike;
   case Role::Decay:
     return &decay;
   case Role::Sustain:
@@ -1113,9 +1113,9 @@ void ChannelStrip::resized() {
   placeRow(pmDepth, Row::PmDepth, 1);
   placeRow(phase, Row::Phase, 1);
   placeRow(drift, Row::Drift, 1);
+  placeRow(strike, Row::Strike, 1);
   placeRow(delay, Row::Delay, 1);
   placeRow(attack, Row::Attack, 1);
-  placeRow(strike, Row::Strike, 1);
   placeRow(decay, Row::Decay, 1);
   placeRow(sustain, Row::Sustain, 1);
   placeRow(swell, Row::Swell, 1);

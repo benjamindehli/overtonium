@@ -540,6 +540,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         FAttr().withLabel("ct")));
 
     layout.add(std::make_unique<FloatP>(
+        juce::ParameterID{oscParamId(strikeSuffix, i), 1},
+        p + "Strike Velocity", juce::NormalisableRange<float>(-1.0f, 1.0f),
+        0.0f, FAttr().withStringFromValueFunction(signedPercentText)));
+
+    layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(delaySuffix, i), 1}, p + "Delay",
         expRange(0.0f, 5.0f, 0.2f), 0.0f,
         FAttr().withStringFromValueFunction(timeText)));
@@ -548,11 +553,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::ParameterID{oscParamId(attackSuffix, i), 1}, p + "Attack",
         logRange(0.0002f, 5.0f), 0.005f,
         FAttr().withStringFromValueFunction(timeText)));
-
-    layout.add(std::make_unique<FloatP>(
-        juce::ParameterID{oscParamId(strikeSuffix, i), 1},
-        p + "Attack Velocity", juce::NormalisableRange<float>(-1.0f, 1.0f),
-        0.0f, FAttr().withStringFromValueFunction(signedPercentText)));
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(decaySuffix, i), 1}, p + "Decay",
@@ -628,6 +628,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       FAttr().withStringFromValueFunction(percentText)));
 
   layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{noiseParamId(strikeSuffix), 1}, "Noise Strike Velocity",
+      juce::NormalisableRange<float>(-1.0f, 1.0f), 0.0f,
+      FAttr().withStringFromValueFunction(signedPercentText)));
+
+  layout.add(std::make_unique<FloatP>(
       juce::ParameterID{noiseParamId(delaySuffix), 1}, "Noise Delay",
       expRange(0.0f, 5.0f, 0.2f), 0.0f,
       FAttr().withStringFromValueFunction(timeText)));
@@ -636,11 +641,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::ParameterID{noiseParamId(attackSuffix), 1}, "Noise Attack",
       logRange(0.0002f, 5.0f), 0.005f,
       FAttr().withStringFromValueFunction(timeText)));
-
-  layout.add(std::make_unique<FloatP>(
-      juce::ParameterID{noiseParamId(strikeSuffix), 1}, "Noise Attack Velocity",
-      juce::NormalisableRange<float>(-1.0f, 1.0f), 0.0f,
-      FAttr().withStringFromValueFunction(signedPercentText)));
 
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{noiseParamId(decaySuffix), 1}, "Noise Decay",
@@ -750,9 +750,9 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
     o.pmDepth = apvts.getRawParameterValue(oscParamId(pmDepthSuffix, i));
     o.pmShape = apvts.getRawParameterValue(oscParamId(pmShapeSuffix, i));
     o.drift = apvts.getRawParameterValue(oscParamId(driftSuffix, i));
+    o.strike = apvts.getRawParameterValue(oscParamId(strikeSuffix, i));
     o.delay = apvts.getRawParameterValue(oscParamId(delaySuffix, i));
     o.attack = apvts.getRawParameterValue(oscParamId(attackSuffix, i));
-    o.strike = apvts.getRawParameterValue(oscParamId(strikeSuffix, i));
     o.decay = apvts.getRawParameterValue(oscParamId(decaySuffix, i));
     o.sustain = apvts.getRawParameterValue(oscParamId(sustainSuffix, i));
     o.swell = apvts.getRawParameterValue(oscParamId(swellSuffix, i));
@@ -772,9 +772,9 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   }
 
   noise.colour = apvts.getRawParameterValue(noiseParamId(colourSuffix));
+  noise.strike = apvts.getRawParameterValue(noiseParamId(strikeSuffix));
   noise.delay = apvts.getRawParameterValue(noiseParamId(delaySuffix));
   noise.attack = apvts.getRawParameterValue(noiseParamId(attackSuffix));
-  noise.strike = apvts.getRawParameterValue(noiseParamId(strikeSuffix));
   noise.decay = apvts.getRawParameterValue(noiseParamId(decaySuffix));
   noise.sustain = apvts.getRawParameterValue(noiseParamId(sustainSuffix));
   noise.swell = apvts.getRawParameterValue(noiseParamId(swellSuffix));
@@ -838,9 +838,9 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     o.pmDepthCents = c.pmDepth->load();
     o.startPhase = c.phase->load();
     o.driftCents = c.drift->load();
+    o.strikeAmount = c.strike->load();
     o.delay = c.delay->load();
     o.attack = c.attack->load();
-    o.strikeAmount = c.strike->load();
     o.decay = c.decay->load();
     o.sustain = c.sustain->load();
     o.swell = c.swell->load();
@@ -865,9 +865,9 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     auto &n = out.noise;
 
     n.colour = noise.colour->load();
+    n.strikeAmount = noise.strike->load();
     n.delay = noise.delay->load();
     n.attack = noise.attack->load();
-    n.strikeAmount = noise.strike->load();
     n.decay = noise.decay->load();
     n.sustain = noise.sustain->load();
     n.swell = noise.swell->load();

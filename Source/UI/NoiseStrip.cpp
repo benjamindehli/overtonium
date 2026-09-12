@@ -35,11 +35,11 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
 
   setUpKnob(colourKnob, params::colourSuffix, colour,
             "Tilts the noise from dark rumble through flat to bright hiss");
+  setUpKnob(strike, params::strikeSuffix, colour,
+            "How much the speed you strike the key at brings the delay in and "
+            "shortens the attack. Negative inverts it.");
   setUpKnob(delay, params::delaySuffix, colour, "Delay before the attack");
   setUpKnob(attack, params::attackSuffix, colour, "Attack");
-  setUpKnob(strike, params::strikeSuffix, colour,
-            "How much the speed you strike the key at shortens the attack. "
-            "Negative inverts it.");
   setUpKnob(decay, params::decaySuffix, colour, "Decay");
   setUpKnob(sustain, params::sustainSuffix, colour, "Sustain");
   setUpKnob(swell, params::swellSuffix, colour,
@@ -324,9 +324,9 @@ void NoiseStrip::resized() {
   colourKnob.setBounds(rows[rowIndex(Row::TuneKnob)]);
   colourReadout.setBounds(rows[rowIndex(Row::TuneText)]);
 
+  placeRow(strike, Row::Strike, 1);
   placeRow(delay, Row::Delay, 1);
   placeRow(attack, Row::Attack, 1);
-  placeRow(strike, Row::Strike, 1);
   placeRow(decay, Row::Decay, 1);
   placeRow(sustain, Row::Sustain, 1);
   placeRow(swell, Row::Swell, 1);

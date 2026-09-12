@@ -72,13 +72,26 @@ inline float trackingGain(double partialHz, double fundamentalHz,
   return (float)std::exp2(-dbPerOctave * octaves / 6.020599913279624);
 }
 
-/// How far the strike amount can stretch an attack, in octaves of time.
+/// How far the strike amount can move a time, in octaves.
 ///
-/// Four, so a partial set to 5 ms arrives in 5 ms at the top of the keyboard's
+/// Four, so a partial set to 5 ms attacks in 5 ms at the top of the keyboard's
 /// travel and takes 80 ms at the bottom of it. Enough that the onset audibly
 /// softens rather than merely lags, and short of the point where a quiet note
-/// stops sounding struck at all.
+/// stops sounding struck at all. The delay takes the same figure in the other
+/// direction, so a second of it comes in to 62 ms under a hard blow.
 inline constexpr float kStrikeOctaves = 4.0f;
+
+/// How much of the strike amount a blow of this speed earns, 0 to 1.
+///
+/// The shape both halves are built on. Zero amount earns nothing whatever the
+/// velocity, and the sign decides which end of the keyboard's travel the full
+/// amount lands on, which is how the velocity row already reads.
+inline float strikeReach(float amount, float velocity) noexcept {
+  const auto a = std::clamp(amount, -1.0f, 1.0f);
+  const auto v = std::clamp(velocity, 0.0f, 1.0f);
+
+  return a >= 0.0f ? a * (1.0f - v) : -a * v;
+}
 
 /// What the strike amount does to a partial's attack time.
 ///
@@ -87,17 +100,31 @@ inline constexpr float kStrikeOctaves = 4.0f;
 /// and turning the amount up cannot outrun it. A positive amount spends that
 /// on the quiet end: a note at full velocity attacks exactly as set, and the
 /// onset softens the lighter it is played. A negative amount is the mirror,
-/// anchored at the quiet end instead, which is how the velocity row already
-/// reads.
+/// anchored at the quiet end instead.
 ///
 /// Octaves rather than a straight multiply, because attack time is heard in
 /// ratios: the step from 5 to 10 ms is the audible change that the step from
 /// 2 to 2.005 s is not.
-inline float strikeScale(float amount, float velocity) noexcept {
-  const auto a = std::clamp(amount, -1.0f, 1.0f);
+inline float strikeAttackScale(float amount, float velocity) noexcept {
+  return std::exp2(kStrikeOctaves * strikeReach(amount, velocity));
+}
+
+/// What the same amount does to the delay before that attack.
+///
+/// The other way round, and deliberately so. Velocity only ever pulls the
+/// delay in, never pushes it out, so the DELAY row goes on meaning the latest
+/// this partial ever arrives. The two then say the same thing about a hard
+/// blow from both ends: it arrives sooner and it arrives faster, which is what
+/// striking anything harder does, while a light touch lets the partial come in
+/// late and open slowly.
+///
+/// Built from the same reach read from the opposite end of the travel, since a
+/// positive amount has to spend itself on hard notes here where the attack
+/// spends it on soft ones.
+inline float strikeDelayScale(float amount, float velocity) noexcept {
   const auto v = std::clamp(velocity, 0.0f, 1.0f);
 
-  return std::exp2(kStrikeOctaves * (a >= 0.0f ? a * (1.0f - v) : -a * v));
+  return std::exp2(-kStrikeOctaves * strikeReach(amount, 1.0f - v));
 }
 
 /// One polyphonic voice: 32 independently tuned, enveloped and modulated sine
@@ -237,10 +264,11 @@ private:
     float lastGain = 0.0f;
     /// Latched at note-on from this strip's own velocity sensitivity.
     float velGain = 1.0f;
-    /// What the strike amount made of that same velocity, as a multiplier on
-    /// the attack time. Latched for the same reason the gain is: the blow has
-    /// already landed, and moving the knob afterwards cannot change how hard
-    /// it was.
+    /// What the strike amount made of that same velocity, as multipliers on
+    /// the delay and the attack. Latched for the same reason the gain is: the
+    /// blow has already landed, and moving the knob afterwards cannot change
+    /// how hard it was.
+    float delayScale = 1.0f;
     float attackScale = 1.0f;
     bool gainPrimed = false;
   };
@@ -254,6 +282,7 @@ private:
     Lfo ampLfo;
     float lowpassState = 0.0f;
     float velGain = 1.0f;
+    float delayScale = 1.0f;
     float attackScale = 1.0f;
     float lastGain = 0.0f;
     bool gainPrimed = false;

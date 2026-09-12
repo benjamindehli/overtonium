@@ -99,9 +99,9 @@ struct Applier {
     allOsc(params::pmShapeSuffix, [](int) { return 0.0; });
     allOsc(params::pmDepthSuffix, [](int) { return 0.0; });
     allOsc(params::driftSuffix, [](int) { return 0.0; });
+    allOsc(params::strikeSuffix, [](int) { return 0.0; });
     allOsc(params::delaySuffix, [](int) { return 0.0; });
     allOsc(params::attackSuffix, [](int) { return 0.005; });
-    allOsc(params::strikeSuffix, [](int) { return 0.0; });
     allOsc(params::decaySuffix, [](int) { return 0.6; });
     allOsc(params::sustainSuffix, [](int) { return 1.0; });
     allOsc(params::swellSuffix, [](int) { return 0.005; });
@@ -121,9 +121,9 @@ struct Applier {
     // Noise is off unless a preset asks for it.
     set(params::noiseParamId(params::volumeSuffix), 0.0f);
     set(params::noiseParamId(params::colourSuffix), 0.5f);
+    set(params::noiseParamId(params::strikeSuffix), 0.0f);
     set(params::noiseParamId(params::delaySuffix), 0.0f);
     set(params::noiseParamId(params::attackSuffix), 0.005f);
-    set(params::noiseParamId(params::strikeSuffix), 0.0f);
     set(params::noiseParamId(params::decaySuffix), 0.6f);
     set(params::noiseParamId(params::sustainSuffix), 1.0f);
     set(params::noiseParamId(params::swellSuffix), 0.005f);
@@ -498,9 +498,9 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
       {params::pmRateSuffix, "pmRateSuffix"},
       {params::pmDepthSuffix, "pmDepthSuffix"},
       {params::driftSuffix, "driftSuffix"},
+      {params::strikeSuffix, "strikeSuffix"},
       {params::delaySuffix, "delaySuffix"},
       {params::attackSuffix, "attackSuffix"},
-      {params::strikeSuffix, "strikeSuffix"},
       {params::decaySuffix, "decaySuffix"},
       {params::sustainSuffix, "sustainSuffix"},
       {params::swellSuffix, "swellSuffix"},

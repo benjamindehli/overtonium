@@ -139,9 +139,9 @@
                                     <td>Smooth random pitch wander, its own stream per partial</td>
                                 </tr>
                                 <tr>
-                                    <td>ENVELOPE delay, A, strike, D, S</td>
-                                    <td>0 to 5 s, 0.2 ms to 5 s, -100 to +100%, 1 ms to 20 s, 0 to 100%</td>
-                                    <td>Exponential decay. STRIKE shortens the attack the harder the key is struck</td>
+                                    <td>ENVELOPE strike, delay, A, D, S</td>
+                                    <td>-100 to +100%, 0 to 5 s, 0.2 ms to 5 s, 1 ms to 20 s, 0 to 100%</td>
+                                    <td>Exponential decay. STRIKE starts the partial sooner and faster the harder the key is struck</td>
                                 </tr>
                                 <tr>
                                     <td>KEY OFF swell, level, release</td>
@@ -307,13 +307,19 @@
                     </p>
 
                     <p>
-                        <strong>STRIKE</strong> aims key velocity at the attack time, the way the velocity row aims it at the fader. Zero ignores the
-                        gesture, positive means a hard note arrives exactly as the attack knob says and a soft one takes longer to get there, negative
-                        inverts it. Velocity only ever lengthens the attack and never shortens it past the setting, so ATTACK goes on meaning the
-                        fastest the partial gets. Full amount spans four octaves of time, so a partial set to 5 ms arrives in 5 ms under a hard blow
-                        and takes 80 ms under the softest one. Setting it per partial is what separates it from a velocity curve over the whole
-                        instrument: give the upper partials a strike amount and leave the fundamental at zero, and a hard note is bright and immediate
-                        while a soft one opens from underneath.
+                        <strong>STRIKE</strong> sits at the head of the section because it is about the blow rather than about the shape, and it aims
+                        that blow at the two rows under it, the way the velocity row aims it at the fader. Zero ignores the gesture. Positive means a
+                        hard note starts sooner and arrives faster, and a soft one waits and then opens slowly. Negative inverts it.
+                    </p>
+
+                    <p>
+                        The two halves lean opposite ways on purpose, and each knob stays the limit of its own row. Velocity only ever lengthens the
+                        attack, so ATTACK goes on meaning the fastest the partial gets, and it only ever pulls the delay in, so DELAY goes on meaning
+                        the latest it arrives. Both span four octaves of time at full amount: a partial set to 5 ms attacks in 5 ms under a hard blow
+                        and takes 80 ms under the softest, and a 400 ms delay stays 400 ms under the softest and comes in to 25 ms under the hardest.
+                        Setting it per partial is what separates it from a velocity curve over the whole instrument: give the upper partials a strike
+                        amount and leave the fundamental at zero, and a hard chord lands as one bright block while a soft one unfolds, the fundamental
+                        first and the series arriving behind it.
                     </p>
 
                     <p>

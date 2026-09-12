@@ -2866,28 +2866,56 @@ void testKeyOffEnvelope() {
   }
 }
 
-/// Attack velocity, aimed at the attack time. How hard a key is struck decides
-/// how quickly the note arrives as well as how loudly, which is the difference
-/// between a hammer and a swell.
-void testAttackVelocity() {
-  section("Attack velocity");
+/// Strike velocity, aimed at the front of the envelope. How hard a key is
+/// struck decides how soon the note starts and how quickly it arrives as well
+/// as how loudly, which is the difference between a hammer and a swell.
+void testStrikeVelocity() {
+  section("Strike velocity");
 
-  // The mapping first. The timing below only says the ordering came out right;
-  // this says by how much.
-  check(std::abs(strikeScale(0.0f, 0.0f) - 1.0f) < 1.0e-6f &&
-            std::abs(strikeScale(0.0f, 1.0f) - 1.0f) < 1.0e-6f,
-        "at zero amount the attack is exactly what the knob set");
+  // The two mappings first. The timings below only say the ordering came out
+  // right; these say by how much.
+  check(std::abs(strikeAttackScale(0.0f, 0.0f) - 1.0f) < 1.0e-6f &&
+            std::abs(strikeAttackScale(0.0f, 1.0f) - 1.0f) < 1.0e-6f &&
+            std::abs(strikeDelayScale(0.0f, 0.0f) - 1.0f) < 1.0e-6f &&
+            std::abs(strikeDelayScale(0.0f, 1.0f) - 1.0f) < 1.0e-6f,
+        "at zero amount both times are exactly what the knobs set");
 
-  check(std::abs(strikeScale(1.0f, 1.0f) - 1.0f) < 1.0e-6f,
+  check(std::abs(strikeAttackScale(1.0f, 1.0f) - 1.0f) < 1.0e-6f,
         "and a note at full velocity attacks as set whatever the amount, so "
-        "the knob is always the fastest the partial gets");
+        "the attack knob is always the fastest the partial gets");
 
-  check(std::abs(strikeScale(1.0f, 0.0f) - 16.0f) < 1.0e-3f,
+  check(std::abs(strikeAttackScale(1.0f, 0.0f) - 16.0f) < 1.0e-3f,
         "the softest note at full amount takes sixteen times as long");
 
-  check(std::abs(strikeScale(-1.0f, 1.0f) - 16.0f) < 1.0e-3f &&
-            std::abs(strikeScale(-1.0f, 0.0f) - 1.0f) < 1.0e-6f,
+  check(std::abs(strikeAttackScale(-1.0f, 1.0f) - 16.0f) < 1.0e-3f &&
+            std::abs(strikeAttackScale(-1.0f, 0.0f) - 1.0f) < 1.0e-6f,
         "and a negative amount is the mirror of that");
+
+  // The delay leans the other way: velocity only ever pulls it in.
+  check(std::abs(strikeDelayScale(1.0f, 0.0f) - 1.0f) < 1.0e-6f,
+        "the softest note waits exactly as long as the delay knob says, so "
+        "that knob is always the latest the partial arrives");
+
+  check(std::abs(strikeDelayScale(1.0f, 1.0f) - 0.0625f) < 1.0e-4f,
+        "and the hardest waits a sixteenth of it");
+
+  check(std::abs(strikeDelayScale(-1.0f, 0.0f) - 0.0625f) < 1.0e-4f &&
+            std::abs(strikeDelayScale(-1.0f, 1.0f) - 1.0f) < 1.0e-6f,
+        "a negative amount mirrors that too");
+
+  bool neverLonger = true, neverShorter = true;
+  for (int i = -10; i <= 10; ++i)
+    for (int j = 0; j <= 10; ++j) {
+      const auto a = (float)i / 10.0f;
+      const auto v = (float)j / 10.0f;
+
+      neverLonger &= strikeDelayScale(a, v) <= 1.0f + 1.0e-6f;
+      neverShorter &= strikeAttackScale(a, v) >= 1.0f - 1.0e-6f;
+    }
+
+  check(neverLonger && neverShorter,
+        "across the whole of both travels the delay only ever comes in and "
+        "the attack only ever stretches");
 
   constexpr double sr = 48000.0;
 
@@ -2904,6 +2932,7 @@ void testAttackVelocity() {
     p.osc[0].attack = 0.02f;
     p.osc[0].sustain = 1.0f; // held, so the level after the attack is flat
     p.osc[0].strikeAmount = amount;
+    p.osc[0].delay = 0.0f;
 
     engine.noteOn(60, velocity, p);
 
@@ -2954,6 +2983,53 @@ void testAttackVelocity() {
         "a negative amount makes the hard note the slow one (" +
             std::to_string(invertedHard / std::max(1.0e-9, invertedSoft)) +
             " times)");
+
+  // ---- and the delay, from the outside ------------------------------------
+  //
+  // When the partial first makes a sound at all, which for a delayed note is
+  // the moment the delay runs out rather than anything about the attack.
+  const auto onsetFor = [&](float amount, float velocity) {
+    SynthEngine engine;
+    engine.prepare(sr);
+    engine.setPolyphony(4);
+
+    auto p = makeFlatParams(0.0f);
+    p.osc[0].volume = 1.0f;
+    p.osc[0].delay = 0.4f;
+    p.osc[0].attack = 0.002f;
+    p.osc[0].sustain = 1.0f;
+    p.osc[0].strikeAmount = amount;
+
+    engine.noteOn(60, velocity, p);
+
+    std::vector<float> l((size_t)(1.0 * sr)), r(l.size());
+    engine.render(l.data(), r.data(), (int)l.size(), p);
+
+    for (size_t n = 0; n < l.size(); ++n)
+      if (std::abs((double)l[n]) > 0.05)
+        return (double)n / sr;
+
+    return 1.0;
+  };
+
+  const auto waitedSoft = onsetFor(1.0f, 0.0f);
+  const auto waitedHard = onsetFor(1.0f, 1.0f);
+  const auto waitedOff = onsetFor(0.0f, 1.0f);
+
+  std::printf("  onset of a 400 ms delay: soft %.0f ms, hard %.0f ms, "
+              "ignored %.0f ms\n",
+              waitedSoft * 1000.0, waitedHard * 1000.0, waitedOff * 1000.0);
+
+  check(std::abs(waitedOff - 0.4) < 0.01,
+        "at zero amount the delay is the 400 ms it was set to (" +
+            std::to_string(waitedOff) + " s)");
+
+  check(std::abs(waitedSoft - waitedOff) < 0.01,
+        "the softest note still waits the whole of it");
+
+  check(waitedHard < 0.05,
+        "and the hardest comes in almost at once (" +
+            std::to_string(waitedHard) + " s)");
 
   // Nothing in a fresh patch asks for it.
   SynthParams fresh;
@@ -4638,7 +4714,7 @@ int main() {
   testEnvelopeDelay();
   testKeyOffEnvelope();
   testKeyOffAfterSilentDecay();
-  testAttackVelocity();
+  testStrikeVelocity();
   testNoiseChannel();
   testTapeEcho();
   testWobble();

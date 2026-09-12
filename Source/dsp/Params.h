@@ -39,16 +39,17 @@ struct OscParams {
   float driftCents = 0.0f;
 
   // Amplitude
+  /// How much the speed you strike the key at moves the front of the envelope,
+  /// -1 to 1. Positive brings the delay in and stretches the attack as the blow
+  /// softens, so a hard note arrives sooner and faster, which is what striking
+  /// anything harder does. Negative inverts it. Zero ignores velocity, which is
+  /// what the envelope did before it had this. See strikeAttackScale and
+  /// strikeDelayScale.
+  float strikeAmount = 0.0f;
   /// Held silent before the attack starts, in seconds. Staggering this across
   /// the series makes the spectrum unfold rather than arrive all at once.
   float delay = 0.0f;
   float attack = 0.005f; ///< seconds
-  /// How much the speed you strike the key at shortens the attack, -1 to 1.
-  /// Positive means a hard note arrives exactly as the attack knob says and a
-  /// soft one takes longer to get there, which is what a hammer or a bow does.
-  /// Negative inverts it. Zero ignores velocity, which is what the attack did
-  /// before it had this. See strikeScale.
-  float strikeAmount = 0.0f;
   float decay = 0.400f;
   float sustain = 1.0f; ///< 0..1
   float release = 0.400f;
@@ -90,9 +91,9 @@ struct OscParams {
 struct NoiseParams {
   float colour = 0.5f; ///< 0 dark, 0.5 flat, 1 bright
 
+  float strikeAmount = 0.0f;
   float delay = 0.0f;
   float attack = 0.005f;
-  float strikeAmount = 0.0f;
   float decay = 0.600f;
   float sustain = 1.0f;
   float swell = 0.005f;

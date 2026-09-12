@@ -137,8 +137,8 @@ void testParameterWiring(OvertoniumProcessor &p) {
   const char *suffixes[] = {
       ovt::params::tuneSuffix,    ovt::params::phaseSuffix,
       ovt::params::pmRateSuffix,  ovt::params::pmDepthSuffix,
-      ovt::params::driftSuffix,   ovt::params::delaySuffix,
-      ovt::params::attackSuffix,  ovt::params::strikeSuffix,
+      ovt::params::driftSuffix,   ovt::params::strikeSuffix,
+      ovt::params::delaySuffix,   ovt::params::attackSuffix,
       ovt::params::decaySuffix,   ovt::params::sustainSuffix,
       ovt::params::swellSuffix,   ovt::params::offLevelSuffix,
       ovt::params::releaseSuffix, ovt::params::amRateSuffix,
@@ -156,8 +156,8 @@ void testParameterWiring(OvertoniumProcessor &p) {
   check(allPresent, "all 736 per-partial parameters resolve");
 
   const char *noiseSuffixes[] = {
-      ovt::params::colourSuffix,  ovt::params::delaySuffix,
-      ovt::params::attackSuffix,  ovt::params::strikeSuffix,
+      ovt::params::colourSuffix,  ovt::params::strikeSuffix,
+      ovt::params::delaySuffix,   ovt::params::attackSuffix,
       ovt::params::decaySuffix,   ovt::params::sustainSuffix,
       ovt::params::swellSuffix,   ovt::params::offLevelSuffix,
       ovt::params::releaseSuffix, ovt::params::amRateSuffix,
@@ -1968,7 +1968,7 @@ void testRowHover() {
 
   bool identity = true;
   for (Row r : {Row::TuneKnob,   Row::Phase,   Row::PmRate,   Row::PmDepth,
-                Row::Drift,      Row::Delay,   Row::Attack,   Row::Strike,
+                Row::Drift,      Row::Strike,  Row::Delay,    Row::Attack,
                 Row::Decay,      Row::Sustain, Row::Swell,    Row::OffLevel,
                 Row::Release,    Row::AmRate,  Row::AmDepth,  Row::Velocity,
                 Row::Aftertouch, Row::Pan,     Row::MuteSolo, Row::Fader})
@@ -3792,7 +3792,7 @@ void testCollapsibleSections() {
         "the heading keeps its height, so there is something left to click");
 
   for (auto r :
-       {Row::Delay, Row::Attack, Row::Strike, Row::Decay, Row::Sustain})
+       {Row::Strike, Row::Delay, Row::Attack, Row::Decay, Row::Sustain})
     check(folded[(size_t)r].getHeight() == 0,
           std::string("the folded ") + rowLabel(r) + " row takes no height");
 
@@ -3807,9 +3807,9 @@ void testCollapsibleSections() {
 
   check(collapsedRowsHeight(0) == 0, "nothing folded is no height");
   check(collapsedRowsHeight(envMask) ==
-            open[(size_t)Row::Delay].getHeight() +
+            open[(size_t)Row::Strike].getHeight() +
+                open[(size_t)Row::Delay].getHeight() +
                 open[(size_t)Row::Attack].getHeight() +
-                open[(size_t)Row::Strike].getHeight() +
                 open[(size_t)Row::Decay].getHeight() +
                 open[(size_t)Row::Sustain].getHeight(),
         "the height given up is the sum of the rows that went");
