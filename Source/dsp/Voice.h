@@ -74,12 +74,19 @@ inline float trackingGain(double partialHz, double fundamentalHz,
 
 /// How far the strike amount can move a time, in octaves.
 ///
-/// Four, so a partial set to 5 ms attacks in 5 ms at the top of the keyboard's
-/// travel and takes 80 ms at the bottom of it. Enough that the onset audibly
-/// softens rather than merely lags, and short of the point where a quiet note
-/// stops sounding struck at all. The delay takes the same figure in the other
-/// direction, so a second of it comes in to 62 ms under a hard blow.
-inline constexpr float kStrikeOctaves = 4.0f;
+/// Eight, which is a range of 256 to 1, and it has to be that wide because the
+/// attacks worth stretching are short. A partial set to 2 ms attacks in 2 ms
+/// under a hard blow and takes half a second under the softest, which is the
+/// difference between a struck note and a swelled one. Four octaves reached
+/// only 32 ms from the same setting, and 2 ms against 32 ms is two kinds of
+/// snap rather than two kinds of note: to hear the onset genuinely soften you
+/// had to set an attack long enough that the hard note was no longer punchy,
+/// which is the wrong trade to have to make.
+///
+/// The delay takes the same figure in the other direction, so 400 ms of it
+/// comes in to under two milliseconds under a hard blow, which is the same
+/// thing said at the front: hit it hard and the partial is simply there.
+inline constexpr float kStrikeOctaves = 8.0f;
 
 /// How much of the strike amount a blow of this speed earns, 0 to 1.
 ///
@@ -105,8 +112,28 @@ inline float strikeReach(float amount, float velocity) noexcept {
 /// Octaves rather than a straight multiply, because attack time is heard in
 /// ratios: the step from 5 to 10 ms is the audible change that the step from
 /// 2 to 2.005 s is not.
+///
+/// The figure this returns is a ratio and can be large. What it is allowed to
+/// do to a real attack is bounded by struckAttack, which is where the two meet.
 inline float strikeAttackScale(float amount, float velocity) noexcept {
   return std::exp2(kStrikeOctaves * strikeReach(amount, velocity));
+}
+
+/// A partial's attack once the blow has been folded in, in seconds.
+///
+/// Stopped at the top of the ATTACK row's own range rather than left to run.
+/// Two hundred and fifty-six times a short attack is a long one and exactly
+/// what the control is for, but the same ratio on an attack that was already
+/// long is half a minute, which is not a setting anybody reached for and not
+/// one the knob alone could have produced. So the blow can take the onset
+/// anywhere the knob could have gone and no further.
+///
+/// The cost is that a full amount on an attack above about 20 ms gives the very
+/// softest notes the same ceiling rather than a longer one each. That is the
+/// right end to lose resolution at: they are already slower than anything the
+/// patch was built around.
+inline float struckAttack(float attack, float scale) noexcept {
+  return std::min(attack * scale, kMaxAttackSeconds);
 }
 
 /// What the same amount does to the delay before that attack.
@@ -120,7 +147,8 @@ inline float strikeAttackScale(float amount, float velocity) noexcept {
 ///
 /// Built from the same reach read from the opposite end of the travel, since a
 /// positive amount has to spend itself on hard notes here where the attack
-/// spends it on soft ones.
+/// spends it on soft ones. It needs no ceiling of its own: shortening runs
+/// towards nothing, and nothing is a delay the knob can already be set to.
 inline float strikeDelayScale(float amount, float velocity) noexcept {
   const auto v = std::clamp(velocity, 0.0f, 1.0f);
 

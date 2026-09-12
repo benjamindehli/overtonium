@@ -2884,22 +2884,39 @@ void testStrikeVelocity() {
         "and a note at full velocity attacks as set whatever the amount, so "
         "the attack knob is always the fastest the partial gets");
 
-  check(std::abs(strikeAttackScale(1.0f, 0.0f) - 16.0f) < 1.0e-3f,
-        "the softest note at full amount takes sixteen times as long");
+  check(std::abs(strikeAttackScale(1.0f, 0.0f) - 256.0f) < 1.0e-2f,
+        "the softest note at full amount takes two hundred and fifty-six "
+        "times as long, which is what makes 2 ms against half a second "
+        "reachable from one setting");
 
-  check(std::abs(strikeAttackScale(-1.0f, 1.0f) - 16.0f) < 1.0e-3f &&
+  check(std::abs(strikeAttackScale(-1.0f, 1.0f) - 256.0f) < 1.0e-2f &&
             std::abs(strikeAttackScale(-1.0f, 0.0f) - 1.0f) < 1.0e-6f,
         "and a negative amount is the mirror of that");
+
+  // That ratio is only allowed to reach as far as the knob itself could.
+  check(std::abs(struckAttack(0.002f, strikeAttackScale(1.0f, 0.0f)) - 0.512f) <
+            1.0e-4f,
+        "a 2 ms attack at full amount stretches to 512 ms, well inside the "
+        "row's own range");
+
+  check(std::abs(struckAttack(1.0f, strikeAttackScale(1.0f, 0.0f)) -
+                 kMaxAttackSeconds) < 1.0e-6f,
+        "and a one second attack stops at the longest the knob could have "
+        "been set to rather than running to four minutes");
+
+  check(std::abs(struckAttack(0.002f, 1.0f) - 0.002f) < 1.0e-9f,
+        "a scale of one leaves the attack exactly alone");
 
   // The delay leans the other way: velocity only ever pulls it in.
   check(std::abs(strikeDelayScale(1.0f, 0.0f) - 1.0f) < 1.0e-6f,
         "the softest note waits exactly as long as the delay knob says, so "
         "that knob is always the latest the partial arrives");
 
-  check(std::abs(strikeDelayScale(1.0f, 1.0f) - 0.0625f) < 1.0e-4f,
-        "and the hardest waits a sixteenth of it");
+  check(std::abs(strikeDelayScale(1.0f, 1.0f) - 1.0f / 256.0f) < 1.0e-6f,
+        "and the hardest waits a two hundred and fifty-sixth of it, so a blow "
+        "at the top of the travel simply cancels the wait");
 
-  check(std::abs(strikeDelayScale(-1.0f, 0.0f) - 0.0625f) < 1.0e-4f &&
+  check(std::abs(strikeDelayScale(-1.0f, 0.0f) - 1.0f / 256.0f) < 1.0e-6f &&
             std::abs(strikeDelayScale(-1.0f, 1.0f) - 1.0f) < 1.0e-6f,
         "a negative amount mirrors that too");
 
@@ -2929,7 +2946,7 @@ void testStrikeVelocity() {
 
     auto p = makeFlatParams(0.0f);
     p.osc[0].volume = 1.0f;
-    p.osc[0].attack = 0.02f;
+    p.osc[0].attack = 0.005f;
     p.osc[0].sustain = 1.0f; // held, so the level after the attack is flat
     p.osc[0].strikeAmount = amount;
     p.osc[0].delay = 0.0f;
@@ -2953,7 +2970,7 @@ void testStrikeVelocity() {
   };
 
   // Off by default: the blow decides the level and nothing else.
-  const auto ignoredSoft = riseTimeFor(0.0f, 0.1f);
+  const auto ignoredSoft = riseTimeFor(0.0f, 0.2f);
   const auto ignoredHard = riseTimeFor(0.0f, 1.0f);
 
   check(std::abs(ignoredSoft - ignoredHard) < 0.005,
@@ -2961,25 +2978,33 @@ void testStrikeVelocity() {
             std::to_string(ignoredSoft) + " s against " +
             std::to_string(ignoredHard) + " s)");
 
-  // Turned up, the soft note is the slow one.
-  const auto soft = riseTimeFor(1.0f, 0.1f);
+  // Turned up, the soft note is the slow one. The setting is the one a player
+  // actually reaches for and the one four octaves could not serve: a 5 ms
+  // attack, snappy at the top of the travel, with the softest notes expected to
+  // swell rather than merely lag.
+  const auto soft = riseTimeFor(1.0f, 0.2f);
   const auto hard = riseTimeFor(1.0f, 1.0f);
 
   std::printf("  half level at: soft %.1f ms, hard %.1f ms, ignored %.1f ms\n",
               soft * 1000.0, hard * 1000.0, ignoredHard * 1000.0);
 
-  check(soft > 6.0 * hard,
+  check(soft > 20.0 * hard,
         "at full amount a soft note takes far longer to arrive (" +
             std::to_string(soft / std::max(1.0e-9, hard)) + " times)");
+
+  check(hard < 0.006 && soft > 0.1,
+        "and the two are a snap and a swell rather than two kinds of snap (" +
+            std::to_string(hard * 1000.0) + " ms against " +
+            std::to_string(soft * 1000.0) + " ms)");
 
   check(std::abs(hard - ignoredHard) < 0.005,
         "and a note at full velocity arrives when it always did");
 
   // Negative inverts it, the way the velocity row does.
-  const auto invertedSoft = riseTimeFor(-1.0f, 0.1f);
+  const auto invertedSoft = riseTimeFor(-1.0f, 0.2f);
   const auto invertedHard = riseTimeFor(-1.0f, 1.0f);
 
-  check(invertedHard > 6.0 * invertedSoft,
+  check(invertedHard > 20.0 * invertedSoft,
         "a negative amount makes the hard note the slow one (" +
             std::to_string(invertedHard / std::max(1.0e-9, invertedSoft)) +
             " times)");
@@ -3005,8 +3030,12 @@ void testStrikeVelocity() {
     std::vector<float> l((size_t)(1.0 * sr)), r(l.size());
     engine.render(l.data(), r.data(), (int)l.size(), p);
 
+    // A low bar on purpose. The partial is silent to the sample until the
+    // delay runs out, so anything above nothing is the moment it ends, and a
+    // higher bar would be measuring the stretched attack that follows rather
+    // than the wait in front of it.
     for (size_t n = 0; n < l.size(); ++n)
-      if (std::abs((double)l[n]) > 0.05)
+      if (std::abs((double)l[n]) > 0.001)
         return (double)n / sr;
 
     return 1.0;
@@ -3020,16 +3049,17 @@ void testStrikeVelocity() {
               "ignored %.0f ms\n",
               waitedSoft * 1000.0, waitedHard * 1000.0, waitedOff * 1000.0);
 
-  check(std::abs(waitedOff - 0.4) < 0.01,
+  check(std::abs(waitedOff - 0.4) < 0.005,
         "at zero amount the delay is the 400 ms it was set to (" +
             std::to_string(waitedOff) + " s)");
 
-  check(std::abs(waitedSoft - waitedOff) < 0.01,
-        "the softest note still waits the whole of it");
+  check(std::abs(waitedSoft - waitedOff) < 0.005,
+        "the softest note still waits the whole of it (" +
+            std::to_string(waitedSoft) + " s)");
 
-  check(waitedHard < 0.05,
+  check(waitedHard < 0.01,
         "and the hardest comes in almost at once (" +
-            std::to_string(waitedHard) + " s)");
+            std::to_string(waitedHard * 1000.0) + " ms)");
 
   // Nothing in a fresh patch asks for it.
   SynthParams fresh;

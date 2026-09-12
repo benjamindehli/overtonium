@@ -145,8 +145,9 @@ void Voice::noteOn(int channel, int note, float velocity,
     pt.delayScale = strikeDelayScale(op.strikeAmount, vel);
     pt.attackScale = strikeAttackScale(op.strikeAmount, vel);
 
-    pt.env.configure(op.delay * pt.delayScale, op.attack * pt.attackScale,
-                     op.decay, op.sustain, op.swell, op.offLevel, op.release);
+    pt.env.configure(op.delay * pt.delayScale,
+                     struckAttack(op.attack, pt.attackScale), op.decay,
+                     op.sustain, op.swell, op.offLevel, op.release);
 
     // Starting from silence is only free while the partial is silent.
     //
@@ -201,8 +202,8 @@ void Voice::noteOn(int channel, int note, float velocity,
     noise.attackScale = strikeAttackScale(np.strikeAmount, vel);
 
     noise.env.configure(np.delay * noise.delayScale,
-                        np.attack * noise.attackScale, np.decay, np.sustain,
-                        np.swell, np.offLevel, np.release);
+                        struckAttack(np.attack, noise.attackScale), np.decay,
+                        np.sustain, np.swell, np.offLevel, np.release);
 
     // The same rule as the partials. Noise has no phase worth resetting, but
     // its level steps just as audibly.
@@ -345,8 +346,9 @@ void Voice::render(float *left, float *right, int numSamples,
       // earned rather than throwing that away. The delay is latched in samples
       // at note-on and only read again by the next one, so it is scaled here to
       // keep the two calls agreeing rather than because this one uses it.
-      pt.env.configure(op.delay * pt.delayScale, op.attack * pt.attackScale,
-                       op.decay, op.sustain, op.swell, op.offLevel, op.release);
+      pt.env.configure(op.delay * pt.delayScale,
+                       struckAttack(op.attack, pt.attackScale), op.decay,
+                       op.sustain, op.swell, op.offLevel, op.release);
 
       if (!pt.env.isActive())
         continue;
@@ -509,8 +511,8 @@ void Voice::renderNoise(float *left, float *right, int len,
   const auto &np = p.noise;
 
   noise.env.configure(np.delay * noise.delayScale,
-                      np.attack * noise.attackScale, np.decay, np.sustain,
-                      np.swell, np.offLevel, np.release);
+                      struckAttack(np.attack, noise.attackScale), np.decay,
+                      np.sustain, np.swell, np.offLevel, np.release);
 
   if (!noise.env.isActive())
     return;

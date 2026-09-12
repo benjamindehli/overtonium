@@ -551,7 +551,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(attackSuffix, i), 1}, p + "Attack",
-        logRange(0.0002f, 5.0f), 0.005f,
+        logRange(0.0002f, kMaxAttackSeconds), 0.005f,
         FAttr().withStringFromValueFunction(timeText)));
 
     layout.add(std::make_unique<FloatP>(
@@ -639,7 +639,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{noiseParamId(attackSuffix), 1}, "Noise Attack",
-      logRange(0.0002f, 5.0f), 0.005f,
+      logRange(0.0002f, kMaxAttackSeconds), 0.005f,
       FAttr().withStringFromValueFunction(timeText)));
 
   layout.add(std::make_unique<FloatP>(
