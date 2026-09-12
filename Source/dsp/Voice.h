@@ -87,8 +87,8 @@ inline constexpr float kStrikeOctaves = 4.0f;
 /// and turning the amount up cannot outrun it. A positive amount spends that
 /// on the quiet end: a note at full velocity attacks exactly as set, and the
 /// onset softens the lighter it is played. A negative amount is the mirror,
-/// anchored at the quiet end instead, which is how the velocity and lift rows
-/// already read.
+/// anchored at the quiet end instead, which is how the velocity row already
+/// reads.
 ///
 /// Octaves rather than a straight multiply, because attack time is heard in
 /// ratios: the step from 5 to 10 ms is the audible change that the step from
@@ -127,9 +127,7 @@ public:
   ///                  giving every note its own channel. Ignored otherwise.
   void noteOn(int channel, int note, float velocity,
               const SynthParams &p) noexcept;
-  /// @param velocity  how fast the key came up, 0 to 1. Scales each partial's
-  ///                   key-off level by its own lift amount.
-  void noteOff(float velocity = 0.5f) noexcept;
+  void noteOff() noexcept;
 
   /// Moves a sounding note to a different key without starting it again.
   ///
@@ -244,9 +242,6 @@ private:
     /// already landed, and moving the knob afterwards cannot change how hard
     /// it was.
     float attackScale = 1.0f;
-    /// Likewise for the release, since the amount belongs to the note and the
-    /// speed belongs to the gesture that ends it.
-    float liftAmount = 0.0f;
     bool gainPrimed = false;
   };
 
@@ -260,7 +255,6 @@ private:
     float lowpassState = 0.0f;
     float velGain = 1.0f;
     float attackScale = 1.0f;
-    float liftAmount = 0.0f;
     float lastGain = 0.0f;
     bool gainPrimed = false;
   };

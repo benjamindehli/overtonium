@@ -48,9 +48,6 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
             "Where the envelope goes when the key is let go. Zero skips the "
             "stage and releases from wherever it was.");
   setUpKnob(release, params::releaseSuffix, colour, "Release");
-  setUpKnob(lift, params::liftSuffix, colour,
-            "How much the speed you let the key go at scales the key-off "
-            "level. Negative inverts it.");
   setUpKnob(amRate, params::amRateSuffix, colour, "Tremolo rate");
   setUpKnob(amDepth, params::amDepthSuffix, colour, "Tremolo depth");
   setUpKnob(velocity, params::velSuffix, colour,
@@ -62,7 +59,6 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
             "Where the noise sits in the stereo field");
 
   strike.getProperties().set("bipolar", true);
-  lift.getProperties().set("bipolar", true);
   velocity.getProperties().set("bipolar", true);
   aftertouch.getProperties().set("bipolar", true);
   pan.getProperties().set("bipolar", true);
@@ -336,7 +332,6 @@ void NoiseStrip::resized() {
   placeRow(swell, Row::Swell, 1);
   placeRow(offLevel, Row::OffLevel, 1);
   placeRow(release, Row::Release, 1);
-  placeRow(lift, Row::Lift, 1);
   placeRow(amRate, Row::AmRate, 1);
   placeRow(amShape, Row::AmShape, 0);
   placeRow(amDepth, Row::AmDepth, 1);

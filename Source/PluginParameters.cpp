@@ -575,11 +575,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         FAttr().withStringFromValueFunction(percentText)));
 
     layout.add(std::make_unique<FloatP>(
-        juce::ParameterID{oscParamId(liftSuffix, i), 1}, p + "Release Velocity",
-        juce::NormalisableRange<float>(-1.0f, 1.0f), 0.0f,
-        FAttr().withStringFromValueFunction(signedPercentText)));
-
-    layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(releaseSuffix, i), 1}, p + "Release",
         logRange(0.001f, 20.0f), 0.4f,
         FAttr().withStringFromValueFunction(timeText)));
@@ -686,11 +681,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       ampShapeNames(), 0));
 
   layout.add(std::make_unique<FloatP>(
-      juce::ParameterID{noiseParamId(liftSuffix), 1}, "Noise Release Velocity",
-      juce::NormalisableRange<float>(-1.0f, 1.0f), 0.0f,
-      FAttr().withStringFromValueFunction(signedPercentText)));
-
-  layout.add(std::make_unique<FloatP>(
       juce::ParameterID{noiseParamId(velSuffix), 1}, "Noise Velocity",
       juce::NormalisableRange<float>(-1.0f, 1.0f), 0.7f,
       FAttr().withStringFromValueFunction(signedPercentText)));
@@ -771,7 +761,6 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
     o.amRate = apvts.getRawParameterValue(oscParamId(amRateSuffix, i));
     o.amDepth = apvts.getRawParameterValue(oscParamId(amDepthSuffix, i));
     o.amShape = apvts.getRawParameterValue(oscParamId(amShapeSuffix, i));
-    o.lift = apvts.getRawParameterValue(oscParamId(liftSuffix, i));
     o.vel = apvts.getRawParameterValue(oscParamId(velSuffix, i));
     o.at = apvts.getRawParameterValue(oscParamId(atSuffix, i));
     o.mute = apvts.getRawParameterValue(oscParamId(muteSuffix, i));
@@ -794,7 +783,6 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   noise.amRate = apvts.getRawParameterValue(noiseParamId(amRateSuffix));
   noise.amDepth = apvts.getRawParameterValue(noiseParamId(amDepthSuffix));
   noise.amShape = apvts.getRawParameterValue(noiseParamId(amShapeSuffix));
-  noise.lift = apvts.getRawParameterValue(noiseParamId(liftSuffix));
   noise.vel = apvts.getRawParameterValue(noiseParamId(velSuffix));
   noise.at = apvts.getRawParameterValue(noiseParamId(atSuffix));
   noise.mute = apvts.getRawParameterValue(noiseParamId(muteSuffix));
@@ -861,7 +849,6 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     o.amRateHz = c.amRate->load();
     o.amShape = ampShapeAt((int)c.amShape->load());
     o.amDepth = c.amDepth->load();
-    o.liftAmount = c.lift->load();
     o.velAmount = c.vel->load();
     o.atAmount = c.at->load();
     o.volume = c.volume->load();
@@ -889,7 +876,6 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     n.amRateHz = noise.amRate->load();
     n.amShape = ampShapeAt((int)noise.amShape->load());
     n.amDepth = noise.amDepth->load();
-    n.liftAmount = noise.lift->load();
     n.velAmount = noise.vel->load();
     n.atAmount = noise.at->load();
     n.volume = noise.volume->load();

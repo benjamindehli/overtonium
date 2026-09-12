@@ -59,7 +59,6 @@ inline constexpr const char *releaseSuffix = "release";
 inline constexpr const char *amRateSuffix = "amRate";
 inline constexpr const char *amDepthSuffix = "amDepth";
 inline constexpr const char *amShapeSuffix = "amShape";
-inline constexpr const char *liftSuffix = "lift";
 inline constexpr const char *velSuffix = "vel";
 inline constexpr const char *atSuffix = "aftertouch";
 inline constexpr const char *muteSuffix = "mute";
@@ -148,7 +147,6 @@ struct Cache {
     std::atomic<float> *amRate = nullptr;
     std::atomic<float> *amDepth = nullptr;
     std::atomic<float> *amShape = nullptr;
-    std::atomic<float> *lift = nullptr;
     std::atomic<float> *vel = nullptr;
     std::atomic<float> *at = nullptr;
     std::atomic<float> *mute = nullptr;
@@ -172,7 +170,6 @@ struct Cache {
     std::atomic<float> *amRate = nullptr;
     std::atomic<float> *amDepth = nullptr;
     std::atomic<float> *amShape = nullptr;
-    std::atomic<float> *lift = nullptr;
     std::atomic<float> *vel = nullptr;
     std::atomic<float> *at = nullptr;
     std::atomic<float> *mute = nullptr;

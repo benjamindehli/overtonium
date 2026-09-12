@@ -180,19 +180,19 @@ Colour is then left to do one job, and does it at full strength. Every knob on a
 
 Each of the 32 strips has, top to bottom:
 
-| Control                             | Range                                                           | Notes                                                                               |
-| ----------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| TUNE                                | equal to just                                                   | Readout shows the resulting cent offset                                             |
-| PITCH MOD shape, rate and depth     | Eight shapes, 0.01 to 30 Hz, 0 to 1200 cents                    | Per-partial vibrato, or a trill at any interval up to an octave                     |
-| DRIFT                               | 0 to 25 cents                                                   | Smooth random pitch wander. See below                                               |
-| ENVELOPE delay, A, strike, D, S     | 0 to 5 s, 0.2 ms to 5 s, -100 to +100%, 1 ms to 20 s, 0 to 100% | Exponential decay. STRIKE aims key velocity at the attack time. See below           |
-| KEY OFF swell, level, release, lift | 0 to 5 s, 0 to 100%, 1 ms to 20 s, -100 to +100%                | A second envelope for letting go. See below                                         |
-| AMP MOD shape, rate and depth       | Seven shapes, 0.01 to 30 Hz, 0 to 100%                          | Per-partial tremolo                                                                 |
-| VELOCITY                            | -100 to +100%                                                   | How much key velocity scales this partial. Negative inverts it                      |
-| AFTERTOUCH                          | -100 to +100%                                                   | How much key pressure moves this partial. Negative fades it out                     |
-| PAN                                 | hard left to hard right                                         | Where this partial sits in the field. Equal power, so the level holds as it crosses |
-| M and S                             |                                                                 | Mute wins over solo. Right-click either to clear them across the mixer              |
-| LEVEL                               | -inf to 0 dB                                                    | Fader spaced by decibels, with the meter filling its track                          |
+| Control                         | Range                                                           | Notes                                                                               |
+| ------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| TUNE                            | equal to just                                                   | Readout shows the resulting cent offset                                             |
+| PITCH MOD shape, rate and depth | Eight shapes, 0.01 to 30 Hz, 0 to 1200 cents                    | Per-partial vibrato, or a trill at any interval up to an octave                     |
+| DRIFT                           | 0 to 25 cents                                                   | Smooth random pitch wander. See below                                               |
+| ENVELOPE delay, A, strike, D, S | 0 to 5 s, 0.2 ms to 5 s, -100 to +100%, 1 ms to 20 s, 0 to 100% | Exponential decay. STRIKE aims key velocity at the attack time. See below           |
+| KEY OFF swell, level, release   | 0 to 5 s, 0 to 100%, 1 ms to 20 s                               | A second envelope for letting go. See below                                         |
+| AMP MOD shape, rate and depth   | Seven shapes, 0.01 to 30 Hz, 0 to 100%                          | Per-partial tremolo                                                                 |
+| VELOCITY                        | -100 to +100%                                                   | How much key velocity scales this partial. Negative inverts it                      |
+| AFTERTOUCH                      | -100 to +100%                                                   | How much key pressure moves this partial. Negative fades it out                     |
+| PAN                             | hard left to hard right                                         | Where this partial sits in the field. Equal power, so the level holds as it crosses |
+| M and S                         |                                                                 | Mute wins over solo. Right-click either to clear them across the mixer              |
+| LEVEL                           | -inf to 0 dB                                                    | Fader spaced by decibels, with the meter filling its track                          |
 
 **Clearing them.** Right-clicking an M or an S offers to clear either switch across the whole mixer, and says how many there are to clear before you do. Thirty-three strips is a great many places for a solo to be left on, and finding it by eye means reading thirty-three pairs of buttons four pixels apart. The entries stay in the menu when there is nothing to clear, greyed out, because the count is also the answer to the question that made you open it.
 
@@ -212,15 +212,11 @@ A key-off level of zero skips the stage entirely and releases from wherever the 
 
 Two details that fall out of it. The swell time is exact rather than the "within 1%" the other stages use, because the release has to start when the knob says it does rather than whenever an exponential happens to arrive. And letting go of a key during the delay now still makes a key-off sound if you have asked for one, which is what a release click does on a real instrument, while a level of zero cancels the partial as before.
 
-LIFT aims release velocity at the key-off level, the same way the velocity row aims key velocity at the fader, and reads the same: zero ignores the gesture, positive means a faster release is louder, negative inverts it. On a harpsichord the jack falls back harder when you snatch the key away and barely speaks when you let it up slowly, and that is one control rather than a second envelope. Measured with the level at 90%, a full-amount partial peaks at 0.378 for a fast release against 0.019 for a slow one, and at zero amount both give 0.378.
-
-It defaults to zero, so no patch made before it existed sounds any different. A controller that ends notes with velocity zero, whether as a real note-off or as the note-on-with-zero many of them send, has said nothing about the gesture, so it gets the middle value rather than the slowest, which would otherwise silence every key-off on such a keyboard.
-
 A third case is the one worth watching for, since it is the shape a music box or a thumb piano has: no sustain at all, so the partial decays to silence while the key is still down, and then a key-off level that brings it back. Reaching zero is not the same as being finished. A partial in that state holds at silence and waits for the key rather than freeing itself, and costs nothing while it waits, since there is no point running an oscillator to produce zeroes.
 
 The envelope's delay stage holds a partial silent before its attack begins. Staggering it across the series makes the spectrum unfold rather than arrive all at once, which is how _Slow Pad_ and _Shimmer_ now open up. It is latched in samples at note-on, so moving the knob cannot retime a note already waiting, and releasing a key before the delay elapses cancels that partial rather than letting it burst in afterwards.
 
-STRIKE aims key velocity at the attack time, the way LIFT aims release velocity at the key-off level. Zero ignores the gesture, positive means a hard note arrives exactly as the attack knob says and a soft one takes longer to get there, negative inverts it. Velocity only ever lengthens the attack and never shortens it past the setting, so ATTACK goes on meaning the fastest the partial gets and turning STRIKE up cannot outrun it. Full amount spans four octaves of time across the velocity range, so a partial set to 5 ms arrives in 5 ms under a hard blow and takes 80 ms under the softest one. Octaves rather than a straight scaling, because attack time is heard in ratios: the step from 5 ms to 10 ms is the audible change that the step from 2 s to 2.005 s is not.
+STRIKE aims key velocity at the attack time, the way the velocity row aims it at the fader. Zero ignores the gesture, positive means a hard note arrives exactly as the attack knob says and a soft one takes longer to get there, negative inverts it. Velocity only ever lengthens the attack and never shortens it past the setting, so ATTACK goes on meaning the fastest the partial gets and turning STRIKE up cannot outrun it. Full amount spans four octaves of time across the velocity range, so a partial set to 5 ms arrives in 5 ms under a hard blow and takes 80 ms under the softest one. Octaves rather than a straight scaling, because attack time is heard in ratios: the step from 5 ms to 10 ms is the audible change that the step from 2 s to 2.005 s is not.
 
 Setting it per partial is what separates it from a velocity curve over the whole instrument. Give the upper partials a strike amount and leave the fundamental at zero, and a hard note is bright and immediate while a soft one opens from underneath as the top of the series catches up, which is what a struck string does and what no single attack knob can say.
 

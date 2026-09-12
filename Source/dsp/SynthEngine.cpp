@@ -267,16 +267,13 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
   target->setAge(++ageCounter);
 }
 
-void SynthEngine::noteOff(int note, float velocity) noexcept {
-  noteOffImpl(0, note, velocity);
+void SynthEngine::noteOff(int note) noexcept { noteOffImpl(0, note); }
+
+void SynthEngine::noteOffPerNote(int channel, int note) noexcept {
+  noteOffImpl(channel, note);
 }
 
-void SynthEngine::noteOffPerNote(int channel, int note,
-                                 float velocity) noexcept {
-  noteOffImpl(channel, note, velocity);
-}
-
-void SynthEngine::noteOffImpl(int channel, int note, float velocity) noexcept {
+void SynthEngine::noteOffImpl(int channel, int note) noexcept {
   if (legato) {
     legatoRelease(note);
 
@@ -304,7 +301,7 @@ void SynthEngine::noteOffImpl(int channel, int note, float velocity) noexcept {
       if (sustainDown)
         heldBySustain[i] = true;
       else
-        v.noteOff(velocity);
+        v.noteOff();
     }
   }
 }

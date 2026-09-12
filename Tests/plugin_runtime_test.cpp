@@ -98,11 +98,11 @@ juce::MidiBuffer noteOnAt(int note, float velocity, int sample) {
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
-  // 24 per partial, 17 global, 19 for the noise channel, 10 for the two master
+  // 23 per partial, 17 global, 18 for the noise channel, 10 for the two master
   // effects. Start phase and the whole pitch modulator are not among the noise
   // channel's, since noise has no pitch: it takes the amp mod shape and not
   // the pitch one, which is why the two counts differ by more than one.
-  const int expected = ovt::kNumHarmonics * 24 + 17 + 19 + 10;
+  const int expected = ovt::kNumHarmonics * 23 + 17 + 18 + 10;
 
   // The behaviour that was there before it became a choice. Asked of the
   // parameter rather than of the tree, so the answer does not depend on what
@@ -141,11 +141,11 @@ void testParameterWiring(OvertoniumProcessor &p) {
       ovt::params::attackSuffix,  ovt::params::strikeSuffix,
       ovt::params::decaySuffix,   ovt::params::sustainSuffix,
       ovt::params::swellSuffix,   ovt::params::offLevelSuffix,
-      ovt::params::releaseSuffix, ovt::params::liftSuffix,
-      ovt::params::amRateSuffix,  ovt::params::amDepthSuffix,
-      ovt::params::velSuffix,     ovt::params::atSuffix,
-      ovt::params::muteSuffix,    ovt::params::soloSuffix,
-      ovt::params::volumeSuffix,  ovt::params::panSuffix};
+      ovt::params::releaseSuffix, ovt::params::amRateSuffix,
+      ovt::params::amDepthSuffix, ovt::params::velSuffix,
+      ovt::params::atSuffix,      ovt::params::muteSuffix,
+      ovt::params::soloSuffix,    ovt::params::volumeSuffix,
+      ovt::params::panSuffix};
 
   bool allPresent = true;
   for (int i = 0; i < ovt::kNumHarmonics; ++i)
@@ -153,18 +153,18 @@ void testParameterWiring(OvertoniumProcessor &p) {
       allPresent &= p.apvts.getRawParameterValue(
                         ovt::params::oscParamId(s, i)) != nullptr;
 
-  check(allPresent, "all 768 per-partial parameters resolve");
+  check(allPresent, "all 736 per-partial parameters resolve");
 
   const char *noiseSuffixes[] = {
       ovt::params::colourSuffix,  ovt::params::delaySuffix,
       ovt::params::attackSuffix,  ovt::params::strikeSuffix,
       ovt::params::decaySuffix,   ovt::params::sustainSuffix,
       ovt::params::swellSuffix,   ovt::params::offLevelSuffix,
-      ovt::params::releaseSuffix, ovt::params::liftSuffix,
-      ovt::params::amRateSuffix,  ovt::params::amDepthSuffix,
-      ovt::params::velSuffix,     ovt::params::atSuffix,
-      ovt::params::muteSuffix,    ovt::params::soloSuffix,
-      ovt::params::volumeSuffix,  ovt::params::panSuffix};
+      ovt::params::releaseSuffix, ovt::params::amRateSuffix,
+      ovt::params::amDepthSuffix, ovt::params::velSuffix,
+      ovt::params::atSuffix,      ovt::params::muteSuffix,
+      ovt::params::soloSuffix,    ovt::params::volumeSuffix,
+      ovt::params::panSuffix};
 
   bool noisePresent = true;
   for (auto *n : noiseSuffixes)
@@ -1967,12 +1967,11 @@ void testRowHover() {
   };
 
   bool identity = true;
-  for (Row r : {Row::TuneKnob, Row::Phase,      Row::PmRate, Row::PmDepth,
-                Row::Drift,    Row::Delay,      Row::Attack, Row::Strike,
-                Row::Decay,    Row::Sustain,    Row::Swell,  Row::OffLevel,
-                Row::Release,  Row::Lift,       Row::AmRate, Row::AmDepth,
-                Row::Velocity, Row::Aftertouch, Row::Pan,    Row::MuteSolo,
-                Row::Fader})
+  for (Row r : {Row::TuneKnob,   Row::Phase,   Row::PmRate,   Row::PmDepth,
+                Row::Drift,      Row::Delay,   Row::Attack,   Row::Strike,
+                Row::Decay,      Row::Sustain, Row::Swell,    Row::OffLevel,
+                Row::Release,    Row::AmRate,  Row::AmDepth,  Row::Velocity,
+                Row::Aftertouch, Row::Pan,     Row::MuteSolo, Row::Fader})
     identity &= rowAtCentre(r) == r;
 
   check(identity, "every control row reports itself");
@@ -2018,7 +2017,7 @@ void testRowHover() {
   for (auto n : found)
     oneEach &= n == 1;
 
-  check(oneEach, "each of the 20 linkable roles sits on exactly one row");
+  check(oneEach, "each of the 19 linkable roles sits on exactly one row");
 
   check(!roleForRow(Row::MuteSolo, role),
         "the mute and solo row carries no linkable role");

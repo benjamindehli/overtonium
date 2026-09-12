@@ -34,8 +34,7 @@ public:
   int getPolyphony() const noexcept { return polyphony; }
 
   void noteOn(int note, float velocity, const SynthParams &p) noexcept;
-  /// @param velocity  how fast the key came up, 0 to 1.
-  void noteOff(int note, float velocity = 0.5f) noexcept;
+  void noteOff(int note) noexcept;
   void setSustainPedal(bool down) noexcept;
 
   /// Routes polyphonic aftertouch to whichever voices are holding that note.
@@ -57,7 +56,7 @@ public:
   /// @param channel  1 to 16, and never 0, which is what an ordinary note uses.
   void noteOnPerNote(int channel, int note, float velocity,
                      const SynthParams &p) noexcept;
-  void noteOffPerNote(int channel, int note, float velocity = 0.5f) noexcept;
+  void noteOffPerNote(int channel, int note) noexcept;
   void setNotePressure(int channel, int note, float pressure) noexcept;
 
   /// Per-note slide, routed like per-note pressure.
@@ -146,7 +145,7 @@ private:
 
   void noteOnImpl(int channel, int note, float velocity,
                   const SynthParams &p) noexcept;
-  void noteOffImpl(int channel, int note, float velocity) noexcept;
+  void noteOffImpl(int channel, int note) noexcept;
 
   Voice *findFreeVoice() noexcept;
   Voice *findOldestSounding() noexcept;

@@ -73,7 +73,6 @@ public:
       level = 0.0f;
 
     forcedRelease = false;
-    liftScale = 1.0f;
 
     // Latched in samples at note-on, so turning the knob afterwards cannot
     // retime a note that is already waiting.
@@ -81,17 +80,11 @@ public:
     stage = delayRemaining > 0 ? Stage::Delay : Stage::Attack;
   }
 
-  /// @param offScale  how much of the key-off level this release earned, 0 to
-  ///                   1. Latched here rather than read per block, because it
-  ///                   describes the gesture that just happened and nothing
-  ///                   after it can change what that gesture was.
-  void noteOff(float offScale = 1.0f) noexcept {
+  void noteOff() noexcept {
     if (stage == Stage::Idle)
       return;
 
-    liftScale = std::clamp(offScale, 0.0f, 1.0f);
-
-    if (offLevel * liftScale <= kEpsilon) {
+    if (offLevel <= kEpsilon) {
       stage = Stage::Release;
       return;
     }
@@ -120,7 +113,6 @@ public:
     delayRemaining = 0;
     swellRemaining = 0;
     forcedRelease = false;
-    liftScale = 1.0f;
   }
 
   bool isActive() const noexcept { return stage != Stage::Idle; }
@@ -183,16 +175,14 @@ public:
       level = sustainLevel;
       break;
 
-    case Stage::Swell: {
-      const auto target = offLevel * liftScale;
-      level = target + (level - target) * swellCoef;
+    case Stage::Swell:
+      level = offLevel + (level - offLevel) * swellCoef;
 
       if (--swellRemaining <= 0) {
-        level = target;
+        level = offLevel;
         stage = Stage::Release;
       }
       break;
-    }
 
     case Stage::Release:
       level *= forcedRelease ? forcedReleaseCoef : releaseCoef;
@@ -229,10 +219,6 @@ private:
 
   bool forcedRelease = false;
   float forcedReleaseCoef = 0.0f;
-
-  /// How much of the key-off level the last release earned. One until a
-  /// note-off says otherwise.
-  float liftScale = 1.0f;
   bool dirty = true;
 };
 

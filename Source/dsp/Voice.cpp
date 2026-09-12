@@ -139,8 +139,6 @@ void Voice::noteOn(int channel, int note, float velocity,
     pt.velGain =
         amount >= 0.0f ? 1.0f - amount * (1.0f - vel) : 1.0f + amount * vel;
 
-    pt.liftAmount = std::clamp(op.liftAmount, -1.0f, 1.0f);
-
     // The other half of what the blow is worth. The gain above says how loud
     // the partial comes out, this says how quickly it gets there.
     pt.attackScale = strikeScale(op.strikeAmount, vel);
@@ -197,7 +195,6 @@ void Voice::noteOn(int channel, int note, float velocity,
     noise.velGain =
         amount >= 0.0f ? 1.0f - amount * (1.0f - vel) : 1.0f + amount * vel;
 
-    noise.liftAmount = std::clamp(np.liftAmount, -1.0f, 1.0f);
     noise.attackScale = strikeScale(np.strikeAmount, vel);
 
     noise.env.configure(np.delay, np.attack * noise.attackScale, np.decay,
@@ -235,23 +232,16 @@ void Voice::retune(int channel, int note, double frequency) noexcept {
   released = false;
 }
 
-void Voice::noteOff(float velocity) noexcept {
+void Voice::noteOff() noexcept {
   if (!active)
     return;
 
   released = true;
 
-  // The same shape the note-on velocity uses, so the two rows read the same
-  // way: zero ignores the gesture, positive means faster is louder, negative
-  // inverts it.
-  const auto scaleFor = [v = std::clamp(velocity, 0.0f, 1.0f)](float amount) {
-    return amount >= 0.0f ? 1.0f - amount * (1.0f - v) : 1.0f + amount * v;
-  };
-
   for (auto &pt : partials)
-    pt.env.noteOff(scaleFor(pt.liftAmount));
+    pt.env.noteOff();
 
-  noise.env.noteOff(scaleFor(noise.liftAmount));
+  noise.env.noteOff();
 }
 
 void Voice::steal() noexcept {

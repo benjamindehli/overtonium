@@ -2866,89 +2866,6 @@ void testKeyOffEnvelope() {
   }
 }
 
-/// Release velocity, aimed at the key-off level. Letting a key go slowly and
-/// snatching it back are different gestures and a jack or a damper knows the
-/// difference.
-void testReleaseVelocity() {
-  section("Release velocity");
-
-  constexpr double sr = 48000.0;
-
-  const auto keyOffPeakFor = [&](float amount, float lift) {
-    SynthEngine engine;
-    engine.prepare(sr);
-    engine.setPolyphony(4);
-
-    auto p = makeFlatParams(0.0f);
-    p.osc[0].volume = 0.6f;
-    p.osc[0].attack = 0.002f;
-    p.osc[0].decay = 0.05f;
-    p.osc[0].sustain = 0.0f; // silent under the key, so only the key-off shows
-    p.osc[0].swell = 0.01f;
-    p.osc[0].offLevel = 0.9f;
-    p.osc[0].release = 0.3f;
-    p.osc[0].liftAmount = amount;
-    p.osc[0].velAmount = 0.0f;
-    p.global.masterGain = 1.0f;
-    p.global.safetyClip = false;
-
-    engine.noteOn(60, 1.0f, p);
-
-    std::vector<float> l((size_t)(0.3 * sr)), r(l.size());
-    engine.render(l.data(), r.data(), (int)l.size(), p);
-
-    engine.noteOff(60, lift);
-
-    std::vector<float> al((size_t)(0.2 * sr)), ar(al.size());
-    engine.render(al.data(), ar.data(), (int)al.size(), p);
-
-    double peak = 0.0;
-    for (auto v : al)
-      peak = std::max(peak, std::abs((double)v));
-
-    return peak;
-  };
-
-  // Off by default: the gesture is ignored and every release is the same.
-  const auto ignoredSlow = keyOffPeakFor(0.0f, 0.05f);
-  const auto ignoredFast = keyOffPeakFor(0.0f, 1.0f);
-
-  check(std::abs(ignoredSlow - ignoredFast) < 1.0e-4,
-        "at zero amount the release speed changes nothing (" +
-            std::to_string(ignoredSlow) + " against " +
-            std::to_string(ignoredFast) + ")");
-
-  check(ignoredSlow > 0.05, "and the key-off still sounds");
-
-  // Turned up, snatching the key back is the loud one.
-  const auto slow = keyOffPeakFor(1.0f, 0.05f);
-  const auto fast = keyOffPeakFor(1.0f, 1.0f);
-
-  std::printf("  key-off peak: slow lift %.3f, fast lift %.3f, ignored %.3f\n",
-              slow, fast, ignoredSlow);
-
-  check(fast > 4.0 * slow,
-        "at full amount a fast release is far louder than a slow one (" +
-            std::to_string(fast / std::max(1.0e-9, slow)) + " times)");
-
-  check(std::abs(fast - ignoredFast) < 1.0e-4,
-        "and a full-speed release is what the level was already set to");
-
-  // Negative inverts it, the way the note-on velocity row does.
-  const auto invertedSlow = keyOffPeakFor(-1.0f, 0.05f);
-  const auto invertedFast = keyOffPeakFor(-1.0f, 1.0f);
-
-  check(invertedSlow > 4.0 * invertedFast,
-        "a negative amount makes the slow release the loud one (" +
-            std::to_string(invertedSlow / std::max(1.0e-9, invertedFast)) +
-            " times)");
-
-  // Nothing in a fresh patch asks for it.
-  SynthParams fresh;
-  check(fresh.osc[0].liftAmount == 0.0f && fresh.noise.liftAmount == 0.0f,
-        "and it is off in a fresh patch, so nothing already made changes");
-}
-
 /// Attack velocity, aimed at the attack time. How hard a key is struck decides
 /// how quickly the note arrives as well as how loudly, which is the difference
 /// between a hammer and a swell.
@@ -3029,7 +2946,7 @@ void testAttackVelocity() {
   check(std::abs(hard - ignoredHard) < 0.005,
         "and a note at full velocity arrives when it always did");
 
-  // Negative inverts it, the way the velocity and lift rows do.
+  // Negative inverts it, the way the velocity row does.
   const auto invertedSoft = riseTimeFor(-1.0f, 0.1f);
   const auto invertedHard = riseTimeFor(-1.0f, 1.0f);
 
@@ -4721,7 +4638,6 @@ int main() {
   testEnvelopeDelay();
   testKeyOffEnvelope();
   testKeyOffAfterSilentDecay();
-  testReleaseVelocity();
   testAttackVelocity();
   testNoiseChannel();
   testTapeEcho();
