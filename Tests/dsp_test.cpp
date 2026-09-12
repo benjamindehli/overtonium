@@ -2866,6 +2866,56 @@ void testKeyOffEnvelope() {
   }
 }
 
+/// MPE slide, measured as movement rather than as a position.
+///
+/// The controllers disagree about what the timbre axis is. A Seaboard reports
+/// where the finger sits on the keywave and rests at the centre. An Osmose
+/// spends the first part of the key travel on pressure and only then starts
+/// sending CC74, from the bottom of its range upward, so its rest is an end of
+/// the axis rather than the middle of it.
+void testSlideDisplacement() {
+  section("Slide displacement");
+
+  // A controller resting at the centre, which is the shape this always had.
+  check(std::abs(slideDisplacement(0.0f, 1.0f) - 1.0f) < 1.0e-6f &&
+            std::abs(slideDisplacement(0.0f, -1.0f) + 1.0f) < 1.0e-6f &&
+            std::abs(slideDisplacement(0.0f, 0.0f)) < 1.0e-6f,
+        "from the centre the axis reads as it always did");
+
+  // One resting at the bottom, which is the Osmose. Engaging the axis has to
+  // leave the patch alone rather than lurching to the far end of the slide.
+  check(std::abs(slideDisplacement(-1.0f, -1.0f)) < 1.0e-6f,
+        "a rest at the bottom starts at nought rather than at full slide");
+
+  check(std::abs(slideDisplacement(-1.0f, 1.0f) - 1.0f) < 1.0e-6f,
+        "and still reaches the whole of the slide at the top of its travel");
+
+  check(std::abs(slideDisplacement(-1.0f, 0.0f) - 0.5f) < 1.0e-6f,
+        "halfway along is half of it, so the axis is not squashed into one "
+        "half of its own travel");
+
+  // The same from the other end, and from anywhere in between.
+  check(std::abs(slideDisplacement(1.0f, -1.0f) + 1.0f) < 1.0e-6f &&
+            std::abs(slideDisplacement(0.5f, 1.0f) - 1.0f) < 1.0e-6f &&
+            std::abs(slideDisplacement(-0.5f, -1.0f) + 1.0f) < 1.0e-6f,
+        "a full push is the whole slide from every rest");
+
+  // Nowhere left to go is nought rather than a division by nothing.
+  check(std::abs(slideDisplacement(1.0f, 1.0f)) < 1.0e-6f &&
+            std::abs(slideDisplacement(-1.0f, -1.0f)) < 1.0e-6f,
+        "an axis already at its end reads nought rather than infinity");
+
+  // Nothing here may leave the range the voice expects.
+  bool bounded = true;
+  for (int i = -20; i <= 20; ++i)
+    for (int j = -20; j <= 20; ++j) {
+      const auto d = slideDisplacement((float)i / 20.0f, (float)j / 20.0f);
+      bounded &= d >= -1.0f - 1.0e-6f && d <= 1.0f + 1.0e-6f;
+    }
+
+  check(bounded, "and every rest and position between them stays in range");
+}
+
 /// Strike velocity, aimed at the front of the envelope. How hard a key is
 /// struck decides how soon the note starts and how quickly it arrives as well
 /// as how loudly, which is the difference between a hammer and a swell.
@@ -4761,6 +4811,7 @@ int main() {
   testKeyOffEnvelope();
   testKeyOffAfterSilentDecay();
   testStrikeVelocity();
+  testSlideDisplacement();
   testNoiseChannel();
   testTapeEcho();
   testWobble();

@@ -84,9 +84,13 @@ void OvertoniumProcessor::noteAdded(juce::MPENote note) {
   notePitchbendChanged(note);
   notePressureChanged(note);
 
-  // And the slide, for the same reason: a finger that lands forward on the pad
-  // has already set the timbre before the note arrives.
-  noteTimbreChanged(note);
+  // The slide deliberately not, where the other two are. A new note is handed
+  // the centre of the timbre axis whenever its channel has heard no CC74, and
+  // that is a value JUCE supplied rather than one the controller sent. Feeding
+  // it in here would make the centre this note's rest position, and then a
+  // controller whose slide actually rests at one end of the axis lurches the
+  // moment it sends its first real value. The voice takes its nought from that
+  // first value instead. See Voice::setSlide.
 }
 
 void OvertoniumProcessor::notePressureChanged(juce::MPENote note) {

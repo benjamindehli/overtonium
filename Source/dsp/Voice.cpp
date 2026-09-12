@@ -102,6 +102,8 @@ void Voice::reset() noexcept {
   noteBendSemitones = 0.0f;
   polyPressure = 0.0f;
   slide = 0.0f;
+  slideRest = 0.0f;
+  slideRested = false;
   pressureSmoothed = 0.0f;
 }
 
@@ -119,8 +121,13 @@ void Voice::noteOn(int channel, int note, float velocity,
   // previous note's bend carrying into the new one on a channel being reused.
   noteBendSemitones = 0.0f;
   polyPressure = 0.0f;
-  slide = 0.0f;
   pressureSmoothed = 0.0f;
+
+  // And the slide axis forgets where the last note started it, so the next one
+  // takes its nought from wherever the controller puts it. See setSlide.
+  slide = 0.0f;
+  slideRest = 0.0f;
+  slideRested = false;
 
   active = true;
   released = false;

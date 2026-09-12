@@ -4181,11 +4181,11 @@ void testMpeSlide() {
   p.setRateAndBufferSizeDetails(48000.0, 512);
   p.prepareToPlay(48000.0, 512);
 
-  // The CC after the note, which is what moving a finger sends. Before the
-  // note it sets the note's initial timbre instead, and JUCE hands a new note
-  // the centre value whenever another is already sounding on that channel, so
-  // the order matters more than it looks.
-  const auto rms = [&](int cc74) {
+  // A gesture rather than a position, because that is what slide now is: the
+  // first value a note is given is its rest, and only movement away from it
+  // reaches the sound. So the note is sent where the controller's axis sits
+  // when it engages, and then where the finger takes it.
+  const auto rms = [&](int restCC, int cc74) {
     juce::MidiBuffer off;
     off.addEvent(juce::MidiMessage::allNotesOff(2), 0);
     juce::AudioBuffer<float> flush(2, 512);
@@ -4198,18 +4198,25 @@ void testMpeSlide() {
 
     p.reset();
 
-    juce::MidiBuffer midi;
-    midi.addEvent(juce::MidiMessage::noteOn(2, 72, 0.9f), 0);
-    midi.addEvent(juce::MidiMessage::controllerEvent(2, 74, cc74), 1);
-
     juce::AudioBuffer<float> buffer(2, 512);
     double sum = 0.0;
     int n = 0;
 
     for (int b = 0; b < 40; ++b) {
+      // Built per block rather than cleared as it goes: the note and the rest
+      // arrive together, and the move lands a block later, which is what a
+      // finger does.
+      juce::MidiBuffer midi;
+
+      if (b == 0) {
+        midi.addEvent(juce::MidiMessage::noteOn(2, 72, 0.9f), 0);
+        midi.addEvent(juce::MidiMessage::controllerEvent(2, 74, restCC), 1);
+      } else if (b == 1) {
+        midi.addEvent(juce::MidiMessage::controllerEvent(2, 74, cc74), 0);
+      }
+
       buffer.clear();
       p.processBlock(buffer, midi);
-      midi.clear();
 
       // The first blocks are the attack, which says nothing about the
       // steady-state spectrum.
@@ -4228,9 +4235,17 @@ void testMpeSlide() {
 
   setParam(ovt::params::slideDestId, (float)ovt::SlideDestination::Brightness);
 
-  const auto back = rms(0);
-  const auto centre = rms(64);
-  const auto forward = rms(127);
+  // A controller that rests near the centre, which is what a Seaboard does.
+  //
+  // 63 rather than 64 on purpose. JUCE hands a new note the centre of the
+  // timbre axis and only calls back when a value differs from what it holds, so
+  // a rest of exactly 64 is indistinguishable from the note's own starting
+  // value and passes without a word. No real controller sits on that one code,
+  // and one that did would still reach the whole of the slide, since the travel
+  // is measured from wherever the rest ends up.
+  const auto back = rms(63, 0);
+  const auto centre = rms(63, 63);
+  const auto forward = rms(63, 127);
 
   check(back > 1.0e-5 && forward > 1.0e-5, "the note sounds at both ends");
 
@@ -4244,21 +4259,55 @@ void testMpeSlide() {
   // The rest position has to be the patch untouched, or every note from a
   // controller that never moves would sound wrong.
   setParam(ovt::params::slideDestId, (float)ovt::SlideDestination::Off);
-  const auto untouched = rms(64);
+  const auto untouched = rms(63, 63);
 
   check(std::abs(centre - untouched) < untouched * 0.01,
         "the rest position is the patch as dialled");
 
   // Off means off, whatever the controller sends.
-  check(std::abs(rms(0) - untouched) < untouched * 0.01 &&
-            std::abs(rms(127) - untouched) < untouched * 0.01,
+  check(std::abs(rms(63, 0) - untouched) < untouched * 0.01 &&
+            std::abs(rms(63, 127) - untouched) < untouched * 0.01,
         "and with slide off the whole travel is that same sound");
+
+  // ---- a controller whose slide rests at one end --------------------------
+  //
+  // An Expressive E Osmose spends the first part of the key travel on pressure
+  // and only then starts sending CC74, from the bottom of its range upward. Read
+  // as a position that is the far dark end of the slide, so engaging the axis
+  // used to take the note abruptly darker before it began to brighten. Read as
+  // a movement it is the note's rest, and the patch is left alone until the
+  // finger actually goes somewhere.
+  setParam(ovt::params::slideDestId, (float)ovt::SlideDestination::Brightness);
+
+  const auto engaged = rms(0, 0);
+  const auto pressedOn = rms(0, 127);
+
+  std::printf("  resting at the bottom: engaged %.4f, pressed on %.4f, "
+              "patch %.4f\n",
+              engaged, pressedOn, untouched);
+
+  check(std::abs(engaged - untouched) < untouched * 0.01,
+        "a slide that rests at the bottom starts on the patch rather than "
+        "darker than it (" + std::to_string(engaged) + " against " +
+            std::to_string(untouched) + ")");
+
+  check(pressedOn > engaged * 1.1,
+        "and pressing on from there brightens (" + std::to_string(engaged) +
+            " to " + std::to_string(pressedOn) + ")");
+
+  // The whole axis reaches the whole effect wherever it set out from, or a
+  // controller resting at one end would have twice the reach of one resting in
+  // the middle.
+  check(std::abs(pressedOn - forward) < forward * 0.01,
+        "a full push is the same brightness from either rest (" +
+            std::to_string(pressedOn) + " against " + std::to_string(forward) +
+            ")");
 
   // Aimed at tuning it moves pitch rather than level, so both ends still
   // sound. Which pitches is the tuning table's business, tested elsewhere.
   setParam(ovt::params::slideDestId, (float)ovt::SlideDestination::Tuning);
 
-  check(rms(0) > 1.0e-5 && rms(127) > 1.0e-5,
+  check(rms(63, 0) > 1.0e-5 && rms(63, 127) > 1.0e-5,
         "both ends sound with slide aimed at tuning");
 }
 

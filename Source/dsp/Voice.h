@@ -73,6 +73,22 @@ inline float trackingGain(double partialHz, double fundamentalHz,
   return (float)std::exp2(-dbPerOctave * octaves / 6.020599913279624);
 }
 
+/// Where a slide axis has moved to, against where this note found it.
+///
+/// Normalised against the travel left in the direction being moved, so a push
+/// to the end of the axis is full slide wherever it set out from: a note whose
+/// rest is the bottom has twice the physical distance in front of it as one
+/// resting at the centre, and both should mean the same thing by "all the way".
+///
+/// @returns -1 to 1, and 0 when the axis has nowhere left to go that way.
+inline float slideDisplacement(float rest, float now) noexcept {
+  const auto from = std::clamp(rest, -1.0f, 1.0f);
+  const auto to = std::clamp(now, -1.0f, 1.0f);
+  const auto room = to >= from ? 1.0f - from : from + 1.0f;
+
+  return room > 1.0e-6f ? (to - from) / room : 0.0f;
+}
+
 /// One polyphonic voice: 32 independently tuned, enveloped and modulated sine
 /// partials.
 class Voice {
@@ -121,10 +137,31 @@ public:
   /// through SynthParams, and whichever is higher wins.
   void setPolyPressure(float v) noexcept { polyPressure = v; }
 
-  /// MPE slide for this note, bipolar. Zero is the rest position, which is
-  /// also what a controller that never sends CC74 leaves it at, since JUCE
-  /// starts a note's timbre at the centre value.
-  void setSlide(float v) noexcept { slide = v; }
+  /// MPE slide for this note, as a displacement from where this note's slide
+  /// began rather than as a position on the controller.
+  ///
+  /// Relative because the controllers disagree about what the axis is. A
+  /// Seaboard reports an absolute position on the keywave and rests at the
+  /// centre. An Osmose spends the first part of the key travel on pressure and
+  /// only then starts sending CC74, from the bottom of its range upward, so its
+  /// rest is not the centre but one end. Read absolutely, that second kind
+  /// lurches to the far end of the slide the instant the axis engages: on this
+  /// instrument a note went abruptly darker and only then began to brighten.
+  ///
+  /// So the first value a note is given becomes its nought, and what reaches
+  /// the sound is movement away from it. A controller resting at the centre
+  /// behaves exactly as it did, since its first value is the centre, and one
+  /// resting at an end now starts the note where the patch already was.
+  ///
+  /// See slideDisplacement for what the movement is measured against.
+  void setSlide(float v) noexcept {
+    if (!slideRested) {
+      slideRest = std::clamp(v, -1.0f, 1.0f);
+      slideRested = true;
+    }
+
+    slide = slideDisplacement(slideRest, v);
+  }
 
   /// Pitch bend belonging to this note alone, in semitones.
   ///
@@ -259,6 +296,12 @@ private:
   float noteBendSemitones = 0.0f;
   float polyPressure = 0.0f;
   float slide = 0.0f;
+
+  /// Where this note's slide axis started, and whether it has been told yet.
+  /// Latched from the first value rather than assumed, since only the
+  /// controller knows where its own rest is. See setSlide.
+  float slideRest = 0.0f;
+  bool slideRested = false;
 
   /// A partial's tuning blend, with this note's slide folded in when slide is
   /// aimed there. Clamped, since the blend has no meaning outside nought to

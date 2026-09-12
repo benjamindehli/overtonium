@@ -296,7 +296,13 @@ Cast shadows are built from a few overlapping shapes rather than from a real blu
 
 **Off** ignores it.
 
-The rest position is the middle of the travel, and that is also where a controller that never sends CC74 leaves it, so a keyboard with no slide axis changes nothing. Which destination is chosen does not travel with a preset: it is a fact about the controller in front of you, like the aftertouch source and the temperament.
+Slide is read as movement rather than as a position. The first value a note is given becomes that note's nought, and what reaches the sound is how far the axis has travelled from it since. A keyboard with no slide axis sends nothing and changes nothing.
+
+That is not how it started, and the reason it changed is that the controllers disagree about what the axis is. A Seaboard reports where the finger sits on the keywave and rests at the centre. An Expressive E Osmose spends the first part of the key travel on pressure and only then begins sending CC74, from the bottom of its range upward, so its rest is an end of the axis rather than the middle of it. Read as a position, that second kind lurches the instant the axis engages: the note went abruptly darker and only then began to brighten, which is the opposite of the gesture being made. Read as movement, both start the note on the patch and go where the finger goes.
+
+The travel is normalised against what is left in the direction being moved, so a push to the end of the axis is the whole of the slide wherever it set out from. Without that a note whose rest is the bottom would have twice the reach of one resting at the centre.
+
+Which destination is chosen does not travel with a preset: it is a fact about the controller in front of you, like the aftertouch source and the temperament.
 
 ### Legato
 
