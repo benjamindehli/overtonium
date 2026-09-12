@@ -387,4 +387,34 @@ if(OVERTONIUM_BUILD_TOOLS)
             juce::juce_recommended_warning_flags)
 
     overtonium_set_warnings_as_errors(overtonium_render_docs_audio)
+
+    # And the preset generator, on the same switch. It needs no editor and no
+    # display: it loads a saved preset into a processor and prints the case
+    # that would add it to Presets.cpp, which is the one step between dialling
+    # a patch in and shipping it.
+    juce_add_console_app(overtonium_preset_to_code
+        PRODUCT_NAME "overtonium_preset_to_code")
+
+    target_sources(overtonium_preset_to_code PRIVATE
+        Tools/preset_to_code.cpp
+        ${OVERTONIUM_SOURCES})
+
+    target_include_directories(overtonium_preset_to_code PRIVATE Source)
+
+    target_compile_definitions(overtonium_preset_to_code PUBLIC
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0
+        JUCE_STANDALONE_APPLICATION=1
+        OVERTONIUM_PRESET_AUTHORING=0
+        OVERTONIUM_VERSION="${PROJECT_VERSION}")
+
+    target_link_libraries(overtonium_preset_to_code
+        PRIVATE
+            OvertoniumResources
+            juce::juce_audio_utils
+        PUBLIC
+            juce::juce_recommended_config_flags
+            juce::juce_recommended_warning_flags)
+
+    overtonium_set_warnings_as_errors(overtonium_preset_to_code)
 endif()

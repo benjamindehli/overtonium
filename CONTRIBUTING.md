@@ -130,6 +130,23 @@ Both run in CI on macOS, Windows and Linux on every push and pull request, build
 
 Pass `-DOVERTONIUM_INSTALL_AFTER_BUILD=OFF` to skip copying the built plugins into your user plugin folders, which is what CI does and what you want on any machine with no host to rescan them.
 
+### Factory presets
+
+Factory presets are code rather than embedded data. The cases in `Presets.cpp` say `1.0 / n` and `6.0 / (1 + 0.35 * (n - 1))` where the shape has a formula behind it, and a table of thirty-two figures where it does not, which makes a preset something you can read and argue with instead of a blob. The cost is one step between dialling a patch in and shipping it, and `Tools/preset_to_code.cpp` is that step:
+
+```sh
+cmake --build build --target overtonium_preset_to_code
+./build/overtonium_preset_to_code_artefacts/overtonium_preset_to_code "Synth Ensemble.ovtpreset" 24
+```
+
+Save the patch from the plugin's own preset menu, run that over the file it wrote, and paste the result over the case it names. The second argument is the case number, and leaving it off gives `case N:` to fill in by hand. It writes to stdout so it can be diffed against what is already there, which is the quickest way to see what a patch actually changed.
+
+It loads the preset into a processor and calls `presets::factoryCode`, the same function the plugin's own authoring menu entry calls, rather than reimplementing the generation. A second implementation that agreed most of the time would be worse than none, and the runtime test already holds `factoryCode` to reproducing every factory preset it is given, so the tool inherits that check rather than needing one of its own.
+
+Two things it will not do. It does not edit `Presets.cpp`, because each case carries a hand-written comment above it saying what the patch is and why, and a generator writing the file in place would quietly lose them. And it writes no session parameters: the polyphony, the temperament and the reference pitch belong to whoever is playing rather than to the sound, so `factoryCode` leaves them out and a test fails the build if one ever appears in a case.
+
+Regenerating an existing preset is the way to check a patch really is what you think. Running the tool over the file and diffing against the committed case shows every row that moved and nothing else.
+
 ### Releases
 
 Pushing a tag that starts with `v` builds the plugin on all three platforms and attaches the archives to a GitHub release:
