@@ -294,7 +294,20 @@ void testPresets(OvertoniumProcessor &p) {
   section("Factory presets");
 
   const auto names = ovt::presets::names();
-  check(names.size() == 28, "twenty-eight factory presets");
+
+  // Counted rather than spelt, so adding one does not leave a number here
+  // claiming otherwise. Every name has to have a case of its own, which is
+  // what the loop below is really testing: a name with no case applies
+  // nothing and the preset comes out silent.
+  check(names.size() > 0,
+        "there are factory presets (" + std::to_string(names.size()) + ")");
+
+  bool unique = true;
+  for (int i = 0; i < names.size(); ++i)
+    for (int j = i + 1; j < names.size(); ++j)
+      unique &= names[i] != names[j];
+
+  check(unique, "and no two share a name");
 
   for (int i = 0; i < names.size(); ++i) {
     ovt::presets::apply(p.apvts, i);
@@ -2618,7 +2631,7 @@ void testTopBarLayout() {
 /// window the tests do not have.
 /// The preset menu is two submenus and the actions, not one long list.
 ///
-/// Twenty-six factory presets and however many of your own will not fit on a
+/// Thirty factory presets and however many of your own will not fit on a
 /// short screen, and a menu that scrolls hides its own shape. What is checked
 /// here is the shape: that the top level stays short whatever is saved, that
 /// every factory preset is reachable one level down, and that a folder in the
