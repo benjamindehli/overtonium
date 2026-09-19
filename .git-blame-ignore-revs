@@ -1,0 +1,19 @@
+# Commits that changed how the code is laid out without changing what it does.
+#
+# git blame skips these and reports whoever last wrote the line for a reason,
+# so a reformat does not put itself in front of every line it touched. GitHub
+# reads this file on its own. For the command line it has to be pointed at
+# once per clone:
+#
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# Only put a commit here that changed nothing but layout, and keep a reformat
+# in a commit of its own so that it can go here cleanly. The one below did not
+# quite manage that, which is the argument for the rule.
+
+# Held the C++ to clang-format for the first time, 2026-09-19. Twenty-eight
+# source files reflowed and nothing about them altered. It also carried the CI
+# job that does the checking and the paragraph in CONTRIBUTING that explains
+# it, so blame on .github/workflows/build.yml and CONTRIBUTING.md reads one
+# commit too far back. Those two are the only files it is wrong about.
+23cc5a1ed15cca318020d7ff961c3e877b2ae78d
