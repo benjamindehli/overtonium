@@ -527,3 +527,110 @@ jobs:
 
           sys.exit(1 if failed else 0)
           PY
+
+  counts:
+    name: Counts in the docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # How many factory presets there are is written out in words in nine places
+    # across the readme, the design notes, the contributing guide and four
+    # pages of the site. Adding a preset changes all of them, and three presets
+    # went in over two releases with one sentence or another left behind every
+    # time. A number in prose is exactly as wrong as a number in code and
+    # nothing was checking it.
+    #
+    # The source of truth is kNames, read as text rather than by building, so
+    # this costs a checkout and a second. Only words that are numbers are
+    # judged, so "the presets" and "factory presets" are passed over and a
+    # pattern can be as broad as it likes without inventing failures.
+    #
+    # Release notes and the releases page are left out on purpose. Each one
+    # describes the release it belongs to and 1.6.0 really did ship
+    # twenty-eight.
+    #
+    # What this asks of the prose is that a count sits beside the noun it
+    # counts. "All thirty-one presets are loaded" can be checked and "all
+    # thirty-one are loaded" cannot, so the first is how to write it.
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: The docs count what the source counts
+        run: |
+          python3 - <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+
+          table = re.search(r"const char \*const kNames\[\] = \{(.*?)\n\};",
+                            Path("Source/Presets.cpp").read_text(), re.S)
+
+          if table is None:
+              print("::error::cannot find kNames in Source/Presets.cpp")
+              sys.exit(1)
+
+          presets = len(re.findall(r'^    "[^"]+",$', table.group(1), re.M))
+          clips = len(list(Path("docs/audio").glob("*.flac")))
+
+          print(f"kNames holds {presets} presets, docs/audio holds {clips} clips")
+
+          ones = ["zero", "one", "two", "three", "four", "five", "six", "seven",
+                  "eight", "nine", "ten", "eleven", "twelve", "thirteen",
+                  "fourteen", "fifteen", "sixteen", "seventeen", "eighteen",
+                  "nineteen"]
+          tens = ["", "", "twenty", "thirty", "forty", "fifty", "sixty",
+                  "seventy", "eighty", "ninety"]
+
+          def spelt(n):
+              if n < 20:
+                  return ones[n]
+              ten, one = divmod(n, 10)
+              return tens[ten] + (f"-{ones[one]}" if one else "")
+
+          numbers = {spelt(n) for n in range(1, 100)}
+          numbers |= {str(n) for n in range(1, 100)}
+
+          # What each count is written in front of. Broad on purpose where the
+          # noun is unambiguous, since a word that is not a number is ignored
+          # and a wide pattern therefore cannot invent a failure. Narrow where
+          # it is not: "clips" means the preset clips in one sentence and every
+          # audio file on the site in another, and both are right.
+          checks = [
+              (r"([\w-]+)\s+factory patches", presets),
+              (r"([\w-]+)\s+factory presets", presets),
+              (r"([\w-]+)\s+presets", presets),
+              (r"([\w-]+)\s+that ship", presets),
+              (r"([\w-]+)\s+clips meant to be browsed", presets),
+              (r"across all ([\w-]+) clips", clips),
+          ]
+
+          files = sorted(Path(".").glob("*.md"))
+          files += sorted(p for p in Path("docs").rglob("*.html")
+                          if "releases" not in p.parts)
+          files += sorted(Path("docs").glob("*.txt"))
+
+          failed = []
+
+          for path in files:
+              text = path.read_text(encoding="utf-8")
+
+              for pattern, expected in checks:
+                  want = spelt(expected)
+
+                  for m in re.finditer(pattern, text):
+                      said = m.group(1).lower()
+
+                      if said not in numbers or said in (want, str(expected)):
+                          continue
+
+                      line = text[:m.start()].count("\n") + 1
+                      print(f"::error file={path},line={line}::"
+                            f"{path}:{line} says \"{m.group(0)}\", and there "
+                            f"are {expected} ({want})")
+                      failed.append(str(path))
+
+          if failed:
+              sys.exit(1)
+
+          print(f"every counted noun agrees, across {len(files)} files")
+          PY
