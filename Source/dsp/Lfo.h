@@ -30,12 +30,6 @@ enum class LfoShape {
 
 inline constexpr int kNumLfoShapes = (int)LfoShape::NumShapes;
 
-/// Whether a shape needs the random stream, which decides whether it has to be
-/// stepped rather than simply evaluated at a phase.
-inline constexpr bool isRandomShape(LfoShape s) noexcept {
-  return s == LfoShape::SampleAndHold || s == LfoShape::Random;
-}
-
 /// One low-frequency modulator: a phase, and the points the random shapes
 /// wander between.
 ///

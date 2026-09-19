@@ -31,7 +31,6 @@ public:
   /// Monophonic, and the envelope carries on rather than starting again while
   /// any key is still down.
   void setLegato(bool on) noexcept { legato = on; }
-  int getPolyphony() const noexcept { return polyphony; }
 
   void noteOn(int note, float velocity, const SynthParams &p) noexcept;
   void noteOff(int note) noexcept;

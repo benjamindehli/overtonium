@@ -99,7 +99,8 @@ jobs:
           sudo apt-get install --no-install-recommends -y \
             libasound2-dev libfreetype-dev libfontconfig1-dev libx11-dev \
             libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev \
-            libxcomposite-dev libgl-dev libcurl4-openssl-dev
+            libxcomposite-dev libgl-dev libcurl4-openssl-dev \
+            libxi-dev libegl-dev
 
       # No architecture override here, unlike the build workflow. That one
       # builds for the runner's own architecture to keep every push quick.
