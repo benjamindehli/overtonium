@@ -90,6 +90,40 @@
                 </p>
 
                 <section>
+                    <h2>1.8.0, 19 September 2026</h2>
+
+                    <p>
+                        <strong>Three more factory presets, thirty-one in all.</strong> All three lean on STRIKE, which arrived in 1.7.0 and is what
+                        lets one patch play two ways depending on how it is struck. <em>Glockenspiel</em> is a struck bar whose tone sits in the
+                        fourth and eleventh partials rather than the fundamental, with nothing sustaining and every partial ringing down for its own
+                        length. <em>Dream Phase</em> is a strike that becomes a pad, the short partials the transient and the long ones arriving
+                        behind them. <em>Sparkle Pad</em> splits the series in two: the bottom three sustain and arrive slowly, everything above
+                        attacks at once and is gone inside half a second.
+                    </p>
+
+                    <p>
+                        <strong>A session could open with the wrong preset showing as selected.</strong> Presets sort alphabetically, so adding one
+                        moved every preset after it and an index saved last year named a different sound. The sound was never in doubt, since a
+                        session stores its values, but a host's program menu would highlight a patch the session was not playing. The saved name
+                        decides now, so reordering presets can no longer move a session onto a different one.
+                    </p>
+
+                    <p>
+                        <strong>Built on JUCE 9.0.2</strong>, up from 8.0.15, with nothing in Overtonium needing to change for it. Every audio example
+                        on this site renders to the same samples before and after. Building from source on Linux now also needs
+                        <code>libxi-dev</code> and <code>libegl-dev</code>.
+                    </p>
+
+                    <p>
+                        <strong>Before upgrading.</strong> The factory presets are renumbered, since the three new ones sort into alphabetical place.
+                        The sound is stored with the session either way, and with the fix above the name you saved is what the menu goes by. No
+                        parameter was added or removed, so automation is unaffected.
+                    </p>
+
+                    <p class="more"><a href="https://github.com/benjamindehli/overtonium/releases/tag/v1.8.0">The full notes for 1.8.0</a></p>
+                </section>
+
+                <section>
                     <h2>1.7.0, 12 September 2026</h2>
 
                     <p>
