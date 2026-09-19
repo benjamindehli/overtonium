@@ -3843,7 +3843,61 @@ void testPrograms(OvertoniumProcessor &p) {
   check(std::abs(edited() - fromPreset) < 0.005f,
         "choosing the same preset in the plugin's menu does reload it");
 
-  // A state from before programs existed has no stored index.
+  // ---- what a renumbering does to a session already saved -----------------
+  //
+  // Factory presets sort alphabetically, so adding one moves every preset
+  // after it and an index written last year now names a different sound. The
+  // saved name is the one thing that does not move, so it decides, and the
+  // index is only the fallback. Simulated here by writing a wrong index into
+  // a state that still carries the right name, which is exactly the state an
+  // older session becomes.
+  const int wasOn = names.indexOf("Wurli");
+  p.applyFactoryPreset(wasOn);
+
+  juce::MemoryBlock session;
+  p.getStateInformation(session);
+
+  if (auto xml = juce::AudioProcessor::getXmlFromBinary(
+          session.getData(), (int)session.getSize())) {
+    check(xml->getStringAttribute("overtoniumPresetName") == names[wasOn],
+          "the saved state carries the preset's name as well as its index");
+
+    // Somewhere else in the list, which is what a shifted index looks like.
+    xml->setAttribute("overtoniumProgram", names.indexOf("Cathedral"));
+
+    juce::MemoryBlock shifted;
+    juce::AudioProcessor::copyXmlToBinary(*xml, shifted);
+
+    p.applyFactoryPreset(names.indexOf("Big Saw"));
+    p.setStateInformation(shifted.getData(), (int)shifted.getSize());
+
+    check(p.getCurrentProgram() == wasOn,
+          "a session whose stored index has since moved comes back on the "
+          "preset it was actually saved on");
+  } else {
+    check(false, "the session state could be reread");
+  }
+
+  // A name that is not a factory preset is one of the user's own, or a patch
+  // edited past recognising, and neither has a program to be. The index is all
+  // there is to go on there.
+  if (auto xml = juce::AudioProcessor::getXmlFromBinary(
+          session.getData(), (int)session.getSize())) {
+    const int elsewhere = names.indexOf("Cathedral");
+    xml->setAttribute("overtoniumPresetName", "Something Of My Own");
+    xml->setAttribute("overtoniumProgram", elsewhere);
+
+    juce::MemoryBlock mine;
+    juce::AudioProcessor::copyXmlToBinary(*xml, mine);
+    p.setStateInformation(mine.getData(), (int)mine.getSize());
+
+    check(p.getCurrentProgram() == elsewhere,
+          "a name that is nobody's factory preset leaves the index deciding");
+  } else {
+    check(false, "the user-preset state could be reread");
+  }
+
+  // A state from before either property existed has neither to go on.
   const int before = p.getCurrentProgram();
   p.applyFactoryPreset(names.indexOf("Big Saw"));
   juce::MemoryBlock legacy;
@@ -3855,6 +3909,7 @@ void testPrograms(OvertoniumProcessor &p) {
 
   if (xml != nullptr) {
     xml->removeAttribute("overtoniumProgram");
+    xml->removeAttribute("overtoniumPresetName");
     juce::MemoryBlock stripped;
     juce::AudioProcessor::copyXmlToBinary(*xml, stripped);
 
@@ -3862,7 +3917,7 @@ void testPrograms(OvertoniumProcessor &p) {
     p.setStateInformation(stripped.getData(), (int)stripped.getSize());
 
     check(p.getCurrentProgram() == 0,
-          "a state saved without a program lands on the first one");
+          "a state saved without either lands on the first one");
   } else {
     check(false, "the legacy state could be reread");
   }

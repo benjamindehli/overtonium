@@ -464,11 +464,28 @@ void OvertoniumProcessor::setStateInformation(const void *data,
       // property existed has no such value and lands on the first preset,
       // which is the same answer the old build gave.
       const int saved = tree.getProperty(kCurrentProgramProperty, 0);
-      currentProgram =
-          juce::isPositiveAndBelow(saved, ovt::presets::names().size()) ? saved
-                                                                       : 0;
 
       loadedPresetName = tree.getProperty(kPresetNameProperty, juce::String());
+
+      // The name decides which program this is, and the index is only the
+      // fallback. Factory presets sort alphabetically, so adding one moves
+      // every preset after it, and a session written before that move carries
+      // an index that now names a different sound. The sound itself is never
+      // in doubt, since the state holds the parameter values and nothing here
+      // reloads a preset over them, but the index is what a host shows as
+      // selected in its own menu, and it would be pointing at a patch the
+      // session is not playing.
+      //
+      // A name that is not a factory preset is one of the user's own, or a
+      // patch edited since it was loaded, and neither has a program to be.
+      // Those keep the saved index, which is the answer this always gave.
+      const auto known = ovt::presets::names().indexOf(loadedPresetName);
+
+      currentProgram =
+          known >= 0 ? known
+          : juce::isPositiveAndBelow(saved, ovt::presets::names().size())
+              ? saved
+              : 0;
 
       // Whatever the state said, it is a state, so a program change from the
       // host asking for the index just restored has nothing left to do. Set
