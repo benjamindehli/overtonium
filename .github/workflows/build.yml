@@ -634,3 +634,15 @@ jobs:
 
           print(f"every counted noun agrees, across {len(files)} files")
           PY
+
+      - name: The version in CMakeLists has its notes and its section
+        run: |
+          version=$(sed -n 's/^project(Overtonium VERSION \([0-9.]*\).*/\1/p' \
+                    CMakeLists.txt)
+
+          if [ -z "$version" ]; then
+            echo "::error::cannot read the version from CMakeLists.txt"
+            exit 1
+          fi
+
+          python3 .github/scripts/release_docs.py "$version"
