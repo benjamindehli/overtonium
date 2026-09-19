@@ -70,7 +70,6 @@ inline constexpr float kMaxAttackSeconds = 5.0f;
 /// thing said at the front: hit it hard and the partial is simply there.
 inline constexpr float kStrikeOctaves = 8.0f;
 
-
 /// What the strike amount does to a partial's attack time.
 ///
 /// Velocity only ever lengthens the attack, never shortens it past what the

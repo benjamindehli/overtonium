@@ -21,8 +21,8 @@
 
 #include <cstdio>
 #include <functional>
-#include <vector>
 #include <juce_audio_formats/juce_audio_formats.h>
+#include <vector>
 
 #include "PluginProcessor.h"
 #include "Presets.h"
@@ -187,8 +187,8 @@ juce::AudioBuffer<float> renderRun(OvertoniumProcessor &p,
     }
 
     if (move)
-      move(p, juce::jlimit(0.0, 1.0,
-                           (double)done / (double)out.getNumSamples()));
+      move(p,
+           juce::jlimit(0.0, 1.0, (double)done / (double)out.getNumSamples()));
 
     chunk.setSize(2, n, false, false, true);
     chunk.clear();
@@ -330,8 +330,10 @@ int main(int argc, char **argv) {
   // a treble note has walked most of its into the rolloff. One note would show
   // nothing, since the fundamental holds its level either way.
   {
-    const std::vector<Step> run{{36, 0.0, 1.0},  {48, 1.2, 1.0},
-                                {60, 2.4, 1.0},  {72, 3.6, 1.0},
+    const std::vector<Step> run{{36, 0.0, 1.0},
+                                {48, 1.2, 1.0},
+                                {60, 2.4, 1.0},
+                                {72, 3.6, 1.0},
                                 {84, 4.8, 1.4}};
 
     for (const auto track : {0.0f, 6.0f}) {

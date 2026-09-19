@@ -27,7 +27,6 @@ public:
   void processBlock(juce::AudioBuffer<float> &buffer,
                     juce::MidiBuffer &midi) override;
 
-
   /// Overriding one processBlock hides the rest of the overload set, the
   /// double-precision one included. Nothing calls it, since
   /// supportsDoublePrecisionProcessing is left at its default of false, but

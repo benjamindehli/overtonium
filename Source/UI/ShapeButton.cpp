@@ -136,18 +136,16 @@ int ShapeButton::selectedIndex() const {
   if (param == nullptr)
     return 0;
 
-  return juce::jlimit(0, (int)offered.size() - 1,
-                      juce::roundToInt(param->convertFrom0to1(
-                          param->getValue())));
+  return juce::jlimit(
+      0, (int)offered.size() - 1,
+      juce::roundToInt(param->convertFrom0to1(param->getValue())));
 }
 
 LfoShape ShapeButton::selectedShape() const {
   return offered[(size_t)selectedIndex()];
 }
 
-juce::String ShapeButton::currentName() const {
-  return names[selectedIndex()];
-}
+juce::String ShapeButton::currentName() const { return names[selectedIndex()]; }
 
 void ShapeButton::paint(juce::Graphics &g) {
   const auto area = getLocalBounds().toFloat().reduced(3.0f, 2.0f);
@@ -213,20 +211,20 @@ void ShapeButton::mouseDown(const juce::MouseEvent &e) {
   m.addSeparator();
   m.addItem(kEveryChannel, "Set every channel to this");
 
-  m.showMenuAsync(
-      juce::PopupMenu::Options()
-          .withTargetComponent(this)
-          .withStandardItemHeight(22),
-      [this](int result) {
-        if (result <= 0)
-          return;
+  m.showMenuAsync(juce::PopupMenu::Options()
+                      .withTargetComponent(this)
+                      .withStandardItemHeight(22),
+                  [this](int result) {
+                    if (result <= 0)
+                      return;
 
-        if (result == kEveryChannel)
-          return applyToEveryChannel(selectedIndex());
+                    if (result == kEveryChannel)
+                      return applyToEveryChannel(selectedIndex());
 
-        if (attachment != nullptr)
-          attachment->setValueAsCompleteGesture((float)(result - 1));
-      });
+                    if (attachment != nullptr)
+                      attachment->setValueAsCompleteGesture(
+                          (float)(result - 1));
+                  });
 }
 
 } // namespace ovt::ui

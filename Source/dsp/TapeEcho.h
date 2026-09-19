@@ -81,8 +81,7 @@ private:
     void clear() noexcept;
 
     /// Restarts the motor from a known place.
-    void restartMotor(double sr, uint32_t seed,
-                      float startPhase) noexcept;
+    void restartMotor(double sr, uint32_t seed, float startPhase) noexcept;
 
     /// How far off the nominal head distance the motor has wandered.
     float wander(float delaySamples, float age, double sr) noexcept;

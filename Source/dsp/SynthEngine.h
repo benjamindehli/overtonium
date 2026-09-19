@@ -8,8 +8,8 @@
 
 #include "Reverb.h"
 #include "TapeEcho.h"
-#include "Wobble.h"
 #include "Voice.h"
+#include "Wobble.h"
 
 namespace ovt {
 
@@ -178,8 +178,8 @@ private:
   };
 
   /// Sums every sounding voice into the buffers and takes the meter peaks.
-  void sumVoices(float *left, float *right, int numFrames,
-                 const SynthParams &p, Activity &into) noexcept;
+  void sumVoices(float *left, float *right, int numFrames, const SynthParams &p,
+                 Activity &into) noexcept;
 
   void publish(const Activity &) noexcept;
 

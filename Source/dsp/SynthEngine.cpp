@@ -339,8 +339,7 @@ void SynthEngine::setNoteSlide(int channel, int note, float slide) noexcept {
       v.setSlide(slide);
 }
 
-void SynthEngine::setNoteBend(int channel, int note,
-                              float semitones) noexcept {
+void SynthEngine::setNoteBend(int channel, int note, float semitones) noexcept {
   for (auto &v : voices)
     if (matches(v, channel, note))
       v.setNoteBend(semitones);
@@ -506,8 +505,7 @@ void SynthEngine::renderVoices(float *left, float *right, int numSamples,
         }
       }
 
-      sumVoices(lofiScratchL.data(), lofiScratchR.data(), frames, p,
-                activity);
+      sumVoices(lofiScratchL.data(), lofiScratchR.data(), frames, p, activity);
 
       if (bits > 0)
         quantise(lofiScratchL.data(), lofiScratchR.data(), frames, bits);

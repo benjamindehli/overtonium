@@ -310,8 +310,7 @@ void mergeIntoRows(juce::Array<juce::Rectangle<int>> &regions) {
     for (int j = regions.size(); --j > i;) {
       const auto other = regions.getUnchecked(j);
 
-      if (other.getY() != band.getY() ||
-          other.getHeight() != band.getHeight())
+      if (other.getY() != band.getY() || other.getHeight() != band.getHeight())
         continue;
 
       band = band.getUnion(other);

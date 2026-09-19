@@ -124,9 +124,9 @@ temperamentOffsets(Temperament t) noexcept {
 
     // Just major, as exact ratios rather than as a circle of fifths, because
     // it is not one: it is chosen interval by interval to be pure.
-    const double ratios[12] = {1.0,      16.0 / 15.0, 9.0 / 8.0,  6.0 / 5.0,
-                               5.0 / 4.0, 4.0 / 3.0,  45.0 / 32.0, 3.0 / 2.0,
-                               8.0 / 5.0, 5.0 / 3.0,  9.0 / 5.0,  15.0 / 8.0};
+    const double ratios[12] = {1.0,       16.0 / 15.0, 9.0 / 8.0,   6.0 / 5.0,
+                               5.0 / 4.0, 4.0 / 3.0,   45.0 / 32.0, 3.0 / 2.0,
+                               8.0 / 5.0, 5.0 / 3.0,   9.0 / 5.0,   15.0 / 8.0};
 
     for (int i = 0; i < 12; ++i)
       out[1][(size_t)i] = 1200.0 * std::log2(ratios[i]) - 100.0 * (double)i;

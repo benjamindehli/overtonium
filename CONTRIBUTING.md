@@ -30,6 +30,15 @@ npm run format
 
 `npm run format:check` is what CI runs. Prettier is pinned in `package-lock.json` because its output moves between versions, and a check that disagrees with your copy is worse than no check.
 
+CI checks the C++ the same way, and clang-format is pinned for the same reason. Take it from pip rather than from your package manager, or your copy will format differently from the job:
+
+```sh
+pip install clang-format==23.1.1
+clang-format --style=LLVM -i $(find Source Tests Tools -name '*.cpp' -o -name '*.h')
+```
+
+One region is deliberately exempt. The factory presets inside `apply` in `Presets.cpp` sit between `clang-format off` and `on`, because `factoryCode` writes them and does its own wrapping. Reformatting them would mean a preset regenerated from the same patch no longer matched the file it came from, and that match is how a preset is checked against what its author actually dialled in.
+
 **pluginval.** CI loads the built VST3 into [pluginval](https://github.com/Tracktion/pluginval) at strictness 8 on all three platforms. It is a host that misuses the plugin on purpose, and it reaches things our own tests cannot, since they drive the processor directly rather than through a plugin format. To run it yourself, point it at a built or installed plugin:
 
 ```sh

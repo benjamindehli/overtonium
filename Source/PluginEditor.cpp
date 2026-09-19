@@ -33,7 +33,6 @@ const juce::Identifier kLinkCurveId{"linkCurveId"};
 const juce::Identifier kLinkCurve{"linkCurve"};
 const juce::Identifier kCollapsedSections{"collapsedSections"};
 
-
 bool isHeadingRow(Row r) {
   return r == Row::PitchModHeading || r == Row::EnvHeading ||
          r == Row::KeyOffHeading || r == Row::AmpModHeading ||
@@ -315,8 +314,8 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
 
   // Default size shows all 32 strips at once, which is the whole point of the
   // layout.
-  const int defaultWidth = kGutterWidth + kStripWidth + kMasterGap +
-                           kNumHarmonics * kStripWidth;
+  const int defaultWidth =
+      kGutterWidth + kStripWidth + kMasterGap + kNumHarmonics * kStripWidth;
   // Read before the heights below, both of which depend on how much of the
   // strip is folded away.
   collapsedSections =
@@ -437,9 +436,9 @@ void OvertoniumEditor::applyResizeLimits() {
   // Limits are expressed in logical pixels, so they scale with the zoom factor.
   // Wide enough for a usable stretch of mixer, and never narrower than the top
   // bar can lay itself out without dropping a group.
-  const int minWidth = juce::jmax(kGutterWidth + kStripWidth + kMasterGap +
-                                      6 * kStripWidth,
-                                  ovt::ui::TopBar::minimumWidth());
+  const int minWidth =
+      juce::jmax(kGutterWidth + kStripWidth + kMasterGap + 6 * kStripWidth,
+                 ovt::ui::TopBar::minimumWidth());
   // The narrowest window is also the one where the bar takes two rows, so
   // the minimum height has to leave room for that.
   const int minHeight =
@@ -485,7 +484,7 @@ void OvertoniumEditor::toggleSection(Section section) {
 
   publishCollapsedSections();
   plugin().apvts.state.setProperty(kCollapsedSections, (int)collapsedSections,
-                                    nullptr);
+                                   nullptr);
 
   // The window follows, which is the point: left alone the fader would stretch
   // into the space and the mixer would be exactly as tall as before. Limits

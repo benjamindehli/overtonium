@@ -77,8 +77,7 @@ struct Applier {
   /// knob with LINK fanning it across the series, and the result is thirty-two
   /// values with no formula behind them. Written out as a list the shape is at
   /// least visible, where thirty-two separate lines would bury it.
-  void oscTable(const char *suffix,
-                std::initializer_list<float> values) const {
+  void oscTable(const char *suffix, std::initializer_list<float> values) const {
     int i = 0;
 
     for (auto v : values) {
@@ -88,7 +87,6 @@ struct Applier {
       osc(suffix, i++, v);
     }
   }
-
 
   /// Everything a preset does not explicitly set should start from a known
   /// state.
@@ -295,9 +293,9 @@ juce::Array<juce::File> userPresets() {
   // Symlinks are not followed. One pointing at a directory above itself would
   // send this round until it ran out of path, and grouping presets does not
   // need them.
-  auto found = userDirectory().findChildFiles(
-      juce::File::findFiles, true, juce::String("*") + kExtension,
-      juce::File::FollowSymlinks::no);
+  auto found = userDirectory().findChildFiles(juce::File::findFiles, true,
+                                              juce::String("*") + kExtension,
+                                              juce::File::FollowSymlinks::no);
 
   // Sorted, so the menu does not reorder itself when the filesystem feels like
   // handing them back in another order. On the whole path rather than the
@@ -543,10 +541,9 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
       changed.erase(params::oscParamId(row.suffix, i));
 
     const auto uniform =
-        std::adjacent_find(values.begin(), values.end(),
-                           [](float a, float b) {
-                             return std::abs(a - b) >= 1.0e-6f;
-                           }) == values.end();
+        std::adjacent_find(values.begin(), values.end(), [](float a, float b) {
+          return std::abs(a - b) >= 1.0e-6f;
+        }) == values.end();
 
     const juce::String constant = juce::String("params::") + row.constant;
 
@@ -604,6 +601,14 @@ void apply(APVTS &apvts, int index) {
   const Applier ap{apvts};
 
   switch (index) {
+    // clang-format off
+    //
+    // Everything to the closing marker is written by factoryCode and pasted in
+    // whole, most of it tables of thirty-two figures. The generator does its
+    // own wrapping, and a formatter reflowing the result would mean a preset
+    // regenerated from the same patch no longer matched the file it came from,
+    // which is the check that says a preset is what its author dialled in.
+    // See Tools/preset_to_code.cpp.
   case 0: // 2-bit Fuzz Organ
   {
     ap.neutralBase();
@@ -3639,6 +3644,8 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.0234f);
     break;
   }
+    // clang-format on
+
   default:
     break;
   }

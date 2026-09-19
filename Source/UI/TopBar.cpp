@@ -167,10 +167,9 @@ void StereoOutputMeter::paintBar(juce::Graphics &g, juce::Rectangle<float> r,
   const auto gap = juce::jlimit(1.0f, 3.0f, step * 0.18f);
 
   for (int i = 0; i < count; ++i) {
-    const auto lamp =
-        juce::Rectangle<float>(r.getX() + (float)i * step, r.getY(), step,
-                               r.getHeight())
-            .reduced(gap * 0.5f, 1.0f);
+    const auto lamp = juce::Rectangle<float>(r.getX() + (float)i * step,
+                                             r.getY(), step, r.getHeight())
+                          .reduced(gap * 0.5f, 1.0f);
 
     const auto colour = lampColour(((float)i + 0.5f) / (float)count);
 
@@ -241,8 +240,8 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   track.slider.setDoubleClickReturnValue(true, 0.0);
   addAndMakeVisible(track);
 
-  trackAttachment = std::make_unique<SliderAttachment>(
-      apvts, params::trackId, track.slider);
+  trackAttachment =
+      std::make_unique<SliderAttachment>(apvts, params::trackId, track.slider);
 
   wobble.slider.setPopupDisplayEnabled(true, true, &popupParent);
   wobble.slider.setTooltip(
@@ -252,8 +251,8 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   wobble.slider.setDoubleClickReturnValue(true, 0.0);
   addAndMakeVisible(wobble);
 
-  wobbleAttachment = std::make_unique<SliderAttachment>(
-      apvts, params::wobbleId, wobble.slider);
+  wobbleAttachment = std::make_unique<SliderAttachment>(apvts, params::wobbleId,
+                                                        wobble.slider);
 
   // Two bars beside the master fader, at the end of the signal path, need no
   // caption to say what they are.
@@ -546,8 +545,7 @@ juce::PopupMenu TopBar::buildPresetMenu() {
 
       // Where a preset sits under the preset folder is which group it lands
       // in. One straight in the folder has no parts to walk and stays here.
-      const auto relative =
-          file.getParentDirectory().getRelativePathFrom(root);
+      const auto relative = file.getParentDirectory().getRelativePathFrom(root);
 
       auto *folder = &tree;
 
@@ -557,7 +555,7 @@ juce::PopupMenu TopBar::buildPresetMenu() {
           folder = &folder->folders[part];
 
       folder->presets.emplace_back(file.getFileNameWithoutExtension(),
-                                  1000 + i);
+                                   1000 + i);
     }
 
     m.addSubMenu("Saved", buildSavedMenu(tree, current));
@@ -753,9 +751,8 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
 
   for (int i = 0; i < (int)params::kReferenceHzChoices.size(); ++i)
     references.addItem(
-        1100 + i,
-        juce::String(params::kReferenceHzChoices[(size_t)i]) + " Hz", true,
-        i == pickedIndex(params::referenceHzId));
+        1100 + i, juce::String(params::kReferenceHzChoices[(size_t)i]) + " Hz",
+        true, i == pickedIndex(params::referenceHzId));
 
   juce::PopupMenu zooms;
 
@@ -797,101 +794,98 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
 void TopBar::showSettingsMenu() {
   auto m = buildSettingsMenu();
 
-  m.showMenuAsync(juce::PopupMenu::Options()
-                      .withTargetComponent(&settingsButton)
-                      .withStandardItemHeight(22),
-                  [this](int result) {
-                    if (result == 0)
-                      return;
+  m.showMenuAsync(
+      juce::PopupMenu::Options()
+          .withTargetComponent(&settingsButton)
+          .withStandardItemHeight(22),
+      [this](int result) {
+        if (result == 0)
+          return;
 
-                    const auto flip = [this](const char *id) {
-                      if (auto *p = apvts.getParameter(id))
-                        p->setValueNotifyingHost(p->getValue() > 0.5f ? 0.0f
-                                                                      : 1.0f);
-                    };
+        const auto flip = [this](const char *id) {
+          if (auto *p = apvts.getParameter(id))
+            p->setValueNotifyingHost(p->getValue() > 0.5f ? 0.0f : 1.0f);
+        };
 
-                    if (result == 300)
-                      return flip(params::phaseResetId);
+        if (result == 300)
+          return flip(params::phaseResetId);
 
-                    if (result == 301)
-                      return flip(params::safetyClipId);
+        if (result == 301)
+          return flip(params::safetyClipId);
 
-                    if (result == 302)
-                      return flip(params::mpeId);
+        if (result == 302)
+          return flip(params::mpeId);
 
-                    if (result == 303)
-                      return flip(params::oneVoicePerKeyId);
+        if (result == 303)
+          return flip(params::oneVoicePerKeyId);
 
-                    // The converter entries carry an index into their choice
-                    // list rather than a value, since the lists are not
-                    // contiguous runs of numbers.
-                    const auto choose = [this](const char *id, int index) {
-                      auto *p = apvts.getParameter(id);
+        // The converter entries carry an index into their choice
+        // list rather than a value, since the lists are not
+        // contiguous runs of numbers.
+        const auto choose = [this](const char *id, int index) {
+          auto *p = apvts.getParameter(id);
 
-                      if (p != nullptr)
-                        p->setValueNotifyingHost(
-                            p->convertTo0to1((float)index));
-                    };
+          if (p != nullptr)
+            p->setValueNotifyingHost(p->convertTo0to1((float)index));
+        };
 
-                    if (result >= 1200)
-                      return choose(params::slideDestId, result - 1200);
+        if (result >= 1200)
+          return choose(params::slideDestId, result - 1200);
 
-                    if (result >= 1100)
-                      return choose(params::referenceHzId, result - 1100);
+        if (result >= 1100)
+          return choose(params::referenceHzId, result - 1100);
 
-                    if (result >= 1000)
-                      return choose(params::tuningRootId, result - 1000);
+        if (result >= 1000)
+          return choose(params::tuningRootId, result - 1000);
 
-                    if (result >= 900)
-                      return choose(params::temperamentId, result - 900);
+        if (result >= 900)
+          return choose(params::temperamentId, result - 900);
 
-                    if (result >= 800) {
-                      const auto index = result - 800;
+        if (result >= 800) {
+          const auto index = result - 800;
 
-                      if (index < (int)std::size(kZoomChoices) && onZoomChanged)
-                        onZoomChanged(kZoomChoices[index]);
+          if (index < (int)std::size(kZoomChoices) && onZoomChanged)
+            onZoomChanged(kZoomChoices[index]);
 
-                      return;
-                    }
+          return;
+        }
 
-                    if (result == 700)
-                      return onUndo ? onUndo() : void();
+        if (result == 700)
+          return onUndo ? onUndo() : void();
 
-                    if (result == 701)
-                      return onRedo ? onRedo() : void();
+        if (result == 701)
+          return onRedo ? onRedo() : void();
 
-                    if (result == 702) {
-                      const bool now =
-                          isUpdateCheckAllowed && isUpdateCheckAllowed();
+        if (result == 702) {
+          const bool now = isUpdateCheckAllowed && isUpdateCheckAllowed();
 
-                      if (onUpdateCheckToggled)
-                        onUpdateCheckToggled(!now);
+          if (onUpdateCheckToggled)
+            onUpdateCheckToggled(!now);
 
-                      return;
-                    }
+          return;
+        }
 
-                    if (result >= 600)
-                      return choose(params::atSourceId, result - 600);
+        if (result >= 600)
+          return choose(params::atSourceId, result - 600);
 
-                    const auto id = result >= 200 ? params::bendRangeId
-                                                  : params::polyphonyId;
-                    const auto plain = result >= 200 ? (float)(result - 200)
-                                                     : (float)(result - 100);
+        const auto id =
+            result >= 200 ? params::bendRangeId : params::polyphonyId;
+        const auto plain =
+            result >= 200 ? (float)(result - 200) : (float)(result - 100);
 
-                    if (auto *p = apvts.getParameter(id))
-                      p->setValueNotifyingHost(p->convertTo0to1(plain));
-                  });
+        if (auto *p = apvts.getParameter(id))
+          p->setValueNotifyingHost(p->convertTo0to1(plain));
+      });
 }
 
 void TopBar::updateConverterReadouts(double hostSampleRate) {
   const auto chosen = [this](const char *id, int count) {
     auto *p = apvts.getParameter(id);
 
-    return p == nullptr
-               ? 0
-               : juce::jlimit(
-                     0, count - 1,
-                     juce::roundToInt(p->convertFrom0to1(p->getValue())));
+    return p == nullptr ? 0
+                        : juce::jlimit(0, count - 1,
+                                       juce::roundToInt(
+                                           p->convertFrom0to1(p->getValue())));
   };
 
   const auto rate = params::kLofiRateChoices[(size_t)chosen(
@@ -999,10 +993,10 @@ int TopBar::minimumWidth() {
 }
 
 void TopBar::parkControls() {
-  juce::Component *all[] = {&master,      &meter,       &presetButton,
-                            &linkButton,  &settingsButton, &echoButton,
-                            &reverbButton, &stretch,    &track,
-                            &rateDisplay, &bitsDisplay};
+  juce::Component *all[] = {&master,       &meter,          &presetButton,
+                            &linkButton,   &settingsButton, &echoButton,
+                            &reverbButton, &stretch,        &track,
+                            &rateDisplay,  &bitsDisplay};
 
   for (auto *c : all)
     c->setBounds({});
@@ -1219,17 +1213,17 @@ void TopBar::paint(juce::Graphics &g) {
     const auto middle = f.getCentreY();
 
     {
-        juce::Graphics::ScopedSaveState clip(g);
-        g.reduceClipRegion(f.withBottom(middle).getSmallestIntegerContainer());
-        g.setColour(juce::Colours::black.withAlpha(0.34f));
-        g.drawRoundedRectangle(inner.translated(0.0f, 1.0f), 4.0f, 1.3f);
+      juce::Graphics::ScopedSaveState clip(g);
+      g.reduceClipRegion(f.withBottom(middle).getSmallestIntegerContainer());
+      g.setColour(juce::Colours::black.withAlpha(0.34f));
+      g.drawRoundedRectangle(inner.translated(0.0f, 1.0f), 4.0f, 1.3f);
     }
 
     {
-        juce::Graphics::ScopedSaveState clip(g);
-        g.reduceClipRegion(f.withTop(middle).getSmallestIntegerContainer());
-        g.setColour(juce::Colours::white.withAlpha(0.06f));
-        g.drawRoundedRectangle(inner.translated(0.0f, -1.0f), 4.0f, 1.0f);
+      juce::Graphics::ScopedSaveState clip(g);
+      g.reduceClipRegion(f.withTop(middle).getSmallestIntegerContainer());
+      g.setColour(juce::Colours::white.withAlpha(0.06f));
+      g.drawRoundedRectangle(inner.translated(0.0f, -1.0f), 4.0f, 1.0f);
     }
 
     g.setColour(colours::outline.withAlpha(0.9f));
@@ -1289,8 +1283,8 @@ void TopBar::paintCreditLine(juce::Graphics &g, juce::Rectangle<int> area) {
 
   // Only the text is clickable, not the width of the whole title block, so the
   // pointer does not turn into a hand over empty panel.
-  const auto measured = juce::GlyphArrangement::getStringWidth(
-      g.getCurrentFont(), text);
+  const auto measured =
+      juce::GlyphArrangement::getStringWidth(g.getCurrentFont(), text);
   const auto width =
       juce::jmin(area.getWidth(), juce::roundToInt(measured) + 2);
   updateBounds = area.withWidth(width);

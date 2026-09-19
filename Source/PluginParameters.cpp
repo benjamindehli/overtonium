@@ -1,8 +1,8 @@
 #include "PluginParameters.h"
 
 #include "dsp/Harmonics.h"
-#include "dsp/Velocity.h"
 #include "dsp/TapeEcho.h"
+#include "dsp/Velocity.h"
 
 namespace ovt::params {
 
@@ -33,18 +33,18 @@ namespace {
 juce::NormalisableRange<float> logRange(float lo, float hi) {
   jassert(lo > 0.0f);
 
-  return {lo, hi,
-          [](float a, float b, float t) {
-            return (float)((double)a *
-                           std::pow((double)b / (double)a, (double)t));
-          },
-          [](float a, float b, float v) {
-            const auto t = std::log((double)v / (double)a) /
-                           std::log((double)b / (double)a);
+  return {
+      lo, hi,
+      [](float a, float b, float t) {
+        return (float)((double)a * std::pow((double)b / (double)a, (double)t));
+      },
+      [](float a, float b, float v) {
+        const auto t =
+            std::log((double)v / (double)a) / std::log((double)b / (double)a);
 
-            return (float)juce::jlimit(0.0, 1.0, t);
-          },
-          [](float a, float b, float v) { return juce::jlimit(a, b, v); }};
+        return (float)juce::jlimit(0.0, 1.0, t);
+      },
+      [](float a, float b, float v) { return juce::jlimit(a, b, v); }};
 }
 
 /// A range that has to include zero, curved so the bottom of it is usable.
@@ -71,8 +71,7 @@ juce::NormalisableRange<float> expRange(float lo, float hi, float centre) {
           [k, denom](float a, float b, float v) {
             const auto y = (v - a) / (b - a) * denom + 1.0f;
 
-            return juce::jlimit(0.0f, 1.0f,
-                                std::log(std::max(1.0e-9f, y)) / k);
+            return juce::jlimit(0.0f, 1.0f, std::log(std::max(1.0e-9f, y)) / k);
           },
           [](float a, float b, float v) { return juce::jlimit(a, b, v); }};
 }
@@ -201,36 +200,36 @@ constexpr float kFaderFloorDb = kQuietestLevelDb - 2.1f;
 /// always did. What changes is where a given level sits along the fader, and
 /// with it any host automation written against the old shape.
 juce::NormalisableRange<float> levelRange() {
-  return {
-      0.0f, 1.0f,
+  return {0.0f, 1.0f,
 
-      // Travel into gain.
-      [](float, float, float norm) {
-        // The bottom of the travel is silence rather than the quietest
-        // readable level, so a fader pulled all the way down is off rather
-        // than very nearly off.
-        if (norm <= 0.0f)
-          return 0.0f;
+          // Travel into gain.
+          [](float, float, float norm) {
+            // The bottom of the travel is silence rather than the quietest
+            // readable level, so a fader pulled all the way down is off rather
+            // than very nearly off.
+            if (norm <= 0.0f)
+              return 0.0f;
 
-        // The floor has to be handed over rather than left to its default,
-        // which is -100 dB. This fader reaches below that, and a default that
-        // rounds everything past it to silence would make the bottom hundredth
-        // of the travel dead.
-        return juce::Decibels::decibelsToGain(
-            kFaderFloorDb * std::pow(1.0f - norm, kLevelShape), kFaderFloorDb);
-      },
+            // The floor has to be handed over rather than left to its default,
+            // which is -100 dB. This fader reaches below that, and a default
+            // that rounds everything past it to silence would make the bottom
+            // hundredth of the travel dead.
+            return juce::Decibels::decibelsToGain(
+                kFaderFloorDb * std::pow(1.0f - norm, kLevelShape),
+                kFaderFloorDb);
+          },
 
-      // Gain back into travel.
-      [](float, float, float gain) {
-        if (gain <= 0.0f)
-          return 0.0f;
+          // Gain back into travel.
+          [](float, float, float gain) {
+            if (gain <= 0.0f)
+              return 0.0f;
 
-        const auto db = juce::Decibels::gainToDecibels(gain, kFaderFloorDb);
+            const auto db = juce::Decibels::gainToDecibels(gain, kFaderFloorDb);
 
-        return juce::jlimit(
-            0.0f, 1.0f,
-            1.0f - std::pow(db / kFaderFloorDb, 1.0f / kLevelShape));
-      }};
+            return juce::jlimit(
+                0.0f, 1.0f,
+                1.0f - std::pow(db / kFaderFloorDb, 1.0f / kLevelShape));
+          }};
 }
 
 juce::String blendText(float v, int) {
@@ -256,8 +255,7 @@ juce::String polyphonyName(int index) {
   if (index == kLegatoIndex)
     return "Legato";
 
-  const auto at =
-      juce::jlimit(0, (int)kPolyphonyChoices.size() - 1, index);
+  const auto at = juce::jlimit(0, (int)kPolyphonyChoices.size() - 1, index);
   const auto voices = kPolyphonyChoices[(size_t)at];
 
   return juce::String(voices) + (voices == 1 ? " voice" : " voices");
@@ -321,8 +319,8 @@ float defaultVolumeFor(int index0) {
 namespace {
 /// One name per entry of the list beside it, in the same order.
 const char *const kShapeNames[kNumLfoShapes] = {
-    "Sine",     "Triangle",      "Sawtooth",       "Reverse Sawtooth",
-    "Square",   "Square (up)",   "Sample & Hold",  "Random"};
+    "Sine",   "Triangle",    "Sawtooth",      "Reverse Sawtooth",
+    "Square", "Square (up)", "Sample & Hold", "Random"};
 
 template <size_t N>
 juce::StringArray namesOf(const std::array<LfoShape, N> &shapes) {
@@ -463,10 +461,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::NormalisableRange<float>(0.0f, 1.0f), 0.25f,
       FAttr().withStringFromValueFunction(percentText)));
 
-  layout.add(
-      std::make_unique<FloatP>(juce::ParameterID{echoTimeId, 1}, "Echo Time",
-                               logRange(0.02f, 2.0f), 0.35f,
-                               FAttr().withStringFromValueFunction(timeText)));
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{echoTimeId, 1}, "Echo Time", logRange(0.02f, 2.0f),
+      0.35f, FAttr().withStringFromValueFunction(timeText)));
 
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{echoFeedbackId, 1}, "Echo Feedback",
@@ -479,9 +476,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{echoAgeId, 1}, "Echo Age",
       juce::NormalisableRange<float>(TapeEcho::kMinAge, 1.0f), 0.35f,
-      FAttr()
-          .withStringFromValueFunction(ageText)
-          .withValueFromStringFunction(ageValue)));
+      FAttr().withStringFromValueFunction(ageText).withValueFromStringFunction(
+          ageValue)));
 
   layout.add(std::make_unique<BoolP>(juce::ParameterID{reverbOnId, 1}, "Reverb",
                                      false));
@@ -491,10 +487,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::NormalisableRange<float>(0.0f, 1.0f), 0.25f,
       FAttr().withStringFromValueFunction(percentText)));
 
-  layout.add(std::make_unique<FloatP>(
-      juce::ParameterID{reverbDecayId, 1}, "Reverb Decay",
-      logRange(0.2f, 20.0f), 2.0f,
-      FAttr().withStringFromValueFunction(timeText)));
+  layout.add(
+      std::make_unique<FloatP>(juce::ParameterID{reverbDecayId, 1},
+                               "Reverb Decay", logRange(0.2f, 20.0f), 2.0f,
+                               FAttr().withStringFromValueFunction(timeText)));
 
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{reverbDampId, 1}, "Reverb Damping",
@@ -522,8 +518,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(pmDepthSuffix, i), 1},
-        p + "Pitch Mod Depth", expRange(0.0f, kMaxPitchModCents, 25.0f),
-        0.0f,
+        p + "Pitch Mod Depth", expRange(0.0f, kMaxPitchModCents, 25.0f), 0.0f,
         FAttr().withLabel("ct")));
 
     layout.add(std::make_unique<juce::AudioParameterChoice>(
@@ -537,8 +532,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(driftSuffix, i), 1}, p + "Drift",
-        expRange(0.0f, kMaxDriftCents, 6.0f), 0.0f,
-        FAttr().withLabel("ct")));
+        expRange(0.0f, kMaxDriftCents, 6.0f), 0.0f, FAttr().withLabel("ct")));
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(strikeSuffix, i), 1},
@@ -633,20 +627,20 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::NormalisableRange<float>(-1.0f, 1.0f), 0.0f,
       FAttr().withStringFromValueFunction(signedPercentText)));
 
-  layout.add(std::make_unique<FloatP>(
-      juce::ParameterID{noiseParamId(delaySuffix), 1}, "Noise Delay",
-      expRange(0.0f, 5.0f, 0.2f), 0.0f,
-      FAttr().withStringFromValueFunction(timeText)));
+  layout.add(
+      std::make_unique<FloatP>(juce::ParameterID{noiseParamId(delaySuffix), 1},
+                               "Noise Delay", expRange(0.0f, 5.0f, 0.2f), 0.0f,
+                               FAttr().withStringFromValueFunction(timeText)));
 
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{noiseParamId(attackSuffix), 1}, "Noise Attack",
       logRange(0.0002f, kMaxAttackSeconds), 0.005f,
       FAttr().withStringFromValueFunction(timeText)));
 
-  layout.add(std::make_unique<FloatP>(
-      juce::ParameterID{noiseParamId(decaySuffix), 1}, "Noise Decay",
-      logRange(0.001f, 20.0f), 0.6f,
-      FAttr().withStringFromValueFunction(timeText)));
+  layout.add(
+      std::make_unique<FloatP>(juce::ParameterID{noiseParamId(decaySuffix), 1},
+                               "Noise Decay", logRange(0.001f, 20.0f), 0.6f,
+                               FAttr().withStringFromValueFunction(timeText)));
 
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{noiseParamId(sustainSuffix), 1}, "Noise Sustain",
@@ -914,12 +908,11 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     const auto pick = [](const std::atomic<float> *p, int count) {
       return p == nullptr
                  ? 0
-                 : juce::jlimit(0, count - 1,
-                                (int)std::lround(p->load()));
+                 : juce::jlimit(0, count - 1, (int)std::lround(p->load()));
     };
 
-    out.global.temperament = (Temperament)pick(
-        temperament, (int)Temperament::NumTemperaments);
+    out.global.temperament =
+        (Temperament)pick(temperament, (int)Temperament::NumTemperaments);
 
     out.global.tuningRoot = pick(tuningRoot, (int)kPitchClassNames.size());
 

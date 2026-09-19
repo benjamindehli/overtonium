@@ -16,10 +16,10 @@
 #include "dsp/Reverb.h"
 #include "dsp/SineTable.h"
 #include "dsp/SynthEngine.h"
-#include "dsp/Temperament.h"
-#include "dsp/Wobble.h"
 #include "dsp/TapeEcho.h"
+#include "dsp/Temperament.h"
 #include "dsp/Voice.h"
+#include "dsp/Wobble.h"
 
 using namespace ovt;
 
@@ -204,7 +204,8 @@ void testStretch() {
     rooted &= std::abs(inharmonicCents(0, cents)) < 3.0;
 
   check(rooted, "and barely moves the fundamental (" +
-                    std::to_string(inharmonicCents(0, 1200.0)) + " cents at "
+                    std::to_string(inharmonicCents(0, 1200.0)) +
+                    " cents at "
                     "full stretch)");
 
   // Rising faster than linearly up the series is what makes it a stiff string
@@ -384,9 +385,8 @@ void testStartPhase() {
         "millisecond, whatever the attack says (" +
             std::to_string(atZero) + ")");
 
-  check(atPeak > 0.9,
-        "from the peak it is essentially all there (" +
-            std::to_string(atPeak) + ")");
+  check(atPeak > 0.9, "from the peak it is essentially all there (" +
+                          std::to_string(atPeak) + ")");
 
   // Zero has to stay the default and stay exactly what it always did.
   SynthParams fresh;
@@ -474,8 +474,8 @@ void testTemperaments() {
             std::to_string(interval(Temperament::Werckmeister3, 4)) + ")");
 
   check(std::abs(interval(Temperament::Young, 4) - 392.18) < 0.01,
-        "Young's is 392.2 (" +
-            std::to_string(interval(Temperament::Young, 4)) + ")");
+        "Young's is 392.2 (" + std::to_string(interval(Temperament::Young, 4)) +
+            ")");
 
   std::printf("  major third and fifth, in cents:\n");
   for (int t = 0; t < (int)Temperament::NumTemperaments; ++t) {
@@ -920,8 +920,8 @@ void testLegato() {
   render(0.5); // well past the attack
 
   const auto sustained = peak();
-  check(sustained > 0.05, "a held note reaches its sustain (" +
-                              std::to_string(sustained) + ")");
+  check(sustained > 0.05,
+        "a held note reaches its sustain (" + std::to_string(sustained) + ")");
 
   engine.noteOn(64, 1.0f, p); // second key, first still down
   render(0.02);
@@ -1003,9 +1003,9 @@ void testLegato() {
   const auto afterAll = peak();
   std::printf("  after the last key came up: %.4f\n", afterAll);
 
-  check(afterAll < 0.25 * sustained,
-        "the last key coming up releases it (" +
-            std::to_string(afterAll / sustained) + " of the sustain)");
+  check(afterAll < 0.25 * sustained, "the last key coming up releases it (" +
+                                         std::to_string(afterAll / sustained) +
+                                         " of the sustain)");
 
   // ---- and it is monophonic ------------------------------------------------
   SynthEngine mono;
@@ -1081,8 +1081,8 @@ void testOneVoicePerKey() {
   render(0.2, buf);
 
   const auto single = peakOf(buf);
-  check(single > 0.05, "a tap rings on after the key is up (" +
-                           std::to_string(single) + ")");
+  check(single > 0.05,
+        "a tap rings on after the key is up (" + std::to_string(single) + ")");
 
   // Tap the same key four more times while the first is still ringing.
   for (int i = 0; i < 4; ++i) {
@@ -1579,8 +1579,8 @@ void testPerNoteChannels() {
           "letting the ordinary key up leaves the per-note voice sounding (" +
               std::to_string(engine.getActiveVoiceCount()) + ")");
 
-    check(peak() > 0.05, "and it is still making sound (" +
-                             std::to_string(peak()) + ")");
+    check(peak() > 0.05,
+          "and it is still making sound (" + std::to_string(peak()) + ")");
 
     engine.allSoundOff();
   }
@@ -1687,15 +1687,12 @@ void testPerNoteChannels() {
     renderInto(0.3);
 
     const auto pressedLevel = peak();
-    std::printf("  pressed on its own channel it reaches %.3f\n",
-                pressedLevel);
+    std::printf("  pressed on its own channel it reaches %.3f\n", pressedLevel);
 
-    check(pressedLevel > 0.2,
-          "pressure on its own channel brings it in (" +
-              std::to_string(pressedLevel) + ")");
+    check(pressedLevel > 0.2, "pressure on its own channel brings it in (" +
+                                  std::to_string(pressedLevel) + ")");
   }
 }
-
 
 /// What happens when the pool genuinely runs out.
 ///
@@ -1829,9 +1826,8 @@ void testPoolExhaustion() {
               "fundamental after the pool overflowed\n",
               heldAfter);
 
-  check(heldAfter > 0.02,
-        "the note still being held survives the overflow (" +
-            std::to_string(heldAfter) + ")");
+  check(heldAfter > 0.02, "the note still being held survives the overflow (" +
+                              std::to_string(heldAfter) + ")");
 }
 
 void testVoiceAllocation() {
@@ -2841,9 +2837,8 @@ void testKeyOffEnvelope() {
 
     std::printf("  decayed to silence, key-off level 0.60: peak %.3f\n", peak);
 
-    check(peak > 0.55,
-          "letting go brings it back up to the key-off level (" +
-              std::to_string(peak) + ")");
+    check(peak > 0.55, "letting go brings it back up to the key-off level (" +
+                           std::to_string(peak) + ")");
 
     for (int n = 0; n < (int)(2.0 * sr); ++n)
       env.tick();
@@ -3150,9 +3145,8 @@ void testStrikeVelocity() {
         "the softest note still waits the whole of it (" +
             std::to_string(waitedSoft) + " s)");
 
-  check(waitedHard < 0.01,
-        "and the hardest comes in almost at once (" +
-            std::to_string(waitedHard * 1000.0) + " ms)");
+  check(waitedHard < 0.01, "and the hardest comes in almost at once (" +
+                               std::to_string(waitedHard * 1000.0) + " ms)");
 
   // Nothing in a fresh patch asks for it.
   SynthParams fresh;
@@ -3212,9 +3206,8 @@ void testKeyOffAfterSilentDecay() {
 
   std::printf("  held peak %.6f, key-off peak %.4f\n", tailWhileHeld, keyOff);
 
-  check(keyOff > 0.05,
-        "and letting go sounds the key-off stage (" + std::to_string(keyOff) +
-            ")");
+  check(keyOff > 0.05, "and letting go sounds the key-off stage (" +
+                           std::to_string(keyOff) + ")");
 
   // It has to end, or a patch like this would pile up voices forever.
   std::vector<float> el((size_t)after), er((size_t)after);
@@ -3567,9 +3560,8 @@ void testEveryAmpShapeIsClickFree() {
               "%d\n",
               worst, worstShape);
 
-  check(worst < 3.0f,
-        "no shape steps more than the tone does by itself (" +
-            std::to_string(worst) + " times)");
+  check(worst < 3.0f, "no shape steps more than the tone does by itself (" +
+                          std::to_string(worst) + " times)");
 
   check(aboveFader <= 1.0f,
         "and none of them lifts a partial above its fader (" +
@@ -3719,7 +3711,6 @@ Stereo tone(size_t length, double freq, double sampleRate,
 }
 
 } // namespace
-
 
 void testTapeEcho() {
   section("Tape echo");
@@ -3957,8 +3948,7 @@ void testTapeEcho() {
 
       Stereo s((size_t)(sr * 3.0));
       for (size_t n = 0; n < s.l.size(); ++n)
-        s.l[n] = s.r[n] =
-            0.4f * std::sin(6.2831853 * 440.0 * (double)n / sr);
+        s.l[n] = s.r[n] = 0.4f * std::sin(6.2831853 * 440.0 * (double)n / sr);
 
       runBlocks(echo, s, tone);
 
@@ -3995,9 +3985,8 @@ void testTapeEcho() {
           "the lowest AGE the panel allows is already doubled (" +
               std::to_string(atFloor) + ")");
 
-    check(atFloor > 0.4,
-          "but not so far that the floor is a chorus (" +
-              std::to_string(atFloor) + ")");
+    check(atFloor > 0.4, "but not so far that the floor is a chorus (" +
+                             std::to_string(atFloor) + ")");
   }
 
   // ---- each side stays on its side ------------------------------------------
@@ -4028,9 +4017,8 @@ void testTapeEcho() {
 
     check(leftEcho > 0.1, "a repeat comes back on the side it went out on");
 
-    check(rightEcho < 1.0e-6,
-          "and nothing crosses to the other (" + std::to_string(rightEcho) +
-              ")");
+    check(rightEcho < 1.0e-6, "and nothing crosses to the other (" +
+                                  std::to_string(rightEcho) + ")");
   }
 }
 
@@ -4793,14 +4781,14 @@ void benchmarkLofi() {
     if (hz == 0)
       fullRate = load;
 
-    std::printf("  8 voices at %-10s %.2f%% of one core%s\n",
-                hz == 0 ? "host rate:" : (std::to_string(hz) + " Hz:").c_str(),
-                load,
-                hz == 0 ? ""
-                        : ("   (" + std::to_string((int)std::lround(
-                                        100.0 * load / fullRate)) +
-                           "% of full rate)")
-                              .c_str());
+    std::printf(
+        "  8 voices at %-10s %.2f%% of one core%s\n",
+        hz == 0 ? "host rate:" : (std::to_string(hz) + " Hz:").c_str(), load,
+        hz == 0 ? ""
+                : ("   (" +
+                   std::to_string((int)std::lround(100.0 * load / fullRate)) +
+                   "% of full rate)")
+                      .c_str());
 
     if (hz == 8000)
       check(load < fullRate * 0.6,

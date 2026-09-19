@@ -41,8 +41,7 @@ void Wobble::prepare(double newSampleRate) noexcept {
   lineL.assign((size_t)length, 0.0f);
   lineR.assign((size_t)length, 0.0f);
 
-  nudgeChase =
-      1.0f - (float)std::exp(-1.0 / (kNudgeChaseSeconds * sampleRate));
+  nudgeChase = 1.0f - (float)std::exp(-1.0 / (kNudgeChaseSeconds * sampleRate));
   nudgeDecay = (float)std::exp(-1.0 / (kNudgeDecaySeconds * sampleRate));
 
   reset();
@@ -114,8 +113,7 @@ void Wobble::process(float *left, float *right, int numSamples,
   // amount, which is what lets the control come up from zero without a step.
   const auto travel = depth * kMaxDepthSeconds * (float)sampleRate;
 
-  const auto glide =
-      (float)std::exp(-1.0 / (kOffsetGlideSeconds * sampleRate));
+  const auto glide = (float)std::exp(-1.0 / (kOffsetGlideSeconds * sampleRate));
 
   // Slips get both more frequent and larger as the control comes up.
   const auto nudgeChance =

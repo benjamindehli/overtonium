@@ -21,12 +21,12 @@
 #include "PluginParameters.h"
 #include "PluginProcessor.h"
 #include "Presets.h"
-#include "UpdateCheck.h"
 #include "UI/ChannelStrip.h"
-#include "UI/ShapeButton.h"
 #include "UI/NoiseStrip.h"
+#include "UI/ShapeButton.h"
 #include "UI/Theme.h"
 #include "UI/TopBar.h"
+#include "UpdateCheck.h"
 #include "dsp/Exact.h"
 #include "dsp/TapeEcho.h"
 
@@ -215,8 +215,8 @@ void testParameterWiring(OvertoniumProcessor &p) {
       return age->getText(normalised, 0).trim().toStdString();
     };
 
-    check(textAt(0.0f) == "0 %", "the bottom of the age knob reads 0 %, not " +
-                                     textAt(0.0f));
+    check(textAt(0.0f) == "0 %",
+          "the bottom of the age knob reads 0 %, not " + textAt(0.0f));
     check(textAt(1.0f) == "100 %",
           "the top of the age knob reads 100 %, not " + textAt(1.0f));
 
@@ -385,8 +385,8 @@ void testAftertouchMidi(OvertoniumProcessor &p) {
     return renderBlocks(p, 20, 512, m);
   };
 
-  check((int)std::lround(p.apvts.getRawParameterValue(ovt::params::atSourceId)
-                             ->load()) ==
+  check((int)std::lround(
+            p.apvts.getRawParameterValue(ovt::params::atSourceId)->load()) ==
             (int)ovt::params::AftertouchSource::Either,
         "either source is the default, so a wheel works out of the box");
 
@@ -546,7 +546,8 @@ void testMpe(OvertoniumProcessor &p) {
 
     check(p.getActiveVoiceCount() == 1,
           "with MPE off the same key on two channels is one voice, as before "
-          "(" + std::to_string(p.getActiveVoiceCount()) + ")");
+          "(" +
+              std::to_string(p.getActiveVoiceCount()) + ")");
 
     // ...and a key-up on a different channel from the key-down still stops it,
     // which is the omni behaviour a single-channel keyboard relies on.
@@ -657,8 +658,9 @@ void testMpe(OvertoniumProcessor &p) {
     // what the zone is set up with, so full travel is four octaves.
     check(moved > plain * 3.0,
           "and a bend on its own channel moves it, over the wide per-note "
-          "range (" + std::to_string(moved) + " Hz from " +
-              std::to_string(plain) + ")");
+          "range (" +
+              std::to_string(moved) + " Hz from " + std::to_string(plain) +
+              ")");
 
     panic();
   }
@@ -679,9 +681,8 @@ void testMpe(OvertoniumProcessor &p) {
     elsewhere.addEvent(juce::MidiMessage::channelPressureChange(5, 127), 0);
     play(16, elsewhere);
 
-    check(peak() < 0.01f,
-          "pressure on another channel does not reach it (" +
-              std::to_string(peak()) + ")");
+    check(peak() < 0.01f, "pressure on another channel does not reach it (" +
+                              std::to_string(peak()) + ")");
 
     juce::MidiBuffer own;
     own.addEvent(juce::MidiMessage::channelPressureChange(2, 127), 0);
@@ -797,7 +798,8 @@ void testActivityLamps(OvertoniumProcessor &p) {
     mergeIntoRows(bands);
 
     check(bands.size() == 2, "sixty-four lamps on two rules merge to two "
-                             "bands (" + std::to_string(bands.size()) + ")");
+                             "bands (" +
+                                 std::to_string(bands.size()) + ")");
 
     bool thin = true;
     for (const auto &b : bands)
@@ -874,18 +876,16 @@ void testActivityLamps(OvertoniumProcessor &p) {
                 "%.3f of full travel\n",
                 shallow, ChannelStrip::needlePosition(50.0f), deep);
 
-    check(shallow < 0.25f,
-          "a five cent wander stays near the middle (" +
-              std::to_string(shallow) + ")");
+    check(shallow < 0.25f, "a five cent wander stays near the middle (" +
+                               std::to_string(shallow) + ")");
 
     check(deep > 0.9f, "and a deep one nearly fills the travel (" +
                            std::to_string(deep) + ")");
 
     // ...but not so compressed that a shallow setting is invisible. Over
     // fifteen pixels of travel, a tenth is a pixel and a half.
-    check(shallow > 0.1f,
-          "while still being far enough out to see (" +
-              std::to_string(shallow) + ")");
+    check(shallow > 0.1f, "while still being far enough out to see (" +
+                              std::to_string(shallow) + ")");
 
     bool rising = true;
     for (float c = 0.0f; c < 220.0f; c += 5.0f)
@@ -933,9 +933,8 @@ void testActivityLamps(OvertoniumProcessor &p) {
     strip.setActivity(0.5f, 0.5f, 0.0f, bands);
 
     check(first > 0, "a lamp that lights asks to be repainted");
-    check(bands.isEmpty(),
-          "and the same values again ask for nothing (" +
-              std::to_string(bands.size()) + " bands)");
+    check(bands.isEmpty(), "and the same values again ask for nothing (" +
+                               std::to_string(bands.size()) + " bands)");
 
     // A move too small to cross a step is a move nobody can see.
     bands.clearQuick();
@@ -964,7 +963,8 @@ void testActivityLamps(OvertoniumProcessor &p) {
 
     check(bands.size() == 2,
           "flipping to the key-off half moves exactly two lamps, one out and "
-          "one in (" + std::to_string(bands.size()) + ")");
+          "one in (" +
+              std::to_string(bands.size()) + ")");
   }
 }
 
@@ -1042,11 +1042,10 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
       const auto v = (float)i / 100.0f;
 
       if (v > 0.0005f)
-        readings.add((juce::String)(juce::Decibels::gainToDecibels(v) >= 0.0f
-                                        ? ""
-                                        : "-") +
-                     juce::String(std::abs(juce::Decibels::gainToDecibels(v)),
-                                  1));
+        readings.add(
+            (juce::String)(juce::Decibels::gainToDecibels(v) >= 0.0f ? ""
+                                                                     : "-") +
+            juce::String(std::abs(juce::Decibels::gainToDecibels(v)), 1));
 
       // Cents run to about fifty either way, which is as far as any harmonic's
       // just interval sits from equal temperament.
@@ -1377,8 +1376,8 @@ void testChannelHover(OvertoniumProcessor &p) {
   first.mouseEnter(pointAt(first, inside));
 
   check(first.isHovered(), "the channel under the pointer lights");
-  check(litCount() == 1, "and it is the only one (" +
-                             std::to_string(litCount()) + ")");
+  check(litCount() == 1,
+        "and it is the only one (" + std::to_string(litCount()) + ")");
 
   // ---- crossing to the next one -------------------------------------------
   //
@@ -1413,8 +1412,8 @@ void testChannelHover(OvertoniumProcessor &p) {
   third.mouseExit(pointAt(third, {-4, inside.y}));
 
   check(nz.isHovered(), "the noise channel lights like any other");
-  check(litCount() == 1, "and nothing else is (" + std::to_string(litCount()) +
-                             ")");
+  check(litCount() == 1,
+        "and nothing else is (" + std::to_string(litCount()) + ")");
 
   // ---- leaving the mixer --------------------------------------------------
   nz.mouseExit(pointAt(nz, {inNoise.x, nz.getHeight() + 40}));
@@ -1602,9 +1601,9 @@ void testFactoryCodeGenerator(OvertoniumProcessor &p) {
       }
 
       if (statement.contains("ap.allOsc(params::")) {
-        const auto suffix = suffixOf(
-            statement.fromFirstOccurrenceOf("params::", false, false)
-                .upToFirstOccurrenceOf(",", false, false));
+        const auto suffix =
+            suffixOf(statement.fromFirstOccurrenceOf("params::", false, false)
+                         .upToFirstOccurrenceOf(",", false, false));
         const auto value =
             statement.fromFirstOccurrenceOf("return ", false, false)
                 .upToFirstOccurrenceOf(";", false, false);
@@ -1617,9 +1616,9 @@ void testFactoryCodeGenerator(OvertoniumProcessor &p) {
       }
 
       if (statement.contains("ap.oscTable(params::")) {
-        const auto suffix = suffixOf(
-            statement.fromFirstOccurrenceOf("params::", false, false)
-                .upToFirstOccurrenceOf(",", false, false));
+        const auto suffix =
+            suffixOf(statement.fromFirstOccurrenceOf("params::", false, false)
+                         .upToFirstOccurrenceOf(",", false, false));
 
         const auto body = statement.fromFirstOccurrenceOf("{", false, false)
                               .upToFirstOccurrenceOf("}", false, false);
@@ -1686,13 +1685,12 @@ void testFactoryCodeGenerator(OvertoniumProcessor &p) {
     }
   }
 
-  std::printf("  %d presets round-tripped, worst error %.6f%s\n", count,
-              worstError,
-              worstParam.empty()
-                  ? ""
-                  : (" on " + worstParam + " in " +
-                     ovt::presets::names()[worstPreset].toStdString())
-                        .c_str());
+  std::printf(
+      "  %d presets round-tripped, worst error %.6f%s\n", count, worstError,
+      worstParam.empty() ? ""
+                         : (" on " + worstParam + " in " +
+                            ovt::presets::names()[worstPreset].toStdString())
+                               .c_str());
 
   // The generator writes values to four decimal places, so anything under a
   // thousandth is the printing rather than a parameter going missing.
@@ -1785,8 +1783,7 @@ void testBothPresetKindsCarryTheSame() {
     const auto doc = ovt::presets::capture(p.apvts, "Probe");
 
     for (auto *entry : doc->getChildWithTagNameIterator("PARAM"))
-      storedByUser.insert(
-          entry->getStringAttribute("id").toStdString());
+      storedByUser.insert(entry->getStringAttribute("id").toStdString());
   }
 
   std::vector<std::string> onlyFactory, onlyUser, sessionLeaks;
@@ -1900,8 +1897,8 @@ void testOversizedBlocks(OvertoniumProcessor &p) {
   for (auto v : honest)
     loudest = std::max(loudest, std::abs((double)v));
 
-  check(loudest > 0.01, "the passage is audible (" + std::to_string(loudest) +
-                            ")");
+  check(loudest > 0.01,
+        "the passage is audible (" + std::to_string(loudest) + ")");
 
   // A block far larger than the floor the scratch is given, so it really is
   // cut into many pieces rather than one or two.
@@ -2912,9 +2909,8 @@ void testShapeButtonFollowsTheParameter(OvertoniumProcessor &p) {
   // sound as they did before shapes existed.
   p.applyFactoryPreset(ovt::presets::names().indexOf("Drawbar Organ"));
 
-  check(shown() == "Sine",
-        "and loading a preset puts it back to sine (" + shown().toStdString() +
-            ")");
+  check(shown() == "Sine", "and loading a preset puts it back to sine (" +
+                               shown().toStdString() + ")");
 }
 
 /// A preset tells the host what changed, and nothing else.
@@ -3476,11 +3472,10 @@ void testNoDeadTravel(OvertoniumProcessor &p) {
     }
   }
 
-  check(inexact == 0, "every parameter holds the default it is given (" +
-                          std::to_string(inexact) + " do not" +
-                          (inexact ? ", such as " + worstDefault.toStdString()
-                                   : "") +
-                          ")");
+  check(inexact == 0,
+        "every parameter holds the default it is given (" +
+            std::to_string(inexact) + " do not" +
+            (inexact ? ", such as " + worstDefault.toStdString() : "") + ")");
 
   // And the shortest attack really is 0.2 ms, not a number that rounds to it.
   const auto attackId = ovt::params::oscParamId(ovt::params::attackSuffix, 0);
@@ -3788,8 +3783,7 @@ void testPrograms(OvertoniumProcessor &p) {
         "the plugin's own menu reaches a preset past the program count");
 
   p.applyFactoryPreset(names.size() - 1);
-  check(p.getCurrentProgram() == names.size() - 1,
-        "including the last one");
+  check(p.getCurrentProgram() == names.size() - 1, "including the last one");
 
   p.applyFactoryPreset(names.size());
   check(p.getCurrentProgram() == names.size() - 1,
@@ -4010,8 +4004,7 @@ void testCollapsibleSections() {
   check(headingSectionAt(open, open[(size_t)Row::Attack].getCentre()) ==
             Section::NumSections,
         "a click on a knob row names no section");
-  check(headingSectionAt(folded,
-                         folded[(size_t)Row::EnvHeading].getCentre()) ==
+  check(headingSectionAt(folded, folded[(size_t)Row::EnvHeading].getCentre()) ==
             Section::Envelope,
         "the heading of a folded section is still the way back");
 }
@@ -4340,11 +4333,11 @@ void testMpeSlide() {
   // ---- a controller whose slide rests at one end --------------------------
   //
   // An Expressive E Osmose spends the first part of the key travel on pressure
-  // and only then starts sending CC74, from the bottom of its range upward. Read
-  // as a position that is the far dark end of the slide, so engaging the axis
-  // used to take the note abruptly darker before it began to brighten. Read as
-  // a movement it is the note's rest, and the patch is left alone until the
-  // finger actually goes somewhere.
+  // and only then starts sending CC74, from the bottom of its range upward.
+  // Read as a position that is the far dark end of the slide, so engaging the
+  // axis used to take the note abruptly darker before it began to brighten.
+  // Read as a movement it is the note's rest, and the patch is left alone until
+  // the finger actually goes somewhere.
   setParam(ovt::params::slideDestId, (float)ovt::SlideDestination::Brightness);
 
   const auto engaged = rms(0, 0);
@@ -4356,12 +4349,13 @@ void testMpeSlide() {
 
   check(std::abs(engaged - untouched) < untouched * 0.01,
         "a slide that rests at the bottom starts on the patch rather than "
-        "darker than it (" + std::to_string(engaged) + " against " +
-            std::to_string(untouched) + ")");
+        "darker than it (" +
+            std::to_string(engaged) + " against " + std::to_string(untouched) +
+            ")");
 
-  check(pressedOn > engaged * 1.1,
-        "and pressing on from there brightens (" + std::to_string(engaged) +
-            " to " + std::to_string(pressedOn) + ")");
+  check(pressedOn > engaged * 1.1, "and pressing on from there brightens (" +
+                                       std::to_string(engaged) + " to " +
+                                       std::to_string(pressedOn) + ")");
 
   // The whole axis reaches the whole effect wherever it set out from, or a
   // controller resting at one end would have twice the reach of one resting in

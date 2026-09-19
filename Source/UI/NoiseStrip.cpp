@@ -22,8 +22,8 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
       amShape(state, params::noiseParamId(params::amShapeSuffix),
               params::amShapeSuffix, params::kAmpShapes,
               params::ampShapeNames()),
-      muteButton(state, "M"), soloButton(state, "S"),
-      meter(kNoiseColour), envLamp(kNoiseColour), keyOffLamp(kNoiseColour),
+      muteButton(state, "M"), soloButton(state, "S"), meter(kNoiseColour),
+      envLamp(kNoiseColour), keyOffLamp(kNoiseColour),
       tremoloLamp(kNoiseColour) {
   for (auto *lamp : {&envLamp, &keyOffLamp, &tremoloLamp})
     addAndMakeVisible(*lamp);
@@ -271,8 +271,7 @@ void NoiseStrip::paint(juce::Graphics &g) {
   // Start phase and the whole pitch modulation block have nothing to show, so
   // say so once rather than leaving a stretch of blank panel that looks like a
   // drawing bug. Noise has no phase to start at any more than it has a pitch.
-  auto absent =
-      rows[rowIndex(Row::Phase)].getUnion(rows[rowIndex(Row::Drift)]);
+  auto absent = rows[rowIndex(Row::Phase)].getUnion(rows[rowIndex(Row::Drift)]);
 
   g.setColour(colours::textDim.withAlpha(0.5f));
   g.setFont(makeFont(9.0f));

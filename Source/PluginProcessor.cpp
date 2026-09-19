@@ -2,8 +2,8 @@
 #include "Presets.h"
 
 juce::AudioProcessor::BusesProperties OvertoniumProcessor::buses() {
-  return BusesProperties().withOutput("Output",
-                                      juce::AudioChannelSet::stereo(), true);
+  return BusesProperties().withOutput("Output", juce::AudioChannelSet::stereo(),
+                                      true);
 }
 
 OvertoniumProcessor::OvertoniumProcessor()

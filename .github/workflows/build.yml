@@ -302,9 +302,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
-    # The docs, the readme and the workflows are the parts of this repository
-    # that are not C++, so clang-format never sees them. Prettier does, and
-    # checking rather than writing means a pull request says so instead of
+    # Two formatters, because this repository is two things. Prettier covers the
+    # docs, the readme and the workflows, and clang-format covers the C++.
+    # Checking rather than writing means a pull request says so instead of
     # arriving with a reformat mixed into the change it was actually making.
     steps:
       - uses: actions/checkout@v7
@@ -321,6 +321,33 @@ jobs:
       - run: npm ci
 
       - run: npm run format:check
+
+      # Pinned for the reason above, and from pip rather than apt because the
+      # runner's apt version follows the image and would change under us
+      # without anything in this repository saying so. CONTRIBUTING names the
+      # same version, so a developer and this job format alike.
+      - run: pip install clang-format==23.1.1
+
+      - name: The C++ is clang-format clean
+        run: |
+          files=$(find Source Tests Tools -name '*.cpp' -o -name '*.h' | sort)
+
+          echo "$(echo "$files" | wc -l) files"
+
+          # --dry-run reports, -Werror makes reporting a failure. The diff is
+          # printed as well, since "file X is not formatted" without saying how
+          # is a check nobody can act on without running it themselves.
+          clang-format --style=LLVM --dry-run -Werror $files || {
+            echo "::error::run clang-format -i over the files above"
+
+            for f in $files; do
+              clang-format --style=LLVM "$f" | diff -u "$f" - || true
+            done
+
+            exit 1
+          }
+
+          echo "every file is already formatted"
 
   sanitizers:
     name: Sanitizers

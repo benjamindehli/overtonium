@@ -15,7 +15,7 @@ juce::String entry(const juce::String &text, int count) {
 } // namespace
 
 MuteSoloButton::MuteSoloButton(juce::AudioProcessorValueTreeState &state,
-                              const juce::String &label)
+                               const juce::String &label)
     : juce::TextButton(label), apvts(state) {
   setClickingTogglesState(true);
 }
@@ -44,16 +44,15 @@ void MuteSoloButton::mouseDown(const juce::MouseEvent &e) {
 
   auto menu = buildMenu();
 
-  menu.showMenuAsync(
-      juce::PopupMenu::Options()
-          .withTargetComponent(this)
-          .withStandardItemHeight(22),
-      [this](int result) {
-        if (result == kClearMutes)
-          params::clearChannelSwitch(apvts, params::muteSuffix);
-        else if (result == kClearSolos)
-          params::clearChannelSwitch(apvts, params::soloSuffix);
-      });
+  menu.showMenuAsync(juce::PopupMenu::Options()
+                         .withTargetComponent(this)
+                         .withStandardItemHeight(22),
+                     [this](int result) {
+                       if (result == kClearMutes)
+                         params::clearChannelSwitch(apvts, params::muteSuffix);
+                       else if (result == kClearSolos)
+                         params::clearChannelSwitch(apvts, params::soloSuffix);
+                     });
 }
 
 } // namespace ovt::ui

@@ -48,10 +48,11 @@ const juce::Image &grainTile() {
         // lets the few strong grains carry it.
         const auto n = rng.nextFloat() - 0.5f;
         const auto shaped = n * n * n * 8.0f;
-        const auto level = (juce::uint8)juce::jlimit(
-            0, 255, 128 + (int)(shaped * 255.0f));
-        data.setPixelColour(x, y, juce::Colour(level, level, level)
-                                      .withAlpha(std::abs(shaped)));
+        const auto level =
+            (juce::uint8)juce::jlimit(0, 255, 128 + (int)(shaped * 255.0f));
+        data.setPixelColour(
+            x, y,
+            juce::Colour(level, level, level).withAlpha(std::abs(shaped)));
       }
     }
 
@@ -138,8 +139,8 @@ void paintDisplayGround(juce::Graphics &g, juce::Rectangle<float> area,
   g.setColour(colours::groove);
   g.fillRoundedRectangle(area, corner);
 
-  g.setColour(colours::accent.withAlpha(hovered ? kDisplayWashHover
-                                                : kDisplayWash));
+  g.setColour(
+      colours::accent.withAlpha(hovered ? kDisplayWashHover : kDisplayWash));
   g.fillRoundedRectangle(area, corner);
 }
 
@@ -151,15 +152,14 @@ void strokeGlowing(juce::Graphics &g, const juce::Path &path,
   };
 
   // Widest and faintest first, so each pass lands on the one before it.
-  const Pass passes[] = {{thickness * 3.2f, 0.10f},
-                         {thickness * 1.9f, 0.18f},
-                         {thickness, 1.0f}};
+  const Pass passes[] = {
+      {thickness * 3.2f, 0.10f}, {thickness * 1.9f, 0.18f}, {thickness, 1.0f}};
 
   for (const auto &pass : passes) {
     g.setColour(colour.withMultipliedAlpha(pass.alpha));
-    g.strokePath(path, juce::PathStrokeType(pass.width,
-                                            juce::PathStrokeType::curved,
-                                            juce::PathStrokeType::rounded));
+    g.strokePath(path,
+                 juce::PathStrokeType(pass.width, juce::PathStrokeType::curved,
+                                      juce::PathStrokeType::rounded));
   }
 }
 
@@ -542,8 +542,7 @@ void OvertoniumLookAndFeel::drawLinearSlider(
   // The lip catches the light off centre, so it says glass rather than
   // dividing the cap in half.
   g.setColour(juce::Colours::white.withAlpha(0.26f * dim));
-  g.fillRect(cap.getX() + 2.5f, cap.getY() + 1.5f, cap.getWidth() - 5.0f,
-             1.0f);
+  g.fillRect(cap.getX() + 2.5f, cap.getY() + 1.5f, cap.getWidth() - 5.0f, 1.0f);
 }
 
 void OvertoniumLookAndFeel::drawButtonBackground(

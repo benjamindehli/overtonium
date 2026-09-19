@@ -89,8 +89,7 @@ bool writePng(juce::Component &editor, juce::Rectangle<int> area, float scale,
   }
 
   if (!juce::PNGImageFormat().writeImageToStream(image, stream)) {
-    std::printf("encoding failed for %s\n",
-                file.getFullPathName().toRawUTF8());
+    std::printf("encoding failed for %s\n", file.getFullPathName().toRawUTF8());
     return false;
   }
 
@@ -182,9 +181,8 @@ int main(int argc, char **argv) {
     auto &strip = *strips[(size_t)i];
 
     strip.setMeterLevel(plugin.getPartialLevel(i));
-    strip.setActivity(plugin.getPartialEnvelope(i),
-                      plugin.getPartialTremolo(i), plugin.getPartialPitch(i),
-                      lamps);
+    strip.setActivity(plugin.getPartialEnvelope(i), plugin.getPartialTremolo(i),
+                      plugin.getPartialPitch(i), lamps);
     lamps.clearQuick();
   }
 

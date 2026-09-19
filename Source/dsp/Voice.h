@@ -4,9 +4,9 @@
 #include <cstdint>
 
 #include "Drift.h"
-#include "Lfo.h"
 #include "Envelope.h"
 #include "Harmonics.h"
+#include "Lfo.h"
 #include "Params.h"
 #include "Velocity.h"
 

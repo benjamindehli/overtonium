@@ -77,10 +77,10 @@ inline constexpr const char *panSuffix = "pan";
 /// Order is storage, not presentation: an index travels in every preset and
 /// every session, so entries are appended and never inserted or removed.
 inline const std::array<LfoShape, 8> kPitchShapes{
-    LfoShape::Sine,           LfoShape::Triangle,
-    LfoShape::Sawtooth,       LfoShape::ReverseSawtooth,
-    LfoShape::BipolarSquare,  LfoShape::UnipolarSquare,
-    LfoShape::SampleAndHold,  LfoShape::Random};
+    LfoShape::Sine,          LfoShape::Triangle,
+    LfoShape::Sawtooth,      LfoShape::ReverseSawtooth,
+    LfoShape::BipolarSquare, LfoShape::UnipolarSquare,
+    LfoShape::SampleAndHold, LfoShape::Random};
 
 inline const std::array<LfoShape, 7> kAmpShapes{
     LfoShape::Sine,          LfoShape::Triangle,
@@ -278,9 +278,9 @@ juce::String polyphonyName(int index);
 /// Named here rather than in Presets.cpp so the code that honours the rule and
 /// the test that checks it cannot come to disagree about what the rule is.
 inline const std::array<const char *, 12> kSessionParamIds{
-    masterGainId,  polyphonyId,   bendRangeId,   atSourceId,
-    safetyClipId,  referenceHzId, temperamentId, tuningRootId,
-    mpeId,         slideDestId,   oneVoicePerKeyId, phaseResetId};
+    masterGainId, polyphonyId,   bendRangeId,      atSourceId,
+    safetyClipId, referenceHzId, temperamentId,    tuningRootId,
+    mpeId,        slideDestId,   oneVoicePerKeyId, phaseResetId};
 
 /// Whether `id` is one of those, for the several places that have to ask.
 inline bool isSessionParam(juce::StringRef id) {
@@ -327,9 +327,8 @@ inline const std::array<const char *, 12> kPitchClassNames{
 /// Reference pitches worth offering, in parameter order. Baroque at one end,
 /// old concert pitch at the other, and the handful of values orchestras
 /// actually use in between.
-inline const std::array<int, 11> kReferenceHzChoices{415, 430, 432, 435, 438,
-                                                     440, 442, 443, 444, 446,
-                                                     466};
+inline const std::array<int, 11> kReferenceHzChoices{
+    415, 430, 432, 435, 438, 440, 442, 443, 444, 446, 466};
 
 /// What drives the per-channel AT amount, in parameter order.
 ///
@@ -343,7 +342,6 @@ inline const std::array<int, 11> kReferenceHzChoices{415, 430, 432, 435, 438,
 /// channel, there is nothing ambiguous about where it should go, and it stays
 /// routed whatever this says.
 enum class AftertouchSource { ChannelPressure = 0, ModWheel, Either };
-
 
 inline const juce::StringArray slideDestChoices{"Off", "Brightness", "Tuning"};
 

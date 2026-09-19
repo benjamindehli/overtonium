@@ -37,8 +37,8 @@ public:
 
   /// Draws one turn of a shape inside `area`. Free of any parameter, so the
   /// menu and the docs renderer can use it too.
-  static void drawShape(juce::Graphics &, juce::Rectangle<float> area,
-                        LfoShape, juce::Colour);
+  static void drawShape(juce::Graphics &, juce::Rectangle<float> area, LfoShape,
+                        juce::Colour);
 
   /// Which entry of the list is selected, or 0 if the parameter has gone.
   int selectedIndex() const;

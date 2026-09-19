@@ -220,8 +220,7 @@ void Voice::noteOn(int channel, int note, float velocity,
   }
 }
 
-void Voice::noteOnLegato(int channel, int note,
-                         const SynthParams &p) noexcept {
+void Voice::noteOnLegato(int channel, int note, const SynthParams &p) noexcept {
   retune(channel, note,
          noteFrequency(note, p.global.temperament, p.global.tuningRoot,
                        p.global.referenceHz));
@@ -371,11 +370,10 @@ void Voice::render(float *left, float *right, int numSamples,
       // wander already in progress instead of jumping.
       const double driftCents = (double)(pt.drift.advance(rng) * op.driftCents);
 
-      const double semis =
-          semitoneOffset(i, (double)blendOf(p, i),
-                         (double)p.global.stretchCents) +
-          (pmCents + driftCents) * 0.01 +
-          (double)(p.global.bendSemitones + noteBendSemitones);
+      const double semis = semitoneOffset(i, (double)blendOf(p, i),
+                                          (double)p.global.stretchCents) +
+                           (pmCents + driftCents) * 0.01 +
+                           (double)(p.global.bendSemitones + noteBendSemitones);
 
       const double freq = baseFreq * std::exp2(semis / 12.0);
 
@@ -397,10 +395,10 @@ void Voice::render(float *left, float *right, int numSamples,
       const float amStart =
           tremoloGain(pt.ampLfo.value(op.amShape, kAmpShapeOffset), op.amDepth);
 
-      const float amEnd = tremoloGain(
-          pt.ampLfo.advance(rng, amPhaseInc * (double)len, op.amShape,
-                            kAmpShapeOffset),
-          op.amDepth);
+      const float amEnd =
+          tremoloGain(pt.ampLfo.advance(rng, amPhaseInc * (double)len,
+                                        op.amShape, kAmpShapeOffset),
+                      op.amDepth);
 
       const float nyq = foldAliases ? 1.0f : nyquistGain(freq, sampleRate);
 
@@ -413,8 +411,7 @@ void Voice::render(float *left, float *right, int numSamples,
           std::clamp(op.volume * pt.velGain +
                          std::clamp(op.atAmount, -1.0f, 1.0f) * pressure,
                      0.0f, 1.0f);
-      const float base =
-          op.audible ? level * nyq * track[(size_t)i] : 0.0f;
+      const float base = op.audible ? level * nyq * track[(size_t)i] : 0.0f;
       const float gEnd = base * amEnd;
 
       if (!pt.gainPrimed) {
@@ -447,8 +444,8 @@ void Voice::render(float *left, float *right, int numSamples,
       // two that run after the key is up, and they are the ones the second
       // lamp takes over.
       const auto stage = pt.env.getStage();
-      const auto afterKeyOff = stage == Envelope::Stage::Swell ||
-                               stage == Envelope::Stage::Release;
+      const auto afterKeyOff =
+          stage == Envelope::Stage::Swell || stage == Envelope::Stage::Release;
 
       partialEnvelopes[(size_t)i] =
           afterKeyOff ? -pt.env.getLevel() : pt.env.getLevel();
@@ -525,10 +522,10 @@ void Voice::renderNoise(float *left, float *right, int len,
   const float amStart =
       tremoloGain(noise.ampLfo.value(np.amShape, kAmpShapeOffset), np.amDepth);
 
-  const float amEnd = tremoloGain(
-      noise.ampLfo.advance(noise.rng, amPhaseInc * (double)len, np.amShape,
-                           kAmpShapeOffset),
-      np.amDepth);
+  const float amEnd =
+      tremoloGain(noise.ampLfo.advance(noise.rng, amPhaseInc * (double)len,
+                                       np.amShape, kAmpShapeOffset),
+                  np.amDepth);
 
   const float level =
       std::clamp(np.volume * noise.velGain +
@@ -550,11 +547,10 @@ void Voice::renderNoise(float *left, float *right, int len,
 
   {
     const auto stage = noise.env.getStage();
-    const auto afterKeyOff = stage == Envelope::Stage::Swell ||
-                             stage == Envelope::Stage::Release;
+    const auto afterKeyOff =
+        stage == Envelope::Stage::Swell || stage == Envelope::Stage::Release;
 
-    noiseEnvelope =
-        afterKeyOff ? -noise.env.getLevel() : noise.env.getLevel();
+    noiseEnvelope = afterKeyOff ? -noise.env.getLevel() : noise.env.getLevel();
     noiseTremolo = 1.0f - amEnd;
   }
 

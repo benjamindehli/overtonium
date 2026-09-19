@@ -286,10 +286,9 @@ void SegmentDisplay::paint(juce::Graphics &g) {
 
   // A point costs about a third of a digit, which is what the extra term in
   // the denominator is buying.
-  const auto cellW =
-      juce::jmin((area.getWidth() - unitW) /
-                     ((float)cells + 0.32f * (float)points),
-                 area.getHeight() * 0.72f);
+  const auto cellW = juce::jmin((area.getWidth() - unitW) /
+                                    ((float)cells + 0.32f * (float)points),
+                                area.getHeight() * 0.72f);
 
   const auto glyphW = cellW * 0.82f;
   const auto pointW = cellW * 0.32f;
@@ -607,9 +606,8 @@ void LevelMeter::paint(juce::Graphics &g) {
   // having to repaint.
   if (onNow > 0) {
     const auto litTop = track.getBottom() - (float)onNow * step;
-    const auto run = juce::Rectangle<float>(track.getX(), litTop,
-                                            track.getWidth(),
-                                            track.getBottom() - litTop);
+    const auto run = juce::Rectangle<float>(
+        track.getX(), litTop, track.getWidth(), track.getBottom() - litTop);
 
     const auto room = juce::jmax(0.0f, (full.getWidth() - trackW) * 0.5f);
     const auto spread = juce::jmin(kMeterGlowSpread, room);
@@ -655,10 +653,9 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   // owns it rather than being swallowed by the control.
   addMouseListener(this, true);
 
-  for (juce::Component *lamp : {(juce::Component *)&pitchLamp,
-                                (juce::Component *)&envLamp,
-                                (juce::Component *)&keyOffLamp,
-                                (juce::Component *)&tremoloLamp})
+  for (juce::Component *lamp :
+       {(juce::Component *)&pitchLamp, (juce::Component *)&envLamp,
+        (juce::Component *)&keyOffLamp, (juce::Component *)&tremoloLamp})
     addAndMakeVisible(*lamp);
 
   // The strip decides the pointer for everything on it, which is how the LINK
@@ -838,8 +835,8 @@ void ChannelStrip::updateTuneReadout() {
     // Nothing shuffles as a result. A harmonic's just interval sits on one
     // side of equal temperament or the other and stays there, so a given
     // channel's reading never changes sign.
-    text = std::abs(cents) < 0.05 ? juce::String("0.0")
-                                  : juce::String(cents, 1);
+    text =
+        std::abs(cents) < 0.05 ? juce::String("0.0") : juce::String(cents, 1);
   }
 
   tuneReadout.setReading(text, active);
@@ -1242,8 +1239,8 @@ void ChannelStrip::setActivity(float envelope, float tremolo, float pitch,
   // kParked is anything past the ends of the travel.
   constexpr float kParked = -3.0f;
 
-  refresh(pitchLamp, pitchLamp.push(level <= 0.0f ? kParked
-                                                  : needlePosition(pitch)));
+  refresh(pitchLamp,
+          pitchLamp.push(level <= 0.0f ? kParked : needlePosition(pitch)));
 }
 
 } // namespace ovt::ui

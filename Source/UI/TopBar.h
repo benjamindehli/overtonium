@@ -35,7 +35,6 @@ public:
   void paint(juce::Graphics &) override;
 
 private:
-
   /// How many lamps fit across the meter.
   int segments() const;
 
@@ -174,9 +173,8 @@ private:
   };
 
   void addKnob(std::vector<Control> &into, const juce::String &group,
-               const juce::String &caption,
-               const juce::String &paramId, const juce::String &tooltip,
-               juce::Component &popupParent);
+               const juce::String &caption, const juce::String &paramId,
+               const juce::String &tooltip, juce::Component &popupParent);
 
   /// Polyphony, bend range and the two output switches. All of them are set
   /// once and left, which is a menu rather than a panel.
@@ -191,7 +189,6 @@ public:
   juce::PopupMenu buildSettingsMenu();
 
 private:
-
   /// The factory list, then whatever has been saved, then what can be done
   /// with them.
   void showPresetMenu();
@@ -211,11 +208,9 @@ public:
   juce::PopupMenu buildPresetMenu();
 
 private:
-
   /// The converter lists. Hung off the readout that opens them, and built here
   /// rather than inline so the readout and anything else share one list.
-  void showConverterMenu(const char *paramId,
-                         const juce::StringArray &choices,
+  void showConverterMenu(const char *paramId, const juce::StringArray &choices,
                          juce::Component *anchor);
 
   /// Asks for a name and hands it back. Its own window, since a menu cannot
