@@ -6,13 +6,13 @@ For what it is and how to get it, see the [readme](README.md). For how the code 
 
 ## Presets
 
-Twenty-eight ship with it, listed alphabetically. Most were dialled in by hand on the panel and converted straight from the saved file, so what ships is what was played rather than something written afterwards to approximate it. Where a row of the mixer has a shape the preset says so, as the saws do with `1.0 / n`, and where it was drawn by hand the thirty-two values are written out as a list so the curve is at least visible.
+Thirty-one ship with it, listed alphabetically. Most were dialled in by hand on the panel and converted straight from the saved file, so what ships is what was played rather than something written afterwards to approximate it. Where a row of the mixer has a shape the preset says so, as the saws do with `1.0 / n`, and where it was drawn by hand the thirty-two values are written out as a list so the curve is at least visible.
 
 _Init_ is one of them rather than a reset to the parameter defaults. It clears the patch down to a short, bright three-partial pluck, which is a better place to start building from than silence. Like every other preset it leaves the session alone, so your tuning, polyphony, bend range and master fader survive loading it.
 
 What counts as the session is drawn along the interface rather than decided case by case: everything the Settings menu offers, plus the master fader. The menu is where the instrument is set up and the panel is where the sound is made, so a control's place says which it is, and adding a setting means adding it to `kSessionParamIds` in the same commit. Both kinds of preset are held to that list and to each other. A preset you save carries the same set of controls a factory one does, which a test checks by comparing what `capture` writes against what `neutralBase` decides, in both directions.
 
-Twenty-three of them use STRETCH or TRACK, since most of them are modelling something with a body. Picking odd partials was always a stand-in for inharmonicity, and five of these have the real thing on top of it:
+Twenty-six of them use STRETCH or TRACK, since most of them are modelling something with a body. Picking odd partials was always a stand-in for inharmonicity, and six of these have the real thing on top of it:
 
 | Preset           | Stretch  | Tracking   | Why                                                                                                               |
 | ---------------- | -------- | ---------- | ----------------------------------------------------------------------------------------------------------------- |
@@ -21,10 +21,12 @@ Twenty-three of them use STRETCH or TRACK, since most of them are modelling some
 | DigiLog          | +30 ct   | 3.0 dB/oct | the series steps in from the bottom over five seconds, so the stretch is heard as arrival rather than as detuning |
 | Dire Dire EP     | +8 ct    | 6.0 dB/oct | steep tracking is what keeps it soft under the fingers rather than glassy                                         |
 | Drawbar Organ    |          | 3.2 dB/oct |                                                                                                                   |
+| Dream Phase      |          | 2.6 dB/oct |                                                                                                                   |
 | EP Chimes        | -1200 ct | 1.4 dB/oct | a whole octave of collapse on the 32nd partial, which is an artefact rather than an instrument                    |
 | Equal Saw        |          | 1.0 dB/oct |                                                                                                                   |
 | FM Piano         |          | 2.1 dB/oct |                                                                                                                   |
 | Glass Armonica   | +180 ct  | 4.0 dB/oct | barely any, but enough that the upper partials beat against the fundamental instead of locking to it              |
+| Glockenspiel     | -294 ct  | 3.9 dB/oct | a bar rings nowhere near whole numbers, and here STRETCH pulls the series in rather than spreading it             |
 | Just Saw         |          | 1.0 dB/oct |                                                                                                                   |
 | Lo-fi            |          | 4.0 dB/oct |                                                                                                                   |
 | Metallic Piano   | +24 ct   | 9.0 dB/oct | a piano string is stiff, and a thin one rings further from whole numbers                                          |
@@ -33,6 +35,7 @@ Twenty-three of them use STRETCH or TRACK, since most of them are modelling some
 | Omni-84          |          | 7.0 dB/oct |                                                                                                                   |
 | Slow Pad         |          | 2.5 dB/oct |                                                                                                                   |
 | Space Flute      | +154 ct  | 2.0 dB/oct | far enough out that the upper partials stop belonging to the note, which is what makes it breathy                 |
+| Sparkle Pad      | +81 ct   | 0.7 dB/oct | the sparkle is the top of the series, so the tracking is kept out of its way                                      |
 | Stepped          | +0.5 ct  | 2.0 dB/oct | a hair of it, so the partials that are not jumping still beat against each other                                  |
 | StyloPoly        | +0.3 ct  | 0.4 dB/oct | barely any of either: a Stylophone is a reed rather than a body, and thinning it would take the buzz away         |
 | Synth Ensemble   | +10 ct   | 3.0 dB/oct | just enough that no two partials lock, which is the difference between an ensemble and one player                 |
@@ -44,7 +47,7 @@ _Cathedral_ is a principal chorus arriving slowly, in a nine second room. _Glass
 
 Three of them are after a particular instrument. _Wurli_ is a Wurlitzer 200A, _Metallic Piano_ a thin, metallic upright, and _Omni-84_ the SonicStrings Voice 2 from a Suzuki Omnichord OM-84 System Two.
 
-Four of them use the converter rather than avoiding it. _Big Saw_ and _Metallic Piano_ quantise to 8 bits at the host's own rate. _Lo-fi_ runs the whole voice pool at 8 kHz and 8 bits, and _2-bit Fuzz Organ_ at 8 kHz and 2 bits, where the aliasing and the quantisation noise are the distortion rather than an effect laid over the top. On that one the aftertouch blends the root note towards a fifth.
+Eleven of them have the converter on at all, and four are made of it. _Big Saw_ and _Metallic Piano_ quantise to 8 bits at the host's own rate. _Lo-fi_ runs the whole voice pool at 8 kHz and 8 bits, and _2-bit Fuzz Organ_ at 8 kHz and 2 bits, where the aliasing and the quantisation noise are the distortion rather than an effect laid over the top. On that one the aftertouch blends the root note towards a fifth.
 
 _Drawbar Organ_ and _Cathedral_ are deliberately left alone by STRETCH. A drawbar organ is electric and a pipe organ is voiced rank by rank, so neither loses its top as you play up, and pretending otherwise would be modelling the wrong instrument. So are the saws, where the raw spectrum is the point.
 
