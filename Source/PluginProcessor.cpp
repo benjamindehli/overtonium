@@ -12,6 +12,20 @@ OvertoniumProcessor::OvertoniumProcessor()
             ovt::params::createParameterLayout()) {
   paramCache.connect(apvts);
   mpeInstrument.addListener(this);
+
+  // Slow, because the only thing it carries is a preset asked for over MIDI.
+  // Fifty milliseconds is shorter than a thirty-second note at 120 bpm, so a
+  // program change sent ahead of the phrase it is for arrives in time, and a
+  // tick this cheap can be left running with no window open, which is where a
+  // program change still has to work.
+  startTimerHz(20);
+}
+
+OvertoniumProcessor::~OvertoniumProcessor() {
+  // Before anything else goes. Timer is a base class, so it is not destroyed
+  // until last, and a tick that arrives while the members above it are being
+  // torn down calls a virtual on an object that is half gone.
+  stopTimer();
 }
 
 void OvertoniumProcessor::prepareToPlay(double sampleRate,
@@ -200,8 +214,10 @@ void OvertoniumProcessor::handleMidiMessage(const juce::MidiMessage &m) {
       mpeInstrument.releaseAllNotes(); // or it goes on holding notes that are
                                        // already gone from the pool
 
-    const bool leftOver =
-        (m.isController() && m.getControllerNumber() == 1) || m.isAllSoundOff();
+    // A program change is nothing to do with playing a note either, and an MPE
+    // controller sends it on a member channel like everything else it sends.
+    const bool leftOver = (m.isController() && m.getControllerNumber() == 1) ||
+                          m.isAllSoundOff() || m.isProgramChange();
 
     if (!leftOver)
       return;
@@ -244,7 +260,36 @@ void OvertoniumProcessor::handleOrdinaryMidiMessage(
     // not something a panic message should silently move.
     channelPressure = 0.0f;
     updateAftertouch();
+  } else if (m.isProgramChange()) {
+    // Written down rather than acted on. See pendingProgram for why the audio
+    // thread cannot be the one to load it.
+    //
+    // Nor range checked. A program change can name any of 128 programs and
+    // there are fewer presets than that, so most of what it can say names
+    // nothing, and deciding that belongs where the list is read.
+    pendingProgram.store(m.getProgramChangeNumber(), std::memory_order_relaxed);
   }
+}
+
+void OvertoniumProcessor::timerCallback() { applyPendingProgramChange(); }
+
+void OvertoniumProcessor::applyPendingProgramChange() {
+  const int index = pendingProgram.exchange(-1, std::memory_order_relaxed);
+
+  if (index < 0)
+    return;
+
+  // Through the same door the plugin's own menu uses, not through
+  // setCurrentProgram, and for the same reason: a program change is somebody
+  // asking for that preset, so it loads even when it is the one already
+  // showing, and what you had changed is replaced. That is what a program
+  // change does on an instrument with a panel, and it is what makes a clip
+  // that begins with one sound the same on every pass.
+  //
+  // Going this way also tells the host which program is loaded now, so an
+  // Audio Unit host's own preset menu follows a program change rather than
+  // going stale against it.
+  applyFactoryPreset(index);
 }
 
 void OvertoniumProcessor::renderSegment(int scratchOffset, int numSamples) {

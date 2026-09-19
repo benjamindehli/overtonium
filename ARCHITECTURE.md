@@ -20,6 +20,8 @@ The audio thread reads a snapshot of the parameters rather than the `AudioProces
 
 The message thread owns the editor and the state tree. Values the editor displays, meters, lamps and voice counts, are published as atomics by the render loop and polled, rather than pushed.
 
+Work that arrives over MIDI but belongs to the message thread goes the same way round. A program change is a preset load, which moves hundreds of parameters and reports each one to the host, so the audio thread stores the number in an atomic and a 20 Hz timer on the processor picks it up. Nothing is posted from the audio thread, which would take the message queue's lock.
+
 ## Layout
 
 ```

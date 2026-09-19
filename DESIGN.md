@@ -58,6 +58,12 @@ What it will not touch is listed once, as `kSessionParamIds`, and holds for ever
 
 Values are stored plain rather than normalised, so a preset survives a parameter's range being widened later, and anything a file does not mention keeps its default rather than being reset, so a preset saved by an older build loads into a newer one without silently zeroing whatever was added in between. The tests cover both of those directly.
 
+**Choosing one over MIDI.** A program change loads a factory preset by its position in the alphabetical list, counting from zero. A number past the last preset is ignored rather than wrapped back to the start, and it arrives on any channel, MPE included, where the parser has no use for it and would otherwise swallow it. Presets of your own have no number to be called by, since their folder is yours to add to and rename at any time and nothing in it stays put long enough to be worth pointing a clip at.
+
+Loading a preset is hundreds of parameter moves, each of which has to be reported to the host, so the audio thread only writes the number down and a 20 Hz timer on the processor does the work. Posting a message from the audio thread instead would take the message queue's lock, which is the same objection that keeps the scratch buffer from growing there. Up to fifty milliseconds late cannot be heard, and a preset change was never a sample-accurate event: it is hundreds of parameters moving, not a note.
+
+It loads whether or not the preset is the one already showing, which is what the plugin's own menu does and what an instrument with a panel does. A clip that opens with a program change therefore sounds the same on every pass, at the cost of replacing anything you changed by hand since it last fired.
+
 **Undo.** The parameter tree carries an undo history, which matters most because of LINK: one drag can move the same knob on all 32 channels, and without a history the only way back from a drag you did not mean is to reload the preset.
 
 A step is a gesture rather than a value change. Transactions are closed when the tree has been still for a moment rather than by hooking every parameter's gesture callbacks, which a host is free to call from the audio thread and which would mean allocating there. Watching for stillness needs no hooks and gives the same answer: a drag is one step however many values it moved, and letting go for a moment starts the next one.

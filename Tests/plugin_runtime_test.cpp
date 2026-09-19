@@ -3917,6 +3917,112 @@ void testPrograms(OvertoniumProcessor &p) {
   }
 }
 
+/// Presets chosen over MIDI.
+///
+/// The audio thread only writes the number down, and the timer that reads it
+/// needs a message loop this harness does not run, so the message-thread half
+/// is called by hand. That is the same arrangement the docs renderer uses for
+/// the editor's timer.
+void testProgramChangeMidi(OvertoniumProcessor &p) {
+  section("Program change over MIDI");
+
+  const auto names = ovt::presets::names();
+
+  const auto setParam = [&p](const juce::String &id, float plain) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1(plain));
+  };
+
+  const auto play = [&p](juce::MidiBuffer midi) {
+    juce::AudioBuffer<float> buffer(2, 64);
+    buffer.clear();
+    p.processBlock(buffer, midi);
+  };
+
+  const auto programChange = [](int channel, int program) {
+    juce::MidiBuffer m;
+    m.addEvent(juce::MidiMessage::programChange(channel, program), 0);
+    return m;
+  };
+
+  p.prepareToPlay(48000.0, 512);
+  setParam(ovt::params::mpeId, 0.0f);
+  play({});
+
+  const int wurli = presetIndex("Wurli");
+  const int cathedral = presetIndex("Cathedral");
+
+  p.applyFactoryPreset(cathedral);
+  play(programChange(1, wurli));
+
+  check(p.getCurrentProgram() == cathedral,
+        "the block a program change arrives in does not load the preset");
+
+  p.applyPendingProgramChange();
+
+  check(p.getCurrentProgram() == wurli, "the message thread loads it");
+  check(p.presetName() == names[wurli],
+        "and the name the window shows follows it");
+
+  p.applyPendingProgramChange();
+  check(p.getCurrentProgram() == wurli,
+        "a tick with nothing waiting loads nothing");
+
+  // A program change can name any of 128 programs, which is more than there
+  // are presets, so most of what it can say names nothing.
+  play(programChange(1, 127));
+  p.applyPendingProgramChange();
+
+  check(p.getCurrentProgram() == wurli,
+        "a program past the last preset leaves what is loaded alone");
+
+  // Two in one block is a clip whose first event was never meant to be heard.
+  p.applyFactoryPreset(wurli);
+  juce::MidiBuffer several;
+  several.addEvent(juce::MidiMessage::programChange(1, cathedral), 0);
+  several.addEvent(juce::MidiMessage::programChange(1, names.indexOf("Lo-fi")),
+                   32);
+  play(several);
+  p.applyPendingProgramChange();
+
+  check(p.getCurrentProgram() == names.indexOf("Lo-fi"),
+        "several in one block leave the last one loaded");
+
+  // What a program change does on an instrument with a panel: the preset it
+  // names is loaded whether or not it is the one already showing.
+  auto *volume = p.apvts.getParameter(
+      ovt::params::oscParamId(ovt::params::volumeSuffix, 0));
+
+  const float fromPreset = volume->getValue();
+  const float editedTo = fromPreset > 0.5f ? 0.1f : 0.9f;
+  volume->setValueNotifyingHost(editedTo);
+
+  check(std::abs(volume->getValue() - fromPreset) > 0.05f,
+        "the edit moved the parameter away from what the preset set");
+
+  play(programChange(1, names.indexOf("Lo-fi")));
+  p.applyPendingProgramChange();
+
+  check(std::abs(volume->getValue() - fromPreset) < 0.005f,
+        "the preset already loaded is loaded again, discarding the edit");
+
+  // An MPE controller sends a program change on a member channel, where the
+  // parser would otherwise swallow it.
+  setParam(ovt::params::mpeId, 1.0f);
+  play({});
+
+  p.applyFactoryPreset(cathedral);
+  play(programChange(3, wurli));
+  p.applyPendingProgramChange();
+
+  check(p.getCurrentProgram() == wurli,
+        "with MPE on a program change on a member channel still arrives");
+
+  setParam(ovt::params::mpeId, 0.0f);
+  play({});
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
 /// Folding a section away.
 ///
 /// Everything in the mixer lays itself out from one RowBounds, so this is
@@ -4548,6 +4654,7 @@ int main() {
   testMonoOutput();
   testStateRoundTrip(processor);
   testPrograms(processor);
+  testProgramChangeMidi(processor);
   testCollapsibleSections();
   testUpdateCheck();
   testUpdateCheckIsQuiet(processor);

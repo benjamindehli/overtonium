@@ -15,10 +15,11 @@
 #endif
 
 class OvertoniumProcessor : public juce::AudioProcessor,
-                            private juce::MPEInstrument::Listener {
+                            private juce::MPEInstrument::Listener,
+                            private juce::Timer {
 public:
   OvertoniumProcessor();
-  ~OvertoniumProcessor() override = default;
+  ~OvertoniumProcessor() override;
 
   void prepareToPlay(double sampleRate,
                      int maximumExpectedSamplesPerBlock) override;
@@ -73,6 +74,14 @@ public:
   /// does reload it and discard what you changed, which is what picking a
   /// preset by hand is usually for.
   void applyFactoryPreset(int index);
+
+  /// Loads whatever a MIDI program change has asked for since the last call,
+  /// and does nothing if none has.
+  ///
+  /// Driven by the timer this class runs. Public because a test has no message
+  /// loop to run that timer, the same reason the docs renderer drives the
+  /// editor's timer by hand.
+  void applyPendingProgramChange();
 
   void getStateInformation(juce::MemoryBlock &destData) override;
   void setStateInformation(const void *data, int sizeInBytes) override;
@@ -190,6 +199,11 @@ private:
   /// per-channel AT amounts read, according to what the setting says to
   /// listen to.
   void updateAftertouch();
+
+  /// Collects what MIDI has asked for and the audio thread cannot do itself.
+  /// Program changes, so far.
+  void timerCallback() override;
+
   /// Renders into the scratch at an offset from its start, not from the start
   /// of the host's block: when a block is cut into pieces the scratch holds
   /// one piece at a time.
@@ -225,6 +239,21 @@ private:
   /// host would answer by loading that preset over the top of everything the
   /// session just restored.
   int currentProgram = 0;
+
+  /// The factory preset a MIDI program change has asked for and nobody has
+  /// loaded yet, or -1 for none.
+  ///
+  /// The audio thread writes it and the timer reads it, which is the whole
+  /// point of it being a number in a box rather than a preset load: applying
+  /// one walks 781 parameters and tells the host about each one, allocating
+  /// and taking locks on the way, and none of that belongs on the audio
+  /// thread. The cost is that the preset lands at the next tick rather than at
+  /// the message's timestamp, which nothing can hear: a preset change is
+  /// hundreds of parameter moves and was never a sample-accurate event.
+  ///
+  /// A second program change before the first has been read replaces it. Two
+  /// of them inside one tick means the first was never meant to be heard.
+  std::atomic<int> pendingProgram{-1};
 
   /// Whether currentProgram describes something that was actually loaded.
   ///

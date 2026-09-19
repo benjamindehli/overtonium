@@ -879,6 +879,14 @@ void OvertoniumEditor::timerCallback() {
 
   topBar.updateConverterReadouts(plugin().getSampleRate());
 
+  // A preset can now be loaded by something other than this menu: a program
+  // change arriving over MIDI. Nothing tells the window when that happens, so
+  // the button is compared against what is loaded rather than written to, and
+  // set only when the two have drifted apart, since setting it repaints.
+  if (const auto loaded = plugin().presetName();
+      loaded != topBar.getPresetName())
+    topBar.setPresetName(loaded);
+
   // Dim whatever a solo elsewhere is silencing, so the mixer shows what you can
   // hear. Solo spans the noise channel too, so it takes part in the dimming.
   bool anySolo = on(cache.noise.solo);

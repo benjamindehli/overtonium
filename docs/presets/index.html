@@ -6,7 +6,7 @@
         <title>Overtonium presets: the thirty-one that ship, and saving your own</title>
         <meta
             name="description"
-            content="The thirty-one factory presets in Overtonium, each one playable on the page, what a preset carries and deliberately does not, and where your own presets are stored on macOS, Windows and Linux."
+            content="The thirty-one factory presets in Overtonium, each one playable on the page, what a preset carries and deliberately does not, how a MIDI program change picks one, and where your own presets are stored on macOS, Windows and Linux."
         />
         <link rel="canonical" href="https://benjamindehli.github.io/overtonium/presets/" />
         <meta name="theme-color" content="#0b0d10" />
@@ -17,7 +17,7 @@
         <meta property="og:title" content="Overtonium presets: the thirty-one that ship, and saving your own" />
         <meta
             property="og:description"
-            content="The thirty-one factory presets in Overtonium, each one playable on the page, what a preset carries and deliberately does not, and where your own presets are stored on macOS, Windows and Linux."
+            content="The thirty-one factory presets in Overtonium, each one playable on the page, what a preset carries and deliberately does not, how a MIDI program change picks one, and where your own presets are stored on macOS, Windows and Linux."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-presets.jpg" />
         <meta property="og:image:width" content="1200" />
@@ -28,7 +28,7 @@
         <meta name="twitter:title" content="Overtonium presets: the thirty-one that ship, and saving your own" />
         <meta
             name="twitter:description"
-            content="The thirty-one factory presets in Overtonium, each one playable on the page, what a preset carries and deliberately does not, and where your own presets are stored on macOS, Windows and Linux."
+            content="The thirty-one factory presets in Overtonium, each one playable on the page, what a preset carries and deliberately does not, how a MIDI program change picks one, and where your own presets are stored on macOS, Windows and Linux."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-presets.jpg" />
 
@@ -553,6 +553,36 @@
                     <p>
                         Values are stored plain rather than normalised, so a preset survives a parameter's range being widened later, and anything a
                         file does not mention keeps its default rather than being reset.
+                    </p>
+                </section>
+
+                <section>
+                    <h2>Switching them over MIDI</h2>
+
+                    <p>
+                        A MIDI program change loads a factory preset, so a keyboard, a foot controller or a clip in your host can change the sound
+                        without anyone touching the menu. The number picks the entry by its position in the Factory list, counting from zero, and the
+                        list is alphabetical. Hosts and hardware that number program changes from one are one ahead of that, so their 1 is the first
+                        entry. A number past the last preset is ignored rather than wrapping round to the start.
+                    </p>
+
+                    <p>
+                        The preset is loaded whether or not it is the one already showing, which is what a program change does on an instrument with a
+                        panel. A clip that begins with one therefore sounds the same on every pass, and anything you had changed by hand is replaced.
+                        If you want to keep those edits, save them as a preset of your own first.
+                    </p>
+
+                    <p>
+                        Only the factory presets have a number to be called by. Presets of your own live in a folder you can add to and rename at any
+                        time, so nothing in them would stay put long enough to be worth pointing a clip at. The same goes across versions: a release
+                        that adds a factory preset moves every preset alphabetically after it, so a clip written against an older version can name a
+                        different sound in a newer one. Sessions are safe from that, since a saved session records the preset's name as well as its
+                        number and the name decides.
+                    </p>
+
+                    <p>
+                        It arrives on any channel, MPE included, and it carries the same things loading a preset by hand does. Your polyphony,
+                        temperament and the rest of the Settings menu stay where you put them.
                     </p>
                 </section>
 
