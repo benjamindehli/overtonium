@@ -197,6 +197,10 @@ One thing outside the mixer borrows the band, and only one: the character button
 
 Only ever its own window. In a host the top level window belongs to the host, and a plugin that restyled it would be redecorating someone else's application, so the whole path is behind a check on which wrapper this is running as.
 
+Two details that took measuring. The name is centred on the window rather than in the space JUCE offers for it, which is what is left between the title bar's own buttons: they are all at one end, and the standalone adds an Options button at the other without telling the title bar about it, so a name centred in what is left sits left of the middle. And that Options button is put back where it belongs after every layout, since the standalone places it at a fixed six pixels from the top of a bar whose height it then subtracts eight from, which leaves it sitting off centre whatever the bar is. There is no hook for either, so the window is dressed and then corrected.
+
+**The standalone remembers its size**, because the editor's own width and height travel in the plugin's state and the standalone saves that state between runs. A fresh one opens wide enough for all 32 channels. One that has been resized opens where it was left, which is the point, and on macOS the file holding that is `~/Library/Application Support/Overtonium.settings`.
+
 Colour is then left to do one job, and does it at full strength. Every knob on a strip carries the channel's own colour in its value arc and its pointer, not only the tuning knob at the head. On one flat grey the colour is the only thing separating a channel from its neighbours, so desaturating nineteen knobs out of twenty to give the head of the strip a hierarchy would spend the one thing that is working.
 
 ## Controls

@@ -4169,6 +4169,35 @@ void testStandaloneWindow(OvertoniumProcessor &p) {
     if (editor == nullptr)
       return;
 
+    // The width it opens at, which is the one that shows all 32 strips.
+    const auto wanted = ovt::ui::kGutterWidth + ovt::ui::kStripWidth + 8 +
+                        ovt::kNumHarmonics * ovt::ui::kStripWidth;
+
+    check(editor->getWidth() == wanted,
+          "the editor opens wide enough for every strip (" +
+              std::to_string(editor->getWidth()) + " px)");
+
+    // Handed to a window the way the standalone hands it over, which is the
+    // step that used to cost it its size: a document window is 128 px square
+    // until it is told otherwise, and anything that lays the content out
+    // during the handover squashes the editor into that and leaves it there.
+    juce::DocumentWindow host("Overtonium", juce::Colour(0xff323e44),
+                              juce::DocumentWindow::closeButton);
+
+    host.setContentNonOwned(editor, true);
+
+    check(editor->getWidth() == wanted,
+          "and keeps it when a window takes it as content (" +
+              std::to_string(editor->getWidth()) + " px)");
+
+    editor->dressWindow(host);
+
+    check(editor->getWidth() == wanted,
+          "and again once that window has been dressed (" +
+              std::to_string(editor->getWidth()) + " px)");
+
+    host.clearContentComponent();
+
     sizeEditor(*editor, 1340);
     editor->dressWindow(window);
 

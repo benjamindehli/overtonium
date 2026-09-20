@@ -76,10 +76,23 @@ namespace {
 // rather than to the knob above. Moving two pixels out of the gap and into the
 // margins ties the pair together and gives the group some air. The four still
 // add to what they always did, so the dial keeps its diameter.
-constexpr int kAboveDial = 3;
+/// How a knob with a caption divides the height it is given.
+///
+/// A pixel above the dial and three under the caption, which is not centred
+/// and is not meant to be. A dial is a heavy round object with its tick marks
+/// above it and the caption is a light line of small text below, so a block
+/// that is mathematically centred reads as sitting low. These were three and
+/// one, which put the caption hard against the bottom edge of the group box
+/// it stands in, and then two and two, which centred it. Measured on the
+/// rendered bar, the panel above the dials and under the captions went 9 and
+/// 7, then 8 and 8, and is now 7 and 9.
+///
+/// Only the top bar uses these. The mixer's own knobs carry no caption, since
+/// the gutter names their rows once for all 33 channels.
+constexpr int kAboveDial = 1;
 constexpr int kCaptionGap = 1;
 constexpr int kCaptionHeight = 11;
-constexpr int kBelowCaption = 1;
+constexpr int kBelowCaption = 3;
 } // namespace
 
 void LabelledKnob::paint(juce::Graphics &g) {

@@ -67,7 +67,8 @@ class OvertoniumEditor : public juce::AudioProcessorEditor,
                          public ovt::ui::LinkTarget,
                          public ovt::ui::HoverTarget,
                          private juce::Timer,
-                         private juce::ValueTree::Listener {
+                         private juce::ValueTree::Listener,
+                         private juce::ComponentListener {
 public:
   explicit OvertoniumEditor(OvertoniumProcessor &);
   ~OvertoniumEditor() override;
@@ -208,6 +209,11 @@ private:
 
   juce::TooltipWindow tooltips{this, 600};
 
+  /// The standalone's window, once this editor has dressed it. Held so the
+  /// listener can be taken off again: a look and feel is held weakly and
+  /// looks after itself, where a listener is a raw pointer and would dangle.
+  juce::Component::SafePointer<juce::DocumentWindow> standaloneWindow;
+
   /// Single child holding the whole UI, so zoom is one AffineTransform.
   juce::Component content;
   ovt::ui::TopBar topBar;
@@ -238,6 +244,21 @@ private:
   // ---- juce::ValueTree::Listener ----
   void valueTreePropertyChanged(juce::ValueTree &,
                                 const juce::Identifier &) override;
+
+  // ---- juce::ComponentListener ----
+  //
+  // On the standalone's window, so its own title bar contents can be put back
+  // where they belong after it has laid them out.
+  void componentMovedOrResized(juce::Component &, bool moved,
+                               bool resized) override;
+
+  /// Centres the standalone's Options button in its title bar.
+  ///
+  /// The button belongs to JUCE's standalone window rather than to us, and it
+  /// is placed at a fixed six pixels from the top of a bar whose height it
+  /// then subtracts eight from, which leaves it sitting low whatever the bar
+  /// is. There is no hook for it, so it is moved back after each layout.
+  void centreWindowOptionsButton(juce::DocumentWindow &);
 
   /// When a parameter last reached the state tree, by the millisecond counter.
   /// See closeUndoTransactionWhenIdle.

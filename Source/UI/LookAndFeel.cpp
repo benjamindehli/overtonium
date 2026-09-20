@@ -712,11 +712,26 @@ void OvertoniumLookAndFeel::drawDocumentWindowTitleBar(
 
   // The name, dimmed when the window is not the one being worked in, which is
   // the only thing the title bar has to say.
-  g.setFont(makeFont((float)h * 0.42f, true));
+  g.setFont(makeFont((float)h * 0.54f, true));
   g.setColour(window.isActiveWindow() ? colours::text : colours::textDim);
 
-  g.drawText(window.getName(),
-             juce::Rectangle<int>(titleSpaceX, 0, titleSpaceW, h),
+  // Centred on the window rather than on the space between its buttons.
+  //
+  // The space is what JUCE offers, and it is the wrong middle: the buttons
+  // are all at one end, and the standalone puts its own Options button at the
+  // other without telling the title bar about it, so a name centred in what
+  // is left sits left of the window's middle. Centred on the whole width and
+  // then held inside the space, which only bites on a window too narrow to
+  // hold the name in the middle anyway.
+  const auto text = window.getName();
+  const auto width = juce::jmin(
+      titleSpaceW,
+      juce::GlyphArrangement::getStringWidthInt(g.getCurrentFont(), text) + 8);
+
+  const auto x = juce::jlimit(titleSpaceX, titleSpaceX + titleSpaceW - width,
+                              (w - width) / 2);
+
+  g.drawText(text, juce::Rectangle<int>(x, 0, width, h),
              juce::Justification::centred, true);
 }
 

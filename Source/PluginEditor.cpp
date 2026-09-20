@@ -408,7 +408,22 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   offerUpdateCheck();
 }
 
-void OvertoniumEditor::parentHierarchyChanged() { dressStandaloneWindow(); }
+void OvertoniumEditor::parentHierarchyChanged() {
+  // Not now. This runs part way through the window taking this editor as its
+  // content, and restyling a window sends a look and feel change through it,
+  // which lays its content out again at whatever size the window is at that
+  // moment. That is not yet the size it is about to become: a document window
+  // is 128 px square until it is given the content's size, so the editor was
+  // squashed into that and clamped back up to its own minimum, and the
+  // standalone opened about a third as wide as it should have.
+  //
+  // Off the stack instead, by which time the window is the size it means to
+  // be. Safe against the editor being closed in between.
+  juce::MessageManager::callAsync([safe = SafePointer<OvertoniumEditor>(this)] {
+    if (safe != nullptr)
+      safe->dressStandaloneWindow();
+  });
+}
 
 void OvertoniumEditor::dressStandaloneWindow() {
   if (plugin().wrapperType != juce::AudioProcessor::wrapperType_Standalone)
@@ -420,6 +435,33 @@ void OvertoniumEditor::dressStandaloneWindow() {
   if (auto *window =
           dynamic_cast<juce::DocumentWindow *>(getTopLevelComponent()))
     dressWindow(*window);
+}
+
+void OvertoniumEditor::componentMovedOrResized(juce::Component &component, bool,
+                                               bool wasResized) {
+  if (!wasResized)
+    return;
+
+  if (auto *window = dynamic_cast<juce::DocumentWindow *>(&component))
+    centreWindowOptionsButton(*window);
+}
+
+void OvertoniumEditor::centreWindowOptionsButton(juce::DocumentWindow &window) {
+  const auto bar = window.getTitleBarArea();
+
+  // By name, because it is not ours to hold a pointer to. Finding nothing is
+  // a perfectly good outcome: it means this window has no such button, which
+  // is every window but the standalone's own.
+  for (auto *child : window.getChildren()) {
+    auto *button = dynamic_cast<juce::TextButton *>(child);
+
+    if (button == nullptr || button->getName() != "Options")
+      continue;
+
+    button->setBounds(button->getBounds().withY(
+        bar.getY() + (bar.getHeight() - button->getHeight()) / 2));
+    return;
+  }
 }
 
 void OvertoniumEditor::dressWindow(juce::DocumentWindow &window) {
@@ -438,6 +480,20 @@ void OvertoniumEditor::dressWindow(juce::DocumentWindow &window) {
   // since it is the kind of thing that is only ever noticed by crashing.
   window.setLookAndFeel(&lookAndFeel);
   window.setBackgroundColour(colours::background);
+
+  // And whatever the window puts in its own title bar is put where it belongs
+  // now and after every layout it does.
+  //
+  // One window at a time. There is only ever one in practice, but leaving a
+  // listener on a window this editor has stopped tracking is the kind of
+  // thing that is fine until it is not.
+  if (auto *previous = standaloneWindow.getComponent())
+    previous->removeComponentListener(this);
+
+  window.addComponentListener(this);
+  standaloneWindow = &window;
+
+  centreWindowOptionsButton(window);
 }
 
 void OvertoniumEditor::setPresetName(const juce::String &name) {
@@ -448,6 +504,9 @@ void OvertoniumEditor::setPresetName(const juce::String &name) {
 OvertoniumEditor::~OvertoniumEditor() {
   stopTimer();
   plugin().apvts.state.removeListener(this);
+
+  if (auto *window = standaloneWindow.getComponent())
+    window->removeComponentListener(this);
 
   // Asked to stop, never waited for. Nothing is left to show the answer to, so
   // the work is pointless from here, but waiting for it on the message thread
