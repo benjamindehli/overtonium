@@ -36,8 +36,6 @@ const juce::Identifier kCollapsedSections{"collapsedSections"};
 /// What the APVTS calls each parameter's node in the state tree. Its own
 /// constant is private, but the name is part of the format: it is what the
 /// saved state and every preset file are written in.
-const juce::Identifier kParameterNode{"PARAM"};
-
 bool isHeadingRow(Row r) {
   return r == Row::PitchModHeading || r == Row::EnvHeading ||
          r == Row::KeyOffHeading || r == Row::AmpModHeading ||
@@ -234,10 +232,6 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
       noiseStrip(p.apvts, *this, *this) {
   setLookAndFeel(&lookAndFeel);
 
-  // What tells the undo history a gesture is still going on. The tree is where
-  // a parameter move lands, every twenty milliseconds while one is moving.
-  plugin().apvts.state.addListener(this);
-
   // The background is filled edge to edge, so say so: an opaque top-level
   // component saves the window manager blending it against whatever is behind.
   setOpaque(true);
@@ -288,8 +282,13 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
 
   topBar.onUserPresetChosen = [this](juce::File file) {
     juce::String error;
+    bool loaded = false;
 
-    if (presets::load(plugin().apvts, file, error))
+    plugin().recordEdit("Load preset", [this, &file, &error, &loaded] {
+      loaded = presets::load(plugin().apvts, file, error);
+    });
+
+    if (loaded)
       setPresetName(file.getFileNameWithoutExtension());
     else
       complain("Could not load that preset", error);
@@ -503,7 +502,6 @@ void OvertoniumEditor::setPresetName(const juce::String &name) {
 
 OvertoniumEditor::~OvertoniumEditor() {
   stopTimer();
-  plugin().apvts.state.removeListener(this);
 
   if (auto *window = standaloneWindow.getComponent())
     window->removeComponentListener(this);
@@ -694,7 +692,12 @@ void OvertoniumEditor::applyPreset(int index) {
   // keeps up: it is the processor that knows which program is current, and a
   // host showing "Big Saw" while the plugin shows "Wurli" is worse than a host
   // showing nothing.
-  plugin().applyFactoryPreset(index);
+  //
+  // Recorded, because somebody picked it from a menu. The same call made by a
+  // clip firing a program change is not, which is the whole reason the caller
+  // is the one that decides.
+  plugin().recordEdit("Load preset",
+                      [this, index] { plugin().applyFactoryPreset(index); });
 }
 
 void OvertoniumEditor::complain(const juce::String &title,
@@ -905,41 +908,8 @@ void OvertoniumEditor::updateLinkGlow() {
 
 // ---- polling ----------------------------------------------------------------
 
-void OvertoniumEditor::valueTreePropertyChanged(juce::ValueTree &tree,
-                                                const juce::Identifier &) {
-  // Parameters only. The window size, the zoom and the LINK settings live in
-  // the same tree and are written during a resize drag, which is not a move
-  // anyone would undo and must not hold a transaction open.
-  if (tree.hasType(kParameterNode))
-    lastParameterMove = juce::Time::getMillisecondCounter();
-}
-
-void OvertoniumEditor::closeUndoTransactionWhenIdle() {
-  auto &undo = plugin().undo();
-
-  if (undo.getNumActionsInCurrentTransaction() <= 0)
-    return;
-
-  // Timed from the last parameter that moved rather than from the number of
-  // actions in the open transaction, which looks equivalent and is not. The
-  // value tree folds repeated writes to one property into the action already
-  // there, so one knob under a scroll wheel holds that count at one from the
-  // first write onwards. Counted, that reads as having stopped, and every poll
-  // closes the transaction and leaves the history holding each value the
-  // gesture passed through. A LINK drag hides it: 32 properties in rotation
-  // fold into nothing and the count really does climb.
-  if (juce::Time::getMillisecondCounter() - lastParameterMove < kUndoIdleMs)
-    return;
-
-  undo.beginNewTransaction();
-}
-
 void OvertoniumEditor::stepHistory(bool redo) {
   auto &undo = plugin().undo();
-
-  // Whatever is still open has to be closed first, or the most recent move is
-  // not yet a step of its own and undo would reach straight past it.
-  undo.beginNewTransaction();
 
   if (redo)
     undo.redo();
@@ -1025,8 +995,6 @@ void OvertoniumEditor::timerCallback() {
   // fraction of the rate.
   if ((tick % 8) != 0)
     return;
-
-  closeUndoTransactionWhenIdle();
 
   // Read through the cached atomics rather than the parameter map: the map
   // wants a string per lookup, and this runs several times a second.

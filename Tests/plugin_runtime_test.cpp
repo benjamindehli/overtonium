@@ -3593,15 +3593,18 @@ void testNoDeadTravel(OvertoniumProcessor &p) {
           "the shortest attack is 0.2 ms");
 }
 
+/// The undo history, which holds what a person did and nothing else.
+///
+/// A control opens a gesture around whatever it writes and closes it
+/// afterwards, which is what the processor listens for. Automation writes the
+/// same parameters with no gesture around them, and that is the whole of the
+/// difference. So these drive the parameters the way a control does rather
+/// than the way a host does, and there is one below that does the opposite on
+/// purpose.
 void testUndo(OvertoniumProcessor &p) {
   section("Undo");
 
   auto &undo = p.undo();
-
-  // Parameter moves reach the value tree, and so the undo manager, on a timer.
-  // copyState flushes them synchronously, which makes this a test of the round
-  // trip rather than of how long to wait.
-  const auto settle = [&p] { p.apvts.copyState(); };
 
   const auto tuneOf = [&p](int i) {
     return p.apvts
@@ -3610,49 +3613,57 @@ void testUndo(OvertoniumProcessor &p) {
         ->load();
   };
 
-  const auto setTune = [&p](int i, float v) {
-    p.apvts.getParameter(ovt::params::oscParamId(ovt::params::tuneSuffix, i))
-        ->setValueNotifyingHost(v);
+  const auto tuneParam = [&p](int i) {
+    return p.apvts.getParameter(
+        ovt::params::oscParamId(ovt::params::tuneSuffix, i));
+  };
+
+  // What a knob does: one gesture around however many writes it makes.
+  const auto userTurns = [&tuneParam](const std::vector<int> &channels,
+                                      float to) {
+    for (int i : channels)
+      tuneParam(i)->beginChangeGesture();
+
+    for (int i : channels)
+      tuneParam(i)->setValueNotifyingHost(to);
+
+    for (int i : channels)
+      tuneParam(i)->endChangeGesture();
   };
 
   ovt::presets::apply(p.apvts, presetIndex("Init"));
-  settle();
   undo.clearUndoHistory();
-  undo.beginNewTransaction();
 
   const auto before = tuneOf(0);
-  setTune(0, before > 0.5f ? 0.1f : 0.9f);
-  settle();
+  const auto to = before > 0.5f ? 0.1f : 0.9f;
 
-  const auto after = tuneOf(0);
-  check(std::abs(after - before) > 0.1f, "the parameter moved to begin with");
+  userTurns({0}, to);
+
+  check(std::abs(tuneOf(0) - to) < 1.0e-4f,
+        "the parameter moved to begin with");
   check(undo.canUndo(), "and the move is on the undo stack");
 
-  undo.beginNewTransaction();
   check(undo.undo(), "undo reports that it did something");
-  settle();
-
   check(std::abs(tuneOf(0) - before) < 1.0e-4f,
         "and puts the parameter back (" + std::to_string(tuneOf(0)) +
             " against " + std::to_string(before) + ")");
 
   check(undo.redo(), "redo reports that it did something");
-  settle();
-
-  check(std::abs(tuneOf(0) - after) < 1.0e-4f, "and moves it forward again");
+  check(std::abs(tuneOf(0) - to) < 1.0e-4f, "and moves it forward again");
 
   // The one that matters: a gesture that moves every channel has to come back
   // as a single step, not as 32.
-  undo.beginNewTransaction();
+  undo.clearUndoHistory();
 
   std::array<float, ovt::kNumHarmonics> baseline{};
-  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+  std::vector<int> all;
+
+  for (int i = 0; i < ovt::kNumHarmonics; ++i) {
     baseline[(size_t)i] = tuneOf(i);
+    all.push_back(i);
+  }
 
-  for (int i = 0; i < ovt::kNumHarmonics; ++i)
-    setTune(i, baseline[(size_t)i] > 0.5f ? 0.2f : 0.8f);
-
-  settle();
+  userTurns(all, baseline[0] > 0.5f ? 0.2f : 0.8f);
 
   int moved = 0;
   for (int i = 0; i < ovt::kNumHarmonics; ++i)
@@ -3661,9 +3672,7 @@ void testUndo(OvertoniumProcessor &p) {
 
   check(moved == ovt::kNumHarmonics, "a ganged move reaches all 32 channels");
 
-  undo.beginNewTransaction();
-  undo.undo();
-  settle();
+  check(undo.undo(), "and one undo takes it back");
 
   int restored = 0;
   for (int i = 0; i < ovt::kNumHarmonics; ++i)
@@ -3671,62 +3680,113 @@ void testUndo(OvertoniumProcessor &p) {
       ++restored;
 
   check(restored == ovt::kNumHarmonics,
-        "and one undo brings all 32 back (" + std::to_string(restored) + ")");
+        "all 32 of them (" + std::to_string(restored) + ")");
+
+  check(!undo.canUndo(), "which was the whole history, not the first of 32");
 
   undo.clearUndoHistory();
 }
 
-/// Where one gesture ends and the next begins.
+/// What a host does, which is the same writes with no gesture around them.
 ///
-/// The editor decides that by watching for stillness, on a timer this harness
-/// has no message loop to run, so its poll is called by hand at the points the
-/// timer would reach it.
+/// A lane being played back moves parameters continuously for as long as the
+/// piece lasts. None of it is somebody editing, and a history filling up with
+/// a fader that was automated three minutes ago is a history of nothing.
+void testAutomationLeavesNoHistory(OvertoniumProcessor &p) {
+  section("Automation is not an edit");
+
+  auto &undo = p.undo();
+
+  auto *param =
+      p.apvts.getParameter(ovt::params::oscParamId(ovt::params::tuneSuffix, 3));
+
+  check(param != nullptr, "the parameter exists");
+  if (param == nullptr)
+    return;
+
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+  undo.clearUndoHistory();
+
+  // A lane sweeping the control, which is what a host does: set the value and
+  // say nothing about gestures.
+  for (int step = 0; step <= 40; ++step)
+    param->setValueNotifyingHost((float)step / 40.0f);
+
+  check(std::abs(param->getValue() - 1.0f) < 1.0e-4f,
+        "the automation moved the parameter");
+
+  // Parameter values reach the value tree on a timer, and it is the tree that
+  // used to record them. Flushed by hand here, so that this cannot pass by
+  // asking before anything has been written rather than because nothing is
+  // written.
+  p.apvts.copyState();
+
+  check(!undo.canUndo(),
+        "and left nothing in the history (" +
+            std::to_string(undo.getNumActionsInCurrentTransaction()) +
+            " actions)");
+
+  // Nor does a preset arriving over MIDI, which is the player playing rather
+  // than the player editing.
+  juce::AudioBuffer<float> buffer(2, 64);
+  juce::MidiBuffer midi;
+  midi.addEvent(juce::MidiMessage::programChange(1, presetIndex("Wurli")), 0);
+  buffer.clear();
+  p.processBlock(buffer, midi);
+  p.applyPendingProgramChange();
+
+  check(p.getCurrentProgram() == presetIndex("Wurli"),
+        "the program change loaded its preset");
+
+  p.apvts.copyState();
+
+  check(!undo.canUndo(), "and left the history alone as well");
+
+  // Where the same load asked for from the menu is a step, because the editor
+  // asks for it through recordEdit and a clip does not.
+  p.recordEdit("Load preset",
+               [&p] { p.applyFactoryPreset(presetIndex("Cathedral")); });
+
+  check(undo.canUndo(), "picking one from the menu is a step");
+
+  check(undo.undo() &&
+            p.apvts.getParameter(ovt::params::characterId) != nullptr,
+        "which undoes");
+
+  check(!undo.canUndo(), "and was one step, not one per parameter");
+
+  undo.clearUndoHistory();
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+}
+
+/// Where one gesture ends and the next begins.
 void testUndoGrouping(OvertoniumProcessor &p) {
   section("One gesture, one undo step");
 
   auto &undo = p.undo();
 
-  // Parameter moves reach the value tree on a timer. copyState flushes them
-  // synchronously, which is what a poll would find waiting for it.
-  const auto settle = [&p] { p.apvts.copyState(); };
-
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
-
-  check(editor != nullptr, "the editor opens");
-  if (editor == nullptr)
-    return;
-
   auto *knob =
       p.apvts.getParameter(ovt::params::oscParamId(ovt::params::tuneSuffix, 0));
 
   ovt::presets::apply(p.apvts, presetIndex("Init"));
-  settle();
   undo.clearUndoHistory();
-  undo.beginNewTransaction();
 
   const auto start = knob->getValue();
+  const float notch = start > 0.5f ? -0.05f : 0.05f;
 
-  // Away from wherever the preset left it, so ten notches have somewhere to go
-  // rather than being clipped at the end of the range.
-  const float notchSize = start > 0.5f ? -0.05f : 0.05f;
+  // A wheel turned notch by notch. Ten writes, one gesture, because a wheel
+  // opens one when it starts moving and closes it when it stops.
+  knob->beginChangeGesture();
 
-  // A wheel turned notch by notch, with the editor polling between notches the
-  // way its timer does. Ten writes to one parameter coalesce into one action,
-  // so the action count never moves: watching that count rather than the
-  // parameters is what used to leave a step in the history per poll.
-  for (int notch = 1; notch <= 10; ++notch) {
-    knob->setValueNotifyingHost(start + (float)notch * notchSize);
-    settle();
-    editor->closeUndoTransactionWhenIdle();
-  }
+  for (int i = 1; i <= 10; ++i)
+    knob->setValueNotifyingHost(start + (float)i * notch);
+
+  knob->endChangeGesture();
 
   check(std::abs(knob->getValue() - start) > 0.4f,
         "the gesture moved the parameter to begin with");
 
-  undo.beginNewTransaction();
   check(undo.undo(), "undo reports that it did something");
-  settle();
 
   check(std::abs(knob->getValue() - start) < 1.0e-4f,
         "and one undo is the whole gesture, not the last notch of it (" +
@@ -3735,36 +3795,30 @@ void testUndoGrouping(OvertoniumProcessor &p) {
 
   check(!undo.canUndo(), "which leaves nothing else of it on the stack");
 
-  // ---- and letting go starts the next one ---------------------------------
-  undo.clearUndoHistory();
-  undo.beginNewTransaction();
+  // And the next gesture is the next step.
+  knob->beginChangeGesture();
+  knob->setValueNotifyingHost(start + 2.0f * notch);
+  knob->endChangeGesture();
 
-  knob->setValueNotifyingHost(start + 2.0f * notchSize);
-  settle();
-  editor->closeUndoTransactionWhenIdle();
+  knob->beginChangeGesture();
+  knob->setValueNotifyingHost(start + 4.0f * notch);
+  knob->endChangeGesture();
 
-  check(undo.getNumActionsInCurrentTransaction() > 0,
-        "a move the poll finds still warm stays open");
+  check(undo.undo() &&
+            std::abs(knob->getValue() - (start + 2.0f * notch)) < 1.0e-4f,
+        "letting go and starting again is a second step");
 
-  // Longer than the editor waits for stillness. Real time, since the thing
-  // being tested is a clock.
-  juce::Thread::sleep(600);
-  editor->closeUndoTransactionWhenIdle();
+  check(undo.undo() && std::abs(knob->getValue() - start) < 1.0e-4f,
+        "and the first one is still behind it");
 
-  check(undo.getNumActionsInCurrentTransaction() == 0,
-        "and a pause closes it off");
+  // A gesture that ends where it began is not an edit at all.
+  knob->beginChangeGesture();
+  knob->setValueNotifyingHost(start + 6.0f * notch);
+  knob->setValueNotifyingHost(start);
+  knob->endChangeGesture();
 
-  // The window size and the LINK settings live in the same tree and are
-  // written during a resize drag. Counting those as movement would hold a
-  // gesture open for as long as someone was dragging the corner.
-  knob->setValueNotifyingHost(start + 4.0f * notchSize);
-  settle();
-  juce::Thread::sleep(600);
-  p.apvts.state.setProperty(juce::Identifier("editorWidth"), 1400, nullptr);
-  editor->closeUndoTransactionWhenIdle();
-
-  check(undo.getNumActionsInCurrentTransaction() == 0,
-        "a window that moves is not a parameter that moves");
+  check(!undo.canUndo(),
+        "a gesture that came back to where it started is not a step");
 
   undo.clearUndoHistory();
 }
@@ -5116,6 +5170,7 @@ int main() {
   testNoDeadTravel(processor);
   testPresetsAreReproducible(processor);
   testUndo(processor);
+  testAutomationLeavesNoHistory(processor);
   testUndoGrouping(processor);
   testCharacterControl(processor);
   testStandaloneWindow(processor);

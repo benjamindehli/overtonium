@@ -1,6 +1,58 @@
 #include "PluginProcessor.h"
 #include "Presets.h"
 
+#include <utility>
+
+namespace {
+/// One step in the history: everything a person moved in one go.
+///
+/// Values rather than a description, because what a step has to be able to do
+/// is put things back exactly, and normalised because that is what a
+/// parameter takes and gives without a range having to agree with anything.
+///
+/// Only what actually moved is kept. A preset load writes every parameter and
+/// changes perhaps a third of them, and a step that carried all 782 would be
+/// mostly a record of values that were already what they are.
+class ParameterEdit final : public juce::UndoableAction {
+public:
+  struct Change {
+    juce::RangedAudioParameter *param;
+    float before, after;
+  };
+
+  ParameterEdit(std::vector<Change> movedIn, juce::String nameIn)
+      : moved(std::move(movedIn)), name(std::move(nameIn)) {}
+
+  /// Nothing, the first time. A step is pushed once the change it describes
+  /// has already happened, so writing the values again would only tell every
+  /// host in the room about a move it has just been told about. A redo is a
+  /// real performance and does write them.
+  bool perform() override {
+    if (std::exchange(pushed, true))
+      return apply(&Change::after);
+
+    return true;
+  }
+
+  bool undo() override { return apply(&Change::before); }
+
+  int getSizeInUnits() override { return (int)(moved.size() * sizeof(Change)); }
+
+private:
+  bool apply(float Change::*which) {
+    for (const auto &change : moved)
+      if (change.param != nullptr)
+        change.param->setValueNotifyingHost(change.*which);
+
+    return true;
+  }
+
+  std::vector<Change> moved;
+  juce::String name;
+  bool pushed = false;
+};
+} // namespace
+
 juce::AudioProcessor::BusesProperties OvertoniumProcessor::buses() {
   return BusesProperties().withOutput("Output", juce::AudioChannelSet::stereo(),
                                       true);
@@ -8,10 +60,16 @@ juce::AudioProcessor::BusesProperties OvertoniumProcessor::buses() {
 
 OvertoniumProcessor::OvertoniumProcessor()
     : juce::AudioProcessor(buses()),
-      apvts(*this, &undoManager, "OVERTONIUM",
+      apvts(*this, nullptr, "OVERTONIUM",
             ovt::params::createParameterLayout()) {
   paramCache.connect(apvts);
   mpeInstrument.addListener(this);
+
+  // Its own listener, which is how a person moving a control is told apart
+  // from a host writing a lane: a control opens a gesture around what it
+  // writes and automation does not. See
+  // audioProcessorParameterChangeGestureBegin.
+  addListener(this);
 
   // Slow, because the only thing it carries is a preset asked for over MIDI.
   // Fifty milliseconds is shorter than a thirty-second note at 120 bpm, so a
@@ -24,8 +82,99 @@ OvertoniumProcessor::OvertoniumProcessor()
 OvertoniumProcessor::~OvertoniumProcessor() {
   // Before anything else goes. Timer is a base class, so it is not destroyed
   // until last, and a tick that arrives while the members above it are being
-  // torn down calls a virtual on an object that is half gone.
+  // torn down calls a virtual on an object that is half gone. The same goes
+  // for the listener.
   stopTimer();
+  removeListener(this);
+}
+
+// -----------------------------------------------------------------------------
+// The undo history: what a person did, and nothing else.
+
+void OvertoniumProcessor::beginEdit() {
+  editBaseline.clear();
+  editBaseline.reserve((size_t)getParameters().size());
+
+  for (const auto *param : getParameters())
+    editBaseline.push_back(param->getValue());
+}
+
+void OvertoniumProcessor::endEdit(const juce::String &name) {
+  const auto &params = getParameters();
+
+  if (editBaseline.size() != (size_t)params.size()) {
+    editBaseline.clear();
+    return;
+  }
+
+  std::vector<ParameterEdit::Change> moved;
+
+  for (int i = 0; i < params.size(); ++i) {
+    const auto before = editBaseline[(size_t)i];
+    const auto after = params[i]->getValue();
+
+    // Exactly, rather than within a tolerance. These are stored values and
+    // not computed ones, so a parameter that was moved and moved back holds
+    // the bits it started with: a parameter that came back to where it
+    // started during a gesture has not been edited, and one that moved by a
+    // hair has. Written as two comparisons because a compiler told to distrust
+    // == between floats cannot tell this case from an arithmetic one.
+    if (!(before < after) && !(after < before))
+      continue;
+
+    if (auto *ranged = dynamic_cast<juce::RangedAudioParameter *>(params[i]))
+      moved.push_back({ranged, before, after});
+  }
+
+  editBaseline.clear();
+
+  if (moved.empty())
+    return;
+
+  // Its own transaction, so one gesture is one step whatever else has
+  // happened since.
+  undoManager.beginNewTransaction(name);
+  undoManager.perform(new ParameterEdit(std::move(moved), name));
+}
+
+void OvertoniumProcessor::recordEdit(const juce::String &name,
+                                     const std::function<void()> &change) {
+  if (change == nullptr)
+    return;
+
+  // Nested recordings would each take a baseline and the inner one would win,
+  // so the outer step would hold only part of what it did.
+  if (recording || openGestures > 0) {
+    change();
+    return;
+  }
+
+  const juce::ScopedValueSetter<bool> guard(recording, true);
+
+  beginEdit();
+  change();
+  endEdit(name);
+}
+
+void OvertoniumProcessor::audioProcessorParameterChangeGestureBegin(
+    juce::AudioProcessor *, int) {
+  // Only what arrives on the message thread, which is where a person moving a
+  // control is. A host is allowed to open a gesture from the audio thread,
+  // and taking a baseline of 782 parameters there would allocate on it.
+  if (recording || !juce::MessageManager::existsAndIsCurrentThread())
+    return;
+
+  if (openGestures++ == 0)
+    beginEdit();
+}
+
+void OvertoniumProcessor::audioProcessorParameterChangeGestureEnd(
+    juce::AudioProcessor *, int) {
+  if (recording || !juce::MessageManager::existsAndIsCurrentThread())
+    return;
+
+  if (openGestures > 0 && --openGestures == 0)
+    endEdit("Move a control");
 }
 
 void OvertoniumProcessor::prepareToPlay(double sampleRate,

@@ -67,7 +67,6 @@ class OvertoniumEditor : public juce::AudioProcessorEditor,
                          public ovt::ui::LinkTarget,
                          public ovt::ui::HoverTarget,
                          private juce::Timer,
-                         private juce::ValueTree::Listener,
                          private juce::ComponentListener {
 public:
   explicit OvertoniumEditor(OvertoniumProcessor &);
@@ -238,12 +237,8 @@ private:
   /// at their own fraction of it.
   int tick = 0;
 
-  /// Closes the open transaction, then steps back or forward.
+  /// Steps back or forward through the history.
   void stepHistory(bool redo);
-
-  // ---- juce::ValueTree::Listener ----
-  void valueTreePropertyChanged(juce::ValueTree &,
-                                const juce::Identifier &) override;
 
   // ---- juce::ComponentListener ----
   //
