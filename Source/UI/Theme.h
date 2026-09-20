@@ -4,6 +4,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include "../dsp/Character.h"
 #include "../dsp/Harmonics.h"
 
 namespace ovt::ui {
@@ -53,6 +54,35 @@ void paintGrain(juce::Graphics &, juce::Rectangle<int> area);
 /// mixer reads as one family rather than a rainbow, and placed clear of the
 /// green and cyan the global accent uses.
 juce::Colour intervalColour(int pitchClass);
+
+/// One colour from that same band, by where along it you want to stand.
+///
+/// Zero is the blue end and one the yellow, which is the interval colours'
+/// own scale with the twelve steps taken off it. Anything that wants to
+/// borrow the mixer's palette without being a pitch class asks here, so there
+/// is one band rather than two that drift apart.
+juce::Colour bandColour(float t);
+
+/// Where each oscillator character stands on it.
+///
+/// Yellow for the gentlest and red for the hardest, running down the warm end
+/// of the band and finishing exactly on the fifth, which is the colour of
+/// channel 3. Pure is not on the band at all: it is the absence of a
+/// character rather than one of them, and it does not light.
+juce::Colour characterColour(Character);
+
+/// A button whose text lights rather than whose face does.
+///
+/// The mixer's mute and solo buttons light their whole face, which is what
+/// makes a solo findable at a glance across 33 channels. The handful of
+/// buttons that stand alone want the opposite: the face stays part of the
+/// panel and the word itself comes up lit, with a halo around it, the way an
+/// engaged switch on a lit console does. Which colour it lights in is
+/// textColourOnId, so a button can say what it means by it.
+class GlowButton : public juce::TextButton {
+public:
+  void paintButton(juce::Graphics &, bool highlighted, bool down) override;
+};
 
 /// Vertical slots in a channel strip. The gutter on the left lays out the same
 /// list so the row labels always line up with the controls.

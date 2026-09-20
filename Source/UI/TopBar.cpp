@@ -24,7 +24,7 @@ constexpr int kGroupPad = 6;
 
 /// Minimum width of each group, in the order they are laid out. Only the
 /// output group grows, because the meter is the one thing worth more room.
-constexpr int kGroupMinWidth[] = {144, 90, 242, 222, 222, 186};
+constexpr int kGroupMinWidth[] = {144, 90, 236, 222, 222, 186};
 constexpr int kOutputGroupIndex = 5;
 constexpr int kGroupCount = 6;
 
@@ -37,9 +37,10 @@ constexpr int kFxToggleWidth = 52;
 constexpr int kFxToggleGap = 6;
 
 /// Wider than an effect's switch, because the longest thing it has to say is
-/// a word rather than a name: "Squashed" at the button's own font needs this
-/// much before it starts being squeezed to fit.
-constexpr int kCharacterWidth = 68;
+/// a word rather than a name. In the capitals the bar shouts everything in,
+/// SQUASHED measures 69 px at the button's own font, so this is that plus the
+/// air either side that every other button on the bar has.
+constexpr int kCharacterWidth = 80;
 
 /// How many rows of bar are worth having above a mixer.
 constexpr int kMaxComfortableRows = 3;
@@ -329,8 +330,10 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   styleToggle(reverbButton, "REVERB",
               "Reverb across the whole instrument, after the echo");
 
-  echoButton.setColour(juce::TextButton::buttonOnColourId, colours::accent);
-  reverbButton.setColour(juce::TextButton::buttonOnColourId, colours::accent);
+  // The colour the word comes up in, since the face stays where it is. See
+  // GlowButton.
+  echoButton.setColour(juce::TextButton::textColourOnId, colours::accent);
+  reverbButton.setColour(juce::TextButton::textColourOnId, colours::accent);
 
   echoAttachment =
       std::make_unique<ButtonAttachment>(apvts, params::echoOnId, echoButton);
@@ -365,7 +368,7 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
           popupParent);
 }
 
-void TopBar::styleToggle(juce::TextButton &b, const juce::String &text,
+void TopBar::styleToggle(GlowButton &b, const juce::String &text,
                          const juce::String &tooltip) {
   b.setButtonText(text);
   b.setClickingTogglesState(true);
@@ -912,7 +915,21 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
   const auto character =
       chosen(params::characterId, params::characterChoices().size());
 
-  characterButton.setButtonText(params::characterChoices()[character]);
+  // In capitals, like every other word on the bar. The menu it comes from
+  // keeps the names as they are written, since a list of words is a list of
+  // words rather than a row of switches.
+  characterButton.setButtonText(
+      params::characterChoices()[character].toUpperCase());
+
+  // Lit in its own colour, from yellow through to red, and not lit at all on
+  // Pure. Toggled rather than clicked into that state: the button opens a menu
+  // and the light says what came back from it.
+  const auto which = (Character)character;
+
+  characterButton.setColour(juce::TextButton::textColourOnId,
+                            characterColour(which));
+  characterButton.setToggleState(which != Character::Pure,
+                                 juce::dontSendNotification);
 }
 
 void TopBar::setZoomChoice(float newZoom) { zoom = newZoom; }
@@ -1064,6 +1081,8 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
 
     // Split evenly rather than at the usual knob width, since STRETCH is a
     // longer caption than anything else in the bar and would otherwise be cut.
+    // It measures 39 px, so what is left over here gives it room without the
+    // group having to be any wider than the character button made it.
     const auto each = r.getWidth() / 3;
 
     stretch.setBounds(r.removeFromLeft(each));

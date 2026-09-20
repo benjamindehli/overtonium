@@ -5,12 +5,57 @@
 #include <limits>
 
 #include "../PluginParameters.h"
+#include "LookAndFeel.h"
 
 namespace ovt::ui {
 
-juce::Colour intervalColour(int pitchClass) {
-  const auto pc = ((pitchClass % 12) + 12) % 12;
-  const auto t = (float)pc / 11.0f;
+void GlowButton::paintButton(juce::Graphics &g, bool highlighted, bool down) {
+  // The face, drawn as if the switch were off whatever it is, so that being
+  // engaged is something the word says rather than something the button does.
+  getLookAndFeel().drawButtonBackground(
+      g, *this, findColour(juce::TextButton::buttonColourId), highlighted,
+      down);
+
+  const auto on = getToggleState();
+  const auto colour = findColour(on ? juce::TextButton::textColourOnId
+                                    : juce::TextButton::textColourOffId);
+
+  const auto h = (float)getHeight();
+  const auto font = makeFont(juce::jlimit(8.0f, 13.0f, h * 0.58f), true);
+
+  juce::GlyphArrangement glyphs;
+  // The whole width, because the buttons on this panel are sized against the
+  // words they carry and REVERB fills its own to within a pixel either side.
+  // An inset here would take the B off it.
+  glyphs.addFittedText(font, getButtonText(), 0.0f, 0.0f, (float)getWidth(), h,
+                       juce::Justification::centred, 1, 1.0f);
+
+  if (!on) {
+    g.setColour(colour);
+    glyphs.draw(g);
+    return;
+  }
+
+  // Two strokes and a fill rather than the text drawn over itself at a ring of
+  // offsets: a path gives a halo that is even all the way round a letter,
+  // where offsets pile up at the corners and leave the curves thin.
+  juce::Path path;
+  glyphs.createPath(path);
+
+  g.setColour(colour.withAlpha(0.22f));
+  g.strokePath(path, juce::PathStrokeType(3.5f, juce::PathStrokeType::curved,
+                                          juce::PathStrokeType::rounded));
+
+  g.setColour(colour.withAlpha(0.35f));
+  g.strokePath(path, juce::PathStrokeType(1.6f, juce::PathStrokeType::curved,
+                                          juce::PathStrokeType::rounded));
+
+  g.setColour(colour);
+  g.fillPath(path);
+}
+
+juce::Colour bandColour(float t) {
+  t = std::clamp(t, 0.0f, 1.0f);
 
   // The band is the middle of a blue to yellow sweep, cropped at both ends.
   // The full sweep put pure blue and pure yellow at the extremes, which was
@@ -26,6 +71,30 @@ juce::Colour intervalColour(int pitchClass) {
   const auto val = 0.954f + t * (0.863f - 0.954f);
 
   return juce::Colour::fromHSV(std::fmod(hue, 360.0f) / 360.0f, sat, val, 1.0f);
+}
+
+juce::Colour intervalColour(int pitchClass) {
+  const auto pc = ((pitchClass % 12) + 12) % 12;
+
+  return bandColour((float)pc / 11.0f);
+}
+
+juce::Colour characterColour(Character c) {
+  // The fifth is where the red the mixer already uses sits, on channel 3, and
+  // the seventh is the yellow at the top of the band. Running the characters
+  // down between them puts the gentlest at the yellow end and the hardest on
+  // that red, and adding one subdivides the same stretch rather than walking
+  // off the end of it into the blues.
+  constexpr float kYellow = 11.0f / 11.0f;
+  constexpr float kFifth = 7.0f / 11.0f;
+
+  const auto first = 1; // Pure is not on the band
+  const auto last = (int)Character::NumCharacters - 1;
+  const auto steps = (float)std::max(1, last - first);
+
+  const auto t = std::clamp((float)((int)c - first) / steps, 0.0f, 1.0f);
+
+  return bandColour(kYellow + t * (kFifth - kYellow));
 }
 
 namespace {

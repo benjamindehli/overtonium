@@ -57,7 +57,7 @@ private:
   /// Here rather than in the bar because this is the column the tool belongs
   /// to: it gangs the rows the captions name. What it leaves behind on the bar
   /// is the room the converter readouts needed to say what their numbers mean.
-  juce::TextButton linkButton;
+  ovt::ui::GlowButton linkButton;
 
   /// The maker's badge, in the empty foot of the gutter.
   std::unique_ptr<juce::Drawable> makersMark{ovt::ui::logoMakersMark()};

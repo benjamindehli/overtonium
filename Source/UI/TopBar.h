@@ -115,6 +115,14 @@ public:
     return characterButton.getButtonText();
   }
 
+  /// Whether the character button is lit, and in what. Read back by the tests
+  /// for the same reason the name is: a button is otherwise nothing but paint.
+  bool isCharacterLit() const { return characterButton.getToggleState(); }
+
+  juce::Colour getCharacterColour() const {
+    return characterButton.findColour(juce::TextButton::textColourOnId);
+  }
+
   bool isLinkEnabled() const { return linkOn; }
 
   /// Latched by the editor at the start of each LINK drag.
@@ -167,7 +175,7 @@ private:
   using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
   using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
 
-  void styleToggle(juce::TextButton &, const juce::String &text,
+  void styleToggle(GlowButton &, const juce::String &text,
                    const juce::String &tooltip);
 
   /// One effect knob, wired to its parameter.
@@ -277,7 +285,10 @@ private:
   /// what the series is. A word rather than a readout, since none of these is
   /// a number, and on the panel rather than in a menu for the same reason the
   /// converter is: a preset decides it, so it has to be visible.
-  juce::TextButton characterButton;
+  ///
+  /// It lights in the character's own colour, and does not light at all on
+  /// Pure, which is the one that adds nothing.
+  GlowButton characterButton;
 
   /// The logo, rescaled once to the size it is drawn at. Scaling a 2464 px
   /// image down to 150 on every repaint would be both slow and soft.
@@ -295,7 +306,7 @@ private:
   juce::Array<juce::File> userPresetFiles;
 
   std::unique_ptr<juce::AlertWindow> nameWindow;
-  juce::TextButton echoButton, reverbButton;
+  GlowButton echoButton, reverbButton;
 
   /// Likewise. Zoom is set once to suit the screen and then left, and giving
   /// its box back to the bar is what lets the output group keep its readouts

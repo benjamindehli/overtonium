@@ -58,7 +58,9 @@ RowGutter::RowGutter() {
       "movement is shared out. The same menu is on a right-click in the "
       "mixer.");
 
-  linkButton.setColour(juce::TextButton::buttonOnColourId, colours::soloOn);
+  // The same colour the two effect switches light in, since it is the same
+  // kind of thing: a tool that is either engaged or not. See GlowButton.
+  linkButton.setColour(juce::TextButton::textColourOnId, colours::accent);
 
   linkButton.onClick = [this] {
     if (onLinkClicked)

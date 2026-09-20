@@ -4244,7 +4244,9 @@ void testCharacterControl(OvertoniumProcessor &p) {
     if (bar != nullptr) {
       bar->updatePanelReadouts(48000.0);
 
-      check(bar->getCharacterName() == "Squashed",
+      // In capitals on the button, where the menu it came from spells it as a
+      // word. The bar is a row of switches and they are all shouted.
+      check(bar->getCharacterName() == "SQUASHED",
             "which reads back what is set (" +
                 bar->getCharacterName().toStdString() + ")");
 
@@ -4253,10 +4255,33 @@ void testCharacterControl(OvertoniumProcessor &p) {
       set(ovt::Character::Bulb);
       bar->updatePanelReadouts(48000.0);
 
-      check(bar->getCharacterName() == "Bulb",
+      check(bar->getCharacterName() == "BULB",
             "and follows a change it did not make");
+
+      // Lit in the character's own colour, and not lit at all on the one that
+      // adds nothing. The colours are the mixer's own band, running down from
+      // the yellow at the top of it to the red the fifth stands in, which is
+      // the colour of channel 3.
+      check(bar->isCharacterLit(), "a character lights the button");
+
+      check(bar->getCharacterColour() ==
+                ovt::ui::characterColour(ovt::Character::Bulb),
+            "in its own colour");
+
+      set(ovt::Character::Pure);
+      bar->updatePanelReadouts(48000.0);
+
+      check(!bar->isCharacterLit(), "and Pure does not light it");
     }
   }
+
+  check(ovt::ui::characterColour(ovt::Character::Bulb) ==
+            ovt::ui::intervalColour(11),
+        "the gentlest character stands at the yellow end of the mixer's band");
+
+  check(ovt::ui::characterColour(ovt::Character::Slewed) ==
+            ovt::ui::intervalColour(ovt::harmonic(2).pitchClass),
+        "and the hardest on the red of channel 3");
 
   set(ovt::Character::Pure);
   p.applyFactoryPreset(presetIndex("Init"));

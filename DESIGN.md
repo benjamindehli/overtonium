@@ -185,6 +185,8 @@ Every channel stands on the same grey. Alternating two shades to tell one strip 
 
 There are two greys in the mixer and no third. Most channels stand on the darker one. The octaves stand a shade up from it, so the shape of the series is readable when you are scrolled out at harmonic 28, and the noise channel stands at that same shade, since it is also worth telling apart from the run of the series. What marking an octave has to say is where it is, not what it is, so it is a change of level rather than a hue: a wash of the channel's own blue would be one more colour in a window that has plenty.
 
+One thing outside the mixer borrows the band, and only one: the character button on the bar lights in it, running down from the yellow at the top to the red the fifth stands in, which is the colour of channel 3. Nothing else does, because a colour from the band means a partial and reading it as anything else would be a second language on the same panel. A character is close enough to be worth saying in it: it is what the partials are.
+
 Colour is then left to do one job, and does it at full strength. Every knob on a strip carries the channel's own colour in its value arc and its pointer, not only the tuning knob at the head. On one flat grey the colour is the only thing separating a channel from its neighbours, so desaturating nineteen knobs out of twenty to give the head of the strip a hierarchy would spend the one thing that is working.
 
 ## Controls
@@ -505,6 +507,8 @@ Every entry is a sine oscillator. What differs is how it fails to be one, which 
 | Folded    | a triangle bent into a sine by two mismatched diodes | a second, third and fourth all near -32 dB, which is a kink rather than a warmth |
 | Valve     | a triode, biased so one half leans over first        | a second harmonic at -20 dB over a third at -23, which is the warm one           |
 | Slewed    | an amplifier that cannot move as fast as it is asked | nothing below a kilohertz, and a third harmonic climbing to -19 dB above it      |
+
+On the panel it is a button at the head of the series group, in the capitals everything else on the bar is shouted in, and it lights in its own colour: yellow for Bulb through to the red of channel 3 for Slewed. Pure does not light at all, which is the honest thing for the one that adds nothing.
 
 **It costs nothing per sample, and that decided the design.** The oscillator is one interpolated table read, an envelope tick and a gain, running 512 times per sample at 16 voices, so a waveshaper in that loop is the whole engine again and four times oversampling to keep it from aliasing is three more. A fixed waveshape does not need to be in the loop at all: run the circuit over a sine once at startup, read off the harmonics it leaves, and build a table from them. The inner loop then reads a different table and is otherwise the same instructions. Measured against Pure at eight voices, the three others come out within a couple of percent, which on this machine is inside the spread between two runs of the same binary.
 
