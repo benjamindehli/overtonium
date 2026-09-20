@@ -89,17 +89,17 @@ public:
   // ---- ovt::ui::HoverTarget ----
   void hoverChanged(int stripIndex, ovt::ui::Row) override;
 
-  /// Closes off an undo transaction once the parameters have stopped moving.
+  /// Sets the window back to the size that shows all 32 channels.
   ///
-  /// The alternative is hooking every parameter's gesture callbacks, which a
-  /// host may call from the audio thread, and opening a transaction allocates.
-  /// Watching for stillness instead needs no hooks and gives the same answer:
-  /// a gesture is one step however many values it moved and however long it
-  /// goes on, and letting go for a moment starts the next one.
+  /// A window remembers what it was left at, which is what a window should do
+  /// and is also a one-way trip: drag it narrow, close it, and every session
+  /// after that opens narrow. This is the way back, and it is in the Settings
+  /// menu beside the zoom because both are about the window rather than about
+  /// the instrument.
   ///
-  /// Public for the same reason the processor's pending program change is: it
-  /// is driven by a timer, and a test has no message loop to run one.
-  void closeUndoTransactionWhenIdle();
+  /// Public so a test can ask for it. The menu that offers it needs a window
+  /// to open in, which a test has no way of giving it.
+  void fitAllChannels();
 
   /// Puts this editor's look and feel and its panel colour on a window.
   ///
@@ -126,6 +126,10 @@ private:
   void parentHierarchyChanged() override;
 
   void setZoom(float newZoom);
+
+  /// The size that shows the whole mixer, at the fold state it is in.
+  juce::Rectangle<int> standardSize() const;
+
   void applyResizeLimits();
   void applyPreset(int index);
 
@@ -254,17 +258,6 @@ private:
   /// then subtracts eight from, which leaves it sitting low whatever the bar
   /// is. There is no hook for it, so it is moved back after each layout.
   void centreWindowOptionsButton(juce::DocumentWindow &);
-
-  /// When a parameter last reached the state tree, by the millisecond counter.
-  /// See closeUndoTransactionWhenIdle.
-  juce::uint32 lastParameterMove = 0;
-
-  /// How still the panel has to be before a gesture is closed off as one step.
-  ///
-  /// Long enough to sit between the notches of a scroll wheel turned at a
-  /// deliberate pace, since that is how most of this instrument gets adjusted,
-  /// and short enough that two edits you meant as two do not become one.
-  static constexpr juce::uint32 kUndoIdleMs = 500;
 
   int hoverStrip = -1;
   ovt::ui::Row hoverRow = ovt::ui::kNoRow;

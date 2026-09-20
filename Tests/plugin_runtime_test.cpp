@@ -3114,9 +3114,12 @@ void testSettingsMenu(OvertoniumProcessor &p) {
             at("Slide to") == at("MPE") + 2,
         "MPE, the aftertouch source and the slide destination sit together");
 
-  check(!entries.empty() && entries.back() == "Zoom",
-        "and Zoom is last, on its own (" +
+  check(!entries.empty() && entries.back() == "Fit all 32 channels",
+        "the two that are about the window are last (" +
             (entries.empty() ? std::string("nothing") : entries.back()) + ")");
+
+  check(at("Zoom") == at("Fit all 32 channels") - 1,
+        "with the zoom beside the one that undoes a narrowed window");
 
   // A window size is not a property of the instrument, so nothing else may
   // follow it into the same group.
@@ -3131,6 +3134,58 @@ void testSettingsMenu(OvertoniumProcessor &p) {
             at("One voice per key") < at("0 semitones"),
         "one voice per key sits with the voice counts (" +
             std::to_string(at("One voice per key")) + ")");
+}
+
+/// The way back from a window that was left narrow.
+void testFitAllChannels(OvertoniumProcessor &p) {
+  section("Fitting the mixer back in");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  const auto wanted = ovt::ui::kGutterWidth + ovt::ui::kStripWidth + 8 +
+                      ovt::kNumHarmonics * ovt::ui::kStripWidth;
+
+  // The size to come back to, taken from the editor rather than worked out
+  // here: the height follows whatever is folded away, so there is no number to
+  // write down. An editor opens at whatever size was left in the state, which
+  // earlier tests have been dragging around, so it is asked once first.
+  editor->fitAllChannels();
+
+  const auto fitted = editor->getBounds();
+
+  check(fitted.getWidth() == wanted,
+        "the window fits all 32 channels across (" +
+            std::to_string(fitted.getWidth()) + ")");
+
+  check(fitted.getHeight() > 600, "and the strips are their full height (" +
+                                      std::to_string(fitted.getHeight()) + ")");
+
+  // Dragged narrow and short, the way somebody would, and narrow enough that
+  // the bar has to reflow onto two rows: the height has to come back as well
+  // as the width.
+  editor->setSize(700, fitted.getHeight() - 120);
+
+  check(editor->getWidth() == 700 &&
+            editor->getHeight() == fitted.getHeight() - 120,
+        "a window can be dragged small (" + std::to_string(editor->getWidth()) +
+            " x " + std::to_string(editor->getHeight()) + ")");
+
+  editor->fitAllChannels();
+
+  check(editor->getBounds() == fitted,
+        "and comes back to exactly the size it was (" +
+            std::to_string(editor->getWidth()) + " x " +
+            std::to_string(editor->getHeight()) + ")");
+
+  editor->fitAllChannels();
+
+  check(editor->getBounds() == fitted,
+        "asking twice changes nothing the second time");
 }
 
 void testTopBarAlignment(OvertoniumProcessor &p) {
@@ -5160,6 +5215,7 @@ int main() {
   testLinkMenu();
   testTopBarLayout();
   testSettingsMenu(processor);
+  testFitAllChannels(processor);
   testPresetMenuGroups(processor);
   testPresetsTellTheHostOnlyWhatChanged(processor);
   testShapeButtonFollowsTheParameter(processor);

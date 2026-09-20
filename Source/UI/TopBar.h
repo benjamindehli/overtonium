@@ -92,6 +92,13 @@ public:
   std::function<void()> onCopyFactoryCode;
   std::function<void(float)> onZoomChanged;
 
+  /// Sets the window back to the size that shows the whole mixer.
+  ///
+  /// The window remembers what it was left at, which is what a window should
+  /// do and is also a one-way trip: drag it narrow, close it, and every
+  /// session after that opens narrow. This is the way back.
+  std::function<void()> onFitAllChannels;
+
   /// History. It lives at the head of the Settings menu because that is the
   /// only menu the window has, and because a keyboard shortcut cannot be
   /// relied on: most hosts keep Cmd-Z for themselves.

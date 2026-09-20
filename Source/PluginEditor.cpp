@@ -315,6 +315,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   };
 
   topBar.onZoomChanged = [this](float z) { setZoom(z); };
+  topBar.onFitAllChannels = [this] { fitAllChannels(); };
 
   topBar.onUndo = [this] { stepHistory(false); };
   topBar.onRedo = [this] { stepHistory(true); };
@@ -368,10 +369,6 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   // quarter second of the window being open reads as broken.
   topBar.updatePanelReadouts(plugin().getSampleRate());
 
-  // Default size shows all 32 strips at once, which is the whole point of the
-  // layout.
-  const int defaultWidth =
-      kGutterWidth + kStripWidth + kMasterGap + kNumHarmonics * kStripWidth;
   // Read before the heights below, both of which depend on how much of the
   // strip is folded away.
   collapsedSections =
@@ -381,11 +378,12 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
 
   gutter.onSectionToggled = [this](Section s) { toggleSection(s); };
 
-  const int defaultHeight =
-      chromeHeight(defaultWidth) + preferredStripHeight(collapsedSections);
+  const auto standard = standardSize();
 
-  const int savedWidth = (int)state.getProperty(kEditorWidth, defaultWidth);
-  const int savedHeight = (int)state.getProperty(kEditorHeight, defaultHeight);
+  const int savedWidth =
+      (int)state.getProperty(kEditorWidth, standard.getWidth());
+  const int savedHeight =
+      (int)state.getProperty(kEditorHeight, standard.getHeight());
 
   setResizable(true, true);
   applyResizeLimits();
@@ -577,6 +575,22 @@ void OvertoniumEditor::resized() {
   if (std::abs((double)state.getProperty(kEditorZoom, -1.0) - (double)zoom) >
       1.0e-6)
     state.setProperty(kEditorZoom, (double)zoom, nullptr);
+}
+
+juce::Rectangle<int> OvertoniumEditor::standardSize() const {
+  // Wide enough for all 32 strips at once, which is the whole point of the
+  // layout, and tall enough for whatever is not folded away.
+  const int width =
+      kGutterWidth + kStripWidth + kMasterGap + kNumHarmonics * kStripWidth;
+
+  return {width, chromeHeight(width) + preferredStripHeight(collapsedSections)};
+}
+
+void OvertoniumEditor::fitAllChannels() {
+  const auto standard = standardSize();
+
+  setSize(juce::roundToInt((float)standard.getWidth() * zoom),
+          juce::roundToInt((float)standard.getHeight() * zoom));
 }
 
 void OvertoniumEditor::applyResizeLimits() {

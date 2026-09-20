@@ -278,16 +278,18 @@ Slide, the third MPE dimension, is parsed but not routed anywhere yet. Bend and 
 
 The top bar holds everything that is not per partial, in signal order from left to right. **LINK** is the exception and stands at the top of the caption gutter instead, over the column of names it gangs.
 
-| Group    | Contains                                                                                                  |
-| -------- | --------------------------------------------------------------------------------------------------------- |
-| Preset   | the preset menu: factory, saved, and somewhere to put the one you are working on                          |
-| Settings | undo, polyphony, bend range, MPE, tuning, what feeds aftertouch, phase reset, the safety clipper and zoom |
-| Series   | **STRETCH**, **TRACK** and **WOBBLE**, what the instrument does before anything is done to it. See below  |
-| Echo     | the tape echo. See below                                                                                  |
-| Reverb   | the reverb. See below                                                                                     |
-| Output   | **MASTER**, the stereo meter, and the converter readouts under it                                         |
+| Group    | Contains                                                                                                                                                       |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Preset   | the preset menu: factory, saved, and somewhere to put the one you are working on                                                                               |
+| Settings | undo, polyphony, bend range, MPE, tuning, what feeds aftertouch, phase reset, the safety clipper, zoom and the way back to a window that shows all 32 channels |
+| Series   | **STRETCH**, **TRACK** and **WOBBLE**, what the instrument does before anything is done to it. See below                                                       |
+| Echo     | the tape echo. See below                                                                                                                                       |
+| Reverb   | the reverb. See below                                                                                                                                          |
+| Output   | **MASTER**, the stereo meter, and the converter readouts under it                                                                                              |
 
 Zoom lives in the Settings menu rather than on the bar, and that is worth eighty-eight pixels. On the bar the first row would need 1202 px at the width the window opens at and have 1164, so it would wrap to two rows on a default-sized window. It needs 1114 and fits, and the room that frees goes to the output meter, which is what makes the converter readouts wide enough to keep their units.
+
+The entry under the zoom puts the window back to the size that shows the whole mixer. Window size is remembered with the session, which is what makes a window you dragged stay where you put it and also makes a narrowed one permanent, since nothing else here ever sets it. Its height comes from which groups of rows are folded rather than from a stored number, so folding a group away and then fitting leaves no empty band under the strips.
 
 Echo, Reverb and Output are drawn as boxes, because a box is what says "these belong together" and there is something in each of them to group. The rest are single controls standing on their own: a box around one button says nothing the button was not already saying, and four of them in a row turn the bar into a fence. Buttons, lists and the meter all stand on the line the knob dials stand on, rather than in the middle of their row, since a knob carries its caption underneath and anything centred beside one reads as sagging.
 

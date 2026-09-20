@@ -795,6 +795,11 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
   m.addSeparator();
   m.addSubMenu("Zoom", zooms);
 
+  // Beside the zoom, since both are about the window rather than about the
+  // instrument, and a size that has been dragged narrow is otherwise
+  // remembered for good.
+  m.addItem(820, "Fit all 32 channels");
+
   return m;
 }
 
@@ -847,6 +852,9 @@ void TopBar::showSettingsMenu() {
 
         if (result >= 900)
           return choose(params::temperamentId, result - 900);
+
+        if (result == 820)
+          return onFitAllChannels ? onFitAllChannels() : void();
 
         if (result >= 800) {
           const auto index = result - 800;
