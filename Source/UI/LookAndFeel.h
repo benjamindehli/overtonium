@@ -18,6 +18,14 @@ public:
                         float sliderPos, float minSliderPos, float maxSliderPos,
                         juce::Slider::SliderStyle, juce::Slider &) override;
 
+  /// The face a button stands on, drawn engaged or not.
+  ///
+  /// Split out of drawButtonBackground, which reads the state off the button,
+  /// so that a button whose text carries its state can ask for the unengaged
+  /// face while being engaged. See GlowButton.
+  void drawButtonFace(juce::Graphics &, juce::Button &, bool engaged,
+                      const juce::Colour &fill, bool highlighted, bool down);
+
   void drawButtonBackground(juce::Graphics &, juce::Button &,
                             const juce::Colour &backgroundColour,
                             bool shouldDrawButtonAsHighlighted,

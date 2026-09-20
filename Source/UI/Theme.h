@@ -74,11 +74,13 @@ juce::Colour characterColour(Character);
 /// A button whose text lights rather than whose face does.
 ///
 /// The mixer's mute and solo buttons light their whole face, which is what
-/// makes a solo findable at a glance across 33 channels. The handful of
-/// buttons that stand alone want the opposite: the face stays part of the
-/// panel and the word itself comes up lit, with a halo around it, the way an
-/// engaged switch on a lit console does. Which colour it lights in is
-/// textColourOnId, so a button can say what it means by it.
+/// makes a stray solo findable at a glance across 33 channels. The handful of
+/// buttons that stand alone want the opposite: the word is the lamp and the
+/// face is only what its light falls on, the way an engaged switch on a lit
+/// console is. So the face is drawn exactly as it is when the switch is off,
+/// down to the shade of grey, and everything that reaches it comes off the
+/// text. Which colour that is comes from textColourOnId, so a button can say
+/// what it means by it.
 class GlowButton : public juce::TextButton {
 public:
   void paintButton(juce::Graphics &, bool highlighted, bool down) override;

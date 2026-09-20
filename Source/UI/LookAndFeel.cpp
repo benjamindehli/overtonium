@@ -549,10 +549,18 @@ void OvertoniumLookAndFeel::drawButtonBackground(
     juce::Graphics &g, juce::Button &button,
     const juce::Colour &backgroundColour, bool shouldDrawButtonAsHighlighted,
     bool shouldDrawButtonAsDown) {
+  drawButtonFace(g, button, button.getToggleState(), backgroundColour,
+                 shouldDrawButtonAsHighlighted, shouldDrawButtonAsDown);
+}
+
+void OvertoniumLookAndFeel::drawButtonFace(juce::Graphics &g,
+                                           juce::Button &button, bool on,
+                                           const juce::Colour &backgroundColour,
+                                           bool shouldDrawButtonAsHighlighted,
+                                           bool shouldDrawButtonAsDown) {
   const auto bounds = button.getLocalBounds().toFloat().reduced(0.5f);
   const auto corner = juce::jmin(4.0f, bounds.getHeight() * 0.3f);
 
-  const bool on = button.getToggleState();
   auto fill = on ? backgroundColour : colours::panelAlt;
 
   if (shouldDrawButtonAsDown)

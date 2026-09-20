@@ -12,9 +12,14 @@ namespace ovt::ui {
 void GlowButton::paintButton(juce::Graphics &g, bool highlighted, bool down) {
   // The face, drawn as if the switch were off whatever it is, so that being
   // engaged is something the word says rather than something the button does.
-  getLookAndFeel().drawButtonBackground(
-      g, *this, findColour(juce::TextButton::buttonColourId), highlighted,
-      down);
+  // Not even the shade of grey moves: all that reaches the face is the light
+  // off the text, further down.
+  const auto fill = findColour(juce::TextButton::buttonColourId);
+
+  if (auto *laf = dynamic_cast<OvertoniumLookAndFeel *>(&getLookAndFeel()))
+    laf->drawButtonFace(g, *this, false, fill, highlighted, down);
+  else
+    getLookAndFeel().drawButtonBackground(g, *this, fill, highlighted, down);
 
   const auto on = getToggleState();
   const auto colour = findColour(on ? juce::TextButton::textColourOnId
@@ -36,19 +41,43 @@ void GlowButton::paintButton(juce::Graphics &g, bool highlighted, bool down) {
     return;
   }
 
-  // Two strokes and a fill rather than the text drawn over itself at a ring of
-  // offsets: a path gives a halo that is even all the way round a letter,
-  // where offsets pile up at the corners and leave the curves thin.
+  // Strokes over the text's own path rather than the text drawn over itself at
+  // a ring of offsets: a path gives light that is even all the way round a
+  // letter, where offsets pile up at the corners and leave the curves thin.
   juce::Path path;
   glyphs.createPath(path);
 
-  g.setColour(colour.withAlpha(0.22f));
-  g.strokePath(path, juce::PathStrokeType(3.5f, juce::PathStrokeType::curved,
-                                          juce::PathStrokeType::rounded));
+  // The word is the lamp and the face is what it falls on. Each stroke is
+  // wider and fainter than the one inside it, so the light leaves the letters
+  // and thins out across the button instead of stopping at an outline.
+  //
+  // Clipped to the face, which is what makes it read as light caught by the
+  // button rather than as a halo floating over it. The rounded rectangle is
+  // the one the look and feel draws the face with.
+  {
+    juce::Graphics::ScopedSaveState clipped(g);
 
-  g.setColour(colour.withAlpha(0.35f));
-  g.strokePath(path, juce::PathStrokeType(1.6f, juce::PathStrokeType::curved,
-                                          juce::PathStrokeType::rounded));
+    const auto face = getLocalBounds().toFloat().reduced(0.5f);
+
+    juce::Path lit;
+    lit.addRoundedRectangle(face, juce::jmin(4.0f, face.getHeight() * 0.3f));
+
+    g.reduceClipRegion(lit);
+
+    struct Spill {
+      float width;
+      float alpha;
+    };
+
+    for (const auto spill :
+         {Spill{16.0f, 0.030f}, Spill{11.0f, 0.045f}, Spill{7.0f, 0.070f},
+          Spill{4.0f, 0.130f}, Spill{2.0f, 0.260f}}) {
+      g.setColour(colour.withAlpha(spill.alpha));
+      g.strokePath(path, juce::PathStrokeType(spill.width,
+                                              juce::PathStrokeType::curved,
+                                              juce::PathStrokeType::rounded));
+    }
+  }
 
   g.setColour(colour);
   g.fillPath(path);
