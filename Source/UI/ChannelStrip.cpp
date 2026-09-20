@@ -273,6 +273,23 @@ bool SegmentDisplay::hasRoomForUnit(int width) {
   return width - kUnitInsets > kDigitsNeed;
 }
 
+std::unique_ptr<juce::AccessibilityHandler>
+SegmentDisplay::createAccessibilityHandler() {
+  // Asked for lazily, the first time something goes looking for the panel's
+  // controls, which is long after the bar has wired its readouts up. So
+  // whether this one opens a menu is settled by the time it is asked.
+  if (onClick == nullptr)
+    return juce::Component::createAccessibilityHandler();
+
+  return std::make_unique<juce::AccessibilityHandler>(
+      *this, juce::AccessibilityRole::button,
+      juce::AccessibilityActions().addAction(
+          juce::AccessibilityActionType::press, [this] {
+            if (onClick != nullptr)
+              onClick();
+          }));
+}
+
 void SegmentDisplay::paint(juce::Graphics &g) {
   auto area = getLocalBounds().toFloat().reduced(1.0f);
 

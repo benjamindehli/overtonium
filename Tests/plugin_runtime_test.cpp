@@ -4727,6 +4727,52 @@ void testEveryControlIsNamed(OvertoniumProcessor &p) {
   check(names.count("Noise attack") == 1, "the noise channel names itself");
   check(names.count("Echo mix") == 1 && names.count("Reverb mix") == 1,
         "and the two mix knobs are told apart by their group");
+
+  // ---- the controls that are not sliders -----------------------------------
+  //
+  // A button is named by the word on it, which for most of the bar is the
+  // control's own name and needs nothing further. Two of them carry a value
+  // instead, and a value with nothing saying what it is of is no name at all.
+  // The same goes for the converter readouts, whose digits are drawn rather
+  // than written and cannot be read any other way.
+  std::map<std::string, std::string> titled;
+
+  std::function<void(juce::Component &)> walkAll = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (child->getTitle().isNotEmpty())
+        titled[child->getTitle().toStdString()] =
+            child->getName().toStdString();
+
+      walkAll(*child);
+    }
+  };
+  walkAll(*editor);
+
+  const auto named = [&titled](const std::string &prefix) {
+    for (const auto &entry : titled)
+      if (entry.first.rfind(prefix, 0) == 0)
+        return entry.first;
+
+    return std::string{};
+  };
+
+  // The shape rather than the reading, since what is loaded by the time this
+  // runs depends on whatever the test before it was doing.
+  const auto saysBoth = [&named](const std::string &label) {
+    const auto title = named(label);
+    return title.size() > label.size();
+  };
+
+  check(saysBoth("Preset: "),
+        "the preset button says what it is and what is loaded (" +
+            named("Preset: ") + ")");
+
+  check(saysBoth("Character: "),
+        "so does the character button (" + named("Character: ") + ")");
+
+  check(saysBoth("Sample rate: ") && saysBoth("Bit depth: "),
+        "and both converter readouts (" + named("Sample rate: ") + ", " +
+            named("Bit depth: ") + ")");
 }
 
 /// MPE slide, both places it can go.

@@ -147,6 +147,16 @@ public:
   void mouseEnter(const juce::MouseEvent &) override;
   void mouseExit(const juce::MouseEvent &) override;
 
+  /// Announces one that opens a menu as the button it is.
+  ///
+  /// A plain component has no role and no actions, so the two converter
+  /// settings were the one part of the panel a screen reader could neither
+  /// name nor reach, and their digits are drawn rather than written so there
+  /// was nothing to fall back on either. One that is only a readout is left
+  /// as it is, which is what it is.
+  std::unique_ptr<juce::AccessibilityHandler>
+  createAccessibilityHandler() override;
+
 private:
   /// Draws one character in the classic seven-bar arrangement.
   void paintGlyph(juce::Graphics &, juce::Rectangle<float>, char,

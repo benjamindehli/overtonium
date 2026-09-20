@@ -450,6 +450,11 @@ void TopBar::showLinkMenu(juce::Component *anchor) {
 
 void TopBar::setPresetName(const juce::String &name) {
   presetButton.setButtonText(name.isEmpty() ? kNoPreset : name);
+
+  // The same as the character button: the text on it is a value, so the name
+  // has to supply what the value is of.
+  presetButton.setTitle(name.isEmpty() ? "Preset: none loaded"
+                                       : "Preset: " + name);
 }
 
 juce::String TopBar::getPresetName() const {
@@ -901,14 +906,27 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
   const bool cutting = rate > 0 && (!known || (double)rate < hostSampleRate);
   const auto shown = cutting ? (double)rate : hostSampleRate;
 
-  rateDisplay.setReading(
-      shown > 0.0 ? juce::String(shown / 1000.0, 1) : juce::String(), cutting);
+  const auto rateReading =
+      shown > 0.0 ? juce::String(shown / 1000.0, 1) : juce::String();
+
+  rateDisplay.setReading(rateReading, cutting);
+
+  // The name carries the reading as well as the label. A screen reader takes
+  // a component's title for its name, so a title of "Sample rate" on its own
+  // would name the control and hide what it says, and the digits on a
+  // seven-segment display are drawn rather than written and cannot be read
+  // any other way.
+  rateDisplay.setTitle("Sample rate: " + (rateReading.isNotEmpty()
+                                              ? rateReading + " kHz"
+                                              : juce::String("unknown")));
 
   const auto bits = params::kLofiBitChoices[(size_t)chosen(
       params::lofiBitsId, (int)params::kLofiBitChoices.size())];
 
   // Nothing being quantised means the 32-bit float everything else runs in.
   bitsDisplay.setReading(juce::String(bits > 0 ? bits : 32), bits > 0);
+  bitsDisplay.setTitle("Bit depth: " + juce::String(bits > 0 ? bits : 32) +
+                       " bit");
 
   // Read back rather than written when it is set, because a preset can change
   // it without anyone having touched the button.
@@ -920,6 +938,12 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
   // words rather than a row of switches.
   characterButton.setButtonText(
       params::characterChoices()[character].toUpperCase());
+
+  // Named rather than shouted, and saying which control it is. The button's
+  // own text is the value on its own, which a screen reader would read out as
+  // "squashed" with nothing to say what is.
+  characterButton.setTitle("Character: " +
+                           params::characterChoices()[character]);
 
   // Lit in its own colour, from yellow through to red, and not lit at all on
   // Pure. Toggled rather than clicked into that state: the button opens a menu
