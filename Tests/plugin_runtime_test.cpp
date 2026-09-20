@@ -125,6 +125,86 @@ void sizeEditor(juce::AudioProcessorEditor &editor, int width,
   editor.setSize(width, height);
 }
 
+/// How many entries every automatable list has.
+///
+/// A host stores a choice parameter as a value between zero and one, and what
+/// that value means depends on how long the list is: with three entries the
+/// top of the range is the third, with four it is the fourth. So adding an
+/// entry to a list that has already shipped silently moves every automation
+/// lane ever written against it. A lane that said "Werckmeister III" comes
+/// back saying something else, in somebody's finished piece.
+///
+/// Adding a parameter is safe and is done freely: it goes on the end, it is
+/// identified by its own id, and nothing that exists moves. Adding an entry
+/// to one of these is not the same thing, and this is here so that nobody
+/// finds that out by shipping it.
+///
+/// When a list genuinely has to grow, the way out is a new parameter beside
+/// the old one rather than a longer list, and a note in the release saying
+/// what moved.
+void testChoiceParameterCounts(OvertoniumProcessor &p) {
+  section("Automatable lists");
+
+  const auto entriesOf = [&p](const juce::String &id) {
+    auto *choice =
+        dynamic_cast<juce::AudioParameterChoice *>(p.apvts.getParameter(id));
+
+    return choice != nullptr ? choice->choices.size() : -1;
+  };
+
+  struct List {
+    const char *id;
+    int entries;
+  };
+
+  // Every global one, by hand, because the number is the point. Reading it
+  // from the same constant the parameter is built from would check nothing.
+  const List globals[] = {
+      {ovt::params::polyphonyId, 8},    {ovt::params::characterId, 6},
+      {ovt::params::temperamentId, 6},  {ovt::params::tuningRootId, 12},
+      {ovt::params::referenceHzId, 11}, {ovt::params::atSourceId, 3},
+      {ovt::params::slideDestId, 3},    {ovt::params::lofiRateId, 8},
+      {ovt::params::lofiBitsId, 9},
+  };
+
+  for (const auto &list : globals)
+    check(entriesOf(list.id) == list.entries,
+          juce::String(list.id).toStdString() + " offers " +
+              std::to_string(list.entries) + " and has " +
+              std::to_string(entriesOf(list.id)));
+
+  // And the per-channel ones on every channel, since they are declared in a
+  // loop and a loop is where one of thirty-two goes quietly different.
+  int pitchShapes = 0, ampShapes = 0;
+
+  for (int i = 0; i < ovt::kNumHarmonics; ++i) {
+    pitchShapes +=
+        entriesOf(ovt::params::oscParamId(ovt::params::pmShapeSuffix, i)) == 8;
+    ampShapes +=
+        entriesOf(ovt::params::oscParamId(ovt::params::amShapeSuffix, i)) == 7;
+  }
+
+  check(pitchShapes == ovt::kNumHarmonics,
+        "every channel's pitch modulator offers 8 shapes (" +
+            std::to_string(pitchShapes) + " of " +
+            std::to_string(ovt::kNumHarmonics) + ")");
+
+  check(ampShapes == ovt::kNumHarmonics,
+        "every channel's amplitude modulator offers 7 (" +
+            std::to_string(ampShapes) + " of " +
+            std::to_string(ovt::kNumHarmonics) + ")");
+
+  check(entriesOf(ovt::params::noiseParamId(ovt::params::amShapeSuffix)) == 7,
+        "and so does the noise channel's");
+
+  // The amplitude has one shape fewer on purpose, so a count that drifted
+  // into agreement would be a mistake rather than a tidy-up: there is no
+  // second direction for a unipolar square to go in.
+  check(entriesOf(ovt::params::oscParamId(ovt::params::pmShapeSuffix, 0)) !=
+            entriesOf(ovt::params::oscParamId(ovt::params::amShapeSuffix, 0)),
+        "the two modulators deliberately do not offer the same list");
+}
+
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
@@ -4959,6 +5039,7 @@ int main() {
   OvertoniumProcessor processor;
 
   testParameterWiring(processor);
+  testChoiceParameterCounts(processor);
   testRendering(processor);
   testPresets(processor);
   testAftertouchMidi(processor);
