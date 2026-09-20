@@ -398,6 +398,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::NormalisableRange<float>(0.0f, 12.0f, 0.1f), 0.0f,
       FAttr().withStringFromValueFunction(trackText)));
 
+  layout.add(std::make_unique<juce::AudioParameterChoice>(
+      juce::ParameterID{characterId, 1}, "Character", characterChoices(),
+      (int)Character::Pure));
+
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{wobbleId, 1}, "Wobble",
       juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f,
@@ -713,6 +717,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   atSource = apvts.getRawParameterValue(atSourceId);
   slideDest = apvts.getRawParameterValue(slideDestId);
   track = apvts.getRawParameterValue(trackId);
+  character = apvts.getRawParameterValue(characterId);
   wobble = apvts.getRawParameterValue(wobbleId);
   temperament = apvts.getRawParameterValue(temperamentId);
   tuningRoot = apvts.getRawParameterValue(tuningRootId);
@@ -918,6 +923,9 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
 
     out.global.referenceHz = (double)kReferenceHzChoices[(size_t)pick(
         referenceHz, (int)kReferenceHzChoices.size())];
+
+    out.global.character =
+        (Character)pick(character, (int)Character::NumCharacters);
   }
   out.global.safetyClip = safetyClip->load() > 0.5f;
   out.global.oneVoicePerKey = oneVoicePerKey->load() > 0.5f;

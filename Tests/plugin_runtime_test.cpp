@@ -128,11 +128,11 @@ void sizeEditor(juce::AudioProcessorEditor &editor, int width,
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
-  // 23 per partial, 17 global, 18 for the noise channel, 10 for the two master
+  // 23 per partial, 18 global, 18 for the noise channel, 10 for the two master
   // effects. Start phase and the whole pitch modulator are not among the noise
   // channel's, since noise has no pitch: it takes the amp mod shape and not
   // the pitch one, which is why the two counts differ by more than one.
-  const int expected = ovt::kNumHarmonics * 23 + 17 + 18 + 10;
+  const int expected = ovt::kNumHarmonics * 23 + 18 + 18 + 10;
 
   // The behaviour that was there before it became a choice. Asked of the
   // parameter rather than of the tree, so the answer does not depend on what
@@ -2915,7 +2915,7 @@ void testShapeButtonFollowsTheParameter(OvertoniumProcessor &p) {
 
 /// A preset tells the host what changed, and nothing else.
 ///
-/// This instrument has 781 parameters, which is far outside what a host
+/// This instrument has 782 parameters, which is far outside what a host
 /// expects, and a preset is written as a neutral base plus the rows that
 /// differ. Sent as they were decided that is over a thousand parameter
 /// changes for one preset, most of them either immediately overwritten or not
@@ -4116,6 +4116,124 @@ void testProgramChangeMidi(OvertoniumProcessor &p) {
   p.applyFactoryPreset(presetIndex("Init"));
 }
 
+/// The oscillator character: one choice for all 32 partials.
+void testCharacterControl(OvertoniumProcessor &p) {
+  section("Oscillator character");
+
+  auto *param = p.apvts.getParameter(ovt::params::characterId);
+
+  check(param != nullptr, "the character parameter exists");
+  if (param == nullptr)
+    return;
+
+  const auto set = [param](ovt::Character c) {
+    param->setValueNotifyingHost(param->convertTo0to1((float)(int)c));
+  };
+
+  const auto current = [param] {
+    return (ovt::Character)juce::roundToInt(
+        param->convertFrom0to1(param->getValue()));
+  };
+
+  check(juce::roundToInt(param->convertFrom0to1(param->getDefaultValue())) ==
+            (int)ovt::Character::Pure,
+        "and starts on Pure, so nothing that existed before this sounds "
+        "different");
+
+  check(!ovt::params::isSessionParam(ovt::params::characterId),
+        "it is part of the patch rather than part of the setup, since it is "
+        "what the instrument sounds like");
+
+  // Every name the panel can show has to come from the same list the engine
+  // switches on, or a menu entry could select a character that is not there.
+  check(ovt::params::characterChoices().size() ==
+            (int)ovt::Character::NumCharacters,
+        "the menu offers every character and no more");
+
+  for (int i = 0; i < (int)ovt::Character::NumCharacters; ++i)
+    check(ovt::params::characterChoices()[i] ==
+              juce::String(ovt::characterName((ovt::Character)i)),
+          "entry " + std::to_string(i) + " is named by the engine");
+
+  // ---- a preset carries it -------------------------------------------------
+  set(ovt::Character::Folded);
+  p.apvts.copyState();
+
+  juce::String error;
+  check(ovt::presets::save(p.apvts, "Character Test", error),
+        "a preset saves with a character set" + error.toStdString());
+
+  set(ovt::Character::Pure);
+  check(current() == ovt::Character::Pure, "and the panel moves off it");
+
+  const auto file =
+      ovt::presets::userDirectory().getChildFile("Character Test.ovtpreset");
+
+  check(ovt::presets::load(p.apvts, file, error),
+        "the preset loads back" + error.toStdString());
+
+  check(current() == ovt::Character::Folded,
+        "and brings its character with it");
+
+  file.deleteFile();
+
+  // ---- a factory preset decides it too -------------------------------------
+  //
+  // Through the neutral base rather than by naming it: a patch that says
+  // nothing about the character is a patch that wants the plain oscillator,
+  // the same way one that says nothing about STRETCH wants none.
+  p.applyFactoryPreset(presetIndex("Drawbar Organ"));
+
+  check(current() == ovt::Character::Pure,
+        "a factory preset that says nothing puts it back to Pure");
+
+  // ---- and the panel says which it is --------------------------------------
+  set(ovt::Character::Squashed);
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+
+  if (editor != nullptr) {
+    sizeEditor(*editor, 1340);
+
+    std::function<ovt::ui::TopBar *(juce::Component &)> walk =
+        [&walk](juce::Component &c) -> ovt::ui::TopBar * {
+      if (auto *bar = dynamic_cast<ovt::ui::TopBar *>(&c))
+        return bar;
+
+      for (auto *child : c.getChildren())
+        if (auto *found = walk(*child))
+          return found;
+
+      return nullptr;
+    };
+
+    auto *bar = walk(*editor);
+    check(bar != nullptr, "and has a bar");
+
+    if (bar != nullptr) {
+      bar->updatePanelReadouts(48000.0);
+
+      check(bar->getCharacterName() == "Squashed",
+            "which reads back what is set (" +
+                bar->getCharacterName().toStdString() + ")");
+
+      // The button is written from the parameter rather than when someone
+      // picks from its menu, so a preset changing it underneath has to show.
+      set(ovt::Character::Bulb);
+      bar->updatePanelReadouts(48000.0);
+
+      check(bar->getCharacterName() == "Bulb",
+            "and follows a change it did not make");
+    }
+  }
+
+  set(ovt::Character::Pure);
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
 /// Folding a section away.
 ///
 /// Everything in the mixer lays itself out from one RowBounds, so this is
@@ -4743,6 +4861,7 @@ int main() {
   testPresetsAreReproducible(processor);
   testUndo(processor);
   testUndoGrouping(processor);
+  testCharacterControl(processor);
   testBusLayouts(processor);
   testUndersizedBuffer();
   testMonoOutput();

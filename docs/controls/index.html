@@ -6,7 +6,7 @@
         <title>Overtonium controls: every knob on a channel and on the bar</title>
         <meta
             name="description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 781 parameters are named for a host, and the wobble, tape echo, reverb and converter on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 782 parameters are named for a host, and the wobble, tape echo, reverb and converter on the bar."
         />
         <link rel="canonical" href="https://benjamindehli.github.io/overtonium/controls/" />
         <meta name="theme-color" content="#0b0d10" />
@@ -17,7 +17,7 @@
         <meta property="og:title" content="Overtonium controls: every knob on a channel and on the bar" />
         <meta
             property="og:description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 781 parameters are named for a host, and the wobble, tape echo, reverb and converter on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 782 parameters are named for a host, and the wobble, tape echo, reverb and converter on the bar."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-controls.jpg" />
         <meta property="og:image:width" content="1200" />
@@ -28,7 +28,7 @@
         <meta name="twitter:title" content="Overtonium controls: every knob on a channel and on the bar" />
         <meta
             name="twitter:description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 781 parameters are named for a host, and the wobble, tape echo, reverb and converter on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 782 parameters are named for a host, and the wobble, tape echo, reverb and converter on the bar."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-controls.jpg" />
 
@@ -735,7 +735,7 @@
                     <h2>Automating it from the host</h2>
 
                     <p>
-                        Seven hundred and eighty-one parameters reach the host: twenty-seven global ones, twenty-three on each of the 32 partials, and
+                        Seven hundred and eighty-two parameters reach the host: twenty-eight global ones, twenty-three on each of the 32 partials, and
                         eighteen on the noise channel. They are listed in the order the panel reads, the globals first and then channel by channel
                         with the noise channel last.
                     </p>
@@ -884,11 +884,32 @@
                         <img
                             loading="lazy"
                             src="../overtonium-bar.webp"
-                            alt="The top bar: preset and settings buttons, LINK, the stretch, track and wobble controls, the tape echo, the reverb, the master fader and the output meter with two seven-segment converter readouts."
+                            alt="The top bar: preset and settings buttons, LINK, the oscillator character, the stretch, track and wobble controls, the tape echo, the reverb, the master fader and the output meter with two seven-segment converter readouts."
                             width="1348"
                             height="66"
                         />
                     </figure>
+
+                    <h3>Character</h3>
+                    <p>
+                        Which oscillator every partial is, at the head of the group that says what the series is. All four are sine oscillators, and
+                        what differs is the way each circuit fails to make one. <strong>Pure</strong> is the sine nothing built out of parts produces,
+                        and is what every partial was before this existed. <strong>Bulb</strong> is a Wien bridge held steady by a lamp: no added
+                        harmonics at all, but a level that lags half a second behind every move of the pitch, so the series breathes behind vibrato,
+                        drift and the wheel. <strong>Squashed</strong> is a phase-shift oscillator leaning on its own rails, which hardens the tone
+                        with a third harmonic and no even ones. <strong>Folded</strong> is a triangle bent into a sine by two diodes that do not
+                        match, which puts a kink in one half of the wave and a second, third and fourth harmonic on top of it.
+                    </p>
+
+                    <p>
+                        Because this is an additive instrument, those harmonics land among the partials you are already mixing, at exact multiples of
+                        the partial that made them. TUNE and STRETCH have moved the real partials off exact ratios, so the two beat against each other
+                        rather than adding up, which is what makes a character sound like a circuit rather than like a tone control. The harmonics are
+                        dropped as a partial climbs, so nothing folds back down: a partial near the top of the range plays a plain sine whatever is
+                        chosen.
+                    </p>
+
+                    <p>It is part of the patch rather than part of the setup, so a preset can change it and saving one carries it.</p>
 
                     <h3>Wobble</h3>
                     <p>

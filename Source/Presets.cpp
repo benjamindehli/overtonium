@@ -150,6 +150,11 @@ struct Applier {
     // sound in the middle of that should not drag you back to equal.
     set(params::stretchId, 0.0f);
     set(params::trackId, 0.0f);
+
+    // Which oscillator the partials are is part of the sound in the plainest
+    // sense, and a patch that says nothing gets the one that adds nothing.
+    set(params::characterId, (float)(int)Character::Pure);
+
     set(params::wobbleId, 0.0f);
     set(params::lofiRateId, 0.0f);
     set(params::lofiBitsId, 0.0f);

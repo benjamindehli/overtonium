@@ -192,7 +192,7 @@ int main(int argc, char **argv) {
 
   bars.front()->setOutputLevels(plugin.getOutputLevelLeft(),
                                 plugin.getOutputLevelRight());
-  bars.front()->updateConverterReadouts(plugin.getSampleRate());
+  bars.front()->updatePanelReadouts(plugin.getSampleRate());
 
   // Measured rather than assumed, so a taller bar or a wider strip moves these
   // with it instead of slicing the next picture through the middle of a row.

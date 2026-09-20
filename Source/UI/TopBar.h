@@ -108,6 +108,13 @@ public:
   void setPresetName(const juce::String &);
   juce::String getPresetName() const;
 
+  /// What the character button is showing. Written from the parameter by
+  /// updatePanelReadouts and read back here, which is the only way to check a
+  /// button that cannot be clicked without a window to put its menu in.
+  juce::String getCharacterName() const {
+    return characterButton.getButtonText();
+  }
+
   bool isLinkEnabled() const { return linkButton.getToggleState(); }
 
   /// Latched by the editor at the start of each LINK drag.
@@ -138,10 +145,11 @@ public:
   /// quietly dropping controls.
   static int minimumWidth();
 
-  /// Refreshes the two converter readouts. The host rate has to be passed in
-  /// because "leave it alone" is a setting whose value only the processor
-  /// knows.
-  void updateConverterReadouts(double hostSampleRate);
+  /// Refreshes what the bar reads back from the parameters rather than from a
+  /// slider: the two converter readouts and the character the oscillators are
+  /// set to. The host rate has to be passed in because "leave it alone" is a
+  /// setting whose value only the processor knows.
+  void updatePanelReadouts(double hostSampleRate);
   void setOutputLevels(float l, float r) { meter.push(l, r); }
   void setZoomChoice(float zoom);
 
@@ -208,10 +216,11 @@ public:
   juce::PopupMenu buildPresetMenu();
 
 private:
-  /// The converter lists. Hung off the readout that opens them, and built here
-  /// rather than inline so the readout and anything else share one list.
-  void showConverterMenu(const char *paramId, const juce::StringArray &choices,
-                         juce::Component *anchor);
+  /// The list behind a choice shown on the panel: the two converter settings
+  /// and the oscillator character. Built here rather than inline so whatever
+  /// opens one shares the list with whatever else reads it.
+  void showChoiceMenu(const char *paramId, const juce::StringArray &choices,
+                      juce::Component *anchor);
 
   /// Asks for a name and hands it back. Its own window, since a menu cannot
   /// take typing.
@@ -268,6 +277,12 @@ private:
   /// sits. On the panel rather than in a menu because they are part of a
   /// preset: loading one can change them, so they have to be visible.
   SegmentDisplay rateDisplay{"kHz"}, bitsDisplay{"bit"};
+
+  /// Which oscillator the partials are, at the head of the group that says
+  /// what the series is. A word rather than a readout, since none of these is
+  /// a number, and on the panel rather than in a menu for the same reason the
+  /// converter is: a preset decides it, so it has to be visible.
+  juce::TextButton characterButton;
 
   /// The logo, rescaled once to the size it is drawn at. Scaling a 2464 px
   /// image down to 150 on every repaint would be both slow and soft.

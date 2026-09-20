@@ -267,6 +267,13 @@ private:
     float delayScale = 1.0f;
     float attackScale = 1.0f;
     bool gainPrimed = false;
+
+    /// The pitch the lamp has settled at, in semitones off the note, which is
+    /// where the Bulb character measures its amplitude error from. Primed on
+    /// the first block of a note so one cannot begin already sagging. See
+    /// Voice::render.
+    double bulbSettled = 0.0;
+    bool semisPrimed = false;
   };
 
   /// The noise channel runs alongside the partials with its own envelope and

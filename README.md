@@ -42,7 +42,7 @@ Every channel is a strip, and every strip carries the same twenty-three controls
 The [project page](https://benjamindehli.github.io/overtonium/) is the place to start, and it has a page each for the parts worth reading about:
 
 - **[Tuning](https://benjamindehli.github.io/overtonium/tuning/)**: TUNE from equal to just, inharmonic stretch, six historical temperaments on any root, keyboard tracking and per-partial drift
-- **[Controls](https://benjamindehli.github.io/overtonium/controls/)**: every knob on a channel strip and on the bar above it, the two-part envelope, LINK for ganging the series, the lamps and meters, the noise channel and MPE
+- **[Controls](https://benjamindehli.github.io/overtonium/controls/)**: every knob on a channel strip and on the bar above it, the oscillator character, the two-part envelope, LINK for ganging the series, the lamps and meters, the noise channel and MPE
 - **[Presets](https://benjamindehli.github.io/overtonium/presets/)**: the thirty-one that ship, what a preset carries and deliberately does not, switching them with a MIDI program change, and where your own are kept
 - **[Install](https://benjamindehli.github.io/overtonium/install/)**: which download to take, what to do when a host cannot see the plugin, and building from source
 

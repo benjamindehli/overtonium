@@ -24,7 +24,7 @@ constexpr int kGroupPad = 6;
 
 /// Minimum width of each group, in the order they are laid out. Only the
 /// output group grows, because the meter is the one thing worth more room.
-constexpr int kGroupMinWidth[] = {144, 90, 60, 168, 222, 222, 186};
+constexpr int kGroupMinWidth[] = {144, 90, 60, 242, 222, 222, 186};
 constexpr int kOutputGroupIndex = 6;
 constexpr int kGroupCount = 7;
 
@@ -35,6 +35,11 @@ constexpr int kControlHeight = 24;
 constexpr int kKnobWidth = 38;
 constexpr int kFxToggleWidth = 52;
 constexpr int kFxToggleGap = 6;
+
+/// Wider than an effect's switch, because the longest thing it has to say is
+/// a word rather than a name: "Squashed" at the button's own font needs this
+/// much before it starts being squeezed to fit.
+constexpr int kCharacterWidth = 68;
 
 /// How many rows of bar are worth having above a mixer.
 constexpr int kMaxComfortableRows = 3;
@@ -271,7 +276,7 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
     for (auto hz : params::kLofiRateChoices)
       choices.add(params::lofiRateName(hz));
 
-    showConverterMenu(params::lofiRateId, choices, &rateDisplay);
+    showChoiceMenu(params::lofiRateId, choices, &rateDisplay);
   };
 
   bitsDisplay.onClick = [this] {
@@ -279,11 +284,25 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
     for (auto bits : params::kLofiBitChoices)
       choices.add(params::lofiBitName(bits));
 
-    showConverterMenu(params::lofiBitsId, choices, &bitsDisplay);
+    showChoiceMenu(params::lofiBitsId, choices, &bitsDisplay);
   };
 
   addAndMakeVisible(rateDisplay);
   addAndMakeVisible(bitsDisplay);
+
+  // ---- which oscillator -----------------------------------------------------
+  characterButton.setTooltip(
+      "Which oscillator every partial is. All of them are sine oscillators, "
+      "and what differs is the way each circuit fails to make one: a lamp "
+      "that lags, an amplifier leaning on its rails, a shaper with mismatched "
+      "diodes. Pure is the sine nothing built out of parts produces.");
+
+  characterButton.onClick = [this] {
+    showChoiceMenu(params::characterId, params::characterChoices(),
+                   &characterButton);
+  };
+
+  addAndMakeVisible(characterButton);
 
   // ---- presets --------------------------------------------------------------
   presetButton.setButtonText(kNoPreset);
@@ -455,9 +474,9 @@ juce::String TopBar::getPresetName() const {
   return shown == kNoPreset ? juce::String() : shown;
 }
 
-void TopBar::showConverterMenu(const char *paramId,
-                               const juce::StringArray &choices,
-                               juce::Component *anchor) {
+void TopBar::showChoiceMenu(const char *paramId,
+                            const juce::StringArray &choices,
+                            juce::Component *anchor) {
   auto *param = apvts.getParameter(paramId);
   if (param == nullptr)
     return;
@@ -878,7 +897,7 @@ void TopBar::showSettingsMenu() {
       });
 }
 
-void TopBar::updateConverterReadouts(double hostSampleRate) {
+void TopBar::updatePanelReadouts(double hostSampleRate) {
   const auto chosen = [this](const char *id, int count) {
     auto *p = apvts.getParameter(id);
 
@@ -907,6 +926,13 @@ void TopBar::updateConverterReadouts(double hostSampleRate) {
 
   // Nothing being quantised means the 32-bit float everything else runs in.
   bitsDisplay.setReading(juce::String(bits > 0 ? bits : 32), bits > 0);
+
+  // Read back rather than written when it is set, because a preset can change
+  // it without anyone having touched the button.
+  const auto character =
+      chosen(params::characterId, params::characterChoices().size());
+
+  characterButton.setButtonText(params::characterChoices()[character]);
 }
 
 void TopBar::setZoomChoice(float newZoom) { zoom = newZoom; }
@@ -996,7 +1022,7 @@ void TopBar::parkControls() {
   juce::Component *all[] = {&master,       &meter,          &presetButton,
                             &linkButton,   &settingsButton, &echoButton,
                             &reverbButton, &stretch,        &track,
-                            &rateDisplay,  &bitsDisplay};
+                            &rateDisplay,  &bitsDisplay,    &characterButton};
 
   for (auto *c : all)
     c->setBounds({});
@@ -1054,6 +1080,12 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
     break;
 
   case SeriesGroup: {
+    // What the partials are comes before what is done to them, so the
+    // character stands at the head of the group the way an effect's switch
+    // stands at the head of its own.
+    button(characterButton, r.removeFromLeft(kCharacterWidth));
+    r.removeFromLeft(kFxToggleGap);
+
     // Split evenly rather than at the usual knob width, since STRETCH is a
     // longer caption than anything else in the bar and would otherwise be cut.
     const auto each = r.getWidth() / 3;

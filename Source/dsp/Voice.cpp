@@ -4,6 +4,7 @@
 
 #include <algorithm>
 
+#include "Character.h"
 #include "SineTable.h"
 
 namespace ovt {
@@ -30,6 +31,22 @@ constexpr float kSilent = 1.0e-5f;
 /// attenuated. Every other shape takes the same quarter turn rather than each
 /// arguing for a starting point of its own.
 constexpr double kAmpShapeOffset = 0.25;
+
+/// How long the Bulb character's filament takes to settle at a new pitch.
+///
+/// Lamps used for this are small and slow, and the published figures for the
+/// ones people reach for run from a couple of hundred milliseconds to about a
+/// second. Half a second sits in the middle of that and is long enough to hear
+/// the level walking behind a bend rather than moving with it.
+constexpr double kBulbSettleSeconds = 0.5;
+
+/// How much of the level the lamp gives up while it is behind, at a semitone
+/// out or more.
+///
+/// A fifth, which is a couple of decibels. It has to be small: this is an
+/// instrument with 32 oscillators playing at once, and an amplitude wobble
+/// that reads as character on one reads as a fault on all of them together.
+constexpr float kBulbDepth = 0.2f;
 
 /// What the tremolo leaves of the fader.
 ///
@@ -169,6 +186,14 @@ void Voice::noteOn(int channel, int note, float velocity,
 
     pt.env.noteOn(fresh && p.global.phaseReset);
 
+    // The lamp reads the pitch of whatever note this partial is now playing.
+    // Left alone, a voice taken over by a note an octave away would open with
+    // the sag of a bend it never made. Only when the partial had stopped: one
+    // still ringing is a continuous tone, and a real oscillator handed a new
+    // frequency is exactly the case this character exists to show.
+    if (fresh)
+      pt.semisPrimed = false;
+
     // A fresh rate per partial per note. Reusing one rate would turn 32
     // independent wanders into a single detune.
     const double rate = kDriftMinHz * std::pow(kDriftMaxHz / kDriftMinHz,
@@ -266,7 +291,15 @@ void Voice::render(float *left, float *right, int numSamples,
   if (!active || numSamples <= 0)
     return;
 
-  const auto &sine = SineTable::instance();
+  const auto &characters = CharacterTables::instance();
+
+  // One pole per control block rather than per sample, which is where every
+  // other slow thing in here is worked out.
+  const float bulbCoef =
+      sampleRate > 0.0
+          ? (float)(1.0 - std::exp(-(double)kControlBlock /
+                                   (kBulbSettleSeconds * sampleRate)))
+          : 1.0f;
 
   // Equal-power pan positions, one per partial.
   //
@@ -402,6 +435,53 @@ void Voice::render(float *left, float *right, int numSamples,
 
       const float nyq = foldAliases ? 1.0f : nyquistGain(freq, sampleRate);
 
+      // ---- which oscillator this is ----------------------------------------
+      //
+      // The character's harmonics are harmonics like any others and fold like
+      // any others, so the table is chosen by how much room this partial has
+      // left under Nyquist at the pitch it is at this moment. A partial low
+      // enough gets all of them, one near the top gets a plain sine, and the
+      // ones in between lose them from the top down. With the converter's rate
+      // turned down, folding is the sound being asked for and the full table
+      // is what folds.
+      const auto &wave = characters.table(
+          p.global.character, foldAliases
+                                  ? kMaxCharacterHarmonic
+                                  : highestHarmonicUnder(freq, sampleRate));
+
+      // ---- what the lamp has not caught up with ----------------------------
+      //
+      // A Wien bridge holds its level with a lamp. The filament's resistance
+      // follows how hard the loop is driving it, but only as fast as a
+      // filament can heat and cool, and the gain the loop needs changes with
+      // the frequency because no two ganged parts track each other exactly.
+      // Move the pitch and the level sags until the lamp has settled at the
+      // new one.
+      //
+      // One pole, chasing the pitch with the filament's own time constant.
+      // What is left over is the amplitude error the loop has not corrected
+      // yet. Here the pitch is moved constantly, by vibrato, drift, the wheel
+      // and a finger on an MPE key, so the lamp is never quite caught up and
+      // the level breathes behind everything the hand does.
+      float bulb = 1.0f;
+
+      if (p.global.character == Character::Bulb) {
+        if (!pt.semisPrimed) {
+          pt.bulbSettled = semis; // a note starts in balance, not sagging
+          pt.semisPrimed = true;
+        }
+
+        pt.bulbSettled += (semis - pt.bulbSettled) * bulbCoef;
+
+        // Clamped rather than curved: a filament runs out of range too, and a
+        // clamp is a compare where a soft limit is a divide, on something that
+        // runs 512 times per control block.
+        const float behind =
+            std::clamp((float)(semis - pt.bulbSettled), -1.0f, 1.0f);
+
+        bulb = 1.0f - behind * kBulbDepth;
+      }
+
       // Aftertouch adds to the fader instead of scaling it, which is what lets
       // a strip sitting at zero be brought in by pressure alone. Velocity only
       // ever touches the fader's own contribution.
@@ -411,7 +491,11 @@ void Voice::render(float *left, float *right, int numSamples,
           std::clamp(op.volume * pt.velGain +
                          std::clamp(op.atAmount, -1.0f, 1.0f) * pressure,
                      0.0f, 1.0f);
-      const float base = op.audible ? level * nyq * track[(size_t)i] : 0.0f;
+      // The lamp joins the fader, the tracking and the Nyquist fade here, so
+      // it rides the same per-sample ramp they do and a level that is settling
+      // slides rather than steps from block to block.
+      const float base =
+          op.audible ? level * nyq * track[(size_t)i] * bulb : 0.0f;
       const float gEnd = base * amEnd;
 
       if (!pt.gainPrimed) {
@@ -476,7 +560,7 @@ void Voice::render(float *left, float *right, int numSamples,
       const float pr = panR[(size_t)i];
 
       for (int n = 0; n < len; ++n) {
-        const float s = sine(ph) * pt.env.tick() * g;
+        const float s = wave.at(ph) * pt.env.tick() * g;
 
         l[n] += s * pl;
         r[n] += s * pr;

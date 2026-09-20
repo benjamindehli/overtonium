@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "dsp/Character.h"
 #include "dsp/Drift.h"
 #include "dsp/Envelope.h"
 #include "dsp/Harmonics.h"
@@ -592,6 +593,175 @@ void testSineTable() {
         "phase wraps above 1");
   check(std::abs((double)wrapPhase(-0.25) - 0.75) < 1.0e-12,
         "wrapPhase handles negatives");
+}
+
+// -----------------------------------------------------------------------------
+// 3b. Oscillator character: the tables, and what they do to a rendered note.
+// -----------------------------------------------------------------------------
+void testCharacter() {
+  section("Oscillator character");
+
+  const auto &tables = CharacterTables::instance();
+
+  const auto level = [&tables](Character c, int n) {
+    const auto &h = tables.harmonics(c)[(size_t)(n - 1)];
+    return std::hypot((double)h.sine, (double)h.cosine);
+  };
+
+  // Pure and Bulb read the one table every partial was reading before any of
+  // this existed. Not a copy of it: the same object, so the character costs
+  // nothing at all until one is chosen that changes the waveform.
+  for (auto c : {Character::Pure, Character::Bulb})
+    check(&tables.table(c, kMaxCharacterHarmonic) == &SineTable::instance(),
+          "a character with no harmonics reads the plain sine table");
+
+  check(&tables.table(Character::Squashed, 1) == &SineTable::instance(),
+        "and so does one with no room under Nyquist for a second harmonic");
+
+  // The fundamental is what the fader means, so every character has to deliver
+  // the same one. Otherwise choosing a character would be choosing a level.
+  for (int c = 0; c < (int)Character::NumCharacters; ++c)
+    check(std::abs(level((Character)c, 1) - 1.0) < 1.0e-4,
+          "character " + std::to_string(c) + " keeps the fundamental at unity");
+
+  // What each circuit is. A symmetrical limit can only make odd harmonics, and
+  // an asymmetrical shaper is the only way to get even ones, which is the
+  // whole difference between these two.
+  check(level(Character::Squashed, 3) > 0.03 &&
+            level(Character::Squashed, 3) < 0.15,
+        "Squashed has a third harmonic, at " +
+            std::to_string(20.0 * std::log10(level(Character::Squashed, 3))) +
+            " dB");
+
+  check(level(Character::Squashed, 2) < 1.0e-4,
+        "and no second, since it clips both halves alike");
+
+  check(level(Character::Folded, 2) > 0.005,
+        "Folded has a second harmonic, at " +
+            std::to_string(20.0 * std::log10(level(Character::Folded, 2))) +
+            " dB");
+
+  // Every table, at every band, has to come back with no offset and no more
+  // headroom taken than the sine it replaces. 512 oscillators each carrying a
+  // small DC step is a level shift nobody asked for, and each carrying an
+  // overshoot is a clipper going off early.
+  for (int c = 0; c < (int)Character::NumCharacters; ++c) {
+    for (int highest = 1; highest <= kMaxCharacterHarmonic; ++highest) {
+      const auto &w = tables.table((Character)c, highest);
+
+      double dc = 0.0, peak = 0.0;
+      for (int i = 0; i < 4096; ++i) {
+        const double v = (double)w.at((double)i / 4096.0);
+        dc += v;
+        peak = std::max(peak, std::abs(v));
+      }
+
+      dc /= 4096.0;
+
+      check(std::abs(dc) < 1.0e-4, "character " + std::to_string(c) + " band " +
+                                       std::to_string(highest) +
+                                       " carries no DC");
+
+      check(peak < 1.15, "character " + std::to_string(c) + " band " +
+                             std::to_string(highest) + " peaks at " +
+                             std::to_string(peak));
+    }
+  }
+
+  // The bands are what keeps the harmonics under Nyquist, so each one has to
+  // actually stop where it says it does.
+  //
+  // Measured with a plain correlation over exactly one turn rather than with
+  // binMagnitude, whose window is there for a rendered note and would spread
+  // each harmonic into its neighbours here.
+  const auto harmonicOf = [](const Wave &w, int n) {
+    constexpr int kPoints = 4096;
+    double re = 0.0, im = 0.0;
+
+    for (int i = 0; i < kPoints; ++i) {
+      const double turns = (double)i / (double)kPoints;
+      const double v = (double)w.at(turns);
+
+      re += v * std::cos(6.283185307179586 * (double)n * turns);
+      im += v * std::sin(6.283185307179586 * (double)n * turns);
+    }
+
+    return 2.0 * std::hypot(re, im) / (double)kPoints;
+  };
+
+  for (int highest = 2; highest < kMaxCharacterHarmonic; ++highest) {
+    const auto &w = tables.table(Character::Folded, highest);
+
+    check(harmonicOf(w, highest) > 1.0e-3,
+          "the band stopping at " + std::to_string(highest) + " has one");
+
+    check(harmonicOf(w, highest + 1) < 1.0e-5, "the band stopping at " +
+                                                   std::to_string(highest) +
+                                                   " has nothing above it");
+  }
+
+  check(highestHarmonicUnder(1000.0, 48000.0) == 23,
+        "a partial at a kilohertz has room for its 23rd harmonic");
+  check(highestHarmonicUnder(20000.0, 48000.0) == 1,
+        "one near the top has room for none");
+
+  // ---- and now through the engine ------------------------------------------
+  constexpr double sr = 48000.0;
+  constexpr int N = 24000;
+
+  const auto renderOnePartial = [](Character c, int note, double volume) {
+    SynthEngine engine;
+    engine.prepare(sr);
+    engine.setPolyphony(1);
+
+    auto p = makeFlatParams(0.0f);
+    p.osc[0].volume = (float)volume;
+    p.osc[0].tuneBlend = 1.0f;
+    p.osc[0].decay = 8.0f;
+    p.global.character = c;
+
+    std::vector<float> l((size_t)N), r((size_t)N);
+    engine.noteOn(note, 1.0f, p);
+    engine.render(l.data(), r.data(), N, p);
+
+    return l;
+  };
+
+  // A3, one partial, nothing else sounding. Its third harmonic is at 660 Hz,
+  // where the plain sine has nothing at all.
+  const double f0 = 220.0;
+
+  const auto pure = renderOnePartial(Character::Pure, 57, 0.5);
+  const auto squashed = renderOnePartial(Character::Squashed, 57, 0.5);
+
+  const double pureThird = binMagnitude(pure, f0 * 3.0, sr);
+  const double squashedThird = binMagnitude(squashed, f0 * 3.0, sr);
+
+  check(binMagnitude(squashed, f0, sr) > 0.5 * binMagnitude(pure, f0, sr),
+        "a character does not cost the partial its own level");
+
+  check(squashedThird > 20.0 * std::max(1.0e-9, pureThird),
+        "Squashed puts a third harmonic where a sine has none (" +
+            std::to_string(20.0 * std::log10(squashedThird /
+                                             binMagnitude(squashed, f0, sr))) +
+            " dB below the fundamental)");
+
+  // The point of the bands. A partial this high has no room for a second
+  // harmonic, so it has to come back as clean as the sine does rather than
+  // folding one back down into the middle of the spectrum.
+  const auto highPure = renderOnePartial(Character::Pure, 117, 0.5);
+  const auto highFolded = renderOnePartial(Character::Folded, 117, 0.5);
+
+  double worstAlias = 0.0, worstClean = 0.0;
+  for (double f = 200.0; f < 9000.0; f += 200.0) {
+    worstClean = std::max(worstClean, binMagnitude(highPure, f, sr));
+    worstAlias = std::max(worstAlias, binMagnitude(highFolded, f, sr));
+  }
+
+  check(worstAlias < 1.0e-3 && worstAlias < 10.0 * worstClean + 1.0e-6,
+        "a partial with no room for harmonics folds nothing back down (worst " +
+            std::to_string(worstAlias) + " against " +
+            std::to_string(worstClean) + ")");
 }
 
 // -----------------------------------------------------------------------------
@@ -4532,6 +4702,49 @@ void benchmark() {
     std::printf("   8 voices, effects %s: %.2f%% of one core\n",
                 withEffects ? "on " : "off", 100.0 * elapsed / secs);
   }
+
+  // What a character costs, which is the question it was designed around. The
+  // inner loop reads a different table and is otherwise the same instructions,
+  // so anything here beyond the noise of the machine would mean the tables are
+  // fighting over the cache rather than that the oscillator got dearer.
+  double pureLoad = 0.0;
+
+  for (int c = 0; c < (int)Character::NumCharacters; ++c) {
+    SynthEngine engine;
+    engine.prepare(sr);
+    engine.setPolyphony(8);
+
+    auto p = makeFlatParams(0.02f);
+    for (auto &o : p.osc) {
+      o.sustain = 1.0f;
+      o.pmDepthCents = 5.0f; // the pitch moving is what the lamp answers to
+      o.driftCents = 8.0f;
+    }
+
+    p.global.character = (Character)c;
+
+    for (int v = 0; v < 8; ++v)
+      engine.noteOn(48 + v, 1.0f, p);
+
+    std::vector<float> l((size_t)block), r((size_t)block);
+    const int blocks = (int)(secs * sr / block);
+
+    const auto t0 = std::chrono::steady_clock::now();
+    for (int i = 0; i < blocks; ++i)
+      engine.render(l.data(), r.data(), block, p);
+    const auto t1 = std::chrono::steady_clock::now();
+
+    const double load =
+        100.0 * std::chrono::duration<double>(t1 - t0).count() / secs;
+
+    if (c == 0)
+      pureLoad = load;
+
+    std::printf("   8 voices, %-8s: %.2f%% of one core  (%+.0f%% against "
+                "Pure)\n",
+                characterName((Character)c), load,
+                100.0 * (load / std::max(0.001, pureLoad) - 1.0));
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -4804,6 +5017,7 @@ int main() {
   testStartPhase();
   testTracking();
   testSineTable();
+  testCharacter();
   testRenderedSpectrum();
   testAliasing();
   testEnvelopeAndMuteSolo();

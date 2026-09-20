@@ -319,7 +319,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
 
   // Housekeeping runs at 4 Hz, and a readout that is blank for the first
   // quarter second of the window being open reads as broken.
-  topBar.updateConverterReadouts(plugin().getSampleRate());
+  topBar.updatePanelReadouts(plugin().getSampleRate());
 
   // Default size shows all 32 strips at once, which is the whole point of the
   // layout.
@@ -897,7 +897,7 @@ void OvertoniumEditor::timerCallback() {
     return p != nullptr && p->load() > 0.5f;
   };
 
-  topBar.updateConverterReadouts(plugin().getSampleRate());
+  topBar.updatePanelReadouts(plugin().getSampleRate());
 
   // A preset can now be loaded by something other than this menu: a program
   // change arriving over MIDI. Nothing tells the window when that happens, so

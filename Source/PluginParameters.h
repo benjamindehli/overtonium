@@ -18,6 +18,7 @@ inline constexpr const char *stretchId = "stretch";
 inline constexpr const char *atSourceId = "atSource";
 inline constexpr const char *slideDestId = "slideDest";
 inline constexpr const char *trackId = "track";
+inline constexpr const char *characterId = "character";
 inline constexpr const char *wobbleId = "wobble";
 inline constexpr const char *temperamentId = "temperament";
 inline constexpr const char *tuningRootId = "tuningRoot";
@@ -206,6 +207,7 @@ struct Cache {
   std::atomic<float> *atSource = nullptr;
   std::atomic<float> *slideDest = nullptr;
   std::atomic<float> *track = nullptr;
+  std::atomic<float> *character = nullptr;
   std::atomic<float> *wobble = nullptr;
   std::atomic<float> *temperament = nullptr;
   std::atomic<float> *tuningRoot = nullptr;
@@ -344,6 +346,24 @@ inline const std::array<int, 11> kReferenceHzChoices{
 enum class AftertouchSource { ChannelPressure = 0, ModWheel, Either };
 
 inline const juce::StringArray slideDestChoices{"Off", "Brightness", "Tuning"};
+
+/// What the oscillator characters are called, in parameter order.
+///
+/// Taken from the names the DSP core already carries rather than written out
+/// again here, so the menu, the button and the enum cannot come to disagree.
+/// See Character.h for what each one is.
+inline const juce::StringArray &characterChoices() {
+  static const juce::StringArray names = [] {
+    juce::StringArray out;
+
+    for (int i = 0; i < (int)Character::NumCharacters; ++i)
+      out.add(characterName((Character)i));
+
+    return out;
+  }();
+
+  return names;
+}
 
 inline const std::array<const char *, 3> kAftertouchSourceNames{
     "Channel pressure", "Mod wheel", "Either"};

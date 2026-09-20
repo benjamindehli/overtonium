@@ -2,6 +2,7 @@
 
 #include <array>
 
+#include "Character.h"
 #include "Harmonics.h"
 #include "Lfo.h"
 #include "Temperament.h"
@@ -129,6 +130,11 @@ struct GlobalParams {
   /// as you play up rather than turning high notes down. Zero is off. See
   /// trackingGain.
   float trackDbPerOctave = 0.0f;
+
+  /// Which oscillator every partial is. One choice for all 32, because an
+  /// instrument is built out of one circuit repeated rather than out of a
+  /// different one per channel. See Character.h.
+  Character character = Character::Pure;
 
   /// Where a note's MPE slide goes. Stored as the raw choice so the voice can
   /// branch on it without the DSP core knowing what a parameter is.

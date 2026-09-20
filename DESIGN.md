@@ -490,6 +490,33 @@ The law is equal power, so the number on the knob is the number in the audio and
 
 A good shape to start from is mirrored pairs, 1 and 2 in the centre widening out to 31 and 32 at the edges, with the sides alternating so the louder of each pair does not always land on the same one. _Slow Pad_ and _Shimmer_ write it into their pans, where it can be taken apart by hand. It is worth understanding before you leave it: neighbouring partials have near-identical levels in any normal spectrum, so putting each pair on opposite sides keeps the image centred whatever shape you dial in, and because every position has a mirror, no partial ends up hard panned with nothing facing it.
 
+### Character
+
+Which oscillator each partial is. One choice for all 32, on the bar at the head of the group that says what the series is, because an instrument is built out of one circuit repeated rather than out of a different one per channel.
+
+Every entry is a sine oscillator. What differs is how it fails to be one, which is the only thing that ever told two analogue oscillators apart: no circuit produces a mathematically perfect sine, and the ways each design misses are what people mean when they call one warm and another sterile.
+
+| Character | What it is                                           | What it does                                                                     |
+| --------- | ---------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Pure      | the table as sampled                                 | nothing. What every partial was before this existed, and the default             |
+| Bulb      | a Wien bridge held steady by a lamp                  | no harmonics at all, and a level that lags half a second behind every pitch move |
+| Squashed  | a phase-shift oscillator leaning on its rails        | a third harmonic at -23 dB and a fifth at -45, and no even ones                  |
+| Folded    | a triangle bent into a sine by two mismatched diodes | a second, third and fourth all near -32 dB, which is a kink rather than a warmth |
+
+**It costs nothing per sample, and that decided the design.** The oscillator is one interpolated table read, an envelope tick and a gain, running 512 times per sample at 16 voices, so a waveshaper in that loop is the whole engine again and four times oversampling to keep it from aliasing is three more. A fixed waveshape does not need to be in the loop at all: run the circuit over a sine once at startup, read off the harmonics it leaves, and build a table from them. The inner loop then reads a different table and is otherwise the same instructions. Measured against Pure at eight voices, the three others come out within a couple of percent, which on this machine is inside the spread between two runs of the same binary.
+
+What the harmonics cost instead is cache. One 16 kB table shared by 512 oscillators sits very comfortably in L1, and a character puts several in play at once, which is the only reason any difference shows up at all.
+
+**The harmonics alias like any others**, so each character is built several times over, each stopping at a different harmonic, and a partial reads the highest one that still fits under Nyquist at the pitch it is at this moment. A partial at a kilohertz has room for its 23rd, one near the top of the range has room for none and reads the plain sine, and one bent upwards drops its top harmonic on the way up rather than folding it back down. With the converter's rate turned down the full table is used, since folding is then the sound being asked for.
+
+Two things every table is held to, and a test checks both across every character and every band. The fundamental comes out at the amplitude a plain sine would have, so choosing a character is not choosing a level and the fader goes on meaning what it meant. And the DC the analysis finds is simply not built back in: 512 oscillators each carrying a small offset is headroom quietly disappearing.
+
+**What it does that a fader cannot.** This is an additive instrument, so a second harmonic on partial 3 lands where partial 6 already is. It does not land on top of it: TUNE and STRETCH move the real partials off exact whole-number ratios, and a character's harmonics sit at exact multiples of the partial that produced them, so the two beat against each other. That is the part worth having, and it is also why the recipes are small. Thirty-two partials each adding a few harmonics crowds the top of the spectrum quickly.
+
+**Bulb is the one with no harmonics.** A Wien bridge is the cleanest sine any of these circuits makes, because holding the amplitude steady is the whole job of the lamp in it. What the lamp costs is not distortion but time: its resistance follows how hard the loop drives it, only as fast as a filament heats and cools, and the gain the loop needs changes with frequency because no two ganged parts track exactly. So the level sags when the pitch moves and settles once the lamp has caught up. One pole per partial, chasing the pitch with a half-second time constant, and the error left over takes a fifth of the level at a semitone out. Here the pitch is never still, between vibrato, drift, the wheel and a finger on an MPE key, so the whole series breathes behind the hand.
+
+A slew-limited oscillator is the obvious fifth and is not here, because slewing is not a fixed waveshape at all: a rate limit does nothing to a slow sine and triangulates a fast one, so it would need a family of tables per frequency rather than one per harmonic count. Worth doing, not worth doing first.
+
 ### Wobble
 
 A warped record under the whole instrument. Pitch is bent by reading the output back through a delay line whose length keeps moving, which is what happens when a platter runs eccentric or a capstan slips: the medium arrives early or late and the pitch goes with it.
