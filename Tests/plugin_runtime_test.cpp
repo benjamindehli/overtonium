@@ -3568,6 +3568,99 @@ void testUndo(OvertoniumProcessor &p) {
   undo.clearUndoHistory();
 }
 
+/// Where one gesture ends and the next begins.
+///
+/// The editor decides that by watching for stillness, on a timer this harness
+/// has no message loop to run, so its poll is called by hand at the points the
+/// timer would reach it.
+void testUndoGrouping(OvertoniumProcessor &p) {
+  section("One gesture, one undo step");
+
+  auto &undo = p.undo();
+
+  // Parameter moves reach the value tree on a timer. copyState flushes them
+  // synchronously, which is what a poll would find waiting for it.
+  const auto settle = [&p] { p.apvts.copyState(); };
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  auto *knob =
+      p.apvts.getParameter(ovt::params::oscParamId(ovt::params::tuneSuffix, 0));
+
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+  settle();
+  undo.clearUndoHistory();
+  undo.beginNewTransaction();
+
+  const auto start = knob->getValue();
+
+  // Away from wherever the preset left it, so ten notches have somewhere to go
+  // rather than being clipped at the end of the range.
+  const float notchSize = start > 0.5f ? -0.05f : 0.05f;
+
+  // A wheel turned notch by notch, with the editor polling between notches the
+  // way its timer does. Ten writes to one parameter coalesce into one action,
+  // so the action count never moves: watching that count rather than the
+  // parameters is what used to leave a step in the history per poll.
+  for (int notch = 1; notch <= 10; ++notch) {
+    knob->setValueNotifyingHost(start + (float)notch * notchSize);
+    settle();
+    editor->closeUndoTransactionWhenIdle();
+  }
+
+  check(std::abs(knob->getValue() - start) > 0.4f,
+        "the gesture moved the parameter to begin with");
+
+  undo.beginNewTransaction();
+  check(undo.undo(), "undo reports that it did something");
+  settle();
+
+  check(std::abs(knob->getValue() - start) < 1.0e-4f,
+        "and one undo is the whole gesture, not the last notch of it (" +
+            std::to_string(knob->getValue()) + " against " +
+            std::to_string(start) + ")");
+
+  check(!undo.canUndo(), "which leaves nothing else of it on the stack");
+
+  // ---- and letting go starts the next one ---------------------------------
+  undo.clearUndoHistory();
+  undo.beginNewTransaction();
+
+  knob->setValueNotifyingHost(start + 2.0f * notchSize);
+  settle();
+  editor->closeUndoTransactionWhenIdle();
+
+  check(undo.getNumActionsInCurrentTransaction() > 0,
+        "a move the poll finds still warm stays open");
+
+  // Longer than the editor waits for stillness. Real time, since the thing
+  // being tested is a clock.
+  juce::Thread::sleep(600);
+  editor->closeUndoTransactionWhenIdle();
+
+  check(undo.getNumActionsInCurrentTransaction() == 0,
+        "and a pause closes it off");
+
+  // The window size and the LINK settings live in the same tree and are
+  // written during a resize drag. Counting those as movement would hold a
+  // gesture open for as long as someone was dragging the corner.
+  knob->setValueNotifyingHost(start + 4.0f * notchSize);
+  settle();
+  juce::Thread::sleep(600);
+  p.apvts.state.setProperty(juce::Identifier("editorWidth"), 1400, nullptr);
+  editor->closeUndoTransactionWhenIdle();
+
+  check(undo.getNumActionsInCurrentTransaction() == 0,
+        "a window that moves is not a parameter that moves");
+
+  undo.clearUndoHistory();
+}
+
 void testBusLayouts(OvertoniumProcessor &p) {
   section("Bus layouts");
 
@@ -4649,6 +4742,7 @@ int main() {
   testNoDeadTravel(processor);
   testPresetsAreReproducible(processor);
   testUndo(processor);
+  testUndoGrouping(processor);
   testBusLayouts(processor);
   testUndersizedBuffer();
   testMonoOutput();

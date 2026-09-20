@@ -69,7 +69,9 @@ It loads whether or not the preset is the one already showing, which is what the
 
 **Undo.** The parameter tree carries an undo history, which matters most because of LINK: one drag can move the same knob on all 32 channels, and without a history the only way back from a drag you did not mean is to reload the preset.
 
-A step is a gesture rather than a value change. Transactions are closed when the tree has been still for a moment rather than by hooking every parameter's gesture callbacks, which a host is free to call from the audio thread and which would mean allocating there. Watching for stillness needs no hooks and gives the same answer: a drag is one step however many values it moved, and letting go for a moment starts the next one.
+A step is a gesture rather than a value change. Transactions are closed when the tree has been still for a moment rather than by hooking every parameter's gesture callbacks, which a host is free to call from the audio thread and which would mean allocating there. Watching for stillness needs no hooks and gives the same answer: a gesture is one step however many values it moved and however long it goes on, and letting go for half a second starts the next one.
+
+Stillness is measured from the last parameter that reached the tree, which is the part that has to be right. Counting the actions in the open transaction instead looks equivalent and is not: the value tree folds repeated writes to one property into the action already there, so one knob under a scroll wheel holds that count at one from the first write onwards. Counted, that reads as having stopped, and every poll closes the transaction and leaves the history holding each value the gesture passed through. A LINK drag hides it, since 32 properties in rotation fold into nothing and the count really does climb.
 
 Cmd-Z and Cmd-Shift-Z work where the host lets them through, which many do not, since a DAW usually keeps those for its own history. Undo and Redo are therefore also at the top of the Settings menu, which always works. Loading a session clears the history, since undoing your way back into someone else's edits is not useful.
 

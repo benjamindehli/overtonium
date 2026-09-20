@@ -33,6 +33,11 @@ const juce::Identifier kLinkCurveId{"linkCurveId"};
 const juce::Identifier kLinkCurve{"linkCurve"};
 const juce::Identifier kCollapsedSections{"collapsedSections"};
 
+/// What the APVTS calls each parameter's node in the state tree. Its own
+/// constant is private, but the name is part of the format: it is what the
+/// saved state and every preset file are written in.
+const juce::Identifier kParameterNode{"PARAM"};
+
 bool isHeadingRow(Row r) {
   return r == Row::PitchModHeading || r == Row::EnvHeading ||
          r == Row::KeyOffHeading || r == Row::AmpModHeading ||
@@ -190,6 +195,10 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     : juce::AudioProcessorEditor(&p), topBar(p.apvts, *this),
       noiseStrip(p.apvts, *this, *this) {
   setLookAndFeel(&lookAndFeel);
+
+  // What tells the undo history a gesture is still going on. The tree is where
+  // a parameter move lands, every twenty milliseconds while one is moving.
+  plugin().apvts.state.addListener(this);
 
   // The background is filled edge to edge, so say so: an opaque top-level
   // component saves the window manager blending it against whatever is behind.
@@ -358,6 +367,7 @@ void OvertoniumEditor::setPresetName(const juce::String &name) {
 
 OvertoniumEditor::~OvertoniumEditor() {
   stopTimer();
+  plugin().apvts.state.removeListener(this);
 
   // Asked to stop, never waited for. Nothing is left to show the answer to, so
   // the work is pointless from here, but waiting for it on the message thread
@@ -756,22 +766,33 @@ void OvertoniumEditor::updateLinkGlow() {
 
 // ---- polling ----------------------------------------------------------------
 
+void OvertoniumEditor::valueTreePropertyChanged(juce::ValueTree &tree,
+                                                const juce::Identifier &) {
+  // Parameters only. The window size, the zoom and the LINK settings live in
+  // the same tree and are written during a resize drag, which is not a move
+  // anyone would undo and must not hold a transaction open.
+  if (tree.hasType(kParameterNode))
+    lastParameterMove = juce::Time::getMillisecondCounter();
+}
+
 void OvertoniumEditor::closeUndoTransactionWhenIdle() {
   auto &undo = plugin().undo();
-  const auto count = undo.getNumActionsInCurrentTransaction();
 
-  // Still moving. Whatever it is belongs with what came before it, so that a
-  // LINK drag across 32 channels comes back in one step rather than 32.
-  if (count != lastUndoActionCount) {
-    lastUndoActionCount = count;
+  if (undo.getNumActionsInCurrentTransaction() <= 0)
     return;
-  }
 
-  // Quiet since the last check, so anything after this is a separate move.
-  if (count > 0) {
-    undo.beginNewTransaction();
-    lastUndoActionCount = 0;
-  }
+  // Timed from the last parameter that moved rather than from the number of
+  // actions in the open transaction, which looks equivalent and is not. The
+  // value tree folds repeated writes to one property into the action already
+  // there, so one knob under a scroll wheel holds that count at one from the
+  // first write onwards. Counted, that reads as having stopped, and every poll
+  // closes the transaction and leaves the history holding each value the
+  // gesture passed through. A LINK drag hides it: 32 properties in rotation
+  // fold into nothing and the count really does climb.
+  if (juce::Time::getMillisecondCounter() - lastParameterMove < kUndoIdleMs)
+    return;
+
+  undo.beginNewTransaction();
 }
 
 void OvertoniumEditor::stepHistory(bool redo) {
@@ -780,7 +801,6 @@ void OvertoniumEditor::stepHistory(bool redo) {
   // Whatever is still open has to be closed first, or the most recent move is
   // not yet a step of its own and undo would reach straight past it.
   undo.beginNewTransaction();
-  lastUndoActionCount = 0;
 
   if (redo)
     undo.redo();

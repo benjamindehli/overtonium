@@ -47,7 +47,8 @@ private:
 class OvertoniumEditor : public juce::AudioProcessorEditor,
                          public ovt::ui::LinkTarget,
                          public ovt::ui::HoverTarget,
-                         private juce::Timer {
+                         private juce::Timer,
+                         private juce::ValueTree::Listener {
 public:
   explicit OvertoniumEditor(OvertoniumProcessor &);
   ~OvertoniumEditor() override;
@@ -68,6 +69,18 @@ public:
 
   // ---- ovt::ui::HoverTarget ----
   void hoverChanged(int stripIndex, ovt::ui::Row) override;
+
+  /// Closes off an undo transaction once the parameters have stopped moving.
+  ///
+  /// The alternative is hooking every parameter's gesture callbacks, which a
+  /// host may call from the audio thread, and opening a transaction allocates.
+  /// Watching for stillness instead needs no hooks and gives the same answer:
+  /// a gesture is one step however many values it moved and however long it
+  /// goes on, and letting go for a moment starts the next one.
+  ///
+  /// Public for the same reason the processor's pending program change is: it
+  /// is driven by a timer, and a test has no message loop to run one.
+  void closeUndoTransactionWhenIdle();
 
 private:
   void timerCallback() override;
@@ -179,19 +192,23 @@ private:
   /// at their own fraction of it.
   int tick = 0;
 
-  /// Closes off an undo transaction once the tree has stopped moving.
-  ///
-  /// The alternative is hooking every parameter's gesture callbacks, which a
-  /// host may call from the audio thread, and opening a transaction allocates.
-  /// Watching for stillness instead needs no hooks and gives the same answer:
-  /// a drag is one step however many values it moved, and letting go for a
-  /// moment starts the next one.
-  void closeUndoTransactionWhenIdle();
-
   /// Closes the open transaction, then steps back or forward.
   void stepHistory(bool redo);
 
-  int lastUndoActionCount = 0;
+  // ---- juce::ValueTree::Listener ----
+  void valueTreePropertyChanged(juce::ValueTree &,
+                                const juce::Identifier &) override;
+
+  /// When a parameter last reached the state tree, by the millisecond counter.
+  /// See closeUndoTransactionWhenIdle.
+  juce::uint32 lastParameterMove = 0;
+
+  /// How still the panel has to be before a gesture is closed off as one step.
+  ///
+  /// Long enough to sit between the notches of a scroll wheel turned at a
+  /// deliberate pace, since that is how most of this instrument gets adjusted,
+  /// and short enough that two edits you meant as two do not become one.
+  static constexpr juce::uint32 kUndoIdleMs = 500;
 
   int hoverStrip = -1;
   ovt::ui::Row hoverRow = ovt::ui::kNoRow;
