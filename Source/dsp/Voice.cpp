@@ -118,6 +118,7 @@ void Voice::reset() noexcept {
     pt.ampLfo.reset();
     pt.lastGain = 0.0f;
     pt.gainPrimed = false;
+    pt.lastWave = nullptr;
   }
 
   noise.env.reset();
@@ -570,6 +571,10 @@ void Voice::render(float *left, float *right, int numSamples,
           pt.env.tick();
 
         pt.phase = wrapPhase(pt.phase + inc * (double)len);
+
+        // Whatever it would have been reading, so that coming back audible
+        // does not cross-fade from a table it has not been heard on.
+        pt.lastWave = &wave;
         continue;
       }
 
@@ -580,17 +585,56 @@ void Voice::render(float *left, float *right, int numSamples,
       const float pl = panL[(size_t)i];
       const float pr = panR[(size_t)i];
 
-      for (int n = 0; n < len; ++n) {
-        const float s = wave.at(ph) * pt.env.tick() * g;
+      // Which table it was reading last block, and which it is reading now.
+      //
+      // They differ whenever a partial crosses one of the lines the tables are
+      // divided by: how much room is left under Nyquist for every character,
+      // and how hard the limit is biting for the slewed one. Two tables hold
+      // different numbers at the same phase, so swapping between them puts a
+      // step in the wave, and a step is a click. A vibrato sitting across one
+      // of those lines crosses it twice a cycle and clicks at twice the
+      // vibrato rate.
+      //
+      // So the block that changes tables is played as a cross-fade from one to
+      // the other, the same way the gain slides across a block rather than
+      // stepping at the edge of it. It costs a second table read for 32
+      // samples, on the rare block that crosses, and nothing at all on the
+      // ones that do not.
+      const Wave *const previous = pt.lastWave;
+      pt.lastWave = &wave;
 
-        l[n] += s * pl;
-        r[n] += s * pr;
+      if (previous == nullptr || previous == &wave) {
+        for (int n = 0; n < len; ++n) {
+          const float s = wave.at(ph) * pt.env.tick() * g;
 
-        ph += inc;
-        if (ph >= 1.0)
-          ph -= 1.0;
+          l[n] += s * pl;
+          r[n] += s * pr;
 
-        g += gInc;
+          ph += inc;
+          if (ph >= 1.0)
+            ph -= 1.0;
+
+          g += gInc;
+        }
+      } else {
+        float mix = 0.0f;
+        const float mixInc = 1.0f / (float)len;
+
+        for (int n = 0; n < len; ++n) {
+          const float was = previous->at(ph);
+          const float is = wave.at(ph);
+          const float s = (was + (is - was) * mix) * pt.env.tick() * g;
+
+          l[n] += s * pl;
+          r[n] += s * pr;
+
+          ph += inc;
+          if (ph >= 1.0)
+            ph -= 1.0;
+
+          g += gInc;
+          mix += mixInc;
+        }
       }
 
       pt.phase = ph;

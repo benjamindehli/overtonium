@@ -274,6 +274,11 @@ private:
     /// Voice::render.
     double bulbSettled = 0.0;
     bool semisPrimed = false;
+
+    /// The table this partial was reading last block, so a block that changes
+    /// tables can be played as a cross-fade rather than as a step. Null until
+    /// it has read one. See Voice::render.
+    const Wave *lastWave = nullptr;
   };
 
   /// The noise channel runs alongside the partials with its own envelope and

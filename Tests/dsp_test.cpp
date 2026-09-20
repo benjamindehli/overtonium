@@ -919,6 +919,100 @@ void testCharacter() {
     return 20.0 * std::log10(hi / std::max(1.0e-9, lo));
   };
 
+  // ---- crossing from one table to the next ---------------------------------
+  //
+  // A partial whose pitch wanders across one of the lines the tables are
+  // divided by reads a different table on the far side of it, and two tables
+  // hold different numbers at the same phase. Swapped at the edge of a block
+  // that is a step in the wave, which is a click, and a vibrato sitting on
+  // such a line crosses it twice a cycle.
+  //
+  // Measured as the largest step from one sample to the next, against the same
+  // note played on the plain sine, where the only steps are the waveform's
+  // own.
+  const auto worstStep = [](Character c, double centreHz, float pmCents) {
+    SynthParams p;
+
+    for (auto &o : p.osc) {
+      o.volume = 0.0f;
+      o.velAmount = 0.0f;
+      o.attack = 0.005f;
+      o.decay = 20.0f;
+      o.sustain = 1.0f;
+      o.audible = true;
+    }
+
+    p.osc[0].volume = 0.7f;
+    p.osc[0].pmDepthCents = pmCents;
+    p.osc[0].pmRateHz = 5.0f;
+    p.global.masterGain = 1.0f;
+    p.global.safetyClip = false;
+    p.global.character = c;
+
+    // The note whose fundamental sits on the line, so the vibrato spends the
+    // whole of its time crossing and recrossing it.
+    const int note =
+        (int)std::lround(69.0 + 12.0 * std::log2(centreHz / 440.0));
+
+    SynthEngine engine;
+    engine.prepare(sr);
+    engine.setPolyphony(1);
+    engine.noteOn(note, 1.0f, p);
+
+    const int total = (int)(sr * 3.0);
+    std::vector<float> l((size_t)total), r((size_t)total);
+    engine.render(l.data(), r.data(), total, p);
+
+    float worst = 0.0f;
+    for (int n = (int)(sr * 0.5) + 1; n < total; ++n)
+      worst = std::max(worst, std::abs(l[(size_t)n] - l[(size_t)n - 1]));
+
+    return worst;
+  };
+
+  {
+    // Right on the first slew line, with a vibrato wide enough to sit across
+    // it. This is the case that clicked.
+    const double line = kSlewCornerHz * kSlewRatios.front();
+
+    const float slewed = worstStep(Character::Slewed, line, 60.0f);
+    const float pure = worstStep(Character::Pure, line, 60.0f);
+
+    std::printf("  worst sample step across a slew line: %.5f slewed, %.5f "
+                "pure\n",
+                slewed, pure);
+
+    // A slewed wave is a harder shape than a sine and could legitimately step
+    // more between samples, so this is not asking for parity, only for nothing
+    // the ear would hear as a click on top of the waveform's own slope.
+    // Swapping the table rather than cross-fading it reads 0.145 here against
+    // the sine's 0.083, which is the click that was reported.
+    check(slewed < pure * 1.25f + 1.0e-4f,
+          "crossing a slew line does not put a step in the wave");
+  }
+
+  {
+    // The other kind of line, and the one every character has: where a
+    // harmonic passes Nyquist and the table gives that harmonic up. A partial
+    // sitting there swaps tables for the same reason, though it is the gentler
+    // of the two crossings by construction, since the harmonic being given up
+    // is the quietest one the recipe has. Held to the same bound anyway, so
+    // that a recipe with more in its top harmonic cannot quietly start
+    // clicking here.
+    const double line = 0.49 * sr / (double)kMaxCharacterHarmonic;
+
+    const float squashed = worstStep(Character::Squashed, line, 60.0f);
+    const float pure = worstStep(Character::Pure, line, 60.0f);
+
+    std::printf("  worst sample step across a Nyquist line: %.5f squashed, "
+                "%.5f pure\n",
+                squashed, pure);
+
+    check(squashed < pure * 1.25f + 1.0e-4f,
+          "and neither does crossing the line where a harmonic runs out of "
+          "room");
+  }
+
   const double still = swingDb(Character::Bulb, 0.0f, 0.0f);
   const double vibrato = swingDb(Character::Bulb, 25.0f, 0.0f);
   const double bent = swingDb(Character::Bulb, 0.0f, 2.0f);
