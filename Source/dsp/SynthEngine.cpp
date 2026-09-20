@@ -25,12 +25,12 @@ void SynthEngine::prepare(double newSampleRate) noexcept {
   sampleRate = std::max(1.0, newSampleRate);
   renderRate = sampleRate;
 
-  // Builds the oscillator tables if nothing has yet, which takes about seven
-  // milliseconds: a circuit run over a sine, the harmonics read off it, and a
-  // table built for each count of them that fits under Nyquist. They are built
-  // once and then only read, but the first read has to pay for them, and the
-  // first read would otherwise be the first note. Seven milliseconds is most
-  // of a block.
+  // Builds the oscillator tables if nothing has yet, which takes about eight
+  // milliseconds: each circuit run over a sine, the harmonics read off it, and
+  // a table built for every count of them that fits under Nyquist. They are
+  // built once and then only read, but the first read has to pay for them, and
+  // the first read would otherwise be the first note. Eight milliseconds is
+  // most of a block.
   (void)CharacterTables::instance();
 
   // Distinct seeds so two voices never draw the same drift contour.

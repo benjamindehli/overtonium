@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <vector>
 
 #include "SineTable.h"
 
@@ -16,6 +17,8 @@ namespace ovt {
 /// the ways each design misses are what people mean when they call one warm
 /// and another sterile.
 ///
+/// The order is the order they are saved in, so a new one goes on the end.
+///
 /// Declared here rather than beside the parameter it comes from, because the
 /// voice branches on it and the DSP core is not allowed to include JUCE.
 enum class Character {
@@ -23,6 +26,8 @@ enum class Character {
   Bulb,     ///< a Wien bridge held steady by a lamp, which lags
   Squashed, ///< a phase-shift oscillator driven into its own rails
   Folded,   ///< a triangle bent into a sine by two mismatched diodes
+  Valve,    ///< a triode leaning over on one side before the other
+  Slewed,   ///< an amplifier that cannot move as fast as the note asks
   NumCharacters
 };
 
@@ -39,6 +44,10 @@ inline const char *characterName(Character c) {
     return "Squashed";
   case Character::Folded:
     return "Folded";
+  case Character::Valve:
+    return "Valve";
+  case Character::Slewed:
+    return "Slewed";
 
   // Listed rather than left to a default, so adding a character is a compiler
   // error here until it has been given a name.
@@ -60,23 +69,71 @@ inline const char *characterName(Character c) {
 /// table itself amounts to.
 inline constexpr int kMaxCharacterHarmonic = 5;
 
+/// Tables per shape, one for each count of harmonics that fits.
+inline constexpr int kCharacterBands = kMaxCharacterHarmonic - 1;
+
+/// Where a full-scale sine first asks the amplifier to move faster than it
+/// can, in Hz.
+///
+/// Slewing is the one imperfection here that is not a fixed waveshape. A rate
+/// limit does nothing at all to a slow wave and turns a fast one into a
+/// triangle, so the shape depends on the frequency, and a character built this
+/// way needs a table per band of it rather than one table.
+///
+/// A kilohertz, which is the second number here scaled to the instrument
+/// rather than taken from the part. A 741 slews at 0.5 V per microsecond, so
+/// at ten volts peak it stops keeping up somewhere around 8 kHz, and a
+/// partial up there has no room left under Nyquist for the odd harmonics
+/// slewing makes: the character would be real, correct and completely
+/// inaudible. A kilohertz is where it can be heard, and it is where the
+/// keyboard tracking rolloff sits for a related reason, being about C6 and so
+/// in the middle of where anyone plays.
+///
+/// Below it the partials are untouched. Above it they harden as they climb,
+/// which is what playing a slew-limited oscillator up the keyboard does.
+inline constexpr double kSlewCornerHz = 1000.0;
+
+/// How far past the corner each slew table stands, as a multiple of it.
+///
+/// It stops at a little over twice the corner because that is where the wave
+/// has become a triangle and stays one. Measured, the third harmonic reaches
+/// -19.1 dB there and does not move again however much harder the limit
+/// bites: a triangle at a given fundamental is a triangle. Anything above the
+/// last ratio reads the last table.
+inline constexpr std::array<double, 3> kSlewRatios{1.25, 1.6, 2.2};
+
 /// One character, as the harmonic series its circuit produces.
 ///
 /// Held as amplitudes and phases rather than as a shaping function, because a
 /// waveshaper cannot be run on the audio thread at this scale and because
 /// harmonics are what has to be counted to keep the thing under Nyquist. The
-/// shaper is run once, at startup, and this is what it leaves behind.
+/// circuit is run once, at startup, and this is what it leaves behind.
 struct Harmonic {
   float sine = 0.0f;   ///< amplitude of sin(2 pi n x)
   float cosine = 0.0f; ///< and of cos(2 pi n x), which carries the phase
 };
 
+/// Which slew table a partial at this frequency reads, or -1 for none of them.
+inline int slewBandFor(double freq) noexcept {
+  const double ratio = freq / kSlewCornerHz;
+
+  // Nothing is being limited yet, so it is a plain sine.
+  if (ratio <= kSlewRatios.front())
+    return -1;
+
+  for (int i = 1; i < (int)kSlewRatios.size(); ++i)
+    if (ratio < kSlewRatios[(size_t)i])
+      return i - 1;
+
+  return (int)kSlewRatios.size() - 1;
+}
+
 /// Every table an oscillator can read, built once and then only read.
 ///
-/// Roughly 200 kB of tables, which sounds like a lot next to one 16 kB sine
-/// until you count what it replaces: the alternative is a waveshaper in the
-/// inner loop and four times oversampling to keep it from aliasing, which is
-/// the whole engine again three times over.
+/// About four hundred kilobytes of them, which sounds like a lot next to one
+/// 16 kB sine until you count what it replaces: the alternative is a waveshaper
+/// in the inner loop and four times oversampling to keep it from aliasing,
+/// which is the whole engine again three times over.
 class CharacterTables {
 public:
   static const CharacterTables &instance() noexcept {
@@ -84,12 +141,16 @@ public:
     return t;
   }
 
-  /// The table to read for this character at this pitch.
+  /// The table to read for this character, at this pitch.
   ///
-  /// @param highestHarmonic  the highest multiple of the partial's own
-  /// frequency that still fits below Nyquist. One means there is only room for
-  /// the fundamental, which is a plain sine whatever the character says.
-  const Wave &table(Character c, int highestHarmonic) const noexcept {
+  /// @param freq  the partial's frequency right now, which decides how hard a
+  /// slew limit bites. Every other character reads the same table whatever it
+  /// is playing.
+  /// @param highestHarmonic  the highest multiple of that frequency which
+  /// still fits below Nyquist. One means there is only room for the
+  /// fundamental, which is a plain sine whatever the character says.
+  const Wave &table(Character c, double freq,
+                    int highestHarmonic) const noexcept {
     const auto which = (size_t)c;
 
     // A character with nothing above its fundamental, and a partial with no
@@ -100,50 +161,92 @@ public:
         !shaped[which])
       return SineTable::instance();
 
-    const auto band =
-        (size_t)(std::min(highestHarmonic, kMaxCharacterHarmonic) - 2);
+    const int shape = c == Character::Slewed ? slewBandFor(freq) : 0;
 
-    return tables[which][band];
+    if (shape < 0)
+      return SineTable::instance();
+
+    const auto band = std::min(highestHarmonic, kMaxCharacterHarmonic) - 2 +
+                      shape * kCharacterBands;
+
+    return tables[(size_t)(base[which] + band)];
   }
 
   /// What a character does to the harmonic series, for the tests to read back
   /// and for anyone wondering where the numbers came from.
+  ///
+  /// @param shapeBand  which of a character's shapes to report, for the one
+  /// that has more than a single shape.
   const std::array<Harmonic, kMaxCharacterHarmonic> &
-  harmonics(Character c) const noexcept {
-    return recipes[(size_t)c];
+  harmonics(Character c, int shapeBand = 0) const noexcept {
+    return recipes[(size_t)(recipeBase[(size_t)c] +
+                            std::clamp(shapeBand, 0, shapeCount(c) - 1))];
+  }
+
+  /// How many shapes a character has. One for everything that is a fixed
+  /// waveform, and a band per slew ratio for the one that is not.
+  static int shapeCount(Character c) noexcept {
+    return c == Character::Slewed ? (int)kSlewRatios.size() : 1;
   }
 
 private:
-  CharacterTables() noexcept {
+  CharacterTables() {
+    int offset = 0;
+
     for (int c = 0; c < (int)Character::NumCharacters; ++c) {
-      const auto &recipe = recipes[(size_t)c] = analyse((Character)c);
+      base[(size_t)c] = offset;
+      recipeBase[(size_t)c] = (int)recipes.size();
 
-      // Below this a harmonic is quieter than the table's own interpolation
-      // error, so building a table for it would cost cache and change
-      // nothing. Decided from the recipe rather than from a list of which
-      // characters are supposed to be clean, so adding one cannot get the
-      // answer wrong.
-      constexpr float kAudible = 1.0e-4f;
+      bool anything = false;
 
-      for (int n = 2; n <= kMaxCharacterHarmonic; ++n)
-        shaped[(size_t)c] |=
-            std::hypot(recipe[(size_t)(n - 1)].sine,
-                       recipe[(size_t)(n - 1)].cosine) > kAudible;
+      for (int shape = 0; shape < shapeCount((Character)c); ++shape) {
+        const auto recipe = analyse(renderCycle((Character)c, shape));
+        recipes.push_back(recipe);
 
-      if (!shaped[(size_t)c])
-        continue;
+        // Below this a harmonic is quieter than the table's own interpolation
+        // error, so building a table for it would cost cache and change
+        // nothing. Decided from the recipe rather than from a list of which
+        // characters are supposed to be clean, so adding one cannot get the
+        // answer wrong.
+        constexpr float kAudible = 1.0e-4f;
 
-      for (int highest = 2; highest <= kMaxCharacterHarmonic; ++highest)
-        build(tables[(size_t)c][(size_t)(highest - 2)], recipe, highest);
+        bool worthIt = false;
+
+        for (int n = 2; n <= kMaxCharacterHarmonic; ++n)
+          worthIt |= std::hypot(recipe[(size_t)(n - 1)].sine,
+                                recipe[(size_t)(n - 1)].cosine) > kAudible;
+
+        anything |= worthIt;
+
+        // Built for every shape once any of them is worth building, so the
+        // bands stay at a fixed stride and a quiet one in the middle cannot
+        // shift the rest out from under the index.
+        build(recipe);
+        offset += kCharacterBands;
+      }
+
+      shaped[(size_t)c] = anything;
+
+      // Nothing was kept, so nothing was spent.
+      if (!anything) {
+        tables.resize((size_t)base[(size_t)c]);
+        offset = base[(size_t)c];
+      }
     }
   }
 
-  /// What each circuit does to a sine, applied to one turn of one.
+  /// One turn of what a circuit makes of a sine.
   ///
-  /// @param turns  where in the cycle we are, 0 to 1.
-  static double shape(Character c, double turns) noexcept {
+  /// A whole cycle rather than a point at a time, because a slew limit has a
+  /// memory: what it does at one instant depends on where it had got to at the
+  /// last one.
+  static std::vector<double> renderCycle(Character c, int shape) {
     constexpr double kTwoPi = 6.283185307179586476;
-    const double s = std::sin(kTwoPi * turns);
+    std::vector<double> out((size_t)kPoints, 0.0);
+
+    const auto sine = [](int i) {
+      return std::sin(kTwoPi * (double)i / (double)kPoints);
+    };
 
     switch (c) {
     case Character::Squashed: {
@@ -153,7 +256,11 @@ private:
       // is chosen for a third harmonic at -23 dB, which is audible as a
       // hardening of the tone rather than as distortion.
       constexpr double kDrive = 1.0;
-      return std::tanh(kDrive * s) / std::tanh(kDrive);
+
+      for (int i = 0; i < kPoints; ++i)
+        out[(size_t)i] = std::tanh(kDrive * sine(i)) / std::tanh(kDrive);
+
+      return out;
     }
 
     case Character::Folded: {
@@ -163,11 +270,65 @@ private:
       // shape above the axis as below it. That asymmetry is where the even
       // harmonics come from, and it is why this sounds different from
       // Squashed even at a similar total distortion.
-      const double tri = 1.0 - 4.0 * std::abs(turns - 0.5);
       constexpr double kMismatch = 0.75;
-      const double gain = tri >= 0.0 ? 1.0 : kMismatch;
 
-      return std::sin(1.5707963267948966 * gain * tri);
+      for (int i = 0; i < kPoints; ++i) {
+        const double turns = (double)i / (double)kPoints;
+        const double tri = 1.0 - 4.0 * std::abs(turns - 0.5);
+        const double gain = tri >= 0.0 ? 1.0 : kMismatch;
+
+        out[(size_t)i] = std::sin(1.5707963267948966 * gain * tri);
+      }
+
+      return out;
+    }
+
+    case Character::Valve: {
+      // A triode. Its curve is not symmetrical about anything, so a wave
+      // sitting on it leans over on one side before the other, and what that
+      // asymmetry makes is a second harmonic. That is the whole of the sound
+      // people call valve warmth: an octave above every partial, stronger
+      // than anything else the circuit adds.
+      //
+      // The bias is where on the curve the wave sits. Further along it and the
+      // second harmonic grows while the third falls away, so it sets which of
+      // the two the character is about.
+      constexpr double kDrive = 1.1;
+      constexpr double kBias = 0.25;
+
+      const double rest = std::tanh(kDrive * kBias);
+
+      for (int i = 0; i < kPoints; ++i)
+        out[(size_t)i] = std::tanh(kDrive * (sine(i) + kBias)) - rest;
+
+      return out;
+    }
+
+    case Character::Slewed: {
+      // An amplifier that cannot move faster than its slew rate. Below the
+      // corner it is never asked to, and past it the wave loses first its
+      // corners and then everything but its slopes, which is a triangle.
+      //
+      // Simulated rather than shaped, since a rate limit is the one
+      // imperfection here with a memory. Several turns of it, so what comes
+      // out is the steady state the circuit settles into rather than the first
+      // cycle after it was switched on.
+      const double ratio = kSlewRatios[(size_t)std::clamp(
+          shape, 0, (int)kSlewRatios.size() - 1)];
+
+      // The most it can move between two points of the table. A full-scale
+      // sine's steepest part climbs 2 pi in a turn, so at a ratio of one this
+      // is exactly what the wave asks for and nothing is limited.
+      const double step = kTwoPi / ((double)kPoints * ratio);
+      double y = 0.0;
+
+      for (int pass = 0; pass < 8; ++pass)
+        for (int i = 0; i < kPoints; ++i) {
+          y += std::clamp(sine(i) - y, -step, step);
+          out[(size_t)i] = y;
+        }
+
+      return out;
     }
 
     case Character::Pure:
@@ -182,11 +343,13 @@ private:
     // time: it takes a moment to settle whenever anything changes. That is a
     // behaviour rather than a waveform, so it lives in the voice. See
     // Voice::render.
-    return s;
+    for (int i = 0; i < kPoints; ++i)
+      out[(size_t)i] = sine(i);
+
+    return out;
   }
 
-  /// Runs a circuit over one turn of a sine and reads off the harmonics it
-  /// left behind.
+  /// Reads the harmonics off a cycle a circuit has been run over.
   ///
   /// The fundamental is normalised to the amplitude a plain sine would have,
   /// so a character changes what a partial sounds like and not how loud it is:
@@ -195,9 +358,8 @@ private:
   /// which matters more here than it looks: 512 oscillators each carrying a
   /// small offset is headroom quietly disappearing.
   static std::array<Harmonic, kMaxCharacterHarmonic>
-  analyse(Character c) noexcept {
+  analyse(const std::vector<double> &cycle) noexcept {
     constexpr double kTwoPi = 6.283185307179586476;
-    constexpr int kPoints = 4096;
 
     std::array<Harmonic, kMaxCharacterHarmonic> out{};
 
@@ -206,10 +368,9 @@ private:
 
       for (int i = 0; i < kPoints; ++i) {
         const double turns = (double)i / (double)kPoints;
-        const double v = shape(c, turns);
 
-        sn += v * std::sin(kTwoPi * (double)n * turns);
-        cs += v * std::cos(kTwoPi * (double)n * turns);
+        sn += cycle[(size_t)i] * std::sin(kTwoPi * (double)n * turns);
+        cs += cycle[(size_t)i] * std::cos(kTwoPi * (double)n * turns);
       }
 
       out[(size_t)(n - 1)].sine = (float)(2.0 * sn / (double)kPoints);
@@ -227,32 +388,51 @@ private:
     return out;
   }
 
-  static void build(Wave &wave,
-                    const std::array<Harmonic, kMaxCharacterHarmonic> &recipe,
-                    int highest) noexcept {
-    wave.fill([&recipe, highest](double turns) {
-      constexpr double kTwoPi = 6.283185307179586476;
-      double v = 0.0;
+  /// Builds every band of one shape and appends them in order.
+  ///
+  /// One harmonic at a time into a running sum, taking a copy after each,
+  /// because each band is the band below it plus one more harmonic. Building
+  /// them separately would be the same work four times over, and this runs at
+  /// startup where something is waiting for it.
+  void build(const std::array<Harmonic, kMaxCharacterHarmonic> &recipe) {
+    constexpr double kTwoPi = 6.283185307179586476;
 
-      for (int n = 1; n <= highest; ++n) {
-        const auto &h = recipe[(size_t)(n - 1)];
-        v += (double)h.sine * std::sin(kTwoPi * (double)n * turns) +
-             (double)h.cosine * std::cos(kTwoPi * (double)n * turns);
+    std::vector<double> sum((size_t)kPoints, 0.0);
+
+    for (int n = 1; n <= kMaxCharacterHarmonic; ++n) {
+      const auto &h = recipe[(size_t)(n - 1)];
+
+      for (int i = 0; i < kPoints; ++i) {
+        const double turns = (double)i / (double)kPoints;
+
+        sum[(size_t)i] +=
+            (double)h.sine * std::sin(kTwoPi * (double)n * turns) +
+            (double)h.cosine * std::cos(kTwoPi * (double)n * turns);
       }
 
-      return v;
-    });
+      if (n < 2)
+        continue;
+
+      tables.emplace_back();
+      tables.back().fill([&sum](double turns) {
+        const auto i =
+            (size_t)(turns * (double)kPoints + 0.5) % (size_t)kPoints;
+
+        return sum[i];
+      });
+    }
   }
 
-  std::array<std::array<Wave, kMaxCharacterHarmonic - 1>,
-             (size_t)Character::NumCharacters>
-      tables{};
+  /// One turn, at the resolution the tables themselves hold.
+  static constexpr int kPoints = Wave::kSize;
 
-  std::array<std::array<Harmonic, kMaxCharacterHarmonic>,
-             (size_t)Character::NumCharacters>
-      recipes{};
+  std::vector<Wave> tables;
+  std::vector<std::array<Harmonic, kMaxCharacterHarmonic>> recipes;
 
-  /// Whether a character has anything above its fundamental worth a table.
+  /// Where each character's tables and recipes start, and whether it has any
+  /// tables at all.
+  std::array<int, (size_t)Character::NumCharacters> base{};
+  std::array<int, (size_t)Character::NumCharacters> recipeBase{};
   std::array<bool, (size_t)Character::NumCharacters> shaped{};
 };
 

@@ -502,6 +502,8 @@ Every entry is a sine oscillator. What differs is how it fails to be one, which 
 | Bulb      | a Wien bridge held steady by a lamp                  | no harmonics at all, and a level that lags half a second behind every pitch move |
 | Squashed  | a phase-shift oscillator leaning on its rails        | a third harmonic at -23 dB and a fifth at -45, and no even ones                  |
 | Folded    | a triangle bent into a sine by two mismatched diodes | a second, third and fourth all near -32 dB, which is a kink rather than a warmth |
+| Valve     | a triode, biased so one half leans over first        | a second harmonic at -20 dB over a third at -23, which is the warm one           |
+| Slewed    | an amplifier that cannot move as fast as it is asked | nothing below a kilohertz, and a third harmonic climbing to -19 dB above it      |
 
 **It costs nothing per sample, and that decided the design.** The oscillator is one interpolated table read, an envelope tick and a gain, running 512 times per sample at 16 voices, so a waveshaper in that loop is the whole engine again and four times oversampling to keep it from aliasing is three more. A fixed waveshape does not need to be in the loop at all: run the circuit over a sine once at startup, read off the harmonics it leaves, and build a table from them. The inner loop then reads a different table and is otherwise the same instructions. Measured against Pure at eight voices, the three others come out within a couple of percent, which on this machine is inside the spread between two runs of the same binary.
 
@@ -519,7 +521,13 @@ How far out of balance the lamp has to be for that is the one number here that i
 
 Which is to say it answers gestures rather than sitting there. A held note with no vibrato, no bend and no hand on it is exactly Pure, because an amplitude that is already steady is one a lamp has nothing to do about. Drift moves it least of all, since a wander that slow is precisely what an automatic gain control exists to remove.
 
-A slew-limited oscillator is the obvious fifth and is not here, because slewing is not a fixed waveshape at all: a rate limit does nothing to a slow sine and triangulates a fast one, so it would need a family of tables per frequency rather than one per harmonic count. Worth doing, not worth doing first.
+**Valve is the one about the second harmonic.** A triode's curve is not symmetrical about anything, so a wave sitting on it leans over on one side before the other, and an asymmetry is what makes even harmonics. Where on the curve the wave sits decides which harmonic the character is about: further along it, the second grows while the third falls away. Biased to put the second at -20 dB and the third at -23, it is the only one here whose loudest addition is an octave rather than a twelfth, which is the whole of what people mean by valve warmth.
+
+**Slewed is the one that is not a fixed waveshape**, and it is why the table is chosen by frequency as well as by how much room is left under Nyquist. A rate limit does nothing at all to a wave that never asks the amplifier for more than it has, and turns a fast one into a triangle, so the shape depends on the pitch. The corner sits at a kilohertz, and that is the second number here scaled to the instrument rather than taken from the part. A 741 slews at half a volt per microsecond, so at ten volts peak it stops keeping up somewhere around 8 kHz, and a partial up there has no room left under Nyquist for the odd harmonics slewing makes: the character would be real, correct and completely inaudible. A kilohertz is where it can be heard, and it happens to be where the keyboard tracking rolloff sits, being about C6 and so in the middle of where anyone plays. Below it the partials are untouched. Above it they harden as they climb, which is what playing a slew-limited oscillator up the keyboard does.
+
+Three tables cover it, at a quarter, six tenths and twice again past the corner, and anything above the last reads the last. That is not a corner cut: measured, the third harmonic reaches -19.1 dB by twice the corner and does not move again however much harder the limit bites, because the wave is a triangle by then and a triangle at a given fundamental is a triangle. It is also the character that costs the most, about five percent over Pure at eight voices, since one note's partials land in different bands and read several tables where the others read one.
+
+A rate limit is the one imperfection here with a memory, so its cycle is simulated rather than shaped: a limiter run over a sine for several turns, with the steady state it settles into being what gets analysed.
 
 ### Wobble
 

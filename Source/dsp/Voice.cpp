@@ -34,10 +34,12 @@ constexpr double kAmpShapeOffset = 0.25;
 
 /// How long the Bulb character's filament takes to settle at a new pitch.
 ///
-/// Lamps used for this are small and slow, and the published figures for the
-/// ones people reach for run from a couple of hundred milliseconds to about a
-/// second. Half a second sits in the middle of that and is long enough to hear
-/// the level walking behind a bend rather than moving with it.
+/// A tungsten filament of the size used for this has a thermal time constant
+/// in the tens to hundreds of milliseconds, and the loop around it settles
+/// slower than the filament does, which is what makes the bounce famous
+/// enough to be the first thing anyone says about these oscillators. Half a
+/// second is long enough to hear the level walking behind a bend rather than
+/// moving with it.
 constexpr double kBulbSettleSeconds = 0.5;
 
 /// How far out of balance the lamp can get before it has nothing left to give,
@@ -459,10 +461,14 @@ void Voice::render(float *left, float *right, int numSamples,
       // ones in between lose them from the top down. With the converter's rate
       // turned down, folding is the sound being asked for and the full table
       // is what folds.
+      //
+      // The frequency goes in as well as the room above it, because one
+      // character is a rate limit rather than a shape, and how hard that bites
+      // depends on how fast the wave is asking the amplifier to move.
       const auto &wave = characters.table(
-          p.global.character, foldAliases
-                                  ? kMaxCharacterHarmonic
-                                  : highestHarmonicUnder(freq, sampleRate));
+          p.global.character, freq,
+          foldAliases ? kMaxCharacterHarmonic
+                      : highestHarmonicUnder(freq, sampleRate));
 
       // ---- what the lamp has not caught up with ----------------------------
       //

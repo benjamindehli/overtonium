@@ -612,10 +612,11 @@ void testCharacter() {
   // this existed. Not a copy of it: the same object, so the character costs
   // nothing at all until one is chosen that changes the waveform.
   for (auto c : {Character::Pure, Character::Bulb})
-    check(&tables.table(c, kMaxCharacterHarmonic) == &SineTable::instance(),
+    check(&tables.table(c, 220.0, kMaxCharacterHarmonic) ==
+              &SineTable::instance(),
           "a character with no harmonics reads the plain sine table");
 
-  check(&tables.table(Character::Squashed, 1) == &SineTable::instance(),
+  check(&tables.table(Character::Squashed, 220.0, 1) == &SineTable::instance(),
         "and so does one with no room under Nyquist for a second harmonic");
 
   // The fundamental is what the fader means, so every character has to deliver
@@ -641,31 +642,106 @@ void testCharacter() {
             std::to_string(20.0 * std::log10(level(Character::Folded, 2))) +
             " dB");
 
+  // A valve is the one that is about the second harmonic rather than about
+  // the third, which is what makes it the one people call warm.
+  check(level(Character::Valve, 2) > level(Character::Valve, 3),
+        "Valve leads with its second harmonic (" +
+            std::to_string(20.0 * std::log10(level(Character::Valve, 2))) +
+            " dB against " +
+            std::to_string(20.0 * std::log10(level(Character::Valve, 3))) +
+            " dB for the third)");
+
+  check(level(Character::Valve, 2) > 0.03,
+        "and it is there to be heard rather than only measured");
+
+  // ---- the one that is not a fixed shape -----------------------------------
+  //
+  // Slewing depends on how fast the wave is moving, so the same character has
+  // to be a different waveform at different pitches. Below the corner the
+  // amplifier is never asked for more than it has.
+  check(slewBandFor(kSlewCornerHz * 0.5) < 0,
+        "a partial below the slew corner is not limited at all");
+
+  check(&tables.table(Character::Slewed, kSlewCornerHz * 0.5,
+                      kMaxCharacterHarmonic) == &SineTable::instance(),
+        "so it reads the plain sine");
+
+  check(slewBandFor(kSlewCornerHz * 10.0) == (int)kSlewRatios.size() - 1,
+        "and one far above it reads the last band, since past there a "
+        "triangle is a triangle");
+
+  // What a rate limit does to a wave: it takes the top off the slopes and
+  // leaves the slopes, which is a triangle, and a triangle has odd harmonics
+  // and no even ones.
+  const auto &hard =
+      tables.harmonics(Character::Slewed, (int)kSlewRatios.size() - 1);
+
+  const auto hardLevel = [&hard](int n) {
+    return std::hypot((double)hard[(size_t)(n - 1)].sine,
+                      (double)hard[(size_t)(n - 1)].cosine);
+  };
+
+  check(hardLevel(3) > 0.05,
+        "a heavily slewed partial has a third harmonic, at " +
+            std::to_string(20.0 * std::log10(hardLevel(3))) + " dB");
+
+  check(hardLevel(2) < 0.01, "and next to no second, which is what a wave "
+                             "with both halves alike sounds like");
+
+  // Each band harder than the one below it, which is what makes this a
+  // family rather than an on and off switch.
+  double previous = 0.0;
+  bool climbing = true;
+
+  for (int band = 0; band < (int)kSlewRatios.size(); ++band) {
+    const auto &h = tables.harmonics(Character::Slewed, band);
+    const auto third = std::hypot((double)h[2].sine, (double)h[2].cosine);
+
+    climbing &= third >= previous - 1.0e-6;
+    previous = third;
+  }
+
+  check(climbing, "and the higher a partial climbs the harder it is limited");
+
   // Every table, at every band, has to come back with no offset and no more
   // headroom taken than the sine it replaces. 512 oscillators each carrying a
   // small DC step is a level shift nobody asked for, and each carrying an
   // overshoot is a clipper going off early.
   for (int c = 0; c < (int)Character::NumCharacters; ++c) {
-    for (int highest = 1; highest <= kMaxCharacterHarmonic; ++highest) {
-      const auto &w = tables.table((Character)c, highest);
+    // Every shape a character has, which for the slewed one means every band
+    // of frequency it behaves differently in. Asked for by a frequency inside
+    // each band rather than by an index, which is how the voice asks.
+    std::vector<double> pitches{220.0};
 
-      double dc = 0.0, peak = 0.0;
-      for (int i = 0; i < 4096; ++i) {
-        const double v = (double)w.at((double)i / 4096.0);
-        dc += v;
-        peak = std::max(peak, std::abs(v));
+    if ((Character)c == Character::Slewed)
+      for (auto ratio : kSlewRatios)
+        pitches.push_back(kSlewCornerHz * ratio * 1.01);
+
+    for (double pitch : pitches)
+      for (int highest = 1; highest <= kMaxCharacterHarmonic; ++highest) {
+        const auto &w = tables.table((Character)c, pitch, highest);
+
+        double dc = 0.0, peak = 0.0;
+        for (int i = 0; i < 4096; ++i) {
+          const double v = (double)w.at((double)i / 4096.0);
+          dc += v;
+          peak = std::max(peak, std::abs(v));
+        }
+
+        dc /= 4096.0;
+
+        check(std::abs(dc) < 1.0e-4, "character " + std::to_string(c) +
+                                         " band " + std::to_string(highest) +
+                                         " carries no DC");
+
+        // A shape is normalised by its fundamental rather than by its peak, so
+        // that choosing a character is not choosing a level. Everything here
+        // peaks a little above a sine for that reason, and a triangle, which is
+        // what a heavily slewed wave becomes, peaks at pi squared over eight.
+        check(peak < 1.25, "character " + std::to_string(c) + " band " +
+                               std::to_string(highest) + " peaks at " +
+                               std::to_string(peak));
       }
-
-      dc /= 4096.0;
-
-      check(std::abs(dc) < 1.0e-4, "character " + std::to_string(c) + " band " +
-                                       std::to_string(highest) +
-                                       " carries no DC");
-
-      check(peak < 1.15, "character " + std::to_string(c) + " band " +
-                             std::to_string(highest) + " peaks at " +
-                             std::to_string(peak));
-    }
   }
 
   // The bands are what keeps the harmonics under Nyquist, so each one has to
@@ -690,7 +766,7 @@ void testCharacter() {
   };
 
   for (int highest = 2; highest < kMaxCharacterHarmonic; ++highest) {
-    const auto &w = tables.table(Character::Folded, highest);
+    const auto &w = tables.table(Character::Folded, 220.0, highest);
 
     check(harmonicOf(w, highest) > 1.0e-3,
           "the band stopping at " + std::to_string(highest) + " has one");
@@ -745,6 +821,25 @@ void testCharacter() {
             std::to_string(20.0 * std::log10(squashedThird /
                                              binMagnitude(squashed, f0, sr))) +
             " dB below the fundamental)");
+
+  // Slewing through the engine, which is where the frequency comes from. A
+  // low partial is untouched and a high one is not, on the same character and
+  // the same patch.
+  const auto lowSlewed = renderOnePartial(Character::Slewed, 45, 0.5); // A2
+  const auto lowPure = renderOnePartial(Character::Pure, 45, 0.5);
+  const auto highSlewed = renderOnePartial(Character::Slewed, 93, 0.5); // A6
+
+  const auto thirdOf = [](const std::vector<float> &x, double f) {
+    return binMagnitude(x, f * 3.0, sr) / binMagnitude(x, f, sr);
+  };
+
+  check(thirdOf(lowSlewed, 110.0) < 2.0 * thirdOf(lowPure, 110.0) + 1.0e-6,
+        "a partial under the corner is as clean slewed as it is pure");
+
+  check(thirdOf(highSlewed, 1760.0) > 0.02,
+        "one above it has a third harmonic on it (" +
+            std::to_string(20.0 * std::log10(thirdOf(highSlewed, 1760.0))) +
+            " dB below its own fundamental)");
 
   // The point of the bands. A partial this high has no room for a second
   // harmonic, so it has to come back as clean as the sine does rather than
