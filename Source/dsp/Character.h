@@ -3,8 +3,11 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <vector>
 
+#include "Drift.h"
+#include "Harmonics.h"
 #include "SineTable.h"
 
 namespace ovt {
@@ -58,6 +61,117 @@ inline const char *characterName(Character c) {
 
   return "Pure";
 }
+
+/// How far apart thirty-two units built to the same spec end up.
+///
+/// Not DRIFT, which wanders. This is the spread a rack has the moment it is
+/// switched on and has again the next time, and it is what makes a rack sound
+/// like a rack rather than like one oscillator copied thirty-two times: the
+/// partials sit a little off the ratios they were asked for, so they beat
+/// against each other and against the harmonics the character itself adds,
+/// which a patch with every TUNE at zero otherwise has no reason to do.
+///
+/// The scale is what a tuned rack holds, not what the parts are made to. Raw
+/// component tolerance is a percent or more, which is eighty cents, and a rack
+/// eighty cents wide is a rack nobody has tuned. What is left after tuning is a
+/// few cents, and the order between the characters below is which part of each
+/// circuit sets its frequency and which sets its level.
+struct UnitTolerance {
+  float cents = 0.0f;    ///< the most one unit is out by, after tuning
+  float decibels = 0.0f; ///< and the most its level is out by
+};
+
+/// What each circuit holds to.
+inline UnitTolerance unitToleranceFor(Character c) noexcept {
+  switch (c) {
+  // The lamp holds the level and nothing else here does, which makes this the
+  // steadiest of them by a long way in amplitude. What the lamp is, though, is
+  // a filament inside the bridge it regulates, and a warm resistor is not the
+  // resistor the frequency was set with.
+  case Character::Bulb:
+    return {3.0f, 0.1f};
+
+  // Three RC stages set the frequency and their errors stack. The level is
+  // wherever the amplifier runs out of rail, which is a different place in
+  // every unit.
+  case Character::Squashed:
+    return {5.0f, 0.5f};
+
+  // The frequency comes from an integrator, which is the most accurate way to
+  // set one here. The level comes from how well two diodes match, which is the
+  // least accurate thing in any of these circuits.
+  case Character::Folded:
+    return {4.0f, 0.4f};
+
+  // A heater in every unit and nothing regulating either end of it.
+  case Character::Valve:
+    return {6.0f, 0.35f};
+
+  // An ordinary amplifier around an ordinary core.
+  case Character::Slewed:
+    return {4.0f, 0.3f};
+
+  // Pure is the one that is not a circuit, so a rack of them has no spread at
+  // all. That is also what keeps every patch written before any of this
+  // existed sounding exactly as it did.
+  case Character::Pure:
+  case Character::NumCharacters:
+    break;
+  }
+
+  return {};
+}
+
+/// One rack of thirty-two units per character, built once and then only read.
+///
+/// Drawn rather than measured, since there is no rack to measure, but drawn
+/// the same way every time: a preset, a session and a bounce all get the same
+/// rack, and two machines rendering the same project get the same one too.
+class UnitSpread {
+public:
+  /// What thirty-two units of one character came out at.
+  struct Rack {
+    std::array<float, kNumHarmonics> cents{}; ///< added to the partial's pitch
+    std::array<float, kNumHarmonics> gain{};  ///< linear, 1 being on spec
+  };
+
+  static const UnitSpread &instance() noexcept {
+    static const UnitSpread s;
+    return s;
+  }
+
+  const Rack &rack(Character c) const noexcept {
+    const auto which = (size_t)c;
+
+    return racks[which < (size_t)Character::NumCharacters ? which : 0];
+  }
+
+private:
+  UnitSpread() noexcept {
+    for (int c = 0; c < (int)Character::NumCharacters; ++c) {
+      const auto tolerance = unitToleranceFor((Character)c);
+      auto &rack = racks[(size_t)c];
+
+      rack.gain.fill(1.0f);
+
+      // The first unit is the one the rest were tuned against, so it is
+      // exactly on spec in both. Otherwise a note would land a few cents off
+      // the key that asked for it and a patch would change level when the
+      // character changed, neither of which is unit tolerance: they are the
+      // whole rack being out, which is what tuning it is for.
+      Xorshift rng((uint32_t)c + 1u);
+
+      for (int i = 1; i < kNumHarmonics; ++i) {
+        rack.cents[(size_t)i] = rng.bipolar() * tolerance.cents;
+
+        rack.gain[(size_t)i] =
+            std::pow(10.0f, rng.bipolar() * tolerance.decibels / 20.0f);
+      }
+    }
+  }
+
+  std::array<Rack, (size_t)Character::NumCharacters> racks{};
+};
 
 /// The harmonics a character adds are real harmonics and alias like any other,
 /// so a table is built several times over, each one stopping at a different

@@ -33,6 +33,10 @@ void SynthEngine::prepare(double newSampleRate) noexcept {
   // most of a block.
   (void)CharacterTables::instance();
 
+  // And the racks those circuits were built into, which is a few hundred
+  // draws rather than eight milliseconds but is on the same first-read path.
+  (void)UnitSpread::instance();
+
   // Distinct seeds so two voices never draw the same drift contour.
   for (size_t i = 0; i < voices.size(); ++i)
     voices[i].prepare(sampleRate, (uint32_t)(i + 1) * 2654435761u);

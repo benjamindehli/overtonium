@@ -311,6 +311,11 @@ void Voice::render(float *left, float *right, int numSamples,
 
   const auto &characters = CharacterTables::instance();
 
+  // Which thirty-two units this character's rack came out at. One lookup for
+  // the whole call: the spread is fixed, so it is the same rack for every
+  // block and every note. See UnitSpread.
+  const auto &unit = UnitSpread::instance().rack(p.global.character);
+
   // One pole per control block rather than per sample, which is where every
   // other slow thing in here is worked out.
   const float bulbCoef =
@@ -421,10 +426,15 @@ void Voice::render(float *left, float *right, int numSamples,
       // wander already in progress instead of jumping.
       const double driftCents = (double)(pt.drift.advance(rng) * op.driftCents);
 
-      const double semis = semitoneOffset(i, (double)blendOf(p, i),
-                                          (double)p.global.stretchCents) +
-                           (pmCents + driftCents) * 0.01 +
-                           (double)(p.global.bendSemitones + noteBendSemitones);
+      // The unit's own tuning error goes in with the modulation rather than
+      // beside it, so everything downstream of this line sees the pitch the
+      // partial is actually at: the table the character reads, how hard a slew
+      // limit bites, and what the lamp is settling towards.
+      const double semis =
+          semitoneOffset(i, (double)blendOf(p, i),
+                         (double)p.global.stretchCents) +
+          (pmCents + driftCents + (double)unit.cents[(size_t)i]) * 0.01 +
+          (double)(p.global.bendSemitones + noteBendSemitones);
 
       const double freq = baseFreq * std::exp2(semis / 12.0);
 
@@ -515,9 +525,12 @@ void Voice::render(float *left, float *right, int numSamples,
                      0.0f, 1.0f);
       // The lamp joins the fader, the tracking and the Nyquist fade here, so
       // it rides the same per-sample ramp they do and a level that is settling
-      // slides rather than steps from block to block.
-      const float base =
-          op.audible ? level * nyq * track[(size_t)i] * bulb : 0.0f;
+      // slides rather than steps from block to block. The unit's own level
+      // error joins them as a plain multiply, being a property of the
+      // oscillator rather than of anything the player is doing.
+      const float base = op.audible ? level * nyq * track[(size_t)i] * bulb *
+                                          unit.gain[(size_t)i]
+                                    : 0.0f;
       const float gEnd = base * amEnd;
 
       if (!pt.gainPrimed) {

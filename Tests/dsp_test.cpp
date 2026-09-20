@@ -1037,6 +1037,193 @@ void testCharacter() {
 }
 
 // -----------------------------------------------------------------------------
+// 3b. Thirty-two units built to one spec are not thirty-two identical units.
+// -----------------------------------------------------------------------------
+void testUnitSpread() {
+  section("Unit tolerance");
+
+  const auto &spread = UnitSpread::instance();
+
+  const auto dbOf = [](float gain) {
+    return 20.0 * std::log10(std::max(1.0e-9, (double)gain));
+  };
+
+  // Pure is not a circuit, so there is no rack of them to be out of step. This
+  // is also the check that every patch written before any of this existed
+  // still plays exactly as it did, since all of them are Pure.
+  {
+    bool flat = true;
+
+    for (int i = 0; i < kNumHarmonics; ++i) {
+      const auto &rack = spread.rack(Character::Pure);
+
+      flat &= rack.cents[(size_t)i] == 0.0f && rack.gain[(size_t)i] == 1.0f;
+    }
+
+    check(flat, "a rack of Pure oscillators has no spread in it at all");
+  }
+
+  for (int c = 1; c < (int)Character::NumCharacters; ++c) {
+    const auto which = (Character)c;
+    const auto &rack = spread.rack(which);
+    const auto tolerance = unitToleranceFor(which);
+    const std::string name = characterName(which);
+
+    // The first unit is the one the other thirty-one were tuned against.
+    // Without this a note would land off the key that asked for it and a patch
+    // would change level when the character changed, which is not unit
+    // tolerance but the whole rack being out.
+    check(rack.cents[0] == 0.0f && rack.gain[0] == 1.0f,
+          name + " leaves the unit the rest were tuned against alone");
+
+    double widestCents = 0.0, widestDb = 0.0, meanCents = 0.0;
+
+    for (int i = 1; i < kNumHarmonics; ++i) {
+      widestCents =
+          std::max(widestCents, std::abs((double)rack.cents[(size_t)i]));
+      widestDb = std::max(widestDb, std::abs(dbOf(rack.gain[(size_t)i])));
+      meanCents += std::abs((double)rack.cents[(size_t)i]);
+    }
+
+    meanCents /= (double)(kNumHarmonics - 1);
+
+    std::printf("  %-9s %.2f ct and %.2f dB at the widest, %.2f ct on "
+                "average\n",
+                name.c_str(), widestCents, widestDb, meanCents);
+
+    check(widestCents <= (double)tolerance.cents + 1.0e-4 &&
+              widestDb <= (double)tolerance.decibels + 1.0e-4,
+          name + " holds to the tolerance it claims");
+
+    // A spread rather than a huddle. Uniform over the tolerance puts the mean
+    // at half of it, so these bounds are wide enough for a draw and narrow
+    // enough to catch one that collapsed.
+    check(widestCents > 0.7 * (double)tolerance.cents,
+          name + " uses the range it is given");
+
+    check(meanCents > 0.25 * (double)tolerance.cents &&
+              meanCents < 0.75 * (double)tolerance.cents,
+          name + " is spread across it rather than sitting at the ends");
+  }
+
+  // Two characters are two racks. A character that reused the same draw would
+  // sound like the same detuning wearing a different waveform.
+  {
+    int same = 0;
+
+    for (int i = 0; i < kNumHarmonics; ++i)
+      same += spread.rack(Character::Valve).cents[(size_t)i] ==
+                      spread.rack(Character::Squashed).cents[(size_t)i]
+                  ? 1
+                  : 0;
+
+    check(same <= 1, "two characters are two different racks");
+  }
+
+  // ---- and now through the engine ------------------------------------------
+  constexpr double sr = 48000.0;
+  constexpr int N = 24000;
+
+  /// Where a rendered partial actually came out, in cents from where it was
+  /// asked for.
+  ///
+  /// By how far its phase has slipped against a reference at the nominal
+  /// frequency, over a known distance. That resolves a fraction of a cent on
+  /// half a second of audio, where counting zero crossings over the same
+  /// buffer resolves about two, which is a third of what is being measured.
+  const auto centsOff = [](const std::vector<float> &x, double nominalHz) {
+    constexpr double kTwoPi = 6.283185307179586;
+    constexpr size_t window = 4096;
+
+    // Close enough that nothing this wide can slip a whole turn between the
+    // two: half a turn over this gap is 11.7 Hz, and the widest tolerance here
+    // is under 4 Hz at the pitches it is measured at.
+    constexpr size_t gap = 2048;
+    constexpr size_t first = 4800; // after the attack
+
+    const double w = kTwoPi * nominalHz / sr;
+
+    const auto phaseAt = [&](size_t from) {
+      double re = 0.0, im = 0.0;
+
+      for (size_t n = 0; n < window; ++n) {
+        const double win =
+            0.5 * (1.0 - std::cos(kTwoPi * (double)n / (double)window));
+        const double t = (double)(from + n);
+
+        re += win * (double)x[from + n] * std::cos(w * t);
+        im -= win * (double)x[from + n] * std::sin(w * t);
+      }
+
+      return std::atan2(im, re);
+    };
+
+    double slipped = phaseAt(first + gap) - phaseAt(first);
+
+    while (slipped > 3.141592653589793)
+      slipped -= kTwoPi;
+    while (slipped < -3.141592653589793)
+      slipped += kTwoPi;
+
+    const double hz = slipped * sr / (kTwoPi * (double)gap);
+
+    return 1200.0 * std::log2((nominalHz + hz) / nominalHz);
+  };
+
+  // One partial of one note, everything else silent, so what comes out is one
+  // unit of the rack and nothing else.
+  const auto renderUnit = [](Character c, int partial) {
+    SynthEngine engine;
+    engine.prepare(sr);
+    engine.setPolyphony(1);
+
+    auto p = makeFlatParams(0.0f);
+    p.osc[(size_t)partial].volume = 0.5f;
+    p.osc[(size_t)partial].tuneBlend = 1.0f; // exact multiples to measure from
+    p.osc[(size_t)partial].decay = 8.0f;
+    p.global.character = c;
+
+    std::vector<float> l((size_t)N), r((size_t)N);
+    engine.noteOn(45, 1.0f, p); // A2, so a few cents is a few hertz at worst
+    engine.render(l.data(), r.data(), N, p);
+
+    return l;
+  };
+
+  const auto &valve = spread.rack(Character::Valve);
+
+  for (int partial : {0, 3, 8, 19, 31}) {
+    const double nominal = 110.0 * (double)(partial + 1);
+    const double wanted = (double)valve.cents[(size_t)partial];
+
+    const auto pure = renderUnit(Character::Pure, partial);
+    const auto shifted = renderUnit(Character::Valve, partial);
+
+    const double measured = centsOff(shifted, nominal);
+
+    check(std::abs(centsOff(pure, nominal)) < 0.05,
+          "partial " + std::to_string(partial + 1) +
+              " is exactly where it was asked for when no circuit is chosen (" +
+              std::to_string(centsOff(pure, nominal)) + " ct)");
+
+    check(std::abs(measured - wanted) < 0.2,
+          "and is out by its own unit's " + std::to_string(wanted) +
+              " ct under Valve (measured " + std::to_string(measured) + ")");
+
+    // At the frequency it actually came out at rather than the one it was
+    // asked for, since the two are no longer the same thing.
+    const double level =
+        binMagnitude(shifted, nominal * std::exp2(wanted / 1200.0), sr);
+    const double reference = binMagnitude(pure, nominal, sr);
+
+    check(std::abs(20.0 * std::log10(level / reference) -
+                   dbOf(valve.gain[(size_t)partial])) < 0.05,
+          "and comes out at its own unit's " +
+              std::to_string(dbOf(valve.gain[(size_t)partial])) + " dB");
+  }
+}
+
+// -----------------------------------------------------------------------------
 // 4. A rendered note must be finite, audible and correctly tuned.
 // -----------------------------------------------------------------------------
 void testRenderedSpectrum() {
@@ -5290,6 +5477,7 @@ int main() {
   testTracking();
   testSineTable();
   testCharacter();
+  testUnitSpread();
   testRenderedSpectrum();
   testAliasing();
   testEnvelopeAndMuteSolo();
