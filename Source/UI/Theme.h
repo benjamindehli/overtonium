@@ -31,7 +31,11 @@ inline const juce::Colour textDim{0xff6f7a86};
 /// Chrome, not content. Sits in the cyan the channel ramp never reaches, so
 /// the global controls never read as one of the channels.
 inline const juce::Colour accent{0xff62bbd9};
-inline const juce::Colour muteOn{0xffe0733d};
+/// Red rather than the orange it used to be, now that what lights is the
+/// letter rather than the whole face. A filled orange face was unmistakable;
+/// a lit letter has less of itself to say it with, and red is what a cut
+/// channel means.
+inline const juce::Colour muteOn{0xffe04831};
 inline const juce::Colour soloOn{0xffe8c34a};
 } // namespace colours
 
@@ -73,14 +77,17 @@ juce::Colour characterColour(Character);
 
 /// A button whose text lights rather than whose face does.
 ///
-/// The mixer's mute and solo buttons light their whole face, which is what
-/// makes a stray solo findable at a glance across 33 channels. The handful of
-/// buttons that stand alone want the opposite: the word is the lamp and the
-/// face is only what its light falls on, the way an engaged switch on a lit
-/// console is. So the face is drawn exactly as it is when the switch is off,
-/// down to the shade of grey, and everything that reaches it comes off the
-/// text. Which colour that is comes from textColourOnId, so a button can say
-/// what it means by it.
+/// Every switch on the panel is one of these: the two effect toggles, LINK,
+/// the character button and the M and S on all thirty-three channels. The
+/// word is the lamp and the face is only what its light falls on, the way an
+/// engaged switch on a lit console is. So the face is drawn exactly as it is
+/// when the switch is off, down to the shade of grey, and everything that
+/// reaches it comes off the text. Which colour that is comes from
+/// textColourOnId, so a button can say what it means by it.
+///
+/// At the size the mixer's own switches are drawn, the spill is what does the
+/// work: the letter is small and what the eye finds scanning 33 channels is
+/// the coloured smudge around it.
 class GlowButton : public juce::TextButton {
 public:
   void paintButton(juce::Graphics &, bool highlighted, bool down) override;

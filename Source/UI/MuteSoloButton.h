@@ -3,6 +3,8 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include "Theme.h"
+
 namespace ovt::ui {
 
 /// The M or S on a channel strip, and on the noise channel beside it.
@@ -16,7 +18,7 @@ namespace ovt::ui {
 /// right-click with the LINK menu and these swallow that click on their way
 /// past. Right-clicking a switch acts on switches, right-clicking anywhere
 /// else in the mixer still reaches LINK.
-class MuteSoloButton : public juce::TextButton {
+class MuteSoloButton : public GlowButton {
 public:
   MuteSoloButton(juce::AudioProcessorValueTreeState &state,
                  const juce::String &label);

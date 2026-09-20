@@ -728,8 +728,9 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   pan.getProperties().set("bipolar", true);
   setUpFader(volume, Role::Volume, colour);
 
-  muteButton.setColour(juce::TextButton::buttonOnColourId, colours::muteOn);
-  soloButton.setColour(juce::TextButton::buttonOnColourId, colours::soloOn);
+  // The letter is what lights, not the face it stands on. See GlowButton.
+  muteButton.setColour(juce::TextButton::textColourOnId, colours::muteOn);
+  soloButton.setColour(juce::TextButton::textColourOnId, colours::soloOn);
   muteButton.setTooltip("Mute harmonic " + juce::String(info.harmonic));
   soloButton.setTooltip("Solo harmonic " + juce::String(info.harmonic));
   muteButton.setTitle("Harmonic " + juce::String(info.harmonic) + " mute");

@@ -83,8 +83,9 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
   addAndMakeVisible(meter);
   meter.toBack(); // the fader cap has to draw over it
 
-  muteButton.setColour(juce::TextButton::buttonOnColourId, colours::muteOn);
-  soloButton.setColour(juce::TextButton::buttonOnColourId, colours::soloOn);
+  // The letter is what lights, not the face it stands on. See GlowButton.
+  muteButton.setColour(juce::TextButton::textColourOnId, colours::muteOn);
+  soloButton.setColour(juce::TextButton::textColourOnId, colours::soloOn);
   muteButton.setTooltip("Mute the noise channel");
   soloButton.setTooltip("Solo the noise channel");
   muteButton.setTitle("Noise mute");
