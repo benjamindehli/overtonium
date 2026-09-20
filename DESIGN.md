@@ -255,13 +255,12 @@ Switching the setting either way releases whatever is sounding. Voices started t
 
 Slide, the third MPE dimension, is parsed but not routed anywhere yet. Bend and pressure are.
 
-The top bar holds everything that is not per partial, in signal order from left to right:
+The top bar holds everything that is not per partial, in signal order from left to right. **LINK** is the exception and stands at the top of the caption gutter instead, over the column of names it gangs.
 
 | Group    | Contains                                                                                                  |
 | -------- | --------------------------------------------------------------------------------------------------------- |
 | Preset   | the preset menu: factory, saved, and somewhere to put the one you are working on                          |
 | Settings | undo, polyphony, bend range, MPE, tuning, what feeds aftertouch, phase reset, the safety clipper and zoom |
-| Link     | **LINK**, and what it reaches and how. See below                                                          |
 | Series   | **STRETCH**, **TRACK** and **WOBBLE**, what the instrument does before anything is done to it. See below  |
 | Echo     | the tape echo. See below                                                                                  |
 | Reverb   | the reverb. See below                                                                                     |
@@ -441,9 +440,11 @@ Rows in a folded section are hidden rather than left at zero height. A knob with
 
 ### Ganging the channels
 
-**LINK** in the top bar gangs the strips: dragging any knob moves the same knob on the others. It works relatively, applying an offset to wherever each strip already sits rather than dragging everything to one shared value, so a spectrum you have shaped by hand keeps its shape.
+**LINK** gangs the strips: dragging any knob moves the same knob on the others. It works relatively, applying an offset to wherever each strip already sits rather than dragging everything to one shared value, so a spectrum you have shaped by hand keeps its shape.
 
-The button opens a menu rather than toggling, since what a drag reaches and how it shares itself out matter as much as whether it is on at all, and it lights when the switch inside is engaged. The same menu is on a right-click anywhere in the mixer, which is where you are when you want it. Both settings are latched when a drag begins, so changing one midway cannot half-apply two different rules.
+The button stands at the head of the caption gutter, in the band the strips beside it use for their channel numbers. That is the column it belongs to, since what it gangs is the rows the captions name, and it is the only control not on the bar. What it left behind there is worth having: the bar now lays out in one row at the width the window opens at rather than two, and the converter readouts have the room to say kHz and bit rather than only the figures.
+
+It opens a menu rather than toggling, since what a drag reaches and how it shares itself out matter as much as whether it is on at all, and it lights when the switch inside is engaged. The same menu is on a right-click anywhere in the mixer, which is where you are when you want it. Both settings are latched when a drag begins, so changing one midway cannot half-apply two different rules.
 
 While LINK is on, the pointer over the mixer says which curve is loaded: five bars, level for uniform, peaked in the middle for taper and scattered for spread. A mode you cannot see is a mode you forget you are in, and this one changes what every drag does.
 

@@ -128,6 +128,13 @@ public:
   const juce::String &getReading() const noexcept { return reading; }
   bool isActive() const noexcept { return active; }
 
+  /// Whether a display this wide has room to name its unit beside the digits.
+  ///
+  /// Public because it is a layout rule rather than a painting detail: what
+  /// the bar hands its converter readouts decides whether they can say what
+  /// their numbers mean, and a test holds the bar to it.
+  static bool hasRoomForUnit(int width);
+
   /// Whether this character has a form to draw, either as a glyph or as one
   /// of the narrow cells. Anything else comes out as an unlit digit, so the
   /// tests hold every reading the panel can produce against this.

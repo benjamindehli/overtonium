@@ -18,6 +18,8 @@
 /// knob in the mixer has a name without repeating it 32 times.
 class RowGutter : public juce::Component {
 public:
+  RowGutter();
+
   void paint(juce::Graphics &) override;
 
   /// Brightens the caption for the row the pointer is on, which is the point of
@@ -33,12 +35,29 @@ public:
   /// strips have to be told about it too.
   std::function<void(ovt::ui::Section)> onSectionToggled;
 
+  /// Fired when the LINK button is clicked, with the button to hang the menu
+  /// off. The menu itself belongs to the bar, which owns the settings it
+  /// changes.
+  std::function<void(juce::Component *)> onLinkClicked;
+
+  /// Lights the button while LINK is on.
+  void setLinkOn(bool);
+
+  void resized() override;
   void mouseDown(const juce::MouseEvent &) override;
   void mouseMove(const juce::MouseEvent &) override;
 
 private:
   ovt::ui::Row highlighted = ovt::ui::kNoRow;
   ovt::ui::SectionMask collapsed = 0;
+
+  /// LINK stands in the empty band above the captions, where the strips beside
+  /// it carry their channel numbers.
+  ///
+  /// Here rather than in the bar because this is the column the tool belongs
+  /// to: it gangs the rows the captions name. What it leaves behind on the bar
+  /// is the room the converter readouts needed to say what their numbers mean.
+  juce::TextButton linkButton;
 
   /// The maker's badge, in the empty foot of the gutter.
   std::unique_ptr<juce::Drawable> makersMark{ovt::ui::logoMakersMark()};

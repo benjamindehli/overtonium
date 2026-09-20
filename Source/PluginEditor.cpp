@@ -47,6 +47,27 @@ bool isHeadingRow(Row r) {
 
 // =============================================================================
 
+RowGutter::RowGutter() {
+  // One button rather than a switch and a chevron beside it. It always opens
+  // the menu, and it lights when the switch inside is on, so the state is
+  // visible without the state being what the click does.
+  linkButton.setButtonText("LINK");
+  linkButton.setTooltip(
+      "Gang the strips, so dragging one channel's knob moves the same knob on "
+      "the others. The menu picks which channels it reaches and how the "
+      "movement is shared out. The same menu is on a right-click in the "
+      "mixer.");
+
+  linkButton.setColour(juce::TextButton::buttonOnColourId, colours::soloOn);
+
+  linkButton.onClick = [this] {
+    if (onLinkClicked)
+      onLinkClicked(&linkButton);
+  };
+
+  addAndMakeVisible(linkButton);
+}
+
 void RowGutter::setHighlightedRow(Row row) {
   if (row == highlighted)
     return;
@@ -57,6 +78,21 @@ void RowGutter::setHighlightedRow(Row row) {
   repaintRowHighlight(*this, rows, highlighted);
   highlighted = row;
   repaintRowHighlight(*this, rows, highlighted);
+}
+
+void RowGutter::resized() {
+  // The same rows the captions are laid out from, so the button stands in the
+  // band the strips beside it put their channel numbers in. The header is a
+  // fixed height at the top of the column and no fold can move it, which is
+  // why this does not have to run again when one changes.
+  const auto rows =
+      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed);
+
+  linkButton.setBounds(rows[(size_t)Row::Header].reduced(7, 1));
+}
+
+void RowGutter::setLinkOn(bool on) {
+  linkButton.setToggleState(on, juce::dontSendNotification);
 }
 
 void RowGutter::setCollapsedSections(SectionMask mask) {
@@ -308,11 +344,21 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     tree.setProperty(kLinkCurveId, linkCurveId(topBar.getLinkCurve()), nullptr);
     tree.removeProperty(kLinkCurve, nullptr);
 
+    // The switch is in the gutter and the settings it belongs to are on the
+    // bar, so the button is told rather than asked.
+    gutter.setLinkOn(topBar.isLinkEnabled());
+
     // Switching LINK on, or changing what it reaches, changes the answer to
     // "what would this knob take with it", so the preview follows immediately
     // rather than waiting for the pointer to move.
     updateLinkGlow();
     updateLinkCursor();
+  };
+
+  // The menu belongs to the bar, which holds what it changes. The gutter holds
+  // the button that opens it, and hands back what to hang it off.
+  gutter.onLinkClicked = [this](juce::Component *anchor) {
+    topBar.showLinkMenu(anchor);
   };
 
   updateLinkCursor();

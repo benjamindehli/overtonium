@@ -24,9 +24,9 @@ constexpr int kGroupPad = 6;
 
 /// Minimum width of each group, in the order they are laid out. Only the
 /// output group grows, because the meter is the one thing worth more room.
-constexpr int kGroupMinWidth[] = {144, 90, 60, 242, 222, 222, 186};
-constexpr int kOutputGroupIndex = 6;
-constexpr int kGroupCount = 7;
+constexpr int kGroupMinWidth[] = {144, 90, 242, 222, 222, 186};
+constexpr int kOutputGroupIndex = 5;
+constexpr int kGroupCount = 6;
 
 /// Buttons, lists and the output meter all stand this tall, centred on the
 /// dials beside them, so a row reads as one line of controls.
@@ -322,20 +322,6 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   settingsButton.onClick = [this] { showSettingsMenu(); };
   addAndMakeVisible(settingsButton);
 
-  // ---- toggles --------------------------------------------------------------
-  // One button rather than a switch and a chevron beside it. It always opens
-  // the menu, and it lights when the switch inside is on, so the state is
-  // visible without the state being what the click does.
-  linkButton.setButtonText("LINK");
-  linkButton.setTooltip(
-      "Gang the strips, so dragging one channel's knob moves the same knob on "
-      "the others. The menu picks which channels it reaches and how the "
-      "movement is shared out. The same menu is on a right-click in the "
-      "mixer.");
-  linkButton.setColour(juce::TextButton::buttonOnColourId, colours::soloOn);
-  linkButton.onClick = [this] { showLinkMenu(&linkButton); };
-  addAndMakeVisible(linkButton);
-
   // ---- the master effects
   // ----------------------------------------------------
   styleToggle(echoButton, "ECHO",
@@ -377,8 +363,6 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
           "Silence between the note and its reverb. A little of it keeps the "
           "attack clear of the wash.",
           popupParent);
-
-  updateLinkEnablement();
 }
 
 void TopBar::styleToggle(juce::TextButton &b, const juce::String &text,
@@ -426,10 +410,8 @@ void TopBar::setLinkCurve(LinkCurve c) {
   curve = (LinkCurve)juce::jlimit(0, (int)LinkCurve::NumCurves - 1, (int)c);
 }
 
-void TopBar::updateLinkEnablement() { linkButton.repaint(); }
-
 void TopBar::showLinkMenu(juce::Component *anchor) {
-  const LinkSettings settings{linkButton.getToggleState(), scope, curve};
+  const LinkSettings settings{linkOn, scope, curve};
 
   auto m = buildLinkMenu(settings);
   m.setLookAndFeel(&getLookAndFeel());
@@ -454,11 +436,9 @@ void TopBar::showLinkMenu(juce::Component *anchor) {
     if (!applyLinkMenuChoice(result, chosen))
       return;
 
-    linkButton.setToggleState(chosen.enabled, juce::dontSendNotification);
+    linkOn = chosen.enabled;
     scope = chosen.scope;
     curve = chosen.curve;
-
-    updateLinkEnablement();
 
     if (onLinkSettingsChanged)
       onLinkSettingsChanged();
@@ -1019,10 +999,10 @@ int TopBar::minimumWidth() {
 }
 
 void TopBar::parkControls() {
-  juce::Component *all[] = {&master,       &meter,          &presetButton,
-                            &linkButton,   &settingsButton, &echoButton,
-                            &reverbButton, &stretch,        &track,
-                            &rateDisplay,  &bitsDisplay,    &characterButton};
+  juce::Component *all[] = {&master,         &meter,          &presetButton,
+                            &settingsButton, &echoButton,     &reverbButton,
+                            &stretch,        &track,          &rateDisplay,
+                            &bitsDisplay,    &characterButton};
 
   for (auto *c : all)
     c->setBounds({});
@@ -1073,10 +1053,6 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
 
   case VoiceGroup:
     button(settingsButton, r);
-    break;
-
-  case LinkGroup:
-    button(linkButton, r);
     break;
 
   case SeriesGroup: {

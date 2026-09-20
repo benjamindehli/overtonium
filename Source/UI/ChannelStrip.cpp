@@ -248,6 +248,18 @@ void SegmentDisplay::paintGlyph(juce::Graphics &g, juce::Rectangle<float> area,
   }
 }
 
+/// What the unit takes beside the digits, and what has to be left for them.
+///
+/// Measured in the width the component is given rather than in what is left
+/// after its own insets, since the caller sizing it has only the former.
+static constexpr float kUnitWidth = 21.0f;
+static constexpr int kUnitInsets = 8;
+static constexpr int kDigitsNeed = 44;
+
+bool SegmentDisplay::hasRoomForUnit(int width) {
+  return width - kUnitInsets > kDigitsNeed;
+}
+
 void SegmentDisplay::paint(juce::Graphics &g) {
   auto area = getLocalBounds().toFloat().reduced(1.0f);
 
@@ -282,7 +294,7 @@ void SegmentDisplay::paint(juce::Graphics &g) {
 
   // The unit only earns its place once the digits have what they need.
   const auto unitW =
-      unitText.isNotEmpty() && area.getWidth() > 44.0f ? 21.0f : 0.0f;
+      unitText.isNotEmpty() && hasRoomForUnit(getWidth()) ? kUnitWidth : 0.0f;
 
   // A point costs about a third of a digit, which is what the extra term in
   // the denominator is buying.

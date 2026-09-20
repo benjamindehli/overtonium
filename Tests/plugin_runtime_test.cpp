@@ -3143,6 +3143,34 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
       check(!readouts[0].intersects(readouts[1]),
             "and do not overlap each other" + at);
   }
+
+  // A number with no unit beside it is a number nobody can read. At the width
+  // the window opens at, both readouts have to be wide enough to name what
+  // they are counting.
+  //
+  // This is what moving LINK off the bar was for. With it there, the output
+  // group was squeezed forty pixels at this width and both readouts came out
+  // at 38, which draws the figure and nothing else.
+  {
+    const int width = ovt::ui::kGutterWidth + ovt::ui::kStripWidth + 8 +
+                      ovt::kNumHarmonics * ovt::ui::kStripWidth;
+
+    bar.setSize(width, TopBar::heightForWidth(width));
+
+    // A window this wide can hold the whole bar on one line. Anything wider
+    // cannot need fewer rows than this, so it is the comparison to make.
+    check(TopBar::heightForWidth(width) == TopBar::heightForWidth(2400),
+          "the bar lays out in one row at the width the window opens at (" +
+              std::to_string(width) + " px)");
+
+    int named = 0;
+
+    for (auto *child : bar.getChildren())
+      if (dynamic_cast<SegmentDisplay *>(child) != nullptr)
+        named += SegmentDisplay::hasRoomForUnit(child->getWidth()) ? 1 : 0;
+
+    check(named == 2, "and both converter readouts can name their unit there");
+  }
 }
 
 /// Undo, which is only worth having if a LINK drag across 32 channels comes

@@ -115,7 +115,7 @@ public:
     return characterButton.getButtonText();
   }
 
-  bool isLinkEnabled() const { return linkButton.getToggleState(); }
+  bool isLinkEnabled() const { return linkOn; }
 
   /// Latched by the editor at the start of each LINK drag.
   LinkScope getLinkScope() const { return scope; }
@@ -169,10 +169,6 @@ private:
 
   void styleToggle(juce::TextButton &, const juce::String &text,
                    const juce::String &tooltip);
-
-  /// The switch lives in the menu now, so the button has to redraw when it
-  /// moves rather than when it is clicked.
-  void updateLinkEnablement();
 
   /// One effect knob, wired to its parameter.
   struct Control {
@@ -230,7 +226,6 @@ private:
   enum Group {
     PresetGroup = 0,
     VoiceGroup,
-    LinkGroup,
     SeriesGroup,
     EchoGroup,
     ReverbGroup,
@@ -288,7 +283,12 @@ private:
   /// image down to 150 on every repaint would be both slow and soft.
   juce::Image logo, logoScaled;
 
-  juce::TextButton presetButton, settingsButton, linkButton;
+  juce::TextButton presetButton, settingsButton;
+
+  /// Whether LINK is on. The switch itself is a button in the gutter, since
+  /// that is the column the tool belongs to, but what it switches lives here
+  /// with the scope and the curve it goes with.
+  bool linkOn = false;
 
   /// Held between opening the menu and acting on it, so the ids the menu hands
   /// back mean something.
