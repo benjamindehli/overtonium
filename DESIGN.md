@@ -193,6 +193,10 @@ The mute went redder when it changed, from an orange to a red. A filled orange f
 
 One thing outside the mixer borrows the band, and only one: the character button on the bar lights in it, running down from the yellow at the top to the red the fifth stands in, which is the colour of channel 3. Nothing else does, because a colour from the band means a partial and reading it as anything else would be a second language on the same panel. A character is close enough to be worth saying in it: it is what the partials are.
 
+**The standalone wears the same panel up to the top of its window.** Its title bar is JUCE's rather than the platform's, so left alone it is the grey-green every unstyled JUCE application wears, with a red cross and a yellow dash for its buttons, which reads as somebody else's window with this instrument inside it. The editor hands that window its own look and feel instead, so the bar is the same lit and grained panel as everything below it and the two marks are drawn the way every other small mark here is: dim until the pointer is on them, and then lit, with the close going red because it is the one worth being able to hit by accident.
+
+Only ever its own window. In a host the top level window belongs to the host, and a plugin that restyled it would be redecorating someone else's application, so the whole path is behind a check on which wrapper this is running as.
+
 Colour is then left to do one job, and does it at full strength. Every knob on a strip carries the channel's own colour in its value arc and its pointer, not only the tuning knob at the head. On one flat grey the colour is the only thing separating a channel from its neighbours, so desaturating nineteen knobs out of twenty to give the head of the strip a hierarchy would spend the one thing that is working.
 
 ## Controls

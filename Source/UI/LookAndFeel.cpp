@@ -637,4 +637,87 @@ void OvertoniumLookAndFeel::drawComboBox(juce::Graphics &g, int width,
                                              juce::PathStrokeType::rounded));
 }
 
+// =============================================================================
+// The standalone's title bar.
+
+namespace {
+/// The minimise or the close in it.
+///
+/// A shape and nothing else. JUCE's own are coloured discs, which is a
+/// convention from another desktop and reads as a traffic light sitting on the
+/// panel. These are drawn the way every other small mark in the instrument is:
+/// dim until the pointer is on them, and then lit.
+class TitleBarButton final : public juce::Button {
+public:
+  TitleBarButton(const juce::String &name, juce::Path glyph, juce::Colour lit)
+      : juce::Button(name), shape(std::move(glyph)), hovered(lit) {}
+
+  void paintButton(juce::Graphics &g, bool highlighted, bool down) override {
+    auto area = getLocalBounds().toFloat().reduced((float)getHeight() * 0.32f);
+
+    g.setColour(highlighted || down ? hovered : colours::textDim);
+    g.fillPath(shape, shape.getTransformToScaleToFit(area, true));
+  }
+
+private:
+  juce::Path shape;
+  juce::Colour hovered;
+};
+} // namespace
+
+juce::Button *OvertoniumLookAndFeel::createDocumentWindowButton(int type) {
+  constexpr float kThickness = 0.14f;
+
+  juce::Path shape;
+
+  if (type == juce::DocumentWindow::closeButton) {
+    shape.addLineSegment({0.0f, 0.0f, 1.0f, 1.0f}, kThickness);
+    shape.addLineSegment({1.0f, 0.0f, 0.0f, 1.0f}, kThickness);
+
+    // The one button worth being able to hit by accident, so it is the one
+    // that says so before you do.
+    return new TitleBarButton("close", std::move(shape), colours::muteOn);
+  }
+
+  if (type == juce::DocumentWindow::minimiseButton) {
+    shape.addLineSegment({0.0f, 0.5f, 1.0f, 0.5f}, kThickness);
+    return new TitleBarButton("minimise", std::move(shape), colours::text);
+  }
+
+  shape.addLineSegment({0.5f, 0.0f, 0.5f, 1.0f}, kThickness);
+  shape.addLineSegment({0.0f, 0.5f, 1.0f, 0.5f}, kThickness);
+
+  return new TitleBarButton("maximise", std::move(shape), colours::text);
+}
+
+void OvertoniumLookAndFeel::drawDocumentWindowTitleBar(
+    juce::DocumentWindow &window, juce::Graphics &g, int w, int h,
+    int titleSpaceX, int titleSpaceW, const juce::Image *, bool) {
+  if (w * h == 0)
+    return;
+
+  const auto bounds = juce::Rectangle<int>(0, 0, w, h);
+
+  // Lit from above and grained, like every other surface here, so the bar is
+  // the top of the instrument rather than a lid on it.
+  g.setGradientFill(juce::ColourGradient(colours::panel.brighter(0.10f), 0.0f,
+                                         0.0f, colours::panel.darker(0.25f),
+                                         0.0f, (float)h, false));
+  g.fillRect(bounds);
+
+  paintGrain(g, bounds);
+
+  g.setColour(colours::outline);
+  g.fillRect(0, h - 1, w, 1);
+
+  // The name, dimmed when the window is not the one being worked in, which is
+  // the only thing the title bar has to say.
+  g.setFont(makeFont((float)h * 0.42f, true));
+  g.setColour(window.isActiveWindow() ? colours::text : colours::textDim);
+
+  g.drawText(window.getName(),
+             juce::Rectangle<int>(titleSpaceX, 0, titleSpaceW, h),
+             juce::Justification::centred, true);
+}
+
 } // namespace ovt::ui

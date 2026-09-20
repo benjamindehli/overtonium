@@ -4144,6 +4144,53 @@ void testProgramChangeMidi(OvertoniumProcessor &p) {
   p.applyFactoryPreset(presetIndex("Init"));
 }
 
+/// The standalone's window, which the editor dresses and then undresses.
+void testStandaloneWindow(OvertoniumProcessor &p) {
+  section("The standalone window");
+
+  // JUCE's own title bar, which is what the standalone gets: a grey-green bar
+  // with a red cross and a yellow dash on it unless something says otherwise.
+  juce::DocumentWindow window("Overtonium", juce::Colour(0xff323e44),
+                              juce::DocumentWindow::minimiseButton |
+                                  juce::DocumentWindow::closeButton);
+
+  window.setSize(420, 120);
+
+  auto *const stock = &window.getLookAndFeel();
+
+  check(stock == &juce::LookAndFeel::getDefaultLookAndFeel(),
+        "a window starts on whatever look and feel the application has");
+
+  {
+    std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+    auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+    check(editor != nullptr, "the editor opens");
+    if (editor == nullptr)
+      return;
+
+    sizeEditor(*editor, 1340);
+    editor->dressWindow(window);
+
+    check(&window.getLookAndFeel() != stock,
+          "and takes the editor's own once it has been dressed");
+
+    check(window.findColour(juce::ResizableWindow::backgroundColourId) ==
+              ovt::ui::colours::background,
+          "in the colour the panel stands on");
+  }
+
+  // The window outlives the editor by however long the application takes to
+  // close, and the look and feel it was given belongs to the editor. What
+  // keeps that from being a dangling pointer is that a component holds its
+  // look and feel by weak reference and falls back to the application's own.
+  // Pinned here because it is the kind of thing only ever noticed by
+  // crashing, and because it is what allows the editor to lend out something
+  // it owns.
+  check(&window.getLookAndFeel() == stock,
+        "and falls back to the application's own once the editor has gone");
+}
+
 /// The oscillator character: one choice for all 32 partials.
 void testCharacterControl(OvertoniumProcessor &p) {
   section("Oscillator character");
@@ -4915,6 +4962,7 @@ int main() {
   testUndo(processor);
   testUndoGrouping(processor);
   testCharacterControl(processor);
+  testStandaloneWindow(processor);
   testBusLayouts(processor);
   testUndersizedBuffer();
   testMonoOutput();

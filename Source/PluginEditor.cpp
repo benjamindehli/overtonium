@@ -408,6 +408,38 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   offerUpdateCheck();
 }
 
+void OvertoniumEditor::parentHierarchyChanged() { dressStandaloneWindow(); }
+
+void OvertoniumEditor::dressStandaloneWindow() {
+  if (plugin().wrapperType != juce::AudioProcessor::wrapperType_Standalone)
+    return;
+
+  // Not in the constructor, because the editor is not in the window yet when
+  // it runs: the standalone builds the editor first and makes it the window's
+  // content afterwards. This is called again every time that changes.
+  if (auto *window =
+          dynamic_cast<juce::DocumentWindow *>(getTopLevelComponent()))
+    dressWindow(*window);
+}
+
+void OvertoniumEditor::dressWindow(juce::DocumentWindow &window) {
+  // Nothing to do twice. Setting it again would send a look and feel change
+  // through the whole window, and this runs on every change of hierarchy.
+  if (&window.getLookAndFeel() == &lookAndFeel)
+    return;
+
+  // Setting a look and feel on a window recreates its title bar buttons, so
+  // the crosses and dashes come back drawn by ours.
+  //
+  // Handing out a look and feel this editor owns is safe even though the
+  // window outlives it: a component holds its look and feel by weak
+  // reference, so when this one goes the window falls back to the
+  // application's own rather than reading freed memory. A test pins that,
+  // since it is the kind of thing that is only ever noticed by crashing.
+  window.setLookAndFeel(&lookAndFeel);
+  window.setBackgroundColour(colours::background);
+}
+
 void OvertoniumEditor::setPresetName(const juce::String &name) {
   plugin().setLoadedPresetName(name);
   topBar.setPresetName(name);

@@ -101,8 +101,29 @@ public:
   /// is driven by a timer, and a test has no message loop to run one.
   void closeUndoTransactionWhenIdle();
 
+  /// Puts this editor's look and feel and its panel colour on a window.
+  ///
+  /// The standalone's window is JUCE's rather than the platform's, so left
+  /// alone it wears the grey-green every unstyled JUCE app does, with a red
+  /// cross and a yellow dash for its buttons. This puts the instrument's own
+  /// panel across the top of it instead.
+  ///
+  /// Public because a test cannot reach it any other way: which wrapper this
+  /// is running as is fixed by JUCE at construction and cannot be pretended,
+  /// so a test hands it a window directly.
+  void dressWindow(juce::DocumentWindow &);
+
 private:
   void timerCallback() override;
+
+  /// Finds the standalone's window, if this is the standalone, and dresses it.
+  ///
+  /// Only ever the standalone. In a host the top level window belongs to the
+  /// host, and a plugin that restyled it would be redecorating someone else's
+  /// application.
+  void dressStandaloneWindow();
+
+  void parentHierarchyChanged() override;
 
   void setZoom(float newZoom);
   void applyResizeLimits();

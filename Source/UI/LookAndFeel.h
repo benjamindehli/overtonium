@@ -39,6 +39,20 @@ public:
                     int buttonX, int buttonY, int buttonW, int buttonH,
                     juce::ComboBox &) override;
 
+  /// The standalone's own title bar, which is JUCE's rather than the
+  /// platform's and would otherwise be the grey-green every unstyled JUCE app
+  /// wears, with a red cross and a yellow dash on it. Dressed to match the
+  /// panel underneath, so the window reads as one object.
+  ///
+  /// Only the standalone has one of these. In a host the window belongs to the
+  /// host and none of this is reached. See OvertoniumEditor.
+  void drawDocumentWindowTitleBar(juce::DocumentWindow &, juce::Graphics &,
+                                  int w, int h, int titleSpaceX,
+                                  int titleSpaceW, const juce::Image *icon,
+                                  bool drawTitleTextOnLeft) override;
+
+  juce::Button *createDocumentWindowButton(int buttonType) override;
+
   juce::Font getComboBoxFont(juce::ComboBox &) override;
   juce::Font getPopupMenuFont() override;
   juce::Font getSliderPopupFont(juce::Slider &) override;
