@@ -762,6 +762,89 @@ void testCharacter() {
         "a partial with no room for harmonics folds nothing back down (worst " +
             std::to_string(worstAlias) + " against " +
             std::to_string(worstClean) + ")");
+
+  // ---- the lamp ------------------------------------------------------------
+  //
+  // Bulb adds no harmonics at all, so the only thing to measure is what it
+  // does to the level, and the only thing that makes it do anything is the
+  // pitch moving. How much level movement comes out of a held note, in dB
+  // between the quietest and loudest the partial gets once the attack is over.
+  const auto swingDb = [](Character c, float pmCents, float bendSemitones) {
+    SynthParams p;
+
+    for (auto &o : p.osc) {
+      o.volume = 0.0f;
+      o.velAmount = 0.0f;
+      o.attack = 0.005f;
+      o.decay = 20.0f;
+      o.sustain = 1.0f;
+      o.audible = true;
+    }
+
+    p.osc[0].volume = 0.7f;
+    p.osc[0].pmDepthCents = pmCents;
+    p.osc[0].pmRateHz = 5.0f;
+    p.global.masterGain = 1.0f;
+    p.global.safetyClip = false;
+    p.global.character = c;
+
+    SynthEngine engine;
+    engine.prepare(sr);
+    engine.setPolyphony(1);
+    engine.noteOn(57, 1.0f, p);
+
+    const int total = (int)(sr * 6.0);
+    std::vector<float> l((size_t)total), r((size_t)total);
+
+    // In blocks, so a bend can arrive part way through the note rather than
+    // being there from the start, which is the gesture this answers to.
+    constexpr int chunk = 256;
+    for (int n = 0; n < total; n += chunk) {
+      if (bendSemitones != 0.0f)
+        p.global.bendSemitones = n > total / 2 ? bendSemitones : 0.0f;
+
+      engine.render(l.data() + n, r.data() + n, std::min(chunk, total - n), p);
+    }
+
+    // Peak per 20 ms, over everything after the attack.
+    const int win = (int)(sr * 0.02);
+    double lo = 1.0e9, hi = 0.0;
+
+    for (int n = (int)(sr * 2.0); n + win < total; n += win) {
+      double peak = 0.0;
+      for (int i = 0; i < win; ++i)
+        peak = std::max(peak, (double)std::abs(l[(size_t)(n + i)]));
+
+      if (peak > 1.0e-6) {
+        lo = std::min(lo, peak);
+        hi = std::max(hi, peak);
+      }
+    }
+
+    return 20.0 * std::log10(hi / std::max(1.0e-9, lo));
+  };
+
+  const double still = swingDb(Character::Bulb, 0.0f, 0.0f);
+  const double vibrato = swingDb(Character::Bulb, 25.0f, 0.0f);
+  const double bent = swingDb(Character::Bulb, 0.0f, 2.0f);
+
+  std::printf("  bulb: %.2f dB held still, %.2f dB under a 25 ct vibrato, "
+              "%.2f dB across a two-semitone bend\n",
+              still, vibrato, bent);
+
+  check(still < 0.01, "a held note with nothing moving is left alone, which "
+                      "is what the circuit does");
+
+  check(swingDb(Character::Pure, 25.0f, 0.0f) < 0.01,
+        "and Pure is left alone whatever the pitch does");
+
+  // The numbers that make it a character rather than a detail nobody can
+  // hear. They are calibrated to the movements this instrument makes, which
+  // are cents rather than the decade a bench oscillator is swept across.
+  check(vibrato > 2.0, "a vibrato is heard in the level as well as the pitch");
+  check(bent > 1.0, "and so is a bend");
+  check(vibrato < 8.0 && bent < 8.0,
+        "without turning into a tremolo nobody asked for");
 }
 
 // -----------------------------------------------------------------------------

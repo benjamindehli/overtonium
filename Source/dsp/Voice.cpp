@@ -40,13 +40,28 @@ constexpr double kAmpShapeOffset = 0.25;
 /// the level walking behind a bend rather than moving with it.
 constexpr double kBulbSettleSeconds = 0.5;
 
-/// How much of the level the lamp gives up while it is behind, at a semitone
-/// out or more.
+/// How far out of balance the lamp can get before it has nothing left to give,
+/// in semitones.
 ///
-/// A fifth, which is a couple of decibels. It has to be small: this is an
-/// instrument with 32 oscillators playing at once, and an amplitude wobble
-/// that reads as character on one reads as a fault on all of them together.
-constexpr float kBulbDepth = 0.2f;
+/// A quarter of one, which is deliberately far less than the physics of a
+/// Wien bridge would give you, and the reason is what moves the pitch here. A
+/// bench oscillator is swept by a knob across a decade, and its lamp answers a
+/// frequency that has doubled. This one is moved by vibrato, drift and a
+/// finger, which is to say by cents, and a model faithful to the bench does
+/// nothing at all at that scale: at a semitone of full scale, a 25 cent
+/// vibrato came to 0.8 dB and drift to a hundredth of one, which is a
+/// character nobody can hear. Scaled to the movements the instrument actually
+/// makes, the same model reads as the circuit it is named after.
+constexpr float kBulbFullScale = 0.25f;
+
+/// How much of the level it gives up once it is that far behind.
+///
+/// A quarter of it at the limit, which is a little over two decibels, and
+/// proportional below that. It has to stop
+/// somewhere: this is an instrument with 32 oscillators playing at once, and
+/// an amplitude movement that reads as character on one reads as a fault on
+/// all of them together.
+constexpr float kBulbDepth = 0.25f;
 
 /// What the tremolo leaves of the fader.
 ///
@@ -476,8 +491,8 @@ void Voice::render(float *left, float *right, int numSamples,
         // Clamped rather than curved: a filament runs out of range too, and a
         // clamp is a compare where a soft limit is a divide, on something that
         // runs 512 times per control block.
-        const float behind =
-            std::clamp((float)(semis - pt.bulbSettled), -1.0f, 1.0f);
+        const float behind = std::clamp(
+            (float)(semis - pt.bulbSettled) / kBulbFullScale, -1.0f, 1.0f);
 
         bulb = 1.0f - behind * kBulbDepth;
       }
