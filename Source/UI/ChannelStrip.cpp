@@ -426,8 +426,9 @@ void ActivityLamp::paint(juce::Graphics &g) {
 
   // The hole it is mounted in, which is why the rule stops two pixels short
   // either side: that gap is the lip, and it was there before there was
-  // anything to put in it.
-  paintRecess(g, lamp, diameter * 0.5f);
+  // anything to put in it. An unlit lamp is drawn at low alpha, so the floor
+  // of the hole has to be the backdrop rather than the shadow.
+  paintRecess(g, lamp, diameter * 0.5f, 1.0f, backdrop);
 
   // Unlit is the channel colour at low alpha rather than nothing at all, so
   // the divider reads as a lamp that is off rather than as a gap in the rule.
@@ -500,8 +501,9 @@ void ActivityNeedle::paint(juce::Graphics &g) {
 
   // A slot milled across the strip rather than a line drawn on it. It runs to
   // both edges, so only the top and bottom walls of the cut are in the
-  // picture, which is the pair that carries the depth anyway.
-  paintRecess(g, track, height * 0.35f);
+  // picture, which is the pair that carries the depth anyway. The track over
+  // it is a wash rather than a fill, so the floor is its own backdrop.
+  paintRecess(g, track, height * 0.35f, 1.0f, backdrop);
 
   g.setColour(colour.withAlpha(0.16f));
   g.fillRoundedRectangle(track, height * 0.35f);

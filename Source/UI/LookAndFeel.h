@@ -117,8 +117,12 @@ void paintDisplayGround(juce::Graphics &, juce::Rectangle<float> area,
 /// round hole, which is what a lamp sits in.
 /// @param depth  how far the lip stands out, in pixels. One is enough to read
 /// and is all the tighter margins have.
+/// @param floorColour  what to leave inside the opening, for a face that is
+/// drawn translucent and would otherwise show the shadow through itself. Leave
+/// it out for a face that covers its own ground.
 void paintRecess(juce::Graphics &, juce::Rectangle<float> opening, float corner,
-                 float depth = 1.0f);
+                 float depth = 1.0f,
+                 juce::Colour floorColour = juce::Colours::transparentBlack);
 
 /// Strokes a path the way a phosphor screen shows one.
 ///
