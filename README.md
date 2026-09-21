@@ -10,7 +10,7 @@ The control worth reaching for first is TUNE. It sweeps each partial continuousl
 
 - **Formats:** VST3, AU (macOS), Standalone, LV2 (Linux)
 - **Platforms:** macOS (universal), Windows, Linux
-- **Framework:** JUCE 8
+- **Framework:** JUCE 9
 - **Licence:** AGPLv3. See [Licensing](#licensing)
 - **Page:** [benjamindehli.github.io/overtonium](https://benjamindehli.github.io/overtonium/), built from `docs/`
 - **Listed at:** [KVR Audio](https://www.kvraudio.com/product/overtonium-by-dehli-musikk)
@@ -75,7 +75,7 @@ The release workflow rewrites `docs/latest.json` as part of publishing, so the f
 
 Overtonium is released under the [AGPLv3](LICENSE).
 
-That follows from what it is built on. The JUCE 8 framework modules are dual-licensed under the AGPLv3 or a paid commercial licence, and a plugin is a single combined work with them, so the combination has to be conveyed under terms the AGPL allows. Taking the AGPL for this project too is the simplest way to be exactly what it says it is. The network clause the AGPL is known for, section 13, only applies to software users interact with remotely over a network, which an audio plugin is not, so in practice it reads as the GPL does.
+That follows from what it is built on. The JUCE framework modules are dual-licensed under the AGPLv3 or a paid commercial licence, and a plugin is a single combined work with them, so the combination has to be conveyed under terms the AGPL allows. Taking the AGPL for this project too is the simplest way to be exactly what it says it is. The network clause the AGPL is known for, section 13, only applies to software users interact with remotely over a network, which an audio plugin is not, so in practice it reads as the GPL does.
 
 If you want to build on this and ship something closed-source, that needs a commercial JUCE licence from the JUCE side and a separate arrangement on this side, since the AGPL does not permit it.
 
