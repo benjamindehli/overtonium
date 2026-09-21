@@ -573,6 +573,10 @@ Three tables cover it, at a quarter, six tenths and twice again past the corner,
 
 A rate limit is the one imperfection here with a memory, so its cycle is simulated rather than shaped: a limiter run over a sine for several turns, with the steady state it settles into being what gets analysed.
 
+**What the factory presets ask for.** Twenty-five of the thirty-one, decided by ear at a keyboard and by nothing else: eleven on Bulb, eight on Slewed, four on Valve, two on Squashed, and six left on Pure. Three of those six are deliberate rather than left over. Init is the neutral patch. Just Saw and Equal Saw are played against each other to demonstrate tuning, and a timbre difference between them would be demonstrating something else.
+
+The shape of that list says something about the six. Bulb and Slewed take more than half of it between them, and they are the two that are not fixed waveshapes: one answers the hand and the other answers the register, so both do something on a keyboard that no spectrum sitting still can. Folded came out of the pass with nothing at all. It still does what it says it does, and no patch in the set asked for it, which is a fact about the set rather than about the character.
+
 ### Wobble
 
 A warped record under the whole instrument. Pitch is bent by reading the output back through a delay line whose length keeps moving, which is what happens when a platter runs eccentric or a capstan slips: the medium arrives early or late and the pitch goes with it.

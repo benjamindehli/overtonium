@@ -4479,13 +4479,41 @@ void testCharacterControl(OvertoniumProcessor &p) {
 
   // ---- a factory preset decides it too -------------------------------------
   //
-  // Through the neutral base rather than by naming it: a patch that says
-  // nothing about the character is a patch that wants the plain oscillator,
-  // the same way one that says nothing about STRETCH wants none.
-  p.applyFactoryPreset(presetIndex("Drawbar Organ"));
+  // Init, which says nothing about the character and never will, since it is
+  // the patch that clears everything. A patch saying nothing is a patch that
+  // wants the plain oscillator, the same way one that says nothing about
+  // STRETCH wants none, and that comes through the neutral base rather than
+  // from any preset naming it.
+  p.applyFactoryPreset(presetIndex("Init"));
 
   check(current() == ovt::Character::Pure,
         "a factory preset that says nothing puts it back to Pure");
+
+  // The pair the site plays against each other to show what TUNE does. They
+  // differ in that one control and in nothing else, so a character on either
+  // of them would be demonstrating something other than tuning.
+  for (auto *name : {"Just Saw", "Equal Saw"}) {
+    set(ovt::Character::Valve);
+    p.applyFactoryPreset(presetIndex(name));
+
+    check(current() == ovt::Character::Pure,
+          juce::String(name).toStdString() + " stays on Pure on purpose");
+  }
+
+  // And that the factory set asks for characters at all. Which preset gets
+  // which was decided by ear and is not something to pin down here, but a
+  // preset load that quietly dropped the character would otherwise show up
+  // only as most of the factory set sounding wrong.
+  int asking = 0;
+
+  for (int i = 0; i < ovt::presets::names().size(); ++i) {
+    p.applyFactoryPreset(i);
+    asking += current() != ovt::Character::Pure ? 1 : 0;
+  }
+
+  check(asking > ovt::presets::names().size() / 2,
+        "most of the factory presets ask for one (" + std::to_string(asking) +
+            " of " + std::to_string(ovt::presets::names().size()) + ")");
 
   // ---- and the panel says which it is --------------------------------------
   set(ovt::Character::Squashed);

@@ -207,6 +207,13 @@ struct Applier {
     set(params::reverbDampId, damping);
   }
 
+  /// Which oscillator the partials are.
+  ///
+  /// By name rather than by the number the parameter holds, since a case
+  /// reading `5.0f` says nothing about what it sounds like. The generator
+  /// writes the number, which is equivalent and is checked to be.
+  void character(Character c) const { set(params::characterId, (float)(int)c); }
+
   /// What the series is made of, before anything is done to it.
   ///
   /// @param stretchCents  how far off harmonic the top partial sits.
@@ -664,6 +671,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbPreDelay", 0.0031f);
     ap.set("stretch", 6.9869f);
     ap.set("track", 1.6f);
+    ap.character(Character::Valve);
     ap.set("wobble", 0.0762f);
     break;
   }
@@ -718,6 +726,7 @@ void apply(APVTS &apvts, int index) {
                  -0.4559f});
     ap.set("stretch", 2.0447f);
     ap.set("track", 1.3f);
+    ap.character(Character::Slewed);
     ap.set("wobble", 0.1038f);
     ap.set("lofiBits", 4.0f);
     ap.set("echoOn", 1.0f);
@@ -768,6 +777,11 @@ void apply(APVTS &apvts, int index) {
               [](int n) { return n >= 12 ? 0.2 : 0.0; });
 
     ap.fanOut(0.6);
+
+    // A pipe leaning on its own limit, which is what the odd harmonics in a
+    // principal rank are.
+    ap.character(Character::Squashed);
+
     ap.reverb(0.5f, 9.0f, 0.35f);
     break;
   }
@@ -905,6 +919,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbPreDelay", 0.0528f);
     ap.set("stretch", 29.8091f);
     ap.set("track", 3.0f);
+    ap.character(Character::Slewed);
     ap.set("wobble", 0.1476f);
     break;
   }
@@ -1051,6 +1066,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbPreDelay", 0.0132f);
     ap.set("stretch", 7.9525f);
     ap.set("track", 6.0f);
+    ap.character(Character::Valve);
     break;
   }
   case 5: // Drawbar Organ
@@ -1111,6 +1127,7 @@ void apply(APVTS &apvts, int index) {
                  0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
     ap.set("stretch", -0.2168f);
     ap.set("track", 3.2f);
+    ap.character(Character::Bulb);
     ap.set("wobble", 0.0211f);
     ap.set("echoOn", 1.0f);
     ap.set("echoMix", 0.1203f);
@@ -1496,6 +1513,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbPreDelay", 0.014f);
     ap.set("stretch", 0.0256f);
     ap.set("track", 2.6f);
+    ap.character(Character::Bulb);
     ap.set("wobble", 0.1488f);
     break;
   }
@@ -1680,6 +1698,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbPreDelay", 0.0235f);
     ap.set("stretch", -1200.0f);
     ap.set("track", 1.4f);
+    ap.character(Character::Slewed);
     ap.set("wobble", 0.1275f);
     break;
   }
@@ -1836,6 +1855,7 @@ void apply(APVTS &apvts, int index) {
                  0.805f, 0.8379f, -0.8379f, -0.8695f, 0.8695f, 0.9f, -0.9f});
     ap.set("stretch", 180.0f);
     ap.set("track", 4.0f);
+    ap.character(Character::Bulb);
     ap.set("echoOn", 1.0f);
     ap.set("echoMix", 0.2385f);
     ap.set("echoAge", 0.2727f);
@@ -1995,6 +2015,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbPreDelay", 0.0201f);
     ap.set("stretch", -293.8754f);
     ap.set("track", 3.9f);
+    ap.character(Character::Bulb);
     break;
   }
   case 12: // Init
@@ -2092,6 +2113,7 @@ void apply(APVTS &apvts, int index) {
                  -1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f, -1.0f,
                  1.0f, -1.0f, 1.0f, -1.0f, 1.0f, 0.0f});
     ap.set("track", 4.0f);
+    ap.character(Character::Slewed);
     ap.set("wobble", 0.286f);
     ap.set("lofiRate", 5.0f);
     ap.set("lofiBits", 4.0f);
@@ -2306,6 +2328,7 @@ void apply(APVTS &apvts, int index) {
                  -0.5536f, 0.0f});
     ap.set("stretch", -22.6682f);
     ap.set("track", 1.5f);
+    ap.character(Character::Bulb);
     ap.set("echoOn", 1.0f);
     ap.set("echoMix", 0.1226f);
     ap.set("echoTime", 0.0975f);
@@ -2477,6 +2500,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbPreDelay", 0.0073f);
     ap.set("stretch", 7.3773f);
     ap.set("track", 3.2f);
+    ap.character(Character::Bulb);
     ap.set("wobble", 0.1946f);
     break;
   }
@@ -2498,6 +2522,11 @@ void apply(APVTS &apvts, int index) {
                  0.0f, 0.0909f, 0.0f, 0.0769f, 0.0f, 0.0667f, 0.0f, 0.0588f,
                  0.0f, 0.0526f, 0.0f, 0.0476f, 0.0f, 0.0435f, 0.0f, 0.04f,
                  0.0f, 0.037f, 0.0f, 0.0345f, 0.0f, 0.0323f, 0.0f});
+
+    // The one character that cannot make an even harmonic, since it clips both
+    // halves of the wave alike. Anything else here would fill in the gaps this
+    // patch is made of.
+    ap.character(Character::Squashed);
     break;
   }
   case 19: // Omni-84
@@ -2575,6 +2604,11 @@ void apply(APVTS &apvts, int index) {
     ap.allOsc(params::driftSuffix, [](int) { return 12.0; });
 
     ap.fanOut(1.0);
+
+    // The level already breathes on its own rate per partial. This adds the
+    // one that breathes with the pitch instead.
+    ap.character(Character::Bulb);
+
     ap.reverb(0.45f, 8.0f, 0.4f);
     ap.echo(0.28f, 0.66f, 0.55f, 0.6f);
     break;
@@ -2625,6 +2659,7 @@ void apply(APVTS &apvts, int index) {
                  -0.5422f, -0.5715f, 0.5715f, 0.5994f, -0.5994f, -0.6261f,
                  0.6261f, 0.6517f, -0.6517f, -0.6763f, 0.6763f, 0.7f, -0.7f});
     ap.set("track", 2.5f);
+    ap.character(Character::Bulb);
     ap.set("wobble", 0.1463f);
     ap.set("echoOn", 1.0f);
     ap.set("echoMix", 0.3429f);
@@ -2764,6 +2799,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbPreDelay", 0.0233f);
     ap.set("stretch", 154.4952f);
     ap.set("track", 2.0f);
+    ap.character(Character::Bulb);
     ap.set("wobble", 0.2795f);
     break;
   }
@@ -2977,6 +3013,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbPreDelay", 0.0812f);
     ap.set("stretch", 81.3562f);
     ap.set("track", 0.7f);
+    ap.character(Character::Slewed);
     ap.set("wobble", 0.1346f);
     break;
   }
@@ -3167,6 +3204,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbPreDelay", 0.0235f);
     ap.set("stretch", 0.4895f);
     ap.set("track", 2.0f);
+    ap.character(Character::Bulb);
     ap.set("wobble", 0.1661f);
     break;
   }
@@ -3188,6 +3226,11 @@ void apply(APVTS &apvts, int index) {
     // string brightens with force.
     ap.allOsc(params::velSuffix,
               [](int n) { return std::min(1.0, 0.2 + 0.06 * (n - 1)); });
+
+    // The top of a struck body hardens as it climbs, and this is the only
+    // character whose harmonics arrive with the pitch rather than sitting on
+    // every partial equally.
+    ap.character(Character::Slewed);
 
     // A small, quick room. Struck things are heard somewhere.
     ap.reverb(0.22f, 1.8f, 0.5f);
@@ -3262,6 +3305,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbPreDelay", 0.0063f);
     ap.set("stretch", 0.2714f);
     ap.set("track", 0.4f);
+    ap.character(Character::Slewed);
     ap.set("wobble", 0.0408f);
     break;
   }
@@ -3471,6 +3515,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbPreDelay", 0.0228f);
     ap.set("stretch", 9.5576f);
     ap.set("track", 3.0f);
+    ap.character(Character::Valve);
     ap.set("wobble", 0.1011f);
     break;
   }
@@ -3495,6 +3540,10 @@ void apply(APVTS &apvts, int index) {
     // Voices thin out at the top of a range rather than getting brighter, and
     // the machine takes a little more off after them.
     ap.series(0.0f, 3.5f);
+
+    // The machine as well as the voices: an octave on every partial is the
+    // half of tape and valve nobody minds.
+    ap.character(Character::Valve);
 
     ap.fanOut(0.85);
 
@@ -3552,6 +3601,7 @@ void apply(APVTS &apvts, int index) {
                  0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                  0.0f, 0.0f, 0.0f});
     ap.set("track", 3.0f);
+    ap.character(Character::Slewed);
     ap.set("echoOn", 1.0f);
     ap.set("echoMix", 0.1163f);
     ap.set("echoTime", 0.0873f);
@@ -3628,6 +3678,7 @@ void apply(APVTS &apvts, int index) {
                  0.0052f, 0.0059f, 0.0071f, 0.005f});
     ap.set("stretch", 0.1305f);
     ap.set("track", 3.1f);
+    ap.character(Character::Bulb);
     ap.set("echoOn", 1.0f);
     ap.set("echoMix", 0.0986f);
     ap.set("echoTime", 0.0925f);
