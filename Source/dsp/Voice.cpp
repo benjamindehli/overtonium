@@ -491,10 +491,11 @@ void Voice::render(float *left, float *right, int numSamples,
       // The frequency goes in as well as the room above it, because one
       // character is a rate limit rather than a shape, and how hard that bites
       // depends on how fast the wave is asking the amplifier to move.
-      const auto &wave = characters.table(
-          p.global.character, freq,
-          foldAliases ? kMaxCharacterHarmonic
-                      : highestHarmonicUnder(freq, sampleRate));
+      const auto &wave =
+          characters.table(p.global.character, freq,
+                           foldAliases ? kMaxCharacterHarmonic
+                                       : highestHarmonicUnder(freq, sampleRate),
+                           unit.drive[(size_t)i]);
 
       // ---- what the lamp has not caught up with ----------------------------
       //

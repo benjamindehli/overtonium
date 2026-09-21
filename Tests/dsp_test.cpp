@@ -1039,6 +1039,113 @@ void testCharacter() {
 // -----------------------------------------------------------------------------
 // 3b. Thirty-two units built to one spec are not thirty-two identical units.
 // -----------------------------------------------------------------------------
+/// No two units distort by quite the same amount either.
+///
+/// Three drives per character rather than a figure per channel, because the
+/// drive is baked into a table: one per channel would be thirty-two tables per
+/// character and a note reading thirty-two of them per sample.
+void testDriveVariants() {
+  section("Three drives per character");
+
+  const auto &tables = CharacterTables::instance();
+
+  const auto level = [&tables](Character c, int n, int drive) {
+    const auto &h = tables.harmonics(c, 0, drive)[(size_t)(n - 1)];
+    return std::hypot((double)h.sine, (double)h.cosine);
+  };
+
+  check(kDriveVariants.size() == 3, "there are three of them");
+
+  check(exactly(kDriveVariants[(size_t)kNominalDrive], 1.0),
+        "and the middle one is the drive every figure written down describes");
+
+  // Each character's own imperfection, taken at the three drives. Which
+  // harmonic carries it differs, so each is asked about its own.
+  const struct {
+    Character c;
+    int harmonic;
+  } carries[] = {{Character::Rail, 3},
+                 {Character::Diode, 2},
+                 {Character::Valve, 2},
+                 {Character::Opamp, 3}};
+
+  for (const auto &probe : carries) {
+    const auto soft = level(probe.c, probe.harmonic, 0);
+    const auto nominal = level(probe.c, probe.harmonic, 1);
+    const auto hard = level(probe.c, probe.harmonic, 2);
+
+    std::printf("  %-7s harmonic %d: %.1f, %.1f and %.1f dB\n",
+                characterName(probe.c), probe.harmonic,
+                20.0 * std::log10(std::max(1.0e-9, soft)),
+                20.0 * std::log10(std::max(1.0e-9, nominal)),
+                20.0 * std::log10(std::max(1.0e-9, hard)));
+
+    check(soft < nominal && nominal < hard,
+          std::string(characterName(probe.c)) +
+              " distorts more the harder it is driven");
+
+    // Enough apart to be a rack of units rather than three copies, and not so
+    // far apart that a channel reads as a different character.
+    check(hard / std::max(1.0e-9, soft) > 1.10 &&
+              hard / std::max(1.0e-9, soft) < 2.5,
+          std::string(characterName(probe.c)) +
+              " spreads them by a sensible amount (" +
+              std::to_string(hard / std::max(1.0e-9, soft)) + " across)");
+
+    // The fundamental is normalised per variant, so a drive changes what the
+    // partial sounds like and not how loud it is.
+    for (int drive = 0; drive < 3; ++drive)
+      check(std::abs(level(probe.c, 1, drive) - 1.0) < 1.0e-4,
+            std::string(characterName(probe.c)) +
+                " keeps the fundamental at unity at drive " +
+                std::to_string(drive));
+  }
+
+  // ---- and that the tables are indexed by it -------------------------------
+  //
+  // Reading the wrong table is the whole risk here, and it would sound like a
+  // character rather than like a fault.
+  for (const auto &probe : carries) {
+    const Wave *seen[3] = {};
+
+    for (int drive = 0; drive < 3; ++drive)
+      // Above the slew corner, or the rate-limited one is a plain sine at
+      // every drive and the comparison says nothing.
+      seen[drive] =
+          &tables.table(probe.c, 2000.0, kMaxCharacterHarmonic, drive);
+
+    check(seen[0] != seen[1] && seen[1] != seen[2] && seen[0] != seen[2],
+          std::string(characterName(probe.c)) +
+              " reads a different table for each drive");
+  }
+
+  // The bands still work inside a drive: a partial with less room under
+  // Nyquist reads a shorter table, at whichever drive it was built to.
+  for (int drive = 0; drive < 3; ++drive)
+    check(&tables.table(Character::Rail, 220.0, 5, drive) !=
+              &tables.table(Character::Rail, 220.0, 3, drive),
+          "and a partial with less room under Nyquist still reads a shorter "
+          "one at drive " +
+              std::to_string(drive));
+
+  // ---- which unit got which ------------------------------------------------
+  const auto &rack = UnitSpread::instance().rack(Character::Valve);
+
+  check(rack.drive[0] == kNominalDrive,
+        "the unit the rest were tuned against is on the nominal drive");
+
+  std::array<int, 3> counts{};
+
+  for (int i = 0; i < kNumHarmonics; ++i)
+    counts[(size_t)std::clamp(rack.drive[(size_t)i], 0, 2)] += 1;
+
+  std::printf("  the rack draws %d, %d and %d of the three\n", counts[0],
+              counts[1], counts[2]);
+
+  check(counts[0] > 3 && counts[1] > 3 && counts[2] > 3,
+        "and all three are used across the thirty-two");
+}
+
 void testUnitSpread() {
   section("Unit tolerance");
 
@@ -5674,6 +5781,7 @@ int main() {
   testTracking();
   testSineTable();
   testCharacter();
+  testDriveVariants();
   testUnitSpread();
   testRenderedSpectrum();
   testAliasing();

@@ -599,6 +599,21 @@ The scale is what a tuned rack holds rather than what the parts are made to. Com
 
 The pitch figures are half what they first shipped at, and that was decided by playing rather than by measuring: at three to six cents several patches read as detuned rather than as a rack of units, which is to say as a rack that wants tuning again. The level spread was right the first time and has not moved.
 
+**And no two units distort by quite the same amount.** A rack whose thirty-two circuits are all tuned a little differently would still be one circuit repeated if every one of them clipped, folded or slewed by exactly as much, so each unit is also built to one of three drives, 15% either side of the nominal, drawn by index like the rest of it. A third of the partials sit on the nominal, which is the drive every figure written down about these characters describes.
+
+| Character | Its own drive         | The third or second harmonic across the three |
+| --------- | --------------------- | --------------------------------------------- |
+| Rail      | how far into the rail | -25.8, -23.5 and -21.6 dB                     |
+| Diode     | how badly matched     | -35.7, -33.2 and -30.9 dB                     |
+| Valve     | how hard it is driven | -22.0, -20.1 and -18.6 dB                     |
+| Op-amp    | how fast it can move  | -27.3, -24.5 and -22.6 dB                     |
+
+**Three rather than thirty-two**, and that is the whole design of it. The drive is baked into the table, so a figure per channel would mean thirty-two tables per character and a note reading thirty-two of them per sample, where the reason a character costs nothing at all is that 512 oscillators read one 16 kB table that stays in cache. Three keeps the idea and keeps the tables countable: 72 of them now against 24, 1.15 MB against 400 kB, and 31 ms to build at startup against 8. The per-sample work is exactly what it was, one interpolated read, since all that changed is which table the pointer is pointing at.
+
+**The rate limit takes a third of that spread rather than all of it.** Its harmonics do not grow steadily with the drive, they arrive all at once as the wave begins to be limited, so the same 15% either side ran from -41.7 dB to -20.5 on the third harmonic, which is not one circuit built twice. At a third of the depth it spreads about as far as the other three do.
+
+The drive is drawn from a stream of its own rather than from the one the pitch and level come off. Sharing it would shift every draw after the first and re-roll where all thirty-two units sit, which is a different rack rather than the same rack with its circuits built to three drives. That showed up as eleven presets on Bulb changing sound, and Bulb has no harmonics to drive at all.
+
 What it buys is the paragraph above being true of a patch nobody has detuned. With every TUNE at zero the partials are exact multiples of each other, so a character's harmonics land exactly on the partials above and add or cancel by phase rather than doing anything. A couple of cents of spread makes them beat instead. The rate follows the frequency, since a cent is a fraction of a hertz at the bottom of the series and several at the top: on a low A, partial 1's second harmonic meets partial 2 at 220 Hz and beats well under a hertz, while partial 16's meets partial 32 at 3.5 kHz and beats at ten or so. It costs one add and one multiply per partial per control block, which is a thirty-second of one sample's work, and the spread itself is a few hundred draws at startup. Pure has none of it, which is what keeps every patch written before any of this existed playing exactly as it did.
 
 **Bulb is the one with no harmonics.** A Wien bridge is the cleanest sine any of these circuits makes, because holding the amplitude steady is the whole job of the lamp in it. What the lamp costs is not distortion but time: its resistance follows how hard the loop drives it, only as fast as a filament heats and cools, and the gain the loop needs changes with frequency because no two ganged parts track exactly. So the level sags when the pitch moves and settles once the lamp has caught up. One pole per partial, chasing the pitch with a half-second time constant, and the error left over takes up to a quarter of the level.

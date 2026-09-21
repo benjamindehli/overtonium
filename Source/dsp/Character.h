@@ -67,6 +67,43 @@ inline const char *characterName(Character c) {
   return "Pure";
 }
 
+/// How hard each unit's circuit is driven, as a multiple of the nominal.
+///
+/// Thirty-two units built to one spec do not distort by the same amount any
+/// more than they sit at the same pitch, and this is that half of the rack. It
+/// is a short list rather than a figure per channel on purpose: the drive is
+/// baked into a table, so a value per channel would mean thirty-two tables per
+/// character and a note touching thirty-two of them per sample, where the
+/// whole reason a character costs nothing is that 512 oscillators read one
+/// 16 kB table that stays in cache. Three keeps the idea and keeps the tables
+/// countable.
+///
+/// The middle one is the nominal drive, so a third of the partials sound
+/// exactly as they did before there were variants.
+inline constexpr std::array<double, 3> kDriveVariants{0.85, 1.0, 1.15};
+
+/// Which of those a unit with no opinion uses.
+inline constexpr int kNominalDrive = 1;
+
+/// How much of that spread each circuit takes.
+///
+/// One for the three that are a fixed waveshape, where the harmonics move
+/// about in step with the drive. The rate limit is the exception and needs a
+/// third of it: its harmonics do not grow steadily, they appear all at once as
+/// the wave starts to be limited, so the same 15% either side runs from -41.7
+/// dB to -20.5 on the third harmonic, which is not one circuit built twice. At
+/// a third it spreads about as far as the others do.
+inline double driveDepthFor(Character c) noexcept {
+  return c == Character::Opamp ? 0.33 : 1.0;
+}
+
+/// What a unit's drive comes to for this circuit, as a multiple of nominal.
+inline double driveFor(Character c, int variant) noexcept {
+  const auto which = std::clamp(variant, 0, (int)kDriveVariants.size() - 1);
+
+  return 1.0 + (kDriveVariants[(size_t)which] - 1.0) * driveDepthFor(c);
+}
+
 /// How far apart thirty-two units built to the same spec end up.
 ///
 /// Not DRIFT, which wanders. This is the spread a rack has the moment it is
@@ -143,6 +180,9 @@ public:
   struct Rack {
     std::array<float, kNumHarmonics> cents{}; ///< added to the partial's pitch
     std::array<float, kNumHarmonics> gain{};  ///< linear, 1 being on spec
+    /// Which of kDriveVariants this unit's circuit was built to, so no two
+    /// neighbours distort by quite the same amount.
+    std::array<int, kNumHarmonics> drive{};
   };
 
   static const UnitSpread &instance() noexcept {
@@ -163,19 +203,34 @@ private:
       auto &rack = racks[(size_t)c];
 
       rack.gain.fill(1.0f);
+      rack.drive.fill(kNominalDrive);
 
       // The first unit is the one the rest were tuned against, so it is
-      // exactly on spec in both. Otherwise a note would land a few cents off
-      // the key that asked for it and a patch would change level when the
+      // exactly on spec in all three. Otherwise a note would land a few cents
+      // off the key that asked for it and a patch would change level when the
       // character changed, neither of which is unit tolerance: they are the
       // whole rack being out, which is what tuning it is for.
       Xorshift rng((uint32_t)c + 1u);
+
+      // A stream of its own rather than more of that one, so that which drive
+      // a unit got cannot move where it sits. Sharing the stream would shift
+      // every draw after the first and re-roll the pitch and level of all
+      // thirty-two, which is a different rack rather than the same rack with
+      // its circuits built to three drives.
+      Xorshift driveRng((uint32_t)c + 0x9e3779b9u);
 
       for (int i = 1; i < kNumHarmonics; ++i) {
         rack.cents[(size_t)i] = rng.bipolar() * tolerance.cents;
 
         rack.gain[(size_t)i] =
             std::pow(10.0f, rng.bipolar() * tolerance.decibels / 20.0f);
+
+        // Drawn flat across the three rather than clustered on the nominal,
+        // since the point of them is that a run of channels is not one
+        // circuit repeated.
+        rack.drive[(size_t)i] =
+            std::min((int)(driveRng.unipolar() * (float)kDriveVariants.size()),
+                     (int)kDriveVariants.size() - 1);
       }
     }
   }
@@ -273,8 +328,10 @@ public:
   /// @param highestHarmonic  the highest multiple of that frequency which
   /// still fits below Nyquist. One means there is only room for the
   /// fundamental, which is a plain sine whatever the character says.
-  const Wave &table(Character c, double freq,
-                    int highestHarmonic) const noexcept {
+  /// @param drive  which of kDriveVariants this unit was built to. See
+  /// UnitSpread, which is where a partial's own belongs.
+  const Wave &table(Character c, double freq, int highestHarmonic,
+                    int drive = kNominalDrive) const noexcept {
     const auto which = (size_t)c;
 
     // A character with nothing above its fundamental, and a partial with no
@@ -290,10 +347,9 @@ public:
     if (shape < 0)
       return SineTable::instance();
 
-    const auto band = std::min(highestHarmonic, kMaxCharacterHarmonic) - 2 +
-                      shape * kCharacterBands;
+    const auto band = std::min(highestHarmonic, kMaxCharacterHarmonic) - 2;
 
-    return tables[(size_t)(base[which] + band)];
+    return tables[(size_t)(base[which] + at(c, drive, shape) + band)];
   }
 
   /// What a character does to the harmonic series, for the tests to read back
@@ -301,10 +357,15 @@ public:
   ///
   /// @param shapeBand  which of a character's shapes to report, for the one
   /// that has more than a single shape.
+  /// @param drive  which of kDriveVariants, the nominal one by default, which
+  /// is what every figure written down about these characters describes.
   const std::array<Harmonic, kMaxCharacterHarmonic> &
-  harmonics(Character c, int shapeBand = 0) const noexcept {
+  harmonics(Character c, int shapeBand = 0,
+            int drive = kNominalDrive) const noexcept {
+    const auto shape = std::clamp(shapeBand, 0, shapeCount(c) - 1);
+
     return recipes[(size_t)(recipeBase[(size_t)c] +
-                            std::clamp(shapeBand, 0, shapeCount(c) - 1))];
+                            at(c, drive, shape) / kCharacterBands)];
   }
 
   /// How many shapes a character has. One for everything that is a fixed
@@ -314,6 +375,15 @@ public:
   }
 
 private:
+  /// Where one drive's shapes start, counted in tables from the character's
+  /// own base. Drives outermost, then shapes, then the Nyquist bands, so a
+  /// partial that crosses a band moves by one and the rest stays put.
+  static int at(Character c, int drive, int shape) noexcept {
+    const auto which = std::clamp(drive, 0, (int)kDriveVariants.size() - 1);
+
+    return (which * shapeCount(c) + shape) * kCharacterBands;
+  }
+
   CharacterTables() {
     int offset = 0;
 
@@ -323,31 +393,37 @@ private:
 
       bool anything = false;
 
-      for (int shape = 0; shape < shapeCount((Character)c); ++shape) {
-        const auto recipe = analyse(renderCycle((Character)c, shape));
-        recipes.push_back(recipe);
+      // Drives outermost, so one drive's shapes and bands sit together and a
+      // partial only ever moves between the bands of the drive it was built
+      // to. Bulb and Pure make no harmonics at any drive, and fall out below
+      // without a table to their name.
+      for (int drive = 0; drive < (int)kDriveVariants.size(); ++drive)
+        for (int shape = 0; shape < shapeCount((Character)c); ++shape) {
+          const auto recipe = analyse(
+              renderCycle((Character)c, shape, driveFor((Character)c, drive)));
+          recipes.push_back(recipe);
 
-        // Below this a harmonic is quieter than the table's own interpolation
-        // error, so building a table for it would cost cache and change
-        // nothing. Decided from the recipe rather than from a list of which
-        // characters are supposed to be clean, so adding one cannot get the
-        // answer wrong.
-        constexpr float kAudible = 1.0e-4f;
+          // Below this a harmonic is quieter than the table's own interpolation
+          // error, so building a table for it would cost cache and change
+          // nothing. Decided from the recipe rather than from a list of which
+          // characters are supposed to be clean, so adding one cannot get the
+          // answer wrong.
+          constexpr float kAudible = 1.0e-4f;
 
-        bool worthIt = false;
+          bool worthIt = false;
 
-        for (int n = 2; n <= kMaxCharacterHarmonic; ++n)
-          worthIt |= std::hypot(recipe[(size_t)(n - 1)].sine,
-                                recipe[(size_t)(n - 1)].cosine) > kAudible;
+          for (int n = 2; n <= kMaxCharacterHarmonic; ++n)
+            worthIt |= std::hypot(recipe[(size_t)(n - 1)].sine,
+                                  recipe[(size_t)(n - 1)].cosine) > kAudible;
 
-        anything |= worthIt;
+          anything |= worthIt;
 
-        // Built for every shape once any of them is worth building, so the
-        // bands stay at a fixed stride and a quiet one in the middle cannot
-        // shift the rest out from under the index.
-        build(recipe);
-        offset += kCharacterBands;
-      }
+          // Built for every shape once any of them is worth building, so the
+          // bands stay at a fixed stride and a quiet one in the middle cannot
+          // shift the rest out from under the index.
+          build(recipe);
+          offset += kCharacterBands;
+        }
 
       shaped[(size_t)c] = anything;
 
@@ -364,7 +440,7 @@ private:
   /// A whole cycle rather than a point at a time, because a slew limit has a
   /// memory: what it does at one instant depends on where it had got to at the
   /// last one.
-  static std::vector<double> renderCycle(Character c, int shape) {
+  static std::vector<double> renderCycle(Character c, int shape, double drive) {
     constexpr double kTwoPi = 6.283185307179586476;
     std::vector<double> out((size_t)kPoints, 0.0);
 
@@ -379,7 +455,10 @@ private:
       // level, so what comes out is a sine leaning on a soft limit. The drive
       // is chosen for a third harmonic at -23 dB, which is audible as a
       // hardening of the tone rather than as distortion.
-      constexpr double kDrive = 1.0;
+      //
+      // How far into the rail this unit runs is the drive: one that clips a
+      // little sooner hardens a little more.
+      const double kDrive = 1.0 * drive;
 
       for (int i = 0; i < kPoints; ++i)
         out[(size_t)i] = std::tanh(kDrive * sine(i)) / std::tanh(kDrive);
@@ -394,7 +473,9 @@ private:
       // shape above the axis as below it. That asymmetry is where the even
       // harmonics come from, and it is why this sounds different from the
       // rail even at a similar total distortion.
-      constexpr double kMismatch = 0.75;
+      // How badly the two are matched is this unit's drive. Nominal leaves
+      // the quarter of a turn's difference the character was built around.
+      const double kMismatch = 1.0 - 0.25 * drive;
 
       for (int i = 0; i < kPoints; ++i) {
         const double turns = (double)i / (double)kPoints;
@@ -417,7 +498,7 @@ private:
       // The bias is where on the curve the wave sits. Further along it and the
       // second harmonic grows while the third falls away, so it sets which of
       // the two the character is about.
-      constexpr double kDrive = 1.1;
+      const double kDrive = 1.1 * drive;
       constexpr double kBias = 0.25;
 
       const double rest = std::tanh(kDrive * kBias);
@@ -437,8 +518,12 @@ private:
       // imperfection here with a memory. Several turns of it, so what comes
       // out is the steady state the circuit settles into rather than the first
       // cycle after it was switched on.
+      // The drive here is how far past its own corner the amplifier is being
+      // asked to go, which is the same thing as a unit that slews a little
+      // slower than its neighbour.
       const double ratio = kSlewRatios[(size_t)std::clamp(
-          shape, 0, (int)kSlewRatios.size() - 1)];
+                               shape, 0, (int)kSlewRatios.size() - 1)] *
+                           drive;
 
       // The most it can move between two points of the table. A full-scale
       // sine's steepest part climbs 2 pi in a turn, so at a ratio of one this
@@ -460,6 +545,8 @@ private:
     case Character::NumCharacters:
       break;
     }
+
+    (void)drive;
 
     // Bulb is deliberately here. A Wien bridge is the cleanest sine any of
     // these circuits makes, because holding the amplitude steady is the whole
