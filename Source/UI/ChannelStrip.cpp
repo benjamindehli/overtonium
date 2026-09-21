@@ -426,9 +426,8 @@ void ActivityLamp::paint(juce::Graphics &g) {
 
   // The hole it is mounted in, which is why the rule stops two pixels short
   // either side: that gap is the lip, and it was there before there was
-  // anything to put in it. An unlit lamp is drawn at low alpha, so the floor
-  // of the hole has to be the backdrop rather than the shadow.
-  paintRecess(g, lamp, diameter * 0.5f, 1.0f, backdrop);
+  // anything to put in it.
+  paintRecess(g, lamp, diameter * 0.5f);
 
   // Unlit is the channel colour at low alpha rather than nothing at all, so
   // the divider reads as a lamp that is off rather than as a gap in the rule.
@@ -445,7 +444,13 @@ void ActivityLamp::paint(juce::Graphics &g) {
     g.fillEllipse(lamp.expanded(diameter * 0.18f));
   }
 
-  g.setColour(colour.withAlpha(0.16f + 0.84f * lit));
+  // Blended against the backdrop rather than laid over it at that alpha, which
+  // comes to the same colour and covers the floor of the hole while it is at
+  // it. A see-through face would show the shadow under it and read as a lamp
+  // somebody had smudged.
+  g.setColour(isOpaque()
+                  ? backdrop.interpolatedWith(colour, 0.16f + 0.84f * lit)
+                  : colour.withAlpha(0.16f + 0.84f * lit));
   g.fillEllipse(lamp);
 }
 
@@ -501,11 +506,14 @@ void ActivityNeedle::paint(juce::Graphics &g) {
 
   // A slot milled across the strip rather than a line drawn on it. It runs to
   // both edges, so only the top and bottom walls of the cut are in the
-  // picture, which is the pair that carries the depth anyway. The track over
-  // it is a wash rather than a fill, so the floor is its own backdrop.
-  paintRecess(g, track, height * 0.35f, 1.0f, backdrop);
+  // picture, which is the pair that carries the depth anyway.
+  paintRecess(g, track, height * 0.35f);
 
-  g.setColour(colour.withAlpha(0.16f));
+  // Blended against the backdrop rather than washed over it, for the same
+  // reason the lamps are: the same colour, and it covers the shadow that runs
+  // under the slot as well as around it.
+  g.setColour(isOpaque() ? backdrop.interpolatedWith(colour, 0.16f)
+                         : colour.withAlpha(0.16f));
   g.fillRoundedRectangle(track, height * 0.35f);
 
   // Centre, so sharp and flat mean something when the needle is near it.

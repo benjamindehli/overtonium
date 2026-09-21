@@ -145,7 +145,7 @@ void paintDisplayGround(juce::Graphics &g, juce::Rectangle<float> area,
 }
 
 void paintRecess(juce::Graphics &g, juce::Rectangle<float> opening,
-                 float corner, float depth, juce::Colour floorColour) {
+                 float corner, float depth) {
   // The lit walls first, one depth out all the way round, and then the
   // shadowed ones over them: the opening itself moved up and to the left by
   // that same depth, which covers the top and the left and leaves the light
@@ -166,17 +166,6 @@ void paintRecess(juce::Graphics &g, juce::Rectangle<float> opening,
 
   g.setColour(juce::Colours::black.withAlpha(0.6f));
   g.fillRoundedRectangle(opening.translated(-depth, -depth), corner);
-
-  // The floor of it, for a face that is translucent. Both shapes above run
-  // under the opening as well as around it, which an opaque face hides and a
-  // see-through one does not: the lamps and the needle are drawn at low alpha
-  // when they are dark, so without this the shadow would show through them and
-  // mute the whole thing. Blended here rather than left to the face, so what
-  // sits over it is the same colour it always had beneath it.
-  if (!floorColour.isTransparent()) {
-    g.setColour(floorColour);
-    g.fillRoundedRectangle(opening, corner);
-  }
 }
 
 void strokeGlowing(juce::Graphics &g, const juce::Path &path,
