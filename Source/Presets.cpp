@@ -732,7 +732,7 @@ void apply(APVTS &apvts, int index) {
                  -0.4559f});
     ap.set("stretch", 2.0447f);
     ap.set("track", 1.3f);
-    ap.character(Character::Slewed);
+    ap.character(Character::Opamp);
     ap.set("wobble", 0.1038f);
     ap.set("lofiBits", 4.0f);
     ap.set("echoOn", 1.0f);
@@ -786,7 +786,7 @@ void apply(APVTS &apvts, int index) {
 
     // A pipe leaning on its own limit, which is what the odd harmonics in a
     // principal rank are.
-    ap.character(Character::Squashed);
+    ap.character(Character::Rail);
 
     ap.reverb(0.5f, 9.0f, 0.35f);
     break;
@@ -925,7 +925,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbPreDelay", 0.0528f);
     ap.set("stretch", 29.8091f);
     ap.set("track", 3.0f);
-    ap.character(Character::Slewed);
+    ap.character(Character::Opamp);
     ap.set("wobble", 0.1476f);
     break;
   }
@@ -1704,7 +1704,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbPreDelay", 0.0235f);
     ap.set("stretch", -1200.0f);
     ap.set("track", 1.4f);
-    ap.character(Character::Slewed);
+    ap.character(Character::Opamp);
     ap.set("wobble", 0.1275f);
     break;
   }
@@ -2119,7 +2119,7 @@ void apply(APVTS &apvts, int index) {
                  -1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f, -1.0f,
                  1.0f, -1.0f, 1.0f, -1.0f, 1.0f, 0.0f});
     ap.set("track", 4.0f);
-    ap.character(Character::Slewed);
+    ap.character(Character::Opamp);
     ap.set("wobble", 0.286f);
     ap.set("lofiRate", 5.0f);
     ap.set("lofiBits", 4.0f);
@@ -2532,7 +2532,7 @@ void apply(APVTS &apvts, int index) {
     // The one character that cannot make an even harmonic, since it clips both
     // halves of the wave alike. Anything else here would fill in the gaps this
     // patch is made of.
-    ap.character(Character::Squashed);
+    ap.character(Character::Rail);
     break;
   }
   case 19: // Omni-84
@@ -3019,7 +3019,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbPreDelay", 0.0812f);
     ap.set("stretch", 81.3562f);
     ap.set("track", 0.7f);
-    ap.character(Character::Slewed);
+    ap.character(Character::Opamp);
     ap.set("wobble", 0.1346f);
     break;
   }
@@ -3236,7 +3236,7 @@ void apply(APVTS &apvts, int index) {
     // The top of a struck body hardens as it climbs, and this is the only
     // character whose harmonics arrive with the pitch rather than sitting on
     // every partial equally.
-    ap.character(Character::Slewed);
+    ap.character(Character::Opamp);
 
     // A small, quick room. Struck things are heard somewhere.
     ap.reverb(0.22f, 1.8f, 0.5f);
@@ -3311,7 +3311,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbPreDelay", 0.0063f);
     ap.set("stretch", 0.2714f);
     ap.set("track", 0.4f);
-    ap.character(Character::Slewed);
+    ap.character(Character::Opamp);
     ap.set("wobble", 0.0408f);
     // A vibrato you set once and hear on every key, which is what one
     // oscillator with one vibrato circuit on it does. A Stylophone has no
@@ -3611,7 +3611,7 @@ void apply(APVTS &apvts, int index) {
                  0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                  0.0f, 0.0f, 0.0f});
     ap.set("track", 3.0f);
-    ap.character(Character::Slewed);
+    ap.character(Character::Opamp);
     ap.set("echoOn", 1.0f);
     ap.set("echoMix", 0.1163f);
     ap.set("echoTime", 0.0873f);

@@ -27,30 +27,35 @@ namespace ovt {
 enum class Character {
   Pure = 0, ///< the table as sampled. No circuit misses this cleanly.
   Bulb,     ///< a Wien bridge held steady by a lamp, which lags
-  Squashed, ///< a phase-shift oscillator driven into its own rails
-  Folded,   ///< a triangle bent into a sine by two mismatched diodes
+  Rail,     ///< a phase-shift oscillator grown into its own supply rail
+  Diode,    ///< a triangle bent into a sine by two diodes that do not match
   Valve,    ///< a triode leaning over on one side before the other
-  Slewed,   ///< an amplifier that cannot move as fast as the note asks
+  Opamp,    ///< an amplifier that cannot move as fast as the note asks
   NumCharacters
 };
 
 /// What each one is called on the panel.
 ///
-/// Named for what the circuit does to the wave rather than for the circuit,
-/// since nobody reaches for a phase-shift oscillator by name while they are
-/// playing.
+/// Named for the part that does it. Not for the circuit it sits in, which
+/// nobody reaches for by name while they are playing, and not for what it does
+/// to the wave, which is where three of these started: a lamp, a rail, a pair
+/// of diodes, a triode and an amplifier are five things you could hold, and
+/// the list reads as a parts bin rather than as a list of adjectives.
+///
+/// Pure is the one exception and has to be. There is no part that makes a
+/// mathematically perfect sine, which is the whole point of it.
 inline const char *characterName(Character c) {
   switch (c) {
   case Character::Bulb:
     return "Bulb";
-  case Character::Squashed:
-    return "Squashed";
-  case Character::Folded:
-    return "Folded";
+  case Character::Rail:
+    return "Rail";
+  case Character::Diode:
+    return "Diode";
   case Character::Valve:
     return "Valve";
-  case Character::Slewed:
-    return "Slewed";
+  case Character::Opamp:
+    return "Op-amp";
 
   // Listed rather than left to a default, so adding a character is a compiler
   // error here until it has been given a name.
@@ -94,13 +99,13 @@ inline UnitTolerance unitToleranceFor(Character c) noexcept {
   // Three RC stages set the frequency and their errors stack. The level is
   // wherever the amplifier runs out of rail, which is a different place in
   // every unit.
-  case Character::Squashed:
+  case Character::Rail:
     return {5.0f, 0.5f};
 
   // The frequency comes from an integrator, which is the most accurate way to
   // set one here. The level comes from how well two diodes match, which is the
   // least accurate thing in any of these circuits.
-  case Character::Folded:
+  case Character::Diode:
     return {4.0f, 0.4f};
 
   // A heater in every unit and nothing regulating either end of it.
@@ -108,7 +113,7 @@ inline UnitTolerance unitToleranceFor(Character c) noexcept {
     return {6.0f, 0.35f};
 
   // An ordinary amplifier around an ordinary core.
-  case Character::Slewed:
+  case Character::Opamp:
     return {4.0f, 0.3f};
 
   // Pure is the one that is not a circuit, so a rack of them has no spread at
@@ -275,7 +280,7 @@ public:
         !shaped[which])
       return SineTable::instance();
 
-    const int shape = c == Character::Slewed ? slewBandFor(freq) : 0;
+    const int shape = c == Character::Opamp ? slewBandFor(freq) : 0;
 
     if (shape < 0)
       return SineTable::instance();
@@ -300,7 +305,7 @@ public:
   /// How many shapes a character has. One for everything that is a fixed
   /// waveform, and a band per slew ratio for the one that is not.
   static int shapeCount(Character c) noexcept {
-    return c == Character::Slewed ? (int)kSlewRatios.size() : 1;
+    return c == Character::Opamp ? (int)kSlewRatios.size() : 1;
   }
 
 private:
@@ -363,7 +368,7 @@ private:
     };
 
     switch (c) {
-    case Character::Squashed: {
+    case Character::Rail: {
       // A phase-shift oscillator has no amplitude control in it. It grows
       // until the amplifier runs out of rail and the rail is what sets the
       // level, so what comes out is a sine leaning on a soft limit. The drive
@@ -377,13 +382,13 @@ private:
       return out;
     }
 
-    case Character::Folded: {
+    case Character::Diode: {
       // A triangle bent into a sine by a pair of diodes. The shaper itself is
       // exact, and the imperfection is that the two halves are not: one diode
       // conducts a little sooner than the other, so the wave is not the same
       // shape above the axis as below it. That asymmetry is where the even
-      // harmonics come from, and it is why this sounds different from
-      // Squashed even at a similar total distortion.
+      // harmonics come from, and it is why this sounds different from the
+      // rail even at a similar total distortion.
       constexpr double kMismatch = 0.75;
 
       for (int i = 0; i < kPoints; ++i) {
@@ -418,7 +423,7 @@ private:
       return out;
     }
 
-    case Character::Slewed: {
+    case Character::Opamp: {
       // An amplifier that cannot move faster than its slew rate. Below the
       // corner it is never asked to, and past it the wave loses first its
       // corners and then everything but its slopes, which is a triangle.

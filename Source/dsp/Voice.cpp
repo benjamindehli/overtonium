@@ -617,9 +617,9 @@ void Voice::render(float *left, float *right, int numSamples,
       //
       // They differ whenever a partial crosses one of the lines the tables are
       // divided by: how much room is left under Nyquist for every character,
-      // and how hard the limit is biting for the slewed one. Two tables hold
-      // different numbers at the same phase, so swapping between them puts a
-      // step in the wave, and a step is a click. A vibrato sitting across one
+      // and how hard the limit is biting for the rate-limited one. Two tables
+      // hold different numbers at the same phase, so swapping between them puts
+      // a step in the wave, and a step is a click. A vibrato sitting across one
       // of those lines crosses it twice a cycle and clicks at twice the
       // vibrato rate.
       //

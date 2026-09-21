@@ -3433,7 +3433,7 @@ void testPresetsAreReproducible(OvertoniumProcessor &p) {
     // A preset that says nothing about it is asking for Pure rather than for
     // whatever the last patch was, and a preset that asks for one has to get
     // that one whatever was showing before it.
-    put(ovt::params::characterId, (float)(int)ovt::Character::Slewed);
+    put(ovt::params::characterId, (float)(int)ovt::Character::Opamp);
 
     put(ovt::params::lofiRateId, 5.0f); // 8 kHz
     put(ovt::params::lofiBitsId, 4.0f); // 8 bit
@@ -4539,7 +4539,7 @@ void testCharacterControl(OvertoniumProcessor &p) {
           "entry " + std::to_string(i) + " is named by the engine");
 
   // ---- a preset carries it -------------------------------------------------
-  set(ovt::Character::Folded);
+  set(ovt::Character::Diode);
   p.apvts.copyState();
 
   juce::String error;
@@ -4555,8 +4555,7 @@ void testCharacterControl(OvertoniumProcessor &p) {
   check(ovt::presets::load(p.apvts, file, error),
         "the preset loads back" + error.toStdString());
 
-  check(current() == ovt::Character::Folded,
-        "and brings its character with it");
+  check(current() == ovt::Character::Diode, "and brings its character with it");
 
   file.deleteFile();
 
@@ -4599,7 +4598,7 @@ void testCharacterControl(OvertoniumProcessor &p) {
             " of " + std::to_string(ovt::presets::names().size()) + ")");
 
   // ---- and the panel says which it is --------------------------------------
-  set(ovt::Character::Squashed);
+  set(ovt::Character::Rail);
 
   std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
   auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
@@ -4629,7 +4628,7 @@ void testCharacterControl(OvertoniumProcessor &p) {
 
       // In capitals on the button, where the menu it came from spells it as a
       // word. The bar is a row of switches and they are all shouted.
-      check(bar->getCharacterName() == "SQUASHED",
+      check(bar->getCharacterName() == "RAIL",
             "which reads back what is set (" +
                 bar->getCharacterName().toStdString() + ")");
 
@@ -4662,7 +4661,7 @@ void testCharacterControl(OvertoniumProcessor &p) {
             ovt::ui::intervalColour(11),
         "the gentlest character stands at the yellow end of the mixer's band");
 
-  check(ovt::ui::characterColour(ovt::Character::Slewed) ==
+  check(ovt::ui::characterColour(ovt::Character::Opamp) ==
             ovt::ui::intervalColour(ovt::harmonic(2).pitchClass),
         "and the hardest on the red of channel 3");
 

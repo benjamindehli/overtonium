@@ -24,7 +24,7 @@ constexpr int kGroupPad = 6;
 
 /// Minimum width of each group, in the order they are laid out. Only the
 /// output group grows, because the meter is the one thing worth more room.
-constexpr int kGroupMinWidth[] = {144, 90, 236, 222, 222, 186};
+constexpr int kGroupMinWidth[] = {144, 90, 218, 222, 222, 186};
 constexpr int kOutputGroupIndex = 5;
 constexpr int kGroupCount = 6;
 
@@ -36,11 +36,13 @@ constexpr int kKnobWidth = 38;
 constexpr int kFxToggleWidth = 52;
 constexpr int kFxToggleGap = 6;
 
-/// Wider than an effect's switch, because the longest thing it has to say is
-/// a word rather than a name. In the capitals the bar shouts everything in,
-/// SQUASHED measures 69 px at the button's own font, so this is that plus the
-/// air either side that every other button on the bar has.
-constexpr int kCharacterWidth = 80;
+/// Sized for the longest name it has to say, in the capitals the bar shouts
+/// everything in. Measured at the font the button picks from its own height,
+/// which at the bar's 24 px lands on the 13 px clamp: OP-AMP is 51 px, DIODE
+/// 40, VALVE 39, PURE and BULB 34 and RAIL 29. This is the widest of those plus
+/// the air either side that every other button on the bar has. It was 80 while
+/// the widest was SQUASHED at 69.
+constexpr int kCharacterWidth = 62;
 
 /// How many rows of bar are worth having above a mixer.
 constexpr int kMaxComfortableRows = 3;

@@ -616,7 +616,7 @@ void testCharacter() {
               &SineTable::instance(),
           "a character with no harmonics reads the plain sine table");
 
-  check(&tables.table(Character::Squashed, 220.0, 1) == &SineTable::instance(),
+  check(&tables.table(Character::Rail, 220.0, 1) == &SineTable::instance(),
         "and so does one with no room under Nyquist for a second harmonic");
 
   // The fundamental is what the fader means, so every character has to deliver
@@ -628,18 +628,17 @@ void testCharacter() {
   // What each circuit is. A symmetrical limit can only make odd harmonics, and
   // an asymmetrical shaper is the only way to get even ones, which is the
   // whole difference between these two.
-  check(level(Character::Squashed, 3) > 0.03 &&
-            level(Character::Squashed, 3) < 0.15,
-        "Squashed has a third harmonic, at " +
-            std::to_string(20.0 * std::log10(level(Character::Squashed, 3))) +
+  check(level(Character::Rail, 3) > 0.03 && level(Character::Rail, 3) < 0.15,
+        "the rail has a third harmonic, at " +
+            std::to_string(20.0 * std::log10(level(Character::Rail, 3))) +
             " dB");
 
-  check(level(Character::Squashed, 2) < 1.0e-4,
+  check(level(Character::Rail, 2) < 1.0e-4,
         "and no second, since it clips both halves alike");
 
-  check(level(Character::Folded, 2) > 0.005,
-        "Folded has a second harmonic, at " +
-            std::to_string(20.0 * std::log10(level(Character::Folded, 2))) +
+  check(level(Character::Diode, 2) > 0.005,
+        "the diode pair has a second harmonic, at " +
+            std::to_string(20.0 * std::log10(level(Character::Diode, 2))) +
             " dB");
 
   // A valve is the one that is about the second harmonic rather than about
@@ -662,7 +661,7 @@ void testCharacter() {
   check(slewBandFor(kSlewCornerHz * 0.5) < 0,
         "a partial below the slew corner is not limited at all");
 
-  check(&tables.table(Character::Slewed, kSlewCornerHz * 0.5,
+  check(&tables.table(Character::Opamp, kSlewCornerHz * 0.5,
                       kMaxCharacterHarmonic) == &SineTable::instance(),
         "so it reads the plain sine");
 
@@ -674,7 +673,7 @@ void testCharacter() {
   // leaves the slopes, which is a triangle, and a triangle has odd harmonics
   // and no even ones.
   const auto &hard =
-      tables.harmonics(Character::Slewed, (int)kSlewRatios.size() - 1);
+      tables.harmonics(Character::Opamp, (int)kSlewRatios.size() - 1);
 
   const auto hardLevel = [&hard](int n) {
     return std::hypot((double)hard[(size_t)(n - 1)].sine,
@@ -694,7 +693,7 @@ void testCharacter() {
   bool climbing = true;
 
   for (int band = 0; band < (int)kSlewRatios.size(); ++band) {
-    const auto &h = tables.harmonics(Character::Slewed, band);
+    const auto &h = tables.harmonics(Character::Opamp, band);
     const auto third = std::hypot((double)h[2].sine, (double)h[2].cosine);
 
     climbing &= third >= previous - 1.0e-6;
@@ -708,12 +707,13 @@ void testCharacter() {
   // small DC step is a level shift nobody asked for, and each carrying an
   // overshoot is a clipper going off early.
   for (int c = 0; c < (int)Character::NumCharacters; ++c) {
-    // Every shape a character has, which for the slewed one means every band
+    // Every shape a character has, which for the rate-limited one means every
+    // band
     // of frequency it behaves differently in. Asked for by a frequency inside
     // each band rather than by an index, which is how the voice asks.
     std::vector<double> pitches{220.0};
 
-    if ((Character)c == Character::Slewed)
+    if ((Character)c == Character::Opamp)
       for (auto ratio : kSlewRatios)
         pitches.push_back(kSlewCornerHz * ratio * 1.01);
 
@@ -766,7 +766,7 @@ void testCharacter() {
   };
 
   for (int highest = 2; highest < kMaxCharacterHarmonic; ++highest) {
-    const auto &w = tables.table(Character::Folded, 220.0, highest);
+    const auto &w = tables.table(Character::Diode, 220.0, highest);
 
     check(harmonicOf(w, highest) > 1.0e-3,
           "the band stopping at " + std::to_string(highest) + " has one");
@@ -808,49 +808,49 @@ void testCharacter() {
   const double f0 = 220.0;
 
   const auto pure = renderOnePartial(Character::Pure, 57, 0.5);
-  const auto squashed = renderOnePartial(Character::Squashed, 57, 0.5);
+  const auto rail = renderOnePartial(Character::Rail, 57, 0.5);
 
   const double pureThird = binMagnitude(pure, f0 * 3.0, sr);
-  const double squashedThird = binMagnitude(squashed, f0 * 3.0, sr);
+  const double railThird = binMagnitude(rail, f0 * 3.0, sr);
 
-  check(binMagnitude(squashed, f0, sr) > 0.5 * binMagnitude(pure, f0, sr),
+  check(binMagnitude(rail, f0, sr) > 0.5 * binMagnitude(pure, f0, sr),
         "a character does not cost the partial its own level");
 
-  check(squashedThird > 20.0 * std::max(1.0e-9, pureThird),
-        "Squashed puts a third harmonic where a sine has none (" +
-            std::to_string(20.0 * std::log10(squashedThird /
-                                             binMagnitude(squashed, f0, sr))) +
+  check(railThird > 20.0 * std::max(1.0e-9, pureThird),
+        "the rail puts a third harmonic where a sine has none (" +
+            std::to_string(20.0 *
+                           std::log10(railThird / binMagnitude(rail, f0, sr))) +
             " dB below the fundamental)");
 
   // Slewing through the engine, which is where the frequency comes from. A
   // low partial is untouched and a high one is not, on the same character and
   // the same patch.
-  const auto lowSlewed = renderOnePartial(Character::Slewed, 45, 0.5); // A2
+  const auto lowLimited = renderOnePartial(Character::Opamp, 45, 0.5); // A2
   const auto lowPure = renderOnePartial(Character::Pure, 45, 0.5);
-  const auto highSlewed = renderOnePartial(Character::Slewed, 93, 0.5); // A6
+  const auto highLimited = renderOnePartial(Character::Opamp, 93, 0.5); // A6
 
   const auto thirdOf = [](const std::vector<float> &x, double f) {
     return binMagnitude(x, f * 3.0, sr) / binMagnitude(x, f, sr);
   };
 
-  check(thirdOf(lowSlewed, 110.0) < 2.0 * thirdOf(lowPure, 110.0) + 1.0e-6,
+  check(thirdOf(lowLimited, 110.0) < 2.0 * thirdOf(lowPure, 110.0) + 1.0e-6,
         "a partial under the corner is as clean slewed as it is pure");
 
-  check(thirdOf(highSlewed, 1760.0) > 0.02,
+  check(thirdOf(highLimited, 1760.0) > 0.02,
         "one above it has a third harmonic on it (" +
-            std::to_string(20.0 * std::log10(thirdOf(highSlewed, 1760.0))) +
+            std::to_string(20.0 * std::log10(thirdOf(highLimited, 1760.0))) +
             " dB below its own fundamental)");
 
   // The point of the bands. A partial this high has no room for a second
   // harmonic, so it has to come back as clean as the sine does rather than
   // folding one back down into the middle of the spectrum.
   const auto highPure = renderOnePartial(Character::Pure, 117, 0.5);
-  const auto highFolded = renderOnePartial(Character::Folded, 117, 0.5);
+  const auto highDiode = renderOnePartial(Character::Diode, 117, 0.5);
 
   double worstAlias = 0.0, worstClean = 0.0;
   for (double f = 200.0; f < 9000.0; f += 200.0) {
     worstClean = std::max(worstClean, binMagnitude(highPure, f, sr));
-    worstAlias = std::max(worstAlias, binMagnitude(highFolded, f, sr));
+    worstAlias = std::max(worstAlias, binMagnitude(highDiode, f, sr));
   }
 
   check(worstAlias < 1.0e-3 && worstAlias < 10.0 * worstClean + 1.0e-6,
@@ -975,19 +975,19 @@ void testCharacter() {
     // it. This is the case that clicked.
     const double line = kSlewCornerHz * kSlewRatios.front();
 
-    const float slewed = worstStep(Character::Slewed, line, 60.0f);
+    const float limited = worstStep(Character::Opamp, line, 60.0f);
     const float pure = worstStep(Character::Pure, line, 60.0f);
 
-    std::printf("  worst sample step across a slew line: %.5f slewed, %.5f "
+    std::printf("  worst sample step across a slew line: %.5f limited, %.5f "
                 "pure\n",
-                slewed, pure);
+                limited, pure);
 
     // A slewed wave is a harder shape than a sine and could legitimately step
     // more between samples, so this is not asking for parity, only for nothing
     // the ear would hear as a click on top of the waveform's own slope.
     // Swapping the table rather than cross-fading it reads 0.145 here against
     // the sine's 0.083, which is the click that was reported.
-    check(slewed < pure * 1.25f + 1.0e-4f,
+    check(limited < pure * 1.25f + 1.0e-4f,
           "crossing a slew line does not put a step in the wave");
   }
 
@@ -1001,14 +1001,14 @@ void testCharacter() {
     // clicking here.
     const double line = 0.49 * sr / (double)kMaxCharacterHarmonic;
 
-    const float squashed = worstStep(Character::Squashed, line, 60.0f);
+    const float rail = worstStep(Character::Rail, line, 60.0f);
     const float pure = worstStep(Character::Pure, line, 60.0f);
 
-    std::printf("  worst sample step across a Nyquist line: %.5f squashed, "
+    std::printf("  worst sample step across a Nyquist line: %.5f rail, "
                 "%.5f pure\n",
-                squashed, pure);
+                rail, pure);
 
-    check(squashed < pure * 1.25f + 1.0e-4f,
+    check(rail < pure * 1.25f + 1.0e-4f,
           "and neither does crossing the line where a harmonic runs out of "
           "room");
   }
@@ -1113,7 +1113,7 @@ void testUnitSpread() {
 
     for (int i = 0; i < kNumHarmonics; ++i)
       same += spread.rack(Character::Valve).cents[(size_t)i] ==
-                      spread.rack(Character::Squashed).cents[(size_t)i]
+                      spread.rack(Character::Rail).cents[(size_t)i]
                   ? 1
                   : 0;
 
