@@ -3345,6 +3345,13 @@ void testPresetsAreReproducible(OvertoniumProcessor &p) {
 
     put(ovt::params::stretchId, 700.0f);
     put(ovt::params::trackId, 9.0f);
+
+    // The character has to be in here for the same reason everything else is.
+    // A preset that says nothing about it is asking for Pure rather than for
+    // whatever the last patch was, and a preset that asks for one has to get
+    // that one whatever was showing before it.
+    put(ovt::params::characterId, (float)(int)ovt::Character::Slewed);
+
     put(ovt::params::lofiRateId, 5.0f); // 8 kHz
     put(ovt::params::lofiBitsId, 4.0f); // 8 bit
     put(ovt::params::phaseResetId, 0.0f);
