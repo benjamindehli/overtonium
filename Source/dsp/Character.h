@@ -79,8 +79,13 @@ inline const char *characterName(Character c) {
 /// The scale is what a tuned rack holds, not what the parts are made to. Raw
 /// component tolerance is a percent or more, which is eighty cents, and a rack
 /// eighty cents wide is a rack nobody has tuned. What is left after tuning is a
-/// few cents, and the order between the characters below is which part of each
-/// circuit sets its frequency and which sets its level.
+/// couple of cents, and the order between the characters below is which part of
+/// each circuit sets its frequency and which sets its level.
+///
+/// The pitch figures are half what they first shipped at. Played rather than
+/// measured: at three to six cents several patches read as detuned rather than
+/// as a rack of units, which is a rack that wants tuning again. The level
+/// spread was right at the first figure and has not moved.
 struct UnitTolerance {
   float cents = 0.0f;    ///< the most one unit is out by, after tuning
   float decibels = 0.0f; ///< and the most its level is out by
@@ -94,27 +99,27 @@ inline UnitTolerance unitToleranceFor(Character c) noexcept {
   // a filament inside the bridge it regulates, and a warm resistor is not the
   // resistor the frequency was set with.
   case Character::Bulb:
-    return {3.0f, 0.1f};
+    return {1.5f, 0.1f};
 
   // Three RC stages set the frequency and their errors stack. The level is
   // wherever the amplifier runs out of rail, which is a different place in
   // every unit.
   case Character::Rail:
-    return {5.0f, 0.5f};
+    return {2.5f, 0.5f};
 
   // The frequency comes from an integrator, which is the most accurate way to
   // set one here. The level comes from how well two diodes match, which is the
   // least accurate thing in any of these circuits.
   case Character::Diode:
-    return {4.0f, 0.4f};
+    return {2.0f, 0.4f};
 
   // A heater in every unit and nothing regulating either end of it.
   case Character::Valve:
-    return {6.0f, 0.35f};
+    return {3.0f, 0.35f};
 
   // An ordinary amplifier around an ordinary core.
   case Character::Opamp:
-    return {4.0f, 0.3f};
+    return {2.0f, 0.3f};
 
   // Pure is the one that is not a circuit, so a rack of them has no spread at
   // all. That is also what keeps every patch written before any of this
