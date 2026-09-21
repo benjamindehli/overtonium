@@ -290,6 +290,11 @@ void SegmentDisplay::paint(juce::Graphics &g) {
   const auto off = on.withAlpha(hovered ? 0.20f : 0.12f);
   const auto lit = on.withAlpha(active ? 0.95f : 0.75f);
 
+  // Set into the panel rather than laid on it. The margin this uses is the one
+  // pixel the ground was already leaving, so the digits keep every pixel they
+  // had.
+  paintRecess(g, area, 2.5f);
+
   // A screen rather than a recess. The unlit bars still have something dark to
   // be dark against, but the ground itself is lit, which is what the strip's
   // hover used to be the only thing providing.
@@ -419,6 +424,11 @@ void ActivityLamp::paint(juce::Graphics &g) {
   g.fillRect(bounds.getX(), midY + 1.0f, leftRun, 1.0f);
   g.fillRect(lamp.getRight() + 2.0f, midY + 1.0f, rightRun, 1.0f);
 
+  // The hole it is mounted in, which is why the rule stops two pixels short
+  // either side: that gap is the lip, and it was there before there was
+  // anything to put in it.
+  paintRecess(g, lamp, diameter * 0.5f);
+
   // Unlit is the channel colour at low alpha rather than nothing at all, so
   // the divider reads as a lamp that is off rather than as a gap in the rule.
   const auto lit = (float)step / (float)kSteps;
@@ -487,6 +497,11 @@ void ActivityNeedle::paint(juce::Graphics &g) {
   // groups, so no separate line is drawn here.
   const auto track = juce::Rectangle<float>(bounds.getWidth(), height)
                          .withCentre({bounds.getCentreX(), midY + 0.5f});
+
+  // A slot milled across the strip rather than a line drawn on it. It runs to
+  // both edges, so only the top and bottom walls of the cut are in the
+  // picture, which is the pair that carries the depth anyway.
+  paintRecess(g, track, height * 0.35f);
 
   g.setColour(colour.withAlpha(0.16f));
   g.fillRoundedRectangle(track, height * 0.35f);

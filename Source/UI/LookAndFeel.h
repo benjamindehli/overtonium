@@ -100,6 +100,26 @@ void paintColumnHighlight(juce::Graphics &, juce::Rectangle<int> strip);
 void paintDisplayGround(juce::Graphics &, juce::Rectangle<float> area,
                         float corner, bool hovered);
 
+/// The lip of the opening a screen or a lamp is set into.
+///
+/// Around the thing rather than inside it. Every one of them is a few pixels
+/// across, so a border taken out of the picture would leave no picture, and
+/// each already stands in a margin of its own that nothing else is using.
+///
+/// Two fills and no stroking, which is what keeps it cheap enough for the
+/// lamps. The light comes from the top left, as it does everywhere else here,
+/// so the walls facing it are the bottom and the right, and those are the two
+/// that come up lit. Call it before drawing the face, which then covers
+/// everything but the lip.
+///
+/// @param opening  the face that will be drawn over it.
+/// @param corner  that face's own corner radius. Half the height gives a
+/// round hole, which is what a lamp sits in.
+/// @param depth  how far the lip stands out, in pixels. One is enough to read
+/// and is all the tighter margins have.
+void paintRecess(juce::Graphics &, juce::Rectangle<float> opening, float corner,
+                 float depth = 1.0f);
+
 /// Strokes a path the way a phosphor screen shows one.
 ///
 /// Three passes: a wide faint bloom, a narrower brighter one, then the trace

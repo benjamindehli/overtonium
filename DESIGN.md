@@ -319,6 +319,12 @@ Knobs show their value as a ring of discrete ticks rather than a continuous arc,
 
 The panel is lit from the top left throughout. Knob caps are machined discs with a nearly flat face, the roundness living in the rim that catches the light along its upper edge and falls into shadow underneath, with a soft shadow cast down and to the right, channels have a bright left edge and a shadowed right one so a run of strips reads as raised columns, fader grooves darken at the top where they are cut into the panel, and buttons cast a shadow when raised and lose it when engaged. Pointers and fader caps are translucent glass, so the tick ring and the meter read straight through them.
 
+**Every screen and every lamp is set into the panel**, which is the other half of a panel lit from one corner: the raised things show the two walls nearest the light and the sunk things show the two furthest, so a channel is lit along its left edge while a hole cut in one is lit along its right. The cents readout, the shape glyph, the four activity lamps and the pitch needle all get a dark edge along their top and left and a lit one along their bottom and right.
+
+It is drawn around each of them rather than inside, because they are a few pixels across and a border taken out of the picture would leave no picture. None of them had to move to make room: each was already standing in a margin of its own that nothing was using, so the lip costs nothing but the two pixels the margin already held.
+
+Two whole shapes rather than four arcs, the lit one and then the shadow over it offset by its own depth, because the face that lands on top is what cuts the middle out of both. That is what keeps it to two fills, which matters for the lamps: they are the one thing here that repaints thirty times a second, four to a strip across thirty-three strips. Measured on one lamp, alternating two builds, the paint costs 4.22 microseconds without it and 4.24 with, which is under the spread between two runs of the same binary, and all 132 of them come to 0.56 ms of a frame either way.
+
 Cast shadows are built from a few overlapping shapes rather than from a real blur. JUCE has a proper `DropShadow`, but it is a software Gaussian and running one on several hundred controls every repaint would be far too slow.
 
 **Slide.** The third MPE dimension, which is the forward and back axis under a finger, arriving as CC74 on the note's own channel. Settings has a **Slide to** entry with three answers.

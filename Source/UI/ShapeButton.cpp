@@ -150,6 +150,7 @@ juce::String ShapeButton::currentName() const { return names[selectedIndex()]; }
 void ShapeButton::paint(juce::Graphics &g) {
   const auto area = getLocalBounds().toFloat().reduced(3.0f, 2.0f);
 
+  paintRecess(g, area, 2.0f);
   paintDisplayGround(g, area, 2.0f, hovered);
 
   // The same accent the tuning digits light up in, so the two displays on a

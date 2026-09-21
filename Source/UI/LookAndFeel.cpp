@@ -144,6 +144,27 @@ void paintDisplayGround(juce::Graphics &g, juce::Rectangle<float> area,
   g.fillRoundedRectangle(area, corner);
 }
 
+void paintRecess(juce::Graphics &g, juce::Rectangle<float> opening,
+                 float corner, float depth) {
+  const auto lip = opening.expanded(depth);
+
+  // The lit walls first and the shadow over them, moved up and to the left by
+  // its own depth, which leaves the light showing along the bottom and the
+  // right. That is the pair a recess lit from the top left shows: the two
+  // walls facing the light are the far ones, where a raised object shows the
+  // two nearest, which is why a channel is lit on its left edge and dark on
+  // its right and a hole in one is the other way about.
+  //
+  // Two whole shapes rather than four arcs, since the face drawn on top is
+  // what cuts the middle out of both. Two fills is what makes this cheap
+  // enough to put behind a lamp that repaints thirty times a second.
+  g.setColour(juce::Colours::white.withAlpha(0.11f));
+  g.fillRoundedRectangle(lip, corner + depth);
+
+  g.setColour(juce::Colours::black.withAlpha(0.6f));
+  g.fillRoundedRectangle(lip.translated(-depth, -depth), corner + depth);
+}
+
 void strokeGlowing(juce::Graphics &g, const juce::Path &path,
                    juce::Colour colour, float thickness) {
   struct Pass {
