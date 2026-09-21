@@ -31,6 +31,15 @@ public:
   /// and the headings can show which way they point.
   void setCollapsedSections(ovt::ui::SectionMask);
 
+  /// Which of the two modulators are one circuit the whole keyboard hears.
+  ///
+  /// Lights that group's heading. The switch is part of the patch and lives in
+  /// a menu, so without this a preset could arrive with a shared tremolo and
+  /// nothing on the panel would say so: a mode you cannot see is a mode you
+  /// forget you are in. One mark per modulator rather than one on each of the
+  /// thirty-three shape buttons, since the state is the same on all of them.
+  void setSharedModulators(bool pitch, bool amp);
+
   /// Fired when a heading is clicked. The editor owns the decision, since the
   /// strips have to be told about it too.
   std::function<void(ovt::ui::Section)> onSectionToggled;
@@ -50,6 +59,7 @@ public:
 private:
   ovt::ui::Row highlighted = ovt::ui::kNoRow;
   ovt::ui::SectionMask collapsed = 0;
+  bool sharedPitchMod = false, sharedAmpMod = false;
 
   /// LINK stands in the empty band above the captions, where the strips beside
   /// it carry their channel numbers.
@@ -147,6 +157,10 @@ private:
   /// Hands the current fold state to the gutter and every strip, which is the
   /// only way any of them find out about it.
   void publishCollapsedSections();
+
+  /// Lights the heading of a modulator group the whole keyboard shares. See
+  /// RowGutter::setSharedModulators.
+  void syncSharedModulators();
 
   /// Asks once, the first time an editor is opened, whether to look for new
   /// versions, and remembers the answer. Nothing leaves the machine before

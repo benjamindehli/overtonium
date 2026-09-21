@@ -103,6 +103,15 @@ void RowGutter::setCollapsedSections(SectionMask mask) {
   repaint();
 }
 
+void RowGutter::setSharedModulators(bool pitch, bool amp) {
+  if (pitch == sharedPitchMod && amp == sharedAmpMod)
+    return;
+
+  sharedPitchMod = pitch;
+  sharedAmpMod = amp;
+  repaint();
+}
+
 void RowGutter::mouseDown(const juce::MouseEvent &e) {
   const auto rows =
       layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed);
@@ -153,9 +162,16 @@ void RowGutter::paint(juce::Graphics &g) {
     const bool heading = isHeadingRow(row);
     const bool lit = row == highlighted && rowShowsHighlight(row);
 
+    // A heading whose modulator the whole keyboard shares goes accent, the
+    // same light everything else that is switched on here comes up in. It
+    // reads as a property of the group, which is what it is: every channel in
+    // it answers to the one switch.
+    const bool shared = (row == Row::PitchModHeading && sharedPitchMod) ||
+                        (row == Row::AmpModHeading && sharedAmpMod);
+
     g.setFont(makeFont(heading ? 10.0f : 9.5f, heading || lit));
-    g.setColour(lit ? colours::accent
-                    : (heading ? colours::text : colours::textDim));
+    g.setColour(lit || shared ? colours::accent
+                              : (heading ? colours::text : colours::textDim));
     g.drawText(text, area, juce::Justification::centredRight, false);
 
     // The disclosure mark, at the far left of the heading so it clears the
@@ -392,6 +408,11 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   // that can lose precision in principle, and newer clang says so.
   setSize(juce::roundToInt((float)savedWidth * zoom),
           juce::roundToInt((float)savedHeight * zoom));
+
+  // Before the first paint rather than on the first housekeeping tick, so an
+  // editor opened on a patch that shares a modulator says so straight away
+  // instead of a quarter of a second later.
+  syncSharedModulators();
 
   startTimerHz(30);
 
@@ -939,6 +960,21 @@ bool OvertoniumEditor::keyPressed(const juce::KeyPress &key) {
   return true;
 }
 
+void OvertoniumEditor::syncSharedModulators() {
+  // Read back rather than written when it is set, for the same reason the
+  // preset name is: the switch is in a menu and a preset can throw it without
+  // anyone touching that menu. Through the cached atomics rather than the
+  // parameter map, which wants a string per lookup, and the gutter drops the
+  // call when nothing moved, so an ordinary tick costs two atomic loads.
+  const auto &cache = plugin().parameters();
+
+  const auto on = [](const std::atomic<float> *p) {
+    return p != nullptr && p->load() > 0.5f;
+  };
+
+  gutter.setSharedModulators(on(cache.pmInPhase), on(cache.amInPhase));
+}
+
 void OvertoniumEditor::timerCallback() {
   ++tick;
 
@@ -1019,6 +1055,8 @@ void OvertoniumEditor::timerCallback() {
   };
 
   topBar.updatePanelReadouts(plugin().getSampleRate());
+
+  syncSharedModulators();
 
   // A preset can now be loaded by something other than this menu: a program
   // change arriving over MIDI. Nothing tells the window when that happens, so
