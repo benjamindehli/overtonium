@@ -155,6 +155,12 @@ struct Applier {
     // sense, and a patch that says nothing gets the one that adds nothing.
     set(params::characterId, (float)(int)Character::Pure);
 
+    // And whether each modulator is one circuit the whole keyboard hears.
+    // Off, so a patch that says nothing gets a modulator per note, which is
+    // what every patch written before there was a switch had.
+    set(params::pmInPhaseId, 0.0f);
+    set(params::amInPhaseId, 0.0f);
+
     set(params::wobbleId, 0.0f);
     set(params::lofiRateId, 0.0f);
     set(params::lofiBitsId, 0.0f);
@@ -3307,6 +3313,10 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 0.4f);
     ap.character(Character::Slewed);
     ap.set("wobble", 0.0408f);
+    // A vibrato you set once and hear on every key, which is what one
+    // oscillator with one vibrato circuit on it does. A Stylophone has no
+    // second note to be out of step with, and this one has thirty-one.
+    ap.set("pmInPhase", 1.0f);
     break;
   }
   case 27: // Synth Ensemble
@@ -3698,6 +3708,10 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_offLevel", 1.0f);
     ap.set("noise_release", 0.2451f);
     ap.set("noise_volume", 0.0234f);
+    // One tremolo circuit across the whole keyboard rather than one per tine,
+    // which is what a 200A has: the wobble is in the amplifier, after the
+    // reeds, so a chord breathes as one thing.
+    ap.set("amInPhase", 1.0f);
     break;
   }
     // clang-format on

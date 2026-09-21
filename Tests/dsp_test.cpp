@@ -4242,6 +4242,159 @@ void testModulation() {
   check(finite, "modulated output is finite");
 }
 
+/// A modulator the whole keyboard shares, rather than one per note.
+///
+/// The thing to prove is that a note arriving late joins what is already
+/// running instead of starting its own, and the cleanest way to see that is to
+/// let the shared modulator run through silence for a known part of a turn and
+/// then play one note. On, the note opens wherever the circuit had got to. Off,
+/// it opens at the start of its own.
+///
+/// A quarter turn, because that is where the two answers are furthest apart: a
+/// sine reads nothing at the start of its turn and everything a quarter in.
+void testModulatorsInPhase() {
+  section("Modulators in phase across the keyboard");
+
+  constexpr double sr = 48000.0;
+  constexpr double rate = 2.0;
+  constexpr int quarter = (int)(sr / rate / 4.0); // a quarter of a turn
+
+  {
+    SynthParams fresh;
+    check(!fresh.global.pitchModInPhase && !fresh.global.ampModInPhase,
+          "both switches start off, so nothing written before them moves");
+  }
+
+  // ---- the vibrato ---------------------------------------------------------
+  const auto openingFrequency = [](bool inPhase) {
+    auto p = makeFlatParams(0.0f);
+
+    p.osc[0].volume = 0.8f;
+    p.osc[0].tuneBlend = 1.0f;
+    p.osc[0].decay = 30.0f;
+    p.osc[0].sustain = 1.0f;
+    p.osc[0].attack = 0.001f;
+    p.osc[0].pmRateHz = (float)rate;
+    p.osc[0].pmDepthCents = 400.0f; // wide, so counting crossings can see it
+    p.osc[0].pmShape = LfoShape::Sine;
+    p.global.pitchModInPhase = inPhase;
+    p.global.safetyClip = false;
+
+    SynthEngine engine;
+    engine.prepare(sr);
+    engine.setPolyphony(4);
+
+    const int total = quarter * 2;
+    std::vector<float> l((size_t)total), r((size_t)total);
+
+    // Silence first, which the shared modulator runs through and a note's own
+    // has no way of knowing about.
+    engine.render(l.data(), r.data(), quarter, p);
+
+    engine.noteOn(57, 1.0f, p); // A3, 220 Hz
+    engine.render(l.data() + quarter, r.data() + quarter, quarter, p);
+
+    // Over the first fiftieth of a second of the note. The modulator moves
+    // during it, which is why what follows asks which end of the travel the
+    // note opened at rather than for a figure.
+    int crossings = 0;
+    size_t first = 0, last = 0;
+    const size_t from = (size_t)quarter;
+    const size_t to = from + (size_t)(sr * 0.02);
+
+    for (size_t n = from + 1; n < to; ++n) {
+      if (l[n - 1] > 0.0f || l[n] <= 0.0f)
+        continue;
+
+      if (crossings++ == 0)
+        first = n;
+
+      last = n;
+    }
+
+    return crossings < 2
+               ? 0.0
+               : (double)(crossings - 1) * sr / (double)(last - first);
+  };
+
+  const auto own = openingFrequency(false);
+  const auto shared = openingFrequency(true);
+
+  // 400 cents up from 220 Hz is 277 Hz, and the modulator is a quarter turn in
+  // when the note arrives, which is the top of its travel.
+  const auto wanted = 220.0 * std::pow(2.0, 400.0 / 1200.0);
+
+  std::printf("  the note opens at %.1f Hz with its own vibrato and %.1f Hz "
+              "on the keyboard's, against %.1f nominal and %.1f a full turn "
+              "up\n",
+              own, shared, 220.0, wanted);
+
+  check(own < 220.0 + (wanted - 220.0) * 0.35,
+        "a note carrying its own vibrato opens near the pitch it was asked "
+        "for, since its own modulator starts where every modulator starts");
+
+  check(shared > wanted - (wanted - 220.0) * 0.25,
+        "and one joining the keyboard's opens near the top of the travel, "
+        "which is where the keyboard's had got to");
+
+  // ---- the tremolo ---------------------------------------------------------
+  //
+  // The same experiment on the level. The amplitude reads its shape a quarter
+  // turn ahead, so a note with its own modulator opens at full level and one
+  // joining a modulator already a quarter turn in opens at the middle of the
+  // travel. See kAmpShapeOffset.
+  const auto openingLevel = [](bool inPhase) {
+    auto p = makeFlatParams(0.0f);
+
+    p.osc[0].volume = 0.8f;
+    p.osc[0].tuneBlend = 1.0f;
+    p.osc[0].decay = 30.0f;
+    p.osc[0].sustain = 1.0f;
+    p.osc[0].attack = 0.001f;
+    p.osc[0].amRateHz = (float)rate;
+    p.osc[0].amDepth = 1.0f;
+    p.osc[0].amShape = LfoShape::Sine;
+    p.global.ampModInPhase = inPhase;
+    p.global.safetyClip = false;
+
+    SynthEngine engine;
+    engine.prepare(sr);
+    engine.setPolyphony(4);
+
+    const int total = quarter * 2;
+    std::vector<float> l((size_t)total), r((size_t)total);
+
+    engine.render(l.data(), r.data(), quarter, p);
+
+    engine.noteOn(57, 1.0f, p);
+    engine.render(l.data() + quarter, r.data() + quarter, quarter, p);
+
+    // Peak over the first fiftieth of a second, past the attack and before the
+    // modulator has moved anywhere.
+    double peak = 0.0;
+    for (size_t n = (size_t)quarter + (size_t)(sr * 0.005);
+         n < (size_t)quarter + (size_t)(sr * 0.02); ++n)
+      peak = std::max(peak, (double)std::abs(l[n]));
+
+    return peak;
+  };
+
+  const auto ownLevel = openingLevel(false);
+  const auto sharedLevel = openingLevel(true);
+
+  std::printf("  and at %.3f with its own tremolo against %.3f on the "
+              "keyboard's\n",
+              ownLevel, sharedLevel);
+
+  check(ownLevel > 0.1,
+        "a note carrying its own tremolo opens at the top of the travel");
+
+  check(sharedLevel < ownLevel * 0.7,
+        "and one joining the keyboard's opens partway down it (" +
+            std::to_string(sharedLevel / std::max(1.0e-9, ownLevel)) +
+            " of it)");
+}
+
 // -----------------------------------------------------------------------------
 // 10. The master effects.
 // -----------------------------------------------------------------------------
@@ -5204,6 +5357,50 @@ void benchmark() {
                 characterName((Character)c), load,
                 100.0 * (load / std::max(0.001, pureLoad) - 1.0));
   }
+
+  // What a modulator the whole keyboard shares costs. Thirty-three of them are
+  // stepped per control block whatever the polyphony is, and every voice then
+  // reads rather than stepping its own, so the more notes are down the better
+  // the trade should be. Eight is what the instrument defaults to.
+  double perNote = 0.0;
+
+  for (int shared = 0; shared < 2; ++shared) {
+    SynthEngine engine;
+    engine.prepare(sr);
+    engine.setPolyphony(8);
+
+    auto p = makeFlatParams(0.02f);
+    for (auto &o : p.osc) {
+      o.sustain = 1.0f;
+      o.pmDepthCents = 5.0f;
+      o.amDepth = 0.3f;
+    }
+
+    p.global.pitchModInPhase = shared != 0;
+    p.global.ampModInPhase = shared != 0;
+
+    for (int v = 0; v < 8; ++v)
+      engine.noteOn(48 + v, 1.0f, p);
+
+    std::vector<float> l((size_t)block), r((size_t)block);
+    const int blocks = (int)(secs * sr / block);
+
+    const auto t0 = std::chrono::steady_clock::now();
+    for (int i = 0; i < blocks; ++i)
+      engine.render(l.data(), r.data(), block, p);
+    const auto t1 = std::chrono::steady_clock::now();
+
+    const double load =
+        100.0 * std::chrono::duration<double>(t1 - t0).count() / secs;
+
+    if (shared == 0)
+      perNote = load;
+
+    std::printf("   8 voices, modulators %-8s: %.2f%% of one core  (%+.0f%% "
+                "against one per note)\n",
+                shared ? "shared" : "per note", load,
+                100.0 * (load / std::max(0.001, perNote) - 1.0));
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -5491,6 +5688,7 @@ int main() {
   testLfoShapes();
   testEveryAmpShapeIsClickFree();
   testModulation();
+  testModulatorsInPhase();
   testPerPartialVelocity();
   testPanning();
   testAftertouch();

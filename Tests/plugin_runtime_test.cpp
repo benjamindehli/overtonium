@@ -208,11 +208,15 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
-  // 23 per partial, 18 global, 18 for the noise channel, 10 for the two master
+  // 23 per partial, 20 global, 18 for the noise channel, 10 for the two master
   // effects. Start phase and the whole pitch modulator are not among the noise
   // channel's, since noise has no pitch: it takes the amp mod shape and not
   // the pitch one, which is why the two counts differ by more than one.
-  const int expected = ovt::kNumHarmonics * 23 + 18 + 18 + 10;
+  //
+  // Two of the globals are switches over the per-channel modulators rather
+  // than controls of their own: whether each of the two is one circuit the
+  // keyboard shares. See GlobalParams::ampModInPhase.
+  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10;
 
   // The behaviour that was there before it became a choice. Asked of the
   // parameter rather than of the tree, so the answer does not depend on what
@@ -3069,6 +3073,85 @@ void testPresetsTellTheHostOnlyWhatChanged(OvertoniumProcessor &p) {
   p.removeListener(&counter);
 }
 
+/// Whether each modulator is one circuit the whole keyboard hears.
+///
+/// A global switch reached from a per-channel menu, so the thing to check is
+/// that the pitch button and the amplitude button reach different switches.
+/// Getting that wrong is invisible: both menus would tick and untick, and one
+/// of the two modulators would quietly never share anything.
+void testModulatorsInPhase(OvertoniumProcessor &p) {
+  section("Modulators in phase across the keyboard");
+
+  using namespace ovt::ui;
+
+  const auto value = [&p](const char *id) {
+    auto *param = p.apvts.getParameter(id);
+    return param != nullptr && param->getValue() > 0.5f;
+  };
+
+  const auto put = [&p](const char *id, bool on) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(on ? 1.0f : 0.0f);
+  };
+
+  for (auto *id : {ovt::params::pmInPhaseId, ovt::params::amInPhaseId}) {
+    auto *param = p.apvts.getParameter(id);
+
+    check(param != nullptr, std::string(id) + " exists");
+
+    if (param == nullptr)
+      return;
+
+    check(param->getDefaultValue() < 0.5f,
+          std::string(id) + " starts off, so nothing written before it moves");
+
+    check(!ovt::params::isSessionParam(id),
+          std::string(id) +
+              " travels with the patch, since two presets ask for it");
+  }
+
+  // The two buttons a strip carries, built the way a strip builds them.
+  ShapeButton pitch(p.apvts,
+                    ovt::params::oscParamId(ovt::params::pmShapeSuffix, 0),
+                    ovt::params::pmShapeSuffix, ovt::params::kPitchShapes,
+                    ovt::params::pitchShapeNames());
+
+  ShapeButton amp(p.apvts,
+                  ovt::params::oscParamId(ovt::params::amShapeSuffix, 0),
+                  ovt::params::amShapeSuffix, ovt::params::kAmpShapes,
+                  ovt::params::ampShapeNames());
+
+  put(ovt::params::pmInPhaseId, true);
+  put(ovt::params::amInPhaseId, false);
+
+  const auto reads = [](const ShapeButton &button) {
+    auto menu = button.buildMenu();
+
+    for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+      if (it.getItem().text == "In phase across the keyboard")
+        return it.getItem().isTicked ? 1 : 0;
+
+    return -1;
+  };
+
+  check(reads(pitch) == 1,
+        "the pitch modulator's menu offers the switch and shows it on");
+
+  check(reads(amp) == 0, "and the amplitude's shows its own, which is off");
+
+  put(ovt::params::pmInPhaseId, false);
+  put(ovt::params::amInPhaseId, true);
+
+  check(reads(pitch) == 0 && reads(amp) == 1,
+        "and they swap over when the two parameters do");
+
+  put(ovt::params::pmInPhaseId, false);
+  put(ovt::params::amInPhaseId, false);
+
+  check(!value(ovt::params::pmInPhaseId) && !value(ovt::params::amInPhaseId),
+        "and both go back off for whatever runs next");
+}
+
 void testSettingsMenu(OvertoniumProcessor &p) {
   section("Settings menu");
 
@@ -5249,6 +5332,7 @@ int main() {
   testMeterRepaint();
   testLinkMenu();
   testTopBarLayout();
+  testModulatorsInPhase(processor);
   testSettingsMenu(processor);
   testFitAllChannels(processor);
   testPresetMenuGroups(processor);

@@ -24,14 +24,6 @@ constexpr double kNoiseTiltHz = 1000.0;
 /// figure the envelope itself calls the end of a release.
 constexpr float kSilent = 1.0e-5f;
 
-/// How far ahead the amplitude reads its shape, in turns.
-///
-/// A quarter, which is what turns Sine into the cosine the tremolo has always
-/// used: a note begins at full level and dips, rather than starting half
-/// attenuated. Every other shape takes the same quarter turn rather than each
-/// arguing for a starting point of its own.
-constexpr double kAmpShapeOffset = 0.25;
-
 /// How long the Bulb character's filament takes to settle at a new pitch.
 ///
 /// A tungsten filament of the size used for this has a thermal time constant
@@ -305,7 +297,8 @@ void Voice::steal() noexcept {
 }
 
 void Voice::render(float *left, float *right, int numSamples,
-                   const SynthParams &p) noexcept {
+                   const SynthParams &p,
+                   const SharedModulation &shared) noexcept {
   if (!active || numSamples <= 0)
     return;
 
@@ -387,7 +380,11 @@ void Voice::render(float *left, float *right, int numSamples,
   // above 4 kHz, it wraps it back down, and so does this.
   const bool foldAliases = p.lofi.rateHz > 0.0;
 
-  for (int start = 0; start < numSamples; start += kControlBlock) {
+  // Which control block of this call we are on, for reading the modulators
+  // every voice shares. The engine filled them for exactly these blocks.
+  int block = 0;
+
+  for (int start = 0; start < numSamples; start += kControlBlock, ++block) {
     const int len = std::min(kControlBlock, numSamples - start);
 
     pressureSmoothed += (pressureTarget - pressureSmoothed) * pressureCoef;
@@ -417,10 +414,18 @@ void Voice::render(float *left, float *right, int numSamples,
       // changes what comes out and nothing about the timing: the square ones
       // land their edge on a block boundary, two thirds of a millisecond of
       // grid, which no ear finds on a modulator running at a few hertz.
-      const double pmCents =
-          op.pmDepthCents > 0.0f
-              ? (double)(pt.pitchLfo.value(op.pmShape) * op.pmDepthCents)
-              : 0.0;
+      //
+      // Off the channel's own modulator when the keyboard is sharing one,
+      // which the engine worked out for this very block before any voice ran.
+      // See SharedModulation.
+      const auto pmShapeValue =
+          shared.pitch != nullptr
+              ? shared.pitch[(size_t)(i * shared.stride + block)]
+              : pt.pitchLfo.value(op.pmShape);
+
+      const double pmCents = op.pmDepthCents > 0.0f
+                                 ? (double)(pmShapeValue * op.pmDepthCents)
+                                 : 0.0;
 
       // Advanced unconditionally so that turning the knob up mid-note joins the
       // wander already in progress instead of jumping.
@@ -453,13 +458,23 @@ void Voice::render(float *left, float *right, int numSamples,
       // a square edge survivable here. The level does not jump, it slides
       // across the block, which at 32 samples is a couple of thirds of a
       // millisecond and reads as an edge rather than as a click.
+      //
+      // Stepped here whether or not it is the modulator being read, so that a
+      // channel handed back its own picks up where this note would have been
+      // rather than from wherever it was left. The same reason the drift is
+      // advanced unconditionally above.
+      const auto ownStart = pt.ampLfo.value(op.amShape, kAmpShapeOffset);
+      const auto ownEnd = pt.ampLfo.advance(rng, amPhaseInc * (double)len,
+                                            op.amShape, kAmpShapeOffset);
+
+      const auto sharedAmp = shared.amp != nullptr;
+      const auto at = (size_t)(i * shared.stride + block);
+
       const float amStart =
-          tremoloGain(pt.ampLfo.value(op.amShape, kAmpShapeOffset), op.amDepth);
+          tremoloGain(sharedAmp ? shared.amp[at] : ownStart, op.amDepth);
 
       const float amEnd =
-          tremoloGain(pt.ampLfo.advance(rng, amPhaseInc * (double)len,
-                                        op.amShape, kAmpShapeOffset),
-                      op.amDepth);
+          tremoloGain(sharedAmp ? shared.amp[at + 1] : ownEnd, op.amDepth);
 
       const float nyq = foldAliases ? 1.0f : nyquistGain(freq, sampleRate);
 
@@ -653,7 +668,7 @@ void Voice::render(float *left, float *right, int numSamples,
       pt.phase = ph;
     }
 
-    renderNoise(left + start, right + start, len, p, pressure);
+    renderNoise(left + start, right + start, len, p, pressure, shared, block);
   }
 
   active = noise.env.isActive() ||
@@ -667,7 +682,8 @@ void Voice::render(float *left, float *right, int numSamples,
 }
 
 void Voice::renderNoise(float *left, float *right, int len,
-                        const SynthParams &p, float pressure) noexcept {
+                        const SynthParams &p, float pressure,
+                        const SharedModulation &shared, int block) noexcept {
   const auto &np = p.noise;
 
   noise.env.configure(np.delay * noise.delayScale,
@@ -681,13 +697,19 @@ void Voice::renderNoise(float *left, float *right, int len,
 
   // The same two reads the partials take, for the same reason: the gain ramps
   // between them across the block.
-  const float amStart =
-      tremoloGain(noise.ampLfo.value(np.amShape, kAmpShapeOffset), np.amDepth);
+  // Off the shared modulator when the keyboard is sharing one, the same as
+  // every partial above. The noise channel's run sits after the 32 of them.
+  const auto ownStart = noise.ampLfo.value(np.amShape, kAmpShapeOffset);
+  const auto ownEnd = noise.ampLfo.advance(noise.rng, amPhaseInc * (double)len,
+                                           np.amShape, kAmpShapeOffset);
 
-  const float amEnd =
-      tremoloGain(noise.ampLfo.advance(noise.rng, amPhaseInc * (double)len,
-                                       np.amShape, kAmpShapeOffset),
-                  np.amDepth);
+  const auto at = (size_t)(kNumHarmonics * shared.stride + block);
+
+  const float amStart = tremoloGain(
+      shared.amp != nullptr ? shared.amp[at] : ownStart, np.amDepth);
+
+  const float amEnd = tremoloGain(
+      shared.amp != nullptr ? shared.amp[at + 1] : ownEnd, np.amDepth);
 
   const float level =
       std::clamp(np.volume * noise.velGain +

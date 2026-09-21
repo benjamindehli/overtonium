@@ -102,6 +102,38 @@ inline float slideDisplacement(float rest, float now) noexcept {
   return (to - from) / room;
 }
 
+/// How far ahead the amplitude reads its shape, in turns.
+///
+/// A quarter, which is what turns Sine into the cosine the tremolo has always
+/// used: a note begins at full level and dips, rather than starting half
+/// attenuated. Every other shape takes the same quarter turn rather than each
+/// arguing for a starting point of its own.
+///
+/// Here rather than in the voice because the engine reads the same shapes when
+/// a channel's modulator is shared, and the two have to agree about where a
+/// turn starts.
+inline constexpr double kAmpShapeOffset = 0.25;
+
+/// The modulator values every voice on a channel reads, when that channel's
+/// modulator is one circuit rather than one per note.
+///
+/// Worked out by the engine before any voice runs, because a voice renders a
+/// whole buffer at a time and cannot step a shared phase without the voice
+/// after it stepping the same phase again. One value per control block
+/// boundary, so a block has both the value it starts on and the one it ends on
+/// and the gain ramp works exactly as it does off a voice's own modulator.
+///
+/// A null pointer is the switch being off, which is what the voice branches on.
+/// See SynthEngine::advanceSharedModulators and GlobalParams::ampModInPhase.
+struct SharedModulation {
+  const float *pitch = nullptr;
+  const float *amp = nullptr;
+
+  /// How many boundaries each channel holds, so channel i starts at i * stride.
+  /// The noise channel comes after the 32 partials.
+  int stride = 0;
+};
+
 /// One polyphonic voice: 32 independently tuned, enveloped and modulated sine
 /// partials.
 class Voice {
@@ -243,12 +275,15 @@ public:
 
   /// Adds this voice into the (already-sized) stereo buffers. Master gain is
   /// applied downstream by the engine.
-  void render(float *left, float *right, int numSamples,
-              const SynthParams &p) noexcept;
+  /// @param shared  the modulator values this channel's whole keyboard is
+  /// reading, where it is reading any. See SharedModulation.
+  void render(float *left, float *right, int numSamples, const SynthParams &p,
+              const SharedModulation &shared = {}) noexcept;
 
 private:
   void renderNoise(float *left, float *right, int len, const SynthParams &,
-                   float pressure) noexcept;
+                   float pressure, const SharedModulation &shared,
+                   int block) noexcept;
 
   struct Partial {
     double phase = 0.0;

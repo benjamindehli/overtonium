@@ -1,5 +1,7 @@
 #include "ShapeButton.h"
 
+#include <cstring>
+
 #include "LookAndFeel.h"
 #include "Theme.h"
 
@@ -19,8 +21,9 @@ constexpr int kCurvePoints = 48;
 /// so the glyph does not flicker as the mixer repaints.
 constexpr float kRandomPoints[] = {-0.6f, 0.35f, -0.15f, 0.8f, -0.45f};
 
-/// Well past any shape's index, so the two cannot collide as shapes are added.
+/// Well past any shape's index, so these cannot collide as shapes are added.
 constexpr int kEveryChannel = 1000;
+constexpr int kInPhase = 1001;
 } // namespace
 
 void ShapeButton::drawShape(juce::Graphics &g, juce::Rectangle<float> area,
@@ -159,6 +162,56 @@ void ShapeButton::paint(juce::Graphics &g) {
             colours::accent.withAlpha(hovered ? 1.0f : 0.88f));
 }
 
+juce::PopupMenu ShapeButton::buildMenu() const {
+  juce::PopupMenu m;
+
+  const auto current = selectedIndex();
+
+  for (int i = 0; i < names.size(); ++i)
+    m.addItem(i + 1, names[i], true, i == current);
+
+  // Thirty-three channels is a lot of clicking otherwise, and this is the one
+  // control on a strip LINK cannot reach.
+  m.addSeparator();
+  m.addItem(kEveryChannel, "Set every channel to this");
+
+  // Whether this modulator is one circuit the whole keyboard hears or one per
+  // note. A switch over every channel at once, reached from a per-channel menu
+  // for the same reason the entry above it is: this is the menu that belongs
+  // to the modulator, and the modulator is what the switch is about.
+  m.addSeparator();
+  m.addItem(kInPhase, "In phase across the keyboard", true, inPhase());
+
+  return m;
+}
+
+const char *ShapeButton::inPhaseId() const {
+  // By what the suffix says rather than by where it points. Both callers hand
+  // over the same constant this compares against, so the addresses happen to
+  // match today, and a copy of the string anywhere would silently give every
+  // button the amplitude's switch.
+  const auto pitch = std::strcmp(sharedSuffix, params::pmShapeSuffix) == 0;
+
+  return pitch ? params::pmInPhaseId : params::amInPhaseId;
+}
+
+bool ShapeButton::inPhase() const {
+  auto *param = apvts.getParameter(inPhaseId());
+
+  return param != nullptr && param->getValue() > 0.5f;
+}
+
+void ShapeButton::setInPhase(bool shouldShare) {
+  auto *param = apvts.getParameter(inPhaseId());
+
+  if (param == nullptr)
+    return;
+
+  param->beginChangeGesture();
+  param->setValueNotifyingHost(shouldShare ? 1.0f : 0.0f);
+  param->endChangeGesture();
+}
+
 void ShapeButton::mouseEnter(const juce::MouseEvent &) {
   hovered = true;
   repaint();
@@ -199,18 +252,8 @@ void ShapeButton::mouseDown(const juce::MouseEvent &e) {
   if (apvts.getParameter(id) == nullptr)
     return;
 
-  juce::PopupMenu m;
+  auto m = buildMenu();
   m.setLookAndFeel(&getLookAndFeel());
-
-  const auto current = selectedIndex();
-
-  for (int i = 0; i < names.size(); ++i)
-    m.addItem(i + 1, names[i], true, i == current);
-
-  // Thirty-three channels is a lot of clicking otherwise, and this is the one
-  // control on a strip LINK cannot reach.
-  m.addSeparator();
-  m.addItem(kEveryChannel, "Set every channel to this");
 
   m.showMenuAsync(juce::PopupMenu::Options()
                       .withTargetComponent(this)
@@ -221,6 +264,9 @@ void ShapeButton::mouseDown(const juce::MouseEvent &e) {
 
                     if (result == kEveryChannel)
                       return applyToEveryChannel(selectedIndex());
+
+                    if (result == kInPhase)
+                      return setInPhase(!inPhase());
 
                     if (attachment != nullptr)
                       attachment->setValueAsCompleteGesture(

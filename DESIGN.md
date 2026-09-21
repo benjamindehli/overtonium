@@ -73,7 +73,7 @@ It loads whether or not the preset is the one already showing, which is what the
 
 What tells the two apart is a gesture. Every control opens one before it writes and closes one after, which is how a host is told that a move has begun and ended, and automation does not: it sets values and says nothing. So the processor listens to itself for gesture begin and end, takes a baseline of every parameter when the first one opens, and when the last one closes puts whatever actually moved into the history as one step. A drag, a scroll wheel and a LINK drag across 32 channels are each one gesture and therefore each one step, however many values they moved and however long they took. A gesture that ends where it began is not a step at all.
 
-Only from the message thread. A host is allowed to open a gesture from the audio thread, and taking a baseline of 782 parameters there would allocate on it, so one that arrives from anywhere else is left alone. Nobody is turning a knob from the audio thread.
+Only from the message thread. A host is allowed to open a gesture from the audio thread, and taking a baseline of 784 parameters there would allocate on it, so one that arrives from anywhere else is left alone. Nobody is turning a knob from the audio thread.
 
 The things a person does that are not one gesture go through `recordEdit`, which takes the same baseline around whatever it is given: loading a preset writes hundreds of parameters and has to come back in one undo. The caller decides, and that is the point of it. Loading a preset from the menu is recorded and a clip firing a program change at the same `applyFactoryPreset` is not, because one of them is editing and the other is playing.
 
@@ -153,6 +153,26 @@ Random is a spline through its points and overshoots them by a few percent, so t
 The pitch depth reaches an octave, which is for the shapes that step rather than sweep. A square on the pitch is a trill and sample and hold is a run of random notes, and both are worth having at real intervals rather than at a vibrato's worth of one: at full depth the bipolar square jumps an octave either side of the note, the unipolar one an octave up, and sample and hold lands anywhere in between, measured at -1167 to +1098 cents over a few seconds. The range belongs to the knob rather than to the shape beside it, so a sine can sweep further than anyone needs. That is the lesser evil. A knob whose end moved with the shape would either read out a number it was not doing or grow a dead stretch at the top, and the taper keeps the bottom where it was in any case: both settings reach 25 cents at half travel, and what used to be the whole range now ends at about three quarters.
 
 LINK does not reach the shapes. It drags a value across the series along a weighted curve, and half a sawtooth is not a shape. The shape menu offers to set every channel at once instead, which is the same intent by the only means that makes sense for a list.
+
+### One modulator for the keyboard, or one per note
+
+A modulator belongs to a note by default: strike a chord a note at a time and each note's tremolo starts where that note started, so the three of them breathe out of step for as long as they sound. That is what a digital instrument does, and it is what nearly every patch here wants, since thirty-two partials breathing out of step is most of what makes the mixer sound like a mixer.
+
+It is not what an instrument with one tremolo circuit in it does. A Wurlitzer's wobble is in the amplifier, after the reeds, so a chord breathes as one thing however it was played, and a Stylophone has one oscillator and therefore one vibrato with nothing to be out of step with. Two switches turn each modulator into that: the phase stops belonging to the note and belongs to the channel, and a note arriving late joins whatever is already running.
+
+**Two switches rather than one**, because the two modulators are two circuits. Everything else about them is already separate, down to their shape lists, and a patch can reasonably want a tremolo the whole keyboard shares over a vibrato each note keeps to itself.
+
+**A channel's modulator rather than the instrument's.** Each of the thirty-three keeps its own rate and its own shape, so what is shared is one circuit per channel and not one for the lot. Partial 7's tremolo is one thing that every note played through partial 7 hears, which is the same idea as the rack of oscillators a character brings, and it is what makes a preset like _Shimmer_, whose whole design is thirty-two rates that never line up, still sound like itself with the switch on.
+
+**Worked out before any voice runs**, which is what the implementation turns on. A voice renders a whole buffer at a time, so a shared phase stepped inside one voice's loop would be stepped again by the next voice and the two would hear different things. Instead the engine walks the same control blocks the voices are about to walk and writes each channel's value at every block boundary into a table, one boundary more than there are blocks so a block has both the value it starts on and the one it ends on. The voices read it. That is also what makes it exact for the two random shapes, which draw a fresh point each time their phase wraps and could not be kept in step by handing a note a phase to start from.
+
+The table is a fixed member, sized for 2048 frames at a time, so the audio thread never allocates and a host asking for its usual buffer gets the whole thing in one pass. Anything larger is taken in passes of that size.
+
+**On the panel it is in the shape button's own menu**, ticked, under the entry that sets every channel at once. That entry is likewise a switch over all thirty-three reached from one channel, so the pair read alike, and the alternative was a button on the bar: the first row needs 1114 px of the 1164 it has at the width the window opens at, and a switch would have put the bar back onto two rows and undone what moving LINK into the gutter bought. Settings was the wrong place, since everything behind it is session rather than patch and two presets need this one.
+
+**It costs about half a percent of a core.** Thirty-three modulators are stepped per control block whatever the polyphony is, and each voice still steps its own alongside reading the shared one, so that handing a channel its modulator back lands on where that note would have been rather than on where it was when the switch was thrown. Measured at eight voices, taking the minimum of several runs on a contended machine: 8.48% of a core with a modulator per note against 8.87% with both shared.
+
+Two of the factory presets ask for it. _Wurli_ shares its tremolo and _StyloPoly_ its vibrato, which are the two cases the switches were built for.
 
 ### Stretch
 

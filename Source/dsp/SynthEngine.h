@@ -180,6 +180,24 @@ private:
   void sumVoices(float *left, float *right, int numFrames, const SynthParams &p,
                  Activity &into) noexcept;
 
+  /// One pass of that, over as much as the shared modulators hold at once.
+  void sumChunk(float *left, float *right, int numFrames, const SynthParams &p,
+                Activity &into, const SharedModulation &shared) noexcept;
+
+  /// Steps the modulators a whole keyboard shares and hands back what it read.
+  ///
+  /// One value per control block boundary per channel, worked out before any
+  /// voice runs, because a voice renders a whole buffer at a time: a shared
+  /// phase stepped inside one voice's loop would be stepped again by the next
+  /// voice, and the two would hear different things.
+  ///
+  /// Either half is left out when its switch is off, in which case the voices
+  /// read the modulator each note carries. See SharedModulation.
+  ///
+  /// @param numFrames  at most kModChunk, which is what the table holds.
+  SharedModulation advanceSharedModulators(int numFrames,
+                                           const SynthParams &p) noexcept;
+
   void publish(const Activity &) noexcept;
 
   /// Moves the whole pool to a new render rate, if it is not there already.
@@ -201,6 +219,30 @@ private:
   /// result is stretched back out to the host rate.
   std::array<float, kLofiChunk> lofiScratchL{};
   std::array<float, kLofiChunk> lofiScratchR{};
+
+  /// How much of a block the shared modulators are worked out at a time.
+  ///
+  /// Fixed for the same reason the lo-fi chunk is: the table is a member and
+  /// the audio thread never allocates. Large enough that a host asking for its
+  /// usual buffer gets the whole thing in one pass and the voices are called
+  /// once, as they were before any of this.
+  static constexpr int kModChunk = 2048;
+  static constexpr int kModBoundaries = kModChunk / Voice::kControlBlock + 1;
+
+  /// One channel's worth after another, the noise channel last, which is why
+  /// there are 33 of them and not 32.
+  std::array<float, (kNumHarmonics + 1) * kModBoundaries> sharedPitch{};
+  std::array<float, (kNumHarmonics + 1) * kModBoundaries> sharedAmp{};
+
+  /// The modulators themselves, one per channel, which is the whole point:
+  /// they belong to the channel rather than to a note, so they carry on
+  /// between notes and across silence.
+  std::array<Lfo, kNumHarmonics + 1> pitchModulators{};
+  std::array<Lfo, kNumHarmonics + 1> ampModulators{};
+
+  /// One stream for the shared modulators, since they are one circuit each
+  /// rather than one per voice. Only the random shapes draw from it.
+  Xorshift sharedRandom{0x51ed270fu};
 
   /// Where the reduced rate has got to between host samples, carried across
   /// blocks so the hold pattern does not restart every buffer.

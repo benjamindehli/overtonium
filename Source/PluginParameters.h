@@ -27,6 +27,8 @@ inline constexpr const char *safetyClipId = "safetyClip";
 inline constexpr const char *mpeId = "mpe";
 inline constexpr const char *lofiRateId = "lofiRate";
 inline constexpr const char *lofiBitsId = "lofiBits";
+inline constexpr const char *pmInPhaseId = "pmInPhase";
+inline constexpr const char *amInPhaseId = "amInPhase";
 
 // ---- master effects ---------------------------------------------------------
 inline constexpr const char *echoOnId = "echoOn";
@@ -216,6 +218,8 @@ struct Cache {
   std::atomic<float> *mpe = nullptr;
   std::atomic<float> *lofiRate = nullptr;
   std::atomic<float> *lofiBits = nullptr;
+  std::atomic<float> *pmInPhase = nullptr;
+  std::atomic<float> *amInPhase = nullptr;
 
   struct Echo {
     std::atomic<float> *on = nullptr;

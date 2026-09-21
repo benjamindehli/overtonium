@@ -6,7 +6,7 @@
         <title>Overtonium controls: every knob on a channel and on the bar</title>
         <meta
             name="description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 782 parameters are named for a host, and the wobble, tape echo, reverb and converter on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 784 parameters are named for a host, and the wobble, tape echo, reverb and converter on the bar."
         />
         <link rel="canonical" href="https://benjamindehli.github.io/overtonium/controls/" />
         <meta name="theme-color" content="#0b0d10" />
@@ -17,7 +17,7 @@
         <meta property="og:title" content="Overtonium controls: every knob on a channel and on the bar" />
         <meta
             property="og:description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 782 parameters are named for a host, and the wobble, tape echo, reverb and converter on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 784 parameters are named for a host, and the wobble, tape echo, reverb and converter on the bar."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-controls.jpg" />
         <meta property="og:image:width" content="1200" />
@@ -28,7 +28,7 @@
         <meta name="twitter:title" content="Overtonium controls: every knob on a channel and on the bar" />
         <meta
             name="twitter:description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 782 parameters are named for a host, and the wobble, tape echo, reverb and converter on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 784 parameters are named for a host, and the wobble, tape echo, reverb and converter on the bar."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-controls.jpg" />
 
@@ -250,6 +250,20 @@
                     <p>
                         LINK does not reach these. It drags a value across the series along a weighted curve and there is no weighting a list of named
                         shapes, so the shape menu offers to set every channel at once instead.
+                    </p>
+
+                    <p>
+                        <strong>In phase across the keyboard</strong> is the other entry in that menu, one for each of the two modulators. A modulator
+                        belongs to a note by default, so striking a chord a note at a time gives you three tremolos that each started where their own
+                        key did and breathe out of step. Ticked, the modulator belongs to the channel instead and a note arriving late joins whatever
+                        is already running, so a chord breathes as one thing however it was played. That is what an instrument with one tremolo
+                        circuit in it does, which is why <a href="../presets/">Wurli</a> ships with its tremolo shared and StyloPoly with its vibrato.
+                    </p>
+
+                    <p>
+                        Each channel keeps its own rate and shape either way. What is shared is one circuit per channel rather than one for the
+                        instrument, so a patch built on thirty-two rates that never line up still sounds like itself with the switch on. It is part of
+                        the patch, so a preset carries it, and both switches are off in anything that does not ask.
                     </p>
                 </section>
 
@@ -744,7 +758,7 @@
                     <h2>Automating it from the host</h2>
 
                     <p>
-                        Seven hundred and eighty-two parameters reach the host: twenty-eight global ones, twenty-three on each of the 32 partials, and
+                        Seven hundred and eighty-four parameters reach the host: thirty global ones, twenty-three on each of the 32 partials, and
                         eighteen on the noise channel. They are listed in the order the panel reads, the globals first and then channel by channel
                         with the noise channel last.
                     </p>
