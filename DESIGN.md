@@ -113,6 +113,12 @@ At `blend = 1` this is exactly `n` times the fundamental. Nothing is hard-coded,
 
 The test suite asserts this table, so the derivation cannot silently drift from it.
 
+**Six of the thirty-two knobs have nothing to move**, and the table is why: 1, 2, 4, 8, 16 and 32 read zero cents, because an octave is 1200 cents in equal temperament and in just intonation alike. Their TUNE knobs are not idle, they are agreeing with themselves, and the strip's tooltip says so on those channels rather than leaving a knob that appears broken.
+
+It cannot be given a second job, which is worth writing down because it is the obvious idea. Nought on that knob means the tempered position, which for an octave is the exact ratio, so redefining that end would make equal temperament mean something that is not equal temperament, and _Equal Saw_ sits at nought on all six. One is the default that twenty-five of the thirty-one presets and every untouched patch sit at. Six presets hold something other than the default there, thirty-one knobs between them, so either end would move sound that is already written. Nor is the knob greyed out: a LINK drag down the TUNE row would then move twenty-six channels and refuse six, which is how a patch like Equal Saw gets dialled in.
+
+What does move an octave partial is STRETCH, on its own curve, along with DRIFT, the pitch modulator, and the character's rack, which sits every partial but the first a few cents off spec. The gap this leaves is a static per-channel detune, which no control here offers: the blend reaches the exact ratio and stops.
+
 ### Tuning the keyboard
 
 Everything above is about where a partial sits over the note you played. This is about where that note sits, which until now was always twelve-tone equal temperament, hard-wired as `440 * 2^((n - 69) / 12)`.

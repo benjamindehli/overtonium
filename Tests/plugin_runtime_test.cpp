@@ -3073,6 +3073,74 @@ void testPresetsTellTheHostOnlyWhatChanged(OvertoniumProcessor &p) {
   p.removeListener(&counter);
 }
 
+/// Six of the thirty-two channels have nothing for TUNE to move.
+///
+/// An octave is 1200 cents in equal temperament and in just intonation alike,
+/// so the blend does nothing to the sound on partials 1, 2, 4, 8, 16 and 32.
+/// The strip says so on those and gives the cent figure on the rest, which is
+/// the difference between a knob that looks broken and one that is explained.
+void testOctaveChannelsSayTuneDoesNothing(OvertoniumProcessor &p) {
+  section("The channels TUNE cannot move");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  std::vector<ovt::ui::ChannelStrip *> strips;
+
+  std::function<void(juce::Component &)> gather = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (auto *s = dynamic_cast<ovt::ui::ChannelStrip *>(child))
+        strips.push_back(s);
+
+      gather(*child);
+    }
+  };
+  gather(*editor);
+
+  check(strips.size() == (size_t)ovt::kNumHarmonics, "the mixer is all there");
+  if (strips.size() != (size_t)ovt::kNumHarmonics)
+    return;
+
+  // Asked of the tuning table rather than listed here, so a change to what
+  // counts as an octave cannot leave the two disagreeing.
+  int explained = 0, measured = 0, wrong = 0;
+
+  for (int i = 0; i < ovt::kNumHarmonics; ++i) {
+    const auto tip = strips[(size_t)i]->getTooltip();
+    const auto says = tip.contains("TUNE has nothing to move here");
+    const auto octave =
+        std::abs(ovt::harmonicTable()[(size_t)i].jiCents) < 1.0e-9;
+
+    if (octave != says)
+      ++wrong;
+    else if (octave)
+      ++explained;
+    else
+      measured += tip.contains("Just intonation is") ? 1 : 0;
+  }
+
+  check(wrong == 0, "every channel says which of the two it is (" +
+                        std::to_string(wrong) + " disagree)");
+
+  check(explained == 6, "the six octave channels say the knob has nothing to "
+                        "move (" +
+                            std::to_string(explained) + ")");
+
+  check(measured == ovt::kNumHarmonics - 6,
+        "and the other twenty-six give the cents instead (" +
+            std::to_string(measured) + ")");
+
+  // Named, because the six being those six is the whole claim.
+  for (int harmonic : {1, 2, 4, 8, 16, 32})
+    check(strips[(size_t)(harmonic - 1)]->getTooltip().contains(
+              "TUNE has nothing to move here"),
+          "harmonic " + std::to_string(harmonic) + " is one of them");
+}
+
 /// Whether each modulator is one circuit the whole keyboard hears.
 ///
 /// A global switch reached from a per-channel menu, so the thing to check is
@@ -5331,6 +5399,7 @@ int main() {
   testMeterRepaint();
   testLinkMenu();
   testTopBarLayout();
+  testOctaveChannelsSayTuneDoesNothing(processor);
   testModulatorsInPhase(processor);
   testSettingsMenu(processor);
   testFitAllChannels(processor);

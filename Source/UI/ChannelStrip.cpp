@@ -804,12 +804,31 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   updateTuneReadout();
   updateLevelReadout();
 
+  // An octave is 1200 cents in equal temperament and in just intonation
+  // alike, so on six of the thirty-two channels the blend has nowhere to move
+  // the partial and TUNE does nothing to the sound. Said outright rather than
+  // left as a +0.0 for the reader to draw the conclusion from, because a knob
+  // that does nothing reads as a broken one.
+  //
+  // The knob is still live on those channels and still carries its value, and
+  // it has to be: nought means the tempered position, which for an octave is
+  // the exact ratio, and Equal Saw sits at nought on all six. A knob greyed
+  // out there would also break a LINK drag down the row, which is how a patch
+  // like that gets dialled in.
   const auto cents = juce::String(info.jiCents, 1);
+
+  const auto tuning =
+      exactly(info.jiCents, 0.0)
+          ? juce::String("An octave is the same interval in both, so TUNE has "
+                         "nothing to move here. STRETCH is what moves an "
+                         "octave partial.")
+          : juce::String("Just intonation is ") +
+                (info.jiCents >= 0.0 ? "+" : "") + cents + " cents from that";
+
   setTooltip("Harmonic " + juce::String(info.harmonic) + "  -  " +
              intervalName(info.pitchClass) + "\n" +
              juce::String(info.etSemitones) +
-             " semitones above the played note" + "\nJust intonation is " +
-             (info.jiCents >= 0.0 ? "+" : "") + cents + " cents from that");
+             " semitones above the played note\n" + tuning);
 }
 
 void ChannelStrip::setUpKnob(LinkableSlider &s, Role role, juce::Colour fill) {
