@@ -785,7 +785,7 @@ void testCharacter() {
   constexpr double sr = 48000.0;
   constexpr int N = 24000;
 
-  const auto renderOnePartial = [](Character c, int note, double volume) {
+  const auto renderOnePartial = [sr, N](Character c, int note, double volume) {
     SynthEngine engine;
     engine.prepare(sr);
     engine.setPolyphony(1);
@@ -829,7 +829,7 @@ void testCharacter() {
   const auto lowPure = renderOnePartial(Character::Pure, 45, 0.5);
   const auto highLimited = renderOnePartial(Character::Opamp, 93, 0.5); // A6
 
-  const auto thirdOf = [](const std::vector<float> &x, double f) {
+  const auto thirdOf = [sr](const std::vector<float> &x, double f) {
     return binMagnitude(x, f * 3.0, sr) / binMagnitude(x, f, sr);
   };
 
@@ -864,7 +864,7 @@ void testCharacter() {
   // does to the level, and the only thing that makes it do anything is the
   // pitch moving. How much level movement comes out of a held note, in dB
   // between the quietest and loudest the partial gets once the attack is over.
-  const auto swingDb = [](Character c, float pmCents, float bendSemitones) {
+  const auto swingDb = [sr](Character c, float pmCents, float bendSemitones) {
     SynthParams p;
 
     for (auto &o : p.osc) {
@@ -930,7 +930,7 @@ void testCharacter() {
   // Measured as the largest step from one sample to the next, against the same
   // note played on the plain sine, where the only steps are the waveform's
   // own.
-  const auto worstStep = [](Character c, double centreHz, float pmCents) {
+  const auto worstStep = [sr](Character c, double centreHz, float pmCents) {
     SynthParams p;
 
     for (auto &o : p.osc) {
@@ -1238,7 +1238,7 @@ void testUnitSpread() {
   /// frequency, over a known distance. That resolves a fraction of a cent on
   /// half a second of audio, where counting zero crossings over the same
   /// buffer resolves about two, which is a third of what is being measured.
-  const auto centsOff = [](const std::vector<float> &x, double nominalHz) {
+  const auto centsOff = [sr](const std::vector<float> &x, double nominalHz) {
     constexpr double kTwoPi = 6.283185307179586;
     constexpr size_t window = 4096;
 
@@ -1279,7 +1279,7 @@ void testUnitSpread() {
 
   // One partial of one note, everything else silent, so what comes out is one
   // unit of the rack and nothing else.
-  const auto renderUnit = [](Character c, int partial) {
+  const auto renderUnit = [sr, N](Character c, int partial) {
     SynthEngine engine;
     engine.prepare(sr);
     engine.setPolyphony(1);
@@ -4373,7 +4373,7 @@ void testModulatorsInPhase() {
   }
 
   // ---- the vibrato ---------------------------------------------------------
-  const auto openingFrequency = [](bool inPhase) {
+  const auto openingFrequency = [sr, rate, quarter](bool inPhase) {
     auto p = makeFlatParams(0.0f);
 
     p.osc[0].volume = 0.8f;
@@ -4450,7 +4450,7 @@ void testModulatorsInPhase() {
   // turn ahead, so a note with its own modulator opens at full level and one
   // joining a modulator already a quarter turn in opens at the middle of the
   // travel. See kAmpShapeOffset.
-  const auto openingLevel = [](bool inPhase) {
+  const auto openingLevel = [sr, rate, quarter](bool inPhase) {
     auto p = makeFlatParams(0.0f);
 
     p.osc[0].volume = 0.8f;

@@ -441,7 +441,6 @@ private:
   /// memory: what it does at one instant depends on where it had got to at the
   /// last one.
   static std::vector<double> renderCycle(Character c, int shape, double drive) {
-    constexpr double kTwoPi = 6.283185307179586476;
     std::vector<double> out((size_t)kPoints, 0.0);
 
     const auto sine = [](int i) {
@@ -570,8 +569,6 @@ private:
   /// small offset is headroom quietly disappearing.
   static std::array<Harmonic, kMaxCharacterHarmonic>
   analyse(const std::vector<double> &cycle) noexcept {
-    constexpr double kTwoPi = 6.283185307179586476;
-
     std::array<Harmonic, kMaxCharacterHarmonic> out{};
 
     for (int n = 1; n <= kMaxCharacterHarmonic; ++n) {
@@ -606,8 +603,6 @@ private:
   /// them separately would be the same work four times over, and this runs at
   /// startup where something is waiting for it.
   void build(const std::array<Harmonic, kMaxCharacterHarmonic> &recipe) {
-    constexpr double kTwoPi = 6.283185307179586476;
-
     std::vector<double> sum((size_t)kPoints, 0.0);
 
     for (int n = 1; n <= kMaxCharacterHarmonic; ++n) {
@@ -636,6 +631,13 @@ private:
 
   /// One turn, at the resolution the tables themselves hold.
   static constexpr int kPoints = Wave::kSize;
+
+  /// A member rather than a local in each of the three functions that want it.
+  /// MSVC will not read a function-local constexpr from inside a lambda unless
+  /// it is captured, and renderCycle reads this one from the lambda that draws
+  /// the sine. The standard asks for no capture there, since reading a
+  /// constexpr is not a use of it, but one constant beats three copies anyway.
+  static constexpr double kTwoPi = 6.283185307179586476;
 
   std::vector<Wave> tables;
   std::vector<std::array<Harmonic, kMaxCharacterHarmonic>> recipes;
