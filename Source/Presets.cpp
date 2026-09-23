@@ -3521,6 +3521,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.0754f);
     ap.set("reverbDamp", 0.2763f);
     ap.set("reverbDecay", 2.9417f);
+    ap.set("reverbMix", 0.33f);
     ap.set("reverbOn", 1.0f);
     ap.set("reverbPreDelay", 0.0228f);
     ap.set("stretch", 9.5576f);
