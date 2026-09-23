@@ -2,11 +2,18 @@
 //
 //   c++ -std=c++17 -O2 -I Source Tests/dsp_test.cpp Source/dsp/*.cpp -o
 //   dsp_test && ./dsp_test
+//
+// Every SynthEngine here is built on the heap and read through a reference, so
+// a test reads as though it held one. An engine is 200 kB, MSVC gives the main
+// thread a 1 MB stack where the other platforms give 8, and a test holding
+// three of them overflowed it. Windows was the only platform that noticed, and
+// it noticed as a segfault carrying no output at all.
 
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -275,7 +282,8 @@ void testTracking() {
   // Rendered, which is the claim that matters: the same patch played two
   // octaves apart should thin out, and should not simply get quieter.
   const auto ratioAt = [&](int note, float slope) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(4);
 
@@ -337,7 +345,8 @@ void testStartPhase() {
   // fundamental of A1 needs 4.5 ms to reach its peak from a zero crossing, and
   // the shortest attack available is 0.5 ms.
   const auto onsetOf = [&](float startPhase) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(1);
 
@@ -397,7 +406,8 @@ void testStartPhase() {
   // With phase reset off the setting cannot do anything, since there is no
   // reset for it to aim.
   const auto freeRunning = [&](float startPhase) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(1);
 
@@ -786,7 +796,8 @@ void testCharacter() {
   constexpr int N = 24000;
 
   const auto renderOnePartial = [sr, N](Character c, int note, double volume) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(1);
 
@@ -883,7 +894,8 @@ void testCharacter() {
     p.global.safetyClip = false;
     p.global.character = c;
 
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(1);
     engine.noteOn(57, 1.0f, p);
@@ -954,7 +966,8 @@ void testCharacter() {
     const int note =
         (int)std::lround(69.0 + 12.0 * std::log2(centreHz / 440.0));
 
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(1);
     engine.noteOn(note, 1.0f, p);
@@ -1280,7 +1293,8 @@ void testUnitSpread() {
   // One partial of one note, everything else silent, so what comes out is one
   // unit of the rack and nothing else.
   const auto renderUnit = [sr, N](Character c, int partial) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(1);
 
@@ -1339,7 +1353,8 @@ void testRenderedSpectrum() {
   constexpr double sr = 48000.0;
   constexpr int N = 24000;
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
   engine.setPolyphony(8);
 
@@ -1394,7 +1409,8 @@ void testAliasing() {
   constexpr double sr = 44100.0;
   constexpr int N = 22050;
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
 
   auto p = makeFlatParams(0.02f);
@@ -1536,7 +1552,8 @@ void testEnvelopeAndMuteSolo() {
   constexpr double sr = 48000.0;
   constexpr int N = 4800;
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
 
   auto p = makeFlatParams(0.05f);
@@ -1567,7 +1584,8 @@ void testNoClickOnMute() {
   constexpr double sr = 48000.0;
   constexpr int N = 2048;
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
 
   auto p = makeFlatParams(0.03f);
@@ -1631,7 +1649,8 @@ void testLegato() {
   p.global.masterGain = 1.0f;
   p.global.safetyClip = false;
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
   engine.setPolyphony(1);
   engine.setLegato(true);
@@ -1744,7 +1763,8 @@ void testLegato() {
                                          " of the sustain)");
 
   // ---- and it is monophonic ------------------------------------------------
-  SynthEngine mono;
+  const auto monoOwner = std::make_unique<SynthEngine>();
+  auto &mono = *monoOwner;
   mono.prepare(sr);
   mono.setPolyphony(1);
   mono.setLegato(true);
@@ -1760,7 +1780,8 @@ void testLegato() {
             std::to_string(mono.getActiveVoiceCount()) + ")");
 
   // ---- switched off, the same keys behave as they always did ---------------
-  SynthEngine poly;
+  const auto polyOwner = std::make_unique<SynthEngine>();
+  auto &poly = *polyOwner;
   poly.prepare(sr);
   poly.setPolyphony(8);
   poly.setLegato(false);
@@ -1790,7 +1811,8 @@ void testOneVoicePerKey() {
   p.global.masterGain = 1.0f;
   p.global.safetyClip = false;
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
   engine.setPolyphony(8);
 
@@ -1872,7 +1894,8 @@ void testOneVoicePerKey() {
   // put a step in the output the size of the whole note, which is what a
   // repeated key under the pedal sounded like.
   {
-    SynthEngine pedal;
+    const auto pedalOwner = std::make_unique<SynthEngine>();
+    auto &pedal = *pedalOwner;
     pedal.prepare(sr);
     pedal.setPolyphony(8);
 
@@ -1917,7 +1940,8 @@ void testOneVoicePerKey() {
   }
 
   // Different keys still stack, which is the whole point of polyphony.
-  SynthEngine chord;
+  const auto chordOwner = std::make_unique<SynthEngine>();
+  auto &chord = *chordOwner;
   chord.prepare(sr);
   chord.setPolyphony(8);
 
@@ -1937,7 +1961,8 @@ void testOneVoicePerKey() {
   // could fill the pool on its own. Past that the allocator has nothing free
   // and takes the oldest voice outright, with no fade and no regard for
   // whether a key is still down on it.
-  SynthEngine pool;
+  const auto poolOwner = std::make_unique<SynthEngine>();
+  auto &pool = *poolOwner;
   pool.prepare(sr);
   pool.setPolyphony(8);
 
@@ -1978,7 +2003,8 @@ void testOneVoicePerKey() {
   auto stacking = p;
   stacking.global.oneVoicePerKey = false;
 
-  SynthEngine loose;
+  const auto looseOwner = std::make_unique<SynthEngine>();
+  auto &loose = *looseOwner;
   loose.prepare(sr);
   loose.setPolyphony(8);
 
@@ -2044,7 +2070,8 @@ void testActivity() {
   p.global.masterGain = 1.0f;
   p.global.safetyClip = false;
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
   engine.setPolyphony(8);
 
@@ -2224,7 +2251,8 @@ void testPerNoteChannels() {
   p.global.masterGain = 1.0f;
   p.global.safetyClip = false;
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
   engine.setPolyphony(8);
 
@@ -2397,7 +2425,8 @@ void testPerNoteChannels() {
     pressed.global.masterGain = 1.0f;
     pressed.global.safetyClip = false;
 
-    SynthEngine e2;
+    const auto e2Owner = std::make_unique<SynthEngine>();
+    auto &e2 = *e2Owner;
     e2.prepare(sr);
     e2.setPolyphony(8);
 
@@ -2456,7 +2485,8 @@ void testPoolExhaustion() {
   p.global.masterGain = 1.0f;
   p.global.safetyClip = false;
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
   engine.setPolyphony(SynthEngine::kMaxPolyphony);
 
@@ -2525,7 +2555,8 @@ void testPoolExhaustion() {
   q.global.masterGain = 1.0f;
   q.global.safetyClip = false;
 
-  SynthEngine keeper;
+  const auto keeperOwner = std::make_unique<SynthEngine>();
+  auto &keeper = *keeperOwner;
   keeper.prepare(sr);
   keeper.setPolyphony(SynthEngine::kMaxPolyphony);
 
@@ -2572,7 +2603,8 @@ void testVoiceAllocation() {
   constexpr double sr = 48000.0;
   constexpr int N = 256;
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
   engine.setPolyphony(4);
 
@@ -2641,7 +2673,8 @@ void testPerPartialVelocity() {
   constexpr int N = 24000;
 
   auto measure = [&](float velocity) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
 
     auto p = makeFlatParams(0.0f);
@@ -2679,7 +2712,8 @@ void testPerPartialVelocity() {
   check(softRatio < 0.5 * hardRatio, "the spectral balance shifts with touch");
 
   // A uniform setting must still behave like a plain velocity control.
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
   auto p = makeFlatParams(0.02f);
   for (auto &o : p.osc)
@@ -2693,7 +2727,8 @@ void testPerPartialVelocity() {
   for (int n = 0; n < N; ++n)
     peakHalf = std::max(peakHalf, std::abs(l[(size_t)n]));
 
-  SynthEngine full;
+  const auto fullOwner = std::make_unique<SynthEngine>();
+  auto &full = *fullOwner;
   full.prepare(sr);
   full.noteOn(57, 1.0f, p);
   std::vector<float> l2((size_t)N), r2((size_t)N);
@@ -2708,7 +2743,8 @@ void testPerPartialVelocity() {
 
   // --- the inverted half --------------------------------------------------
   auto atVelocity = [&](float amount, float velocity) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
 
     auto p = makeFlatParams(0.0f);
@@ -2745,7 +2781,8 @@ void testPerPartialVelocity() {
   // The point of the feature: opposite signs crossfade two sets of partials.
   {
     auto balance = [&](float velocity) {
-      SynthEngine engine;
+      const auto engineOwner = std::make_unique<SynthEngine>();
+      auto &engine = *engineOwner;
       engine.prepare(sr);
 
       auto p = makeFlatParams(0.0f);
@@ -2789,7 +2826,8 @@ void testPanning() {
 
   /// Renders with a pan position per partial, taken from fn(index).
   const auto render = [&](auto &&fn, bool rollOff) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
 
     auto p = makeFlatParams(0.02f);
@@ -2985,7 +3023,8 @@ void testAftertouch() {
 
   auto level = [&](float atAmount, float volume, float pressure, float velocity,
                    bool poly) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
 
     auto p = build(atAmount, volume);
@@ -3032,7 +3071,8 @@ void testAftertouch() {
 
   // Seven-bit pressure arriving at MIDI rate must not step the gain.
   {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
 
     auto p = build(1.0f, 0.0f);
@@ -3144,7 +3184,8 @@ void testDrift() {
   constexpr int N = 48000;
 
   auto renderOne = [&](float driftCents, int note) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
 
     auto p = makeFlatParams(0.0f);
@@ -3185,7 +3226,8 @@ void testDrift() {
   // Two notes on the same engine must not receive the same contour. This has to
   // share one engine: a fresh one is reseeded and would legitimately repeat.
   {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
 
     auto p = makeFlatParams(0.0f);
@@ -3226,7 +3268,8 @@ void testPartialMetering() {
   constexpr double sr = 48000.0;
   constexpr int block = 512;
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
 
   auto p = makeFlatParams(0.0f);
@@ -3280,7 +3323,8 @@ void testPartialMetering() {
   // The master meter has to report the finished output, after master gain and
   // the clipper, so it says what actually leaves the plugin.
   {
-    SynthEngine out;
+    const auto outOwner = std::make_unique<SynthEngine>();
+    auto &out = *outOwner;
     out.prepare(sr);
 
     auto q = makeFlatParams(0.05f);
@@ -3327,7 +3371,8 @@ void testPartialMetering() {
     q.osc[3].volume = 0.5f; // a partial placed off centre
     q.osc[3].pan = 0.9f;
 
-    SynthEngine wide;
+    const auto wideOwner = std::make_unique<SynthEngine>();
+    auto &wide = *wideOwner;
     wide.prepare(sr);
     wide.noteOn(45, 1.0f, q);
     for (int b = 0; b < 20; ++b)
@@ -3348,7 +3393,8 @@ void testEnvelopeDelay() {
   constexpr double sr = 48000.0;
   constexpr int block = 4800; // 100 ms
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
 
   auto p = makeFlatParams(0.0f);
@@ -3764,7 +3810,8 @@ void testStrikeVelocity() {
   // A linear attack passes half at half the attack time, so this is the attack
   // the envelope actually ran, to within the cycle the sine is on.
   const auto riseTimeFor = [&](float amount, float velocity) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(4);
 
@@ -3838,7 +3885,8 @@ void testStrikeVelocity() {
   // When the partial first makes a sound at all, which for a delayed note is
   // the moment the delay runs out rather than anything about the attack.
   const auto onsetFor = [&](float amount, float velocity) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(4);
 
@@ -3897,7 +3945,8 @@ void testKeyOffAfterSilentDecay() {
 
   constexpr double sr = 48000.0;
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
   engine.setPolyphony(8);
 
@@ -3960,7 +4009,8 @@ void testNoiseChannel() {
   constexpr int N = 24000;
 
   auto render = [&](float volume, float colour, float velocity = 1.0f) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
 
     auto p = makeFlatParams(0.0f);
@@ -4035,7 +4085,8 @@ void testNoiseChannel() {
 
   // It answers to velocity like a strip.
   {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
 
     auto p = makeFlatParams(0.0f);
@@ -4059,7 +4110,8 @@ void testNoiseChannel() {
 
   // Muting it silences it, and the meter agrees.
   {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
 
     auto p = makeFlatParams(0.0f);
@@ -4091,7 +4143,8 @@ void testNoiseChannel() {
 
   // Two voices must not layer the identical noise.
   {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
 
     auto p = makeFlatParams(0.0f);
@@ -4246,7 +4299,8 @@ void testEveryAmpShapeIsClickFree() {
   float aboveFader = 0.0f;
 
   for (int s = 0; s < kNumLfoShapes; ++s) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(8);
 
@@ -4310,7 +4364,8 @@ void testModulation() {
   constexpr double sr = 48000.0;
   constexpr int N = 48000;
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
 
   auto p = makeFlatParams(0.0f);
@@ -4333,7 +4388,8 @@ void testModulation() {
   p2.osc[0].pmRateHz = 5.0f;
   p2.osc[0].pmDepthCents = 100.0f;
 
-  SynthEngine engine2;
+  const auto engine2Owner = std::make_unique<SynthEngine>();
+  auto &engine2 = *engine2Owner;
   engine2.prepare(sr);
   engine2.noteOn(57, 1.0f, p2);
   std::vector<float> l2((size_t)N), r2((size_t)N);
@@ -4387,7 +4443,8 @@ void testModulatorsInPhase() {
     p.global.pitchModInPhase = inPhase;
     p.global.safetyClip = false;
 
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(4);
 
@@ -4464,7 +4521,8 @@ void testModulatorsInPhase() {
     p.global.ampModInPhase = inPhase;
     p.global.safetyClip = false;
 
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(4);
 
@@ -5341,7 +5399,8 @@ void benchmark() {
   constexpr double secs = 10.0;
 
   for (int poly : {1, 8, 16}) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(poly);
 
@@ -5388,7 +5447,8 @@ void benchmark() {
   // What the master effects cost on top, measured against the same patch with
   // them switched off rather than guessed at.
   for (int withEffects = 0; withEffects < 2; ++withEffects) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(8);
 
@@ -5429,7 +5489,8 @@ void benchmark() {
   double pureLoad = 0.0;
 
   for (int c = 0; c < (int)Character::NumCharacters; ++c) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(8);
 
@@ -5472,7 +5533,8 @@ void benchmark() {
   double perNote = 0.0;
 
   for (int shared = 0; shared < 2; ++shared) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(8);
 
@@ -5525,7 +5587,8 @@ void testLofi() {
   // finds out on Windows.
   const auto renderNote = [sr](const SynthParams &p, int samples,
                                std::vector<float> &l, std::vector<float> &r) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(8);
 
@@ -5730,7 +5793,8 @@ void benchmarkLofi() {
   double fullRate = 0.0;
 
   for (int hz : {0, 22050, 11025, 8000}) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(8);
 
