@@ -4,6 +4,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include "../dsp/Character.h"
 #include "../dsp/Harmonics.h"
 
 namespace ovt::ui {
@@ -30,7 +31,11 @@ inline const juce::Colour textDim{0xff6f7a86};
 /// Chrome, not content. Sits in the cyan the channel ramp never reaches, so
 /// the global controls never read as one of the channels.
 inline const juce::Colour accent{0xff62bbd9};
-inline const juce::Colour muteOn{0xffe0733d};
+/// Red rather than the orange it used to be, now that what lights is the
+/// letter rather than the whole face. A filled orange face was unmistakable;
+/// a lit letter has less of itself to say it with, and red is what a cut
+/// channel means.
+inline const juce::Colour muteOn{0xffe04831};
 inline const juce::Colour soloOn{0xffe8c34a};
 } // namespace colours
 
@@ -53,6 +58,40 @@ void paintGrain(juce::Graphics &, juce::Rectangle<int> area);
 /// mixer reads as one family rather than a rainbow, and placed clear of the
 /// green and cyan the global accent uses.
 juce::Colour intervalColour(int pitchClass);
+
+/// One colour from that same band, by where along it you want to stand.
+///
+/// Zero is the blue end and one the yellow, which is the interval colours'
+/// own scale with the twelve steps taken off it. Anything that wants to
+/// borrow the mixer's palette without being a pitch class asks here, so there
+/// is one band rather than two that drift apart.
+juce::Colour bandColour(float t);
+
+/// Where each oscillator character stands on it.
+///
+/// Yellow for the gentlest and red for the hardest, running down the warm end
+/// of the band and finishing exactly on the fifth, which is the colour of
+/// channel 3. Pure is not on the band at all: it is the absence of a
+/// character rather than one of them, and it does not light.
+juce::Colour characterColour(Character);
+
+/// A button whose text lights rather than whose face does.
+///
+/// Every switch on the panel is one of these: the two effect toggles, LINK,
+/// the character button and the M and S on all thirty-three channels. The
+/// word is the lamp and the face is only what its light falls on, the way an
+/// engaged switch on a lit console is. So the face is drawn exactly as it is
+/// when the switch is off, down to the shade of grey, and everything that
+/// reaches it comes off the text. Which colour that is comes from
+/// textColourOnId, so a button can say what it means by it.
+///
+/// At the size the mixer's own switches are drawn, the spill is what does the
+/// work: the letter is small and what the eye finds scanning 33 channels is
+/// the coloured smudge around it.
+class GlowButton : public juce::TextButton {
+public:
+  void paintButton(juce::Graphics &, bool highlighted, bool down) override;
+};
 
 /// Vertical slots in a channel strip. The gutter on the left lays out the same
 /// list so the row labels always line up with the controls.

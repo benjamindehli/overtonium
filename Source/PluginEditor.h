@@ -18,6 +18,8 @@
 /// knob in the mixer has a name without repeating it 32 times.
 class RowGutter : public juce::Component {
 public:
+  RowGutter();
+
   void paint(juce::Graphics &) override;
 
   /// Brightens the caption for the row the pointer is on, which is the point of
@@ -29,16 +31,43 @@ public:
   /// and the headings can show which way they point.
   void setCollapsedSections(ovt::ui::SectionMask);
 
+  /// Which of the two modulators are one circuit the whole keyboard hears.
+  ///
+  /// Lights that group's heading. The switch is part of the patch and lives in
+  /// a menu, so without this a preset could arrive with a shared tremolo and
+  /// nothing on the panel would say so: a mode you cannot see is a mode you
+  /// forget you are in. One mark per modulator rather than one on each of the
+  /// thirty-three shape buttons, since the state is the same on all of them.
+  void setSharedModulators(bool pitch, bool amp);
+
   /// Fired when a heading is clicked. The editor owns the decision, since the
   /// strips have to be told about it too.
   std::function<void(ovt::ui::Section)> onSectionToggled;
 
+  /// Fired when the LINK button is clicked, with the button to hang the menu
+  /// off. The menu itself belongs to the bar, which owns the settings it
+  /// changes.
+  std::function<void(juce::Component *)> onLinkClicked;
+
+  /// Lights the button while LINK is on.
+  void setLinkOn(bool);
+
+  void resized() override;
   void mouseDown(const juce::MouseEvent &) override;
   void mouseMove(const juce::MouseEvent &) override;
 
 private:
   ovt::ui::Row highlighted = ovt::ui::kNoRow;
   ovt::ui::SectionMask collapsed = 0;
+  bool sharedPitchMod = false, sharedAmpMod = false;
+
+  /// LINK stands in the empty band above the captions, where the strips beside
+  /// it carry their channel numbers.
+  ///
+  /// Here rather than in the bar because this is the column the tool belongs
+  /// to: it gangs the rows the captions name. What it leaves behind on the bar
+  /// is the room the converter readouts needed to say what their numbers mean.
+  ovt::ui::GlowButton linkButton;
 
   /// The maker's badge, in the empty foot of the gutter.
   std::unique_ptr<juce::Drawable> makersMark{ovt::ui::logoMakersMark()};
@@ -47,7 +76,8 @@ private:
 class OvertoniumEditor : public juce::AudioProcessorEditor,
                          public ovt::ui::LinkTarget,
                          public ovt::ui::HoverTarget,
-                         private juce::Timer {
+                         private juce::Timer,
+                         private juce::ComponentListener {
 public:
   explicit OvertoniumEditor(OvertoniumProcessor &);
   ~OvertoniumEditor() override;
@@ -69,10 +99,47 @@ public:
   // ---- ovt::ui::HoverTarget ----
   void hoverChanged(int stripIndex, ovt::ui::Row) override;
 
+  /// Sets the window back to the size that shows all 32 channels.
+  ///
+  /// A window remembers what it was left at, which is what a window should do
+  /// and is also a one-way trip: drag it narrow, close it, and every session
+  /// after that opens narrow. This is the way back, and it is in the Settings
+  /// menu beside the zoom because both are about the window rather than about
+  /// the instrument.
+  ///
+  /// Public so a test can ask for it. The menu that offers it needs a window
+  /// to open in, which a test has no way of giving it.
+  void fitAllChannels();
+
+  /// Puts this editor's look and feel and its panel colour on a window.
+  ///
+  /// The standalone's window is JUCE's rather than the platform's, so left
+  /// alone it wears the grey-green every unstyled JUCE app does, with a red
+  /// cross and a yellow dash for its buttons. This puts the instrument's own
+  /// panel across the top of it instead.
+  ///
+  /// Public because a test cannot reach it any other way: which wrapper this
+  /// is running as is fixed by JUCE at construction and cannot be pretended,
+  /// so a test hands it a window directly.
+  void dressWindow(juce::DocumentWindow &);
+
 private:
   void timerCallback() override;
 
+  /// Finds the standalone's window, if this is the standalone, and dresses it.
+  ///
+  /// Only ever the standalone. In a host the top level window belongs to the
+  /// host, and a plugin that restyled it would be redecorating someone else's
+  /// application.
+  void dressStandaloneWindow();
+
+  void parentHierarchyChanged() override;
+
   void setZoom(float newZoom);
+
+  /// The size that shows the whole mixer, at the fold state it is in.
+  juce::Rectangle<int> standardSize() const;
+
   void applyResizeLimits();
   void applyPreset(int index);
 
@@ -90,6 +157,10 @@ private:
   /// Hands the current fold state to the gutter and every strip, which is the
   /// only way any of them find out about it.
   void publishCollapsedSections();
+
+  /// Lights the heading of a modulator group the whole keyboard shares. See
+  /// RowGutter::setSharedModulators.
+  void syncSharedModulators();
 
   /// Asks once, the first time an editor is opened, whether to look for new
   /// versions, and remembers the answer. Nothing leaves the machine before
@@ -155,6 +226,11 @@ private:
 
   juce::TooltipWindow tooltips{this, 600};
 
+  /// The standalone's window, once this editor has dressed it. Held so the
+  /// listener can be taken off again: a look and feel is held weakly and
+  /// looks after itself, where a listener is a raw pointer and would dangle.
+  juce::Component::SafePointer<juce::DocumentWindow> standaloneWindow;
+
   /// Single child holding the whole UI, so zoom is one AffineTransform.
   juce::Component content;
   ovt::ui::TopBar topBar;
@@ -179,19 +255,23 @@ private:
   /// at their own fraction of it.
   int tick = 0;
 
-  /// Closes off an undo transaction once the tree has stopped moving.
-  ///
-  /// The alternative is hooking every parameter's gesture callbacks, which a
-  /// host may call from the audio thread, and opening a transaction allocates.
-  /// Watching for stillness instead needs no hooks and gives the same answer:
-  /// a drag is one step however many values it moved, and letting go for a
-  /// moment starts the next one.
-  void closeUndoTransactionWhenIdle();
-
-  /// Closes the open transaction, then steps back or forward.
+  /// Steps back or forward through the history.
   void stepHistory(bool redo);
 
-  int lastUndoActionCount = 0;
+  // ---- juce::ComponentListener ----
+  //
+  // On the standalone's window, so its own title bar contents can be put back
+  // where they belong after it has laid them out.
+  void componentMovedOrResized(juce::Component &, bool moved,
+                               bool resized) override;
+
+  /// Centres the standalone's Options button in its title bar.
+  ///
+  /// The button belongs to JUCE's standalone window rather than to us, and it
+  /// is placed at a fixed six pixels from the top of a bar whose height it
+  /// then subtracts eight from, which leaves it sitting low whatever the bar
+  /// is. There is no hook for it, so it is moved back after each layout.
+  void centreWindowOptionsButton(juce::DocumentWindow &);
 
   int hoverStrip = -1;
   ovt::ui::Row hoverRow = ovt::ui::kNoRow;

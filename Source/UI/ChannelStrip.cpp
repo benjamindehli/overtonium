@@ -76,6 +76,12 @@ namespace {
 // rather than to the knob above. Moving two pixels out of the gap and into the
 // margins ties the pair together and gives the group some air. The four still
 // add to what they always did, so the dial keeps its diameter.
+//
+// Three above and one below rather than anything nearer the middle. A dial is
+// a heavy round object with its tick marks above it and the caption is a light
+// line of small text below, so a block centred by arithmetic reads as sitting
+// low. Only the top bar uses these: the mixer's own knobs carry no caption,
+// since the gutter names their rows once for all 33 channels.
 constexpr int kAboveDial = 3;
 constexpr int kCaptionGap = 1;
 constexpr int kCaptionHeight = 11;
@@ -248,12 +254,46 @@ void SegmentDisplay::paintGlyph(juce::Graphics &g, juce::Rectangle<float> area,
   }
 }
 
+/// What the unit takes beside the digits, and what has to be left for them.
+///
+/// Measured in the width the component is given rather than in what is left
+/// after its own insets, since the caller sizing it has only the former.
+static constexpr float kUnitWidth = 21.0f;
+static constexpr int kUnitInsets = 8;
+static constexpr int kDigitsNeed = 44;
+
+bool SegmentDisplay::hasRoomForUnit(int width) {
+  return width - kUnitInsets > kDigitsNeed;
+}
+
+std::unique_ptr<juce::AccessibilityHandler>
+SegmentDisplay::createAccessibilityHandler() {
+  // Asked for lazily, the first time something goes looking for the panel's
+  // controls, which is long after the bar has wired its readouts up. So
+  // whether this one opens a menu is settled by the time it is asked.
+  if (onClick == nullptr)
+    return juce::Component::createAccessibilityHandler();
+
+  return std::make_unique<juce::AccessibilityHandler>(
+      *this, juce::AccessibilityRole::button,
+      juce::AccessibilityActions().addAction(
+          juce::AccessibilityActionType::press, [this] {
+            if (onClick != nullptr)
+              onClick();
+          }));
+}
+
 void SegmentDisplay::paint(juce::Graphics &g) {
   auto area = getLocalBounds().toFloat().reduced(1.0f);
 
   const auto on = active ? colours::accent : colours::textDim;
   const auto off = on.withAlpha(hovered ? 0.20f : 0.12f);
   const auto lit = on.withAlpha(active ? 0.95f : 0.75f);
+
+  // Set into the panel rather than laid on it. The margin this uses is the one
+  // pixel the ground was already leaving, so the digits keep every pixel they
+  // had.
+  paintRecess(g, area, 2.5f);
 
   // A screen rather than a recess. The unlit bars still have something dark to
   // be dark against, but the ground itself is lit, which is what the strip's
@@ -282,7 +322,7 @@ void SegmentDisplay::paint(juce::Graphics &g) {
 
   // The unit only earns its place once the digits have what they need.
   const auto unitW =
-      unitText.isNotEmpty() && area.getWidth() > 44.0f ? 21.0f : 0.0f;
+      unitText.isNotEmpty() && hasRoomForUnit(getWidth()) ? kUnitWidth : 0.0f;
 
   // A point costs about a third of a digit, which is what the extra term in
   // the denominator is buying.
@@ -384,6 +424,11 @@ void ActivityLamp::paint(juce::Graphics &g) {
   g.fillRect(bounds.getX(), midY + 1.0f, leftRun, 1.0f);
   g.fillRect(lamp.getRight() + 2.0f, midY + 1.0f, rightRun, 1.0f);
 
+  // The hole it is mounted in, which is why the rule stops two pixels short
+  // either side: that gap is the lip, and it was there before there was
+  // anything to put in it.
+  paintRecess(g, lamp, diameter * 0.5f);
+
   // Unlit is the channel colour at low alpha rather than nothing at all, so
   // the divider reads as a lamp that is off rather than as a gap in the rule.
   const auto lit = (float)step / (float)kSteps;
@@ -399,7 +444,13 @@ void ActivityLamp::paint(juce::Graphics &g) {
     g.fillEllipse(lamp.expanded(diameter * 0.18f));
   }
 
-  g.setColour(colour.withAlpha(0.16f + 0.84f * lit));
+  // Blended against the backdrop rather than laid over it at that alpha, which
+  // comes to the same colour and covers the floor of the hole while it is at
+  // it. A see-through face would show the shadow under it and read as a lamp
+  // somebody had smudged.
+  g.setColour(isOpaque()
+                  ? backdrop.interpolatedWith(colour, 0.16f + 0.84f * lit)
+                  : colour.withAlpha(0.16f + 0.84f * lit));
   g.fillEllipse(lamp);
 }
 
@@ -453,7 +504,16 @@ void ActivityNeedle::paint(juce::Graphics &g) {
   const auto track = juce::Rectangle<float>(bounds.getWidth(), height)
                          .withCentre({bounds.getCentreX(), midY + 0.5f});
 
-  g.setColour(colour.withAlpha(0.16f));
+  // A slot milled across the strip rather than a line drawn on it. It runs to
+  // both edges, so only the top and bottom walls of the cut are in the
+  // picture, which is the pair that carries the depth anyway.
+  paintRecess(g, track, height * 0.35f);
+
+  // Blended against the backdrop rather than washed over it, for the same
+  // reason the lamps are: the same colour, and it covers the shadow that runs
+  // under the slot as well as around it.
+  g.setColour(isOpaque() ? backdrop.interpolatedWith(colour, 0.16f)
+                         : colour.withAlpha(0.16f));
   g.fillRoundedRectangle(track, height * 0.35f);
 
   // Centre, so sharp and flat mean something when the needle is near it.
@@ -716,8 +776,9 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   pan.getProperties().set("bipolar", true);
   setUpFader(volume, Role::Volume, colour);
 
-  muteButton.setColour(juce::TextButton::buttonOnColourId, colours::muteOn);
-  soloButton.setColour(juce::TextButton::buttonOnColourId, colours::soloOn);
+  // The letter is what lights, not the face it stands on. See GlowButton.
+  muteButton.setColour(juce::TextButton::textColourOnId, colours::muteOn);
+  soloButton.setColour(juce::TextButton::textColourOnId, colours::soloOn);
   muteButton.setTooltip("Mute harmonic " + juce::String(info.harmonic));
   soloButton.setTooltip("Solo harmonic " + juce::String(info.harmonic));
   muteButton.setTitle("Harmonic " + juce::String(info.harmonic) + " mute");
@@ -743,12 +804,31 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   updateTuneReadout();
   updateLevelReadout();
 
+  // An octave is 1200 cents in equal temperament and in just intonation
+  // alike, so on six of the thirty-two channels the blend has nowhere to move
+  // the partial and TUNE does nothing to the sound. Said outright rather than
+  // left as a +0.0 for the reader to draw the conclusion from, because a knob
+  // that does nothing reads as a broken one.
+  //
+  // The knob is still live on those channels and still carries its value, and
+  // it has to be: nought means the tempered position, which for an octave is
+  // the exact ratio, and Equal Saw sits at nought on all six. A knob greyed
+  // out there would also break a LINK drag down the row, which is how a patch
+  // like that gets dialled in.
   const auto cents = juce::String(info.jiCents, 1);
+
+  const auto tuning =
+      exactly(info.jiCents, 0.0)
+          ? juce::String("An octave is the same interval in both, so TUNE has "
+                         "nothing to move here. STRETCH is what moves an "
+                         "octave partial.")
+          : juce::String("Just intonation is ") +
+                (info.jiCents >= 0.0 ? "+" : "") + cents + " cents from that";
+
   setTooltip("Harmonic " + juce::String(info.harmonic) + "  -  " +
              intervalName(info.pitchClass) + "\n" +
              juce::String(info.etSemitones) +
-             " semitones above the played note" + "\nJust intonation is " +
-             (info.jiCents >= 0.0 ? "+" : "") + cents + " cents from that");
+             " semitones above the played note\n" + tuning);
 }
 
 void ChannelStrip::setUpKnob(LinkableSlider &s, Role role, juce::Colour fill) {

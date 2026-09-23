@@ -33,6 +33,9 @@ const juce::Identifier kLinkCurveId{"linkCurveId"};
 const juce::Identifier kLinkCurve{"linkCurve"};
 const juce::Identifier kCollapsedSections{"collapsedSections"};
 
+/// What the APVTS calls each parameter's node in the state tree. Its own
+/// constant is private, but the name is part of the format: it is what the
+/// saved state and every preset file are written in.
 bool isHeadingRow(Row r) {
   return r == Row::PitchModHeading || r == Row::EnvHeading ||
          r == Row::KeyOffHeading || r == Row::AmpModHeading ||
@@ -41,6 +44,29 @@ bool isHeadingRow(Row r) {
 } // namespace
 
 // =============================================================================
+
+RowGutter::RowGutter() {
+  // One button rather than a switch and a chevron beside it. It always opens
+  // the menu, and it lights when the switch inside is on, so the state is
+  // visible without the state being what the click does.
+  linkButton.setButtonText("LINK");
+  linkButton.setTooltip(
+      "Gang the strips, so dragging one channel's knob moves the same knob on "
+      "the others. The menu picks which channels it reaches and how the "
+      "movement is shared out. The same menu is on a right-click in the "
+      "mixer.");
+
+  // The same colour the two effect switches light in, since it is the same
+  // kind of thing: a tool that is either engaged or not. See GlowButton.
+  linkButton.setColour(juce::TextButton::textColourOnId, colours::accent);
+
+  linkButton.onClick = [this] {
+    if (onLinkClicked)
+      onLinkClicked(&linkButton);
+  };
+
+  addAndMakeVisible(linkButton);
+}
 
 void RowGutter::setHighlightedRow(Row row) {
   if (row == highlighted)
@@ -54,11 +80,35 @@ void RowGutter::setHighlightedRow(Row row) {
   repaintRowHighlight(*this, rows, highlighted);
 }
 
+void RowGutter::resized() {
+  // The same rows the captions are laid out from, so the button stands in the
+  // band the strips beside it put their channel numbers in. The header is a
+  // fixed height at the top of the column and no fold can move it, which is
+  // why this does not have to run again when one changes.
+  const auto rows =
+      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed);
+
+  linkButton.setBounds(rows[(size_t)Row::Header].reduced(7, 1));
+}
+
+void RowGutter::setLinkOn(bool on) {
+  linkButton.setToggleState(on, juce::dontSendNotification);
+}
+
 void RowGutter::setCollapsedSections(SectionMask mask) {
   if (mask == collapsed)
     return;
 
   collapsed = mask;
+  repaint();
+}
+
+void RowGutter::setSharedModulators(bool pitch, bool amp) {
+  if (pitch == sharedPitchMod && amp == sharedAmpMod)
+    return;
+
+  sharedPitchMod = pitch;
+  sharedAmpMod = amp;
   repaint();
 }
 
@@ -112,9 +162,16 @@ void RowGutter::paint(juce::Graphics &g) {
     const bool heading = isHeadingRow(row);
     const bool lit = row == highlighted && rowShowsHighlight(row);
 
+    // A heading whose modulator the whole keyboard shares goes accent, the
+    // same light everything else that is switched on here comes up in. It
+    // reads as a property of the group, which is what it is: every channel in
+    // it answers to the one switch.
+    const bool shared = (row == Row::PitchModHeading && sharedPitchMod) ||
+                        (row == Row::AmpModHeading && sharedAmpMod);
+
     g.setFont(makeFont(heading ? 10.0f : 9.5f, heading || lit));
-    g.setColour(lit ? colours::accent
-                    : (heading ? colours::text : colours::textDim));
+    g.setColour(lit || shared ? colours::accent
+                              : (heading ? colours::text : colours::textDim));
     g.drawText(text, area, juce::Justification::centredRight, false);
 
     // The disclosure mark, at the far left of the heading so it clears the
@@ -241,8 +298,13 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
 
   topBar.onUserPresetChosen = [this](juce::File file) {
     juce::String error;
+    bool loaded = false;
 
-    if (presets::load(plugin().apvts, file, error))
+    plugin().recordEdit("Load preset", [this, &file, &error, &loaded] {
+      loaded = presets::load(plugin().apvts, file, error);
+    });
+
+    if (loaded)
       setPresetName(file.getFileNameWithoutExtension());
     else
       complain("Could not load that preset", error);
@@ -269,6 +331,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   };
 
   topBar.onZoomChanged = [this](float z) { setZoom(z); };
+  topBar.onFitAllChannels = [this] { fitAllChannels(); };
 
   topBar.onUndo = [this] { stepHistory(false); };
   topBar.onRedo = [this] { stepHistory(true); };
@@ -299,6 +362,10 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     tree.setProperty(kLinkCurveId, linkCurveId(topBar.getLinkCurve()), nullptr);
     tree.removeProperty(kLinkCurve, nullptr);
 
+    // The switch is in the gutter and the settings it belongs to are on the
+    // bar, so the button is told rather than asked.
+    gutter.setLinkOn(topBar.isLinkEnabled());
+
     // Switching LINK on, or changing what it reaches, changes the answer to
     // "what would this knob take with it", so the preview follows immediately
     // rather than waiting for the pointer to move.
@@ -306,16 +373,18 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     updateLinkCursor();
   };
 
+  // The menu belongs to the bar, which holds what it changes. The gutter holds
+  // the button that opens it, and hands back what to hang it off.
+  gutter.onLinkClicked = [this](juce::Component *anchor) {
+    topBar.showLinkMenu(anchor);
+  };
+
   updateLinkCursor();
 
   // Housekeeping runs at 4 Hz, and a readout that is blank for the first
   // quarter second of the window being open reads as broken.
-  topBar.updateConverterReadouts(plugin().getSampleRate());
+  topBar.updatePanelReadouts(plugin().getSampleRate());
 
-  // Default size shows all 32 strips at once, which is the whole point of the
-  // layout.
-  const int defaultWidth =
-      kGutterWidth + kStripWidth + kMasterGap + kNumHarmonics * kStripWidth;
   // Read before the heights below, both of which depend on how much of the
   // strip is folded away.
   collapsedSections =
@@ -325,11 +394,12 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
 
   gutter.onSectionToggled = [this](Section s) { toggleSection(s); };
 
-  const int defaultHeight =
-      chromeHeight(defaultWidth) + preferredStripHeight(collapsedSections);
+  const auto standard = standardSize();
 
-  const int savedWidth = (int)state.getProperty(kEditorWidth, defaultWidth);
-  const int savedHeight = (int)state.getProperty(kEditorHeight, defaultHeight);
+  const int savedWidth =
+      (int)state.getProperty(kEditorWidth, standard.getWidth());
+  const int savedHeight =
+      (int)state.getProperty(kEditorHeight, standard.getHeight());
 
   setResizable(true, true);
   applyResizeLimits();
@@ -338,6 +408,11 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   // that can lose precision in principle, and newer clang says so.
   setSize(juce::roundToInt((float)savedWidth * zoom),
           juce::roundToInt((float)savedHeight * zoom));
+
+  // Before the first paint rather than on the first housekeeping tick, so an
+  // editor opened on a patch that shares a modulator says so straight away
+  // instead of a quarter of a second later.
+  syncSharedModulators();
 
   startTimerHz(30);
 
@@ -351,6 +426,94 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   offerUpdateCheck();
 }
 
+void OvertoniumEditor::parentHierarchyChanged() {
+  // Not now. This runs part way through the window taking this editor as its
+  // content, and restyling a window sends a look and feel change through it,
+  // which lays its content out again at whatever size the window is at that
+  // moment. That is not yet the size it is about to become: a document window
+  // is 128 px square until it is given the content's size, so the editor was
+  // squashed into that and clamped back up to its own minimum, and the
+  // standalone opened about a third as wide as it should have.
+  //
+  // Off the stack instead, by which time the window is the size it means to
+  // be. Safe against the editor being closed in between.
+  juce::MessageManager::callAsync([safe = SafePointer<OvertoniumEditor>(this)] {
+    if (safe != nullptr)
+      safe->dressStandaloneWindow();
+  });
+}
+
+void OvertoniumEditor::dressStandaloneWindow() {
+  if (plugin().wrapperType != juce::AudioProcessor::wrapperType_Standalone)
+    return;
+
+  // Not in the constructor, because the editor is not in the window yet when
+  // it runs: the standalone builds the editor first and makes it the window's
+  // content afterwards. This is called again every time that changes.
+  if (auto *window =
+          dynamic_cast<juce::DocumentWindow *>(getTopLevelComponent()))
+    dressWindow(*window);
+}
+
+void OvertoniumEditor::componentMovedOrResized(juce::Component &component, bool,
+                                               bool wasResized) {
+  if (!wasResized)
+    return;
+
+  if (auto *window = dynamic_cast<juce::DocumentWindow *>(&component))
+    centreWindowOptionsButton(*window);
+}
+
+void OvertoniumEditor::centreWindowOptionsButton(juce::DocumentWindow &window) {
+  const auto bar = window.getTitleBarArea();
+
+  // By name, because it is not ours to hold a pointer to. Finding nothing is
+  // a perfectly good outcome: it means this window has no such button, which
+  // is every window but the standalone's own.
+  for (auto *child : window.getChildren()) {
+    auto *button = dynamic_cast<juce::TextButton *>(child);
+
+    if (button == nullptr || button->getName() != "Options")
+      continue;
+
+    button->setBounds(button->getBounds().withY(
+        bar.getY() + (bar.getHeight() - button->getHeight()) / 2));
+    return;
+  }
+}
+
+void OvertoniumEditor::dressWindow(juce::DocumentWindow &window) {
+  // Nothing to do twice. Setting it again would send a look and feel change
+  // through the whole window, and this runs on every change of hierarchy.
+  if (&window.getLookAndFeel() == &lookAndFeel)
+    return;
+
+  // Setting a look and feel on a window recreates its title bar buttons, so
+  // the crosses and dashes come back drawn by ours.
+  //
+  // Handing out a look and feel this editor owns is safe even though the
+  // window outlives it: a component holds its look and feel by weak
+  // reference, so when this one goes the window falls back to the
+  // application's own rather than reading freed memory. A test pins that,
+  // since it is the kind of thing that is only ever noticed by crashing.
+  window.setLookAndFeel(&lookAndFeel);
+  window.setBackgroundColour(colours::background);
+
+  // And whatever the window puts in its own title bar is put where it belongs
+  // now and after every layout it does.
+  //
+  // One window at a time. There is only ever one in practice, but leaving a
+  // listener on a window this editor has stopped tracking is the kind of
+  // thing that is fine until it is not.
+  if (auto *previous = standaloneWindow.getComponent())
+    previous->removeComponentListener(this);
+
+  window.addComponentListener(this);
+  standaloneWindow = &window;
+
+  centreWindowOptionsButton(window);
+}
+
 void OvertoniumEditor::setPresetName(const juce::String &name) {
   plugin().setLoadedPresetName(name);
   topBar.setPresetName(name);
@@ -358,6 +521,9 @@ void OvertoniumEditor::setPresetName(const juce::String &name) {
 
 OvertoniumEditor::~OvertoniumEditor() {
   stopTimer();
+
+  if (auto *window = standaloneWindow.getComponent())
+    window->removeComponentListener(this);
 
   // Asked to stop, never waited for. Nothing is left to show the answer to, so
   // the work is pointless from here, but waiting for it on the message thread
@@ -430,6 +596,22 @@ void OvertoniumEditor::resized() {
   if (std::abs((double)state.getProperty(kEditorZoom, -1.0) - (double)zoom) >
       1.0e-6)
     state.setProperty(kEditorZoom, (double)zoom, nullptr);
+}
+
+juce::Rectangle<int> OvertoniumEditor::standardSize() const {
+  // Wide enough for all 32 strips at once, which is the whole point of the
+  // layout, and tall enough for whatever is not folded away.
+  const int width =
+      kGutterWidth + kStripWidth + kMasterGap + kNumHarmonics * kStripWidth;
+
+  return {width, chromeHeight(width) + preferredStripHeight(collapsedSections)};
+}
+
+void OvertoniumEditor::fitAllChannels() {
+  const auto standard = standardSize();
+
+  setSize(juce::roundToInt((float)standard.getWidth() * zoom),
+          juce::roundToInt((float)standard.getHeight() * zoom));
 }
 
 void OvertoniumEditor::applyResizeLimits() {
@@ -545,7 +727,12 @@ void OvertoniumEditor::applyPreset(int index) {
   // keeps up: it is the processor that knows which program is current, and a
   // host showing "Big Saw" while the plugin shows "Wurli" is worse than a host
   // showing nothing.
-  plugin().applyFactoryPreset(index);
+  //
+  // Recorded, because somebody picked it from a menu. The same call made by a
+  // clip firing a program change is not, which is the whole reason the caller
+  // is the one that decides.
+  plugin().recordEdit("Load preset",
+                      [this, index] { plugin().applyFactoryPreset(index); });
 }
 
 void OvertoniumEditor::complain(const juce::String &title,
@@ -756,31 +943,8 @@ void OvertoniumEditor::updateLinkGlow() {
 
 // ---- polling ----------------------------------------------------------------
 
-void OvertoniumEditor::closeUndoTransactionWhenIdle() {
-  auto &undo = plugin().undo();
-  const auto count = undo.getNumActionsInCurrentTransaction();
-
-  // Still moving. Whatever it is belongs with what came before it, so that a
-  // LINK drag across 32 channels comes back in one step rather than 32.
-  if (count != lastUndoActionCount) {
-    lastUndoActionCount = count;
-    return;
-  }
-
-  // Quiet since the last check, so anything after this is a separate move.
-  if (count > 0) {
-    undo.beginNewTransaction();
-    lastUndoActionCount = 0;
-  }
-}
-
 void OvertoniumEditor::stepHistory(bool redo) {
   auto &undo = plugin().undo();
-
-  // Whatever is still open has to be closed first, or the most recent move is
-  // not yet a step of its own and undo would reach straight past it.
-  undo.beginNewTransaction();
-  lastUndoActionCount = 0;
 
   if (redo)
     undo.redo();
@@ -794,6 +958,21 @@ bool OvertoniumEditor::keyPressed(const juce::KeyPress &key) {
 
   stepHistory(key.getModifiers().isShiftDown());
   return true;
+}
+
+void OvertoniumEditor::syncSharedModulators() {
+  // Read back rather than written when it is set, for the same reason the
+  // preset name is: the switch is in a menu and a preset can throw it without
+  // anyone touching that menu. Through the cached atomics rather than the
+  // parameter map, which wants a string per lookup, and the gutter drops the
+  // call when nothing moved, so an ordinary tick costs two atomic loads.
+  const auto &cache = plugin().parameters();
+
+  const auto on = [](const std::atomic<float> *p) {
+    return p != nullptr && p->load() > 0.5f;
+  };
+
+  gutter.setSharedModulators(on(cache.pmInPhase), on(cache.amInPhase));
 }
 
 void OvertoniumEditor::timerCallback() {
@@ -867,8 +1046,6 @@ void OvertoniumEditor::timerCallback() {
   if ((tick % 8) != 0)
     return;
 
-  closeUndoTransactionWhenIdle();
-
   // Read through the cached atomics rather than the parameter map: the map
   // wants a string per lookup, and this runs several times a second.
   const auto &cache = plugin().parameters();
@@ -877,7 +1054,17 @@ void OvertoniumEditor::timerCallback() {
     return p != nullptr && p->load() > 0.5f;
   };
 
-  topBar.updateConverterReadouts(plugin().getSampleRate());
+  topBar.updatePanelReadouts(plugin().getSampleRate());
+
+  syncSharedModulators();
+
+  // A preset can now be loaded by something other than this menu: a program
+  // change arriving over MIDI. Nothing tells the window when that happens, so
+  // the button is compared against what is loaded rather than written to, and
+  // set only when the two have drifted apart, since setting it repaints.
+  if (const auto loaded = plugin().presetName();
+      loaded != topBar.getPresetName())
+    topBar.setPresetName(loaded);
 
   // Dim whatever a solo elsewhere is silencing, so the mixer shows what you can
   // hear. Solo spans the noise channel too, so it takes part in the dimming.

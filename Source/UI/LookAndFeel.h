@@ -18,6 +18,14 @@ public:
                         float sliderPos, float minSliderPos, float maxSliderPos,
                         juce::Slider::SliderStyle, juce::Slider &) override;
 
+  /// The face a button stands on, drawn engaged or not.
+  ///
+  /// Split out of drawButtonBackground, which reads the state off the button,
+  /// so that a button whose text carries its state can ask for the unengaged
+  /// face while being engaged. See GlowButton.
+  void drawButtonFace(juce::Graphics &, juce::Button &, bool engaged,
+                      const juce::Colour &fill, bool highlighted, bool down);
+
   void drawButtonBackground(juce::Graphics &, juce::Button &,
                             const juce::Colour &backgroundColour,
                             bool shouldDrawButtonAsHighlighted,
@@ -30,6 +38,20 @@ public:
   void drawComboBox(juce::Graphics &, int width, int height, bool isButtonDown,
                     int buttonX, int buttonY, int buttonW, int buttonH,
                     juce::ComboBox &) override;
+
+  /// The standalone's own title bar, which is JUCE's rather than the
+  /// platform's and would otherwise be the grey-green every unstyled JUCE app
+  /// wears, with a red cross and a yellow dash on it. Dressed to match the
+  /// panel underneath, so the window reads as one object.
+  ///
+  /// Only the standalone has one of these. In a host the window belongs to the
+  /// host and none of this is reached. See OvertoniumEditor.
+  void drawDocumentWindowTitleBar(juce::DocumentWindow &, juce::Graphics &,
+                                  int w, int h, int titleSpaceX,
+                                  int titleSpaceW, const juce::Image *icon,
+                                  bool drawTitleTextOnLeft) override;
+
+  juce::Button *createDocumentWindowButton(int buttonType) override;
 
   juce::Font getComboBoxFont(juce::ComboBox &) override;
   juce::Font getPopupMenuFont() override;
@@ -77,6 +99,31 @@ void paintColumnHighlight(juce::Graphics &, juce::Rectangle<int> strip);
 /// to go.
 void paintDisplayGround(juce::Graphics &, juce::Rectangle<float> area,
                         float corner, bool hovered);
+
+/// The lip of the opening a screen or a lamp is set into.
+///
+/// Around the thing rather than inside it. Every one of them is a few pixels
+/// across, so a border taken out of the picture would leave no picture, and
+/// each already stands in a margin of its own that nothing else is using.
+///
+/// Two fills and no stroking, which is what keeps it cheap enough for the
+/// lamps. The light comes from the top left, as it does everywhere else here,
+/// so the walls facing it are the bottom and the right, and those are the two
+/// that come up lit. Call it before drawing the face, which then covers
+/// everything but the lip.
+///
+/// @param opening  the face that will be drawn over it.
+/// @param corner  that face's own corner radius. Half the height gives a
+/// round hole, which is what a lamp sits in.
+/// @param depth  how far the lip stands out, in pixels. One is enough to read
+/// and is all the tighter margins have.
+///
+/// Both shapes run under the opening as well as around it, so the face has to
+/// cover its own ground. One drawn at low alpha would show the shadow through
+/// itself: see the lamps, which blend against their backdrop rather than
+/// asking this for a floor to sit on.
+void paintRecess(juce::Graphics &, juce::Rectangle<float> opening, float corner,
+                 float depth = 1.0f);
 
 /// Strokes a path the way a phosphor screen shows one.
 ///

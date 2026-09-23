@@ -2,14 +2,22 @@
 //
 //   c++ -std=c++17 -O2 -I Source Tests/dsp_test.cpp Source/dsp/*.cpp -o
 //   dsp_test && ./dsp_test
+//
+// Every SynthEngine here is built on the heap and read through a reference, so
+// a test reads as though it held one. An engine is 200 kB, MSVC gives the main
+// thread a 1 MB stack where the other platforms give 8, and a test holding
+// three of them overflowed it. Windows was the only platform that noticed, and
+// it noticed as a segfault carrying no output at all.
 
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <memory>
 #include <string>
 #include <vector>
 
+#include "dsp/Character.h"
 #include "dsp/Drift.h"
 #include "dsp/Envelope.h"
 #include "dsp/Harmonics.h"
@@ -274,7 +282,8 @@ void testTracking() {
   // Rendered, which is the claim that matters: the same patch played two
   // octaves apart should thin out, and should not simply get quieter.
   const auto ratioAt = [&](int note, float slope) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(4);
 
@@ -336,7 +345,8 @@ void testStartPhase() {
   // fundamental of A1 needs 4.5 ms to reach its peak from a zero crossing, and
   // the shortest attack available is 0.5 ms.
   const auto onsetOf = [&](float startPhase) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(1);
 
@@ -396,7 +406,8 @@ void testStartPhase() {
   // With phase reset off the setting cannot do anything, since there is no
   // reset for it to aim.
   const auto freeRunning = [&](float startPhase) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(1);
 
@@ -595,6 +606,745 @@ void testSineTable() {
 }
 
 // -----------------------------------------------------------------------------
+// 3b. Oscillator character: the tables, and what they do to a rendered note.
+// -----------------------------------------------------------------------------
+void testCharacter() {
+  section("Oscillator character");
+
+  const auto &tables = CharacterTables::instance();
+
+  const auto level = [&tables](Character c, int n) {
+    const auto &h = tables.harmonics(c)[(size_t)(n - 1)];
+    return std::hypot((double)h.sine, (double)h.cosine);
+  };
+
+  // Pure and Bulb read the one table every partial was reading before any of
+  // this existed. Not a copy of it: the same object, so the character costs
+  // nothing at all until one is chosen that changes the waveform.
+  for (auto c : {Character::Pure, Character::Bulb})
+    check(&tables.table(c, 220.0, kMaxCharacterHarmonic) ==
+              &SineTable::instance(),
+          "a character with no harmonics reads the plain sine table");
+
+  check(&tables.table(Character::Rail, 220.0, 1) == &SineTable::instance(),
+        "and so does one with no room under Nyquist for a second harmonic");
+
+  // The fundamental is what the fader means, so every character has to deliver
+  // the same one. Otherwise choosing a character would be choosing a level.
+  for (int c = 0; c < (int)Character::NumCharacters; ++c)
+    check(std::abs(level((Character)c, 1) - 1.0) < 1.0e-4,
+          "character " + std::to_string(c) + " keeps the fundamental at unity");
+
+  // What each circuit is. A symmetrical limit can only make odd harmonics, and
+  // an asymmetrical shaper is the only way to get even ones, which is the
+  // whole difference between these two.
+  check(level(Character::Rail, 3) > 0.03 && level(Character::Rail, 3) < 0.15,
+        "the rail has a third harmonic, at " +
+            std::to_string(20.0 * std::log10(level(Character::Rail, 3))) +
+            " dB");
+
+  check(level(Character::Rail, 2) < 1.0e-4,
+        "and no second, since it clips both halves alike");
+
+  check(level(Character::Diode, 2) > 0.005,
+        "the diode pair has a second harmonic, at " +
+            std::to_string(20.0 * std::log10(level(Character::Diode, 2))) +
+            " dB");
+
+  // A valve is the one that is about the second harmonic rather than about
+  // the third, which is what makes it the one people call warm.
+  check(level(Character::Valve, 2) > level(Character::Valve, 3),
+        "Valve leads with its second harmonic (" +
+            std::to_string(20.0 * std::log10(level(Character::Valve, 2))) +
+            " dB against " +
+            std::to_string(20.0 * std::log10(level(Character::Valve, 3))) +
+            " dB for the third)");
+
+  check(level(Character::Valve, 2) > 0.03,
+        "and it is there to be heard rather than only measured");
+
+  // ---- the one that is not a fixed shape -----------------------------------
+  //
+  // Slewing depends on how fast the wave is moving, so the same character has
+  // to be a different waveform at different pitches. Below the corner the
+  // amplifier is never asked for more than it has.
+  check(slewBandFor(kSlewCornerHz * 0.5) < 0,
+        "a partial below the slew corner is not limited at all");
+
+  check(&tables.table(Character::Opamp, kSlewCornerHz * 0.5,
+                      kMaxCharacterHarmonic) == &SineTable::instance(),
+        "so it reads the plain sine");
+
+  check(slewBandFor(kSlewCornerHz * 10.0) == (int)kSlewRatios.size() - 1,
+        "and one far above it reads the last band, since past there a "
+        "triangle is a triangle");
+
+  // What a rate limit does to a wave: it takes the top off the slopes and
+  // leaves the slopes, which is a triangle, and a triangle has odd harmonics
+  // and no even ones.
+  const auto &hard =
+      tables.harmonics(Character::Opamp, (int)kSlewRatios.size() - 1);
+
+  const auto hardLevel = [&hard](int n) {
+    return std::hypot((double)hard[(size_t)(n - 1)].sine,
+                      (double)hard[(size_t)(n - 1)].cosine);
+  };
+
+  check(hardLevel(3) > 0.05,
+        "a heavily slewed partial has a third harmonic, at " +
+            std::to_string(20.0 * std::log10(hardLevel(3))) + " dB");
+
+  check(hardLevel(2) < 0.01, "and next to no second, which is what a wave "
+                             "with both halves alike sounds like");
+
+  // Each band harder than the one below it, which is what makes this a
+  // family rather than an on and off switch.
+  double previous = 0.0;
+  bool climbing = true;
+
+  for (int band = 0; band < (int)kSlewRatios.size(); ++band) {
+    const auto &h = tables.harmonics(Character::Opamp, band);
+    const auto third = std::hypot((double)h[2].sine, (double)h[2].cosine);
+
+    climbing &= third >= previous - 1.0e-6;
+    previous = third;
+  }
+
+  check(climbing, "and the higher a partial climbs the harder it is limited");
+
+  // Every table, at every band, has to come back with no offset and no more
+  // headroom taken than the sine it replaces. 512 oscillators each carrying a
+  // small DC step is a level shift nobody asked for, and each carrying an
+  // overshoot is a clipper going off early.
+  for (int c = 0; c < (int)Character::NumCharacters; ++c) {
+    // Every shape a character has, which for the rate-limited one means every
+    // band
+    // of frequency it behaves differently in. Asked for by a frequency inside
+    // each band rather than by an index, which is how the voice asks.
+    std::vector<double> pitches{220.0};
+
+    if ((Character)c == Character::Opamp)
+      for (auto ratio : kSlewRatios)
+        pitches.push_back(kSlewCornerHz * ratio * 1.01);
+
+    for (double pitch : pitches)
+      for (int highest = 1; highest <= kMaxCharacterHarmonic; ++highest) {
+        const auto &w = tables.table((Character)c, pitch, highest);
+
+        double dc = 0.0, peak = 0.0;
+        for (int i = 0; i < 4096; ++i) {
+          const double v = (double)w.at((double)i / 4096.0);
+          dc += v;
+          peak = std::max(peak, std::abs(v));
+        }
+
+        dc /= 4096.0;
+
+        check(std::abs(dc) < 1.0e-4, "character " + std::to_string(c) +
+                                         " band " + std::to_string(highest) +
+                                         " carries no DC");
+
+        // A shape is normalised by its fundamental rather than by its peak, so
+        // that choosing a character is not choosing a level. Everything here
+        // peaks a little above a sine for that reason, and a triangle, which is
+        // what a heavily slewed wave becomes, peaks at pi squared over eight.
+        check(peak < 1.25, "character " + std::to_string(c) + " band " +
+                               std::to_string(highest) + " peaks at " +
+                               std::to_string(peak));
+      }
+  }
+
+  // The bands are what keeps the harmonics under Nyquist, so each one has to
+  // actually stop where it says it does.
+  //
+  // Measured with a plain correlation over exactly one turn rather than with
+  // binMagnitude, whose window is there for a rendered note and would spread
+  // each harmonic into its neighbours here.
+  const auto harmonicOf = [](const Wave &w, int n) {
+    constexpr int kPoints = 4096;
+    double re = 0.0, im = 0.0;
+
+    for (int i = 0; i < kPoints; ++i) {
+      const double turns = (double)i / (double)kPoints;
+      const double v = (double)w.at(turns);
+
+      re += v * std::cos(6.283185307179586 * (double)n * turns);
+      im += v * std::sin(6.283185307179586 * (double)n * turns);
+    }
+
+    return 2.0 * std::hypot(re, im) / (double)kPoints;
+  };
+
+  for (int highest = 2; highest < kMaxCharacterHarmonic; ++highest) {
+    const auto &w = tables.table(Character::Diode, 220.0, highest);
+
+    check(harmonicOf(w, highest) > 1.0e-3,
+          "the band stopping at " + std::to_string(highest) + " has one");
+
+    check(harmonicOf(w, highest + 1) < 1.0e-5, "the band stopping at " +
+                                                   std::to_string(highest) +
+                                                   " has nothing above it");
+  }
+
+  check(highestHarmonicUnder(1000.0, 48000.0) == 23,
+        "a partial at a kilohertz has room for its 23rd harmonic");
+  check(highestHarmonicUnder(20000.0, 48000.0) == 1,
+        "one near the top has room for none");
+
+  // ---- and now through the engine ------------------------------------------
+  constexpr double sr = 48000.0;
+  constexpr int N = 24000;
+
+  const auto renderOnePartial = [sr, N](Character c, int note, double volume) {
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+    engine.setPolyphony(1);
+
+    auto p = makeFlatParams(0.0f);
+    p.osc[0].volume = (float)volume;
+    p.osc[0].tuneBlend = 1.0f;
+    p.osc[0].decay = 8.0f;
+    p.global.character = c;
+
+    std::vector<float> l((size_t)N), r((size_t)N);
+    engine.noteOn(note, 1.0f, p);
+    engine.render(l.data(), r.data(), N, p);
+
+    return l;
+  };
+
+  // A3, one partial, nothing else sounding. Its third harmonic is at 660 Hz,
+  // where the plain sine has nothing at all.
+  const double f0 = 220.0;
+
+  const auto pure = renderOnePartial(Character::Pure, 57, 0.5);
+  const auto rail = renderOnePartial(Character::Rail, 57, 0.5);
+
+  const double pureThird = binMagnitude(pure, f0 * 3.0, sr);
+  const double railThird = binMagnitude(rail, f0 * 3.0, sr);
+
+  check(binMagnitude(rail, f0, sr) > 0.5 * binMagnitude(pure, f0, sr),
+        "a character does not cost the partial its own level");
+
+  check(railThird > 20.0 * std::max(1.0e-9, pureThird),
+        "the rail puts a third harmonic where a sine has none (" +
+            std::to_string(20.0 *
+                           std::log10(railThird / binMagnitude(rail, f0, sr))) +
+            " dB below the fundamental)");
+
+  // Slewing through the engine, which is where the frequency comes from. A
+  // low partial is untouched and a high one is not, on the same character and
+  // the same patch.
+  const auto lowLimited = renderOnePartial(Character::Opamp, 45, 0.5); // A2
+  const auto lowPure = renderOnePartial(Character::Pure, 45, 0.5);
+  const auto highLimited = renderOnePartial(Character::Opamp, 93, 0.5); // A6
+
+  const auto thirdOf = [sr](const std::vector<float> &x, double f) {
+    return binMagnitude(x, f * 3.0, sr) / binMagnitude(x, f, sr);
+  };
+
+  check(thirdOf(lowLimited, 110.0) < 2.0 * thirdOf(lowPure, 110.0) + 1.0e-6,
+        "a partial under the corner is as clean slewed as it is pure");
+
+  check(thirdOf(highLimited, 1760.0) > 0.02,
+        "one above it has a third harmonic on it (" +
+            std::to_string(20.0 * std::log10(thirdOf(highLimited, 1760.0))) +
+            " dB below its own fundamental)");
+
+  // The point of the bands. A partial this high has no room for a second
+  // harmonic, so it has to come back as clean as the sine does rather than
+  // folding one back down into the middle of the spectrum.
+  const auto highPure = renderOnePartial(Character::Pure, 117, 0.5);
+  const auto highDiode = renderOnePartial(Character::Diode, 117, 0.5);
+
+  double worstAlias = 0.0, worstClean = 0.0;
+  for (double f = 200.0; f < 9000.0; f += 200.0) {
+    worstClean = std::max(worstClean, binMagnitude(highPure, f, sr));
+    worstAlias = std::max(worstAlias, binMagnitude(highDiode, f, sr));
+  }
+
+  check(worstAlias < 1.0e-3 && worstAlias < 10.0 * worstClean + 1.0e-6,
+        "a partial with no room for harmonics folds nothing back down (worst " +
+            std::to_string(worstAlias) + " against " +
+            std::to_string(worstClean) + ")");
+
+  // ---- the lamp ------------------------------------------------------------
+  //
+  // Bulb adds no harmonics at all, so the only thing to measure is what it
+  // does to the level, and the only thing that makes it do anything is the
+  // pitch moving. How much level movement comes out of a held note, in dB
+  // between the quietest and loudest the partial gets once the attack is over.
+  const auto swingDb = [sr](Character c, float pmCents, float bendSemitones) {
+    SynthParams p;
+
+    for (auto &o : p.osc) {
+      o.volume = 0.0f;
+      o.velAmount = 0.0f;
+      o.attack = 0.005f;
+      o.decay = 20.0f;
+      o.sustain = 1.0f;
+      o.audible = true;
+    }
+
+    p.osc[0].volume = 0.7f;
+    p.osc[0].pmDepthCents = pmCents;
+    p.osc[0].pmRateHz = 5.0f;
+    p.global.masterGain = 1.0f;
+    p.global.safetyClip = false;
+    p.global.character = c;
+
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+    engine.setPolyphony(1);
+    engine.noteOn(57, 1.0f, p);
+
+    const int total = (int)(sr * 6.0);
+    std::vector<float> l((size_t)total), r((size_t)total);
+
+    // In blocks, so a bend can arrive part way through the note rather than
+    // being there from the start, which is the gesture this answers to.
+    constexpr int chunk = 256;
+    for (int n = 0; n < total; n += chunk) {
+      if (bendSemitones != 0.0f)
+        p.global.bendSemitones = n > total / 2 ? bendSemitones : 0.0f;
+
+      engine.render(l.data() + n, r.data() + n, std::min(chunk, total - n), p);
+    }
+
+    // Peak per 20 ms, over everything after the attack.
+    const int win = (int)(sr * 0.02);
+    double lo = 1.0e9, hi = 0.0;
+
+    for (int n = (int)(sr * 2.0); n + win < total; n += win) {
+      double peak = 0.0;
+      for (int i = 0; i < win; ++i)
+        peak = std::max(peak, (double)std::abs(l[(size_t)(n + i)]));
+
+      if (peak > 1.0e-6) {
+        lo = std::min(lo, peak);
+        hi = std::max(hi, peak);
+      }
+    }
+
+    return 20.0 * std::log10(hi / std::max(1.0e-9, lo));
+  };
+
+  // ---- crossing from one table to the next ---------------------------------
+  //
+  // A partial whose pitch wanders across one of the lines the tables are
+  // divided by reads a different table on the far side of it, and two tables
+  // hold different numbers at the same phase. Swapped at the edge of a block
+  // that is a step in the wave, which is a click, and a vibrato sitting on
+  // such a line crosses it twice a cycle.
+  //
+  // Measured as the largest step from one sample to the next, against the same
+  // note played on the plain sine, where the only steps are the waveform's
+  // own.
+  const auto worstStep = [sr](Character c, double centreHz, float pmCents) {
+    SynthParams p;
+
+    for (auto &o : p.osc) {
+      o.volume = 0.0f;
+      o.velAmount = 0.0f;
+      o.attack = 0.005f;
+      o.decay = 20.0f;
+      o.sustain = 1.0f;
+      o.audible = true;
+    }
+
+    p.osc[0].volume = 0.7f;
+    p.osc[0].pmDepthCents = pmCents;
+    p.osc[0].pmRateHz = 5.0f;
+    p.global.masterGain = 1.0f;
+    p.global.safetyClip = false;
+    p.global.character = c;
+
+    // The note whose fundamental sits on the line, so the vibrato spends the
+    // whole of its time crossing and recrossing it.
+    const int note =
+        (int)std::lround(69.0 + 12.0 * std::log2(centreHz / 440.0));
+
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+    engine.setPolyphony(1);
+    engine.noteOn(note, 1.0f, p);
+
+    const int total = (int)(sr * 3.0);
+    std::vector<float> l((size_t)total), r((size_t)total);
+    engine.render(l.data(), r.data(), total, p);
+
+    float worst = 0.0f;
+    for (int n = (int)(sr * 0.5) + 1; n < total; ++n)
+      worst = std::max(worst, std::abs(l[(size_t)n] - l[(size_t)n - 1]));
+
+    return worst;
+  };
+
+  {
+    // Right on the first slew line, with a vibrato wide enough to sit across
+    // it. This is the case that clicked.
+    const double line = kSlewCornerHz * kSlewRatios.front();
+
+    const float limited = worstStep(Character::Opamp, line, 60.0f);
+    const float pure = worstStep(Character::Pure, line, 60.0f);
+
+    std::printf("  worst sample step across a slew line: %.5f limited, %.5f "
+                "pure\n",
+                limited, pure);
+
+    // A slewed wave is a harder shape than a sine and could legitimately step
+    // more between samples, so this is not asking for parity, only for nothing
+    // the ear would hear as a click on top of the waveform's own slope.
+    // Swapping the table rather than cross-fading it reads 0.145 here against
+    // the sine's 0.083, which is the click that was reported.
+    check(limited < pure * 1.25f + 1.0e-4f,
+          "crossing a slew line does not put a step in the wave");
+  }
+
+  {
+    // The other kind of line, and the one every character has: where a
+    // harmonic passes Nyquist and the table gives that harmonic up. A partial
+    // sitting there swaps tables for the same reason, though it is the gentler
+    // of the two crossings by construction, since the harmonic being given up
+    // is the quietest one the recipe has. Held to the same bound anyway, so
+    // that a recipe with more in its top harmonic cannot quietly start
+    // clicking here.
+    const double line = 0.49 * sr / (double)kMaxCharacterHarmonic;
+
+    const float rail = worstStep(Character::Rail, line, 60.0f);
+    const float pure = worstStep(Character::Pure, line, 60.0f);
+
+    std::printf("  worst sample step across a Nyquist line: %.5f rail, "
+                "%.5f pure\n",
+                rail, pure);
+
+    check(rail < pure * 1.25f + 1.0e-4f,
+          "and neither does crossing the line where a harmonic runs out of "
+          "room");
+  }
+
+  const double still = swingDb(Character::Bulb, 0.0f, 0.0f);
+  const double vibrato = swingDb(Character::Bulb, 25.0f, 0.0f);
+  const double bent = swingDb(Character::Bulb, 0.0f, 2.0f);
+
+  std::printf("  bulb: %.2f dB held still, %.2f dB under a 25 ct vibrato, "
+              "%.2f dB across a two-semitone bend\n",
+              still, vibrato, bent);
+
+  check(still < 0.01, "a held note with nothing moving is left alone, which "
+                      "is what the circuit does");
+
+  check(swingDb(Character::Pure, 25.0f, 0.0f) < 0.01,
+        "and Pure is left alone whatever the pitch does");
+
+  // The numbers that make it a character rather than a detail nobody can
+  // hear. They are calibrated to the movements this instrument makes, which
+  // are cents rather than the decade a bench oscillator is swept across.
+  check(vibrato > 2.0, "a vibrato is heard in the level as well as the pitch");
+  check(bent > 1.0, "and so is a bend");
+  check(vibrato < 8.0 && bent < 8.0,
+        "without turning into a tremolo nobody asked for");
+}
+
+// -----------------------------------------------------------------------------
+// 3b. Thirty-two units built to one spec are not thirty-two identical units.
+// -----------------------------------------------------------------------------
+/// No two units distort by quite the same amount either.
+///
+/// Three drives per character rather than a figure per channel, because the
+/// drive is baked into a table: one per channel would be thirty-two tables per
+/// character and a note reading thirty-two of them per sample.
+void testDriveVariants() {
+  section("Three drives per character");
+
+  const auto &tables = CharacterTables::instance();
+
+  const auto level = [&tables](Character c, int n, int drive) {
+    const auto &h = tables.harmonics(c, 0, drive)[(size_t)(n - 1)];
+    return std::hypot((double)h.sine, (double)h.cosine);
+  };
+
+  check(kDriveVariants.size() == 3, "there are three of them");
+
+  check(exactly(kDriveVariants[(size_t)kNominalDrive], 1.0),
+        "and the middle one is the drive every figure written down describes");
+
+  // Each character's own imperfection, taken at the three drives. Which
+  // harmonic carries it differs, so each is asked about its own.
+  const struct {
+    Character c;
+    int harmonic;
+  } carries[] = {{Character::Rail, 3},
+                 {Character::Diode, 2},
+                 {Character::Valve, 2},
+                 {Character::Opamp, 3}};
+
+  for (const auto &probe : carries) {
+    const auto soft = level(probe.c, probe.harmonic, 0);
+    const auto nominal = level(probe.c, probe.harmonic, 1);
+    const auto hard = level(probe.c, probe.harmonic, 2);
+
+    std::printf("  %-7s harmonic %d: %.1f, %.1f and %.1f dB\n",
+                characterName(probe.c), probe.harmonic,
+                20.0 * std::log10(std::max(1.0e-9, soft)),
+                20.0 * std::log10(std::max(1.0e-9, nominal)),
+                20.0 * std::log10(std::max(1.0e-9, hard)));
+
+    check(soft < nominal && nominal < hard,
+          std::string(characterName(probe.c)) +
+              " distorts more the harder it is driven");
+
+    // Enough apart to be a rack of units rather than three copies, and not so
+    // far apart that a channel reads as a different character.
+    check(hard / std::max(1.0e-9, soft) > 1.10 &&
+              hard / std::max(1.0e-9, soft) < 2.5,
+          std::string(characterName(probe.c)) +
+              " spreads them by a sensible amount (" +
+              std::to_string(hard / std::max(1.0e-9, soft)) + " across)");
+
+    // The fundamental is normalised per variant, so a drive changes what the
+    // partial sounds like and not how loud it is.
+    for (int drive = 0; drive < 3; ++drive)
+      check(std::abs(level(probe.c, 1, drive) - 1.0) < 1.0e-4,
+            std::string(characterName(probe.c)) +
+                " keeps the fundamental at unity at drive " +
+                std::to_string(drive));
+  }
+
+  // ---- and that the tables are indexed by it -------------------------------
+  //
+  // Reading the wrong table is the whole risk here, and it would sound like a
+  // character rather than like a fault.
+  for (const auto &probe : carries) {
+    const Wave *seen[3] = {};
+
+    for (int drive = 0; drive < 3; ++drive)
+      // Above the slew corner, or the rate-limited one is a plain sine at
+      // every drive and the comparison says nothing.
+      seen[drive] =
+          &tables.table(probe.c, 2000.0, kMaxCharacterHarmonic, drive);
+
+    check(seen[0] != seen[1] && seen[1] != seen[2] && seen[0] != seen[2],
+          std::string(characterName(probe.c)) +
+              " reads a different table for each drive");
+  }
+
+  // The bands still work inside a drive: a partial with less room under
+  // Nyquist reads a shorter table, at whichever drive it was built to.
+  for (int drive = 0; drive < 3; ++drive)
+    check(&tables.table(Character::Rail, 220.0, 5, drive) !=
+              &tables.table(Character::Rail, 220.0, 3, drive),
+          "and a partial with less room under Nyquist still reads a shorter "
+          "one at drive " +
+              std::to_string(drive));
+
+  // ---- which unit got which ------------------------------------------------
+  const auto &rack = UnitSpread::instance().rack(Character::Valve);
+
+  check(rack.drive[0] == kNominalDrive,
+        "the unit the rest were tuned against is on the nominal drive");
+
+  std::array<int, 3> counts{};
+
+  for (int i = 0; i < kNumHarmonics; ++i)
+    counts[(size_t)std::clamp(rack.drive[(size_t)i], 0, 2)] += 1;
+
+  std::printf("  the rack draws %d, %d and %d of the three\n", counts[0],
+              counts[1], counts[2]);
+
+  check(counts[0] > 3 && counts[1] > 3 && counts[2] > 3,
+        "and all three are used across the thirty-two");
+}
+
+void testUnitSpread() {
+  section("Unit tolerance");
+
+  const auto &spread = UnitSpread::instance();
+
+  const auto dbOf = [](float gain) {
+    return 20.0 * std::log10(std::max(1.0e-9, (double)gain));
+  };
+
+  // Pure is not a circuit, so there is no rack of them to be out of step. This
+  // is also the check that every patch written before any of this existed
+  // still plays exactly as it did, since all of them are Pure.
+  {
+    bool flat = true;
+
+    for (int i = 0; i < kNumHarmonics; ++i) {
+      const auto &rack = spread.rack(Character::Pure);
+
+      flat &= rack.cents[(size_t)i] == 0.0f && rack.gain[(size_t)i] == 1.0f;
+    }
+
+    check(flat, "a rack of Pure oscillators has no spread in it at all");
+  }
+
+  for (int c = 1; c < (int)Character::NumCharacters; ++c) {
+    const auto which = (Character)c;
+    const auto &rack = spread.rack(which);
+    const auto tolerance = unitToleranceFor(which);
+    const std::string name = characterName(which);
+
+    // The first unit is the one the other thirty-one were tuned against.
+    // Without this a note would land off the key that asked for it and a patch
+    // would change level when the character changed, which is not unit
+    // tolerance but the whole rack being out.
+    check(rack.cents[0] == 0.0f && rack.gain[0] == 1.0f,
+          name + " leaves the unit the rest were tuned against alone");
+
+    double widestCents = 0.0, widestDb = 0.0, meanCents = 0.0;
+
+    for (int i = 1; i < kNumHarmonics; ++i) {
+      widestCents =
+          std::max(widestCents, std::abs((double)rack.cents[(size_t)i]));
+      widestDb = std::max(widestDb, std::abs(dbOf(rack.gain[(size_t)i])));
+      meanCents += std::abs((double)rack.cents[(size_t)i]);
+    }
+
+    meanCents /= (double)(kNumHarmonics - 1);
+
+    std::printf("  %-9s %.2f ct and %.2f dB at the widest, %.2f ct on "
+                "average\n",
+                name.c_str(), widestCents, widestDb, meanCents);
+
+    check(widestCents <= (double)tolerance.cents + 1.0e-4 &&
+              widestDb <= (double)tolerance.decibels + 1.0e-4,
+          name + " holds to the tolerance it claims");
+
+    // A spread rather than a huddle. Uniform over the tolerance puts the mean
+    // at half of it, so these bounds are wide enough for a draw and narrow
+    // enough to catch one that collapsed.
+    check(widestCents > 0.7 * (double)tolerance.cents,
+          name + " uses the range it is given");
+
+    check(meanCents > 0.25 * (double)tolerance.cents &&
+              meanCents < 0.75 * (double)tolerance.cents,
+          name + " is spread across it rather than sitting at the ends");
+  }
+
+  // Two characters are two racks. A character that reused the same draw would
+  // sound like the same detuning wearing a different waveform.
+  {
+    int same = 0;
+
+    for (int i = 0; i < kNumHarmonics; ++i)
+      same += spread.rack(Character::Valve).cents[(size_t)i] ==
+                      spread.rack(Character::Rail).cents[(size_t)i]
+                  ? 1
+                  : 0;
+
+    check(same <= 1, "two characters are two different racks");
+  }
+
+  // ---- and now through the engine ------------------------------------------
+  constexpr double sr = 48000.0;
+  constexpr int N = 24000;
+
+  /// Where a rendered partial actually came out, in cents from where it was
+  /// asked for.
+  ///
+  /// By how far its phase has slipped against a reference at the nominal
+  /// frequency, over a known distance. That resolves a fraction of a cent on
+  /// half a second of audio, where counting zero crossings over the same
+  /// buffer resolves about two, which is a third of what is being measured.
+  const auto centsOff = [sr](const std::vector<float> &x, double nominalHz) {
+    constexpr double kTwoPi = 6.283185307179586;
+    constexpr size_t window = 4096;
+
+    // Close enough that nothing this wide can slip a whole turn between the
+    // two: half a turn over this gap is 11.7 Hz, and the widest tolerance here
+    // is under 4 Hz at the pitches it is measured at.
+    constexpr size_t gap = 2048;
+    constexpr size_t first = 4800; // after the attack
+
+    const double w = kTwoPi * nominalHz / sr;
+
+    const auto phaseAt = [&](size_t from) {
+      double re = 0.0, im = 0.0;
+
+      for (size_t n = 0; n < window; ++n) {
+        const double win =
+            0.5 * (1.0 - std::cos(kTwoPi * (double)n / (double)window));
+        const double t = (double)(from + n);
+
+        re += win * (double)x[from + n] * std::cos(w * t);
+        im -= win * (double)x[from + n] * std::sin(w * t);
+      }
+
+      return std::atan2(im, re);
+    };
+
+    double slipped = phaseAt(first + gap) - phaseAt(first);
+
+    while (slipped > 3.141592653589793)
+      slipped -= kTwoPi;
+    while (slipped < -3.141592653589793)
+      slipped += kTwoPi;
+
+    const double hz = slipped * sr / (kTwoPi * (double)gap);
+
+    return 1200.0 * std::log2((nominalHz + hz) / nominalHz);
+  };
+
+  // One partial of one note, everything else silent, so what comes out is one
+  // unit of the rack and nothing else.
+  const auto renderUnit = [sr, N](Character c, int partial) {
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+    engine.setPolyphony(1);
+
+    auto p = makeFlatParams(0.0f);
+    p.osc[(size_t)partial].volume = 0.5f;
+    p.osc[(size_t)partial].tuneBlend = 1.0f; // exact multiples to measure from
+    p.osc[(size_t)partial].decay = 8.0f;
+    p.global.character = c;
+
+    std::vector<float> l((size_t)N), r((size_t)N);
+    engine.noteOn(45, 1.0f, p); // A2, so a few cents is a few hertz at worst
+    engine.render(l.data(), r.data(), N, p);
+
+    return l;
+  };
+
+  const auto &valve = spread.rack(Character::Valve);
+
+  for (int partial : {0, 3, 8, 19, 31}) {
+    const double nominal = 110.0 * (double)(partial + 1);
+    const double wanted = (double)valve.cents[(size_t)partial];
+
+    const auto pure = renderUnit(Character::Pure, partial);
+    const auto shifted = renderUnit(Character::Valve, partial);
+
+    const double measured = centsOff(shifted, nominal);
+
+    check(std::abs(centsOff(pure, nominal)) < 0.05,
+          "partial " + std::to_string(partial + 1) +
+              " is exactly where it was asked for when no circuit is chosen (" +
+              std::to_string(centsOff(pure, nominal)) + " ct)");
+
+    check(std::abs(measured - wanted) < 0.2,
+          "and is out by its own unit's " + std::to_string(wanted) +
+              " ct under Valve (measured " + std::to_string(measured) + ")");
+
+    // At the frequency it actually came out at rather than the one it was
+    // asked for, since the two are no longer the same thing.
+    const double level =
+        binMagnitude(shifted, nominal * std::exp2(wanted / 1200.0), sr);
+    const double reference = binMagnitude(pure, nominal, sr);
+
+    check(std::abs(20.0 * std::log10(level / reference) -
+                   dbOf(valve.gain[(size_t)partial])) < 0.05,
+          "and comes out at its own unit's " +
+              std::to_string(dbOf(valve.gain[(size_t)partial])) + " dB");
+  }
+}
+
+// -----------------------------------------------------------------------------
 // 4. A rendered note must be finite, audible and correctly tuned.
 // -----------------------------------------------------------------------------
 void testRenderedSpectrum() {
@@ -603,7 +1353,8 @@ void testRenderedSpectrum() {
   constexpr double sr = 48000.0;
   constexpr int N = 24000;
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
   engine.setPolyphony(8);
 
@@ -658,7 +1409,8 @@ void testAliasing() {
   constexpr double sr = 44100.0;
   constexpr int N = 22050;
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
 
   auto p = makeFlatParams(0.02f);
@@ -800,7 +1552,8 @@ void testEnvelopeAndMuteSolo() {
   constexpr double sr = 48000.0;
   constexpr int N = 4800;
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
 
   auto p = makeFlatParams(0.05f);
@@ -831,7 +1584,8 @@ void testNoClickOnMute() {
   constexpr double sr = 48000.0;
   constexpr int N = 2048;
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
 
   auto p = makeFlatParams(0.03f);
@@ -895,7 +1649,8 @@ void testLegato() {
   p.global.masterGain = 1.0f;
   p.global.safetyClip = false;
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
   engine.setPolyphony(1);
   engine.setLegato(true);
@@ -1008,7 +1763,8 @@ void testLegato() {
                                          " of the sustain)");
 
   // ---- and it is monophonic ------------------------------------------------
-  SynthEngine mono;
+  const auto monoOwner = std::make_unique<SynthEngine>();
+  auto &mono = *monoOwner;
   mono.prepare(sr);
   mono.setPolyphony(1);
   mono.setLegato(true);
@@ -1024,7 +1780,8 @@ void testLegato() {
             std::to_string(mono.getActiveVoiceCount()) + ")");
 
   // ---- switched off, the same keys behave as they always did ---------------
-  SynthEngine poly;
+  const auto polyOwner = std::make_unique<SynthEngine>();
+  auto &poly = *polyOwner;
   poly.prepare(sr);
   poly.setPolyphony(8);
   poly.setLegato(false);
@@ -1054,7 +1811,8 @@ void testOneVoicePerKey() {
   p.global.masterGain = 1.0f;
   p.global.safetyClip = false;
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
   engine.setPolyphony(8);
 
@@ -1136,7 +1894,8 @@ void testOneVoicePerKey() {
   // put a step in the output the size of the whole note, which is what a
   // repeated key under the pedal sounded like.
   {
-    SynthEngine pedal;
+    const auto pedalOwner = std::make_unique<SynthEngine>();
+    auto &pedal = *pedalOwner;
     pedal.prepare(sr);
     pedal.setPolyphony(8);
 
@@ -1181,7 +1940,8 @@ void testOneVoicePerKey() {
   }
 
   // Different keys still stack, which is the whole point of polyphony.
-  SynthEngine chord;
+  const auto chordOwner = std::make_unique<SynthEngine>();
+  auto &chord = *chordOwner;
   chord.prepare(sr);
   chord.setPolyphony(8);
 
@@ -1201,7 +1961,8 @@ void testOneVoicePerKey() {
   // could fill the pool on its own. Past that the allocator has nothing free
   // and takes the oldest voice outright, with no fade and no regard for
   // whether a key is still down on it.
-  SynthEngine pool;
+  const auto poolOwner = std::make_unique<SynthEngine>();
+  auto &pool = *poolOwner;
   pool.prepare(sr);
   pool.setPolyphony(8);
 
@@ -1242,7 +2003,8 @@ void testOneVoicePerKey() {
   auto stacking = p;
   stacking.global.oneVoicePerKey = false;
 
-  SynthEngine loose;
+  const auto looseOwner = std::make_unique<SynthEngine>();
+  auto &loose = *looseOwner;
   loose.prepare(sr);
   loose.setPolyphony(8);
 
@@ -1308,7 +2070,8 @@ void testActivity() {
   p.global.masterGain = 1.0f;
   p.global.safetyClip = false;
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
   engine.setPolyphony(8);
 
@@ -1488,7 +2251,8 @@ void testPerNoteChannels() {
   p.global.masterGain = 1.0f;
   p.global.safetyClip = false;
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
   engine.setPolyphony(8);
 
@@ -1661,7 +2425,8 @@ void testPerNoteChannels() {
     pressed.global.masterGain = 1.0f;
     pressed.global.safetyClip = false;
 
-    SynthEngine e2;
+    const auto e2Owner = std::make_unique<SynthEngine>();
+    auto &e2 = *e2Owner;
     e2.prepare(sr);
     e2.setPolyphony(8);
 
@@ -1720,7 +2485,8 @@ void testPoolExhaustion() {
   p.global.masterGain = 1.0f;
   p.global.safetyClip = false;
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
   engine.setPolyphony(SynthEngine::kMaxPolyphony);
 
@@ -1789,7 +2555,8 @@ void testPoolExhaustion() {
   q.global.masterGain = 1.0f;
   q.global.safetyClip = false;
 
-  SynthEngine keeper;
+  const auto keeperOwner = std::make_unique<SynthEngine>();
+  auto &keeper = *keeperOwner;
   keeper.prepare(sr);
   keeper.setPolyphony(SynthEngine::kMaxPolyphony);
 
@@ -1836,7 +2603,8 @@ void testVoiceAllocation() {
   constexpr double sr = 48000.0;
   constexpr int N = 256;
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
   engine.setPolyphony(4);
 
@@ -1905,7 +2673,8 @@ void testPerPartialVelocity() {
   constexpr int N = 24000;
 
   auto measure = [&](float velocity) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
 
     auto p = makeFlatParams(0.0f);
@@ -1943,7 +2712,8 @@ void testPerPartialVelocity() {
   check(softRatio < 0.5 * hardRatio, "the spectral balance shifts with touch");
 
   // A uniform setting must still behave like a plain velocity control.
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
   auto p = makeFlatParams(0.02f);
   for (auto &o : p.osc)
@@ -1957,7 +2727,8 @@ void testPerPartialVelocity() {
   for (int n = 0; n < N; ++n)
     peakHalf = std::max(peakHalf, std::abs(l[(size_t)n]));
 
-  SynthEngine full;
+  const auto fullOwner = std::make_unique<SynthEngine>();
+  auto &full = *fullOwner;
   full.prepare(sr);
   full.noteOn(57, 1.0f, p);
   std::vector<float> l2((size_t)N), r2((size_t)N);
@@ -1972,7 +2743,8 @@ void testPerPartialVelocity() {
 
   // --- the inverted half --------------------------------------------------
   auto atVelocity = [&](float amount, float velocity) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
 
     auto p = makeFlatParams(0.0f);
@@ -2009,7 +2781,8 @@ void testPerPartialVelocity() {
   // The point of the feature: opposite signs crossfade two sets of partials.
   {
     auto balance = [&](float velocity) {
-      SynthEngine engine;
+      const auto engineOwner = std::make_unique<SynthEngine>();
+      auto &engine = *engineOwner;
       engine.prepare(sr);
 
       auto p = makeFlatParams(0.0f);
@@ -2053,7 +2826,8 @@ void testPanning() {
 
   /// Renders with a pan position per partial, taken from fn(index).
   const auto render = [&](auto &&fn, bool rollOff) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
 
     auto p = makeFlatParams(0.02f);
@@ -2249,7 +3023,8 @@ void testAftertouch() {
 
   auto level = [&](float atAmount, float volume, float pressure, float velocity,
                    bool poly) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
 
     auto p = build(atAmount, volume);
@@ -2296,7 +3071,8 @@ void testAftertouch() {
 
   // Seven-bit pressure arriving at MIDI rate must not step the gain.
   {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
 
     auto p = build(1.0f, 0.0f);
@@ -2408,7 +3184,8 @@ void testDrift() {
   constexpr int N = 48000;
 
   auto renderOne = [&](float driftCents, int note) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
 
     auto p = makeFlatParams(0.0f);
@@ -2449,7 +3226,8 @@ void testDrift() {
   // Two notes on the same engine must not receive the same contour. This has to
   // share one engine: a fresh one is reseeded and would legitimately repeat.
   {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
 
     auto p = makeFlatParams(0.0f);
@@ -2490,7 +3268,8 @@ void testPartialMetering() {
   constexpr double sr = 48000.0;
   constexpr int block = 512;
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
 
   auto p = makeFlatParams(0.0f);
@@ -2544,7 +3323,8 @@ void testPartialMetering() {
   // The master meter has to report the finished output, after master gain and
   // the clipper, so it says what actually leaves the plugin.
   {
-    SynthEngine out;
+    const auto outOwner = std::make_unique<SynthEngine>();
+    auto &out = *outOwner;
     out.prepare(sr);
 
     auto q = makeFlatParams(0.05f);
@@ -2591,7 +3371,8 @@ void testPartialMetering() {
     q.osc[3].volume = 0.5f; // a partial placed off centre
     q.osc[3].pan = 0.9f;
 
-    SynthEngine wide;
+    const auto wideOwner = std::make_unique<SynthEngine>();
+    auto &wide = *wideOwner;
     wide.prepare(sr);
     wide.noteOn(45, 1.0f, q);
     for (int b = 0; b < 20; ++b)
@@ -2612,7 +3393,8 @@ void testEnvelopeDelay() {
   constexpr double sr = 48000.0;
   constexpr int block = 4800; // 100 ms
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
 
   auto p = makeFlatParams(0.0f);
@@ -3028,7 +3810,8 @@ void testStrikeVelocity() {
   // A linear attack passes half at half the attack time, so this is the attack
   // the envelope actually ran, to within the cycle the sine is on.
   const auto riseTimeFor = [&](float amount, float velocity) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(4);
 
@@ -3102,7 +3885,8 @@ void testStrikeVelocity() {
   // When the partial first makes a sound at all, which for a delayed note is
   // the moment the delay runs out rather than anything about the attack.
   const auto onsetFor = [&](float amount, float velocity) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(4);
 
@@ -3161,7 +3945,8 @@ void testKeyOffAfterSilentDecay() {
 
   constexpr double sr = 48000.0;
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
   engine.setPolyphony(8);
 
@@ -3224,7 +4009,8 @@ void testNoiseChannel() {
   constexpr int N = 24000;
 
   auto render = [&](float volume, float colour, float velocity = 1.0f) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
 
     auto p = makeFlatParams(0.0f);
@@ -3299,7 +4085,8 @@ void testNoiseChannel() {
 
   // It answers to velocity like a strip.
   {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
 
     auto p = makeFlatParams(0.0f);
@@ -3323,7 +4110,8 @@ void testNoiseChannel() {
 
   // Muting it silences it, and the meter agrees.
   {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
 
     auto p = makeFlatParams(0.0f);
@@ -3355,7 +4143,8 @@ void testNoiseChannel() {
 
   // Two voices must not layer the identical noise.
   {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
 
     auto p = makeFlatParams(0.0f);
@@ -3510,7 +4299,8 @@ void testEveryAmpShapeIsClickFree() {
   float aboveFader = 0.0f;
 
   for (int s = 0; s < kNumLfoShapes; ++s) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(8);
 
@@ -3574,7 +4364,8 @@ void testModulation() {
   constexpr double sr = 48000.0;
   constexpr int N = 48000;
 
-  SynthEngine engine;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
   engine.prepare(sr);
 
   auto p = makeFlatParams(0.0f);
@@ -3597,7 +4388,8 @@ void testModulation() {
   p2.osc[0].pmRateHz = 5.0f;
   p2.osc[0].pmDepthCents = 100.0f;
 
-  SynthEngine engine2;
+  const auto engine2Owner = std::make_unique<SynthEngine>();
+  auto &engine2 = *engine2Owner;
   engine2.prepare(sr);
   engine2.noteOn(57, 1.0f, p2);
   std::vector<float> l2((size_t)N), r2((size_t)N);
@@ -3611,6 +4403,161 @@ void testModulation() {
   for (int n = 0; n < N; ++n)
     finite &= std::isfinite(l2[(size_t)n]);
   check(finite, "modulated output is finite");
+}
+
+/// A modulator the whole keyboard shares, rather than one per note.
+///
+/// The thing to prove is that a note arriving late joins what is already
+/// running instead of starting its own, and the cleanest way to see that is to
+/// let the shared modulator run through silence for a known part of a turn and
+/// then play one note. On, the note opens wherever the circuit had got to. Off,
+/// it opens at the start of its own.
+///
+/// A quarter turn, because that is where the two answers are furthest apart: a
+/// sine reads nothing at the start of its turn and everything a quarter in.
+void testModulatorsInPhase() {
+  section("Modulators in phase across the keyboard");
+
+  constexpr double sr = 48000.0;
+  constexpr double rate = 2.0;
+  constexpr int quarter = (int)(sr / rate / 4.0); // a quarter of a turn
+
+  {
+    SynthParams fresh;
+    check(!fresh.global.pitchModInPhase && !fresh.global.ampModInPhase,
+          "both switches start off, so nothing written before them moves");
+  }
+
+  // ---- the vibrato ---------------------------------------------------------
+  const auto openingFrequency = [sr, rate, quarter](bool inPhase) {
+    auto p = makeFlatParams(0.0f);
+
+    p.osc[0].volume = 0.8f;
+    p.osc[0].tuneBlend = 1.0f;
+    p.osc[0].decay = 30.0f;
+    p.osc[0].sustain = 1.0f;
+    p.osc[0].attack = 0.001f;
+    p.osc[0].pmRateHz = (float)rate;
+    p.osc[0].pmDepthCents = 400.0f; // wide, so counting crossings can see it
+    p.osc[0].pmShape = LfoShape::Sine;
+    p.global.pitchModInPhase = inPhase;
+    p.global.safetyClip = false;
+
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+    engine.setPolyphony(4);
+
+    const int total = quarter * 2;
+    std::vector<float> l((size_t)total), r((size_t)total);
+
+    // Silence first, which the shared modulator runs through and a note's own
+    // has no way of knowing about.
+    engine.render(l.data(), r.data(), quarter, p);
+
+    engine.noteOn(57, 1.0f, p); // A3, 220 Hz
+    engine.render(l.data() + quarter, r.data() + quarter, quarter, p);
+
+    // Over the first fiftieth of a second of the note. The modulator moves
+    // during it, which is why what follows asks which end of the travel the
+    // note opened at rather than for a figure.
+    int crossings = 0;
+    size_t first = 0, last = 0;
+    const size_t from = (size_t)quarter;
+    const size_t to = from + (size_t)(sr * 0.02);
+
+    for (size_t n = from + 1; n < to; ++n) {
+      if (l[n - 1] > 0.0f || l[n] <= 0.0f)
+        continue;
+
+      if (crossings++ == 0)
+        first = n;
+
+      last = n;
+    }
+
+    return crossings < 2
+               ? 0.0
+               : (double)(crossings - 1) * sr / (double)(last - first);
+  };
+
+  const auto own = openingFrequency(false);
+  const auto shared = openingFrequency(true);
+
+  // 400 cents up from 220 Hz is 277 Hz, and the modulator is a quarter turn in
+  // when the note arrives, which is the top of its travel.
+  const auto wanted = 220.0 * std::pow(2.0, 400.0 / 1200.0);
+
+  std::printf("  the note opens at %.1f Hz with its own vibrato and %.1f Hz "
+              "on the keyboard's, against %.1f nominal and %.1f a full turn "
+              "up\n",
+              own, shared, 220.0, wanted);
+
+  check(own < 220.0 + (wanted - 220.0) * 0.35,
+        "a note carrying its own vibrato opens near the pitch it was asked "
+        "for, since its own modulator starts where every modulator starts");
+
+  check(shared > wanted - (wanted - 220.0) * 0.25,
+        "and one joining the keyboard's opens near the top of the travel, "
+        "which is where the keyboard's had got to");
+
+  // ---- the tremolo ---------------------------------------------------------
+  //
+  // The same experiment on the level. The amplitude reads its shape a quarter
+  // turn ahead, so a note with its own modulator opens at full level and one
+  // joining a modulator already a quarter turn in opens at the middle of the
+  // travel. See kAmpShapeOffset.
+  const auto openingLevel = [sr, rate, quarter](bool inPhase) {
+    auto p = makeFlatParams(0.0f);
+
+    p.osc[0].volume = 0.8f;
+    p.osc[0].tuneBlend = 1.0f;
+    p.osc[0].decay = 30.0f;
+    p.osc[0].sustain = 1.0f;
+    p.osc[0].attack = 0.001f;
+    p.osc[0].amRateHz = (float)rate;
+    p.osc[0].amDepth = 1.0f;
+    p.osc[0].amShape = LfoShape::Sine;
+    p.global.ampModInPhase = inPhase;
+    p.global.safetyClip = false;
+
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+    engine.setPolyphony(4);
+
+    const int total = quarter * 2;
+    std::vector<float> l((size_t)total), r((size_t)total);
+
+    engine.render(l.data(), r.data(), quarter, p);
+
+    engine.noteOn(57, 1.0f, p);
+    engine.render(l.data() + quarter, r.data() + quarter, quarter, p);
+
+    // Peak over the first fiftieth of a second, past the attack and before the
+    // modulator has moved anywhere.
+    double peak = 0.0;
+    for (size_t n = (size_t)quarter + (size_t)(sr * 0.005);
+         n < (size_t)quarter + (size_t)(sr * 0.02); ++n)
+      peak = std::max(peak, (double)std::abs(l[n]));
+
+    return peak;
+  };
+
+  const auto ownLevel = openingLevel(false);
+  const auto sharedLevel = openingLevel(true);
+
+  std::printf("  and at %.3f with its own tremolo against %.3f on the "
+              "keyboard's\n",
+              ownLevel, sharedLevel);
+
+  check(ownLevel > 0.1,
+        "a note carrying its own tremolo opens at the top of the travel");
+
+  check(sharedLevel < ownLevel * 0.7,
+        "and one joining the keyboard's opens partway down it (" +
+            std::to_string(sharedLevel / std::max(1.0e-9, ownLevel)) +
+            " of it)");
 }
 
 // -----------------------------------------------------------------------------
@@ -4452,7 +5399,8 @@ void benchmark() {
   constexpr double secs = 10.0;
 
   for (int poly : {1, 8, 16}) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(poly);
 
@@ -4499,7 +5447,8 @@ void benchmark() {
   // What the master effects cost on top, measured against the same patch with
   // them switched off rather than guessed at.
   for (int withEffects = 0; withEffects < 2; ++withEffects) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(8);
 
@@ -4532,6 +5481,95 @@ void benchmark() {
     std::printf("   8 voices, effects %s: %.2f%% of one core\n",
                 withEffects ? "on " : "off", 100.0 * elapsed / secs);
   }
+
+  // What a character costs, which is the question it was designed around. The
+  // inner loop reads a different table and is otherwise the same instructions,
+  // so anything here beyond the noise of the machine would mean the tables are
+  // fighting over the cache rather than that the oscillator got dearer.
+  double pureLoad = 0.0;
+
+  for (int c = 0; c < (int)Character::NumCharacters; ++c) {
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+    engine.setPolyphony(8);
+
+    auto p = makeFlatParams(0.02f);
+    for (auto &o : p.osc) {
+      o.sustain = 1.0f;
+      o.pmDepthCents = 5.0f; // the pitch moving is what the lamp answers to
+      o.driftCents = 8.0f;
+    }
+
+    p.global.character = (Character)c;
+
+    for (int v = 0; v < 8; ++v)
+      engine.noteOn(48 + v, 1.0f, p);
+
+    std::vector<float> l((size_t)block), r((size_t)block);
+    const int blocks = (int)(secs * sr / block);
+
+    const auto t0 = std::chrono::steady_clock::now();
+    for (int i = 0; i < blocks; ++i)
+      engine.render(l.data(), r.data(), block, p);
+    const auto t1 = std::chrono::steady_clock::now();
+
+    const double load =
+        100.0 * std::chrono::duration<double>(t1 - t0).count() / secs;
+
+    if (c == 0)
+      pureLoad = load;
+
+    std::printf("   8 voices, %-8s: %.2f%% of one core  (%+.0f%% against "
+                "Pure)\n",
+                characterName((Character)c), load,
+                100.0 * (load / std::max(0.001, pureLoad) - 1.0));
+  }
+
+  // What a modulator the whole keyboard shares costs. Thirty-three of them are
+  // stepped per control block whatever the polyphony is, and every voice then
+  // reads rather than stepping its own, so the more notes are down the better
+  // the trade should be. Eight is what the instrument defaults to.
+  double perNote = 0.0;
+
+  for (int shared = 0; shared < 2; ++shared) {
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+    engine.setPolyphony(8);
+
+    auto p = makeFlatParams(0.02f);
+    for (auto &o : p.osc) {
+      o.sustain = 1.0f;
+      o.pmDepthCents = 5.0f;
+      o.amDepth = 0.3f;
+    }
+
+    p.global.pitchModInPhase = shared != 0;
+    p.global.ampModInPhase = shared != 0;
+
+    for (int v = 0; v < 8; ++v)
+      engine.noteOn(48 + v, 1.0f, p);
+
+    std::vector<float> l((size_t)block), r((size_t)block);
+    const int blocks = (int)(secs * sr / block);
+
+    const auto t0 = std::chrono::steady_clock::now();
+    for (int i = 0; i < blocks; ++i)
+      engine.render(l.data(), r.data(), block, p);
+    const auto t1 = std::chrono::steady_clock::now();
+
+    const double load =
+        100.0 * std::chrono::duration<double>(t1 - t0).count() / secs;
+
+    if (shared == 0)
+      perNote = load;
+
+    std::printf("   8 voices, modulators %-8s: %.2f%% of one core  (%+.0f%% "
+                "against one per note)\n",
+                shared ? "shared" : "per note", load,
+                100.0 * (load / std::max(0.001, perNote) - 1.0));
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -4549,7 +5587,8 @@ void testLofi() {
   // finds out on Windows.
   const auto renderNote = [sr](const SynthParams &p, int samples,
                                std::vector<float> &l, std::vector<float> &r) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(8);
 
@@ -4754,7 +5793,8 @@ void benchmarkLofi() {
   double fullRate = 0.0;
 
   for (int hz : {0, 22050, 11025, 8000}) {
-    SynthEngine engine;
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(8);
 
@@ -4797,6 +5837,13 @@ void benchmarkLofi() {
 }
 
 int main() {
+  // Unbuffered, so a crash leaves behind everything printed up to it. ctest
+  // captures the output through a pipe, which buffers it by default, and a
+  // suite that dies with its last few sections still in that buffer says only
+  // that it died. Not _IOLBF: the Windows CRT treats line buffering as full
+  // buffering, and Windows is where the crash that cost a round trip was.
+  std::setvbuf(stdout, nullptr, _IONBF, 0);
+
   testTuningTable();
   testTemperaments();
   testBlendEndpoints();
@@ -4804,6 +5851,9 @@ int main() {
   testStartPhase();
   testTracking();
   testSineTable();
+  testCharacter();
+  testDriveVariants();
+  testUnitSpread();
   testRenderedSpectrum();
   testAliasing();
   testEnvelopeAndMuteSolo();
@@ -4817,6 +5867,7 @@ int main() {
   testLfoShapes();
   testEveryAmpShapeIsClickFree();
   testModulation();
+  testModulatorsInPhase();
   testPerPartialVelocity();
   testPanning();
   testAftertouch();

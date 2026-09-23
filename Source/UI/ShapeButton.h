@@ -48,10 +48,30 @@ public:
   /// Reported to a screen reader, since a glyph has no text of its own.
   juce::String currentName() const;
 
+  /// Whether this modulator is one circuit the whole keyboard hears.
+  ///
+  /// A global switch shown in a per-channel menu, which is where it belongs:
+  /// the menu is the modulator's own, and every channel's answer is the same
+  /// one. See GlobalParams::ampModInPhase.
+  bool inPhase() const;
+
+  /// The menu the glyph opens, as data.
+  ///
+  /// Built here rather than inside the click so a test can walk it. Showing a
+  /// menu needs a real window, which is exactly what the headless build has
+  /// not got, and the entries are the part worth checking anyway.
+  juce::PopupMenu buildMenu() const;
+
 private:
   void applyToEveryChannel(int index);
 
   juce::AudioProcessorValueTreeState &apvts;
+  void setInPhase(bool);
+
+  /// Which of the two switches this button's modulator answers to, picked off
+  /// the suffix it already carries for setting every channel at once.
+  const char *inPhaseId() const;
+
   juce::String id;
   const char *sharedSuffix;
   juce::Span<const LfoShape> offered;

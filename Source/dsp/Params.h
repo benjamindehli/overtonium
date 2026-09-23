@@ -2,6 +2,7 @@
 
 #include <array>
 
+#include "Character.h"
 #include "Harmonics.h"
 #include "Lfo.h"
 #include "Temperament.h"
@@ -130,6 +131,11 @@ struct GlobalParams {
   /// trackingGain.
   float trackDbPerOctave = 0.0f;
 
+  /// Which oscillator every partial is. One choice for all 32, because an
+  /// instrument is built out of one circuit repeated rather than out of a
+  /// different one per channel. See Character.h.
+  Character character = Character::Pure;
+
   /// Where a note's MPE slide goes. Stored as the raw choice so the voice can
   /// branch on it without the DSP core knowing what a parameter is.
   SlideDestination slideDest = SlideDestination::Brightness;
@@ -143,6 +149,20 @@ struct GlobalParams {
   /// is already using, rather than starting a second one beside it. See
   /// SynthEngine::noteOnImpl.
   bool oneVoicePerKey = true;
+
+  /// Whether a channel's modulator is one circuit the whole keyboard hears
+  /// rather than one per note.
+  ///
+  /// Off, every note carries its own, so two keys struck a moment apart are a
+  /// moment apart in their vibrato for as long as they sound, which is what a
+  /// digital instrument does. On, the phase belongs to the channel and a note
+  /// joins whatever is already running, which is what an instrument with one
+  /// tremolo circuit in it does: a chord breathes as one thing.
+  ///
+  /// Two switches because the two modulators are two circuits. See
+  /// SynthEngine::advanceSharedModulators.
+  bool pitchModInPhase = false;
+  bool ampModInPhase = false;
 };
 
 /// The tape echo, which sits across the whole instrument rather than on any one

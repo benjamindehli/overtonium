@@ -10,7 +10,7 @@ The control worth reaching for first is TUNE. It sweeps each partial continuousl
 
 - **Formats:** VST3, AU (macOS), Standalone, LV2 (Linux)
 - **Platforms:** macOS (universal), Windows, Linux
-- **Framework:** JUCE 8
+- **Framework:** JUCE 9
 - **Licence:** AGPLv3. See [Licensing](#licensing)
 - **Page:** [benjamindehli.github.io/overtonium](https://benjamindehli.github.io/overtonium/), built from `docs/`
 - **Listed at:** [KVR Audio](https://www.kvraudio.com/product/overtonium-by-dehli-musikk)
@@ -42,8 +42,8 @@ Every channel is a strip, and every strip carries the same twenty-three controls
 The [project page](https://benjamindehli.github.io/overtonium/) is the place to start, and it has a page each for the parts worth reading about:
 
 - **[Tuning](https://benjamindehli.github.io/overtonium/tuning/)**: TUNE from equal to just, inharmonic stretch, six historical temperaments on any root, keyboard tracking and per-partial drift
-- **[Controls](https://benjamindehli.github.io/overtonium/controls/)**: every knob on a channel strip and on the bar above it, the two-part envelope, LINK for ganging the series, the lamps and meters, the noise channel and MPE
-- **[Presets](https://benjamindehli.github.io/overtonium/presets/)**: the thirty-one that ship, what a preset carries and deliberately does not, and where your own are kept
+- **[Controls](https://benjamindehli.github.io/overtonium/controls/)**: every knob on a channel strip and on the bar above it, the oscillator character, the two-part envelope, LINK for ganging the series, the lamps and meters, the noise channel and MPE
+- **[Presets](https://benjamindehli.github.io/overtonium/presets/)**: the thirty-one that ship, what a preset carries and deliberately does not, switching them with a MIDI program change, and where your own are kept
 - **[Install](https://benjamindehli.github.io/overtonium/install/)**: which download to take, what to do when a host cannot see the plugin, and building from source
 
 [DESIGN.md](DESIGN.md) is the same ground at length, and keeps the reasoning: what each part does, what the alternatives cost, and the measurements behind the numbers.
@@ -75,7 +75,7 @@ The release workflow rewrites `docs/latest.json` as part of publishing, so the f
 
 Overtonium is released under the [AGPLv3](LICENSE).
 
-That follows from what it is built on. The JUCE 8 framework modules are dual-licensed under the AGPLv3 or a paid commercial licence, and a plugin is a single combined work with them, so the combination has to be conveyed under terms the AGPL allows. Taking the AGPL for this project too is the simplest way to be exactly what it says it is. The network clause the AGPL is known for, section 13, only applies to software users interact with remotely over a network, which an audio plugin is not, so in practice it reads as the GPL does.
+That follows from what it is built on. The JUCE framework modules are dual-licensed under the AGPLv3 or a paid commercial licence, and a plugin is a single combined work with them, so the combination has to be conveyed under terms the AGPL allows. Taking the AGPL for this project too is the simplest way to be exactly what it says it is. The network clause the AGPL is known for, section 13, only applies to software users interact with remotely over a network, which an audio plugin is not, so in practice it reads as the GPL does.
 
 If you want to build on this and ship something closed-source, that needs a commercial JUCE licence from the JUCE side and a separate arrangement on this side, since the AGPL does not permit it.
 

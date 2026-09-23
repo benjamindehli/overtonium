@@ -6,7 +6,7 @@
         <title>Overtonium controls: every knob on a channel and on the bar</title>
         <meta
             name="description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 781 parameters are named for a host, and the wobble, tape echo, reverb and converter on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 784 parameters are named for a host, and the wobble, tape echo, reverb and converter on the bar."
         />
         <link rel="canonical" href="https://benjamindehli.github.io/overtonium/controls/" />
         <meta name="theme-color" content="#0b0d10" />
@@ -17,7 +17,7 @@
         <meta property="og:title" content="Overtonium controls: every knob on a channel and on the bar" />
         <meta
             property="og:description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 781 parameters are named for a host, and the wobble, tape echo, reverb and converter on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 784 parameters are named for a host, and the wobble, tape echo, reverb and converter on the bar."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-controls.jpg" />
         <meta property="og:image:width" content="1200" />
@@ -28,7 +28,7 @@
         <meta name="twitter:title" content="Overtonium controls: every knob on a channel and on the bar" />
         <meta
             name="twitter:description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 781 parameters are named for a host, and the wobble, tape echo, reverb and converter on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 784 parameters are named for a host, and the wobble, tape echo, reverb and converter on the bar."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-controls.jpg" />
 
@@ -117,7 +117,8 @@
                                     <td>equal to just</td>
                                     <td>
                                         Where this partial sits between the tempered position and the exact ratio. The readout shows the resulting
-                                        cent offset
+                                        cent offset. On the six octave channels both tunings agree, so there is nothing for it to move and the strip
+                                        says so
                                     </td>
                                 </tr>
                                 <tr>
@@ -251,6 +252,26 @@
                         LINK does not reach these. It drags a value across the series along a weighted curve and there is no weighting a list of named
                         shapes, so the shape menu offers to set every channel at once instead.
                     </p>
+
+                    <p>
+                        <strong>In phase across the keyboard</strong> is the other entry in that menu, one for each of the two modulators. A modulator
+                        belongs to a note by default, so striking a chord a note at a time gives you three tremolos that each started where their own
+                        key did and breathe out of step. Ticked, the modulator belongs to the channel instead and a note arriving late joins whatever
+                        is already running, so a chord breathes as one thing however it was played. That is what an instrument with one tremolo
+                        circuit in it does, which is why <a href="../presets/">Wurli</a> ships with its tremolo shared and StyloPoly with its vibrato.
+                    </p>
+
+                    <p>
+                        Each channel keeps its own rate and shape either way. What is shared is one circuit per channel rather than one for the
+                        instrument, so a patch built on thirty-two rates that never line up still sounds like itself with the switch on. It is part of
+                        the patch, so a preset carries it, and both switches are off in anything that does not ask.
+                    </p>
+
+                    <p>
+                        The group's heading in the gutter lights when its modulator is shared, so the state is on the panel rather than only in the
+                        menu: <strong>PITCH MOD</strong> or <strong>AMP MOD</strong> comes up in the same accent everything else switched on here
+                        does. One mark per modulator, since all thirty-three channels answer to the one switch.
+                    </p>
                 </section>
 
                 <section>
@@ -338,11 +359,11 @@
                     <h2>Ganging the channels</h2>
 
                     <p>
-                        <strong>LINK</strong> in the top bar gangs the strips: dragging any knob moves the same knob on the others. It works
-                        relatively, applying an offset to wherever each strip already sits rather than dragging everything to one shared value, so a
-                        spectrum you have shaped by hand keeps its shape. The offset is always measured from the values captured when the drag
-                        started, so returning the knob to where you began restores the strips exactly, even if some of them hit an end stop along the
-                        way.
+                        <strong>LINK</strong> stands at the top of the caption column on the left, over the names it gangs, and is the one control
+                        that is not on the top bar. It gangs the strips: dragging any knob moves the same knob on the others. It works relatively,
+                        applying an offset to wherever each strip already sits rather than dragging everything to one shared value, so a spectrum you
+                        have shaped by hand keeps its shape. The offset is always measured from the values captured when the drag started, so
+                        returning the knob to where you began restores the strips exactly, even if some of them hit an end stop along the way.
                     </p>
 
                     <p>
@@ -715,8 +736,17 @@
                                     <td>Zoom</td>
                                     <td>75, 100, 125 or 150%</td>
                                     <td>
-                                        How big the window is on your screen. Last in the menu and on its own, since everything above it is the
-                                        instrument and this is not
+                                        How big the window is on your screen. Down here with the entry under it, since everything above the two is the
+                                        instrument and these are not
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Fit all 32 channels</td>
+                                    <td></td>
+                                    <td>
+                                        Puts the window back to the width that shows the whole mixer, and to whatever height the rows you have left
+                                        unfolded need. A window remembers what it was dragged to, so a narrow one opens narrow every session after
+                                        that, and this is the way back
                                     </td>
                                 </tr>
                             </tbody>
@@ -735,7 +765,7 @@
                     <h2>Automating it from the host</h2>
 
                     <p>
-                        Seven hundred and eighty-one parameters reach the host: twenty-seven global ones, twenty-three on each of the 32 partials, and
+                        Seven hundred and eighty-four parameters reach the host: thirty global ones, twenty-three on each of the 32 partials, and
                         eighteen on the noise channel. They are listed in the order the panel reads, the globals first and then channel by channel
                         with the noise channel last.
                     </p>
@@ -884,11 +914,64 @@
                         <img
                             loading="lazy"
                             src="../overtonium-bar.webp"
-                            alt="The top bar: preset and settings buttons, LINK, the stretch, track and wobble controls, the tape echo, the reverb, the master fader and the output meter with two seven-segment converter readouts."
+                            alt="The top bar: preset and settings buttons, the oscillator character, the stretch, track and wobble controls, the tape echo, the reverb, the master fader and the output meter with two seven-segment converter readouts reading kilohertz and bits."
                             width="1348"
                             height="66"
                         />
                     </figure>
+
+                    <h3>Character</h3>
+                    <p>
+                        Which oscillator every partial is, at the head of the group that says what the series is. All six are sine oscillators, and
+                        what differs is the way each circuit fails to make one. <strong>Pure</strong> is the sine nothing built out of parts produces,
+                        and is what every partial was before this existed. <strong>Bulb</strong> is a Wien bridge held steady by a lamp: no added
+                        harmonics at all, but a level that lags half a second behind every move of the pitch. It answers gestures rather than sitting
+                        there. A vibrato is heard in the level as well as in the pitch, a bend dips and then recovers as the lamp catches up, and a
+                        held note with nothing moving sounds exactly like Pure, which is what a circuit whose whole job is holding the level steady
+                        does. <strong>Rail</strong> is a phase-shift oscillator grown into its own supply rail, which hardens the tone with a third
+                        harmonic and no even ones. <strong>Diode</strong> is a triangle bent into a sine by two of them that do not match, which puts
+                        a kink in one half of the wave and a second, third and fourth harmonic on top of it. <strong>Valve</strong> is a triode biased
+                        so that one half of the wave leans over before the other, which is the only one here whose loudest addition is an octave above
+                        the partial rather than a twelfth, and is the whole of what people mean by valve warmth.
+                    </p>
+
+                    <p>
+                        <strong>Op-amp</strong> is an amplifier that cannot move as fast as a fast note asks it to. It is the one that changes as you
+                        play: below a kilohertz nothing is being limited and the partials are untouched, and above it they lose first their corners
+                        and then everything but their slopes, which is a triangle. So the top of the series hardens as it climbs while the bottom of
+                        it stays where it was, and a chord played high is a different instrument from the same chord played low.
+                    </p>
+
+                    <p>
+                        Because this is an additive instrument, those harmonics land among the partials you are already mixing, at exact multiples of
+                        the partial that made them. The rack's own spread, below, has moved the real partials off those exact ratios, and TUNE and
+                        STRETCH move them further, so the two beat against each other rather than adding up, which is what makes a character sound
+                        like a circuit rather than like a tone control. The harmonics are dropped as a partial climbs, so nothing folds back down: a
+                        partial near the top of the range plays a plain sine whatever is chosen.
+                    </p>
+
+                    <p>
+                        Each character is also a rack of thirty-two rather than one oscillator used thirty-two times. Units built to the same spec do
+                        not come out the same, so every character except Pure puts each partial a couple of cents and a fraction of a decibel off what
+                        it was asked for, by an amount fixed for that character: the same rack every time you load the patch, in every host and on
+                        every machine. It is not DRIFT, which wanders. Partial 1 is the one the other thirty-one were tuned against and is left
+                        exactly where it is, so a note still lands on the key you played and choosing a character does not change how loud the patch
+                        is. It is what makes the beating above happen in a patch nobody has detuned, and it is the difference between a rack of
+                        thirty-two oscillators and one oscillator copied thirty-two times. No two of them distort by quite the same amount either:
+                        each unit's circuit is built to one of three drives, fifteen percent either side of the nominal.
+                    </p>
+
+                    <p>
+                        The button lights in the character's own colour, borrowed from the same band the channel strips take theirs from: yellow for
+                        Bulb, running down through the warm end to the red of channel 3 for Op-amp. Pure does not light, which is the honest thing for
+                        the one that adds nothing.
+                    </p>
+
+                    <p>
+                        It is part of the patch rather than part of the setup, so a preset can change it and saving one carries it. Twenty-five of the
+                        thirty-one <a href="../presets/">factory presets</a> ask for one, so most of what you load is already on a circuit rather than
+                        on the plain sine.
+                    </p>
 
                     <h3>Wobble</h3>
                     <p>
@@ -955,7 +1038,7 @@
                 <p>
                     Released under the
                     <a href="https://github.com/benjamindehli/overtonium/blob/main/LICENSE">GNU Affero General Public License v3</a>, which follows
-                    from JUCE. Built with <a href="https://juce.com/">JUCE 8</a>.
+                    from JUCE. Built with <a href="https://juce.com/">JUCE 9</a>.
                 </p>
             </footer>
         </div>

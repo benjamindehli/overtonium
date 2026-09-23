@@ -4,6 +4,7 @@
 
 #include <algorithm>
 
+#include "Character.h"
 #include "SineTable.h"
 
 namespace ovt {
@@ -23,13 +24,38 @@ constexpr double kNoiseTiltHz = 1000.0;
 /// figure the envelope itself calls the end of a release.
 constexpr float kSilent = 1.0e-5f;
 
-/// How far ahead the amplitude reads its shape, in turns.
+/// How long the Bulb character's filament takes to settle at a new pitch.
 ///
-/// A quarter, which is what turns Sine into the cosine the tremolo has always
-/// used: a note begins at full level and dips, rather than starting half
-/// attenuated. Every other shape takes the same quarter turn rather than each
-/// arguing for a starting point of its own.
-constexpr double kAmpShapeOffset = 0.25;
+/// A tungsten filament of the size used for this has a thermal time constant
+/// in the tens to hundreds of milliseconds, and the loop around it settles
+/// slower than the filament does, which is what makes the bounce famous
+/// enough to be the first thing anyone says about these oscillators. Half a
+/// second is long enough to hear the level walking behind a bend rather than
+/// moving with it.
+constexpr double kBulbSettleSeconds = 0.5;
+
+/// How far out of balance the lamp can get before it has nothing left to give,
+/// in semitones.
+///
+/// A quarter of one, which is deliberately far less than the physics of a
+/// Wien bridge would give you, and the reason is what moves the pitch here. A
+/// bench oscillator is swept by a knob across a decade, and its lamp answers a
+/// frequency that has doubled. This one is moved by vibrato, drift and a
+/// finger, which is to say by cents, and a model faithful to the bench does
+/// nothing at all at that scale: at a semitone of full scale, a 25 cent
+/// vibrato came to 0.8 dB and drift to a hundredth of one, which is a
+/// character nobody can hear. Scaled to the movements the instrument actually
+/// makes, the same model reads as the circuit it is named after.
+constexpr float kBulbFullScale = 0.25f;
+
+/// How much of the level it gives up once it is that far behind.
+///
+/// A quarter of it at the limit, which is a little over two decibels, and
+/// proportional below that. It has to stop
+/// somewhere: this is an instrument with 32 oscillators playing at once, and
+/// an amplitude movement that reads as character on one reads as a fault on
+/// all of them together.
+constexpr float kBulbDepth = 0.25f;
 
 /// What the tremolo leaves of the fader.
 ///
@@ -84,6 +110,7 @@ void Voice::reset() noexcept {
     pt.ampLfo.reset();
     pt.lastGain = 0.0f;
     pt.gainPrimed = false;
+    pt.lastWave = nullptr;
   }
 
   noise.env.reset();
@@ -168,6 +195,14 @@ void Voice::noteOn(int channel, int note, float velocity,
     const bool fresh = pt.env.getLevel() <= kSilent;
 
     pt.env.noteOn(fresh && p.global.phaseReset);
+
+    // The lamp reads the pitch of whatever note this partial is now playing.
+    // Left alone, a voice taken over by a note an octave away would open with
+    // the sag of a bend it never made. Only when the partial had stopped: one
+    // still ringing is a continuous tone, and a real oscillator handed a new
+    // frequency is exactly the case this character exists to show.
+    if (fresh)
+      pt.semisPrimed = false;
 
     // A fresh rate per partial per note. Reusing one rate would turn 32
     // independent wanders into a single detune.
@@ -262,11 +297,25 @@ void Voice::steal() noexcept {
 }
 
 void Voice::render(float *left, float *right, int numSamples,
-                   const SynthParams &p) noexcept {
+                   const SynthParams &p,
+                   const SharedModulation &shared) noexcept {
   if (!active || numSamples <= 0)
     return;
 
-  const auto &sine = SineTable::instance();
+  const auto &characters = CharacterTables::instance();
+
+  // Which thirty-two units this character's rack came out at. One lookup for
+  // the whole call: the spread is fixed, so it is the same rack for every
+  // block and every note. See UnitSpread.
+  const auto &unit = UnitSpread::instance().rack(p.global.character);
+
+  // One pole per control block rather than per sample, which is where every
+  // other slow thing in here is worked out.
+  const float bulbCoef =
+      sampleRate > 0.0
+          ? (float)(1.0 - std::exp(-(double)kControlBlock /
+                                   (kBulbSettleSeconds * sampleRate)))
+          : 1.0f;
 
   // Equal-power pan positions, one per partial.
   //
@@ -331,7 +380,11 @@ void Voice::render(float *left, float *right, int numSamples,
   // above 4 kHz, it wraps it back down, and so does this.
   const bool foldAliases = p.lofi.rateHz > 0.0;
 
-  for (int start = 0; start < numSamples; start += kControlBlock) {
+  // Which control block of this call we are on, for reading the modulators
+  // every voice shares. The engine filled them for exactly these blocks.
+  int block = 0;
+
+  for (int start = 0; start < numSamples; start += kControlBlock, ++block) {
     const int len = std::min(kControlBlock, numSamples - start);
 
     pressureSmoothed += (pressureTarget - pressureSmoothed) * pressureCoef;
@@ -361,19 +414,32 @@ void Voice::render(float *left, float *right, int numSamples,
       // changes what comes out and nothing about the timing: the square ones
       // land their edge on a block boundary, two thirds of a millisecond of
       // grid, which no ear finds on a modulator running at a few hertz.
-      const double pmCents =
-          op.pmDepthCents > 0.0f
-              ? (double)(pt.pitchLfo.value(op.pmShape) * op.pmDepthCents)
-              : 0.0;
+      //
+      // Off the channel's own modulator when the keyboard is sharing one,
+      // which the engine worked out for this very block before any voice ran.
+      // See SharedModulation.
+      const auto pmShapeValue =
+          shared.pitch != nullptr
+              ? shared.pitch[(size_t)(i * shared.stride + block)]
+              : pt.pitchLfo.value(op.pmShape);
+
+      const double pmCents = op.pmDepthCents > 0.0f
+                                 ? (double)(pmShapeValue * op.pmDepthCents)
+                                 : 0.0;
 
       // Advanced unconditionally so that turning the knob up mid-note joins the
       // wander already in progress instead of jumping.
       const double driftCents = (double)(pt.drift.advance(rng) * op.driftCents);
 
-      const double semis = semitoneOffset(i, (double)blendOf(p, i),
-                                          (double)p.global.stretchCents) +
-                           (pmCents + driftCents) * 0.01 +
-                           (double)(p.global.bendSemitones + noteBendSemitones);
+      // The unit's own tuning error goes in with the modulation rather than
+      // beside it, so everything downstream of this line sees the pitch the
+      // partial is actually at: the table the character reads, how hard a slew
+      // limit bites, and what the lamp is settling towards.
+      const double semis =
+          semitoneOffset(i, (double)blendOf(p, i),
+                         (double)p.global.stretchCents) +
+          (pmCents + driftCents + (double)unit.cents[(size_t)i]) * 0.01 +
+          (double)(p.global.bendSemitones + noteBendSemitones);
 
       const double freq = baseFreq * std::exp2(semis / 12.0);
 
@@ -392,15 +458,77 @@ void Voice::render(float *left, float *right, int numSamples,
       // a square edge survivable here. The level does not jump, it slides
       // across the block, which at 32 samples is a couple of thirds of a
       // millisecond and reads as an edge rather than as a click.
+      //
+      // Stepped here whether or not it is the modulator being read, so that a
+      // channel handed back its own picks up where this note would have been
+      // rather than from wherever it was left. The same reason the drift is
+      // advanced unconditionally above.
+      const auto ownStart = pt.ampLfo.value(op.amShape, kAmpShapeOffset);
+      const auto ownEnd = pt.ampLfo.advance(rng, amPhaseInc * (double)len,
+                                            op.amShape, kAmpShapeOffset);
+
+      const auto sharedAmp = shared.amp != nullptr;
+      const auto at = (size_t)(i * shared.stride + block);
+
       const float amStart =
-          tremoloGain(pt.ampLfo.value(op.amShape, kAmpShapeOffset), op.amDepth);
+          tremoloGain(sharedAmp ? shared.amp[at] : ownStart, op.amDepth);
 
       const float amEnd =
-          tremoloGain(pt.ampLfo.advance(rng, amPhaseInc * (double)len,
-                                        op.amShape, kAmpShapeOffset),
-                      op.amDepth);
+          tremoloGain(sharedAmp ? shared.amp[at + 1] : ownEnd, op.amDepth);
 
       const float nyq = foldAliases ? 1.0f : nyquistGain(freq, sampleRate);
+
+      // ---- which oscillator this is ----------------------------------------
+      //
+      // The character's harmonics are harmonics like any others and fold like
+      // any others, so the table is chosen by how much room this partial has
+      // left under Nyquist at the pitch it is at this moment. A partial low
+      // enough gets all of them, one near the top gets a plain sine, and the
+      // ones in between lose them from the top down. With the converter's rate
+      // turned down, folding is the sound being asked for and the full table
+      // is what folds.
+      //
+      // The frequency goes in as well as the room above it, because one
+      // character is a rate limit rather than a shape, and how hard that bites
+      // depends on how fast the wave is asking the amplifier to move.
+      const auto &wave =
+          characters.table(p.global.character, freq,
+                           foldAliases ? kMaxCharacterHarmonic
+                                       : highestHarmonicUnder(freq, sampleRate),
+                           unit.drive[(size_t)i]);
+
+      // ---- what the lamp has not caught up with ----------------------------
+      //
+      // A Wien bridge holds its level with a lamp. The filament's resistance
+      // follows how hard the loop is driving it, but only as fast as a
+      // filament can heat and cool, and the gain the loop needs changes with
+      // the frequency because no two ganged parts track each other exactly.
+      // Move the pitch and the level sags until the lamp has settled at the
+      // new one.
+      //
+      // One pole, chasing the pitch with the filament's own time constant.
+      // What is left over is the amplitude error the loop has not corrected
+      // yet. Here the pitch is moved constantly, by vibrato, drift, the wheel
+      // and a finger on an MPE key, so the lamp is never quite caught up and
+      // the level breathes behind everything the hand does.
+      float bulb = 1.0f;
+
+      if (p.global.character == Character::Bulb) {
+        if (!pt.semisPrimed) {
+          pt.bulbSettled = semis; // a note starts in balance, not sagging
+          pt.semisPrimed = true;
+        }
+
+        pt.bulbSettled += (semis - pt.bulbSettled) * bulbCoef;
+
+        // Clamped rather than curved: a filament runs out of range too, and a
+        // clamp is a compare where a soft limit is a divide, on something that
+        // runs 512 times per control block.
+        const float behind = std::clamp(
+            (float)(semis - pt.bulbSettled) / kBulbFullScale, -1.0f, 1.0f);
+
+        bulb = 1.0f - behind * kBulbDepth;
+      }
 
       // Aftertouch adds to the fader instead of scaling it, which is what lets
       // a strip sitting at zero be brought in by pressure alone. Velocity only
@@ -411,7 +539,14 @@ void Voice::render(float *left, float *right, int numSamples,
           std::clamp(op.volume * pt.velGain +
                          std::clamp(op.atAmount, -1.0f, 1.0f) * pressure,
                      0.0f, 1.0f);
-      const float base = op.audible ? level * nyq * track[(size_t)i] : 0.0f;
+      // The lamp joins the fader, the tracking and the Nyquist fade here, so
+      // it rides the same per-sample ramp they do and a level that is settling
+      // slides rather than steps from block to block. The unit's own level
+      // error joins them as a plain multiply, being a property of the
+      // oscillator rather than of anything the player is doing.
+      const float base = op.audible ? level * nyq * track[(size_t)i] * bulb *
+                                          unit.gain[(size_t)i]
+                                    : 0.0f;
       const float gEnd = base * amEnd;
 
       if (!pt.gainPrimed) {
@@ -465,6 +600,10 @@ void Voice::render(float *left, float *right, int numSamples,
           pt.env.tick();
 
         pt.phase = wrapPhase(pt.phase + inc * (double)len);
+
+        // Whatever it would have been reading, so that coming back audible
+        // does not cross-fade from a table it has not been heard on.
+        pt.lastWave = &wave;
         continue;
       }
 
@@ -475,23 +614,62 @@ void Voice::render(float *left, float *right, int numSamples,
       const float pl = panL[(size_t)i];
       const float pr = panR[(size_t)i];
 
-      for (int n = 0; n < len; ++n) {
-        const float s = sine(ph) * pt.env.tick() * g;
+      // Which table it was reading last block, and which it is reading now.
+      //
+      // They differ whenever a partial crosses one of the lines the tables are
+      // divided by: how much room is left under Nyquist for every character,
+      // and how hard the limit is biting for the rate-limited one. Two tables
+      // hold different numbers at the same phase, so swapping between them puts
+      // a step in the wave, and a step is a click. A vibrato sitting across one
+      // of those lines crosses it twice a cycle and clicks at twice the
+      // vibrato rate.
+      //
+      // So the block that changes tables is played as a cross-fade from one to
+      // the other, the same way the gain slides across a block rather than
+      // stepping at the edge of it. It costs a second table read for 32
+      // samples, on the rare block that crosses, and nothing at all on the
+      // ones that do not.
+      const Wave *const previous = pt.lastWave;
+      pt.lastWave = &wave;
 
-        l[n] += s * pl;
-        r[n] += s * pr;
+      if (previous == nullptr || previous == &wave) {
+        for (int n = 0; n < len; ++n) {
+          const float s = wave.at(ph) * pt.env.tick() * g;
 
-        ph += inc;
-        if (ph >= 1.0)
-          ph -= 1.0;
+          l[n] += s * pl;
+          r[n] += s * pr;
 
-        g += gInc;
+          ph += inc;
+          if (ph >= 1.0)
+            ph -= 1.0;
+
+          g += gInc;
+        }
+      } else {
+        float mix = 0.0f;
+        const float mixInc = 1.0f / (float)len;
+
+        for (int n = 0; n < len; ++n) {
+          const float was = previous->at(ph);
+          const float is = wave.at(ph);
+          const float s = (was + (is - was) * mix) * pt.env.tick() * g;
+
+          l[n] += s * pl;
+          r[n] += s * pr;
+
+          ph += inc;
+          if (ph >= 1.0)
+            ph -= 1.0;
+
+          g += gInc;
+          mix += mixInc;
+        }
       }
 
       pt.phase = ph;
     }
 
-    renderNoise(left + start, right + start, len, p, pressure);
+    renderNoise(left + start, right + start, len, p, pressure, shared, block);
   }
 
   active = noise.env.isActive() ||
@@ -505,7 +683,8 @@ void Voice::render(float *left, float *right, int numSamples,
 }
 
 void Voice::renderNoise(float *left, float *right, int len,
-                        const SynthParams &p, float pressure) noexcept {
+                        const SynthParams &p, float pressure,
+                        const SharedModulation &shared, int block) noexcept {
   const auto &np = p.noise;
 
   noise.env.configure(np.delay * noise.delayScale,
@@ -519,13 +698,19 @@ void Voice::renderNoise(float *left, float *right, int len,
 
   // The same two reads the partials take, for the same reason: the gain ramps
   // between them across the block.
-  const float amStart =
-      tremoloGain(noise.ampLfo.value(np.amShape, kAmpShapeOffset), np.amDepth);
+  // Off the shared modulator when the keyboard is sharing one, the same as
+  // every partial above. The noise channel's run sits after the 32 of them.
+  const auto ownStart = noise.ampLfo.value(np.amShape, kAmpShapeOffset);
+  const auto ownEnd = noise.ampLfo.advance(noise.rng, amPhaseInc * (double)len,
+                                           np.amShape, kAmpShapeOffset);
 
-  const float amEnd =
-      tremoloGain(noise.ampLfo.advance(noise.rng, amPhaseInc * (double)len,
-                                       np.amShape, kAmpShapeOffset),
-                  np.amDepth);
+  const auto at = (size_t)(kNumHarmonics * shared.stride + block);
+
+  const float amStart = tremoloGain(
+      shared.amp != nullptr ? shared.amp[at] : ownStart, np.amDepth);
+
+  const float amEnd = tremoloGain(
+      shared.amp != nullptr ? shared.amp[at + 1] : ownEnd, np.amDepth);
 
   const float level =
       std::clamp(np.volume * noise.velGain +

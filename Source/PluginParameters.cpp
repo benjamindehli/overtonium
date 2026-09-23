@@ -398,6 +398,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::NormalisableRange<float>(0.0f, 12.0f, 0.1f), 0.0f,
       FAttr().withStringFromValueFunction(trackText)));
 
+  layout.add(std::make_unique<juce::AudioParameterChoice>(
+      juce::ParameterID{characterId, 1}, "Character", characterChoices(),
+      (int)Character::Pure));
+
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{wobbleId, 1}, "Wobble",
       juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f,
@@ -700,6 +704,22 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::ParameterID{noiseParamId(volumeSuffix), 1}, "Noise Level",
       levelRange(), 0.0f, FAttr().withStringFromValueFunction(gainText)));
 
+  // ---- two switches over all of the above -----------------------------------
+  //
+  // Whether a channel's modulator is one circuit the whole keyboard hears or
+  // one per note. They belong with the modulators they govern rather than down
+  // here, and they are here anyway: everything above them shipped, and a
+  // parameter added at the end is one that cannot move anything a lane was
+  // written against on a host that goes by position.
+  //
+  // Named "in phase" rather than "sync", which in this corner of the world
+  // means locked to the host's tempo. Nothing here is.
+  layout.add(std::make_unique<BoolP>(juce::ParameterID{pmInPhaseId, 1},
+                                     "Pitch Mod In Phase", false));
+
+  layout.add(std::make_unique<BoolP>(juce::ParameterID{amInPhaseId, 1},
+                                     "Amp Mod In Phase", false));
+
   return layout;
 }
 
@@ -707,12 +727,15 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   masterGain = apvts.getRawParameterValue(masterGainId);
   polyphony = apvts.getRawParameterValue(polyphonyId);
   oneVoicePerKey = apvts.getRawParameterValue(oneVoicePerKeyId);
+  pmInPhase = apvts.getRawParameterValue(pmInPhaseId);
+  amInPhase = apvts.getRawParameterValue(amInPhaseId);
   bendRange = apvts.getRawParameterValue(bendRangeId);
   phaseReset = apvts.getRawParameterValue(phaseResetId);
   stretch = apvts.getRawParameterValue(stretchId);
   atSource = apvts.getRawParameterValue(atSourceId);
   slideDest = apvts.getRawParameterValue(slideDestId);
   track = apvts.getRawParameterValue(trackId);
+  character = apvts.getRawParameterValue(characterId);
   wobble = apvts.getRawParameterValue(wobbleId);
   temperament = apvts.getRawParameterValue(temperamentId);
   tuningRoot = apvts.getRawParameterValue(tuningRootId);
@@ -918,9 +941,14 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
 
     out.global.referenceHz = (double)kReferenceHzChoices[(size_t)pick(
         referenceHz, (int)kReferenceHzChoices.size())];
+
+    out.global.character =
+        (Character)pick(character, (int)Character::NumCharacters);
   }
   out.global.safetyClip = safetyClip->load() > 0.5f;
   out.global.oneVoicePerKey = oneVoicePerKey->load() > 0.5f;
+  out.global.pitchModInPhase = pmInPhase->load() > 0.5f;
+  out.global.ampModInPhase = amInPhase->load() > 0.5f;
 
   {
     const auto r = juce::jlimit(0, (int)kLofiRateChoices.size() - 1,

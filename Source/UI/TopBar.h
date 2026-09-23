@@ -92,6 +92,13 @@ public:
   std::function<void()> onCopyFactoryCode;
   std::function<void(float)> onZoomChanged;
 
+  /// Sets the window back to the size that shows the whole mixer.
+  ///
+  /// The window remembers what it was left at, which is what a window should
+  /// do and is also a one-way trip: drag it narrow, close it, and every
+  /// session after that opens narrow. This is the way back.
+  std::function<void()> onFitAllChannels;
+
   /// History. It lives at the head of the Settings menu because that is the
   /// only menu the window has, and because a keyboard shortcut cannot be
   /// relied on: most hosts keep Cmd-Z for themselves.
@@ -108,7 +115,22 @@ public:
   void setPresetName(const juce::String &);
   juce::String getPresetName() const;
 
-  bool isLinkEnabled() const { return linkButton.getToggleState(); }
+  /// What the character button is showing. Written from the parameter by
+  /// updatePanelReadouts and read back here, which is the only way to check a
+  /// button that cannot be clicked without a window to put its menu in.
+  juce::String getCharacterName() const {
+    return characterButton.getButtonText();
+  }
+
+  /// Whether the character button is lit, and in what. Read back by the tests
+  /// for the same reason the name is: a button is otherwise nothing but paint.
+  bool isCharacterLit() const { return characterButton.getToggleState(); }
+
+  juce::Colour getCharacterColour() const {
+    return characterButton.findColour(juce::TextButton::textColourOnId);
+  }
+
+  bool isLinkEnabled() const { return linkOn; }
 
   /// Latched by the editor at the start of each LINK drag.
   LinkScope getLinkScope() const { return scope; }
@@ -138,10 +160,11 @@ public:
   /// quietly dropping controls.
   static int minimumWidth();
 
-  /// Refreshes the two converter readouts. The host rate has to be passed in
-  /// because "leave it alone" is a setting whose value only the processor
-  /// knows.
-  void updateConverterReadouts(double hostSampleRate);
+  /// Refreshes what the bar reads back from the parameters rather than from a
+  /// slider: the two converter readouts and the character the oscillators are
+  /// set to. The host rate has to be passed in because "leave it alone" is a
+  /// setting whose value only the processor knows.
+  void updatePanelReadouts(double hostSampleRate);
   void setOutputLevels(float l, float r) { meter.push(l, r); }
   void setZoomChoice(float zoom);
 
@@ -159,12 +182,8 @@ private:
   using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
   using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
 
-  void styleToggle(juce::TextButton &, const juce::String &text,
+  void styleToggle(GlowButton &, const juce::String &text,
                    const juce::String &tooltip);
-
-  /// The switch lives in the menu now, so the button has to redraw when it
-  /// moves rather than when it is clicked.
-  void updateLinkEnablement();
 
   /// One effect knob, wired to its parameter.
   struct Control {
@@ -208,10 +227,11 @@ public:
   juce::PopupMenu buildPresetMenu();
 
 private:
-  /// The converter lists. Hung off the readout that opens them, and built here
-  /// rather than inline so the readout and anything else share one list.
-  void showConverterMenu(const char *paramId, const juce::StringArray &choices,
-                         juce::Component *anchor);
+  /// The list behind a choice shown on the panel: the two converter settings
+  /// and the oscillator character. Built here rather than inline so whatever
+  /// opens one shares the list with whatever else reads it.
+  void showChoiceMenu(const char *paramId, const juce::StringArray &choices,
+                      juce::Component *anchor);
 
   /// Asks for a name and hands it back. Its own window, since a menu cannot
   /// take typing.
@@ -221,7 +241,6 @@ private:
   enum Group {
     PresetGroup = 0,
     VoiceGroup,
-    LinkGroup,
     SeriesGroup,
     EchoGroup,
     ReverbGroup,
@@ -269,18 +288,32 @@ private:
   /// preset: loading one can change them, so they have to be visible.
   SegmentDisplay rateDisplay{"kHz"}, bitsDisplay{"bit"};
 
+  /// Which oscillator the partials are, at the head of the group that says
+  /// what the series is. A word rather than a readout, since none of these is
+  /// a number, and on the panel rather than in a menu for the same reason the
+  /// converter is: a preset decides it, so it has to be visible.
+  ///
+  /// It lights in the character's own colour, and does not light at all on
+  /// Pure, which is the one that adds nothing.
+  GlowButton characterButton;
+
   /// The logo, rescaled once to the size it is drawn at. Scaling a 2464 px
   /// image down to 150 on every repaint would be both slow and soft.
   juce::Image logo, logoScaled;
 
-  juce::TextButton presetButton, settingsButton, linkButton;
+  juce::TextButton presetButton, settingsButton;
+
+  /// Whether LINK is on. The switch itself is a button in the gutter, since
+  /// that is the column the tool belongs to, but what it switches lives here
+  /// with the scope and the curve it goes with.
+  bool linkOn = false;
 
   /// Held between opening the menu and acting on it, so the ids the menu hands
   /// back mean something.
   juce::Array<juce::File> userPresetFiles;
 
   std::unique_ptr<juce::AlertWindow> nameWindow;
-  juce::TextButton echoButton, reverbButton;
+  GlowButton echoButton, reverbButton;
 
   /// Likewise. Zoom is set once to suit the screen and then left, and giving
   /// its box back to the bar is what lets the output group keep its readouts

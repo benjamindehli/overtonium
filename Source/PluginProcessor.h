@@ -1,6 +1,8 @@
 #pragma once
 
 #include <atomic>
+#include <functional>
+#include <vector>
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
@@ -15,10 +17,12 @@
 #endif
 
 class OvertoniumProcessor : public juce::AudioProcessor,
-                            private juce::MPEInstrument::Listener {
+                            private juce::MPEInstrument::Listener,
+                            private juce::Timer,
+                            private juce::AudioProcessorListener {
 public:
   OvertoniumProcessor();
-  ~OvertoniumProcessor() override = default;
+  ~OvertoniumProcessor() override;
 
   void prepareToPlay(double sampleRate,
                      int maximumExpectedSamplesPerBlock) override;
@@ -74,6 +78,14 @@ public:
   /// preset by hand is usually for.
   void applyFactoryPreset(int index);
 
+  /// Loads whatever a MIDI program change has asked for since the last call,
+  /// and does nothing if none has.
+  ///
+  /// Driven by the timer this class runs. Public because a test has no message
+  /// loop to run that timer, the same reason the docs renderer drives the
+  /// editor's timer by hand.
+  void applyPendingProgramChange();
+
   void getStateInformation(juce::MemoryBlock &destData) override;
   void setStateInformation(const void *data, int sizeInBytes) override;
 
@@ -115,18 +127,37 @@ public:
     return engine.getOutputLevelRight();
   }
 
-  /// Declared before the APVTS, which borrows it, so it outlives it.
+  /// Declared before the APVTS, which is built beside it.
   ///
   /// Thirty-two channels ganged by LINK means one drag moves thirty-two values
-  /// at once, and before this the only way back from a drag you did not mean
-  /// was to reload the preset. Transactions are opened by the editor once
-  /// the tree has been quiet for a moment, so a drag is one step rather than
-  /// fifty. See OvertoniumEditor::timerCallback.
+  /// at once, and without a history the only way back from a drag you did not
+  /// mean is to reload the preset.
+  ///
+  /// The value tree is deliberately not given this. A tree that holds an undo
+  /// manager records every write to it, and most writes are not somebody
+  /// editing: a host playing an automation lane writes constantly, and a
+  /// history filling up with a fader somebody else automated three minutes
+  /// ago is not a history of anything. What goes in here is what a person
+  /// did, and nothing else. See recordEdit.
   juce::UndoManager undoManager{30 * 1024 * 1024};
 
   juce::AudioProcessorValueTreeState apvts;
 
   juce::UndoManager &undo() { return undoManager; }
+
+  /// Runs `change` and puts whatever it moved into the history as one step.
+  ///
+  /// For the things a person does that are not one gesture on one control:
+  /// loading a preset writes hundreds of parameters and has to come back in
+  /// one undo. Gestures need no help, since a control opens and closes one
+  /// around whatever it writes and this is listening. See
+  /// audioProcessorParameterChangeGestureBegin.
+  ///
+  /// The caller decides, which is the point. Loading a preset from the menu
+  /// goes through here and a clip firing a program change does not, though
+  /// both end up in the same applyFactoryPreset.
+  void recordEdit(const juce::String &name,
+                  const std::function<void()> &change);
 
   /// The update check, which lives here rather than with the editor.
   ///
@@ -190,6 +221,49 @@ private:
   /// per-channel AT amounts read, according to what the setting says to
   /// listen to.
   void updateAftertouch();
+
+  /// Collects what MIDI has asked for and the audio thread cannot do itself.
+  /// Program changes, so far.
+  void timerCallback() override;
+
+  // ---- juce::AudioProcessorListener ----
+  //
+  // On itself, so that what a person does to a control can be told apart from
+  // what a host does to a parameter. A control opens a gesture before it
+  // writes and closes one after, and automation does not.
+  void audioProcessorParameterChangeGestureBegin(juce::AudioProcessor *,
+                                                 int index) override;
+  void audioProcessorParameterChangeGestureEnd(juce::AudioProcessor *,
+                                               int index) override;
+
+  /// Deliberately nothing. A parameter change says what moved and not who
+  /// moved it, and it arrives from the audio thread when a host is playing a
+  /// lane, which is exactly the case this whole arrangement exists to leave
+  /// out of the history.
+  void audioProcessorParameterChanged(juce::AudioProcessor *, int,
+                                      float) override {}
+
+  /// Likewise. Programs and latency are not edits.
+  void audioProcessorChanged(
+      juce::AudioProcessor *,
+      const juce::AudioProcessorListener::ChangeDetails &) override {}
+
+  /// Where the values stood when the edit being recorded began, normalised
+  /// and in parameter order. Empty when nothing is being recorded.
+  std::vector<float> editBaseline;
+
+  /// How many gestures are open. The first to open takes the baseline and the
+  /// last to close writes the step, so a LINK drag across 32 channels is one
+  /// step rather than 32.
+  int openGestures = 0;
+
+  /// Set while recordEdit is running its change, so a gesture inside one does
+  /// not start a second recording inside the first.
+  bool recording = false;
+
+  void beginEdit();
+  void endEdit(const juce::String &name);
+
   /// Renders into the scratch at an offset from its start, not from the start
   /// of the host's block: when a block is cut into pieces the scratch holds
   /// one piece at a time.
@@ -225,6 +299,21 @@ private:
   /// host would answer by loading that preset over the top of everything the
   /// session just restored.
   int currentProgram = 0;
+
+  /// The factory preset a MIDI program change has asked for and nobody has
+  /// loaded yet, or -1 for none.
+  ///
+  /// The audio thread writes it and the timer reads it, which is the whole
+  /// point of it being a number in a box rather than a preset load: applying
+  /// one walks 781 parameters and tells the host about each one, allocating
+  /// and taking locks on the way, and none of that belongs on the audio
+  /// thread. The cost is that the preset lands at the next tick rather than at
+  /// the message's timestamp, which nothing can hear: a preset change is
+  /// hundreds of parameter moves and was never a sample-accurate event.
+  ///
+  /// A second program change before the first has been read replaces it. Two
+  /// of them inside one tick means the first was never meant to be heard.
+  std::atomic<int> pendingProgram{-1};
 
   /// Whether currentProgram describes something that was actually loaded.
   ///

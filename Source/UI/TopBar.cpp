@@ -24,9 +24,9 @@ constexpr int kGroupPad = 6;
 
 /// Minimum width of each group, in the order they are laid out. Only the
 /// output group grows, because the meter is the one thing worth more room.
-constexpr int kGroupMinWidth[] = {144, 90, 60, 168, 222, 222, 186};
-constexpr int kOutputGroupIndex = 6;
-constexpr int kGroupCount = 7;
+constexpr int kGroupMinWidth[] = {144, 90, 218, 222, 222, 186};
+constexpr int kOutputGroupIndex = 5;
+constexpr int kGroupCount = 6;
 
 /// Buttons, lists and the output meter all stand this tall, centred on the
 /// dials beside them, so a row reads as one line of controls.
@@ -35,6 +35,14 @@ constexpr int kControlHeight = 24;
 constexpr int kKnobWidth = 38;
 constexpr int kFxToggleWidth = 52;
 constexpr int kFxToggleGap = 6;
+
+/// Sized for the longest name it has to say, in the capitals the bar shouts
+/// everything in. Measured at the font the button picks from its own height,
+/// which at the bar's 24 px lands on the 13 px clamp: OP-AMP is 51 px, DIODE
+/// 40, VALVE 39, PURE and BULB 34 and RAIL 29. This is the widest of those plus
+/// the air either side that every other button on the bar has. It was 80 while
+/// the widest was SQUASHED at 69.
+constexpr int kCharacterWidth = 62;
 
 /// How many rows of bar are worth having above a mixer.
 constexpr int kMaxComfortableRows = 3;
@@ -271,7 +279,7 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
     for (auto hz : params::kLofiRateChoices)
       choices.add(params::lofiRateName(hz));
 
-    showConverterMenu(params::lofiRateId, choices, &rateDisplay);
+    showChoiceMenu(params::lofiRateId, choices, &rateDisplay);
   };
 
   bitsDisplay.onClick = [this] {
@@ -279,11 +287,25 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
     for (auto bits : params::kLofiBitChoices)
       choices.add(params::lofiBitName(bits));
 
-    showConverterMenu(params::lofiBitsId, choices, &bitsDisplay);
+    showChoiceMenu(params::lofiBitsId, choices, &bitsDisplay);
   };
 
   addAndMakeVisible(rateDisplay);
   addAndMakeVisible(bitsDisplay);
+
+  // ---- which oscillator -----------------------------------------------------
+  characterButton.setTooltip(
+      "Which oscillator every partial is. All of them are sine oscillators, "
+      "and what differs is the way each circuit fails to make one: a lamp "
+      "that lags, an amplifier leaning on its rails, a shaper with mismatched "
+      "diodes. Pure is the sine nothing built out of parts produces.");
+
+  characterButton.onClick = [this] {
+    showChoiceMenu(params::characterId, params::characterChoices(),
+                   &characterButton);
+  };
+
+  addAndMakeVisible(characterButton);
 
   // ---- presets --------------------------------------------------------------
   presetButton.setButtonText(kNoPreset);
@@ -303,20 +325,6 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   settingsButton.onClick = [this] { showSettingsMenu(); };
   addAndMakeVisible(settingsButton);
 
-  // ---- toggles --------------------------------------------------------------
-  // One button rather than a switch and a chevron beside it. It always opens
-  // the menu, and it lights when the switch inside is on, so the state is
-  // visible without the state being what the click does.
-  linkButton.setButtonText("LINK");
-  linkButton.setTooltip(
-      "Gang the strips, so dragging one channel's knob moves the same knob on "
-      "the others. The menu picks which channels it reaches and how the "
-      "movement is shared out. The same menu is on a right-click in the "
-      "mixer.");
-  linkButton.setColour(juce::TextButton::buttonOnColourId, colours::soloOn);
-  linkButton.onClick = [this] { showLinkMenu(&linkButton); };
-  addAndMakeVisible(linkButton);
-
   // ---- the master effects
   // ----------------------------------------------------
   styleToggle(echoButton, "ECHO",
@@ -324,8 +332,10 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   styleToggle(reverbButton, "REVERB",
               "Reverb across the whole instrument, after the echo");
 
-  echoButton.setColour(juce::TextButton::buttonOnColourId, colours::accent);
-  reverbButton.setColour(juce::TextButton::buttonOnColourId, colours::accent);
+  // The colour the word comes up in, since the face stays where it is. See
+  // GlowButton.
+  echoButton.setColour(juce::TextButton::textColourOnId, colours::accent);
+  reverbButton.setColour(juce::TextButton::textColourOnId, colours::accent);
 
   echoAttachment =
       std::make_unique<ButtonAttachment>(apvts, params::echoOnId, echoButton);
@@ -358,11 +368,9 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
           "Silence between the note and its reverb. A little of it keeps the "
           "attack clear of the wash.",
           popupParent);
-
-  updateLinkEnablement();
 }
 
-void TopBar::styleToggle(juce::TextButton &b, const juce::String &text,
+void TopBar::styleToggle(GlowButton &b, const juce::String &text,
                          const juce::String &tooltip) {
   b.setButtonText(text);
   b.setClickingTogglesState(true);
@@ -407,10 +415,8 @@ void TopBar::setLinkCurve(LinkCurve c) {
   curve = (LinkCurve)juce::jlimit(0, (int)LinkCurve::NumCurves - 1, (int)c);
 }
 
-void TopBar::updateLinkEnablement() { linkButton.repaint(); }
-
 void TopBar::showLinkMenu(juce::Component *anchor) {
-  const LinkSettings settings{linkButton.getToggleState(), scope, curve};
+  const LinkSettings settings{linkOn, scope, curve};
 
   auto m = buildLinkMenu(settings);
   m.setLookAndFeel(&getLookAndFeel());
@@ -435,11 +441,9 @@ void TopBar::showLinkMenu(juce::Component *anchor) {
     if (!applyLinkMenuChoice(result, chosen))
       return;
 
-    linkButton.setToggleState(chosen.enabled, juce::dontSendNotification);
+    linkOn = chosen.enabled;
     scope = chosen.scope;
     curve = chosen.curve;
-
-    updateLinkEnablement();
 
     if (onLinkSettingsChanged)
       onLinkSettingsChanged();
@@ -448,6 +452,11 @@ void TopBar::showLinkMenu(juce::Component *anchor) {
 
 void TopBar::setPresetName(const juce::String &name) {
   presetButton.setButtonText(name.isEmpty() ? kNoPreset : name);
+
+  // The same as the character button: the text on it is a value, so the name
+  // has to supply what the value is of.
+  presetButton.setTitle(name.isEmpty() ? "Preset: none loaded"
+                                       : "Preset: " + name);
 }
 
 juce::String TopBar::getPresetName() const {
@@ -455,9 +464,9 @@ juce::String TopBar::getPresetName() const {
   return shown == kNoPreset ? juce::String() : shown;
 }
 
-void TopBar::showConverterMenu(const char *paramId,
-                               const juce::StringArray &choices,
-                               juce::Component *anchor) {
+void TopBar::showChoiceMenu(const char *paramId,
+                            const juce::StringArray &choices,
+                            juce::Component *anchor) {
   auto *param = apvts.getParameter(paramId);
   if (param == nullptr)
     return;
@@ -788,6 +797,11 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
   m.addSeparator();
   m.addSubMenu("Zoom", zooms);
 
+  // Beside the zoom, since both are about the window rather than about the
+  // instrument, and a size that has been dragged narrow is otherwise
+  // remembered for good.
+  m.addItem(820, "Fit all 32 channels");
+
   return m;
 }
 
@@ -841,6 +855,9 @@ void TopBar::showSettingsMenu() {
         if (result >= 900)
           return choose(params::temperamentId, result - 900);
 
+        if (result == 820)
+          return onFitAllChannels ? onFitAllChannels() : void();
+
         if (result >= 800) {
           const auto index = result - 800;
 
@@ -878,7 +895,7 @@ void TopBar::showSettingsMenu() {
       });
 }
 
-void TopBar::updateConverterReadouts(double hostSampleRate) {
+void TopBar::updatePanelReadouts(double hostSampleRate) {
   const auto chosen = [this](const char *id, int count) {
     auto *p = apvts.getParameter(id);
 
@@ -899,14 +916,54 @@ void TopBar::updateConverterReadouts(double hostSampleRate) {
   const bool cutting = rate > 0 && (!known || (double)rate < hostSampleRate);
   const auto shown = cutting ? (double)rate : hostSampleRate;
 
-  rateDisplay.setReading(
-      shown > 0.0 ? juce::String(shown / 1000.0, 1) : juce::String(), cutting);
+  const auto rateReading =
+      shown > 0.0 ? juce::String(shown / 1000.0, 1) : juce::String();
+
+  rateDisplay.setReading(rateReading, cutting);
+
+  // The name carries the reading as well as the label. A screen reader takes
+  // a component's title for its name, so a title of "Sample rate" on its own
+  // would name the control and hide what it says, and the digits on a
+  // seven-segment display are drawn rather than written and cannot be read
+  // any other way.
+  rateDisplay.setTitle("Sample rate: " + (rateReading.isNotEmpty()
+                                              ? rateReading + " kHz"
+                                              : juce::String("unknown")));
 
   const auto bits = params::kLofiBitChoices[(size_t)chosen(
       params::lofiBitsId, (int)params::kLofiBitChoices.size())];
 
   // Nothing being quantised means the 32-bit float everything else runs in.
   bitsDisplay.setReading(juce::String(bits > 0 ? bits : 32), bits > 0);
+  bitsDisplay.setTitle("Bit depth: " + juce::String(bits > 0 ? bits : 32) +
+                       " bit");
+
+  // Read back rather than written when it is set, because a preset can change
+  // it without anyone having touched the button.
+  const auto character =
+      chosen(params::characterId, params::characterChoices().size());
+
+  // In capitals, like every other word on the bar. The menu it comes from
+  // keeps the names as they are written, since a list of words is a list of
+  // words rather than a row of switches.
+  characterButton.setButtonText(
+      params::characterChoices()[character].toUpperCase());
+
+  // Named rather than shouted, and saying which control it is. The button's
+  // own text is the value on its own, which a screen reader would read out as
+  // "squashed" with nothing to say what is.
+  characterButton.setTitle("Character: " +
+                           params::characterChoices()[character]);
+
+  // Lit in its own colour, from yellow through to red, and not lit at all on
+  // Pure. Toggled rather than clicked into that state: the button opens a menu
+  // and the light says what came back from it.
+  const auto which = (Character)character;
+
+  characterButton.setColour(juce::TextButton::textColourOnId,
+                            characterColour(which));
+  characterButton.setToggleState(which != Character::Pure,
+                                 juce::dontSendNotification);
 }
 
 void TopBar::setZoomChoice(float newZoom) { zoom = newZoom; }
@@ -993,10 +1050,10 @@ int TopBar::minimumWidth() {
 }
 
 void TopBar::parkControls() {
-  juce::Component *all[] = {&master,       &meter,          &presetButton,
-                            &linkButton,   &settingsButton, &echoButton,
-                            &reverbButton, &stretch,        &track,
-                            &rateDisplay,  &bitsDisplay};
+  juce::Component *all[] = {&master,         &meter,          &presetButton,
+                            &settingsButton, &echoButton,     &reverbButton,
+                            &stretch,        &track,          &rateDisplay,
+                            &bitsDisplay,    &characterButton};
 
   for (auto *c : all)
     c->setBounds({});
@@ -1049,13 +1106,17 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
     button(settingsButton, r);
     break;
 
-  case LinkGroup:
-    button(linkButton, r);
-    break;
-
   case SeriesGroup: {
+    // What the partials are comes before what is done to them, so the
+    // character stands at the head of the group the way an effect's switch
+    // stands at the head of its own.
+    button(characterButton, r.removeFromLeft(kCharacterWidth));
+    r.removeFromLeft(kFxToggleGap);
+
     // Split evenly rather than at the usual knob width, since STRETCH is a
     // longer caption than anything else in the bar and would otherwise be cut.
+    // It measures 39 px, so what is left over here gives it room without the
+    // group having to be any wider than the character button made it.
     const auto each = r.getWidth() / 3;
 
     stretch.setBounds(r.removeFromLeft(each));

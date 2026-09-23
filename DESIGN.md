@@ -6,13 +6,13 @@ For what it is and how to get it, see the [readme](README.md). For how the code 
 
 ## Presets
 
-Twenty-eight ship with it, listed alphabetically. Most were dialled in by hand on the panel and converted straight from the saved file, so what ships is what was played rather than something written afterwards to approximate it. Where a row of the mixer has a shape the preset says so, as the saws do with `1.0 / n`, and where it was drawn by hand the thirty-two values are written out as a list so the curve is at least visible.
+Thirty-one ship with it, listed alphabetically. Most were dialled in by hand on the panel and converted straight from the saved file, so what ships is what was played rather than something written afterwards to approximate it. Where a row of the mixer has a shape the preset says so, as the saws do with `1.0 / n`, and where it was drawn by hand the thirty-two values are written out as a list so the curve is at least visible.
 
 _Init_ is one of them rather than a reset to the parameter defaults. It clears the patch down to a short, bright three-partial pluck, which is a better place to start building from than silence. Like every other preset it leaves the session alone, so your tuning, polyphony, bend range and master fader survive loading it.
 
 What counts as the session is drawn along the interface rather than decided case by case: everything the Settings menu offers, plus the master fader. The menu is where the instrument is set up and the panel is where the sound is made, so a control's place says which it is, and adding a setting means adding it to `kSessionParamIds` in the same commit. Both kinds of preset are held to that list and to each other. A preset you save carries the same set of controls a factory one does, which a test checks by comparing what `capture` writes against what `neutralBase` decides, in both directions.
 
-Twenty-three of them use STRETCH or TRACK, since most of them are modelling something with a body. Picking odd partials was always a stand-in for inharmonicity, and five of these have the real thing on top of it:
+Twenty-six of them use STRETCH or TRACK, since most of them are modelling something with a body. Picking odd partials was always a stand-in for inharmonicity, and six of these have the real thing on top of it:
 
 | Preset           | Stretch  | Tracking   | Why                                                                                                               |
 | ---------------- | -------- | ---------- | ----------------------------------------------------------------------------------------------------------------- |
@@ -21,10 +21,12 @@ Twenty-three of them use STRETCH or TRACK, since most of them are modelling some
 | DigiLog          | +30 ct   | 3.0 dB/oct | the series steps in from the bottom over five seconds, so the stretch is heard as arrival rather than as detuning |
 | Dire Dire EP     | +8 ct    | 6.0 dB/oct | steep tracking is what keeps it soft under the fingers rather than glassy                                         |
 | Drawbar Organ    |          | 3.2 dB/oct |                                                                                                                   |
+| Dream Phase      |          | 2.6 dB/oct |                                                                                                                   |
 | EP Chimes        | -1200 ct | 1.4 dB/oct | a whole octave of collapse on the 32nd partial, which is an artefact rather than an instrument                    |
 | Equal Saw        |          | 1.0 dB/oct |                                                                                                                   |
 | FM Piano         |          | 2.1 dB/oct |                                                                                                                   |
 | Glass Armonica   | +180 ct  | 4.0 dB/oct | barely any, but enough that the upper partials beat against the fundamental instead of locking to it              |
+| Glockenspiel     | -294 ct  | 3.9 dB/oct | a bar rings nowhere near whole numbers, and here STRETCH pulls the series in rather than spreading it             |
 | Just Saw         |          | 1.0 dB/oct |                                                                                                                   |
 | Lo-fi            |          | 4.0 dB/oct |                                                                                                                   |
 | Metallic Piano   | +24 ct   | 9.0 dB/oct | a piano string is stiff, and a thin one rings further from whole numbers                                          |
@@ -33,6 +35,7 @@ Twenty-three of them use STRETCH or TRACK, since most of them are modelling some
 | Omni-84          |          | 7.0 dB/oct |                                                                                                                   |
 | Slow Pad         |          | 2.5 dB/oct |                                                                                                                   |
 | Space Flute      | +154 ct  | 2.0 dB/oct | far enough out that the upper partials stop belonging to the note, which is what makes it breathy                 |
+| Sparkle Pad      | +81 ct   | 0.7 dB/oct | the sparkle is the top of the series, so the tracking is kept out of its way                                      |
 | Stepped          | +0.5 ct  | 2.0 dB/oct | a hair of it, so the partials that are not jumping still beat against each other                                  |
 | StyloPoly        | +0.3 ct  | 0.4 dB/oct | barely any of either: a Stylophone is a reed rather than a body, and thinning it would take the buzz away         |
 | Synth Ensemble   | +10 ct   | 3.0 dB/oct | just enough that no two partials lock, which is the difference between an ensemble and one player                 |
@@ -44,7 +47,7 @@ _Cathedral_ is a principal chorus arriving slowly, in a nine second room. _Glass
 
 Three of them are after a particular instrument. _Wurli_ is a Wurlitzer 200A, _Metallic Piano_ a thin, metallic upright, and _Omni-84_ the SonicStrings Voice 2 from a Suzuki Omnichord OM-84 System Two.
 
-Four of them use the converter rather than avoiding it. _Big Saw_ and _Metallic Piano_ quantise to 8 bits at the host's own rate. _Lo-fi_ runs the whole voice pool at 8 kHz and 8 bits, and _2-bit Fuzz Organ_ at 8 kHz and 2 bits, where the aliasing and the quantisation noise are the distortion rather than an effect laid over the top. On that one the aftertouch blends the root note towards a fifth.
+Eleven of them have the converter on at all, and four are made of it. _Big Saw_ and _Metallic Piano_ quantise to 8 bits at the host's own rate. _Lo-fi_ runs the whole voice pool at 8 kHz and 8 bits, and _2-bit Fuzz Organ_ at 8 kHz and 2 bits, where the aliasing and the quantisation noise are the distortion rather than an effect laid over the top. On that one the aftertouch blends the root note towards a fifth.
 
 _Drawbar Organ_ and _Cathedral_ are deliberately left alone by STRETCH. A drawbar organ is electric and a pipe organ is voiced rank by rank, so neither loses its top as you play up, and pretending otherwise would be modelling the wrong instrument. So are the saws, where the raw spectrum is the point.
 
@@ -58,10 +61,23 @@ What it will not touch is listed once, as `kSessionParamIds`, and holds for ever
 
 Values are stored plain rather than normalised, so a preset survives a parameter's range being widened later, and anything a file does not mention keeps its default rather than being reset, so a preset saved by an older build loads into a newer one without silently zeroing whatever was added in between. The tests cover both of those directly.
 
+**Choosing one over MIDI.** A program change loads a factory preset by its position in the alphabetical list, counting from zero. A number past the last preset is ignored rather than wrapped back to the start, and it arrives on any channel, MPE included, where the parser has no use for it and would otherwise swallow it. Presets of your own have no number to be called by, since their folder is yours to add to and rename at any time and nothing in it stays put long enough to be worth pointing a clip at.
+
+Loading a preset is hundreds of parameter moves, each of which has to be reported to the host, so the audio thread only writes the number down and a 20 Hz timer on the processor does the work. Posting a message from the audio thread instead would take the message queue's lock, which is the same objection that keeps the scratch buffer from growing there. Up to fifty milliseconds late cannot be heard, and a preset change was never a sample-accurate event: it is hundreds of parameters moving, not a note.
+
+It loads whether or not the preset is the one already showing, which is what the plugin's own menu does and what an instrument with a panel does. A clip that opens with a program change therefore sounds the same on every pass, at the cost of replacing anything you changed by hand since it last fired.
+
 **Undo.** The parameter tree carries an undo history, which matters most because of LINK: one drag can move the same knob on all 32 channels, and without a history the only way back from a drag you did not mean is to reload the preset.
 
-A step is a gesture rather than a value change. Transactions are closed when the tree has been still for a moment rather than by hooking every parameter's gesture callbacks, which a host is free to call from the audio thread and which would mean allocating there. Watching for stillness needs no hooks and gives the same answer: a drag is one step however many values it moved, and letting go for a moment starts the next one.
+**The history holds what a person did, and nothing else.** The value tree is deliberately not given the undo manager, because a tree that holds one records every write to it and most writes are not somebody editing. A host playing an automation lane writes continuously for as long as the piece lasts, and a history filling up with a fader that was automated three minutes ago is a history of nothing: the undo you wanted is a hundred steps back and you will never find it.
 
+What tells the two apart is a gesture. Every control opens one before it writes and closes one after, which is how a host is told that a move has begun and ended, and automation does not: it sets values and says nothing. So the processor listens to itself for gesture begin and end, takes a baseline of every parameter when the first one opens, and when the last one closes puts whatever actually moved into the history as one step. A drag, a scroll wheel and a LINK drag across 32 channels are each one gesture and therefore each one step, however many values they moved and however long they took. A gesture that ends where it began is not a step at all.
+
+Only from the message thread. A host is allowed to open a gesture from the audio thread, and taking a baseline of 784 parameters there would allocate on it, so one that arrives from anywhere else is left alone. Nobody is turning a knob from the audio thread.
+
+The things a person does that are not one gesture go through `recordEdit`, which takes the same baseline around whatever it is given: loading a preset writes hundreds of parameters and has to come back in one undo. The caller decides, and that is the point of it. Loading a preset from the menu is recorded and a clip firing a program change at the same `applyFactoryPreset` is not, because one of them is editing and the other is playing.
+
+An earlier arrangement let the tree record everything and tried to cut it into steps afterwards, by watching for the tree going still. It worked, once the stillness was measured from the right thing, but it could only ever have been a way of grouping writes rather than of telling them apart, and it recorded automation along with everything else.
 Cmd-Z and Cmd-Shift-Z work where the host lets them through, which many do not, since a DAW usually keeps those for its own history. Undo and Redo are therefore also at the top of the Settings menu, which always works. Loading a session clears the history, since undoing your way back into someone else's edits is not useful.
 
 **Making a factory one.** Configure with `-DOVERTONIUM_PRESET_AUTHORING=ON`, which adds "Copy as factory preset code" to the preset menu. It is off by default, since what it produces is of no use to anyone who is not about to rebuild the plugin. Dial in a patch and pick it, and the C++ for that patch goes on the clipboard as a `case` that starts from `neutralBase()` and then sets only what differs from the default. Paste it into `Presets.cpp`, add the name to `kNames`, and tidy it by hand where the shape has a formula rather than 32 separate numbers. Factory presets stay as code rather than as embedded data precisely so they can say `1.0 / n` instead of listing values.
@@ -96,6 +112,12 @@ At `blend = 1` this is exactly `n` times the fundamental. Nothing is hard-coded,
 | 16  | 48    | 0     | prime/octave  |     | 32  | 60    | 0     | prime/octave  |
 
 The test suite asserts this table, so the derivation cannot silently drift from it.
+
+**Six of the thirty-two knobs have nothing to move**, and the table is why: 1, 2, 4, 8, 16 and 32 read zero cents, because an octave is 1200 cents in equal temperament and in just intonation alike. Their TUNE knobs are not idle, they are agreeing with themselves, and the strip's tooltip says so on those channels rather than leaving a knob that appears broken.
+
+It cannot be given a second job, which is worth writing down because it is the obvious idea. Nought on that knob means the tempered position, which for an octave is the exact ratio, so redefining that end would make equal temperament mean something that is not equal temperament, and _Equal Saw_ sits at nought on all six. One is the default that twenty-five of the thirty-one presets and every untouched patch sit at. Six of the presets hold something other than the default there, thirty-one knobs between them, so either end would move sound that is already written. Nor is the knob greyed out: a LINK drag down the TUNE row would then move twenty-six channels and refuse six, which is how a patch like Equal Saw gets dialled in.
+
+What does move an octave partial is STRETCH, on its own curve, along with DRIFT, the pitch modulator, and the character's rack, which sits every partial but the first a few cents off spec. The gap this leaves is a static per-channel detune, which no control here offers: the blend reaches the exact ratio and stops.
 
 ### Tuning the keyboard
 
@@ -138,6 +160,28 @@ The pitch depth reaches an octave, which is for the shapes that step rather than
 
 LINK does not reach the shapes. It drags a value across the series along a weighted curve, and half a sawtooth is not a shape. The shape menu offers to set every channel at once instead, which is the same intent by the only means that makes sense for a list.
 
+### One modulator for the keyboard, or one per note
+
+A modulator belongs to a note by default: strike a chord a note at a time and each note's tremolo starts where that note started, so the three of them breathe out of step for as long as they sound. That is what a digital instrument does, and it is what nearly every patch here wants, since thirty-two partials breathing out of step is most of what makes the mixer sound like a mixer.
+
+It is not what an instrument with one tremolo circuit in it does. A Wurlitzer's wobble is in the amplifier, after the reeds, so a chord breathes as one thing however it was played, and a Stylophone has one oscillator and therefore one vibrato with nothing to be out of step with. Two switches turn each modulator into that: the phase stops belonging to the note and belongs to the channel, and a note arriving late joins whatever is already running.
+
+**Two switches rather than one**, because the two modulators are two circuits. Everything else about them is already separate, down to their shape lists, and a patch can reasonably want a tremolo the whole keyboard shares over a vibrato each note keeps to itself.
+
+**A channel's modulator rather than the instrument's.** Each of the thirty-three keeps its own rate and its own shape, so what is shared is one circuit per channel and not one for the lot. Partial 7's tremolo is one thing that every note played through partial 7 hears, which is the same idea as the rack of oscillators a character brings, and it is what makes a preset like _Shimmer_, whose whole design is thirty-two rates that never line up, still sound like itself with the switch on.
+
+**Worked out before any voice runs**, which is what the implementation turns on. A voice renders a whole buffer at a time, so a shared phase stepped inside one voice's loop would be stepped again by the next voice and the two would hear different things. Instead the engine walks the same control blocks the voices are about to walk and writes each channel's value at every block boundary into a table, one boundary more than there are blocks so a block has both the value it starts on and the one it ends on. The voices read it. That is also what makes it exact for the two random shapes, which draw a fresh point each time their phase wraps and could not be kept in step by handing a note a phase to start from.
+
+The table is a fixed member, sized for 2048 frames at a time, so the audio thread never allocates and a host asking for its usual buffer gets the whole thing in one pass. Anything larger is taken in passes of that size.
+
+**On the panel it is in the shape button's own menu**, ticked, under the entry that sets every channel at once. That entry is likewise a switch over all thirty-three reached from one channel, so the pair read alike, and the alternative was two buttons on the bar. The bar fits on one row from 1256 px up and the window opens at 1340, so there are 84 px of slack, and two switches with their gaps come to about 102: they would have put the bar back onto two rows and undone what moving LINK into the gutter bought. Settings was the wrong place, since everything behind it is session rather than patch and two of the presets need this one.
+
+**And the group's heading lights when it is on**, because a mode you cannot see is a mode you forget you are in, and this one travels in a preset: without it a patch could arrive with a shared tremolo and nothing on the panel would say so. PITCH MOD or AMP MOD in the gutter goes from the plain caption white to the accent every other switched-on thing here comes up in, measured on the rendered gutter at 200, 206, 215 against 96, 175, 203. One mark per modulator rather than one on each of the thirty-three shape buttons, since all thirty-three answer to the one switch, and it is the heading of the group the switch is about. The editor reads the two parameters back on its housekeeping tick and once more before the first paint, so an editor opened on a patch that shares a modulator says so straight away rather than a quarter of a second later.
+
+**It costs about half a percent of a core.** Thirty-three modulators are stepped per control block whatever the polyphony is, and each voice still steps its own alongside reading the shared one, so that handing a channel its modulator back lands on where that note would have been rather than on where it was when the switch was thrown. Measured at eight voices, taking the minimum of several runs on a contended machine: 8.48% of a core with a modulator per note against 8.87% with both shared.
+
+Two of the factory presets ask for it. _Wurli_ shares its tremolo and _StyloPoly_ its vibrato, which are the two cases the switches were built for.
+
 ### Stretch
 
 TUNE decides how the series is spelled. STRETCH decides whether it is a series at all.
@@ -173,6 +217,22 @@ The band is deliberately narrow, a crop from the middle of a full blue to yellow
 Every channel stands on the same grey. Alternating two shades to tell one strip from the next would put a stripe behind every knob's interval colour, behind the lit meters, the lamps and the readouts, competing with all of it. The strips are told apart by their own lit and shadowed edges instead, a one pixel groove at every boundary, which is how a console does it.
 
 There are two greys in the mixer and no third. Most channels stand on the darker one. The octaves stand a shade up from it, so the shape of the series is readable when you are scrolled out at harmonic 28, and the noise channel stands at that same shade, since it is also worth telling apart from the run of the series. What marking an octave has to say is where it is, not what it is, so it is a change of level rather than a hue: a wash of the channel's own blue would be one more colour in a window that has plenty.
+
+**Every switch on the panel lights the same way: the word is the lamp.** ECHO, REVERB, LINK, the character button, and the M and S on all thirty-three channels. The face is drawn exactly as it is when the switch is off, down to the shade of grey, and what reaches it is the light off the text, spilling onto the button and thinning out across it. Nothing fills with colour.
+
+The mutes and solos used to be the exception, filling their whole face, on the argument that the question they answer is asked across 33 channels at once and the eye has to find it without reading anything. A lit letter turns out to do that too, because the spill colours the button around it and what the eye finds at that size is a coloured smudge rather than a letter. What it gained is a panel that is one idea instead of two, and a mixer where the loudest thing is still the sound rather than the switches.
+
+The mute went redder when it changed, from an orange to a red. A filled orange face was unmistakable. A lit letter has less of itself to say it with, and red is what a cut channel means.
+
+One thing outside the mixer borrows the band, and only one: the character button on the bar lights in it, running down from the yellow at the top to the red the fifth stands in, which is the colour of channel 3. Nothing else does, because a colour from the band means a partial and reading it as anything else would be a second language on the same panel. A character is close enough to be worth saying in it: it is what the partials are.
+
+**The standalone wears the same panel up to the top of its window.** Its title bar is JUCE's rather than the platform's, so left alone it is the grey-green every unstyled JUCE application wears, with a red cross and a yellow dash for its buttons, which reads as somebody else's window with this instrument inside it. The editor hands that window its own look and feel instead, so the bar is the same lit and grained panel as everything below it and the two marks are drawn the way every other small mark here is: dim until the pointer is on them, and then lit, with the close going red because it is the one worth being able to hit by accident.
+
+Only ever its own window. In a host the top level window belongs to the host, and a plugin that restyled it would be redecorating someone else's application, so the whole path is behind a check on which wrapper this is running as.
+
+Two details that took measuring. The name is centred on the window rather than in the space JUCE offers for it, which is what is left between the title bar's own buttons: they are all at one end, and the standalone adds an Options button at the other without telling the title bar about it, so a name centred in what is left sits left of the middle. And that Options button is put back where it belongs after every layout, since the standalone places it at a fixed six pixels from the top of a bar whose height it then subtracts eight from, which leaves it sitting off centre whatever the bar is. There is no hook for either, so the window is dressed and then corrected.
+
+**The standalone remembers its size**, because the editor's own width and height travel in the plugin's state and the standalone saves that state between runs. A fresh one opens wide enough for all 32 channels. One that has been resized opens where it was left, which is the point, and on macOS the file holding that is `~/Library/Application Support/Overtonium.settings`.
 
 Colour is then left to do one job, and does it at full strength. Every knob on a strip carries the channel's own colour in its value arc and its pointer, not only the tuning knob at the head. On one flat grey the colour is the only thing separating a channel from its neighbours, so desaturating nineteen knobs out of twenty to give the head of the strip a hierarchy would spend the one thing that is working.
 
@@ -244,19 +304,20 @@ Switching the setting either way releases whatever is sounding. Voices started t
 
 Slide, the third MPE dimension, is parsed but not routed anywhere yet. Bend and pressure are.
 
-The top bar holds everything that is not per partial, in signal order from left to right:
+The top bar holds everything that is not per partial, in signal order from left to right. **LINK** is the exception and stands at the top of the caption gutter instead, over the column of names it gangs.
 
-| Group    | Contains                                                                                                  |
-| -------- | --------------------------------------------------------------------------------------------------------- |
-| Preset   | the preset menu: factory, saved, and somewhere to put the one you are working on                          |
-| Settings | undo, polyphony, bend range, MPE, tuning, what feeds aftertouch, phase reset, the safety clipper and zoom |
-| Link     | **LINK**, and what it reaches and how. See below                                                          |
-| Series   | **STRETCH**, **TRACK** and **WOBBLE**, what the instrument does before anything is done to it. See below  |
-| Echo     | the tape echo. See below                                                                                  |
-| Reverb   | the reverb. See below                                                                                     |
-| Output   | **MASTER**, the stereo meter, and the converter readouts under it                                         |
+| Group    | Contains                                                                                                                                                       |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Preset   | the preset menu: factory, saved, and somewhere to put the one you are working on                                                                               |
+| Settings | undo, polyphony, bend range, MPE, tuning, what feeds aftertouch, phase reset, the safety clipper, zoom and the way back to a window that shows all 32 channels |
+| Series   | **STRETCH**, **TRACK** and **WOBBLE**, what the instrument does before anything is done to it. See below                                                       |
+| Echo     | the tape echo. See below                                                                                                                                       |
+| Reverb   | the reverb. See below                                                                                                                                          |
+| Output   | **MASTER**, the stereo meter, and the converter readouts under it                                                                                              |
 
-Zoom lives in the Settings menu rather than on the bar, and that is worth eighty-eight pixels. On the bar the first row would need 1202 px at the width the window opens at and have 1164, so it would wrap to two rows on a default-sized window. It needs 1114 and fits, and the room that frees goes to the output meter, which is what makes the converter readouts wide enough to keep their units.
+Zoom lives in the Settings menu rather than on the bar, and that is worth eighty-eight pixels. Those eighty-eight would not fit: the bar comes onto one row at 1256 px and the window opens at 1340, so a zoom control on the bar would wrap it to two rows on a default-sized window. The room it frees goes to the output meter instead, which is what makes the converter readouts wide enough to keep their units.
+
+The entry under the zoom puts the window back to the size that shows the whole mixer. Window size is remembered with the session, which is what makes a window you dragged stay where you put it and also makes a narrowed one permanent, since nothing else here ever sets it. Its height comes from which groups of rows are folded rather than from a stored number, so folding a group away and then fitting leaves no empty band under the strips.
 
 Echo, Reverb and Output are drawn as boxes, because a box is what says "these belong together" and there is something in each of them to group. The rest are single controls standing on their own: a box around one button says nothing the button was not already saying, and four of them in a row turn the bar into a fence. Buttons, lists and the meter all stand on the line the knob dials stand on, rather than in the middle of their row, since a knob carries its caption underneath and anything centred beside one reads as sagging.
 
@@ -285,6 +346,18 @@ The faders and the mute and solo buttons are left out of it. Those two rows are 
 Knobs show their value as a ring of discrete ticks rather than a continuous arc, which suits an instrument that is itself built from 32 discrete partials and reads more like a measurement device than a mixing desk. Faders carry a scale in the same tick language.
 
 The panel is lit from the top left throughout. Knob caps are machined discs with a nearly flat face, the roundness living in the rim that catches the light along its upper edge and falls into shadow underneath, with a soft shadow cast down and to the right, channels have a bright left edge and a shadowed right one so a run of strips reads as raised columns, fader grooves darken at the top where they are cut into the panel, and buttons cast a shadow when raised and lose it when engaged. Pointers and fader caps are translucent glass, so the tick ring and the meter read straight through them.
+
+**Every screen and every lamp is set into the panel**, which is the other half of a panel lit from one corner: the raised things show the two walls nearest the light and the sunk things show the two furthest, so a channel is lit along its left edge while a hole cut in one is lit along its right. The cents readout, the shape glyph, the four activity lamps and the pitch needle all get a dark edge along their top and left and a lit one along their bottom and right.
+
+It is drawn around each of them rather than inside, because they are a few pixels across and a border taken out of the picture would leave no picture. None of them had to move to make room: each was already standing in a margin of its own that nothing was using, so the lip costs nothing but the one pixel on each side that the margin already held.
+
+Two whole shapes rather than four arcs, the lit one and then the shadow over it offset by the depth, because the face that lands on top is what cuts the middle out of both. The shadow is the size of the opening and the lit shape the size of the lip, which is what makes the lip one pixel on every side: offsetting the larger of the two instead gives two pixels of shadow above and to the left against one of light below, which reads as the element sitting off centre in its own hole and takes a pixel its neighbour was using.
+
+Both shapes run under the opening as well as around it, so a face drawn at low alpha shows the shadow through itself. The lamps and the needle are exactly that when they are dark, so both blend against their own backdrop instead, which is the colour they came out as anyway and covers the floor of the hole while it is at it.
+
+**It is not free, and the lamps are what pays.** Three lamps and a needle to a strip across thirty-three strips are the one thing here that repaints thirty times a second, and two shapes is half of what a lamp's whole paint used to cost. Measured on one lamp, alternating builds and taking the minimum of six runs each: 4.3 microseconds without the recess and 6.9 with it, which across all 132 of them is 0.57 ms of a frame against 0.92, so the mixer's lamps went from 1.7 percent of a core to 2.7. Two things that were tried and did not help: ellipses in place of rounded rectangles save nothing, both being general path fills, and giving the recess a third shape to put an opaque floor under those two faces costs 1.3 microseconds a lamp where blending the faces themselves costs nothing.
+
+What would pay for itself is caching the static half of a lamp's paint, which is the backdrop, the rule, its lit lip and the recess, as a nine by nine image and blitting it, leaving only the bloom and the lamp itself to draw. That would end up cheaper than before any of this, and it is not done because the editor paints under a zoom transform and the display has a scale of its own, so the cache would have to be keyed on the physical pixel scale and rebuilt when it changes. Blitted under a transform the image is resampled rather than copied, which could cost more than the fills it replaced, and everything that can be checked here is a 1x software render, so a cache that was wrong only at 2x would look perfect in every screenshot.
 
 Cast shadows are built from a few overlapping shapes rather than from a real blur. JUCE has a proper `DropShadow`, but it is a software Gaussian and running one on several hundred controls every repaint would be far too slow.
 
@@ -430,9 +503,11 @@ Rows in a folded section are hidden rather than left at zero height. A knob with
 
 ### Ganging the channels
 
-**LINK** in the top bar gangs the strips: dragging any knob moves the same knob on the others. It works relatively, applying an offset to wherever each strip already sits rather than dragging everything to one shared value, so a spectrum you have shaped by hand keeps its shape.
+**LINK** gangs the strips: dragging any knob moves the same knob on the others. It works relatively, applying an offset to wherever each strip already sits rather than dragging everything to one shared value, so a spectrum you have shaped by hand keeps its shape.
 
-The button opens a menu rather than toggling, since what a drag reaches and how it shares itself out matter as much as whether it is on at all, and it lights when the switch inside is engaged. The same menu is on a right-click anywhere in the mixer, which is where you are when you want it. Both settings are latched when a drag begins, so changing one midway cannot half-apply two different rules.
+The button stands at the head of the caption gutter, in the band the strips beside it use for their channel numbers. That is the column it belongs to, since what it gangs is the rows the captions name, and it is the only control not on the bar. What it left behind there is worth having: the bar now lays out in one row at the width the window opens at rather than two, and the converter readouts have the room to say kHz and bit rather than only the figures.
+
+It opens a menu rather than toggling, since what a drag reaches and how it shares itself out matter as much as whether it is on at all, and it lights when the switch inside is engaged. The same menu is on a right-click anywhere in the mixer, which is where you are when you want it. Both settings are latched when a drag begins, so changing one midway cannot half-apply two different rules.
 
 While LINK is on, the pointer over the mixer says which curve is loaded: five bars, level for uniform, peaked in the middle for taper and scattered for spread. A mode you cannot see is a mode you forget you are in, and this one changes what every drag does.
 
@@ -478,6 +553,88 @@ Every channel has a PAN, the noise channel included, rather than one width contr
 The law is equal power, so the number on the knob is the number in the audio and the level holds as a partial crosses the field. The tests measure both, reading the positions back out of the rendered audio rather than taking them on trust: hard left and hard right land within 0.01 of the ends, half left images at half left within 0.02, and a partial swept across the whole field varies in loudness by under 0.1 dB.
 
 A good shape to start from is mirrored pairs, 1 and 2 in the centre widening out to 31 and 32 at the edges, with the sides alternating so the louder of each pair does not always land on the same one. _Slow Pad_ and _Shimmer_ write it into their pans, where it can be taken apart by hand. It is worth understanding before you leave it: neighbouring partials have near-identical levels in any normal spectrum, so putting each pair on opposite sides keeps the image centred whatever shape you dial in, and because every position has a mirror, no partial ends up hard panned with nothing facing it.
+
+### Character
+
+Which oscillator each partial is. One choice for all 32, on the bar at the head of the group that says what the series is, because an instrument is built out of one circuit repeated rather than out of a different one per channel.
+
+Every entry is a sine oscillator. What differs is how it fails to be one, which is the only thing that ever told two analogue oscillators apart: no circuit produces a mathematically perfect sine, and the ways each design misses are what people mean when they call one warm and another sterile.
+
+| Character | What it is                                           | What it does                                                                     |
+| --------- | ---------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Pure      | the table as sampled                                 | nothing. What every partial was before this existed, and the default             |
+| Bulb      | a Wien bridge held steady by a lamp                  | no harmonics at all, and a level that lags half a second behind every pitch move |
+| Rail      | a phase-shift oscillator grown into its own supply   | a third harmonic at -23 dB and a fifth at -45, and no even ones                  |
+| Diode     | a triangle bent into a sine by two that do not match | a second, third and fourth all near -32 dB, which is a kink rather than a warmth |
+| Valve     | a triode, biased so one half leans over first        | a second harmonic at -20 dB over a third at -23, which is the warm one           |
+| Op-amp    | one that cannot move as fast as it is asked to       | nothing below a kilohertz, and a third harmonic climbing to -19 dB above it      |
+
+On the panel it is a button at the head of the series group, in the capitals everything else on the bar is shouted in, and it lights in its own colour: yellow for Bulb through to the red of channel 3 for Op-amp. Pure does not light at all, which is the honest thing for the one that adds nothing.
+
+**It costs nothing per sample, and that decided the design.** The oscillator is one interpolated table read, an envelope tick and a gain, running 512 times per sample at 16 voices, so a waveshaper in that loop is the whole engine again and four times oversampling to keep it from aliasing is three more. A fixed waveshape does not need to be in the loop at all: run the circuit over a sine once at startup, read off the harmonics it leaves, and build a table from them. The inner loop then reads a different table and is otherwise the same instructions. Measured against Pure at eight voices, on a machine quiet enough for the figure to mean something: Diode costs two percent more, Rail and Valve three, and Op-amp six, because one note's partials fall in different bands and read several tables where the others read one. The reading is trustworthy to about two points, which is what Bulb comes out at and Bulb reads the same plain sine table Pure does.
+
+What the harmonics cost instead is cache. One 16 kB table shared by 512 oscillators sits very comfortably in L1, and a character puts several in play at once, which is the only reason any difference shows up at all.
+
+**The harmonics alias like any others**, so each character is built several times over, each stopping at a different harmonic, and a partial reads the highest one that still fits under Nyquist at the pitch it is at this moment. A partial at a kilohertz has room for its 23rd, one near the top of the range has room for none and reads the plain sine, and one bent upwards drops its top harmonic on the way up rather than folding it back down. With the converter's rate turned down the full table is used, since folding is then the sound being asked for.
+
+**Changing table is a click unless it is a cross-fade.** Two tables hold different numbers at the same phase, so swapping between them at the edge of a control block puts a step in the wave, and a step is a click. A vibrato sitting across one of the lines the tables are divided by crosses it twice a cycle and ticks at twice the vibrato rate, which is how this was found. So the block that changes table plays as a cross-fade from the old one to the new, the same way the gain slides across a block rather than stepping at the edge of it. It costs a second table read for 32 samples on the rare block that crosses and nothing at all on the ones that do not, which is why the rate-limited one, whose partials cross the most lines, is still within five percent of Pure. Measured as the largest step from one sample to the next, a vibrato held across the first slew line reads 0.145 with the table swapped and 0.082 with it cross-faded, against 0.083 for the same note on a plain sine. A test holds it there.
+
+It covers the other two ways a table can change as well: the line where a harmonic runs out of room under Nyquist, which every character has, and someone choosing a different character while a note is sounding.
+
+Two things every table is held to, and a test checks both across every character and every band. The fundamental comes out at the amplitude a plain sine would have, so choosing a character is not choosing a level and the fader goes on meaning what it meant. And the DC the analysis finds is simply not built back in: 512 oscillators each carrying a small offset is headroom quietly disappearing.
+
+**What it does that a fader cannot.** This is an additive instrument, so a second harmonic on partial 3 lands where partial 6 already is. It does not land on top of it: TUNE and STRETCH move the real partials off exact whole-number ratios, and a character's harmonics sit at exact multiples of the partial that produced them, so the two beat against each other. That is the part worth having, and it is also why the recipes are small. Thirty-two partials each adding a few harmonics crowds the top of the spectrum quickly.
+
+**A rack of thirty-two is not one oscillator thirty-two times.** Every character except Pure carries a fixed spread with it: each partial sits a few cents and a fraction of a decibel off the spec the rack was built to, by the same amount in every session, in every host and on every machine. It is not DRIFT, which wanders. This is where the units were the moment they were switched on and where they are again next time. The first partial is the one the other thirty-one were tuned against, so it is exactly on spec in both, which is what keeps a note landing on the key that asked for it and keeps a patch from changing level when the character changes.
+
+| Character | Pitch   | Level    | Why that one                                                                              |
+| --------- | ------- | -------- | ----------------------------------------------------------------------------------------- |
+| Bulb      | ±1.5 ct | ±0.1 dB  | the lamp holds the level and nothing else here does, and it heats the bridge it regulates |
+| Rail      | ±2.5 ct | ±0.5 dB  | three RC stages set the frequency and their errors stack, and the rail sets the level     |
+| Diode     | ±2 ct   | ±0.4 dB  | an integrator sets the frequency, which is accurate, and two diodes set the level         |
+| Valve     | ±3 ct   | ±0.35 dB | a heater in every unit and nothing regulating either end of it                            |
+| Op-amp    | ±2 ct   | ±0.3 dB  | an ordinary amplifier around an ordinary core                                             |
+
+The scale is what a tuned rack holds rather than what the parts are made to. Component tolerance is a percent or more, which is eighty cents, and a rack eighty cents wide is a rack nobody has tuned. What is left after tuning is a couple of cents, and the order between the characters is which part of each circuit sets its frequency and which sets its level.
+
+The pitch figures are half what they first shipped at, and that was decided by playing rather than by measuring: at three to six cents several patches read as detuned rather than as a rack of units, which is to say as a rack that wants tuning again. The level spread was right the first time and has not moved.
+
+**And no two units distort by quite the same amount.** A rack whose thirty-two circuits are all tuned a little differently would still be one circuit repeated if every one of them clipped, folded or slewed by exactly as much, so each unit is also built to one of three drives, 15% either side of the nominal, drawn by index like the rest of it. A third of the partials sit on the nominal, which is the drive every figure written down about these characters describes.
+
+| Character | Its own drive         | The third or second harmonic across the three |
+| --------- | --------------------- | --------------------------------------------- |
+| Rail      | how far into the rail | -25.8, -23.5 and -21.6 dB                     |
+| Diode     | how badly matched     | -35.7, -33.2 and -30.9 dB                     |
+| Valve     | how hard it is driven | -22.0, -20.1 and -18.6 dB                     |
+| Op-amp    | how fast it can move  | -27.3, -24.5 and -22.6 dB                     |
+
+**Three rather than thirty-two**, and that is the whole design of it. The drive is baked into the table, so a figure per channel would mean thirty-two tables per character and a note reading thirty-two of them per sample, where the reason a character costs nothing at all is that 512 oscillators read one 16 kB table that stays in cache. Three keeps the idea and keeps the tables countable: 72 of them now against 24, 1.15 MB against 400 kB, and 31 ms to build at startup against 8. The per-sample work is exactly what it was, one interpolated read, since all that changed is which table the pointer is pointing at.
+
+**What the three cost is two to three percent of a character**, which is the one figure here that had to be measured rather than reasoned about, since the whole risk was cache. Two builds, one drive against three, ten runs of one and five of the other, taking the minimum of each. At eight voices: Rail 7.13 to 7.24% of a core, Diode 7.13 to 7.27, Valve 7.06 to 7.26 and Op-amp 7.31 to 7.52. What makes those readable is the pair that cannot have moved, since they have no tables to multiply: Pure went 7.04 to 6.98 and Bulb 7.01 to 7.04, so the floor is about a percent and the four that grew are above it.
+
+**The rate limit takes a third of that spread rather than all of it.** Its harmonics do not grow steadily with the drive, they arrive all at once as the wave begins to be limited, so the same 15% either side ran from -41.7 dB to -20.5 on the third harmonic, which is not one circuit built twice. At a third of the depth it spreads about as far as the other three do.
+
+The drive is drawn from a stream of its own rather than from the one the pitch and level come off. Sharing it would shift every draw after the first and re-roll where all thirty-two units sit, which is a different rack rather than the same rack with its circuits built to three drives. That showed up as every preset on Bulb changing sound, eleven of them, and Bulb has no harmonics to drive at all.
+
+What it buys is the paragraph above being true of a patch nobody has detuned. With every TUNE at zero the partials are exact multiples of each other, so a character's harmonics land exactly on the partials above and add or cancel by phase rather than doing anything. A couple of cents of spread makes them beat instead. The rate follows the frequency, since a cent is a fraction of a hertz at the bottom of the series and several at the top: on a low A, partial 1's second harmonic meets partial 2 at 220 Hz and beats well under a hertz, while partial 16's meets partial 32 at 3.5 kHz and beats at ten or so. It costs one add and one multiply per partial per control block, which is a thirty-second of one sample's work, and the spread itself is a few hundred draws at startup. Pure has none of it, which is what keeps every patch written before any of this existed playing exactly as it did.
+
+**Bulb is the one with no harmonics.** A Wien bridge is the cleanest sine any of these circuits makes, because holding the amplitude steady is the whole job of the lamp in it. What the lamp costs is not distortion but time: its resistance follows how hard the loop drives it, only as fast as a filament heats and cools, and the gain the loop needs changes with frequency because no two ganged parts track exactly. So the level sags when the pitch moves and settles once the lamp has caught up. One pole per partial, chasing the pitch with a half-second time constant, and the error left over takes up to a quarter of the level.
+
+How far out of balance the lamp has to be for that is the one number here that is not the circuit's. A bench oscillator is swept by a knob across a decade and its lamp answers a frequency that has doubled. This one is moved by vibrato, drift and a finger, which is to say by cents, and a model faithful to the bench does nothing at all at that scale: at a semitone of full scale it gave 0.8 dB under a 25 cent vibrato and a hundredth of a decibel under drift, which is a character nobody can hear. Scaled to a quarter of a semitone it reads as the circuit it is named after. Measured on a held note, from the quietest the partial gets to the loudest: nothing at all while the pitch is still, 4.3 dB under a 25 cent vibrato, and a 2.5 dB dip across a two-semitone bend that recovers once the lamp catches up. A test holds those figures.
+
+Which is to say it answers gestures rather than sitting there. A held note with no vibrato, no bend and no hand on it is exactly Pure, because an amplitude that is already steady is one a lamp has nothing to do about. Drift moves it least of all, since a wander that slow is precisely what an automatic gain control exists to remove.
+
+**Valve is the one about the second harmonic.** A triode's curve is not symmetrical about anything, so a wave sitting on it leans over on one side before the other, and an asymmetry is what makes even harmonics. Where on the curve the wave sits decides which harmonic the character is about: further along it, the second grows while the third falls away. Biased to put the second at -20 dB and the third at -23, it is the only one here whose loudest addition is an octave rather than a twelfth, which is the whole of what people mean by valve warmth.
+
+**Op-amp is the one that is not a fixed waveshape**, and it is why the table is chosen by frequency as well as by how much room is left under Nyquist. A rate limit does nothing at all to a wave that never asks the amplifier for more than it has, and turns a fast one into a triangle, so the shape depends on the pitch. The corner sits at a kilohertz, and that is the second number here scaled to the instrument rather than taken from the part. A 741 slews at half a volt per microsecond, so at ten volts peak it stops keeping up somewhere around 8 kHz, and a partial up there has no room left under Nyquist for the odd harmonics slewing makes: the character would be real, correct and completely inaudible. A kilohertz is where it can be heard, and it happens to be where the keyboard tracking rolloff sits, being about C6 and so in the middle of where anyone plays. Below it the partials are untouched. Above it they harden as they climb, which is what playing a slew-limited oscillator up the keyboard does.
+
+Three tables cover it, at a quarter, six tenths and twice again past the corner, and anything above the last reads the last. That is not a corner cut: measured, the third harmonic reaches -19.1 dB by twice the corner and does not move again however much harder the limit bites, because the wave is a triangle by then and a triangle at a given fundamental is a triangle. It is also the character that costs the most, about five percent over Pure at eight voices, since one note's partials land in different bands and read several tables where the others read one.
+
+A rate limit is the one imperfection here with a memory, so its cycle is simulated rather than shaped: a limiter run over a sine for several turns, with the steady state it settles into being what gets analysed.
+
+**What the factory presets ask for.** Twenty-five of the thirty-one, decided by ear at a keyboard and by nothing else: eleven on Bulb, eight on Op-amp, four on Valve, two on Rail, and six left on Pure. Three of those six are deliberate rather than left over. Init is the neutral patch. Just Saw and Equal Saw are played against each other to demonstrate tuning, and a timbre difference between them would be demonstrating something else.
+
+The shape of that list says something about the six. Bulb and Op-amp take more than half of it between them, and they are the two that are not fixed waveshapes: one answers the hand and the other answers the register, so both do something on a keyboard that no spectrum sitting still can. The diode pair came out of the pass with nothing at all. It still does what it says it does, and no patch in the set asked for it, which is a fact about the set rather than about the character.
 
 ### Wobble
 

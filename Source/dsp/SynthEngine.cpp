@@ -25,6 +25,18 @@ void SynthEngine::prepare(double newSampleRate) noexcept {
   sampleRate = std::max(1.0, newSampleRate);
   renderRate = sampleRate;
 
+  // Builds the oscillator tables if nothing has yet, which takes about eight
+  // milliseconds: each circuit run over a sine, the harmonics read off it, and
+  // a table built for every count of them that fits under Nyquist. They are
+  // built once and then only read, but the first read has to pay for them, and
+  // the first read would otherwise be the first note. Eight milliseconds is
+  // most of a block.
+  (void)CharacterTables::instance();
+
+  // And the racks those circuits were built into, which is a few hundred
+  // draws rather than eight milliseconds but is on the same first-read path.
+  (void)UnitSpread::instance();
+
   // Distinct seeds so two voices never draw the same drift contour.
   for (size_t i = 0; i < voices.size(); ++i)
     voices[i].prepare(sampleRate, (uint32_t)(i + 1) * 2654435761u);
@@ -399,16 +411,88 @@ void SynthEngine::setRenderRate(double rate) noexcept {
     v.setRenderRate(rate);
 }
 
+SharedModulation
+SynthEngine::advanceSharedModulators(int numFrames,
+                                     const SynthParams &p) noexcept {
+  SharedModulation out;
+
+  if (!p.global.pitchModInPhase && !p.global.ampModInPhase)
+    return out;
+
+  // The same blocks, of the same lengths, that every voice is about to walk.
+  const int blocks =
+      (numFrames + Voice::kControlBlock - 1) / Voice::kControlBlock;
+  out.stride = kModBoundaries;
+
+  // One channel at a time, because a channel's rate and shape are its own even
+  // though the switch over them is not.
+  const auto fill =
+      [&](std::array<Lfo, kNumHarmonics + 1> &modulators,
+          std::array<float, (kNumHarmonics + 1) * kModBoundaries> &table,
+          int channel, float rateHz, LfoShape shape, double offsetTurns) {
+        auto &lfo = modulators[(size_t)channel];
+        const double increment = (double)rateHz / renderRate;
+        const auto at = (size_t)(channel * kModBoundaries);
+
+        table[at] = lfo.value(shape, offsetTurns);
+
+        for (int b = 0; b < blocks; ++b) {
+          const int len = std::min(Voice::kControlBlock,
+                                   numFrames - b * Voice::kControlBlock);
+
+          table[at + (size_t)b + 1] = lfo.advance(
+              sharedRandom, increment * (double)len, shape, offsetTurns);
+        }
+      };
+
+  if (p.global.pitchModInPhase) {
+    for (int i = 0; i < kNumHarmonics; ++i)
+      fill(pitchModulators, sharedPitch, i, p.osc[(size_t)i].pmRateHz,
+           p.osc[(size_t)i].pmShape, 0.0);
+
+    // The noise channel has no pitch of its own to modulate, so its slot is
+    // left where it is rather than stepped.
+    out.pitch = sharedPitch.data();
+  }
+
+  if (p.global.ampModInPhase) {
+    for (int i = 0; i < kNumHarmonics; ++i)
+      fill(ampModulators, sharedAmp, i, p.osc[(size_t)i].amRateHz,
+           p.osc[(size_t)i].amShape, kAmpShapeOffset);
+
+    fill(ampModulators, sharedAmp, kNumHarmonics, p.noise.amRateHz,
+         p.noise.amShape, kAmpShapeOffset);
+
+    out.amp = sharedAmp.data();
+  }
+
+  return out;
+}
+
 void SynthEngine::sumVoices(float *left, float *right, int numFrames,
                             const SynthParams &p, Activity &into) noexcept {
   std::fill(left, left + numFrames, 0.0f);
   std::fill(right, right + numFrames, 0.0f);
 
+  for (int done = 0; done < numFrames;) {
+    // Everything the pool can take in one pass, which for a host asking its
+    // usual buffer size is the whole of it.
+    const int len = std::min(kModChunk, numFrames - done);
+    const auto shared = advanceSharedModulators(len, p);
+
+    sumChunk(left + done, right + done, len, p, into, shared);
+    done += len;
+  }
+}
+
+void SynthEngine::sumChunk(float *left, float *right, int numFrames,
+                           const SynthParams &p, Activity &into,
+                           const SharedModulation &shared) noexcept {
   for (auto &v : voices) {
     if (!v.isActive())
       continue;
 
-    v.render(left, right, numFrames, p);
+    v.render(left, right, numFrames, p, shared);
 
     // The lamps follow the meter rather than being gathered on their own
     // terms. Whichever voice is loudest on a partial is the one you are

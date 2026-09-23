@@ -16,7 +16,8 @@ juce::String entry(const juce::String &text, int count) {
 
 MuteSoloButton::MuteSoloButton(juce::AudioProcessorValueTreeState &state,
                                const juce::String &label)
-    : juce::TextButton(label), apvts(state) {
+    : apvts(state) {
+  setButtonText(label);
   setClickingTogglesState(true);
 }
 
@@ -38,7 +39,7 @@ juce::PopupMenu MuteSoloButton::buildMenu() {
 
 void MuteSoloButton::mouseDown(const juce::MouseEvent &e) {
   if (!e.mods.isPopupMenu()) {
-    juce::TextButton::mouseDown(e);
+    GlowButton::mouseDown(e);
     return;
   }
 

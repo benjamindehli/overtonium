@@ -128,6 +128,13 @@ public:
   const juce::String &getReading() const noexcept { return reading; }
   bool isActive() const noexcept { return active; }
 
+  /// Whether a display this wide has room to name its unit beside the digits.
+  ///
+  /// Public because it is a layout rule rather than a painting detail: what
+  /// the bar hands its converter readouts decides whether they can say what
+  /// their numbers mean, and a test holds the bar to it.
+  static bool hasRoomForUnit(int width);
+
   /// Whether this character has a form to draw, either as a glyph or as one
   /// of the narrow cells. Anything else comes out as an unlit digit, so the
   /// tests hold every reading the panel can produce against this.
@@ -139,6 +146,16 @@ public:
   void mouseUp(const juce::MouseEvent &) override;
   void mouseEnter(const juce::MouseEvent &) override;
   void mouseExit(const juce::MouseEvent &) override;
+
+  /// Announces one that opens a menu as the button it is.
+  ///
+  /// A plain component has no role and no actions, so the two converter
+  /// settings were the one part of the panel a screen reader could neither
+  /// name nor reach, and their digits are drawn rather than written so there
+  /// was nothing to fall back on either. One that is only a readout is left
+  /// as it is, which is what it is.
+  std::unique_ptr<juce::AccessibilityHandler>
+  createAccessibilityHandler() override;
 
 private:
   /// Draws one character in the classic seven-bar arrangement.

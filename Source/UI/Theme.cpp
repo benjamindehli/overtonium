@@ -5,12 +5,86 @@
 #include <limits>
 
 #include "../PluginParameters.h"
+#include "LookAndFeel.h"
 
 namespace ovt::ui {
 
-juce::Colour intervalColour(int pitchClass) {
-  const auto pc = ((pitchClass % 12) + 12) % 12;
-  const auto t = (float)pc / 11.0f;
+void GlowButton::paintButton(juce::Graphics &g, bool highlighted, bool down) {
+  // The face, drawn as if the switch were off whatever it is, so that being
+  // engaged is something the word says rather than something the button does.
+  // Not even the shade of grey moves: all that reaches the face is the light
+  // off the text, further down.
+  const auto fill = findColour(juce::TextButton::buttonColourId);
+
+  if (auto *laf = dynamic_cast<OvertoniumLookAndFeel *>(&getLookAndFeel()))
+    laf->drawButtonFace(g, *this, false, fill, highlighted, down);
+  else
+    getLookAndFeel().drawButtonBackground(g, *this, fill, highlighted, down);
+
+  const auto on = getToggleState();
+  const auto colour = findColour(on ? juce::TextButton::textColourOnId
+                                    : juce::TextButton::textColourOffId);
+
+  const auto h = (float)getHeight();
+  const auto font = makeFont(juce::jlimit(8.0f, 13.0f, h * 0.58f), true);
+
+  juce::GlyphArrangement glyphs;
+  // The whole width, because the buttons on this panel are sized against the
+  // words they carry and REVERB fills its own to within a pixel either side.
+  // An inset here would take the B off it.
+  glyphs.addFittedText(font, getButtonText(), 0.0f, 0.0f, (float)getWidth(), h,
+                       juce::Justification::centred, 1, 1.0f);
+
+  if (!on) {
+    g.setColour(colour);
+    glyphs.draw(g);
+    return;
+  }
+
+  // Strokes over the text's own path rather than the text drawn over itself at
+  // a ring of offsets: a path gives light that is even all the way round a
+  // letter, where offsets pile up at the corners and leave the curves thin.
+  juce::Path path;
+  glyphs.createPath(path);
+
+  // The word is the lamp and the face is what it falls on. Each stroke is
+  // wider and fainter than the one inside it, so the light leaves the letters
+  // and thins out across the button instead of stopping at an outline.
+  //
+  // Clipped to the face, which is what makes it read as light caught by the
+  // button rather than as a halo floating over it. The rounded rectangle is
+  // the one the look and feel draws the face with.
+  {
+    juce::Graphics::ScopedSaveState clipped(g);
+
+    const auto face = getLocalBounds().toFloat().reduced(0.5f);
+
+    juce::Path lit;
+    lit.addRoundedRectangle(face, juce::jmin(4.0f, face.getHeight() * 0.3f));
+
+    g.reduceClipRegion(lit);
+
+    struct Spill {
+      float width;
+      float alpha;
+    };
+
+    for (const auto spill :
+         {Spill{16.0f, 0.030f}, Spill{11.0f, 0.045f}, Spill{7.0f, 0.070f},
+          Spill{4.0f, 0.130f}, Spill{2.0f, 0.260f}}) {
+      g.setColour(colour.withAlpha(spill.alpha));
+      g.strokePath(path, juce::PathStrokeType(spill.width,
+                                              juce::PathStrokeType::curved,
+                                              juce::PathStrokeType::rounded));
+    }
+  }
+
+  g.setColour(colour);
+  g.fillPath(path);
+}
+
+juce::Colour bandColour(float t) {
+  t = std::clamp(t, 0.0f, 1.0f);
 
   // The band is the middle of a blue to yellow sweep, cropped at both ends.
   // The full sweep put pure blue and pure yellow at the extremes, which was
@@ -26,6 +100,30 @@ juce::Colour intervalColour(int pitchClass) {
   const auto val = 0.954f + t * (0.863f - 0.954f);
 
   return juce::Colour::fromHSV(std::fmod(hue, 360.0f) / 360.0f, sat, val, 1.0f);
+}
+
+juce::Colour intervalColour(int pitchClass) {
+  const auto pc = ((pitchClass % 12) + 12) % 12;
+
+  return bandColour((float)pc / 11.0f);
+}
+
+juce::Colour characterColour(Character c) {
+  // The fifth is where the red the mixer already uses sits, on channel 3, and
+  // the seventh is the yellow at the top of the band. Running the characters
+  // down between them puts the gentlest at the yellow end and the hardest on
+  // that red, and adding one subdivides the same stretch rather than walking
+  // off the end of it into the blues.
+  constexpr float kYellow = 11.0f / 11.0f;
+  constexpr float kFifth = 7.0f / 11.0f;
+
+  const auto first = 1; // Pure is not on the band
+  const auto last = (int)Character::NumCharacters - 1;
+  const auto steps = (float)std::max(1, last - first);
+
+  const auto t = std::clamp((float)((int)c - first) / steps, 0.0f, 1.0f);
+
+  return bandColour(kYellow + t * (kFifth - kYellow));
 }
 
 namespace {

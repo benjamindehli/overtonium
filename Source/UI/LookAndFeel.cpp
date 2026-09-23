@@ -144,6 +144,30 @@ void paintDisplayGround(juce::Graphics &g, juce::Rectangle<float> area,
   g.fillRoundedRectangle(area, corner);
 }
 
+void paintRecess(juce::Graphics &g, juce::Rectangle<float> opening,
+                 float corner, float depth) {
+  // The lit walls first, one depth out all the way round, and then the
+  // shadowed ones over them: the opening itself moved up and to the left by
+  // that same depth, which covers the top and the left and leaves the light
+  // showing along the bottom and the right. That is the pair a recess lit from
+  // the top left shows. The two walls facing the light are the far ones, where
+  // a raised object shows the two nearest, which is why a channel is lit on
+  // its left edge and dark on its right and a hole in one is the other way
+  // about.
+  //
+  // The shadow is the size of the opening rather than the size of the lip, so
+  // that the lip comes out one pixel on every side. Offsetting the larger of
+  // the two shapes instead puts two pixels of shadow above and to the left
+  // against one of light below and to the right, which reads as every element
+  // sitting off centre in its own hole, and the wider shadow also eats a pixel
+  // its neighbour was using.
+  g.setColour(juce::Colours::white.withAlpha(0.11f));
+  g.fillRoundedRectangle(opening.expanded(depth), corner + depth);
+
+  g.setColour(juce::Colours::black.withAlpha(0.6f));
+  g.fillRoundedRectangle(opening.translated(-depth, -depth), corner);
+}
+
 void strokeGlowing(juce::Graphics &g, const juce::Path &path,
                    juce::Colour colour, float thickness) {
   struct Pass {
@@ -549,10 +573,18 @@ void OvertoniumLookAndFeel::drawButtonBackground(
     juce::Graphics &g, juce::Button &button,
     const juce::Colour &backgroundColour, bool shouldDrawButtonAsHighlighted,
     bool shouldDrawButtonAsDown) {
+  drawButtonFace(g, button, button.getToggleState(), backgroundColour,
+                 shouldDrawButtonAsHighlighted, shouldDrawButtonAsDown);
+}
+
+void OvertoniumLookAndFeel::drawButtonFace(juce::Graphics &g,
+                                           juce::Button &button, bool on,
+                                           const juce::Colour &backgroundColour,
+                                           bool shouldDrawButtonAsHighlighted,
+                                           bool shouldDrawButtonAsDown) {
   const auto bounds = button.getLocalBounds().toFloat().reduced(0.5f);
   const auto corner = juce::jmin(4.0f, bounds.getHeight() * 0.3f);
 
-  const bool on = button.getToggleState();
   auto fill = on ? backgroundColour : colours::panelAlt;
 
   if (shouldDrawButtonAsDown)
@@ -627,6 +659,104 @@ void OvertoniumLookAndFeel::drawComboBox(juce::Graphics &g, int width,
   g.setColour(box.findColour(juce::ComboBox::arrowColourId));
   g.strokePath(chevron, juce::PathStrokeType(1.6f, juce::PathStrokeType::curved,
                                              juce::PathStrokeType::rounded));
+}
+
+// =============================================================================
+// The standalone's title bar.
+
+namespace {
+/// The minimise or the close in it.
+///
+/// A shape and nothing else. JUCE's own are coloured discs, which is a
+/// convention from another desktop and reads as a traffic light sitting on the
+/// panel. These are drawn the way every other small mark in the instrument is:
+/// dim until the pointer is on them, and then lit.
+class TitleBarButton final : public juce::Button {
+public:
+  TitleBarButton(const juce::String &name, juce::Path glyph, juce::Colour lit)
+      : juce::Button(name), shape(std::move(glyph)), hovered(lit) {}
+
+  void paintButton(juce::Graphics &g, bool highlighted, bool down) override {
+    auto area = getLocalBounds().toFloat().reduced((float)getHeight() * 0.32f);
+
+    g.setColour(highlighted || down ? hovered : colours::textDim);
+    g.fillPath(shape, shape.getTransformToScaleToFit(area, true));
+  }
+
+private:
+  juce::Path shape;
+  juce::Colour hovered;
+};
+} // namespace
+
+juce::Button *OvertoniumLookAndFeel::createDocumentWindowButton(int type) {
+  constexpr float kThickness = 0.14f;
+
+  juce::Path shape;
+
+  if (type == juce::DocumentWindow::closeButton) {
+    shape.addLineSegment({0.0f, 0.0f, 1.0f, 1.0f}, kThickness);
+    shape.addLineSegment({1.0f, 0.0f, 0.0f, 1.0f}, kThickness);
+
+    // The one button worth being able to hit by accident, so it is the one
+    // that says so before you do.
+    return new TitleBarButton("close", std::move(shape), colours::muteOn);
+  }
+
+  if (type == juce::DocumentWindow::minimiseButton) {
+    shape.addLineSegment({0.0f, 0.5f, 1.0f, 0.5f}, kThickness);
+    return new TitleBarButton("minimise", std::move(shape), colours::text);
+  }
+
+  shape.addLineSegment({0.5f, 0.0f, 0.5f, 1.0f}, kThickness);
+  shape.addLineSegment({0.0f, 0.5f, 1.0f, 0.5f}, kThickness);
+
+  return new TitleBarButton("maximise", std::move(shape), colours::text);
+}
+
+void OvertoniumLookAndFeel::drawDocumentWindowTitleBar(
+    juce::DocumentWindow &window, juce::Graphics &g, int w, int h,
+    int titleSpaceX, int titleSpaceW, const juce::Image *, bool) {
+  if (w * h == 0)
+    return;
+
+  const auto bounds = juce::Rectangle<int>(0, 0, w, h);
+
+  // Lit from above and grained, like every other surface here, so the bar is
+  // the top of the instrument rather than a lid on it.
+  g.setGradientFill(juce::ColourGradient(colours::panel.brighter(0.10f), 0.0f,
+                                         0.0f, colours::panel.darker(0.25f),
+                                         0.0f, (float)h, false));
+  g.fillRect(bounds);
+
+  paintGrain(g, bounds);
+
+  g.setColour(colours::outline);
+  g.fillRect(0, h - 1, w, 1);
+
+  // The name, dimmed when the window is not the one being worked in, which is
+  // the only thing the title bar has to say.
+  g.setFont(makeFont((float)h * 0.54f, true));
+  g.setColour(window.isActiveWindow() ? colours::text : colours::textDim);
+
+  // Centred on the window rather than on the space between its buttons.
+  //
+  // The space is what JUCE offers, and it is the wrong middle: the buttons
+  // are all at one end, and the standalone puts its own Options button at the
+  // other without telling the title bar about it, so a name centred in what
+  // is left sits left of the window's middle. Centred on the whole width and
+  // then held inside the space, which only bites on a window too narrow to
+  // hold the name in the middle anyway.
+  const auto text = window.getName();
+  const auto width = juce::jmin(
+      titleSpaceW,
+      juce::GlyphArrangement::getStringWidthInt(g.getCurrentFont(), text) + 8);
+
+  const auto x = juce::jlimit(titleSpaceX, titleSpaceX + titleSpaceW - width,
+                              (w - width) / 2);
+
+  g.drawText(text, juce::Rectangle<int>(x, 0, width, h),
+             juce::Justification::centred, true);
 }
 
 } // namespace ovt::ui

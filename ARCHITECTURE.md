@@ -8,7 +8,7 @@ Three layers, and the boundary between the first two is the one that matters.
 
 **A DSP core with no JUCE in it.** Everything under `Source/dsp/` compiles from a bare compiler with no framework and no third-party headers. That is checked rather than asserted: a CI job builds it with `c++ -std=c++17 -Wall -Wextra -Werror` and runs its tests, so an accidental `#include <juce_core/...>` fails the build. The benefit is that the part with the arithmetic in it can be tested without a plugin host, a display or a build system.
 
-**A JUCE layer** that owns parameters, MIDI, state and the editor. `PluginProcessor` handles notes and rendering, `PluginParameters` declares the 781 parameters and flattens them into a plain snapshot the audio thread can read, and `Presets` holds the thirty-one factory patches.
+**A JUCE layer** that owns parameters, MIDI, state and the editor. `PluginProcessor` handles notes and rendering, `PluginParameters` declares the 784 parameters and flattens them into a plain snapshot the audio thread can read, and `Presets` holds the thirty-one factory patches.
 
 **A UI layer** under `Source/UI/`, which draws the mixer and knows nothing about how sound is made.
 
@@ -19,6 +19,8 @@ Two threads, and the rule is that neither waits for the other.
 The audio thread reads a snapshot of the parameters rather than the `AudioProcessorValueTreeState` itself. It allocates nothing. A host may hand over a bigger block than the one it promised in `prepareToPlay`, and growing a buffer to fit would take the allocator's lock on the audio thread, where whatever the message thread is doing can make it wait, so the block is cut into pieces the existing scratch already holds. A test renders the same passage through both paths and compares them sample by sample.
 
 The message thread owns the editor and the state tree. Values the editor displays, meters, lamps and voice counts, are published as atomics by the render loop and polled, rather than pushed.
+
+Work that arrives over MIDI but belongs to the message thread goes the same way round. A program change is a preset load, which moves hundreds of parameters and reports each one to the host, so the audio thread stores the number in an atomic and a 20 Hz timer on the processor picks it up. Nothing is posted from the audio thread, which would take the message queue's lock.
 
 ## Layout
 
@@ -33,7 +35,8 @@ Resources/
 Source/
   dsp/            JUCE-free DSP core, unit tested standalone
     Harmonics.h     tuning table and blend maths
-    SineTable.h     interpolated sine lookup
+    SineTable.h     interpolated wavetable lookup, and the plain sine
+    Character.h     the oscillator characters, as band-limited tables
     Drift.h         seeded PRNG and the smooth random contour
     Envelope.h      per-partial delay, ADSR and the two-stage key-off
     Params.h        plain-data parameter snapshot
@@ -41,7 +44,7 @@ Source/
     TapeEcho.*      the master echo
     Reverb.*        the master reverb, a feedback delay network
     SynthEngine.*   voice pool, allocation, stealing, effects, master stage
-  PluginParameters.*  APVTS layout, 781 parameters, and the audio-thread snapshot
+  PluginParameters.*  APVTS layout, 784 parameters, and the audio-thread snapshot
   Presets.*           factory presets
   PluginProcessor.*   MIDI handling, sample-accurate rendering, state
   PluginEditor.*      window, zoom, LINK, gutter
