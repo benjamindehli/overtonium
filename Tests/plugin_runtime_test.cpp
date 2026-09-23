@@ -5374,6 +5374,10 @@ void testSoloAndMute(OvertoniumProcessor &p) {
 } // namespace
 
 int main() {
+  // See the same line in dsp_test: unbuffered, so a crash keeps whatever it
+  // printed before it, and not _IOLBF, which the Windows CRT ignores.
+  std::setvbuf(stdout, nullptr, _IONBF, 0);
+
   juce::ScopedJuceInitialiser_GUI juceInit;
 
   OvertoniumProcessor processor;

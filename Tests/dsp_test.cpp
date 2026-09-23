@@ -5773,6 +5773,13 @@ void benchmarkLofi() {
 }
 
 int main() {
+  // Unbuffered, so a crash leaves behind everything printed up to it. ctest
+  // captures the output through a pipe, which buffers it by default, and a
+  // suite that dies with its last few sections still in that buffer says only
+  // that it died. Not _IOLBF: the Windows CRT treats line buffering as full
+  // buffering, and Windows is where the crash that cost a round trip was.
+  std::setvbuf(stdout, nullptr, _IONBF, 0);
+
   testTuningTable();
   testTemperaments();
   testBlendEndpoints();
