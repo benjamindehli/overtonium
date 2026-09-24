@@ -642,6 +642,12 @@ void OvertoniumEditor::setZoom(float newZoom) {
   const auto logicalHeight = (float)getHeight() / zoom;
 
   zoom = newZoom;
+
+  // The bar keeps its own copy, which is what the tick in the Zoom submenu is
+  // drawn from. Without this the menu goes on saying 100% whatever the window
+  // is actually at, since the only other place that sets it is the restore.
+  topBar.setZoomChoice(zoom);
+
   applyResizeLimits();
 
   setSize(juce::roundToInt(logicalWidth * zoom),

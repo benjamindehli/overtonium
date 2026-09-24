@@ -125,6 +125,22 @@ void sizeEditor(juce::AudioProcessorEditor &editor, int width,
   editor.setSize(width, height);
 }
 
+/// The bar out of an editor, for the tests that read what it is showing.
+///
+/// It is a child of the editor's content rather than of the editor, and the
+/// depth it sits at is a layout decision that has moved before, so it is
+/// searched for rather than reached into.
+ovt::ui::TopBar *findTopBar(juce::Component &c) {
+  if (auto *bar = dynamic_cast<ovt::ui::TopBar *>(&c))
+    return bar;
+
+  for (auto *child : c.getChildren())
+    if (auto *found = findTopBar(*child))
+      return found;
+
+  return nullptr;
+}
+
 /// How many entries every automatable list has.
 ///
 /// A host stores a choice parameter as a value between zero and one, and what
@@ -2873,27 +2889,11 @@ void testFirstProgramIsReachable() {
 void testPresetNameOutlivesTheWindow() {
   section("The preset name outlives the window");
 
-  const auto findBar = [](juce::Component &root) -> ovt::ui::TopBar * {
-    std::function<ovt::ui::TopBar *(juce::Component &)> walk =
-        [&walk](juce::Component &c) -> ovt::ui::TopBar * {
-      if (auto *bar = dynamic_cast<ovt::ui::TopBar *>(&c))
-        return bar;
-
-      for (auto *child : c.getChildren())
-        if (auto *found = walk(*child))
-          return found;
-
-      return nullptr;
-    };
-
-    return walk(root);
-  };
-
-  const auto shownBy = [&findBar](OvertoniumProcessor &proc) {
+  const auto shownBy = [](OvertoniumProcessor &proc) {
     std::unique_ptr<juce::AudioProcessorEditor> ed(proc.createEditor());
     sizeEditor(*ed, 1340);
 
-    auto *bar = findBar(*ed);
+    auto *bar = findTopBar(*ed);
     return bar != nullptr ? bar->getPresetName() : juce::String("(no bar)");
   };
 
@@ -3337,6 +3337,62 @@ void testFitAllChannels(OvertoniumProcessor &p) {
 
   check(editor->getBounds() == fitted,
         "asking twice changes nothing the second time");
+}
+
+/// The tick in the Zoom submenu, which is the only thing on the panel that
+/// says which zoom you are at.
+///
+/// The editor holds the zoom and the bar holds a copy of it to draw the tick
+/// from, and the restore was the only thing that ever wrote the copy. So the
+/// window scaled correctly and the menu went on ticking 100%. Driven through
+/// the callback the menu item calls, since opening the menu needs a window.
+void testZoomTickFollowsTheZoom(OvertoniumProcessor &p) {
+  section("The zoom tick follows the zoom");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  auto *bar = findTopBar(*editor);
+
+  check(bar != nullptr, "and carries a bar to read the menu off");
+  if (bar == nullptr)
+    return;
+
+  const auto ticked = [bar]() {
+    // Named rather than iterated off the call, since the iterator keeps a
+    // reference to it. Whatever is ticked, so two ticks fail as loudly as none.
+    auto menu = bar->buildSettingsMenu();
+    std::string found;
+
+    for (juce::PopupMenu::MenuItemIterator it(menu); it.next();) {
+      const auto &item = it.getItem();
+
+      if (item.text != "Zoom" || item.subMenu == nullptr)
+        continue;
+
+      for (juce::PopupMenu::MenuItemIterator sub(*item.subMenu); sub.next();)
+        if (sub.getItem().isTicked)
+          found += sub.getItem().text.toStdString();
+    }
+
+    return found;
+  };
+
+  // Every zoom the menu offers, asked for in turn rather than compared against
+  // where the state happened to leave this editor, and ending at 100% for
+  // whatever runs next.
+  for (const auto factor : {1.25f, 0.75f, 1.5f, 1.0f}) {
+    const auto reads = std::to_string(juce::roundToInt(factor * 100.0f)) + "%";
+
+    bar->onZoomChanged(factor);
+
+    check(ticked() == reads,
+          "the window at " + reads + " ticks " + reads + " (" + ticked() + ")");
+  }
 }
 
 void testTopBarAlignment(OvertoniumProcessor &p) {
@@ -5407,6 +5463,7 @@ int main() {
   testModulatorsInPhase(processor);
   testSettingsMenu(processor);
   testFitAllChannels(processor);
+  testZoomTickFollowsTheZoom(processor);
   testPresetMenuGroups(processor);
   testPresetsTellTheHostOnlyWhatChanged(processor);
   testShapeButtonFollowsTheParameter(processor);
