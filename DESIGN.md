@@ -272,6 +272,18 @@ A key-off level of zero skips the stage entirely and releases from wherever the 
 
 Two details that fall out of it. The swell time is exact rather than the "within 1%" the other stages use, because the release has to start when the knob says it does rather than whenever an exponential happens to arrive. And letting go of a key during the delay now still makes a key-off sound if you have asked for one, which is what a release click does on a real instrument, while a level of zero cancels the partial as before.
 
+### How fast the key came up
+
+The speed of a release scales the level the tail starts from, on the keyboards that can sense one. Sixty-four is neutral, the hardest lift doubles that level and the softest halves it, geometrically, so two steps down and two steps up undo each other. There is no knob for it and no parameter: it is a property of the gesture rather than of the patch, the way velocity is, and nothing about a patch changes because of it.
+
+It scales the level the tail would have started from rather than the KEY OFF level itself. Zero on that knob means "release from wherever you are", so on a patch that sets one this moves that, and on a patch that does not it moves the sustain, which is every patch. Scaling the knob instead would have done nothing at all on the default and on most of the factory presets, since zero times anything is zero.
+
+The envelope runs to one, so a partial already sounding at full has nowhere for a hard lift to go and simply stops there. The room is where the tail is quiet, which is where a bloom is worth having: a music box, a bell, an electric piano. A tail louder than the note it came from would have to come out of the fader, with the whole series behind it.
+
+**Nothing happens without a keyboard that senses it**, and that has to be true for the two different things "no release velocity" looks like on the wire. Plenty of keyboards send a note-off carrying zero, and plenty send a note-on of velocity zero instead of a note-off at all, which arrives as a release of zero as well. So zero is read as no information rather than as the softest possible lift, which would otherwise halve the tail of every note those players ever release. Nothing is lost by it, since a lift of 1 is the same gesture as a lift of 0. The test suite renders both forms and compares them with the neutral case sample for sample.
+
+This is what LIFT was aimed at before 1.7.0 removed it, and the reasons it went are still good ones: it cost a row on every strip, it was a parameter nobody could automate usefully, and no factory preset used it. What is left is the part that needed neither, a keyboard that can sense a release being answered when it does.
+
 A third case is the one worth watching for, since it is the shape a music box or a thumb piano has: no sustain at all, so the partial decays to silence while the key is still down, and then a key-off level that brings it back. Reaching zero is not the same as being finished. A partial in that state holds at silence and waits for the key rather than freeing itself, and costs nothing while it waits, since there is no point running an oscillator to produce zeroes.
 
 The envelope's delay stage holds a partial silent before its attack begins. Staggering it across the series makes the spectrum unfold rather than arrive all at once, which is how _Slow Pad_ and _Shimmer_ now open up. It is latched in samples at note-on, so moving the knob cannot retime a note already waiting, and releasing a key before the delay elapses cancels that partial rather than letting it burst in afterwards.

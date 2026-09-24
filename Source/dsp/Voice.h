@@ -161,7 +161,8 @@ public:
   ///                  giving every note its own channel. Ignored otherwise.
   void noteOn(int channel, int note, float velocity,
               const SynthParams &p) noexcept;
-  void noteOff() noexcept;
+  /// @param lift  see Envelope::noteOff.
+  void noteOff(float lift = 1.0f) noexcept;
 
   /// Moves a sounding note to a different key without starting it again.
   ///

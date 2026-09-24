@@ -279,13 +279,15 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
   target->setAge(++ageCounter);
 }
 
-void SynthEngine::noteOff(int note) noexcept { noteOffImpl(0, note); }
-
-void SynthEngine::noteOffPerNote(int channel, int note) noexcept {
-  noteOffImpl(channel, note);
+void SynthEngine::noteOff(int note, float lift) noexcept {
+  noteOffImpl(0, note, lift);
 }
 
-void SynthEngine::noteOffImpl(int channel, int note) noexcept {
+void SynthEngine::noteOffPerNote(int channel, int note, float lift) noexcept {
+  noteOffImpl(channel, note, lift);
+}
+
+void SynthEngine::noteOffImpl(int channel, int note, float lift) noexcept {
   if (legato) {
     legatoRelease(note);
 
@@ -310,10 +312,12 @@ void SynthEngine::noteOffImpl(int channel, int note) noexcept {
     auto &v = voices[i];
 
     if (matches(v, channel, note) && !v.isReleasing()) {
-      if (sustainDown)
+      if (sustainDown) {
         heldBySustain[i] = true;
-      else
-        v.noteOff();
+        heldLift[i] = lift;
+      } else {
+        v.noteOff(lift);
+      }
     }
   }
 }
@@ -326,8 +330,9 @@ void SynthEngine::setSustainPedal(bool down) noexcept {
 
   for (size_t i = 0; i < voices.size(); ++i) {
     if (heldBySustain[i]) {
-      voices[i].noteOff();
+      voices[i].noteOff(heldLift[i]);
       heldBySustain[i] = false;
+      heldLift[i] = 1.0f;
     }
   }
 }

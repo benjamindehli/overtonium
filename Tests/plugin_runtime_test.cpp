@@ -345,6 +345,103 @@ void testParameterWiring(OvertoniumProcessor &p) {
   }
 }
 
+/// That the speed a key comes up at survives the trip from the message to the
+/// tail, and that the two ways a keyboard says "no release velocity" both
+/// leave the instrument exactly as it was.
+///
+/// The shape of what it does is in the DSP suite. What is here is the wiring
+/// and the one thing that wiring can get wrong: reading a zero as the softest
+/// possible lift rather than as no information.
+void testReleaseVelocity(OvertoniumProcessor &p) {
+  section("Release velocity");
+
+  p.applyFactoryPreset(presetIndex("Init"));
+
+  const auto put = [&p](const char *suffix, float value) {
+    auto *param = p.apvts.getParameter(ovt::params::oscParamId(suffix, 0));
+
+    if (param != nullptr)
+      param->setValueNotifyingHost(param->convertTo0to1(value));
+
+    return param != nullptr;
+  };
+
+  // Init is a plucky patch with an 8 ms release, so on its own terms there is
+  // no tail to measure. Half a second of one, a short decay so the note is
+  // sitting at its sustain rather than still on the way down when the key
+  // comes up, and a sustain of 0.4, which leaves a hard lift somewhere to go:
+  // the envelope stops at one, so doubling 0.6 would only reach the ceiling.
+  const bool ready = put(ovt::params::releaseSuffix, 0.5f) &&
+                     put(ovt::params::decaySuffix, 0.05f) &&
+                     put(ovt::params::sustainSuffix, 0.4f);
+
+  check(ready, "the first partial has a release and a sustain to set");
+  if (!ready)
+    return;
+
+  const auto tailAfter = [&p](const juce::MidiMessage &release) {
+    p.prepareToPlay(48000.0, 512);
+    renderBlocks(p, 20, 512, noteOnAt(60, 0.9f, 0));
+
+    juce::MidiBuffer up;
+    up.addEvent(release, 0);
+
+    juce::AudioBuffer<float> buffer(2, 512);
+    buffer.clear();
+    p.processBlock(buffer, up);
+
+    // A hundred milliseconds in, not the block the key came up in. That one is
+    // still at the sustain whatever the lift was, since the swell into the
+    // tail takes a few milliseconds and the block is ten.
+    renderBlocks(p, 8, 512);
+
+    juce::MidiBuffer none;
+    buffer.clear();
+    p.processBlock(buffer, none);
+
+    return buffer.getMagnitude(0, 512);
+  };
+
+  const auto soft =
+      tailAfter(juce::MidiMessage::noteOff(1, 60, (juce::uint8)1));
+  const auto even =
+      tailAfter(juce::MidiMessage::noteOff(1, 60, (juce::uint8)64));
+  const auto hard =
+      tailAfter(juce::MidiMessage::noteOff(1, 60, (juce::uint8)127));
+
+  std::printf("  the first block of the tail: %.4f lifted softly, %.4f evenly, "
+              "%.4f hard\n",
+              soft, even, hard);
+
+  // Half and double, give or take the few milliseconds of swell that a scaled
+  // lift passes through and an even one skips. What the levels are exactly is
+  // pinned in the DSP suite, where an envelope can be read directly.
+  check(soft / even > 0.45f && soft / even < 0.62f,
+        "a soft lift leaves about half the tail (" +
+            std::to_string(soft / even) + " of it)");
+
+  check(hard / even > 1.85f && hard / even < 2.25f,
+        "and a hard one about twice (" + std::to_string(hard / even) + ")");
+
+  // ---- and the two ways of saying nothing ---------------------------------
+
+  const auto zero =
+      tailAfter(juce::MidiMessage::noteOff(1, 60, (juce::uint8)0));
+
+  check(ovt::exactly(zero, even),
+        "a note-off carrying zero is read as no information rather than as the "
+        "softest lift there is");
+
+  const auto asNoteOn =
+      tailAfter(juce::MidiMessage::noteOn(1, 60, (juce::uint8)0));
+
+  check(ovt::exactly(asNoteOn, even),
+        "and so is the note-on of velocity zero that most keyboards send "
+        "instead of a note-off");
+
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
 void testRendering(OvertoniumProcessor &p) {
   section("Rendering and MIDI");
 
@@ -5441,6 +5538,7 @@ int main() {
   testParameterWiring(processor);
   testChoiceParameterCounts(processor);
   testRendering(processor);
+  testReleaseVelocity(processor);
   testPresets(processor);
   testAftertouchMidi(processor);
   testMpe(processor);

@@ -277,7 +277,9 @@ void OvertoniumProcessor::notePitchbendChanged(juce::MPENote note) {
 }
 
 void OvertoniumProcessor::noteReleased(juce::MPENote note) {
-  engine.noteOffPerNote(note.midiChannel, note.initialNote);
+  engine.noteOffPerNote(
+      note.midiChannel, note.initialNote,
+      ovt::liftFromVelocity(note.noteOffVelocity.as7BitInt()));
 }
 
 void OvertoniumProcessor::releaseResources() {
@@ -380,7 +382,10 @@ void OvertoniumProcessor::handleOrdinaryMidiMessage(
   if (m.isNoteOn()) {
     engine.noteOn(m.getNoteNumber(), m.getFloatVelocity(), currentParams);
   } else if (m.isNoteOff()) {
-    engine.noteOff(m.getNoteNumber());
+    // getVelocity is the release velocity on a note-off, and zero on the
+    // note-on-of-velocity-zero form that most keyboards send instead of
+    // one. liftFromVelocity reads zero as neutral for that reason.
+    engine.noteOff(m.getNoteNumber(), ovt::liftFromVelocity(m.getVelocity()));
   } else if (m.isPitchWheel()) {
     pitchBendNormalised = ((float)m.getPitchWheelValue() - 8192.0f) / 8192.0f;
     currentParams.global.bendSemitones =

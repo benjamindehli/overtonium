@@ -3438,7 +3438,8 @@ void testEnvelopeDelay() {
 /// the only way to see the shape rather than infer it from a spectrum.
 std::vector<float> envelopeTrace(double sr, float sustain, float swell,
                                  float offLevel, float release,
-                                 double holdSeconds, double tailSeconds) {
+                                 double holdSeconds, double tailSeconds,
+                                 float lift = 1.0f) {
   Envelope env;
   env.setSampleRate(sr);
   env.configure(0.0f, 0.002f, 0.05f, sustain, swell, offLevel, release);
@@ -3450,7 +3451,7 @@ std::vector<float> envelopeTrace(double sr, float sustain, float swell,
   for (int n = 0; n < (int)(holdSeconds * sr); ++n)
     out.push_back(env.tick());
 
-  env.noteOff();
+  env.noteOff(lift);
 
   for (int n = 0; n < (int)(tailSeconds * sr); ++n)
     out.push_back(env.tick());
@@ -3940,6 +3941,148 @@ void testStrikeVelocity() {
 
 /// The same fault from the outside, where it was heard: a whole voice going
 /// quiet before it could make its key-off sound.
+/// What the speed of the key coming up does to the tail, which is the one
+/// thing in here that a keyboard has to be able to sense before it exists.
+///
+/// There is no knob for it and no parameter, so the whole of it has to be
+/// harmless on a keyboard that cannot play it. That is what the first half of
+/// this checks, sample for sample, and it matters more than the rest.
+void testLift() {
+  section("Lift");
+
+  constexpr double sr = 48000.0;
+  constexpr double hold = 0.5;
+  constexpr float swell = 0.005f;
+
+  // ---- the curve -----------------------------------------------------------
+
+  check(exactly(liftFromVelocity(64), 1.0f), "64 is neutral");
+
+  check(exactly(liftFromVelocity(0), 1.0f),
+        "and so is 0, which is what a keyboard that cannot sense a release "
+        "sends, if it sends anything at all");
+
+  check(std::abs(liftFromVelocity(127) - 2.0f) < 1.0e-5f,
+        "the hardest lift doubles (" + std::to_string(liftFromVelocity(127)) +
+            ")");
+
+  check(std::abs(liftFromVelocity(1) - 0.5f) < 1.0e-5f,
+        "and the softest halves (" + std::to_string(liftFromVelocity(1)) + ")");
+
+  bool climbs = true;
+  for (int v = 2; v <= 127; ++v)
+    climbs &= liftFromVelocity(v) > liftFromVelocity(v - 1);
+
+  check(climbs, "and every step between is bigger than the one below it");
+
+  // ---- a neutral lift is the instrument exactly as it was -------------------
+  //
+  // Not "near enough": the same samples. A release that cannot be sensed has
+  // to leave nothing behind at all, since nothing on the panel says this is
+  // here and no patch can switch it off.
+  for (const auto offLevel : {0.0f, 0.4f, 0.9f}) {
+    const auto plain =
+        envelopeTrace(sr, 0.5f, swell, offLevel, 0.4f, hold, 1.5);
+    const auto lifted =
+        envelopeTrace(sr, 0.5f, swell, offLevel, 0.4f, hold, 1.5, 1.0f);
+
+    bool same = plain.size() == lifted.size();
+    for (size_t i = 0; same && i < plain.size(); ++i)
+      same = exactly(plain[i], lifted[i]);
+
+    check(same, "a key-off level of " + std::to_string(offLevel) +
+                    " released neutrally is the same envelope, sample for "
+                    "sample");
+  }
+
+  // ---- and a sensed one moves the level the tail starts from ---------------
+  //
+  // Read at the moment the release begins rather than out of the tail's
+  // energy, because a scaled lift reaches its level through the swell while a
+  // neutral one with no key-off level of its own goes straight into the
+  // release. Five milliseconds of difference, inaudible and real, and enough
+  // to put six percent on any sum over the whole tail.
+  const auto releasesFrom = [](const std::vector<float> &v, double when) {
+    const auto i = (size_t)(when * sr);
+    return i < v.size() ? (double)v[i] : 0.0;
+  };
+
+  // Sustaining at 0.40, with room above it for a hard lift to use.
+  {
+    const auto soft = envelopeTrace(sr, 0.4f, swell, 0.0f, 0.4f, hold, 2.0,
+                                    liftFromVelocity(1));
+    const auto hard = envelopeTrace(sr, 0.4f, swell, 0.0f, 0.4f, hold, 2.0,
+                                    liftFromVelocity(127));
+
+    const auto begins = hold + (double)swell;
+
+    std::printf("  sustaining at 0.40: the tail starts from %.3f lifted "
+                "softly and %.3f lifted hard\n",
+                releasesFrom(soft, begins), releasesFrom(hard, begins));
+
+    check(std::abs(releasesFrom(soft, begins) - 0.2) < 0.005,
+          "a soft lift halves the level the tail starts from (" +
+              std::to_string(releasesFrom(soft, begins)) + ")");
+
+    check(std::abs(releasesFrom(hard, begins) - 0.8) < 0.005,
+          "and a hard one doubles it (" +
+              std::to_string(releasesFrom(hard, begins)) + ")");
+
+    // Both took the same path to get there, so what is left over the whole
+    // tail is the ratio between them and nothing else.
+    const auto energy = [](const std::vector<float> &v, double from) {
+      double sum = 0.0;
+      for (auto i = (size_t)(from * sr); i < v.size(); ++i)
+        sum += (double)v[i];
+
+      return sum;
+    };
+
+    check(std::abs(energy(hard, begins) / energy(soft, begins) - 4.0) < 0.02,
+          "which is four times the tail across the two ends (" +
+              std::to_string(energy(hard, begins) / energy(soft, begins)) +
+              ")");
+  }
+
+  // ---- with nothing above it, a hard lift has nowhere to go ----------------
+  //
+  // The envelope runs to one. A partial already sounding at full cannot leave
+  // a tail louder than the note it came from, so the hard end simply stops
+  // there rather than clipping or being scaled to fit.
+  {
+    const auto hard = envelopeTrace(sr, 1.0f, swell, 0.0f, 0.4f, hold, 2.0,
+                                    liftFromVelocity(127));
+
+    check(std::abs(releasesFrom(hard, hold + (double)swell) - 1.0) < 0.005,
+          "a partial at full level lifts no louder (" +
+              std::to_string(releasesFrom(hard, hold + (double)swell)) + ")");
+
+    bool underOne = true;
+    for (const auto x : hard)
+      underOne &= x <= 1.0f + 1.0e-6f;
+
+    check(underOne, "and never goes over one on the way");
+  }
+
+  // ---- a key-off level of its own is what moves, when there is one ---------
+  {
+    const auto soft = envelopeTrace(sr, 0.2f, swell, 0.4f, 0.4f, hold, 2.0,
+                                    liftFromVelocity(1));
+    const auto hard = envelopeTrace(sr, 0.2f, swell, 0.4f, 0.4f, hold, 2.0,
+                                    liftFromVelocity(127));
+
+    const auto begins = hold + (double)swell;
+
+    check(std::abs(releasesFrom(soft, begins) - 0.2) < 0.005,
+          "a key-off level of 0.40 lifted softly releases from 0.20 (" +
+              std::to_string(releasesFrom(soft, begins)) + ")");
+
+    check(std::abs(releasesFrom(hard, begins) - 0.8) < 0.005,
+          "and lifted hard from 0.80 (" +
+              std::to_string(releasesFrom(hard, begins)) + ")");
+  }
+}
+
 void testKeyOffAfterSilentDecay() {
   section("Key-off after a silent decay");
 
@@ -5875,6 +6018,7 @@ int main() {
   testPartialMetering();
   testEnvelopeDelay();
   testKeyOffEnvelope();
+  testLift();
   testKeyOffAfterSilentDecay();
   testStrikeVelocity();
   testSlideDisplacement();
