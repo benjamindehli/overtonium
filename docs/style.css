@@ -1003,3 +1003,77 @@ main h1 {
     fill: currentColor;
     flex: none;
 }
+
+/* The video is a link behind its own thumbnail rather than an embed. A YouTube
+   iframe contacts Google the moment the page opens, whether or not anybody
+   plays it, and every other thing on this site is served from the same place
+   the documentation is. It is also the only part of the site that would need a
+   script, and the site has none. Half the column width rather than all of it:
+   the thumbnail is lettered to be read in a grid of other thumbnails, and at
+   1180 pixels it shouts over the page it is illustrating. */
+.video a {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+    max-width: 720px;
+    line-height: 0;
+    border-radius: 6px;
+}
+
+/* Centred over the thumbnail, and out of the way of the pointer so the whole
+   frame stays one link rather than a badge with a picture around it. */
+.video .play {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+}
+
+.video .play svg {
+    width: 72px;
+    height: 72px;
+}
+
+.video circle {
+    fill: rgba(9, 11, 14, 0.62);
+    stroke: var(--text);
+    stroke-width: 2;
+}
+
+.video path {
+    fill: var(--text);
+}
+
+.video a:hover circle,
+.video a:focus-visible circle {
+    stroke: var(--accent);
+}
+
+.video a:hover path,
+.video a:focus-visible path {
+    fill: var(--accent);
+}
+
+/* The eleven presets the video stops at. Wrapped rather than stacked, since
+   eleven short names down the page is a column of nothing much, and the times
+   are dimmed because the name is what somebody is scanning for. */
+.chapters {
+    list-style: none;
+    margin: 14px 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 26px;
+    font-size: 15px;
+}
+
+.chapters li {
+    margin: 0;
+}
+
+.chapters .at {
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+    margin-right: 6px;
+}
