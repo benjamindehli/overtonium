@@ -5320,6 +5320,67 @@ void testBusDrive() {
           "rather than what a rail does");
   }
 
+  // ---- and each circuit bends it its own way -------------------------------
+  //
+  // A limit that treats both halves of the wave alike cannot tell them apart,
+  // so it has no octave to give. One that does not treat them alike has both.
+  // That is the whole difference between a rail and the other two, and it is
+  // audible as the difference between hard and warm.
+  {
+    struct Reading {
+      const char *name;
+      Character c;
+      double second, third, asymmetry;
+    };
+
+    std::vector<Reading> readings;
+
+    for (const auto c : {Character::Rail, Character::Diode, Character::Valve}) {
+      const auto x = through({1000.0}, 0.8, c, 1.0f);
+      const auto level = levelAt(x, 1000.0);
+
+      double high = 0.0, low = 0.0;
+      for (const auto s : x) {
+        high = std::max(high, (double)s);
+        low = std::min(low, (double)s);
+      }
+
+      readings.push_back({characterName(c), c, dB(levelAt(x, 2000.0), level),
+                          dB(levelAt(x, 3000.0), level),
+                          std::abs(high + low) / high});
+    }
+
+    for (const auto &r : readings)
+      std::printf("  %-7s octave %6.1f dB, twelfth %6.1f dB, halves differ by "
+                  "%.1f%%\n",
+                  r.name, r.second, r.third, 100.0 * r.asymmetry);
+
+    check(readings[0].second < readings[0].third - 30.0,
+          "a rail gives a twelfth and no octave worth the name (" +
+              std::to_string(readings[0].second) + " against " +
+              std::to_string(readings[0].third) + " dB)");
+
+    check(readings[0].asymmetry < 0.01,
+          "and leaves the two halves of the wave as it found them (" +
+              std::to_string(100.0 * readings[0].asymmetry) + "%)");
+
+    check(std::abs(readings[1].second - readings[1].third) < 3.0,
+          "a mismatched pair of diodes gives the octave and the twelfth "
+          "together (" +
+              std::to_string(readings[1].second) + " against " +
+              std::to_string(readings[1].third) + " dB)");
+
+    check(readings[1].asymmetry > 0.02,
+          "because it rounds one half of the wave more than the other (" +
+              std::to_string(100.0 * readings[1].asymmetry) + "%)");
+
+    check(readings[2].second > readings[2].third,
+          "and so does a triode, which is the one that leans rather than "
+          "rounding (" +
+              std::to_string(readings[2].second) + " against " +
+              std::to_string(readings[2].third) + " dB)");
+  }
+
   // ---- the point of the exercise -------------------------------------------
   //
   // Two partials that are not harmonically related, so nothing either of them

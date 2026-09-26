@@ -82,19 +82,38 @@ public:
                float amount) noexcept;
 
 private:
-  /// Small-signal gain of one, whatever the drive, so turning this up adds
-  /// overtones rather than level and A against B stays a fair comparison.
-  struct Curve {
+  /// One side of the wave. Two of them, because a circuit is not obliged to
+  /// treat the two halves alike and the ones worth modelling do not: a pair of
+  /// diodes that do not match runs out of room sooner one way than the other.
+  ///
+  /// The scale is the reciprocal of the drive, which is what gives every curve
+  /// a small-signal gain of one whatever it is set to. Turning the amount up
+  /// therefore adds overtones rather than level, and A against B stays a fair
+  /// comparison.
+  struct Side {
     double drive = 0.0;
+    double scale = 1.0;
+  };
+
+  struct Curve {
+    Side up, down;
     double bias = 0.0;
-    double offset = 0.0; ///< what the bias does at zero, subtracted back off
-    double scale = 1.0;  ///< 1 / the slope at zero
+    double offset = 0.0; ///< what the bias does at rest, subtracted back off
   };
 
   static Curve curveFor(Character c, float amount) noexcept;
 
+  /// Which half of the wave a sample is on, counted from where the bias put
+  /// the rest position rather than from zero.
+  static const Side &sideFor(const Curve &k, double u) noexcept {
+    return u >= 0.0 ? k.up : k.down;
+  }
+
   static double shape(const Curve &k, double x) noexcept {
-    return (std::tanh(k.drive * (x + k.bias)) - k.offset) * k.scale;
+    const auto u = x + k.bias;
+    const auto &s = sideFor(k, u);
+
+    return (std::tanh(s.drive * u) - k.offset) * s.scale;
   }
 
   /// log(cosh(u)), which is the antiderivative of tanh and the whole of the
@@ -118,8 +137,16 @@ private:
 
   /// The antiderivative of shape, for the pair of samples either side of a
   /// step to be averaged over rather than sampled at.
+  ///
+  /// Written in u rather than in x so that both halves agree at the crossing:
+  /// each is zero there, so the pair is one continuous function and a step
+  /// that straddles the crossing is averaged correctly rather than picking up
+  /// the difference between two constants.
   static double integral(const Curve &k, double x) noexcept {
-    return (logCosh(k.drive * (x + k.bias)) / k.drive - k.offset * x) * k.scale;
+    const auto u = x + k.bias;
+    const auto &s = sideFor(k, u);
+
+    return (logCosh(s.drive * u) / s.drive - k.offset * u) * s.scale;
   }
 
   /// Below this the divisor of the difference quotient is doing more harm than
