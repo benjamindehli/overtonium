@@ -38,8 +38,8 @@ BusDrive::Curve BusDrive::curveFor(Character c, float amount) noexcept {
   // instead: two and a half drives buys three more decibels of octave and four
   // of aliasing. So the whole knob lives under that, and the useful end of it
   // is the bottom third.
-  k.drive = std::clamp(amount, 0.0f, 1.0f) * 2.0f;
-  k.bias = 0.2f;
+  k.drive = (double)std::clamp(amount, 0.0f, 1.0f) * 2.0;
+  k.bias = 0.2;
 
   const auto atRest = std::tanh(k.drive * k.bias);
 
@@ -48,7 +48,7 @@ BusDrive::Curve BusDrive::curveFor(Character c, float amount) noexcept {
   // The slope at zero, which is what a signal too small to bend the curve sees.
   // Dividing it back out is what keeps this an overtone control rather than a
   // second volume.
-  k.scale = 1.0f / (k.drive * (1.0f - atRest * atRest));
+  k.scale = 1.0 / (k.drive * (1.0 - atRest * atRest));
 
   return k;
 }
@@ -57,23 +57,16 @@ void BusDrive::process(float *left, float *right, int numSamples, Character c,
                        float amount) noexcept {
   const auto k = curveFor(c, amount);
 
-  if (k.drive <= 0.0f || numSamples <= 0)
+  if (k.drive <= 0.0 || numSamples <= 0)
     return;
-
-  if (!primed) {
-    lastL = lastR = 0.0f;
-    lastFL = integral(k, 0.0f);
-    lastFR = lastFL;
-    primed = true;
-  }
 
   // About 5 Hz, which is below anything the series can produce and above the
   // rate at which a chord arrives.
-  const auto dcCoef = (float)std::exp(-6.2831853 * 5.0 / sampleRate);
+  const auto dcCoef = std::exp(-6.2831853071795862 * 5.0 / sampleRate);
 
   for (int n = 0; n < numSamples; ++n) {
-    const auto l = processSample(k, left[n], lastL, lastFL);
-    const auto r = processSample(k, right[n], lastR, lastFR);
+    const auto l = processSample(k, (double)left[n], lastL);
+    const auto r = processSample(k, (double)right[n], lastR);
 
     dcL = l - dcInL + dcCoef * dcL;
     dcInL = l;
@@ -81,8 +74,8 @@ void BusDrive::process(float *left, float *right, int numSamples, Character c,
     dcR = r - dcInR + dcCoef * dcR;
     dcInR = r;
 
-    left[n] = dcL;
-    right[n] = dcR;
+    left[n] = (float)dcL;
+    right[n] = (float)dcR;
   }
 }
 

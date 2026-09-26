@@ -44,14 +44,31 @@ namespace ovt {
 /// of the way up. A partial that loud that high is a test case rather than a
 /// patch, since the series is quietest where this is worst. If the stage
 /// stays, the next thing it wants is to run at twice the rate.
+///
+/// **Two things this arithmetic will do if it is written carelessly**, both
+/// found by playing rather than by reading:
+///
+/// The curve is normalised by dividing by the drive, so as the drive goes to
+/// nothing it is the difference of two nearly equal numbers over a third small
+/// number. In single precision that loses most of its significant digits: at
+/// the bottom of the knob a partial came through 1.4 dB quiet, which is a gain
+/// error rather than the straight line it should have been. It is all done in
+/// double here, and the antiderivative uses a series where its own cancellation
+/// would bite.
+///
+/// And the antiderivative belongs to a particular curve. Carrying the last
+/// one over a block boundary while the drive moves means dividing the
+/// difference of two different functions by the step between two samples,
+/// which is unbounded as that step goes to nothing. One spike per block for as
+/// long as the knob is moving, into an echo with feedback on it. So nothing is
+/// carried: the previous input sample is state, and what the curve made of it
+/// is worked out again under the curve in hand.
 class BusDrive {
 public:
   void reset() noexcept {
-    lastL = lastR = 0.0f;
-    lastFL = lastFR = 0.0f;
-    dcL = dcR = 0.0f;
-    dcInL = dcInR = 0.0f;
-    primed = false;
+    lastL = lastR = 0.0;
+    dcL = dcR = 0.0;
+    dcInL = dcInR = 0.0;
   }
 
   void prepare(double newSampleRate) noexcept {
@@ -68,67 +85,69 @@ private:
   /// Small-signal gain of one, whatever the drive, so turning this up adds
   /// overtones rather than level and A against B stays a fair comparison.
   struct Curve {
-    float drive = 0.0f;
-    float bias = 0.0f;
-    float offset = 0.0f; ///< what the bias does at zero, subtracted back off
-    float scale = 1.0f;  ///< 1 / the slope at zero
+    double drive = 0.0;
+    double bias = 0.0;
+    double offset = 0.0; ///< what the bias does at zero, subtracted back off
+    double scale = 1.0;  ///< 1 / the slope at zero
   };
 
   static Curve curveFor(Character c, float amount) noexcept;
 
-  static float shape(const Curve &k, float x) noexcept {
+  static double shape(const Curve &k, double x) noexcept {
     return (std::tanh(k.drive * (x + k.bias)) - k.offset) * k.scale;
   }
 
-  /// Antiderivative of shape, for the pair of samples either side of a step to
-  /// be averaged over rather than sampled at.
-  static float integral(const Curve &k, float x) noexcept {
-    // log(cosh(u)) written so it cannot overflow: cosh of anything past about
-    // 89 is infinity in single precision, and a loud sample at a high drive
-    // gets there easily.
-    const auto u = k.drive * (x + k.bias);
+  /// log(cosh(u)), which is the antiderivative of tanh and the whole of the
+  /// antialiasing.
+  ///
+  /// Two forms, because neither is good everywhere. Past the crossover, cosh
+  /// overflows anything it is asked for directly, so it is written out of
+  /// log1p. Below it, the direct form is the difference of two numbers near
+  /// log 2 that cancel down to almost nothing, so the series it cancels to is
+  /// used instead.
+  static double logCosh(double u) noexcept {
     const auto a = std::abs(u);
-    const auto logCosh = a + std::log1p(std::exp(-2.0f * a)) - kLog2;
 
-    return (logCosh / k.drive - k.offset * x) * k.scale;
+    if (a < 0.5) {
+      const auto s = a * a;
+      return s * (0.5 - s * (1.0 / 12.0 - s * (1.0 / 45.0 - s / 315.0)));
+    }
+
+    return a + std::log1p(std::exp(-2.0 * a)) - 0.6931471805599453;
   }
 
-  static constexpr float kLog2 = 0.6931472f;
+  /// The antiderivative of shape, for the pair of samples either side of a
+  /// step to be averaged over rather than sampled at.
+  static double integral(const Curve &k, double x) noexcept {
+    return (logCosh(k.drive * (x + k.bias)) / k.drive - k.offset * x) * k.scale;
+  }
 
   /// Below this the divisor of the difference quotient is doing more harm than
   /// the antialiasing does good, so the curve is read at the midpoint instead.
-  static constexpr float kFlat = 1.0e-5f;
+  static constexpr double kFlat = 1.0e-9;
 
-  float processSample(const Curve &k, float x, float &last,
-                      float &lastF) noexcept {
-    const auto f = integral(k, x);
+  static double processSample(const Curve &k, double x, double &last) noexcept {
     const auto dx = x - last;
 
-    const auto y =
-        std::abs(dx) < kFlat ? shape(k, 0.5f * (x + last)) : (f - lastF) / dx;
+    const auto y = std::abs(dx) < kFlat
+                       ? shape(k, 0.5 * (x + last))
+                       : (integral(k, x) - integral(k, last)) / dx;
 
     last = x;
-    lastF = f;
 
     return y;
   }
 
   double sampleRate = 44100.0;
 
-  float lastL = 0.0f, lastR = 0.0f;
-  float lastFL = 0.0f, lastFR = 0.0f;
+  double lastL = 0.0, lastR = 0.0;
 
   /// A curve that leans to one side rectifies as well as distorting, and the
   /// offset that leaves is inaudible, eats headroom and thumps when a chord
   /// lands. Every valve stage worth the name is AC-coupled for the same
   /// reason, at about the same corner.
-  float dcL = 0.0f, dcR = 0.0f;
-  float dcInL = 0.0f, dcInR = 0.0f;
-
-  /// The first sample after a reset has nothing behind it to average against,
-  /// so it reads the curve directly rather than a difference quotient taken
-  /// against a zero that was never really there.
-  bool primed = false;
+  double dcL = 0.0, dcR = 0.0;
+  double dcInL = 0.0, dcInR = 0.0;
 };
 
 } // namespace ovt

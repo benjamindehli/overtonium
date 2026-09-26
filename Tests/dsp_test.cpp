@@ -5174,6 +5174,92 @@ void testBusDrive() {
     return 20.0 * std::log10(std::max(x, 1.0e-12) / against);
   };
 
+  // ---- the bottom of the knob ----------------------------------------------
+  //
+  // The curve is normalised by dividing by the drive, so the less drive there
+  // is the more of the arithmetic is the difference of two nearly equal
+  // numbers. In single precision the bottom of this range came through 1.4 dB
+  // quiet, which is a gain error dressed as a straight line.
+  {
+    for (const auto amount : {0.001f, 0.01f, 0.1f}) {
+      const auto x = through({1000.0}, 0.8, Character::Valve, amount);
+      const auto level = dB(levelAt(x, 1000.0), 0.8);
+
+      check(std::abs(level) < 0.1,
+            "at an amount of " + std::to_string(amount) +
+                " a partial still comes through at the level it went in (" +
+                std::to_string(level) + " dB)");
+    }
+  }
+
+  // ---- and turning it while it is playing ----------------------------------
+  //
+  // The antiderivative belongs to a curve. Carrying one across a block
+  // boundary while the drive is moving divides the difference of two
+  // different functions by the step between two samples, which is unbounded
+  // as that step goes to nothing: one spike per block for as long as the knob
+  // moves, and an echo with feedback on it does the rest. Heard before it was
+  // measured, on a knob being dragged towards zero.
+  {
+    constexpr int kBlock = 64;
+    constexpr int kBlocks = 300;
+
+    std::vector<float> l(kBlock * kBlocks), r(l.size());
+
+    for (size_t n = 0; n < l.size(); ++n)
+      l[n] = r[n] = (float)(0.8 * std::sin(kTwoPi * 1000.0 * (double)n / sr));
+
+    double cleanStep = 0.0;
+    for (size_t n = 1; n < l.size(); ++n)
+      cleanStep =
+          std::max(cleanStep, std::abs((double)l[n] - (double)l[n - 1]));
+
+    BusDrive bus;
+    bus.prepare(sr);
+
+    // A drag from a third of the way up down to almost nothing, which is what
+    // found this, with the lane jumping between two distant values every few
+    // blocks on the way. A host sends both: a lane being written is smooth and
+    // a lane being read back is steps, and the steps are what make the
+    // difference between two curves large enough to see.
+    for (int b = 0; b < kBlocks; ++b) {
+      auto amount = 0.3f - 0.299f * ((float)b / (float)(kBlocks - 1));
+
+      if (b % 7 == 0)
+        amount = 0.001f;
+      else if (b % 11 == 0)
+        amount = 0.3f;
+
+      bus.process(l.data() + b * kBlock, r.data() + b * kBlock, kBlock,
+                  Character::Valve, amount);
+    }
+
+    double peak = 0.0, step = 0.0;
+    bool finite = true;
+
+    for (size_t n = 0; n < l.size(); ++n) {
+      finite &= std::isfinite(l[n]);
+      peak = std::max(peak, std::abs((double)l[n]));
+
+      if (n > 0)
+        step = std::max(step, std::abs((double)l[n] - (double)l[n - 1]));
+    }
+
+    std::printf("  dragged from 30%% to nothing while sounding: peak %.4f, "
+                "biggest sample step %.5f against %.5f in the signal\n",
+                peak, step, cleanStep);
+
+    check(finite, "a moving amount produces nothing but numbers");
+
+    check(peak < 0.85, "and nothing louder than what went in (" +
+                           std::to_string(peak) + ")");
+
+    check(step < cleanStep * 1.5,
+          "with no step between samples the waveform did not already have (" +
+              std::to_string(step) + " against " + std::to_string(cleanStep) +
+              ")");
+  }
+
   // ---- off means off -------------------------------------------------------
   {
     const auto quiet = through({1000.0}, 0.5, Character::Valve, 0.0f);
