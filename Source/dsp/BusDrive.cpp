@@ -33,12 +33,19 @@ namespace ovt {
 /// a waveform differently enough that the same number through both would be
 /// two different amounts of push:
 ///
-///   Valve   10%, found by ear on 26 September 2026
-///   Rail    not found yet
-///   Diode   not found yet
+///   Rail    13%
+///   Diode    7%
+///   Valve   10%
 ///   Op-amp  not found yet
 ///   Bulb    not found yet
 ///   Pure    none, and never any: it is the oscillator that is not a circuit
+///
+/// The three that have a figure were found by ear on 26 September 2026, and
+/// they are not close to each other for a reason: a rail is the gentlest of
+/// the shapes at a given drive, since a limit that treats both halves alike
+/// has only odd harmonics to give, so it takes more push to say anything. A
+/// mismatched pair of diodes is the busiest, giving an octave and a twelfth
+/// together, so it needs the least.
 ///
 /// While the knob exists it says what the amount is and this table only
 /// records what has been decided. When the last line is filled the table
