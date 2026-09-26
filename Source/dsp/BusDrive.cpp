@@ -16,6 +16,23 @@ namespace ovt {
 /// frequency-dependent; and Bulb is not distortion but a lamp, so its bus
 /// behaviour is a slow sag as the mix gets loud. Until they are here, every
 /// character but Pure reads this one.
+///
+/// **What each circuit wants**, which is the whole point of the knob and is
+/// what replaces it. One figure per character, since a rail and a triode bend
+/// a waveform differently enough that the same number through both would be
+/// two different amounts of push:
+///
+///   Valve   10%, found by ear on 26 September 2026
+///   Rail    not found yet
+///   Diode   not found yet
+///   Op-amp  not found yet
+///   Bulb    not found yet
+///   Pure    none, and never any: it is the oscillator that is not a circuit
+///
+/// While the knob exists it says what the amount is and this table only
+/// records what has been decided. When the last line is filled the table
+/// becomes the code and the knob goes, which is the one parameter change that
+/// has to happen before a release rather than after one.
 BusDrive::Curve BusDrive::curveFor(Character c, float amount) noexcept {
   Curve k;
 
