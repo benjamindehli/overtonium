@@ -35,6 +35,7 @@
         <link rel="icon" href="../dehli-musikk.svg" />
         <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
         <link rel="stylesheet" href="../style.css" />
+        <script src="../video.js" defer></script>
 
         <script type="application/ld+json">
             {
@@ -64,6 +65,7 @@
                 "description": "Eleven of the thirty-one factory presets in Overtonium, played on an Expressive E Osmose with nothing on the output but the plugin's own effects.",
                 "thumbnailUrl": "https://benjamindehli.github.io/overtonium/overtonium-video.webp",
                 "uploadDate": "2026-09-26",
+                "duration": "PT11M14S",
                 "contentUrl": "https://www.youtube.com/watch?v=L1oYdPxGlGA",
                 "embedUrl": "https://www.youtube.com/embed/L1oYdPxGlGA",
                 "author": {
@@ -146,6 +148,7 @@
                         "@type": "Clip",
                         "name": "Nylon EP",
                         "startOffset": 603,
+                        "endOffset": 674,
                         "url": "https://www.youtube.com/watch?v=L1oYdPxGlGA&t=603s"
                     }
                 ]
@@ -192,62 +195,86 @@
 
                     <p>Played on an Expressive E Osmose, with nothing on the output but the plugin's own effects.</p>
 
-                    <figure class="video">
-                        <a href="https://www.youtube.com/watch?v=L1oYdPxGlGA">
-                            <img
-                                src="../overtonium-video-1180.webp"
-                                srcset="../overtonium-video-1180.webp 1180w, ../overtonium-video.webp 1920w"
-                                sizes="(max-width: 768px) calc(100vw - 48px), 720px"
-                                loading="lazy"
-                                width="1920"
-                                height="1080"
-                                alt="Watch eleven of the presets played, on YouTube."
-                            />
-                            <span class="play">
-                                <svg viewBox="0 0 64 64" aria-hidden="true">
-                                    <circle cx="32" cy="32" r="30" />
-                                    <path d="M26 20 46 32 26 44Z" />
-                                </svg>
-                            </span>
-                        </a>
-                        <figcaption>Opens on YouTube. Nothing on this page reaches them until you follow the link.</figcaption>
+                    <figure class="video" data-title="Overtonium sound examples">
+                        <div class="video-box">
+                            <a class="poster" href="https://www.youtube.com/watch?v=L1oYdPxGlGA" data-video="L1oYdPxGlGA">
+                                <img
+                                    src="../overtonium-video-1180.webp"
+                                    srcset="../overtonium-video-1180.webp 1180w, ../overtonium-video.webp 1920w"
+                                    sizes="(max-width: 768px) calc(100vw - 48px), 720px"
+                                    loading="lazy"
+                                    width="1920"
+                                    height="1080"
+                                    alt="Play eleven of the presets, as a video."
+                                />
+                                <span class="play">
+                                    <svg viewBox="0 0 64 64" aria-hidden="true">
+                                        <circle cx="32" cy="32" r="30" />
+                                        <path d="M26 20 46 32 26 44Z" />
+                                    </svg>
+                                </span>
+                            </a>
+                        </div>
+                        <figcaption>It plays here once you press it, and nothing on this page reaches YouTube before that.</figcaption>
                     </figure>
 
                     <p>Straight to one of them:</p>
 
                     <ul class="chapters">
                         <li>
-                            <a href="https://www.youtube.com/watch?v=L1oYdPxGlGA&amp;t=0s"><span class="at">0:00</span> Synth Ensemble</a>
+                            <a href="https://www.youtube.com/watch?v=L1oYdPxGlGA&amp;t=0s" data-video="L1oYdPxGlGA" data-start="0"
+                                ><span class="at">0:00</span> Synth Ensemble</a
+                            >
                         </li>
                         <li>
-                            <a href="https://www.youtube.com/watch?v=L1oYdPxGlGA&amp;t=124s"><span class="at">2:04</span> Metallic Piano</a>
+                            <a href="https://www.youtube.com/watch?v=L1oYdPxGlGA&amp;t=124s" data-video="L1oYdPxGlGA" data-start="124"
+                                ><span class="at">2:04</span> Metallic Piano</a
+                            >
                         </li>
                         <li>
-                            <a href="https://www.youtube.com/watch?v=L1oYdPxGlGA&amp;t=175s"><span class="at">2:55</span> Dream Phase</a>
+                            <a href="https://www.youtube.com/watch?v=L1oYdPxGlGA&amp;t=175s" data-video="L1oYdPxGlGA" data-start="175"
+                                ><span class="at">2:55</span> Dream Phase</a
+                            >
                         </li>
                         <li>
-                            <a href="https://www.youtube.com/watch?v=L1oYdPxGlGA&amp;t=244s"><span class="at">4:04</span> FM Piano</a>
+                            <a href="https://www.youtube.com/watch?v=L1oYdPxGlGA&amp;t=244s" data-video="L1oYdPxGlGA" data-start="244"
+                                ><span class="at">4:04</span> FM Piano</a
+                            >
                         </li>
                         <li>
-                            <a href="https://www.youtube.com/watch?v=L1oYdPxGlGA&amp;t=347s"><span class="at">5:47</span> Sparkle Pad</a>
+                            <a href="https://www.youtube.com/watch?v=L1oYdPxGlGA&amp;t=347s" data-video="L1oYdPxGlGA" data-start="347"
+                                ><span class="at">5:47</span> Sparkle Pad</a
+                            >
                         </li>
                         <li>
-                            <a href="https://www.youtube.com/watch?v=L1oYdPxGlGA&amp;t=416s"><span class="at">6:56</span> Dire Dire EP</a>
+                            <a href="https://www.youtube.com/watch?v=L1oYdPxGlGA&amp;t=416s" data-video="L1oYdPxGlGA" data-start="416"
+                                ><span class="at">6:56</span> Dire Dire EP</a
+                            >
                         </li>
                         <li>
-                            <a href="https://www.youtube.com/watch?v=L1oYdPxGlGA&amp;t=426s"><span class="at">7:06</span> Music Box</a>
+                            <a href="https://www.youtube.com/watch?v=L1oYdPxGlGA&amp;t=426s" data-video="L1oYdPxGlGA" data-start="426"
+                                ><span class="at">7:06</span> Music Box</a
+                            >
                         </li>
                         <li>
-                            <a href="https://www.youtube.com/watch?v=L1oYdPxGlGA&amp;t=445s"><span class="at">7:25</span> Stepped</a>
+                            <a href="https://www.youtube.com/watch?v=L1oYdPxGlGA&amp;t=445s" data-video="L1oYdPxGlGA" data-start="445"
+                                ><span class="at">7:25</span> Stepped</a
+                            >
                         </li>
                         <li>
-                            <a href="https://www.youtube.com/watch?v=L1oYdPxGlGA&amp;t=512s"><span class="at">8:32</span> Wurli</a>
+                            <a href="https://www.youtube.com/watch?v=L1oYdPxGlGA&amp;t=512s" data-video="L1oYdPxGlGA" data-start="512"
+                                ><span class="at">8:32</span> Wurli</a
+                            >
                         </li>
                         <li>
-                            <a href="https://www.youtube.com/watch?v=L1oYdPxGlGA&amp;t=525s"><span class="at">8:45</span> Lo-fi</a>
+                            <a href="https://www.youtube.com/watch?v=L1oYdPxGlGA&amp;t=525s" data-video="L1oYdPxGlGA" data-start="525"
+                                ><span class="at">8:45</span> Lo-fi</a
+                            >
                         </li>
                         <li>
-                            <a href="https://www.youtube.com/watch?v=L1oYdPxGlGA&amp;t=603s"><span class="at">10:03</span> Nylon EP</a>
+                            <a href="https://www.youtube.com/watch?v=L1oYdPxGlGA&amp;t=603s" data-video="L1oYdPxGlGA" data-start="603"
+                                ><span class="at">10:03</span> Nylon EP</a
+                            >
                         </li>
                     </ul>
                 </section>

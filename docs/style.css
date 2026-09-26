@@ -1004,19 +1004,34 @@ main h1 {
     flex: none;
 }
 
-/* The video is a link behind its own thumbnail rather than an embed. A YouTube
-   iframe contacts Google the moment the page opens, whether or not anybody
-   plays it, and every other thing on this site is served from the same place
-   the documentation is. It is also the only part of the site that would need a
-   script, and the site has none. Half the column width rather than all of it:
-   the thumbnail is lettered to be read in a grid of other thumbnails, and at
-   1180 pixels it shouts over the page it is illustrating. */
-.video a {
-    position: relative;
-    display: inline-block;
-    width: 100%;
+/* The video arrives as a poster with a link on it, and video.js swaps the
+   player in when somebody presses it. A YouTube iframe contacts Google the
+   moment the page opens, whether or not anybody plays it, and everything else
+   here is served from the same place the documentation is.
+
+   The box holds the width so that the poster and the player that replaces it
+   are the same size, and half the column rather than all of it: the thumbnail
+   is lettered to be read in a grid of competing thumbnails, and at 1180 pixels
+   it shouts over the page it is illustrating. */
+.video-box {
     max-width: 720px;
+}
+
+.video .poster {
+    position: relative;
+    display: block;
     line-height: 0;
+    border-radius: 6px;
+}
+
+/* Matched to the poster it replaces, since the swap happens under the eye of
+   whoever clicked and a player that lands a different size moves the page
+   under them. */
+.video iframe {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border: 1px solid var(--outline);
     border-radius: 6px;
 }
 
@@ -1045,13 +1060,13 @@ main h1 {
     fill: var(--text);
 }
 
-.video a:hover circle,
-.video a:focus-visible circle {
+.video .poster:hover circle,
+.video .poster:focus-visible circle {
     stroke: var(--accent);
 }
 
-.video a:hover path,
-.video a:focus-visible path {
+.video .poster:hover path,
+.video .poster:focus-visible path {
     fill: var(--accent);
 }
 
