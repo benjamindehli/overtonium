@@ -17,6 +17,7 @@
 #include <string>
 #include <vector>
 
+#include "dsp/BusDrive.h"
 #include "dsp/Character.h"
 #include "dsp/Drift.h"
 #include "dsp/Envelope.h"
@@ -5113,6 +5114,200 @@ void testTapeEcho() {
 }
 
 /// The warped record under the whole instrument.
+
+/// The bus the whole series is summed onto, which is the one place two
+/// partials meet.
+///
+/// Everything else here treats a partial on its own, so two of them sounding
+/// together produce exactly the sum of what each produces alone. What this
+/// stage is for is the part that cannot: sum and difference tones between
+/// pairs, which is why a loud chord through a real desk fuses rather than
+/// stacking. The difference tone below exists at no setting of any other
+/// control in this instrument.
+void testBusDrive() {
+  section("Bus drive");
+
+  constexpr double sr = 48000.0;
+  constexpr double kTwoPi = 6.283185307179586;
+  constexpr size_t kSettle = 24000; ///< past the DC blocker's own transient
+  constexpr size_t kWindow = 16384;
+
+  /// Amplitude at one frequency, windowed, which is all that is wanted here:
+  /// the question is always "is this partial present and how loud", never what
+  /// the whole spectrum looks like.
+  const auto levelAt = [](const std::vector<float> &x, double hz) {
+    double re = 0.0, im = 0.0, norm = 0.0;
+
+    for (size_t n = 0; n < x.size(); ++n) {
+      const auto win =
+          0.5 * (1.0 - std::cos(kTwoPi * (double)n / (double)x.size()));
+      const auto t = kTwoPi * hz * (double)n / sr;
+
+      re += win * (double)x[n] * std::cos(t);
+      im -= win * (double)x[n] * std::sin(t);
+      norm += win;
+    }
+
+    return 2.0 * std::hypot(re, im) / norm;
+  };
+
+  const auto through = [](const std::vector<double> &hz, double each,
+                          Character c, float amount) {
+    std::vector<float> l(kSettle + kWindow), r(l.size());
+
+    for (size_t n = 0; n < l.size(); ++n) {
+      double s = 0.0;
+      for (const auto f : hz)
+        s += each * std::sin(kTwoPi * f * (double)n / sr);
+
+      l[n] = r[n] = (float)s;
+    }
+
+    BusDrive bus;
+    bus.prepare(sr);
+    bus.process(l.data(), r.data(), (int)l.size(), c, amount);
+
+    return std::vector<float>(l.begin() + (long)kSettle, l.end());
+  };
+
+  const auto dB = [](double x, double against) {
+    return 20.0 * std::log10(std::max(x, 1.0e-12) / against);
+  };
+
+  // ---- off means off -------------------------------------------------------
+  {
+    const auto quiet = through({1000.0}, 0.5, Character::Valve, 0.0f);
+    const auto pure = through({1000.0}, 0.5, Character::Pure, 1.0f);
+    const auto raw = through({1000.0}, 0.5, Character::Pure, 0.0f);
+
+    bool sameOff = quiet.size() == raw.size(), samePure = sameOff;
+    for (size_t i = 0; i < raw.size(); ++i) {
+      sameOff &= exactly(quiet[i], raw[i]);
+      samePure &= exactly(pure[i], raw[i]);
+    }
+
+    check(sameOff, "an amount of zero leaves every sample exactly as it was");
+
+    check(samePure,
+          "and so does Pure at any amount, which is the oscillator that is not "
+          "a circuit");
+  }
+
+  // ---- a quiet signal does not know it is there ----------------------------
+  //
+  // The curve is a straight line through the origin and only bends where a
+  // sample is big. That is what makes this reactive to the mix without
+  // anything measuring the mix.
+  {
+    const auto soft = through({1000.0}, 0.02, Character::Valve, 1.0f);
+    const auto level = levelAt(soft, 1000.0);
+
+    std::printf("  at 2%% of full scale: level %+.3f dB, second harmonic "
+                "%.1f dB\n",
+                dB(level, 0.02), dB(levelAt(soft, 2000.0), level));
+
+    check(std::abs(dB(level, 0.02)) < 0.1,
+          "a quiet partial comes through at the level it went in (" +
+              std::to_string(dB(level, 0.02)) + " dB)");
+
+    check(dB(levelAt(soft, 2000.0), level) < -35.0,
+          "with next to nothing on it (" +
+              std::to_string(dB(levelAt(soft, 2000.0), level)) + " dB)");
+  }
+
+  // ---- a loud one does ------------------------------------------------------
+  {
+    const auto loud = through({1000.0}, 0.8, Character::Valve, 1.0f);
+    const auto level = levelAt(loud, 1000.0);
+    const auto second = dB(levelAt(loud, 2000.0), level);
+    const auto third = dB(levelAt(loud, 3000.0), level);
+
+    std::printf("  at 80%% of full scale: second harmonic %.1f dB, third "
+                "%.1f dB\n",
+                second, third);
+
+    check(second > -30.0, "a loud partial arrives with an octave on it (" +
+                              std::to_string(second) + " dB)");
+
+    check(second > third,
+          "and more of that than of the twelfth, which is what a triode does "
+          "rather than what a rail does");
+  }
+
+  // ---- the point of the exercise -------------------------------------------
+  //
+  // Two partials that are not harmonically related, so nothing either of them
+  // can produce on its own lands on the difference between them.
+  {
+    const auto both = through({1000.0, 1400.0}, 0.45, Character::Valve, 1.0f);
+    const auto clean = through({1000.0, 1400.0}, 0.45, Character::Valve, 0.0f);
+
+    const auto ref = levelAt(both, 1000.0);
+    const auto difference = dB(levelAt(both, 400.0), ref);
+    const auto sum = dB(levelAt(both, 2400.0), ref);
+
+    std::printf("  1000 and 1400 Hz together: difference tone at 400 Hz "
+                "%.1f dB, sum at 2400 Hz %.1f dB\n",
+                difference, sum);
+
+    check(dB(levelAt(clean, 400.0), levelAt(clean, 1000.0)) < -90.0,
+          "two partials on their own produce nothing at the difference "
+          "between them");
+
+    check(difference > -40.0, "and through the bus they do (" +
+                                  std::to_string(difference) + " dB)");
+
+    check(sum > -40.0,
+          "along with the sum of them (" + std::to_string(sum) + " dB)");
+  }
+
+  // ---- what it costs, which is the promise this stage cannot keep ----------
+  //
+  // A partial at 18 kHz has its octave at 36 kHz, and at this rate there is
+  // nowhere for that to be but 12 kHz. Antialiasing buries it rather than
+  // preventing it, so what matters is how far down it is.
+  {
+    const auto foldedAt = [&](float amount) {
+      const auto high = through({18000.0}, 0.8, Character::Valve, amount);
+      return dB(levelAt(high, 12000.0), levelAt(high, 18000.0));
+    };
+
+    const auto wide = foldedAt(1.0f);
+    const auto quarter = foldedAt(0.25f);
+
+    std::printf("  an 18 kHz partial at 80%%: its octave folds back to 12 kHz "
+                "at %.1f dB wide open, %.1f dB a quarter in\n",
+                wide, quarter);
+
+    check(wide < -24.0,
+          "wide open the folded octave is well under the partial that made it "
+          "(" +
+              std::to_string(wide) + " dB)");
+
+    check(quarter < -40.0, "and anywhere near a usable amount it is buried (" +
+                               std::to_string(quarter) + " dB)");
+  }
+
+  // ---- a curve that leans to one side rectifies ----------------------------
+  {
+    const auto loud = through({1000.0}, 0.8, Character::Valve, 1.0f);
+
+    // Whole cycles of the partial, 340 of them, since a window cut mid-cycle
+    // carries a mean of its own that has nothing to do with the curve.
+    constexpr size_t whole = 340 * 48;
+
+    double mean = 0.0;
+    for (size_t n = 0; n < whole; ++n)
+      mean += (double)loud[n];
+
+    mean /= (double)whole;
+
+    check(std::abs(mean) < 1.0e-4,
+          "and the offset that leaves is taken back out (" +
+              std::to_string(mean) + ")");
+  }
+}
+
 void testWobble() {
   section("Wobble");
 
@@ -6024,6 +6219,7 @@ int main() {
   testSlideDisplacement();
   testNoiseChannel();
   testTapeEcho();
+  testBusDrive();
   testWobble();
   testReverb();
   testLofi();

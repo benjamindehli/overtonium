@@ -232,7 +232,12 @@ void testParameterWiring(OvertoniumProcessor &p) {
   // Two of the globals are switches over the per-channel modulators rather
   // than controls of their own: whether each of the two is one circuit the
   // keyboard shares. See GlobalParams::ampModInPhase.
-  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10;
+  //
+  // The trailing one is Bus Drive, which is temporary: it exists so the amount
+  // behind the bus stage can be found by ear and leaves again once it is a
+  // fixed figure per character. When it goes, this goes back to 784 and so
+  // does every count of it in the documentation. See params::busDriveId.
+  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 1;
 
   // The behaviour that was there before it became a choice. Asked of the
   // parameter rather than of the tree, so the answer does not depend on what
@@ -439,6 +444,72 @@ void testReleaseVelocity(OvertoniumProcessor &p) {
         "and so is the note-on of velocity zero that most keyboards send "
         "instead of a note-off");
 
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
+/// That the bus stage is reachable from a parameter and gated by the
+/// character, which is the wiring rather than the sound. What it does to a
+/// signal is measured in the DSP suite, where a spectrum can be read.
+void testBusDriveIsWired(OvertoniumProcessor &p) {
+  section("Bus drive");
+
+  auto *drive = p.apvts.getParameter(ovt::params::busDriveId);
+  auto *character = p.apvts.getParameter(ovt::params::characterId);
+
+  check(drive != nullptr && character != nullptr,
+        "the drive and the character are both there to set");
+  if (drive == nullptr || character == nullptr)
+    return;
+
+  const auto renderLoud = [&p](float amount, ovt::Character c) {
+    auto *drive = p.apvts.getParameter(ovt::params::busDriveId);
+    auto *character = p.apvts.getParameter(ovt::params::characterId);
+
+    drive->setValueNotifyingHost(amount);
+    character->setValueNotifyingHost(character->convertTo0to1((float)(int)c));
+
+    p.prepareToPlay(48000.0, 512);
+
+    juce::AudioBuffer<float> buffer(2, 512);
+    juce::MidiBuffer midi = noteOnAt(48, 1.0f, 0);
+
+    std::vector<float> out;
+
+    for (int b = 0; b < 12; ++b) {
+      buffer.clear();
+      p.processBlock(buffer, midi);
+      midi.clear();
+
+      const auto *d = buffer.getReadPointer(0);
+      out.insert(out.end(), d, d + 512);
+    }
+
+    return out;
+  };
+
+  const auto clean = renderLoud(0.0f, ovt::Character::Valve);
+  const auto driven = renderLoud(1.0f, ovt::Character::Valve);
+  const auto pure = renderLoud(1.0f, ovt::Character::Pure);
+  const auto pureOff = renderLoud(0.0f, ovt::Character::Pure);
+
+  const auto differs = [](const std::vector<float> &a,
+                          const std::vector<float> &b) {
+    double worst = 0.0;
+    for (size_t i = 0; i < a.size() && i < b.size(); ++i)
+      worst = std::max(worst, std::abs((double)a[i] - (double)b[i]));
+
+    return worst;
+  };
+
+  check(differs(clean, driven) > 1.0e-4,
+        "turning it up changes what comes out (" +
+            std::to_string(differs(clean, driven)) + ")");
+
+  check(ovt::exactly((float)differs(pure, pureOff), 0.0f),
+        "and on Pure it does nothing at any amount, which is the oscillator "
+        "that is not a circuit");
+
+  drive->setValueNotifyingHost(0.0f);
   p.applyFactoryPreset(presetIndex("Init"));
 }
 
@@ -5539,6 +5610,7 @@ int main() {
   testChoiceParameterCounts(processor);
   testRendering(processor);
   testReleaseVelocity(processor);
+  testBusDriveIsWired(processor);
   testPresets(processor);
   testAftertouchMidi(processor);
   testMpe(processor);

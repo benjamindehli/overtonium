@@ -20,6 +20,11 @@ inline constexpr const char *slideDestId = "slideDest";
 inline constexpr const char *trackId = "track";
 inline constexpr const char *characterId = "character";
 inline constexpr const char *wobbleId = "wobble";
+
+/// Temporary, while the amount is found by ear. See BusDrive: what ships
+/// is meant to be a fixed figure per character rather than a control, so
+/// this goes out again before the branch merges and the count returns to 784.
+inline constexpr const char *busDriveId = "busDrive";
 inline constexpr const char *temperamentId = "temperament";
 inline constexpr const char *tuningRootId = "tuningRoot";
 inline constexpr const char *referenceHzId = "referenceHz";
@@ -211,6 +216,7 @@ struct Cache {
   std::atomic<float> *track = nullptr;
   std::atomic<float> *character = nullptr;
   std::atomic<float> *wobble = nullptr;
+  std::atomic<float> *busDrive = nullptr; ///< temporary, see busDriveId
   std::atomic<float> *temperament = nullptr;
   std::atomic<float> *tuningRoot = nullptr;
   std::atomic<float> *referenceHz = nullptr;
@@ -283,10 +289,15 @@ juce::String polyphonyName(int index);
 ///
 /// Named here rather than in Presets.cpp so the code that honours the rule and
 /// the test that checks it cannot come to disagree about what the rule is.
-inline const std::array<const char *, 12> kSessionParamIds{
-    masterGainId, polyphonyId,   bendRangeId,      atSourceId,
-    safetyClipId, referenceHzId, temperamentId,    tuningRootId,
-    mpeId,        slideDestId,   oneVoicePerKeyId, phaseResetId};
+/// Bus Drive is the exception to the rule above and is here temporarily: it is
+/// not in the menu, it is a knob being turned until a number falls out of it,
+/// and what ships is that number rather than the knob. It sits here rather
+/// than in the patch so that presets saved while it is being tuned do not
+/// carry it, and so that finding it does not quietly change what a preset is.
+inline const std::array<const char *, 13> kSessionParamIds{
+    masterGainId,     polyphonyId,   bendRangeId,  atSourceId, safetyClipId,
+    referenceHzId,    temperamentId, tuningRootId, mpeId,      slideDestId,
+    oneVoicePerKeyId, phaseResetId,  busDriveId};
 
 /// Whether `id` is one of those, for the several places that have to ask.
 inline bool isSessionParam(juce::StringRef id) {

@@ -720,6 +720,15 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   layout.add(std::make_unique<BoolP>(juce::ParameterID{amInPhaseId, 1},
                                      "Amp Mod In Phase", false));
 
+  // Temporary, and on the end for the same reason everything else is: nothing
+  // already automated moves. It leaves again once the figure behind it is
+  // settled, which is the one kind of parameter change that is not free, so it
+  // has to go before a release rather than after one. See busDriveId.
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{busDriveId, 1}, "Bus Drive",
+      juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f,
+      FAttr().withStringFromValueFunction(percentText)));
+
   return layout;
 }
 
@@ -737,6 +746,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   track = apvts.getRawParameterValue(trackId);
   character = apvts.getRawParameterValue(characterId);
   wobble = apvts.getRawParameterValue(wobbleId);
+  busDrive = apvts.getRawParameterValue(busDriveId);
   temperament = apvts.getRawParameterValue(temperamentId);
   tuningRoot = apvts.getRawParameterValue(tuningRootId);
   referenceHz = apvts.getRawParameterValue(referenceHzId);
@@ -926,6 +936,7 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   out.global.trackDbPerOctave = track->load();
   out.global.slideDest = (SlideDestination)(int)slideDest->load();
   out.global.wobbleAmount = wobble->load();
+  out.global.busDrive = busDrive->load();
 
   {
     const auto pick = [](const std::atomic<float> *p, int count) {

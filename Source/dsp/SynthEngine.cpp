@@ -42,6 +42,7 @@ void SynthEngine::prepare(double newSampleRate) noexcept {
     voices[i].prepare(sampleRate, (uint32_t)(i + 1) * 2654435761u);
 
   wobble.prepare(sampleRate);
+  busDrive.prepare(sampleRate);
   echo.prepare(sampleRate);
   reverb.prepare(sampleRate);
 
@@ -53,6 +54,7 @@ void SynthEngine::reset() noexcept {
     v.reset();
 
   wobble.reset();
+  busDrive.reset();
   echo.reset();
   reverb.reset();
 
@@ -628,6 +630,12 @@ void SynthEngine::render(float *left, float *right, int numSamples,
     return;
 
   renderVoices(left, right, numSamples, p);
+
+  // ---- the bus the series is summed onto -----------------------------------
+  // Before the effects, since this is the summing amplifier rather than
+  // something applied to what comes out of one. See BusDrive.
+  busDrive.process(left, right, numSamples, p.global.character,
+                   p.global.busDrive);
 
   // ---- master effects, ahead of the fader ----------------------------------
   // The channel meters above read the partials themselves, so they are taken

@@ -7,6 +7,7 @@
 
 #include <atomic>
 
+#include "BusDrive.h"
 #include "Reverb.h"
 #include "TapeEcho.h"
 #include "Voice.h"
@@ -327,6 +328,7 @@ private:
   // which is the difference between a warped record being played and a warped
   // recording of one.
   Wobble wobble;
+  BusDrive busDrive;
   TapeEcho echo;
   Reverb reverb;
 };
