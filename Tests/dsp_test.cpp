@@ -21,6 +21,7 @@
 #include "dsp/BucketEcho.h"
 #include "dsp/BusDrive.h"
 #include "dsp/Character.h"
+#include "dsp/DigitalEcho.h"
 #include "dsp/Drift.h"
 #include "dsp/Envelope.h"
 #include "dsp/Halfband.h"
@@ -4810,6 +4811,174 @@ Stereo tone(size_t length, double freq, double sampleRate,
 
 } // namespace
 
+/// The digital delay, which is the plain one.
+///
+/// No tape and no buckets: what goes in comes back later and quieter and
+/// otherwise unchanged, which is what a digital delay is for and is the reason
+/// it is worth having beside two machines that cannot help colouring things.
+/// Its two differences from them are the topology, which crosses every repeat
+/// to the other side, and AGE, which is the converter on the bar pointed at
+/// the loop.
+void testDigitalEcho() {
+  section("Digital echo");
+
+  constexpr double sr = 48000.0;
+  constexpr double kTwoPi = 6.283185307179586;
+
+  const auto burst = [](size_t length, double freq, size_t on) {
+    Stereo s(length);
+
+    for (size_t n = 0; n < on && n < length; ++n) {
+      const auto ramp = std::min(1.0, (double)std::min(n, on - n) / 480.0);
+      const auto v =
+          (float)(0.5 * ramp * std::sin(kTwoPi * freq * (double)n / sr));
+      s.l[n] = v;
+      s.r[n] = v;
+    }
+
+    return s;
+  };
+
+  const auto levelAt = [](const std::vector<float> &x, size_t from, size_t to,
+                          double hz) {
+    double re = 0.0, im = 0.0, norm = 0.0;
+
+    for (size_t n = from; n < to && n < x.size(); ++n) {
+      const auto w =
+          0.5 *
+          (1.0 - std::cos(kTwoPi * (double)(n - from) / (double)(to - from)));
+
+      re += w * (double)x[n] * std::cos(kTwoPi * hz * (double)n / sr);
+      im -= w * (double)x[n] * std::sin(kTwoPi * hz * (double)n / sr);
+      norm += w;
+    }
+
+    return norm > 0.0 ? 2.0 * std::hypot(re, im) / norm : 0.0;
+  };
+
+  const auto through = [&](float age, float time, float feedback) {
+    DigitalEcho echo;
+    echo.prepare(sr);
+
+    EchoParams p;
+    p.enabled = true;
+    p.type = EchoType::Digital;
+    p.mix = 1.0f;
+    p.feedback = feedback;
+    p.timeSeconds = time;
+    p.age = age;
+
+    auto s = burst((size_t)(2.2 * sr), 400.0, (size_t)(0.15 * sr));
+    echo.process(s.l.data(), s.r.data(), (int)s.size(), p);
+
+    return s;
+  };
+
+  // ---- a repeat is a copy --------------------------------------------------
+  //
+  // At no wear at all, which is the setting that separates this from the
+  // other two: what comes back is the samples that went in, quieter by the
+  // feedback and not otherwise touched.
+  {
+    const auto s = through(0.0f, 0.3f, 0.5f);
+    const auto delay = (size_t)(0.3 * sr);
+
+    // The whole of it, not half: the input is summed to the middle on the way
+    // in and the feedback only applies to what crosses afterwards, so the
+    // first repeat is as loud as what was played, the same as on the other
+    // two machines.
+    double worst = 0.0;
+    for (size_t n = 0; n < (size_t)(0.15 * sr); ++n) {
+      const auto on = (size_t)(0.15 * sr);
+      const auto went = 0.5 * std::sin(kTwoPi * 400.0 * (double)n / sr) *
+                        std::min(1.0, (double)std::min(n, on - n) / 480.0);
+
+      worst = std::max(worst, std::abs((double)s.l[n + delay] - went));
+    }
+
+    std::printf("  a repeat at no wear differs from what went in by %.7f at "
+                "worst\n",
+                worst);
+
+    check(worst < 1.0e-6,
+          "with nothing asked of AGE, a repeat is the samples that went in (" +
+              std::to_string(worst) + ")");
+  }
+
+  // ---- and it crosses ------------------------------------------------------
+  //
+  // The input arrives in the middle and every repeat lands on the other side
+  // from the one before it, which is a different machine from two paths run
+  // slightly differently rather than a setting of one.
+  {
+    const auto s = through(0.0f, 0.3f, 0.7f);
+
+    const auto energyIn = [&](const std::vector<float> &x, double at) {
+      return rms(x, (size_t)(at * sr), (size_t)((at + 0.12) * sr));
+    };
+
+    const auto firstL = energyIn(s.l, 0.31), firstR = energyIn(s.r, 0.31);
+    const auto secondL = energyIn(s.l, 0.61), secondR = energyIn(s.r, 0.61);
+
+    std::printf("  the first repeat is %.4f left against %.4f right, the "
+                "second %.4f against %.4f\n",
+                firstL, firstR, secondL, secondR);
+
+    check(firstL > firstR * 20.0,
+          "the first repeat comes back on one side only (" +
+              std::to_string(firstL / std::max(firstR, 1.0e-9)) + " times)");
+
+    check(secondR > secondL * 20.0,
+          "and the next one on the other (" +
+              std::to_string(secondR / std::max(secondL, 1.0e-9)) + " times)");
+  }
+
+  // ---- what AGE does, which no other type can ------------------------------
+  //
+  // Bits and a rate, taken off the repeats and taken off again on every pass,
+  // so a tail starts as the signal and ends as a memory of it.
+  {
+    const auto clean = through(0.0f, 0.3f, 0.7f);
+    const auto rough = through(0.9f, 0.3f, 0.7f);
+
+    // Everything that is not the note, which for a quantised and held copy is
+    // a great deal and for a clean one is nothing.
+    const auto junkIn = [&](const Stereo &s, double at) {
+      const auto from = (size_t)(at * sr), to = (size_t)((at + 0.12) * sr);
+      const auto fundamental = levelAt(s.l, from, to, 400.0);
+
+      double worst = 0.0;
+      for (double hz = 700.0; hz < 9000.0; hz += 300.0)
+        worst = std::max(worst, levelAt(s.l, from, to, hz));
+
+      return worst / std::max(fundamental, 1.0e-9);
+    };
+
+    // Both on the left, which is where the first and third repeats land: the
+    // second is on the other side and measuring it here would be measuring
+    // silence.
+    const auto cleanFirst = junkIn(clean, 0.31);
+    const auto roughFirst = junkIn(rough, 0.31);
+    const auto roughThird = junkIn(rough, 0.91);
+
+    std::printf("  beside the note, a repeat carries %.5f of it clean and "
+                "%.5f worn, and %.5f by the third pass\n",
+                cleanFirst, roughFirst, roughThird);
+
+    check(cleanFirst < 1.0e-4,
+          "a clean repeat carries nothing beside the note (" +
+              std::to_string(cleanFirst) + ")");
+
+    check(roughFirst > cleanFirst * 100.0,
+          "a worn one is unmistakably a worse copy (" +
+              std::to_string(roughFirst) + ")");
+
+    check(roughThird > roughFirst,
+          "and every pass takes more off again (" + std::to_string(roughThird) +
+              " against " + std::to_string(roughFirst) + ")");
+  }
+}
+
 /// The bucket brigade, which is not a darker tape.
 ///
 /// A line of capacitors handing a charge along one clock tick at a time. What
@@ -7018,6 +7187,7 @@ int main() {
   testTapeEcho();
   testFirstRepeatIsAlreadyWorn();
   testBucketEcho();
+  testDigitalEcho();
   testBusDrive();
   testWobble();
   testReverb();

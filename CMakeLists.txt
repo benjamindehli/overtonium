@@ -103,6 +103,7 @@ set(OVERTONIUM_SOURCES
     Source/Presets.cpp
     Source/UpdateCheck.cpp
     Source/dsp/BucketEcho.cpp
+    Source/dsp/DigitalEcho.cpp
     Source/dsp/BusDrive.cpp
     Source/dsp/Voice.cpp
     Source/dsp/SynthEngine.cpp
@@ -270,6 +271,8 @@ if(OVERTONIUM_BUILD_TESTS)
     add_executable(overtonium_dsp_test
         Tests/dsp_test.cpp
         Source/dsp/BucketEcho.cpp
+        Source/dsp/DigitalEcho.cpp
+    Source/dsp/DigitalEcho.cpp
     Source/dsp/BusDrive.cpp
         Source/dsp/Voice.cpp
         Source/dsp/SynthEngine.cpp

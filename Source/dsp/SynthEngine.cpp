@@ -45,6 +45,7 @@ void SynthEngine::prepare(double newSampleRate) noexcept {
   busDrive.prepare(sampleRate);
   echo.prepare(sampleRate);
   bucket.prepare(sampleRate);
+  digital.prepare(sampleRate);
   reverb.prepare(sampleRate);
 
   reset();
@@ -58,6 +59,7 @@ void SynthEngine::reset() noexcept {
   busDrive.reset();
   echo.reset();
   bucket.reset();
+  digital.reset();
   reverb.reset();
 
   heldBySustain.fill(false);
@@ -650,6 +652,7 @@ void SynthEngine::render(float *left, float *right, int numSamples,
   // come back if you switched to it.
   echo.process(left, right, numSamples, p.echo);
   bucket.process(left, right, numSamples, p.echo);
+  digital.process(left, right, numSamples, p.echo);
   reverb.process(left, right, numSamples, p.reverb);
 
   // ---- master gain, smoothed over ~10 ms so fader moves do not zipper -------
