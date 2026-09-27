@@ -39,16 +39,23 @@ namespace ovt {
 ///   Rail    13%
 ///   Diode    7%
 ///   Valve   10%
-///   Op-amp  not found yet
+///   Op-amp  10%
 ///   Bulb    not found yet
 ///   Pure    none, and never any: it is the oscillator that is not a circuit
 ///
-/// The three that have a figure were found by ear on 26 September 2026, and
-/// they are not close to each other for a reason: a rail is the gentlest of
-/// the shapes at a given drive, since a limit that treats both halves alike
-/// has only odd harmonics to give, so it takes more push to say anything. A
-/// mismatched pair of diodes is the busiest, giving an octave and a twelfth
-/// together, so it needs the least.
+/// Found by ear, the first three on 26 September 2026 and the op-amp on the
+/// 27th. They are not close to each other for a reason: a rail is the
+/// gentlest of the shapes at a given drive, since a limit that treats both
+/// halves alike has only odd harmonics to give, so it takes more push to say
+/// anything. A mismatched pair of diodes is the busiest, giving an octave and
+/// a twelfth together, so it needs the least.
+///
+/// The op-amp landing on the triode's figure is the one that reads oddly,
+/// since it has much the harder knee of the two. It arrives there from the
+/// other direction: a corner reaches further up the spectrum than a bend
+/// does, but it holds a straight line until it gets there, where a triode is
+/// leaning from the first sample. Later and harder comes out at about the
+/// same place as sooner and softer.
 ///
 /// While the knob exists it says what the amount is and this table only
 /// records what has been decided. When the last line is filled the table
