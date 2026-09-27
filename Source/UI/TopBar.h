@@ -29,6 +29,19 @@ class StereoOutputMeter : public juce::Component {
 public:
   StereoOutputMeter() { setInterceptsMouseClicks(false, false); }
 
+  /// The strip along the bottom that carries the decibel marks rather than
+  /// any lamps.
+  static constexpr int kScaleHeight = 4;
+
+  /// Where the two bars actually are, which is not the whole of this: the
+  /// scale runs underneath them. The fader that lies over the meter reads it
+  /// from here rather than measuring the same thing again, since a cap four
+  /// pixels below the lamps it is supposed to be standing on reads as a
+  /// control that has come loose.
+  juce::Rectangle<int> barBounds() const {
+    return getLocalBounds().withTrimmedBottom(kScaleHeight);
+  }
+
   /// @param l,r  linear peaks from the audio thread.
   void push(float l, float r);
 

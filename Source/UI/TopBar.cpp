@@ -194,7 +194,7 @@ void StereoOutputMeter::paint(juce::Graphics &g) {
   auto area = getLocalBounds().toFloat();
 
   // Scale marks at the decibel values worth aiming at.
-  const auto scale = area.removeFromBottom(4.0f);
+  const auto scale = area.removeFromBottom((float)kScaleHeight);
   for (const float db : {-48.0f, -36.0f, -24.0f, -12.0f, -6.0f, 0.0f}) {
     const auto t = (db - kMeterFloorDb) / -kMeterFloorDb;
     const auto x = scale.getX() + t * (scale.getWidth() - 1.5f);
@@ -1235,7 +1235,11 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
   case OutputGroup: {
     // The meter takes the whole group, and the fader lies over it.
     alignedWithDials(meter, r);
-    masterFader.setBounds(meter.getBounds());
+
+    // On the lamps rather than on the whole meter, since the scale marks run
+    // under them. See StereoOutputMeter::barBounds.
+    masterFader.setBounds(
+        meter.getBounds().withTrimmedBottom(StereoOutputMeter::kScaleHeight));
 
     // The two readouts go under it, in the band the knob captions occupy, so
     // the converter reads as the last thing before the output rather than as

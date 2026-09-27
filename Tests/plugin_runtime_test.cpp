@@ -3726,6 +3726,14 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
       if (dynamic_cast<SegmentDisplay *>(child) != nullptr)
         continue;
 
+      // Nor does the master fader, which is aligned to the lamps it lies over
+      // rather than to the row. The meter carrying those lamps is on the row
+      // and is checked like everything else, and the fader is checked against
+      // the meter below, which is the alignment that can actually be seen.
+      if (auto *slider = dynamic_cast<juce::Slider *>(child))
+        if (slider->getSliderStyle() == juce::Slider::LinearHorizontal)
+          continue;
+
       // A knob's line is its dial, not the control, which reaches further down
       // to hold the caption.
       if (auto *knob = dynamic_cast<LabelledKnob *>(child))
@@ -3736,6 +3744,37 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
 
     return centres;
   };
+
+  // The fader has one alignment to keep and it is not the row's: it has to
+  // stand on the lamps. A cap floating below them reads as a control that has
+  // come loose, and it did, because the meter keeps its decibel marks in a
+  // strip under the bars and the fader was given the whole meter to lie on.
+  {
+    bar.setSize(1412, TopBar::heightForWidth(1412));
+
+    const StereoOutputMeter *meter = nullptr;
+    const juce::Slider *fader = nullptr;
+
+    for (auto *child : bar.getChildren()) {
+      if (auto *m = dynamic_cast<StereoOutputMeter *>(child))
+        meter = m;
+
+      if (auto *s = dynamic_cast<juce::Slider *>(child))
+        if (s->getSliderStyle() == juce::Slider::LinearHorizontal)
+          fader = s;
+    }
+
+    check(meter != nullptr && fader != nullptr,
+          "the output group has a meter and a fader over it");
+
+    if (meter != nullptr && fader != nullptr) {
+      const auto lamps = meter->barBounds() + meter->getPosition();
+
+      check(fader->getBounds() == lamps,
+            "and the fader lies exactly on the lamps rather than on the "
+            "scale marks under them");
+    }
+  }
 
   // One row, two rows and three, since each row lays itself out afresh.
   for (int width : {1412, 1100, 900, TopBar::minimumWidth()}) {

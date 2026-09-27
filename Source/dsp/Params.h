@@ -206,7 +206,7 @@ inline const char *echoTypeName(EchoType t) {
 /// worth of room rather than a menu's. The menu says what each one is; the
 /// button only has to say which.
 inline const char *echoTypeShortName(EchoType t) {
-  return t == EchoType::Bucket ? "Bucket" : echoTypeName(t);
+  return t == EchoType::Bucket ? "BBD" : echoTypeName(t);
 }
 
 struct EchoParams {
