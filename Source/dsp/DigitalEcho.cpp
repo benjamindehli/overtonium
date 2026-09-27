@@ -141,8 +141,8 @@ void DigitalEcho::process(float *outL, float *outR, int numSamples,
 
     const auto spacing = (int)std::lround(smoothedDelay);
 
-    const auto wetL = roughen(left, left.read(spacing), hold, levels);
-    const auto wetR = roughen(right, right.read(spacing), hold, levels);
+    const auto wetL = left.read(spacing);
+    const auto wetR = right.read(spacing);
 
     const auto dryL = outL[n];
     const auto dryR = outR[n];
@@ -163,8 +163,23 @@ void DigitalEcho::process(float *outL, float *outR, int numSamples,
     if (++right.write >= bufferLength)
       right.write = 0;
 
-    outL[n] = dryL + (wetL - dryL) * mix;
-    outR[n] = dryR + (wetR - dryR) * mix;
+    // The wear is on the way out and not on the way round, which matters more
+    // than it looks. A quantiser inside a feedback loop has a fixed point: one
+    // step times a feedback of a half rounds back up to one step, so the tail
+    // reaches the bottom bit and stays there for ever. It was audible as a low
+    // sound that never went away, at every feedback from a half upwards, and
+    // still there twenty-five seconds later.
+    //
+    // Nothing is lost by moving it. The step the repeats are quantised to
+    // stays the same size while they get quieter, so the tenth repeat is
+    // crushed against a far coarser grid than the first, which is exactly what
+    // a converter does to something fading away and is the same progression
+    // this had when the wear was inside the loop.
+    const auto wornL = roughen(left, wetL, hold, levels);
+    const auto wornR = roughen(right, wetR, hold, levels);
+
+    outL[n] = dryL + (wornL - dryL) * mix;
+    outR[n] = dryR + (wornR - dryR) * mix;
   }
 }
 

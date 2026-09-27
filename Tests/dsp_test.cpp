@@ -4933,6 +4933,39 @@ void testDigitalEcho() {
               std::to_string(secondR / std::max(secondL, 1.0e-9)) + " times)");
   }
 
+  // ---- and a tail has to reach silence -------------------------------------
+  //
+  // A quantiser inside a feedback loop has a fixed point: one step times a
+  // feedback of a half rounds straight back up to one step, so the tail
+  // arrives at the bottom bit and stays there. It was audible as a low sound
+  // that never went away, at every feedback from a half upwards, and it was
+  // still there twenty-five seconds later. The wear is on the way out rather
+  // than on the way round for that reason.
+  {
+    for (const auto feedback : {0.5f, 0.6f, 0.75f}) {
+      DigitalEcho echo;
+      echo.prepare(sr);
+
+      EchoParams p;
+      p.enabled = true;
+      p.type = EchoType::Digital;
+      p.mix = 1.0f;
+      p.feedback = feedback;
+      p.timeSeconds = 0.3f;
+      p.age = 0.9f; // worn, which is where the fixed point was
+
+      auto s = burst((size_t)(26.0 * sr), 400.0, (size_t)(0.15 * sr));
+      echo.process(s.l.data(), s.r.data(), (int)s.size(), p);
+
+      const auto late = rms(s.l, (size_t)(25.0 * sr), (size_t)(25.3 * sr));
+
+      check(late < 1.0e-7,
+            "at " + std::to_string((int)(feedback * 100.0f)) +
+                "% feedback a worn tail reaches silence and stays there (" +
+                std::to_string(late) + ")");
+    }
+  }
+
   // ---- what AGE does, which no other type can ------------------------------
   //
   // Bits and a rate, taken off the repeats and taken off again on every pass,
