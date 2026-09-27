@@ -6661,6 +6661,48 @@ void testSpringReverb() {
               std::to_string(correlation) + ")");
   }
 
+  // ---- and it keeps its top end when the damping is off --------------------
+  //
+  // The spring's own loss is inside the loop and the pickup is outside it, and
+  // the whole of why that matters is here. With both in the loop a tail that
+  // had crossed the tray thirty times had met the filter sixty times, so six
+  // kilohertz sat ten decibels under a thousand with DAMP at nothing and there
+  // was no setting that sounded open. Split, it sits six and a half under, and
+  // DAMP still has somewhere to go.
+  {
+    SpringReverb spring;
+    spring.prepare(sr);
+
+    const auto held = [&](double hz, float damp) {
+      auto q = p;
+      q.damping = damp;
+
+      auto s = tone((size_t)(2.0 * sr), hz, sr);
+      runBlocks(spring, s, q);
+
+      return rms(s.l, (size_t)(1.0 * sr), (size_t)(2.0 * sr));
+    };
+
+    const auto dB = [](double a, double b) {
+      return 20.0 * std::log10(std::max(a, 1.0e-12) / std::max(b, 1.0e-12));
+    };
+
+    const auto openTop = dB(held(6000.0, 0.0f), held(1000.0, 0.0f));
+    const auto shutTop = dB(held(6000.0, 1.0f), held(1000.0, 1.0f));
+
+    std::printf("  six kilohertz sits %+.1f dB on a thousand with the damping "
+                "off and %+.1f dB with it full on\n",
+                openTop, shutTop);
+
+    check(openTop > -8.0,
+          "the damping off leaves the top of the band in the tail (" +
+              std::to_string(openTop) + " dB)");
+
+    check(shutTop < openTop - 8.0,
+          "and the knob still has somewhere to take it (" +
+              std::to_string(shutTop) + " dB)");
+  }
+
   // ---- and the decay knob still means what it means ------------------------
   {
     const auto rt60Of = [&](auto &fx, ReverbType type) {
@@ -6846,6 +6888,86 @@ void testPlateReverb() {
           "a longer decay is still going when a shorter one has gone (" +
               std::to_string(at2s(slow) / std::max(at2s(quick), 1.0e-12)) +
               " times)");
+  }
+
+  // ---- and the tail is a wash rather than a pattern ------------------------
+  //
+  // The tank's circuit is nearly three quarters of a second long, so whatever
+  // comes out of it comes out again a circuit later in the same shape. At a
+  // short decay nothing goes round often enough to notice. At a long one it is
+  // heard as a delay with some reverb on it, which is what this asks about:
+  // the tail's envelope, flattened so only its shape is left, held against
+  // itself at every lag from fifty milliseconds to a second and a half.
+  //
+  // Two things brought it down and both were found here. Reading all four of a
+  // channel's taps from one line gives four echoes of one circulating signal,
+  // and scored 0.35. Reading Dattorro's seven across the whole tank gave 0.23,
+  // and opening the modulation from his eight samples to a millisecond gave
+  // 0.10. The bar is set at 0.18, between the last two.
+  {
+    PlateReverb plate;
+    plate.prepare(sr);
+
+    auto longDecay = p;
+    longDecay.decaySeconds = 6.0f;
+    longDecay.damping = 0.0f;
+
+    const auto s = clicked(plate, longDecay, (size_t)(6.0 * sr));
+
+    // In five millisecond windows, from where the click itself has gone.
+    const auto window = (size_t)(0.005 * sr);
+    std::vector<double> envelope;
+
+    for (size_t n = (size_t)(0.2 * sr); n + window < (size_t)(5.0 * sr);
+         n += window) {
+      double sum = 0.0;
+      for (size_t k = 0; k < window; ++k)
+        sum += (double)s.l[n + k] * (double)s.l[n + k];
+
+      envelope.push_back(std::sqrt(sum / (double)window));
+    }
+
+    // Divided by a wide average of itself, so the decay drops out and what is
+    // left is the lumps either side of it.
+    constexpr int kSpan = 40;
+    std::vector<double> flattened;
+
+    for (int i = kSpan; i + kSpan < (int)envelope.size(); ++i) {
+      double local = 0.0;
+      for (int k = i - kSpan; k <= i + kSpan; ++k)
+        local += envelope[(size_t)k];
+
+      flattened.push_back(envelope[(size_t)i] /
+                              std::max(local / (2 * kSpan + 1), 1.0e-12) -
+                          1.0);
+    }
+
+    double power = 0.0;
+    for (const auto v : flattened)
+      power += v * v;
+
+    double strongest = 0.0;
+    double atLag = 0.0;
+
+    for (int lag = 10; lag < 300; ++lag) {
+      double dot = 0.0;
+      for (size_t i = 0; i + (size_t)lag < flattened.size(); ++i)
+        dot += flattened[i] * flattened[i + (size_t)lag];
+
+      const auto scored = dot / std::max(power, 1.0e-20);
+
+      if (scored > strongest) {
+        strongest = scored;
+        atLag = (double)lag * 5.0;
+      }
+    }
+
+    std::printf("  its tail repeats itself at %.2f, worst at %.0f ms\n",
+                strongest, atLag);
+
+    check(strongest < 0.18,
+          "a long decay is a wash and not a line of repeats (" +
+              std::to_string(strongest) + ")");
   }
 
   // ---- and it agrees with the room about what DECAY means ------------------

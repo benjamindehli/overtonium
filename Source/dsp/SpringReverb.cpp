@@ -25,8 +25,13 @@ constexpr double kTransits[] = {0.0291, 0.0330, 0.0371};
 constexpr float kWeightsL[] = {0.80f, 0.35f, 0.10f};
 constexpr float kWeightsR[] = {0.10f, 0.35f, 0.80f};
 
-/// Three springs summed, brought back to about the level of one.
-constexpr float kTapScale = 0.62f;
+/// Three springs summed, brought back to where the room and the plate sit.
+///
+/// Matched for the same reason the plate's is: one MIX knob, three machines,
+/// and no reason for a switch between them to change how loud the wet is. The
+/// spring needed the most of the three, since a band a fifth as wide carries a
+/// fifth of the energy.
+constexpr float kTapScale = 1.44f;
 
 /// How many allpasses each spring disperses through, at the rate they were
 /// counted for.
@@ -61,17 +66,32 @@ constexpr double kSectionRate = 48000.0;
 constexpr float kLowestCoefficient = -0.74f;
 constexpr float kHighestCoefficient = -0.82f;
 
-/// What a transducer and a pickup will pass, whatever DAMP is set to.
+/// What the tray passes, and where DAMP moves within it.
 ///
-/// Two poles at the top, so the corner is the -6 dB point rather than the -3,
-/// which puts the usable top of the band under three kilohertz. That is where
-/// a tank actually stops: brighter than this and it reads as a narrow plate
-/// instead. Measured against a thousand cycles, twelve kilohertz comes back
-/// 13.2 dB down with the corner at 4500, 14.9 at 4000 and 16.5 at 3600, while
-/// a plate at the same settings is 0.3 dB up.
+/// kPickupHz is the transducer, outside the loop and met once. kOpenHz and
+/// kClosedHz are the spring's own loss, inside it and met on every bounce,
+/// which is what DAMP sets.
+///
+/// Both poles used to sit in the loop with the corner at 3600, and nothing
+/// survived above about four kilohertz however DAMP was set. Held against a
+/// sustained thousand cycles with the tail established, at six kilohertz:
+///
+///   both poles in the loop at 3600, damp 0      -10.6 dB
+///   one in the loop at 3600, pickup outside     -11.2 dB
+///   one in the loop at 5000, pickup outside      -9.3 dB
+///   one in the loop at 7000, pickup outside      -7.7 dB
+///   one in the loop at 10000, pickup outside     -6.5 dB
+///
+/// The second line is the one worth reading: taking a pole out of the loop
+/// brightens nothing at all on its own. What it buys is permission to open
+/// kOpenHz, since the pickup is now what holds the band rather than the loop
+/// filter, and that is where the four decibels came from. With DAMP halfway
+/// the tail sits at -12.4, which is about where the old setting was with the
+/// knob at nothing, and it was wanted around the middle.
 constexpr float kRumbleHz = 80.0f;
-constexpr float kOpenHz = 3600.0f;
-constexpr float kClosedHz = 1300.0f;
+constexpr float kPickupHz = 5000.0f;
+constexpr float kOpenHz = 10000.0f;
+constexpr float kClosedHz = 900.0f;
 
 inline float onePole(float hz, double sr) noexcept {
   return (float)std::exp(-kTwoPi * (double)hz / sr);
@@ -98,7 +118,7 @@ void SpringReverb::Spring::clear() noexcept {
   for (auto &section : dispersion)
     section.state = 0.0f;
 
-  dark = darker = rumble = tail = 0.0f;
+  dark = rumble = tail = 0.0f;
 }
 
 void SpringReverb::prepare(double newSampleRate) noexcept {
@@ -124,6 +144,8 @@ void SpringReverb::reset() noexcept {
   for (auto &spring : springs)
     spring.clear();
 
+  pickupL.clear();
+  pickupR.clear();
   wasEnabled = false;
 }
 
@@ -155,9 +177,15 @@ void SpringReverb::process(float *outL, float *outR, int numSamples,
   // listening. Closed right down it is still nowhere near dark enough to be a
   // room, because the band it works over never opened that far to begin with.
   const auto damping = std::clamp(p.damping, 0.0f, 1.0f);
+  // Geometrically rather than in a straight line up the frequency axis. A
+  // corner swept linearly from nine kilohertz spends three quarters of the
+  // knob's travel above three, where the pickup already has the band covered
+  // and nothing audible happens, and does everything it is going to do in the
+  // last quarter. In octaves it moves evenly, which is how it is heard.
   const auto darkCoef =
-      onePole(kOpenHz - damping * (kOpenHz - kClosedHz), sampleRate);
+      onePole(kOpenHz * std::pow(kClosedHz / kOpenHz, damping), sampleRate);
   const auto rumbleCoef = onePole(kRumbleHz, sampleRate);
+  const auto pickupCoef = onePole(kPickupHz, sampleRate);
 
   // Each spring has to lose the same proportion per second rather than per
   // bounce, or the short one would run out while the long one was still going
@@ -224,9 +252,8 @@ void SpringReverb::process(float *outL, float *outR, int numSamples,
         spring.write = 0;
 
       spring.dark = arrived + (spring.dark - arrived) * darkCoef;
-      spring.darker = spring.dark + (spring.darker - spring.dark) * darkCoef;
 
-      auto heard = spring.darker;
+      auto heard = spring.dark;
 
       spring.rumble = heard + (spring.rumble - heard) * rumbleCoef;
       heard -= spring.rumble;
@@ -237,8 +264,12 @@ void SpringReverb::process(float *outL, float *outR, int numSamples,
       wetR += heard * kWeightsR[i];
     }
 
-    outL[n] = dryL + (wetL * kTapScale - dryL) * mix;
-    outR[n] = dryR + (wetR * kTapScale - dryR) * mix;
+    // The pickup, once, on the way out. See Pickup.
+    const auto heardL = pickupL.process(wetL, pickupCoef);
+    const auto heardR = pickupR.process(wetR, pickupCoef);
+
+    outL[n] = dryL + (heardL * kTapScale - dryL) * mix;
+    outR[n] = dryR + (heardR * kTapScale - dryR) * mix;
   }
 }
 

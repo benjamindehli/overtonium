@@ -33,14 +33,16 @@ namespace ovt {
 /// the two channels are different weightings of the three rather than two
 /// tanks.
 ///
-/// The loop is also band-limited, because a transducer and a pickup are: there
-/// is nothing below eighty cycles and little above four and a half thousand,
-/// however the panel is set. A spring that went to twenty kilohertz would not
-/// be a spring.
+/// It is also band-limited, because a transducer and a pickup are: there is
+/// nothing below eighty cycles and little above five thousand, however the
+/// panel is set. A spring that went to twenty kilohertz would not be a spring.
+/// That limit sits at the pickup, outside the loop, so it bounds what comes
+/// out without darkening the tail on every pass.
 ///
 /// **What the panel means here.** DECAY is the loop gain, as on the plate.
-/// DAMP closes the pickup's top end down towards the middle of the band, which
-/// is what a long tank sounds like from the far end. PRE-DELAY is ahead of
+/// DAMP is the spring's own loss, inside the loop, closing its top end down
+/// towards the middle of the band, which is what a long tank sounds like from
+/// the far end. PRE-DELAY is ahead of
 /// everything, as it is on the other two.
 class SpringReverb {
 public:
@@ -83,11 +85,9 @@ private:
 
     std::vector<Allpass> dispersion;
 
-    /// The two ends of the band the transducer works over. Two poles at the
-    /// top, one at the bottom, because it is the top that a spring has none
-    /// of: a single pole leaves twelve kilohertz only five decibels down on a
-    /// thousand, which is a narrow plate rather than a spring.
-    float dark = 0.0f, darker = 0.0f, rumble = 0.0f;
+    /// What the spring itself loses on each pass: its top end, which is what
+    /// DAMP sets, and its bottom, which a helix has none of either way.
+    float dark = 0.0f, rumble = 0.0f;
 
     /// What came back last sample, which is what goes round again.
     float tail = 0.0f;
@@ -99,6 +99,37 @@ private:
   double sampleRate = 44100.0;
 
   std::array<Spring, 3> springs;
+
+  /// The pickup at the end of the tray, one per channel, outside the loop.
+  ///
+  /// A pickup is a transducer the signal meets once on its way out, not a loss
+  /// the spring takes on every bounce, and it used to be modelled as the
+  /// latter: both poles sat inside the loop.
+  ///
+  /// Moving them out here brightens nothing by itself, and it is worth being
+  /// clear about that, because it looks as though it should. What it does is
+  /// take the job of bounding the band away from the loop filter. Once the
+  /// pickup guarantees there is nothing above five kilohertz coming out, the
+  /// loop's own corner is free to sit wherever the tail wants it rather than
+  /// wherever the band limit needs it, and that is where the brightness came
+  /// from. See kOpenHz.
+  ///
+  /// Two poles rather than one, because a tank's top end does not slope away
+  /// at six decibels an octave. It falls off a shelf.
+  struct Pickup {
+    float first = 0.0f, second = 0.0f;
+
+    float process(float x, float coef) noexcept {
+      first = x + (first - x) * coef;
+      second = first + (second - first) * coef;
+
+      return second;
+    }
+
+    void clear() noexcept { first = second = 0.0f; }
+  };
+
+  Pickup pickupL, pickupR;
 
   std::vector<float> preDelay;
   int preWrite = 0;

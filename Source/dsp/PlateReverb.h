@@ -122,6 +122,13 @@ private:
 
   std::array<Branch, 2> tank;
 
+  /// The taps, resolved to this sample rate and clamped to the lines they
+  /// read, worked out once in prepare rather than seven times a sample.
+  std::array<int, 7> tapAtL{}, tapAtR{};
+
+  /// Which line a tap reads, given the branch it names.
+  const Line &lineFor(const Branch &b, int which) const noexcept;
+
   /// What the tank handed back last time round, which is what the other
   /// branch is fed.
   std::array<float, 2> crossed{};

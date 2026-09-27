@@ -26,16 +26,81 @@ constexpr int kFirstDelay[] = {4453, 4217};
 constexpr int kSecondAllpass[] = {1800, 2656};
 constexpr int kSecondDelay[] = {3720, 3163};
 
-/// Where each output is taken from, which is the other branch rather than its
-/// own. Several taps each, so a channel is a sum of places on the plate rather
-/// than one point on it.
-constexpr int kTapsL[] = {266, 2974, 1913, 1996};
-constexpr int kTapsR[] = {353, 3627, 1228, 2673};
+/// Where each output is heard from.
+///
+/// Seven places each, spread across both branches of the figure of eight and
+/// across three of the four lines in each, with the signs Dattorro gives them.
+/// This is the part that makes a plate a wash rather than a delay, and it is
+/// the part that is tempting to simplify: an earlier version of this file took
+/// all four of a channel's taps from one branch's first delay, which is four
+/// echoes of one circulating signal however many taps it is. It was fine at a
+/// short decay, where nothing goes round often enough to hear, and at a long
+/// one it was audibly a delay with some reverb on it.
+///
+/// Reading across the whole tank instead means every sample of the output is a
+/// sum of seven places the signal is at once, and the alternating signs stop
+/// those seven summing into a pulse when the tank is ringing.
+struct Tap {
+  /// Which half of the figure of eight.
+  int branch;
 
-/// How far the modulated allpasses wander, and how fast. Slow and shallow:
-/// enough that nothing settles on a pitch, not enough to hear as movement.
-constexpr float kModDepth = 8.0f;
-constexpr double kModRateL = 0.70, kModRateR = 0.83;
+  /// Which line in it: the delay after the first allpass, the second allpass's
+  /// own line, or the delay that closes the branch.
+  enum Line { FirstDelay, SecondAllpass, SecondDelay };
+  Line line;
+
+  /// How far into it, at the rate the shape was written for.
+  int position;
+
+  float sign;
+};
+
+constexpr Tap kTapsL[] = {
+    {1, Tap::FirstDelay, 266, 1.0f},      {1, Tap::FirstDelay, 2974, 1.0f},
+    {1, Tap::SecondAllpass, 1913, -1.0f}, {1, Tap::SecondDelay, 1996, 1.0f},
+    {0, Tap::FirstDelay, 1990, -1.0f},    {0, Tap::SecondAllpass, 187, -1.0f},
+    {0, Tap::SecondDelay, 1066, -1.0f},
+};
+
+constexpr Tap kTapsR[] = {
+    {0, Tap::FirstDelay, 353, 1.0f},      {0, Tap::FirstDelay, 3627, 1.0f},
+    {0, Tap::SecondAllpass, 1228, -1.0f}, {0, Tap::SecondDelay, 2673, 1.0f},
+    {1, Tap::FirstDelay, 2111, -1.0f},    {1, Tap::SecondAllpass, 335, -1.0f},
+    {1, Tap::SecondDelay, 121, -1.0f},
+};
+
+/// Seven taps summed, brought back to where the room sits.
+///
+/// Matched rather than chosen, because one MIX knob serves all three machines
+/// and a switch between them that changed the level would read as one being
+/// better than another. Measured on a held chord with the mix full up and the
+/// decay at two and a half seconds, the room comes back at 0.2545.
+constexpr float kTapScale = 0.53f;
+
+/// How far the modulated allpasses wander, and how fast.
+///
+/// A millisecond rather than Dattorro's eight samples, and a length of time
+/// rather than a count so it holds at any host rate. His figure is almost
+/// still: the tank's circuit is nearly three quarters of a second long, and
+/// what comes out of it is the same fixed set of arrivals every time round,
+/// which at a long decay is heard as a pattern repeating rather than as a
+/// wash. Measured as how strongly the tail's envelope correlates with itself
+/// a delay later, at the worst lag found between 50 ms and 1.5 s, with a six
+/// second decay:
+///
+///   excursion | rates       | repeats at
+///     8 smp   | 0.70 / 0.83 | 0.230
+///    24 smp   | 0.70 / 0.83 | 0.192
+///    48 smp   | 0.70 / 0.83 | 0.117
+///    48 smp   | 1.10 / 1.37 | 0.102
+///    96 smp   | 1.10 / 1.37 | 0.114
+///
+/// It stops paying after about a millisecond and starts costing instead: the
+/// excursion is a pitch deviation of 2*pi*rate*depth, which is twelve cents at
+/// this setting and twenty-four at twice it. Twelve is movement in the tail,
+/// which a lush plate wants. Twenty-four is vibrato, which it does not.
+constexpr double kModDepthSeconds = 0.001;
+constexpr double kModRateL = 1.10, kModRateR = 1.37;
 
 inline int scaled(int length, double sampleRate) {
   return std::max(1,
@@ -94,6 +159,20 @@ float PlateReverb::ModulatedAllpass::process(float x, double sr) noexcept {
   return delayed - v * gain;
 }
 
+const PlateReverb::Line &PlateReverb::lineFor(const Branch &b,
+                                              int which) const noexcept {
+  switch ((Tap::Line)which) {
+  case Tap::FirstDelay:
+    return b.firstDelay;
+  case Tap::SecondAllpass:
+    return b.second.line;
+  case Tap::SecondDelay:
+    break;
+  }
+
+  return b.secondDelay;
+}
+
 void PlateReverb::prepare(double newSampleRate) noexcept {
   sampleRate = std::max(1.0, newSampleRate);
 
@@ -105,14 +184,16 @@ void PlateReverb::prepare(double newSampleRate) noexcept {
     diffusers[i].gain = kDiffuserGains[i];
   }
 
+  const auto modDepth = (float)(kModDepthSeconds * sampleRate);
+
   for (size_t b = 0; b < tank.size(); ++b) {
     auto &branch = tank[b];
 
     // Room for the wander on top of the nominal length.
     branch.first.line.resize(scaled(kFirstAllpass[b], sampleRate) +
-                             (int)kModDepth + 4);
+                             (int)modDepth + 4);
     branch.first.nominal = (float)scaled(kFirstAllpass[b], sampleRate);
-    branch.first.depth = kModDepth;
+    branch.first.depth = modDepth;
     branch.first.gain = 0.7f;
     branch.first.rateHz = b == 0 ? kModRateL : kModRateR;
 
@@ -122,6 +203,18 @@ void PlateReverb::prepare(double newSampleRate) noexcept {
     branch.second.gain = 0.5f;
 
     branch.secondDelay.resize(scaled(kSecondDelay[b], sampleRate));
+  }
+
+  const auto resolve = [this](const Tap &tap) {
+    const auto &line = lineFor(tank[(size_t)tap.branch], tap.line);
+
+    return std::min(scaled(tap.position, sampleRate),
+                    (int)line.buffer.size() - 1);
+  };
+
+  for (size_t i = 0; i < tapAtL.size(); ++i) {
+    tapAtL[i] = resolve(kTapsL[i]);
+    tapAtR[i] = resolve(kTapsR[i]);
   }
 
   reset();
@@ -213,9 +306,18 @@ void PlateReverb::process(float *outL, float *outR, int numSamples,
       (float)std::pow(0.001, loop / (4.0 * (double)decay)), 0.0f, 0.97f);
 
   // A plate loses its top end to the air, which is what stops a bright tank
-  // from ringing like a cymbal. Wide open it is still not a bright room.
+  // from ringing like a cymbal.
+  //
+  // Open, the corner is above anything a plate is played for and the filter is
+  // nearly not there, which is the point: the signal meets it twice on every
+  // circuit and a tail that has been round eight times has met it sixteen
+  // times, so a corner low enough to hear once is far too low by the end.
+  // Measured as the tail's energy above three kilohertz against its energy
+  // below, a second in, with damping off: minus two decibels with the corner
+  // at 12 kHz and minus a half at 18. Eighteen is as high as it can honestly
+  // go, since 24 would be above Nyquist at the rates this runs at.
   const auto damping = std::clamp(p.damping, 0.0f, 1.0f);
-  const auto dampHz = 12000.0f - damping * 10500.0f;
+  const auto dampHz = 18000.0f - damping * 16500.0f;
   const auto dampCoef = onePole(dampHz, sampleRate);
 
   const auto preLength = std::max(
@@ -266,19 +368,18 @@ void PlateReverb::process(float *outL, float *outR, int numSamples,
           branch.secondDelay.at((int)branch.secondDelay.buffer.size() - 1);
     }
 
-    // Taken across the other branch rather than from the end of its own, at
-    // several places each, which is what gives the two channels a plate's
-    // width rather than one being a delayed copy of the other.
-    for (const auto tap : kTapsL)
-      out[0] += tank[1].firstDelay.at(std::min(
-          scaled(tap, sampleRate), (int)tank[1].firstDelay.buffer.size() - 1));
+    // Read across the whole tank, at seven places for each channel. See Tap.
+    for (size_t i = 0; i < tapAtL.size(); ++i) {
+      const auto &tap = kTapsL[i];
+      out[0] +=
+          tap.sign * lineFor(tank[(size_t)tap.branch], tap.line).at(tapAtL[i]);
+    }
 
-    for (const auto tap : kTapsR)
-      out[1] += tank[0].firstDelay.at(std::min(
-          scaled(tap, sampleRate), (int)tank[0].firstDelay.buffer.size() - 1));
-
-    // Four taps summed, so the level is brought back to one of them.
-    constexpr float kTapScale = 0.25f;
+    for (size_t i = 0; i < tapAtR.size(); ++i) {
+      const auto &tap = kTapsR[i];
+      out[1] +=
+          tap.sign * lineFor(tank[(size_t)tap.branch], tap.line).at(tapAtR[i]);
+    }
 
     outL[n] = dryL + (out[0] * kTapScale - dryL) * mix;
     outR[n] = dryR + (out[1] * kTapScale - dryR) * mix;
