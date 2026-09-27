@@ -41,10 +41,16 @@ Source/
     Envelope.h      per-partial delay, ADSR and the two-stage key-off
     Params.h        plain-data parameter snapshot
     Voice.*         32 partials, one note
-    TapeEcho.*      the master echo
-    Reverb.*        the master reverb, a feedback delay network
+    Halfband.h      the half-band filter the drive oversamples through
+    BusDrive.*      the drive each character puts on the summed mix
+    TapeEcho.*      the master echo as a tape loop
+    BucketEcho.*    the same as a line of buckets
+    DigitalEcho.*   the same as a ping-pong digital delay
+    Reverb.*        the master reverb as a feedback delay network
+    PlateReverb.*   the same as a modulated plate
+    SpringReverb.*  the same as a tray of springs
     SynthEngine.*   voice pool, allocation, stealing, effects, master stage
-  PluginParameters.*  APVTS layout, 784 parameters, and the audio-thread snapshot
+  PluginParameters.*  APVTS layout, 786 parameters, and the audio-thread snapshot
   Presets.*           factory presets
   PluginProcessor.*   MIDI handling, sample-accurate rendering, state
   PluginEditor.*      window, zoom, LINK, gutter

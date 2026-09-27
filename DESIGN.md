@@ -73,7 +73,7 @@ It loads whether or not the preset is the one already showing, which is what the
 
 What tells the two apart is a gesture. Every control opens one before it writes and closes one after, which is how a host is told that a move has begun and ended, and automation does not: it sets values and says nothing. So the processor listens to itself for gesture begin and end, takes a baseline of every parameter when the first one opens, and when the last one closes puts whatever actually moved into the history as one step. A drag, a scroll wheel and a LINK drag across 32 channels are each one gesture and therefore each one step, however many values they moved and however long they took. A gesture that ends where it began is not a step at all.
 
-Only from the message thread. A host is allowed to open a gesture from the audio thread, and taking a baseline of 784 parameters there would allocate on it, so one that arrives from anywhere else is left alone. Nobody is turning a knob from the audio thread.
+Only from the message thread. A host is allowed to open a gesture from the audio thread, and taking a baseline of 786 parameters there would allocate on it, so one that arrives from anywhere else is left alone. Nobody is turning a knob from the audio thread.
 
 The things a person does that are not one gesture go through `recordEdit`, which takes the same baseline around whatever it is given: loading a preset writes hundreds of parameters and has to come back in one undo. The caller decides, and that is the point of it. Loading a preset from the menu is recorded and a clip firing a program change at the same `applyFactoryPreset` is not, because one of them is editing and the other is playing.
 
@@ -652,6 +652,31 @@ A rate limit is the one imperfection here with a memory, so its cycle is simulat
 
 The shape of that list says something about the six. Bulb and Op-amp take more than half of it between them, and they are the two that are not fixed waveshapes: one answers the hand and the other answers the register, so both do something on a keyboard that no spectrum sitting still can. The diode pair came out of the pass with nothing at all. It still does what it says it does, and no patch in the set asked for it, which is a fact about the set rather than about the character.
 
+### The bus the series is summed onto
+
+The thirty-three channels are not simply added together. They are summed onto a bus that drives, by an amount and in a way that belongs to the character, because the character is meant to say what circuit you are playing through and a summing amplifier is part of that circuit.
+
+It is a separate thing from the tables, and it has to be. A table is one partial's waveform and cannot know what the other thirty-two are doing, so nothing baked into it can answer to the mix. This can: it works on the sum, at twice the sample rate through a half-band filter so nothing it makes folds back down, and it answers to level. Play quietly and it is barely there; lean on the keyboard and it arrives. That is what a desk does and what a table cannot.
+
+**How much each character asks for** was found by ear at a keyboard, one character at a time, with a development control that is not in the shipped build:
+
+| Character | Drive on the bus |
+| --------- | ---------------- |
+| Bulb      | 15%              |
+| Rail      | 13%              |
+| Valve     | 10%              |
+| Op-amp    | 10%              |
+| Diode     | 7%               |
+| Pure      | none             |
+
+Pure sums cleanly and does nothing, which is what Pure is for. There is no knob for the rest, because how hard a summing amplifier is driven is part of what choosing a character means rather than a setting on top of it.
+
+**The op-amp took three goes.** A slew limit is the right model for an amplifier that cannot keep up, and it is the wrong model for a bus. On one partial it hardens the top of the series, which is what the character is for. On a mix it is reacting to the sum's slope rather than to any one note, so it broke up on high notes at settings that sounded fine on low ones, and measured -67, -67, -53 and -73 dB of inharmonic rubbish across A2, A4, A6 and A7. A cubic corner replaced it and does what was wanted without the register deciding how much.
+
+**Two measurement mistakes are worth recording**, since both looked like the design being wrong. Moving the amount spiked the output, because the antiderivative the antialiasing depends on was being carried across blocks instead of recomputed from the stored input. And at small drives the gain was 1.4 dB out, which was float cancellation in the antiderivative rather than anything about the curve: it is computed in doubles now, with a series for the log of cosh where the two terms are close enough to cancel.
+
+**It sits before the master fader**, like the effects after it, so the fader stays a true output level. That also means the bus sees the raw sum, which on a full patch runs 1.5 to 1.9 rather than anywhere near one. Several things that looked like bugs were this: the tape echo's permanent compression, and a preset deliberately mixed low to keep the echo clean sounding wrong once the bus arrived underneath it.
+
 ### Wobble
 
 A warped record under the whole instrument. Pitch is bent by reading the output back through a delay line whose length keeps moving, which is what happens when a platter runs eccentric or a capstan slips: the medium arrives early or late and the pitch goes with it.
@@ -673,18 +698,30 @@ At zero it is bypassed and passes the signal through untouched, bit for bit, whi
 
 ### The master effects
 
-Two of the groups in the top bar work on the finished mix rather than on any one partial: a tape echo and a reverb. They sit where they are in the signal, after everything per partial and before the output group, and both are ahead of the master fader, so the fader is a true output level and moving it cannot change the wet to dry balance underneath it. Each has a switch that names it, and switching one off empties it rather than leaving a tail to reappear next time it comes on.
+Two of the groups in the top bar work on the finished mix rather than on any one partial: an echo and a reverb. They sit where they are in the signal, after everything per partial and before the output group, and both are ahead of the master fader, so the fader is a true output level and moving it cannot change the wet to dry balance underneath it.
 
-**ECHO** is a tape loop rather than a digital delay:
+Each is three machines behind one button rather than one machine behind a switch, and the button says which is running. Behind each button are two parameters and not one. The switch that turns the thing on is older than the choice of machine, and every patch saved before there was a choice stores it while storing nothing about a type, so the switch stayed where it was and the type arrived beside it. A patch from 1.9.0 therefore loads with the tape it was made on and the room it was made in, which is the only answer that leaves an old patch sounding the way it did.
+
+All three of each are asked to run on every block, and each decides for itself whether the chosen type is its own. The two that are not chosen empty their loops rather than holding a tail that would reappear the moment you switched to them, which is the same rule the single switch had.
+
+**ECHO** is one of three machines. What they share is the panel:
 
 | Control | Does                                                |
 | ------- | --------------------------------------------------- |
 | MIX     | how much of the output is repeats                   |
 | TIME    | distance between the heads, 20 ms to 2 s            |
 | FDBK    | how much of each repeat goes round again, up to 95% |
-| AGE     | how worn the machine is                             |
+| AGE     | how worn the machine is, and what that means varies |
 
-TIME is reached by winding rather than by jumping, so moving the knob slides the repeats in pitch on the way to the new setting, which is the sound a tape delay is mostly wanted for.
+AGE is the control that makes three machines worth having rather than three names for one. It is the same knob and the same parameter on all of them, and it asks each for the thing that machine gets worse at:
+
+| Machine | What AGE does to it                                              |
+| ------- | ---------------------------------------------------------------- |
+| TAPE    | top end lost per pass, motor wander, and how hard the tape leans |
+| BBD     | the clock slowing, and the companding breathing                  |
+| DIGITAL | fewer bits and fewer of them per second                          |
+
+**The tape** is a loop rather than a digital delay. TIME is reached by winding rather than by jumping, so moving the knob slides the repeats in pitch on the way to the new setting, which is the sound a tape delay is mostly wanted for.
 
 AGE is one control for the three things that go together as a tape machine wears: the top end it loses on every pass, how far the motor wanders, and how hard the tape leans over when it is driven. New is clean, bright and steady, old is dark, unsteady and compressed. They were three knobs that were nearly always turned together. The tests measure all three separately: a new machine hands back four times the top end of a worn one after ten passes, holds its pitch to 0.01% where a worn one wanders by over 1%, and passes its repeats through at full level where a worn one compresses them.
 
@@ -709,7 +746,25 @@ Measured as the correlation between the two channels on a sustained tone, the bo
 
 The tests check both ends: that a perfect transport would collapse to mono, which is why the panel cannot ask for one, and that the lowest setting it can ask for is already doubled without being a chorus. Feeding one channel only leaves the other at exactly zero, since nothing crosses over.
 
-**REVERB** is a feedback delay network: eight delay lines fed back through a Householder matrix, with four allpass stages per side in front of it to scatter a hit into a wash before it reaches the network.
+**The bucket brigade** is a line of capacitors handing a charge along, one step per tick of a clock, and modelling it as a darker tape would miss everything that makes people keep the pedals.
+
+It is darker the longer it is set to, and that is not a stylistic choice. The line holds a fixed number of buckets, so a longer delay can only be had by clocking them more slowly, and the filter that reconstructs the signal has to come down with the clock to keep its own aliasing out. Every unit ever built does this: short settings are nearly clean, long ones are murk. TIME therefore has a second job on this type that it has on no other.
+
+Its stereo is two clocks rather than two tapes. Each side is modulated by a slow sine of its own, 0.31 against 0.43 Hz, sharing no factor so the two never fall into step. That is a gentle vibrato where the tape has drift, which is what a pair of these actually sounds like.
+
+AGE is three things again, and none of them is the one that was tried first. A clock whine was the obvious artefact and the wrong one: it is a fault rather than a character, it sits at a fixed pitch a chord has to be in tune with, and nobody buys one of these for it. What it does instead is get darker still on top of what the clock already costs, dirtier on every pass, since the line clips early and the repeat goes round again so a tail starts clean and ends up growling, and noisier in the way an old compander is noisy. Every bucket brigade has one wrapped around it, compressing in and expanding out, and a worn one mistracks: the pull-down arrives late, so hiss swells in behind a chord and ducks away as the repeats die. A silent patch stays silent, which is why it is keyed to the signal rather than run free.
+
+**The digital delay** is the one that does not pretend to be anything. No tape to wear, no buckets to clock, no motor and no lamp: what goes in comes back out, later and quieter, and the only thing it loses on each pass is level. That is worth having beside the other two precisely because it is the plain one.
+
+Its stereo is ping-pong, which is a different machine rather than a setting of one. The input arrives summed to the middle and every repeat crosses, so a note becomes a line of repeats alternating left and right. On the tape and the bucket brigade nothing crosses between the sides at any point and the width comes from the two paths disagreeing; here the two sides are one path and the crossing is the whole topology.
+
+AGE does the one thing neither of the others can. At nothing it is exactly a copy, which is what a digital delay is for, and the clean end has to be exactly that and not nearly that. Turned up, the repeats come back through fewer bits and at a lower rate, down to six bits and an eighth of the host rate, so a tail starts as the signal and ends as a memory of it.
+
+That wear is applied on the way out and not on the way round, which matters more than it looks. A quantiser inside a feedback loop has a fixed point: one step times a feedback of a half rounds back up to one step, so the tail reaches the bottom bit and sits there forever. It was audible as a low sound that never went away at every feedback from a half upwards, and still there twenty-five seconds later. Nothing is lost by moving it, because the step stays the same size while the repeats get quieter, so the tenth repeat is crushed against a far coarser grid than the first. That is what a converter does to something fading away, and it is the same progression the wear had when it was inside the loop.
+
+**Both echoes colour the first repeat**, which sounds obvious and was not true at first. The output was taken from the delay line before the stage that ages it, so repeat one came back clean and every repeat after it was worn, and the effect was of a machine that only switches on once you have heard it work. Both now take their output from the coloured signal.
+
+**REVERB** is one of three machines, on the same kind of button as the echo. The panel is the same on all three:
 
 | Control | Does                                                  |
 | ------- | ----------------------------------------------------- |
@@ -717,6 +772,12 @@ The tests check both ends: that a perfect transport would collapse to mono, whic
 | DECAY   | how long the tail takes to fall 60 dB, 0.2 to 20 s    |
 | DAMP    | how quickly the top end dies out of the tail          |
 | PRE     | silence between the note and its reverb, up to 250 ms |
+
+DECAY means the same length of time on all three, which is not something that happens by itself. Measured from a click at the same setting, the room takes 2.23 seconds, the plate 2.38 and the spring 2.46. Two of those numbers were wrong twice over before they were right, and the tests hold each machine against the room rather than against a figure typed in, so the next one to be added has to agree as well.
+
+The wet levels are matched too. On a held chord with the mix full up the three come back at 0.2545, 0.2547 and 0.2546, which is the same to a hundredth of a decibel. One MIX knob serves all three, and a switch between them that changed the level would read as one machine being better than another rather than different from it.
+
+**The room** is a feedback delay network: eight delay lines fed back through a Householder matrix, with four allpass stages per side in front of it to scatter a hit into a wash before it reaches the network.
 
 The two sides are drawn from different lines in different polarities, so the tail is wide by construction and there is nothing on the panel to narrow it. There is no width control, on the same grounds as the stereo spread the mixer does without: a knob with one setting anyone reaches for is not a knob. The test checks the thing worth checking, that a mono hit still comes back with the two sides largely independent.
 
@@ -728,6 +789,45 @@ The choice of a network rather than a bank of combs is about this instrument in 
 
 The input is cut off below 175 Hz for the same reason, and that is fixed rather than offered as a control. A fundamental at full level feeding a long tail floods everything above it, and the reverb becomes a rumble the moment you play low, so it is never wanted open. On an instrument built from 32 partials the interest is above there anyway.
 
+**The plate** is a sheet of steel under tension with a driver at one corner and pickups at two others. What makes it not a room is that it has no geometry to speak of: a hit spreads across the whole sheet almost at once, so there are no early reflections to count and no build-up to hear. Measured on a click, the first fiftieth of a second carries 1.48 times the average of the whole tail in the plate and 0.00 in the room, which is the difference between a tail that is simply there and one still filling up. The shape is Dattorro's, which is the one everybody uses because it is the one that works: four allpasses scatter the input, then a tank of two branches passes it round in a figure of eight.
+
+DECAY is the tank's own gain rather than a room size, since a plate has no size to set, and sizing that gain is where the two mistakes were. The gain is applied four times in a circuit of the figure of eight and not once, and the circuit is every line it passes through, allpasses included. Getting the first wrong made a two-and-a-half second setting last half of one; getting the second wrong made it last three.
+
+**It is a modulated plate, and the menu says so.** The two allpasses in the tank wander about a millisecond, which is six times what the paper gives them and far more than a sheet of steel under tension does. The reason is the circuit: it is three quarters of a second long, so the same fixed set of arrivals comes back round again and again, and at a long decay that is heard as a pattern repeating rather than as a wash. A test measures exactly that, taking the tail's envelope, flattening it so only its shape is left, and holding it against itself at every lag from fifty milliseconds to a second and a half:
+
+| How the output is read                           | Repeats at |
+| ------------------------------------------------ | ---------- |
+| four taps, all on one branch's first delay       | 0.34       |
+| Dattorro's seven taps, across the whole tank     | 0.23       |
+| and the modulation opened from 8 samples to 1 ms | 0.11       |
+
+The first line is a bug and sounded like one: four taps on a single line are four echoes of one circulating signal however many taps it is, and at a short decay nothing goes round often enough to notice while at a long one it is a delay with some reverb on it. The third line is where it stops paying and starts costing, since the excursion is a pitch deviation of twelve cents at this setting and twenty-four at twice it. Twelve is movement in the tail, which a lush plate wants. Twenty-four is vibrato, which it does not, and calling the machine what it is seemed better than pretending the number is Dattorro's.
+
+**The spring** is three helical springs in a tray, a transducer shaking one end of each and a pickup listening at the other. It is the cheapest reverb ever built and the least like a room of any of them, which is exactly why it has its own sound rather than being a worse plate.
+
+What makes it a spring is dispersion. A wave travelling down a helix does not carry all its frequencies at the same speed: the top of the band arrives first and the bottom drags behind it, so a hit comes back not as a hit but as a descending chirp. Every bounce between the ends adds another chirp on top of the last, so a spring gets less like its input as it decays rather than merely quieter, which neither of the other two does. Measured on a click, the bottom of the band lands 6.4 ms behind the top where the plate has no such lag at all.
+
+That is built as a chain of first-order allpasses inside each spring's loop. An allpass passes every frequency at full level and delays each by a different amount, which is dispersion written down, and the loop puts the signal through the chain again on every bounce. The chain is the one expensive thing in the file, so the count was measured rather than chosen:
+
+| Sections | Coefficients | Chirp  | Cost of all three springs |
+| -------- | ------------ | ------ | ------------------------- |
+| 100      | 0.60 to 0.70 | 7.3 ms | 4.95%                     |
+| 70       | 0.70 to 0.79 | 6.9 ms | 3.61%                     |
+| 60       | 0.74 to 0.82 | 6.5 ms | 2.23%                     |
+| 50       | 0.78 to 0.86 | 5.7 ms | 1.92%                     |
+
+Sixty is where the curve turns: nine tenths of the boing for less than half the work, and below it the chirp goes faster than the saving. For scale, eight voices come to around eight per cent, so the hundred-section version cost as much as five voices and this one costs two.
+
+The band it works over is a transducer's rather than a room's, and where each half of that limit sits turned out to matter more than what it is set to. The pickup is two poles at five kilohertz, outside the loop, met once on the way out. The spring's own loss is one pole inside the loop, met on every bounce, and that is what DAMP moves. Both used to be inside, and a tail that had crossed the tray thirty times had met them sixty times:
+
+| Where the poles are                      | 6 kHz against 1 kHz |
+| ---------------------------------------- | ------------------- |
+| both in the loop at 3600 Hz              | -10.6 dB            |
+| one in the loop at 3600, pickup outside  | -11.2 dB            |
+| one in the loop at 10000, pickup outside | -6.5 dB             |
+
+The middle line is the one worth reading, and it is the opposite of what it looks like: moving a pole out of the loop brightens nothing whatsoever on its own. What it buys is permission to open the loop's corner, because the pickup is now what holds the band rather than the loop filter. DAMP also sweeps geometrically rather than in a straight line up the frequency axis, since a corner swept linearly from ten kilohertz spends three quarters of its travel above three, where the pickup already has the band covered and nothing audible happens.
+
 ## Notes on CPU
 
 Polyphony is the multiplier that matters, since eight voices means 256 sine oscillators. Measured on one core of an x86 container at 48 kHz with every modulator running:
@@ -738,7 +838,15 @@ Polyphony is the multiplier that matters, since eight voices means 256 sine osci
 | 8      | 256         | about 7%  |
 | 16     | 512         | 14 to 15% |
 
-Those figures are with everything running at once: both LFOs, drift, velocity, aftertouch, the meters and the noise channel. The two master effects add well under 1% on top of that, whatever the polyphony, since they work on the sum rather than per voice.
+Those figures are with everything running at once: both LFOs, drift, velocity, aftertouch, the meters and the noise channel. The master effects are on top of that and cost the same whatever the polyphony, since they work on the sum rather than per voice. Most of them are far below the voices:
+
+| Machine         | On one core |
+| --------------- | ----------- |
+| room            | about 0.6%  |
+| modulated plate | about 0.7%  |
+| tray of springs | about 2.4%  |
+
+The spring is the exception and the only thing in the release worth a second look. Its dispersion is a chain of allpasses per spring, three springs, run at the host rate, so it costs about as much as two voices where the other two reverbs cost a fraction of one. It was worse: the chain started at a hundred sections and 5% before the count was measured against what it bought.
 
 That leaves enough headroom for the engine to stay a plain bank of oscillators with nothing clever in the signal path. What keeps it cheap:
 

@@ -5317,7 +5317,6 @@ void testTapeEcho() {
   section("Tape echo");
 
   constexpr double sr = 48000.0;
-  constexpr double kTwoPi = 6.283185307179586;
 
   TapeEcho echo;
   echo.prepare(sr);
