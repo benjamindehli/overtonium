@@ -236,9 +236,37 @@ struct EchoParams {
   float age = 0.35f;
 };
 
-/// The reverb: a feedback delay network, sized and damped from the panel.
+/// Which reverb the tail comes out of.
+///
+/// Declared in full from the start, for the reason the echo's types are: the
+/// length of a list a host can automate is part of what a stored choice
+/// means.
+enum class ReverbType { Room, Plate, Spring, NumTypes };
+
+inline const char *reverbTypeName(ReverbType t) {
+  switch (t) {
+  case ReverbType::Room:
+    return "Room";
+  case ReverbType::Plate:
+    return "Plate";
+  case ReverbType::Spring:
+    return "Spring";
+
+  case ReverbType::NumTypes:
+    break;
+  }
+
+  return "Room";
+}
+
+/// The reverb, which is one of three machines sized and damped from the panel.
 struct ReverbParams {
   bool enabled = false;
+
+  /// Which machine the tail comes from. The switch that turns it on is
+  /// separate and older, so a preset saved before there was a choice says
+  /// nothing about one and gets the room it was made in.
+  ReverbType type = ReverbType::Room;
   float mix = 0.25f;
   /// RT60. The room is sized from it rather than set separately: a long tail in
   /// a small room is a spring, not a place, and nobody was reaching for that.

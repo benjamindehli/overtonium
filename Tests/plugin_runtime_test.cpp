@@ -181,6 +181,7 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
       {ovt::params::referenceHzId, 11}, {ovt::params::atSourceId, 3},
       {ovt::params::slideDestId, 3},    {ovt::params::lofiRateId, 8},
       {ovt::params::lofiBitsId, 9},     {ovt::params::echoTypeId, 3},
+      {ovt::params::reverbTypeId, 3},
   };
 
   for (const auto &list : globals)
@@ -237,7 +238,7 @@ void testParameterWiring(OvertoniumProcessor &p) {
   // turns it on rather than replacing it: a boolean every saved patch stores
   // and every lane points at cannot become a four-position choice without
   // taking both with it. See params::echoTypeId.
-  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 1;
+  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 2;
 
   // The behaviour that was there before it became a choice. Asked of the
   // parameter rather than of the tree, so the answer does not depend on what
@@ -3562,6 +3563,112 @@ void testFitAllChannels(OvertoniumProcessor &p) {
         "asking twice changes nothing the second time");
 }
 
+/// The two machine menus say what is running.
+///
+/// Both the echo and the reverb hang four choices off one button, and behind
+/// each button are two parameters rather than one: an on switch that predates
+/// the choice of machine, and a type beside it. A tick that reads only one of
+/// them would say Off while a plate was audible, or name a machine that was
+/// switched off, and nothing in the audio path would be wrong. So the pairing
+/// is checked here, from the parameters the host writes to the menu the player
+/// reads.
+void testMachineMenusFollowTheirParameters(OvertoniumProcessor &p) {
+  section("The machine menus follow their parameters");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  auto *bar = findTopBar(*editor);
+
+  check(bar != nullptr, "and carries a bar to read the menus off");
+  if (bar == nullptr)
+    return;
+
+  /// Whatever is ticked, joined, so two ticks fail as loudly as none.
+  const auto tickedIn = [](juce::PopupMenu &menu) {
+    std::string found;
+
+    for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+      if (it.getItem().isTicked)
+        found += it.getItem().text.toStdString();
+
+    return found;
+  };
+
+  const auto write = [&p](const char *id, float value) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1(value));
+  };
+
+  // ---- the echo ------------------------------------------------------------
+  {
+    write(ovt::params::echoOnId, 0.0f);
+
+    auto off = bar->buildEchoMenu();
+    check(tickedIn(off) == "Off",
+          "the echo says Off when its switch is off (" + tickedIn(off) + ")");
+
+    write(ovt::params::echoOnId, 1.0f);
+
+    for (int i = 0; i < (int)ovt::EchoType::NumTypes; ++i) {
+      write(ovt::params::echoTypeId, (float)i);
+
+      auto menu = bar->buildEchoMenu();
+      const std::string wanted = ovt::echoTypeName((ovt::EchoType)i);
+
+      check(tickedIn(menu) == wanted,
+            "and names " + wanted + " when that is the machine running (" +
+                tickedIn(menu) + ")");
+    }
+
+    // Switched off with a type still chosen, which is the state that catches a
+    // tick reading one parameter and not the other.
+    write(ovt::params::echoOnId, 0.0f);
+
+    auto stillDigital = bar->buildEchoMenu();
+    check(tickedIn(stillDigital) == "Off",
+          "and goes back to Off without forgetting which machine it was (" +
+              tickedIn(stillDigital) + ")");
+  }
+
+  // ---- and the reverb, which works the same way ----------------------------
+  {
+    write(ovt::params::reverbOnId, 0.0f);
+
+    auto off = bar->buildReverbMenu();
+    check(tickedIn(off) == "Off",
+          "the reverb says Off when its switch is off (" + tickedIn(off) + ")");
+
+    write(ovt::params::reverbOnId, 1.0f);
+
+    for (int i = 0; i < (int)ovt::ReverbType::NumTypes; ++i) {
+      write(ovt::params::reverbTypeId, (float)i);
+
+      auto menu = bar->buildReverbMenu();
+      const std::string wanted = ovt::reverbTypeName((ovt::ReverbType)i);
+
+      check(tickedIn(menu) == wanted,
+            "and names " + wanted + " when that is the machine running (" +
+                tickedIn(menu) + ")");
+    }
+
+    write(ovt::params::reverbOnId, 0.0f);
+
+    auto stillSpring = bar->buildReverbMenu();
+    check(tickedIn(stillSpring) == "Off",
+          "and goes back to Off without forgetting which machine it was (" +
+              tickedIn(stillSpring) + ")");
+  }
+
+  // Left as the patch found them, for whatever runs next.
+  write(ovt::params::echoTypeId, 0.0f);
+  write(ovt::params::reverbTypeId, 0.0f);
+}
+
 /// The tick in the Zoom submenu, which is the only thing on the panel that
 /// says which zoom you are at.
 ///
@@ -3652,6 +3759,12 @@ void testBarButtonsFitTheirWords(OvertoniumProcessor &p) {
   for (int i = 0; i < (int)ovt::EchoType::NumTypes; ++i)
     echoWords.add(ovt::echoTypeShortName((ovt::EchoType)i));
 
+  // The reverb has no short names, since none of the three needs one.
+  juce::StringArray reverbWords{"Reverb"};
+  for (int i = 0; i < (int)ovt::ReverbType::NumTypes; ++i)
+    reverbWords.add(ovt::reverbTypeName((ovt::ReverbType)i));
+
+  const auto reverbText = widest(reverbWords);
   const auto echoText = widest(echoWords);
   const auto characterText = widest(ovt::params::characterChoices());
 
@@ -3670,6 +3783,13 @@ void testBarButtonsFitTheirWords(OvertoniumProcessor &p) {
         "and every character fits in its own (" +
             std::to_string(characterText) + " px in " +
             std::to_string(TopBar::kCharacterWidth) + ")");
+
+  std::printf("  the reverb's longest word is %d px, in a button of %d\n",
+              reverbText, TopBar::kReverbWidth);
+
+  check(reverbText + 8 <= TopBar::kReverbWidth,
+        "and every reverb fits in its own (" + std::to_string(reverbText) +
+            " px in " + std::to_string(TopBar::kReverbWidth) + ")");
 }
 
 /// The width the bar comes onto one row at, which the design notes quote and
@@ -3698,7 +3818,7 @@ void testBarComesOntoOneRow(OvertoniumProcessor &) {
 
   // The figure the design notes quote. It moves whenever a control on the bar
   // changes width, and when it moves the notes move with it.
-  check(onOneRow == 1212, "and comes onto it at the width written down (" +
+  check(onOneRow == 1218, "and comes onto it at the width written down (" +
                               std::to_string(onOneRow) + ")");
 }
 
@@ -5820,6 +5940,7 @@ int main() {
   testSettingsMenu(processor);
   testFitAllChannels(processor);
   testZoomTickFollowsTheZoom(processor);
+  testMachineMenusFollowTheirParameters(processor);
   testPresetMenuGroups(processor);
   testPresetsTellTheHostOnlyWhatChanged(processor);
   testShapeButtonFollowsTheParameter(processor);

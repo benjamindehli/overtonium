@@ -233,6 +233,11 @@ public:
   /// only be reached by clicking is a menu that never gets tested.
   juce::PopupMenu buildEchoMenu();
 
+  /// The same, for the reverb, and for the same two reasons: its on switch
+  /// predates the choice of machine, and a menu built as data is a menu that
+  /// can be tested without being clicked.
+  juce::PopupMenu buildReverbMenu();
+
   /// How wide the two buttons that say a value have to be.
   ///
   /// Each is sized for the longest word it can show, in the capitals the bar
@@ -245,10 +250,14 @@ public:
   /// the bar has.
   static constexpr int kCharacterWidth = 62;
   static constexpr int kEchoWidth = 62;
+  static constexpr int kReverbWidth = 58;
 
 private:
   /// Applies what buildEchoMenu came back with. Zero means dismissed.
   void chooseEcho(int id);
+
+  /// The same for the reverb.
+  void chooseReverb(int id);
 
 public:
 private:
@@ -379,7 +388,6 @@ private:
 
   std::unique_ptr<SliderAttachment> masterAttachment, stretchAttachment,
       trackAttachment, wobbleAttachment;
-  std::unique_ptr<ButtonAttachment> reverbAttachment;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(TopBar)
 };

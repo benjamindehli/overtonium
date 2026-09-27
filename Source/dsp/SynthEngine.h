@@ -10,7 +10,9 @@
 #include "BucketEcho.h"
 #include "BusDrive.h"
 #include "DigitalEcho.h"
+#include "PlateReverb.h"
 #include "Reverb.h"
+#include "SpringReverb.h"
 #include "TapeEcho.h"
 #include "Voice.h"
 #include "Wobble.h"
@@ -157,8 +159,9 @@ public:
   /// they are holding, so the host can pad an offline bounce correctly.
   float effectsTailSeconds(const SynthParams &p) const noexcept {
     return std::max({echo.tailSeconds(p.echo), bucket.tailSeconds(p.echo),
-                     digital.tailSeconds(p.echo),
-                     reverb.tailSeconds(p.reverb)});
+                     digital.tailSeconds(p.echo), reverb.tailSeconds(p.reverb),
+                     plate.tailSeconds(p.reverb),
+                     spring.tailSeconds(p.reverb)});
   }
 
 private:
@@ -336,6 +339,8 @@ private:
   TapeEcho echo;
   BucketEcho bucket;
   DigitalEcho digital;
+  PlateReverb plate;
+  SpringReverb spring;
   Reverb reverb;
 };
 

@@ -104,6 +104,8 @@ set(OVERTONIUM_SOURCES
     Source/UpdateCheck.cpp
     Source/dsp/BucketEcho.cpp
     Source/dsp/DigitalEcho.cpp
+    Source/dsp/PlateReverb.cpp
+    Source/dsp/SpringReverb.cpp
     Source/dsp/BusDrive.cpp
     Source/dsp/Voice.cpp
     Source/dsp/SynthEngine.cpp
@@ -272,8 +274,9 @@ if(OVERTONIUM_BUILD_TESTS)
         Tests/dsp_test.cpp
         Source/dsp/BucketEcho.cpp
         Source/dsp/DigitalEcho.cpp
-    Source/dsp/DigitalEcho.cpp
-    Source/dsp/BusDrive.cpp
+        Source/dsp/PlateReverb.cpp
+        Source/dsp/SpringReverb.cpp
+        Source/dsp/BusDrive.cpp
         Source/dsp/Voice.cpp
         Source/dsp/SynthEngine.cpp
         Source/dsp/TapeEcho.cpp

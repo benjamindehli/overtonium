@@ -46,6 +46,8 @@ void SynthEngine::prepare(double newSampleRate) noexcept {
   echo.prepare(sampleRate);
   bucket.prepare(sampleRate);
   digital.prepare(sampleRate);
+  plate.prepare(sampleRate);
+  spring.prepare(sampleRate);
   reverb.prepare(sampleRate);
 
   reset();
@@ -60,6 +62,8 @@ void SynthEngine::reset() noexcept {
   echo.reset();
   bucket.reset();
   digital.reset();
+  plate.reset();
+  spring.reset();
   reverb.reset();
 
   heldBySustain.fill(false);
@@ -654,6 +658,8 @@ void SynthEngine::render(float *left, float *right, int numSamples,
   bucket.process(left, right, numSamples, p.echo);
   digital.process(left, right, numSamples, p.echo);
   reverb.process(left, right, numSamples, p.reverb);
+  plate.process(left, right, numSamples, p.reverb);
+  spring.process(left, right, numSamples, p.reverb);
 
   // ---- master gain, smoothed over ~10 ms so fader moves do not zipper -------
   const float target = std::max(0.0f, p.global.masterGain);

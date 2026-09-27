@@ -24,7 +24,7 @@ constexpr int kGroupPad = 6;
 
 /// Minimum width of each group, in the order they are laid out. Only the
 /// output group grows, because the meter is the one thing worth more room.
-constexpr int kGroupMinWidth[] = {144, 90, 218, 232, 222, 132};
+constexpr int kGroupMinWidth[] = {144, 90, 218, 232, 228, 132};
 constexpr int kOutputGroupIndex = 5;
 constexpr int kGroupCount = 6;
 
@@ -33,7 +33,6 @@ constexpr int kGroupCount = 6;
 constexpr int kControlHeight = 24;
 
 constexpr int kKnobWidth = 38;
-constexpr int kFxToggleWidth = 52;
 
 constexpr int kFxToggleGap = 6;
 
@@ -362,15 +361,25 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
                     [this](int result) { chooseEcho(result); });
   };
   styleToggle(reverbButton, "REVERB",
-              "Reverb across the whole instrument, after the echo");
+              "Which reverb the whole instrument runs into, after the echo: a "
+              "room built out of delay lines, a sheet of steel with no "
+              "geometry to it, or a tray of springs that turns every hit into "
+              "a falling chirp.");
+
+  reverbButton.onClick = [this] {
+    auto m = buildReverbMenu();
+    m.setLookAndFeel(&getLookAndFeel());
+
+    m.showMenuAsync(juce::PopupMenu::Options()
+                        .withTargetComponent(&reverbButton)
+                        .withStandardItemHeight(22),
+                    [this](int result) { chooseReverb(result); });
+  };
 
   // The colour the word comes up in, since the face stays where it is. See
   // GlowButton.
   echoButton.setColour(juce::TextButton::textColourOnId, colours::accent);
   reverbButton.setColour(juce::TextButton::textColourOnId, colours::accent);
-
-  reverbAttachment = std::make_unique<ButtonAttachment>(
-      apvts, params::reverbOnId, reverbButton);
 
   addKnob(echoControls, "Echo", "MIX", params::echoMixId,
           "How much of the output is repeats", popupParent);
@@ -528,6 +537,51 @@ void TopBar::chooseEcho(int id) {
   // Off writes the switch alone and leaves the type where it was, so coming
   // back on returns to the machine that was chosen rather than to the first
   // one in the list.
+  if (id == 1) {
+    on->setValueNotifyingHost(0.0f);
+    return;
+  }
+
+  if (type != nullptr)
+    type->setValueNotifyingHost(type->convertTo0to1((float)(id - 2)));
+
+  on->setValueNotifyingHost(1.0f);
+}
+
+juce::PopupMenu TopBar::buildReverbMenu() {
+  juce::PopupMenu m;
+
+  auto *on = apvts.getParameter(params::reverbOnId);
+  auto *type = apvts.getParameter(params::reverbTypeId);
+
+  const bool running = on != nullptr && on->getValue() > 0.5f;
+  const auto which =
+      type == nullptr
+          ? 0
+          : juce::roundToInt(type->convertFrom0to1(type->getValue()));
+
+  m.addItem(1, "Off", true, !running);
+  m.addSeparator();
+
+  for (int i = 0; i < (int)ReverbType::NumTypes; ++i)
+    m.addItem(i + 2, reverbTypeName((ReverbType)i), true,
+              running && i == which);
+
+  return m;
+}
+
+void TopBar::chooseReverb(int id) {
+  if (id <= 0)
+    return;
+
+  auto *on = apvts.getParameter(params::reverbOnId);
+  auto *type = apvts.getParameter(params::reverbTypeId);
+
+  if (on == nullptr)
+    return;
+
+  // Off leaves the type alone, as the echo's does, so coming back on returns
+  // to the machine that was chosen.
   if (id == 1) {
     on->setValueNotifyingHost(0.0f);
     return;
@@ -1047,6 +1101,29 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
     echoButton.setToggleState(running, juce::dontSendNotification);
   }
 
+  // ---- and which reverb, by the same rule ----------------------------------
+  {
+    auto *on = apvts.getParameter(params::reverbOnId);
+    auto *type = apvts.getParameter(params::reverbTypeId);
+
+    const bool running = on != nullptr && on->getValue() > 0.5f;
+    const auto which = type == nullptr
+                           ? ReverbType::Room
+                           : (ReverbType)juce::roundToInt(
+                                 type->convertFrom0to1(type->getValue()));
+
+    const juce::String name = reverbTypeName(which);
+
+    // No short names here: the longest of the three is SPRING, which is the
+    // same six letters the word REVERB already fits into.
+    reverbButton.setButtonText(running ? name.toUpperCase()
+                                       : juce::String("REVERB"));
+
+    reverbButton.setTitle(running ? "Reverb: " + name
+                                  : juce::String("Reverb: off"));
+    reverbButton.setToggleState(running, juce::dontSendNotification);
+  }
+
   // In capitals, like every other word on the bar. The menu it comes from
   // keeps the names as they are written, since a list of words is a list of
   // words rather than a row of switches.
@@ -1234,7 +1311,7 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
     break;
 
   case ReverbGroup:
-    effect(reverbButton, reverbControls, r, kFxToggleWidth);
+    effect(reverbButton, reverbControls, r, kReverbWidth);
     break;
 
   case OutputGroup: {

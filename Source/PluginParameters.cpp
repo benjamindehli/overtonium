@@ -735,6 +735,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::ParameterID{echoTypeId, 1}, "Echo Type", echoTypeChoices,
       (int)EchoType::Tape));
 
+  juce::StringArray reverbTypeChoices;
+  for (int i = 0; i < (int)ReverbType::NumTypes; ++i)
+    reverbTypeChoices.add(reverbTypeName((ReverbType)i));
+
+  layout.add(std::make_unique<juce::AudioParameterChoice>(
+      juce::ParameterID{reverbTypeId, 1}, "Reverb Type", reverbTypeChoices,
+      (int)ReverbType::Room));
+
   return layout;
 }
 
@@ -768,6 +776,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   echo.age = apvts.getRawParameterValue(echoAgeId);
 
   reverb.on = apvts.getRawParameterValue(reverbOnId);
+  reverb.type = apvts.getRawParameterValue(reverbTypeId);
   reverb.mix = apvts.getRawParameterValue(reverbMixId);
   reverb.decay = apvts.getRawParameterValue(reverbDecayId);
   reverb.damp = apvts.getRawParameterValue(reverbDampId);
@@ -995,6 +1004,12 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   out.echo.age = echo.age->load();
 
   out.reverb.enabled = reverb.on->load() > 0.5f;
+
+  out.reverb.type =
+      reverb.type == nullptr
+          ? ReverbType::Room
+          : (ReverbType)juce::jlimit(0, (int)ReverbType::NumTypes - 1,
+                                     (int)std::lround(reverb.type->load()));
   out.reverb.mix = reverb.mix->load();
   out.reverb.decaySeconds = reverb.decay->load();
   out.reverb.damping = reverb.damp->load();

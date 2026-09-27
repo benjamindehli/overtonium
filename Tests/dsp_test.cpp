@@ -26,6 +26,7 @@
 #include "dsp/Envelope.h"
 #include "dsp/Halfband.h"
 #include "dsp/Harmonics.h"
+#include "dsp/PlateReverb.h"
 #include "dsp/Reverb.h"
 #include "dsp/SineTable.h"
 #include "dsp/SynthEngine.h"
@@ -6458,6 +6459,440 @@ void testWobble() {
   }
 }
 
+/// The spring, which is not a plate either.
+///
+/// A helix carries the top of the band faster than the bottom, so a hit comes
+/// back as a chirp that starts high and falls. That dispersion is the whole of
+/// what a spring is, and it is what these checks are for: the other two
+/// machines have nothing like it, and a spring without it would just be a very
+/// narrow plate.
+void testSpringReverb() {
+  section("Spring reverb");
+
+  constexpr double sr = 48000.0;
+
+  const auto clicked = [](auto &fx, const ReverbParams &p, size_t length) {
+    Stereo s(length);
+    s.l[100] = 0.7f;
+    s.r[100] = 0.7f;
+
+    runBlocks(fx, s, p);
+
+    return s;
+  };
+
+  /// One pole, forward only, which is all that is wanted to split a band.
+  const auto lowPass = [](const std::vector<float> &x, double hz) {
+    std::vector<float> y(x.size());
+    const auto c = (float)std::exp(-6.283185307179586 * hz / sr);
+    auto state = 0.0f;
+
+    for (size_t n = 0; n < x.size(); ++n) {
+      state = x[n] + (state - x[n]) * c;
+      y[n] = state;
+    }
+
+    return y;
+  };
+
+  const auto highPass = [&](const std::vector<float> &x, double hz) {
+    const auto low = lowPass(x, hz);
+    std::vector<float> y(x.size());
+
+    for (size_t n = 0; n < x.size(); ++n)
+      y[n] = x[n] - low[n];
+
+    return y;
+  };
+
+  /// When a band gets going, in milliseconds after the click.
+  ///
+  /// The envelope rather than the waveform, and a share of its own peak rather
+  /// than an absolute level, so the two bands are asked the same question
+  /// despite arriving at different levels.
+  const auto arrivalMs = [&](const std::vector<float> &band) {
+    std::vector<float> rectified(band.size());
+    for (size_t n = 0; n < band.size(); ++n)
+      rectified[n] = std::abs(band[n]);
+
+    const auto envelope = lowPass(rectified, 60.0);
+
+    auto peak = 0.0f;
+    for (const auto v : envelope)
+      peak = std::max(peak, v);
+
+    for (size_t n = 100; n < envelope.size(); ++n)
+      if (envelope[n] >= 0.3f * peak)
+        return 1000.0 * (double)(n - 100) / sr;
+
+    return 1000.0 * (double)band.size() / sr;
+  };
+
+  ReverbParams p;
+  p.enabled = true;
+  p.type = ReverbType::Spring;
+  p.mix = 1.0f;
+  p.decaySeconds = 2.5f;
+  p.damping = 0.0f;
+  p.preDelaySeconds = 0.0f;
+
+  // ---- off, and not its own type, are both untouched -----------------------
+  {
+    SpringReverb spring;
+    spring.prepare(sr);
+
+    auto room = p;
+    room.type = ReverbType::Room;
+
+    auto s = tone(4800, 440.0, sr);
+    const auto before = s.l;
+    runBlocks(spring, s, room);
+
+    bool identical = true;
+    for (size_t n = 0; n < s.size(); ++n)
+      identical &= exactly(s.l[n], before[n]);
+
+    check(identical,
+          "a patch asking for the room passes the spring by without touching "
+          "it");
+  }
+
+  // ---- the boing -----------------------------------------------------------
+  //
+  // The top of a click's band should come back before the bottom of it does,
+  // by enough to hear.
+  //
+  // Asked of the plate as well, but only as something to print: the plate
+  // answers this at minus nine milliseconds, so anything at all clears a bar
+  // set relative to it. Flattening every allpass coefficient to nothing takes
+  // the spring from 7.3 ms to 0.1, and only an absolute figure notices. The
+  // band-splitting filters bias the measurement by a fraction of that 0.1, so
+  // four milliseconds is a bar the dispersion has to clear on its own.
+  {
+    SpringReverb spring;
+    spring.prepare(sr);
+
+    PlateReverb plate;
+    plate.prepare(sr);
+
+    auto plateParams = p;
+    plateParams.type = ReverbType::Plate;
+
+    const auto sprung = clicked(spring, p, (size_t)(1.0 * sr));
+    const auto plated = clicked(plate, plateParams, (size_t)(1.0 * sr));
+
+    const auto lag = [&](const Stereo &s) {
+      return arrivalMs(lowPass(s.l, 250.0)) - arrivalMs(highPass(s.l, 2500.0));
+    };
+
+    const auto sprungLag = lag(sprung);
+    const auto platedLag = lag(plated);
+
+    std::printf("  the bottom of the band arrives %.1f ms after the top in a "
+                "spring, against %.1f ms in a plate\n",
+                sprungLag, platedLag);
+
+    check(sprungLag > 4.0,
+          "a spring lands its top end first and drags its bottom behind (" +
+              std::to_string(sprungLag) + " ms, against the plate's " +
+              std::to_string(platedLag) + ")");
+  }
+
+  // ---- and it only works over the band a transducer works over -------------
+  {
+    SpringReverb spring;
+    spring.prepare(sr);
+
+    PlateReverb plate;
+    plate.prepare(sr);
+
+    auto plateParams = p;
+    plateParams.type = ReverbType::Plate;
+
+    const auto through = [&](auto &fx, const ReverbParams &q, double hz) {
+      auto s = tone((size_t)(2.0 * sr), hz, sr);
+      runBlocks(fx, s, q);
+
+      return rms(s.l, (size_t)(1.0 * sr), (size_t)(2.0 * sr));
+    };
+
+    const auto atTop = through(spring, p, 12000.0);
+    const auto atMiddle = through(spring, p, 1000.0);
+    const auto plateTop = through(plate, plateParams, 12000.0);
+    const auto plateMiddle = through(plate, plateParams, 1000.0);
+
+    const auto dB = [](double a, double b) {
+      return 20.0 * std::log10(std::max(a, 1.0e-12) / std::max(b, 1.0e-12));
+    };
+
+    std::printf("  twelve kilohertz sits %.1f dB below a thousand in a spring, "
+                "and %.1f dB below it in a plate\n",
+                dB(atTop, atMiddle), dB(plateTop, plateMiddle));
+
+    std::printf("  a thousand comes back at %.4f, where a plate gives %.4f\n",
+                atMiddle, plateMiddle);
+
+    check(dB(atTop, atMiddle) < dB(plateTop, plateMiddle) - 15.0,
+          "a spring has no top end to speak of, where a plate has some");
+  }
+
+  // ---- two pickups, not one doubled ----------------------------------------
+  {
+    SpringReverb spring;
+    spring.prepare(sr);
+
+    const auto s = clicked(spring, p, (size_t)(2.0 * sr));
+
+    double dot = 0.0, left = 0.0, right = 0.0;
+
+    for (size_t n = (size_t)(0.1 * sr); n < s.size(); ++n) {
+      dot += (double)s.l[n] * (double)s.r[n];
+      left += (double)s.l[n] * (double)s.l[n];
+      right += (double)s.r[n] * (double)s.r[n];
+    }
+
+    const auto correlation = dot / std::sqrt(std::max(left * right, 1.0e-20));
+
+    std::printf("  its two pickups sit at a correlation of %.2f\n",
+                correlation);
+
+    check(std::abs(correlation) < 0.6,
+          "the two channels are different points on the tray (" +
+              std::to_string(correlation) + ")");
+  }
+
+  // ---- and the decay knob still means what it means ------------------------
+  {
+    const auto rt60Of = [&](auto &fx, ReverbType type) {
+      ReverbParams q = p;
+      q.type = type;
+      q.decaySeconds = 2.5f;
+      q.damping = 0.0f;
+
+      const auto s = clicked(fx, q, (size_t)(6.0 * sr));
+
+      const auto early = rms(s.l, (size_t)(0.5 * sr), (size_t)(0.7 * sr));
+      const auto later = rms(s.l, (size_t)(1.5 * sr), (size_t)(1.7 * sr));
+
+      const auto perSecond = 20.0 * std::log10(std::max(later, 1.0e-12) /
+                                               std::max(early, 1.0e-12));
+
+      return perSecond < -0.01 ? -60.0 / perSecond : 99.0;
+    };
+
+    SpringReverb spring;
+    spring.prepare(sr);
+
+    Reverb room;
+    room.prepare(sr);
+
+    const auto sprung = rt60Of(spring, ReverbType::Spring);
+    const auto roomed = rt60Of(room, ReverbType::Room);
+
+    std::printf("  asked for two and a half seconds, the spring takes %.2f and "
+                "the room %.2f\n",
+                sprung, roomed);
+
+    check(sprung > roomed * 0.7 && sprung < roomed * 1.4,
+          "the spring and the room agree about what the decay knob means (" +
+              std::to_string(sprung) + " against " + std::to_string(roomed) +
+              ")");
+  }
+}
+
+/// The plate, which is not a small room.
+///
+/// A sheet of steel has no geometry to hear, so a hit spreads across the whole
+/// of it almost at once: the tail is dense from its first instant, where a
+/// feedback delay network arrives in stages because its lines are lengths. The
+/// two are asked the same questions here, with the same decay, and they answer
+/// differently.
+void testPlateReverb() {
+  section("Plate reverb");
+
+  constexpr double sr = 48000.0;
+
+  /// A single click, which is the only input that shows what a reverb does to
+  /// the shape of time rather than to the shape of a spectrum.
+  const auto clicked = [](auto &fx, const ReverbParams &p, size_t length) {
+    Stereo s(length);
+    s.l[100] = 0.7f;
+    s.r[100] = 0.7f;
+
+    runBlocks(fx, s, p);
+
+    return s;
+  };
+
+  ReverbParams p;
+  p.enabled = true;
+  p.type = ReverbType::Plate;
+  p.mix = 1.0f;
+  p.decaySeconds = 2.5f;
+  p.damping = 0.4f;
+  p.preDelaySeconds = 0.0f;
+
+  // ---- off, and not its own type, are both untouched -----------------------
+  {
+    PlateReverb plate;
+    plate.prepare(sr);
+
+    auto room = p;
+    room.type = ReverbType::Room;
+
+    auto s = tone(4800, 440.0, sr);
+    const auto before = s.l;
+    runBlocks(plate, s, room);
+
+    bool identical = true;
+    for (size_t n = 0; n < s.size(); ++n)
+      identical &= exactly(s.l[n], before[n]);
+
+    check(identical,
+          "a patch asking for the room passes the plate by without touching "
+          "it");
+  }
+
+  // ---- dense from the first instant ----------------------------------------
+  //
+  // How much of a click has arrived in the first fiftieth of a second, against
+  // how much arrives over the whole tail. A plate is already there; a network
+  // of eight lines is still filling up.
+  {
+    PlateReverb plate;
+    plate.prepare(sr);
+
+    Reverb room;
+    room.prepare(sr);
+
+    auto roomParams = p;
+    roomParams.type = ReverbType::Room;
+
+    const auto plated = clicked(plate, p, (size_t)(3.0 * sr));
+    const auto roomed = clicked(room, roomParams, (size_t)(3.0 * sr));
+
+    const auto early = [&](const Stereo &s) {
+      const auto whole = rms(s.l, 100, (size_t)(2.0 * sr));
+      const auto first = rms(s.l, 100, 100 + (size_t)(0.02 * sr));
+
+      return whole > 0.0 ? first / whole : 0.0;
+    };
+
+    std::printf("  of a click's tail, the first fiftieth carries %.2f times "
+                "the average in a plate and %.2f in the room\n",
+                early(plated), early(roomed));
+
+    check(early(plated) > early(roomed) * 1.3,
+          "a plate is dense from its first instant where a network of lines "
+          "is still filling (" +
+              std::to_string(early(plated)) + " against " +
+              std::to_string(early(roomed)) + ")");
+  }
+
+  // ---- and the two sides are not one another -------------------------------
+  {
+    PlateReverb plate;
+    plate.prepare(sr);
+
+    const auto s = clicked(plate, p, (size_t)(2.0 * sr));
+
+    double dot = 0.0, energyL = 0.0, energyR = 0.0;
+    for (size_t n = 200; n < (size_t)(1.5 * sr); ++n) {
+      dot += (double)s.l[n] * (double)s.r[n];
+      energyL += (double)s.l[n] * (double)s.l[n];
+      energyR += (double)s.r[n] * (double)s.r[n];
+    }
+
+    const auto correlation =
+        dot / std::sqrt(std::max(energyL * energyR, 1e-24));
+
+    std::printf("  its two pickups sit at a correlation of %.2f\n",
+                correlation);
+
+    check(std::abs(correlation) < 0.5,
+          "each channel is taken from its own places on the plate (" +
+              std::to_string(correlation) + ")");
+
+    check(energyL > 0.0 && energyR > 0.0, "and both of them hear something");
+  }
+
+  // ---- decay does what it says ---------------------------------------------
+  {
+    PlateReverb plate;
+    plate.prepare(sr);
+
+    auto shorter = p;
+    shorter.decaySeconds = 0.8f;
+
+    const auto quick = clicked(plate, shorter, (size_t)(3.0 * sr));
+
+    PlateReverb other;
+    other.prepare(sr);
+
+    auto longer = p;
+    longer.decaySeconds = 6.0f;
+
+    const auto slow = clicked(other, longer, (size_t)(3.0 * sr));
+
+    const auto at2s = [](const Stereo &s) {
+      return rms(s.l, (size_t)(2.0 * sr), (size_t)(2.2 * sr));
+    };
+
+    std::printf("  two seconds in, a short decay is at %.6f and a long one at "
+                "%.6f\n",
+                at2s(quick), at2s(slow));
+
+    check(at2s(slow) > at2s(quick) * 10.0,
+          "a longer decay is still going when a shorter one has gone (" +
+              std::to_string(at2s(slow) / std::max(at2s(quick), 1.0e-12)) +
+              " times)");
+  }
+
+  // ---- and it agrees with the room about what DECAY means ------------------
+  //
+  // One knob serves all three machines, so switching between them at the same
+  // setting has to give a comparable tail. What should differ is the character
+  // of it, not the length. This is also what caught the tank's gain being
+  // sized for one branch of the figure of eight rather than a whole circuit of
+  // it, which made a two-and-a-half second setting last half of one.
+  {
+    const auto rt60Of = [&](auto &fx, ReverbType type) {
+      ReverbParams q = p;
+      q.type = type;
+      q.decaySeconds = 2.5f;
+      q.damping = 0.0f;
+
+      const auto s = clicked(fx, q, (size_t)(6.0 * sr));
+
+      const auto early = rms(s.l, (size_t)(0.5 * sr), (size_t)(0.7 * sr));
+      const auto later = rms(s.l, (size_t)(1.5 * sr), (size_t)(1.7 * sr));
+
+      const auto perSecond = 20.0 * std::log10(std::max(later, 1.0e-12) /
+                                               std::max(early, 1.0e-12));
+
+      return perSecond < -0.01 ? -60.0 / perSecond : 99.0;
+    };
+
+    PlateReverb plate;
+    plate.prepare(sr);
+
+    Reverb room;
+    room.prepare(sr);
+
+    const auto plated = rt60Of(plate, ReverbType::Plate);
+    const auto roomed = rt60Of(room, ReverbType::Room);
+
+    std::printf("  asked for two and a half seconds, the plate takes %.2f and "
+                "the room %.2f\n",
+                plated, roomed);
+
+    check(plated > roomed * 0.7 && plated < roomed * 1.4,
+          "the plate and the room agree about what the decay knob means (" +
+              std::to_string(plated) + " against " + std::to_string(roomed) +
+              ")");
+  }
+}
+
 void testReverb() {
   section("Reverb");
 
@@ -7224,6 +7659,8 @@ int main() {
   testBusDrive();
   testWobble();
   testReverb();
+  testPlateReverb();
+  testSpringReverb();
   testLofi();
   benchmark();
   benchmarkLofi();

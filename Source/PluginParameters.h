@@ -50,6 +50,10 @@ inline constexpr const char *echoFeedbackId = "echoFeedback";
 inline constexpr const char *echoAgeId = "echoAge";
 
 inline constexpr const char *reverbOnId = "reverbOn";
+
+/// Which machine the tail comes from. Beside the switch rather than replacing
+/// it, for the reason echoTypeId is.
+inline constexpr const char *reverbTypeId = "reverbType";
 inline constexpr const char *reverbMixId = "reverbMix";
 inline constexpr const char *reverbDecayId = "reverbDecay";
 inline constexpr const char *reverbDampId = "reverbDamp";
@@ -244,6 +248,7 @@ struct Cache {
 
   struct Reverb {
     std::atomic<float> *on = nullptr;
+    std::atomic<float> *type = nullptr;
     std::atomic<float> *mix = nullptr;
     std::atomic<float> *decay = nullptr;
     std::atomic<float> *damp = nullptr;

@@ -175,6 +175,7 @@ struct Applier {
     // session happened to be on. Tape is what there was before there was a
     // choice, so a preset written then and one written now agree.
     set(params::echoTypeId, (float)(int)EchoType::Tape);
+    set(params::reverbTypeId, (float)(int)ReverbType::Room);
     set(params::echoMixId, 0.25f);
     set(params::echoTimeId, 0.35f);
     set(params::echoFeedbackId, 0.35f);
