@@ -232,12 +232,7 @@ void testParameterWiring(OvertoniumProcessor &p) {
   // Two of the globals are switches over the per-channel modulators rather
   // than controls of their own: whether each of the two is one circuit the
   // keyboard shares. See GlobalParams::ampModInPhase.
-  //
-  // The trailing one is Bus Drive, which is temporary: it exists so the amount
-  // behind the bus stage can be found by ear and leaves again once it is a
-  // fixed figure per character. When it goes, this goes back to 784 and so
-  // does every count of it in the documentation. See params::busDriveId.
-  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 1;
+  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10;
 
   // The behaviour that was there before it became a choice. Asked of the
   // parameter rather than of the tree, so the answer does not depend on what
@@ -447,25 +442,22 @@ void testReleaseVelocity(OvertoniumProcessor &p) {
   p.applyFactoryPreset(presetIndex("Init"));
 }
 
-/// That the bus stage is reachable from a parameter and gated by the
-/// character, which is the wiring rather than the sound. What it does to a
-/// signal is measured in the DSP suite, where a spectrum can be read.
-void testBusDriveIsWired(OvertoniumProcessor &p) {
-  section("Bus drive");
+/// That choosing a character brings its bus stage with it, and that the
+/// latency this costs is told to the host and never moves.
+///
+/// There is nothing to set: how hard each circuit is run is a property of the
+/// part, so the only way in is the character. What each one does to a signal
+/// is measured in the DSP suite, where a spectrum can be read.
+void testBusStageFollowsTheCharacter(OvertoniumProcessor &p) {
+  section("The bus stage");
 
-  auto *drive = p.apvts.getParameter(ovt::params::busDriveId);
   auto *character = p.apvts.getParameter(ovt::params::characterId);
 
-  check(drive != nullptr && character != nullptr,
-        "the drive and the character are both there to set");
-  if (drive == nullptr || character == nullptr)
+  check(character != nullptr, "the character is there to choose");
+  if (character == nullptr)
     return;
 
-  const auto renderLoud = [&p](float amount, ovt::Character c) {
-    auto *drive = p.apvts.getParameter(ovt::params::busDriveId);
-    auto *character = p.apvts.getParameter(ovt::params::characterId);
-
-    drive->setValueNotifyingHost(amount);
+  const auto renderLoud = [&p, character](ovt::Character c) {
     character->setValueNotifyingHost(character->convertTo0to1((float)(int)c));
 
     p.prepareToPlay(48000.0, 512);
@@ -487,15 +479,11 @@ void testBusDriveIsWired(OvertoniumProcessor &p) {
     return out;
   };
 
-  // Told to the host, and the same whatever the patch says, so that choosing
-  // a character never makes a host re-plan its graph mid-session.
-  p.prepareToPlay(48000.0, 512);
   const auto idle = p.getLatencySamples();
 
-  const auto clean = renderLoud(0.0f, ovt::Character::Valve);
-  const auto driven = renderLoud(1.0f, ovt::Character::Valve);
-  const auto pure = renderLoud(1.0f, ovt::Character::Pure);
-  const auto pureOff = renderLoud(0.0f, ovt::Character::Pure);
+  const auto pure = renderLoud(ovt::Character::Pure);
+  const auto valve = renderLoud(ovt::Character::Valve);
+  const auto bulb = renderLoud(ovt::Character::Bulb);
 
   const auto differs = [](const std::vector<float> &a,
                           const std::vector<float> &b) {
@@ -506,23 +494,24 @@ void testBusDriveIsWired(OvertoniumProcessor &p) {
     return worst;
   };
 
-  check(differs(clean, driven) > 1.0e-4,
-        "turning it up changes what comes out (" +
-            std::to_string(differs(clean, driven)) + ")");
+  check(differs(pure, valve) > 1.0e-4,
+        "a character brings a summing circuit with it (" +
+            std::to_string(differs(pure, valve)) + ")");
 
-  check(ovt::exactly((float)differs(pure, pureOff), 0.0f),
-        "and on Pure it does nothing at any amount, which is the oscillator "
-        "that is not a circuit");
+  check(differs(valve, bulb) > 1.0e-4,
+        "and they are not the same circuit (" +
+            std::to_string(differs(valve, bulb)) + ")");
 
+  // Every character, including the one that has none, costs the same few
+  // samples, so a preset cannot make a host re-plan its graph.
   check(idle == ovt::BusDrive::kLatency, "the stage's latency is reported (" +
                                              std::to_string(idle) +
                                              " samples)");
 
   check(p.getLatencySamples() == idle,
-        "and does not move when the character or the amount does (" +
+        "and does not move when the character does (" +
             std::to_string(p.getLatencySamples()) + ")");
 
-  drive->setValueNotifyingHost(0.0f);
   p.applyFactoryPreset(presetIndex("Init"));
 }
 
@@ -5623,7 +5612,7 @@ int main() {
   testChoiceParameterCounts(processor);
   testRendering(processor);
   testReleaseVelocity(processor);
-  testBusDriveIsWired(processor);
+  testBusStageFollowsTheCharacter(processor);
   testPresets(processor);
   testAftertouchMidi(processor);
   testMpe(processor);

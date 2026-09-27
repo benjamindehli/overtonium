@@ -87,8 +87,15 @@ public:
     reset();
   }
 
-  /// @param amount  how hard the series runs into it, 0 to 1. Zero is not a
-  /// gentle setting but a bypass: the samples are left exactly as they came.
+  /// How hard each circuit is run, which is a property of the part rather
+  /// than a control: there is no knob for this and there was only ever a
+  /// temporary one, for finding these. The table and what each was measured
+  /// against are in BusDrive.cpp.
+  static double amountFor(Character c) noexcept;
+
+  /// @param amount  normally amountFor(c). Taken rather than looked up so
+  /// that a test can sweep it, which is how the two bugs recorded below were
+  /// found: nothing in the instrument passes anything else.
   void process(float *left, float *right, int numSamples, Character c,
                float amount) noexcept;
 

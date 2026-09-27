@@ -144,9 +144,13 @@ struct GlobalParams {
   /// wobbling on their own. See Wobble.h.
   float wobbleAmount = 0.0f;
 
-  /// How hard the summed series runs into the bus stage, 0 to 1. Zero bypasses
-  /// it. Temporary while the amount is found by ear: it is meant to be a fixed
-  /// figure per character, not a control.
+  /// How hard the summed series runs into the bus stage.
+  ///
+  /// Not a parameter and not reachable from the panel: the plugin fills this
+  /// from BusDrive::amountFor, which is a property of the character rather
+  /// than a control. It is a field rather than a lookup inside the stage so
+  /// that a test measuring one part of the instrument can put the rest of it
+  /// out of the way, which is what the whole DSP suite does.
   float busDrive = 0.0f;
   /// Soft-clip the sum; 32 faders make it very easy to overshoot.
   bool safetyClip = true;

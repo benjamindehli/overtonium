@@ -40,15 +40,18 @@ namespace ovt {
 ///   Diode    7%
 ///   Valve   10%
 ///   Op-amp  10%
-///   Bulb    not found yet
+///   Bulb    15%
 ///   Pure    none, and never any: it is the oscillator that is not a circuit
 ///
-/// Found by ear, the first three on 26 September 2026 and the op-amp on the
-/// 27th. They are not close to each other for a reason: a rail is the
-/// gentlest of the shapes at a given drive, since a limit that treats both
-/// halves alike has only odd harmonics to give, so it takes more push to say
-/// anything. A mismatched pair of diodes is the busiest, giving an octave and
-/// a twelfth together, so it needs the least.
+/// Found by ear, the first three on 26 September 2026 and the last two on the
+/// 27th. The lamp wants the most of any of them, which follows from it being
+/// the only one that is not distortion: what the others are asked for is an
+/// overtone, and a little goes a long way, where what this one is asked for
+/// is a movement you have to be able to feel. They are not close to each other
+/// for a reason: a rail is the gentlest of the shapes at a given drive, since a
+/// limit that treats both halves alike has only odd harmonics to give, so it
+/// takes more push to say anything. A mismatched pair of diodes is the busiest,
+/// giving an octave and a twelfth together, so it needs the least.
 ///
 /// The op-amp landing on the triode's figure is the one that reads oddly,
 /// since it has much the harder knee of the two. It arrives there from the
@@ -57,15 +60,40 @@ namespace ovt {
 /// leaning from the first sample. Later and harder comes out at about the
 /// same place as sooner and softer.
 ///
-/// While the knob exists it says what the amount is and this table only
-/// records what has been decided. When the last line is filled the table
-/// becomes the code and the knob goes, which is the one parameter change that
-/// has to happen before a release rather than after one.
+/// These were found behind a temporary parameter, one character at a time,
+/// which is gone now that the last of them has a figure. It was never meant
+/// to ship: what a part does when you push it is a property of the part, and
+/// an instrument that asked you how much of its own circuit you wanted would
+/// be asking the wrong question.
+double BusDrive::amountFor(Character c) noexcept {
+  switch (c) {
+  case Character::Rail:
+    return 0.13;
+  case Character::Diode:
+    return 0.07;
+  case Character::Valve:
+    return 0.10;
+  case Character::Opamp:
+    return 0.10;
+  case Character::Bulb:
+    return 0.15;
+  case Character::Pure:
+  case Character::NumCharacters:
+    break;
+  }
+
+  return 0.0;
+}
+
 BusDrive::Recipe BusDrive::recipeFor(Character c, float amount,
                                      double sampleRate) noexcept {
+
   Recipe out;
   Curve k;
 
+  // Pure has no stage at any amount, which is not the same thing as having
+  // one set to nothing: it is the oscillator that is not a circuit, so there
+  // is no summing amplifier for it to have run out of either.
   if (c == Character::Pure || amount <= 0.0f)
     return out;
 
