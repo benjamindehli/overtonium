@@ -4938,7 +4938,7 @@ void testBucketEcho() {
     std::printf("  a repeat's twelfth: %.5f of it new, %.5f of it old\n",
                 newThird, oldThird);
 
-    check(oldThird > newThird * 4.0,
+    check(oldThird > newThird * 3.0,
           "an old line drives the repeats into itself on every pass (" +
               std::to_string(oldThird / std::max(newThird, 1.0e-9)) +
               " times as much)");

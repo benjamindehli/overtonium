@@ -188,15 +188,22 @@ void BucketEcho::process(float *outL, float *outR, int numSamples,
   // included. Measured at full wear on a 400 Hz burst at 0.4 s, as how much
   // twelfth each repeat comes back with:
   //
-  //   drive        first   second   third
-  //   1 + 3.0 age  -18.8   -21.6    -25.2
-  //   1 + 2.2 age  -21.4   -23.8    -27.3
-  //   1 + 1.8 age  -23.0   -25.2    -28.7
+  //   drive          first   second   third
+  //   1.0 + 3.0 age   -18.8   -21.6    -25.2
+  //   1.0 + 2.2 age   -21.4   -23.8    -27.3
+  //   1.0 + 1.6 age   -24.0   -26.1    -29.5
+  //   0.6 + 1.6 age   -26.7   -28.5    -31.8
   //
-  // The tail used to sit around -19 with a clean repeat in front of it. This
-  // puts the whole of it a couple of decibels under that, which is the same
-  // amount of dirt spread over one more repeat rather than more of it.
-  const auto drive = 1.0f + age * 2.2f;
+  // The tail used to sit around -19 with a clean repeat in front of it, and
+  // sits seven or eight decibels under that now: the same dirt spread over one
+  // more repeat and then eased twice by ear.
+  //
+  // The base matters as much as the slope, and for the same reason the tape's
+  // backstop did. At one, a new line still squashed anything the bus handed
+  // it, since the bus runs at 1.5 to 1.9 before the fader. Six tenths leaves a
+  // new line room to pass a loud passage nearly whole and keeps the squeeze
+  // for what the knob actually asks for.
+  const auto drive = 0.6f + age * 1.6f;
 
   // The compander. Fast enough to open before the repeat it belongs to and
   // slow enough to still be open under the tail of it, which is the

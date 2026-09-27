@@ -196,8 +196,26 @@ void TapeEcho::process(float *outL, float *outR, int numSamples,
 
   // The repeats darken from the top and thin from the bottom. A new machine
   // keeps nearly everything, a worn one hands back very little.
+  //
+  // Lifted once the first repeat started going through this like the others,
+  // since the whole tail gained a pass of it. Measured at a middling wear as
+  // how much of a 7 kHz tone survives, against a 300 Hz one in the same burst:
+  //
+  //   tone                     first repeat   second
+  //    700 + 11000 brightness      0.114        0.025
+  //    900 + 14000 brightness      0.130        0.033
+  //   1100 + 17000 brightness      0.143        0.040
+  //
+  // The middle one, which is a little brighter than the machine was before the
+  // first repeat was corrected and a little darker than it would be without
+  // the correction at all.
+  //
+  // Worth knowing while reading this: what the wear stage does to a repeat is
+  // almost entirely this filter. Its compression only bites above 0.6, which
+  // repeats rarely reach, so the harmonics it adds measure around -90 dB. A
+  // tape echo is a tone control that wobbles, not a distortion.
   const auto brightness = 1.0f - age;
-  const auto toneHz = 700.0f + brightness * brightness * 11000.0f;
+  const auto toneHz = 900.0f + brightness * brightness * 14000.0f;
   const auto lpCoef = onePole(toneHz, sampleRate);
   const auto hpCoef = onePole(90.0f, sampleRate);
 
@@ -224,8 +242,25 @@ void TapeEcho::process(float *outL, float *outR, int numSamples,
     // follows the wear, so a new machine passes its repeats through untouched.
     // The second is a backstop that is always there: at 95% feedback a steady
     // tone can otherwise pile up to twenty times what went in.
-    const auto agedL = lean(worn(left.damp - left.dc, age), 0.95f);
-    const auto agedR = lean(worn(right.damp - right.dc, age), 0.95f);
+    //
+    // The backstop sits at 1.6 rather than just under one, which is where it
+    // started, because the echo is fed the summed series before the master
+    // fader and that runs at 1.5 to 1.9 on a bright patch. A ceiling under one
+    // was therefore not a backstop at all but a compressor engaged on every
+    // note, and most of what the repeats sounded like was it rather than the
+    // tape. Measured on a 300 Hz burst at middling wear, as the third harmonic
+    // the repeats come back with:
+    //
+    //   what the bus hands it   ceiling at 0.95   ceiling at 1.6
+    //            0.80                -58.6 dB         -58.6 dB
+    //            1.20                -30.0            -33.1
+    //            1.70                -18.3            -26.3
+    //
+    // It is still a backstop: held at 95% feedback with 1.7 going in, the loop
+    // settles at 2.15 rather than running away, where the master's own clipper
+    // is waiting for it.
+    const auto agedL = lean(worn(left.damp - left.dc, age), 1.6f);
+    const auto agedR = lean(worn(right.damp - right.dc, age), 1.6f);
 
     const auto dryL = outL[n];
     const auto dryR = outR[n];
