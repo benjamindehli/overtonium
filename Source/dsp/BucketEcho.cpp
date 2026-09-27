@@ -181,8 +181,22 @@ void BucketEcho::process(float *outL, float *outR, int numSamples,
   const auto hpCoef = onePole(70.0f, sampleRate);
 
   // How hard the line is driven, which is what makes the tail grow rather than
-  // only fade. Inside the loop, so it compounds on every pass.
-  const auto drive = 1.0f + age * 3.0f;
+  // only fade. Inside the loop and on the way out, so it compounds along the
+  // tail rather than arriving all at once on the second repeat.
+  //
+  // Eased once every repeat started carrying a pass of it, the first one
+  // included. Measured at full wear on a 400 Hz burst at 0.4 s, as how much
+  // twelfth each repeat comes back with:
+  //
+  //   drive        first   second   third
+  //   1 + 3.0 age  -18.8   -21.6    -25.2
+  //   1 + 2.2 age  -21.4   -23.8    -27.3
+  //   1 + 1.8 age  -23.0   -25.2    -28.7
+  //
+  // The tail used to sit around -19 with a clean repeat in front of it. This
+  // puts the whole of it a couple of decibels under that, which is the same
+  // amount of dirt spread over one more repeat rather than more of it.
+  const auto drive = 1.0f + age * 2.2f;
 
   // The compander. Fast enough to open before the repeat it belongs to and
   // slow enough to still be open under the tail of it, which is the
@@ -260,10 +274,15 @@ void BucketEcho::process(float *outL, float *outR, int numSamples,
     if (++right.write >= bufferLength)
       right.write = 0;
 
-    // The hiss arrives with the repeats rather than in the loop, so feedback
-    // cannot pile it up into something that never decays.
-    outL[n] = dryL + (wetL + noiseL - dryL) * mix;
-    outR[n] = dryR + (wetR + noiseR - dryR) * mix;
+    // What comes out is what the line made of it rather than what was handed
+    // to it. A signal reaches the first repeat through the whole line, so
+    // colouring the feedback path alone left that repeat clean and bright and
+    // every later one dark and driven, which is a step rather than a pedal.
+    //
+    // The hiss is added here rather than in the loop, so feedback cannot pile
+    // it up into something that never decays.
+    outL[n] = dryL + (agedL + noiseL - dryL) * mix;
+    outR[n] = dryR + (agedR + noiseR - dryR) * mix;
   }
 }
 

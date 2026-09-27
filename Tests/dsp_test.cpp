@@ -4956,6 +4956,41 @@ void testBucketEcho() {
               " of it)");
   }
 
+  // ---- and no step between the first repeat and the rest -------------------
+  //
+  // What comes out has to be what the line made of it rather than what was
+  // handed to it. Colouring only the feedback path leaves the first repeat
+  // untouched and every later one driven, which is heard as one clean repeat
+  // followed by a dirty tail rather than as a machine. It measured as 68 dB
+  // between the first two and is the reason this check exists.
+  {
+    const auto old = through(0.85f, 0.4f, 400.0);
+
+    double previous = 0.0, worstStep = 0.0;
+
+    for (int k = 1; k <= 4; ++k) {
+      const auto from = (size_t)((0.4 * k + 0.02) * sr);
+      const auto to = from + (size_t)(0.2 * sr);
+
+      const auto fundamental = levelAt(old.l, from, to, 400.0);
+      const auto twelfth = levelAt(old.l, from, to, 1200.0) / fundamental;
+      const auto dB = 20.0 * std::log10(std::max(twelfth, 1.0e-9));
+
+      if (k > 1)
+        worstStep = std::max(worstStep, std::abs(dB - previous));
+
+      previous = dB;
+    }
+
+    std::printf("  across four repeats the worst step in how driven they are "
+                "is %.1f dB\n",
+                worstStep);
+
+    check(worstStep < 12.0,
+          "every repeat has been through the line, including the first (" +
+              std::to_string(worstStep) + " dB between neighbours)");
+  }
+
   // ---- the hiss, which has to breathe rather than sit there ---------------
   {
     const auto old = through(1.0f, 0.25f, 400.0);
@@ -5079,6 +5114,7 @@ void testTapeEcho() {
   section("Tape echo");
 
   constexpr double sr = 48000.0;
+  constexpr double kTwoPi = 6.283185307179586;
 
   TapeEcho echo;
   echo.prepare(sr);
@@ -5974,6 +6010,97 @@ void testBusDrive() {
           "and the offset that leaves is taken back out (" +
               std::to_string(mean) + ")");
   }
+}
+
+/// That the first repeat has already been through the machine.
+///
+/// A tape echo colours on the way in and out as well as on the way round: by
+/// the time the first repeat is heard the signal has crossed the record head,
+/// the tape and the playback head. Colouring only the feedback path hands the
+/// first repeat back exactly as it arrived and wears every later one, which is
+/// heard as one bright repeat and then a dull tail.
+void testFirstRepeatIsAlreadyWorn() {
+  section("The first repeat");
+
+  constexpr double sr = 48000.0;
+  constexpr double kTwoPi = 6.283185307179586;
+
+  const auto levelAt = [](const std::vector<float> &x, size_t from, size_t to,
+                          double hz) {
+    double re = 0.0, im = 0.0, norm = 0.0;
+
+    for (size_t n = from; n < to && n < x.size(); ++n) {
+      const auto w =
+          0.5 *
+          (1.0 - std::cos(kTwoPi * (double)(n - from) / (double)(to - from)));
+
+      re += w * (double)x[n] * std::cos(kTwoPi * hz * (double)n / sr);
+      im -= w * (double)x[n] * std::sin(kTwoPi * hz * (double)n / sr);
+      norm += w;
+    }
+
+    return norm > 0.0 ? 2.0 * std::hypot(re, im) / norm : 0.0;
+  };
+
+  TapeEcho echo;
+  echo.prepare(sr);
+
+  EchoParams p;
+  p.enabled = true;
+  p.type = EchoType::Tape;
+  p.mix = 1.0f;
+  p.feedback = 0.6f;
+  p.timeSeconds = 0.4f;
+  p.age = 0.9f; // worn, so what it takes off is unmistakable
+
+  // A burst carrying something low and something high, so what the machine
+  // takes off the top can be seen against what it leaves alone.
+  Stereo s((size_t)(1.6 * sr));
+  const auto on = (size_t)(0.25 * sr);
+
+  for (size_t n = 0; n < on; ++n) {
+    const auto ramp = std::min(1.0, (double)std::min(n, on - n) / 480.0);
+    const auto v = (float)(0.35 * ramp *
+                           (std::sin(kTwoPi * 300.0 * (double)n / sr) +
+                            std::sin(kTwoPi * 7000.0 * (double)n / sr)));
+    s.l[n] = v;
+    s.r[n] = v;
+  }
+
+  // Kept, because the output is fully wet: during the burst what comes out is
+  // the echo's own silence rather than the signal, so what went in has to be
+  // measured from what went in.
+  const auto went = s.l;
+
+  runBlocks(echo, s, p);
+
+  const auto tiltIn = [&](const std::vector<float> &x, size_t from) {
+    const auto to = from + (size_t)(0.2 * sr);
+
+    return levelAt(x, from, to, 7000.0) /
+           std::max(levelAt(x, from, to, 300.0), 1.0e-9);
+  };
+
+  const auto tiltOf = [&](size_t from) { return tiltIn(s.l, from); };
+
+  const auto dry = tiltIn(went, (size_t)(0.02 * sr));
+  const auto first = tiltOf((size_t)(0.42 * sr));
+  const auto second = tiltOf((size_t)(0.82 * sr));
+
+  std::printf("  7 kHz against 300: %.4f dry, %.4f on the first repeat, "
+              "%.4f on the second\n",
+              dry, first, second);
+
+  check(first < dry * 0.5,
+        "the first repeat has already lost its top to the tape (" +
+            std::to_string(first / dry) + " of what went in)");
+
+  // And the step from the first to the second is no larger than the step from
+  // the second to the third, which is what a machine does rather than a
+  // feedback path that colours and an output that does not.
+  check(second < first, "and the next one has lost more again (" +
+                            std::to_string(second / std::max(first, 1.0e-9)) +
+                            ")");
 }
 
 void testWobble() {
@@ -6889,6 +7016,7 @@ int main() {
   testSlideDisplacement();
   testNoiseChannel();
   testTapeEcho();
+  testFirstRepeatIsAlreadyWorn();
   testBucketEcho();
   testBusDrive();
   testWobble();

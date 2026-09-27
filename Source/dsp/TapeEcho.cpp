@@ -230,6 +230,13 @@ void TapeEcho::process(float *outL, float *outR, int numSamples,
     const auto dryL = outL[n];
     const auto dryR = outR[n];
 
+    // What comes out is what the machine made of it, not what was written to
+    // it. The signal has already been through the record head, the tape and
+    // the playback head by the time the first repeat is heard, so colouring
+    // only the feedback path left that one repeat untouched and every later
+    // one worn: measured at full wear, a twelfth 68 dB below the first repeat
+    // and 19 below the second, which is a step rather than a machine.
+
     // Each loop takes its own channel, feeds only itself, and comes back on
     // the side it went out on. Nothing crosses over at any point, so wherever
     // the mixer put a partial is where its repeats stay.
@@ -241,8 +248,8 @@ void TapeEcho::process(float *outL, float *outR, int numSamples,
     if (++right.write >= bufferLength)
       right.write = 0;
 
-    outL[n] = dryL + (wetL - dryL) * mix;
-    outR[n] = dryR + (wetR - dryR) * mix;
+    outL[n] = dryL + (agedL - dryL) * mix;
+    outR[n] = dryR + (agedR - dryR) * mix;
   }
 }
 
