@@ -15,23 +15,31 @@ constexpr double kTwoPi = 6.283185307179586;
 /// the pair never falls into step and never repeats a relationship.
 constexpr double kSweepL = 0.31, kSweepR = 0.43;
 
-/// How far each clock wanders, as a fraction of wherever it is set.
+/// And the one they share, slower than either, which is the clock itself
+/// drifting rather than the two sides disagreeing about where it is.
+constexpr double kDriftRate = 0.19;
+
+/// The movement, split in two because the two halves of it cost different
+/// things.
 ///
-/// Chosen against what a mono sum does to the repeats rather than by ear for
-/// width, because two sides at slightly different delays comb when they are
-/// added, and a delay whose repeats half disappear on a mono system is worse
-/// than one that is a little narrower. Measured on a 400 Hz burst at a quarter
-/// of a second, as the correlation between the sides and what summing them
-/// costs against one of them alone:
+/// What the sides do differently is what gives the repeats width, and it is
+/// also the only part that cancels when somebody sums to mono: two delays a
+/// little apart comb when they are added. Measured on a 400 Hz burst at a
+/// quarter of a second, as the correlation between the sides and what summing
+/// them costs against one side alone:
 ///
-///   depth              correlation   mono sum
+///   differential       correlation   mono sum
 ///   0.0016 / 0.0021        -0.60      -6.97 dB
 ///   0.0008 / 0.0011        -0.23      -4.15 dB
 ///   0.0005 / 0.0007        +0.35      -1.72 dB
 ///
-/// The first is a chorus and cancels; the last still moves, still puts the two
-/// sides somewhere different, and survives being added up.
+/// So that half stays small. What both sides do together costs nothing in
+/// mono, because a delay that moves the same way on both is a vibrato rather
+/// than a comb, and a bucket brigade's clock really does drift as a whole.
+/// That is where the depth goes: four times the differential, slower than
+/// either side's own, and audible as the pitch of the repeats breathing.
 constexpr float kSweepDepthL = 0.0005f, kSweepDepthR = 0.0007f;
+constexpr float kDriftDepth = 0.0020f;
 
 /// Where the reconstruction filter sits at a short setting, and how far the
 /// clock drags it down at a long one.
@@ -116,6 +124,7 @@ void BucketEcho::reset() noexcept {
   // second of a patch would be in mono.
   right.phase = 0.37;
 
+  drift = 0.0;
   smoothedDelay = -1.0f;
   envelope = 0.0f;
   wasEnabled = false;
@@ -199,10 +208,20 @@ void BucketEcho::process(float *outL, float *outR, int numSamples,
     if (right.phase >= 1.0)
       right.phase -= 1.0;
 
-    const auto sweepL =
-        smoothedDelay * kSweepDepthL * (float)std::sin(kTwoPi * left.phase);
-    const auto sweepR =
-        smoothedDelay * kSweepDepthR * (float)std::sin(kTwoPi * right.phase);
+    drift += kDriftRate / sampleRate;
+
+    if (drift >= 1.0)
+      drift -= 1.0;
+
+    // The whole clock drifting, which both sides follow exactly.
+    const auto together =
+        smoothedDelay * kDriftDepth * (float)std::sin(kTwoPi * drift);
+
+    const auto sweepL = together + smoothedDelay * kSweepDepthL *
+                                       (float)std::sin(kTwoPi * left.phase);
+
+    const auto sweepR = together + smoothedDelay * kSweepDepthR *
+                                       (float)std::sin(kTwoPi * right.phase);
 
     const auto wetL = left.read(smoothedDelay + sweepL);
     const auto wetR = right.read(smoothedDelay + sweepR);

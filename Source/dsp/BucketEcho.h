@@ -85,6 +85,10 @@ private:
 
   Line left, right;
 
+  /// Where the shared drift has got to. One phase for both sides, since this
+  /// is the clock itself moving rather than the sides disagreeing.
+  double drift = 0.0;
+
   /// The clock is wound to rather than set, like the tape's head distance: a
   /// line of buckets cannot change its rate instantly either.
   float smoothedDelay = -1.0f;

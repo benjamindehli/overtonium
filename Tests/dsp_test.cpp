@@ -4992,6 +4992,65 @@ void testBucketEcho() {
           "and a patch nobody is playing stays silent");
   }
 
+  // ---- and the clock drifts, which is the pitch of the repeats breathing ---
+  //
+  // Most of the movement is shared between the sides rather than differential,
+  // because a delay that moves the same way on both is a vibrato and a mono
+  // sum keeps all of it, where two sides moving apart comb and lose some. So
+  // this is looked for in the pitch rather than in the width.
+  {
+    BucketEcho bbd;
+    bbd.prepare(sr);
+
+    EchoParams p;
+    p.enabled = true;
+    p.type = EchoType::Bucket;
+    p.mix = 1.0f;
+    p.feedback = 0.75f;
+    p.timeSeconds = 0.3f;
+    p.age = 0.2f;
+
+    // Held long enough for the slowest of the three sweeps to go round twice.
+    auto s = burst((size_t)(11.0 * sr), 400.0, (size_t)(0.25 * sr));
+    runBlocks(bbd, s, p);
+
+    /// The strongest frequency near 400 Hz in one window, to a fifth of a Hz.
+    const auto pitchIn = [&](size_t from) {
+      const auto to = from + (size_t)(0.35 * sr);
+      double best = 400.0, most = 0.0;
+
+      for (double hz = 396.0; hz <= 404.0; hz += 0.2) {
+        const auto level = levelAt(s.l, from, to, hz);
+
+        if (level > most) {
+          most = level;
+          best = hz;
+        }
+      }
+
+      return best;
+    };
+
+    double lowest = 1.0e9, highest = 0.0;
+
+    for (double at = 1.0; at < 9.0; at += 0.4) {
+      const auto hz = pitchIn((size_t)(at * sr));
+      lowest = std::min(lowest, hz);
+      highest = std::max(highest, hz);
+    }
+
+    const auto cents = 1200.0 * std::log2(highest / lowest);
+
+    std::printf("  the pitch of the repeats wanders across %.1f cents\n",
+                cents);
+
+    check(cents > 1.0, "the clock drifts enough to hear (" +
+                           std::to_string(cents) + " cents)");
+
+    check(cents < 25.0, "and not so much that it reads as a chorus (" +
+                            std::to_string(cents) + " cents)");
+  }
+
   // ---- two clocks, so the repeats are not in the middle --------------------
   {
     const auto s = through(0.3f, 0.25f, 400.0);
