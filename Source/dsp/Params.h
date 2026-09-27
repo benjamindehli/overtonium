@@ -202,6 +202,13 @@ inline const char *echoTypeName(EchoType t) {
   return "Tape";
 }
 
+/// The name in one word, for the button on the bar, which has a button's
+/// worth of room rather than a menu's. The menu says what each one is; the
+/// button only has to say which.
+inline const char *echoTypeShortName(EchoType t) {
+  return t == EchoType::Bucket ? "Bucket" : echoTypeName(t);
+}
+
 struct EchoParams {
   bool enabled = false;
 

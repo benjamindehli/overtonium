@@ -3618,6 +3618,90 @@ void testZoomTickFollowsTheZoom(OvertoniumProcessor &p) {
   }
 }
 
+/// That every word the bar has to say fits in the button that says it.
+///
+/// The bar shouts in capitals at a font it picks from its own height, so the
+/// widest name a control can show decides how wide that control has to be.
+/// Measured rather than eyeballed, because the failure is silent: a name that
+/// does not fit is drawn with the middle taken out of it and nothing says so.
+void testBarButtonsFitTheirWords(OvertoniumProcessor &p) {
+  section("Words on the bar");
+
+  using namespace ovt::ui;
+
+  juce::Component popupParent;
+  TopBar bar(p.apvts, popupParent);
+
+  // The height the bar lays its controls out at, which is what the font comes
+  // from. See kControlHeight.
+  const auto font = makeFont(13.0f, true);
+
+  const auto widest = [&font](const juce::StringArray &words) {
+    int most = 0;
+    for (const auto &w : words)
+      most =
+          std::max(most, (int)std::ceil(juce::GlyphArrangement::getStringWidth(
+                             font, w.toUpperCase())));
+
+    return most;
+  };
+
+  // The short names, which is what the button shows. The menu says what each
+  // machine is and has the room to.
+  juce::StringArray echoWords{"Echo"};
+  for (int i = 0; i < (int)ovt::EchoType::NumTypes; ++i)
+    echoWords.add(ovt::echoTypeShortName((ovt::EchoType)i));
+
+  const auto echoText = widest(echoWords);
+  const auto characterText = widest(ovt::params::characterChoices());
+
+  std::printf("  the echo's longest word is %d px and the character's %d, in "
+              "buttons of %d and %d\n",
+              echoText, characterText, TopBar::kEchoWidth,
+              TopBar::kCharacterWidth);
+
+  // Air either side, which every other button on the bar has.
+  check(echoText + 8 <= TopBar::kEchoWidth,
+        "every machine the echo can be fits in its button (" +
+            std::to_string(echoText) + " px in " +
+            std::to_string(TopBar::kEchoWidth) + ")");
+
+  check(characterText + 8 <= TopBar::kCharacterWidth,
+        "and every character fits in its own (" +
+            std::to_string(characterText) + " px in " +
+            std::to_string(TopBar::kCharacterWidth) + ")");
+}
+
+/// The width the bar comes onto one row at, which the design notes quote and
+/// which every control added to it moves.
+void testBarComesOntoOneRow(OvertoniumProcessor &) {
+  section("One row");
+
+  using namespace ovt::ui;
+
+  const auto tall = TopBar::heightForWidth(900);
+  int onOneRow = 0;
+
+  for (int w = 900; w <= 1600; ++w)
+    if (TopBar::heightForWidth(w) < tall) {
+      onOneRow = w;
+      break;
+    }
+
+  std::printf("  the bar comes onto one row at %d px, and the window opens at "
+              "1340, so there are %d px of slack\n",
+              onOneRow, 1340 - onOneRow);
+
+  check(onOneRow > 0 && onOneRow <= 1340,
+        "the bar is on one row at the width the window opens at (" +
+            std::to_string(onOneRow) + ")");
+
+  // The figure the design notes quote. It moves whenever a control on the bar
+  // changes width, and when it moves the notes move with it.
+  check(onOneRow == 1212, "and comes onto it at the width written down (" +
+                              std::to_string(onOneRow) + ")");
+}
+
 void testTopBarAlignment(OvertoniumProcessor &p) {
   section("Top bar alignment");
 
@@ -5694,6 +5778,8 @@ int main() {
   testShapeButtonFollowsTheParameter(processor);
   testFirstProgramIsReachable();
   testPresetNameOutlivesTheWindow();
+  testBarButtonsFitTheirWords(processor);
+  testBarComesOntoOneRow(processor);
   testTopBarAlignment(processor);
   testKnobSizes(processor);
   testNoDeadTravel(processor);

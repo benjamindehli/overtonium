@@ -463,6 +463,41 @@ void OvertoniumLookAndFeel::drawLinearSlider(
     juce::Graphics &g, int x, int y, int width, int height, float sliderPos,
     float minSliderPos, float maxSliderPos, juce::Slider::SliderStyle style,
     juce::Slider &slider) {
+  const bool metered =
+      (bool)slider.getProperties().getWithDefault("meteredGroove", false);
+
+  // The master fader, which is the same idea as a channel's laid on its side:
+  // a meter under the whole control and a glass cap over it saying where the
+  // level is set. It has no groove of its own for the same reason a channel's
+  // has none, and no ticks, because the bar is one row tall and there is
+  // nowhere to put them.
+  if (style == juce::Slider::LinearHorizontal && metered) {
+    const auto bounds = juce::Rectangle<int>(x, y, width, height).toFloat();
+    const auto dim = slider.isEnabled() ? 1.0f : 0.4f;
+    const auto at = juce::jlimit(bounds.getX(), bounds.getRight(), sliderPos);
+
+    const auto capW = juce::jmax(6.0f, bounds.getHeight() * 0.30f);
+    const juce::Rectangle<float> cap(at - capW * 0.5f, bounds.getY() + 0.5f,
+                                     capW, bounds.getHeight() - 1.0f);
+
+    g.setColour(juce::Colours::black.withAlpha(0.34f * dim));
+    g.fillRoundedRectangle(cap.translated(1.5f, 0.5f), 2.0f);
+
+    g.setColour(juce::Colours::white.withAlpha(0.13f * dim));
+    g.fillRoundedRectangle(cap, 2.0f);
+
+    g.setColour(juce::Colours::white.withAlpha(0.46f * dim));
+    g.drawRoundedRectangle(cap.reduced(0.5f), 2.0f, 1.0f);
+
+    // The lip runs down the cap rather than across it, which is the same
+    // light off the same glass turned a quarter.
+    g.setColour(juce::Colours::white.withAlpha(0.26f * dim));
+    g.fillRect(cap.getX() + 1.5f, cap.getY() + 2.5f, 1.0f,
+               cap.getHeight() - 5.0f);
+
+    return;
+  }
+
   if (style != juce::Slider::LinearVertical) {
     LookAndFeel_V4::drawLinearSlider(g, x, y, width, height, sliderPos,
                                      minSliderPos, maxSliderPos, style, slider);
@@ -475,13 +510,10 @@ void OvertoniumLookAndFeel::drawLinearSlider(
   // When a meter sits behind the fader it owns the groove, so the track fill
   // that would otherwise show the set level is dropped. The cap alone says
   // where the fader is, which leaves the whole track free to show output.
-  const bool meteredGroove =
-      (bool)slider.getProperties().getWithDefault("meteredGroove", false);
-
   const auto fillTop =
       juce::jlimit(bounds.getY(), bounds.getBottom(), sliderPos);
 
-  if (!meteredGroove) {
+  if (!metered) {
     const auto centreX = bounds.getCentreX();
     const auto grooveW = juce::jmax(4.0f, bounds.getWidth() * 0.22f);
     const juce::Rectangle<float> groove(centreX - grooveW * 0.5f, bounds.getY(),

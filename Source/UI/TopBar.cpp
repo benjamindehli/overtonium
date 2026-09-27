@@ -24,7 +24,7 @@ constexpr int kGroupPad = 6;
 
 /// Minimum width of each group, in the order they are laid out. Only the
 /// output group grows, because the meter is the one thing worth more room.
-constexpr int kGroupMinWidth[] = {144, 90, 218, 222, 222, 186};
+constexpr int kGroupMinWidth[] = {144, 90, 218, 232, 222, 132};
 constexpr int kOutputGroupIndex = 5;
 constexpr int kGroupCount = 6;
 
@@ -34,6 +34,7 @@ constexpr int kControlHeight = 24;
 
 constexpr int kKnobWidth = 38;
 constexpr int kFxToggleWidth = 52;
+
 constexpr int kFxToggleGap = 6;
 
 /// Sized for the longest name it has to say, in the capitals the bar shouts
@@ -42,7 +43,6 @@ constexpr int kFxToggleGap = 6;
 /// 40, VALVE 39, PURE and BULB 34 and RAIL 29. This is the widest of those plus
 /// the air either side that every other button on the bar has. It was 80 while
 /// the widest was SQUASHED at 69.
-constexpr int kCharacterWidth = 62;
 
 /// How many rows of bar are worth having above a mixer.
 constexpr int kMaxComfortableRows = 3;
@@ -221,12 +221,21 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
     : apvts(state) {
   logo = logoWordmark();
 
-  master.slider.setPopupDisplayEnabled(true, true, &popupParent);
-  master.slider.setTooltip("Output level");
-  addAndMakeVisible(master);
+  masterFader.setPopupDisplayEnabled(true, true, &popupParent);
+  masterFader.setTooltip("Output level, over the meter that reads it");
+
+  // Named for a screen reader, which has nothing else to go on: the control
+  // has no caption beside it, since the meter under it is what says what it
+  // is to anyone looking.
+  masterFader.setTitle("Master level");
+
+  // The meter owns the groove. See drawLinearSlider.
+  masterFader.getProperties().set("meteredGroove", true);
+
+  addAndMakeVisible(masterFader);
 
   masterAttachment = std::make_unique<SliderAttachment>(
-      apvts, params::masterGainId, master.slider);
+      apvts, params::masterGainId, masterFader);
 
   stretch.slider.setPopupDisplayEnabled(true, true, &popupParent);
   stretch.slider.setTooltip(
@@ -265,6 +274,11 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   // Two bars beside the master fader, at the end of the signal path, need no
   // caption to say what they are.
   addAndMakeVisible(meter);
+
+  // Over the meter rather than under it. Children paint in the order they were
+  // added and the meter arrives later than the fader does, so without this the
+  // cap shows only through the gaps between the lamps.
+  masterFader.toFront(false);
 
   rateDisplay.setTooltip(
       "The rate the instrument renders at. Turning it down is a real cut "
@@ -328,7 +342,20 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   // ---- the master effects
   // ----------------------------------------------------
   styleToggle(echoButton, "ECHO",
-              "Tape echo across the whole instrument, before the master fader");
+              "Which delay the whole instrument runs into, before the master "
+              "fader: a tape loop, a line of buckets, or a plain digital one "
+              "that crosses every repeat to the other side. AGE means "
+              "something different on each, and the machine says what.");
+
+  echoButton.onClick = [this] {
+    auto m = buildEchoMenu();
+    m.setLookAndFeel(&getLookAndFeel());
+
+    m.showMenuAsync(juce::PopupMenu::Options()
+                        .withTargetComponent(&echoButton)
+                        .withStandardItemHeight(22),
+                    [this](int result) { chooseEcho(result); });
+  };
   styleToggle(reverbButton, "REVERB",
               "Reverb across the whole instrument, after the echo");
 
@@ -337,8 +364,6 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   echoButton.setColour(juce::TextButton::textColourOnId, colours::accent);
   reverbButton.setColour(juce::TextButton::textColourOnId, colours::accent);
 
-  echoAttachment =
-      std::make_unique<ButtonAttachment>(apvts, params::echoOnId, echoButton);
   reverbAttachment = std::make_unique<ButtonAttachment>(
       apvts, params::reverbOnId, reverbButton);
 
@@ -462,6 +487,51 @@ void TopBar::setPresetName(const juce::String &name) {
 juce::String TopBar::getPresetName() const {
   const auto shown = presetButton.getButtonText();
   return shown == kNoPreset ? juce::String() : shown;
+}
+
+juce::PopupMenu TopBar::buildEchoMenu() {
+  juce::PopupMenu m;
+
+  auto *on = apvts.getParameter(params::echoOnId);
+  auto *type = apvts.getParameter(params::echoTypeId);
+
+  const bool running = on != nullptr && on->getValue() > 0.5f;
+  const auto which =
+      type == nullptr
+          ? 0
+          : juce::roundToInt(type->convertFrom0to1(type->getValue()));
+
+  m.addItem(1, "Off", true, !running);
+  m.addSeparator();
+
+  for (int i = 0; i < (int)EchoType::NumTypes; ++i)
+    m.addItem(i + 2, echoTypeName((EchoType)i), true, running && i == which);
+
+  return m;
+}
+
+void TopBar::chooseEcho(int id) {
+  if (id <= 0)
+    return;
+
+  auto *on = apvts.getParameter(params::echoOnId);
+  auto *type = apvts.getParameter(params::echoTypeId);
+
+  if (on == nullptr)
+    return;
+
+  // Off writes the switch alone and leaves the type where it was, so coming
+  // back on returns to the machine that was chosen rather than to the first
+  // one in the list.
+  if (id == 1) {
+    on->setValueNotifyingHost(0.0f);
+    return;
+  }
+
+  if (type != nullptr)
+    type->setValueNotifyingHost(type->convertTo0to1((float)(id - 2)));
+
+  on->setValueNotifyingHost(1.0f);
 }
 
 void TopBar::showChoiceMenu(const char *paramId,
@@ -943,6 +1013,35 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
   const auto character =
       chosen(params::characterId, params::characterChoices().size());
 
+  // ---- which delay, and whether there is one -------------------------------
+  //
+  // The machine's name when it is running and the word ECHO when it is not,
+  // so the group is still findable with nothing switched on. Lit either way by
+  // the same rule as every other switch on the bar: the word comes up, the
+  // face stays where it is.
+  {
+    auto *on = apvts.getParameter(params::echoOnId);
+    auto *type = apvts.getParameter(params::echoTypeId);
+
+    const bool running = on != nullptr && on->getValue() > 0.5f;
+    const auto which = type == nullptr
+                           ? EchoType::Tape
+                           : (EchoType)juce::roundToInt(
+                                 type->convertFrom0to1(type->getValue()));
+
+    const juce::String name = echoTypeName(which);
+
+    echoButton.setButtonText(
+        running ? juce::String(echoTypeShortName(which)).toUpperCase()
+                : juce::String("ECHO"));
+
+    // Named rather than shouted for a screen reader, and saying which control
+    // it is: the face reads out as "tape" on its own, which says nothing about
+    // what is being tape.
+    echoButton.setTitle(running ? "Echo: " + name : juce::String("Echo: off"));
+    echoButton.setToggleState(running, juce::dontSendNotification);
+  }
+
   // In capitals, like every other word on the bar. The menu it comes from
   // keeps the names as they are written, since a list of words is a list of
   // words rather than a row of switches.
@@ -1050,7 +1149,7 @@ int TopBar::minimumWidth() {
 }
 
 void TopBar::parkControls() {
-  juce::Component *all[] = {&master,         &meter,          &presetButton,
+  juce::Component *all[] = {&masterFader,    &meter,          &presetButton,
                             &settingsButton, &echoButton,     &reverbButton,
                             &stretch,        &track,          &rateDisplay,
                             &bitsDisplay,    &characterButton};
@@ -1089,8 +1188,8 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
   /// The switch names the effect, so it stands at the head of its group and
   /// the knobs follow.
   const auto effect = [&](juce::Button &toggle, std::vector<Control> &controls,
-                          juce::Rectangle<int> area) {
-    button(toggle, area.removeFromLeft(kFxToggleWidth));
+                          juce::Rectangle<int> area, int toggleWidth) {
+    button(toggle, area.removeFromLeft(toggleWidth));
     area.removeFromLeft(kFxToggleGap);
 
     for (auto &c : controls)
@@ -1126,19 +1225,17 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
   }
 
   case EchoGroup:
-    effect(echoButton, echoControls, r);
+    effect(echoButton, echoControls, r, kEchoWidth);
     break;
 
   case ReverbGroup:
-    effect(reverbButton, reverbControls, r);
+    effect(reverbButton, reverbControls, r, kFxToggleWidth);
     break;
 
   case OutputGroup: {
-    master.setBounds(r.removeFromLeft(48));
-    r.removeFromLeft(6);
-
-    // The meter takes whatever the group was given beyond its minimum.
+    // The meter takes the whole group, and the fader lies over it.
     alignedWithDials(meter, r);
+    masterFader.setBounds(meter.getBounds());
 
     // The two readouts go under it, in the band the knob captions occupy, so
     // the converter reads as the last thing before the output rather than as

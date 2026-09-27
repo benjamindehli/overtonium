@@ -207,6 +207,37 @@ public:
   /// showing one needs a real window. This can be walked without either.
   juce::PopupMenu buildSettingsMenu();
 
+  /// The echo's four positions: off, and one per machine.
+  ///
+  /// A menu rather than a switch, for the same reason the character is one.
+  /// Behind it are two parameters rather than one: the switch that turns the
+  /// echo on is older than the choice of machine, and every saved patch stores
+  /// it and every automation lane points at it, so it stayed where it was and
+  /// the type arrived beside it. Off writes the switch, the other three write
+  /// the switch and a type.
+  ///
+  /// Built as data for the same reason the settings menu is: a menu that can
+  /// only be reached by clicking is a menu that never gets tested.
+  juce::PopupMenu buildEchoMenu();
+
+  /// How wide the two buttons that say a value have to be.
+  ///
+  /// Each is sized for the longest word it can show, in the capitals the bar
+  /// shouts everything in, plus the air either side that every other button
+  /// here has. A word that does not fit is drawn with its middle taken out and
+  /// nothing says so, which is why a test measures these rather than trusting
+  /// them. See testBarButtonsFitTheirWords.
+  /// Both land on the same figure, from different directions: OP-AMP is 51 px
+  /// and DIGITAL is 50, and the air either side is what every other button on
+  /// the bar has.
+  static constexpr int kCharacterWidth = 62;
+  static constexpr int kEchoWidth = 62;
+
+private:
+  /// Applies what buildEchoMenu came back with. Zero means dismissed.
+  void chooseEcho(int id);
+
+public:
 private:
   /// The factory list, then whatever has been saved, then what can be done
   /// with them.
@@ -274,7 +305,15 @@ private:
   // Anything that exists on all 32 strips now lives on the master channel.
   // What is left here is the handful of genuinely single global values, which
   // have nothing to stay relative to and so are ordinary absolute knobs.
-  LabelledKnob master{"MASTER"};
+  /// The output level, laid over the meter rather than beside it.
+  ///
+  /// Every one of the thirty-three channels sets its level with a fader whose
+  /// meter runs behind it, so the master reads as the odd one out when it is a
+  /// knob. Laid on its side over the output meter it matches them, and the
+  /// forty-eight pixels it used to take plus its gap go to the meter instead,
+  /// which is the one thing on this bar worth more room.
+  juce::Slider masterFader{juce::Slider::LinearHorizontal,
+                           juce::Slider::NoTextBox};
 
   /// What the series does, as opposed to what is done to it afterwards. Both
   /// are properties of the instrument, so they stand between the tools and the
@@ -327,7 +366,7 @@ private:
 
   std::unique_ptr<SliderAttachment> masterAttachment, stretchAttachment,
       trackAttachment, wobbleAttachment;
-  std::unique_ptr<ButtonAttachment> echoAttachment, reverbAttachment;
+  std::unique_ptr<ButtonAttachment> reverbAttachment;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(TopBar)
 };
