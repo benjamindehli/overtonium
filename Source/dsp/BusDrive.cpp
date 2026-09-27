@@ -19,14 +19,16 @@ namespace ovt {
 ///   Diode   octave  -15 dB, twelfth -15 dB, halves differ by 27%
 ///   Valve   octave  -17 dB, twelfth -20 dB, halves differ by 30%
 ///
-/// The two that are left are not curves and will not be written as ones.
-/// Op-amp is a slew limit, so it answers to how fast the mix moves rather
-/// than to how big it is, and it is the only one of the five that is
-/// frequency-dependent. Bulb is not distortion at all but a lamp, so its bus
-/// behaviour is the mix leaning back as it gets loud and recovering over
-/// about half a second, which adds no overtones and cannot alias. Until those
-/// exist both read the triode, and tuning either against that is tuning a
-/// stand-in.
+/// The op-amp is not a curve and is not written as one. It is a rate limit,
+/// so it answers to how fast the mix is moving rather than to how big it is,
+/// which makes it the only one of the five that is frequency-dependent and
+/// the only one that cares what the rate of the session is.
+///
+/// Bulb is the last one left. It is not distortion at all but a lamp, so its
+/// bus behaviour is the mix leaning back as it gets loud and recovering over
+/// about half a second, which adds no overtones and cannot alias. Until that
+/// machine exists it reads the triode, and tuning it against that reading is
+/// tuning a stand-in.
 ///
 /// **What each circuit wants**, which is the whole point of the knob and is
 /// what replaces it. One figure per character, since a rail and a triode bend
@@ -51,11 +53,35 @@ namespace ovt {
 /// records what has been decided. When the last line is filled the table
 /// becomes the code and the knob goes, which is the one parameter change that
 /// has to happen before a release rather than after one.
-BusDrive::Curve BusDrive::curveFor(Character c, float amount) noexcept {
+BusDrive::Recipe BusDrive::recipeFor(Character c, float amount,
+                                     double sampleRate) noexcept {
+  Recipe out;
   Curve k;
 
   if (c == Character::Pure || amount <= 0.0f)
-    return k;
+    return out;
+
+  if (c == Character::Opamp) {
+    // An amplifier that cannot move as fast as a fast mix asks it to. The
+    // amount is the corner it stops keeping up at, in kilohertz and upside
+    // down: a tenth puts it at 10 kHz, where only the top of the series is
+    // affected, and the whole way up puts it at one, which is where the
+    // per-partial op-amp already places it and is in the middle of where
+    // anyone plays.
+    //
+    // Expressed as how far one sample may be from the one before it, which is
+    // the slope of a full-scale wave at that corner. A mix moving slower than
+    // that never meets the limit at all, which is why this one is not a curve:
+    // it answers to speed rather than to size, so a quiet passage played fast
+    // hardens where a loud one played slowly does not.
+    out.kind = Kind::Slew;
+    out.step =
+        6.283185307179586 * (kSlewCornerHz / (double)amount) / sampleRate;
+
+    return out;
+  }
+
+  out.kind = Kind::Curve;
 
   // Two, because the knob should spend its travel somewhere useful. Measured
   // through the triode against a 1 kHz partial at 80% of full scale, a second
@@ -134,9 +160,8 @@ BusDrive::Curve BusDrive::curveFor(Character c, float amount) noexcept {
     // which is what puts an octave on top of every partial rather than a
     // twelfth.
     //
-    // Bulb and Op-amp are here because their own machines are not written
-    // yet, and neither of them is really this one: a lamp adds no overtones
-    // at all and a slew limit is not a curve. Tuning either against this
+    // Bulb is here because its own machine is not written yet, and it is not
+    // really this one: a lamp adds no overtones at all. Tuning it against this
     // reading is tuning a stand-in.
     evenly(drive);
     k.bias = 0.2;
@@ -154,23 +179,30 @@ BusDrive::Curve BusDrive::curveFor(Character c, float amount) noexcept {
     break;
   }
 
-  return k;
+  out.curve = k;
+
+  return out;
 }
 
 void BusDrive::process(float *left, float *right, int numSamples, Character c,
                        float amount) noexcept {
-  const auto k = curveFor(c, amount);
+  const auto recipe = recipeFor(c, amount, sampleRate);
 
-  if (k.up.drive <= 0.0 || numSamples <= 0)
+  if (recipe.kind == Kind::None || numSamples <= 0)
     return;
 
   // About 5 Hz, which is below anything the series can produce and above the
   // rate at which a chord arrives.
   const auto dcCoef = std::exp(-6.2831853071795862 * 5.0 / sampleRate);
 
+  const auto &k = recipe.curve;
+  const auto slew = recipe.kind == Kind::Slew;
+
   for (int n = 0; n < numSamples; ++n) {
-    const auto l = processSample(k, (double)left[n], lastL);
-    const auto r = processSample(k, (double)right[n], lastR);
+    const auto l = slew ? slewSample(recipe.step, (double)left[n], slewL)
+                        : processSample(k, (double)left[n], lastL);
+    const auto r = slew ? slewSample(recipe.step, (double)right[n], slewR)
+                        : processSample(k, (double)right[n], lastR);
 
     dcL = l - dcInL + dcCoef * dcL;
     dcInL = l;

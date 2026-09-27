@@ -67,6 +67,7 @@ class BusDrive {
 public:
   void reset() noexcept {
     lastL = lastR = 0.0;
+    slewL = slewR = 0.0;
     dcL = dcR = 0.0;
     dcInL = dcInR = 0.0;
   }
@@ -82,6 +83,13 @@ public:
                float amount) noexcept;
 
 private:
+  /// Not every circuit is a curve.
+  ///
+  /// Three of them bend a sample according to how big it is and nothing else,
+  /// which is a function and can be antialiased by integrating it. The op-amp
+  /// answers to how fast the mix is moving instead, which is a different
+  /// machine with a memory, and no function of one sample can describe it.
+  enum class Kind { None, Curve, Slew };
   /// One side of the wave. Two of them, because a circuit is not obliged to
   /// treat the two halves alike and the ones worth modelling do not: a pair of
   /// diodes that do not match runs out of room sooner one way than the other.
@@ -101,7 +109,19 @@ private:
     double offset = 0.0; ///< what the bias does at rest, subtracted back off
   };
 
-  static Curve curveFor(Character c, float amount) noexcept;
+  /// What one character does at one amount, at the rate being rendered.
+  ///
+  /// The rate is in here because a slew limit is expressed in how much a
+  /// sample may differ from the one before it, which is a different number at
+  /// every rate for the same amplifier.
+  struct Recipe {
+    Kind kind = Kind::None;
+    Curve curve;
+    double step = 0.0; ///< Kind::Slew: the most one sample may move
+  };
+
+  static Recipe recipeFor(Character c, float amount,
+                          double sampleRate) noexcept;
 
   /// Which half of the wave a sample is on, counted from where the bias put
   /// the rest position rather than from zero.
@@ -153,6 +173,16 @@ private:
   /// the antialiasing does good, so the curve is read at the midpoint instead.
   static constexpr double kFlat = 1.0e-9;
 
+  /// An amplifier that cannot move faster than its rate, whatever it is asked
+  /// for. Unlike the curves this cannot overshoot what went in, so a moving
+  /// amount cannot make it jump: the worst a change of step does is a slightly
+  /// different slope on the next sample.
+  static double slewSample(double step, double x, double &y) noexcept {
+    y += std::clamp(x - y, -step, step);
+
+    return y;
+  }
+
   static double processSample(const Curve &k, double x, double &last) noexcept {
     const auto dx = x - last;
 
@@ -168,6 +198,10 @@ private:
   double sampleRate = 44100.0;
 
   double lastL = 0.0, lastR = 0.0;
+
+  /// Where the amplifier had got to, which for a rate limit is the state that
+  /// matters: the next sample is reached from here or not at all.
+  double slewL = 0.0, slewR = 0.0;
 
   /// A curve that leans to one side rectifies as well as distorting, and the
   /// offset that leaves is inaudible, eats headroom and thumps when a chord
