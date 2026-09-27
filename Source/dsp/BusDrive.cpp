@@ -21,15 +21,15 @@ namespace ovt {
 ///   Op-amp  octave -164 dB, twelfth -18 dB, and its fifth harmonic 9 dB
 ///           further up than the rail's, which is the corner talking
 ///
-/// Four of the five now, since the op-amp turned out to belong here after
-/// all, as the hardest knee of them rather than as the rate limit it is
+/// Four of the five are curves, since the op-amp turned out to belong here
+/// after all, as the hardest knee of them rather than as the rate limit it is
 /// famous for. Why is in its own case below, with what it measured.
 ///
-/// Bulb is the last one left. It is not distortion at all but a lamp, so its
-/// bus behaviour is the mix leaning back as it gets loud and recovering over
-/// about half a second, which adds no overtones and cannot alias. Until that
-/// machine exists it reads the triode, and tuning it against that reading is
-/// tuning a stand-in.
+/// The fifth is not a curve and not distortion. A lamp adds nothing to a
+/// waveform at all: it decides how loud one is and takes half a second to
+/// change its mind. It is the only character that answers playing harder by
+/// giving you less, which is what a Wien bridge does and is the whole reason
+/// the part is in one.
 ///
 /// **What each circuit wants**, which is the whole point of the knob and is
 /// what replaces it. One figure per character, since a rail and a triode bend
@@ -61,11 +61,41 @@ namespace ovt {
 /// records what has been decided. When the last line is filled the table
 /// becomes the code and the knob goes, which is the one parameter change that
 /// has to happen before a release rather than after one.
-BusDrive::Curve BusDrive::curveFor(Character c, float amount) noexcept {
+BusDrive::Recipe BusDrive::recipeFor(Character c, float amount,
+                                     double sampleRate) noexcept {
+  Recipe out;
   Curve k;
 
   if (c == Character::Pure || amount <= 0.0f)
-    return k;
+    return out;
+
+  if (c == Character::Bulb) {
+    // A Wien bridge holds its level with a lamp in the feedback divider. The
+    // filament warms as the signal grows, its resistance rises, and the gain
+    // comes down with it. That is the whole of the part: it adds nothing to
+    // the waveform, it only decides how much of it there is.
+    //
+    // So this is the one character whose bus behaviour is not distortion.
+    // Where a triode hands you an octave for playing harder, a lamp hands you
+    // nothing and takes a little away instead, then gives it back over about
+    // half a second. Loud passages lean back and quiet ones open up, which is
+    // what a Wien bridge does and is why one is so hard to make sit still.
+    //
+    // Half a second is the filament rather than a choice: it is the figure the
+    // per-partial Bulb settles over, taken from the same part. See
+    // Character::Bulb.
+    out.machine = Machine::Lamp;
+
+    // Warm enough that a mix sitting at full scale leans back by six decibels
+    // at the top of the knob, which is as much sag as a bridge that is still
+    // oscillating ever shows.
+    out.depth = (double)std::clamp(amount, 0.0f, 1.0f) * 2.0;
+    out.warming = 1.0 - std::exp(-1.0 / (0.5 * sampleRate));
+
+    return out;
+  }
+
+  out.machine = Machine::Curve;
 
   // Two, because the knob should spend its travel somewhere useful. Measured
   // through the triode against a 1 kHz partial at 80% of full scale, a second
@@ -173,9 +203,9 @@ BusDrive::Curve BusDrive::curveFor(Character c, float amount) noexcept {
     // which is what puts an octave on top of every partial rather than a
     // twelfth.
     //
-    // Bulb is here because its own machine is not written yet, and it is not
-    // really this one: a lamp adds no overtones at all. Tuning it against this
-    // reading is tuning a stand-in.
+    // Bulb and Pure are listed so that adding a character is a compiler error
+    // here until somebody has decided what it does. Neither reaches this:
+    // Pure has no stage at all and Bulb is a lamp, which leaves above.
     evenly(drive);
     k.bias = 0.2;
 
@@ -192,7 +222,20 @@ BusDrive::Curve BusDrive::curveFor(Character c, float amount) noexcept {
     break;
   }
 
-  return k;
+  out.curve = k;
+
+  return out;
+}
+
+/// The samples that arrived, handed back late by exactly what the filters
+/// would have cost if they had been needed.
+double BusDrive::delayed(Channel &c, double x) noexcept {
+  for (int i = (int)c.in.size() - 1; i > 0; --i)
+    c.in[(size_t)i] = c.in[(size_t)i - 1];
+
+  c.in[0] = x;
+
+  return c.in[(size_t)Halfband::kHalf];
 }
 
 /// One sample in, one out, with the circuit run twice in between.
@@ -207,17 +250,14 @@ double BusDrive::run(Channel &c, const Curve &k, double x,
   const auto &h = Halfband::kernel();
   constexpr int half = Halfband::kHalf;
 
-  for (int i = (int)c.in.size() - 1; i > 0; --i)
-    c.in[(size_t)i] = c.in[(size_t)i - 1];
-
-  c.in[0] = x;
+  const auto late = delayed(c, x);
 
   // Nothing to run, so the samples are handed back untouched and merely late,
   // by the same amount the filters would have cost. A stage that changed the
   // plugin's latency when a preset chose a character would be worse than one
   // that is always a few samples behind.
   if (k.up.drive <= 0.0)
-    return c.in[(size_t)half];
+    return late;
 
   // The one that was already there, and the one between it and the next.
   const auto even = c.in[(size_t)(half / 2)];
@@ -258,15 +298,39 @@ void BusDrive::process(float *left_, float *right_, int numSamples, Character c,
   // At the rate the circuit runs at rather than the one the host asked for,
   // since the blocker is expressed per sample.
   const auto inner = sampleRate * 2.0;
-  const auto k = curveFor(c, amount);
+  const auto recipe = recipeFor(c, amount, sampleRate);
 
   // About 5 Hz, which is below anything the series can produce and above the
   // rate at which a chord arrives.
   const auto dcCoef = std::exp(-6.2831853071795862 * 5.0 / inner);
 
+  // A lamp changes a level rather than a shape, so it needs neither the
+  // doubled rate nor the blocker: the samples come through the same delay a
+  // bypassed stage uses, with one gain on them that moves far too slowly to
+  // leave anything on the waveform.
+  if (recipe.machine == Machine::Lamp) {
+    for (int n = 0; n < numSamples; ++n) {
+      const auto l = delayed(left, (double)left_[n]);
+      const auto r = delayed(right, (double)right_[n]);
+
+      // What heats a filament is power rather than pressure, and both
+      // channels at once, since there is one lamp.
+      const auto power = 0.5 * (l * l + r * r);
+
+      heat += (power - heat) * recipe.warming;
+
+      const auto gain = 1.0 / (1.0 + recipe.depth * heat);
+
+      left_[n] = (float)(l * gain);
+      right_[n] = (float)(r * gain);
+    }
+
+    return;
+  }
+
   for (int n = 0; n < numSamples; ++n) {
-    left_[n] = (float)run(left, k, (double)left_[n], dcCoef);
-    right_[n] = (float)run(right, k, (double)right_[n], dcCoef);
+    left_[n] = (float)run(left, recipe.curve, (double)left_[n], dcCoef);
+    right_[n] = (float)run(right, recipe.curve, (double)right_[n], dcCoef);
   }
 }
 

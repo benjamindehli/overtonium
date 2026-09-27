@@ -77,6 +77,7 @@ public:
   static constexpr int kLatency = Halfband::kHalf;
 
   void reset() noexcept {
+    heat = 0.0;
     left = Channel{};
     right = Channel{};
   }
@@ -120,7 +121,30 @@ private:
     Shape shape = Shape::Tanh;
   };
 
-  static Curve curveFor(Character c, float amount) noexcept;
+  /// Not every circuit bends a waveform.
+  ///
+  /// Four of them do, and are described by a curve. A lamp does not: it is a
+  /// resistance that rises as it warms, so what it changes is how loud the mix
+  /// is rather than what shape it has, and it takes about half a second to
+  /// change its mind. That adds no overtones at all, which is why it is the
+  /// one machine here that needs none of the antialiasing the others are
+  /// built around and can run at the rate it arrives at.
+  enum class Machine { None, Curve, Lamp };
+
+  /// What one character does at one amount.
+  struct Recipe {
+    Machine machine = Machine::None;
+    Curve curve;
+
+    /// How far the lamp pulls the mix back once it is thoroughly warm.
+    double depth = 0.0;
+
+    /// How fast it warms and cools, per sample at the rate the host is using.
+    double warming = 0.0;
+  };
+
+  static Recipe recipeFor(Character c, float amount,
+                          double sampleRate) noexcept;
 
   /// Which half of the wave a sample is on, counted from where the bias put
   /// the rest position rather than from zero.
@@ -238,7 +262,18 @@ private:
   /// One sample in, one sample out, with the circuit run twice in between.
   double run(Channel &c, const Curve &k, double x, double dcCoef) noexcept;
 
+  /// The samples that arrived, handed back the same but late. What a stage
+  /// with nothing to do returns, and what the lamp works on, since it changes
+  /// a level rather than a shape and has no use for the doubled rate.
+  double delayed(Channel &c, double x) noexcept;
+
   double sampleRate = 44100.0;
+
+  /// How warm the lamp is, which is the mean power it has been seeing. One
+  /// between the two channels rather than one each: a bus has one amplifier
+  /// on it, and a lamp that leaned back on whichever side happened to be
+  /// louder would move the image rather than the level.
+  double heat = 0.0;
 
   Channel left, right;
 };

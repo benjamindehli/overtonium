@@ -5520,6 +5520,122 @@ void testBusDrive() {
               " dB)");
   }
 
+  // ---- and the lamp, which is none of the above ----------------------------
+  //
+  // Every other character answers playing harder by adding something. A Wien
+  // bridge answers by taking something away: the lamp in its feedback divider
+  // warms, its resistance rises, and the gain comes down with it. So this one
+  // puts nothing on the waveform at all, which is both its character and the
+  // reason it needs none of the machinery the others are built around.
+  {
+    constexpr double kSeconds = 3.0;
+    const auto n = (size_t)(kSeconds * sr);
+
+    const auto lamp = [&](double amplitude, float amount) {
+      std::vector<float> l(n), r(n);
+
+      for (size_t i = 0; i < n; ++i)
+        l[i] = r[i] =
+            (float)(amplitude * std::sin(kTwoPi * 1000.0 * (double)i / sr));
+
+      BusDrive bus;
+      bus.prepare(sr);
+      bus.process(l.data(), r.data(), (int)n, Character::Bulb, amount);
+
+      return l;
+    };
+
+    /// The peak over a tenth of a second, starting where asked.
+    const auto levelAround = [&](const std::vector<float> &x, double at) {
+      double peak = 0.0;
+
+      for (size_t i = (size_t)(at * sr);
+           i < (size_t)((at + 0.1) * sr) && i < x.size(); ++i)
+        peak = std::max(peak, (double)std::abs(x[i]));
+
+      return peak;
+    };
+
+    const auto loud = lamp(0.8, 1.0f);
+
+    const auto struck = levelAround(loud, 0.02);
+    const auto settled = levelAround(loud, 2.5);
+
+    std::printf("  a lamp meeting a full mix: %.2f dB as it arrives, %.2f dB "
+                "once the filament is warm\n",
+                dB(struck, 0.8), dB(settled, 0.8));
+
+    check(std::abs(dB(struck, 0.8)) < 0.3,
+          "the first moment of a passage goes through at the level it was "
+          "played (" +
+              std::to_string(dB(struck, 0.8)) + " dB)");
+
+    check(dB(settled, 0.8) < -3.0, "and a held one leans back (" +
+                                       std::to_string(dB(settled, 0.8)) +
+                                       " dB)");
+
+    // How long the filament takes, which is the part rather than a choice.
+    // Read a cycle at a time, since a sine passes below any level you name
+    // twice a cycle and says nothing by doing so. What is wanted is the top
+    // of the wave coming down, which is the envelope.
+    const auto target = struck + 0.63 * (settled - struck);
+    constexpr size_t cycle = 48;
+    double crossed = kSeconds;
+
+    for (size_t i = 0; i + cycle < n; i += cycle) {
+      double peak = 0.0;
+
+      for (size_t j = i; j < i + cycle; ++j)
+        peak = std::max(peak, (double)std::abs(loud[j]));
+
+      if (peak < target) {
+        crossed = (double)i / sr;
+        break;
+      }
+    }
+
+    std::printf("  and takes %.2f s to give up two thirds of what it gives "
+                "up\n",
+                crossed);
+
+    check(crossed > 0.25 && crossed < 0.9,
+          "over about half a second, which is a filament and not a choice (" +
+              std::to_string(crossed) + " s)");
+
+    // The property that separates it from the other four, and the reason it
+    // wants none of the antialiasing: a gain that moves this slowly cannot
+    // put anything on a waveform.
+    const std::vector<float> tail(loud.begin() + (long)(2.0 * sr), loud.end());
+    const auto ref = levelAt(tail, 1000.0);
+
+    std::printf("  its second harmonic sits at %.1f dB and its third at "
+                "%.1f\n",
+                dB(levelAt(tail, 2000.0), ref), dB(levelAt(tail, 3000.0), ref));
+
+    check(dB(levelAt(tail, 2000.0), ref) < -100.0,
+          "and adds no octave whatever, which no other character here can "
+          "say (" +
+              std::to_string(dB(levelAt(tail, 2000.0), ref)) + " dB)");
+
+    // Not quite nothing, and the something is the part rather than the model.
+    // A filament is heated by power, and the power of a sine carries a ripple
+    // at twice its pitch. Half a second of thermal lag leaves almost none of
+    // that, and what survives modulates the gain, which puts a twelfth on the
+    // partial at ninety decibels down. Wien bridge designers spend their time
+    // on exactly this: a bigger lamp has less ripple and takes longer to
+    // settle, and there is no way to have both.
+    check(dB(levelAt(tail, 3000.0), ref) < -80.0,
+          "leaving only what the filament's own ripple puts there (" +
+              std::to_string(dB(levelAt(tail, 3000.0), ref)) + " dB)");
+
+    // Quiet enough and the filament never warms at all.
+    const auto soft = lamp(0.02, 1.0f);
+
+    check(std::abs(dB(levelAround(soft, 2.5), 0.02)) < 0.05,
+          "a quiet passage never warms it (" +
+              std::to_string(dB(levelAround(soft, 2.5), 0.02)) + " dB)");
+  }
+
   // ---- the point of the exercise -------------------------------------------
   //
   // Two partials that are not harmonically related, so nothing either of them
