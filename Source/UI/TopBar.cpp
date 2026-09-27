@@ -1114,10 +1114,11 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
 
     const juce::String name = reverbTypeName(which);
 
-    // No short names here: the longest of the three is SPRING, which is the
-    // same six letters the word REVERB already fits into.
-    reverbButton.setButtonText(running ? name.toUpperCase()
-                                       : juce::String("REVERB"));
+    // The short name, as the echo does it: the menu has room to say
+    // "Modulated Plate" and a button on the bar has not.
+    reverbButton.setButtonText(
+        running ? juce::String(reverbTypeShortName(which)).toUpperCase()
+                : juce::String("REVERB"));
 
     reverbButton.setTitle(running ? "Reverb: " + name
                                   : juce::String("Reverb: off"));

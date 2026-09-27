@@ -248,7 +248,7 @@ inline const char *reverbTypeName(ReverbType t) {
   case ReverbType::Room:
     return "Room";
   case ReverbType::Plate:
-    return "Plate";
+    return "Modulated Plate";
   case ReverbType::Spring:
     return "Spring";
 
@@ -257,6 +257,15 @@ inline const char *reverbTypeName(ReverbType t) {
   }
 
   return "Room";
+}
+
+/// What the bar has room to shout, where the menu has room to be accurate.
+///
+/// Only the plate needs one. Its two allpasses wander further than a sheet of
+/// steel ever did, which is what keeps a long decay from repeating itself, and
+/// the menu says so. On a button the word that matters is which machine it is.
+inline const char *reverbTypeShortName(ReverbType t) {
+  return t == ReverbType::Plate ? "Plate" : reverbTypeName(t);
 }
 
 /// The reverb, which is one of three machines sized and damped from the panel.

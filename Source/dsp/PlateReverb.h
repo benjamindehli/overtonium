@@ -32,6 +32,15 @@ namespace ovt {
 /// delayed copy of the other. The shape is Dattorro's, which is the one
 /// everybody uses because it is the one that works.
 ///
+/// **It is a modulated plate**, and the menu says so rather than pretending
+/// otherwise. The two allpasses in the tank wander about a millisecond, which
+/// is far more than a sheet of steel under tension does and more than the
+/// shape was originally given. The reason is the circuit: it is three quarters
+/// of a second long, so at a long decay the same fixed set of arrivals comes
+/// back round again and again and is heard as a pattern rather than a wash.
+/// The wander breaks that up. What it costs is that a held chord moves in a
+/// way a real plate does not, and that turned out to be worth having.
+///
 /// **What the panel means here.** DECAY is the tank's own gain rather than a
 /// room size, since a plate has no size to set. DAMP is the filter in each
 /// branch, which on a real plate is the sheet losing its top end to the air

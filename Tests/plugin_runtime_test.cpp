@@ -3759,10 +3759,10 @@ void testBarButtonsFitTheirWords(OvertoniumProcessor &p) {
   for (int i = 0; i < (int)ovt::EchoType::NumTypes; ++i)
     echoWords.add(ovt::echoTypeShortName((ovt::EchoType)i));
 
-  // The reverb has no short names, since none of the three needs one.
+  // The short names again, which is what the button shows.
   juce::StringArray reverbWords{"Reverb"};
   for (int i = 0; i < (int)ovt::ReverbType::NumTypes; ++i)
-    reverbWords.add(ovt::reverbTypeName((ovt::ReverbType)i));
+    reverbWords.add(ovt::reverbTypeShortName((ovt::ReverbType)i));
 
   const auto reverbText = widest(reverbWords);
   const auto echoText = widest(echoWords);
