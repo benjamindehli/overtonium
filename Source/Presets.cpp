@@ -2893,12 +2893,16 @@ void apply(APVTS &apvts, int index) {
                  0.9429f, 0.9665f, 0.9777f, 0.9819f, 0.9838f, 0.9815f, 0.9857f,
                  0.9905f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
                  1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f});
+    // Every channel up by 6.87 dB against what this patch shipped as, which
+    // puts the fundamental at nought and leaves every interval between the
+    // partials exactly where it was. The echo stopped squashing what it is
+    // handed, so the patch can be fed at the level it was written for.
     ap.oscTable(params::volumeSuffix,
-                {0.4533f, 0.2352f, 0.131f, 0.3195f, 0.0664f, 0.0164f, 0.0029f,
-                 0.2925f, 0.2591f, 0.2282f, 0.2001f, 0.1725f, 0.1497f, 0.129f,
-                 0.1096f, 0.0333f, 0.1014f, 0.1049f, 0.1094f, 0.1131f, 0.1179f,
-                 0.1226f, 0.1264f, 0.1316f, 0.1358f, 0.1412f, 0.1465f, 0.1522f,
-                 0.1569f, 0.1627f, 0.1688f, 0.1784f});
+                {1.0f, 0.5189f, 0.289f, 0.7048f, 0.1465f, 0.0362f, 0.0064f,
+                 0.6453f, 0.5716f, 0.5034f, 0.4414f, 0.3805f, 0.3302f, 0.2846f,
+                 0.2418f, 0.0735f, 0.2237f, 0.2314f, 0.2413f, 0.2495f, 0.2601f,
+                 0.2705f, 0.2788f, 0.2903f, 0.2996f, 0.3115f, 0.3232f, 0.3358f,
+                 0.3461f, 0.3589f, 0.3724f, 0.3936f});
     ap.oscTable(params::panSuffix,
                 {-0.0032f, -0.9537f, 0.9497f, -0.0017f, 0.4977f, 0.9964f, -1.0f,
                  -0.0014f, -0.5034f, -1.0f, 0.9971f, 0.9972f, -1.0f, -1.0f,
