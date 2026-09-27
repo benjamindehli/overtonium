@@ -22,6 +22,7 @@
 #include "dsp/Character.h"
 #include "dsp/Drift.h"
 #include "dsp/Envelope.h"
+#include "dsp/Halfband.h"
 #include "dsp/Harmonics.h"
 #include "dsp/Reverb.h"
 #include "dsp/SineTable.h"
@@ -370,12 +371,16 @@ void testStartPhase() {
     std::vector<float> l((size_t)N), r((size_t)N);
     engine.render(l.data(), r.data(), N, p);
 
-    // How much has arrived one millisecond in, against everything it reaches.
+    // How much has arrived one millisecond in, against everything it reaches,
+    // counted from where the sound starts rather than from the first sample.
+    // The bus stage runs at twice the rate and everything passes through it,
+    // so the whole engine is a fixed few samples behind whatever it is asked
+    // for. See BusDrive::kLatency.
     double early = 0.0, whole = 0.0;
-    for (int n = 0; n < N; ++n) {
+    for (int n = BusDrive::kLatency; n < N; ++n) {
       const auto s = std::abs((double)l[(size_t)n]);
       whole = std::max(whole, s);
-      if (n < (int)(0.001 * sr))
+      if (n - BusDrive::kLatency < (int)(0.001 * sr))
         early = std::max(early, s);
     }
 
@@ -5287,6 +5292,78 @@ void testBusDrive() {
           "a circuit");
   }
 
+  // ---- and it is late by exactly as much either way ------------------------
+  //
+  // The stage runs at twice the rate, so a signal passes through a half-band
+  // filter on the way up and another on the way down, and those cost what
+  // they cost. What matters is that a bypassed stage costs the same, through
+  // a plain delay rather than through the filters: a character that changed
+  // the plugin's latency would put a step in the middle of a held note every
+  // time a preset chose one.
+  {
+    constexpr size_t kN = 2048;
+
+    std::vector<float> in(kN);
+    for (size_t n = 0; n < kN; ++n)
+      in[n] = (float)(0.7 * std::sin(kTwoPi * 300.0 * (double)n / sr) +
+                      0.2 * std::sin(kTwoPi * 1100.0 * (double)n / sr));
+
+    const auto after = [&in](Character c, float amount) {
+      auto l = in;
+      auto r = in;
+
+      BusDrive bus;
+      bus.prepare(sr);
+      bus.process(l.data(), r.data(), (int)l.size(), c, amount);
+
+      return l;
+    };
+
+    // Bypassed, where it can be exact: the samples that arrived, handed back
+    // untouched and merely late.
+    const auto idle = after(Character::Pure, 1.0f);
+
+    bool exactlyLate = true;
+    for (size_t n = BusDrive::kLatency; n < kN; ++n)
+      exactlyLate &= exactly(idle[n], in[n - BusDrive::kLatency]);
+
+    check(exactlyLate,
+          "a stage with nothing to do hands every sample back unchanged, " +
+              std::to_string(BusDrive::kLatency) + " samples later");
+
+    // And working, where it cannot be exact but must not have moved. A tenth
+    // of the way up leaves the curve within a whisker of a straight line, so
+    // what is left to see is the filters and where they put things.
+    const auto working = after(Character::Valve, 0.1f);
+
+    // Asked as "which lag fits best" rather than "how close is it at this
+    // lag", because a working curve is meant to change the wave and would
+    // muddy the second question with its own answer. Half a sample out and
+    // the neighbouring lag would win.
+    const auto misfitAt = [&](int lag) {
+      double sum = 0.0;
+
+      for (size_t n = (size_t)lag + Halfband::kTaps; n < kN; ++n) {
+        const auto d = (double)working[n] - (double)in[n - (size_t)lag];
+        sum += d * d;
+      }
+
+      return std::sqrt(sum);
+    };
+
+    const auto early = misfitAt(BusDrive::kLatency - 1);
+    const auto onTime = misfitAt(BusDrive::kLatency);
+    const auto late = misfitAt(BusDrive::kLatency + 1);
+
+    std::printf("  against the wave that went in, a sample early fits %.2f, "
+                "on time %.2f, a sample late %.2f\n",
+                early, onTime, late);
+
+    check(onTime < early && onTime < late,
+          "and one with work to do comes back at the same latency rather "
+          "than near it");
+  }
+
   // ---- a quiet signal does not know it is there ----------------------------
   //
   // The curve is a straight line through the origin and only bends where a
@@ -6210,8 +6287,10 @@ void testLofi() {
 
   // Runs must be the same length throughout rather than drifting, which is
   // what a resampler phase that restarts every block would produce.
+  // Past the engine's own latency, whose leading samples are one long run of
+  // silence and would count as the longest hold of all. See BusDrive.
   int longest = 1, run = 1;
-  for (int n = 1; n < N; ++n) {
+  for (int n = BusDrive::kLatency + 1; n < N; ++n) {
     run = heldL[(size_t)n] == heldL[(size_t)n - 1] ? run + 1 : 1;
     longest = std::max(longest, run);
   }

@@ -1,8 +1,11 @@
 #pragma once
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 
 #include "Character.h"
+#include "Halfband.h"
 
 namespace ovt {
 
@@ -65,11 +68,17 @@ namespace ovt {
 /// is worked out again under the curve in hand.
 class BusDrive {
 public:
+  /// How far behind the input the output runs, in samples at the rate the
+  /// host is using. The stage runs at twice that rate, so a signal passes
+  /// through two half-band filters on the way there and back, and this is
+  /// what they cost between them. It does not depend on the character or the
+  /// amount: a bypassed stage delays by the same, through a plain delay
+  /// rather than through the filters, so switching one on moves nothing.
+  static constexpr int kLatency = Halfband::kHalf;
+
   void reset() noexcept {
-    lastL = lastR = 0.0;
-    slewL = slewR = 0.0;
-    dcL = dcR = 0.0;
-    dcInL = dcInR = 0.0;
+    left = Channel{};
+    right = Channel{};
   }
 
   void prepare(double newSampleRate) noexcept {
@@ -195,20 +204,34 @@ private:
     return y;
   }
 
+  /// Everything one side of the stereo field remembers.
+  struct Channel {
+    /// The samples as they arrived, newest first. Both the doubling and the
+    /// bypass read out of this, which is what keeps the two the same length.
+    std::array<double, Halfband::kHalf + 1> in{};
+
+    /// What came back from the circuit at the doubled rate, newest first, one
+    /// longer than the filter so the window can be taken from the sample that
+    /// lines up with the host's own.
+    std::array<double, Halfband::kTaps + 1> up{};
+
+    double last = 0.0; ///< the curve's previous input
+    double slew = 0.0; ///< where the amplifier had got to
+
+    /// A curve that leans to one side rectifies as well as distorting, and
+    /// the offset that leaves is inaudible, eats headroom and thumps when a
+    /// chord lands. Every valve stage worth the name is AC-coupled for the
+    /// same reason, at about the same corner.
+    double dc = 0.0, dcIn = 0.0;
+  };
+
+  /// One sample in, one sample out, with the circuit run twice in between.
+  double run(Channel &c, const Recipe &recipe, double x,
+             double dcCoef) noexcept;
+
   double sampleRate = 44100.0;
 
-  double lastL = 0.0, lastR = 0.0;
-
-  /// Where the amplifier had got to, which for a rate limit is the state that
-  /// matters: the next sample is reached from here or not at all.
-  double slewL = 0.0, slewR = 0.0;
-
-  /// A curve that leans to one side rectifies as well as distorting, and the
-  /// offset that leaves is inaudible, eats headroom and thumps when a chord
-  /// lands. Every valve stage worth the name is AC-coupled for the same
-  /// reason, at about the same corner.
-  double dcL = 0.0, dcR = 0.0;
-  double dcInL = 0.0, dcInR = 0.0;
+  Channel left, right;
 };
 
 } // namespace ovt

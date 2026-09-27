@@ -487,6 +487,11 @@ void testBusDriveIsWired(OvertoniumProcessor &p) {
     return out;
   };
 
+  // Told to the host, and the same whatever the patch says, so that choosing
+  // a character never makes a host re-plan its graph mid-session.
+  p.prepareToPlay(48000.0, 512);
+  const auto idle = p.getLatencySamples();
+
   const auto clean = renderLoud(0.0f, ovt::Character::Valve);
   const auto driven = renderLoud(1.0f, ovt::Character::Valve);
   const auto pure = renderLoud(1.0f, ovt::Character::Pure);
@@ -508,6 +513,14 @@ void testBusDriveIsWired(OvertoniumProcessor &p) {
   check(ovt::exactly((float)differs(pure, pureOff), 0.0f),
         "and on Pure it does nothing at any amount, which is the oscillator "
         "that is not a circuit");
+
+  check(idle == ovt::BusDrive::kLatency, "the stage's latency is reported (" +
+                                             std::to_string(idle) +
+                                             " samples)");
+
+  check(p.getLatencySamples() == idle,
+        "and does not move when the character or the amount does (" +
+            std::to_string(p.getLatencySamples()) + ")");
 
   drive->setValueNotifyingHost(0.0f);
   p.applyFactoryPreset(presetIndex("Init"));

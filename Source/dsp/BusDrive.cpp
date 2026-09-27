@@ -184,34 +184,83 @@ BusDrive::Recipe BusDrive::recipeFor(Character c, float amount,
   return out;
 }
 
-void BusDrive::process(float *left, float *right, int numSamples, Character c,
-                       float amount) noexcept {
-  const auto recipe = recipeFor(c, amount, sampleRate);
+/// One sample in, one out, with the circuit run twice in between.
+///
+/// Doubling is cheap here because a half-band filter has every second
+/// coefficient at zero and its middle one at exactly a half. So one of the two
+/// samples the circuit sees is the one that arrived, handed straight through,
+/// and only the one between them has to be invented. Coming back down is the
+/// same filter again, reading from the sample that lines up with the host's.
+double BusDrive::run(Channel &c, const Recipe &recipe, double x,
+                     double dcCoef) noexcept {
+  const auto &h = Halfband::kernel();
+  constexpr int half = Halfband::kHalf;
 
-  if (recipe.kind == Kind::None || numSamples <= 0)
+  for (int i = (int)c.in.size() - 1; i > 0; --i)
+    c.in[(size_t)i] = c.in[(size_t)i - 1];
+
+  c.in[0] = x;
+
+  // Nothing to run, so the samples are handed back untouched and merely late,
+  // by the same amount the filters would have cost. A stage that changed the
+  // plugin's latency when a preset chose a character would be worse than one
+  // that is always a few samples behind.
+  if (recipe.kind == Kind::None)
+    return c.in[(size_t)half];
+
+  // The one that was already there, and the one between it and the next.
+  const auto even = c.in[(size_t)(half / 2)];
+  double odd = 0.0;
+
+  for (int m = 0; m < half; ++m)
+    odd += h[(size_t)(2 * m + 1)] * c.in[(size_t)m];
+
+  odd *= 2.0;
+
+  const auto through = [&](double v) {
+    return recipe.kind == Kind::Slew ? slewSample(recipe.step, v, c.slew)
+                                     : processSample(recipe.curve, v, c.last);
+  };
+
+  const auto first = through(even);
+  const auto second = through(odd);
+
+  for (int i = (int)c.up.size() - 1; i > 1; --i)
+    c.up[(size_t)i] = c.up[(size_t)i - 2];
+
+  c.up[1] = first;
+  c.up[0] = second;
+
+  // Back down, taking the window from one sample in so its middle lands on
+  // the one the host would have had rather than between two of them.
+  double out = 0.0;
+
+  for (size_t m = 0; m < h.size(); ++m)
+    out += h[m] * c.up[m + 1];
+
+  c.dc = out - c.dcIn + dcCoef * c.dc;
+  c.dcIn = out;
+
+  return c.dc;
+}
+
+void BusDrive::process(float *left_, float *right_, int numSamples, Character c,
+                       float amount) noexcept {
+  if (numSamples <= 0)
     return;
+
+  // At the rate the circuit runs at rather than the one the host asked for,
+  // since both the rate limit and the blocker are expressed per sample.
+  const auto inner = sampleRate * 2.0;
+  const auto recipe = recipeFor(c, amount, inner);
 
   // About 5 Hz, which is below anything the series can produce and above the
   // rate at which a chord arrives.
-  const auto dcCoef = std::exp(-6.2831853071795862 * 5.0 / sampleRate);
-
-  const auto &k = recipe.curve;
-  const auto slew = recipe.kind == Kind::Slew;
+  const auto dcCoef = std::exp(-6.2831853071795862 * 5.0 / inner);
 
   for (int n = 0; n < numSamples; ++n) {
-    const auto l = slew ? slewSample(recipe.step, (double)left[n], slewL)
-                        : processSample(k, (double)left[n], lastL);
-    const auto r = slew ? slewSample(recipe.step, (double)right[n], slewR)
-                        : processSample(k, (double)right[n], lastR);
-
-    dcL = l - dcInL + dcCoef * dcL;
-    dcInL = l;
-
-    dcR = r - dcInR + dcCoef * dcR;
-    dcInR = r;
-
-    left[n] = (float)dcL;
-    right[n] = (float)dcR;
+    left_[n] = (float)run(left, recipe, (double)left_[n], dcCoef);
+    right_[n] = (float)run(right, recipe, (double)right_[n], dcCoef);
   }
 }
 
