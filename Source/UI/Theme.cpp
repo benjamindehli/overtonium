@@ -669,7 +669,7 @@ float linkCurveWeight(LinkCurve c, int index0, int sourceIndex) {
 }
 
 float linkedValue(LinkCurve curve, float baseline, float delta, float weight,
-                  float jitter, float target) {
+                  float jitter, float target, float low, float high) {
   float value = baseline;
 
   if (curve == LinkCurve::Spread) {
@@ -686,7 +686,7 @@ float linkedValue(LinkCurve curve, float baseline, float delta, float weight,
     value = baseline + delta * weight;
   }
 
-  return juce::jlimit(0.0f, 1.0f, value);
+  return juce::jlimit(low, high, value);
 }
 
 const char *roleLabel(Role r) {

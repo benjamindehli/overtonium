@@ -854,6 +854,44 @@ void OvertoniumEditor::linkValueChanged(Role role, int sourceIndex,
   if (source == nullptr)
     return;
 
+  const juce::ScopedValueSetter<bool> guard(propagatingLink, true);
+
+  // The faders are shared out in decibels rather than across their travel,
+  // because their travel is shaped to feel right under a finger rather than
+  // to be even: moving every fader the same distance moves a quiet channel
+  // many times further in level than the one in your hand. See
+  // linkIsDecibels, which is also why this is the only row that needs a space
+  // of its own.
+  if (linkIsDecibels(role, gesture.curve)) {
+    const auto decibelsAt = [](const juce::RangedAudioParameter *p,
+                               float normalised) {
+      return params::levelDecibels(p->convertFrom0to1(normalised));
+    };
+
+    const auto now = params::levelDecibels(plainValue);
+    const auto delta =
+        now - decibelsAt(source, gesture.baseline[(size_t)sourceIndex]);
+
+    for (int i = 0; i < kNumHarmonics; ++i) {
+      if (i == sourceIndex || !gesture.includes(i))
+        continue;
+
+      auto *param = oscParameter(role, i);
+      if (param == nullptr)
+        continue;
+
+      const auto landed = linkedValue(
+          gesture.curve, decibelsAt(param, gesture.baseline[(size_t)i]), delta,
+          gesture.weight[(size_t)i], gesture.jitter[(size_t)i], now,
+          params::kQuietestLevelDb, 0.0f);
+
+      param->setValueNotifyingHost(param->convertTo0to1(
+          juce::Decibels::decibelsToGain(landed, params::kQuietestLevelDb)));
+    }
+
+    return;
+  }
+
   // How far the dragged knob has travelled, in normalised units.
   const auto delta =
       source->convertTo0to1(plainValue) - gesture.baseline[(size_t)sourceIndex];
@@ -862,8 +900,6 @@ void OvertoniumEditor::linkValueChanged(Role role, int sourceIndex,
   // the knob in your hand is the target rather than a stranded outlier.
   const auto target =
       juce::jlimit(0.0f, 1.0f, gesture.baseline[(size_t)sourceIndex] + delta);
-
-  const juce::ScopedValueSetter<bool> guard(propagatingLink, true);
 
   for (int i = 0; i < kNumHarmonics; ++i) {
     if (i == sourceIndex || !gesture.includes(i))

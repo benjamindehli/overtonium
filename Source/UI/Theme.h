@@ -387,12 +387,39 @@ float linkCurveWeight(LinkCurve, int index0, int sourceIndex);
 /// window. A zero delta must return the baseline exactly for every curve,
 /// which is what lets a drag be undone by returning the knob.
 ///
-/// @param delta     how far the dragged knob has moved, in normalised units
+/// @param delta     how far the dragged knob has moved, in the space below
 /// @param weight    this strip's share, from linkCurveWeight
 /// @param jitter    a fixed direction in [-1, 1], only used by Spread
 /// @param target    the dragged strip's live value, gathered towards by Spread
+/// @param low,high  the ends of the space this is working in
+///
+/// The space is normally the knob's own travel, which runs nought to one. The
+/// level row is the exception and works in decibels, because its travel is
+/// shaped to feel right under a finger rather than to be even, so moving every
+/// fader the same distance moves the quiet ones many times further in level
+/// than the loud ones. See linkIsDecibels.
 float linkedValue(LinkCurve, float baseline, float delta, float weight,
-                  float jitter, float target);
+                  float jitter, float target, float low = 0.0f,
+                  float high = 1.0f);
+
+/// Whether a drag on this row should be shared out in decibels rather than
+/// across the knob's travel.
+///
+/// True of the faders and nothing else. Every other row's travel is already
+/// even in whatever it is measuring, or logarithmic and therefore even in
+/// ratio, which is what "the same amount" means for a rate or a time. A level
+/// fader is neither: its travel is square-law into gain, so a drag that moved
+/// every fader the same distance moved a quiet channel thirty decibels while
+/// the one in your hand moved seven.
+///
+/// It applies to the curves that share out an amount, which is Uniform and
+/// Taper. Spread is not one of those: it scatters the series across its range
+/// and gathers it back onto the strip in your hand, which is a gesture about
+/// where things sit rather than about how much louder they are, and it stays
+/// in the travel where it has always been.
+inline bool linkIsDecibels(Role r, LinkCurve c) {
+  return r == Role::Volume && c != LinkCurve::Spread;
+}
 
 /// Implemented by the editor; lets a strip say where the pointer is.
 ///

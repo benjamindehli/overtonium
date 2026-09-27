@@ -2297,6 +2297,54 @@ void testLinkCurves() {
                 0.0f,
         "results stay inside the parameter range");
 
+  // ---- the faders, which are shared out in decibels ------------------------
+  //
+  // Every other row is moved across its travel, which is even in whatever it
+  // measures. A level fader's travel is shaped to feel right under a finger
+  // instead, so an even move across it is a wildly uneven move in level: a
+  // drag that lifted the loudest channel by seven decibels lifted the quietest
+  // by thirty. What a uniform drag has to mean here is the same number of
+  // decibels on every channel, which is the same gain on every channel, which
+  // is the only move that leaves the balance of a patch alone.
+  check(linkIsDecibels(Role::Volume, LinkCurve::Uniform) &&
+            linkIsDecibels(Role::Volume, LinkCurve::Taper),
+        "the faders share out an amount in decibels");
+
+  check(!linkIsDecibels(Role::Volume, LinkCurve::Spread),
+        "except when scattering, which is about where things sit rather than "
+        "how loud they are");
+
+  check(!linkIsDecibels(Role::Tune, LinkCurve::Uniform) &&
+            !linkIsDecibels(Role::PmRate, LinkCurve::Uniform),
+        "and no other row does, since their travel already is what they "
+        "measure");
+
+  {
+    // Two channels twelve decibels apart, lifted by six. Both have to arrive
+    // six decibels up, which is to say twelve apart still.
+    constexpr float low = -30.0f, high = -18.0f, lift = 6.0f;
+
+    const auto landedLow =
+        linkedValue(LinkCurve::Uniform, low, lift, 1.0f, 0.0f, high + lift,
+                    ovt::params::kQuietestLevelDb, 0.0f);
+
+    const auto landedHigh =
+        linkedValue(LinkCurve::Uniform, high, lift, 1.0f, 0.0f, high + lift,
+                    ovt::params::kQuietestLevelDb, 0.0f);
+
+    check(std::abs(landedLow - (low + lift)) < 1.0e-4f &&
+              std::abs(landedHigh - (high + lift)) < 1.0e-4f,
+          "so both channels come up by the amount that was dragged");
+
+    check(std::abs((landedHigh - landedLow) - (high - low)) < 1.0e-4f,
+          "and the interval between them is exactly what it was");
+
+    // A fader at the bottom is off, and the top of the range is unity.
+    check(linkedValue(LinkCurve::Uniform, -6.0f, 40.0f, 1.0f, 0.0f, 0.0f,
+                      ovt::params::kQuietestLevelDb, 0.0f) <= 0.0f,
+          "nothing is dragged past unity");
+  }
+
   // Same-interval scope has to pick out a real family. The octaves are the
   // partials at powers of two.
   int octaves = 0;
