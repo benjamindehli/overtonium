@@ -92,13 +92,14 @@ public:
                float amount) noexcept;
 
 private:
-  /// Not every circuit is a curve.
+  /// How a circuit gives way.
   ///
-  /// Three of them bend a sample according to how big it is and nothing else,
-  /// which is a function and can be antialiased by integrating it. The op-amp
-  /// answers to how fast the mix is moving instead, which is a different
-  /// machine with a memory, and no function of one sample can describe it.
-  enum class Kind { None, Curve, Slew };
+  /// A triode and a pair of diodes bend gradually and never quite arrive
+  /// anywhere, which is what a tanh does. An op-amp is a feedback amplifier:
+  /// it holds a straight line until it meets the rail and then stops, so its
+  /// knee is a corner rather than a bend. Both are odd and both have unit
+  /// slope at rest, so everything either side of them is the same.
+  enum class Shape { Tanh, Cubic };
   /// One side of the wave. Two of them, because a circuit is not obliged to
   /// treat the two halves alike and the ones worth modelling do not: a pair of
   /// diodes that do not match runs out of room sooner one way than the other.
@@ -116,21 +117,10 @@ private:
     Side up, down;
     double bias = 0.0;
     double offset = 0.0; ///< what the bias does at rest, subtracted back off
+    Shape shape = Shape::Tanh;
   };
 
-  /// What one character does at one amount, at the rate being rendered.
-  ///
-  /// The rate is in here because a slew limit is expressed in how much a
-  /// sample may differ from the one before it, which is a different number at
-  /// every rate for the same amplifier.
-  struct Recipe {
-    Kind kind = Kind::None;
-    Curve curve;
-    double step = 0.0; ///< Kind::Slew: the most one sample may move
-  };
-
-  static Recipe recipeFor(Character c, float amount,
-                          double sampleRate) noexcept;
+  static Curve curveFor(Character c, float amount) noexcept;
 
   /// Which half of the wave a sample is on, counted from where the bias put
   /// the rest position rather than from zero.
@@ -138,11 +128,25 @@ private:
     return u >= 0.0 ? k.up : k.down;
   }
 
+  /// The bend itself, of unit slope at rest so that whatever is normalised
+  /// around it stays an overtone control rather than a second volume.
+  static double bend(Shape shape, double u) noexcept {
+    if (shape == Shape::Tanh)
+      return std::tanh(u);
+
+    // Straight until it meets the rail and flat past it, joined so the slope
+    // arrives at nothing rather than at a corner. What an amplifier with
+    // feedback around it does: linear, linear, and then no more.
+    const auto a = std::abs(u);
+
+    return a >= 1.0 ? std::copysign(2.0 / 3.0, u) : u - u * u * u / 3.0;
+  }
+
   static double shape(const Curve &k, double x) noexcept {
     const auto u = x + k.bias;
     const auto &s = sideFor(k, u);
 
-    return (std::tanh(s.drive * u) - k.offset) * s.scale;
+    return (bend(k.shape, s.drive * u) - k.offset) * s.scale;
   }
 
   /// log(cosh(u)), which is the antiderivative of tanh and the whole of the
@@ -171,26 +175,33 @@ private:
   /// each is zero there, so the pair is one continuous function and a step
   /// that straddles the crossing is averaged correctly rather than picking up
   /// the difference between two constants.
+  /// The antiderivative of bend, even because bend is odd, and nothing at
+  /// rest so that the two halves of a curve meet where they should.
+  static double bendIntegral(Shape shape, double u) noexcept {
+    if (shape == Shape::Tanh)
+      return logCosh(u);
+
+    const auto a = std::abs(u);
+
+    if (a >= 1.0)
+      return 5.0 / 12.0 + (2.0 / 3.0) * (a - 1.0);
+
+    const auto s = a * a;
+
+    return s * 0.5 - s * s / 12.0;
+  }
+
   static double integral(const Curve &k, double x) noexcept {
     const auto u = x + k.bias;
     const auto &s = sideFor(k, u);
 
-    return (logCosh(s.drive * u) / s.drive - k.offset * u) * s.scale;
+    return (bendIntegral(k.shape, s.drive * u) / s.drive - k.offset * u) *
+           s.scale;
   }
 
   /// Below this the divisor of the difference quotient is doing more harm than
   /// the antialiasing does good, so the curve is read at the midpoint instead.
   static constexpr double kFlat = 1.0e-9;
-
-  /// An amplifier that cannot move faster than its rate, whatever it is asked
-  /// for. Unlike the curves this cannot overshoot what went in, so a moving
-  /// amount cannot make it jump: the worst a change of step does is a slightly
-  /// different slope on the next sample.
-  static double slewSample(double step, double x, double &y) noexcept {
-    y += std::clamp(x - y, -step, step);
-
-    return y;
-  }
 
   static double processSample(const Curve &k, double x, double &last) noexcept {
     const auto dx = x - last;
@@ -216,7 +227,6 @@ private:
     std::array<double, Halfband::kTaps + 1> up{};
 
     double last = 0.0; ///< the curve's previous input
-    double slew = 0.0; ///< where the amplifier had got to
 
     /// A curve that leans to one side rectifies as well as distorting, and
     /// the offset that leaves is inaudible, eats headroom and thumps when a
@@ -226,8 +236,7 @@ private:
   };
 
   /// One sample in, one sample out, with the circuit run twice in between.
-  double run(Channel &c, const Recipe &recipe, double x,
-             double dcCoef) noexcept;
+  double run(Channel &c, const Curve &k, double x, double dcCoef) noexcept;
 
   double sampleRate = 44100.0;
 

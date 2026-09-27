@@ -18,11 +18,12 @@ namespace ovt {
 ///   Rail    octave -164 dB, twelfth -18 dB, halves identical
 ///   Diode   octave  -15 dB, twelfth -15 dB, halves differ by 27%
 ///   Valve   octave  -17 dB, twelfth -20 dB, halves differ by 30%
+///   Op-amp  octave -164 dB, twelfth -18 dB, and its fifth harmonic 9 dB
+///           further up than the rail's, which is the corner talking
 ///
-/// The op-amp is not a curve and is not written as one. It is a rate limit,
-/// so it answers to how fast the mix is moving rather than to how big it is,
-/// which makes it the only one of the five that is frequency-dependent and
-/// the only one that cares what the rate of the session is.
+/// Four of the five now, since the op-amp turned out to belong here after
+/// all, as the hardest knee of them rather than as the rate limit it is
+/// famous for. Why is in its own case below, with what it measured.
 ///
 /// Bulb is the last one left. It is not distortion at all but a lamp, so its
 /// bus behaviour is the mix leaning back as it gets loud and recovering over
@@ -53,35 +54,11 @@ namespace ovt {
 /// records what has been decided. When the last line is filled the table
 /// becomes the code and the knob goes, which is the one parameter change that
 /// has to happen before a release rather than after one.
-BusDrive::Recipe BusDrive::recipeFor(Character c, float amount,
-                                     double sampleRate) noexcept {
-  Recipe out;
+BusDrive::Curve BusDrive::curveFor(Character c, float amount) noexcept {
   Curve k;
 
   if (c == Character::Pure || amount <= 0.0f)
-    return out;
-
-  if (c == Character::Opamp) {
-    // An amplifier that cannot move as fast as a fast mix asks it to. The
-    // amount is the corner it stops keeping up at, in kilohertz and upside
-    // down: a tenth puts it at 10 kHz, where only the top of the series is
-    // affected, and the whole way up puts it at one, which is where the
-    // per-partial op-amp already places it and is in the middle of where
-    // anyone plays.
-    //
-    // Expressed as how far one sample may be from the one before it, which is
-    // the slope of a full-scale wave at that corner. A mix moving slower than
-    // that never meets the limit at all, which is why this one is not a curve:
-    // it answers to speed rather than to size, so a quiet passage played fast
-    // hardens where a loud one played slowly does not.
-    out.kind = Kind::Slew;
-    out.step =
-        6.283185307179586 * (kSlewCornerHz / (double)amount) / sampleRate;
-
-    return out;
-  }
-
-  out.kind = Kind::Curve;
+    return k;
 
   // Two, because the knob should spend its travel somewhere useful. Measured
   // through the triode against a 1 kHz partial at 80% of full scale, a second
@@ -151,9 +128,38 @@ BusDrive::Recipe BusDrive::recipeFor(Character c, float amount,
     }
     break;
 
+  case Character::Opamp:
+    // An amplifier with feedback around it holds a straight line until it
+    // reaches the rail and then stops, so it gives way at a corner where the
+    // other three give way gradually. That makes it the hardest knee of the
+    // four and the rail the softest, which is the difference between a part
+    // forced linear until it cannot be and one with nothing forcing it at all.
+    //
+    // A rate limit was tried here first and taken out again, which is worth
+    // knowing because it is the obvious idea: slewing is what an op-amp is
+    // famous for, and it is what the per-partial tables already do. On a
+    // shared bus it does not work, because a rate limit cannot tell the top
+    // of a low note's series from a high note's fundamental. Measured through
+    // a saw patch, as energy at a frequency that is not a harmonic of the
+    // note being played:
+    //
+    //   note        amount 0.05   0.10    0.30
+    //   A2  110 Hz      -67      -67     -67    never engages at all
+    //   A4  440 Hz     -123     -123    -136
+    //   A6 1760 Hz     -183     -104     -53    fifty decibels in one step
+    //   A7 3520 Hz     -178      -88     -73
+    //
+    // So no setting is gentle at both ends of the keyboard: the control is
+    // not "how much" but "above which pitch", and hands move across that. Per
+    // partial the same machine is right, because each oscillator is limited
+    // against its own frequency and what comes out is a band-limited table.
+    // See Character::Opamp and kSlewCornerHz.
+    evenly(drive);
+    k.shape = Shape::Cubic;
+    break;
+
   case Character::Valve:
   case Character::Bulb:
-  case Character::Opamp:
   case Character::Pure:
   case Character::NumCharacters:
     // The triode, biased so one half of the wave leans over before the other,
@@ -179,9 +185,7 @@ BusDrive::Recipe BusDrive::recipeFor(Character c, float amount,
     break;
   }
 
-  out.curve = k;
-
-  return out;
+  return k;
 }
 
 /// One sample in, one out, with the circuit run twice in between.
@@ -191,7 +195,7 @@ BusDrive::Recipe BusDrive::recipeFor(Character c, float amount,
 /// samples the circuit sees is the one that arrived, handed straight through,
 /// and only the one between them has to be invented. Coming back down is the
 /// same filter again, reading from the sample that lines up with the host's.
-double BusDrive::run(Channel &c, const Recipe &recipe, double x,
+double BusDrive::run(Channel &c, const Curve &k, double x,
                      double dcCoef) noexcept {
   const auto &h = Halfband::kernel();
   constexpr int half = Halfband::kHalf;
@@ -205,7 +209,7 @@ double BusDrive::run(Channel &c, const Recipe &recipe, double x,
   // by the same amount the filters would have cost. A stage that changed the
   // plugin's latency when a preset chose a character would be worse than one
   // that is always a few samples behind.
-  if (recipe.kind == Kind::None)
+  if (k.up.drive <= 0.0)
     return c.in[(size_t)half];
 
   // The one that was already there, and the one between it and the next.
@@ -217,13 +221,8 @@ double BusDrive::run(Channel &c, const Recipe &recipe, double x,
 
   odd *= 2.0;
 
-  const auto through = [&](double v) {
-    return recipe.kind == Kind::Slew ? slewSample(recipe.step, v, c.slew)
-                                     : processSample(recipe.curve, v, c.last);
-  };
-
-  const auto first = through(even);
-  const auto second = through(odd);
+  const auto first = processSample(k, even, c.last);
+  const auto second = processSample(k, odd, c.last);
 
   for (int i = (int)c.up.size() - 1; i > 1; --i)
     c.up[(size_t)i] = c.up[(size_t)i - 2];
@@ -250,17 +249,17 @@ void BusDrive::process(float *left_, float *right_, int numSamples, Character c,
     return;
 
   // At the rate the circuit runs at rather than the one the host asked for,
-  // since both the rate limit and the blocker are expressed per sample.
+  // since the blocker is expressed per sample.
   const auto inner = sampleRate * 2.0;
-  const auto recipe = recipeFor(c, amount, inner);
+  const auto k = curveFor(c, amount);
 
   // About 5 Hz, which is below anything the series can produce and above the
   // rate at which a chord arrives.
   const auto dcCoef = std::exp(-6.2831853071795862 * 5.0 / inner);
 
   for (int n = 0; n < numSamples; ++n) {
-    left_[n] = (float)run(left, recipe, (double)left_[n], dcCoef);
-    right_[n] = (float)run(right, recipe, (double)right_[n], dcCoef);
+    left_[n] = (float)run(left, k, (double)left_[n], dcCoef);
+    right_[n] = (float)run(right, k, (double)right_[n], dcCoef);
   }
 }
 

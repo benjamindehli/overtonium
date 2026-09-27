@@ -5466,81 +5466,58 @@ void testBusDrive() {
               std::to_string(readings[2].third) + " dB)");
   }
 
-  // ---- and one of them is not a curve at all -------------------------------
+  // ---- and the op-amp gives way at a corner --------------------------------
   //
-  // A curve answers to how big a sample is, so what it does to a partial does
-  // not depend on the pitch of it: the same waveform through the same shape
-  // comes back with the same harmonics whatever rate it arrives at. A rate
-  // limit answers to how fast the wave is moving, so the pitch is the whole
-  // of it. That difference is what makes the op-amp the one character that
-  // changes as you play up the keyboard, and it is what this checks.
+  // The other three bend. An amplifier with feedback around it does not: it
+  // holds a straight line until it reaches the rail and then stops, so it has
+  // a harder knee than any of them and a spectrum that reaches further up.
+  //
+  // It is a curve rather than the rate limit it was first written as. That
+  // machine is right per partial, where each oscillator is limited against its
+  // own frequency, and wrong on a bus, where it cannot tell the top of a low
+  // note's series from a high note's fundamental. The figures are in
+  // BusDrive.cpp. What matters here is that this one, like the other three,
+  // does the same thing wherever on the keyboard you are.
   {
-    const auto thirdOf = [&](Character c, double hz, float amount) {
+    const auto readingOf = [&](Character c, double hz, float amount) {
       const auto x = through({hz}, 0.8, c, amount);
       const auto level = levelAt(x, hz);
 
-      return std::pair<double, double>{dB(level, 0.8),
-                                       dB(levelAt(x, 3.0 * hz), level)};
+      return std::array<double, 3>{dB(levelAt(x, 2.0 * hz), level),
+                                   dB(levelAt(x, 3.0 * hz), level),
+                                   dB(levelAt(x, 5.0 * hz), level)};
     };
 
-    // A third of the way up puts the corner at 3.3 kHz, so a partial at 500 Hz
-    // is moving far too slowly to meet it and one at 6 kHz cannot keep up.
-    const auto slowSlew = thirdOf(Character::Opamp, 500.0, 0.3f);
-    const auto fastSlew = thirdOf(Character::Opamp, 6000.0, 0.3f);
+    const auto rail = readingOf(Character::Rail, 1000.0, 1.0f);
+    const auto opamp = readingOf(Character::Opamp, 1000.0, 1.0f);
 
-    const auto slowCurve = thirdOf(Character::Rail, 500.0, 0.3f);
-    const auto fastCurve = thirdOf(Character::Rail, 6000.0, 0.3f);
+    std::printf("  at the same amount, a rail reaches %.1f dB at its fifth "
+                "harmonic and an op-amp %.1f\n",
+                rail[2], opamp[2]);
 
-    std::printf("  a rate limit at 500 Hz: %+.2f dB with a twelfth at %.1f, "
-                "and at 6 kHz: %+.2f dB with one at %.1f\n",
-                slowSlew.first, slowSlew.second, fastSlew.first,
-                fastSlew.second);
+    check(opamp[0] < opamp[1] - 30.0,
+          "an op-amp clips both halves alike, so it has no octave either (" +
+              std::to_string(opamp[0]) + " dB)");
 
-    std::printf("  a curve at the same two: %+.2f dB with %.1f, and %+.2f dB "
-                "with %.1f\n",
-                slowCurve.first, slowCurve.second, fastCurve.first,
-                fastCurve.second);
+    check(opamp[2] - opamp[1] > rail[2] - rail[1] + 3.0,
+          "and carries more of its spectrum further up than a rail does, "
+          "which is what a corner sounds like against a bend (" +
+              std::to_string(opamp[2] - opamp[1]) + " against " +
+              std::to_string(rail[2] - rail[1]) + " dB below the twelfth)");
 
-    check(std::abs(slowSlew.first) < 0.05 && slowSlew.second < -60.0,
-          "a partial moving slower than the amplifier goes through it "
-          "untouched (" +
-              std::to_string(slowSlew.first) + " dB)");
+    // The whole reason it is a curve: a hand moving up the keyboard finds the
+    // same circuit rather than a threshold it crosses.
+    const auto low = readingOf(Character::Opamp, 500.0, 0.3f);
+    const auto high = readingOf(Character::Opamp, 6000.0, 0.3f);
 
-    check(fastSlew.first < -0.5 && fastSlew.second > -30.0,
-          "one moving faster than it cannot keep its shape (" +
-              std::to_string(fastSlew.first) + " dB, twelfth " +
-              std::to_string(fastSlew.second) + ")");
+    std::printf("  and at 500 Hz against 6 kHz its twelfth reads %.1f and "
+                "%.1f dB\n",
+                low[1], high[1]);
 
-    // A curve is not quite pitch-independent either, because the antialiasing
-    // averages it over the step between two samples and that step is larger
-    // the faster the wave moves. A couple of decibels across four octaves,
-    // against a hundred and forty for the rate limit.
-    const auto curveMoves = std::abs(slowCurve.second - fastCurve.second);
-    const auto slewMoves = std::abs(slowSlew.second - fastSlew.second);
-
-    check(curveMoves < 5.0,
-          "where a curve does nearly the same thing at both pitches (" +
-              std::to_string(curveMoves) + " dB between them)");
-
-    check(slewMoves > curveMoves + 50.0,
-          "which is what makes the rate limit the one that changes as you "
-          "play up the keyboard (" +
-              std::to_string(slewMoves) + " dB against " +
-              std::to_string(curveMoves) + ")");
-
-    // Nothing antialiases a rate limit: it is not a function of one sample, so
-    // there is no antiderivative to average over. A 5 kHz partial has real
-    // products at every multiple of 5 kHz, so anything at 13 kHz arrived by
-    // folding.
-    const auto x = through({5000.0}, 0.8, Character::Opamp, 0.3f);
-    const auto folded = dB(levelAt(x, 13000.0), levelAt(x, 5000.0));
-
-    std::printf("  and it folds: a 5 kHz partial leaves %.1f dB at 13 kHz, "
-                "where it has no business being\n",
-                folded);
-
-    check(folded < -30.0, "though not so much that it buries the partial (" +
-                              std::to_string(folded) + " dB)");
+    check(std::abs(low[1] - high[1]) < 5.0,
+          "an op-amp now does the same thing at both ends of the keyboard (" +
+              std::to_string(low[1]) + " against " + std::to_string(high[1]) +
+              " dB)");
   }
 
   // ---- the point of the exercise -------------------------------------------
