@@ -44,6 +44,7 @@ void SynthEngine::prepare(double newSampleRate) noexcept {
   wobble.prepare(sampleRate);
   busDrive.prepare(sampleRate);
   echo.prepare(sampleRate);
+  bucket.prepare(sampleRate);
   reverb.prepare(sampleRate);
 
   reset();
@@ -56,6 +57,7 @@ void SynthEngine::reset() noexcept {
   wobble.reset();
   busDrive.reset();
   echo.reset();
+  bucket.reset();
   reverb.reset();
 
   heldBySustain.fill(false);
@@ -643,7 +645,11 @@ void SynthEngine::render(float *left, float *right, int numSamples,
   // two disagree once a tail is ringing: that is the effects, and it should
   // show.
   wobble.process(left, right, numSamples, p.global.wobbleAmount);
+  // Both are asked and each decides whether the type is its own, so the one
+  // that is not chosen empties its loop rather than holding a tail that would
+  // come back if you switched to it.
   echo.process(left, right, numSamples, p.echo);
+  bucket.process(left, right, numSamples, p.echo);
   reverb.process(left, right, numSamples, p.reverb);
 
   // ---- master gain, smoothed over ~10 ms so fader moves do not zipper -------

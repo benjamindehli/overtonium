@@ -180,7 +180,7 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
       {ovt::params::temperamentId, 6},  {ovt::params::tuningRootId, 12},
       {ovt::params::referenceHzId, 11}, {ovt::params::atSourceId, 3},
       {ovt::params::slideDestId, 3},    {ovt::params::lofiRateId, 8},
-      {ovt::params::lofiBitsId, 9},
+      {ovt::params::lofiBitsId, 9},     {ovt::params::echoTypeId, 3},
   };
 
   for (const auto &list : globals)
@@ -232,7 +232,12 @@ void testParameterWiring(OvertoniumProcessor &p) {
   // Two of the globals are switches over the per-channel modulators rather
   // than controls of their own: whether each of the two is one circuit the
   // keyboard shares. See GlobalParams::ampModInPhase.
-  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10;
+  //
+  // The trailing one is the echo's type, which arrived beside the switch that
+  // turns it on rather than replacing it: a boolean every saved patch stores
+  // and every lane points at cannot become a four-position choice without
+  // taking both with it. See params::echoTypeId.
+  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 1;
 
   // The behaviour that was there before it became a choice. Asked of the
   // parameter rather than of the tree, so the answer does not depend on what

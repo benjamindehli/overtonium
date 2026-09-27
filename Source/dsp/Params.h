@@ -176,18 +176,56 @@ struct GlobalParams {
 
 /// The tape echo, which sits across the whole instrument rather than on any one
 /// partial.
+/// Which delay the repeats come out of.
+///
+/// Declared in full from the start even though they arrive one at a time,
+/// because the length of a list a host can automate is part of its contract:
+/// a choice is stored as a fraction of the range, so adding an entry later
+/// would move every lane ever written against it. See the list-length test.
+enum class EchoType { Tape, Bucket, Digital, NumTypes };
+
+inline const char *echoTypeName(EchoType t) {
+  switch (t) {
+  case EchoType::Tape:
+    return "Tape";
+  case EchoType::Bucket:
+    return "Bucket brigade";
+  case EchoType::Digital:
+    return "Digital";
+
+  // Listed rather than left to a default, so adding one is a compiler error
+  // here until it has a name.
+  case EchoType::NumTypes:
+    break;
+  }
+
+  return "Tape";
+}
+
 struct EchoParams {
   bool enabled = false;
+
+  /// Which machine the repeats come from. The switch that turns the thing on
+  /// is separate and older: a preset saved before there was a choice says
+  /// nothing about one, and gets the tape it was made on.
+  EchoType type = EchoType::Tape;
   float mix = 0.25f;         ///< 0 dry, 1 fully wet
   float timeSeconds = 0.35f; ///< distance between the heads
   float feedback = 0.35f;    ///< 0..0.95, how much goes round again
-  /// How worn the machine is, 0 to 1.
+  /// How worn the machine is, 0 to 1, and what that means depends on which
+  /// machine it is.
   ///
-  /// One control for the three things that go together on a tape delay as it
-  /// ages: the top end it loses on every pass, how far the motor wanders, and
-  /// how hard the tape leans over when it is driven. New is clean and bright,
-  /// old is dark, unsteady and compressed. Separating them meant three knobs
-  /// that were nearly always turned together.
+  /// On tape it is the three things that go together as a deck ages: the top
+  /// end it loses on every pass, how far the motor wanders, and how hard the
+  /// tape leans over when driven. New is clean and bright, old is dark,
+  /// unsteady and compressed.
+  ///
+  /// On a bucket brigade it is three others that go together just as tightly:
+  /// darker, dirtier on every pass, and the hiss its compander cannot quite
+  /// hide, which swells up behind a chord and ducks away as the repeats die.
+  ///
+  /// One knob either way, because separating any of them meant three that
+  /// were always turned together.
   float age = 0.35f;
 };
 

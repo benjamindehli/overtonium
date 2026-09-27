@@ -7,6 +7,7 @@
 
 #include <atomic>
 
+#include "BucketEcho.h"
 #include "BusDrive.h"
 #include "Reverb.h"
 #include "TapeEcho.h"
@@ -154,7 +155,8 @@ public:
   /// How long the master effects would take to fall silent under the settings
   /// they are holding, so the host can pad an offline bounce correctly.
   float effectsTailSeconds(const SynthParams &p) const noexcept {
-    return std::max(echo.tailSeconds(p.echo), reverb.tailSeconds(p.reverb));
+    return std::max({echo.tailSeconds(p.echo), bucket.tailSeconds(p.echo),
+                     reverb.tailSeconds(p.reverb)});
   }
 
 private:
@@ -330,6 +332,7 @@ private:
   Wobble wobble;
   BusDrive busDrive;
   TapeEcho echo;
+  BucketEcho bucket;
   Reverb reverb;
 };
 

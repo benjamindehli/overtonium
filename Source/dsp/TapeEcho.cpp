@@ -149,7 +149,7 @@ void TapeEcho::reset() noexcept {
 }
 
 float TapeEcho::tailSeconds(const EchoParams &p) const noexcept {
-  if (!p.enabled || p.mix <= 0.0f)
+  if (!p.enabled || p.type != EchoType::Tape || p.mix <= 0.0f)
     return 0.0f;
 
   const auto feedback = std::clamp(p.feedback, 0.0f, 0.95f);
@@ -169,7 +169,7 @@ void TapeEcho::process(float *outL, float *outR, int numSamples,
   if (numSamples <= 0 || bufferLength <= 0)
     return;
 
-  if (!p.enabled) {
+  if (!p.enabled || p.type != EchoType::Tape) {
     // Emptying the loop on the way out means switching back on starts from
     // silence rather than replaying whatever was going round at the time.
     if (wasEnabled)

@@ -18,6 +18,7 @@
 #include <utility>
 #include <vector>
 
+#include "dsp/BucketEcho.h"
 #include "dsp/BusDrive.h"
 #include "dsp/Character.h"
 #include "dsp/Drift.h"
@@ -4809,6 +4810,212 @@ Stereo tone(size_t length, double freq, double sampleRate,
 
 } // namespace
 
+/// The bucket brigade, which is not a darker tape.
+///
+/// A line of capacitors handing a charge along one clock tick at a time. What
+/// makes it itself is that the clock has to slow down for a longer delay, so
+/// the part is darker the further it is set, and that AGE brings three things
+/// with it at once: more darkness, a line driven harder on every pass, and the
+/// hiss its compander cannot quite hide.
+void testBucketEcho() {
+  section("Bucket brigade echo");
+
+  constexpr double sr = 48000.0;
+  constexpr double kTwoPi = 6.283185307179586;
+
+  /// A short burst and then silence, which is what a delay is for.
+  const auto burst = [](size_t length, double freq, size_t on) {
+    Stereo s(length);
+
+    for (size_t n = 0; n < on && n < length; ++n) {
+      const auto ramp = std::min(1.0, (double)std::min(n, on - n) / 480.0);
+      const auto v =
+          (float)(0.5 * ramp * std::sin(kTwoPi * freq * (double)n / sr));
+      s.l[n] = v;
+      s.r[n] = v;
+    }
+
+    return s;
+  };
+
+  const auto levelAt = [](const std::vector<float> &x, size_t from, size_t to,
+                          double hz) {
+    double re = 0.0, im = 0.0, norm = 0.0;
+
+    for (size_t n = from; n < to && n < x.size(); ++n) {
+      const auto w =
+          0.5 *
+          (1.0 - std::cos(kTwoPi * (double)(n - from) / (double)(to - from)));
+
+      re += w * (double)x[n] * std::cos(kTwoPi * hz * (double)n / sr);
+      im -= w * (double)x[n] * std::sin(kTwoPi * hz * (double)n / sr);
+      norm += w;
+    }
+
+    return norm > 0.0 ? 2.0 * std::hypot(re, im) / norm : 0.0;
+  };
+
+  const auto through = [&](float age, float time, double freq) {
+    BucketEcho bbd;
+    bbd.prepare(sr);
+
+    EchoParams p;
+    p.enabled = true;
+    p.type = EchoType::Bucket;
+    p.mix = 1.0f;
+    p.feedback = 0.45f;
+    p.timeSeconds = time;
+    p.age = age;
+
+    auto s = burst((size_t)(2.5 * sr), freq, (size_t)(0.2 * sr));
+    runBlocks(bbd, s, p);
+
+    return s;
+  };
+
+  // ---- off, and not its own type, are both untouched -----------------------
+  {
+    BucketEcho bbd;
+    bbd.prepare(sr);
+
+    EchoParams p;
+    p.enabled = true;
+    p.type = EchoType::Tape;
+    p.mix = 1.0f;
+
+    auto s = tone(4800, 440.0, sr);
+    const auto before = s.l;
+    runBlocks(bbd, s, p);
+
+    bool identical = true;
+    for (size_t n = 0; n < s.size(); ++n)
+      identical &= exactly(s.l[n], before[n]);
+
+    check(identical,
+          "a patch asking for tape passes this one by without touching it");
+  }
+
+  // ---- the clock: further is darker ---------------------------------------
+  //
+  // The line holds what it holds, so a longer delay can only be had by
+  // clocking it more slowly, and the filter has to come down with the clock.
+  // No other type does this, and it is what makes a long setting on one of
+  // these turn to mud.
+  {
+    const auto shortSet = through(0.0f, 0.12f, 2500.0);
+    const auto longSet = through(0.0f, 0.9f, 2500.0);
+
+    const auto shortRepeat =
+        levelAt(shortSet.l, (size_t)(0.35 * sr), (size_t)(0.55 * sr), 2500.0);
+    const auto longRepeat =
+        levelAt(longSet.l, (size_t)(1.15 * sr), (size_t)(1.35 * sr), 2500.0);
+
+    std::printf("  a 2.5 kHz repeat comes back at %.4f set to 120 ms and "
+                "%.4f set to 900\n",
+                shortRepeat, longRepeat);
+
+    check(longRepeat < shortRepeat * 0.5,
+          "a longer setting clocks slower and comes back darker (" +
+              std::to_string(longRepeat / std::max(shortRepeat, 1.0e-9)) +
+              " of it)");
+  }
+
+  // ---- what AGE does, which is three things -------------------------------
+  {
+    const auto neww = through(0.0f, 0.25f, 400.0);
+    const auto old = through(1.0f, 0.25f, 400.0);
+
+    const auto from = (size_t)(0.6 * sr), to = (size_t)(0.8 * sr);
+
+    const auto newFundamental = levelAt(neww.l, from, to, 400.0);
+    const auto oldFundamental = levelAt(old.l, from, to, 400.0);
+
+    // Dirtier: the line clips inside the loop, so the repeat comes back with
+    // a twelfth on it that was never played.
+    const auto newThird = levelAt(neww.l, from, to, 1200.0) / newFundamental;
+    const auto oldThird = levelAt(old.l, from, to, 1200.0) / oldFundamental;
+
+    std::printf("  a repeat's twelfth: %.5f of it new, %.5f of it old\n",
+                newThird, oldThird);
+
+    check(oldThird > newThird * 4.0,
+          "an old line drives the repeats into itself on every pass (" +
+              std::to_string(oldThird / std::max(newThird, 1.0e-9)) +
+              " times as much)");
+
+    // Darker: on top of whatever the clock already costs.
+    const auto bright = through(0.0f, 0.25f, 3000.0);
+    const auto dull = through(1.0f, 0.25f, 3000.0);
+
+    const auto brightRepeat = levelAt(bright.l, from, to, 3000.0);
+    const auto dullRepeat = levelAt(dull.l, from, to, 3000.0);
+
+    check(dullRepeat < brightRepeat * 0.6,
+          "and takes more of the top off as well (" +
+              std::to_string(dullRepeat / std::max(brightRepeat, 1.0e-9)) +
+              " of it)");
+  }
+
+  // ---- the hiss, which has to breathe rather than sit there ---------------
+  {
+    const auto old = through(1.0f, 0.25f, 400.0);
+
+    // Under the repeats, where the compander is open.
+    const auto under = rms(old.l, (size_t)(0.6 * sr), (size_t)(0.8 * sr));
+
+    // And long after they have gone, where it should have closed.
+    const auto after = rms(old.l, (size_t)(2.2 * sr), (size_t)(2.5 * sr));
+
+    std::printf("  the floor of an old line: %.6f under the repeats and "
+                "%.6f once they are gone\n",
+                under, after);
+
+    check(after < under * 0.05,
+          "the hiss goes when the repeats do (" +
+              std::to_string(after / std::max(under, 1.0e-12)) + " of it)");
+
+    // And nothing at all on a patch nobody is playing, which is the whole
+    // reason it is keyed to the signal rather than left running.
+    BucketEcho idle;
+    idle.prepare(sr);
+
+    EchoParams p;
+    p.enabled = true;
+    p.type = EchoType::Bucket;
+    p.mix = 1.0f;
+    p.age = 1.0f;
+
+    Stereo silence((size_t)(1.0 * sr));
+    runBlocks(idle, silence, p);
+
+    check(rms(silence.l, 0, silence.size()) < 1.0e-9,
+          "and a patch nobody is playing stays silent");
+  }
+
+  // ---- two clocks, so the repeats are not in the middle --------------------
+  {
+    const auto s = through(0.3f, 0.25f, 400.0);
+
+    double dot = 0.0, energyL = 0.0, energyR = 0.0;
+    for (size_t n = (size_t)(0.6 * sr); n < (size_t)(1.6 * sr); ++n) {
+      dot += (double)s.l[n] * (double)s.r[n];
+      energyL += (double)s.l[n] * (double)s.l[n];
+      energyR += (double)s.r[n] * (double)s.r[n];
+    }
+
+    const auto correlation =
+        dot / std::sqrt(std::max(energyL * energyR, 1e-24));
+
+    std::printf("  the two clocks leave the repeats at a correlation of "
+                "%.2f\n",
+                correlation);
+
+    check(correlation < 0.97,
+          "each side runs off its own clock, so the repeats have width (" +
+              std::to_string(correlation) + ")");
+  }
+}
+
 void testTapeEcho() {
   section("Tape echo");
 
@@ -6623,6 +6830,7 @@ int main() {
   testSlideDisplacement();
   testNoiseChannel();
   testTapeEcho();
+  testBucketEcho();
   testBusDrive();
   testWobble();
   testReverb();

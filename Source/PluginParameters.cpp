@@ -722,6 +722,19 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   layout.add(std::make_unique<BoolP>(juce::ParameterID{amInPhaseId, 1},
                                      "Amp Mod In Phase", false));
 
+  // On the end, like everything that arrives after a release, so nothing
+  // already automated moves. Every type it will ever have is listed now
+  // rather than added as each one is written, because the length of the list
+  // is part of what a stored choice means: a host keeps a fraction of the
+  // range, so a list that grows moves every lane ever written against it.
+  juce::StringArray echoTypeChoices;
+  for (int i = 0; i < (int)EchoType::NumTypes; ++i)
+    echoTypeChoices.add(echoTypeName((EchoType)i));
+
+  layout.add(std::make_unique<juce::AudioParameterChoice>(
+      juce::ParameterID{echoTypeId, 1}, "Echo Type", echoTypeChoices,
+      (int)EchoType::Tape));
+
   return layout;
 }
 
@@ -748,6 +761,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   lofiBits = apvts.getRawParameterValue(lofiBitsId);
 
   echo.on = apvts.getRawParameterValue(echoOnId);
+  echo.type = apvts.getRawParameterValue(echoTypeId);
   echo.mix = apvts.getRawParameterValue(echoMixId);
   echo.time = apvts.getRawParameterValue(echoTimeId);
   echo.feedback = apvts.getRawParameterValue(echoFeedbackId);
@@ -967,6 +981,14 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   }
 
   out.echo.enabled = echo.on->load() > 0.5f;
+
+  // A patch saved before there were types says nothing about one and reads
+  // back as zero, which is the tape it was made on.
+  out.echo.type =
+      echo.type == nullptr
+          ? EchoType::Tape
+          : (EchoType)juce::jlimit(0, (int)EchoType::NumTypes - 1,
+                                   (int)std::lround(echo.type->load()));
   out.echo.mix = echo.mix->load();
   out.echo.timeSeconds = echo.time->load();
   out.echo.feedback = echo.feedback->load();
