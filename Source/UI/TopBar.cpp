@@ -44,6 +44,11 @@ constexpr int kFxToggleGap = 6;
 /// the air either side that every other button on the bar has. It was 80 while
 /// the widest was SQUASHED at 69.
 
+/// How far the master fader's cap stands proud of the lamps it lies on, at
+/// each end. A channel's cap does the same against its own meter, which is
+/// what says the two are a fader and a meter rather than one striped control.
+constexpr int kFaderOverhang = 2;
+
 /// How many rows of bar are worth having above a mixer.
 constexpr int kMaxComfortableRows = 3;
 
@@ -1237,14 +1242,21 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
     alignedWithDials(meter, r);
 
     // On the lamps rather than on the whole meter, since the scale marks run
-    // under them. See StereoOutputMeter::barBounds.
+    // under them, and standing a little proud of them at both ends the way a
+    // channel's cap stands proud of its own meter. A cap exactly as tall as
+    // what it sits on reads as part of the meter rather than as something
+    // laid over it. See StereoOutputMeter::barBounds.
     masterFader.setBounds(
-        meter.getBounds().withTrimmedBottom(StereoOutputMeter::kScaleHeight));
+        meter.getBounds()
+            .withTrimmedBottom(StereoOutputMeter::kScaleHeight)
+            .expanded(0, kFaderOverhang));
 
     // The two readouts go under it, in the band the knob captions occupy, so
     // the converter reads as the last thing before the output rather than as
-    // another control competing with the meter.
-    auto below = r.withTop(meter.getBottom() + 3).withTrimmedBottom(1);
+    // another control competing with the meter. Held off the bottom of the
+    // group, since a readout sitting on the border reads as having fallen to
+    // the floor of it.
+    auto below = r.withTop(meter.getBottom() + 3).withTrimmedBottom(3);
 
     const auto each = juce::jmin(66, (below.getWidth() - 6) / 2);
     auto pair = below.withSizeKeepingCentre(each * 2 + 6, below.getHeight());

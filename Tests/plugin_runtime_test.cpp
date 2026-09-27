@@ -3770,9 +3770,17 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
     if (meter != nullptr && fader != nullptr) {
       const auto lamps = meter->barBounds() + meter->getPosition();
 
-      check(fader->getBounds() == lamps,
-            "and the fader lies exactly on the lamps rather than on the "
-            "scale marks under them");
+      check(fader->getBounds().getCentreY() == lamps.getCentreY(),
+            "and the fader is centred on the lamps rather than on the scale "
+            "marks under them");
+
+      // Standing proud of them at both ends, like a channel's cap against its
+      // own meter, and by the same amount at each end so it stays centred.
+      const auto proud = lamps.getY() - fader->getBounds().getY();
+
+      check(proud > 0 && proud <= 4,
+            "and stands a little proud of them at both ends (" +
+                std::to_string(proud) + " px)");
     }
   }
 
