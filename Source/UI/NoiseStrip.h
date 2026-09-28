@@ -36,6 +36,10 @@ public:
   /// mixer's rows, so it folds with everything else.
   void setCollapsedSections(SectionMask);
 
+  /// Asked for when a click lands on one of the rules between sections, which
+  /// line up with the gutter's headings and do the same thing.
+  std::function<void(Section)> onSectionToggled;
+
   void mouseDown(const juce::MouseEvent &) override;
   void mouseEnter(const juce::MouseEvent &) override;
   void mouseMove(const juce::MouseEvent &) override;
@@ -125,6 +129,10 @@ private:
   /// Set when a menu takes the pointer away, and cleared when the pointer
   /// moves under its own steam again. See clearHover.
   bool hoverSuppressed = false;
+
+  /// When the last click on this strip happened, so the same click arriving a
+  /// second time cannot act twice. See mouseDown.
+  juce::Time lastClick;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NoiseStrip)
 };
