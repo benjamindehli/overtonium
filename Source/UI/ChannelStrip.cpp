@@ -967,6 +967,26 @@ void ChannelStrip::mouseDown(const juce::MouseEvent &e) {
   if (dynamic_cast<const MuteSoloButton *>(e.originalComponent) != nullptr)
     return;
 
+  // That same listener is why a click on the strip's own background arrives
+  // here twice: once because the strip is the component under the pointer, and
+  // once more through the listener it registered on itself. A click on a child
+  // arrives once, through the listener alone, which is why this only ever
+  // showed in the gaps between sections where nothing covers the strip.
+  //
+  // Nothing on the two events tells them apart. JUCE hands the listener an
+  // event rebuilt from the same click, so the component, the position and the
+  // modifiers all match. What they cannot differ in is when they happened, so
+  // that is what separates them, which is how JUCE itself throws away the
+  // duplicate wheel events it sometimes gets. See Slider::mouseWheelMove.
+  //
+  // Two menus opened stacked on each other. Choosing an item on the front one
+  // left the one behind it standing with its ticks unmoved, so the setting
+  // looked to have been refused while the instrument had already taken it.
+  if (e.eventTime == lastMenuClick)
+    return;
+
+  lastMenuClick = e.eventTime;
+
   link.showLinkMenu();
 }
 

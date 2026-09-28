@@ -460,6 +460,10 @@ private:
   /// Set when a menu takes the pointer away, and cleared when the pointer
   /// moves under its own steam again. See clearHover.
   bool hoverSuppressed = false;
+
+  /// When the last click that opened the LINK menu happened, so the same click
+  /// arriving a second time cannot open a second one. See mouseDown.
+  juce::Time lastMenuClick;
   Role glowRole = Role::Tune;
   float glowAmount = 0.0f;
 
