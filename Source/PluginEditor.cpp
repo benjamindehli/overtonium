@@ -676,13 +676,22 @@ void OvertoniumEditor::toggleSection(Section section) {
   plugin().apvts.state.setProperty(kCollapsedSections, (int)collapsedSections,
                                    nullptr);
 
+  // Read before anything moves. Applying the limits can resize the window on
+  // its own: setResizeLimits ends by constraining the current bounds to the
+  // new ones, and unfolding raises the floor by exactly the rows coming back.
+  // So on a window already squeezed against that floor, the limits grew it by
+  // the rows and then the arithmetic below added the rows again. Measured, a
+  // window squeezed to 997 folded to 847 and came back at 1147 instead of 997,
+  // and the surplus went where every surplus goes, into the fader: the report
+  // was of faders filling the screen and running under the dock.
+  const int logicalHeight = juce::roundToInt((float)getHeight() / zoom);
+
   // The window follows, which is the point: left alone the fader would stretch
   // into the space and the mixer would be exactly as tall as before. Limits
   // are applied first, since folding lowers the floor and the new height may
   // be below the old one.
   applyResizeLimits();
 
-  const int logicalHeight = juce::roundToInt((float)getHeight() / zoom);
   const int wanted = logicalHeight - (nowFolded - wasFolded);
   setSize(getWidth(), juce::roundToInt((float)wanted * zoom));
 

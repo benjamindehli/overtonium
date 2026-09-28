@@ -4107,6 +4107,124 @@ void testTheRulesFoldTheirSections(OvertoniumProcessor &p) {
   }
 }
 
+/// Folding and unfolding a section puts the window back where it was.
+///
+/// Reported from a Mac: shrink the window so the faders are squeezed, fold a
+/// section, and the faders keep their height, which is right. Unfold it again
+/// and they grow far taller than they were, filling the screen and running
+/// under the dock.
+///
+/// The window's height is the sum of the rows plus whatever is left for the
+/// fader, so a fader that grew means the window grew by more than the rows it
+/// got back.
+void testFoldingAndUnfoldingIsSymmetric(OvertoniumProcessor &p) {
+  section("Folding and unfolding leaves the window where it was");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  ovt::ui::ChannelStrip *strip = nullptr;
+  std::function<void(juce::Component &)> find = [&](juce::Component &c) {
+    if (strip == nullptr)
+      if (auto *s = dynamic_cast<ovt::ui::ChannelStrip *>(&c))
+        strip = s;
+    for (auto *child : c.getChildren())
+      find(*child);
+  };
+  find(*editor);
+
+  check(strip != nullptr, "and carries a strip whose rules fold sections");
+  if (strip == nullptr)
+    return;
+
+  // Squeezed: down to the shortest the window will go, which is where the
+  // fader has given up everything it can and the fault shows. Asked of the
+  // constrainer rather than set to some small number, since setSize on its own
+  // does not go through it and a host's drag does.
+  auto *limits = editor->getConstrainer();
+
+  check(limits != nullptr, "and has resize limits to squeeze it against");
+  if (limits == nullptr)
+    return;
+
+  editor->setSize(editor->getWidth(), limits->getMinimumHeight());
+
+  const auto squeezed = editor->getHeight();
+
+  // A second apart, because a strip throws away a click bearing the same time
+  // as the one before it: that is how the echo of its own listener is told
+  // from a real click. Two folds a microsecond apart are one fold.
+  int clicks = 0;
+
+  const auto foldOnce = [&](ovt::ui::Section s) {
+    const auto rows =
+        ovt::ui::layoutRows(strip->getLocalBounds().reduced(
+                                ovt::ui::kStripPadX, ovt::ui::kStripPadY),
+                            0);
+
+    const auto rule = rows[(size_t)ovt::ui::sectionHeading(s)];
+    const auto when =
+        juce::Time::getCurrentTime() + juce::RelativeTime(++clicks);
+
+    strip->mouseDown(juce::MouseEvent(
+        juce::Desktop::getInstance().getMainMouseSource(),
+        rule.getCentre().toFloat(),
+        juce::ModifierKeys(juce::ModifierKeys::leftButtonModifier),
+        juce::MouseInputSource::defaultPressure,
+        juce::MouseInputSource::defaultOrientation,
+        juce::MouseInputSource::defaultRotation,
+        juce::MouseInputSource::defaultTiltX,
+        juce::MouseInputSource::defaultTiltY, strip, strip, when,
+        rule.getCentre().toFloat(), when, 1, false));
+  };
+
+  foldOnce(ovt::ui::Section::Envelope);
+  const auto folded = editor->getHeight();
+
+  foldOnce(ovt::ui::Section::Envelope);
+  const auto back = editor->getHeight();
+
+  std::printf("  squeezed to %d, folded to %d, unfolded back to %d\n", squeezed,
+              folded, back);
+
+  check(folded < squeezed, "folding takes the window down (" +
+                               std::to_string(squeezed) + " to " +
+                               std::to_string(folded) + ")");
+
+  check(back == squeezed, "and unfolding puts it back, not past it (" +
+                              std::to_string(squeezed) + " to " +
+                              std::to_string(back) + ")");
+
+  // ---- and from a window with room to spare ------------------------------
+  //
+  // The case the ordering in toggleSection was written for, and the one that
+  // went on working while the squeezed one did not: here the floor is below
+  // the window either way, so nothing is constrained and only the arithmetic
+  // moves it.
+  {
+    editor->setSize(editor->getWidth(), limits->getMinimumHeight() + 240);
+
+    const auto roomy = editor->getHeight();
+
+    foldOnce(ovt::ui::Section::KeyOff);
+    const auto shorter = editor->getHeight();
+
+    foldOnce(ovt::ui::Section::KeyOff);
+
+    std::printf("  with room to spare: %d, folded to %d, back to %d\n", roomy,
+                shorter, editor->getHeight());
+
+    check(shorter < roomy && editor->getHeight() == roomy,
+          "a window with room folds and comes back to where it was (" +
+              std::to_string(roomy) + " to " +
+              std::to_string(editor->getHeight()) + ")");
+  }
+}
+
 /// The tick in the Zoom submenu, which is the only thing on the panel that
 /// says which zoom you are at.
 ///
@@ -6440,6 +6558,7 @@ int main() {
   testSettingsMenu(processor);
   testFitAllChannels(processor);
   testZoomTickFollowsTheZoom(processor);
+  testFoldingAndUnfoldingIsSymmetric(processor);
   testTheRulesFoldTheirSections(processor);
   testOneRightClickOpensOneMenu(processor);
   testWheelOverAKnobStaysOnTheKnob(processor);
