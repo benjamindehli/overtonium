@@ -3897,6 +3897,105 @@ void testWheelOverAKnobStaysOnTheKnob(OvertoniumProcessor &p) {
   }
 }
 
+/// One right-click opens one LINK menu.
+///
+/// Right-clicking the gap between two sections opened two menus stacked on
+/// each other. Picking an item on the front one left the back one standing and
+/// its ticks unmoved, so the setting appeared not to have taken while the
+/// instrument had in fact changed.
+///
+/// The cause is the strip listening to everything inside it, which is what
+/// lets a right-click on a knob open the LINK menu rather than being swallowed
+/// by the control. JUCE hands a listener registered that way the component's
+/// own events too, so a click on the strip's own background arrives twice:
+/// once because the strip is what the pointer is over, and once more through
+/// that listener. The gap between sections is the strip's own background,
+/// which is why only that strip of pixels did it.
+///
+/// Counted through a stub rather than by opening anything: a real PopupMenu
+/// wants a window and there is none here.
+void testOneRightClickOpensOneMenu(OvertoniumProcessor &p) {
+  section("One right-click, one LINK menu");
+
+  struct CountingLink final : ovt::ui::LinkTarget {
+    int opened = 0;
+
+    bool isLinkEnabled() const override { return true; }
+    void linkDragStarted(ovt::ui::Role, int) override {}
+    void linkValueChanged(ovt::ui::Role, int, float) override {}
+    void linkDragEnded(ovt::ui::Role, int) override {}
+    void showLinkMenu() override { ++opened; }
+  };
+
+  struct SilentHover final : ovt::ui::HoverTarget {
+    void hoverChanged(int, ovt::ui::Row) override {}
+  };
+
+  CountingLink link;
+  SilentHover hover;
+  juce::Component popupParent;
+
+  ovt::ui::ChannelStrip strip(p.apvts, link, hover, popupParent, 0);
+  strip.setSize(40, 900);
+
+  const auto rightClickOn = [](juce::Component *landedOn,
+                               juce::Component *deliveredTo, juce::Time when) {
+    return juce::MouseEvent(
+        juce::Desktop::getInstance().getMainMouseSource(),
+        deliveredTo->getLocalBounds().getCentre().toFloat(),
+        juce::ModifierKeys(juce::ModifierKeys::rightButtonModifier),
+        juce::MouseInputSource::defaultPressure,
+        juce::MouseInputSource::defaultOrientation,
+        juce::MouseInputSource::defaultRotation,
+        juce::MouseInputSource::defaultTiltX,
+        juce::MouseInputSource::defaultTiltY, deliveredTo, landedOn, when,
+        deliveredTo->getLocalBounds().getCentre().toFloat(), when, 1, false);
+  };
+
+  // ---- on the strip's own background --------------------------------------
+  //
+  // Delivered the way JUCE delivers it: to the component under the pointer,
+  // and then again to every listener registered on it. Both carry the same
+  // timestamp, because they are the same click.
+  {
+    const auto when = juce::Time::getCurrentTime();
+    const auto e = rightClickOn(&strip, &strip, when);
+
+    strip.mouseDown(e);
+    strip.mouseDown(e);
+
+    std::printf("  a right-click on the gap opened %d menu(s)\n", link.opened);
+
+    check(link.opened == 1, "the gap between sections opens one menu (" +
+                                std::to_string(link.opened) + ")");
+  }
+
+  // ---- and on a knob, which only ever arrives through the listener ---------
+  {
+    link.opened = 0;
+
+    juce::Slider *knob = nullptr;
+    std::function<void(juce::Component &)> find = [&](juce::Component &c) {
+      if (knob == nullptr)
+        if (auto *s = dynamic_cast<juce::Slider *>(&c))
+          knob = s;
+      for (auto *child : c.getChildren())
+        find(*child);
+    };
+    find(strip);
+
+    check(knob != nullptr, "the strip has a knob to right-click");
+
+    if (knob != nullptr) {
+      const auto when = juce::Time::getCurrentTime() + juce::RelativeTime(1.0);
+      strip.mouseDown(rightClickOn(knob, &strip, when));
+
+      check(link.opened == 1, "and a right-click on a knob still opens it (" +
+                                  std::to_string(link.opened) + ")");
+    }
+  }
+}
+
 /// The tick in the Zoom submenu, which is the only thing on the panel that
 /// says which zoom you are at.
 ///
@@ -6230,6 +6329,7 @@ int main() {
   testSettingsMenu(processor);
   testFitAllChannels(processor);
   testZoomTickFollowsTheZoom(processor);
+  testOneRightClickOpensOneMenu(processor);
   testWheelOverAKnobStaysOnTheKnob(processor);
   testSettingsNamesTheVersion(processor);
   testMachineMenusFollowTheirParameters(processor);

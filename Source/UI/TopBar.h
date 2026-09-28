@@ -195,10 +195,6 @@ private:
   using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
   using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
 
-  /// The clipper is a plain switch, so it takes a plain attachment. The two
-  /// effects cannot: their buttons open a menu over two parameters.
-  std::unique_ptr<ButtonAttachment> clipAttachment;
-
   void styleToggle(GlowButton &, const juce::String &text,
                    const juce::String &tooltip);
 
@@ -411,6 +407,17 @@ private:
 
   std::unique_ptr<juce::AlertWindow> nameWindow;
   GlowButton echoButton, reverbButton, clipButton;
+
+  /// The clipper is a plain switch, so it takes a plain attachment. The two
+  /// effects cannot: their buttons open a menu over two parameters.
+  ///
+  /// Declared after the button rather than beside the alias it is built from,
+  /// and that is the whole of why it is here. Members are destroyed in reverse
+  /// order, so an attachment declared first outlives its button, and an
+  /// attachment's destructor asks the button to stop listening to it. The
+  /// sanitizers catch that as a call on an object that is no longer a Button,
+  /// and nothing else does: the memory is still there and still looks right.
+  std::unique_ptr<ButtonAttachment> clipAttachment;
 
   /// Likewise. Zoom is set once to suit the screen and then left, and giving
   /// its box back to the bar is what lets the output group keep its readouts
