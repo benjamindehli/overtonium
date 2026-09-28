@@ -1325,4 +1325,10 @@ void ChannelStrip::setActivity(float envelope, float tremolo, float pitch,
           pitchLamp.push(level <= 0.0f ? kParked : needlePosition(pitch)));
 }
 
+void ChannelStrip::mouseWheelMove(const juce::MouseEvent &e,
+                                  const juce::MouseWheelDetails &wheel) {
+  if (e.originalComponent == this)
+    juce::Component::mouseWheelMove(e, wheel);
+}
+
 } // namespace ovt::ui

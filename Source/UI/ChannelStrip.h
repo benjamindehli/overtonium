@@ -322,6 +322,21 @@ public:
   void mouseExit(const juce::MouseEvent &) override;
   void mouseDown(const juce::MouseEvent &) override;
 
+  /// Keeps a wheel that landed on a control from scrolling the mixer as well.
+  ///
+  /// The strip listens to everything inside it, so that a pointer resting on a
+  /// knob is reported by the strip rather than swallowed by the control. JUCE
+  /// hands that listener every event, wheels included, and Component's own
+  /// handler passes whatever it is given up to the parent. So a scroll the
+  /// knob had already taken went on to the viewport and dragged the series
+  /// sideways under the hand that was turning the knob, whenever the window
+  /// was narrow enough for there to be anything to scroll.
+  ///
+  /// Only a wheel that actually landed on the strip is passed on, which leaves
+  /// the background scrolling the series and a control keeping its own.
+  void mouseWheelMove(const juce::MouseEvent &,
+                      const juce::MouseWheelDetails &) override;
+
   /// Greys the strip out when another strip's solo is silencing it.
   void setSilencedByOthers(bool shouldDim);
 

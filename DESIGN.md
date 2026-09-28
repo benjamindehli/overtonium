@@ -359,6 +359,8 @@ One thing about the column does have to differ. It is drawn over the children ra
 
 Each strip works out whether it is the hovered one from where the pointer is, rather than being told by the editor. Leaving one strip for the next fires an exit and an enter that can arrive either way round, and reading the pointer gives the same answer whichever order they come in. The test drives both orders.
 
+Knowing where the pointer is costs the strip a deep mouse listener, which turns out to have a second job it never asked for. A listener registered for every nested child is handed every event those children get, wheels included, and the default handler passes whatever it is given up to the parent. So a scroll that a knob had already taken was passed on again by the strip that owns it, reached the viewport, and dragged the series sideways under the hand that was turning the knob. It only showed when the window was narrow enough for there to be anything to scroll, which is why it survived a long time: at the width the window opens at there is nothing to see. The strip now passes on only a wheel that landed on the strip itself, so the background scrolls the series and a control keeps its own.
+
 The faders and the mute and solo buttons are left out of it. Those two rows are unmistakable already, and a wash the height of a whole fader was a lot of paint to say so.
 
 Knobs show their value as a ring of discrete ticks rather than a continuous arc, which suits an instrument that is itself built from 32 discrete partials and reads more like a measurement device than a mixing desk. Faders carry a scale in the same tick language.
