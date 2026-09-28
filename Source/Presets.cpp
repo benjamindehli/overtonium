@@ -213,8 +213,15 @@ struct Applier {
 
   /// Switches the reverb on. The room follows the decay, so there is nothing
   /// else to say about its size.
-  void reverb(float mix, float decay, float damping) const {
+  ///
+  /// The machine is named rather than numbered, for the reason character() is:
+  /// a case reading `1.0f` says nothing about what it sounds like. Defaulted to
+  /// the room, which is what every patch written before there was a choice
+  /// asked for and therefore what one written now has to say to mean the same.
+  void reverb(float mix, float decay, float damping,
+              ReverbType type = ReverbType::Room) const {
     set(params::reverbOnId, 1.0f);
+    set(params::reverbTypeId, (float)(int)type);
     set(params::reverbMixId, mix);
     set(params::reverbDecayId, decay);
     set(params::reverbDampId, damping);
@@ -236,8 +243,13 @@ struct Applier {
     set(params::trackId, trackDbPerOctave);
   }
 
-  void echo(float mix, float time, float feedback, float age) const {
+  /// Switches the echo on. The machine is named for the reason the reverb's
+  /// is, and defaults to the tape for the same reason: it is what a patch
+  /// written before there was a choice asked for.
+  void echo(float mix, float time, float feedback, float age,
+            EchoType type = EchoType::Tape) const {
     set(params::echoOnId, 1.0f);
+    set(params::echoTypeId, (float)(int)type);
     set(params::echoMixId, mix);
     set(params::echoTimeId, time);
     set(params::echoFeedbackId, feedback);
@@ -245,8 +257,17 @@ struct Applier {
   }
 };
 
+// clang-format off
+//
+// One name per line, because the job that checks the docs count the
+// presets by reading this list line by line. That layout used to hold
+// itself up: with thirty-one names the formatter could not fit them into
+// a tidy grid and fell back to one each, and the thirty-second turned
+// them into four columns of eight and the count into zero. It is pinned
+// here rather than left to arithmetic nobody knew was load-bearing.
 const char *const kNames[] = {
     "2-bit Fuzz Organ",
+    "60s Organ",
     "Big Saw",
     "Cathedral",
     "DigiLog",
@@ -278,6 +299,7 @@ const char *const kNames[] = {
     "Vibraphone",
     "Wurli",
 };
+// clang-format on
 
 } // namespace
 
@@ -688,7 +710,130 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.0762f);
     break;
   }
-  case 1: // Big Saw
+  case 1: // 60s Organ
+  {
+    ap.neutralBase();
+
+    // A combo organ that has not been serviced. The partials are pulled off
+    // each other rather than tuned, so the stack beats against itself instead
+    // of fusing, and the noise channel is the key click: a few milliseconds of
+    // it on every note, which is the contact rather than the tone. Diode is
+    // the character, this being the first patch in the set to ask for it.
+    //
+    // The tail is the point. A bucket brigade at nearly eight tenths of
+    // feedback, driven far enough in that the repeats grow rather than fade,
+    // falling into a spring long enough to still be ringing when the next
+    // chord arrives.
+
+    ap.oscTable(params::releaseSuffix,
+                {0.0015f, 0.0096f, 0.0082f, 0.008f, 0.008f, 0.008f, 0.008f,
+                 0.009f, 0.008f, 0.008f, 0.008f, 0.008f, 0.008f, 0.008f, 0.008f,
+                 0.008f, 0.008f, 0.008f, 0.008f, 0.008f, 0.008f, 0.008f, 0.008f,
+                 0.008f, 0.008f, 0.008f, 0.008f, 0.008f, 0.008f, 0.008f, 0.008f,
+                 0.008f});
+    ap.set("h01_amDepth", 0.1472f);
+    ap.set("h01_amRate", 2.6846f);
+    ap.set("h01_amShape", 6.0f);
+    ap.set("h01_attack", 0.0003f);
+    ap.set("h01_decay", 0.0096f);
+    ap.set("h01_delay", 0.0011f);
+    ap.set("h01_drift", 0.4848f);
+    ap.set("h01_offLevel", 1.0f);
+    ap.set("h01_pmDepth", 0.3806f);
+    ap.set("h01_pmRate", 3.277f);
+    ap.set("h01_pmShape", 7.0f);
+    ap.set("h01_swell", 0.0009f);
+    ap.set("h01_tune", 0.0f);
+    ap.set("h01_vel", -0.0018f);
+    ap.set("h01_volume", 1.0f);
+    ap.set("h02_amDepth", 0.3962f);
+    ap.set("h02_amRate", 4.1725f);
+    ap.set("h02_amShape", 6.0f);
+    ap.set("h02_attack", 0.0004f);
+    ap.set("h02_decay", 0.004f);
+    ap.set("h02_delay", 0.0052f);
+    ap.set("h02_drift", 1.8757f);
+    ap.set("h02_offLevel", 1.0f);
+    ap.set("h02_pan", 0.1974f);
+    ap.set("h02_pmDepth", 5.548f);
+    ap.set("h02_pmRate", 4.5499f);
+    ap.set("h02_pmShape", 7.0f);
+    ap.set("h02_sustain", 0.6886f);
+    ap.set("h02_swell", 0.0023f);
+    ap.set("h02_tune", 0.0f);
+    ap.set("h02_vel", -0.0041f);
+    ap.set("h02_volume", 1.0f);
+    ap.set("h03_amDepth", 0.399f);
+    ap.set("h03_amRate", 5.0219f);
+    ap.set("h03_amShape", 6.0f);
+    ap.set("h03_attack", 0.0002f);
+    ap.set("h03_decay", 0.0038f);
+    ap.set("h03_delay", 0.0046f);
+    ap.set("h03_drift", 2.3676f);
+    ap.set("h03_offLevel", 1.0f);
+    ap.set("h03_pan", -0.195f);
+    ap.set("h03_pmDepth", 5.7837f);
+    ap.set("h03_pmRate", 4.7427f);
+    ap.set("h03_pmShape", 7.0f);
+    ap.set("h03_sustain", 0.3976f);
+    ap.set("h03_swell", 0.0026f);
+    ap.set("h03_tune", 0.0f);
+    ap.set("h03_vel", 0.0031f);
+    ap.set("h03_volume", 1.0f);
+    ap.set("h08_amDepth", 0.5999f);
+    ap.set("h08_amRate", 4.8256f);
+    ap.set("h08_amShape", 6.0f);
+    ap.set("h08_attack", 0.0008f);
+    ap.set("h08_decay", 0.0024f);
+    ap.set("h08_delay", 0.0022f);
+    ap.set("h08_drift", 3.0311f);
+    ap.set("h08_offLevel", 1.0f);
+    ap.set("h08_pan", 0.2729f);
+    ap.set("h08_pmDepth", 6.0425f);
+    ap.set("h08_pmRate", 6.3378f);
+    ap.set("h08_pmShape", 7.0f);
+    ap.set("h08_sustain", 0.1115f);
+    ap.set("h08_swell", 0.0004f);
+    ap.set("h08_tune", 0.0f);
+    ap.set("h08_vel", 0.0034f);
+    ap.set("h08_volume", 0.5468f);
+    ap.set("h16_amDepth", 0.7821f);
+    ap.set("h16_amRate", 7.6294f);
+    ap.set("h16_amShape", 6.0f);
+    ap.set("h16_attack", 0.0003f);
+    ap.set("h16_decay", 0.0016f);
+    ap.set("h16_delay", 0.0047f);
+    ap.set("h16_drift", 1.0783f);
+    ap.set("h16_pan", -0.3895f);
+    ap.set("h16_pmDepth", 6.2297f);
+    ap.set("h16_pmRate", 6.9391f);
+    ap.set("h16_pmShape", 7.0f);
+    ap.set("h16_sustain", 0.1611f);
+    ap.set("h16_vel", -0.0004f);
+    ap.set("h16_volume", 0.2081f);
+    ap.character(Character::Diode);
+    ap.set("noise_amDepth", 0.7546f);
+    ap.set("noise_amRate", 1.0769f);
+    ap.set("noise_amShape", 6.0f);
+    ap.set("noise_attack", 0.0011f);
+    ap.set("noise_colour", 0.2336f);
+    ap.set("noise_decay", 0.0085f);
+    ap.set("noise_delay", 0.0005f);
+    ap.set("noise_offLevel", 0.6322f);
+    ap.set("noise_release", 0.0152f);
+    ap.set("noise_sustain", 0.0425f);
+    ap.set("noise_swell", 0.0003f);
+    ap.set("noise_vel", 0.3126f);
+    ap.set("noise_volume", 0.2012f);
+    ap.set("track", 6.0f);
+    ap.set("wobble", 0.0757f);
+
+    // A line of buckets driven hard, and a tray of springs it falls into.
+    ap.echo(0.2109f, 0.2015f, 0.7962f, 0.63f, EchoType::Bucket);
+    ap.reverb(0.1981f, 5.4535f, 0.1714f, ReverbType::Spring);
+    break;
+  }
+  case 2: // Big Saw
   {
     ap.neutralBase();
 
@@ -762,7 +907,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.0337f);
     break;
   }
-  case 2: // Cathedral
+  case 3: // Cathedral
   {
     ap.neutralBase();
 
@@ -798,7 +943,7 @@ void apply(APVTS &apvts, int index) {
     ap.reverb(0.5f, 9.0f, 0.35f);
     break;
   }
-  case 3: // DigiLog
+  case 4: // DigiLog
   {
     ap.neutralBase();
 
@@ -936,7 +1081,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1476f);
     break;
   }
-  case 4: // Dire Dire EP
+  case 5: // Dire Dire EP
   {
     ap.neutralBase();
 
@@ -1082,7 +1227,7 @@ void apply(APVTS &apvts, int index) {
     ap.character(Character::Valve);
     break;
   }
-  case 5: // Drawbar Organ
+  case 6: // Drawbar Organ
   {
     ap.neutralBase();
 
@@ -1161,7 +1306,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.5171f);
     break;
   }
-  case 6: // Dream Phase
+  case 7: // Dream Phase
   {
     ap.neutralBase();
 
@@ -1530,7 +1675,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1488f);
     break;
   }
-  case 7: // EP Chimes
+  case 8: // EP Chimes
   {
     ap.neutralBase();
 
@@ -1715,7 +1860,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1275f);
     break;
   }
-  case 8: // Equal Saw
+  case 9: // Equal Saw
   {
     ap.neutralBase();
 
@@ -1731,7 +1876,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 1.0f);
     break;
   }
-  case 9: // FM Piano
+  case 10: // FM Piano
   {
     ap.neutralBase();
 
@@ -1832,7 +1977,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.0823f);
     break;
   }
-  case 10: // Glass Armonica
+  case 11: // Glass Armonica
   {
     ap.neutralBase();
 
@@ -1878,7 +2023,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbDamp", 0.25f);
     break;
   }
-  case 11: // Glockenspiel
+  case 12: // Glockenspiel
   {
     ap.neutralBase();
 
@@ -2031,7 +2176,7 @@ void apply(APVTS &apvts, int index) {
     ap.character(Character::Bulb);
     break;
   }
-  case 12: // Init
+  case 13: // Init
   {
     ap.neutralBase();
 
@@ -2045,7 +2190,7 @@ void apply(APVTS &apvts, int index) {
                  0.0f, 0.0f, 0.0f});
     break;
   }
-  case 13: // Just Saw
+  case 14: // Just Saw
   {
     ap.neutralBase();
 
@@ -2060,7 +2205,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 1.0f);
     break;
   }
-  case 14: // Lo-fi
+  case 15: // Lo-fi
   {
     ap.neutralBase();
 
@@ -2148,7 +2293,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.0635f);
     break;
   }
-  case 15: // Metallic Piano
+  case 16: // Metallic Piano
   {
     ap.neutralBase();
 
@@ -2250,7 +2395,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 9.0f);
     break;
   }
-  case 16: // Music Box
+  case 17: // Music Box
   {
     ap.neutralBase();
 
@@ -2363,7 +2508,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.0992f);
     break;
   }
-  case 17: // Nylon EP
+  case 18: // Nylon EP
   {
     ap.neutralBase();
 
@@ -2517,7 +2662,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1946f);
     break;
   }
-  case 18: // Odd Harmonics
+  case 19: // Odd Harmonics
   {
     ap.neutralBase();
 
@@ -2542,7 +2687,7 @@ void apply(APVTS &apvts, int index) {
     ap.character(Character::Rail);
     break;
   }
-  case 19: // Omni-84
+  case 20: // Omni-84
   {
     ap.neutralBase();
 
@@ -2599,7 +2744,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 7.0f);
     break;
   }
-  case 20: // Shimmer
+  case 21: // Shimmer
   {
     ap.neutralBase();
 
@@ -2622,11 +2767,11 @@ void apply(APVTS &apvts, int index) {
     // one that breathes with the pitch instead.
     ap.character(Character::Bulb);
 
-    ap.reverb(0.45f, 8.0f, 0.4f);
+    ap.reverb(0.45f, 8.0f, 0.4f, ReverbType::Plate);
     ap.echo(0.28f, 0.66f, 0.55f, 0.6f);
     break;
   }
-  case 21: // Slow Pad
+  case 22: // Slow Pad
   {
     ap.neutralBase();
 
@@ -2691,7 +2836,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.015f);
     break;
   }
-  case 22: // Space Flute
+  case 23: // Space Flute
   {
     ap.neutralBase();
 
@@ -2816,7 +2961,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.2795f);
     break;
   }
-  case 23: // Sparkle Pad
+  case 24: // Sparkle Pad
   {
     ap.neutralBase();
 
@@ -3034,7 +3179,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1346f);
     break;
   }
-  case 24: // Stepped
+  case 25: // Stepped
   {
     ap.neutralBase();
 
@@ -3225,7 +3370,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1661f);
     break;
   }
-  case 25: // Struck Bell
+  case 26: // Struck Bell
   {
     ap.neutralBase();
 
@@ -3253,7 +3398,7 @@ void apply(APVTS &apvts, int index) {
     ap.reverb(0.22f, 1.8f, 0.5f);
     break;
   }
-  case 26: // StyloPoly
+  case 27: // StyloPoly
   {
     ap.neutralBase();
 
@@ -3330,7 +3475,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("pmInPhase", 1.0f);
     break;
   }
-  case 27: // Synth Ensemble
+  case 28: // Synth Ensemble
   {
     ap.neutralBase();
 
@@ -3541,7 +3686,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1011f);
     break;
   }
-  case 28: // Tape Choir
+  case 29: // Tape Choir
   {
     ap.neutralBase();
 
@@ -3571,10 +3716,10 @@ void apply(APVTS &apvts, int index) {
 
     // An old machine: dark, unsteady repeats a beat and a half behind.
     ap.echo(0.33f, 0.5f, 0.55f, 0.8f);
-    ap.reverb(0.4f, 4.5f, 0.5f);
+    ap.reverb(0.4f, 4.5f, 0.5f, ReverbType::Plate);
     break;
   }
-  case 29: // Vibraphone
+  case 30: // Vibraphone
   {
     ap.neutralBase();
 
@@ -3641,7 +3786,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.1882f);
     break;
   }
-  case 30: // Wurli
+  case 31: // Wurli
   {
     ap.neutralBase();
 
