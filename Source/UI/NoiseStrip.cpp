@@ -170,8 +170,32 @@ void NoiseStrip::mouseDown(const juce::MouseEvent &e) {
   // The noise channel opens no menu of its own, but its mute and solo buttons
   // do, and the same modal-menu problem applies: without this the column stays
   // lit once the pointer has moved on. See ChannelStrip::mouseDown.
-  if (e.mods.isPopupMenu())
+  if (e.mods.isPopupMenu()) {
     clearHover();
+    return;
+  }
+
+  // The rules between sections fold them here too. This strip shares the
+  // mixer's rows, so it has the same rules in the same places, and a rule that
+  // folded on thirty-two columns and not on the thirty-third would be a rule
+  // you had to remember the exception to.
+  //
+  // The same click arrives twice, since this strip also listens to everything
+  // inside it. See ChannelStrip::mouseDown for what that is and why it cannot
+  // be told apart by anything but its time.
+  const bool echoOfTheSameClick = e.eventTime == lastClick;
+  lastClick = e.eventTime;
+
+  if (e.originalComponent != this || echoOfTheSameClick ||
+      onSectionToggled == nullptr)
+    return;
+
+  const auto rows =
+      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+  const auto section = headingSectionAt(rows, e.getPosition());
+
+  if (section != Section::NumSections)
+    onSectionToggled(section);
 }
 
 void NoiseStrip::clearHover() {
@@ -199,6 +223,17 @@ void NoiseStrip::mouseEnter(const juce::MouseEvent &e) {
 void NoiseStrip::mouseMove(const juce::MouseEvent &e) {
   hoverSuppressed = false;
   reportHover(e);
+
+  // The hand the gutter's headings show, so a rule that folds looks like one.
+  if (e.originalComponent == this) {
+    const auto rows =
+        layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+
+    setMouseCursor(headingSectionAt(rows, e.getPosition()) !=
+                           Section::NumSections
+                       ? juce::MouseCursor::PointingHandCursor
+                       : juce::MouseCursor::NormalCursor);
+  }
 }
 void NoiseStrip::mouseExit(const juce::MouseEvent &e) { reportHover(e); }
 

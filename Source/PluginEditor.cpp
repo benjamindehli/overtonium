@@ -267,6 +267,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   for (int i = 0; i < kNumHarmonics; ++i) {
     auto strip =
         std::make_unique<ChannelStrip>(plugin().apvts, *this, *this, *this, i);
+    strip->onSectionToggled = [this](Section s) { toggleSection(s); };
     stripsHolder.addAndMakeVisible(*strip);
     strips.push_back(std::move(strip));
   }
@@ -393,6 +394,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   publishCollapsedSections();
 
   gutter.onSectionToggled = [this](Section s) { toggleSection(s); };
+  noiseStrip.onSectionToggled = [this](Section s) { toggleSection(s); };
 
   const auto standard = standardSize();
 

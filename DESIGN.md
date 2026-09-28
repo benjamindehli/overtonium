@@ -519,7 +519,9 @@ One thing that looks like it should help and does not: splitting the mixer into 
 
 ### Folding the mixer down
 
-Clicking a section heading in the caption gutter folds that group of rows away, and the window loses exactly the height those rows were taking. Pitch modulation, envelope, key off, amp mod and output each fold. All five together is 480 pixels. The tuning at the head of the strip and the faders at the foot never fold: the first is what the instrument is for and the second is what you mix with, so neither is ever the thing in the way.
+Clicking a section heading in the caption gutter folds that group of rows away, and the window loses exactly the height those rows were taking. So does clicking the rule that section draws across any strip, which is the same act reached from where the hand already is: the gutter is at the far left, and getting to it from the partial you are working on means crossing the mixer and finding your way back, by which time you have lost which column you were in. The rules line up with the headings because both are laid out by the same call, so the strip needs no geometry of its own and cannot drift out of step with the gutter.
+
+Nothing had to be made clickable for it. The rules are the one part of a strip with nothing standing on them, and the lamps that four of the five carry already let clicks through so that the rule underneath reads as a continuous line. The pointer shows the same hand over a rule that it shows over a heading. Pitch modulation, envelope, key off, amp mod and output each fold. All five together is 480 pixels. The tuning at the head of the strip and the faders at the foot never fold: the first is what the instrument is for and the second is what you mix with, so neither is ever the thing in the way.
 
 It folds across the whole mixer rather than per channel. The strips are columns sharing one set of rows, and folding a group on one channel and not the next would put every row below it out of step with the gutter captions, which are the only thing naming the knobs.
 

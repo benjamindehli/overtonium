@@ -3996,6 +3996,117 @@ void testOneRightClickOpensOneMenu(OvertoniumProcessor &p) {
   }
 }
 
+/// A click on the rule between two sections folds that section.
+///
+/// The gutter's headings have always done this. Reaching them means leaving
+/// the partial you are working on, crossing the mixer and coming back, and by
+/// then you have lost which column you were in. The rules across a strip line
+/// up with those headings, so the same click works where your hand already is.
+void testTheRulesFoldTheirSections(OvertoniumProcessor &p) {
+  section("The rules between sections fold them");
+
+  struct SilentLink final : ovt::ui::LinkTarget {
+    int menus = 0;
+
+    bool isLinkEnabled() const override { return true; }
+    void linkDragStarted(ovt::ui::Role, int) override {}
+    void linkValueChanged(ovt::ui::Role, int, float) override {}
+    void linkDragEnded(ovt::ui::Role, int) override {}
+    void showLinkMenu() override { ++menus; }
+  };
+
+  struct SilentHover final : ovt::ui::HoverTarget {
+    void hoverChanged(int, ovt::ui::Row) override {}
+  };
+
+  SilentLink link;
+  SilentHover hover;
+  juce::Component popupParent;
+
+  ovt::ui::ChannelStrip strip(p.apvts, link, hover, popupParent, 0);
+  strip.setSize(40, 900);
+
+  std::vector<ovt::ui::Section> folded;
+  strip.onSectionToggled = [&folded](ovt::ui::Section s) {
+    folded.push_back(s);
+  };
+
+  const auto rows = ovt::ui::layoutRows(
+      strip.getLocalBounds().reduced(ovt::ui::kStripPadX, ovt::ui::kStripPadY),
+      0);
+
+  const auto clickAt = [&strip](juce::Point<int> where, bool rightButton,
+                                juce::Time when) {
+    return juce::MouseEvent(
+        juce::Desktop::getInstance().getMainMouseSource(), where.toFloat(),
+        juce::ModifierKeys(rightButton
+                               ? juce::ModifierKeys::rightButtonModifier
+                               : juce::ModifierKeys::leftButtonModifier),
+        juce::MouseInputSource::defaultPressure,
+        juce::MouseInputSource::defaultOrientation,
+        juce::MouseInputSource::defaultRotation,
+        juce::MouseInputSource::defaultTiltX,
+        juce::MouseInputSource::defaultTiltY, &strip, &strip, when,
+        where.toFloat(), when, 1, false);
+  };
+
+  // ---- every rule folds the section it belongs to --------------------------
+  for (int i = 0; i < ovt::ui::kNumSections; ++i) {
+    const auto want = (ovt::ui::Section)i;
+    const auto rule = rows[(size_t)ovt::ui::sectionHeading(want)];
+
+    folded.clear();
+
+    // Delivered the way JUCE delivers a click on a strip's own background:
+    // once because the strip is under the pointer, and once more through the
+    // listener it keeps on itself.
+    const auto when = juce::Time::getCurrentTime() + juce::RelativeTime(i);
+    const auto e = clickAt(rule.getCentre(), false, when);
+
+    strip.mouseDown(e);
+    strip.mouseDown(e);
+
+    check(folded.size() == 1 && folded.front() == want,
+          "the rule over section " + std::to_string(i) +
+              " folds that section, once (" + std::to_string(folded.size()) +
+              ")");
+  }
+
+  // ---- and a click that is not on one does nothing -------------------------
+  {
+    folded.clear();
+
+    const auto knobRow = rows[(size_t)ovt::ui::Row::PmRate];
+    const auto when = juce::Time::getCurrentTime() + juce::RelativeTime(60.0);
+
+    strip.mouseDown(clickAt(knobRow.getCentre(), false, when));
+
+    check(folded.empty(), "a click on a row of controls folds nothing (" +
+                              std::to_string(folded.size()) + ")");
+  }
+
+  // ---- a right-click on a rule is still the LINK menu ----------------------
+  //
+  // The rules are the only part of a strip with nothing standing on them,
+  // which is what makes them clickable at all, and is also where a right-click
+  // reaches the strip. One button each.
+  {
+    folded.clear();
+    link.menus = 0;
+
+    const auto rule =
+        rows[(size_t)ovt::ui::sectionHeading(ovt::ui::Section::Envelope)];
+    const auto when = juce::Time::getCurrentTime() + juce::RelativeTime(120.0);
+
+    strip.mouseDown(clickAt(rule.getCentre(), true, when));
+
+    check(folded.empty() && link.menus == 1,
+          "a right-click on a rule opens the menu and folds nothing (" +
+              std::to_string(folded.size()) + " folds, " +
+              std::to_string(link.menus) + " menus)");
+  }
+}
+
 /// The tick in the Zoom submenu, which is the only thing on the panel that
 /// says which zoom you are at.
 ///
@@ -6329,6 +6440,7 @@ int main() {
   testSettingsMenu(processor);
   testFitAllChannels(processor);
   testZoomTickFollowsTheZoom(processor);
+  testTheRulesFoldTheirSections(processor);
   testOneRightClickOpensOneMenu(processor);
   testWheelOverAKnobStaysOnTheKnob(processor);
   testSettingsNamesTheVersion(processor);

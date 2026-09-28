@@ -317,6 +317,10 @@ public:
   /// once, since the rows are shared across the whole mixer.
   void setCollapsedSections(SectionMask);
 
+  /// Asked for when a click lands on one of the rules between sections, which
+  /// line up with the gutter's headings and do the same thing.
+  std::function<void(Section)> onSectionToggled;
+
   void mouseEnter(const juce::MouseEvent &) override;
   void mouseMove(const juce::MouseEvent &) override;
   void mouseExit(const juce::MouseEvent &) override;
@@ -461,9 +465,11 @@ private:
   /// moves under its own steam again. See clearHover.
   bool hoverSuppressed = false;
 
-  /// When the last click that opened the LINK menu happened, so the same click
-  /// arriving a second time cannot open a second one. See mouseDown.
-  juce::Time lastMenuClick;
+  /// When the last click on this strip happened, so the same click arriving a
+  /// second time cannot act twice. See mouseDown.
+  juce::Time lastClick;
+
+  void foldSectionUnder(const juce::MouseEvent &, bool echo);
   Role glowRole = Role::Tune;
   float glowAmount = 0.0f;
 

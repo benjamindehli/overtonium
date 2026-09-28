@@ -949,8 +949,27 @@ void ChannelStrip::setSilencedByOthers(bool shouldDim) {
 }
 
 void ChannelStrip::mouseDown(const juce::MouseEvent &e) {
-  if (!e.mods.isPopupMenu())
+  // The strip listens to every one of its children, so a click that lands on
+  // the strip's own background arrives here twice: once because the strip is
+  // the component under the pointer, and once more through that listener. A
+  // click on a child arrives once, through the listener alone.
+  //
+  // Nothing on the two events tells them apart. JUCE hands the listener an
+  // event rebuilt from the same click, so the component, the position and the
+  // modifiers all match. What they cannot differ in is when they happened, so
+  // that is what separates them, which is how JUCE itself throws away the
+  // duplicate wheel events it sometimes gets. See Slider::mouseWheelMove.
+  //
+  // Both things this handler does are switches, so both need it. Twice was two
+  // LINK menus stacked on each other, and would be a section folded and
+  // unfolded again in the same click.
+  const bool echoOfTheSameClick = e.eventTime == lastClick;
+  lastClick = e.eventTime;
+
+  if (!e.mods.isPopupMenu()) {
+    foldSectionUnder(e, echoOfTheSameClick);
     return;
+  }
 
   // Whatever menu is about to open is modal, and a modal menu means this strip
   // is never told the pointer has left it. Letting the hover go now is what
@@ -967,27 +986,35 @@ void ChannelStrip::mouseDown(const juce::MouseEvent &e) {
   if (dynamic_cast<const MuteSoloButton *>(e.originalComponent) != nullptr)
     return;
 
-  // That same listener is why a click on the strip's own background arrives
-  // here twice: once because the strip is the component under the pointer, and
-  // once more through the listener it registered on itself. A click on a child
-  // arrives once, through the listener alone, which is why this only ever
-  // showed in the gaps between sections where nothing covers the strip.
-  //
-  // Nothing on the two events tells them apart. JUCE hands the listener an
-  // event rebuilt from the same click, so the component, the position and the
-  // modifiers all match. What they cannot differ in is when they happened, so
-  // that is what separates them, which is how JUCE itself throws away the
-  // duplicate wheel events it sometimes gets. See Slider::mouseWheelMove.
-  //
-  // Two menus opened stacked on each other. Choosing an item on the front one
-  // left the one behind it standing with its ticks unmoved, so the setting
-  // looked to have been refused while the instrument had already taken it.
-  if (e.eventTime == lastMenuClick)
+  // Two menus opened stacked on each other before the echo was noticed.
+  // Choosing an item on the front one left the one behind it standing with its
+  // ticks unmoved, so the setting looked to have been refused while the
+  // instrument had already taken it.
+  if (echoOfTheSameClick)
     return;
 
-  lastMenuClick = e.eventTime;
-
   link.showLinkMenu();
+}
+
+/// Folds the section whose rule the click landed on, if it landed on one.
+///
+/// The rules across a strip line up with the headings in the gutter because
+/// both are laid out by the same call, so the same hit test answers for both
+/// and a strip needs no geometry of its own. See RowGutter::mouseDown.
+void ChannelStrip::foldSectionUnder(const juce::MouseEvent &e, bool echo) {
+  // Only a click on the strip's own background. Everything inside a strip that
+  // can be clicked has its own job, and the rules are the one part of it with
+  // nothing standing on them: the lamps that four of them carry let clicks
+  // through precisely so the rule underneath is still a rule.
+  if (e.originalComponent != this || echo || onSectionToggled == nullptr)
+    return;
+
+  const auto rows =
+      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+  const auto section = headingSectionAt(rows, e.getPosition());
+
+  if (section != Section::NumSections)
+    onSectionToggled(section);
 }
 
 void ChannelStrip::clearHover() {
