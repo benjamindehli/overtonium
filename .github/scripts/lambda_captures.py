@@ -125,10 +125,14 @@ def pairs(text: str) -> list[tuple[int, int, bool]]:
 
 
 def scan(path: Path) -> list[str]:
+    return scan_text(path.read_text(encoding="utf-8"), str(path))
+
+
+def scan_text(source: str, label: str) -> list[str]:
     # Analysed with comments and literals blanked, so a word in a comment
     # cannot be mistaken for code. Offsets are unchanged, so lines still line
     # up with the file as written.
-    text = stripped(path.read_text(encoding="utf-8"))
+    text = stripped(source)
     blocks = pairs(text)
 
     def innermost(at: int):
@@ -158,7 +162,12 @@ def scan(path: Path) -> list[str]:
     for m in LAMBDA.finditer(text):
         capture = m.group(1)
 
-        if "&" in capture or "=" in capture:
+        # A default capture is the first thing in the list and is a bare & or
+        # =, so `[&]` and `[=, x]` take whatever they need and `[&in]` does
+        # not. Reading it as "contains an &" instead let `[&in]` through, which
+        # is a capture of one name by reference and short of everything else,
+        # and cost a round trip to find out.
+        if capture.split(",")[0].strip() in ("&", "="):
             continue
 
         captured = set(WORD.findall(capture))
@@ -198,13 +207,116 @@ def scan(path: Path) -> list[str]:
         if missing:
             line = text[:m.start()].count("\n") + 1
             problems.append(
-                f"{path}:{line}: lambda reads {', '.join(sorted(missing))} "
+                f"{label}:{line}: lambda reads {', '.join(sorted(missing))} "
                 f"without capturing {'it' if len(missing) == 1 else 'them'}")
 
     return problems
 
 
+# Cases this has been wrong about, and the ones it has always been right
+# about, so that it cannot quietly start passing everything again. Each is a
+# whole translation unit: a truth about scope cannot be told from a fragment.
+CASES = [
+    ("a bare capture list misses a local", 1, """
+void f() {
+  constexpr double sr = 48000.0;
+  const auto g = [](double x) { return x / sr; };
+}
+"""),
+    ("a default capture takes it", 0, """
+void f() {
+  constexpr double sr = 48000.0;
+  const auto g = [&](double x) { return x / sr; };
+}
+"""),
+    ("so does the other default", 0, """
+void f() {
+  constexpr double sr = 48000.0;
+  const auto g = [=](double x) { return x / sr; };
+}
+"""),
+    ("naming one by reference is not a default", 1, """
+void f() {
+  constexpr double sr = 48000.0;
+  std::vector<float> in;
+  const auto g = [&in](double x) { return in[0] / sr + x; };
+}
+"""),
+    ("capturing it is enough", 0, """
+void f() {
+  constexpr double sr = 48000.0;
+  const auto g = [sr](double x) { return x / sr; };
+}
+"""),
+    ("a comment naming a namespace does not make one", 1, """
+namespace {
+int helper();
+} // namespace
+
+void f() {
+  constexpr double sr = 48000.0;
+  const auto g = [](double x) { return x / sr; };
+}
+"""),
+    ("a static member needs no capture", 0, """
+struct S {
+  static constexpr double sr = 48000.0;
+  void f() {
+    const auto g = [](double x) { return x / sr; };
+  }
+};
+"""),
+    ("nor does one at namespace scope", 0, """
+namespace {
+constexpr double sr = 48000.0;
+}
+
+void f() {
+  const auto g = [](double x) { return x / sr; };
+}
+"""),
+    ("a member of something else is not a local", 0, """
+void f() {
+  constexpr int first = 4;
+  int g(int);
+}
+
+void h() {
+  const auto g = [](std::pair<int, int> v) { return v.first; };
+}
+"""),
+    ("nor is a local of another function", 0, """
+void f() {
+  constexpr double sr = 48000.0;
+  (void)sr;
+}
+
+void h() {
+  const auto g = [](double x) { return x / sr; };
+}
+"""),
+]
+
+
+def self_test() -> int:
+    bad = 0
+
+    for name, wanted, source in CASES:
+        found = len(scan_text(source, "case"))
+
+        if found != wanted:
+            print(f"::error::self test: {name} — wanted {wanted}, found "
+                  f"{found}")
+            bad += 1
+
+    print(f"{len(CASES)} self tests, {bad} wrong")
+    return bad
+
+
 def main() -> int:
+    if "--self-test" in sys.argv:
+        return 1 if self_test() else 0
+
     roots = [Path(a) for a in sys.argv[1:]] or [Path("Source"), Path("Tests")]
 
     files = []

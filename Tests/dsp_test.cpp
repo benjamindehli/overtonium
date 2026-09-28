@@ -5813,7 +5813,7 @@ void testBusDrive() {
       in[n] = (float)(0.7 * std::sin(kTwoPi * 300.0 * (double)n / sr) +
                       0.2 * std::sin(kTwoPi * 1100.0 * (double)n / sr));
 
-    const auto after = [&in](Character c, float amount) {
+    const auto after = [&in, sr](Character c, float amount) {
       auto l = in;
       auto r = in;
 
