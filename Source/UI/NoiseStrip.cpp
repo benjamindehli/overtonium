@@ -379,4 +379,10 @@ void NoiseStrip::resized() {
   soloButton.setBounds(ms.reduced(1));
 }
 
+void NoiseStrip::mouseWheelMove(const juce::MouseEvent &e,
+                                const juce::MouseWheelDetails &wheel) {
+  if (e.originalComponent == this)
+    juce::Component::mouseWheelMove(e, wheel);
+}
+
 } // namespace ovt::ui

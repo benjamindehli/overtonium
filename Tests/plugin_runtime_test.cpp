@@ -3732,6 +3732,171 @@ void testSettingsNamesTheVersion(OvertoniumProcessor &p) {
   check(asHeader, "as a heading rather than as something to click");
 }
 
+/// A wheel over a knob must not also scroll the mixer sideways.
+///
+/// When the window is narrow enough for the series to need scrolling, a scroll
+/// over a knob was reported as doing both: moving the knob and dragging the
+/// view along under it. The wheel is how most of this instrument gets
+/// adjusted, so a knob that also shoves the panel sideways is the difference
+/// between a control and a fight.
+void testWheelOverAKnobStaysOnTheKnob(OvertoniumProcessor &p) {
+  section("A wheel over a knob does not scroll the mixer");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  // Narrow enough that the series cannot all be shown at once, which is the
+  // only time there is anything to scroll.
+  editor->setSize(900, editor->getHeight());
+
+  juce::Viewport *viewport = nullptr;
+  std::function<void(juce::Component &)> findViewport =
+      [&](juce::Component &c) {
+        if (auto *v = dynamic_cast<juce::Viewport *>(&c))
+          viewport = v;
+        for (auto *child : c.getChildren())
+          findViewport(*child);
+      };
+  findViewport(*editor);
+
+  check(viewport != nullptr, "and the series sits in a viewport");
+  if (viewport == nullptr)
+    return;
+
+  // Half way along, so a scroll in either direction has somewhere to go and a
+  // move cannot be hidden by hitting a limit.
+  const auto span =
+      viewport->getViewedComponent()->getWidth() - viewport->getViewWidth();
+
+  check(span > 0, "which has more in it than it can show (" +
+                      std::to_string(span) + " px)");
+
+  viewport->setViewPosition(span / 2, 0);
+  const auto before = viewport->getViewPositionX();
+
+  // A knob inside it, found the way the pointer finds one.
+  juce::Slider *knob = nullptr;
+  std::function<void(juce::Component &)> findKnob = [&](juce::Component &c) {
+    if (knob != nullptr)
+      return;
+    if (auto *s = dynamic_cast<juce::Slider *>(&c))
+      if (s->getSliderStyle() == juce::Slider::RotaryVerticalDrag)
+        knob = s;
+    for (auto *child : c.getChildren())
+      findKnob(*child);
+  };
+  findKnob(*viewport->getViewedComponent());
+
+  check(knob != nullptr, "and carries knobs to scroll over");
+  if (knob == nullptr)
+    return;
+
+  const auto valueBefore = knob->getValue();
+
+  // What JUCE hands the component under the pointer: the event names that
+  // component, which is what decides whether anything above it acts on it too.
+  juce::MouseWheelDetails wheel{};
+  wheel.deltaX = 0.0f;
+  // Downwards, since the first knob found is at the top of its range and a
+  // push upwards would move nothing and prove nothing.
+  wheel.deltaY = -0.4f;
+  wheel.isReversed = false;
+  wheel.isSmooth = false;
+  wheel.isInertial = false;
+
+  const juce::MouseEvent e(juce::Desktop::getInstance().getMainMouseSource(),
+                           knob->getLocalBounds().getCentre().toFloat(),
+                           juce::ModifierKeys(),
+                           juce::MouseInputSource::defaultPressure,
+                           juce::MouseInputSource::defaultOrientation,
+                           juce::MouseInputSource::defaultRotation,
+                           juce::MouseInputSource::defaultTiltX,
+                           juce::MouseInputSource::defaultTiltY, knob, knob,
+                           juce::Time::getCurrentTime(),
+                           knob->getLocalBounds().getCentre().toFloat(),
+                           juce::Time::getCurrentTime(), 1, false);
+
+  knob->mouseWheelMove(e, wheel);
+
+  // And then what JUCE does next, which is the half that bit. Every ancestor
+  // holding a deep mouse listener is handed the same wheel after the target
+  // has had it, whether the target took it or not. The strip holds one so that
+  // a pointer resting on a knob is reported by the strip rather than swallowed
+  // by the control. See MouseListenerList::sendMouseEvent.
+  ovt::ui::ChannelStrip *strip = nullptr;
+  for (auto *c = knob->getParentComponent(); c != nullptr;
+       c = c->getParentComponent())
+    if (auto *s = dynamic_cast<ovt::ui::ChannelStrip *>(c)) {
+      strip = s;
+      break;
+    }
+
+  check(strip != nullptr, "and the knob sits in a strip that listens deeply");
+
+  if (strip != nullptr) {
+    const juce::MouseEvent relayed(
+        juce::Desktop::getInstance().getMainMouseSource(),
+        strip->getLocalPoint(knob, knob->getLocalBounds().getCentre())
+            .toFloat(),
+        juce::ModifierKeys(), juce::MouseInputSource::defaultPressure,
+        juce::MouseInputSource::defaultOrientation,
+        juce::MouseInputSource::defaultRotation,
+        juce::MouseInputSource::defaultTiltX,
+        juce::MouseInputSource::defaultTiltY, strip, knob,
+        juce::Time::getCurrentTime(),
+        strip->getLocalPoint(knob, knob->getLocalBounds().getCentre())
+            .toFloat(),
+        juce::Time::getCurrentTime(), 1, false);
+
+    strip->mouseWheelMove(relayed, wheel);
+  }
+
+  std::printf("  the knob went from %.4f to %.4f, and the view from %d to %d\n",
+              valueBefore, knob->getValue(), before,
+              viewport->getViewPositionX());
+
+  check(std::abs(knob->getValue() - valueBefore) > 1.0e-9,
+        "the wheel moves the knob it is over");
+
+  check(viewport->getViewPositionX() == before,
+        "and leaves the mixer where it was (" + std::to_string(before) +
+            " to " + std::to_string(viewport->getViewPositionX()) + ")");
+
+  // ---- but the strip itself still scrolls it ------------------------------
+  //
+  // The other half of what was asked for, and the thing a careless fix would
+  // break: swallowing every wheel the strip is handed would stop the series
+  // scrolling at all, which is worse than what was reported.
+  if (strip != nullptr) {
+    const auto held = viewport->getViewPositionX();
+
+    const juce::MouseEvent onStrip(
+        juce::Desktop::getInstance().getMainMouseSource(),
+        strip->getLocalBounds().getCentre().toFloat(), juce::ModifierKeys(),
+        juce::MouseInputSource::defaultPressure,
+        juce::MouseInputSource::defaultOrientation,
+        juce::MouseInputSource::defaultRotation,
+        juce::MouseInputSource::defaultTiltX,
+        juce::MouseInputSource::defaultTiltY, strip, strip,
+        juce::Time::getCurrentTime(),
+        strip->getLocalBounds().getCentre().toFloat(),
+        juce::Time::getCurrentTime(), 1, false);
+
+    strip->mouseWheelMove(onStrip, wheel);
+
+    std::printf(
+        "  and a wheel on the strip itself took the view from %d to %d\n", held,
+        viewport->getViewPositionX());
+
+    check(viewport->getViewPositionX() != held,
+          "a wheel on the strip's own background still scrolls the series");
+  }
+}
+
 /// The tick in the Zoom submenu, which is the only thing on the panel that
 /// says which zoom you are at.
 ///
@@ -6065,6 +6230,7 @@ int main() {
   testSettingsMenu(processor);
   testFitAllChannels(processor);
   testZoomTickFollowsTheZoom(processor);
+  testWheelOverAKnobStaysOnTheKnob(processor);
   testSettingsNamesTheVersion(processor);
   testMachineMenusFollowTheirParameters(processor);
   testPresetMenuGroups(processor);
