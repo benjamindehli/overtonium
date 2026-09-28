@@ -1334,7 +1334,12 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
     // another control competing with the meter. Held off the bottom of the
     // group, since a readout sitting on the border reads as having fallen to
     // the floor of it.
-    auto below = r.withTop(meter.getBottom() + 3).withTrimmedBottom(3);
+    //
+    // Hard up under the meter at the top, though. The digits are drawn as a
+    // share of whatever height they are given, so every pixel between the two
+    // is a pixel off the figures, and the meter's own bottom edge is a clear
+    // enough line to sit against without a gap to prove it.
+    auto below = r.withTop(meter.getBottom() + 1).withTrimmedBottom(3);
 
     const auto each = juce::jmin(66, (below.getWidth() - 6) / 2);
     auto pair = below.withSizeKeepingCentre(each * 2 + 6, below.getHeight());
@@ -1480,6 +1485,49 @@ void TopBar::paint(juce::Graphics &g) {
 
     g.setColour(colours::outline.withAlpha(0.9f));
     g.drawRoundedRectangle(f.reduced(0.5f), 4.0f, 1.0f);
+  }
+
+  // What the button at the head of each group is choosing, under it, in the
+  // band the knobs beside it put their captions in.
+  //
+  // Every knob in these groups says what it is and the button does not: it
+  // shows a value, so the echo group reads TAPE and nothing on the bar says
+  // that TAPE is the echo. That was tolerable while each of these was one
+  // fixed thing behind a switch. With three machines on each of two of them
+  // the face changes six ways, and a row of value words with nothing naming
+  // them is a bar you have to already know.
+  //
+  // The output group gets none. The meter under it is what says what it is,
+  // and the two readouts below already name their own units.
+  {
+    const struct {
+      int group;
+      const juce::Component *head;
+    } named[] = {
+        {SeriesGroup, &characterButton},
+        {EchoGroup, &echoButton},
+        {ReverbGroup, &reverbButton},
+    };
+
+    g.setColour(colours::textDim);
+    g.setFont(makeFont(9.0f, true));
+
+    for (size_t i = 0; i < std::size(named); ++i) {
+      const auto &n = named[i];
+      const auto &r = groupBounds[(size_t)n.group];
+
+      if (r.isEmpty())
+        continue;
+
+      // Centred under the head rather than pushed into the corner, because
+      // that is what the knob captions beside it do and the point is to read
+      // as one more of them.
+      const auto band = LabelledKnob::captionBounds(r)
+                            .withX(n.head->getX())
+                            .withWidth(n.head->getWidth());
+
+      g.drawText(kGroupNames[i], band, juce::Justification::centred, false);
+    }
   }
 
   auto title = getLocalBounds().reduced(kBarMargin, kBarPadY);

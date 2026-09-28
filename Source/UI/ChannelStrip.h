@@ -90,6 +90,12 @@ public:
   /// caption underneath means the two are not the same place.
   static juce::Rectangle<int> dialBounds(juce::Rectangle<int>);
 
+  /// And where the caption under it sits, for the same reason turned around.
+  /// The bar names a group in the band its knobs put their captions in, and
+  /// reading that band off the same function is what keeps the two on one
+  /// line however the band is sized.
+  static juce::Rectangle<int> captionBounds(juce::Rectangle<int>);
+
   LinkableSlider slider;
 
 private:

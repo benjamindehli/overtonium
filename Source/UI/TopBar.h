@@ -252,6 +252,14 @@ public:
   static constexpr int kEchoWidth = 62;
   static constexpr int kReverbWidth = 58;
 
+  /// The word painted under each of those, saying what the button chooses.
+  ///
+  /// In the same order as the three widths above, and public for the same
+  /// reason they are: a word wider than the button it sits under is drawn
+  /// with its middle taken out and nothing says so. See
+  /// testBarButtonsFitTheirWords.
+  static constexpr const char *kGroupNames[] = {"CHARACTER", "ECHO", "REVERB"};
+
 private:
   /// Applies what buildEchoMenu came back with. Zero means dismissed.
   void chooseEcho(int id);

@@ -89,13 +89,15 @@ constexpr int kBelowCaption = 1;
 } // namespace
 
 void LabelledKnob::paint(juce::Graphics &g) {
-  auto area = getLocalBounds();
-  area.removeFromBottom(kBelowCaption);
-
   g.setColour(colours::textDim);
   g.setFont(makeFont(9.0f, true));
-  g.drawText(caption, area.removeFromBottom(kCaptionHeight),
+  g.drawText(caption, captionBounds(getLocalBounds()),
              juce::Justification::centred, false);
+}
+
+juce::Rectangle<int> LabelledKnob::captionBounds(juce::Rectangle<int> bounds) {
+  bounds.removeFromBottom(kBelowCaption);
+  return bounds.removeFromBottom(kCaptionHeight);
 }
 
 juce::Rectangle<int> LabelledKnob::dialBounds(juce::Rectangle<int> bounds) {

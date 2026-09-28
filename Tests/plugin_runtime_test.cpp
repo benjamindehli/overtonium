@@ -3790,6 +3790,33 @@ void testBarButtonsFitTheirWords(OvertoniumProcessor &p) {
   check(reverbText + 8 <= TopBar::kReverbWidth,
         "and every reverb fits in its own (" + std::to_string(reverbText) +
             " px in " + std::to_string(TopBar::kReverbWidth) + ")");
+
+  // ---- and the word under each of them -------------------------------------
+  //
+  // The button shows a value, so the group is named underneath it in the band
+  // the knob captions occupy, at the font those captions use. A word wider
+  // than the button it sits under is drawn with its middle taken out, and the
+  // knob caption six pixels to its right would have it running into that.
+  {
+    const auto captionFont = makeFont(9.0f, true);
+
+    const int widths[] = {TopBar::kCharacterWidth, TopBar::kEchoWidth,
+                          TopBar::kReverbWidth};
+
+    for (size_t i = 0; i < std::size(TopBar::kGroupNames); ++i) {
+      const juce::String word(TopBar::kGroupNames[i]);
+      const auto measured = (int)std::ceil(
+          juce::GlyphArrangement::getStringWidth(captionFont, word));
+
+      std::printf("  %-9s under a button of %d px measures %d\n",
+                  word.toRawUTF8(), widths[i], measured);
+
+      check(measured + 4 <= widths[i],
+            "the word " + word.toStdString() +
+                " fits under the button it names (" + std::to_string(measured) +
+                " px in " + std::to_string(widths[i]) + ")");
+    }
+  }
 }
 
 /// The width the bar comes onto one row at, which the design notes quote and
