@@ -89,6 +89,10 @@ public:
 
   // ---- ovt::ui::LinkTarget ----
   bool isLinkEnabled() const override;
+
+  /// Brings everything that depends on the LINK settings into step: the
+  /// gutter's switch, the glow that previews a drag, and the pointer.
+  void syncLinkUi();
   void linkDragStarted(ovt::ui::Role, int sourceIndex) override;
   void linkValueChanged(ovt::ui::Role, int sourceIndex,
                         float plainValue) override;

@@ -527,7 +527,9 @@ Nothing had to be made clickable for it. The rules are the one part of a strip w
 
 It folds across the whole mixer rather than per channel. The strips are columns sharing one set of rows, and folding a group on one channel and not the next would put every row below it out of step with the gutter captions, which are the only thing naming the knobs.
 
-A folded heading keeps its activity lamp, so a group you cannot see still says whether it is doing anything. The state is remembered with the session rather than with the patch, alongside the window size and the zoom, so loading a preset never rearranges your screen.
+A folded heading keeps its activity lamp, so a group you cannot see still says whether it is doing anything. The state is remembered with the session rather than with the patch, alongside the window size, the zoom and the three LINK settings, so loading a preset never rearranges your screen.
+
+LINK is three settings and not two, which is what went wrong with it. The scope and the curve say what a drag would reach and how it would be shared out, and the switch says whether it reaches anything at all. The first two were written to the session and the third was not, so a window reopened remembering exactly how a drag would be distributed, with the drag switched off. They are written together now, and everything that depends on any of them is brought into step by one function rather than by the tail of the callback that happened to notice: restoring a window and choosing from the menu have to arrive at the same place, and a second list of things to update is a second list to forget something from.
 
 Rows in a folded section are hidden rather than left at zero height. A knob with no height still takes the mouse and still answers a hover, so it would go on lighting gutter captions and opening LINK menus for controls nobody can see.
 

@@ -4225,6 +4225,94 @@ void testFoldingAndUnfoldingIsSymmetric(OvertoniumProcessor &p) {
   }
 }
 
+/// LINK comes back the way it was left.
+///
+/// Reported as LINK not being retained when the plugin is closed and opened.
+/// Two thirds of it were: the scope and the curve have always been written to
+/// the editor's state, and the switch that decides whether either of them
+/// applies was not. So a window reopened remembering exactly how a drag would
+/// be shared out, with the drag switched off.
+///
+/// All three are checked rather than the one that was missing, so the next
+/// setting added here cannot be the one forgotten.
+void testLinkSurvivesAReopen(OvertoniumProcessor &p) {
+  section("LINK survives a reopen");
+
+  const auto reopen = [&p]() {
+    std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+    auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+    auto *bar = editor != nullptr ? findTopBar(*editor) : nullptr;
+
+    return std::pair<std::unique_ptr<juce::AudioProcessorEditor>,
+                     ovt::ui::TopBar *>(std::move(base), bar);
+  };
+
+  // ---- left on, and set to something other than the defaults --------------
+  {
+    auto [window, bar] = reopen();
+
+    check(bar != nullptr, "the editor opens with a bar");
+    if (bar == nullptr)
+      return;
+
+    bar->setLinkEnabled(true);
+    bar->setLinkScope(ovt::ui::LinkScope::Odd);
+    bar->setLinkCurve(ovt::ui::LinkCurve::Spread);
+
+    check(bar->onLinkSettingsChanged != nullptr,
+          "and the bar reports its settings to the editor");
+
+    if (bar->onLinkSettingsChanged)
+      bar->onLinkSettingsChanged();
+  }
+
+  {
+    auto [window, bar] = reopen();
+
+    check(bar != nullptr, "it opens again");
+    if (bar == nullptr)
+      return;
+
+    std::printf("  reopened with LINK %s, scope %s, curve %s\n",
+                bar->isLinkEnabled() ? "on" : "off",
+                ovt::ui::linkScopeName(bar->getLinkScope()),
+                ovt::ui::linkCurveName(bar->getLinkCurve()));
+
+    check(bar->isLinkEnabled(), "with LINK still on");
+    check(bar->getLinkScope() == ovt::ui::LinkScope::Odd,
+          "and the scope it was left on");
+    check(bar->getLinkCurve() == ovt::ui::LinkCurve::Spread,
+          "and the curve it was left on");
+  }
+
+  // ---- and switched off again, which has to stick as well ------------------
+  //
+  // A setting that is only written when it is true reads as working until
+  // somebody turns it off.
+  {
+    auto [window, bar] = reopen();
+
+    if (bar == nullptr)
+      return;
+
+    bar->setLinkEnabled(false);
+
+    if (bar->onLinkSettingsChanged)
+      bar->onLinkSettingsChanged();
+  }
+
+  {
+    auto [window, bar] = reopen();
+
+    if (bar == nullptr)
+      return;
+
+    check(!bar->isLinkEnabled(), "switching it off sticks too");
+    check(bar->getLinkScope() == ovt::ui::LinkScope::Odd,
+          "and the scope is still where it was");
+  }
+}
+
 /// The tick in the Zoom submenu, which is the only thing on the panel that
 /// says which zoom you are at.
 ///
@@ -6558,6 +6646,7 @@ int main() {
   testSettingsMenu(processor);
   testFitAllChannels(processor);
   testZoomTickFollowsTheZoom(processor);
+  testLinkSurvivesAReopen(processor);
   testFoldingAndUnfoldingIsSymmetric(processor);
   testTheRulesFoldTheirSections(processor);
   testOneRightClickOpensOneMenu(processor);
