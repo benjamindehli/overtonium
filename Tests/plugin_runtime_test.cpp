@@ -3792,6 +3792,24 @@ void testBarButtonsFitTheirWords(OvertoniumProcessor &p) {
         "and every reverb fits in its own (" + std::to_string(reverbText) +
             " px in " + std::to_string(TopBar::kReverbWidth) + ")");
 
+  // ---- the clipper's switch, which is the shortest button on the bar -------
+  //
+  // At 16 px tall it picks a 9 px font for itself rather than the 13 the taller
+  // buttons get, so it is measured at that rather than at theirs.
+  {
+    const auto shortFont =
+        makeFont(juce::jlimit(8.0f, 13.0f, 16.0f * 0.58f), true);
+    const auto clipText = (int)std::ceil(juce::GlyphArrangement::getStringWidth(
+        shortFont, juce::String(TopBar::kClipName)));
+
+    std::printf("  %s measures %d px in a button of %d\n", TopBar::kClipName,
+                clipText, TopBar::kClipWidth);
+
+    check(clipText + 8 <= TopBar::kClipWidth,
+          "the clipper's switch fits its word (" + std::to_string(clipText) +
+              " px in " + std::to_string(TopBar::kClipWidth) + ")");
+  }
+
   // ---- and the word under each of them -------------------------------------
   //
   // The button shows a value, so the group is named underneath it in the band
@@ -3846,7 +3864,7 @@ void testBarComesOntoOneRow(OvertoniumProcessor &) {
 
   // The figure the design notes quote. It moves whenever a control on the bar
   // changes width, and when it moves the notes move with it.
-  check(onOneRow == 1218, "and comes onto it at the width written down (" +
+  check(onOneRow == 1258, "and comes onto it at the width written down (" +
                               std::to_string(onOneRow) + ")");
 }
 
@@ -3880,6 +3898,13 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
       // the meter below, which is the alignment that can actually be seen.
       if (auto *slider = dynamic_cast<juce::Slider *>(child))
         if (slider->getSliderStyle() == juce::Slider::LinearHorizontal)
+          continue;
+
+      // Nor the clipper's switch, which stands in the caption band beside the
+      // readouts rather than on the line with the other buttons. Checked with
+      // them below, for the same reason they are.
+      if (auto *button = dynamic_cast<juce::TextButton *>(child))
+        if (button->getButtonText() == TopBar::kClipName)
           continue;
 
       // A knob's line is its dial, not the control, which reaches further down
@@ -3954,38 +3979,47 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
                        at);
   }
 
-  // And the readouts sit under the meter, inside the row, at every width the
-  // bar can be given. Excluding them from the rule above would otherwise be a
-  // hole rather than a decision.
+  // And the three things under the meter sit under it, inside the row, at
+  // every width the bar can be given. Excluding them from the rule above would
+  // otherwise be a hole rather than a decision.
   for (int width : {1412, 1100, 900, TopBar::minimumWidth()}) {
     bar.setSize(width, TopBar::heightForWidth(width));
 
     juce::Rectangle<int> meterBounds;
-    juce::Array<juce::Rectangle<int>> readouts;
+    juce::Array<juce::Rectangle<int>> under;
 
     for (auto *child : bar.getChildren()) {
       if (dynamic_cast<StereoOutputMeter *>(child) != nullptr)
         meterBounds = child->getBounds();
 
       if (dynamic_cast<SegmentDisplay *>(child) != nullptr)
-        readouts.add(child->getBounds());
+        under.add(child->getBounds());
+
+      if (auto *button = dynamic_cast<juce::TextButton *>(child))
+        if (button->getButtonText() == TopBar::kClipName)
+          under.add(button->getBounds());
     }
 
     const auto at = " (" + std::to_string(width) + " px)";
 
-    check(readouts.size() == 2, "both converter readouts are placed" + at);
+    check(under.size() == 3,
+          "both converter readouts and the clipper's switch are placed" + at);
 
     bool below = !meterBounds.isEmpty();
-    for (const auto &r : readouts)
+    for (const auto &r : under)
       below &= !r.isEmpty() && r.getY() >= meterBounds.getBottom() &&
                r.getBottom() <= bar.getHeight();
 
-    check(below, "and both sit under the meter without leaving the bar" + at);
+    check(below,
+          "and all three sit under the meter without leaving the bar" + at);
 
-    // Side by side rather than one on top of the other or overlapping.
-    if (readouts.size() == 2)
-      check(!readouts[0].intersects(readouts[1]),
-            "and do not overlap each other" + at);
+    // Side by side rather than stacked or overlapping.
+    bool apart = true;
+    for (int i = 0; i < under.size(); ++i)
+      for (int j = i + 1; j < under.size(); ++j)
+        apart &= !under[i].intersects(under[j]);
+
+    check(apart, "and none of the three overlaps another" + at);
   }
 
   // A number with no unit beside it is a number nobody can read. At the width

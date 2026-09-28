@@ -24,7 +24,7 @@ constexpr int kGroupPad = 6;
 
 /// Minimum width of each group, in the order they are laid out. Only the
 /// output group grows, because the meter is the one thing worth more room.
-constexpr int kGroupMinWidth[] = {144, 90, 218, 232, 228, 132};
+constexpr int kGroupMinWidth[] = {144, 90, 218, 232, 228, 172};
 constexpr int kOutputGroupIndex = 5;
 constexpr int kGroupCount = 6;
 
@@ -380,6 +380,22 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   // GlowButton.
   echoButton.setColour(juce::TextButton::textColourOnId, colours::accent);
   reverbButton.setColour(juce::TextButton::textColourOnId, colours::accent);
+
+  // The clipper stands with the converter rather than with the effects, since
+  // what it does is the last thing that happens to the signal and the readouts
+  // beside it are the other two facts about the output stage. It keeps its
+  // entry in the settings menu as well: a switch that is set once and left is
+  // a settings-menu thing, and a switch this close to the meter is worth
+  // reaching for while listening.
+  styleToggle(clipButton, kClipName,
+              "A soft clipper across the finished output, after the master "
+              "fader. On is a limit you can hear yourself reach; off lets the "
+              "output go past full scale and out to the host as it is.");
+
+  clipButton.setColour(juce::TextButton::textColourOnId, colours::accent);
+
+  clipAttachment = std::make_unique<ButtonAttachment>(
+      apvts, params::safetyClipId, clipButton);
 
   addKnob(echoControls, "Echo", "MIX", params::echoMixId,
           "How much of the output is repeats", popupParent);
@@ -1367,12 +1383,21 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
     // enough line to sit against without a gap to prove it.
     auto below = r.withTop(meter.getBottom() + 1).withTrimmedBottom(3);
 
-    const auto each = juce::jmin(66, (below.getWidth() - 6) / 2);
-    auto pair = below.withSizeKeepingCentre(each * 2 + 6, below.getHeight());
+    // Three things now, evenly spaced and centred as a block: what the
+    // converter is running at, how many bits it is keeping, and whether the
+    // clipper is catching what comes out. The readouts take what is left after
+    // the switch, up to the 66 px at which they can still name their units.
+    const auto each =
+        juce::jmin(66, (below.getWidth() - kFxToggleGap * 2 - kClipWidth) / 2);
 
-    rateDisplay.setBounds(pair.removeFromLeft(each));
-    pair.removeFromLeft(6);
-    bitsDisplay.setBounds(pair);
+    auto trio = below.withSizeKeepingCentre(
+        each * 2 + kFxToggleGap * 2 + kClipWidth, below.getHeight());
+
+    rateDisplay.setBounds(trio.removeFromLeft(each));
+    trio.removeFromLeft(kFxToggleGap);
+    bitsDisplay.setBounds(trio.removeFromLeft(each));
+    trio.removeFromLeft(kFxToggleGap);
+    clipButton.setBounds(trio);
     break;
   }
 

@@ -195,6 +195,10 @@ private:
   using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
   using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
 
+  /// The clipper is a plain switch, so it takes a plain attachment. The two
+  /// effects cannot: their buttons open a menu over two parameters.
+  std::unique_ptr<ButtonAttachment> clipAttachment;
+
   void styleToggle(GlowButton &, const juce::String &text,
                    const juce::String &tooltip);
 
@@ -259,6 +263,17 @@ public:
   /// with its middle taken out and nothing says so. See
   /// testBarButtonsFitTheirWords.
   static constexpr const char *kGroupNames[] = {"CHARACTER", "ECHO", "REVERB"};
+
+  /// The clipper's switch, under the meter beside the converter readouts.
+  ///
+  /// Sized for the one word it ever says, at the font a button this short
+  /// picks for itself, which is the same 9 px the captions around it use.
+  static constexpr int kClipWidth = 34;
+
+  /// The one word it ever says. Shared with the tests, which have to pick this
+  /// button out of the bar's children: it is the only one that stands in the
+  /// caption band rather than on the line of controls.
+  static constexpr const char *kClipName = "CLIP";
 
 private:
   /// Whether an effect's knobs show a lit ring. Off means the stage is not in
@@ -387,7 +402,7 @@ private:
   juce::Array<juce::File> userPresetFiles;
 
   std::unique_ptr<juce::AlertWindow> nameWindow;
-  GlowButton echoButton, reverbButton;
+  GlowButton echoButton, reverbButton, clipButton;
 
   /// Likewise. Zoom is set once to suit the screen and then left, and giving
   /// its box back to the bar is what lets the output group keep its readouts
