@@ -4012,7 +4012,7 @@ void testLift() {
   // neutral one with no key-off level of its own goes straight into the
   // release. Five milliseconds of difference, inaudible and real, and enough
   // to put six percent on any sum over the whole tail.
-  const auto releasesFrom = [](const std::vector<float> &v, double when) {
+  const auto releasesFrom = [sr](const std::vector<float> &v, double when) {
     const auto i = (size_t)(when * sr);
     return i < v.size() ? (double)v[i] : 0.0;
   };
@@ -4040,7 +4040,7 @@ void testLift() {
 
     // Both took the same path to get there, so what is left over the whole
     // tail is the ratio between them and nothing else.
-    const auto energy = [](const std::vector<float> &v, double from) {
+    const auto energy = [sr](const std::vector<float> &v, double from) {
       double sum = 0.0;
       for (auto i = (size_t)(from * sr); i < v.size(); ++i)
         sum += (double)v[i];
@@ -4826,7 +4826,7 @@ void testDigitalEcho() {
   constexpr double sr = 48000.0;
   constexpr double kTwoPi = 6.283185307179586;
 
-  const auto burst = [](size_t length, double freq, size_t on) {
+  const auto burst = [kTwoPi, sr](size_t length, double freq, size_t on) {
     Stereo s(length);
 
     for (size_t n = 0; n < on && n < length; ++n) {
@@ -4840,8 +4840,8 @@ void testDigitalEcho() {
     return s;
   };
 
-  const auto levelAt = [](const std::vector<float> &x, size_t from, size_t to,
-                          double hz) {
+  const auto levelAt = [kTwoPi, sr](const std::vector<float> &x, size_t from,
+                                    size_t to, double hz) {
     double re = 0.0, im = 0.0, norm = 0.0;
 
     for (size_t n = from; n < to && n < x.size(); ++n) {
@@ -5027,7 +5027,7 @@ void testBucketEcho() {
   constexpr double kTwoPi = 6.283185307179586;
 
   /// A short burst and then silence, which is what a delay is for.
-  const auto burst = [](size_t length, double freq, size_t on) {
+  const auto burst = [kTwoPi, sr](size_t length, double freq, size_t on) {
     Stereo s(length);
 
     for (size_t n = 0; n < on && n < length; ++n) {
@@ -5041,8 +5041,8 @@ void testBucketEcho() {
     return s;
   };
 
-  const auto levelAt = [](const std::vector<float> &x, size_t from, size_t to,
-                          double hz) {
+  const auto levelAt = [kTwoPi, sr](const std::vector<float> &x, size_t from,
+                                    size_t to, double hz) {
     double re = 0.0, im = 0.0, norm = 0.0;
 
     for (size_t n = from; n < to && n < x.size(); ++n) {
@@ -5645,7 +5645,7 @@ void testBusDrive() {
   /// Amplitude at one frequency, windowed, which is all that is wanted here:
   /// the question is always "is this partial present and how loud", never what
   /// the whole spectrum looks like.
-  const auto levelAt = [](const std::vector<float> &x, double hz) {
+  const auto levelAt = [kTwoPi, sr](const std::vector<float> &x, double hz) {
     double re = 0.0, im = 0.0, norm = 0.0;
 
     for (size_t n = 0; n < x.size(); ++n) {
@@ -5661,8 +5661,8 @@ void testBusDrive() {
     return 2.0 * std::hypot(re, im) / norm;
   };
 
-  const auto through = [](const std::vector<double> &hz, double each,
-                          Character c, float amount) {
+  const auto through = [kTwoPi, sr](const std::vector<double> &hz, double each,
+                                    Character c, float amount) {
     std::vector<float> l(kSettle + kWindow), r(l.size());
 
     for (size_t n = 0; n < l.size(); ++n) {
@@ -6227,8 +6227,8 @@ void testFirstRepeatIsAlreadyWorn() {
   constexpr double sr = 48000.0;
   constexpr double kTwoPi = 6.283185307179586;
 
-  const auto levelAt = [](const std::vector<float> &x, size_t from, size_t to,
-                          double hz) {
+  const auto levelAt = [kTwoPi, sr](const std::vector<float> &x, size_t from,
+                                    size_t to, double hz) {
     double re = 0.0, im = 0.0, norm = 0.0;
 
     for (size_t n = from; n < to && n < x.size(); ++n) {
@@ -6481,7 +6481,7 @@ void testSpringReverb() {
   };
 
   /// One pole, forward only, which is all that is wanted to split a band.
-  const auto lowPass = [](const std::vector<float> &x, double hz) {
+  const auto lowPass = [sr](const std::vector<float> &x, double hz) {
     std::vector<float> y(x.size());
     const auto c = (float)std::exp(-6.283185307179586 * hz / sr);
     auto state = 0.0f;
@@ -6875,7 +6875,7 @@ void testPlateReverb() {
 
     const auto slow = clicked(other, longer, (size_t)(3.0 * sr));
 
-    const auto at2s = [](const Stereo &s) {
+    const auto at2s = [sr](const Stereo &s) {
       return rms(s.l, (size_t)(2.0 * sr), (size_t)(2.2 * sr));
     };
 
