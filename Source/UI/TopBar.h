@@ -261,6 +261,11 @@ public:
   static constexpr const char *kGroupNames[] = {"CHARACTER", "ECHO", "REVERB"};
 
 private:
+  /// Whether an effect's knobs show a lit ring. Off means the stage is not in
+  /// the signal, and a knob that is not doing anything should not look as
+  /// though it is.
+  void setRingsLive(std::vector<Control> &controls, bool live);
+
   /// Applies what buildEchoMenu came back with. Zero means dismissed.
   void chooseEcho(int id);
 

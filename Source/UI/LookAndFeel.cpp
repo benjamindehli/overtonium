@@ -355,7 +355,21 @@ void OvertoniumLookAndFeel::drawRotarySlider(
       bipolar ? rotaryStartAngle + 0.5f * (rotaryEndAngle - rotaryStartAngle)
               : rotaryStartAngle;
 
-  const auto fill = slider.findColour(juce::Slider::rotarySliderFillColourId);
+  // A knob belonging to an effect that is switched off keeps its position,
+  // since a setting is dialled in before the thing is turned on, but nothing
+  // on it is lit. A ring glowing on a stage that is not in the signal says the
+  // opposite of the truth, and now that the group is named underneath it there
+  // is no longer any need for the ring to be what says the group is there.
+  //
+  // The whole colour is swapped rather than the ring alone. The pointer on the
+  // cap is drawn from the same one, and a lit pointer standing in a dark ring
+  // reads as one lamp that failed rather than as a stage that is off.
+  const bool live =
+      !(bool)slider.getProperties().getWithDefault("unlit", false);
+
+  const auto fill =
+      live ? slider.findColour(juce::Slider::rotarySliderFillColourId)
+           : colours::textDim;
 
   // How much of a LINK drag this knob is about to take, or is taking. Zero for
   // a knob the drag does not reach.

@@ -1024,6 +1024,26 @@ void TopBar::showSettingsMenu() {
       });
 }
 
+/// Lights or darkens the ring on every knob of an effect.
+///
+/// Only repaints the ones that actually change, since this runs on the
+/// housekeeping tick and a repaint of four knobs twenty times a second for no
+/// reason is four knobs of paint nobody asked for.
+void TopBar::setRingsLive(std::vector<Control> &controls, bool live) {
+  for (auto &c : controls) {
+    auto &slider = c.knob->slider;
+
+    const bool wasUnlit =
+        (bool)slider.getProperties().getWithDefault("unlit", false);
+
+    if (wasUnlit == !live)
+      continue;
+
+    slider.getProperties().set("unlit", !live);
+    slider.repaint();
+  }
+}
+
 void TopBar::updatePanelReadouts(double hostSampleRate) {
   const auto chosen = [this](const char *id, int count) {
     auto *p = apvts.getParameter(id);
@@ -1074,10 +1094,12 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
 
   // ---- which delay, and whether there is one -------------------------------
   //
-  // The machine's name when it is running and the word ECHO when it is not,
-  // so the group is still findable with nothing switched on. Lit either way by
-  // the same rule as every other switch on the bar: the word comes up, the
-  // face stays where it is.
+  // The machine's name when it is running and OFF when it is not. It used to
+  // say ECHO when it was off, so that the group could still be found with
+  // nothing switched on. The caption under the button says that now, which
+  // frees the face to say the one thing the caption cannot: whether any of
+  // this is in the signal. Lit either way by the same rule as every other
+  // switch on the bar: the word comes up, the face stays where it is.
   {
     auto *on = apvts.getParameter(params::echoOnId);
     auto *type = apvts.getParameter(params::echoTypeId);
@@ -1092,13 +1114,15 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
 
     echoButton.setButtonText(
         running ? juce::String(echoTypeShortName(which)).toUpperCase()
-                : juce::String("ECHO"));
+                : juce::String("OFF"));
 
     // Named rather than shouted for a screen reader, and saying which control
     // it is: the face reads out as "tape" on its own, which says nothing about
     // what is being tape.
     echoButton.setTitle(running ? "Echo: " + name : juce::String("Echo: off"));
     echoButton.setToggleState(running, juce::dontSendNotification);
+
+    setRingsLive(echoControls, running);
   }
 
   // ---- and which reverb, by the same rule ----------------------------------
@@ -1118,11 +1142,13 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
     // "Modulated Plate" and a button on the bar has not.
     reverbButton.setButtonText(
         running ? juce::String(reverbTypeShortName(which)).toUpperCase()
-                : juce::String("REVERB"));
+                : juce::String("OFF"));
 
     reverbButton.setTitle(running ? "Reverb: " + name
                                   : juce::String("Reverb: off"));
     reverbButton.setToggleState(running, juce::dontSendNotification);
+
+    setRingsLive(reverbControls, running);
   }
 
   // In capitals, like every other word on the bar. The menu it comes from

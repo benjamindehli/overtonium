@@ -237,6 +237,8 @@ cwebp -lossless out/overtonium.png -o docs/overtonium.webp
 
 Through Pillow instead, it is `save(lossless=True, quality=100, method=6)`. The `quality` is not optional: on a lossless save it sets how hard the encoder works rather than how much it throws away, and leaving it at the default of 80 makes the window shot 341 KB where 100 makes it 204 KB, which is larger than the PNG it was supposed to beat.
 
+One thing outside the repository decides what the picture says. The credit line under the wordmark is the tagline once the update check has been offered and `Check for new versions?` before that, and what it has been told lives in `Overtonium.settings` beside the presets rather than in the tree. On a machine that has never run the plugin the shot therefore comes out advertising the prompt, which is how a set of pictures went out showing it. Check the left end of the bar before committing a render, or run the plugin once first.
+
 Regenerating the same source on the same JUCE gives byte-identical files. DRIFT is a random walk, but each voice reseeds from a fixed number in `prepare`, so the meters and the lamps land in the same place every run. A diff therefore means something actually moved, which is what makes the pictures worth regenerating after a layout change. Upgrading JUCE is the exception: its rasteriser does not promise the same pixels between versions, and 9.0.2 moved about five percent of them by no more than three values each, which is invisible and still a diff.
 
 The target is built by default so that it cannot quietly stop compiling, which is how the program that made the first set of pictures was lost. `-DOVERTONIUM_BUILD_TOOLS=OFF` skips it.

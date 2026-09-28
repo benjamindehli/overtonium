@@ -3753,14 +3753,15 @@ void testBarButtonsFitTheirWords(OvertoniumProcessor &p) {
     return most;
   };
 
-  // The short names, which is what the button shows. The menu says what each
-  // machine is and has the room to.
-  juce::StringArray echoWords{"Echo"};
+  // The short names, which is what the button shows, plus the word it shows
+  // instead when the effect is off. The menu says what each machine is and has
+  // the room to; the caption under the button says which effect it belongs to.
+  juce::StringArray echoWords{"Off"};
   for (int i = 0; i < (int)ovt::EchoType::NumTypes; ++i)
     echoWords.add(ovt::echoTypeShortName((ovt::EchoType)i));
 
   // The short names again, which is what the button shows.
-  juce::StringArray reverbWords{"Reverb"};
+  juce::StringArray reverbWords{"Off"};
   for (int i = 0; i < (int)ovt::ReverbType::NumTypes; ++i)
     reverbWords.add(ovt::reverbTypeShortName((ovt::ReverbType)i));
 
