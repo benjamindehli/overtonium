@@ -454,8 +454,14 @@ jobs:
       #
       # It sits in this job rather than beside the formatters because it is the
       # same question: whether this builds anywhere but here.
+      # The check runs against its own cases first. It has twice been wrong in
+      # the direction that matters, passing everything it was given, and a
+      # check that cannot fail is worse than none: it reports that it is
+      # watching. Both mistakes are among the cases.
       - name: Every lambda captures what it reads
-        run: python3 .github/scripts/lambda_captures.py Source Tests
+        run: |
+          python3 .github/scripts/lambda_captures.py --self-test
+          python3 .github/scripts/lambda_captures.py Source Tests
 
   structured-data:
     name: Structured data

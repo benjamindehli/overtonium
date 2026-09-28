@@ -240,8 +240,11 @@ Through Pillow instead, it is `save(lossless=True, quality=100, method=6)`. The 
 **One check runs for a compiler that is not here.** `.github/scripts/lambda_captures.py` looks for lambdas that read a function-local `constexpr` without capturing it. The standard asks for no capture, gcc and clang agree, and MSVC refuses with C3493, so the fault reaches the Windows job and nowhere earlier. That job runs last and takes twenty minutes to report, and it has reported this twice. Run it before pushing, or let the DSP core job do it in a fifth of a second:
 
 ```
+python3 .github/scripts/lambda_captures.py --self-test
 python3 .github/scripts/lambda_captures.py Source Tests
 ```
+
+It checks itself first, and that is not ceremony. It has twice been wrong in the one direction that matters, quietly passing everything it was given: once because `} // namespace` at the end of a block made every function after it look like a namespace, and once because `[&in]` was read as a default capture when it captures one name and nothing else. Both are among its cases, so neither can come back.
 
 Reading a Windows log is a skill of its own for the same reason. One lambda that will not compile makes every call to it an `<error type>`, so MSVC reports C2064, C2110, C2737 and C3536 throughout the file and gives up at a hundred errors. Start from the first error rather than the last.
 
