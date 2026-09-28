@@ -462,6 +462,8 @@ void TopBar::addKnob(std::vector<Control> &into, const juce::String &group,
   into.push_back(std::move(c));
 }
 
+void TopBar::setLinkEnabled(bool on) { linkOn = on; }
+
 void TopBar::setLinkScope(LinkScope s) {
   scope = (LinkScope)juce::jlimit(0, (int)LinkScope::NumScopes - 1, (int)s);
 }

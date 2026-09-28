@@ -24,6 +24,12 @@ const juce::Identifier kEditorHeight{"editorHeight"};
 const juce::Identifier kEditorZoom{"editorZoom"};
 const juce::Identifier kLinkScope{"linkScope"};
 
+/// Whether LINK is on. Kept beside the scope and the curve because it is the
+/// same setting: those two say what a drag would reach and this says whether
+/// it reaches anything. Saving two of the three and not the third meant a
+/// window reopened remembering how LINK was set up and having switched it off.
+const juce::Identifier kLinkOn{"linkOn"};
+
 /// The curve, by name. See linkCurveFromState.
 const juce::Identifier kLinkCurveId{"linkCurveId"};
 
@@ -351,6 +357,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   zoom = juce::jlimit(0.5f, 2.0f, zoom);
   topBar.setZoomChoice(zoom);
 
+  topBar.setLinkEnabled(state.getProperty(kLinkOn, false));
   topBar.setLinkScope((LinkScope)juce::jlimit(
       0, (int)LinkScope::NumScopes - 1, (int)state.getProperty(kLinkScope, 0)));
   topBar.setLinkCurve(
@@ -359,28 +366,25 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
 
   topBar.onLinkSettingsChanged = [this] {
     auto &tree = plugin().apvts.state;
+    tree.setProperty(kLinkOn, topBar.isLinkEnabled(), nullptr);
     tree.setProperty(kLinkScope, (int)topBar.getLinkScope(), nullptr);
     tree.setProperty(kLinkCurveId, linkCurveId(topBar.getLinkCurve()), nullptr);
     tree.removeProperty(kLinkCurve, nullptr);
 
-    // The switch is in the gutter and the settings it belongs to are on the
-    // bar, so the button is told rather than asked.
-    gutter.setLinkOn(topBar.isLinkEnabled());
-
-    // Switching LINK on, or changing what it reaches, changes the answer to
-    // "what would this knob take with it", so the preview follows immediately
-    // rather than waiting for the pointer to move.
-    updateLinkGlow();
-    updateLinkCursor();
+    syncLinkUi();
   };
+
+  // What the restored settings have to reach, and the reason it is a function
+  // rather than the tail of that callback: opening a window has to arrive at
+  // the same place a menu choice does, and a second list of things to update
+  // is a second list to forget something from.
+  syncLinkUi();
 
   // The menu belongs to the bar, which holds what it changes. The gutter holds
   // the button that opens it, and hands back what to hang it off.
   gutter.onLinkClicked = [this](juce::Component *anchor) {
     topBar.showLinkMenu(anchor);
   };
-
-  updateLinkCursor();
 
   // Housekeeping runs at 4 Hz, and a readout that is blank for the first
   // quarter second of the window being open reads as broken.
@@ -770,6 +774,18 @@ juce::RangedAudioParameter *OvertoniumEditor::oscParameter(Role role,
                                                            int index) const {
   return plugin().apvts.getParameter(
       params::oscParamId(roleSuffix(role), index));
+}
+
+void OvertoniumEditor::syncLinkUi() {
+  // The switch is in the gutter and the settings it belongs to are on the bar,
+  // so the button is told rather than asked.
+  gutter.setLinkOn(topBar.isLinkEnabled());
+
+  // Switching LINK on, or changing what it reaches, changes the answer to
+  // "what would this knob take with it", so the preview follows immediately
+  // rather than waiting for the pointer to move.
+  updateLinkGlow();
+  updateLinkCursor();
 }
 
 bool OvertoniumEditor::isLinkEnabled() const { return topBar.isLinkEnabled(); }

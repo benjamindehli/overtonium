@@ -149,6 +149,7 @@ public:
   LinkScope getLinkScope() const { return scope; }
   LinkCurve getLinkCurve() const { return curve; }
 
+  void setLinkEnabled(bool);
   void setLinkScope(LinkScope);
   void setLinkCurve(LinkCurve);
 
