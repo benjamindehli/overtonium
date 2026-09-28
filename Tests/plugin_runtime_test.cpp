@@ -3475,8 +3475,14 @@ void testSettingsMenu(OvertoniumProcessor &p) {
     return s;
   };
 
-  check(joined(headers) ==
-            "Polyphony / Pitch bend range / Expression / Tuning / Output / ",
+  // The version stands at the head of the list as a heading of its own, and
+  // is asked for by the same call the menu builds it from rather than written
+  // out here, which would have to be edited on every release.
+  const auto wanted = TopBar::versionLine().toStdString() +
+                      " / Polyphony / Pitch bend range / Expression / "
+                      "Tuning / Output / ";
+
+  check(joined(headers) == wanted,
         "the sections read in order (" + joined(headers) + ")");
 
   const auto at = [&entries](const std::string &name) {
@@ -3667,6 +3673,63 @@ void testMachineMenusFollowTheirParameters(OvertoniumProcessor &p) {
   // Left as the patch found them, for whatever runs next.
   write(ovt::params::echoTypeId, 0.0f);
   write(ovt::params::reverbTypeId, 0.0f);
+}
+
+/// The Settings menu says which build this is.
+///
+/// The bug report template will not take a report without a version and tells
+/// people to read it off this menu. It was not on it, and not anywhere else
+/// either, so the one question every report has to answer was the one thing
+/// the instrument would not say. This holds the menu to saying it, and to
+/// saying the version this was actually built as rather than a number typed
+/// out beside it.
+void testSettingsNamesTheVersion(OvertoniumProcessor &p) {
+  section("The Settings menu names the version");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  auto *bar = findTopBar(*editor);
+
+  check(bar != nullptr, "and carries a bar to read the menu off");
+  if (bar == nullptr)
+    return;
+
+  const auto line = ovt::ui::TopBar::versionLine();
+
+  // Built from the same define the plugin reports to a host, so this cannot
+  // pass against a version that is merely well formed.
+  check(line == juce::String("Overtonium ") + OVERTONIUM_VERSION,
+        "the line names this build (" + line.toStdString() + ")");
+
+  // A number rather than a word, and one with parts to it.
+  check(line.contains(".") && line.containsAnyOf("0123456789"),
+        "and reads as a version rather than a name");
+
+  auto menu = bar->buildSettingsMenu();
+
+  bool found = false;
+  bool asHeader = false;
+
+  for (juce::PopupMenu::MenuItemIterator it(menu); it.next();) {
+    const auto &item = it.getItem();
+
+    if (item.text != line)
+      continue;
+
+    found = true;
+    asHeader = item.isSectionHeader;
+  }
+
+  check(found, "and the Settings menu carries it");
+
+  // A fact rather than a choice. An ordinary item, enabled or not, reads as
+  // something to press.
+  check(asHeader, "as a heading rather than as something to click");
 }
 
 /// The tick in the Zoom submenu, which is the only thing on the panel that
@@ -6002,6 +6065,7 @@ int main() {
   testSettingsMenu(processor);
   testFitAllChannels(processor);
   testZoomTickFollowsTheZoom(processor);
+  testSettingsNamesTheVersion(processor);
   testMachineMenusFollowTheirParameters(processor);
   testPresetMenuGroups(processor);
   testPresetsTellTheHostOnlyWhatChanged(processor);

@@ -275,6 +275,14 @@ public:
   /// caption band rather than on the line of controls.
   static constexpr const char *kClipName = "CLIP";
 
+  /// What the Settings menu says this build is, as it says it.
+  ///
+  /// Built here rather than written out at the point it is drawn, so the test
+  /// that checks the menu names the version can ask the same question the menu
+  /// answers instead of assembling the string a second time and agreeing with
+  /// itself.
+  static juce::String versionLine();
+
 private:
   /// Whether an effect's knobs show a lit ring. Off means the stage is not in
   /// the signal, and a knob that is not doing anything should not look as
