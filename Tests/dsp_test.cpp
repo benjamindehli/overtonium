@@ -5661,8 +5661,9 @@ void testBusDrive() {
     return 2.0 * std::hypot(re, im) / norm;
   };
 
-  const auto through = [kTwoPi, sr](const std::vector<double> &hz, double each,
-                                    Character c, float amount) {
+  const auto through = [kTwoPi, sr, kSettle,
+                        kWindow](const std::vector<double> &hz, double each,
+                                 Character c, float amount) {
     std::vector<float> l(kSettle + kWindow), r(l.size());
 
     for (size_t n = 0; n < l.size(); ++n) {
