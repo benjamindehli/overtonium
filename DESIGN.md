@@ -320,14 +320,14 @@ Slide, the third MPE dimension, is parsed but not routed anywhere yet. Bend and 
 
 The top bar holds everything that is not per partial, in signal order from left to right. **LINK** is the exception and stands at the top of the caption gutter instead, over the column of names it gangs.
 
-| Group    | Contains                                                                                                                                                       |
-| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Preset   | the preset menu: factory, saved, and somewhere to put the one you are working on                                                                               |
-| Settings | undo, polyphony, bend range, MPE, tuning, what feeds aftertouch, phase reset, the safety clipper, zoom and the way back to a window that shows all 32 channels |
-| Series   | **STRETCH**, **TRACK** and **WOBBLE**, what the instrument does before anything is done to it. See below                                                       |
-| Echo     | the tape echo. See below                                                                                                                                       |
-| Reverb   | the reverb. See below                                                                                                                                          |
-| Output   | **MASTER**, the stereo meter, and the converter readouts under it                                                                                              |
+| Group    | Contains                                                                                                                                                                              |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Preset   | the preset menu: factory, saved, and somewhere to put the one you are working on                                                                                                      |
+| Settings | which version this is, undo, polyphony, bend range, MPE, tuning, what feeds aftertouch, phase reset, the safety clipper, zoom and the way back to a window that shows all 32 channels |
+| Series   | **STRETCH**, **TRACK** and **WOBBLE**, what the instrument does before anything is done to it. See below                                                                              |
+| Echo     | the tape echo. See below                                                                                                                                                              |
+| Reverb   | the reverb. See below                                                                                                                                                                 |
+| Output   | **MASTER**, the stereo meter, and the converter readouts under it                                                                                                                     |
 
 Zoom lives in the Settings menu rather than on the bar, and that is worth eighty-eight pixels, which go to the output meter instead and are what makes the converter readouts wide enough to keep their units.
 

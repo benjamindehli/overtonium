@@ -789,6 +789,13 @@ void TopBar::askForPresetName() {
       }));
 }
 
+juce::String TopBar::versionLine() {
+  // OVERTONIUM_VERSION comes from project() in CMakeLists, which the release
+  // workflow already holds to the tag being built, so this cannot say one
+  // thing while the release says another.
+  return juce::String("Overtonium ") + OVERTONIUM_VERSION;
+}
+
 juce::PopupMenu TopBar::buildSettingsMenu() {
   juce::PopupMenu m;
   m.setLookAndFeel(&getLookAndFeel());
@@ -808,6 +815,19 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
   m.addItem(700, "Undo", canUndo && canUndo());
   m.addItem(701, "Redo", canRedo && canRedo());
   m.addSeparator();
+
+  // Which build this is, above the thing that offers to find a newer one.
+  //
+  // It had never been anywhere. The bug report template asks for a version and
+  // will not take a report without one, and told people to read it off the
+  // Settings menu or the credit line under the wordmark, and it was in neither
+  // of those and nowhere else either. Somebody taking the trouble to report a
+  // fault was being asked for a number the instrument would not tell them.
+  //
+  // A header rather than an item, because it is a fact about the plugin and
+  // not something to be chosen. Disabled items read as actions that happen to
+  // be unavailable, which this is not.
+  m.addSectionHeader(versionLine());
 
   // A tick rather than a submenu. It is one decision with two answers, and it
   // is the only thing in this menu that reaches outside the machine, so it

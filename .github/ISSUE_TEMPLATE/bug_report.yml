@@ -12,7 +12,7 @@ body:
     id: version
     attributes:
       label: Version
-      description: Under SETTINGS, or the credit line under the wordmark.
+      description: At the top of the SETTINGS menu.
       placeholder: "1.4.0"
     validations:
       required: true
