@@ -446,6 +446,17 @@ jobs:
             -I Source Tests/dsp_test.cpp Source/dsp/*.cpp -o dsp_test
           ./dsp_test
 
+      # The other half of compiling somewhere else, and the half no compiler
+      # here can do. MSVC will not let a lambda read a local constant it has
+      # not captured, where gcc and clang ask for no capture at all, so the
+      # fault reaches the Windows job and nowhere earlier. That job runs last
+      # and takes twenty minutes to say so, and it has said so twice.
+      #
+      # It sits in this job rather than beside the formatters because it is the
+      # same question: whether this builds anywhere but here.
+      - name: Every lambda captures what it reads
+        run: python3 .github/scripts/lambda_captures.py Source Tests
+
   structured-data:
     name: Structured data
     runs-on: ubuntu-latest
