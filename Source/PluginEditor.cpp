@@ -30,6 +30,13 @@ const juce::Identifier kLinkScope{"linkScope"};
 /// window reopened remembering how LINK was set up and having switched it off.
 const juce::Identifier kLinkOn{"linkOn"};
 
+/// Whether the fader drawing tool is latched on. Remembered with the session
+/// for the reason LINK is: it is a tool rather than part of the sound, and one
+/// you left on should still be on when you come back to it. A mode nobody can
+/// see is a mode nobody remembers, which is why the button it sets is lit the
+/// whole time it is on.
+const juce::Identifier kDrawLatched{"drawLatched"};
+
 /// The curve, by name. See linkCurveFromState.
 const juce::Identifier kLinkCurveId{"linkCurveId"};
 
@@ -72,6 +79,22 @@ RowGutter::RowGutter() {
   };
 
   addAndMakeVisible(linkButton);
+
+  drawButton.setButtonText("DRAW");
+  drawButton.setTooltip(
+      "Draw the faders: a drag across them sets every channel it passes over "
+      "from the pointer's height, rather than moving one. Holding shift does "
+      "the same for as long as it is held, and this button lights while it "
+      "is.");
+
+  drawButton.setColour(juce::TextButton::textColourOnId, colours::accent);
+
+  drawButton.onClick = [this] {
+    if (onDrawClicked)
+      onDrawClicked();
+  };
+
+  addAndMakeVisible(drawButton);
 }
 
 void RowGutter::setHighlightedRow(Row row) {
@@ -95,10 +118,23 @@ void RowGutter::resized() {
       layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed);
 
   linkButton.setBounds(rows[(size_t)Row::Header].reduced(7, 1));
+
+  // Under the LEVEL caption, which takes the top of the tall fader row, and
+  // above the badge that sits at the foot of it. The faders are what it draws,
+  // so it belongs beside them rather than up on the bar with the things that
+  // are set once and left.
+  auto fader = rows[(size_t)Row::Fader].reduced(7, 0);
+  fader.removeFromTop(18);
+
+  drawButton.setBounds(fader.removeFromTop(22));
 }
 
 void RowGutter::setLinkOn(bool on) {
   linkButton.setToggleState(on, juce::dontSendNotification);
+}
+
+void RowGutter::setDrawOn(bool on) {
+  drawButton.setToggleState(on, juce::dontSendNotification);
 }
 
 void RowGutter::setCollapsedSections(SectionMask mask) {
@@ -356,6 +392,11 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   zoom = (float)(double)state.getProperty(kEditorZoom, 1.0);
   zoom = juce::jlimit(0.5f, 2.0f, zoom);
   topBar.setZoomChoice(zoom);
+
+  drawLatched = state.getProperty(kDrawLatched, false);
+  drawArmed = drawLatched;
+
+  gutter.onDrawClicked = [this] { toggleDrawLatch(); };
 
   topBar.setLinkEnabled(state.getProperty(kLinkOn, false));
   topBar.setLinkScope((LinkScope)juce::jlimit(
@@ -864,24 +905,55 @@ void OvertoniumEditor::applyDrawAt(juce::Point<int> onScreen) {
     noiseStrip.drawFaderAt(local.y);
 }
 
-void OvertoniumEditor::modifierKeysChanged(const juce::ModifierKeys &mods) {
-  // Held, the next drag across the faders draws them. LINK is the other thing
-  // a drag can mean, so its preview goes out while this one is armed: two
-  // offers of what a drag would do, shown at once, would be one too many.
-  const auto armed = mods.isShiftDown();
+void OvertoniumEditor::pollDrawModifier() {
+  // Asked for rather than waited for, and that is the whole of why this is a
+  // poll. JUCE sends a modifier change to the component under the pointer, and
+  // Slider handles it without passing it up, so over a fader or a knob the
+  // editor never hears about it. The result was a tool that could only be
+  // armed with the pointer in one of the gaps between channels, and that
+  // latched on for good if the key was released anywhere else.
+  //
+  // Nothing can swallow this.
+  const auto held = juce::ModifierKeys::getCurrentModifiers().isShiftDown();
+
+  if (held == shiftHeld)
+    return;
+
+  shiftHeld = held;
+  refreshDrawArmed();
+}
+
+void OvertoniumEditor::refreshDrawArmed() {
+  // Held or latched: the modifier is the quick way and the button is the way
+  // that stays. Either arms it and the button lights for both, so the panel
+  // says what a drag would do however it came to be that way.
+  const auto armed = shiftHeld || drawLatched;
 
   if (armed == drawArmed)
     return;
 
   drawArmed = armed;
-
   syncLinkUi();
+}
+
+void OvertoniumEditor::toggleDrawLatch() {
+  drawLatched = !drawLatched;
+
+  plugin().apvts.state.setProperty(kDrawLatched, drawLatched, nullptr);
+
+  refreshDrawArmed();
 }
 
 void OvertoniumEditor::syncLinkUi() {
   // The switch is in the gutter and the settings it belongs to are on the bar,
   // so the button is told rather than asked.
-  gutter.setLinkOn(topBar.isLinkEnabled());
+  //
+  // It reads as off while drawing is armed, without being off: a drag cannot
+  // be a link and a drawing at once, and a switch left lit for a gesture that
+  // has been taken away from it is a lie the mouse-up would expose. The
+  // setting itself does not move, so letting go of the modifier gives it back.
+  gutter.setLinkOn(topBar.isLinkEnabled() && !drawArmed);
+  gutter.setDrawOn(drawArmed);
 
   // Switching LINK on, or changing what it reaches, changes the answer to
   // "what would this knob take with it", so the preview follows immediately
@@ -899,10 +971,10 @@ void OvertoniumEditor::updateLinkCursor() {
   // all take the parent's pointer, so this one assignment reaches every one of
   // them. The noise channel is outside the holder, which is right, since LINK
   // never reaches it either.
-  // A drag while the modifier is held draws rather than links, so the pointer
-  // says so: the crosshair over the mixer, and never the LINK cursor, which
-  // would be promising a gesture that is not what would happen.
-  stripsHolder.setMouseCursor(drawArmed ? juce::MouseCursor::CrosshairCursor
+  // A drag while drawing is armed draws rather than links, so the pointer says
+  // so: a pencil over the mixer, and never the LINK cursor, which would be
+  // promising a gesture that is not what would happen.
+  stripsHolder.setMouseCursor(drawArmed ? drawCursor()
                               : topBar.isLinkEnabled()
                                   ? linkCursor(topBar.getLinkCurve())
                                   : juce::MouseCursor());
@@ -1153,6 +1225,8 @@ void OvertoniumEditor::syncSharedModulators() {
 
 void OvertoniumEditor::timerCallback() {
   ++tick;
+
+  pollDrawModifier();
 
   // Two things about a frame cost the window manager: that it happened at all,
   // and how much of the window the dirty rectangles enclose. It enlarges them

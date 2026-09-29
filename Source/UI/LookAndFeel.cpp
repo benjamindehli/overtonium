@@ -278,6 +278,88 @@ juce::Image linkCursorImage(LinkCurve curve, float scale) {
   return image;
 }
 
+juce::Image drawCursorImage(float scale) {
+  constexpr int size = 30;
+
+  juce::Image image(juce::Image::ARGB, (int)((float)size * scale),
+                    (int)((float)size * scale), true);
+
+  {
+    juce::Graphics g(image);
+    g.addTransform(juce::AffineTransform::scale(scale));
+
+    // A pencil held the way a pointer is: the point at the hotspot in the top
+    // left and the body running back to the lower right, so the hand it
+    // suggests is the one actually on the mouse.
+    //
+    // Laid out along its own axis rather than by eye. The first attempt put
+    // the eraser beside the body instead of on the end of it and drew the body
+    // too thin, which came out looking like a sword.
+    const auto tip = juce::Point<float>(1.0f, 1.0f);
+
+    // Down and to the right at forty-five degrees, and across it.
+    const auto along = 0.70710678f;
+    const auto at = [&](float distance, float across) {
+      return juce::Point<float>(tip.x + along * (distance + across),
+                                tip.y + along * (distance - across));
+    };
+
+    constexpr float halfWidth = 3.4f;
+    constexpr float shoulder = 5.0f; // where the sharpening stops
+    constexpr float ferrule = 15.0f; // where the wood stops
+    constexpr float end = 20.0f;
+
+    juce::Path wood;
+    wood.startNewSubPath(tip);
+    wood.lineTo(at(shoulder, halfWidth));
+    wood.lineTo(at(ferrule, halfWidth));
+    wood.lineTo(at(ferrule, -halfWidth));
+    wood.lineTo(at(shoulder, -halfWidth));
+    wood.closeSubPath();
+
+    juce::Path rubber;
+    rubber.startNewSubPath(at(ferrule, halfWidth));
+    rubber.lineTo(at(end, halfWidth));
+    rubber.lineTo(at(end, -halfWidth));
+    rubber.lineTo(at(ferrule, -halfWidth));
+    rubber.closeSubPath();
+
+    // The graphite, which is the part that says pencil rather than crayon.
+    juce::Path lead;
+    lead.startNewSubPath(tip);
+    lead.lineTo(at(2.6f, 1.8f));
+    lead.lineTo(at(2.6f, -1.8f));
+    lead.closeSubPath();
+
+    // Outlined in black first, so it reads against a light background as well
+    // as against the panel. Same bargain as the LINK pointer.
+    juce::Path whole(wood);
+    whole.addPath(rubber);
+
+    g.setColour(juce::Colours::black.withAlpha(0.9f));
+    g.strokePath(whole, juce::PathStrokeType(2.6f, juce::PathStrokeType::curved,
+                                             juce::PathStrokeType::rounded));
+
+    g.setColour(colours::accent.brighter(0.5f));
+    g.fillPath(wood);
+
+    g.setColour(colours::text);
+    g.fillPath(rubber);
+
+    g.setColour(juce::Colours::black.withAlpha(0.75f));
+    g.fillPath(lead);
+  }
+
+  return image;
+}
+
+juce::MouseCursor drawCursor() {
+  constexpr float scale = 2.0f;
+
+  return juce::MouseCursor(juce::ScaledImage(drawCursorImage(scale), scale),
+                           {1, 1});
+}
+
 juce::MouseCursor linkCursor(LinkCurve curve) {
   // Drawn at twice the nominal size and handed over with a scale, so it stays
   // sharp on a high-density display.

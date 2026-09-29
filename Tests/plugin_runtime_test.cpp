@@ -4372,6 +4372,33 @@ void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
   if (strips.size() < 4)
     return;
 
+  // The two switches in the caption gutter, found by the words on them. DRAW
+  // latches the tool on without the modifier, which is what a test can reach:
+  // holding a key is not something a headless run can do.
+  const auto switchNamed = [&](const juce::String &text) -> juce::TextButton * {
+    juce::TextButton *found = nullptr;
+
+    std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+      if (auto *b = dynamic_cast<juce::TextButton *>(&c))
+        if (b->getButtonText() == text)
+          found = b;
+      for (auto *child : c.getChildren())
+        look(*child);
+    };
+    look(*editor);
+
+    return found;
+  };
+
+  auto *drawSwitch = switchNamed("DRAW");
+  auto *linkSwitch = switchNamed("LINK");
+
+  check(drawSwitch != nullptr && linkSwitch != nullptr,
+        "the gutter carries a DRAW switch beside LINK");
+
+  if (drawSwitch == nullptr || linkSwitch == nullptr)
+    return;
+
   // ---- without the modifier, nothing is taken -----------------------------
   //
   // The fader moves itself, as it always has, and the drawing never hears
@@ -4386,8 +4413,10 @@ void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
 
   // ---- held, a line across four columns sets all four ----------------------
   {
-    editor->modifierKeysChanged(
-        juce::ModifierKeys(juce::ModifierKeys::shiftModifier));
+    if (drawSwitch->onClick)
+      drawSwitch->onClick();
+
+    check(drawSwitch->getToggleState(), "the switch lights when it is latched");
 
     const auto before = levelOf(1);
 
@@ -4427,7 +4456,20 @@ void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
                                   std::to_string(levelOf(20)) + ")");
   }
 
-  editor->modifierKeysChanged(juce::ModifierKeys());
+  // ---- and LINK reads as off while it is armed ----------------------------
+  //
+  // Without being off: the setting is untouched and comes back the moment the
+  // tool is let go. A switch left lit for a gesture that has been taken away
+  // from it is a lie the mouse-up would expose.
+  {
+    check(!linkSwitch->getToggleState(),
+          "LINK reads as off while drawing has the drag");
+
+    if (drawSwitch->onClick)
+      drawSwitch->onClick();
+
+    check(!drawSwitch->getToggleState(), "and the switch goes out again");
+  }
 }
 
 /// The tick in the Zoom submenu, which is the only thing on the panel that
