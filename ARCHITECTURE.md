@@ -22,6 +22,8 @@ The message thread owns the editor and the state tree. Values the editor display
 
 Work that arrives over MIDI but belongs to the message thread goes the same way round. A program change is a preset load, which moves hundreds of parameters and reports each one to the host, so the audio thread stores the number in an atomic and a 20 Hz timer on the processor picks it up. Nothing is posted from the audio thread, which would take the message queue's lock.
 
+There is a third lifetime, and it is the one that catches people out. A plugin is a library the host loads and later unloads, so anything with static lifetime is destroyed at unload rather than when the last instance is removed. By then JUCE has shut its event system down, and on Windows the destructors run under the loader lock, which is also the lock a thread needs in order to finish exiting. Any static that joins a thread on the way out therefore deadlocks the host rather than merely being late. Nothing in `Source/` has static lifetime now, and that is deliberate rather than incidental: it is checked in the review of anything that adds one, because the classes it is easy to reach for are the ones that hold threads. `juce::PropertiesFile` privately inherits `juce::Timer`, and every `Timer` holds a reference to the single thread JUCE runs timers on.
+
 ## Layout
 
 ```
