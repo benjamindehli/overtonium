@@ -1133,6 +1133,18 @@ void ChannelStrip::reportHover(const juce::MouseEvent &e) {
 }
 
 void ChannelStrip::paintOverChildren(juce::Graphics &g) {
+  // A heading's wash goes over the children rather than behind them, which is
+  // the opposite of every other row's. Four of the five carry an activity lamp
+  // that fills the whole row and paints an opaque backdrop, so a wash drawn
+  // underneath is covered by it and only the output heading, which has no
+  // lamp, appeared to highlight at all.
+  if (rowShowsHighlight(highlighted) && isHeadingRow(highlighted)) {
+    const auto rows =
+        layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+
+    paintRowHighlight(g, rows[rowIndex(highlighted)]);
+  }
+
   if (hovered)
     paintColumnHighlight(g, getLocalBounds());
 }
@@ -1259,7 +1271,7 @@ void ChannelStrip::paint(juce::Graphics &g) {
   const auto rows =
       layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed);
 
-  if (rowShowsHighlight(highlighted))
+  if (rowShowsHighlight(highlighted) && !isHeadingRow(highlighted))
     paintRowHighlight(g, rows[rowIndex(highlighted)]);
 
   auto header = rows[rowIndex(Row::Header)];

@@ -49,11 +49,6 @@ const juce::Identifier kCollapsedSections{"collapsedSections"};
 /// What the APVTS calls each parameter's node in the state tree. Its own
 /// constant is private, but the name is part of the format: it is what the
 /// saved state and every preset file are written in.
-bool isHeadingRow(Row r) {
-  return r == Row::PitchModHeading || r == Row::EnvHeading ||
-         r == Row::KeyOffHeading || r == Row::AmpModHeading ||
-         r == Row::OutputHeading;
-}
 } // namespace
 
 // =============================================================================
@@ -166,11 +161,22 @@ void RowGutter::mouseDown(const juce::MouseEvent &e) {
 void RowGutter::mouseMove(const juce::MouseEvent &e) {
   const auto rows =
       layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed);
-  const bool onHeading =
-      headingSectionAt(rows, e.getPosition()) != Section::NumSections;
+  const auto section = headingSectionAt(rows, e.getPosition());
+  const bool onHeading = section != Section::NumSections;
 
   setMouseCursor(onHeading ? juce::MouseCursor::PointingHandCursor
                            : juce::MouseCursor::NormalCursor);
+
+  // Only the headings. The other captions name a control that is somewhere
+  // else, so lighting one from here would say the pointer was on a knob it is
+  // nowhere near.
+  if (onHoverChanged)
+    onHoverChanged(onHeading ? sectionHeading(section) : kNoRow);
+}
+
+void RowGutter::mouseExit(const juce::MouseEvent &) {
+  if (onHoverChanged)
+    onHoverChanged(kNoRow);
 }
 
 void RowGutter::paint(juce::Graphics &g) {
@@ -441,6 +447,10 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   publishCollapsedSections();
 
   gutter.onSectionToggled = [this](Section s) { toggleSection(s); };
+
+  // Off the series, like the noise channel, so pointing at a caption cannot
+  // arm a LINK preview on whichever channel happened to be hovered last.
+  gutter.onHoverChanged = [this](Row row) { hoverChanged(-1, row); };
   noiseStrip.onSectionToggled = [this](Section s) { toggleSection(s); };
 
   const auto standard = standardSize();
