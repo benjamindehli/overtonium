@@ -4559,8 +4559,9 @@ void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
     look(*strips[0]);
 
     if (fader != nullptr)
-      check((double)fader->getProperties().getWithDefault("linkGlow", 1.0) ==
-                0.0,
+      check(ovt::exactly(
+                (double)fader->getProperties().getWithDefault("linkGlow", 1.0),
+                0.0),
             "and the faders go dark with it");
   }
 }
