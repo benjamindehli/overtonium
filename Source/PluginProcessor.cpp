@@ -703,6 +703,25 @@ void OvertoniumProcessor::setStateInformation(const void *data,
       programApplied = true;
 
       apvts.replaceState(tree);
+
+      // A value that is not a real number, put back to the default.
+      //
+      // A state this plugin wrote cannot hold one, so this is about a session
+      // file that was corrupted, truncated or edited by hand. Of everything
+      // such a file can say, NaN is the only thing that gets through: every
+      // clamp in the range handling is a pair of comparisons, and both are
+      // false against NaN, so jlimit hands it straight back. Infinities and
+      // absurd finite values are clamped on the way in and do no harm, which
+      // is why this looks for the one case that is not clamped rather than
+      // sanitising everything.
+      //
+      // It has to be caught here because there is nowhere later that is
+      // cheap. The parameters are read into a snapshot every block, and
+      // testing 786 of them for being a number on the audio thread is a cost
+      // paid forever against a file that is already broken.
+      for (auto *parameter : getParameters())
+        if (!std::isfinite(parameter->getValue()))
+          parameter->setValueNotifyingHost(parameter->getDefaultValue());
     }
   }
 }

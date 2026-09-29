@@ -8,11 +8,13 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <functional>
 #include <map>
+#include <random>
 #include <set>
 #include <string>
 #include <vector>
@@ -4180,6 +4182,254 @@ void testTheRulesFoldTheirSections(OvertoniumProcessor &p) {
 /// The window's height is the sum of the rows plus whatever is left for the
 /// fader, so a fader that grew means the window grew by more than the rows it
 /// got back.
+/// Energy at one frequency, by Goertzel, normalised by the sample count.
+///
+/// Enough to ask "is the note where it should be", which is the question a
+/// sample rate bug answers wrongly while leaving every level and every
+/// finiteness check happy.
+double toneAt(const std::vector<float> &x, double freq, double sampleRate) {
+  if (x.empty() || freq <= 0.0 || freq >= sampleRate * 0.5)
+    return 0.0;
+
+  const double w = 2.0 * 3.14159265358979323846 * freq / sampleRate;
+  const double coeff = 2.0 * std::cos(w);
+  double s1 = 0.0, s2 = 0.0;
+
+  for (float v : x) {
+    const double s0 = (double)v + coeff * s1 - s2;
+    s2 = s1;
+    s1 = s0;
+  }
+
+  return std::sqrt(std::max(0.0, s1 * s1 + s2 * s2 - coeff * s1 * s2)) /
+         (double)x.size();
+}
+
+/// The left channel of a render, after letting the attack settle.
+std::vector<float> renderTone(OvertoniumProcessor &p, double sampleRate,
+                              int block, int note, double seconds) {
+  juce::MidiBuffer midi;
+  midi.addEvent(juce::MidiMessage::noteOn(1, note, 1.0f), 0);
+
+  juce::AudioBuffer<float> buf(2, block);
+  std::vector<float> out;
+  const int blocks = (int)(seconds * sampleRate / block) + 1;
+  const int settle = blocks / 3;
+
+  for (int b = 0; b < blocks; ++b) {
+    juce::MidiBuffer m = (b == 0) ? midi : juce::MidiBuffer{};
+    buf.clear();
+    p.processBlock(buf, m);
+
+    if (b >= settle)
+      out.insert(out.end(), buf.getReadPointer(0),
+                 buf.getReadPointer(0) + block);
+  }
+
+  return out;
+}
+
+/// A session file the plugin did not write must not be able to poison it.
+///
+/// setStateInformation already refuses anything that is not our XML, but a
+/// file that is our XML with nonsense in the values gets through to the
+/// parameters, which is what a corrupt or truncated session looks like. Of
+/// everything such a file can say, NaN was the only thing that survived:
+/// every clamp in JUCE's range handling is a pair of comparisons and both are
+/// false against NaN, so jlimit hands it straight back. It reached the
+/// oscillators and the plugin output NaN for the rest of the session, which in
+/// a host is a silent master bus until someone reloads it.
+void testACorruptStateCannotPoisonTheOutput() {
+  section("A corrupt session cannot poison the output");
+
+  const char *poisons[] = {"nan",   "-nan",   "inf",     "-inf",  "1e30",
+                           "-1e30", "999999", "-999999", "hello", ""};
+
+  int checked = 0;
+
+  for (const char *poison : poisons) {
+    OvertoniumProcessor victim;
+    victim.setRateAndBufferSizeDetails(48000.0, 256);
+    victim.prepareToPlay(48000.0, 256);
+    victim.applyFactoryPreset(presetIndex("Big Saw"));
+
+    auto state = victim.apvts.copyState();
+    auto xml = state.createXml();
+
+    int poisoned = 0;
+    for (auto *child : xml->getChildIterator())
+      if (child->hasAttribute("value")) {
+        child->setAttribute("value", poison);
+        ++poisoned;
+      }
+
+    // If this ever reads zero the test is passing on an empty state rather
+    // than a poisoned one, which is the way a check like this goes quietly
+    // wrong.
+    if (poisoned == 0) {
+      check(false, std::string("the state carried values to poison with \"") +
+                       poison + "\"");
+      continue;
+    }
+
+    juce::MemoryBlock block;
+    victim.copyXmlToBinary(*xml, block);
+    victim.setStateInformation(block.getData(), (int)block.getSize());
+
+    juce::MidiBuffer midi;
+    midi.addEvent(juce::MidiMessage::noteOn(1, 60, 1.0f), 0);
+
+    const auto stats = renderBlocks(victim, 200, 256, midi);
+
+    check(stats.finite, std::string("a state of \"") + poison +
+                            "\" in every value still renders a number");
+    ++checked;
+  }
+
+  check(checked == (int)std::size(poisons), "every poison was tried");
+}
+
+/// The instrument has to be an instrument at every rate a host can ask for.
+///
+/// The suite otherwise lives at 48 kHz with a few excursions, and 88.2, 176.4
+/// and 192 kHz were never rendered at all. Every delay line in the effects
+/// sizes itself from the sample rate, which is exactly the kind of arithmetic
+/// that is right at one rate and wrong at four times it.
+///
+/// Both halves matter. Finite output from a plugin that rendered silence
+/// proves nothing, so this insists the preset actually sounds at every rate,
+/// and that the level is the same one, since a filter cutoff worked out in the
+/// wrong units would still be finite and would not be Big Saw.
+void testEveryHostRateStaysFinite() {
+  section("Every host rate renders");
+
+  const double rates[] = {8000.0,  22050.0, 44100.0,  48000.0,
+                          88200.0, 96000.0, 176400.0, 192000.0};
+
+  double lowest = 1.0e9, highest = 0.0;
+
+  for (double rate : rates) {
+    for (int block : {64, 512}) {
+      OvertoniumProcessor fresh;
+      fresh.setRateAndBufferSizeDetails(rate, block);
+      fresh.prepareToPlay(rate, block);
+      fresh.applyFactoryPreset(presetIndex("Big Saw"));
+
+      juce::MidiBuffer midi;
+      midi.addEvent(juce::MidiMessage::noteOn(1, 60, 1.0f), 0);
+      midi.addEvent(juce::MidiMessage::noteOn(1, 67, 1.0f), 0);
+
+      const auto stats =
+          renderBlocks(fresh, (int)(1.0 * rate / block) + 1, block, midi);
+
+      check(stats.finite, "at " + std::to_string((int)rate) +
+                              " Hz in blocks "
+                              "of " +
+                              std::to_string(block) +
+                              " every sample is a number");
+      check(stats.peak > 1.0e-3, "and the instrument actually sounds (" +
+                                     std::to_string(stats.peak) + ")");
+
+      // And in tune, which is the half that finiteness and loudness cannot
+      // see. An engine that believes every host runs at 48 kHz renders a
+      // perfectly good note two octaves down at 192 kHz: finite, audible and
+      // exactly as loud. Only the pitch says otherwise, so the pitch is what
+      // is asked.
+      if (block == 512) {
+        OvertoniumProcessor tone;
+        tone.setRateAndBufferSizeDetails(rate, block);
+        tone.prepareToPlay(rate, block);
+        tone.applyFactoryPreset(presetIndex("Big Saw"));
+
+        const auto wave = renderTone(tone, rate, block, 60, 0.6);
+        const double f0 = 261.6255653; // middle C
+        const double at = toneAt(wave, f0, rate);
+        const double below = toneAt(wave, f0 / 4.0, rate);
+        const double above = toneAt(wave, f0 * 4.0, rate);
+
+        // Measured across every rate here, the fundamental runs 150 to 400
+        // times the subharmonic and 12 to 17 times the fourth harmonic, so
+        // these leave a factor of three either way rather than sitting on
+        // the number.
+        check(at > 20.0 * below,
+              "and middle C at " + std::to_string((int)rate) +
+                  " Hz is not two octaves flat (" + std::to_string(at) +
+                  " against " + std::to_string(below) + ")");
+        check(at > 4.0 * above,
+              "nor two octaves sharp (" + std::to_string(above) + ")");
+      }
+
+      // 8 kHz is left out of the level comparison on purpose: most of the
+      // series is above its Nyquist and is correctly not there, which is a
+      // quieter patch rather than a broken one.
+      if (rate > 20000.0) {
+        lowest = std::min(lowest, (double)stats.peak);
+        highest = std::max(highest, (double)stats.peak);
+      }
+    }
+  }
+
+  // Measured at 0.457 to 0.462 across 22 kHz to 192 kHz, so a tenth is slack
+  // rather than a target. A rate-dependent coefficient shows up here long
+  // before it is audible.
+  check(highest < lowest * 1.1,
+        "and the same patch is the same loudness at every rate above 20 kHz (" +
+            std::to_string(lowest) + " to " + std::to_string(highest) + ")");
+}
+
+/// The safety clip's whole job is a bound, so the bound is checked.
+///
+/// It was not. One test switches the clipper off to measure headroom and
+/// nothing anywhere switched it on to see whether it does what its name says.
+/// The clipper is threshold + (1 - threshold) * tanh, which cannot exceed one
+/// by construction, and this is what holds that construction in place.
+void testTheSafetyClipHoldsUnity() {
+  section("The safety clip holds unity");
+
+  int sounded = 0;
+  float worst = 0.0f;
+
+  for (double rate : {44100.0, 48000.0, 96000.0}) {
+    OvertoniumProcessor fresh;
+    fresh.setRateAndBufferSizeDetails(rate, 256);
+    fresh.prepareToPlay(rate, 256);
+    fresh.applyFactoryPreset(presetIndex("Big Saw"));
+
+    const auto set = [&](const char *id, float v) {
+      if (auto *q = fresh.apvts.getParameter(id))
+        q->setValueNotifyingHost(v);
+    };
+
+    // Driving this by setting every parameter to its maximum does not work:
+    // that includes the envelope's delay and attack, and nothing sounds at all
+    // inside the render. The master opened to +12 dB over a patch that already
+    // sounds, with a fistful of notes on it, is what makes it loud.
+    set(ovt::params::masterGainId, 1.0f);
+    set(ovt::params::safetyClipId, 1.0f);
+
+    juce::MidiBuffer midi;
+    for (int note : {36, 43, 48, 52, 55, 59, 60, 64, 67, 72})
+      midi.addEvent(juce::MidiMessage::noteOn(1, note, 1.0f), 0);
+
+    const auto stats =
+        renderBlocks(fresh, (int)(1.5 * rate / 256.0) + 1, 256, midi);
+
+    check(stats.finite, "the clipped output at " + std::to_string((int)rate) +
+                            " Hz is a number");
+    check(stats.peak <= 1.0f,
+          "and never leaves unity (" + std::to_string(stats.peak) + ")");
+
+    worst = std::max(worst, stats.peak);
+    if (stats.peak > 1.0e-3)
+      ++sounded;
+  }
+
+  // Without this the two checks above pass on silence, which is how the first
+  // attempt at this test passed while rendering nothing.
+  check(sounded == 3, "and it was driven hard enough to mean it (peak " +
+                          std::to_string(worst) + ")");
+}
+
 /// Fit all 32 channels must land somewhere a drag can get back to.
 ///
 /// setSize consults no limits, so the fit could put the window below the
@@ -7030,6 +7280,9 @@ int main() {
   testTheRulesFoldTheirSections(processor);
   testOneRightClickOpensOneMenu(processor);
   testWheelOverAKnobStaysOnTheKnob(processor);
+  testACorruptStateCannotPoisonTheOutput();
+  testEveryHostRateStaysFinite();
+  testTheSafetyClipHoldsUnity();
   testSettingsNamesTheVersion(processor);
   testMachineMenusFollowTheirParameters(processor);
   testPresetMenuGroups(processor);
