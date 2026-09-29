@@ -256,7 +256,7 @@ void NoiseStrip::mouseMove(const juce::MouseEvent &e) {
     setMouseCursor(headingSectionAt(rows, e.getPosition()) !=
                            Section::NumSections
                        ? juce::MouseCursor::PointingHandCursor
-                       : juce::MouseCursor::NormalCursor);
+                       : juce::MouseCursor::ParentCursor);
   }
 }
 void NoiseStrip::mouseExit(const juce::MouseEvent &e) { reportHover(e); }

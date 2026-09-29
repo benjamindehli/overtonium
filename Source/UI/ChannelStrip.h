@@ -375,6 +375,10 @@ public:
   /// is the only honest way in.
   void drawFaderAt(int y);
 
+  /// The row the pointer is on, with the rules between sections counted as
+  /// rows of their own. See reportHover.
+  static Row rowUnder(const RowBounds &, juce::Point<int>);
+
   void mouseEnter(const juce::MouseEvent &) override;
   void mouseMove(const juce::MouseEvent &) override;
   void mouseExit(const juce::MouseEvent &) override;

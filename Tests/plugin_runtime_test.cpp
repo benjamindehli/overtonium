@@ -4023,12 +4023,14 @@ void testTheRulesFoldTheirSections(OvertoniumProcessor &p) {
     void drawEnded() override {}
   };
 
-  struct SilentHover final : ovt::ui::HoverTarget {
-    void hoverChanged(int, ovt::ui::Row) override {}
+  struct WatchingHover final : ovt::ui::HoverTarget {
+    ovt::ui::Row last = ovt::ui::kNoRow;
+
+    void hoverChanged(int, ovt::ui::Row row) override { last = row; }
   };
 
   SilentLink link;
-  SilentHover hover;
+  WatchingHover hover;
   juce::Component popupParent;
 
   ovt::ui::ChannelStrip strip(p.apvts, link, hover, popupParent, 0);
@@ -4078,6 +4080,40 @@ void testTheRulesFoldTheirSections(OvertoniumProcessor &p) {
           "the rule over section " + std::to_string(i) +
               " folds that section, once (" + std::to_string(folded.size()) +
               ")");
+  }
+
+  // ---- and the pointer on a rule says which row it is on -------------------
+  //
+  // The caption in the gutter lighting is how this panel says what is under
+  // the pointer, and the rules are the one part of a strip that can be clicked
+  // without carrying a control. Left out of the answer, the only clickable
+  // part of a strip was the only part that said nothing.
+  {
+    for (int i = 0; i < ovt::ui::kNumSections; ++i) {
+      const auto want = ovt::ui::sectionHeading((ovt::ui::Section)i);
+      const auto rule = rows[(size_t)want];
+
+      hover.last = ovt::ui::kNoRow;
+
+      const auto when =
+          juce::Time::getCurrentTime() + juce::RelativeTime(200 + i);
+      strip.mouseMove(clickAt(rule.getCentre(), false, when));
+
+      check(hover.last == want, "the pointer on a rule reports that heading (" +
+                                    std::to_string((int)hover.last) +
+                                    " wanted " + std::to_string((int)want) +
+                                    ")");
+    }
+
+    // And a knob still reports its own row rather than the rule above it.
+    const auto knob = rows[(size_t)ovt::ui::Row::PmRate];
+    const auto when = juce::Time::getCurrentTime() + juce::RelativeTime(260.0);
+
+    hover.last = ovt::ui::kNoRow;
+    strip.mouseMove(clickAt(knob.getCentre(), false, when));
+
+    check(hover.last == ovt::ui::Row::PmRate,
+          "and a control still reports its own row");
   }
 
   // ---- and a click that is not on one does nothing -------------------------

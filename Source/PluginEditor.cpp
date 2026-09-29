@@ -248,7 +248,9 @@ void RowGutter::paint(juce::Graphics &g) {
                          cx + kAlong * 0.5f, cy - kAcross * 0.5f, cx,
                          cy + kAcross * 0.5f);
 
-      g.setColour(colours::textDim);
+      // Lit with its own caption rather than left dim beside it. The two are
+      // one control, and half of it coming up reads as a rendering fault.
+      g.setColour(lit ? colours::accent : colours::textDim);
       g.fillPath(mark);
     }
   }
