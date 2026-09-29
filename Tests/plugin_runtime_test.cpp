@@ -6414,6 +6414,36 @@ void testUpdateCheckIsQuiet(OvertoniumProcessor &p) {
         "and so does one on an instance that has been used");
 }
 
+/// The preference survives the object that wrote it.
+///
+/// It used to be held in one shared PropertiesFile that lived in a static,
+/// which made this unfalsifiable: a write and a read went to the same object
+/// in memory and agreed with each other whatever the file on disk said, or
+/// whether there was one. That static was a deadlock on unload, so the file is
+/// now built where it is used and destroyed there, and every read is a fresh
+/// object reading the disk. Which means the two can now disagree, if the path
+/// is ever computed differently between one call and the next, and that is
+/// what this is here to catch.
+///
+/// The preference is put back afterwards. It is machine-wide and belongs to
+/// whoever is running the tests, not to the tests.
+void testThePreferenceOutlivesItsWriter() {
+  section("The preference outlives its writer");
+
+  const bool before = ovt::updateCheckAllowed();
+
+  ovt::setUpdateCheckAllowed(true);
+  check(ovt::updateCheckAllowed(),
+        "a preference written by one file is read back by the next");
+
+  ovt::setUpdateCheckAllowed(false);
+  check(!ovt::updateCheckAllowed(), "and so is the other answer");
+
+  ovt::setUpdateCheckAllowed(before);
+  check(ovt::updateCheckAllowed() == before,
+        "and the machine is left as it was found");
+}
+
 /// The fetch belongs to the instance, not to the window.
 ///
 /// Which is what lets a window close without waiting for a socket. If the
@@ -6932,6 +6962,7 @@ int main() {
   testCollapsibleSections();
   testUpdateCheck();
   testUpdateCheckIsQuiet(processor);
+  testThePreferenceOutlivesItsWriter();
   testUpdateCheckOutlivesEditors(processor);
   testEveryControlIsNamed(processor);
   testSoloAndMute(processor);

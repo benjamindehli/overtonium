@@ -72,37 +72,67 @@ std::optional<ReleaseInfo> parseReleaseJson(const juce::String &json) {
 }
 
 namespace {
-/// The settings file, opened once and shared.
-juce::PropertiesFile &settings() {
-  static auto file = [] {
-    juce::PropertiesFile::Options o;
-    o.applicationName = "Overtonium";
-    o.folderName = "Dehli Musikk/Overtonium";
-    o.filenameSuffix = "settings";
-    o.osxLibrarySubFolder = "Application Support";
-    return std::make_unique<juce::PropertiesFile>(o);
-  }();
-
-  return *file;
+/// Where the settings file is, rather than the file itself.
+///
+/// The options are what is kept, and each caller below builds a
+/// PropertiesFile from them, uses it and lets it go. It was one shared object
+/// in a function-local static, which read better and was a deadlock on unload
+/// in any host that unloads the binary. The static is destroyed during static
+/// destruction, meaning at unload rather than when the last instance is
+/// removed, and PropertiesFile privately inherits juce::Timer, and a Timer
+/// holds a reference to the one thread JUCE runs every timer on. Releasing the
+/// last reference joins that thread with no timeout, and JUCE asserts on the
+/// line above the join that the event system is still there, which by then it
+/// is not. On Windows the join is under the loader lock that a thread also
+/// needs in order to finish exiting, so it cannot complete. Reported against
+/// 1.9.0 in FL Studio and Reaper, with MuLab unaffected because it keeps the
+/// binary loaded.
+///
+/// Nothing about this is specific to the update check. It was the only object
+/// in the plugin with static lifetime, and now there is none.
+///
+/// Writing the file by hand and dropping PropertiesFile would remove the
+/// inheritance rather than work around it, but the options decide the path,
+/// and a path that came out even slightly different would silently lose the
+/// answer of everyone who has already been asked. Not worth it for a file
+/// holding two booleans that is read a few times per window.
+juce::PropertiesFile::Options settingsOptions() {
+  juce::PropertiesFile::Options o;
+  o.applicationName = "Overtonium";
+  o.folderName = "Dehli Musikk/Overtonium";
+  o.filenameSuffix = "settings";
+  o.osxLibrarySubFolder = "Application Support";
+  return o;
 }
 
 const char *const kAllowed = "updateCheckAllowed";
 const char *const kOffered = "updateCheckOffered";
+
+/// Reads one flag, with the file open for no longer than that.
+bool flag(const char *key) {
+  juce::PropertiesFile file(settingsOptions());
+  return file.getBoolValue(key, false);
+}
+
+/// Writes one flag and puts it on disk before returning.
+///
+/// saveIfNeeded is called rather than left to the destructor, which would also
+/// do it. The point of this file is that an answer survives the host, so the
+/// write is where it can be seen to happen.
+void setFlag(const char *key, bool value) {
+  juce::PropertiesFile file(settingsOptions());
+  file.setValue(key, value);
+  file.saveIfNeeded();
+}
 } // namespace
 
-bool updateCheckAllowed() { return settings().getBoolValue(kAllowed, false); }
+bool updateCheckAllowed() { return flag(kAllowed); }
 
-void setUpdateCheckAllowed(bool allowed) {
-  settings().setValue(kAllowed, allowed);
-  settings().saveIfNeeded();
-}
+void setUpdateCheckAllowed(bool allowed) { setFlag(kAllowed, allowed); }
 
-bool updateCheckOffered() { return settings().getBoolValue(kOffered, false); }
+bool updateCheckOffered() { return flag(kOffered); }
 
-void markUpdateCheckOffered() {
-  settings().setValue(kOffered, true);
-  settings().saveIfNeeded();
-}
+void markUpdateCheckOffered() { setFlag(kOffered, true); }
 
 UpdateCheck::UpdateCheck() : juce::Thread("Overtonium update check") {}
 
