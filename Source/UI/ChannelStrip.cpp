@@ -881,6 +881,21 @@ void ChannelStrip::wireUp(LinkableSlider &s, Role role) {
   s.onUserDragStart = [this, role] { link.linkDragStarted(role, index); };
   s.onUserDragEnd = [this, role] { link.linkDragEnded(role, index); };
 
+  // Only the faders. A fader's value is where it stands, which is what makes a
+  // pointer's height mean something; a knob has no such reading, so there is
+  // nothing for a drawn drag to say to one.
+  if (role == Role::Volume) {
+    s.onDrawStart = [this](const juce::MouseEvent &e) {
+      return link.drawStarted(e.getScreenPosition());
+    };
+
+    s.onDrawMove = [this](const juce::MouseEvent &e) {
+      link.drawMovedTo(e.getScreenPosition());
+    };
+
+    s.onDrawEnd = [this] { link.drawEnded(); };
+  }
+
   s.onValueChange = [this, &s, role] {
     if (role == Role::Tune)
       updateTuneReadout();
@@ -890,6 +905,25 @@ void ChannelStrip::wireUp(LinkableSlider &s, Role role) {
     if (s.isUserDragging())
       link.linkValueChanged(role, index, (float)s.getValue());
   };
+}
+
+void ChannelStrip::drawFaderAt(int y) {
+  const auto track = volume.getBounds();
+
+  if (track.getHeight() <= 1)
+    return;
+
+  // Top of the track is full, bottom is nothing, and anything past either end
+  // is that end: a drawn line that strays above the mixer should leave the
+  // faders it passes at the top rather than wrapping or stopping.
+  const auto fromTop = juce::jlimit(
+      0.0, 1.0, (double)(y - track.getY()) / (double)track.getHeight());
+
+  // Through the slider rather than straight at the parameter, since the
+  // slider's range carries the same skew the parameter's does and a
+  // proportion of the track is only a value once that has been applied.
+  volume.setValue(volume.proportionOfLengthToValue(1.0 - fromTop),
+                  juce::sendNotificationSync);
 }
 
 void ChannelStrip::updateTuneReadout() {

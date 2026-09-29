@@ -3925,6 +3925,10 @@ void testOneRightClickOpensOneMenu(OvertoniumProcessor &p) {
     void linkValueChanged(ovt::ui::Role, int, float) override {}
     void linkDragEnded(ovt::ui::Role, int) override {}
     void showLinkMenu() override { ++opened; }
+
+    bool drawStarted(juce::Point<int>) override { return false; }
+    void drawMovedTo(juce::Point<int>) override {}
+    void drawEnded() override {}
   };
 
   struct SilentHover final : ovt::ui::HoverTarget {
@@ -4013,6 +4017,10 @@ void testTheRulesFoldTheirSections(OvertoniumProcessor &p) {
     void linkValueChanged(ovt::ui::Role, int, float) override {}
     void linkDragEnded(ovt::ui::Role, int) override {}
     void showLinkMenu() override { ++menus; }
+
+    bool drawStarted(juce::Point<int>) override { return false; }
+    void drawMovedTo(juce::Point<int>) override {}
+    void drawEnded() override {}
   };
 
   struct SilentHover final : ovt::ui::HoverTarget {
@@ -4310,6 +4318,157 @@ void testLinkSurvivesAReopen(OvertoniumProcessor &p) {
     check(!bar->isLinkEnabled(), "switching it off sticks too");
     check(bar->getLinkScope() == ovt::ui::LinkScope::Odd,
           "and the scope is still where it was");
+  }
+}
+
+/// Holding the modifier draws the faders a drag passes over.
+///
+/// Setting neighbouring partials one fader at a time is the tedious way to
+/// shape a spectrum, which is most of what this instrument is for. Held, a
+/// drag across the fader area sets each column it crosses from the pointer's
+/// height instead of moving one of them.
+///
+/// It is not LINK by another name. LINK shares one relative move out across a
+/// scope by a rule; this sets absolute values freehand, and neither can do the
+/// other's job.
+void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
+  section("Drawing the faders");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  editor->setSize(editor->getWidth(), editor->getHeight());
+
+  auto *target = dynamic_cast<ovt::ui::LinkTarget *>(editor);
+
+  check(target != nullptr, "and takes drawn drags");
+  if (target == nullptr)
+    return;
+
+  const auto levelOf = [&p](int channel) {
+    auto *param = p.apvts.getParameter(
+        ovt::params::oscParamId(ovt::params::volumeSuffix, channel));
+    return param != nullptr ? param->getValue() : -1.0f;
+  };
+
+  // Where each strip's fader stands on screen, so a line can be drawn across
+  // them the way a hand would.
+  std::vector<ovt::ui::ChannelStrip *> strips;
+  std::function<void(juce::Component &)> gather = [&](juce::Component &c) {
+    if (auto *s = dynamic_cast<ovt::ui::ChannelStrip *>(&c))
+      strips.push_back(s);
+    for (auto *child : c.getChildren())
+      gather(*child);
+  };
+  gather(*editor);
+
+  check(strips.size() == (size_t)ovt::kNumHarmonics,
+        "and shows all its channels (" + std::to_string(strips.size()) + ")");
+
+  if (strips.size() < 4)
+    return;
+
+  // The two switches in the caption gutter, found by the words on them. DRAW
+  // latches the tool on without the modifier, which is what a test can reach:
+  // holding a key is not something a headless run can do.
+  const auto switchNamed = [&](const juce::String &text) -> juce::TextButton * {
+    juce::TextButton *found = nullptr;
+
+    std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+      if (auto *b = dynamic_cast<juce::TextButton *>(&c))
+        if (b->getButtonText() == text)
+          found = b;
+      for (auto *child : c.getChildren())
+        look(*child);
+    };
+    look(*editor);
+
+    return found;
+  };
+
+  auto *drawSwitch = switchNamed("DRAW");
+  auto *linkSwitch = switchNamed("LINK");
+
+  check(drawSwitch != nullptr && linkSwitch != nullptr,
+        "the gutter carries a DRAW switch beside LINK");
+
+  if (drawSwitch == nullptr || linkSwitch == nullptr)
+    return;
+
+  // ---- without the modifier, nothing is taken -----------------------------
+  //
+  // The fader moves itself, as it always has, and the drawing never hears
+  // about the drag.
+  {
+    const auto here =
+        strips[0]->localPointToGlobal(strips[0]->getLocalBounds().getCentre());
+
+    check(!target->drawStarted(here),
+          "a drag with nothing held is left to the fader");
+  }
+
+  // ---- held, a line across four columns sets all four ----------------------
+  {
+    if (drawSwitch->onClick)
+      drawSwitch->onClick();
+
+    check(drawSwitch->getToggleState(), "the switch lights when it is latched");
+
+    const auto before = levelOf(1);
+
+    // Along the tops of the strips, which is full level, from channel 1 to 4.
+    const auto top = [&](int i) {
+      const auto bounds = strips[(size_t)i]->getLocalBounds();
+      return strips[(size_t)i]->localPointToGlobal(
+          juce::Point<int>(bounds.getCentreX(), bounds.getY()));
+    };
+
+    check(target->drawStarted(top(0)), "a drag with it held is taken");
+
+    target->drawMovedTo(top(3));
+    target->drawEnded();
+
+    std::printf("  channels 1 to 4 drawn to %.3f, %.3f, %.3f, %.3f, from "
+                "%.3f\n",
+                levelOf(0), levelOf(1), levelOf(2), levelOf(3), before);
+
+    bool allUp = true;
+    for (int i = 0; i < 4; ++i)
+      allUp &= levelOf(i) > 0.9f;
+
+    check(allUp, "every channel the line crossed went with it");
+
+    // ---- and the columns between are not skipped -------------------------
+    //
+    // Two events can be several strips apart, and drawing only where they
+    // landed leaves holes exactly where the hand moved fastest.
+    check(levelOf(1) > 0.9f && levelOf(2) > 0.9f,
+          "including the ones no event landed on");
+  }
+
+  // ---- and a channel the line never reached is untouched ------------------
+  {
+    check(levelOf(20) < 0.9f, "a channel away from the line is left alone (" +
+                                  std::to_string(levelOf(20)) + ")");
+  }
+
+  // ---- and LINK reads as off while it is armed ----------------------------
+  //
+  // Without being off: the setting is untouched and comes back the moment the
+  // tool is let go. A switch left lit for a gesture that has been taken away
+  // from it is a lie the mouse-up would expose.
+  {
+    check(!linkSwitch->getToggleState(),
+          "LINK reads as off while drawing has the drag");
+
+    if (drawSwitch->onClick)
+      drawSwitch->onClick();
+
+    check(!drawSwitch->getToggleState(), "and the switch goes out again");
   }
 }
 
@@ -6646,6 +6805,7 @@ int main() {
   testSettingsMenu(processor);
   testFitAllChannels(processor);
   testZoomTickFollowsTheZoom(processor);
+  testDrawingAcrossTheFaders(processor);
   testLinkSurvivesAReopen(processor);
   testFoldingAndUnfoldingIsSymmetric(processor);
   testTheRulesFoldTheirSections(processor);

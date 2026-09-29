@@ -166,6 +166,19 @@ void NoiseStrip::setSilencedByOthers(bool shouldDim) {
   setAlpha(silenced ? 0.4f : 1.0f);
 }
 
+void NoiseStrip::drawFaderAt(int y) {
+  const auto track = volume.getBounds();
+
+  if (track.getHeight() <= 1)
+    return;
+
+  const auto fromTop = juce::jlimit(
+      0.0, 1.0, (double)(y - track.getY()) / (double)track.getHeight());
+
+  volume.setValue(volume.proportionOfLengthToValue(1.0 - fromTop),
+                  juce::sendNotificationSync);
+}
+
 void NoiseStrip::mouseDown(const juce::MouseEvent &e) {
   // The noise channel opens no menu of its own, but its mute and solo buttons
   // do, and the same modal-menu problem applies: without this the column stays

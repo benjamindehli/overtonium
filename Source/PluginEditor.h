@@ -52,6 +52,14 @@ public:
   /// Lights the button while LINK is on.
   void setLinkOn(bool);
 
+  /// Fired when the DRAW button is clicked, which latches the tool on rather
+  /// than needing the modifier held.
+  std::function<void()> onDrawClicked;
+
+  /// Lights the button while a drag across the faders would draw them, whether
+  /// that is because the modifier is held or because it is latched.
+  void setDrawOn(bool);
+
   void resized() override;
   void mouseDown(const juce::MouseEvent &) override;
   void mouseMove(const juce::MouseEvent &) override;
@@ -67,7 +75,7 @@ private:
   /// Here rather than in the bar because this is the column the tool belongs
   /// to: it gangs the rows the captions name. What it leaves behind on the bar
   /// is the room the converter readouts needed to say what their numbers mean.
-  ovt::ui::GlowButton linkButton;
+  ovt::ui::GlowButton linkButton, drawButton;
 
   /// The maker's badge, in the empty foot of the gutter.
   std::unique_ptr<juce::Drawable> makersMark{ovt::ui::logoMakersMark()};
@@ -93,6 +101,35 @@ public:
   /// Brings everything that depends on the LINK settings into step: the
   /// gutter's switch, the glow that previews a drag, and the pointer.
   void syncLinkUi();
+
+  /// Whether a drag across the faders would draw them. Not whether one is
+  /// under way: this is what the pointer, the two gutter switches and the LINK
+  /// preview answer to before anything is grabbed.
+  ///
+  /// Either the modifier is held or the tool is latched on, and the panel does
+  /// not distinguish: both arm it and both light the same button.
+  bool drawArmed = false;
+  bool shiftHeld = false;
+  bool drawLatched = false;
+
+  /// Read on the housekeeping tick rather than waited for. See the body.
+  void pollDrawModifier();
+  void refreshDrawArmed();
+  void toggleDrawLatch();
+
+  /// Whether a drawn drag is under way, as opposed to merely possible.
+  bool drawingNow = false;
+
+  /// Where the drawing last reached, so the columns in between can be filled
+  /// in. See drawMovedTo.
+  juce::Point<int> lastDrawn;
+
+  bool drawStarted(juce::Point<int>) override;
+  void drawMovedTo(juce::Point<int>) override;
+  void drawEnded() override;
+
+  std::vector<juce::RangedAudioParameter *> faderParameters() const;
+  void applyDrawAt(juce::Point<int>);
   void linkDragStarted(ovt::ui::Role, int sourceIndex) override;
   void linkValueChanged(ovt::ui::Role, int sourceIndex,
                         float plainValue) override;

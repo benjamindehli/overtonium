@@ -150,6 +150,13 @@ std::unique_ptr<juce::Drawable> logoMakersMark();
 /// and a mode you cannot see is a mode you forget you are in.
 juce::MouseCursor linkCursor(LinkCurve);
 
+/// The pointer while a drag across the faders would draw them rather than move
+/// one. A pencil, since that is what the gesture is.
+juce::MouseCursor drawCursor();
+
+/// The artwork behind it, exposed for the same reason linkCursorImage is.
+juce::Image drawCursorImage(float scale);
+
 /// The artwork behind linkCursor, exposed so it can be looked at without a
 /// pointer to hang it on.
 juce::Image linkCursorImage(LinkCurve, float scale);
