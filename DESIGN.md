@@ -570,6 +570,16 @@ Spread draws its scatter directions once when the drag begins, so the pattern ho
 
 The offset is always measured from the values captured when the drag started, so returning the knob to where you began restores the strips exactly, even if some of them hit an end stop along the way. That holds for every curve.
 
+**Holding shift draws the faders instead of ganging them.** A drag across the fader area with the modifier held sets every channel it passes over from the pointer's height. That is a different gesture from LINK rather than a variant of it: LINK distributes one relative move across a scope by a rule, and drawing sets absolute values freehand. A formant cannot be drawn with LINK, and "everything up three decibels" cannot be drawn.
+
+It works on the faders and nothing else, and that is a fact about faders rather than a scope that was cut. A fader's value is where it stands, which is what lets a pointer's height mean something. A knob has no such reading, so drawing across the tune row would not be a smaller version of this feature, it would be meaningless.
+
+Three things decide whether it feels like drawing rather than like poking. The pointer belongs to the fader the drag began on until the button comes up, so no other strip ever hears about it: the positions go to the editor, in screen coordinates, since a drag that crosses strips cannot be described in any one strip's. Every column between one position and the next is filled in, because two mouse events can be several strips apart and drawing only where they landed leaves holes exactly where the hand moved fastest. And the whole stroke opens one gesture and closes one, so it is a single step in the history however many faders it moved, which is the rule a LINK drag across 32 channels already follows.
+
+The noise channel draws with the rest. It is not a harmonic, but it is a fader, and a stroke that crossed it and left it alone would be stranger than one that did not.
+
+**While the modifier is held, LINK's preview goes out and the pointer becomes a crosshair.** Both are the same point: a drag can be a link or a drawing and not both, so offering two accounts of what it would do at once would be one too many. The preview is what LINK uses to say which strips a drag would reach, and leaving it lit under a modifier that has taken the gesture away would be a promise the button coming up would break.
+
 ### The output meter
 
 The top bar carries a horizontal output meter, split into left and right. It is split because the two channels are identical until something is panned off centre, and a summed meter would hide precisely that. It reads the finished output after master gain and the clipper, so it reports what actually leaves the plugin.

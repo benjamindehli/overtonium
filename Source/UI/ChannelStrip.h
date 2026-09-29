@@ -24,14 +24,54 @@ public:
   /// Left to itself the slider would open a drag gesture it never closes,
   /// since the mouse-up goes to the menu rather than back here.
   void mouseDown(const juce::MouseEvent &e) override {
-    if (!e.mods.isPopupMenu())
-      juce::Slider::mouseDown(e);
+    if (e.mods.isPopupMenu())
+      return;
+
+    // A drag that is going to be a drawn one never becomes a slider drag at
+    // all. Letting the slider take it and handing the pointer on as well would
+    // move this fader twice, once from its own drag and once from being the
+    // first column the drawing crosses.
+    if (onDrawStart != nullptr && onDrawStart(e)) {
+      drawing = true;
+      return;
+    }
+
+    juce::Slider::mouseDown(e);
   }
 
   void mouseDrag(const juce::MouseEvent &e) override {
-    if (!e.mods.isPopupMenu())
-      juce::Slider::mouseDrag(e);
+    if (e.mods.isPopupMenu())
+      return;
+
+    if (drawing) {
+      if (onDrawMove != nullptr)
+        onDrawMove(e);
+
+      return;
+    }
+
+    juce::Slider::mouseDrag(e);
   }
+
+  void mouseUp(const juce::MouseEvent &e) override {
+    if (drawing) {
+      drawing = false;
+
+      if (onDrawEnd != nullptr)
+        onDrawEnd();
+
+      return;
+    }
+
+    juce::Slider::mouseUp(e);
+  }
+
+  /// Offered every drag before the slider takes it. Returning true means the
+  /// gesture belongs to something else, which then gets the pointer until the
+  /// button comes up. Only the faders are given these.
+  std::function<bool(const juce::MouseEvent &)> onDrawStart;
+  std::function<void(const juce::MouseEvent &)> onDrawMove;
+  std::function<void()> onDrawEnd;
 
   void startedDragging() override {
     dragging = true;
@@ -47,10 +87,15 @@ public:
 
   bool isUserDragging() const noexcept { return dragging; }
 
+  /// Whether this drag was handed to the drawing rather than moving the
+  /// slider. See onDrawStart.
+  bool isDrawing() const noexcept { return drawing; }
+
   std::function<void()> onUserDragStart, onUserDragEnd;
 
 private:
   bool dragging = false;
+  bool drawing = false;
 };
 
 /// An endless, relative control.
@@ -320,6 +365,15 @@ public:
   /// Asked for when a click lands on one of the rules between sections, which
   /// line up with the gutter's headings and do the same thing.
   std::function<void(Section)> onSectionToggled;
+
+  /// Sets this channel's fader from a height, for a drag that is drawing
+  /// across the mixer rather than moving one fader.
+  ///
+  /// The height is in this strip's own coordinates. The strip does the reading
+  /// rather than the editor because the value is the slider's business: its
+  /// range is skewed to match the parameter's, and a proportion of the track
+  /// is the only honest way in.
+  void drawFaderAt(int y);
 
   void mouseEnter(const juce::MouseEvent &) override;
   void mouseMove(const juce::MouseEvent &) override;

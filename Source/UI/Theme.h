@@ -450,6 +450,24 @@ struct LinkTarget {
   /// is the quickest way to change what the next drag will do, without going
   /// back up to the bar for it.
   virtual void showLinkMenu() = 0;
+
+  /// A drag held with a modifier, which draws the faders it passes over
+  /// instead of moving one of them.
+  ///
+  /// It goes through the editor for the same reason a LINK drag does, and more
+  /// so: the pointer belongs to the fader the drag began on until the button
+  /// comes up, so no other strip ever hears about it. The editor is the only
+  /// thing that knows where the strips are.
+  ///
+  /// @param onScreen  where the pointer is, in screen coordinates. A drag
+  ///                  that crosses strips cannot be described in any one
+  ///                  strip's, and a screen point needs no component to know
+  ///                  about any other to be understood.
+  /// @returns whether the drag was taken. False leaves the fader to move
+  ///          itself, which is what happens when the modifier is not held.
+  virtual bool drawStarted(juce::Point<int> onScreen) = 0;
+  virtual void drawMovedTo(juce::Point<int> onScreen) = 0;
+  virtual void drawEnded() = 0;
 };
 
 } // namespace ovt::ui

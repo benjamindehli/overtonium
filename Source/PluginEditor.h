@@ -93,6 +93,27 @@ public:
   /// Brings everything that depends on the LINK settings into step: the
   /// gutter's switch, the glow that previews a drag, and the pointer.
   void syncLinkUi();
+
+  void modifierKeysChanged(const juce::ModifierKeys &) override;
+
+  /// Whether the modifier that turns a fader drag into a drawn one is held.
+  /// Not whether one is under way: this is what the pointer and the LINK
+  /// preview answer to before anything is grabbed.
+  bool drawArmed = false;
+
+  /// Whether a drawn drag is under way, as opposed to merely possible.
+  bool drawingNow = false;
+
+  /// Where the drawing last reached, so the columns in between can be filled
+  /// in. See drawMovedTo.
+  juce::Point<int> lastDrawn;
+
+  bool drawStarted(juce::Point<int>) override;
+  void drawMovedTo(juce::Point<int>) override;
+  void drawEnded() override;
+
+  std::vector<juce::RangedAudioParameter *> faderParameters() const;
+  void applyDrawAt(juce::Point<int>);
   void linkDragStarted(ovt::ui::Role, int sourceIndex) override;
   void linkValueChanged(ovt::ui::Role, int sourceIndex,
                         float plainValue) override;

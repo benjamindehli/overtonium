@@ -776,6 +776,108 @@ juce::RangedAudioParameter *OvertoniumEditor::oscParameter(Role role,
       params::oscParamId(roleSuffix(role), index));
 }
 
+bool OvertoniumEditor::drawStarted(juce::Point<int> onScreen) {
+  if (!drawArmed)
+    return false;
+
+  // One gesture for the whole drawn line, opened on every fader it could
+  // reach rather than on the ones it turns out to. A parameter that never
+  // moves contributes nothing to the step, and opening them as the pointer
+  // arrives would leave the host holding a gesture per column.
+  for (auto *param : faderParameters())
+    if (param != nullptr)
+      param->beginChangeGesture();
+
+  drawingNow = true;
+  lastDrawn = onScreen;
+  hoverLocked = true;
+
+  applyDrawAt(onScreen);
+  return true;
+}
+
+void OvertoniumEditor::drawMovedTo(juce::Point<int> onScreen) {
+  if (!drawingNow)
+    return;
+
+  // Every column between the last point and this one, not just the one under
+  // the pointer. A hand moving quickly crosses several strips between two
+  // mouse events, and drawing only where the events landed leaves the shape
+  // full of holes exactly where the drawing was fastest.
+  const auto from = lastDrawn;
+  const auto steps = juce::jmax(1, std::abs(onScreen.x - from.x));
+
+  for (int i = 1; i <= steps; ++i) {
+    const auto t = (double)i / (double)steps;
+
+    applyDrawAt({from.x + juce::roundToInt(t * (onScreen.x - from.x)),
+                 from.y + juce::roundToInt(t * (onScreen.y - from.y))});
+  }
+
+  lastDrawn = onScreen;
+}
+
+void OvertoniumEditor::drawEnded() {
+  if (!drawingNow)
+    return;
+
+  drawingNow = false;
+  hoverLocked = false;
+
+  for (auto *param : faderParameters())
+    if (param != nullptr)
+      param->endChangeGesture();
+}
+
+/// Every fader a drawn line can reach, the noise channel included.
+///
+/// It is not a harmonic, but it is a fader, and a drag that crossed it and
+/// left it alone would be stranger than one that did not.
+std::vector<juce::RangedAudioParameter *>
+OvertoniumEditor::faderParameters() const {
+  std::vector<juce::RangedAudioParameter *> out;
+  out.reserve(kNumHarmonics + 1);
+
+  for (int i = 0; i < kNumHarmonics; ++i)
+    out.push_back(oscParameter(Role::Volume, i));
+
+  out.push_back(
+      plugin().apvts.getParameter(params::noiseParamId(params::volumeSuffix)));
+
+  return out;
+}
+
+/// Sets whichever fader is under this point, if one is.
+void OvertoniumEditor::applyDrawAt(juce::Point<int> onScreen) {
+  for (auto &strip : strips) {
+    const auto local = strip->getLocalPoint(nullptr, onScreen);
+
+    if (local.x >= 0 && local.x < strip->getWidth()) {
+      strip->drawFaderAt(local.y);
+      return;
+    }
+  }
+
+  const auto local = noiseStrip.getLocalPoint(nullptr, onScreen);
+
+  if (local.x >= 0 && local.x < noiseStrip.getWidth())
+    noiseStrip.drawFaderAt(local.y);
+}
+
+void OvertoniumEditor::modifierKeysChanged(const juce::ModifierKeys &mods) {
+  // Held, the next drag across the faders draws them. LINK is the other thing
+  // a drag can mean, so its preview goes out while this one is armed: two
+  // offers of what a drag would do, shown at once, would be one too many.
+  const auto armed = mods.isShiftDown();
+
+  if (armed == drawArmed)
+    return;
+
+  drawArmed = armed;
+
+  syncLinkUi();
+}
+
 void OvertoniumEditor::syncLinkUi() {
   // The switch is in the gutter and the settings it belongs to are on the bar,
   // so the button is told rather than asked.
@@ -797,7 +899,11 @@ void OvertoniumEditor::updateLinkCursor() {
   // all take the parent's pointer, so this one assignment reaches every one of
   // them. The noise channel is outside the holder, which is right, since LINK
   // never reaches it either.
-  stripsHolder.setMouseCursor(topBar.isLinkEnabled()
+  // A drag while the modifier is held draws rather than links, so the pointer
+  // says so: the crosshair over the mixer, and never the LINK cursor, which
+  // would be promising a gesture that is not what would happen.
+  stripsHolder.setMouseCursor(drawArmed ? juce::MouseCursor::CrosshairCursor
+                              : topBar.isLinkEnabled()
                                   ? linkCursor(topBar.getLinkCurve())
                                   : juce::MouseCursor());
 
@@ -985,7 +1091,8 @@ void OvertoniumEditor::updateLinkGlow() {
   if (linkGesture.active) {
     role = linkGesture.role;
     weight = linkGesture.weight;
-  } else if (isLinkEnabled() && hoverStrip >= 0 && roleForRow(hoverRow, role)) {
+  } else if (isLinkEnabled() && !drawArmed && hoverStrip >= 0 &&
+             roleForRow(hoverRow, role)) {
     // Nothing has been grabbed yet, so this is a preview of what the knob under
     // the pointer would take with it.
     gatherLinkWeights(hoverStrip, topBar.getLinkScope(), topBar.getLinkCurve(),

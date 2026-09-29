@@ -40,6 +40,11 @@ public:
   /// line up with the gutter's headings and do the same thing.
   std::function<void(Section)> onSectionToggled;
 
+  /// Sets this channel's fader from a height, for a drag drawing across the
+  /// mixer. It is not a harmonic, but it is a fader. See
+  /// ChannelStrip::drawFaderAt.
+  void drawFaderAt(int y);
+
   void mouseDown(const juce::MouseEvent &) override;
   void mouseEnter(const juce::MouseEvent &) override;
   void mouseMove(const juce::MouseEvent &) override;
