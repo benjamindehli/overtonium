@@ -256,7 +256,7 @@ void NoiseStrip::mouseMove(const juce::MouseEvent &e) {
     setMouseCursor(headingSectionAt(rows, e.getPosition()) !=
                            Section::NumSections
                        ? juce::MouseCursor::PointingHandCursor
-                       : juce::MouseCursor::NormalCursor);
+                       : juce::MouseCursor::ParentCursor);
   }
 }
 void NoiseStrip::mouseExit(const juce::MouseEvent &e) { reportHover(e); }
@@ -269,7 +269,7 @@ void NoiseStrip::reportHover(const juce::MouseEvent &e) {
 
   // -1 says the pointer is off the harmonic series, which is what stops a
   // hover here from arming a LINK preview.
-  hover.hoverChanged(-1, inside ? controlRowAt(rows, p) : kNoRow);
+  hover.hoverChanged(-1, inside ? ChannelStrip::rowUnder(rows, p) : kNoRow);
 
   if (inside != hovered) {
     hovered = inside;
@@ -278,6 +278,18 @@ void NoiseStrip::reportHover(const juce::MouseEvent &e) {
 }
 
 void NoiseStrip::paintOverChildren(juce::Graphics &g) {
+  // A heading's wash goes over the children rather than behind them, which is
+  // the opposite of every other row's. Four of the five carry an activity lamp
+  // that fills the whole row and paints an opaque backdrop, so a wash drawn
+  // underneath is covered by it and only the output heading, which has no
+  // lamp, appeared to highlight at all.
+  if (rowShowsHighlight(highlighted) && isHeadingRow(highlighted)) {
+    const auto rows =
+        layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+
+    paintRowHighlight(g, rows[rowIndex(highlighted)]);
+  }
+
   if (hovered)
     paintColumnHighlight(g, getLocalBounds());
 }
@@ -304,6 +316,13 @@ void NoiseStrip::paint(juce::Graphics &g) {
 
   const auto rows =
       layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed);
+
+  // The same band the numbered channels light. This strip tracked the hovered
+  // row and repainted for it but never drew it, so the mixer highlighted
+  // across thirty-two columns and stopped at the thirty-third.
+  if (rowShowsHighlight(highlighted) && !isHeadingRow(highlighted))
+    paintRowHighlight(g, rows[rowIndex(highlighted)]);
+
   auto header = rows[rowIndex(Row::Header)];
 
   g.setColour(colour);

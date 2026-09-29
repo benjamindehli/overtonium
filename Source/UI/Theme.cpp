@@ -259,6 +259,12 @@ bool rowIsCollapsed(Row r, SectionMask collapsed) {
          isCollapsed(collapsed, s);
 }
 
+bool isHeadingRow(Row r) {
+  return r == Row::PitchModHeading || r == Row::EnvHeading ||
+         r == Row::KeyOffHeading || r == Row::AmpModHeading ||
+         r == Row::OutputHeading;
+}
+
 Section headingSectionAt(const RowBounds &rows, juce::Point<int> p) {
   for (int i = 0; i < kNumSections; ++i) {
     const auto s = (Section)i;

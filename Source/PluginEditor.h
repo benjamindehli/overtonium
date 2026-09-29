@@ -44,6 +44,14 @@ public:
   /// strips have to be told about it too.
   std::function<void(ovt::ui::Section)> onSectionToggled;
 
+  /// Fired as the pointer moves over the gutter's own headings.
+  ///
+  /// The gutter has always been a passive display, lit by whichever strip the
+  /// pointer was on. Its headings are clickable, though, so pointing at one
+  /// has to light it in the same way pointing at its rule on a strip does, and
+  /// the only thing that can light the strips as well is the editor.
+  std::function<void(ovt::ui::Row)> onHoverChanged;
+
   /// Fired when the LINK button is clicked, with the button to hang the menu
   /// off. The menu itself belongs to the bar, which owns the settings it
   /// changes.
@@ -63,6 +71,7 @@ public:
   void resized() override;
   void mouseDown(const juce::MouseEvent &) override;
   void mouseMove(const juce::MouseEvent &) override;
+  void mouseExit(const juce::MouseEvent &) override;
 
 private:
   ovt::ui::Row highlighted = ovt::ui::kNoRow;

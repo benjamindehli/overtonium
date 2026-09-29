@@ -12,14 +12,11 @@ Three things run in CI and all three are quick to check locally.
 
 **The tests pass.** `ctest --test-dir build --build-config Release` runs both suites.
 
-**Warnings are errors.** CI configures with `-DOVERTONIUM_WARNINGS_AS_ERRORS=ON`, which is off by default so that building from source on an untried compiler still produces a plugin. To see what CI will see, configure a separate tree rather than changing your working one:
-
-```sh
-cmake -B build-werror -DCMAKE_BUILD_TYPE=Release -DOVERTONIUM_WARNINGS_AS_ERRORS=ON
-cmake --build build-werror --config Release
-```
+**Warnings are errors.** This is the default, so an ordinary `cmake -B build` is already the build CI does and there is nothing extra to run. A tree configured before this became the default keeps whatever it was configured with, so reconfigure one of those with `-DOVERTONIUM_WARNINGS_AS_ERRORS=ON` or delete it.
 
 Compilers disagree about this. JUCE asks clang for a longer list than it asks gcc, and a newer clang asks for more than an older one, so a clean local build is not a promise that all three runners will agree.
+
+If you are on a compiler none of the three runners covers and it objects to something this project has never seen, `-DOVERTONIUM_WARNINGS_AS_ERRORS=OFF` builds the plugin anyway. That is what the switch is for. Please report the warning as well, since it is one nothing here can see.
 
 **Formatting.** C++ is clang-format with stock LLVM style, no overrides, so `clang-format -i` on a file you touched is the whole of it. Everything else, meaning the docs, the readme and the workflows, is prettier:
 

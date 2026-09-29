@@ -189,20 +189,31 @@ target_link_libraries(Overtonium
         juce::juce_recommended_warning_flags)
 
 # ------------------------------------------------------------------------------------------
-# Warnings as errors, off by default and turned on in CI.
+# Warnings as errors, on by default and turned off for a release build.
 #
 # juce_recommended_warning_flags already asks for a great deal, including
 # -Wconversion and -Wsign-conversion, but nothing makes any of it fatal, so a
 # new warning can sit in the log until the log is long enough that nobody reads
-# it. CI turns this on and a pull request that adds one fails.
+# it. This makes it fatal, so a pull request that adds one fails.
 #
-# Off by default because a warning is not a reason for someone building from
-# source on a compiler nobody here has tried to end up with no plugin at all.
-# Applied to our own targets rather than globally, for the same reason in the
-# other direction: a warning from inside JUCE is not something a change here
-# can fix, and it should not be able to fail the build.
+# On by default, so that a plain build here is the build the workflows do. It
+# was off, on the grounds that a warning is no reason for someone building from
+# source on an untried compiler to end up with no plugin at all. That reason
+# still holds and is why the switch exists, but it had the cost the other way
+# round: the strict build was the unusual one, so warnings scrolled past every
+# local build and failed twenty minutes later on a runner. A `-Wfloat-equal` in
+# a test reached the Linux job that way. Anyone stuck on a warning this project
+# has not met can configure with -DOVERTONIUM_WARNINGS_AS_ERRORS=OFF.
+#
+# Applied per target rather than globally, which spares juceaide and whatever
+# else CMake builds for the framework's own purposes. It does not spare JUCE
+# itself: a module's sources are compiled into the target that links it, so
+# they are built with these options too. That was read the other way round here
+# for a while. It has never fired, because the runners compile JUCE clean at
+# this warning level, but if a JUCE release ever warns then the switch below is
+# the way past it, since nothing in this repository could fix it.
 # ------------------------------------------------------------------------------------------
-option(OVERTONIUM_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
+option(OVERTONIUM_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" ON)
 
 function(overtonium_set_warnings_as_errors target)
     if(NOT OVERTONIUM_WARNINGS_AS_ERRORS)

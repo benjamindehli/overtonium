@@ -185,6 +185,14 @@ inline constexpr bool isCollapsed(SectionMask mask, Section s) {
   return (mask & sectionBit(s)) != 0;
 }
 
+/// Whether this row is one of the five that name a section.
+///
+/// Shared rather than answered again in each file that asks, which is now the
+/// gutter and both kinds of strip: a heading is drawn differently, highlighted
+/// differently and clicked for a different reason, so three places have to
+/// agree about which rows they are.
+bool isHeadingRow(Row);
+
 /// The heading row that names a section, and the reverse.
 Row sectionHeading(Section);
 

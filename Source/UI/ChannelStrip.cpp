@@ -1076,8 +1076,34 @@ void ChannelStrip::mouseEnter(const juce::MouseEvent &e) {
 void ChannelStrip::mouseMove(const juce::MouseEvent &e) {
   hoverSuppressed = false;
   reportHover(e);
+
+  // The same hand the gutter's headings show, so a rule that folds looks like
+  // one. Only for the strip's own events: a knob sets its own cursor and this
+  // handler sees the knob's moves too.
+  //
+  // Back to the parent's cursor rather than to a plain arrow, which is the
+  // part that is easy to get wrong. A strip asks for its parent's cursor so
+  // that LINK and the drawing tool can set one across the whole mixer at once,
+  // and an arrow set here would mask it for everything below this strip.
+  if (e.originalComponent == this) {
+    const auto rows =
+        layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+
+    setMouseCursor(headingSectionAt(rows, e.getPosition()) !=
+                           Section::NumSections
+                       ? juce::MouseCursor::PointingHandCursor
+                       : juce::MouseCursor::ParentCursor);
+  }
 }
 void ChannelStrip::mouseExit(const juce::MouseEvent &e) { reportHover(e); }
+
+/// The row the pointer is on, counting the rules between sections as rows.
+Row ChannelStrip::rowUnder(const RowBounds &rows, juce::Point<int> p) {
+  const auto section = headingSectionAt(rows, p);
+
+  return section != Section::NumSections ? sectionHeading(section)
+                                         : controlRowAt(rows, p);
+}
 
 void ChannelStrip::reportHover(const juce::MouseEvent &e) {
   const auto p = e.getEventRelativeTo(this).getPosition();
@@ -1088,7 +1114,14 @@ void ChannelStrip::reportHover(const juce::MouseEvent &e) {
   // Leaving one knob for the next fires the exit before the enter, so the
   // answer is always worked out from where the pointer now is rather than from
   // which callback arrived.
-  hover.hoverChanged(index, inside ? controlRowAt(rows, p) : kNoRow);
+  //
+  // A rule between two sections answers with its own heading, which no control
+  // row does: controlRowAt only speaks for rows that carry something. It is
+  // worth the exception because the rule is clickable, and the caption in the
+  // gutter lighting is how this panel says what is under the pointer. Without
+  // it the one part of a strip you can click was the one part that said
+  // nothing.
+  hover.hoverChanged(index, inside ? rowUnder(rows, p) : kNoRow);
 
   // The channel highlight is the strip's own business rather than the
   // editor's, for the same reason: worked out from the pointer, it cannot be
@@ -1100,6 +1133,18 @@ void ChannelStrip::reportHover(const juce::MouseEvent &e) {
 }
 
 void ChannelStrip::paintOverChildren(juce::Graphics &g) {
+  // A heading's wash goes over the children rather than behind them, which is
+  // the opposite of every other row's. Four of the five carry an activity lamp
+  // that fills the whole row and paints an opaque backdrop, so a wash drawn
+  // underneath is covered by it and only the output heading, which has no
+  // lamp, appeared to highlight at all.
+  if (rowShowsHighlight(highlighted) && isHeadingRow(highlighted)) {
+    const auto rows =
+        layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+
+    paintRowHighlight(g, rows[rowIndex(highlighted)]);
+  }
+
   if (hovered)
     paintColumnHighlight(g, getLocalBounds());
 }
@@ -1226,7 +1271,7 @@ void ChannelStrip::paint(juce::Graphics &g) {
   const auto rows =
       layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed);
 
-  if (rowShowsHighlight(highlighted))
+  if (rowShowsHighlight(highlighted) && !isHeadingRow(highlighted))
     paintRowHighlight(g, rows[rowIndex(highlighted)]);
 
   auto header = rows[rowIndex(Row::Header)];
