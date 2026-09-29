@@ -18,6 +18,17 @@ int chromeHeight(int logicalWidth) {
   return ovt::ui::TopBar::heightForWidth(logicalWidth) + kScrollBarThickness;
 }
 
+/// The narrowest window, in logical pixels.
+///
+/// Wide enough for a usable stretch of mixer, and never narrower than the top
+/// bar can lay itself out in without dropping a group. Every width the floor
+/// is worked out for is clamped up to this, so that a window with no size yet
+/// gets the narrow window's answer rather than one for a width nothing can be.
+int minimumLogicalWidth() {
+  return juce::jmax(kGutterWidth + kStripWidth + kMasterGap + 6 * kStripWidth,
+                    ovt::ui::TopBar::minimumWidth());
+}
+
 /// State keys stored alongside the parameters so window size survives a reopen.
 const juce::Identifier kEditorWidth{"editorWidth"};
 const juce::Identifier kEditorHeight{"editorHeight"};
@@ -461,7 +472,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
       (int)state.getProperty(kEditorHeight, standard.getHeight());
 
   setResizable(true, true);
-  applyResizeLimits();
+  applyResizeLimits(savedWidth);
 
   // Cast rather than left to the compiler. int times float is a conversion
   // that can lose precision in principle, and newer clang says so.
@@ -613,6 +624,14 @@ void OvertoniumEditor::resized() {
   const int logicalWidth = juce::roundToInt((float)getWidth() / zoom);
   const int logicalHeight = juce::roundToInt((float)getHeight() / zoom);
 
+  // The shortest legal window changes when the bar reflows, so a drag across
+  // one of those widths has to be followed. Only on a change, which is what
+  // keeps this from recursing: applying limits constrains the bounds and so
+  // comes back here, and the second pass finds the same bar height and stops.
+  if (ovt::ui::TopBar::heightForWidth(
+          juce::jmax(minimumLogicalWidth(), logicalWidth)) != limitsBarHeight)
+    applyResizeLimits(logicalWidth);
+
   content.setTransform(juce::AffineTransform::scale(zoom));
   content.setBounds(0, 0, logicalWidth, logicalHeight);
 
@@ -669,21 +688,47 @@ juce::Rectangle<int> OvertoniumEditor::standardSize() const {
 void OvertoniumEditor::fitAllChannels() {
   const auto standard = standardSize();
 
+  // The limits first, and for the width this is about to be rather than the
+  // one it is at. setSize does not consult them, so without this the window
+  // lands at whatever the standard size says while the floor still belongs to
+  // the width being left, and the next drag snaps it to that floor.
+  applyResizeLimits(standard.getWidth());
+
   setSize(juce::roundToInt((float)standard.getWidth() * zoom),
           juce::roundToInt((float)standard.getHeight() * zoom));
 }
 
 void OvertoniumEditor::applyResizeLimits() {
+  applyResizeLimits(juce::roundToInt((float)getWidth() / zoom));
+}
+
+void OvertoniumEditor::applyResizeLimits(int forLogicalWidth) {
   // Limits are expressed in logical pixels, so they scale with the zoom factor.
   // Wide enough for a usable stretch of mixer, and never narrower than the top
   // bar can lay itself out without dropping a group.
-  const int minWidth =
-      juce::jmax(kGutterWidth + kStripWidth + kMasterGap + 6 * kStripWidth,
-                 ovt::ui::TopBar::minimumWidth());
-  // The narrowest window is also the one where the bar takes two rows, so
-  // the minimum height has to leave room for that.
+  const int minWidth = minimumLogicalWidth();
+
+  // The floor follows the width, and the reason is the bar. It takes three
+  // rows at the narrowest window, two from 648, and one from 1258, which is
+  // 182, 124 and 66 pixels of chrome, so the same mixer needs a window 116
+  // pixels taller at one end of the range than at the other.
+  //
+  // It used to be worked out at minWidth and used at every width, which made
+  // the floor the narrow window's floor even on a wide one. The wide window
+  // was then held 116 pixels taller than it needed to be, and Fit all 32
+  // channels, which calls setSize and so consults no limits at all, went
+  // straight past it: it landed at 913 against a floor of 997 and the first
+  // drag afterwards snapped the window up by 84 pixels.
+  //
+  // Never below minWidth, so a window narrower than the floor allows, which
+  // is what an unset size during construction looks like, still gets the
+  // conservative answer rather than one for a width nothing can have.
+  const int width = juce::jmax(minWidth, forLogicalWidth);
+  const int bar = ovt::ui::TopBar::heightForWidth(width);
   const int minHeight =
-      chromeHeight(minWidth) + minimumStripHeight(collapsedSections);
+      chromeHeight(width) + minimumStripHeight(collapsedSections);
+
+  limitsBarHeight = bar;
 
   setResizeLimits(juce::roundToInt((float)minWidth * zoom),
                   juce::roundToInt((float)minHeight * zoom),
@@ -707,7 +752,7 @@ void OvertoniumEditor::setZoom(float newZoom) {
   // is actually at, since the only other place that sets it is the restore.
   topBar.setZoomChoice(zoom);
 
-  applyResizeLimits();
+  applyResizeLimits(juce::roundToInt(logicalWidth));
 
   setSize(juce::roundToInt(logicalWidth * zoom),
           juce::roundToInt(logicalHeight * zoom));

@@ -190,6 +190,20 @@ private:
   /// The size that shows the whole mixer, at the fold state it is in.
   juce::Rectangle<int> standardSize() const;
 
+  /// Sets the resize limits for a window of the given logical width.
+  ///
+  /// The height floor depends on the width, because the top bar reflows onto
+  /// more rows as the window narrows and every row it takes is a row the
+  /// mixer cannot have. The constrainer holds one number, not a curve, so the
+  /// number has to follow the width rather than be picked for the worst case.
+  ///
+  /// The width is passed rather than read off the window because the two
+  /// callers that change it call this before the change lands: a zoom has
+  /// already updated the factor but not the bounds, and the fit is about to
+  /// move to a width it is not at yet.
+  void applyResizeLimits(int forLogicalWidth);
+
+  /// The same, for the width the window has now.
   void applyResizeLimits();
   void applyPreset(int index);
 
@@ -300,6 +314,15 @@ private:
   /// Which groups of rows are folded away. Restored from the saved state and
   /// written back when it changes, alongside the window size and the zoom.
   ovt::ui::SectionMask collapsedSections = 0;
+
+  /// The bar height the limits in force were worked out for.
+  ///
+  /// Applying limits is itself a resize, since setResizeLimits ends by
+  /// constraining the current bounds, so resized() and applyResizeLimits can
+  /// call each other. This is what stops that: the limits are reapplied only
+  /// when the bar has actually changed height, and once they have been, the
+  /// resize that follows finds the same number and stops.
+  int limitsBarHeight = -1;
 
   /// Counts timer callbacks, so the meters and the housekeeping can each run
   /// at their own fraction of it.

@@ -3551,10 +3551,18 @@ void testFitAllChannels(OvertoniumProcessor &p) {
   // as the width.
   editor->setSize(700, fitted.getHeight() - 120);
 
-  check(editor->getWidth() == 700 &&
-            editor->getHeight() == fitted.getHeight() - 120,
-        "a window can be dragged small (" + std::to_string(editor->getWidth()) +
-            " x " + std::to_string(editor->getHeight()) + ")");
+  check(editor->getWidth() == 700, "a window can be dragged narrow (" +
+                                       std::to_string(editor->getWidth()) +
+                                       ")");
+
+  // Short, but not as short as it was asked for. The bar's second row costs
+  // the mixer the room it needed, so the window comes to rest on the floor for
+  // this width instead of going under it, which is where the strips would
+  // start running out through the bottom. This check used to read the asked-for
+  // height back unchanged, because nothing was watching the reflow.
+  check(editor->getHeight() == editor->getConstrainer()->getMinimumHeight(),
+        "and its height comes to rest on the floor for that width (" +
+            std::to_string(editor->getHeight()) + ")");
 
   editor->fitAllChannels();
 
@@ -4172,6 +4180,81 @@ void testTheRulesFoldTheirSections(OvertoniumProcessor &p) {
 /// The window's height is the sum of the rows plus whatever is left for the
 /// fader, so a fader that grew means the window grew by more than the rows it
 /// got back.
+/// Fit all 32 channels must land somewhere a drag can get back to.
+///
+/// setSize consults no limits, so the fit could put the window below the
+/// shortest one the constrainer allows. It did: the floor was worked out at
+/// the narrowest width, where the top bar takes three rows, and used at every
+/// width, so a fitted window sat 84 pixels under a floor of 997 and the first
+/// drag afterwards snapped it up. The floor now follows the width, which fixes
+/// that and also lets a wide window be dragged shorter than the fit leaves it,
+/// since the bar is two rows shorter there.
+void testFittingLandsWhereADragCanReturn(OvertoniumProcessor &p) {
+  section("Fitting lands where a drag can return");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  const auto *limits = editor->getConstrainer();
+
+  check(limits != nullptr, "and has limits on it");
+  if (limits == nullptr)
+    return;
+
+  editor->fitAllChannels();
+
+  const int fitted = editor->getHeight();
+  const int wideFloor = limits->getMinimumHeight();
+
+  check(fitted >= wideFloor,
+        "the fitted window is at or above its own floor (" +
+            std::to_string(fitted) + " against " + std::to_string(wideFloor) +
+            ")");
+
+  // Which is the half that would have passed on its own if the floor were
+  // simply lowered everywhere. It must still be a floor: narrow the window to
+  // where the bar needs another row and it has to rise.
+  const int fittedWidth = editor->getWidth();
+
+  editor->setSize(700, editor->getHeight());
+
+  const int narrowFloor = limits->getMinimumHeight();
+
+  check(
+      narrowFloor > wideFloor,
+      "and narrowing it, where the bar takes another row, raises the floor (" +
+          std::to_string(wideFloor) + " to " + std::to_string(narrowFloor) +
+          ")");
+
+  // The fit has to be using that room rather than merely being allowed it.
+  // Landing at or above the narrow window's floor would mean the wide window
+  // was still being held to the narrow one's chrome, which is the fault this
+  // is about, and it would read as legal because the floor had moved up to
+  // meet it.
+  check(fitted < narrowFloor,
+        "and the fitted window is shorter than a narrow one could ever be (" +
+            std::to_string(fitted) + " against " + std::to_string(narrowFloor) +
+            ")");
+
+  // The window has to have been taken with it, or the bar gains a row into
+  // space the mixer is still using and the strips run off the bottom.
+  check(editor->getHeight() >= narrowFloor,
+        "and takes the window up with it rather than leaving it short");
+
+  // Back out again, and the fit's height stops being the shortest thing
+  // available: the whole point of the floor following the width.
+  editor->setSize(fittedWidth, editor->getHeight());
+
+  check(limits->getMinimumHeight() == wideFloor,
+        "widening it puts the floor back");
+  check(limits->getMinimumHeight() < fitted,
+        "so a wide window can be dragged shorter than fitting leaves it");
+}
+
 void testFoldingAndUnfoldingIsSymmetric(OvertoniumProcessor &p) {
   section("Folding and unfolding leaves the window where it was");
 
@@ -6943,6 +7026,7 @@ int main() {
   testDrawingAcrossTheFaders(processor);
   testLinkSurvivesAReopen(processor);
   testFoldingAndUnfoldingIsSymmetric(processor);
+  testFittingLandsWhereADragCanReturn(processor);
   testTheRulesFoldTheirSections(processor);
   testOneRightClickOpensOneMenu(processor);
   testWheelOverAKnobStaysOnTheKnob(processor);
