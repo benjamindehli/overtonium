@@ -88,8 +88,11 @@ namespace {
 /// 1.9.0 in FL Studio and Reaper, with MuLab unaffected because it keeps the
 /// binary loaded.
 ///
-/// Nothing about this is specific to the update check. It was the only object
-/// in the plugin with static lifetime, and now there is none.
+/// Nothing about this is specific to the update check. The statics that remain
+/// hold an array, a string list, a colour, an identifier and an image tile,
+/// and what makes them safe is not that they are small: it is that none of
+/// them owns a thread or needs the event system in order to be destroyed.
+/// That, rather than the count, is the thing to check before adding one.
 ///
 /// Writing the file by hand and dropping PropertiesFile would remove the
 /// inheritance rather than work around it, but the options decide the path,

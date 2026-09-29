@@ -814,17 +814,19 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
           ? juce::roundToInt(polyphony->convertFrom0to1(polyphony->getValue()))
           : 0;
 
-  m.addItem(700, "Undo", canUndo && canUndo());
-  m.addItem(701, "Redo", canRedo && canRedo());
-  m.addSeparator();
-
-  // Which build this is, above the thing that offers to find a newer one.
+  // Which build this is, above the thing that offers to find a newer one, and
+  // both at the very top.
   //
   // It had never been anywhere. The bug report template asks for a version and
   // will not take a report without one, and told people to read it off the
   // Settings menu or the credit line under the wordmark, and it was in neither
   // of those and nowhere else either. Somebody taking the trouble to report a
   // fault was being asked for a number the instrument would not tell them.
+  //
+  // It went in under the undo pair to begin with, which put the answer to
+  // "which version is this" below two things that have nothing to do with the
+  // question and change every time you use them. A menu is read from the top,
+  // and what this is stays put while the rest of it does not.
   //
   // A header rather than an item, because it is a fact about the plugin and
   // not something to be chosen. Disabled items read as actions that happen to
@@ -836,6 +838,10 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
   // reads better stated plainly than buried a level down.
   m.addItem(702, "Check for new versions", true,
             isUpdateCheckAllowed && isUpdateCheckAllowed());
+  m.addSeparator();
+
+  m.addItem(700, "Undo", canUndo && canUndo());
+  m.addItem(701, "Redo", canRedo && canRedo());
   m.addSeparator();
 
   m.addSectionHeader("Polyphony");

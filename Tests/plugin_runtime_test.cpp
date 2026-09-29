@@ -3712,24 +3712,35 @@ void testSettingsNamesTheVersion(OvertoniumProcessor &p) {
 
   auto menu = bar->buildSettingsMenu();
 
-  bool found = false;
-  bool asHeader = false;
+  // Separators are dropped, since where they fall is a matter of taste and
+  // this is about the order of the things that carry words.
+  std::vector<juce::PopupMenu::Item> items;
 
-  for (juce::PopupMenu::MenuItemIterator it(menu); it.next();) {
-    const auto &item = it.getItem();
+  for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+    if (!it.getItem().isSeparator)
+      items.push_back(it.getItem());
 
-    if (item.text != line)
-      continue;
+  check(items.size() > 4, "and the Settings menu has items in it");
+  if (items.size() <= 4)
+    return;
 
-    found = true;
-    asHeader = item.isSectionHeader;
-  }
-
-  check(found, "and the Settings menu carries it");
+  check(items[0].text == line, "and the menu opens with it");
 
   // A fact rather than a choice. An ordinary item, enabled or not, reads as
   // something to press.
-  check(asHeader, "as a heading rather than as something to click");
+  check(items[0].isSectionHeader,
+        "as a heading rather than as something to click");
+
+  // Directly under it, because the two are one thought: this is the build you
+  // have, and here is whether to look for a newer one.
+  check(items[1].text == "Check for new versions",
+        "with the update check directly beneath it");
+
+  // Below both, rather than above them as they were. The version is the one
+  // thing in this menu that does not change while you use the plugin, so it
+  // reads first and the undo pair follows.
+  check(items[2].text == "Undo" && items[3].text == "Redo",
+        "and undo and redo below, not above");
 }
 
 /// A wheel over a knob must not also scroll the mixer sideways.
