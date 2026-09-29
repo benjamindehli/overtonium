@@ -4418,6 +4418,46 @@ void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
 
     check(drawSwitch->getToggleState(), "the switch lights when it is latched");
 
+    // ---- and the faders light to say where the drawing reaches ------------
+    //
+    // The same preview LINK uses to say what the next drag would touch, in the
+    // accent rather than each channel's own colour, since every fader is
+    // equally drawable and the band is one surface rather than 33 answers.
+    {
+      const auto faderOf = [](juce::Component &strip) -> juce::Slider * {
+        juce::Slider *found = nullptr;
+
+        std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+          if (auto *s = dynamic_cast<juce::Slider *>(&c))
+            if (s->getSliderStyle() == juce::Slider::LinearVertical)
+              found = s;
+          for (auto *child : c.getChildren())
+            look(*child);
+        };
+        look(strip);
+
+        return found;
+      };
+
+      auto *fader = faderOf(*strips[0]);
+
+      check(fader != nullptr, "a strip has a fader to light");
+
+      if (fader != nullptr) {
+        const auto glow =
+            (double)fader->getProperties().getWithDefault("linkGlow", 0.0);
+        const auto accent =
+            (bool)fader->getProperties().getWithDefault("glowAccent", false);
+
+        std::printf("  armed, a fader glows at %.2f, in the accent: %s\n", glow,
+                    accent ? "yes" : "no");
+
+        check(glow > 0.9, "the faders light while the tool is armed (" +
+                              std::to_string(glow) + ")");
+        check(accent, "and in the accent rather than the channel's colour");
+      }
+    }
+
     const auto before = levelOf(1);
 
     // Along the tops of the strips, which is full level, from channel 1 to 4.
@@ -4469,6 +4509,23 @@ void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
       drawSwitch->onClick();
 
     check(!drawSwitch->getToggleState(), "and the switch goes out again");
+
+    // Nothing is left lit once the tool is let go, which is the half a
+    // highlight most easily gets wrong.
+    juce::Slider *fader = nullptr;
+    std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+      if (auto *s = dynamic_cast<juce::Slider *>(&c))
+        if (s->getSliderStyle() == juce::Slider::LinearVertical)
+          fader = s;
+      for (auto *child : c.getChildren())
+        look(*child);
+    };
+    look(*strips[0]);
+
+    if (fader != nullptr)
+      check((double)fader->getProperties().getWithDefault("linkGlow", 1.0) ==
+                0.0,
+            "and the faders go dark with it");
   }
 }
 

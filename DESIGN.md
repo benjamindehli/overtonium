@@ -582,6 +582,12 @@ The noise channel draws with the rest. It is not a harmonic, but it is a fader, 
 
 **The modifier is polled rather than listened for**, which is not the obvious way round and is the only one that works. JUCE delivers a modifier change to the component under the pointer, and `Slider` handles it without passing it up, so over a fader or a knob the editor never hears about it at all. What that produced was a tool that could only be armed with the pointer in one of the gaps between channels, and which latched on for good if the key was let go anywhere else. Reading the modifier on the housekeeping tick cannot be swallowed by anything.
 
+**Armed, every fader lights and nothing else does.** That is the same preview LINK uses rather than a second kind of highlight, and reusing it is the point: both answer the one question, which is what the next drag would reach. Two ways of saying that would be two things to keep in step.
+
+What differs is the colour and the grading. LINK's preview is per channel and graded by the curve, since it is saying how much each one would take. The drawing's is one colour at full across the whole row, since every fader is equally drawable. It is lit in the accent, which is what the switch that armed it is lit in, so the band and the switch read as one statement rather than two.
+
+It marks the tracks rather than the caps, and that is the honest signal. A cap is what you grab, which is the right thing to light for LINK; drawing never grabs anything, it sweeps a band, so the band is what has to be visible. The noise channel lights with the rest, since it draws with the rest.
+
 **While it is armed, LINK reads as off and the pointer becomes a pencil.** Both are the same point: a drag can be a link or a drawing and not both, so offering two accounts of what it would do at once would be one too many. LINK is not actually switched off, and letting go of the tool gives it back exactly as it was. Leaving its switch lit for a gesture that has been taken away from it would be a promise the mouse-up would break.
 
 ### The output meter

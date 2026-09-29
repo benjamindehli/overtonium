@@ -450,7 +450,7 @@ public:
   ///
   /// @param amount  0 for a strip the drag does not reach, otherwise how much
   ///                of the drag it takes relative to the strip that takes most.
-  void setLinkGlow(Role, float amount);
+  void setLinkGlow(Role, float amount, bool accent = false);
 
 private:
   using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
@@ -526,6 +526,12 @@ private:
   void foldSectionUnder(const juce::MouseEvent &, bool echo);
   Role glowRole = Role::Tune;
   float glowAmount = 0.0f;
+
+  /// Whether the glow is lit in the accent rather than in the channel's own
+  /// colour. LINK's preview is per channel, since it is saying how much each
+  /// one would take; the drawing's is one colour across the mixer, since every
+  /// fader is equally drawable and the band is one surface.
+  bool glowAccent = false;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ChannelStrip)
 };

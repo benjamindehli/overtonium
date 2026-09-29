@@ -1157,6 +1157,20 @@ void OvertoniumEditor::hoverChanged(int stripIndex, Row row) {
 }
 
 void OvertoniumEditor::updateLinkGlow() {
+  // Armed, every fader lights, and nothing else does. It answers the same
+  // question LINK's preview answers, which is what the next drag would reach,
+  // so it is the same mechanism rather than a second kind of highlight: two
+  // ways of saying that would be two things to keep in step.
+  if (drawArmed) {
+    for (auto &strip : strips)
+      strip->setLinkGlow(Role::Volume, 1.0f, true);
+
+    noiseStrip.setDrawGlow(true);
+    return;
+  }
+
+  noiseStrip.setDrawGlow(false);
+
   auto role = Role::Tune;
   std::array<float, kNumHarmonics> weight{};
 
