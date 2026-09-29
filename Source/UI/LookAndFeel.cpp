@@ -637,7 +637,15 @@ void OvertoniumLookAndFeel::drawLinearSlider(
       (float)(double)slider.getProperties().getWithDefault("linkGlow", 0.0);
 
   if (glow > 0.0f) {
-    const auto lit = slider.findColour(juce::Slider::trackColourId);
+    // The channel's own colour for LINK, which is saying how much this one
+    // would take, and the accent for the drawing, which is saying that the
+    // whole band is one surface to sweep across. The accent is also what the
+    // switch that armed it is lit in, so the lit band and the lit switch read
+    // as one statement.
+    const auto lit =
+        (bool)slider.getProperties().getWithDefault("glowAccent", false)
+            ? colours::accent
+            : slider.findColour(juce::Slider::trackColourId);
 
     g.setColour(lit.withAlpha(0.10f * glow * dim));
     g.fillRoundedRectangle(bounds, 3.0f);

@@ -45,6 +45,11 @@ public:
   /// ChannelStrip::drawFaderAt.
   void drawFaderAt(int y);
 
+  /// Lights this channel's fader while a drag across the mixer would draw it.
+  /// LINK never reaches the noise channel, so it has no preview of its own and
+  /// this is the only thing that lights its fader.
+  void setDrawGlow(bool);
+
   void mouseDown(const juce::MouseEvent &) override;
   void mouseEnter(const juce::MouseEvent &) override;
   void mouseMove(const juce::MouseEvent &) override;
@@ -138,6 +143,8 @@ private:
   /// When the last click on this strip happened, so the same click arriving a
   /// second time cannot act twice. See mouseDown.
   juce::Time lastClick;
+
+  bool drawGlow = false;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NoiseStrip)
 };

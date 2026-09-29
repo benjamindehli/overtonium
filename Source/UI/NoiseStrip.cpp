@@ -166,6 +166,17 @@ void NoiseStrip::setSilencedByOthers(bool shouldDim) {
   setAlpha(silenced ? 0.4f : 1.0f);
 }
 
+void NoiseStrip::setDrawGlow(bool on) {
+  if (on == drawGlow)
+    return;
+
+  drawGlow = on;
+
+  volume.getProperties().set("linkGlow", on ? 1.0 : 0.0);
+  volume.getProperties().set("glowAccent", on);
+  volume.repaint();
+}
+
 void NoiseStrip::drawFaderAt(int y) {
   const auto track = volume.getBounds();
 

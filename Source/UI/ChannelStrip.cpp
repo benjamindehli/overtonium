@@ -1182,10 +1182,11 @@ LinkableSlider *ChannelStrip::sliderForRole(Role role) {
   }
 }
 
-void ChannelStrip::setLinkGlow(Role role, float amount) {
+void ChannelStrip::setLinkGlow(Role role, float amount, bool accent) {
   amount = juce::jlimit(0.0f, 1.0f, amount);
 
-  if (role == glowRole && std::abs(amount - glowAmount) < 0.004f)
+  if (role == glowRole && accent == glowAccent &&
+      std::abs(amount - glowAmount) < 0.004f)
     return;
 
   // Moving to a different row leaves the old control lit unless it is put out
@@ -1198,9 +1199,11 @@ void ChannelStrip::setLinkGlow(Role role, float amount) {
 
   glowRole = role;
   glowAmount = amount;
+  glowAccent = accent;
 
   if (auto *s = sliderForRole(glowRole)) {
     s->getProperties().set("linkGlow", (double)glowAmount);
+    s->getProperties().set("glowAccent", glowAccent);
     s->repaint();
   }
 }
