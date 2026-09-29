@@ -83,11 +83,9 @@ jobs:
             libxcomposite-dev libgl-dev libcurl4-openssl-dev \
             libxi-dev libegl-dev xvfb gdb
 
-      # Warnings are errors here and nowhere else. JUCE's recommended set is
-      # already asked for in CMakeLists and it is a broad one, but a warning
-      # that only prints is a warning that survives, and the log is long
-      # enough that nobody reads all of it. Someone building from source on a
-      # compiler none of these three runners covers still gets a plugin.
+      # Warnings are errors, which is now the default in CMakeLists and asked
+      # for here anyway. The flag is what this job needs rather than what the
+      # file happens to default to, and it costs one line to say so.
       - name: Configure
         run: >
           cmake -B build
@@ -394,6 +392,11 @@ jobs:
       # speed. Debug leaves NDEBUG undefined, which arms every jassert in the
       # framework, and a headless test run trips ones that say nothing about
       # this code. The build the other jobs check is the one worth sanitizing.
+      #
+      # Warnings are errors here too, from the default in CMakeLists. This is
+      # the only job that compiles at RelWithDebInfo, and optimisation level
+      # decides what gcc can prove, so -Wmaybe-uninitialized and friends can
+      # say something here that they do not say in the Release build.
       - name: Configure
         run: >
           cmake -B build-san

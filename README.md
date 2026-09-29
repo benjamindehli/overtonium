@@ -57,6 +57,8 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
 
+That build treats warnings as errors, which is what CI does. On a compiler this project has not met, add `-DOVERTONIUM_WARNINGS_AS_ERRORS=OFF` and it builds anyway.
+
 [CONTRIBUTING.md](CONTRIBUTING.md) has the rest: per-platform notes, the two test suites, formatting, warnings as errors, how a release is cut and how the project page is served. [ARCHITECTURE.md](ARCHITECTURE.md) describes how the code is arranged.
 
 ## Checking for updates
