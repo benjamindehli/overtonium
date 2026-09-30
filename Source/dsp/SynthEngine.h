@@ -2,16 +2,43 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 
 #include <atomic>
 
+#include "BucketEcho.h"
+#include "BusDrive.h"
+#include "DigitalEcho.h"
+#include "PlateReverb.h"
 #include "Reverb.h"
+#include "SpringReverb.h"
 #include "TapeEcho.h"
 #include "Voice.h"
 #include "Wobble.h"
 
 namespace ovt {
+
+/// What the speed of a key coming up does to the tail it leaves behind.
+///
+/// A release velocity of 64 is neutral, 127 leaves twice the level and 1 half
+/// of it, geometrically, so two steps down and two steps up undo each other.
+///
+/// Zero is neutral as well, which is the whole reason this is safe to have on
+/// with nothing on the panel to switch it off. A keyboard that cannot sense a
+/// release does not send 64: plenty send a note-off carrying zero, and plenty
+/// send a note-on of velocity zero instead of a note-off at all, which arrives
+/// here as a release of zero. Reading that as the softest possible lift would
+/// halve the tail of every note those players ever release. Nothing is lost by
+/// it either, since a lift of 1 is the same gesture as a lift of 0.
+inline float liftFromVelocity(int velocity) noexcept {
+  if (velocity <= 0)
+    return 1.0f;
+
+  const auto v = std::clamp(velocity, 1, 127);
+
+  return (float)std::exp2((double)(v - 64) / 63.0);
+}
 
 /// Polyphonic voice pool.
 ///
@@ -33,7 +60,7 @@ public:
   void setLegato(bool on) noexcept { legato = on; }
 
   void noteOn(int note, float velocity, const SynthParams &p) noexcept;
-  void noteOff(int note) noexcept;
+  void noteOff(int note, float lift = 1.0f) noexcept;
   void setSustainPedal(bool down) noexcept;
 
   /// Routes polyphonic aftertouch to whichever voices are holding that note.
@@ -55,7 +82,7 @@ public:
   /// @param channel  1 to 16, and never 0, which is what an ordinary note uses.
   void noteOnPerNote(int channel, int note, float velocity,
                      const SynthParams &p) noexcept;
-  void noteOffPerNote(int channel, int note) noexcept;
+  void noteOffPerNote(int channel, int note, float lift = 1.0f) noexcept;
   void setNotePressure(int channel, int note, float pressure) noexcept;
 
   /// Per-note slide, routed like per-note pressure.
@@ -131,7 +158,10 @@ public:
   /// How long the master effects would take to fall silent under the settings
   /// they are holding, so the host can pad an offline bounce correctly.
   float effectsTailSeconds(const SynthParams &p) const noexcept {
-    return std::max(echo.tailSeconds(p.echo), reverb.tailSeconds(p.reverb));
+    return std::max({echo.tailSeconds(p.echo), bucket.tailSeconds(p.echo),
+                     digital.tailSeconds(p.echo), reverb.tailSeconds(p.reverb),
+                     plate.tailSeconds(p.reverb),
+                     spring.tailSeconds(p.reverb)});
   }
 
 private:
@@ -144,7 +174,7 @@ private:
 
   void noteOnImpl(int channel, int note, float velocity,
                   const SynthParams &p) noexcept;
-  void noteOffImpl(int channel, int note) noexcept;
+  void noteOffImpl(int channel, int note, float lift) noexcept;
 
   Voice *findFreeVoice() noexcept;
   Voice *findOldestSounding() noexcept;
@@ -209,6 +239,11 @@ private:
 
   std::array<Voice, kPoolSize> voices{};
   std::array<bool, kPoolSize> heldBySustain{};
+
+  /// The lift each of those was let go at, kept until the pedal comes up.
+  /// The key is long gone by then, so the speed it came up at has to be
+  /// remembered rather than asked for again.
+  std::array<float, kPoolSize> heldLift{};
 
   /// How much of a block the reduced-rate path takes at a time. Fixed, so the
   /// scratch is a member and the audio thread never allocates, and large
@@ -300,7 +335,12 @@ private:
   // which is the difference between a warped record being played and a warped
   // recording of one.
   Wobble wobble;
+  BusDrive busDrive;
   TapeEcho echo;
+  BucketEcho bucket;
+  DigitalEcho digital;
+  PlateReverb plate;
+  SpringReverb spring;
   Reverb reverb;
 };
 

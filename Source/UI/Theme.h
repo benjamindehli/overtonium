@@ -185,6 +185,14 @@ inline constexpr bool isCollapsed(SectionMask mask, Section s) {
   return (mask & sectionBit(s)) != 0;
 }
 
+/// Whether this row is one of the five that name a section.
+///
+/// Shared rather than answered again in each file that asks, which is now the
+/// gutter and both kinds of strip: a heading is drawn differently, highlighted
+/// differently and clicked for a different reason, so three places have to
+/// agree about which rows they are.
+bool isHeadingRow(Row);
+
 /// The heading row that names a section, and the reverse.
 Row sectionHeading(Section);
 
@@ -387,12 +395,39 @@ float linkCurveWeight(LinkCurve, int index0, int sourceIndex);
 /// window. A zero delta must return the baseline exactly for every curve,
 /// which is what lets a drag be undone by returning the knob.
 ///
-/// @param delta     how far the dragged knob has moved, in normalised units
+/// @param delta     how far the dragged knob has moved, in the space below
 /// @param weight    this strip's share, from linkCurveWeight
 /// @param jitter    a fixed direction in [-1, 1], only used by Spread
 /// @param target    the dragged strip's live value, gathered towards by Spread
+/// @param low,high  the ends of the space this is working in
+///
+/// The space is normally the knob's own travel, which runs nought to one. The
+/// level row is the exception and works in decibels, because its travel is
+/// shaped to feel right under a finger rather than to be even, so moving every
+/// fader the same distance moves the quiet ones many times further in level
+/// than the loud ones. See linkIsDecibels.
 float linkedValue(LinkCurve, float baseline, float delta, float weight,
-                  float jitter, float target);
+                  float jitter, float target, float low = 0.0f,
+                  float high = 1.0f);
+
+/// Whether a drag on this row should be shared out in decibels rather than
+/// across the knob's travel.
+///
+/// True of the faders and nothing else. Every other row's travel is already
+/// even in whatever it is measuring, or logarithmic and therefore even in
+/// ratio, which is what "the same amount" means for a rate or a time. A level
+/// fader is neither: its travel is square-law into gain, so a drag that moved
+/// every fader the same distance moved a quiet channel thirty decibels while
+/// the one in your hand moved seven.
+///
+/// It applies to the curves that share out an amount, which is Uniform and
+/// Taper. Spread is not one of those: it scatters the series across its range
+/// and gathers it back onto the strip in your hand, which is a gesture about
+/// where things sit rather than about how much louder they are, and it stays
+/// in the travel where it has always been.
+inline bool linkIsDecibels(Role r, LinkCurve c) {
+  return r == Role::Volume && c != LinkCurve::Spread;
+}
 
 /// Implemented by the editor; lets a strip say where the pointer is.
 ///
@@ -423,6 +458,24 @@ struct LinkTarget {
   /// is the quickest way to change what the next drag will do, without going
   /// back up to the bar for it.
   virtual void showLinkMenu() = 0;
+
+  /// A drag held with a modifier, which draws the faders it passes over
+  /// instead of moving one of them.
+  ///
+  /// It goes through the editor for the same reason a LINK drag does, and more
+  /// so: the pointer belongs to the fader the drag began on until the button
+  /// comes up, so no other strip ever hears about it. The editor is the only
+  /// thing that knows where the strips are.
+  ///
+  /// @param onScreen  where the pointer is, in screen coordinates. A drag
+  ///                  that crosses strips cannot be described in any one
+  ///                  strip's, and a screen point needs no component to know
+  ///                  about any other to be understood.
+  /// @returns whether the drag was taken. False leaves the fader to move
+  ///          itself, which is what happens when the modifier is not held.
+  virtual bool drawStarted(juce::Point<int> onScreen) = 0;
+  virtual void drawMovedTo(juce::Point<int> onScreen) = 0;
+  virtual void drawEnded() = 0;
 };
 
 } // namespace ovt::ui

@@ -57,7 +57,7 @@ A preset holds parameter values and nothing else. Not the window size, the zoom 
 
 Factory presets start from a neutral base rather than from wherever you happened to be, so one always gives the instrument it describes. That covers the globals that are part of the sound: STRETCH, TRACK, the converter and phase reset all go back to neutral unless the preset asks for otherwise.
 
-What it will not touch is listed once, as `kSessionParamIds`, and holds for every preset including Init: master gain, polyphony, bend range, the aftertouch source, the safety clipper, the temperament, its root, the reference pitch and MPE. How you play the instrument, how loud it is and what it is tuned to are not part of a patch. Both halves are tested from that same list, so the code and the test cannot come to disagree about what the rule is: every preset is loaded twice, once clean and once after deliberately making a mess of everything, and required to come out identical, and then all thirty-one presets are loaded in turn against a session set to Werckmeister on F at 415 Hz, which has to survive.
+What it will not touch is listed once, as `kSessionParamIds`, and holds for every preset including Init: master gain, polyphony, bend range, the aftertouch source, the safety clipper, the temperament, its root, the reference pitch and MPE. How you play the instrument, how loud it is and what it is tuned to are not part of a patch. Both halves are tested from that same list, so the code and the test cannot come to disagree about what the rule is: every preset is loaded twice, once clean and once after deliberately making a mess of everything, and required to come out identical, and then all thirty-two presets are loaded in turn against a session set to Werckmeister on F at 415 Hz, which has to survive.
 
 Values are stored plain rather than normalised, so a preset survives a parameter's range being widened later, and anything a file does not mention keeps its default rather than being reset, so a preset saved by an older build loads into a newer one without silently zeroing whatever was added in between. The tests cover both of those directly.
 
@@ -73,7 +73,7 @@ It loads whether or not the preset is the one already showing, which is what the
 
 What tells the two apart is a gesture. Every control opens one before it writes and closes one after, which is how a host is told that a move has begun and ended, and automation does not: it sets values and says nothing. So the processor listens to itself for gesture begin and end, takes a baseline of every parameter when the first one opens, and when the last one closes puts whatever actually moved into the history as one step. A drag, a scroll wheel and a LINK drag across 32 channels are each one gesture and therefore each one step, however many values they moved and however long they took. A gesture that ends where it began is not a step at all.
 
-Only from the message thread. A host is allowed to open a gesture from the audio thread, and taking a baseline of 784 parameters there would allocate on it, so one that arrives from anywhere else is left alone. Nobody is turning a knob from the audio thread.
+Only from the message thread. A host is allowed to open a gesture from the audio thread, and taking a baseline of 786 parameters there would allocate on it, so one that arrives from anywhere else is left alone. Nobody is turning a knob from the audio thread.
 
 The things a person does that are not one gesture go through `recordEdit`, which takes the same baseline around whatever it is given: loading a preset writes hundreds of parameters and has to come back in one undo. The caller decides, and that is the point of it. Loading a preset from the menu is recorded and a clip firing a program change at the same `applyFactoryPreset` is not, because one of them is editing and the other is playing.
 
@@ -115,7 +115,7 @@ The test suite asserts this table, so the derivation cannot silently drift from 
 
 **Six of the thirty-two knobs have nothing to move**, and the table is why: 1, 2, 4, 8, 16 and 32 read zero cents, because an octave is 1200 cents in equal temperament and in just intonation alike. Their TUNE knobs are not idle, they are agreeing with themselves, and the strip's tooltip says so on those channels rather than leaving a knob that appears broken.
 
-It cannot be given a second job, which is worth writing down because it is the obvious idea. Nought on that knob means the tempered position, which for an octave is the exact ratio, so redefining that end would make equal temperament mean something that is not equal temperament, and _Equal Saw_ sits at nought on all six. One is the default that twenty-five of the thirty-one presets and every untouched patch sit at. Six of the presets hold something other than the default there, thirty-one knobs between them, so either end would move sound that is already written. Nor is the knob greyed out: a LINK drag down the TUNE row would then move twenty-six channels and refuse six, which is how a patch like Equal Saw gets dialled in.
+It cannot be given a second job, which is worth writing down because it is the obvious idea. Nought on that knob means the tempered position, which for an octave is the exact ratio, so redefining that end would make equal temperament mean something that is not equal temperament, and _Equal Saw_ sits at nought on all six. One is the default that twenty-seven of the thirty-two presets and every untouched patch sit at. The other five hold something else there, seventy-seven knobs between them, so either end would move sound that is already written. Nor is the knob greyed out: a LINK drag down the TUNE row would then move twenty-six channels and refuse six, which is how a patch like Equal Saw gets dialled in.
 
 What does move an octave partial is STRETCH, on its own curve, along with DRIFT, the pitch modulator, and the character's rack, which sits every partial but the first a few cents off spec. The gap this leaves is a static per-channel detune, which no control here offers: the blend reaches the exact ratio and stops.
 
@@ -174,7 +174,9 @@ It is not what an instrument with one tremolo circuit in it does. A Wurlitzer's 
 
 The table is a fixed member, sized for 2048 frames at a time, so the audio thread never allocates and a host asking for its usual buffer gets the whole thing in one pass. Anything larger is taken in passes of that size.
 
-**On the panel it is in the shape button's own menu**, ticked, under the entry that sets every channel at once. That entry is likewise a switch over all thirty-three reached from one channel, so the pair read alike, and the alternative was two buttons on the bar. The bar fits on one row from 1256 px up and the window opens at 1340, so there are 84 px of slack, and two switches with their gaps come to about 102: they would have put the bar back onto two rows and undone what moving LINK into the gutter bought. Settings was the wrong place, since everything behind it is session rather than patch and two of the presets need this one.
+**On the panel it is in the shape button's own menu**, ticked, under the entry that sets every channel at once. That entry is likewise a switch over all thirty-three reached from one channel, so the pair read alike, and the alternative was two buttons on the bar. Settings was the wrong place, since everything behind it is session rather than patch and two of the presets need this one.
+
+The bar was also out of room at the time. It is not any more: the master fader moved onto the output meter and gave back the forty-eight pixels its knob was using, so the bar comes onto one row at 1258 px against a window that opens at 1340, and the two switches would now fit in the 82 px of slack. The menu is still the right place for them, but on the grounds that a per-channel switch belongs on the channel rather than on the grounds that there is nowhere else to put it.
 
 **And the group's heading lights when it is on**, because a mode you cannot see is a mode you forget you are in, and this one travels in a preset: without it a patch could arrive with a shared tremolo and nothing on the panel would say so. PITCH MOD or AMP MOD in the gutter goes from the plain caption white to the accent every other switched-on thing here comes up in, measured on the rendered gutter at 200, 206, 215 against 96, 175, 203. One mark per modulator rather than one on each of the thirty-three shape buttons, since all thirty-three answer to the one switch, and it is the heading of the group the switch is about. The editor reads the two parameters back on its housekeeping tick and once more before the first paint, so an editor opened on a patch that shares a modulator says so straight away rather than a quarter of a second later.
 
@@ -272,6 +274,18 @@ A key-off level of zero skips the stage entirely and releases from wherever the 
 
 Two details that fall out of it. The swell time is exact rather than the "within 1%" the other stages use, because the release has to start when the knob says it does rather than whenever an exponential happens to arrive. And letting go of a key during the delay now still makes a key-off sound if you have asked for one, which is what a release click does on a real instrument, while a level of zero cancels the partial as before.
 
+### How fast the key came up
+
+The speed of a release scales the level the tail starts from, on the keyboards that can sense one. Sixty-four is neutral, the hardest lift doubles that level and the softest halves it, geometrically, so two steps down and two steps up undo each other. There is no knob for it and no parameter: it is a property of the gesture rather than of the patch, the way velocity is, and nothing about a patch changes because of it.
+
+It scales the level the tail would have started from rather than the KEY OFF level itself. Zero on that knob means "release from wherever you are", so on a patch that sets one this moves that, and on a patch that does not it moves the sustain, which is every patch. Scaling the knob instead would have done nothing at all on the default and on most of the factory presets, since zero times anything is zero.
+
+The envelope runs to one, so a partial already sounding at full has nowhere for a hard lift to go and simply stops there. The room is where the tail is quiet, which is where a bloom is worth having: a music box, a bell, an electric piano. A tail louder than the note it came from would have to come out of the fader, with the whole series behind it.
+
+**Nothing happens without a keyboard that senses it**, and that has to be true for the two different things "no release velocity" looks like on the wire. Plenty of keyboards send a note-off carrying zero, and plenty send a note-on of velocity zero instead of a note-off at all, which arrives as a release of zero as well. So zero is read as no information rather than as the softest possible lift, which would otherwise halve the tail of every note those players ever release. Nothing is lost by it, since a lift of 1 is the same gesture as a lift of 0. The test suite renders both forms and compares them with the neutral case sample for sample.
+
+This is what LIFT was aimed at before 1.7.0 removed it, and the reasons it went are still good ones: it cost a row on every strip, it was a parameter nobody could automate usefully, and no factory preset used it. What is left is the part that needed neither, a keyboard that can sense a release being answered when it does.
+
 A third case is the one worth watching for, since it is the shape a music box or a thumb piano has: no sustain at all, so the partial decays to silence while the key is still down, and then a key-off level that brings it back. Reaching zero is not the same as being finished. A partial in that state holds at silence and waits for the key rather than freeing itself, and costs nothing while it waits, since there is no point running an oscillator to produce zeroes.
 
 The envelope's delay stage holds a partial silent before its attack begins. Staggering it across the series makes the spectrum unfold rather than arrive all at once, which is how _Slow Pad_ and _Shimmer_ now open up. It is latched in samples at note-on, so moving the knob cannot retime a note already waiting, and releasing a key before the delay elapses cancels that partial rather than letting it burst in afterwards.
@@ -306,22 +320,26 @@ Slide, the third MPE dimension, is parsed but not routed anywhere yet. Bend and 
 
 The top bar holds everything that is not per partial, in signal order from left to right. **LINK** is the exception and stands at the top of the caption gutter instead, over the column of names it gangs.
 
-| Group    | Contains                                                                                                                                                       |
-| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Preset   | the preset menu: factory, saved, and somewhere to put the one you are working on                                                                               |
-| Settings | undo, polyphony, bend range, MPE, tuning, what feeds aftertouch, phase reset, the safety clipper, zoom and the way back to a window that shows all 32 channels |
-| Series   | **STRETCH**, **TRACK** and **WOBBLE**, what the instrument does before anything is done to it. See below                                                       |
-| Echo     | the tape echo. See below                                                                                                                                       |
-| Reverb   | the reverb. See below                                                                                                                                          |
-| Output   | **MASTER**, the stereo meter, and the converter readouts under it                                                                                              |
+| Group    | Contains                                                                                                                                                                              |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Preset   | the preset menu: factory, saved, and somewhere to put the one you are working on                                                                                                      |
+| Settings | which version this is, undo, polyphony, bend range, MPE, tuning, what feeds aftertouch, phase reset, the safety clipper, zoom and the way back to a window that shows all 32 channels |
+| Series   | **STRETCH**, **TRACK** and **WOBBLE**, what the instrument does before anything is done to it. See below                                                                              |
+| Echo     | the tape echo. See below                                                                                                                                                              |
+| Reverb   | the reverb. See below                                                                                                                                                                 |
+| Output   | **MASTER**, the stereo meter, and the converter readouts under it                                                                                                                     |
 
-Zoom lives in the Settings menu rather than on the bar, and that is worth eighty-eight pixels. Those eighty-eight would not fit: the bar comes onto one row at 1256 px and the window opens at 1340, so a zoom control on the bar would wrap it to two rows on a default-sized window. The room it frees goes to the output meter instead, which is what makes the converter readouts wide enough to keep their units.
+Zoom lives in the Settings menu rather than on the bar, and that is worth eighty-eight pixels, which go to the output meter instead and are what makes the converter readouts wide enough to keep their units.
+
+That was once an argument about room: the bar came onto one row at 1256 px against a window opening at 1340, so eighty-eight more would have wrapped it. It comes onto one row at 1258 now, so they would fit. What keeps zoom in the menu is what keeps everything else there, which is that it is set once and left, and a bar is for the controls a piece is played with.
 
 The entry under the zoom puts the window back to the size that shows the whole mixer. Window size is remembered with the session, which is what makes a window you dragged stay where you put it and also makes a narrowed one permanent, since nothing else here ever sets it. Its height comes from which groups of rows are folded rather than from a stored number, so folding a group away and then fitting leaves no empty band under the strips.
 
 Echo, Reverb and Output are drawn as boxes, because a box is what says "these belong together" and there is something in each of them to group. The rest are single controls standing on their own: a box around one button says nothing the button was not already saying, and four of them in a row turn the bar into a fence. Buttons, lists and the meter all stand on the line the knob dials stand on, rather than in the middle of their row, since a knob carries its caption underneath and anything centred beside one reads as sagging.
 
-Settings and Link are menus rather than panels. Everything behind Settings is set once and then left, and a short list of whole numbers reads better written out than dialled in on a knob. Phase reset gives a coherent, percussive attack by restarting partial phase on each note, and the safety clipper is worth leaving on when you push 32 faders up, but neither is something you sit and adjust, so neither is worth the width of a button. That is what the two effects are sitting in.
+Settings and Link are menus rather than panels. Everything behind Settings is set once and then left, and a short list of whole numbers reads better written out than dialled in on a knob. Phase reset gives a coherent, percussive attack by restarting partial phase on each note, and it is not something you sit and adjust, so it is not worth the width of a button.
+
+The safety clipper was in that list on the same grounds and has since come out of it, onto the bar as CLIP, under the meter beside the converter readouts. The argument was that it is set once and left, which is true of how it ends up and not of how you arrive there: it is the one thing behind Settings you reach for while listening, because whether the output is being caught is a question about what you are hearing right now. It also had somewhere to go, which it did not before. The master fader moving onto the meter freed the group its knob had, and the three facts about the output stage now stand together under the lamps: the rate, the bits, and whether anything is being held back. It keeps its entry in the menu as well, since a switch with two homes costs nothing and both follow the one parameter.
 
 Everything fits across one row above about 1200 px of logical width. Below that the bar reflows onto further rows rather than dropping controls or letting captions collide. It fills each row as far as it will go, so it stays compact and anchored to the title, and the rows below the first run the full width since the title is above them rather than beside them. One row per group is the worst case, and the window will not shrink past 512 px, which is where it stops fitting in three.
 
@@ -340,6 +358,14 @@ The lit number is what makes the rest of it work, and it is the consistent answe
 One thing about the column does have to differ. It is drawn over the children rather than behind them. The row can sit underneath because what it crosses is knobs, which have transparent corners for it to show through, but a column crosses the meter and the lamps, and those paint their own backgrounds so the strip beneath them does not have to. Behind those it would simply disappear, leaving the channel marked everywhere except the parts with something in them.
 
 Each strip works out whether it is the hovered one from where the pointer is, rather than being told by the editor. Leaving one strip for the next fires an exit and an enter that can arrive either way round, and reading the pointer gives the same answer whichever order they come in. The test drives both orders.
+
+Knowing where the pointer is costs the strip a deep mouse listener, and that listener has now caused two separate faults, so it is worth stating the shape of it once. A listener registered for every nested child is handed every event those children get, whatever it was registered for, and it is handed the component's own events too. So a handler on the strip runs once for a click on a child and twice for a click on the strip itself, and it runs for kinds of event nobody had it in mind for.
+
+The first was the wheel. A listener registered for every nested child is handed every event those children get, wheels included, and the default handler passes whatever it is given up to the parent. So a scroll that a knob had already taken was passed on again by the strip that owns it, reached the viewport, and dragged the series sideways under the hand that was turning the knob. It only showed when the window was narrow enough for there to be anything to scroll, which is why it survived a long time: at the width the window opens at there is nothing to see. The strip now passes on only a wheel that landed on the strip itself, so the background scrolls the series and a control keeps its own.
+
+The second was the right-click. A right-click anywhere in a strip opens the LINK menu, which is what the listener is doing there: a knob would otherwise swallow it. On the strip's own background the handler ran twice and opened two menus stacked on each other, and choosing an item on the front one left the one behind it standing with its ticks unmoved, so the setting looked to have been refused when the instrument had already taken it. Only the gaps between sections showed it, since everywhere else on a strip has a control over it.
+
+Nothing on the two events tells them apart. The listener is handed an event rebuilt from the same click, so the component, the position and the modifiers all match, which leaves only when it happened. That is what separates them, and it is what JUCE itself does with the duplicate wheel events it sometimes receives.
 
 The faders and the mute and solo buttons are left out of it. Those two rows are unmistakable already, and a wash the height of a whole fader was a lot of paint to say so.
 
@@ -493,11 +519,25 @@ One thing that looks like it should help and does not: splitting the mixer into 
 
 ### Folding the mixer down
 
-Clicking a section heading in the caption gutter folds that group of rows away, and the window loses exactly the height those rows were taking. Pitch modulation, envelope, key off, amp mod and output each fold. All five together is 480 pixels. The tuning at the head of the strip and the faders at the foot never fold: the first is what the instrument is for and the second is what you mix with, so neither is ever the thing in the way.
+Clicking a section heading in the caption gutter folds that group of rows away, and the window loses exactly the height those rows were taking. So does clicking the rule that section draws across any strip, which is the same act reached from where the hand already is: the gutter is at the far left, and getting to it from the partial you are working on means crossing the mixer and finding your way back, by which time you have lost which column you were in. The rules line up with the headings because both are laid out by the same call, so the strip needs no geometry of its own and cannot drift out of step with the gutter.
+
+The window's height follows either way, and it has to be measured before it is allowed to move. Applying the resize limits is itself a resize: JUCE ends `setResizeLimits` by constraining the current bounds to the new ones, and unfolding raises the floor by exactly the rows coming back. On a window already squeezed against that floor the limits grew it by those rows, and then the arithmetic added them a second time. A window squeezed to 997 folded to 847 and came back at 1147. Everything spare goes to the fader, since that is the one flexible row, so what it looked like was the faders swelling to fill the screen and disappearing under the dock. Folding never showed it: folding lowers the floor, so nothing is constrained and only the arithmetic moves.
+
+**A rule under the pointer says so, the way everything else here does.** The pointer becomes the same hand the gutter's headings show, and that section's caption in the gutter lights in the accent along with its disclosure mark. The mark is lit with the caption rather than left dim beside it, since the two are one control and half of it coming up reads as a rendering fault.
+
+That needed the rules to be part of the answer to what the pointer is on, which they were not: the hover reports a row, and rows are looked up by what control stands in them, which for a rule is nothing. So the one part of a strip that could be clicked was the one part that said nothing when you pointed at it.
+
+Lighting the band took three more things, each of which had been true for a while and only showed once a heading became something you point at. A heading's wash goes over the children rather than behind them, since four of the five carry an activity lamp that fills the whole row and paints an opaque backdrop: underneath it, only the output heading appeared to highlight, because it is the one with no lamp. The noise channel had never drawn a row wash at all, so the band stopped at the thirty-second column. And the gutter had always been a passive display lit by whichever strip the pointer was on, so pointing at one of its own headings lit nothing, which is odd for the one part of it that can be clicked.
+
+The hand is given back as the parent's cursor rather than as a plain arrow, which is the part that is easy to get wrong. A strip asks for its parent's cursor precisely so that LINK and the drawing tool can set one across the whole mixer at once, and an arrow set on the strip would mask theirs for everything in it.
+
+Nothing had to be made clickable for it. The rules are the one part of a strip with nothing standing on them, and the lamps that four of the five carry already let clicks through so that the rule underneath reads as a continuous line. The pointer shows the same hand over a rule that it shows over a heading. Pitch modulation, envelope, key off, amp mod and output each fold. All five together is 480 pixels. The tuning at the head of the strip and the faders at the foot never fold: the first is what the instrument is for and the second is what you mix with, so neither is ever the thing in the way.
 
 It folds across the whole mixer rather than per channel. The strips are columns sharing one set of rows, and folding a group on one channel and not the next would put every row below it out of step with the gutter captions, which are the only thing naming the knobs.
 
-A folded heading keeps its activity lamp, so a group you cannot see still says whether it is doing anything. The state is remembered with the session rather than with the patch, alongside the window size and the zoom, so loading a preset never rearranges your screen.
+A folded heading keeps its activity lamp, so a group you cannot see still says whether it is doing anything. The state is remembered with the session rather than with the patch, alongside the window size, the zoom and the three LINK settings, so loading a preset never rearranges your screen.
+
+LINK is three settings and not two, which is what went wrong with it. The scope and the curve say what a drag would reach and how it would be shared out, and the switch says whether it reaches anything at all. The first two were written to the session and the third was not, so a window reopened remembering exactly how a drag would be distributed, with the drag switched off. They are written together now, and everything that depends on any of them is brought into step by one function rather than by the tail of the callback that happened to notice: restoring a window and choosing from the menu have to arrive at the same place, and a second list of things to update is a second list to forget something from.
 
 Rows in a folded section are hidden rather than left at zero height. A knob with no height still takes the mouse and still answers a hover, so it would go on lighting gutter captions and opening LINK menus for controls nobody can see.
 
@@ -537,6 +577,26 @@ Where you reach in is therefore the whole control. Grab channel 1 and the mixer 
 Spread draws its scatter directions once when the drag begins, so the pattern holds still while you move rather than boiling. Gathering collapses onto the strip you are dragging rather than onto a fixed average, which keeps the knob in your hand as the thing everything converges towards. Half a drag downwards is enough to arrive.
 
 The offset is always measured from the values captured when the drag started, so returning the knob to where you began restores the strips exactly, even if some of them hit an end stop along the way. That holds for every curve.
+
+**Holding shift draws the faders instead of ganging them.** A drag across the fader area with the modifier held sets every channel it passes over from the pointer's height. That is a different gesture from LINK rather than a variant of it: LINK distributes one relative move across a scope by a rule, and drawing sets absolute values freehand. A formant cannot be drawn with LINK, and "everything up three decibels" cannot be drawn.
+
+It works on the faders and nothing else, and that is a fact about faders rather than a scope that was cut. A fader's value is where it stands, which is what lets a pointer's height mean something. A knob has no such reading, so drawing across the tune row would not be a smaller version of this feature, it would be meaningless.
+
+Three things decide whether it feels like drawing rather than like poking. The pointer belongs to the fader the drag began on until the button comes up, so no other strip ever hears about it: the positions go to the editor, in screen coordinates, since a drag that crosses strips cannot be described in any one strip's. Every column between one position and the next is filled in, because two mouse events can be several strips apart and drawing only where they landed leaves holes exactly where the hand moved fastest. And the whole stroke opens one gesture and closes one, so it is a single step in the history however many faders it moved, which is the rule a LINK drag across 32 channels already follows.
+
+The noise channel draws with the rest. It is not a harmonic, but it is a fader, and a stroke that crossed it and left it alone would be stranger than one that did not.
+
+**Two ways to arm it, and the panel does not distinguish.** Shift held is the quick way; the DRAW switch under the LEVEL caption is the way that stays, and is remembered with the session as LINK is. Either arms it, both light the same switch, and a tool you left on is still on when you come back to it. A mode nobody can see is a mode nobody remembers, which is the whole reason the switch is lit the entire time it is armed rather than only while a key is down.
+
+**The modifier is polled rather than listened for**, which is not the obvious way round and is the only one that works. JUCE delivers a modifier change to the component under the pointer, and `Slider` handles it without passing it up, so over a fader or a knob the editor never hears about it at all. What that produced was a tool that could only be armed with the pointer in one of the gaps between channels, and which latched on for good if the key was let go anywhere else. Reading the modifier on the housekeeping tick cannot be swallowed by anything.
+
+**Armed, every fader lights and nothing else does.** That is the same preview LINK uses rather than a second kind of highlight, and reusing it is the point: both answer the one question, which is what the next drag would reach. Two ways of saying that would be two things to keep in step.
+
+What differs is the colour and the grading. LINK's preview is per channel and graded by the curve, since it is saying how much each one would take. The drawing's is one colour at full across the whole row, since every fader is equally drawable. It is lit in the accent, which is what the switch that armed it is lit in, so the band and the switch read as one statement rather than two.
+
+It marks the tracks rather than the caps, and that is the honest signal. A cap is what you grab, which is the right thing to light for LINK; drawing never grabs anything, it sweeps a band, so the band is what has to be visible. The noise channel lights with the rest, since it draws with the rest.
+
+**While it is armed, LINK reads as off and the pointer becomes a pencil.** Both are the same point: a drag can be a link or a drawing and not both, so offering two accounts of what it would do at once would be one too many. LINK is not actually switched off, and letting go of the tool gives it back exactly as it was. Leaving its switch lit for a gesture that has been taken away from it would be a promise the mouse-up would break.
 
 ### The output meter
 
@@ -632,9 +692,34 @@ Three tables cover it, at a quarter, six tenths and twice again past the corner,
 
 A rate limit is the one imperfection here with a memory, so its cycle is simulated rather than shaped: a limiter run over a sine for several turns, with the steady state it settles into being what gets analysed.
 
-**What the factory presets ask for.** Twenty-five of the thirty-one, decided by ear at a keyboard and by nothing else: eleven on Bulb, eight on Op-amp, four on Valve, two on Rail, and six left on Pure. Three of those six are deliberate rather than left over. Init is the neutral patch. Just Saw and Equal Saw are played against each other to demonstrate tuning, and a timbre difference between them would be demonstrating something else.
+**What the factory presets ask for.** Twenty-six of the thirty-two, decided by ear at a keyboard and by nothing else: eleven on Bulb, eight on Op-amp, four on Valve, two on Rail, one on Diode, and six left on Pure. Three of those six are deliberate rather than left over. Init is the neutral patch. Just Saw and Equal Saw are played against each other to demonstrate tuning, and a timbre difference between them would be demonstrating something else.
 
-The shape of that list says something about the six. Bulb and Op-amp take more than half of it between them, and they are the two that are not fixed waveshapes: one answers the hand and the other answers the register, so both do something on a keyboard that no spectrum sitting still can. The diode pair came out of the pass with nothing at all. It still does what it says it does, and no patch in the set asked for it, which is a fact about the set rather than about the character.
+The shape of that list says something about the six. Bulb and Op-amp take more than half of it between them, and they are the two that are not fixed waveshapes: one answers the hand and the other answers the register, so both do something on a keyboard that no spectrum sitting still can. Diode came out of that first pass with nothing at all, and picked up its one patch a release later: _60s Organ_ wanted a kink rather than a warmth, which is what a pair of mismatched diodes is for.
+
+### The bus the series is summed onto
+
+The thirty-three channels are not simply added together. They are summed onto a bus that drives, by an amount and in a way that belongs to the character, because the character is meant to say what circuit you are playing through and a summing amplifier is part of that circuit.
+
+It is a separate thing from the tables, and it has to be. A table is one partial's waveform and cannot know what the other thirty-two are doing, so nothing baked into it can answer to the mix. This can: it works on the sum, at twice the sample rate through a half-band filter so nothing it makes folds back down, and it answers to level. Play quietly and it is barely there; lean on the keyboard and it arrives. That is what a desk does and what a table cannot.
+
+**How much each character asks for** was found by ear at a keyboard, one character at a time, with a development control that is not in the shipped build:
+
+| Character | Drive on the bus |
+| --------- | ---------------- |
+| Bulb      | 15%              |
+| Rail      | 13%              |
+| Valve     | 10%              |
+| Op-amp    | 10%              |
+| Diode     | 7%               |
+| Pure      | none             |
+
+Pure sums cleanly and does nothing, which is what Pure is for. There is no knob for the rest, because how hard a summing amplifier is driven is part of what choosing a character means rather than a setting on top of it.
+
+**The op-amp took three goes.** A slew limit is the right model for an amplifier that cannot keep up, and it is the wrong model for a bus. On one partial it hardens the top of the series, which is what the character is for. On a mix it is reacting to the sum's slope rather than to any one note, so it broke up on high notes at settings that sounded fine on low ones, and measured -67, -67, -53 and -73 dB of inharmonic rubbish across A2, A4, A6 and A7. A cubic corner replaced it and does what was wanted without the register deciding how much.
+
+**Two measurement mistakes are worth recording**, since both looked like the design being wrong. Moving the amount spiked the output, because the antiderivative the antialiasing depends on was being carried across blocks instead of recomputed from the stored input. And at small drives the gain was 1.4 dB out, which was float cancellation in the antiderivative rather than anything about the curve: it is computed in doubles now, with a series for the log of cosh where the two terms are close enough to cancel.
+
+**It sits before the master fader**, like the effects after it, so the fader stays a true output level. That also means the bus sees the raw sum, which on a full patch runs 1.5 to 1.9 rather than anywhere near one. Several things that looked like bugs were this: the tape echo's permanent compression, and a preset deliberately mixed low to keep the echo clean sounding wrong once the bus arrived underneath it.
 
 ### Wobble
 
@@ -657,18 +742,30 @@ At zero it is bypassed and passes the signal through untouched, bit for bit, whi
 
 ### The master effects
 
-Two of the groups in the top bar work on the finished mix rather than on any one partial: a tape echo and a reverb. They sit where they are in the signal, after everything per partial and before the output group, and both are ahead of the master fader, so the fader is a true output level and moving it cannot change the wet to dry balance underneath it. Each has a switch that names it, and switching one off empties it rather than leaving a tail to reappear next time it comes on.
+Two of the groups in the top bar work on the finished mix rather than on any one partial: an echo and a reverb. They sit where they are in the signal, after everything per partial and before the output group, and both are ahead of the master fader, so the fader is a true output level and moving it cannot change the wet to dry balance underneath it.
 
-**ECHO** is a tape loop rather than a digital delay:
+Each is three machines behind one button rather than one machine behind a switch, and the button says which is running. Behind each button are two parameters and not one. The switch that turns the thing on is older than the choice of machine, and every patch saved before there was a choice stores it while storing nothing about a type, so the switch stayed where it was and the type arrived beside it. A patch from 1.9.0 therefore loads with the tape it was made on and the room it was made in, which is the only answer that leaves an old patch sounding the way it did.
+
+All three of each are asked to run on every block, and each decides for itself whether the chosen type is its own. The two that are not chosen empty their loops rather than holding a tail that would reappear the moment you switched to them, which is the same rule the single switch had.
+
+**ECHO** is one of three machines. What they share is the panel:
 
 | Control | Does                                                |
 | ------- | --------------------------------------------------- |
 | MIX     | how much of the output is repeats                   |
 | TIME    | distance between the heads, 20 ms to 2 s            |
 | FDBK    | how much of each repeat goes round again, up to 95% |
-| AGE     | how worn the machine is                             |
+| AGE     | how worn the machine is, and what that means varies |
 
-TIME is reached by winding rather than by jumping, so moving the knob slides the repeats in pitch on the way to the new setting, which is the sound a tape delay is mostly wanted for.
+AGE is the control that makes three machines worth having rather than three names for one. It is the same knob and the same parameter on all of them, and it asks each for the thing that machine gets worse at:
+
+| Machine | What AGE does to it                                              |
+| ------- | ---------------------------------------------------------------- |
+| TAPE    | top end lost per pass, motor wander, and how hard the tape leans |
+| BBD     | the clock slowing, and the companding breathing                  |
+| DIGITAL | fewer bits and fewer of them per second                          |
+
+**The tape** is a loop rather than a digital delay. TIME is reached by winding rather than by jumping, so moving the knob slides the repeats in pitch on the way to the new setting, which is the sound a tape delay is mostly wanted for.
 
 AGE is one control for the three things that go together as a tape machine wears: the top end it loses on every pass, how far the motor wanders, and how hard the tape leans over when it is driven. New is clean, bright and steady, old is dark, unsteady and compressed. They were three knobs that were nearly always turned together. The tests measure all three separately: a new machine hands back four times the top end of a worn one after ten passes, holds its pitch to 0.01% where a worn one wanders by over 1%, and passes its repeats through at full level where a worn one compresses them.
 
@@ -693,7 +790,25 @@ Measured as the correlation between the two channels on a sustained tone, the bo
 
 The tests check both ends: that a perfect transport would collapse to mono, which is why the panel cannot ask for one, and that the lowest setting it can ask for is already doubled without being a chorus. Feeding one channel only leaves the other at exactly zero, since nothing crosses over.
 
-**REVERB** is a feedback delay network: eight delay lines fed back through a Householder matrix, with four allpass stages per side in front of it to scatter a hit into a wash before it reaches the network.
+**The bucket brigade** is a line of capacitors handing a charge along, one step per tick of a clock, and modelling it as a darker tape would miss everything that makes people keep the pedals.
+
+It is darker the longer it is set to, and that is not a stylistic choice. The line holds a fixed number of buckets, so a longer delay can only be had by clocking them more slowly, and the filter that reconstructs the signal has to come down with the clock to keep its own aliasing out. Every unit ever built does this: short settings are nearly clean, long ones are murk. TIME therefore has a second job on this type that it has on no other.
+
+Its stereo is two clocks rather than two tapes. Each side is modulated by a slow sine of its own, 0.31 against 0.43 Hz, sharing no factor so the two never fall into step. That is a gentle vibrato where the tape has drift, which is what a pair of these actually sounds like.
+
+AGE is three things again, and none of them is the one that was tried first. A clock whine was the obvious artefact and the wrong one: it is a fault rather than a character, it sits at a fixed pitch a chord has to be in tune with, and nobody buys one of these for it. What it does instead is get darker still on top of what the clock already costs, dirtier on every pass, since the line clips early and the repeat goes round again so a tail starts clean and ends up growling, and noisier in the way an old compander is noisy. Every bucket brigade has one wrapped around it, compressing in and expanding out, and a worn one mistracks: the pull-down arrives late, so hiss swells in behind a chord and ducks away as the repeats die. A silent patch stays silent, which is why it is keyed to the signal rather than run free.
+
+**The digital delay** is the one that does not pretend to be anything. No tape to wear, no buckets to clock, no motor and no lamp: what goes in comes back out, later and quieter, and the only thing it loses on each pass is level. That is worth having beside the other two precisely because it is the plain one.
+
+Its stereo is ping-pong, which is a different machine rather than a setting of one. The input arrives summed to the middle and every repeat crosses, so a note becomes a line of repeats alternating left and right. On the tape and the bucket brigade nothing crosses between the sides at any point and the width comes from the two paths disagreeing; here the two sides are one path and the crossing is the whole topology.
+
+AGE does the one thing neither of the others can. At nothing it is exactly a copy, which is what a digital delay is for, and the clean end has to be exactly that and not nearly that. Turned up, the repeats come back through fewer bits and at a lower rate, down to six bits and an eighth of the host rate, so a tail starts as the signal and ends as a memory of it.
+
+That wear is applied on the way out and not on the way round, which matters more than it looks. A quantiser inside a feedback loop has a fixed point: one step times a feedback of a half rounds back up to one step, so the tail reaches the bottom bit and sits there forever. It was audible as a low sound that never went away at every feedback from a half upwards, and still there twenty-five seconds later. Nothing is lost by moving it, because the step stays the same size while the repeats get quieter, so the tenth repeat is crushed against a far coarser grid than the first. That is what a converter does to something fading away, and it is the same progression the wear had when it was inside the loop.
+
+**Both echoes colour the first repeat**, which sounds obvious and was not true at first. The output was taken from the delay line before the stage that ages it, so repeat one came back clean and every repeat after it was worn, and the effect was of a machine that only switches on once you have heard it work. Both now take their output from the coloured signal.
+
+**REVERB** is one of three machines, on the same kind of button as the echo. The panel is the same on all three:
 
 | Control | Does                                                  |
 | ------- | ----------------------------------------------------- |
@@ -701,6 +816,12 @@ The tests check both ends: that a perfect transport would collapse to mono, whic
 | DECAY   | how long the tail takes to fall 60 dB, 0.2 to 20 s    |
 | DAMP    | how quickly the top end dies out of the tail          |
 | PRE     | silence between the note and its reverb, up to 250 ms |
+
+DECAY means the same length of time on all three, which is not something that happens by itself. Measured from a click at the same setting, the room takes 2.23 seconds, the plate 2.38 and the spring 2.46. Two of those numbers were wrong twice over before they were right, and the tests hold each machine against the room rather than against a figure typed in, so the next one to be added has to agree as well.
+
+The wet levels are matched too. On a held chord with the mix full up the three come back at 0.2545, 0.2547 and 0.2546, which is the same to a hundredth of a decibel. One MIX knob serves all three, and a switch between them that changed the level would read as one machine being better than another rather than different from it.
+
+**The room** is a feedback delay network: eight delay lines fed back through a Householder matrix, with four allpass stages per side in front of it to scatter a hit into a wash before it reaches the network.
 
 The two sides are drawn from different lines in different polarities, so the tail is wide by construction and there is nothing on the panel to narrow it. There is no width control, on the same grounds as the stereo spread the mixer does without: a knob with one setting anyone reaches for is not a knob. The test checks the thing worth checking, that a mono hit still comes back with the two sides largely independent.
 
@@ -712,6 +833,45 @@ The choice of a network rather than a bank of combs is about this instrument in 
 
 The input is cut off below 175 Hz for the same reason, and that is fixed rather than offered as a control. A fundamental at full level feeding a long tail floods everything above it, and the reverb becomes a rumble the moment you play low, so it is never wanted open. On an instrument built from 32 partials the interest is above there anyway.
 
+**The plate** is a sheet of steel under tension with a driver at one corner and pickups at two others. What makes it not a room is that it has no geometry to speak of: a hit spreads across the whole sheet almost at once, so there are no early reflections to count and no build-up to hear. Measured on a click, the first fiftieth of a second carries 1.48 times the average of the whole tail in the plate and 0.00 in the room, which is the difference between a tail that is simply there and one still filling up. The shape is Dattorro's, which is the one everybody uses because it is the one that works: four allpasses scatter the input, then a tank of two branches passes it round in a figure of eight.
+
+DECAY is the tank's own gain rather than a room size, since a plate has no size to set, and sizing that gain is where the two mistakes were. The gain is applied four times in a circuit of the figure of eight and not once, and the circuit is every line it passes through, allpasses included. Getting the first wrong made a two-and-a-half second setting last half of one; getting the second wrong made it last three.
+
+**It is a modulated plate, and the menu says so.** The two allpasses in the tank wander about a millisecond, which is six times what the paper gives them and far more than a sheet of steel under tension does. The reason is the circuit: it is three quarters of a second long, so the same fixed set of arrivals comes back round again and again, and at a long decay that is heard as a pattern repeating rather than as a wash. A test measures exactly that, taking the tail's envelope, flattening it so only its shape is left, and holding it against itself at every lag from fifty milliseconds to a second and a half:
+
+| How the output is read                           | Repeats at |
+| ------------------------------------------------ | ---------- |
+| four taps, all on one branch's first delay       | 0.34       |
+| Dattorro's seven taps, across the whole tank     | 0.23       |
+| and the modulation opened from 8 samples to 1 ms | 0.11       |
+
+The first line is a bug and sounded like one: four taps on a single line are four echoes of one circulating signal however many taps it is, and at a short decay nothing goes round often enough to notice while at a long one it is a delay with some reverb on it. The third line is where it stops paying and starts costing, since the excursion is a pitch deviation of twelve cents at this setting and twenty-four at twice it. Twelve is movement in the tail, which a lush plate wants. Twenty-four is vibrato, which it does not, and calling the machine what it is seemed better than pretending the number is Dattorro's.
+
+**The spring** is three helical springs in a tray, a transducer shaking one end of each and a pickup listening at the other. It is the cheapest reverb ever built and the least like a room of any of them, which is exactly why it has its own sound rather than being a worse plate.
+
+What makes it a spring is dispersion. A wave travelling down a helix does not carry all its frequencies at the same speed: the top of the band arrives first and the bottom drags behind it, so a hit comes back not as a hit but as a descending chirp. Every bounce between the ends adds another chirp on top of the last, so a spring gets less like its input as it decays rather than merely quieter, which neither of the other two does. Measured on a click, the bottom of the band lands 6.4 ms behind the top where the plate has no such lag at all.
+
+That is built as a chain of first-order allpasses inside each spring's loop. An allpass passes every frequency at full level and delays each by a different amount, which is dispersion written down, and the loop puts the signal through the chain again on every bounce. The chain is the one expensive thing in the file, so the count was measured rather than chosen:
+
+| Sections | Coefficients | Chirp  | Cost of all three springs |
+| -------- | ------------ | ------ | ------------------------- |
+| 100      | 0.60 to 0.70 | 7.3 ms | 4.95%                     |
+| 70       | 0.70 to 0.79 | 6.9 ms | 3.61%                     |
+| 60       | 0.74 to 0.82 | 6.5 ms | 2.23%                     |
+| 50       | 0.78 to 0.86 | 5.7 ms | 1.92%                     |
+
+Sixty is where the curve turns: nine tenths of the boing for less than half the work, and below it the chirp goes faster than the saving. For scale, eight voices come to around eight per cent, so the hundred-section version cost as much as five voices and this one costs two.
+
+The band it works over is a transducer's rather than a room's, and where each half of that limit sits turned out to matter more than what it is set to. The pickup is two poles at five kilohertz, outside the loop, met once on the way out. The spring's own loss is one pole inside the loop, met on every bounce, and that is what DAMP moves. Both used to be inside, and a tail that had crossed the tray thirty times had met them sixty times:
+
+| Where the poles are                      | 6 kHz against 1 kHz |
+| ---------------------------------------- | ------------------- |
+| both in the loop at 3600 Hz              | -10.6 dB            |
+| one in the loop at 3600, pickup outside  | -11.2 dB            |
+| one in the loop at 10000, pickup outside | -6.5 dB             |
+
+The middle line is the one worth reading, and it is the opposite of what it looks like: moving a pole out of the loop brightens nothing whatsoever on its own. What it buys is permission to open the loop's corner, because the pickup is now what holds the band rather than the loop filter. DAMP also sweeps geometrically rather than in a straight line up the frequency axis, since a corner swept linearly from ten kilohertz spends three quarters of its travel above three, where the pickup already has the band covered and nothing audible happens.
+
 ## Notes on CPU
 
 Polyphony is the multiplier that matters, since eight voices means 256 sine oscillators. Measured on one core of an x86 container at 48 kHz with every modulator running:
@@ -722,7 +882,15 @@ Polyphony is the multiplier that matters, since eight voices means 256 sine osci
 | 8      | 256         | about 7%  |
 | 16     | 512         | 14 to 15% |
 
-Those figures are with everything running at once: both LFOs, drift, velocity, aftertouch, the meters and the noise channel. The two master effects add well under 1% on top of that, whatever the polyphony, since they work on the sum rather than per voice.
+Those figures are with everything running at once: both LFOs, drift, velocity, aftertouch, the meters and the noise channel. The master effects are on top of that and cost the same whatever the polyphony, since they work on the sum rather than per voice. Most of them are far below the voices:
+
+| Machine         | On one core |
+| --------------- | ----------- |
+| room            | about 0.6%  |
+| modulated plate | about 0.7%  |
+| tray of springs | about 2.4%  |
+
+The spring is the exception and the only thing in the release worth a second look. Its dispersion is a chain of allpasses per spring, three springs, run at the host rate, so it costs about as much as two voices where the other two reverbs cost a fraction of one. It was worse: the chain started at a hundred sections and 5% before the count was measured against what it bought.
 
 That leaves enough headroom for the engine to stay a plain bank of oscillators with nothing clever in the signal path. What keeps it cheap:
 

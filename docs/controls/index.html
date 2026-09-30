@@ -6,7 +6,7 @@
         <title>Overtonium controls: every knob on a channel and on the bar</title>
         <meta
             name="description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 784 parameters are named for a host, and the wobble, tape echo, reverb and converter on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 786 parameters are named for a host, and the bus drive, wobble, echo, reverb and converter on the bar."
         />
         <link rel="canonical" href="https://benjamindehli.github.io/overtonium/controls/" />
         <meta name="theme-color" content="#0b0d10" />
@@ -17,7 +17,7 @@
         <meta property="og:title" content="Overtonium controls: every knob on a channel and on the bar" />
         <meta
             property="og:description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 784 parameters are named for a host, and the wobble, tape echo, reverb and converter on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 786 parameters are named for a host, and the bus drive, wobble, echo, reverb and converter on the bar."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-controls.jpg" />
         <meta property="og:image:width" content="1200" />
@@ -28,7 +28,7 @@
         <meta name="twitter:title" content="Overtonium controls: every knob on a channel and on the bar" />
         <meta
             name="twitter:description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 784 parameters are named for a host, and the wobble, tape echo, reverb and converter on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 786 parameters are named for a host, and the bus drive, wobble, echo, reverb and converter on the bar."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-controls.jpg" />
 
@@ -93,7 +93,7 @@
                     <figure class="narrow">
                         <img
                             src="../overtonium-strips.webp"
-                            alt="A close view of the first six channels, showing the row captions in the gutter and the interval colour of each channel."
+                            alt="A close view of the first six channels, showing the row captions in the gutter with the LINK and DRAW switches, and the interval colour of each channel."
                             width="306"
                             height="944"
                         />
@@ -322,6 +322,20 @@
                     </p>
 
                     <p>
+                        <strong>How fast you let the key up scales that tail</strong>, on a keyboard that can sense a release. The hardest lift leaves
+                        twice the level, the softest half of it and 64 is neutral, and it scales the level the tail would have started from, so on a
+                        patch with a key-off level of its own it moves that and on a patch without one it moves the sustain. There is no knob for it
+                        and no parameter: it belongs to the gesture rather than to the patch, the way velocity does. A partial already sounding at
+                        full has nowhere for a hard lift to go, since the envelope stops at full scale.
+                    </p>
+
+                    <p>
+                        Most keyboards cannot sense a release at all, and on those nothing changes. They say so in two different ways, either a
+                        note-off carrying zero or a note-on of velocity zero standing in for one, and both are read as no information rather than as
+                        the softest lift there is.
+                    </p>
+
+                    <p>
                         The delay stage holds a partial silent before its attack begins. Staggering it across the series makes the spectrum unfold
                         rather than arrive all at once, which is how <em>Slow Pad</em> and <em>Shimmer</em> open up. It is latched in samples at
                         note-on, so moving the knob cannot retime a note already waiting.
@@ -370,6 +384,27 @@
                         The button opens a menu rather than toggling, and the same menu is on a right-click anywhere in the mixer, which is where you
                         are when you want it. With LINK engaged, pointing at a knob arms every knob a drag from it would move, before you touch
                         anything, and how brightly each one lights follows the curve.
+                    </p>
+
+                    <p>
+                        <strong>DRAW</strong> sits under the LEVEL caption, below LINK. With it on, a drag across the faders sets each channel it
+                        passes over from the pointer's height, so a spectrum can be drawn in one stroke rather than one fader at a time. Holding shift
+                        does the same for as long as it is held, and the button lights either way, so the panel says what a drag would do however it
+                        came to be that way.
+                    </p>
+
+                    <p>
+                        It is not LINK under another name: LINK shares one relative move out across the channels by a rule, and drawing sets absolute
+                        values freehand, so neither can do the other's job. Columns the pointer crosses between one moment and the next are filled in,
+                        so a fast hand leaves no gaps, and the whole stroke is a single undo. It works on the faders alone, because a fader's value is
+                        where it stands and a pointer's height means nothing to a knob.
+                    </p>
+
+                    <p>
+                        While it is armed every fader lights, in the same accent the switch is lit in, so what the next drag would reach is visible
+                        before you touch anything. That is the same preview LINK uses, since both answer the one question. The pointer becomes a
+                        pencil and LINK reads as off, without being off: only one of the two can be what the next drag does, and letting go gives LINK
+                        back.
                     </p>
 
                     <div class="scroll">
@@ -462,8 +497,8 @@
                         knob on all 32 channels and without a history the only way back is to reload the preset. A step is a gesture rather than a
                         value change, so that drag comes back in one rather than thirty-two. Cmd-Z and Cmd-Shift-Z, or Ctrl with the same two keys
                         away from a Mac, work where the host lets them through, which many do not, since a DAW usually keeps those for its own
-                        history. Both are also at the top of the Settings menu, which always works. Loading a session starts you with an empty history
-                        rather than with whatever the last person did.
+                        history. Both are also in the Settings menu, just under the version, which always works. Loading a session starts you with an
+                        empty history rather than with whatever the last person did.
                     </p>
 
                     <p>
@@ -559,10 +594,13 @@
 
                     <h3>Folding the mixer down</h3>
                     <p>
-                        Clicking a section heading in the caption gutter folds that group of rows away across every channel at once, and the window
-                        loses exactly the height those rows were taking. Pitch modulation, envelope, key off, amp mod and output each fold. The tuning
-                        at the top and the faders at the bottom always stay. The heading keeps its activity lamp while folded, so a group you cannot
-                        see still reports whether it is doing anything, and the fold state is remembered with the session rather than with the patch.
+                        Clicking a section heading in the caption gutter folds that group of rows away across every channel at once, and so does
+                        clicking the rule that section draws across any strip, which saves crossing to the gutter and finding your way back to the
+                        partial you were working on. Pointing at a rule gives the same hand a heading does and lights that section's caption and its
+                        disclosure mark, so what the click would fold is visible before you make it. The window loses exactly the height those rows
+                        were taking. Pitch modulation, envelope, key off, amp mod and output each fold. The tuning at the top and the faders at the
+                        bottom always stay. The heading keeps its activity lamp while folded, so a group you cannot see still reports whether it is
+                        doing anything, and the fold state is remembered with the session rather than with the patch.
                     </p>
                 </section>
 
@@ -656,9 +694,12 @@
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td>Undo, Redo</td>
+                                    <td>Which version this is</td>
                                     <td></td>
-                                    <td>The same steps Cmd-Z reaches, for the hosts that keep that shortcut for themselves</td>
+                                    <td>
+                                        A heading at the top of the menu rather than an entry, since it is a fact about the build and not a choice. It
+                                        is the number a bug report asks for
+                                    </td>
                                 </tr>
                                 <tr>
                                     <td>Check for new versions</td>
@@ -667,6 +708,11 @@
                                         The one entry that reaches outside the machine. <a href="../install/">What it sends</a> is nothing but a
                                         request for a file
                                     </td>
+                                </tr>
+                                <tr>
+                                    <td>Undo, Redo</td>
+                                    <td></td>
+                                    <td>The same steps Cmd-Z reaches, for the hosts that keep that shortcut for themselves</td>
                                 </tr>
                                 <tr>
                                     <td>Polyphony</td>
@@ -765,7 +811,7 @@
                     <h2>Automating it from the host</h2>
 
                     <p>
-                        Seven hundred and eighty-four parameters reach the host: thirty global ones, twenty-three on each of the 32 partials, and
+                        Seven hundred and eighty-six parameters reach the host: thirty-two global ones, twenty-three on each of the 32 partials, and
                         eighteen on the noise channel. They are listed in the order the panel reads, the globals first and then channel by channel
                         with the noise channel last.
                     </p>
@@ -842,8 +888,8 @@
                             <title id="chainTitle">The order the signal passes through</title>
                             <desc id="chainDesc">
                                 Each of the thirty-three channels runs a sine partial through its envelope and key-off stage, its tremolo, its
-                                velocity and pressure amounts, its fader and its pan. The thirty-three are summed, and the mix then passes the
-                                converter, the wobble, the tape echo, the reverb, the master fader and the safety clipper before it leaves.
+                                velocity and pressure amounts, its fader and its pan. The thirty-three are summed onto a bus that drives, and the mix
+                                then passes the wobble, the echo, the reverb, the master fader and the safety clipper before it leaves.
                             </desc>
                             <text x="10" y="38" class="lane">each of the thirty-three channels</text>
                             <rect x="10" y="52" width="88" height="46" rx="5" class="box" />
@@ -872,30 +918,34 @@
                             <rect x="530" y="52" width="88" height="46" rx="5" class="box" />
                             <text x="574" y="79" class="stage" text-anchor="middle">pan</text>
                             <text x="10" y="172" class="lane">then the mix of all of them</text>
-                            <rect x="10" y="186" width="88" height="46" rx="5" class="box" />
-                            <text x="54" y="206" class="stage" text-anchor="middle">converter</text>
-                            <text x="54" y="219" class="sub" text-anchor="middle">rate and bits</text>
-                            <path d="M 101 209 L 110 209" class="wire" />
-                            <path d="M 105 206 L 110 209 L 105 212" class="head" />
-                            <rect x="114" y="186" width="88" height="46" rx="5" class="box" />
-                            <text x="158" y="213" class="stage" text-anchor="middle">wobble</text>
-                            <path d="M 205 209 L 214 209" class="wire" />
-                            <path d="M 209 206 L 214 209 L 209 212" class="head" />
-                            <rect x="218" y="186" width="88" height="46" rx="5" class="box" />
-                            <text x="262" y="213" class="stage" text-anchor="middle">tape echo</text>
-                            <path d="M 309 209 L 318 209" class="wire" />
-                            <path d="M 313 206 L 318 209 L 313 212" class="head" />
-                            <rect x="322" y="186" width="88" height="46" rx="5" class="box" />
-                            <text x="366" y="213" class="stage" text-anchor="middle">reverb</text>
-                            <path d="M 413 209 L 422 209" class="wire" />
-                            <path d="M 417 206 L 422 209 L 417 212" class="head" />
-                            <rect x="426" y="186" width="88" height="46" rx="5" class="box" />
-                            <text x="470" y="206" class="stage" text-anchor="middle">master</text>
-                            <text x="470" y="219" class="sub" text-anchor="middle">fader</text>
-                            <path d="M 517 209 L 526 209" class="wire" />
-                            <path d="M 521 206 L 526 209 L 521 212" class="head" />
-                            <rect x="530" y="186" width="88" height="46" rx="5" class="box" />
-                            <text x="574" y="213" class="stage" text-anchor="middle">clipper</text>
+                            <rect x="10" y="186" width="74" height="46" rx="5" class="box" />
+                            <text x="47" y="206" class="stage" text-anchor="middle">converter</text>
+                            <text x="47" y="219" class="sub" text-anchor="middle">rate, bits</text>
+                            <path d="M 87 209 L 95 209" class="wire" />
+                            <path d="M 90 206 L 95 209 L 90 212" class="head" />
+                            <rect x="99" y="186" width="74" height="46" rx="5" class="box" />
+                            <text x="136" y="213" class="stage" text-anchor="middle">bus drive</text>
+                            <path d="M 176 209 L 184 209" class="wire" />
+                            <path d="M 179 206 L 184 209 L 179 212" class="head" />
+                            <rect x="188" y="186" width="74" height="46" rx="5" class="box" />
+                            <text x="225" y="213" class="stage" text-anchor="middle">wobble</text>
+                            <path d="M 265 209 L 273 209" class="wire" />
+                            <path d="M 268 206 L 273 209 L 268 212" class="head" />
+                            <rect x="277" y="186" width="74" height="46" rx="5" class="box" />
+                            <text x="314" y="213" class="stage" text-anchor="middle">echo</text>
+                            <path d="M 354 209 L 362 209" class="wire" />
+                            <path d="M 357 206 L 362 209 L 357 212" class="head" />
+                            <rect x="366" y="186" width="74" height="46" rx="5" class="box" />
+                            <text x="403" y="213" class="stage" text-anchor="middle">reverb</text>
+                            <path d="M 443 209 L 451 209" class="wire" />
+                            <path d="M 446 206 L 451 209 L 446 212" class="head" />
+                            <rect x="455" y="186" width="74" height="46" rx="5" class="box" />
+                            <text x="492" y="206" class="stage" text-anchor="middle">master</text>
+                            <text x="492" y="219" class="sub" text-anchor="middle">fader</text>
+                            <path d="M 532 209 L 540 209" class="wire" />
+                            <path d="M 535 206 L 540 209 L 535 212" class="head" />
+                            <rect x="544" y="186" width="74" height="46" rx="5" class="box" />
+                            <text x="581" y="213" class="stage" text-anchor="middle">clipper</text>
                             <path d="M 314 98 L 314 156" class="wire" />
                             <path d="M 310 151 L 314 156 L 318 151" class="head" />
                             <text x="324" y="131" class="sub">summed</text>
@@ -914,7 +964,7 @@
                         <img
                             loading="lazy"
                             src="../overtonium-bar.webp"
-                            alt="The top bar: preset and settings buttons, the oscillator character, the stretch, track and wobble controls, the tape echo, the reverb, the master fader and the output meter with two seven-segment converter readouts reading kilohertz and bits."
+                            alt="The top bar: preset and settings buttons, the oscillator character, the stretch, track and wobble controls, the echo, the reverb, and the output meter with the master fader lying across it and two seven-segment converter readouts reading kilohertz and bits."
                             width="1348"
                             height="66"
                         />
@@ -982,19 +1032,47 @@
                         sits ahead of the echo, so the repeats inherit what it did rather than wobbling on their own.
                     </p>
 
-                    <h3>Tape echo</h3>
+                    <h3>Bus drive</h3>
                     <p>
-                        Modelled on the parts of a tape loop the ear notices. Moving the time knob winds the tape rather than cutting to the new
-                        setting, so the repeats slide in pitch on the way. Stereo is two tape paths side by side, each fed its own channel and coming
-                        back on the side it went out on, with motors running at slightly different speeds so the repeat comes back doubled rather than
-                        bounced. AGE never quite reaches zero, because a transport that held speed exactly would put the repeat back in mono and there
-                        is no such transport.
+                        The thirty-three channels are not simply added together. They are summed onto a bus that drives, by an amount and in a way
+                        that belongs to the oscillator character, so a patch gets louder into the same saturation a mixing desk would give it. It
+                        answers to level rather than to a setting: play quietly and it is barely there, lean on the keyboard and it arrives. Pure sums
+                        cleanly and does nothing, which is what Pure is for. There is no knob, because the amount is part of what choosing a character
+                        means.
+                    </p>
+
+                    <h3>Echo</h3>
+                    <p>
+                        Three machines behind one button, and the button says which one is running. <strong>Tape</strong> is a loop with two motors:
+                        moving the time knob winds the tape rather than cutting to the new setting, so the repeats slide in pitch on the way, and the
+                        two paths run at slightly different speeds so a repeat comes back doubled rather than bounced. <strong>BBD</strong> is a line
+                        of buckets, which loses its top end because a bucket brigade is a sampler with no filter worth the name, and sweeps as the
+                        clock wanders. <strong>Digital</strong> is the one that does not pretend: what goes in comes back out, later and quieter,
+                        crossing to the other side on every repeat, which makes it the only ping-pong of the three.
+                    </p>
+                    <p>
+                        AGE means something different on each, which is the point of having three. On the tape it is wear: the top end lost on every
+                        pass, how far the motor wanders, and how hard the tape leans over. On the BBD it is the clock slowing and the companding
+                        breathing. On the digital it is bits and sample rate, so a tail starts as the signal and ends as a memory of it. Nothing on
+                        the tape ever reaches zero wear, because a transport that held speed exactly would put the repeat back in mono and there is no
+                        such transport.
                     </p>
 
                     <h3>Reverb</h3>
                     <p>
-                        A feedback delay network whose room is sized from its decay time, since a long tail in a small room is a spring rather than a
-                        place.
+                        Three machines again, on the same kind of button. <strong>Room</strong> is a feedback delay network whose room is sized from
+                        its decay time, since a long tail in a small room is a spring rather than a place. <strong>Modulated plate</strong> is a sheet
+                        of steel with no geometry to hear, so a hit spreads across all of it at once and the tail is dense from its first instant
+                        rather than arriving in stages. Its allpasses wander further than a real plate's would, which is why the menu says modulated:
+                        without that, a long decay repeats its own pattern instead of washing. <strong>Spring</strong> is a tray of helical springs,
+                        and what makes it one is that a helix carries the top of the band faster than the bottom, so a hit comes back as a chirp that
+                        starts high and falls. Every bounce adds another, which is why a spring gets less like what you played as it decays rather
+                        than merely quieter.
+                    </p>
+                    <p>
+                        DECAY, DAMP and PRE mean the same thing on all three and are matched, so switching machines changes the character of a tail
+                        and not its length or its loudness. DAMP is the sheet losing its top end to the air on the plate and the spring's own loss on
+                        every crossing of the tray.
                     </p>
 
                     <h3>The converter</h3>
@@ -1002,6 +1080,14 @@
                         Shown as two seven-segment readouts under the output meter. Turning the sample rate down is a genuine cut rather than a filter
                         over the top: the whole voice pool renders slower, which costs a fifth as much at 8 kHz, and the partials above the new
                         ceiling fold back down instead of disappearing.
+                    </p>
+
+                    <h3>CLIP</h3>
+                    <p>
+                        A soft clipper across the finished output, after the master fader, switched on by default. On is a limit you can hear yourself
+                        reach rather than one that arrives silently; off lets the output go past full scale and reach the host as it is, which is what
+                        you want when something downstream is doing the catching. It stands under the meter with the converter readouts because those
+                        three are the whole of what happens to the signal on its way out, and it is also in the Settings menu.
                     </p>
 
                     <h3>The output meter</h3>

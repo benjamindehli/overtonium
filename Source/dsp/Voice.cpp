@@ -272,16 +272,19 @@ void Voice::retune(int channel, int note, double frequency) noexcept {
   released = false;
 }
 
-void Voice::noteOff() noexcept {
+void Voice::noteOff(float lift) noexcept {
   if (!active)
     return;
 
   released = true;
 
+  // The same figure to all thirty-three, since it is one gesture. What each
+  // does with it is its own, because each carries its own key-off level and
+  // its own level to be sitting at when the key comes up.
   for (auto &pt : partials)
-    pt.env.noteOff();
+    pt.env.noteOff(lift);
 
-  noise.env.noteOff();
+  noise.env.noteOff(lift);
 }
 
 void Voice::steal() noexcept {

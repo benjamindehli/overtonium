@@ -259,6 +259,12 @@ bool rowIsCollapsed(Row r, SectionMask collapsed) {
          isCollapsed(collapsed, s);
 }
 
+bool isHeadingRow(Row r) {
+  return r == Row::PitchModHeading || r == Row::EnvHeading ||
+         r == Row::KeyOffHeading || r == Row::AmpModHeading ||
+         r == Row::OutputHeading;
+}
+
 Section headingSectionAt(const RowBounds &rows, juce::Point<int> p) {
   for (int i = 0; i < kNumSections; ++i) {
     const auto s = (Section)i;
@@ -669,7 +675,7 @@ float linkCurveWeight(LinkCurve c, int index0, int sourceIndex) {
 }
 
 float linkedValue(LinkCurve curve, float baseline, float delta, float weight,
-                  float jitter, float target) {
+                  float jitter, float target, float low, float high) {
   float value = baseline;
 
   if (curve == LinkCurve::Spread) {
@@ -686,7 +692,7 @@ float linkedValue(LinkCurve curve, float baseline, float delta, float weight,
     value = baseline + delta * weight;
   }
 
-  return juce::jlimit(0.0f, 1.0f, value);
+  return juce::jlimit(low, high, value);
 }
 
 const char *roleLabel(Role r) {

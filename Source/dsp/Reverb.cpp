@@ -161,7 +161,7 @@ void Reverb::reset() noexcept {
 }
 
 float Reverb::tailSeconds(const ReverbParams &p) const noexcept {
-  if (!p.enabled || p.mix <= 0.0f)
+  if (!p.enabled || p.type != ReverbType::Room || p.mix <= 0.0f)
     return 0.0f;
 
   return p.preDelaySeconds + std::clamp(p.decaySeconds, 0.1f, 30.0f);
@@ -172,7 +172,7 @@ void Reverb::process(float *outL, float *outR, int numSamples,
   if (numSamples <= 0 || lines[0].buffer.empty())
     return;
 
-  if (!p.enabled) {
+  if (!p.enabled || p.type != ReverbType::Room) {
     // Leaving a tail sitting in the buffers would mean switching back on
     // replayed whatever was ringing when it was switched off.
     if (wasEnabled)

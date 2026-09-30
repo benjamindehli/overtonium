@@ -8,11 +8,13 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <functional>
 #include <map>
+#include <random>
 #include <set>
 #include <string>
 #include <vector>
@@ -125,6 +127,22 @@ void sizeEditor(juce::AudioProcessorEditor &editor, int width,
   editor.setSize(width, height);
 }
 
+/// The bar out of an editor, for the tests that read what it is showing.
+///
+/// It is a child of the editor's content rather than of the editor, and the
+/// depth it sits at is a layout decision that has moved before, so it is
+/// searched for rather than reached into.
+ovt::ui::TopBar *findTopBar(juce::Component &c) {
+  if (auto *bar = dynamic_cast<ovt::ui::TopBar *>(&c))
+    return bar;
+
+  for (auto *child : c.getChildren())
+    if (auto *found = findTopBar(*child))
+      return found;
+
+  return nullptr;
+}
+
 /// How many entries every automatable list has.
 ///
 /// A host stores a choice parameter as a value between zero and one, and what
@@ -164,7 +182,8 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
       {ovt::params::temperamentId, 6},  {ovt::params::tuningRootId, 12},
       {ovt::params::referenceHzId, 11}, {ovt::params::atSourceId, 3},
       {ovt::params::slideDestId, 3},    {ovt::params::lofiRateId, 8},
-      {ovt::params::lofiBitsId, 9},
+      {ovt::params::lofiBitsId, 9},     {ovt::params::echoTypeId, 3},
+      {ovt::params::reverbTypeId, 3},
   };
 
   for (const auto &list : globals)
@@ -216,7 +235,12 @@ void testParameterWiring(OvertoniumProcessor &p) {
   // Two of the globals are switches over the per-channel modulators rather
   // than controls of their own: whether each of the two is one circuit the
   // keyboard shares. See GlobalParams::ampModInPhase.
-  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10;
+  //
+  // The trailing one is the echo's type, which arrived beside the switch that
+  // turns it on rather than replacing it: a boolean every saved patch stores
+  // and every lane points at cannot become a four-position choice without
+  // taking both with it. See params::echoTypeId.
+  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 2;
 
   // The behaviour that was there before it became a choice. Asked of the
   // parameter rather than of the tree, so the answer does not depend on what
@@ -327,6 +351,176 @@ void testParameterWiring(OvertoniumProcessor &p) {
     check(std::abs(v - ovt::params::defaultVolumeFor(i)) < 1.0e-4f,
           "default level for partial " + std::to_string(i + 1));
   }
+}
+
+/// That the speed a key comes up at survives the trip from the message to the
+/// tail, and that the two ways a keyboard says "no release velocity" both
+/// leave the instrument exactly as it was.
+///
+/// The shape of what it does is in the DSP suite. What is here is the wiring
+/// and the one thing that wiring can get wrong: reading a zero as the softest
+/// possible lift rather than as no information.
+void testReleaseVelocity(OvertoniumProcessor &p) {
+  section("Release velocity");
+
+  p.applyFactoryPreset(presetIndex("Init"));
+
+  const auto put = [&p](const char *suffix, float value) {
+    auto *param = p.apvts.getParameter(ovt::params::oscParamId(suffix, 0));
+
+    if (param != nullptr)
+      param->setValueNotifyingHost(param->convertTo0to1(value));
+
+    return param != nullptr;
+  };
+
+  // Init is a plucky patch with an 8 ms release, so on its own terms there is
+  // no tail to measure. Half a second of one, a short decay so the note is
+  // sitting at its sustain rather than still on the way down when the key
+  // comes up, and a sustain of 0.4, which leaves a hard lift somewhere to go:
+  // the envelope stops at one, so doubling 0.6 would only reach the ceiling.
+  const bool ready = put(ovt::params::releaseSuffix, 0.5f) &&
+                     put(ovt::params::decaySuffix, 0.05f) &&
+                     put(ovt::params::sustainSuffix, 0.4f);
+
+  check(ready, "the first partial has a release and a sustain to set");
+  if (!ready)
+    return;
+
+  const auto tailAfter = [&p](const juce::MidiMessage &release) {
+    p.prepareToPlay(48000.0, 512);
+    renderBlocks(p, 20, 512, noteOnAt(60, 0.9f, 0));
+
+    juce::MidiBuffer up;
+    up.addEvent(release, 0);
+
+    juce::AudioBuffer<float> buffer(2, 512);
+    buffer.clear();
+    p.processBlock(buffer, up);
+
+    // A hundred milliseconds in, not the block the key came up in. That one is
+    // still at the sustain whatever the lift was, since the swell into the
+    // tail takes a few milliseconds and the block is ten.
+    renderBlocks(p, 8, 512);
+
+    juce::MidiBuffer none;
+    buffer.clear();
+    p.processBlock(buffer, none);
+
+    return buffer.getMagnitude(0, 512);
+  };
+
+  const auto soft =
+      tailAfter(juce::MidiMessage::noteOff(1, 60, (juce::uint8)1));
+  const auto even =
+      tailAfter(juce::MidiMessage::noteOff(1, 60, (juce::uint8)64));
+  const auto hard =
+      tailAfter(juce::MidiMessage::noteOff(1, 60, (juce::uint8)127));
+
+  std::printf("  the first block of the tail: %.4f lifted softly, %.4f evenly, "
+              "%.4f hard\n",
+              soft, even, hard);
+
+  // Half and double, give or take the few milliseconds of swell that a scaled
+  // lift passes through and an even one skips. What the levels are exactly is
+  // pinned in the DSP suite, where an envelope can be read directly.
+  check(soft / even > 0.45f && soft / even < 0.62f,
+        "a soft lift leaves about half the tail (" +
+            std::to_string(soft / even) + " of it)");
+
+  check(hard / even > 1.85f && hard / even < 2.25f,
+        "and a hard one about twice (" + std::to_string(hard / even) + ")");
+
+  // ---- and the two ways of saying nothing ---------------------------------
+
+  const auto zero =
+      tailAfter(juce::MidiMessage::noteOff(1, 60, (juce::uint8)0));
+
+  check(ovt::exactly(zero, even),
+        "a note-off carrying zero is read as no information rather than as the "
+        "softest lift there is");
+
+  const auto asNoteOn =
+      tailAfter(juce::MidiMessage::noteOn(1, 60, (juce::uint8)0));
+
+  check(ovt::exactly(asNoteOn, even),
+        "and so is the note-on of velocity zero that most keyboards send "
+        "instead of a note-off");
+
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
+/// That choosing a character brings its bus stage with it, and that the
+/// latency this costs is told to the host and never moves.
+///
+/// There is nothing to set: how hard each circuit is run is a property of the
+/// part, so the only way in is the character. What each one does to a signal
+/// is measured in the DSP suite, where a spectrum can be read.
+void testBusStageFollowsTheCharacter(OvertoniumProcessor &p) {
+  section("The bus stage");
+
+  auto *character = p.apvts.getParameter(ovt::params::characterId);
+
+  check(character != nullptr, "the character is there to choose");
+  if (character == nullptr)
+    return;
+
+  const auto renderLoud = [&p, character](ovt::Character c) {
+    character->setValueNotifyingHost(character->convertTo0to1((float)(int)c));
+
+    p.prepareToPlay(48000.0, 512);
+
+    juce::AudioBuffer<float> buffer(2, 512);
+    juce::MidiBuffer midi = noteOnAt(48, 1.0f, 0);
+
+    std::vector<float> out;
+
+    for (int b = 0; b < 12; ++b) {
+      buffer.clear();
+      p.processBlock(buffer, midi);
+      midi.clear();
+
+      const auto *d = buffer.getReadPointer(0);
+      out.insert(out.end(), d, d + 512);
+    }
+
+    return out;
+  };
+
+  const auto idle = p.getLatencySamples();
+
+  const auto pure = renderLoud(ovt::Character::Pure);
+  const auto valve = renderLoud(ovt::Character::Valve);
+  const auto bulb = renderLoud(ovt::Character::Bulb);
+
+  const auto differs = [](const std::vector<float> &a,
+                          const std::vector<float> &b) {
+    double worst = 0.0;
+    for (size_t i = 0; i < a.size() && i < b.size(); ++i)
+      worst = std::max(worst, std::abs((double)a[i] - (double)b[i]));
+
+    return worst;
+  };
+
+  check(differs(pure, valve) > 1.0e-4,
+        "a character brings a summing circuit with it (" +
+            std::to_string(differs(pure, valve)) + ")");
+
+  check(differs(valve, bulb) > 1.0e-4,
+        "and they are not the same circuit (" +
+            std::to_string(differs(valve, bulb)) + ")");
+
+  // Every character, including the one that has none, costs the same few
+  // samples, so a preset cannot make a host re-plan its graph.
+  check(idle == ovt::BusDrive::kLatency, "the stage's latency is reported (" +
+                                             std::to_string(idle) +
+                                             " samples)");
+
+  check(p.getLatencySamples() == idle,
+        "and does not move when the character does (" +
+            std::to_string(p.getLatencySamples()) + ")");
+
+  p.applyFactoryPreset(presetIndex("Init"));
 }
 
 void testRendering(OvertoniumProcessor &p) {
@@ -2106,6 +2300,54 @@ void testLinkCurves() {
                 0.0f,
         "results stay inside the parameter range");
 
+  // ---- the faders, which are shared out in decibels ------------------------
+  //
+  // Every other row is moved across its travel, which is even in whatever it
+  // measures. A level fader's travel is shaped to feel right under a finger
+  // instead, so an even move across it is a wildly uneven move in level: a
+  // drag that lifted the loudest channel by seven decibels lifted the quietest
+  // by thirty. What a uniform drag has to mean here is the same number of
+  // decibels on every channel, which is the same gain on every channel, which
+  // is the only move that leaves the balance of a patch alone.
+  check(linkIsDecibels(Role::Volume, LinkCurve::Uniform) &&
+            linkIsDecibels(Role::Volume, LinkCurve::Taper),
+        "the faders share out an amount in decibels");
+
+  check(!linkIsDecibels(Role::Volume, LinkCurve::Spread),
+        "except when scattering, which is about where things sit rather than "
+        "how loud they are");
+
+  check(!linkIsDecibels(Role::Tune, LinkCurve::Uniform) &&
+            !linkIsDecibels(Role::PmRate, LinkCurve::Uniform),
+        "and no other row does, since their travel already is what they "
+        "measure");
+
+  {
+    // Two channels twelve decibels apart, lifted by six. Both have to arrive
+    // six decibels up, which is to say twelve apart still.
+    constexpr float low = -30.0f, high = -18.0f, lift = 6.0f;
+
+    const auto landedLow =
+        linkedValue(LinkCurve::Uniform, low, lift, 1.0f, 0.0f, high + lift,
+                    ovt::params::kQuietestLevelDb, 0.0f);
+
+    const auto landedHigh =
+        linkedValue(LinkCurve::Uniform, high, lift, 1.0f, 0.0f, high + lift,
+                    ovt::params::kQuietestLevelDb, 0.0f);
+
+    check(std::abs(landedLow - (low + lift)) < 1.0e-4f &&
+              std::abs(landedHigh - (high + lift)) < 1.0e-4f,
+          "so both channels come up by the amount that was dragged");
+
+    check(std::abs((landedHigh - landedLow) - (high - low)) < 1.0e-4f,
+          "and the interval between them is exactly what it was");
+
+    // A fader at the bottom is off, and the top of the range is unity.
+    check(linkedValue(LinkCurve::Uniform, -6.0f, 40.0f, 1.0f, 0.0f, 0.0f,
+                      ovt::params::kQuietestLevelDb, 0.0f) <= 0.0f,
+          "nothing is dragged past unity");
+  }
+
   // Same-interval scope has to pick out a real family. The octaves are the
   // partials at powers of two.
   int octaves = 0;
@@ -2873,27 +3115,11 @@ void testFirstProgramIsReachable() {
 void testPresetNameOutlivesTheWindow() {
   section("The preset name outlives the window");
 
-  const auto findBar = [](juce::Component &root) -> ovt::ui::TopBar * {
-    std::function<ovt::ui::TopBar *(juce::Component &)> walk =
-        [&walk](juce::Component &c) -> ovt::ui::TopBar * {
-      if (auto *bar = dynamic_cast<ovt::ui::TopBar *>(&c))
-        return bar;
-
-      for (auto *child : c.getChildren())
-        if (auto *found = walk(*child))
-          return found;
-
-      return nullptr;
-    };
-
-    return walk(root);
-  };
-
-  const auto shownBy = [&findBar](OvertoniumProcessor &proc) {
+  const auto shownBy = [](OvertoniumProcessor &proc) {
     std::unique_ptr<juce::AudioProcessorEditor> ed(proc.createEditor());
     sizeEditor(*ed, 1340);
 
-    auto *bar = findBar(*ed);
+    auto *bar = findTopBar(*ed);
     return bar != nullptr ? bar->getPresetName() : juce::String("(no bar)");
   };
 
@@ -3251,8 +3477,14 @@ void testSettingsMenu(OvertoniumProcessor &p) {
     return s;
   };
 
-  check(joined(headers) ==
-            "Polyphony / Pitch bend range / Expression / Tuning / Output / ",
+  // The version stands at the head of the list as a heading of its own, and
+  // is asked for by the same call the menu builds it from rather than written
+  // out here, which would have to be edited on every release.
+  const auto wanted = TopBar::versionLine().toStdString() +
+                      " / Polyphony / Pitch bend range / Expression / "
+                      "Tuning / Output / ";
+
+  check(joined(headers) == wanted,
         "the sections read in order (" + joined(headers) + ")");
 
   const auto at = [&entries](const std::string &name) {
@@ -3321,10 +3553,18 @@ void testFitAllChannels(OvertoniumProcessor &p) {
   // as the width.
   editor->setSize(700, fitted.getHeight() - 120);
 
-  check(editor->getWidth() == 700 &&
-            editor->getHeight() == fitted.getHeight() - 120,
-        "a window can be dragged small (" + std::to_string(editor->getWidth()) +
-            " x " + std::to_string(editor->getHeight()) + ")");
+  check(editor->getWidth() == 700, "a window can be dragged narrow (" +
+                                       std::to_string(editor->getWidth()) +
+                                       ")");
+
+  // Short, but not as short as it was asked for. The bar's second row costs
+  // the mixer the room it needed, so the window comes to rest on the floor for
+  // this width instead of going under it, which is where the strips would
+  // start running out through the bottom. This check used to read the asked-for
+  // height back unchanged, because nothing was watching the reflow.
+  check(editor->getHeight() == editor->getConstrainer()->getMinimumHeight(),
+        "and its height comes to rest on the floor for that width (" +
+            std::to_string(editor->getHeight()) + ")");
 
   editor->fitAllChannels();
 
@@ -3337,6 +3577,1536 @@ void testFitAllChannels(OvertoniumProcessor &p) {
 
   check(editor->getBounds() == fitted,
         "asking twice changes nothing the second time");
+}
+
+/// The two machine menus say what is running.
+///
+/// Both the echo and the reverb hang four choices off one button, and behind
+/// each button are two parameters rather than one: an on switch that predates
+/// the choice of machine, and a type beside it. A tick that reads only one of
+/// them would say Off while a plate was audible, or name a machine that was
+/// switched off, and nothing in the audio path would be wrong. So the pairing
+/// is checked here, from the parameters the host writes to the menu the player
+/// reads.
+void testMachineMenusFollowTheirParameters(OvertoniumProcessor &p) {
+  section("The machine menus follow their parameters");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  auto *bar = findTopBar(*editor);
+
+  check(bar != nullptr, "and carries a bar to read the menus off");
+  if (bar == nullptr)
+    return;
+
+  /// Whatever is ticked, joined, so two ticks fail as loudly as none.
+  const auto tickedIn = [](juce::PopupMenu &menu) {
+    std::string found;
+
+    for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+      if (it.getItem().isTicked)
+        found += it.getItem().text.toStdString();
+
+    return found;
+  };
+
+  const auto write = [&p](const char *id, float value) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1(value));
+  };
+
+  // ---- the echo ------------------------------------------------------------
+  {
+    write(ovt::params::echoOnId, 0.0f);
+
+    auto off = bar->buildEchoMenu();
+    check(tickedIn(off) == "Off",
+          "the echo says Off when its switch is off (" + tickedIn(off) + ")");
+
+    write(ovt::params::echoOnId, 1.0f);
+
+    for (int i = 0; i < (int)ovt::EchoType::NumTypes; ++i) {
+      write(ovt::params::echoTypeId, (float)i);
+
+      auto menu = bar->buildEchoMenu();
+      const std::string wanted = ovt::echoTypeName((ovt::EchoType)i);
+
+      check(tickedIn(menu) == wanted,
+            "and names " + wanted + " when that is the machine running (" +
+                tickedIn(menu) + ")");
+    }
+
+    // Switched off with a type still chosen, which is the state that catches a
+    // tick reading one parameter and not the other.
+    write(ovt::params::echoOnId, 0.0f);
+
+    auto stillDigital = bar->buildEchoMenu();
+    check(tickedIn(stillDigital) == "Off",
+          "and goes back to Off without forgetting which machine it was (" +
+              tickedIn(stillDigital) + ")");
+  }
+
+  // ---- and the reverb, which works the same way ----------------------------
+  {
+    write(ovt::params::reverbOnId, 0.0f);
+
+    auto off = bar->buildReverbMenu();
+    check(tickedIn(off) == "Off",
+          "the reverb says Off when its switch is off (" + tickedIn(off) + ")");
+
+    write(ovt::params::reverbOnId, 1.0f);
+
+    for (int i = 0; i < (int)ovt::ReverbType::NumTypes; ++i) {
+      write(ovt::params::reverbTypeId, (float)i);
+
+      auto menu = bar->buildReverbMenu();
+      const std::string wanted = ovt::reverbTypeName((ovt::ReverbType)i);
+
+      check(tickedIn(menu) == wanted,
+            "and names " + wanted + " when that is the machine running (" +
+                tickedIn(menu) + ")");
+    }
+
+    write(ovt::params::reverbOnId, 0.0f);
+
+    auto stillSpring = bar->buildReverbMenu();
+    check(tickedIn(stillSpring) == "Off",
+          "and goes back to Off without forgetting which machine it was (" +
+              tickedIn(stillSpring) + ")");
+  }
+
+  // Left as the patch found them, for whatever runs next.
+  write(ovt::params::echoTypeId, 0.0f);
+  write(ovt::params::reverbTypeId, 0.0f);
+}
+
+/// The Settings menu says which build this is.
+///
+/// The bug report template will not take a report without a version and tells
+/// people to read it off this menu. It was not on it, and not anywhere else
+/// either, so the one question every report has to answer was the one thing
+/// the instrument would not say. This holds the menu to saying it, and to
+/// saying the version this was actually built as rather than a number typed
+/// out beside it.
+void testSettingsNamesTheVersion(OvertoniumProcessor &p) {
+  section("The Settings menu names the version");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  auto *bar = findTopBar(*editor);
+
+  check(bar != nullptr, "and carries a bar to read the menu off");
+  if (bar == nullptr)
+    return;
+
+  const auto line = ovt::ui::TopBar::versionLine();
+
+  // Built from the same define the plugin reports to a host, so this cannot
+  // pass against a version that is merely well formed.
+  check(line == juce::String("Overtonium ") + OVERTONIUM_VERSION,
+        "the line names this build (" + line.toStdString() + ")");
+
+  // A number rather than a word, and one with parts to it.
+  check(line.contains(".") && line.containsAnyOf("0123456789"),
+        "and reads as a version rather than a name");
+
+  auto menu = bar->buildSettingsMenu();
+
+  // Separators are dropped, since where they fall is a matter of taste and
+  // this is about the order of the things that carry words.
+  std::vector<juce::PopupMenu::Item> items;
+
+  for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+    if (!it.getItem().isSeparator)
+      items.push_back(it.getItem());
+
+  check(items.size() > 4, "and the Settings menu has items in it");
+  if (items.size() <= 4)
+    return;
+
+  check(items[0].text == line, "and the menu opens with it");
+
+  // A fact rather than a choice. An ordinary item, enabled or not, reads as
+  // something to press.
+  check(items[0].isSectionHeader,
+        "as a heading rather than as something to click");
+
+  // Directly under it, because the two are one thought: this is the build you
+  // have, and here is whether to look for a newer one.
+  check(items[1].text == "Check for new versions",
+        "with the update check directly beneath it");
+
+  // Below both, rather than above them as they were. The version is the one
+  // thing in this menu that does not change while you use the plugin, so it
+  // reads first and the undo pair follows.
+  check(items[2].text == "Undo" && items[3].text == "Redo",
+        "and undo and redo below, not above");
+}
+
+/// A wheel over a knob must not also scroll the mixer sideways.
+///
+/// When the window is narrow enough for the series to need scrolling, a scroll
+/// over a knob was reported as doing both: moving the knob and dragging the
+/// view along under it. The wheel is how most of this instrument gets
+/// adjusted, so a knob that also shoves the panel sideways is the difference
+/// between a control and a fight.
+void testWheelOverAKnobStaysOnTheKnob(OvertoniumProcessor &p) {
+  section("A wheel over a knob does not scroll the mixer");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  // Narrow enough that the series cannot all be shown at once, which is the
+  // only time there is anything to scroll.
+  editor->setSize(900, editor->getHeight());
+
+  juce::Viewport *viewport = nullptr;
+  std::function<void(juce::Component &)> findViewport =
+      [&](juce::Component &c) {
+        if (auto *v = dynamic_cast<juce::Viewport *>(&c))
+          viewport = v;
+        for (auto *child : c.getChildren())
+          findViewport(*child);
+      };
+  findViewport(*editor);
+
+  check(viewport != nullptr, "and the series sits in a viewport");
+  if (viewport == nullptr)
+    return;
+
+  // Half way along, so a scroll in either direction has somewhere to go and a
+  // move cannot be hidden by hitting a limit.
+  const auto span =
+      viewport->getViewedComponent()->getWidth() - viewport->getViewWidth();
+
+  check(span > 0, "which has more in it than it can show (" +
+                      std::to_string(span) + " px)");
+
+  viewport->setViewPosition(span / 2, 0);
+  const auto before = viewport->getViewPositionX();
+
+  // A knob inside it, found the way the pointer finds one.
+  juce::Slider *knob = nullptr;
+  std::function<void(juce::Component &)> findKnob = [&](juce::Component &c) {
+    if (knob != nullptr)
+      return;
+    if (auto *s = dynamic_cast<juce::Slider *>(&c))
+      if (s->getSliderStyle() == juce::Slider::RotaryVerticalDrag)
+        knob = s;
+    for (auto *child : c.getChildren())
+      findKnob(*child);
+  };
+  findKnob(*viewport->getViewedComponent());
+
+  check(knob != nullptr, "and carries knobs to scroll over");
+  if (knob == nullptr)
+    return;
+
+  const auto valueBefore = knob->getValue();
+
+  // What JUCE hands the component under the pointer: the event names that
+  // component, which is what decides whether anything above it acts on it too.
+  juce::MouseWheelDetails wheel{};
+  wheel.deltaX = 0.0f;
+  // Downwards, since the first knob found is at the top of its range and a
+  // push upwards would move nothing and prove nothing.
+  wheel.deltaY = -0.4f;
+  wheel.isReversed = false;
+  wheel.isSmooth = false;
+  wheel.isInertial = false;
+
+  const juce::MouseEvent e(juce::Desktop::getInstance().getMainMouseSource(),
+                           knob->getLocalBounds().getCentre().toFloat(),
+                           juce::ModifierKeys(),
+                           juce::MouseInputSource::defaultPressure,
+                           juce::MouseInputSource::defaultOrientation,
+                           juce::MouseInputSource::defaultRotation,
+                           juce::MouseInputSource::defaultTiltX,
+                           juce::MouseInputSource::defaultTiltY, knob, knob,
+                           juce::Time::getCurrentTime(),
+                           knob->getLocalBounds().getCentre().toFloat(),
+                           juce::Time::getCurrentTime(), 1, false);
+
+  knob->mouseWheelMove(e, wheel);
+
+  // And then what JUCE does next, which is the half that bit. Every ancestor
+  // holding a deep mouse listener is handed the same wheel after the target
+  // has had it, whether the target took it or not. The strip holds one so that
+  // a pointer resting on a knob is reported by the strip rather than swallowed
+  // by the control. See MouseListenerList::sendMouseEvent.
+  ovt::ui::ChannelStrip *strip = nullptr;
+  for (auto *c = knob->getParentComponent(); c != nullptr;
+       c = c->getParentComponent())
+    if (auto *s = dynamic_cast<ovt::ui::ChannelStrip *>(c)) {
+      strip = s;
+      break;
+    }
+
+  check(strip != nullptr, "and the knob sits in a strip that listens deeply");
+
+  if (strip != nullptr) {
+    const juce::MouseEvent relayed(
+        juce::Desktop::getInstance().getMainMouseSource(),
+        strip->getLocalPoint(knob, knob->getLocalBounds().getCentre())
+            .toFloat(),
+        juce::ModifierKeys(), juce::MouseInputSource::defaultPressure,
+        juce::MouseInputSource::defaultOrientation,
+        juce::MouseInputSource::defaultRotation,
+        juce::MouseInputSource::defaultTiltX,
+        juce::MouseInputSource::defaultTiltY, strip, knob,
+        juce::Time::getCurrentTime(),
+        strip->getLocalPoint(knob, knob->getLocalBounds().getCentre())
+            .toFloat(),
+        juce::Time::getCurrentTime(), 1, false);
+
+    strip->mouseWheelMove(relayed, wheel);
+  }
+
+  std::printf("  the knob went from %.4f to %.4f, and the view from %d to %d\n",
+              valueBefore, knob->getValue(), before,
+              viewport->getViewPositionX());
+
+  check(std::abs(knob->getValue() - valueBefore) > 1.0e-9,
+        "the wheel moves the knob it is over");
+
+  check(viewport->getViewPositionX() == before,
+        "and leaves the mixer where it was (" + std::to_string(before) +
+            " to " + std::to_string(viewport->getViewPositionX()) + ")");
+
+  // ---- but the strip itself still scrolls it ------------------------------
+  //
+  // The other half of what was asked for, and the thing a careless fix would
+  // break: swallowing every wheel the strip is handed would stop the series
+  // scrolling at all, which is worse than what was reported.
+  if (strip != nullptr) {
+    const auto held = viewport->getViewPositionX();
+
+    const juce::MouseEvent onStrip(
+        juce::Desktop::getInstance().getMainMouseSource(),
+        strip->getLocalBounds().getCentre().toFloat(), juce::ModifierKeys(),
+        juce::MouseInputSource::defaultPressure,
+        juce::MouseInputSource::defaultOrientation,
+        juce::MouseInputSource::defaultRotation,
+        juce::MouseInputSource::defaultTiltX,
+        juce::MouseInputSource::defaultTiltY, strip, strip,
+        juce::Time::getCurrentTime(),
+        strip->getLocalBounds().getCentre().toFloat(),
+        juce::Time::getCurrentTime(), 1, false);
+
+    strip->mouseWheelMove(onStrip, wheel);
+
+    std::printf(
+        "  and a wheel on the strip itself took the view from %d to %d\n", held,
+        viewport->getViewPositionX());
+
+    check(viewport->getViewPositionX() != held,
+          "a wheel on the strip's own background still scrolls the series");
+  }
+}
+
+/// One right-click opens one LINK menu.
+///
+/// Right-clicking the gap between two sections opened two menus stacked on
+/// each other. Picking an item on the front one left the back one standing and
+/// its ticks unmoved, so the setting appeared not to have taken while the
+/// instrument had in fact changed.
+///
+/// The cause is the strip listening to everything inside it, which is what
+/// lets a right-click on a knob open the LINK menu rather than being swallowed
+/// by the control. JUCE hands a listener registered that way the component's
+/// own events too, so a click on the strip's own background arrives twice:
+/// once because the strip is what the pointer is over, and once more through
+/// that listener. The gap between sections is the strip's own background,
+/// which is why only that strip of pixels did it.
+///
+/// Counted through a stub rather than by opening anything: a real PopupMenu
+/// wants a window and there is none here.
+void testOneRightClickOpensOneMenu(OvertoniumProcessor &p) {
+  section("One right-click, one LINK menu");
+
+  struct CountingLink final : ovt::ui::LinkTarget {
+    int opened = 0;
+
+    bool isLinkEnabled() const override { return true; }
+    void linkDragStarted(ovt::ui::Role, int) override {}
+    void linkValueChanged(ovt::ui::Role, int, float) override {}
+    void linkDragEnded(ovt::ui::Role, int) override {}
+    void showLinkMenu() override { ++opened; }
+
+    bool drawStarted(juce::Point<int>) override { return false; }
+    void drawMovedTo(juce::Point<int>) override {}
+    void drawEnded() override {}
+  };
+
+  struct SilentHover final : ovt::ui::HoverTarget {
+    void hoverChanged(int, ovt::ui::Row) override {}
+  };
+
+  CountingLink link;
+  SilentHover hover;
+  juce::Component popupParent;
+
+  ovt::ui::ChannelStrip strip(p.apvts, link, hover, popupParent, 0);
+  strip.setSize(40, 900);
+
+  const auto rightClickOn = [](juce::Component *landedOn,
+                               juce::Component *deliveredTo, juce::Time when) {
+    return juce::MouseEvent(
+        juce::Desktop::getInstance().getMainMouseSource(),
+        deliveredTo->getLocalBounds().getCentre().toFloat(),
+        juce::ModifierKeys(juce::ModifierKeys::rightButtonModifier),
+        juce::MouseInputSource::defaultPressure,
+        juce::MouseInputSource::defaultOrientation,
+        juce::MouseInputSource::defaultRotation,
+        juce::MouseInputSource::defaultTiltX,
+        juce::MouseInputSource::defaultTiltY, deliveredTo, landedOn, when,
+        deliveredTo->getLocalBounds().getCentre().toFloat(), when, 1, false);
+  };
+
+  // ---- on the strip's own background --------------------------------------
+  //
+  // Delivered the way JUCE delivers it: to the component under the pointer,
+  // and then again to every listener registered on it. Both carry the same
+  // timestamp, because they are the same click.
+  {
+    const auto when = juce::Time::getCurrentTime();
+    const auto e = rightClickOn(&strip, &strip, when);
+
+    strip.mouseDown(e);
+    strip.mouseDown(e);
+
+    std::printf("  a right-click on the gap opened %d menu(s)\n", link.opened);
+
+    check(link.opened == 1, "the gap between sections opens one menu (" +
+                                std::to_string(link.opened) + ")");
+  }
+
+  // ---- and on a knob, which only ever arrives through the listener ---------
+  {
+    link.opened = 0;
+
+    juce::Slider *knob = nullptr;
+    std::function<void(juce::Component &)> find = [&](juce::Component &c) {
+      if (knob == nullptr)
+        if (auto *s = dynamic_cast<juce::Slider *>(&c))
+          knob = s;
+      for (auto *child : c.getChildren())
+        find(*child);
+    };
+    find(strip);
+
+    check(knob != nullptr, "the strip has a knob to right-click");
+
+    if (knob != nullptr) {
+      const auto when = juce::Time::getCurrentTime() + juce::RelativeTime(1.0);
+      strip.mouseDown(rightClickOn(knob, &strip, when));
+
+      check(link.opened == 1, "and a right-click on a knob still opens it (" +
+                                  std::to_string(link.opened) + ")");
+    }
+  }
+}
+
+/// A click on the rule between two sections folds that section.
+///
+/// The gutter's headings have always done this. Reaching them means leaving
+/// the partial you are working on, crossing the mixer and coming back, and by
+/// then you have lost which column you were in. The rules across a strip line
+/// up with those headings, so the same click works where your hand already is.
+void testTheRulesFoldTheirSections(OvertoniumProcessor &p) {
+  section("The rules between sections fold them");
+
+  struct SilentLink final : ovt::ui::LinkTarget {
+    int menus = 0;
+
+    bool isLinkEnabled() const override { return true; }
+    void linkDragStarted(ovt::ui::Role, int) override {}
+    void linkValueChanged(ovt::ui::Role, int, float) override {}
+    void linkDragEnded(ovt::ui::Role, int) override {}
+    void showLinkMenu() override { ++menus; }
+
+    bool drawStarted(juce::Point<int>) override { return false; }
+    void drawMovedTo(juce::Point<int>) override {}
+    void drawEnded() override {}
+  };
+
+  struct WatchingHover final : ovt::ui::HoverTarget {
+    ovt::ui::Row last = ovt::ui::kNoRow;
+
+    void hoverChanged(int, ovt::ui::Row row) override { last = row; }
+  };
+
+  SilentLink link;
+  WatchingHover hover;
+  juce::Component popupParent;
+
+  ovt::ui::ChannelStrip strip(p.apvts, link, hover, popupParent, 0);
+  strip.setSize(40, 900);
+
+  std::vector<ovt::ui::Section> folded;
+  strip.onSectionToggled = [&folded](ovt::ui::Section s) {
+    folded.push_back(s);
+  };
+
+  const auto rows = ovt::ui::layoutRows(
+      strip.getLocalBounds().reduced(ovt::ui::kStripPadX, ovt::ui::kStripPadY),
+      0);
+
+  const auto clickAt = [&strip](juce::Point<int> where, bool rightButton,
+                                juce::Time when) {
+    return juce::MouseEvent(
+        juce::Desktop::getInstance().getMainMouseSource(), where.toFloat(),
+        juce::ModifierKeys(rightButton
+                               ? juce::ModifierKeys::rightButtonModifier
+                               : juce::ModifierKeys::leftButtonModifier),
+        juce::MouseInputSource::defaultPressure,
+        juce::MouseInputSource::defaultOrientation,
+        juce::MouseInputSource::defaultRotation,
+        juce::MouseInputSource::defaultTiltX,
+        juce::MouseInputSource::defaultTiltY, &strip, &strip, when,
+        where.toFloat(), when, 1, false);
+  };
+
+  // ---- every rule folds the section it belongs to --------------------------
+  for (int i = 0; i < ovt::ui::kNumSections; ++i) {
+    const auto want = (ovt::ui::Section)i;
+    const auto rule = rows[(size_t)ovt::ui::sectionHeading(want)];
+
+    folded.clear();
+
+    // Delivered the way JUCE delivers a click on a strip's own background:
+    // once because the strip is under the pointer, and once more through the
+    // listener it keeps on itself.
+    const auto when = juce::Time::getCurrentTime() + juce::RelativeTime(i);
+    const auto e = clickAt(rule.getCentre(), false, when);
+
+    strip.mouseDown(e);
+    strip.mouseDown(e);
+
+    check(folded.size() == 1 && folded.front() == want,
+          "the rule over section " + std::to_string(i) +
+              " folds that section, once (" + std::to_string(folded.size()) +
+              ")");
+  }
+
+  // ---- and the pointer on a rule says which row it is on -------------------
+  //
+  // The caption in the gutter lighting is how this panel says what is under
+  // the pointer, and the rules are the one part of a strip that can be clicked
+  // without carrying a control. Left out of the answer, the only clickable
+  // part of a strip was the only part that said nothing.
+  {
+    for (int i = 0; i < ovt::ui::kNumSections; ++i) {
+      const auto want = ovt::ui::sectionHeading((ovt::ui::Section)i);
+      const auto rule = rows[(size_t)want];
+
+      hover.last = ovt::ui::kNoRow;
+
+      const auto when =
+          juce::Time::getCurrentTime() + juce::RelativeTime(200 + i);
+      strip.mouseMove(clickAt(rule.getCentre(), false, when));
+
+      check(hover.last == want, "the pointer on a rule reports that heading (" +
+                                    std::to_string((int)hover.last) +
+                                    " wanted " + std::to_string((int)want) +
+                                    ")");
+    }
+
+    // And a knob still reports its own row rather than the rule above it.
+    const auto knob = rows[(size_t)ovt::ui::Row::PmRate];
+    const auto when = juce::Time::getCurrentTime() + juce::RelativeTime(260.0);
+
+    hover.last = ovt::ui::kNoRow;
+    strip.mouseMove(clickAt(knob.getCentre(), false, when));
+
+    check(hover.last == ovt::ui::Row::PmRate,
+          "and a control still reports its own row");
+  }
+
+  // ---- and a click that is not on one does nothing -------------------------
+  {
+    folded.clear();
+
+    const auto knobRow = rows[(size_t)ovt::ui::Row::PmRate];
+    const auto when = juce::Time::getCurrentTime() + juce::RelativeTime(60.0);
+
+    strip.mouseDown(clickAt(knobRow.getCentre(), false, when));
+
+    check(folded.empty(), "a click on a row of controls folds nothing (" +
+                              std::to_string(folded.size()) + ")");
+  }
+
+  // ---- a right-click on a rule is still the LINK menu ----------------------
+  //
+  // The rules are the only part of a strip with nothing standing on them,
+  // which is what makes them clickable at all, and is also where a right-click
+  // reaches the strip. One button each.
+  {
+    folded.clear();
+    link.menus = 0;
+
+    const auto rule =
+        rows[(size_t)ovt::ui::sectionHeading(ovt::ui::Section::Envelope)];
+    const auto when = juce::Time::getCurrentTime() + juce::RelativeTime(120.0);
+
+    strip.mouseDown(clickAt(rule.getCentre(), true, when));
+
+    check(folded.empty() && link.menus == 1,
+          "a right-click on a rule opens the menu and folds nothing (" +
+              std::to_string(folded.size()) + " folds, " +
+              std::to_string(link.menus) + " menus)");
+  }
+}
+
+/// Folding and unfolding a section puts the window back where it was.
+///
+/// Reported from a Mac: shrink the window so the faders are squeezed, fold a
+/// section, and the faders keep their height, which is right. Unfold it again
+/// and they grow far taller than they were, filling the screen and running
+/// under the dock.
+///
+/// The window's height is the sum of the rows plus whatever is left for the
+/// fader, so a fader that grew means the window grew by more than the rows it
+/// got back.
+/// Energy at one frequency, by Goertzel, normalised by the sample count.
+///
+/// Enough to ask "is the note where it should be", which is the question a
+/// sample rate bug answers wrongly while leaving every level and every
+/// finiteness check happy.
+double toneAt(const std::vector<float> &x, double freq, double sampleRate) {
+  if (x.empty() || freq <= 0.0 || freq >= sampleRate * 0.5)
+    return 0.0;
+
+  const double w = 2.0 * 3.14159265358979323846 * freq / sampleRate;
+  const double coeff = 2.0 * std::cos(w);
+  double s1 = 0.0, s2 = 0.0;
+
+  for (float v : x) {
+    const double s0 = (double)v + coeff * s1 - s2;
+    s2 = s1;
+    s1 = s0;
+  }
+
+  return std::sqrt(std::max(0.0, s1 * s1 + s2 * s2 - coeff * s1 * s2)) /
+         (double)x.size();
+}
+
+/// The left channel of a render, after letting the attack settle.
+std::vector<float> renderTone(OvertoniumProcessor &p, double sampleRate,
+                              int block, int note, double seconds) {
+  juce::MidiBuffer midi;
+  midi.addEvent(juce::MidiMessage::noteOn(1, note, 1.0f), 0);
+
+  juce::AudioBuffer<float> buf(2, block);
+  std::vector<float> out;
+  const int blocks = (int)(seconds * sampleRate / block) + 1;
+  const int settle = blocks / 3;
+
+  for (int b = 0; b < blocks; ++b) {
+    juce::MidiBuffer m = (b == 0) ? midi : juce::MidiBuffer{};
+    buf.clear();
+    p.processBlock(buf, m);
+
+    if (b >= settle)
+      out.insert(out.end(), buf.getReadPointer(0),
+                 buf.getReadPointer(0) + block);
+  }
+
+  return out;
+}
+
+/// A session file the plugin did not write must not be able to poison it.
+///
+/// setStateInformation already refuses anything that is not our XML, but a
+/// file that is our XML with nonsense in the values gets through to the
+/// parameters, which is what a corrupt or truncated session looks like. Of
+/// everything such a file can say, NaN was the only thing that survived:
+/// every clamp in JUCE's range handling is a pair of comparisons and both are
+/// false against NaN, so jlimit hands it straight back. It reached the
+/// oscillators and the plugin output NaN for the rest of the session, which in
+/// a host is a silent master bus until someone reloads it.
+void testACorruptStateCannotPoisonTheOutput() {
+  section("A corrupt session cannot poison the output");
+
+  const char *poisons[] = {"nan",   "-nan",   "inf",     "-inf",  "1e30",
+                           "-1e30", "999999", "-999999", "hello", ""};
+
+  int checked = 0;
+
+  for (const char *poison : poisons) {
+    OvertoniumProcessor victim;
+    victim.setRateAndBufferSizeDetails(48000.0, 256);
+    victim.prepareToPlay(48000.0, 256);
+    victim.applyFactoryPreset(presetIndex("Big Saw"));
+
+    auto state = victim.apvts.copyState();
+    auto xml = state.createXml();
+
+    int poisoned = 0;
+    for (auto *child : xml->getChildIterator())
+      if (child->hasAttribute("value")) {
+        child->setAttribute("value", poison);
+        ++poisoned;
+      }
+
+    // If this ever reads zero the test is passing on an empty state rather
+    // than a poisoned one, which is the way a check like this goes quietly
+    // wrong.
+    if (poisoned == 0) {
+      check(false, std::string("the state carried values to poison with \"") +
+                       poison + "\"");
+      continue;
+    }
+
+    juce::MemoryBlock block;
+    victim.copyXmlToBinary(*xml, block);
+    victim.setStateInformation(block.getData(), (int)block.getSize());
+
+    juce::MidiBuffer midi;
+    midi.addEvent(juce::MidiMessage::noteOn(1, 60, 1.0f), 0);
+
+    const auto stats = renderBlocks(victim, 200, 256, midi);
+
+    check(stats.finite, std::string("a state of \"") + poison +
+                            "\" in every value still renders a number");
+    ++checked;
+  }
+
+  check(checked == (int)std::size(poisons), "every poison was tried");
+}
+
+/// The instrument has to be an instrument at every rate a host can ask for.
+///
+/// The suite otherwise lives at 48 kHz with a few excursions, and 88.2, 176.4
+/// and 192 kHz were never rendered at all. Every delay line in the effects
+/// sizes itself from the sample rate, which is exactly the kind of arithmetic
+/// that is right at one rate and wrong at four times it.
+///
+/// Both halves matter. Finite output from a plugin that rendered silence
+/// proves nothing, so this insists the preset actually sounds at every rate,
+/// and that the level is the same one, since a filter cutoff worked out in the
+/// wrong units would still be finite and would not be Big Saw.
+void testEveryHostRateStaysFinite() {
+  section("Every host rate renders");
+
+  const double rates[] = {8000.0,  22050.0, 44100.0,  48000.0,
+                          88200.0, 96000.0, 176400.0, 192000.0};
+
+  double lowest = 1.0e9, highest = 0.0;
+
+  for (double rate : rates) {
+    for (int block : {64, 512}) {
+      OvertoniumProcessor fresh;
+      fresh.setRateAndBufferSizeDetails(rate, block);
+      fresh.prepareToPlay(rate, block);
+      fresh.applyFactoryPreset(presetIndex("Big Saw"));
+
+      juce::MidiBuffer midi;
+      midi.addEvent(juce::MidiMessage::noteOn(1, 60, 1.0f), 0);
+      midi.addEvent(juce::MidiMessage::noteOn(1, 67, 1.0f), 0);
+
+      const auto stats =
+          renderBlocks(fresh, (int)(1.0 * rate / block) + 1, block, midi);
+
+      check(stats.finite, "at " + std::to_string((int)rate) +
+                              " Hz in blocks "
+                              "of " +
+                              std::to_string(block) +
+                              " every sample is a number");
+      check(stats.peak > 1.0e-3, "and the instrument actually sounds (" +
+                                     std::to_string(stats.peak) + ")");
+
+      // And in tune, which is the half that finiteness and loudness cannot
+      // see. An engine that believes every host runs at 48 kHz renders a
+      // perfectly good note two octaves down at 192 kHz: finite, audible and
+      // exactly as loud. Only the pitch says otherwise, so the pitch is what
+      // is asked.
+      if (block == 512) {
+        OvertoniumProcessor tone;
+        tone.setRateAndBufferSizeDetails(rate, block);
+        tone.prepareToPlay(rate, block);
+        tone.applyFactoryPreset(presetIndex("Big Saw"));
+
+        const auto wave = renderTone(tone, rate, block, 60, 0.6);
+        const double f0 = 261.6255653; // middle C
+        const double at = toneAt(wave, f0, rate);
+        const double below = toneAt(wave, f0 / 4.0, rate);
+        const double above = toneAt(wave, f0 * 4.0, rate);
+
+        // Measured across every rate here, the fundamental runs 150 to 400
+        // times the subharmonic and 12 to 17 times the fourth harmonic, so
+        // these leave a factor of three either way rather than sitting on
+        // the number.
+        check(at > 20.0 * below,
+              "and middle C at " + std::to_string((int)rate) +
+                  " Hz is not two octaves flat (" + std::to_string(at) +
+                  " against " + std::to_string(below) + ")");
+        check(at > 4.0 * above,
+              "nor two octaves sharp (" + std::to_string(above) + ")");
+      }
+
+      // 8 kHz is left out of the level comparison on purpose: most of the
+      // series is above its Nyquist and is correctly not there, which is a
+      // quieter patch rather than a broken one.
+      if (rate > 20000.0) {
+        lowest = std::min(lowest, (double)stats.peak);
+        highest = std::max(highest, (double)stats.peak);
+      }
+    }
+  }
+
+  // Measured at 0.457 to 0.462 across 22 kHz to 192 kHz, so a tenth is slack
+  // rather than a target. A rate-dependent coefficient shows up here long
+  // before it is audible.
+  check(highest < lowest * 1.1,
+        "and the same patch is the same loudness at every rate above 20 kHz (" +
+            std::to_string(lowest) + " to " + std::to_string(highest) + ")");
+}
+
+/// The safety clip's whole job is a bound, so the bound is checked.
+///
+/// It was not. One test switches the clipper off to measure headroom and
+/// nothing anywhere switched it on to see whether it does what its name says.
+/// The clipper is threshold + (1 - threshold) * tanh, which cannot exceed one
+/// by construction, and this is what holds that construction in place.
+void testTheSafetyClipHoldsUnity() {
+  section("The safety clip holds unity");
+
+  int sounded = 0;
+  float worst = 0.0f;
+
+  for (double rate : {44100.0, 48000.0, 96000.0}) {
+    OvertoniumProcessor fresh;
+    fresh.setRateAndBufferSizeDetails(rate, 256);
+    fresh.prepareToPlay(rate, 256);
+    fresh.applyFactoryPreset(presetIndex("Big Saw"));
+
+    const auto set = [&](const char *id, float v) {
+      if (auto *q = fresh.apvts.getParameter(id))
+        q->setValueNotifyingHost(v);
+    };
+
+    // Driving this by setting every parameter to its maximum does not work:
+    // that includes the envelope's delay and attack, and nothing sounds at all
+    // inside the render. The master opened to +12 dB over a patch that already
+    // sounds, with a fistful of notes on it, is what makes it loud.
+    set(ovt::params::masterGainId, 1.0f);
+    set(ovt::params::safetyClipId, 1.0f);
+
+    juce::MidiBuffer midi;
+    for (int note : {36, 43, 48, 52, 55, 59, 60, 64, 67, 72})
+      midi.addEvent(juce::MidiMessage::noteOn(1, note, 1.0f), 0);
+
+    const auto stats =
+        renderBlocks(fresh, (int)(1.5 * rate / 256.0) + 1, 256, midi);
+
+    check(stats.finite, "the clipped output at " + std::to_string((int)rate) +
+                            " Hz is a number");
+    check(stats.peak <= 1.0f,
+          "and never leaves unity (" + std::to_string(stats.peak) + ")");
+
+    worst = std::max(worst, stats.peak);
+    if (stats.peak > 1.0e-3)
+      ++sounded;
+  }
+
+  // Without this the two checks above pass on silence, which is how the first
+  // attempt at this test passed while rendering nothing.
+  check(sounded == 3, "and it was driven hard enough to mean it (peak " +
+                          std::to_string(worst) + ")");
+}
+
+/// Fit all 32 channels must land somewhere a drag can get back to.
+///
+/// setSize consults no limits, so the fit could put the window below the
+/// shortest one the constrainer allows. It did: the floor was worked out at
+/// the narrowest width, where the top bar takes three rows, and used at every
+/// width, so a fitted window sat 84 pixels under a floor of 997 and the first
+/// drag afterwards snapped it up. The floor now follows the width, which fixes
+/// that and also lets a wide window be dragged shorter than the fit leaves it,
+/// since the bar is two rows shorter there.
+void testFittingLandsWhereADragCanReturn(OvertoniumProcessor &p) {
+  section("Fitting lands where a drag can return");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  const auto *limits = editor->getConstrainer();
+
+  check(limits != nullptr, "and has limits on it");
+  if (limits == nullptr)
+    return;
+
+  editor->fitAllChannels();
+
+  const int fitted = editor->getHeight();
+  const int wideFloor = limits->getMinimumHeight();
+
+  check(fitted >= wideFloor,
+        "the fitted window is at or above its own floor (" +
+            std::to_string(fitted) + " against " + std::to_string(wideFloor) +
+            ")");
+
+  // Which is the half that would have passed on its own if the floor were
+  // simply lowered everywhere. It must still be a floor: narrow the window to
+  // where the bar needs another row and it has to rise.
+  const int fittedWidth = editor->getWidth();
+
+  editor->setSize(700, editor->getHeight());
+
+  const int narrowFloor = limits->getMinimumHeight();
+
+  check(
+      narrowFloor > wideFloor,
+      "and narrowing it, where the bar takes another row, raises the floor (" +
+          std::to_string(wideFloor) + " to " + std::to_string(narrowFloor) +
+          ")");
+
+  // The fit has to be using that room rather than merely being allowed it.
+  // Landing at or above the narrow window's floor would mean the wide window
+  // was still being held to the narrow one's chrome, which is the fault this
+  // is about, and it would read as legal because the floor had moved up to
+  // meet it.
+  check(fitted < narrowFloor,
+        "and the fitted window is shorter than a narrow one could ever be (" +
+            std::to_string(fitted) + " against " + std::to_string(narrowFloor) +
+            ")");
+
+  // The window has to have been taken with it, or the bar gains a row into
+  // space the mixer is still using and the strips run off the bottom.
+  check(editor->getHeight() >= narrowFloor,
+        "and takes the window up with it rather than leaving it short");
+
+  // Back out again, and the fit's height stops being the shortest thing
+  // available: the whole point of the floor following the width.
+  editor->setSize(fittedWidth, editor->getHeight());
+
+  check(limits->getMinimumHeight() == wideFloor,
+        "widening it puts the floor back");
+  check(limits->getMinimumHeight() < fitted,
+        "so a wide window can be dragged shorter than fitting leaves it");
+}
+
+void testFoldingAndUnfoldingIsSymmetric(OvertoniumProcessor &p) {
+  section("Folding and unfolding leaves the window where it was");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  ovt::ui::ChannelStrip *strip = nullptr;
+  std::function<void(juce::Component &)> find = [&](juce::Component &c) {
+    if (strip == nullptr)
+      if (auto *s = dynamic_cast<ovt::ui::ChannelStrip *>(&c))
+        strip = s;
+    for (auto *child : c.getChildren())
+      find(*child);
+  };
+  find(*editor);
+
+  check(strip != nullptr, "and carries a strip whose rules fold sections");
+  if (strip == nullptr)
+    return;
+
+  // Squeezed: down to the shortest the window will go, which is where the
+  // fader has given up everything it can and the fault shows. Asked of the
+  // constrainer rather than set to some small number, since setSize on its own
+  // does not go through it and a host's drag does.
+  auto *limits = editor->getConstrainer();
+
+  check(limits != nullptr, "and has resize limits to squeeze it against");
+  if (limits == nullptr)
+    return;
+
+  editor->setSize(editor->getWidth(), limits->getMinimumHeight());
+
+  const auto squeezed = editor->getHeight();
+
+  // A second apart, because a strip throws away a click bearing the same time
+  // as the one before it: that is how the echo of its own listener is told
+  // from a real click. Two folds a microsecond apart are one fold.
+  int clicks = 0;
+
+  const auto foldOnce = [&](ovt::ui::Section s) {
+    const auto rows =
+        ovt::ui::layoutRows(strip->getLocalBounds().reduced(
+                                ovt::ui::kStripPadX, ovt::ui::kStripPadY),
+                            0);
+
+    const auto rule = rows[(size_t)ovt::ui::sectionHeading(s)];
+    const auto when =
+        juce::Time::getCurrentTime() + juce::RelativeTime(++clicks);
+
+    strip->mouseDown(juce::MouseEvent(
+        juce::Desktop::getInstance().getMainMouseSource(),
+        rule.getCentre().toFloat(),
+        juce::ModifierKeys(juce::ModifierKeys::leftButtonModifier),
+        juce::MouseInputSource::defaultPressure,
+        juce::MouseInputSource::defaultOrientation,
+        juce::MouseInputSource::defaultRotation,
+        juce::MouseInputSource::defaultTiltX,
+        juce::MouseInputSource::defaultTiltY, strip, strip, when,
+        rule.getCentre().toFloat(), when, 1, false));
+  };
+
+  foldOnce(ovt::ui::Section::Envelope);
+  const auto folded = editor->getHeight();
+
+  foldOnce(ovt::ui::Section::Envelope);
+  const auto back = editor->getHeight();
+
+  std::printf("  squeezed to %d, folded to %d, unfolded back to %d\n", squeezed,
+              folded, back);
+
+  check(folded < squeezed, "folding takes the window down (" +
+                               std::to_string(squeezed) + " to " +
+                               std::to_string(folded) + ")");
+
+  check(back == squeezed, "and unfolding puts it back, not past it (" +
+                              std::to_string(squeezed) + " to " +
+                              std::to_string(back) + ")");
+
+  // ---- and from a window with room to spare ------------------------------
+  //
+  // The case the ordering in toggleSection was written for, and the one that
+  // went on working while the squeezed one did not: here the floor is below
+  // the window either way, so nothing is constrained and only the arithmetic
+  // moves it.
+  {
+    editor->setSize(editor->getWidth(), limits->getMinimumHeight() + 240);
+
+    const auto roomy = editor->getHeight();
+
+    foldOnce(ovt::ui::Section::KeyOff);
+    const auto shorter = editor->getHeight();
+
+    foldOnce(ovt::ui::Section::KeyOff);
+
+    std::printf("  with room to spare: %d, folded to %d, back to %d\n", roomy,
+                shorter, editor->getHeight());
+
+    check(shorter < roomy && editor->getHeight() == roomy,
+          "a window with room folds and comes back to where it was (" +
+              std::to_string(roomy) + " to " +
+              std::to_string(editor->getHeight()) + ")");
+  }
+}
+
+/// LINK comes back the way it was left.
+///
+/// Reported as LINK not being retained when the plugin is closed and opened.
+/// Two thirds of it were: the scope and the curve have always been written to
+/// the editor's state, and the switch that decides whether either of them
+/// applies was not. So a window reopened remembering exactly how a drag would
+/// be shared out, with the drag switched off.
+///
+/// All three are checked rather than the one that was missing, so the next
+/// setting added here cannot be the one forgotten.
+void testLinkSurvivesAReopen(OvertoniumProcessor &p) {
+  section("LINK survives a reopen");
+
+  const auto reopen = [&p]() {
+    std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+    auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+    auto *bar = editor != nullptr ? findTopBar(*editor) : nullptr;
+
+    return std::pair<std::unique_ptr<juce::AudioProcessorEditor>,
+                     ovt::ui::TopBar *>(std::move(base), bar);
+  };
+
+  // ---- left on, and set to something other than the defaults --------------
+  {
+    auto [window, bar] = reopen();
+
+    check(bar != nullptr, "the editor opens with a bar");
+    if (bar == nullptr)
+      return;
+
+    bar->setLinkEnabled(true);
+    bar->setLinkScope(ovt::ui::LinkScope::Odd);
+    bar->setLinkCurve(ovt::ui::LinkCurve::Spread);
+
+    check(bar->onLinkSettingsChanged != nullptr,
+          "and the bar reports its settings to the editor");
+
+    if (bar->onLinkSettingsChanged)
+      bar->onLinkSettingsChanged();
+  }
+
+  {
+    auto [window, bar] = reopen();
+
+    check(bar != nullptr, "it opens again");
+    if (bar == nullptr)
+      return;
+
+    std::printf("  reopened with LINK %s, scope %s, curve %s\n",
+                bar->isLinkEnabled() ? "on" : "off",
+                ovt::ui::linkScopeName(bar->getLinkScope()),
+                ovt::ui::linkCurveName(bar->getLinkCurve()));
+
+    check(bar->isLinkEnabled(), "with LINK still on");
+    check(bar->getLinkScope() == ovt::ui::LinkScope::Odd,
+          "and the scope it was left on");
+    check(bar->getLinkCurve() == ovt::ui::LinkCurve::Spread,
+          "and the curve it was left on");
+  }
+
+  // ---- and switched off again, which has to stick as well ------------------
+  //
+  // A setting that is only written when it is true reads as working until
+  // somebody turns it off.
+  {
+    auto [window, bar] = reopen();
+
+    if (bar == nullptr)
+      return;
+
+    bar->setLinkEnabled(false);
+
+    if (bar->onLinkSettingsChanged)
+      bar->onLinkSettingsChanged();
+  }
+
+  {
+    auto [window, bar] = reopen();
+
+    if (bar == nullptr)
+      return;
+
+    check(!bar->isLinkEnabled(), "switching it off sticks too");
+    check(bar->getLinkScope() == ovt::ui::LinkScope::Odd,
+          "and the scope is still where it was");
+  }
+}
+
+/// Holding the modifier draws the faders a drag passes over.
+///
+/// Setting neighbouring partials one fader at a time is the tedious way to
+/// shape a spectrum, which is most of what this instrument is for. Held, a
+/// drag across the fader area sets each column it crosses from the pointer's
+/// height instead of moving one of them.
+///
+/// It is not LINK by another name. LINK shares one relative move out across a
+/// scope by a rule; this sets absolute values freehand, and neither can do the
+/// other's job.
+void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
+  section("Drawing the faders");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  editor->setSize(editor->getWidth(), editor->getHeight());
+
+  auto *target = dynamic_cast<ovt::ui::LinkTarget *>(editor);
+
+  check(target != nullptr, "and takes drawn drags");
+  if (target == nullptr)
+    return;
+
+  const auto levelOf = [&p](int channel) {
+    auto *param = p.apvts.getParameter(
+        ovt::params::oscParamId(ovt::params::volumeSuffix, channel));
+    return param != nullptr ? param->getValue() : -1.0f;
+  };
+
+  // Where each strip's fader stands on screen, so a line can be drawn across
+  // them the way a hand would.
+  std::vector<ovt::ui::ChannelStrip *> strips;
+  std::function<void(juce::Component &)> gather = [&](juce::Component &c) {
+    if (auto *s = dynamic_cast<ovt::ui::ChannelStrip *>(&c))
+      strips.push_back(s);
+    for (auto *child : c.getChildren())
+      gather(*child);
+  };
+  gather(*editor);
+
+  check(strips.size() == (size_t)ovt::kNumHarmonics,
+        "and shows all its channels (" + std::to_string(strips.size()) + ")");
+
+  if (strips.size() < 4)
+    return;
+
+  // The two switches in the caption gutter, found by the words on them. DRAW
+  // latches the tool on without the modifier, which is what a test can reach:
+  // holding a key is not something a headless run can do.
+  const auto switchNamed = [&](const juce::String &text) -> juce::TextButton * {
+    juce::TextButton *found = nullptr;
+
+    std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+      if (auto *b = dynamic_cast<juce::TextButton *>(&c))
+        if (b->getButtonText() == text)
+          found = b;
+      for (auto *child : c.getChildren())
+        look(*child);
+    };
+    look(*editor);
+
+    return found;
+  };
+
+  auto *drawSwitch = switchNamed("DRAW");
+  auto *linkSwitch = switchNamed("LINK");
+
+  check(drawSwitch != nullptr && linkSwitch != nullptr,
+        "the gutter carries a DRAW switch beside LINK");
+
+  if (drawSwitch == nullptr || linkSwitch == nullptr)
+    return;
+
+  // ---- without the modifier, nothing is taken -----------------------------
+  //
+  // The fader moves itself, as it always has, and the drawing never hears
+  // about the drag.
+  {
+    const auto here =
+        strips[0]->localPointToGlobal(strips[0]->getLocalBounds().getCentre());
+
+    check(!target->drawStarted(here),
+          "a drag with nothing held is left to the fader");
+  }
+
+  // ---- held, a line across four columns sets all four ----------------------
+  {
+    if (drawSwitch->onClick)
+      drawSwitch->onClick();
+
+    check(drawSwitch->getToggleState(), "the switch lights when it is latched");
+
+    // ---- and the faders light to say where the drawing reaches ------------
+    //
+    // The same preview LINK uses to say what the next drag would touch, in the
+    // accent rather than each channel's own colour, since every fader is
+    // equally drawable and the band is one surface rather than 33 answers.
+    {
+      const auto faderOf = [](juce::Component &strip) -> juce::Slider * {
+        juce::Slider *found = nullptr;
+
+        std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+          if (auto *s = dynamic_cast<juce::Slider *>(&c))
+            if (s->getSliderStyle() == juce::Slider::LinearVertical)
+              found = s;
+          for (auto *child : c.getChildren())
+            look(*child);
+        };
+        look(strip);
+
+        return found;
+      };
+
+      auto *fader = faderOf(*strips[0]);
+
+      check(fader != nullptr, "a strip has a fader to light");
+
+      if (fader != nullptr) {
+        const auto glow =
+            (double)fader->getProperties().getWithDefault("linkGlow", 0.0);
+        const auto accent =
+            (bool)fader->getProperties().getWithDefault("glowAccent", false);
+
+        std::printf("  armed, a fader glows at %.2f, in the accent: %s\n", glow,
+                    accent ? "yes" : "no");
+
+        check(glow > 0.9, "the faders light while the tool is armed (" +
+                              std::to_string(glow) + ")");
+        check(accent, "and in the accent rather than the channel's colour");
+      }
+    }
+
+    const auto before = levelOf(1);
+
+    // Along the tops of the strips, which is full level, from channel 1 to 4.
+    const auto top = [&](int i) {
+      const auto bounds = strips[(size_t)i]->getLocalBounds();
+      return strips[(size_t)i]->localPointToGlobal(
+          juce::Point<int>(bounds.getCentreX(), bounds.getY()));
+    };
+
+    check(target->drawStarted(top(0)), "a drag with it held is taken");
+
+    target->drawMovedTo(top(3));
+    target->drawEnded();
+
+    std::printf("  channels 1 to 4 drawn to %.3f, %.3f, %.3f, %.3f, from "
+                "%.3f\n",
+                levelOf(0), levelOf(1), levelOf(2), levelOf(3), before);
+
+    bool allUp = true;
+    for (int i = 0; i < 4; ++i)
+      allUp &= levelOf(i) > 0.9f;
+
+    check(allUp, "every channel the line crossed went with it");
+
+    // ---- and the columns between are not skipped -------------------------
+    //
+    // Two events can be several strips apart, and drawing only where they
+    // landed leaves holes exactly where the hand moved fastest.
+    check(levelOf(1) > 0.9f && levelOf(2) > 0.9f,
+          "including the ones no event landed on");
+  }
+
+  // ---- and a channel the line never reached is untouched ------------------
+  {
+    check(levelOf(20) < 0.9f, "a channel away from the line is left alone (" +
+                                  std::to_string(levelOf(20)) + ")");
+  }
+
+  // ---- and LINK reads as off while it is armed ----------------------------
+  //
+  // Without being off: the setting is untouched and comes back the moment the
+  // tool is let go. A switch left lit for a gesture that has been taken away
+  // from it is a lie the mouse-up would expose.
+  {
+    check(!linkSwitch->getToggleState(),
+          "LINK reads as off while drawing has the drag");
+
+    if (drawSwitch->onClick)
+      drawSwitch->onClick();
+
+    check(!drawSwitch->getToggleState(), "and the switch goes out again");
+
+    // Nothing is left lit once the tool is let go, which is the half a
+    // highlight most easily gets wrong.
+    juce::Slider *fader = nullptr;
+    std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+      if (auto *s = dynamic_cast<juce::Slider *>(&c))
+        if (s->getSliderStyle() == juce::Slider::LinearVertical)
+          fader = s;
+      for (auto *child : c.getChildren())
+        look(*child);
+    };
+    look(*strips[0]);
+
+    if (fader != nullptr)
+      check(ovt::exactly(
+                (double)fader->getProperties().getWithDefault("linkGlow", 1.0),
+                0.0),
+            "and the faders go dark with it");
+  }
+}
+
+/// The tick in the Zoom submenu, which is the only thing on the panel that
+/// says which zoom you are at.
+///
+/// The editor holds the zoom and the bar holds a copy of it to draw the tick
+/// from, and the restore was the only thing that ever wrote the copy. So the
+/// window scaled correctly and the menu went on ticking 100%. Driven through
+/// the callback the menu item calls, since opening the menu needs a window.
+void testZoomTickFollowsTheZoom(OvertoniumProcessor &p) {
+  section("The zoom tick follows the zoom");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  auto *bar = findTopBar(*editor);
+
+  check(bar != nullptr, "and carries a bar to read the menu off");
+  if (bar == nullptr)
+    return;
+
+  const auto ticked = [bar]() {
+    // Named rather than iterated off the call, since the iterator keeps a
+    // reference to it. Whatever is ticked, so two ticks fail as loudly as none.
+    auto menu = bar->buildSettingsMenu();
+    std::string found;
+
+    for (juce::PopupMenu::MenuItemIterator it(menu); it.next();) {
+      const auto &item = it.getItem();
+
+      if (item.text != "Zoom" || item.subMenu == nullptr)
+        continue;
+
+      for (juce::PopupMenu::MenuItemIterator sub(*item.subMenu); sub.next();)
+        if (sub.getItem().isTicked)
+          found += sub.getItem().text.toStdString();
+    }
+
+    return found;
+  };
+
+  // Every zoom the menu offers, asked for in turn rather than compared against
+  // where the state happened to leave this editor, and ending at 100% for
+  // whatever runs next.
+  for (const auto factor : {1.25f, 0.75f, 1.5f, 1.0f}) {
+    const auto reads = std::to_string(juce::roundToInt(factor * 100.0f)) + "%";
+
+    bar->onZoomChanged(factor);
+
+    check(ticked() == reads,
+          "the window at " + reads + " ticks " + reads + " (" + ticked() + ")");
+  }
+}
+
+/// That every word the bar has to say fits in the button that says it.
+///
+/// The bar shouts in capitals at a font it picks from its own height, so the
+/// widest name a control can show decides how wide that control has to be.
+/// Measured rather than eyeballed, because the failure is silent: a name that
+/// does not fit is drawn with the middle taken out of it and nothing says so.
+void testBarButtonsFitTheirWords(OvertoniumProcessor &p) {
+  section("Words on the bar");
+
+  using namespace ovt::ui;
+
+  juce::Component popupParent;
+  TopBar bar(p.apvts, popupParent);
+
+  // The height the bar lays its controls out at, which is what the font comes
+  // from. See kControlHeight.
+  const auto font = makeFont(13.0f, true);
+
+  const auto widest = [&font](const juce::StringArray &words) {
+    int most = 0;
+    for (const auto &w : words)
+      most =
+          std::max(most, (int)std::ceil(juce::GlyphArrangement::getStringWidth(
+                             font, w.toUpperCase())));
+
+    return most;
+  };
+
+  // The short names, which is what the button shows, plus the word it shows
+  // instead when the effect is off. The menu says what each machine is and has
+  // the room to; the caption under the button says which effect it belongs to.
+  juce::StringArray echoWords{"Off"};
+  for (int i = 0; i < (int)ovt::EchoType::NumTypes; ++i)
+    echoWords.add(ovt::echoTypeShortName((ovt::EchoType)i));
+
+  // The short names again, which is what the button shows.
+  juce::StringArray reverbWords{"Off"};
+  for (int i = 0; i < (int)ovt::ReverbType::NumTypes; ++i)
+    reverbWords.add(ovt::reverbTypeShortName((ovt::ReverbType)i));
+
+  const auto reverbText = widest(reverbWords);
+  const auto echoText = widest(echoWords);
+  const auto characterText = widest(ovt::params::characterChoices());
+
+  std::printf("  the echo's longest word is %d px and the character's %d, in "
+              "buttons of %d and %d\n",
+              echoText, characterText, TopBar::kEchoWidth,
+              TopBar::kCharacterWidth);
+
+  // Air either side, which every other button on the bar has.
+  check(echoText + 8 <= TopBar::kEchoWidth,
+        "every machine the echo can be fits in its button (" +
+            std::to_string(echoText) + " px in " +
+            std::to_string(TopBar::kEchoWidth) + ")");
+
+  check(characterText + 8 <= TopBar::kCharacterWidth,
+        "and every character fits in its own (" +
+            std::to_string(characterText) + " px in " +
+            std::to_string(TopBar::kCharacterWidth) + ")");
+
+  std::printf("  the reverb's longest word is %d px, in a button of %d\n",
+              reverbText, TopBar::kReverbWidth);
+
+  check(reverbText + 8 <= TopBar::kReverbWidth,
+        "and every reverb fits in its own (" + std::to_string(reverbText) +
+            " px in " + std::to_string(TopBar::kReverbWidth) + ")");
+
+  // ---- the clipper's switch, which is the shortest button on the bar -------
+  //
+  // At 16 px tall it picks a 9 px font for itself rather than the 13 the taller
+  // buttons get, so it is measured at that rather than at theirs.
+  {
+    const auto shortFont =
+        makeFont(juce::jlimit(8.0f, 13.0f, 16.0f * 0.58f), true);
+    const auto clipText = (int)std::ceil(juce::GlyphArrangement::getStringWidth(
+        shortFont, juce::String(TopBar::kClipName)));
+
+    std::printf("  %s measures %d px in a button of %d\n", TopBar::kClipName,
+                clipText, TopBar::kClipWidth);
+
+    check(clipText + 8 <= TopBar::kClipWidth,
+          "the clipper's switch fits its word (" + std::to_string(clipText) +
+              " px in " + std::to_string(TopBar::kClipWidth) + ")");
+  }
+
+  // ---- and the word under each of them -------------------------------------
+  //
+  // The button shows a value, so the group is named underneath it in the band
+  // the knob captions occupy, at the font those captions use. A word wider
+  // than the button it sits under is drawn with its middle taken out, and the
+  // knob caption six pixels to its right would have it running into that.
+  {
+    const auto captionFont = makeFont(9.0f, true);
+
+    const int widths[] = {TopBar::kCharacterWidth, TopBar::kEchoWidth,
+                          TopBar::kReverbWidth};
+
+    for (size_t i = 0; i < std::size(TopBar::kGroupNames); ++i) {
+      const juce::String word(TopBar::kGroupNames[i]);
+      const auto measured = (int)std::ceil(
+          juce::GlyphArrangement::getStringWidth(captionFont, word));
+
+      std::printf("  %-9s under a button of %d px measures %d\n",
+                  word.toRawUTF8(), widths[i], measured);
+
+      check(measured + 4 <= widths[i],
+            "the word " + word.toStdString() +
+                " fits under the button it names (" + std::to_string(measured) +
+                " px in " + std::to_string(widths[i]) + ")");
+    }
+  }
+}
+
+/// The width the bar comes onto one row at, which the design notes quote and
+/// which every control added to it moves.
+void testBarComesOntoOneRow(OvertoniumProcessor &) {
+  section("One row");
+
+  using namespace ovt::ui;
+
+  const auto tall = TopBar::heightForWidth(900);
+  int onOneRow = 0;
+
+  for (int w = 900; w <= 1600; ++w)
+    if (TopBar::heightForWidth(w) < tall) {
+      onOneRow = w;
+      break;
+    }
+
+  std::printf("  the bar comes onto one row at %d px, and the window opens at "
+              "1340, so there are %d px of slack\n",
+              onOneRow, 1340 - onOneRow);
+
+  check(onOneRow > 0 && onOneRow <= 1340,
+        "the bar is on one row at the width the window opens at (" +
+            std::to_string(onOneRow) + ")");
+
+  // The figure the design notes quote. It moves whenever a control on the bar
+  // changes width, and when it moves the notes move with it.
+  check(onOneRow == 1258, "and comes onto it at the width written down (" +
+                              std::to_string(onOneRow) + ")");
 }
 
 void testTopBarAlignment(OvertoniumProcessor &p) {
@@ -3363,6 +5133,21 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
       if (dynamic_cast<SegmentDisplay *>(child) != nullptr)
         continue;
 
+      // Nor does the master fader, which is aligned to the lamps it lies over
+      // rather than to the row. The meter carrying those lamps is on the row
+      // and is checked like everything else, and the fader is checked against
+      // the meter below, which is the alignment that can actually be seen.
+      if (auto *slider = dynamic_cast<juce::Slider *>(child))
+        if (slider->getSliderStyle() == juce::Slider::LinearHorizontal)
+          continue;
+
+      // Nor the clipper's switch, which stands in the caption band beside the
+      // readouts rather than on the line with the other buttons. Checked with
+      // them below, for the same reason they are.
+      if (auto *button = dynamic_cast<juce::TextButton *>(child))
+        if (button->getButtonText() == TopBar::kClipName)
+          continue;
+
       // A knob's line is its dial, not the control, which reaches further down
       // to hold the caption.
       if (auto *knob = dynamic_cast<LabelledKnob *>(child))
@@ -3373,6 +5158,45 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
 
     return centres;
   };
+
+  // The fader has one alignment to keep and it is not the row's: it has to
+  // stand on the lamps. A cap floating below them reads as a control that has
+  // come loose, and it did, because the meter keeps its decibel marks in a
+  // strip under the bars and the fader was given the whole meter to lie on.
+  {
+    bar.setSize(1412, TopBar::heightForWidth(1412));
+
+    const StereoOutputMeter *meter = nullptr;
+    const juce::Slider *fader = nullptr;
+
+    for (auto *child : bar.getChildren()) {
+      if (auto *m = dynamic_cast<StereoOutputMeter *>(child))
+        meter = m;
+
+      if (auto *s = dynamic_cast<juce::Slider *>(child))
+        if (s->getSliderStyle() == juce::Slider::LinearHorizontal)
+          fader = s;
+    }
+
+    check(meter != nullptr && fader != nullptr,
+          "the output group has a meter and a fader over it");
+
+    if (meter != nullptr && fader != nullptr) {
+      const auto lamps = meter->barBounds() + meter->getPosition();
+
+      check(fader->getBounds().getCentreY() == lamps.getCentreY(),
+            "and the fader is centred on the lamps rather than on the scale "
+            "marks under them");
+
+      // Standing proud of them at both ends, like a channel's cap against its
+      // own meter, and by the same amount at each end so it stays centred.
+      const auto proud = lamps.getY() - fader->getBounds().getY();
+
+      check(proud > 0 && proud <= 4,
+            "and stands a little proud of them at both ends (" +
+                std::to_string(proud) + " px)");
+    }
+  }
 
   // One row, two rows and three, since each row lays itself out afresh.
   for (int width : {1412, 1100, 900, TopBar::minimumWidth()}) {
@@ -3396,38 +5220,47 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
                        at);
   }
 
-  // And the readouts sit under the meter, inside the row, at every width the
-  // bar can be given. Excluding them from the rule above would otherwise be a
-  // hole rather than a decision.
+  // And the three things under the meter sit under it, inside the row, at
+  // every width the bar can be given. Excluding them from the rule above would
+  // otherwise be a hole rather than a decision.
   for (int width : {1412, 1100, 900, TopBar::minimumWidth()}) {
     bar.setSize(width, TopBar::heightForWidth(width));
 
     juce::Rectangle<int> meterBounds;
-    juce::Array<juce::Rectangle<int>> readouts;
+    juce::Array<juce::Rectangle<int>> under;
 
     for (auto *child : bar.getChildren()) {
       if (dynamic_cast<StereoOutputMeter *>(child) != nullptr)
         meterBounds = child->getBounds();
 
       if (dynamic_cast<SegmentDisplay *>(child) != nullptr)
-        readouts.add(child->getBounds());
+        under.add(child->getBounds());
+
+      if (auto *button = dynamic_cast<juce::TextButton *>(child))
+        if (button->getButtonText() == TopBar::kClipName)
+          under.add(button->getBounds());
     }
 
     const auto at = " (" + std::to_string(width) + " px)";
 
-    check(readouts.size() == 2, "both converter readouts are placed" + at);
+    check(under.size() == 3,
+          "both converter readouts and the clipper's switch are placed" + at);
 
     bool below = !meterBounds.isEmpty();
-    for (const auto &r : readouts)
+    for (const auto &r : under)
       below &= !r.isEmpty() && r.getY() >= meterBounds.getBottom() &&
                r.getBottom() <= bar.getHeight();
 
-    check(below, "and both sit under the meter without leaving the bar" + at);
+    check(below,
+          "and all three sit under the meter without leaving the bar" + at);
 
-    // Side by side rather than one on top of the other or overlapping.
-    if (readouts.size() == 2)
-      check(!readouts[0].intersects(readouts[1]),
-            "and do not overlap each other" + at);
+    // Side by side rather than stacked or overlapping.
+    bool apart = true;
+    for (int i = 0; i < under.size(); ++i)
+      for (int j = i + 1; j < under.size(); ++j)
+        apart &= !under[i].intersects(under[j]);
+
+    check(apart, "and none of the three overlaps another" + at);
   }
 
   // A number with no unit beside it is a number nobody can read. At the width
@@ -4925,6 +6758,36 @@ void testUpdateCheckIsQuiet(OvertoniumProcessor &p) {
         "and so does one on an instance that has been used");
 }
 
+/// The preference survives the object that wrote it.
+///
+/// It used to be held in one shared PropertiesFile that lived in a static,
+/// which made this unfalsifiable: a write and a read went to the same object
+/// in memory and agreed with each other whatever the file on disk said, or
+/// whether there was one. That static was a deadlock on unload, so the file is
+/// now built where it is used and destroyed there, and every read is a fresh
+/// object reading the disk. Which means the two can now disagree, if the path
+/// is ever computed differently between one call and the next, and that is
+/// what this is here to catch.
+///
+/// The preference is put back afterwards. It is machine-wide and belongs to
+/// whoever is running the tests, not to the tests.
+void testThePreferenceOutlivesItsWriter() {
+  section("The preference outlives its writer");
+
+  const bool before = ovt::updateCheckAllowed();
+
+  ovt::setUpdateCheckAllowed(true);
+  check(ovt::updateCheckAllowed(),
+        "a preference written by one file is read back by the next");
+
+  ovt::setUpdateCheckAllowed(false);
+  check(!ovt::updateCheckAllowed(), "and so is the other answer");
+
+  ovt::setUpdateCheckAllowed(before);
+  check(ovt::updateCheckAllowed() == before,
+        "and the machine is left as it was found");
+}
+
 /// The fetch belongs to the instance, not to the window.
 ///
 /// Which is what lets a window close without waiting for a socket. If the
@@ -5385,6 +7248,8 @@ int main() {
   testParameterWiring(processor);
   testChoiceParameterCounts(processor);
   testRendering(processor);
+  testReleaseVelocity(processor);
+  testBusStageFollowsTheCharacter(processor);
   testPresets(processor);
   testAftertouchMidi(processor);
   testMpe(processor);
@@ -5407,11 +7272,26 @@ int main() {
   testModulatorsInPhase(processor);
   testSettingsMenu(processor);
   testFitAllChannels(processor);
+  testZoomTickFollowsTheZoom(processor);
+  testDrawingAcrossTheFaders(processor);
+  testLinkSurvivesAReopen(processor);
+  testFoldingAndUnfoldingIsSymmetric(processor);
+  testFittingLandsWhereADragCanReturn(processor);
+  testTheRulesFoldTheirSections(processor);
+  testOneRightClickOpensOneMenu(processor);
+  testWheelOverAKnobStaysOnTheKnob(processor);
+  testACorruptStateCannotPoisonTheOutput();
+  testEveryHostRateStaysFinite();
+  testTheSafetyClipHoldsUnity();
+  testSettingsNamesTheVersion(processor);
+  testMachineMenusFollowTheirParameters(processor);
   testPresetMenuGroups(processor);
   testPresetsTellTheHostOnlyWhatChanged(processor);
   testShapeButtonFollowsTheParameter(processor);
   testFirstProgramIsReachable();
   testPresetNameOutlivesTheWindow();
+  testBarButtonsFitTheirWords(processor);
+  testBarComesOntoOneRow(processor);
   testTopBarAlignment(processor);
   testKnobSizes(processor);
   testNoDeadTravel(processor);
@@ -5430,6 +7310,7 @@ int main() {
   testCollapsibleSections();
   testUpdateCheck();
   testUpdateCheckIsQuiet(processor);
+  testThePreferenceOutlivesItsWriter();
   testUpdateCheckOutlivesEditors(processor);
   testEveryControlIsNamed(processor);
   testSoloAndMute(processor);

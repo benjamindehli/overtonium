@@ -8,7 +8,7 @@ Three layers, and the boundary between the first two is the one that matters.
 
 **A DSP core with no JUCE in it.** Everything under `Source/dsp/` compiles from a bare compiler with no framework and no third-party headers. That is checked rather than asserted: a CI job builds it with `c++ -std=c++17 -Wall -Wextra -Werror` and runs its tests, so an accidental `#include <juce_core/...>` fails the build. The benefit is that the part with the arithmetic in it can be tested without a plugin host, a display or a build system.
 
-**A JUCE layer** that owns parameters, MIDI, state and the editor. `PluginProcessor` handles notes and rendering, `PluginParameters` declares the 784 parameters and flattens them into a plain snapshot the audio thread can read, and `Presets` holds the thirty-one factory patches.
+**A JUCE layer** that owns parameters, MIDI, state and the editor. `PluginProcessor` handles notes and rendering, `PluginParameters` declares the 784 parameters and flattens them into a plain snapshot the audio thread can read, and `Presets` holds the thirty-two factory patches.
 
 **A UI layer** under `Source/UI/`, which draws the mixer and knows nothing about how sound is made.
 
@@ -21,6 +21,8 @@ The audio thread reads a snapshot of the parameters rather than the `AudioProces
 The message thread owns the editor and the state tree. Values the editor displays, meters, lamps and voice counts, are published as atomics by the render loop and polled, rather than pushed.
 
 Work that arrives over MIDI but belongs to the message thread goes the same way round. A program change is a preset load, which moves hundreds of parameters and reports each one to the host, so the audio thread stores the number in an atomic and a 20 Hz timer on the processor picks it up. Nothing is posted from the audio thread, which would take the message queue's lock.
+
+There is a third lifetime, and it is the one that catches people out. A plugin is a library the host loads and later unloads, so anything with static lifetime is destroyed at unload rather than when the last instance is removed. By then JUCE has shut its event system down, and on Windows the destructors run under the loader lock, which is also the lock a thread needs in order to finish exiting. Any static that joins a thread on the way out therefore deadlocks the host rather than merely being late. The statics here are a handful of tables, an identifier or two and one cached image, and none of them owns a thread or needs the event system to be destroyed. That property is the thing to check before adding another, and it is easier to lose than it looks: `juce::PropertiesFile` privately inherits `juce::Timer`, and every `Timer` holds a reference to the single thread JUCE runs timers on, so a settings file kept in a static is a thread join at unload without a word in the code to say so.
 
 ## Layout
 
@@ -41,10 +43,16 @@ Source/
     Envelope.h      per-partial delay, ADSR and the two-stage key-off
     Params.h        plain-data parameter snapshot
     Voice.*         32 partials, one note
-    TapeEcho.*      the master echo
-    Reverb.*        the master reverb, a feedback delay network
+    Halfband.h      the half-band filter the drive oversamples through
+    BusDrive.*      the drive each character puts on the summed mix
+    TapeEcho.*      the master echo as a tape loop
+    BucketEcho.*    the same as a line of buckets
+    DigitalEcho.*   the same as a ping-pong digital delay
+    Reverb.*        the master reverb as a feedback delay network
+    PlateReverb.*   the same as a modulated plate
+    SpringReverb.*  the same as a tray of springs
     SynthEngine.*   voice pool, allocation, stealing, effects, master stage
-  PluginParameters.*  APVTS layout, 784 parameters, and the audio-thread snapshot
+  PluginParameters.*  APVTS layout, 786 parameters, and the audio-thread snapshot
   Presets.*           factory presets
   PluginProcessor.*   MIDI handling, sample-accurate rendering, state
   PluginEditor.*      window, zoom, LINK, gutter
@@ -83,4 +91,4 @@ The factory presets are generated C++ rather than data files, converted from pat
 
 ## Formats
 
-`juce_add_plugin` builds VST3 and standalone everywhere, an Audio Unit on macOS and LV2 on Linux. Most of the plugin does not know which it is inside, with one deliberate exception: `getNumPrograms` reports the thirty-one factory presets to the Audio Unit alone, because Logic reads its preset menu from there, while a program count above one makes the VST3 wrapper publish an automatable parameter that would rewrite every other parameter when it moves.
+`juce_add_plugin` builds VST3 and standalone everywhere, an Audio Unit on macOS and LV2 on Linux. Most of the plugin does not know which it is inside, with one deliberate exception: `getNumPrograms` reports the thirty-two factory presets to the Audio Unit alone, because Logic reads its preset menu from there, while a program count above one makes the VST3 wrapper publish an automatable parameter that would rewrite every other parameter when it moves.

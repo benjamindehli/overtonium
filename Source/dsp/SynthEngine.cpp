@@ -42,7 +42,12 @@ void SynthEngine::prepare(double newSampleRate) noexcept {
     voices[i].prepare(sampleRate, (uint32_t)(i + 1) * 2654435761u);
 
   wobble.prepare(sampleRate);
+  busDrive.prepare(sampleRate);
   echo.prepare(sampleRate);
+  bucket.prepare(sampleRate);
+  digital.prepare(sampleRate);
+  plate.prepare(sampleRate);
+  spring.prepare(sampleRate);
   reverb.prepare(sampleRate);
 
   reset();
@@ -53,7 +58,12 @@ void SynthEngine::reset() noexcept {
     v.reset();
 
   wobble.reset();
+  busDrive.reset();
   echo.reset();
+  bucket.reset();
+  digital.reset();
+  plate.reset();
+  spring.reset();
   reverb.reset();
 
   heldBySustain.fill(false);
@@ -279,13 +289,15 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
   target->setAge(++ageCounter);
 }
 
-void SynthEngine::noteOff(int note) noexcept { noteOffImpl(0, note); }
-
-void SynthEngine::noteOffPerNote(int channel, int note) noexcept {
-  noteOffImpl(channel, note);
+void SynthEngine::noteOff(int note, float lift) noexcept {
+  noteOffImpl(0, note, lift);
 }
 
-void SynthEngine::noteOffImpl(int channel, int note) noexcept {
+void SynthEngine::noteOffPerNote(int channel, int note, float lift) noexcept {
+  noteOffImpl(channel, note, lift);
+}
+
+void SynthEngine::noteOffImpl(int channel, int note, float lift) noexcept {
   if (legato) {
     legatoRelease(note);
 
@@ -310,10 +322,12 @@ void SynthEngine::noteOffImpl(int channel, int note) noexcept {
     auto &v = voices[i];
 
     if (matches(v, channel, note) && !v.isReleasing()) {
-      if (sustainDown)
+      if (sustainDown) {
         heldBySustain[i] = true;
-      else
-        v.noteOff();
+        heldLift[i] = lift;
+      } else {
+        v.noteOff(lift);
+      }
     }
   }
 }
@@ -326,8 +340,9 @@ void SynthEngine::setSustainPedal(bool down) noexcept {
 
   for (size_t i = 0; i < voices.size(); ++i) {
     if (heldBySustain[i]) {
-      voices[i].noteOff();
+      voices[i].noteOff(heldLift[i]);
       heldBySustain[i] = false;
+      heldLift[i] = 1.0f;
     }
   }
 }
@@ -624,14 +639,27 @@ void SynthEngine::render(float *left, float *right, int numSamples,
 
   renderVoices(left, right, numSamples, p);
 
+  // ---- the bus the series is summed onto -----------------------------------
+  // Before the effects, since this is the summing amplifier rather than
+  // something applied to what comes out of one. See BusDrive.
+  busDrive.process(left, right, numSamples, p.global.character,
+                   p.global.busDrive);
+
   // ---- master effects, ahead of the fader ----------------------------------
   // The channel meters above read the partials themselves, so they are taken
   // before this point. The output meter is taken after it, which is why the
   // two disagree once a tail is ringing: that is the effects, and it should
   // show.
   wobble.process(left, right, numSamples, p.global.wobbleAmount);
+  // Both are asked and each decides whether the type is its own, so the one
+  // that is not chosen empties its loop rather than holding a tail that would
+  // come back if you switched to it.
   echo.process(left, right, numSamples, p.echo);
+  bucket.process(left, right, numSamples, p.echo);
+  digital.process(left, right, numSamples, p.echo);
   reverb.process(left, right, numSamples, p.reverb);
+  plate.process(left, right, numSamples, p.reverb);
+  spring.process(left, right, numSamples, p.reverb);
 
   // ---- master gain, smoothed over ~10 ms so fader moves do not zipper -------
   const float target = std::max(0.0f, p.global.masterGain);

@@ -36,10 +36,39 @@ public:
   /// mixer's rows, so it folds with everything else.
   void setCollapsedSections(SectionMask);
 
+  /// Asked for when a click lands on one of the rules between sections, which
+  /// line up with the gutter's headings and do the same thing.
+  std::function<void(Section)> onSectionToggled;
+
+  /// Sets this channel's fader from a height, for a drag drawing across the
+  /// mixer. It is not a harmonic, but it is a fader. See
+  /// ChannelStrip::drawFaderAt.
+  void drawFaderAt(int y);
+
+  /// Lights this channel's fader while a drag across the mixer would draw it.
+  /// LINK never reaches the noise channel, so it has no preview of its own and
+  /// this is the only thing that lights its fader.
+  void setDrawGlow(bool);
+
   void mouseDown(const juce::MouseEvent &) override;
   void mouseEnter(const juce::MouseEvent &) override;
   void mouseMove(const juce::MouseEvent &) override;
   void mouseExit(const juce::MouseEvent &) override;
+
+  /// Keeps a wheel that landed on a control from scrolling the mixer as well.
+  ///
+  /// The strip listens to everything inside it, so that a pointer resting on a
+  /// knob is reported by the strip rather than swallowed by the control. JUCE
+  /// hands that listener every event, wheels included, and Component's own
+  /// handler passes whatever it is given up to the parent. So a scroll the
+  /// knob had already taken went on to the viewport and dragged the series
+  /// sideways under the hand that was turning the knob, whenever the window
+  /// was narrow enough for there to be anything to scroll.
+  ///
+  /// Only a wheel that actually landed on the strip is passed on, which leaves
+  /// the background scrolling the series and a control keeping its own.
+  void mouseWheelMove(const juce::MouseEvent &,
+                      const juce::MouseWheelDetails &) override;
 
   void setSilencedByOthers(bool shouldDim);
   /// @returns the region of this strip that needs redrawing. See
@@ -110,6 +139,12 @@ private:
   /// Set when a menu takes the pointer away, and cleared when the pointer
   /// moves under its own steam again. See clearHover.
   bool hoverSuppressed = false;
+
+  /// When the last click on this strip happened, so the same click arriving a
+  /// second time cannot act twice. See mouseDown.
+  juce::Time lastClick;
+
+  bool drawGlow = false;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NoiseStrip)
 };

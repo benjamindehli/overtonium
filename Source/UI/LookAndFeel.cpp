@@ -278,6 +278,88 @@ juce::Image linkCursorImage(LinkCurve curve, float scale) {
   return image;
 }
 
+juce::Image drawCursorImage(float scale) {
+  constexpr int size = 30;
+
+  juce::Image image(juce::Image::ARGB, (int)((float)size * scale),
+                    (int)((float)size * scale), true);
+
+  {
+    juce::Graphics g(image);
+    g.addTransform(juce::AffineTransform::scale(scale));
+
+    // A pencil held the way a pointer is: the point at the hotspot in the top
+    // left and the body running back to the lower right, so the hand it
+    // suggests is the one actually on the mouse.
+    //
+    // Laid out along its own axis rather than by eye. The first attempt put
+    // the eraser beside the body instead of on the end of it and drew the body
+    // too thin, which came out looking like a sword.
+    const auto tip = juce::Point<float>(1.0f, 1.0f);
+
+    // Down and to the right at forty-five degrees, and across it.
+    const auto along = 0.70710678f;
+    const auto at = [&](float distance, float across) {
+      return juce::Point<float>(tip.x + along * (distance + across),
+                                tip.y + along * (distance - across));
+    };
+
+    constexpr float halfWidth = 3.4f;
+    constexpr float shoulder = 5.0f; // where the sharpening stops
+    constexpr float ferrule = 15.0f; // where the wood stops
+    constexpr float end = 20.0f;
+
+    juce::Path wood;
+    wood.startNewSubPath(tip);
+    wood.lineTo(at(shoulder, halfWidth));
+    wood.lineTo(at(ferrule, halfWidth));
+    wood.lineTo(at(ferrule, -halfWidth));
+    wood.lineTo(at(shoulder, -halfWidth));
+    wood.closeSubPath();
+
+    juce::Path rubber;
+    rubber.startNewSubPath(at(ferrule, halfWidth));
+    rubber.lineTo(at(end, halfWidth));
+    rubber.lineTo(at(end, -halfWidth));
+    rubber.lineTo(at(ferrule, -halfWidth));
+    rubber.closeSubPath();
+
+    // The graphite, which is the part that says pencil rather than crayon.
+    juce::Path lead;
+    lead.startNewSubPath(tip);
+    lead.lineTo(at(2.6f, 1.8f));
+    lead.lineTo(at(2.6f, -1.8f));
+    lead.closeSubPath();
+
+    // Outlined in black first, so it reads against a light background as well
+    // as against the panel. Same bargain as the LINK pointer.
+    juce::Path whole(wood);
+    whole.addPath(rubber);
+
+    g.setColour(juce::Colours::black.withAlpha(0.9f));
+    g.strokePath(whole, juce::PathStrokeType(2.6f, juce::PathStrokeType::curved,
+                                             juce::PathStrokeType::rounded));
+
+    g.setColour(colours::accent.brighter(0.5f));
+    g.fillPath(wood);
+
+    g.setColour(colours::text);
+    g.fillPath(rubber);
+
+    g.setColour(juce::Colours::black.withAlpha(0.75f));
+    g.fillPath(lead);
+  }
+
+  return image;
+}
+
+juce::MouseCursor drawCursor() {
+  constexpr float scale = 2.0f;
+
+  return juce::MouseCursor(juce::ScaledImage(drawCursorImage(scale), scale),
+                           {1, 1});
+}
+
 juce::MouseCursor linkCursor(LinkCurve curve) {
   // Drawn at twice the nominal size and handed over with a scale, so it stays
   // sharp on a high-density display.
@@ -355,7 +437,21 @@ void OvertoniumLookAndFeel::drawRotarySlider(
       bipolar ? rotaryStartAngle + 0.5f * (rotaryEndAngle - rotaryStartAngle)
               : rotaryStartAngle;
 
-  const auto fill = slider.findColour(juce::Slider::rotarySliderFillColourId);
+  // A knob belonging to an effect that is switched off keeps its position,
+  // since a setting is dialled in before the thing is turned on, but nothing
+  // on it is lit. A ring glowing on a stage that is not in the signal says the
+  // opposite of the truth, and now that the group is named underneath it there
+  // is no longer any need for the ring to be what says the group is there.
+  //
+  // The whole colour is swapped rather than the ring alone. The pointer on the
+  // cap is drawn from the same one, and a lit pointer standing in a dark ring
+  // reads as one lamp that failed rather than as a stage that is off.
+  const bool live =
+      !(bool)slider.getProperties().getWithDefault("unlit", false);
+
+  const auto fill =
+      live ? slider.findColour(juce::Slider::rotarySliderFillColourId)
+           : colours::textDim;
 
   // How much of a LINK drag this knob is about to take, or is taking. Zero for
   // a knob the drag does not reach.
@@ -463,6 +559,41 @@ void OvertoniumLookAndFeel::drawLinearSlider(
     juce::Graphics &g, int x, int y, int width, int height, float sliderPos,
     float minSliderPos, float maxSliderPos, juce::Slider::SliderStyle style,
     juce::Slider &slider) {
+  const bool metered =
+      (bool)slider.getProperties().getWithDefault("meteredGroove", false);
+
+  // The master fader, which is the same idea as a channel's laid on its side:
+  // a meter under the whole control and a glass cap over it saying where the
+  // level is set. It has no groove of its own for the same reason a channel's
+  // has none, and no ticks, because the bar is one row tall and there is
+  // nowhere to put them.
+  if (style == juce::Slider::LinearHorizontal && metered) {
+    const auto bounds = juce::Rectangle<int>(x, y, width, height).toFloat();
+    const auto dim = slider.isEnabled() ? 1.0f : 0.4f;
+    const auto at = juce::jlimit(bounds.getX(), bounds.getRight(), sliderPos);
+
+    const auto capW = juce::jmax(6.0f, bounds.getHeight() * 0.30f);
+    const juce::Rectangle<float> cap(at - capW * 0.5f, bounds.getY() + 0.5f,
+                                     capW, bounds.getHeight() - 1.0f);
+
+    g.setColour(juce::Colours::black.withAlpha(0.34f * dim));
+    g.fillRoundedRectangle(cap.translated(1.5f, 0.5f), 2.0f);
+
+    g.setColour(juce::Colours::white.withAlpha(0.13f * dim));
+    g.fillRoundedRectangle(cap, 2.0f);
+
+    g.setColour(juce::Colours::white.withAlpha(0.46f * dim));
+    g.drawRoundedRectangle(cap.reduced(0.5f), 2.0f, 1.0f);
+
+    // The lip runs down the cap rather than across it, which is the same
+    // light off the same glass turned a quarter.
+    g.setColour(juce::Colours::white.withAlpha(0.26f * dim));
+    g.fillRect(cap.getX() + 1.5f, cap.getY() + 2.5f, 1.0f,
+               cap.getHeight() - 5.0f);
+
+    return;
+  }
+
   if (style != juce::Slider::LinearVertical) {
     LookAndFeel_V4::drawLinearSlider(g, x, y, width, height, sliderPos,
                                      minSliderPos, maxSliderPos, style, slider);
@@ -475,13 +606,10 @@ void OvertoniumLookAndFeel::drawLinearSlider(
   // When a meter sits behind the fader it owns the groove, so the track fill
   // that would otherwise show the set level is dropped. The cap alone says
   // where the fader is, which leaves the whole track free to show output.
-  const bool meteredGroove =
-      (bool)slider.getProperties().getWithDefault("meteredGroove", false);
-
   const auto fillTop =
       juce::jlimit(bounds.getY(), bounds.getBottom(), sliderPos);
 
-  if (!meteredGroove) {
+  if (!metered) {
     const auto centreX = bounds.getCentreX();
     const auto grooveW = juce::jmax(4.0f, bounds.getWidth() * 0.22f);
     const juce::Rectangle<float> groove(centreX - grooveW * 0.5f, bounds.getY(),
@@ -509,7 +637,15 @@ void OvertoniumLookAndFeel::drawLinearSlider(
       (float)(double)slider.getProperties().getWithDefault("linkGlow", 0.0);
 
   if (glow > 0.0f) {
-    const auto lit = slider.findColour(juce::Slider::trackColourId);
+    // The channel's own colour for LINK, which is saying how much this one
+    // would take, and the accent for the drawing, which is saying that the
+    // whole band is one surface to sweep across. The accent is also what the
+    // switch that armed it is lit in, so the lit band and the lit switch read
+    // as one statement.
+    const auto lit =
+        (bool)slider.getProperties().getWithDefault("glowAccent", false)
+            ? colours::accent
+            : slider.findColour(juce::Slider::trackColourId);
 
     g.setColour(lit.withAlpha(0.10f * glow * dim));
     g.fillRoundedRectangle(bounds, 3.0f);

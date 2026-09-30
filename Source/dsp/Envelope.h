@@ -80,14 +80,36 @@ public:
     stage = delayRemaining > 0 ? Stage::Delay : Stage::Attack;
   }
 
-  void noteOff() noexcept {
+  /// @param lift  what the speed of the key coming up does to the level the
+  /// tail starts from. One is the patch exactly as it is written, and is what
+  /// every keyboard that cannot sense a release sends. See liftFromVelocity.
+  ///
+  /// It scales the level the tail would have started from rather than the
+  /// key-off level itself, because a key-off level of zero means "release from
+  /// wherever you are" rather than "release from silence", and zero times
+  /// anything is zero. So on the patches that set one it moves that, and on
+  /// the ones that do not it moves the sustain, which is every patch.
+  ///
+  /// Only downwards on a partial already sounding at full, since the envelope
+  /// runs to one and there is no room above it. A tail louder than the note it
+  /// came from would have to come out of the fader, and that is a different
+  /// control with the whole series behind it.
+  void noteOff(float lift = 1.0f) noexcept {
     if (stage == Stage::Idle)
       return;
 
-    if (offLevel <= kEpsilon) {
+    const bool scaled = !exactly(lift, 1.0f);
+
+    if (offLevel <= kEpsilon && !scaled) {
       stage = Stage::Release;
       return;
     }
+
+    // Latched, like the time below it. A knob moved during a release cannot
+    // retime one that has already started, and the same goes for where it is
+    // heading: the note was let go at a speed, and that speed is spent.
+    swellTarget = std::clamp((offLevel <= kEpsilon ? level : offLevel) * lift,
+                             0.0f, 1.0f);
 
     // Latched in samples, so the release starts when the knob says it does.
     // The exponential itself only covers 99% of the distance in that time, and
@@ -112,6 +134,7 @@ public:
     level = 0.0f;
     delayRemaining = 0;
     swellRemaining = 0;
+    swellTarget = 0.0f;
     forcedRelease = false;
   }
 
@@ -176,10 +199,10 @@ public:
       break;
 
     case Stage::Swell:
-      level = offLevel + (level - offLevel) * swellCoef;
+      level = swellTarget + (level - swellTarget) * swellCoef;
 
       if (--swellRemaining <= 0) {
-        level = offLevel;
+        level = swellTarget;
         stage = Stage::Release;
       }
       break;
@@ -214,6 +237,12 @@ private:
         sustainLevel = -1.0f, swellTime = -1.0f, offLevel = -1.0f,
         releaseTime = -1.0f;
   int delayRemaining = 0, swellRemaining = 0;
+
+  /// Where the current key-off is heading, which is the key-off level unless
+  /// the lift scaled it. Held apart from offLevel because that one is written
+  /// from the knob every block and would overwrite a note already let go.
+  float swellTarget = 0.0f;
+
   float attackInc = 0.0f, decayCoef = 0.0f, swellCoef = 0.0f,
         releaseCoef = 0.0f;
 

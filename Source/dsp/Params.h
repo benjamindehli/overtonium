@@ -143,6 +143,15 @@ struct GlobalParams {
   /// voices and the echo, so the repeats inherit whatever it did rather than
   /// wobbling on their own. See Wobble.h.
   float wobbleAmount = 0.0f;
+
+  /// How hard the summed series runs into the bus stage.
+  ///
+  /// Not a parameter and not reachable from the panel: the plugin fills this
+  /// from BusDrive::amountFor, which is a property of the character rather
+  /// than a control. It is a field rather than a lookup inside the stage so
+  /// that a test measuring one part of the instrument can put the rest of it
+  /// out of the way, which is what the whole DSP suite does.
+  float busDrive = 0.0f;
   /// Soft-clip the sum; 32 faders make it very easy to overshoot.
   bool safetyClip = true;
   /// Whether striking a key that is already sounding takes over the voice it
@@ -167,24 +176,106 @@ struct GlobalParams {
 
 /// The tape echo, which sits across the whole instrument rather than on any one
 /// partial.
+/// Which delay the repeats come out of.
+///
+/// Declared in full from the start even though they arrive one at a time,
+/// because the length of a list a host can automate is part of its contract:
+/// a choice is stored as a fraction of the range, so adding an entry later
+/// would move every lane ever written against it. See the list-length test.
+enum class EchoType { Tape, Bucket, Digital, NumTypes };
+
+inline const char *echoTypeName(EchoType t) {
+  switch (t) {
+  case EchoType::Tape:
+    return "Tape";
+  case EchoType::Bucket:
+    return "Bucket brigade";
+  case EchoType::Digital:
+    return "Digital";
+
+  // Listed rather than left to a default, so adding one is a compiler error
+  // here until it has a name.
+  case EchoType::NumTypes:
+    break;
+  }
+
+  return "Tape";
+}
+
+/// The name in one word, for the button on the bar, which has a button's
+/// worth of room rather than a menu's. The menu says what each one is; the
+/// button only has to say which.
+inline const char *echoTypeShortName(EchoType t) {
+  return t == EchoType::Bucket ? "BBD" : echoTypeName(t);
+}
+
 struct EchoParams {
   bool enabled = false;
+
+  /// Which machine the repeats come from. The switch that turns the thing on
+  /// is separate and older: a preset saved before there was a choice says
+  /// nothing about one, and gets the tape it was made on.
+  EchoType type = EchoType::Tape;
   float mix = 0.25f;         ///< 0 dry, 1 fully wet
   float timeSeconds = 0.35f; ///< distance between the heads
   float feedback = 0.35f;    ///< 0..0.95, how much goes round again
-  /// How worn the machine is, 0 to 1.
+  /// How worn the machine is, 0 to 1, and what that means depends on which
+  /// machine it is.
   ///
-  /// One control for the three things that go together on a tape delay as it
-  /// ages: the top end it loses on every pass, how far the motor wanders, and
-  /// how hard the tape leans over when it is driven. New is clean and bright,
-  /// old is dark, unsteady and compressed. Separating them meant three knobs
-  /// that were nearly always turned together.
+  /// On tape it is the three things that go together as a deck ages: the top
+  /// end it loses on every pass, how far the motor wanders, and how hard the
+  /// tape leans over when driven. New is clean and bright, old is dark,
+  /// unsteady and compressed.
+  ///
+  /// On a bucket brigade it is three others that go together just as tightly:
+  /// darker, dirtier on every pass, and the hiss its compander cannot quite
+  /// hide, which swells up behind a chord and ducks away as the repeats die.
+  ///
+  /// One knob either way, because separating any of them meant three that
+  /// were always turned together.
   float age = 0.35f;
 };
 
-/// The reverb: a feedback delay network, sized and damped from the panel.
+/// Which reverb the tail comes out of.
+///
+/// Declared in full from the start, for the reason the echo's types are: the
+/// length of a list a host can automate is part of what a stored choice
+/// means.
+enum class ReverbType { Room, Plate, Spring, NumTypes };
+
+inline const char *reverbTypeName(ReverbType t) {
+  switch (t) {
+  case ReverbType::Room:
+    return "Room";
+  case ReverbType::Plate:
+    return "Modulated Plate";
+  case ReverbType::Spring:
+    return "Spring";
+
+  case ReverbType::NumTypes:
+    break;
+  }
+
+  return "Room";
+}
+
+/// What the bar has room to shout, where the menu has room to be accurate.
+///
+/// Only the plate needs one. Its two allpasses wander further than a sheet of
+/// steel ever did, which is what keeps a long decay from repeating itself, and
+/// the menu says so. On a button the word that matters is which machine it is.
+inline const char *reverbTypeShortName(ReverbType t) {
+  return t == ReverbType::Plate ? "Plate" : reverbTypeName(t);
+}
+
+/// The reverb, which is one of three machines sized and damped from the panel.
 struct ReverbParams {
   bool enabled = false;
+
+  /// Which machine the tail comes from. The switch that turns it on is
+  /// separate and older, so a preset saved before there was a choice says
+  /// nothing about one and gets the room it was made in.
+  ReverbType type = ReverbType::Room;
   float mix = 0.25f;
   /// RT60. The room is sized from it rather than set separately: a long tail in
   /// a small room is a spring, not a place, and nobody was reaching for that.

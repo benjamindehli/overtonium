@@ -16,8 +16,8 @@ Three things run in CI and all three are quick to check first.
 [CONTRIBUTING.md](https://github.com/benjamindehli/overtonium/blob/main/CONTRIBUTING.md) has the commands.
 
 - [ ] `ctest --test-dir build --build-config Release` passes, both suites
-- [ ] It builds clean with `-DOVERTONIUM_WARNINGS_AS_ERRORS=ON`, which is a
-      separate tree rather than your working one
+- [ ] It builds clean with no warnings, which is the default and so is
+      whatever your build already prints
 - [ ] `clang-format -i` on the C++ you touched, and `npm run format` for
       everything else
 

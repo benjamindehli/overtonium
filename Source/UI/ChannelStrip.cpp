@@ -89,13 +89,15 @@ constexpr int kBelowCaption = 1;
 } // namespace
 
 void LabelledKnob::paint(juce::Graphics &g) {
-  auto area = getLocalBounds();
-  area.removeFromBottom(kBelowCaption);
-
   g.setColour(colours::textDim);
   g.setFont(makeFont(9.0f, true));
-  g.drawText(caption, area.removeFromBottom(kCaptionHeight),
+  g.drawText(caption, captionBounds(getLocalBounds()),
              juce::Justification::centred, false);
+}
+
+juce::Rectangle<int> LabelledKnob::captionBounds(juce::Rectangle<int> bounds) {
+  bounds.removeFromBottom(kBelowCaption);
+  return bounds.removeFromBottom(kCaptionHeight);
 }
 
 juce::Rectangle<int> LabelledKnob::dialBounds(juce::Rectangle<int> bounds) {
@@ -879,6 +881,21 @@ void ChannelStrip::wireUp(LinkableSlider &s, Role role) {
   s.onUserDragStart = [this, role] { link.linkDragStarted(role, index); };
   s.onUserDragEnd = [this, role] { link.linkDragEnded(role, index); };
 
+  // Only the faders. A fader's value is where it stands, which is what makes a
+  // pointer's height mean something; a knob has no such reading, so there is
+  // nothing for a drawn drag to say to one.
+  if (role == Role::Volume) {
+    s.onDrawStart = [this](const juce::MouseEvent &e) {
+      return link.drawStarted(e.getScreenPosition());
+    };
+
+    s.onDrawMove = [this](const juce::MouseEvent &e) {
+      link.drawMovedTo(e.getScreenPosition());
+    };
+
+    s.onDrawEnd = [this] { link.drawEnded(); };
+  }
+
   s.onValueChange = [this, &s, role] {
     if (role == Role::Tune)
       updateTuneReadout();
@@ -888,6 +905,25 @@ void ChannelStrip::wireUp(LinkableSlider &s, Role role) {
     if (s.isUserDragging())
       link.linkValueChanged(role, index, (float)s.getValue());
   };
+}
+
+void ChannelStrip::drawFaderAt(int y) {
+  const auto track = volume.getBounds();
+
+  if (track.getHeight() <= 1)
+    return;
+
+  // Top of the track is full, bottom is nothing, and anything past either end
+  // is that end: a drawn line that strays above the mixer should leave the
+  // faders it passes at the top rather than wrapping or stopping.
+  const auto fromTop = juce::jlimit(
+      0.0, 1.0, (double)(y - track.getY()) / (double)track.getHeight());
+
+  // Through the slider rather than straight at the parameter, since the
+  // slider's range carries the same skew the parameter's does and a
+  // proportion of the track is only a value once that has been applied.
+  volume.setValue(volume.proportionOfLengthToValue(1.0 - fromTop),
+                  juce::sendNotificationSync);
 }
 
 void ChannelStrip::updateTuneReadout() {
@@ -947,8 +983,27 @@ void ChannelStrip::setSilencedByOthers(bool shouldDim) {
 }
 
 void ChannelStrip::mouseDown(const juce::MouseEvent &e) {
-  if (!e.mods.isPopupMenu())
+  // The strip listens to every one of its children, so a click that lands on
+  // the strip's own background arrives here twice: once because the strip is
+  // the component under the pointer, and once more through that listener. A
+  // click on a child arrives once, through the listener alone.
+  //
+  // Nothing on the two events tells them apart. JUCE hands the listener an
+  // event rebuilt from the same click, so the component, the position and the
+  // modifiers all match. What they cannot differ in is when they happened, so
+  // that is what separates them, which is how JUCE itself throws away the
+  // duplicate wheel events it sometimes gets. See Slider::mouseWheelMove.
+  //
+  // Both things this handler does are switches, so both need it. Twice was two
+  // LINK menus stacked on each other, and would be a section folded and
+  // unfolded again in the same click.
+  const bool echoOfTheSameClick = e.eventTime == lastClick;
+  lastClick = e.eventTime;
+
+  if (!e.mods.isPopupMenu()) {
+    foldSectionUnder(e, echoOfTheSameClick);
     return;
+  }
 
   // Whatever menu is about to open is modal, and a modal menu means this strip
   // is never told the pointer has left it. Letting the hover go now is what
@@ -965,7 +1020,35 @@ void ChannelStrip::mouseDown(const juce::MouseEvent &e) {
   if (dynamic_cast<const MuteSoloButton *>(e.originalComponent) != nullptr)
     return;
 
+  // Two menus opened stacked on each other before the echo was noticed.
+  // Choosing an item on the front one left the one behind it standing with its
+  // ticks unmoved, so the setting looked to have been refused while the
+  // instrument had already taken it.
+  if (echoOfTheSameClick)
+    return;
+
   link.showLinkMenu();
+}
+
+/// Folds the section whose rule the click landed on, if it landed on one.
+///
+/// The rules across a strip line up with the headings in the gutter because
+/// both are laid out by the same call, so the same hit test answers for both
+/// and a strip needs no geometry of its own. See RowGutter::mouseDown.
+void ChannelStrip::foldSectionUnder(const juce::MouseEvent &e, bool echo) {
+  // Only a click on the strip's own background. Everything inside a strip that
+  // can be clicked has its own job, and the rules are the one part of it with
+  // nothing standing on them: the lamps that four of them carry let clicks
+  // through precisely so the rule underneath is still a rule.
+  if (e.originalComponent != this || echo || onSectionToggled == nullptr)
+    return;
+
+  const auto rows =
+      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+  const auto section = headingSectionAt(rows, e.getPosition());
+
+  if (section != Section::NumSections)
+    onSectionToggled(section);
 }
 
 void ChannelStrip::clearHover() {
@@ -993,8 +1076,34 @@ void ChannelStrip::mouseEnter(const juce::MouseEvent &e) {
 void ChannelStrip::mouseMove(const juce::MouseEvent &e) {
   hoverSuppressed = false;
   reportHover(e);
+
+  // The same hand the gutter's headings show, so a rule that folds looks like
+  // one. Only for the strip's own events: a knob sets its own cursor and this
+  // handler sees the knob's moves too.
+  //
+  // Back to the parent's cursor rather than to a plain arrow, which is the
+  // part that is easy to get wrong. A strip asks for its parent's cursor so
+  // that LINK and the drawing tool can set one across the whole mixer at once,
+  // and an arrow set here would mask it for everything below this strip.
+  if (e.originalComponent == this) {
+    const auto rows =
+        layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+
+    setMouseCursor(headingSectionAt(rows, e.getPosition()) !=
+                           Section::NumSections
+                       ? juce::MouseCursor::PointingHandCursor
+                       : juce::MouseCursor::ParentCursor);
+  }
 }
 void ChannelStrip::mouseExit(const juce::MouseEvent &e) { reportHover(e); }
+
+/// The row the pointer is on, counting the rules between sections as rows.
+Row ChannelStrip::rowUnder(const RowBounds &rows, juce::Point<int> p) {
+  const auto section = headingSectionAt(rows, p);
+
+  return section != Section::NumSections ? sectionHeading(section)
+                                         : controlRowAt(rows, p);
+}
 
 void ChannelStrip::reportHover(const juce::MouseEvent &e) {
   const auto p = e.getEventRelativeTo(this).getPosition();
@@ -1005,7 +1114,14 @@ void ChannelStrip::reportHover(const juce::MouseEvent &e) {
   // Leaving one knob for the next fires the exit before the enter, so the
   // answer is always worked out from where the pointer now is rather than from
   // which callback arrived.
-  hover.hoverChanged(index, inside ? controlRowAt(rows, p) : kNoRow);
+  //
+  // A rule between two sections answers with its own heading, which no control
+  // row does: controlRowAt only speaks for rows that carry something. It is
+  // worth the exception because the rule is clickable, and the caption in the
+  // gutter lighting is how this panel says what is under the pointer. Without
+  // it the one part of a strip you can click was the one part that said
+  // nothing.
+  hover.hoverChanged(index, inside ? rowUnder(rows, p) : kNoRow);
 
   // The channel highlight is the strip's own business rather than the
   // editor's, for the same reason: worked out from the pointer, it cannot be
@@ -1017,6 +1133,18 @@ void ChannelStrip::reportHover(const juce::MouseEvent &e) {
 }
 
 void ChannelStrip::paintOverChildren(juce::Graphics &g) {
+  // A heading's wash goes over the children rather than behind them, which is
+  // the opposite of every other row's. Four of the five carry an activity lamp
+  // that fills the whole row and paints an opaque backdrop, so a wash drawn
+  // underneath is covered by it and only the output heading, which has no
+  // lamp, appeared to highlight at all.
+  if (rowShowsHighlight(highlighted) && isHeadingRow(highlighted)) {
+    const auto rows =
+        layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+
+    paintRowHighlight(g, rows[rowIndex(highlighted)]);
+  }
+
   if (hovered)
     paintColumnHighlight(g, getLocalBounds());
 }
@@ -1099,10 +1227,11 @@ LinkableSlider *ChannelStrip::sliderForRole(Role role) {
   }
 }
 
-void ChannelStrip::setLinkGlow(Role role, float amount) {
+void ChannelStrip::setLinkGlow(Role role, float amount, bool accent) {
   amount = juce::jlimit(0.0f, 1.0f, amount);
 
-  if (role == glowRole && std::abs(amount - glowAmount) < 0.004f)
+  if (role == glowRole && accent == glowAccent &&
+      std::abs(amount - glowAmount) < 0.004f)
     return;
 
   // Moving to a different row leaves the old control lit unless it is put out
@@ -1115,9 +1244,11 @@ void ChannelStrip::setLinkGlow(Role role, float amount) {
 
   glowRole = role;
   glowAmount = amount;
+  glowAccent = accent;
 
   if (auto *s = sliderForRole(glowRole)) {
     s->getProperties().set("linkGlow", (double)glowAmount);
+    s->getProperties().set("glowAccent", glowAccent);
     s->repaint();
   }
 }
@@ -1140,7 +1271,7 @@ void ChannelStrip::paint(juce::Graphics &g) {
   const auto rows =
       layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed);
 
-  if (rowShowsHighlight(highlighted))
+  if (rowShowsHighlight(highlighted) && !isHeadingRow(highlighted))
     paintRowHighlight(g, rows[rowIndex(highlighted)]);
 
   auto header = rows[rowIndex(Row::Header)];
@@ -1321,6 +1452,12 @@ void ChannelStrip::setActivity(float envelope, float tremolo, float pitch,
 
   refresh(pitchLamp,
           pitchLamp.push(level <= 0.0f ? kParked : needlePosition(pitch)));
+}
+
+void ChannelStrip::mouseWheelMove(const juce::MouseEvent &e,
+                                  const juce::MouseWheelDetails &wheel) {
+  if (e.originalComponent == this)
+    juce::Component::mouseWheelMove(e, wheel);
 }
 
 } // namespace ovt::ui

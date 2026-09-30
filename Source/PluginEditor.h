@@ -44,6 +44,14 @@ public:
   /// strips have to be told about it too.
   std::function<void(ovt::ui::Section)> onSectionToggled;
 
+  /// Fired as the pointer moves over the gutter's own headings.
+  ///
+  /// The gutter has always been a passive display, lit by whichever strip the
+  /// pointer was on. Its headings are clickable, though, so pointing at one
+  /// has to light it in the same way pointing at its rule on a strip does, and
+  /// the only thing that can light the strips as well is the editor.
+  std::function<void(ovt::ui::Row)> onHoverChanged;
+
   /// Fired when the LINK button is clicked, with the button to hang the menu
   /// off. The menu itself belongs to the bar, which owns the settings it
   /// changes.
@@ -52,9 +60,18 @@ public:
   /// Lights the button while LINK is on.
   void setLinkOn(bool);
 
+  /// Fired when the DRAW button is clicked, which latches the tool on rather
+  /// than needing the modifier held.
+  std::function<void()> onDrawClicked;
+
+  /// Lights the button while a drag across the faders would draw them, whether
+  /// that is because the modifier is held or because it is latched.
+  void setDrawOn(bool);
+
   void resized() override;
   void mouseDown(const juce::MouseEvent &) override;
   void mouseMove(const juce::MouseEvent &) override;
+  void mouseExit(const juce::MouseEvent &) override;
 
 private:
   ovt::ui::Row highlighted = ovt::ui::kNoRow;
@@ -67,7 +84,7 @@ private:
   /// Here rather than in the bar because this is the column the tool belongs
   /// to: it gangs the rows the captions name. What it leaves behind on the bar
   /// is the room the converter readouts needed to say what their numbers mean.
-  ovt::ui::GlowButton linkButton;
+  ovt::ui::GlowButton linkButton, drawButton;
 
   /// The maker's badge, in the empty foot of the gutter.
   std::unique_ptr<juce::Drawable> makersMark{ovt::ui::logoMakersMark()};
@@ -89,6 +106,39 @@ public:
 
   // ---- ovt::ui::LinkTarget ----
   bool isLinkEnabled() const override;
+
+  /// Brings everything that depends on the LINK settings into step: the
+  /// gutter's switch, the glow that previews a drag, and the pointer.
+  void syncLinkUi();
+
+  /// Whether a drag across the faders would draw them. Not whether one is
+  /// under way: this is what the pointer, the two gutter switches and the LINK
+  /// preview answer to before anything is grabbed.
+  ///
+  /// Either the modifier is held or the tool is latched on, and the panel does
+  /// not distinguish: both arm it and both light the same button.
+  bool drawArmed = false;
+  bool shiftHeld = false;
+  bool drawLatched = false;
+
+  /// Read on the housekeeping tick rather than waited for. See the body.
+  void pollDrawModifier();
+  void refreshDrawArmed();
+  void toggleDrawLatch();
+
+  /// Whether a drawn drag is under way, as opposed to merely possible.
+  bool drawingNow = false;
+
+  /// Where the drawing last reached, so the columns in between can be filled
+  /// in. See drawMovedTo.
+  juce::Point<int> lastDrawn;
+
+  bool drawStarted(juce::Point<int>) override;
+  void drawMovedTo(juce::Point<int>) override;
+  void drawEnded() override;
+
+  std::vector<juce::RangedAudioParameter *> faderParameters() const;
+  void applyDrawAt(juce::Point<int>);
   void linkDragStarted(ovt::ui::Role, int sourceIndex) override;
   void linkValueChanged(ovt::ui::Role, int sourceIndex,
                         float plainValue) override;
@@ -140,6 +190,20 @@ private:
   /// The size that shows the whole mixer, at the fold state it is in.
   juce::Rectangle<int> standardSize() const;
 
+  /// Sets the resize limits for a window of the given logical width.
+  ///
+  /// The height floor depends on the width, because the top bar reflows onto
+  /// more rows as the window narrows and every row it takes is a row the
+  /// mixer cannot have. The constrainer holds one number, not a curve, so the
+  /// number has to follow the width rather than be picked for the worst case.
+  ///
+  /// The width is passed rather than read off the window because the two
+  /// callers that change it call this before the change lands: a zoom has
+  /// already updated the factor but not the bounds, and the fit is about to
+  /// move to a width it is not at yet.
+  void applyResizeLimits(int forLogicalWidth);
+
+  /// The same, for the width the window has now.
   void applyResizeLimits();
   void applyPreset(int index);
 
@@ -250,6 +314,15 @@ private:
   /// Which groups of rows are folded away. Restored from the saved state and
   /// written back when it changes, alongside the window size and the zoom.
   ovt::ui::SectionMask collapsedSections = 0;
+
+  /// The bar height the limits in force were worked out for.
+  ///
+  /// Applying limits is itself a resize, since setResizeLimits ends by
+  /// constraining the current bounds, so resized() and applyResizeLimits can
+  /// call each other. This is what stops that: the limits are reapplied only
+  /// when the bar has actually changed height, and once they have been, the
+  /// resize that follows finds the same number and stops.
+  int limitsBarHeight = -1;
 
   /// Counts timer callbacks, so the meters and the housekeeping can each run
   /// at their own fraction of it.

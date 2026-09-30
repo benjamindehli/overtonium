@@ -166,12 +166,60 @@ void NoiseStrip::setSilencedByOthers(bool shouldDim) {
   setAlpha(silenced ? 0.4f : 1.0f);
 }
 
+void NoiseStrip::setDrawGlow(bool on) {
+  if (on == drawGlow)
+    return;
+
+  drawGlow = on;
+
+  volume.getProperties().set("linkGlow", on ? 1.0 : 0.0);
+  volume.getProperties().set("glowAccent", on);
+  volume.repaint();
+}
+
+void NoiseStrip::drawFaderAt(int y) {
+  const auto track = volume.getBounds();
+
+  if (track.getHeight() <= 1)
+    return;
+
+  const auto fromTop = juce::jlimit(
+      0.0, 1.0, (double)(y - track.getY()) / (double)track.getHeight());
+
+  volume.setValue(volume.proportionOfLengthToValue(1.0 - fromTop),
+                  juce::sendNotificationSync);
+}
+
 void NoiseStrip::mouseDown(const juce::MouseEvent &e) {
   // The noise channel opens no menu of its own, but its mute and solo buttons
   // do, and the same modal-menu problem applies: without this the column stays
   // lit once the pointer has moved on. See ChannelStrip::mouseDown.
-  if (e.mods.isPopupMenu())
+  if (e.mods.isPopupMenu()) {
     clearHover();
+    return;
+  }
+
+  // The rules between sections fold them here too. This strip shares the
+  // mixer's rows, so it has the same rules in the same places, and a rule that
+  // folded on thirty-two columns and not on the thirty-third would be a rule
+  // you had to remember the exception to.
+  //
+  // The same click arrives twice, since this strip also listens to everything
+  // inside it. See ChannelStrip::mouseDown for what that is and why it cannot
+  // be told apart by anything but its time.
+  const bool echoOfTheSameClick = e.eventTime == lastClick;
+  lastClick = e.eventTime;
+
+  if (e.originalComponent != this || echoOfTheSameClick ||
+      onSectionToggled == nullptr)
+    return;
+
+  const auto rows =
+      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+  const auto section = headingSectionAt(rows, e.getPosition());
+
+  if (section != Section::NumSections)
+    onSectionToggled(section);
 }
 
 void NoiseStrip::clearHover() {
@@ -199,6 +247,17 @@ void NoiseStrip::mouseEnter(const juce::MouseEvent &e) {
 void NoiseStrip::mouseMove(const juce::MouseEvent &e) {
   hoverSuppressed = false;
   reportHover(e);
+
+  // The hand the gutter's headings show, so a rule that folds looks like one.
+  if (e.originalComponent == this) {
+    const auto rows =
+        layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+
+    setMouseCursor(headingSectionAt(rows, e.getPosition()) !=
+                           Section::NumSections
+                       ? juce::MouseCursor::PointingHandCursor
+                       : juce::MouseCursor::ParentCursor);
+  }
 }
 void NoiseStrip::mouseExit(const juce::MouseEvent &e) { reportHover(e); }
 
@@ -210,7 +269,7 @@ void NoiseStrip::reportHover(const juce::MouseEvent &e) {
 
   // -1 says the pointer is off the harmonic series, which is what stops a
   // hover here from arming a LINK preview.
-  hover.hoverChanged(-1, inside ? controlRowAt(rows, p) : kNoRow);
+  hover.hoverChanged(-1, inside ? ChannelStrip::rowUnder(rows, p) : kNoRow);
 
   if (inside != hovered) {
     hovered = inside;
@@ -219,6 +278,18 @@ void NoiseStrip::reportHover(const juce::MouseEvent &e) {
 }
 
 void NoiseStrip::paintOverChildren(juce::Graphics &g) {
+  // A heading's wash goes over the children rather than behind them, which is
+  // the opposite of every other row's. Four of the five carry an activity lamp
+  // that fills the whole row and paints an opaque backdrop, so a wash drawn
+  // underneath is covered by it and only the output heading, which has no
+  // lamp, appeared to highlight at all.
+  if (rowShowsHighlight(highlighted) && isHeadingRow(highlighted)) {
+    const auto rows =
+        layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+
+    paintRowHighlight(g, rows[rowIndex(highlighted)]);
+  }
+
   if (hovered)
     paintColumnHighlight(g, getLocalBounds());
 }
@@ -245,6 +316,13 @@ void NoiseStrip::paint(juce::Graphics &g) {
 
   const auto rows =
       layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed);
+
+  // The same band the numbered channels light. This strip tracked the hovered
+  // row and repainted for it but never drew it, so the mixer highlighted
+  // across thirty-two columns and stopped at the thirty-third.
+  if (rowShowsHighlight(highlighted) && !isHeadingRow(highlighted))
+    paintRowHighlight(g, rows[rowIndex(highlighted)]);
+
   auto header = rows[rowIndex(Row::Header)];
 
   g.setColour(colour);
@@ -377,6 +455,12 @@ void NoiseStrip::resized() {
   auto ms = rows[rowIndex(Row::MuteSolo)];
   muteButton.setBounds(ms.removeFromLeft(ms.getWidth() / 2).reduced(1));
   soloButton.setBounds(ms.reduced(1));
+}
+
+void NoiseStrip::mouseWheelMove(const juce::MouseEvent &e,
+                                const juce::MouseWheelDetails &wheel) {
+  if (e.originalComponent == this)
+    juce::Component::mouseWheelMove(e, wheel);
 }
 
 } // namespace ovt::ui

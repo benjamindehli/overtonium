@@ -20,6 +20,7 @@ inline constexpr const char *slideDestId = "slideDest";
 inline constexpr const char *trackId = "track";
 inline constexpr const char *characterId = "character";
 inline constexpr const char *wobbleId = "wobble";
+
 inline constexpr const char *temperamentId = "temperament";
 inline constexpr const char *tuningRootId = "tuningRoot";
 inline constexpr const char *referenceHzId = "referenceHz";
@@ -32,12 +33,27 @@ inline constexpr const char *amInPhaseId = "amInPhase";
 
 // ---- master effects ---------------------------------------------------------
 inline constexpr const char *echoOnId = "echoOn";
+
+/// Which machine the repeats come from.
+///
+/// Separate from the switch rather than replacing it, which is the whole of
+/// the compatibility story: echoOn is a boolean that every saved patch stores
+/// and every automation lane points at, and turning it into a four-position
+/// choice would take both with it. So the panel shows one control with four
+/// positions and writes two parameters, off writing the switch and the other
+/// three writing the switch and a type. A patch made before this existed says
+/// nothing about a type and gets the tape it was recorded on.
+inline constexpr const char *echoTypeId = "echoType";
 inline constexpr const char *echoMixId = "echoMix";
 inline constexpr const char *echoTimeId = "echoTime";
 inline constexpr const char *echoFeedbackId = "echoFeedback";
 inline constexpr const char *echoAgeId = "echoAge";
 
 inline constexpr const char *reverbOnId = "reverbOn";
+
+/// Which machine the tail comes from. Beside the switch rather than replacing
+/// it, for the reason echoTypeId is.
+inline constexpr const char *reverbTypeId = "reverbType";
 inline constexpr const char *reverbMixId = "reverbMix";
 inline constexpr const char *reverbDecayId = "reverbDecay";
 inline constexpr const char *reverbDampId = "reverbDamp";
@@ -223,6 +239,7 @@ struct Cache {
 
   struct Echo {
     std::atomic<float> *on = nullptr;
+    std::atomic<float> *type = nullptr;
     std::atomic<float> *mix = nullptr;
     std::atomic<float> *time = nullptr;
     std::atomic<float> *feedback = nullptr;
@@ -231,6 +248,7 @@ struct Cache {
 
   struct Reverb {
     std::atomic<float> *on = nullptr;
+    std::atomic<float> *type = nullptr;
     std::atomic<float> *mix = nullptr;
     std::atomic<float> *decay = nullptr;
     std::atomic<float> *damp = nullptr;

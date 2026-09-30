@@ -43,7 +43,7 @@ The [project page](https://benjamindehli.github.io/overtonium/) is the place to 
 
 - **[Tuning](https://benjamindehli.github.io/overtonium/tuning/)**: TUNE from equal to just, inharmonic stretch, six historical temperaments on any root, keyboard tracking and per-partial drift
 - **[Controls](https://benjamindehli.github.io/overtonium/controls/)**: every knob on a channel strip and on the bar above it, the oscillator character, the two-part envelope, LINK for ganging the series, the lamps and meters, the noise channel and MPE
-- **[Presets](https://benjamindehli.github.io/overtonium/presets/)**: the thirty-one that ship, what a preset carries and deliberately does not, switching them with a MIDI program change, and where your own are kept
+- **[Presets](https://benjamindehli.github.io/overtonium/presets/)**: the thirty-two that ship, what a preset carries and deliberately does not, switching them with a MIDI program change, and where your own are kept
 - **[Install](https://benjamindehli.github.io/overtonium/install/)**: which download to take, what to do when a host cannot see the plugin, and building from source
 
 [DESIGN.md](DESIGN.md) is the same ground at length, and keeps the reasoning: what each part does, what the alternatives cost, and the measurements behind the numbers.
@@ -56,6 +56,8 @@ You need CMake 3.22 or newer and a C++17 compiler. JUCE is downloaded at configu
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
+
+That build treats warnings as errors, which is what CI does. On a compiler this project has not met, add `-DOVERTONIUM_WARNINGS_AS_ERRORS=OFF` and it builds anyway.
 
 [CONTRIBUTING.md](CONTRIBUTING.md) has the rest: per-platform notes, the two test suites, formatting, warnings as errors, how a release is cut and how the project page is served. [ARCHITECTURE.md](ARCHITECTURE.md) describes how the code is arranged.
 

@@ -24,14 +24,54 @@ public:
   /// Left to itself the slider would open a drag gesture it never closes,
   /// since the mouse-up goes to the menu rather than back here.
   void mouseDown(const juce::MouseEvent &e) override {
-    if (!e.mods.isPopupMenu())
-      juce::Slider::mouseDown(e);
+    if (e.mods.isPopupMenu())
+      return;
+
+    // A drag that is going to be a drawn one never becomes a slider drag at
+    // all. Letting the slider take it and handing the pointer on as well would
+    // move this fader twice, once from its own drag and once from being the
+    // first column the drawing crosses.
+    if (onDrawStart != nullptr && onDrawStart(e)) {
+      drawing = true;
+      return;
+    }
+
+    juce::Slider::mouseDown(e);
   }
 
   void mouseDrag(const juce::MouseEvent &e) override {
-    if (!e.mods.isPopupMenu())
-      juce::Slider::mouseDrag(e);
+    if (e.mods.isPopupMenu())
+      return;
+
+    if (drawing) {
+      if (onDrawMove != nullptr)
+        onDrawMove(e);
+
+      return;
+    }
+
+    juce::Slider::mouseDrag(e);
   }
+
+  void mouseUp(const juce::MouseEvent &e) override {
+    if (drawing) {
+      drawing = false;
+
+      if (onDrawEnd != nullptr)
+        onDrawEnd();
+
+      return;
+    }
+
+    juce::Slider::mouseUp(e);
+  }
+
+  /// Offered every drag before the slider takes it. Returning true means the
+  /// gesture belongs to something else, which then gets the pointer until the
+  /// button comes up. Only the faders are given these.
+  std::function<bool(const juce::MouseEvent &)> onDrawStart;
+  std::function<void(const juce::MouseEvent &)> onDrawMove;
+  std::function<void()> onDrawEnd;
 
   void startedDragging() override {
     dragging = true;
@@ -47,10 +87,15 @@ public:
 
   bool isUserDragging() const noexcept { return dragging; }
 
+  /// Whether this drag was handed to the drawing rather than moving the
+  /// slider. See onDrawStart.
+  bool isDrawing() const noexcept { return drawing; }
+
   std::function<void()> onUserDragStart, onUserDragEnd;
 
 private:
   bool dragging = false;
+  bool drawing = false;
 };
 
 /// An endless, relative control.
@@ -89,6 +134,12 @@ public:
   /// buttons up with the dials rather than with the middle of the row: the
   /// caption underneath means the two are not the same place.
   static juce::Rectangle<int> dialBounds(juce::Rectangle<int>);
+
+  /// And where the caption under it sits, for the same reason turned around.
+  /// The bar names a group in the band its knobs put their captions in, and
+  /// reading that band off the same function is what keeps the two on one
+  /// line however the band is sized.
+  static juce::Rectangle<int> captionBounds(juce::Rectangle<int>);
 
   LinkableSlider slider;
 
@@ -311,10 +362,42 @@ public:
   /// once, since the rows are shared across the whole mixer.
   void setCollapsedSections(SectionMask);
 
+  /// Asked for when a click lands on one of the rules between sections, which
+  /// line up with the gutter's headings and do the same thing.
+  std::function<void(Section)> onSectionToggled;
+
+  /// Sets this channel's fader from a height, for a drag that is drawing
+  /// across the mixer rather than moving one fader.
+  ///
+  /// The height is in this strip's own coordinates. The strip does the reading
+  /// rather than the editor because the value is the slider's business: its
+  /// range is skewed to match the parameter's, and a proportion of the track
+  /// is the only honest way in.
+  void drawFaderAt(int y);
+
+  /// The row the pointer is on, with the rules between sections counted as
+  /// rows of their own. See reportHover.
+  static Row rowUnder(const RowBounds &, juce::Point<int>);
+
   void mouseEnter(const juce::MouseEvent &) override;
   void mouseMove(const juce::MouseEvent &) override;
   void mouseExit(const juce::MouseEvent &) override;
   void mouseDown(const juce::MouseEvent &) override;
+
+  /// Keeps a wheel that landed on a control from scrolling the mixer as well.
+  ///
+  /// The strip listens to everything inside it, so that a pointer resting on a
+  /// knob is reported by the strip rather than swallowed by the control. JUCE
+  /// hands that listener every event, wheels included, and Component's own
+  /// handler passes whatever it is given up to the parent. So a scroll the
+  /// knob had already taken went on to the viewport and dragged the series
+  /// sideways under the hand that was turning the knob, whenever the window
+  /// was narrow enough for there to be anything to scroll.
+  ///
+  /// Only a wheel that actually landed on the strip is passed on, which leaves
+  /// the background scrolling the series and a control keeping its own.
+  void mouseWheelMove(const juce::MouseEvent &,
+                      const juce::MouseWheelDetails &) override;
 
   /// Greys the strip out when another strip's solo is silencing it.
   void setSilencedByOthers(bool shouldDim);
@@ -371,7 +454,7 @@ public:
   ///
   /// @param amount  0 for a strip the drag does not reach, otherwise how much
   ///                of the drag it takes relative to the strip that takes most.
-  void setLinkGlow(Role, float amount);
+  void setLinkGlow(Role, float amount, bool accent = false);
 
 private:
   using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
@@ -439,8 +522,20 @@ private:
   /// Set when a menu takes the pointer away, and cleared when the pointer
   /// moves under its own steam again. See clearHover.
   bool hoverSuppressed = false;
+
+  /// When the last click on this strip happened, so the same click arriving a
+  /// second time cannot act twice. See mouseDown.
+  juce::Time lastClick;
+
+  void foldSectionUnder(const juce::MouseEvent &, bool echo);
   Role glowRole = Role::Tune;
   float glowAmount = 0.0f;
+
+  /// Whether the glow is lit in the accent rather than in the channel's own
+  /// colour. LINK's preview is per channel, since it is saying how much each
+  /// one would take; the drawing's is one colour across the mixer, since every
+  /// fader is equally drawable and the band is one surface.
+  bool glowAccent = false;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ChannelStrip)
 };

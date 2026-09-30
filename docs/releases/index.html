@@ -90,6 +90,123 @@
                 </p>
 
                 <section>
+                    <h2>1.10.0, 30 September 2026</h2>
+
+                    <p>
+                        <strong>The echo is three machines, and so is the reverb.</strong> Both were a switch that turned one thing on, and both are
+                        now a button that says which machine is running. <em>Tape</em> is the loop that was already there. <em>BBD</em> is a line of
+                        buckets, which gets darker the longer you set it to, because a longer delay can only be had by clocking the buckets more
+                        slowly and the filter has to come down with the clock. <em>Digital</em> does not pretend to be anything and is the only
+                        ping-pong of the three, crossing every repeat to the other side where the other two never cross at all. AGE is the same knob
+                        on all three and asks each for the thing that machine gets worse at: tape wear, a slowing clock and a breathing compander, or
+                        falling bits and sample rate.
+                    </p>
+
+                    <p>
+                        <em>Room</em> is the reverb that was already there. <em>Modulated plate</em> is a sheet of steel with no geometry to hear, so
+                        a hit spreads across all of it at once and the tail is dense from its first instant rather than arriving in stages. It is
+                        called modulated because it is: its allpasses wander six times as far as the shape they come from gives them, and without that
+                        a long decay repeats its own pattern instead of washing. <em>Spring</em> is a tray of three helical springs, and a helix
+                        carries the top of the band faster than the bottom, so a hit comes back as a chirp that starts high and falls and every bounce
+                        adds another. DECAY, DAMP and PRE mean the same thing on all three, and the wet levels are matched, so switching machines
+                        changes the character of a tail rather than its length or its loudness.
+                    </p>
+
+                    <p>
+                        <strong>The character now says how hard the mix is driven.</strong> The thirty-three channels are summed onto a bus that
+                        drives, by an amount belonging to the oscillator character. It answers to level rather than to a setting, which is what a
+                        table baked into one partial's waveform cannot do: play quietly and it is barely there, lean on the keyboard and it arrives.
+                        Bulb asks for the most and Diode the least, Pure sums cleanly and does nothing, and there is no knob, because how hard a
+                        summing amplifier is driven is part of what choosing a character means.
+                    </p>
+
+                    <p>
+                        <strong>How fast you let a key go sets the level its tail starts from.</strong> On a keyboard that senses a release, the
+                        hardest lift doubles the key-off level and the softest halves it. There is no knob and no parameter: it is a property of the
+                        gesture the way velocity is, and a keyboard that cannot sense a release changes nothing.
+                    </p>
+
+                    <p>
+                        <strong>The master volume is a glass fader lying across the output meter</strong>, over the lamps it sets the level of,
+                        instead of a knob in a group of its own. A LINK drag that spreads a move uniformly now spreads it in decibels as well: on the
+                        fader row it was uniform in travel, which put six or seven decibels on the loudest channel and thirty on the quietest.
+                    </p>
+
+                    <p>
+                        <strong>A thirty-second factory preset, and four others that reach for the new machines.</strong> <em>60s Organ</em> is a
+                        combo organ that has not been serviced: the partials are pulled off each other rather than tuned, so the stack beats against
+                        itself instead of fusing, and the noise channel is a few milliseconds of key click on every note. It runs into a bucket
+                        brigade driven hard enough that the repeats grow rather than fade, and falls into a spring still ringing when the next chord
+                        arrives. It is also the first patch to ask for Diode. <em>Shimmer</em> and <em>Tape Choir</em> now ask for the plate rather
+                        than the room, and <em>Cathedral</em> and <em>Struck Bell</em> stay on the room. Because the list is alphabetical and 60s
+                        Organ sorts second, a MIDI program change now names the preset above the one it used to; a saved session is unaffected, since
+                        it carries the name as well as the number.
+                    </p>
+
+                    <p>
+                        <strong>LINK came back switched off.</strong> Its scope and its curve were remembered with the session and the switch that
+                        decides whether either applies was not, so reopening a window gave you exactly the drag you had set up, turned off. All three
+                        are saved together now.
+                    </p>
+
+                    <p>
+                        <strong>Unfolding a section made the faders swell.</strong> On a window shrunk until the faders were squeezed, unfolding gave
+                        back twice the height it had taken, all of it to the faders. Applying the window's new size limits is itself a resize, so the
+                        height was measured after it had already moved and the same rows counted twice.
+                    </p>
+
+                    <p>
+                        <strong>Draw the faders.</strong> A drag across the fader area sets every channel it passes over from the pointer's height, so
+                        a spectrum goes in with one stroke instead of thirty-two drags. Hold shift for it, or latch it on with the new DRAW switch
+                        under the LEVEL caption. Armed, every fader lights in the same accent the switch does, so what a drag would reach is visible
+                        before you touch anything. It is not LINK under another name: LINK shares one relative move out across the channels by a rule,
+                        and this sets absolute values freehand. Columns crossed between one moment and the next are filled in, the whole stroke is one
+                        undo, and the noise channel draws with the rest. While it is armed the pointer becomes a pencil and LINK reads as off, without
+                        being off.
+                    </p>
+
+                    <p>
+                        <strong>A section folds from any strip, not just from the gutter.</strong> Every section draws a rule across all thirty-three
+                        columns, lined up with its heading in the caption gutter on the far left, and clicking one of those rules now folds that
+                        section. Reaching the gutter meant leaving the partial you were working on, crossing the mixer and finding your way back, by
+                        which time you had lost which column you were in. The pointer shows the same hand over a rule as over a heading.
+                    </p>
+
+                    <p>
+                        <strong>The bar says what each group is.</strong> A small caption under the button at the head of the character, echo and
+                        reverb groups, because those buttons show a value and nothing said what OP-AMP, TAPE or ROOM was a choice of. With the caption
+                        doing that, the button reads OFF when the effect is off, where it used to read ECHO or REVERB so the group could still be
+                        found, and the ring of lit ticks around that effect's four knobs goes dark with it. The knobs keep their positions, so a
+                        setting can be dialled in before the thing is switched on. The clipper also has a switch on the bar now, CLIP, under the
+                        output meter beside the two converter readouts, which are a little larger themselves. It is still in the Settings menu too.
+                    </p>
+
+                    <p>
+                        <strong>Fixed.</strong> Right-clicking the gap between two sections opened two LINK menus stacked on each other, and picking
+                        an item on the front one left the one behind it unchanged, so the setting looked to have been refused when it had already
+                        taken. A scroll over a knob also dragged the mixer sideways whenever the window was narrow enough for the series to need
+                        scrolling, since each strip watches everything inside it and passed the wheel on after the knob had taken it. A scroll on a
+                        strip's background still moves the series. The plugin would not tell you which version it was: not in the Settings menu, not
+                        on the panel, not anywhere, while the bug report template refused a report without one and said to read it off that menu. It
+                        is the menu's first heading now. The first repeat of an echo came back clean while every repeat after it was worn, on both the
+                        tape and the bucket brigade. Both echoes compressed everything they were handed, because the tape's backstop was set for a bus
+                        running near one where a full patch runs closer to two. The digital delay had a tail that never went away at any feedback from
+                        a half upwards, which is what a quantiser inside a feedback loop does. And the zoom menu ticked 100% whatever the zoom was.
+                    </p>
+
+                    <p>
+                        <strong>Before upgrading.</strong> Presets on a character sound fuller, because the bus they are summed onto now drives, and
+                        that is the intended sound of them. The echoes are cleaner and their first repeat is coloured, so a patch leaning on the tape
+                        echo's compression will not find it. <em>Sparkle Pad</em> is louder and otherwise unchanged, since it was mixed low on purpose
+                        to keep that compression down. Your own patches get the tape and the room, which is what every patch written before this had.
+                        Two parameters were added, 786 in all, both on the end, so every automation lane written before this release still points at
+                        the control it was pointing at.
+                    </p>
+
+                    <p class="more"><a href="https://github.com/benjamindehli/overtonium/releases/tag/v1.10.0">The full notes for 1.10.0</a></p>
+                </section>
+
+                <section>
                     <h2>1.9.0, 23 September 2026</h2>
 
                     <p>

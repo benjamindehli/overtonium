@@ -18,11 +18,35 @@ int chromeHeight(int logicalWidth) {
   return ovt::ui::TopBar::heightForWidth(logicalWidth) + kScrollBarThickness;
 }
 
+/// The narrowest window, in logical pixels.
+///
+/// Wide enough for a usable stretch of mixer, and never narrower than the top
+/// bar can lay itself out in without dropping a group. Every width the floor
+/// is worked out for is clamped up to this, so that a window with no size yet
+/// gets the narrow window's answer rather than one for a width nothing can be.
+int minimumLogicalWidth() {
+  return juce::jmax(kGutterWidth + kStripWidth + kMasterGap + 6 * kStripWidth,
+                    ovt::ui::TopBar::minimumWidth());
+}
+
 /// State keys stored alongside the parameters so window size survives a reopen.
 const juce::Identifier kEditorWidth{"editorWidth"};
 const juce::Identifier kEditorHeight{"editorHeight"};
 const juce::Identifier kEditorZoom{"editorZoom"};
 const juce::Identifier kLinkScope{"linkScope"};
+
+/// Whether LINK is on. Kept beside the scope and the curve because it is the
+/// same setting: those two say what a drag would reach and this says whether
+/// it reaches anything. Saving two of the three and not the third meant a
+/// window reopened remembering how LINK was set up and having switched it off.
+const juce::Identifier kLinkOn{"linkOn"};
+
+/// Whether the fader drawing tool is latched on. Remembered with the session
+/// for the reason LINK is: it is a tool rather than part of the sound, and one
+/// you left on should still be on when you come back to it. A mode nobody can
+/// see is a mode nobody remembers, which is why the button it sets is lit the
+/// whole time it is on.
+const juce::Identifier kDrawLatched{"drawLatched"};
 
 /// The curve, by name. See linkCurveFromState.
 const juce::Identifier kLinkCurveId{"linkCurveId"};
@@ -36,11 +60,6 @@ const juce::Identifier kCollapsedSections{"collapsedSections"};
 /// What the APVTS calls each parameter's node in the state tree. Its own
 /// constant is private, but the name is part of the format: it is what the
 /// saved state and every preset file are written in.
-bool isHeadingRow(Row r) {
-  return r == Row::PitchModHeading || r == Row::EnvHeading ||
-         r == Row::KeyOffHeading || r == Row::AmpModHeading ||
-         r == Row::OutputHeading;
-}
 } // namespace
 
 // =============================================================================
@@ -66,6 +85,22 @@ RowGutter::RowGutter() {
   };
 
   addAndMakeVisible(linkButton);
+
+  drawButton.setButtonText("DRAW");
+  drawButton.setTooltip(
+      "Draw the faders: a drag across them sets every channel it passes over "
+      "from the pointer's height, rather than moving one. Holding shift does "
+      "the same for as long as it is held, and this button lights while it "
+      "is.");
+
+  drawButton.setColour(juce::TextButton::textColourOnId, colours::accent);
+
+  drawButton.onClick = [this] {
+    if (onDrawClicked)
+      onDrawClicked();
+  };
+
+  addAndMakeVisible(drawButton);
 }
 
 void RowGutter::setHighlightedRow(Row row) {
@@ -89,10 +124,23 @@ void RowGutter::resized() {
       layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed);
 
   linkButton.setBounds(rows[(size_t)Row::Header].reduced(7, 1));
+
+  // Under the LEVEL caption, which takes the top of the tall fader row, and
+  // above the badge that sits at the foot of it. The faders are what it draws,
+  // so it belongs beside them rather than up on the bar with the things that
+  // are set once and left.
+  auto fader = rows[(size_t)Row::Fader].reduced(7, 0);
+  fader.removeFromTop(18);
+
+  drawButton.setBounds(fader.removeFromTop(22));
 }
 
 void RowGutter::setLinkOn(bool on) {
   linkButton.setToggleState(on, juce::dontSendNotification);
+}
+
+void RowGutter::setDrawOn(bool on) {
+  drawButton.setToggleState(on, juce::dontSendNotification);
 }
 
 void RowGutter::setCollapsedSections(SectionMask mask) {
@@ -124,11 +172,22 @@ void RowGutter::mouseDown(const juce::MouseEvent &e) {
 void RowGutter::mouseMove(const juce::MouseEvent &e) {
   const auto rows =
       layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed);
-  const bool onHeading =
-      headingSectionAt(rows, e.getPosition()) != Section::NumSections;
+  const auto section = headingSectionAt(rows, e.getPosition());
+  const bool onHeading = section != Section::NumSections;
 
   setMouseCursor(onHeading ? juce::MouseCursor::PointingHandCursor
                            : juce::MouseCursor::NormalCursor);
+
+  // Only the headings. The other captions name a control that is somewhere
+  // else, so lighting one from here would say the pointer was on a knob it is
+  // nowhere near.
+  if (onHoverChanged)
+    onHoverChanged(onHeading ? sectionHeading(section) : kNoRow);
+}
+
+void RowGutter::mouseExit(const juce::MouseEvent &) {
+  if (onHoverChanged)
+    onHoverChanged(kNoRow);
 }
 
 void RowGutter::paint(juce::Graphics &g) {
@@ -206,7 +265,9 @@ void RowGutter::paint(juce::Graphics &g) {
                          cx + kAlong * 0.5f, cy - kAcross * 0.5f, cx,
                          cy + kAcross * 0.5f);
 
-      g.setColour(colours::textDim);
+      // Lit with its own caption rather than left dim beside it. The two are
+      // one control, and half of it coming up reads as a rendering fault.
+      g.setColour(lit ? colours::accent : colours::textDim);
       g.fillPath(mark);
     }
   }
@@ -267,6 +328,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   for (int i = 0; i < kNumHarmonics; ++i) {
     auto strip =
         std::make_unique<ChannelStrip>(plugin().apvts, *this, *this, *this, i);
+    strip->onSectionToggled = [this](Section s) { toggleSection(s); };
     stripsHolder.addAndMakeVisible(*strip);
     strips.push_back(std::move(strip));
   }
@@ -350,6 +412,12 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   zoom = juce::jlimit(0.5f, 2.0f, zoom);
   topBar.setZoomChoice(zoom);
 
+  drawLatched = state.getProperty(kDrawLatched, false);
+  drawArmed = drawLatched;
+
+  gutter.onDrawClicked = [this] { toggleDrawLatch(); };
+
+  topBar.setLinkEnabled(state.getProperty(kLinkOn, false));
   topBar.setLinkScope((LinkScope)juce::jlimit(
       0, (int)LinkScope::NumScopes - 1, (int)state.getProperty(kLinkScope, 0)));
   topBar.setLinkCurve(
@@ -358,28 +426,25 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
 
   topBar.onLinkSettingsChanged = [this] {
     auto &tree = plugin().apvts.state;
+    tree.setProperty(kLinkOn, topBar.isLinkEnabled(), nullptr);
     tree.setProperty(kLinkScope, (int)topBar.getLinkScope(), nullptr);
     tree.setProperty(kLinkCurveId, linkCurveId(topBar.getLinkCurve()), nullptr);
     tree.removeProperty(kLinkCurve, nullptr);
 
-    // The switch is in the gutter and the settings it belongs to are on the
-    // bar, so the button is told rather than asked.
-    gutter.setLinkOn(topBar.isLinkEnabled());
-
-    // Switching LINK on, or changing what it reaches, changes the answer to
-    // "what would this knob take with it", so the preview follows immediately
-    // rather than waiting for the pointer to move.
-    updateLinkGlow();
-    updateLinkCursor();
+    syncLinkUi();
   };
+
+  // What the restored settings have to reach, and the reason it is a function
+  // rather than the tail of that callback: opening a window has to arrive at
+  // the same place a menu choice does, and a second list of things to update
+  // is a second list to forget something from.
+  syncLinkUi();
 
   // The menu belongs to the bar, which holds what it changes. The gutter holds
   // the button that opens it, and hands back what to hang it off.
   gutter.onLinkClicked = [this](juce::Component *anchor) {
     topBar.showLinkMenu(anchor);
   };
-
-  updateLinkCursor();
 
   // Housekeeping runs at 4 Hz, and a readout that is blank for the first
   // quarter second of the window being open reads as broken.
@@ -394,6 +459,11 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
 
   gutter.onSectionToggled = [this](Section s) { toggleSection(s); };
 
+  // Off the series, like the noise channel, so pointing at a caption cannot
+  // arm a LINK preview on whichever channel happened to be hovered last.
+  gutter.onHoverChanged = [this](Row row) { hoverChanged(-1, row); };
+  noiseStrip.onSectionToggled = [this](Section s) { toggleSection(s); };
+
   const auto standard = standardSize();
 
   const int savedWidth =
@@ -402,7 +472,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
       (int)state.getProperty(kEditorHeight, standard.getHeight());
 
   setResizable(true, true);
-  applyResizeLimits();
+  applyResizeLimits(savedWidth);
 
   // Cast rather than left to the compiler. int times float is a conversion
   // that can lose precision in principle, and newer clang says so.
@@ -554,6 +624,14 @@ void OvertoniumEditor::resized() {
   const int logicalWidth = juce::roundToInt((float)getWidth() / zoom);
   const int logicalHeight = juce::roundToInt((float)getHeight() / zoom);
 
+  // The shortest legal window changes when the bar reflows, so a drag across
+  // one of those widths has to be followed. Only on a change, which is what
+  // keeps this from recursing: applying limits constrains the bounds and so
+  // comes back here, and the second pass finds the same bar height and stops.
+  if (ovt::ui::TopBar::heightForWidth(
+          juce::jmax(minimumLogicalWidth(), logicalWidth)) != limitsBarHeight)
+    applyResizeLimits(logicalWidth);
+
   content.setTransform(juce::AffineTransform::scale(zoom));
   content.setBounds(0, 0, logicalWidth, logicalHeight);
 
@@ -610,21 +688,47 @@ juce::Rectangle<int> OvertoniumEditor::standardSize() const {
 void OvertoniumEditor::fitAllChannels() {
   const auto standard = standardSize();
 
+  // The limits first, and for the width this is about to be rather than the
+  // one it is at. setSize does not consult them, so without this the window
+  // lands at whatever the standard size says while the floor still belongs to
+  // the width being left, and the next drag snaps it to that floor.
+  applyResizeLimits(standard.getWidth());
+
   setSize(juce::roundToInt((float)standard.getWidth() * zoom),
           juce::roundToInt((float)standard.getHeight() * zoom));
 }
 
 void OvertoniumEditor::applyResizeLimits() {
+  applyResizeLimits(juce::roundToInt((float)getWidth() / zoom));
+}
+
+void OvertoniumEditor::applyResizeLimits(int forLogicalWidth) {
   // Limits are expressed in logical pixels, so they scale with the zoom factor.
   // Wide enough for a usable stretch of mixer, and never narrower than the top
   // bar can lay itself out without dropping a group.
-  const int minWidth =
-      juce::jmax(kGutterWidth + kStripWidth + kMasterGap + 6 * kStripWidth,
-                 ovt::ui::TopBar::minimumWidth());
-  // The narrowest window is also the one where the bar takes two rows, so
-  // the minimum height has to leave room for that.
+  const int minWidth = minimumLogicalWidth();
+
+  // The floor follows the width, and the reason is the bar. It takes three
+  // rows at the narrowest window, two from 648, and one from 1258, which is
+  // 182, 124 and 66 pixels of chrome, so the same mixer needs a window 116
+  // pixels taller at one end of the range than at the other.
+  //
+  // It used to be worked out at minWidth and used at every width, which made
+  // the floor the narrow window's floor even on a wide one. The wide window
+  // was then held 116 pixels taller than it needed to be, and Fit all 32
+  // channels, which calls setSize and so consults no limits at all, went
+  // straight past it: it landed at 913 against a floor of 997 and the first
+  // drag afterwards snapped the window up by 84 pixels.
+  //
+  // Never below minWidth, so a window narrower than the floor allows, which
+  // is what an unset size during construction looks like, still gets the
+  // conservative answer rather than one for a width nothing can have.
+  const int width = juce::jmax(minWidth, forLogicalWidth);
+  const int bar = ovt::ui::TopBar::heightForWidth(width);
   const int minHeight =
-      chromeHeight(minWidth) + minimumStripHeight(collapsedSections);
+      chromeHeight(width) + minimumStripHeight(collapsedSections);
+
+  limitsBarHeight = bar;
 
   setResizeLimits(juce::roundToInt((float)minWidth * zoom),
                   juce::roundToInt((float)minHeight * zoom),
@@ -642,7 +746,13 @@ void OvertoniumEditor::setZoom(float newZoom) {
   const auto logicalHeight = (float)getHeight() / zoom;
 
   zoom = newZoom;
-  applyResizeLimits();
+
+  // The bar keeps its own copy, which is what the tick in the Zoom submenu is
+  // drawn from. Without this the menu goes on saying 100% whatever the window
+  // is actually at, since the only other place that sets it is the restore.
+  topBar.setZoomChoice(zoom);
+
+  applyResizeLimits(juce::roundToInt(logicalWidth));
 
   setSize(juce::roundToInt(logicalWidth * zoom),
           juce::roundToInt(logicalHeight * zoom));
@@ -668,13 +778,22 @@ void OvertoniumEditor::toggleSection(Section section) {
   plugin().apvts.state.setProperty(kCollapsedSections, (int)collapsedSections,
                                    nullptr);
 
+  // Read before anything moves. Applying the limits can resize the window on
+  // its own: setResizeLimits ends by constraining the current bounds to the
+  // new ones, and unfolding raises the floor by exactly the rows coming back.
+  // So on a window already squeezed against that floor, the limits grew it by
+  // the rows and then the arithmetic below added the rows again. Measured, a
+  // window squeezed to 997 folded to 847 and came back at 1147 instead of 997,
+  // and the surplus went where every surplus goes, into the fader: the report
+  // was of faders filling the screen and running under the dock.
+  const int logicalHeight = juce::roundToInt((float)getHeight() / zoom);
+
   // The window follows, which is the point: left alone the fader would stretch
   // into the space and the mixer would be exactly as tall as before. Limits
   // are applied first, since folding lowers the floor and the new height may
   // be below the old one.
   applyResizeLimits();
 
-  const int logicalHeight = juce::roundToInt((float)getHeight() / zoom);
   const int wanted = logicalHeight - (nowFolded - wasFolded);
   setSize(getWidth(), juce::roundToInt((float)wanted * zoom));
 
@@ -755,6 +874,151 @@ juce::RangedAudioParameter *OvertoniumEditor::oscParameter(Role role,
       params::oscParamId(roleSuffix(role), index));
 }
 
+bool OvertoniumEditor::drawStarted(juce::Point<int> onScreen) {
+  if (!drawArmed)
+    return false;
+
+  // One gesture for the whole drawn line, opened on every fader it could
+  // reach rather than on the ones it turns out to. A parameter that never
+  // moves contributes nothing to the step, and opening them as the pointer
+  // arrives would leave the host holding a gesture per column.
+  for (auto *param : faderParameters())
+    if (param != nullptr)
+      param->beginChangeGesture();
+
+  drawingNow = true;
+  lastDrawn = onScreen;
+  hoverLocked = true;
+
+  applyDrawAt(onScreen);
+  return true;
+}
+
+void OvertoniumEditor::drawMovedTo(juce::Point<int> onScreen) {
+  if (!drawingNow)
+    return;
+
+  // Every column between the last point and this one, not just the one under
+  // the pointer. A hand moving quickly crosses several strips between two
+  // mouse events, and drawing only where the events landed leaves the shape
+  // full of holes exactly where the drawing was fastest.
+  const auto from = lastDrawn;
+  const auto steps = juce::jmax(1, std::abs(onScreen.x - from.x));
+
+  for (int i = 1; i <= steps; ++i) {
+    const auto t = (double)i / (double)steps;
+
+    applyDrawAt({from.x + juce::roundToInt(t * (onScreen.x - from.x)),
+                 from.y + juce::roundToInt(t * (onScreen.y - from.y))});
+  }
+
+  lastDrawn = onScreen;
+}
+
+void OvertoniumEditor::drawEnded() {
+  if (!drawingNow)
+    return;
+
+  drawingNow = false;
+  hoverLocked = false;
+
+  for (auto *param : faderParameters())
+    if (param != nullptr)
+      param->endChangeGesture();
+}
+
+/// Every fader a drawn line can reach, the noise channel included.
+///
+/// It is not a harmonic, but it is a fader, and a drag that crossed it and
+/// left it alone would be stranger than one that did not.
+std::vector<juce::RangedAudioParameter *>
+OvertoniumEditor::faderParameters() const {
+  std::vector<juce::RangedAudioParameter *> out;
+  out.reserve(kNumHarmonics + 1);
+
+  for (int i = 0; i < kNumHarmonics; ++i)
+    out.push_back(oscParameter(Role::Volume, i));
+
+  out.push_back(
+      plugin().apvts.getParameter(params::noiseParamId(params::volumeSuffix)));
+
+  return out;
+}
+
+/// Sets whichever fader is under this point, if one is.
+void OvertoniumEditor::applyDrawAt(juce::Point<int> onScreen) {
+  for (auto &strip : strips) {
+    const auto local = strip->getLocalPoint(nullptr, onScreen);
+
+    if (local.x >= 0 && local.x < strip->getWidth()) {
+      strip->drawFaderAt(local.y);
+      return;
+    }
+  }
+
+  const auto local = noiseStrip.getLocalPoint(nullptr, onScreen);
+
+  if (local.x >= 0 && local.x < noiseStrip.getWidth())
+    noiseStrip.drawFaderAt(local.y);
+}
+
+void OvertoniumEditor::pollDrawModifier() {
+  // Asked for rather than waited for, and that is the whole of why this is a
+  // poll. JUCE sends a modifier change to the component under the pointer, and
+  // Slider handles it without passing it up, so over a fader or a knob the
+  // editor never hears about it. The result was a tool that could only be
+  // armed with the pointer in one of the gaps between channels, and that
+  // latched on for good if the key was released anywhere else.
+  //
+  // Nothing can swallow this.
+  const auto held = juce::ModifierKeys::getCurrentModifiers().isShiftDown();
+
+  if (held == shiftHeld)
+    return;
+
+  shiftHeld = held;
+  refreshDrawArmed();
+}
+
+void OvertoniumEditor::refreshDrawArmed() {
+  // Held or latched: the modifier is the quick way and the button is the way
+  // that stays. Either arms it and the button lights for both, so the panel
+  // says what a drag would do however it came to be that way.
+  const auto armed = shiftHeld || drawLatched;
+
+  if (armed == drawArmed)
+    return;
+
+  drawArmed = armed;
+  syncLinkUi();
+}
+
+void OvertoniumEditor::toggleDrawLatch() {
+  drawLatched = !drawLatched;
+
+  plugin().apvts.state.setProperty(kDrawLatched, drawLatched, nullptr);
+
+  refreshDrawArmed();
+}
+
+void OvertoniumEditor::syncLinkUi() {
+  // The switch is in the gutter and the settings it belongs to are on the bar,
+  // so the button is told rather than asked.
+  //
+  // It reads as off while drawing is armed, without being off: a drag cannot
+  // be a link and a drawing at once, and a switch left lit for a gesture that
+  // has been taken away from it is a lie the mouse-up would expose. The
+  // setting itself does not move, so letting go of the modifier gives it back.
+  gutter.setLinkOn(topBar.isLinkEnabled() && !drawArmed);
+  gutter.setDrawOn(drawArmed);
+
+  // Switching LINK on, or changing what it reaches, changes the answer to
+  // "what would this knob take with it", so the preview follows immediately
+  // rather than waiting for the pointer to move.
+  updateLinkGlow();
+  updateLinkCursor();
+}
+
 bool OvertoniumEditor::isLinkEnabled() const { return topBar.isLinkEnabled(); }
 
 void OvertoniumEditor::showLinkMenu() { topBar.showLinkMenu(nullptr); }
@@ -764,7 +1028,11 @@ void OvertoniumEditor::updateLinkCursor() {
   // all take the parent's pointer, so this one assignment reaches every one of
   // them. The noise channel is outside the holder, which is right, since LINK
   // never reaches it either.
-  stripsHolder.setMouseCursor(topBar.isLinkEnabled()
+  // A drag while drawing is armed draws rather than links, so the pointer says
+  // so: a pencil over the mixer, and never the LINK cursor, which would be
+  // promising a gesture that is not what would happen.
+  stripsHolder.setMouseCursor(drawArmed ? drawCursor()
+                              : topBar.isLinkEnabled()
                                   ? linkCursor(topBar.getLinkCurve())
                                   : juce::MouseCursor());
 
@@ -848,6 +1116,44 @@ void OvertoniumEditor::linkValueChanged(Role role, int sourceIndex,
   if (source == nullptr)
     return;
 
+  const juce::ScopedValueSetter<bool> guard(propagatingLink, true);
+
+  // The faders are shared out in decibels rather than across their travel,
+  // because their travel is shaped to feel right under a finger rather than
+  // to be even: moving every fader the same distance moves a quiet channel
+  // many times further in level than the one in your hand. See
+  // linkIsDecibels, which is also why this is the only row that needs a space
+  // of its own.
+  if (linkIsDecibels(role, gesture.curve)) {
+    const auto decibelsAt = [](const juce::RangedAudioParameter *p,
+                               float normalised) {
+      return params::levelDecibels(p->convertFrom0to1(normalised));
+    };
+
+    const auto now = params::levelDecibels(plainValue);
+    const auto delta =
+        now - decibelsAt(source, gesture.baseline[(size_t)sourceIndex]);
+
+    for (int i = 0; i < kNumHarmonics; ++i) {
+      if (i == sourceIndex || !gesture.includes(i))
+        continue;
+
+      auto *param = oscParameter(role, i);
+      if (param == nullptr)
+        continue;
+
+      const auto landed = linkedValue(
+          gesture.curve, decibelsAt(param, gesture.baseline[(size_t)i]), delta,
+          gesture.weight[(size_t)i], gesture.jitter[(size_t)i], now,
+          params::kQuietestLevelDb, 0.0f);
+
+      param->setValueNotifyingHost(param->convertTo0to1(
+          juce::Decibels::decibelsToGain(landed, params::kQuietestLevelDb)));
+    }
+
+    return;
+  }
+
   // How far the dragged knob has travelled, in normalised units.
   const auto delta =
       source->convertTo0to1(plainValue) - gesture.baseline[(size_t)sourceIndex];
@@ -856,8 +1162,6 @@ void OvertoniumEditor::linkValueChanged(Role role, int sourceIndex,
   // the knob in your hand is the target rather than a stranded outlier.
   const auto target =
       juce::jlimit(0.0f, 1.0f, gesture.baseline[(size_t)sourceIndex] + delta);
-
-  const juce::ScopedValueSetter<bool> guard(propagatingLink, true);
 
   for (int i = 0; i < kNumHarmonics; ++i) {
     if (i == sourceIndex || !gesture.includes(i))
@@ -910,13 +1214,28 @@ void OvertoniumEditor::hoverChanged(int stripIndex, Row row) {
 }
 
 void OvertoniumEditor::updateLinkGlow() {
+  // Armed, every fader lights, and nothing else does. It answers the same
+  // question LINK's preview answers, which is what the next drag would reach,
+  // so it is the same mechanism rather than a second kind of highlight: two
+  // ways of saying that would be two things to keep in step.
+  if (drawArmed) {
+    for (auto &strip : strips)
+      strip->setLinkGlow(Role::Volume, 1.0f, true);
+
+    noiseStrip.setDrawGlow(true);
+    return;
+  }
+
+  noiseStrip.setDrawGlow(false);
+
   auto role = Role::Tune;
   std::array<float, kNumHarmonics> weight{};
 
   if (linkGesture.active) {
     role = linkGesture.role;
     weight = linkGesture.weight;
-  } else if (isLinkEnabled() && hoverStrip >= 0 && roleForRow(hoverRow, role)) {
+  } else if (isLinkEnabled() && !drawArmed && hoverStrip >= 0 &&
+             roleForRow(hoverRow, role)) {
     // Nothing has been grabbed yet, so this is a preview of what the knob under
     // the pointer would take with it.
     gatherLinkWeights(hoverStrip, topBar.getLinkScope(), topBar.getLinkCurve(),
@@ -977,6 +1296,8 @@ void OvertoniumEditor::syncSharedModulators() {
 
 void OvertoniumEditor::timerCallback() {
   ++tick;
+
+  pollDrawModifier();
 
   // Two things about a frame cost the window manager: that it happened at all,
   // and how much of the window the dirty rectangles enclose. It enlarges them

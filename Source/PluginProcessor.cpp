@@ -181,6 +181,15 @@ void OvertoniumProcessor::prepareToPlay(double sampleRate,
                                         int maximumExpectedSamplesPerBlock) {
   engine.prepare(sampleRate);
 
+  // The bus stage runs at twice whatever rate this is, so everything leaving
+  // here has been through a half-band filter twice and is a fixed few samples
+  // behind. Told to the host rather than left for it to find, and told
+  // whatever the patch says: a stage that reported one latency on Pure and
+  // another on Valve would have the host re-plan its graph every time a preset
+  // was chosen, and a bypassed stage delays by the same amount through a plain
+  // delay so that it does not have to. See BusDrive::kLatency.
+  setLatencySamples(ovt::BusDrive::kLatency);
+
   // A floor under whatever the host asks for, so a host that promises a very
   // small block and then hands over a large one is not cut into a great many
   // pieces. Two channels of 512 frames is four kilobytes.
@@ -277,7 +286,9 @@ void OvertoniumProcessor::notePitchbendChanged(juce::MPENote note) {
 }
 
 void OvertoniumProcessor::noteReleased(juce::MPENote note) {
-  engine.noteOffPerNote(note.midiChannel, note.initialNote);
+  engine.noteOffPerNote(
+      note.midiChannel, note.initialNote,
+      ovt::liftFromVelocity(note.noteOffVelocity.as7BitInt()));
 }
 
 void OvertoniumProcessor::releaseResources() {
@@ -380,7 +391,10 @@ void OvertoniumProcessor::handleOrdinaryMidiMessage(
   if (m.isNoteOn()) {
     engine.noteOn(m.getNoteNumber(), m.getFloatVelocity(), currentParams);
   } else if (m.isNoteOff()) {
-    engine.noteOff(m.getNoteNumber());
+    // getVelocity is the release velocity on a note-off, and zero on the
+    // note-on-of-velocity-zero form that most keyboards send instead of
+    // one. liftFromVelocity reads zero as neutral for that reason.
+    engine.noteOff(m.getNoteNumber(), ovt::liftFromVelocity(m.getVelocity()));
   } else if (m.isPitchWheel()) {
     pitchBendNormalised = ((float)m.getPitchWheelValue() - 8192.0f) / 8192.0f;
     currentParams.global.bendSemitones =
@@ -689,6 +703,25 @@ void OvertoniumProcessor::setStateInformation(const void *data,
       programApplied = true;
 
       apvts.replaceState(tree);
+
+      // A value that is not a real number, put back to the default.
+      //
+      // A state this plugin wrote cannot hold one, so this is about a session
+      // file that was corrupted, truncated or edited by hand. Of everything
+      // such a file can say, NaN is the only thing that gets through: every
+      // clamp in the range handling is a pair of comparisons, and both are
+      // false against NaN, so jlimit hands it straight back. Infinities and
+      // absurd finite values are clamped on the way in and do no harm, which
+      // is why this looks for the one case that is not clamped rather than
+      // sanitising everything.
+      //
+      // It has to be caught here because there is nowhere later that is
+      // cheap. The parameters are read into a snapshot every block, and
+      // testing 786 of them for being a number on the audio thread is a cost
+      // paid forever against a file that is already broken.
+      for (auto *parameter : getParameters())
+        if (!std::isfinite(parameter->getValue()))
+          parameter->setValueNotifyingHost(parameter->getDefaultValue());
     }
   }
 }

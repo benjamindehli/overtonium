@@ -29,6 +29,19 @@ class StereoOutputMeter : public juce::Component {
 public:
   StereoOutputMeter() { setInterceptsMouseClicks(false, false); }
 
+  /// The strip along the bottom that carries the decibel marks rather than
+  /// any lamps.
+  static constexpr int kScaleHeight = 4;
+
+  /// Where the two bars actually are, which is not the whole of this: the
+  /// scale runs underneath them. The fader that lies over the meter reads it
+  /// from here rather than measuring the same thing again, since a cap four
+  /// pixels below the lamps it is supposed to be standing on reads as a
+  /// control that has come loose.
+  juce::Rectangle<int> barBounds() const {
+    return getLocalBounds().withTrimmedBottom(kScaleHeight);
+  }
+
   /// @param l,r  linear peaks from the audio thread.
   void push(float l, float r);
 
@@ -136,6 +149,7 @@ public:
   LinkScope getLinkScope() const { return scope; }
   LinkCurve getLinkCurve() const { return curve; }
 
+  void setLinkEnabled(bool);
   void setLinkScope(LinkScope);
   void setLinkCurve(LinkCurve);
 
@@ -207,6 +221,78 @@ public:
   /// showing one needs a real window. This can be walked without either.
   juce::PopupMenu buildSettingsMenu();
 
+  /// The echo's four positions: off, and one per machine.
+  ///
+  /// A menu rather than a switch, for the same reason the character is one.
+  /// Behind it are two parameters rather than one: the switch that turns the
+  /// echo on is older than the choice of machine, and every saved patch stores
+  /// it and every automation lane points at it, so it stayed where it was and
+  /// the type arrived beside it. Off writes the switch, the other three write
+  /// the switch and a type.
+  ///
+  /// Built as data for the same reason the settings menu is: a menu that can
+  /// only be reached by clicking is a menu that never gets tested.
+  juce::PopupMenu buildEchoMenu();
+
+  /// The same, for the reverb, and for the same two reasons: its on switch
+  /// predates the choice of machine, and a menu built as data is a menu that
+  /// can be tested without being clicked.
+  juce::PopupMenu buildReverbMenu();
+
+  /// How wide the two buttons that say a value have to be.
+  ///
+  /// Each is sized for the longest word it can show, in the capitals the bar
+  /// shouts everything in, plus the air either side that every other button
+  /// here has. A word that does not fit is drawn with its middle taken out and
+  /// nothing says so, which is why a test measures these rather than trusting
+  /// them. See testBarButtonsFitTheirWords.
+  /// Both land on the same figure, from different directions: OP-AMP is 51 px
+  /// and DIGITAL is 50, and the air either side is what every other button on
+  /// the bar has.
+  static constexpr int kCharacterWidth = 62;
+  static constexpr int kEchoWidth = 62;
+  static constexpr int kReverbWidth = 58;
+
+  /// The word painted under each of those, saying what the button chooses.
+  ///
+  /// In the same order as the three widths above, and public for the same
+  /// reason they are: a word wider than the button it sits under is drawn
+  /// with its middle taken out and nothing says so. See
+  /// testBarButtonsFitTheirWords.
+  static constexpr const char *kGroupNames[] = {"CHARACTER", "ECHO", "REVERB"};
+
+  /// The clipper's switch, under the meter beside the converter readouts.
+  ///
+  /// Sized for the one word it ever says, at the font a button this short
+  /// picks for itself, which is the same 9 px the captions around it use.
+  static constexpr int kClipWidth = 34;
+
+  /// The one word it ever says. Shared with the tests, which have to pick this
+  /// button out of the bar's children: it is the only one that stands in the
+  /// caption band rather than on the line of controls.
+  static constexpr const char *kClipName = "CLIP";
+
+  /// What the Settings menu says this build is, as it says it.
+  ///
+  /// Built here rather than written out at the point it is drawn, so the test
+  /// that checks the menu names the version can ask the same question the menu
+  /// answers instead of assembling the string a second time and agreeing with
+  /// itself.
+  static juce::String versionLine();
+
+private:
+  /// Whether an effect's knobs show a lit ring. Off means the stage is not in
+  /// the signal, and a knob that is not doing anything should not look as
+  /// though it is.
+  void setRingsLive(std::vector<Control> &controls, bool live);
+
+  /// Applies what buildEchoMenu came back with. Zero means dismissed.
+  void chooseEcho(int id);
+
+  /// The same for the reverb.
+  void chooseReverb(int id);
+
+public:
 private:
   /// The factory list, then whatever has been saved, then what can be done
   /// with them.
@@ -274,7 +360,15 @@ private:
   // Anything that exists on all 32 strips now lives on the master channel.
   // What is left here is the handful of genuinely single global values, which
   // have nothing to stay relative to and so are ordinary absolute knobs.
-  LabelledKnob master{"MASTER"};
+  /// The output level, laid over the meter rather than beside it.
+  ///
+  /// Every one of the thirty-three channels sets its level with a fader whose
+  /// meter runs behind it, so the master reads as the odd one out when it is a
+  /// knob. Laid on its side over the output meter it matches them, and the
+  /// forty-eight pixels it used to take plus its gap go to the meter instead,
+  /// which is the one thing on this bar worth more room.
+  juce::Slider masterFader{juce::Slider::LinearHorizontal,
+                           juce::Slider::NoTextBox};
 
   /// What the series does, as opposed to what is done to it afterwards. Both
   /// are properties of the instrument, so they stand between the tools and the
@@ -313,7 +407,18 @@ private:
   juce::Array<juce::File> userPresetFiles;
 
   std::unique_ptr<juce::AlertWindow> nameWindow;
-  GlowButton echoButton, reverbButton;
+  GlowButton echoButton, reverbButton, clipButton;
+
+  /// The clipper is a plain switch, so it takes a plain attachment. The two
+  /// effects cannot: their buttons open a menu over two parameters.
+  ///
+  /// Declared after the button rather than beside the alias it is built from,
+  /// and that is the whole of why it is here. Members are destroyed in reverse
+  /// order, so an attachment declared first outlives its button, and an
+  /// attachment's destructor asks the button to stop listening to it. The
+  /// sanitizers catch that as a call on an object that is no longer a Button,
+  /// and nothing else does: the memory is still there and still looks right.
+  std::unique_ptr<ButtonAttachment> clipAttachment;
 
   /// Likewise. Zoom is set once to suit the screen and then left, and giving
   /// its box back to the bar is what lets the output group keep its readouts
@@ -327,7 +432,6 @@ private:
 
   std::unique_ptr<SliderAttachment> masterAttachment, stretchAttachment,
       trackAttachment, wobbleAttachment;
-  std::unique_ptr<ButtonAttachment> echoAttachment, reverbAttachment;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(TopBar)
 };

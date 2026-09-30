@@ -83,11 +83,9 @@ jobs:
             libxcomposite-dev libgl-dev libcurl4-openssl-dev \
             libxi-dev libegl-dev xvfb gdb
 
-      # Warnings are errors here and nowhere else. JUCE's recommended set is
-      # already asked for in CMakeLists and it is a broad one, but a warning
-      # that only prints is a warning that survives, and the log is long
-      # enough that nobody reads all of it. Someone building from source on a
-      # compiler none of these three runners covers still gets a plugin.
+      # Warnings are errors, which is now the default in CMakeLists and asked
+      # for here anyway. The flag is what this job needs rather than what the
+      # file happens to default to, and it costs one line to say so.
       - name: Configure
         run: >
           cmake -B build
@@ -394,6 +392,11 @@ jobs:
       # speed. Debug leaves NDEBUG undefined, which arms every jassert in the
       # framework, and a headless test run trips ones that say nothing about
       # this code. The build the other jobs check is the one worth sanitizing.
+      #
+      # Warnings are errors here too, from the default in CMakeLists. This is
+      # the only job that compiles at RelWithDebInfo, and optimisation level
+      # decides what gcc can prove, so -Wmaybe-uninitialized and friends can
+      # say something here that they do not say in the Release build.
       - name: Configure
         run: >
           cmake -B build-san
@@ -445,6 +448,23 @@ jobs:
           c++ -std=c++17 -O2 -Wall -Wextra -Werror \
             -I Source Tests/dsp_test.cpp Source/dsp/*.cpp -o dsp_test
           ./dsp_test
+
+      # The other half of compiling somewhere else, and the half no compiler
+      # here can do. MSVC will not let a lambda read a local constant it has
+      # not captured, where gcc and clang ask for no capture at all, so the
+      # fault reaches the Windows job and nowhere earlier. That job runs last
+      # and takes twenty minutes to say so, and it has said so twice.
+      #
+      # It sits in this job rather than beside the formatters because it is the
+      # same question: whether this builds anywhere but here.
+      # The check runs against its own cases first. It has twice been wrong in
+      # the direction that matters, passing everything it was given, and a
+      # check that cannot fail is worse than none: it reports that it is
+      # watching. Both mistakes are among the cases.
+      - name: Every lambda captures what it reads
+        run: |
+          python3 .github/scripts/lambda_captures.py --self-test
+          python3 .github/scripts/lambda_captures.py Source Tests
 
   structured-data:
     name: Structured data
