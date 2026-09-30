@@ -90,6 +90,25 @@
                 </p>
 
                 <section>
+                    <h2>1.10.1, 30 September 2026</h2>
+
+                    <p>
+                        <strong>Removing the plugin could hang the host.</strong> In a host that unloads the plugin binary once no instances are left,
+                        taking the last one out could lock the host up, with no way out but to end the process. Reported in FL Studio and in Reaper,
+                        while hosts that keep the binary loaded were never affected.
+                    </p>
+
+                    <p>
+                        The texture the panels are drawn with is an image, built the first time a window opens and shared by every window after it,
+                        and it was being kept for the life of the process. Under Windows that image lives on the graphics card, so letting go of it
+                        hands resources back to the driver, and keeping it in a static meant that happened while the host was unloading the binary.
+                        Windows holds a lock for the whole of an unload and the driver work cannot run until that lock is free, so neither finishes.
+                        The texture now belongs to the windows that use it and goes when the last one closes. Nothing else changed, and nothing about
+                        the sound has.
+                    </p>
+                </section>
+
+                <section>
                     <h2>1.10.0, 30 September 2026</h2>
 
                     <p>
