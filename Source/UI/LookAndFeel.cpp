@@ -26,10 +26,19 @@ constexpr float kGrainStrength = 0.020f;
 constexpr int kGrainSize = 128;
 } // namespace
 
-const juce::Image &grainTile() {
-  // Built on first use and kept. One image for the life of the process, shared
-  // by every window, which is the whole reason this is not per-component.
-  static const juce::Image tile = [] {
+namespace {
+/// Counted rather than inferred, so a test can see the tile go.
+int grainBuilds = 0;
+} // namespace
+
+int grainTileBuildCount() { return grainBuilds; }
+
+GrainTile::GrainTile() {
+  // Built on first use and shared by every window, which is the whole reason
+  // this is not per-component. What it is not is permanent: see GrainTile.
+  ++grainBuilds;
+
+  image = [] {
     juce::Image img(juce::Image::ARGB, kGrainSize, kGrainSize, true);
     juce::Image::BitmapData data(img, juce::Image::BitmapData::writeOnly);
 
@@ -58,8 +67,14 @@ const juce::Image &grainTile() {
 
     return img;
   }();
+}
 
-  return tile;
+juce::Image grainTile() {
+  // The temporary keeps the shared tile alive for exactly as long as it takes
+  // to copy the handle out of it. While any look and feel exists the count
+  // never reaches zero here, so this costs a reference and not a rebuild.
+  const juce::SharedResourcePointer<GrainTile> held;
+  return held->image;
 }
 
 void paintGrain(juce::Graphics &g, juce::Rectangle<int> area) {

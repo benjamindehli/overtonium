@@ -56,6 +56,20 @@ public:
   juce::Font getComboBoxFont(juce::ComboBox &) override;
   juce::Font getPopupMenuFont() override;
   juce::Font getSliderPopupFont(juce::Slider &) override;
+
+private:
+  /// What keeps the grain tile alive, and the reason it is a member here
+  /// rather than a static beside the function that builds it.
+  ///
+  /// One look and feel exists per editor, so the tile is built when the first
+  /// window opens and released when the last one closes, on the message thread
+  /// with the binary still loaded. Held in a static instead, it would be
+  /// released when the host unloads the plugin, and a juce::Image under
+  /// Windows is backed by Direct2D, so that teardown deadlocks against the
+  /// loader lock. See GrainTile in Theme.h for the whole of it.
+  ///
+  /// Never read. Its existence is the point.
+  juce::SharedResourcePointer<GrainTile> grainHolder;
 };
 
 /// Small helper so the codebase has one place that knows how to make a font.
