@@ -45,7 +45,38 @@ inline const juce::Colour soloOn{0xffe8c34a};
 /// that reads as a drawing rather than an object. Deterministic, so two
 /// windows of the same size are identical and a screenshot test can rely on
 /// it.
-const juce::Image &grainTile();
+///
+/// Held through a SharedResourcePointer rather than in a static, and the
+/// difference is not tidiness. A juce::Image on JUCE 9 under Windows is backed
+/// by Direct2D, so releasing one gives GPU resources back. A static is
+/// released when the host unloads the binary, which on Windows runs under the
+/// loader lock, and the driver threads that teardown has to reach are
+/// themselves parked waiting for that lock. It never completes. That is a hang
+/// on removing the plugin in any host that unloads it, which is what was
+/// reported in FL Studio and in Reaper while MuLab, which keeps the binary
+/// loaded, was fine.
+///
+/// So the lifetime ends with the last OvertoniumLookAndFeel instead, which
+/// holds one of these and dies with its editor, while the message thread is
+/// running and the binary is still loaded. See [[grainHolder]] on that class.
+struct GrainTile {
+  GrainTile();
+  juce::Image image;
+};
+
+/// How many times the tile has been built.
+///
+/// For a test, and the only way to ask the question from outside: that the
+/// tile is released and built again rather than living for the life of the
+/// process is the whole point of the change above, and it is invisible in
+/// every other respect.
+int grainTileBuildCount();
+
+/// Returned by value, cheaply, because a juce::Image is a counted handle on
+/// its pixels. A reference would dangle in the one case that matters: called
+/// with no look and feel alive, the shared tile would be built, referenced and
+/// destroyed before the caller saw it.
+juce::Image grainTile();
 
 /// Lays the grain over an area at the weight the panels use.
 void paintGrain(juce::Graphics &, juce::Rectangle<int> area);

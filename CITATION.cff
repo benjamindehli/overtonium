@@ -15,7 +15,7 @@ authors:
 repository-code: https://github.com/benjamindehli/overtonium
 url: https://benjamindehli.github.io/overtonium/
 license: AGPL-3.0-or-later
-version: 1.10.0
+version: 1.10.1
 date-released: "2026-09-30"
 keywords:
   - additive synthesis

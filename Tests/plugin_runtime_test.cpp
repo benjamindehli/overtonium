@@ -24,6 +24,7 @@
 #include "PluginProcessor.h"
 #include "Presets.h"
 #include "UI/ChannelStrip.h"
+#include "UI/LookAndFeel.h"
 #include "UI/NoiseStrip.h"
 #include "UI/ShapeButton.h"
 #include "UI/Theme.h"
@@ -4229,6 +4230,61 @@ std::vector<float> renderTone(OvertoniumProcessor &p, double sampleRate,
   return out;
 }
 
+/// The grain tile must not outlive the windows that use it.
+///
+/// It used to be a static, built once and kept for the life of the process,
+/// which reads as an obvious saving and was a hang. A juce::Image on JUCE 9
+/// under Windows is backed by Direct2D, so releasing one hands GPU resources
+/// back, and a static is released when the host unloads the binary. On Windows
+/// that runs under the loader lock, and the driver threads the teardown has to
+/// reach are parked waiting for the same lock, so it never finishes. Hosts that
+/// unload the binary hung on removing the plugin and hosts that keep it loaded
+/// did not, which is exactly the split that was reported.
+///
+/// Nothing about that is visible from the outside except this: the tile is
+/// built again after the last look and feel goes, rather than surviving it.
+void testTheGrainTileDoesNotOutliveTheWindows() {
+  section("The grain tile does not outlive the windows");
+
+  const int before = ovt::ui::grainTileBuildCount();
+
+  {
+    ovt::ui::OvertoniumLookAndFeel laf;
+    const auto tile = ovt::ui::grainTile();
+    check(tile.isValid(), "the tile builds");
+    check(tile.getWidth() == 128 && tile.getHeight() == 128,
+          "at the size the panels tile at (" + std::to_string(tile.getWidth()) +
+              " x " + std::to_string(tile.getHeight()) + ")");
+  }
+
+  const int afterFirst = ovt::ui::grainTileBuildCount();
+  check(afterFirst == before + 1, "and is built once for a window, not twice");
+
+  {
+    ovt::ui::OvertoniumLookAndFeel laf;
+    (void)ovt::ui::grainTile();
+  }
+
+  // The whole claim. If this reads equal, the tile survived the look and feel
+  // that was holding it, which is the state that hangs a host on unload.
+  check(ovt::ui::grainTileBuildCount() == afterFirst + 1,
+        "and built afresh for the next one, having been released with the "
+        "last (" +
+            std::to_string(ovt::ui::grainTileBuildCount()) + " builds)");
+
+  // Two at once share one, which is the saving the static was there for and
+  // which the fix has to keep.
+  const int beforeShared = ovt::ui::grainTileBuildCount();
+  {
+    ovt::ui::OvertoniumLookAndFeel one;
+    ovt::ui::OvertoniumLookAndFeel two;
+    (void)ovt::ui::grainTile();
+    (void)ovt::ui::grainTile();
+  }
+  check(ovt::ui::grainTileBuildCount() == beforeShared + 1,
+        "and two windows still share one tile between them");
+}
+
 /// A session file the plugin did not write must not be able to poison it.
 ///
 /// setStateInformation already refuses anything that is not our XML, but a
@@ -7280,6 +7336,7 @@ int main() {
   testTheRulesFoldTheirSections(processor);
   testOneRightClickOpensOneMenu(processor);
   testWheelOverAKnobStaysOnTheKnob(processor);
+  testTheGrainTileDoesNotOutliveTheWindows();
   testACorruptStateCannotPoisonTheOutput();
   testEveryHostRateStaysFinite();
   testTheSafetyClipHoldsUnity();
