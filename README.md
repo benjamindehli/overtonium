@@ -21,13 +21,17 @@ CI builds all three platforms and runs the test suite on each of them on every p
 
 ## Background
 
-This is the third instrument in a line, and the first that computes its sound rather than playing it back.
+This is the fourth instrument in a line, and the first that computes its sound rather than playing it back. The two ideas it is built on both arrived at the same place, sitting at a drawbar organ, and neither of them is really about organs.
 
 [Voltage Controlled Cassette Organ](https://github.com/benjamindehli/VoltageControlledCassetteOrgan) came first, in 2023. A Korg CX-3 sampled through cassette tape, every note of every drawbar recorded as its own file. The tape was the point: wow, flutter and random warbles gave the organ a movement like a chorus or a rotary speaker without the fixed rate a modulation effect has. It was recorded to tape twice, which doubled it, and since no tape deck plays back the same way twice the two passes never quite agreed.
 
+[Strykebrett](https://github.com/benjamindehli/Strykebrett) came in October of the same year, a sampled Logan String Melody II. Six faders rather than nine drawbars, each setting the level of one octave or one of the voices across a bass and a treble section, and four of them carrying their own envelope and their own LFO. It is not an organ, which is the useful thing about it: the workflow survived being moved onto something else.
+
 [EDB-Orgel](https://github.com/benjamindehli/EDB-Orgel) followed in 2024, keeping the drawbar workflow and putting four digital synthesis types under it instead of an organ.
 
-Both gave every drawbar its own envelope and LFO, which is the idea this one is built out of. A drawbar is a partial. Nine of them shaped separately already sounds unlike an organ, so thirty-two of them, each with a full channel of controls, is that idea taken as far as it goes. Computing them is also what makes TUNE possible: a sampled partial is stuck at the pitch it was recorded at, and a computed one can be swept between equal temperament and its exact integer ratio.
+All three gave a drawbar its own envelope and LFO, which is the first of the two ideas. A drawbar is a partial, and an organ moves them by hand while the note sounds. Nine of them shaped separately already sounds unlike an organ, so thirty-two, each with a full channel of controls, is that idea taken as far as it goes.
+
+The second idea is about where the drawbars are tuned. A drawbar is a harmonic, but an organ has only the twelve notes of the keyboard to build one out of, so each drawbar is put on the nearest one. The second, fifth and eighth are all fifths an octave apart, which means holding a C puts three G's into the sound. A harmonic series does not work like that. The real intervals are whole-number ratios, 2:1, 3:2, 4:3, and apart from the octaves none of them lands on a key. TUNE is that difference turned into a control, and computing the partials is what makes it possible: a sampled one is stuck at the pitch it was recorded at, while a computed one can sit where the organ would put it, at its exact ratio, or anywhere between.
 
 The ancestry is visible in the details rather than only in the shape. DRIFT is the cassette's random warble, one per partial. WOBBLE is the same thing under the whole instrument. The tape echo's two paths, each with its own motor speed and its own random stream, are the double tracking, and `TapeEcho::kMinAge` exists for the same reason the two tape passes never agreed: a transport that held speed exactly would put the repeat back in mono, and there is no such transport.
 
