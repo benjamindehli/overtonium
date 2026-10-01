@@ -13,11 +13,17 @@
 // drawn at four times the size. Use it for artwork that needs the window
 // larger than the page shows it.
 //
-// Two things it cannot do. It writes PNG, because JUCE has no WebP encoder,
-// so turning the results into what the pages actually load is a separate step
-// that CONTRIBUTING.md spells out. And DRIFT is random per voice, so the
-// meters and the lamps land somewhere slightly different every run. Everything
-// that is a setting rather than a measurement comes out identical.
+// Two things it cannot do. It writes PNG, and turning the results into what
+// the pages actually load is a separate step that CONTRIBUTING.md spells out.
+// JUCE gained a WebP encoder in 9.0.3 and this still does not use it, for two
+// reasons that have nothing to do with what JUCE can encode: the PNGs are
+// themselves shipped, being what the inner pages and the social cards point
+// at, and the step that makes the WebP also re-encodes those PNGs smaller than
+// JUCE writes them. The plugin is built with JUCE_USE_WEBP=0 besides, since
+// nothing it loads is a WebP and carrying the codec cost 717 KB. And DRIFT is
+// random per voice, so the meters and the lamps land somewhere slightly
+// different every run. Everything that is a setting rather than a measurement
+// comes out identical.
 
 #include <cmath>
 #include <cstdio>
