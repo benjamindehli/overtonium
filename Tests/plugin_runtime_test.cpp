@@ -31,6 +31,7 @@
 #include "UI/TopBar.h"
 #include "UpdateCheck.h"
 #include "dsp/Exact.h"
+#include "dsp/OutputStage.h"
 #include "dsp/TapeEcho.h"
 
 namespace {
@@ -237,11 +238,12 @@ void testParameterWiring(OvertoniumProcessor &p) {
   // than controls of their own: whether each of the two is one circuit the
   // keyboard shares. See GlobalParams::ampModInPhase.
   //
-  // The trailing one is the echo's type, which arrived beside the switch that
-  // turns it on rather than replacing it: a boolean every saved patch stores
-  // and every lane points at cannot become a four-position choice without
-  // taking both with it. See params::echoTypeId.
-  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 2;
+  // The trailing three are the echo's type, the reverb's and the output
+  // stage's, each of which arrived beside the switch that turns its thing on
+  // rather than replacing it: a boolean every saved patch stores and every
+  // lane points at cannot become a choice without taking both with it. See
+  // params::echoTypeId and params::clipTypeId.
+  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 3;
 
   // The behaviour that was there before it became a choice. Asked of the
   // parameter rather than of the tree, so the answer does not depend on what
@@ -3660,6 +3662,36 @@ void testMachineMenusFollowTheirParameters(OvertoniumProcessor &p) {
               tickedIn(stillDigital) + ")");
   }
 
+  // ---- and the output stage, which became one of these ---------------------
+  {
+    write(ovt::params::safetyClipId, 0.0f);
+
+    auto off = bar->buildClipMenu();
+    check(tickedIn(off) == "Off",
+          "the clipper says Off when its switch is off (" + tickedIn(off) +
+              ")");
+
+    write(ovt::params::safetyClipId, 1.0f);
+
+    for (int i = 0; i < (int)ovt::ClipType::NumTypes; ++i) {
+      write(ovt::params::clipTypeId, (float)i);
+
+      auto menu = bar->buildClipMenu();
+      const std::string wanted = ovt::clipTypeName((ovt::ClipType)i);
+
+      check(tickedIn(menu) == wanted, "and names " + wanted +
+                                          " when that is the shape running (" +
+                                          tickedIn(menu) + ")");
+    }
+
+    write(ovt::params::safetyClipId, 0.0f);
+
+    auto stillFold = bar->buildClipMenu();
+    check(tickedIn(stillFold) == "Off",
+          "and goes back to Off without forgetting which shape it was (" +
+              tickedIn(stillFold) + ")");
+  }
+
   // ---- and the reverb, which works the same way ----------------------------
   {
     write(ovt::params::reverbOnId, 0.0f);
@@ -4907,6 +4939,30 @@ void testTheSafetyClipHoldsUnity() {
     // sounds, with a fistful of notes on it, is what makes it loud.
     set(ovt::params::masterGainId, 1.0f);
     set(ovt::params::safetyClipId, 1.0f);
+
+    // Every one of the five, because the bound is the stage's promise rather
+    // than a property of whichever shape happens to be selected. The limiter
+    // is the one that cannot keep it on its own: its gain is always a little
+    // behind the signal, so a hard clip stands behind it, and this is what
+    // says so.
+    for (int type = 0; type < (int)ovt::ClipType::NumTypes; ++type) {
+      set(ovt::params::clipTypeId,
+          (float)type / (float)((int)ovt::ClipType::NumTypes - 1));
+
+      juce::MidiBuffer chord;
+      for (int note : {36, 43, 48, 52, 55, 59, 60, 64, 67, 72})
+        chord.addEvent(juce::MidiMessage::noteOn(1, note, 1.0f), 0);
+
+      const auto each =
+          renderBlocks(fresh, (int)(1.0 * rate / 256.0) + 1, 256, chord);
+
+      check(each.finite && each.peak <= 1.0f,
+            std::string(ovt::clipTypeName((ovt::ClipType)type)) +
+                " stays inside unity at " + std::to_string((int)rate) +
+                " Hz (" + std::to_string(each.peak) + ")");
+    }
+
+    set(ovt::params::clipTypeId, 0.0f);
 
     juce::MidiBuffer midi;
     for (int note : {36, 43, 48, 52, 55, 59, 60, 64, 67, 72})

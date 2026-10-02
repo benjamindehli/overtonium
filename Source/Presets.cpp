@@ -165,6 +165,17 @@ struct Applier {
     set(params::lofiRateId, 0.0f);
     set(params::lofiBitsId, 0.0f);
 
+    // The output stage, which a preset decides because it is part of the sound
+    // rather than part of the desk: five machines rather than a guard with a
+    // switch, and the master in front of them setting how hard they are
+    // driven. Both were things a preset left alone until that was true.
+    //
+    // Twelve down is the panel default and what every patch was dialled at, so
+    // a preset that says nothing about its level sounds as it always did.
+    set(params::masterGainId, -12.0f);
+    set(params::safetyClipId, 1.0f);
+    set(params::clipTypeId, (float)(int)ClipType::Soft);
+
     // The master effects are off unless a preset switches them on, and their
     // settings go back to the panel defaults either way, so loading a preset
     // never leaves the last one's tail behind.
