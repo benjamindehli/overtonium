@@ -57,6 +57,15 @@ const juce::Identifier kLinkCurveId{"linkCurveId"};
 const juce::Identifier kLinkCurve{"linkCurve"};
 const juce::Identifier kCollapsedSections{"collapsedSections"};
 
+/// How far the parameters are scrolled, remembered with the session.
+///
+/// Kept for the reason the fold mask is: it is where you left the window
+/// rather than anything about the sound, and coming back to a mixer scrolled
+/// somewhere else is the same small annoyance as coming back to one folded
+/// differently. Clamped on the way in, since the window it is restored into
+/// may be a different height from the one it was saved from.
+const juce::Identifier kScroll{"parameterScroll"};
+
 /// What the APVTS calls each parameter's node in the state tree. Its own
 /// constant is private, but the name is part of the format: it is what the
 /// saved state and every preset file are written in.
@@ -466,6 +475,11 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
       ((1u << kNumSections) - 1u);
   publishCollapsedSections();
 
+  // Restored but not trusted: resized() clamps it against a range it can only
+  // know once the window has a size, and the window this opens into may be
+  // shorter than the one it was saved from.
+  scrollY = juce::jmax(0, (int)state.getProperty(kScroll, 0));
+
   gutter.onSectionToggled = [this](Section s) { toggleSection(s); };
 
   // Off the series, like the noise channel, so pointing at a caption cannot
@@ -792,6 +806,43 @@ void OvertoniumEditor::publishCollapsedSections() {
 
   for (auto &strip : strips)
     strip->setCollapsedSections(collapsedSections);
+}
+
+bool OvertoniumEditor::scrollParameters(int delta) {
+  if (scrollRange <= 0)
+    return false;
+
+  const int wanted = juce::jlimit(0, scrollRange, scrollY + delta);
+
+  // Taken even when it changes nothing, because at either end there is still
+  // somewhere to scroll and letting the wheel fall through would have the
+  // mixer lurch sideways the moment the parameters hit the top.
+  if (wanted == scrollY)
+    return true;
+
+  scrollY = wanted;
+
+  gutter.setScroll(scrollY);
+  noiseStrip.setScroll(scrollY);
+
+  for (auto &strip : strips)
+    strip->setScroll(scrollY);
+
+  plugin().apvts.state.setProperty(kScroll, scrollY, nullptr);
+
+  return true;
+}
+
+void OvertoniumEditor::mouseWheelMove(const juce::MouseEvent &e,
+                                      const juce::MouseWheelDetails &wheel) {
+  if (!e.mods.isShiftDown()) {
+    const float d = wheel.isReversed ? -wheel.deltaY : wheel.deltaY;
+
+    if (scrollParameters(-juce::roundToInt(d * 14.0f * 16.0f)))
+      return;
+  }
+
+  juce::Component::mouseWheelMove(e, wheel);
 }
 
 void OvertoniumEditor::toggleSection(Section section) {

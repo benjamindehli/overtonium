@@ -154,6 +154,14 @@ public:
   void linkDragEnded(ovt::ui::Role, int sourceIndex) override;
 
   void showLinkMenu() override;
+  bool scrollParameters(int delta) override;
+
+  /// A wheel that reached the editor, which is one over the gutter or the
+  /// noise channel. Those two sit outside the mixer's viewport, so their
+  /// wheels arrive here by bubbling rather than being routed, and they have to
+  /// scroll the parameters like everything else.
+  void mouseWheelMove(const juce::MouseEvent &,
+                      const juce::MouseWheelDetails &) override;
 
   // ---- ovt::ui::HoverTarget ----
   void hoverChanged(int stripIndex, ovt::ui::Row) override;

@@ -3893,17 +3893,22 @@ void testWheelOverAKnobStaysOnTheKnob(OvertoniumProcessor &p) {
         "and leaves the mixer where it was (" + std::to_string(before) +
             " to " + std::to_string(viewport->getViewPositionX()) + ")");
 
-  // ---- but the strip itself still scrolls it ------------------------------
+  // ---- and shift on the strip still scrolls it sideways -------------------
   //
   // The other half of what was asked for, and the thing a careless fix would
   // break: swallowing every wheel the strip is handed would stop the series
   // scrolling at all, which is worse than what was reported.
+  //
+  // It is the shifted wheel now rather than the plain one. The plain one moves
+  // the parameters, and shift is free because a wheel over a fader belongs to
+  // the fader and never reaches here.
   if (strip != nullptr) {
     const auto held = viewport->getViewPositionX();
 
     const juce::MouseEvent onStrip(
         juce::Desktop::getInstance().getMainMouseSource(),
-        strip->getLocalBounds().getCentre().toFloat(), juce::ModifierKeys(),
+        strip->getLocalBounds().getCentre().toFloat(),
+        juce::ModifierKeys(juce::ModifierKeys::shiftModifier),
         juce::MouseInputSource::defaultPressure,
         juce::MouseInputSource::defaultOrientation,
         juce::MouseInputSource::defaultRotation,
@@ -3920,7 +3925,8 @@ void testWheelOverAKnobStaysOnTheKnob(OvertoniumProcessor &p) {
         viewport->getViewPositionX());
 
     check(viewport->getViewPositionX() != held,
-          "a wheel on the strip's own background still scrolls the series");
+          "a shifted wheel on the strip's background still scrolls the "
+          "series");
   }
 }
 
@@ -3952,6 +3958,8 @@ void testOneRightClickOpensOneMenu(OvertoniumProcessor &p) {
     void linkValueChanged(ovt::ui::Role, int, float) override {}
     void linkDragEnded(ovt::ui::Role, int) override {}
     void showLinkMenu() override { ++opened; }
+    // Nowhere to scroll, so the wheel would fall through as it used to.
+    bool scrollParameters(int) override { return false; }
 
     bool drawStarted(juce::Point<int>) override { return false; }
     void drawMovedTo(juce::Point<int>) override {}
@@ -4044,6 +4052,7 @@ void testTheRulesFoldTheirSections(OvertoniumProcessor &p) {
     void linkValueChanged(ovt::ui::Role, int, float) override {}
     void linkDragEnded(ovt::ui::Role, int) override {}
     void showLinkMenu() override { ++menus; }
+    bool scrollParameters(int) override { return false; }
 
     bool drawStarted(juce::Point<int>) override { return false; }
     void drawMovedTo(juce::Point<int>) override {}
@@ -4233,6 +4242,132 @@ std::vector<float> renderTone(OvertoniumProcessor &p, double sampleRate,
   }
 
   return out;
+}
+
+/// A wheel over a strip moves the parameters, and shift still moves the mixer.
+///
+/// The end of the chain the bands are for: a window too short to show every
+/// row has to be scrollable, and scrolling has to move every column together
+/// or the gutter's captions end up beside the wrong knobs.
+void testTheWheelScrollsTheParameters(OvertoniumProcessor &p) {
+  section("The wheel scrolls the parameters");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  // Short enough that not every row fits, which is the whole case, and well
+  // above the floor so nothing is being tested at a limit. Set outright rather
+  // than through sizeEditor, whose second argument is height above the
+  // minimum: that minimum is now low enough that the usual slack put this
+  // window taller than the mixer needs, where nothing scrolls at all.
+  editor->setSize(1348, 700);
+
+  ovt::ui::ChannelStrip *strip = nullptr;
+  std::function<void(juce::Component &)> findStrip = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (auto *s = dynamic_cast<ovt::ui::ChannelStrip *>(child))
+        strip = (strip == nullptr) ? s : strip;
+      findStrip(*child);
+    }
+  };
+  findStrip(*editor);
+
+  check(strip != nullptr, "and carries strips to scroll");
+  if (strip == nullptr)
+    return;
+
+  // One named control as the marker, rather than whichever happens to be at
+  // the top. The top of the band is always at the same height, so "the first
+  // visible slider" never moves however far it is scrolled: what changes is
+  // which slider that is, which is how the first version of this test passed
+  // nothing while appearing to measure something.
+  juce::Slider *marker = nullptr;
+  for (auto *child : strip->getChildren())
+    if (auto *s = dynamic_cast<juce::Slider *>(child))
+      if (marker == nullptr)
+        marker = s;
+
+  check(marker != nullptr, "with a control to follow");
+  if (marker == nullptr)
+    return;
+
+  const int before = marker->getY();
+  check(marker->isVisible(), "visible before anything is scrolled");
+
+  const juce::MouseEvent onStrip(
+      juce::Desktop::getInstance().getMainMouseSource(),
+      strip->getLocalBounds().getCentre().toFloat(), juce::ModifierKeys(),
+      juce::MouseInputSource::defaultPressure,
+      juce::MouseInputSource::defaultOrientation,
+      juce::MouseInputSource::defaultRotation,
+      juce::MouseInputSource::defaultTiltX,
+      juce::MouseInputSource::defaultTiltY, strip, strip,
+      juce::Time::getCurrentTime(),
+      strip->getLocalBounds().getCentre().toFloat(),
+      juce::Time::getCurrentTime(), 1, false);
+
+  juce::MouseWheelDetails down{};
+  down.deltaY = -1.0f;
+
+  strip->mouseWheelMove(onStrip, down);
+
+  std::printf("  the marker went from y %d visible, to y %d %s\n", before,
+              marker->getY(), marker->isVisible() ? "visible" : "hidden");
+
+  // It is one of the topmost rows, so scrolling down takes it off the top.
+  // Either answer counts as movement: gone, or still there and higher up.
+  check(!marker->isVisible() || marker->getY() < before,
+        "a wheel on a strip moves the parameters");
+
+  // And every column with it, or a caption names the wrong knob. The gutter
+  // and the noise channel lay out the same rows from the same scroll, so the
+  // check is that they agree about where a row starts.
+  ovt::ui::NoiseStrip *noise = nullptr;
+  std::function<void(juce::Component &)> findNoise = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (auto *n = dynamic_cast<ovt::ui::NoiseStrip *>(child))
+        noise = n;
+      findNoise(*child);
+    }
+  };
+  findNoise(*editor);
+
+  check(noise != nullptr, "the noise channel is there");
+
+  if (noise != nullptr) {
+    // The two lay out the same rows from the same scroll, so the topmost
+    // visible control in each has to sit at the same height. That is the
+    // property the gutter's captions depend on.
+    const auto topOf = [](juce::Component &c) {
+      int y = -1;
+      for (auto *child : c.getChildren())
+        if (auto *s = dynamic_cast<juce::Slider *>(child))
+          if (s->isVisible() && !s->getBounds().isEmpty() && y < 0)
+            y = s->getY();
+      return y;
+    };
+
+    check(topOf(*noise) == topOf(*strip),
+          "and the noise channel is scrolled to the same place (" +
+              std::to_string(topOf(*strip)) + " against " +
+              std::to_string(topOf(*noise)) + ")");
+  }
+
+  // Back up again, and the top row returns. Scrolling past either end is the
+  // clamp's job and has to be a no-op rather than a drift.
+  juce::MouseWheelDetails up{};
+  up.deltaY = 1.0f;
+
+  for (int i = 0; i < 20; ++i)
+    strip->mouseWheelMove(onStrip, up);
+
+  check(marker->isVisible() && marker->getY() == before,
+        "and winds back to where it started (" +
+            std::to_string(marker->getY()) + ")");
 }
 
 /// The three bands have to lay a column out exactly as one column used to.
@@ -5594,7 +5729,11 @@ void testKnobSizes(OvertoniumProcessor &p) {
   if (editor == nullptr)
     return;
 
-  sizeEditor(*editor, 1348, 160);
+  // Tall enough that nothing scrolls, because this is about the sizes a knob
+  // is drawn at and a knob scrolled out of the band is not drawn at all. It
+  // used to pass at 160, back when every row had to be on screen whatever the
+  // height and the fader simply gave way.
+  sizeEditor(*editor, 1348, 1010);
 
   // The diameter the look and feel will draw, which is what the eye sees,
   // rather than the bounds, which nobody sees.
@@ -7434,6 +7573,7 @@ int main() {
   testOneRightClickOpensOneMenu(processor);
   testWheelOverAKnobStaysOnTheKnob(processor);
   testTheBandsLayOutAColumn();
+  testTheWheelScrollsTheParameters(processor);
   testTheGrainTileDoesNotOutliveTheWindows();
   testACorruptStateCannotPoisonTheOutput();
   testEveryHostRateStaysFinite();

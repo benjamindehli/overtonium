@@ -8,6 +8,20 @@
 namespace ovt::ui {
 
 namespace {
+/// A wheel notch in pixels, by the same arithmetic a Viewport uses on itself.
+///
+/// Taken from JUCE rather than chosen so that scrolling the parameters and
+/// scrolling the mixer sideways move by the same amount for the same gesture,
+/// which they would not if this were a number somebody liked the feel of.
+int wheelDistance(const juce::MouseWheelDetails &wheel) {
+  constexpr float kViewportSingleStep = 16.0f;
+  const float d = wheel.isReversed ? -wheel.deltaY : wheel.deltaY;
+
+  return -juce::roundToInt(d * 14.0f * kViewportSingleStep);
+}
+} // namespace
+
+namespace {
 inline size_t rowIndex(Row r) { return (size_t)r; }
 } // namespace
 
@@ -1324,7 +1338,12 @@ void ChannelStrip::resized() {
   // the mouse and still answers a hover, so a folded section would go on
   // lighting gutter captions and opening LINK menus for knobs nobody can see.
   const auto placeRow = [&](juce::Component &c, Row r, int shrink) {
-    if (rowIsCollapsed(r, collapsed)) {
+    // Hidden rather than left at zero height, and asked of the rectangle
+    // rather than of the fold mask, because a row now comes back empty for
+    // two reasons: folded away, or scrolled out of the band. Both want the
+    // same answer, and a knob with no height still takes the mouse and still
+    // answers a hover.
+    if (rows[rowIndex(r)].isEmpty()) {
       c.setVisible(false);
       return;
     }
@@ -1465,8 +1484,22 @@ void ChannelStrip::setActivity(float envelope, float tremolo, float pitch,
 
 void ChannelStrip::mouseWheelMove(const juce::MouseEvent &e,
                                   const juce::MouseWheelDetails &wheel) {
-  if (e.originalComponent == this)
-    juce::Component::mouseWheelMove(e, wheel);
+  // Only a wheel that began on the strip itself. One over a knob belongs to
+  // the knob, and this is a deep listener so it hears both.
+  if (e.originalComponent != this)
+    return;
+
+  // Shift falls through to the viewport, which already reads it as a sideways
+  // scroll of its own accord, so the gesture that used to move the mixer is
+  // still there with a modifier on it.
+  if (!e.mods.isShiftDown() && scrollParametersBy(wheel))
+    return;
+
+  juce::Component::mouseWheelMove(e, wheel);
+}
+
+bool ChannelStrip::scrollParametersBy(const juce::MouseWheelDetails &wheel) {
+  return link.scrollParameters(wheelDistance(wheel));
 }
 
 } // namespace ovt::ui

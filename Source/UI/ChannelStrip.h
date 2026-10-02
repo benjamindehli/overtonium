@@ -404,6 +404,9 @@ public:
   ///
   /// Only a wheel that actually landed on the strip is passed on, which leaves
   /// the background scrolling the series and a control keeping its own.
+  /// Asks the editor to scroll, and says whether it had anywhere to go.
+  bool scrollParametersBy(const juce::MouseWheelDetails &);
+
   void mouseWheelMove(const juce::MouseEvent &,
                       const juce::MouseWheelDetails &) override;
 

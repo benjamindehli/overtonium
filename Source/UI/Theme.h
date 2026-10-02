@@ -529,6 +529,19 @@ struct LinkTarget {
   /// back up to the bar for it.
   virtual void showLinkMenu() = 0;
 
+  /// A wheel over a column, which moves the parameters rather than the mixer.
+  ///
+  /// Through the editor because the scroll belongs to the whole mixer: every
+  /// column is handed the same number, and a column that scrolled itself would
+  /// leave the gutter's captions beside the wrong knobs.
+  ///
+  /// @param delta  pixels to move by, positive downward. Snapped to a row
+  ///               boundary by the layout, so the caller need not.
+  /// @returns whether it was taken. False means there is nothing to scroll,
+  ///          and the wheel falls through to the viewport to move sideways,
+  ///          which is what it did before there was a second axis.
+  virtual bool scrollParameters(int delta) = 0;
+
   /// A drag held with a modifier, which draws the faders it passes over
   /// instead of moving one of them.
   ///

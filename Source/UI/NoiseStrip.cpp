@@ -405,7 +405,12 @@ void NoiseStrip::resized() {
   // See ChannelStrip::resized: a folded row's control is hidden, not merely
   // flattened, so it stops taking the mouse.
   const auto placeRow = [&](juce::Component &c, Row r, int shrink) {
-    if (rowIsCollapsed(r, collapsed)) {
+    // Hidden rather than left at zero height, and asked of the rectangle
+    // rather than of the fold mask, because a row now comes back empty for
+    // two reasons: folded away, or scrolled out of the band. Both want the
+    // same answer, and a knob with no height still takes the mouse and still
+    // answers a hover.
+    if (rows[rowIndex(r)].isEmpty()) {
       c.setVisible(false);
       return;
     }
