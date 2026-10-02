@@ -819,6 +819,9 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   }
 
   addAndMakeVisible(meter);
+
+  headerCap.onPaint = [this](juce::Graphics &g) { paintHeaderBand(g); };
+  addAndMakeVisible(headerCap);
   meter.toBack(); // the fader cap has to draw over it
 
   updateTuneReadout();
@@ -1301,6 +1304,33 @@ void ChannelStrip::paint(juce::Graphics &g) {
   if (rowShowsHighlight(highlighted) && !isHeadingRow(highlighted))
     paintRowHighlight(g, rows[rowIndex(highlighted)]);
 
+  // Section rules, aligned with the gutter headings. Four of the five carry a
+  // lamp, and those draw their own rule around it, so only the output divider
+  // is left for the strip to draw.
+  for (auto r : {Row::OutputHeading}) {
+    const auto row = rows[rowIndex(r)];
+    const auto y = row.getY() + row.getHeight() / 2;
+
+    // Scored, like the rules the lamps sit on. See ActivityLamp::paint.
+    g.setColour(colours::outline.withAlpha(0.7f));
+    g.fillRect(row.getX(), y, row.getWidth(), 1);
+
+    g.setColour(juce::Colours::white.withAlpha(0.055f));
+    g.fillRect(row.getX(), y + 1, row.getWidth(), 1);
+  }
+}
+
+void ChannelStrip::paintHeaderBand(juce::Graphics &g) {
+  // The column's own background first, so the cap is opaque and the gradient
+  // under the header is the same one the rest of the strip has. Drawn for the
+  // whole strip and clipped to the cap, rather than worked out again for a
+  // smaller rectangle, so the two cannot come adrift.
+  const auto bounds = getLocalBounds();
+  paintChannelBackground(g, bounds, backdropBase());
+
+  const auto rows =
+      layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed, scroll);
+
   auto header = rows[rowIndex(Row::Header)];
 
   g.setColour(colour);
@@ -1317,21 +1347,6 @@ void ChannelStrip::paint(juce::Graphics &g) {
   g.setFont(makeFont(14.0f, true));
   g.drawText(juce::String(info.harmonic), header, juce::Justification::centred,
              false);
-
-  // Section rules, aligned with the gutter headings. Four of the five carry a
-  // lamp, and those draw their own rule around it, so only the output divider
-  // is left for the strip to draw.
-  for (auto r : {Row::OutputHeading}) {
-    const auto row = rows[rowIndex(r)];
-    const auto y = row.getY() + row.getHeight() / 2;
-
-    // Scored, like the rules the lamps sit on. See ActivityLamp::paint.
-    g.setColour(colours::outline.withAlpha(0.7f));
-    g.fillRect(row.getX(), y, row.getWidth(), 1);
-
-    g.setColour(juce::Colours::white.withAlpha(0.055f));
-    g.fillRect(row.getX(), y + 1, row.getWidth(), 1);
-  }
 }
 
 void ChannelStrip::resized() {
@@ -1402,6 +1417,14 @@ void ChannelStrip::resized() {
   }
   volume.setBounds(faderRow.reduced(2, 1));
   levelReadout.setBounds(rows[rowIndex(Row::FaderText)]);
+
+  // Over the header and over anything that has scrolled under it. Brought to
+  // the front because controls are added after it and would otherwise be in
+  // front of the thing meant to hide them.
+  headerCap.setBounds(
+      0, 0, getWidth(),
+      juce::jmax(0, rows[rowIndex(Row::Header)].getBottom() + kStripPadY));
+  headerCap.toFront(false);
 
   auto ms = rows[rowIndex(Row::MuteSolo)];
   muteButton.setBounds(ms.removeFromLeft(ms.getWidth() / 2).reduced(1));

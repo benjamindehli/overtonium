@@ -137,6 +137,9 @@ void NoiseStrip::setUpKnob(juce::Slider &s, const char *suffix,
   s.setDescription(tooltip);
   addAndMakeVisible(s);
 
+  headerCap.onPaint = [this](juce::Graphics &g) { paintHeaderBand(g); };
+  addAndMakeVisible(headerCap);
+
   const auto id = params::noiseParamId(suffix);
   sliderAttachments.push_back(std::make_unique<SliderAttachment>(apvts, id, s));
 
@@ -332,23 +335,6 @@ void NoiseStrip::paint(juce::Graphics &g) {
   if (rowShowsHighlight(highlighted) && !isHeadingRow(highlighted))
     paintRowHighlight(g, rows[rowIndex(highlighted)]);
 
-  auto header = rows[rowIndex(Row::Header)];
-
-  g.setColour(colour);
-  g.fillRect(header.removeFromTop(3).reduced(1, 0));
-
-  header.removeFromTop(1);
-
-  // Accent when hovered, the same as a numbered channel. See ChannelStrip.
-  g.setColour(hovered ? colours::accent : colours::text);
-  g.setFont(makeFont(11.0f, true));
-  g.drawText("NZ", header.removeFromTop(14), juce::Justification::centred,
-             false);
-
-  g.setColour(colour.withAlpha(0.85f));
-  g.setFont(makeFont(9.0f));
-  g.drawText("noise", header, juce::Justification::centred, false);
-
   // The envelope, key-off and tremolo rules carry lamps and draw themselves.
   g.setColour(colours::outline.withAlpha(0.7f));
   for (auto r : {Row::PitchModHeading, Row::OutputHeading}) {
@@ -394,6 +380,33 @@ void NoiseStrip::setActivity(float envelope, float tremolo,
   refresh(tremoloLamp, tremoloLamp.push(level > 0.0f ? tremolo : 0.0f));
 }
 
+void NoiseStrip::paintHeaderBand(juce::Graphics &g) {
+  // See ChannelStrip::paintHeaderBand. The background is drawn for the whole
+  // column and clipped to the cap, so the two cannot come adrift.
+  const auto bounds = getLocalBounds();
+  paintChannelBackground(g, bounds, colours::channel.brighter(0.03f));
+
+  const auto rows =
+      layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed, scroll);
+
+  auto header = rows[rowIndex(Row::Header)];
+
+  g.setColour(colour);
+  g.fillRect(header.removeFromTop(3).reduced(1, 0));
+
+  header.removeFromTop(1);
+
+  // Accent when hovered, the same as a numbered channel. See ChannelStrip.
+  g.setColour(hovered ? colours::accent : colours::text);
+  g.setFont(makeFont(11.0f, true));
+  g.drawText("NZ", header.removeFromTop(14), juce::Justification::centred,
+             false);
+
+  g.setColour(colour.withAlpha(0.85f));
+  g.setFont(makeFont(9.0f));
+  g.drawText("noise", header, juce::Justification::centred, false);
+}
+
 void NoiseStrip::resized() {
   const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
                                collapsed, scroll);
@@ -436,6 +449,11 @@ void NoiseStrip::resized() {
   placeRow(velocity, Row::Velocity, 1);
   placeRow(aftertouch, Row::Aftertouch, 1);
   placeRow(pan, Row::Pan, 1);
+
+  headerCap.setBounds(
+      0, 0, getWidth(),
+      juce::jmax(0, rows[rowIndex(Row::Header)].getBottom() + kStripPadY));
+  headerCap.toFront(false);
 
   const auto faderRow = rows[rowIndex(Row::Fader)];
   meter.setBounds(faderRow.reduced(2, 1));

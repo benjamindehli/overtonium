@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <functional>
 #include <vector>
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -284,14 +285,6 @@ Bands layoutBands(juce::Rectangle<int> area, SectionMask collapsed = 0);
 std::vector<int> scrollStopsFor(juce::Rectangle<int> area,
                                 SectionMask collapsed);
 
-/// The nearest scroll position at or below `desired` that a row starts at.
-///
-/// The editor snaps with this before storing a scroll, so the scrollbar and
-/// the rows agree about where they are. Without it the bar sits wherever the
-/// wheel left it while the rows show the stop below, which reads as a
-/// scrollbar that will not reach its own top.
-int snapScroll(juce::Rectangle<int> area, SectionMask collapsed, int desired);
-
 RowBounds layoutRows(juce::Rectangle<int> area, SectionMask collapsed = 0,
                      int scroll = 0);
 
@@ -530,6 +523,28 @@ struct HoverTarget {
 };
 
 /// Implemented by the editor; lets a strip broadcast a drag to its 31 siblings.
+/// An opaque lid over a column's pinned header.
+///
+/// Scrolling is smooth, so a row can sit half over the top of the band. This
+/// covers it, and being a component it takes the mouse as well, so a control
+/// that has slid under the header is neither seen nor clickable.
+///
+/// It is here rather than each column moving its controls into a clipping
+/// child, which is the other way to get those two things and would have taken
+/// hover, LINK, folding and the draw tool through a change none of them
+/// needed: they all reach the controls through the column itself.
+class HeaderCap final : public juce::Component {
+public:
+  /// What to draw. Given the column's own coordinates, since the cap sits at
+  /// the column's top left and shares them.
+  std::function<void(juce::Graphics &)> onPaint;
+
+  void paint(juce::Graphics &g) override {
+    if (onPaint)
+      onPaint(g);
+  }
+};
+
 struct LinkTarget {
   virtual ~LinkTarget() = default;
 

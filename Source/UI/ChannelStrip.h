@@ -529,6 +529,11 @@ private:
   /// layout and hit test in this strip has to agree with it.
   SectionMask collapsed = 0;
   int scroll = 0;
+
+  /// What hides a row that has scrolled under the pinned header. See HeaderCap.
+  HeaderCap headerCap;
+
+  void paintHeaderBand(juce::Graphics &);
   bool hovered = false;
 
   /// Set when a menu takes the pointer away, and cleared when the pointer

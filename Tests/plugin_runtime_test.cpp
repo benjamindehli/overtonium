@@ -4513,6 +4513,27 @@ void testTheBandsLayOutAColumn() {
                          std::to_string(runs) + " broken)");
     check(gaps == 0, "and always reach the foot of the band (" +
                          std::to_string(gaps) + " short)");
+    // Dragging the bar is now a plain pixel offset, so there is no snapping
+    // left to be non-monotonic. What has to hold instead is that a row can sit
+    // part way over the top of the band, since that is what smooth means and
+    // what the column's header cap exists to cover.
+    int clippedAtTop = 0;
+
+    for (int scroll = 1; scroll <= bands.maxScroll; scroll += 13) {
+      const auto rows = layoutRows(area, 0, scroll);
+
+      for (int i = 0; i < kNumRows; ++i) {
+        const auto &r = rows[(size_t)i];
+
+        if (r.getHeight() > 0 && r.getY() < bands.middle.getY())
+          ++clippedAtTop;
+      }
+    }
+
+    check(clippedAtTop > 0,
+          "a row can sit part way over the top of the band (" +
+              std::to_string(clippedAtTop) + " of them)");
+
     check(overhang > 0,
           "with the last one cut off by it, which is what shows there is more "
           "below (" +

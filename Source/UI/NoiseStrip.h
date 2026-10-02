@@ -143,6 +143,11 @@ private:
   /// Folded groups, set by the editor. See ChannelStrip.
   SectionMask collapsed = 0;
   int scroll = 0;
+
+  /// Hides a row that has scrolled under the pinned header. See HeaderCap.
+  HeaderCap headerCap;
+
+  void paintHeaderBand(juce::Graphics &);
   bool hovered = false;
 
   /// Set when a menu takes the pointer away, and cleared when the pointer

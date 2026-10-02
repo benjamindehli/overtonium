@@ -111,6 +111,9 @@ RowGutter::RowGutter() {
   };
 
   addAndMakeVisible(drawButton);
+
+  headerCap.onPaint = [this](juce::Graphics &g) { paintHeaderBand(g); };
+  addAndMakeVisible(headerCap);
 }
 
 void RowGutter::setHighlightedRow(Row row) {
@@ -133,7 +136,15 @@ void RowGutter::resized() {
   const auto rows =
       layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed, scroll);
 
+  // The cap first, then the button, so the button is in front of the thing
+  // that hides everything else up here.
+  headerCap.setBounds(
+      0, 0, getWidth(),
+      juce::jmax(0, rows[(size_t)Row::Header].getBottom() + kStripPadY));
+  headerCap.toFront(false);
+
   linkButton.setBounds(rows[(size_t)Row::Header].reduced(7, 1));
+  linkButton.toFront(false);
 
   // Under the LEVEL caption, which takes the top of the tall fader row, and
   // above the badge that sits at the foot of it. The faders are what it draws,
@@ -207,6 +218,13 @@ void RowGutter::mouseMove(const juce::MouseEvent &e) {
 void RowGutter::mouseExit(const juce::MouseEvent &) {
   if (onHoverChanged)
     onHoverChanged(kNoRow);
+}
+
+void RowGutter::paintHeaderBand(juce::Graphics &g) {
+  // Only the background. The gutter's header holds the LINK button rather than
+  // anything painted, and that button sits in front of this cap so it stays
+  // reachable. See the toFront pair in resized.
+  paintChannelBackground(g, getLocalBounds(), colours::panel.darker(0.25f));
 }
 
 void RowGutter::paint(juce::Graphics &g) {
@@ -711,12 +729,7 @@ void OvertoniumEditor::resized() {
   scrollRange = bands.maxScroll;
   scrollBandHeight = bands.middle.getHeight();
 
-  // Snapped as well as clamped, so the bar and the rows agree about where they
-  // are. Left unsnapped, the bar sits wherever the wheel put it while the rows
-  // show the stop below it, which reads as a scrollbar that will not reach its
-  // own top.
-  scrollY = snapScroll(stripLayoutArea, collapsedSections,
-                       juce::jlimit(0, scrollRange, scrollY));
+  scrollY = juce::jlimit(0, scrollRange, scrollY);
 
   // The full height of the mixer, not just the band it scrolls. Lining it up
   // with the band left a gap above it where the pinned header is, which reads
@@ -859,30 +872,10 @@ bool OvertoniumEditor::scrollParameters(int delta) {
   if (scrollRange <= 0)
     return false;
 
-  const auto stops = scrollStopsFor(stripLayoutArea, collapsedSections);
-  const int target = juce::jlimit(0, scrollRange, scrollY + delta);
-
-  int wanted = 0;
-  for (int stop : stops)
-    if (stop <= target && stop <= scrollRange)
-      wanted = stop;
-
-  // A trackpad sends a few pixels at a time, which can land back inside the
-  // row it started in and snap to the stop it came from, so it would never
-  // move at all. A gesture that asked for movement gets one stop of it.
-  if (wanted == scrollY && delta != 0) {
-    for (size_t i = 0; i < stops.size(); ++i) {
-      if (stops[i] != scrollY)
-        continue;
-
-      const size_t next = delta > 0 ? i + 1 : (i == 0 ? 0 : i - 1);
-
-      if (next < stops.size() && stops[next] <= scrollRange)
-        wanted = stops[next];
-
-      break;
-    }
-  }
+  // Straight to the pixel asked for. It used to snap to the top of a row so
+  // that nothing could sit half over the pinned header, and the column caps
+  // that now rather than the arithmetic.
+  const int wanted = juce::jlimit(0, scrollRange, scrollY + delta);
 
   // Taken even when it changes nothing, because at either end there is still
   // somewhere to scroll and letting the wheel fall through would have the

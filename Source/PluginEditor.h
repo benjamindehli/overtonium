@@ -85,6 +85,12 @@ private:
   ovt::ui::Row highlighted = ovt::ui::kNoRow;
   ovt::ui::SectionMask collapsed = 0;
   int scroll = 0;
+
+  /// Hides a row that has scrolled under the pinned header. See HeaderCap. The
+  /// LINK button lives in the header too and is kept in front of it.
+  ovt::ui::HeaderCap headerCap;
+
+  void paintHeaderBand(juce::Graphics &);
   bool sharedPitchMod = false, sharedAmpMod = false;
 
   /// LINK stands in the empty band above the captions, where the strips beside
