@@ -2379,9 +2379,10 @@ void testRowHover() {
   // actually asks for. Taking that from preferredStripHeight rather than
   // writing a number here means adding a row cannot quietly push the last one
   // off the bottom of the test without the test noticing.
-  const auto rows = layoutRows(
-      juce::Rectangle<int>(0, 0, kStripWidth, preferredStripHeight() + 8)
-          .reduced(kStripPadX, kStripPadY));
+  const auto rows =
+      layoutRows(juce::Rectangle<int>(0, 0, kStripWidth,
+                                      preferredStripHeight() + 2 * kStripPadY)
+                     .reduced(kStripPadX, kStripPadY));
 
   const auto rowAtCentre = [&rows](Row r) {
     const auto band = rows[(size_t)r];
@@ -3531,7 +3532,10 @@ void testFitAllChannels(OvertoniumProcessor &p) {
   if (editor == nullptr)
     return;
 
-  const auto wanted = ovt::ui::kGutterWidth + ovt::ui::kStripWidth + 8 +
+  // The 8 is the gap before the noise channel and the 10 is the parameter
+  // scrollbar beyond it, both private to the editor, both written here the
+  // same way the gap already was.
+  const auto wanted = ovt::ui::kGutterWidth + ovt::ui::kStripWidth + 8 + 10 +
                       ovt::kNumHarmonics * ovt::ui::kStripWidth;
 
   // The size to come back to, taken from the editor rather than worked out
@@ -3558,14 +3562,18 @@ void testFitAllChannels(OvertoniumProcessor &p) {
                                        std::to_string(editor->getWidth()) +
                                        ")");
 
-  // Short, but not as short as it was asked for. The bar's second row costs
-  // the mixer the room it needed, so the window comes to rest on the floor for
-  // this width instead of going under it, which is where the strips would
-  // start running out through the bottom. This check used to read the asked-for
-  // height back unchanged, because nothing was watching the reflow.
-  check(editor->getHeight() == editor->getConstrainer()->getMinimumHeight(),
-        "and its height comes to rest on the floor for that width (" +
+  // Short, and now allowed to be: the rows scroll, so the floor is far below
+  // this and the height asked for is simply taken. It used to come to rest on
+  // the floor here, because the floor was the height of every row at once and
+  // the bar's second row had pushed it above what was asked for.
+  check(editor->getHeight() == fitted.getHeight() - 120,
+        "and as short as it was asked for (" +
             std::to_string(editor->getHeight()) + ")");
+
+  // Not checked here that a shorter request stops at the floor, because
+  // setSize does not consult the constrainer at all, which is the whole reason
+  // Fit all 32 channels could land under it. The floor itself is asserted in
+  // testFittingLandsWhereADragCanReturn, through the constrainer.
 
   editor->fitAllChannels();
 
@@ -3888,17 +3896,22 @@ void testWheelOverAKnobStaysOnTheKnob(OvertoniumProcessor &p) {
         "and leaves the mixer where it was (" + std::to_string(before) +
             " to " + std::to_string(viewport->getViewPositionX()) + ")");
 
-  // ---- but the strip itself still scrolls it ------------------------------
+  // ---- and shift on the strip still scrolls it sideways -------------------
   //
   // The other half of what was asked for, and the thing a careless fix would
   // break: swallowing every wheel the strip is handed would stop the series
   // scrolling at all, which is worse than what was reported.
+  //
+  // It is the shifted wheel now rather than the plain one. The plain one moves
+  // the parameters, and shift is free because a wheel over a fader belongs to
+  // the fader and never reaches here.
   if (strip != nullptr) {
     const auto held = viewport->getViewPositionX();
 
     const juce::MouseEvent onStrip(
         juce::Desktop::getInstance().getMainMouseSource(),
-        strip->getLocalBounds().getCentre().toFloat(), juce::ModifierKeys(),
+        strip->getLocalBounds().getCentre().toFloat(),
+        juce::ModifierKeys(juce::ModifierKeys::shiftModifier),
         juce::MouseInputSource::defaultPressure,
         juce::MouseInputSource::defaultOrientation,
         juce::MouseInputSource::defaultRotation,
@@ -3915,7 +3928,8 @@ void testWheelOverAKnobStaysOnTheKnob(OvertoniumProcessor &p) {
         viewport->getViewPositionX());
 
     check(viewport->getViewPositionX() != held,
-          "a wheel on the strip's own background still scrolls the series");
+          "a shifted wheel on the strip's background still scrolls the "
+          "series");
   }
 }
 
@@ -3947,6 +3961,8 @@ void testOneRightClickOpensOneMenu(OvertoniumProcessor &p) {
     void linkValueChanged(ovt::ui::Role, int, float) override {}
     void linkDragEnded(ovt::ui::Role, int) override {}
     void showLinkMenu() override { ++opened; }
+    // Nowhere to scroll, so the wheel would fall through as it used to.
+    bool scrollParameters(int) override { return false; }
 
     bool drawStarted(juce::Point<int>) override { return false; }
     void drawMovedTo(juce::Point<int>) override {}
@@ -4039,6 +4055,7 @@ void testTheRulesFoldTheirSections(OvertoniumProcessor &p) {
     void linkValueChanged(ovt::ui::Role, int, float) override {}
     void linkDragEnded(ovt::ui::Role, int) override {}
     void showLinkMenu() override { ++menus; }
+    bool scrollParameters(int) override { return false; }
 
     bool drawStarted(juce::Point<int>) override { return false; }
     void drawMovedTo(juce::Point<int>) override {}
@@ -4228,6 +4245,434 @@ std::vector<float> renderTone(OvertoniumProcessor &p, double sampleRate,
   }
 
   return out;
+}
+
+/// A wheel over a strip moves the parameters, and shift still moves the mixer.
+///
+/// The end of the chain the bands are for: a window too short to show every
+/// row has to be scrollable, and scrolling has to move every column together
+/// or the gutter's captions end up beside the wrong knobs.
+void testTheWheelScrollsTheParameters(OvertoniumProcessor &p) {
+  section("The wheel scrolls the parameters");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  // Short enough that not every row fits, which is the whole case, and well
+  // above the floor so nothing is being tested at a limit. Set outright rather
+  // than through sizeEditor, whose second argument is height above the
+  // minimum: that minimum is now low enough that the usual slack put this
+  // window taller than the mixer needs, where nothing scrolls at all.
+  editor->setSize(1348, 700);
+
+  ovt::ui::ChannelStrip *strip = nullptr;
+  std::function<void(juce::Component &)> findStrip = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (auto *s = dynamic_cast<ovt::ui::ChannelStrip *>(child))
+        strip = (strip == nullptr) ? s : strip;
+      findStrip(*child);
+    }
+  };
+  findStrip(*editor);
+
+  check(strip != nullptr, "and carries strips to scroll");
+  if (strip == nullptr)
+    return;
+
+  // One named control as the marker, rather than whichever happens to be at
+  // the top. The top of the band is always at the same height, so "the first
+  // visible slider" never moves however far it is scrolled: what changes is
+  // which slider that is, which is how the first version of this test passed
+  // nothing while appearing to measure something.
+  juce::Slider *marker = nullptr;
+  for (auto *child : strip->getChildren())
+    if (auto *s = dynamic_cast<juce::Slider *>(child))
+      if (marker == nullptr)
+        marker = s;
+
+  check(marker != nullptr, "with a control to follow");
+  if (marker == nullptr)
+    return;
+
+  const int before = marker->getY();
+  check(marker->isVisible(), "visible before anything is scrolled");
+
+  const juce::MouseEvent onStrip(
+      juce::Desktop::getInstance().getMainMouseSource(),
+      strip->getLocalBounds().getCentre().toFloat(), juce::ModifierKeys(),
+      juce::MouseInputSource::defaultPressure,
+      juce::MouseInputSource::defaultOrientation,
+      juce::MouseInputSource::defaultRotation,
+      juce::MouseInputSource::defaultTiltX,
+      juce::MouseInputSource::defaultTiltY, strip, strip,
+      juce::Time::getCurrentTime(),
+      strip->getLocalBounds().getCentre().toFloat(),
+      juce::Time::getCurrentTime(), 1, false);
+
+  juce::MouseWheelDetails down{};
+  down.deltaY = -1.0f;
+
+  strip->mouseWheelMove(onStrip, down);
+
+  std::printf("  the marker went from y %d visible, to y %d %s\n", before,
+              marker->getY(), marker->isVisible() ? "visible" : "hidden");
+
+  // It is one of the topmost rows, so scrolling down takes it off the top.
+  // Either answer counts as movement: gone, or still there and higher up.
+  check(!marker->isVisible() || marker->getY() < before,
+        "a wheel on a strip moves the parameters");
+
+  // And every column with it, or a caption names the wrong knob. The gutter
+  // and the noise channel lay out the same rows from the same scroll, so the
+  // check is that they agree about where a row starts.
+  ovt::ui::NoiseStrip *noise = nullptr;
+  std::function<void(juce::Component &)> findNoise = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (auto *n = dynamic_cast<ovt::ui::NoiseStrip *>(child))
+        noise = n;
+      findNoise(*child);
+    }
+  };
+  findNoise(*editor);
+
+  check(noise != nullptr, "the noise channel is there");
+
+  if (noise != nullptr) {
+    // The two lay out the same rows from the same scroll, so the topmost
+    // visible control in each has to sit at the same height. That is the
+    // property the gutter's captions depend on.
+    const auto topOf = [](juce::Component &c) {
+      int y = -1;
+      for (auto *child : c.getChildren())
+        if (auto *s = dynamic_cast<juce::Slider *>(child))
+          if (s->isVisible() && !s->getBounds().isEmpty() && y < 0)
+            y = s->getY();
+      return y;
+    };
+
+    check(topOf(*noise) == topOf(*strip),
+          "and the noise channel is scrolled to the same place (" +
+              std::to_string(topOf(*strip)) + " against " +
+              std::to_string(topOf(*noise)) + ")");
+  }
+
+  // Back up again, and the top row returns. Scrolling past either end is the
+  // clamp's job and has to be a no-op rather than a drift.
+  juce::MouseWheelDetails up{};
+  up.deltaY = 1.0f;
+
+  for (int i = 0; i < 20; ++i)
+    strip->mouseWheelMove(onStrip, up);
+
+  check(marker->isVisible() && marker->getY() == before,
+        "and winds back to where it started (" +
+            std::to_string(marker->getY()) + ")");
+}
+
+/// A sideways gesture moves the mixer, not the parameters.
+///
+/// A trackpad sends one as deltaX with deltaY near zero. The vertical handler
+/// worked its distance out from deltaY alone, came to nothing, and still
+/// reported the wheel as taken, so the event was swallowed and a two-finger
+/// swipe moved nothing at all. On a screen too narrow for 32 channels that is
+/// the only way across.
+void testASidewaysWheelMovesTheMixer(OvertoniumProcessor &p) {
+  section("A sideways wheel moves the mixer");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  // Narrow enough to have somewhere to go sideways, short enough to have
+  // somewhere to go down, so neither axis is tested where it cannot move.
+  editor->setSize(900, 700);
+
+  juce::Viewport *viewport = nullptr;
+  std::function<void(juce::Component &)> findViewport =
+      [&](juce::Component &c) {
+        for (auto *child : c.getChildren()) {
+          if (auto *v = dynamic_cast<juce::Viewport *>(child))
+            viewport = v;
+          findViewport(*child);
+        }
+      };
+  findViewport(*editor);
+
+  ovt::ui::ChannelStrip *strip = nullptr;
+  std::function<void(juce::Component &)> findStrip = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (auto *s = dynamic_cast<ovt::ui::ChannelStrip *>(child))
+        if (strip == nullptr)
+          strip = s;
+      findStrip(*child);
+    }
+  };
+  findStrip(*editor);
+
+  check(viewport != nullptr && strip != nullptr,
+        "with a viewport and strips in it");
+  if (viewport == nullptr || strip == nullptr)
+    return;
+
+  viewport->setViewPosition(120, 0);
+
+  const auto centre = strip->getLocalBounds().getCentre().toFloat();
+  const juce::MouseEvent onStrip(
+      juce::Desktop::getInstance().getMainMouseSource(), centre,
+      juce::ModifierKeys(), juce::MouseInputSource::defaultPressure,
+      juce::MouseInputSource::defaultOrientation,
+      juce::MouseInputSource::defaultRotation,
+      juce::MouseInputSource::defaultTiltX,
+      juce::MouseInputSource::defaultTiltY, strip, strip,
+      juce::Time::getCurrentTime(), centre, juce::Time::getCurrentTime(), 1,
+      false);
+
+  // What a trackpad sends for a swipe: sideways only.
+  juce::MouseWheelDetails swipe{};
+  swipe.deltaX = 0.6f;
+  swipe.deltaY = 0.0f;
+
+  const int before = viewport->getViewPositionX();
+  strip->mouseWheelMove(onStrip, swipe);
+
+  check(viewport->getViewPositionX() != before,
+        "a sideways swipe over a strip moves the mixer (" +
+            std::to_string(before) + " to " +
+            std::to_string(viewport->getViewPositionX()) + ")");
+
+  // And it must not have scrolled the parameters while it was at it.
+  juce::Slider *marker = nullptr;
+  for (auto *child : strip->getChildren())
+    if (auto *s = dynamic_cast<juce::Slider *>(child))
+      if (marker == nullptr)
+        marker = s;
+
+  if (marker != nullptr) {
+    const int y = marker->getY();
+    strip->mouseWheelMove(onStrip, swipe);
+
+    check(marker->getY() == y, "and leaves the parameters where they were");
+  }
+}
+
+/// The border between the gutter and the channels is one line, all the way.
+///
+/// Each column covers its pinned header with an opaque cap so a row can scroll
+/// under it. A cap repeats what the column paints, and the gutter paints one
+/// thing its cap did not: a divider down its right edge, drawn for the full
+/// height after the background. The cap covered the top of it and the border
+/// changed colour at the header.
+///
+/// Read off a render rather than argued about, because the fault is a colour
+/// in one band of pixels and nothing short of looking at them would see it.
+void testTheGutterBorderIsOneLine(OvertoniumProcessor &p) {
+  section("The gutter border is one line");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  // Short enough that the parameters scroll, which is when the caps matter.
+  editor->setSize(1350, 700);
+
+  const auto shot = editor->createComponentSnapshot(editor->getLocalBounds());
+  const int x = ovt::ui::kGutterWidth - 1;
+
+  // Below the top bar, down to the foot of the window.
+  const int from = ovt::ui::TopBar::heightForWidth(1350) + 4;
+  const int to = shot.getHeight() - 4;
+
+  check(to > from + 200, "and is tall enough to read a border down");
+
+  const auto first = shot.getPixelAt(x, from);
+  int different = 0;
+
+  for (int y = from; y < to; ++y)
+    if (shot.getPixelAt(x, y) != first)
+      ++different;
+
+  check(different == 0,
+        "the gutter's right edge is one colour for its whole height (" +
+            std::to_string(different) + " of " + std::to_string(to - from) +
+            " rows differ)");
+}
+
+/// The three bands have to lay a column out exactly as one column used to.
+///
+/// Scrolling the parameters is a change to what a short window does, and must
+/// be no change at all to a window with room in it. At or above the preferred
+/// height everything fits, so nothing scrolls, the rows run from the top of
+/// the strip to the bottom without a gap or an overlap, and the fader takes
+/// the slack the way it always has. That is the whole of the old behaviour,
+/// asserted here rather than left to be noticed.
+///
+/// Below the preferred height the two part company on purpose: the old layout
+/// squeezed the fader to its floor to keep every row on screen, and this keeps
+/// the fader and scrolls the rows, because a fader pushed off the bottom is
+/// what the request was about.
+void testTheBandsLayOutAColumn() {
+  section("The bands lay out a column");
+
+  using namespace ovt::ui;
+
+  // Every fold state, since the bands are worked out from the fold mask and a
+  // section folded away is the case where the arithmetic is easiest to get
+  // wrong.
+  int states = 0, scrolling = 0;
+
+  for (SectionMask mask = 0; mask < (1 << kNumSections); ++mask) {
+    const int preferred = preferredStripHeight(mask);
+
+    for (int height : {preferred, preferred + 1, preferred + 200}) {
+      const juce::Rectangle<int> area(0, 0, kStripWidth, height);
+      const auto bands = layoutBands(area, mask);
+      const auto rows = layoutRows(area, mask, 0);
+
+      check(bands.maxScroll == 0,
+            "at or above the preferred height nothing scrolls");
+
+      // Contiguous from the top of the area to the bottom, which is what
+      // makes a caption in the gutter point at the knob beside it.
+      int y = area.getY();
+      bool contiguous = true;
+
+      for (int i = 0; i < kNumRows; ++i) {
+        const auto &r = rows[(size_t)i];
+        if (r.getHeight() == 0)
+          continue;
+        contiguous &= (r.getY() == y);
+        y = r.getBottom();
+      }
+
+      contiguous &= (y == area.getBottom());
+
+      if (!contiguous) {
+        check(false, "mask " + std::to_string(mask) + " at " +
+                         std::to_string(height) +
+                         " lays out without a gap or an overlap");
+        return;
+      }
+
+      ++states;
+    }
+
+    // One pixel under, and the rows have to start scrolling rather than the
+    // fader giving way.
+    const juce::Rectangle<int> tight(0, 0, kStripWidth, preferred - 1);
+    const auto bands = layoutBands(tight, mask);
+
+    if (bands.maxScroll > 0)
+      ++scrolling;
+  }
+
+  check(states == (1 << kNumSections) * 3,
+        "every fold state lays out at three heights (" +
+            std::to_string(states) + ")");
+  check(scrolling == (1 << kNumSections),
+        "and every one of them scrolls a pixel under its preferred height (" +
+            std::to_string(scrolling) + ")");
+
+  // The shortest window the bands allow, which is what the resize limits will
+  // be built from. Far shorter than the old floor, which is the point: the old
+  // one had to fit every row at once.
+  const int shortest = minimumStripHeight(0);
+  const auto squeezed = layoutBands({0, 0, kStripWidth, shortest}, 0);
+
+  check(squeezed.middle.getHeight() >= 120,
+        "the band keeps its four rows at the shortest window (" +
+            std::to_string(squeezed.middle.getHeight()) + ")");
+  check(squeezed.maxScroll > 0, "and scrolls there");
+
+  // ---- what scrolling looks like from the outside -------------------------
+  //
+  // Two properties that were both wrong at first and that no height or total
+  // would have caught.
+  {
+    const juce::Rectangle<int> area(0, 0, kStripWidth, 600);
+    const auto bands = layoutBands(area, 0);
+
+    check(bands.maxScroll > 0, "a 600px column has somewhere to scroll");
+
+    int runs = 0, gaps = 0, overhang = 0;
+
+    for (int scroll = 0; scroll <= bands.maxScroll; scroll += 17) {
+      const auto rows = layoutRows(area, 0, scroll);
+
+      // The rows on screen have to be one unbroken run in layout order. They
+      // were not: a row too tall to fit was skipped and a shorter one behind
+      // it took the space, so controls came and went out of order.
+      bool started = false, ended = false, broken = false;
+      int lastBottom = -1;
+
+      for (int i = 0; i < kNumRows; ++i) {
+        const auto &r = rows[(size_t)i];
+
+        if ((Row)i == Row::Header || rowIsCollapsed((Row)i, 0))
+          continue;
+
+        if (r.getHeight() > 0) {
+          if (ended)
+            broken = true;
+          started = true;
+          lastBottom = r.getBottom();
+        } else if (started) {
+          ended = true;
+        }
+      }
+
+      if (broken)
+        ++runs;
+
+      // And the run has to reach the foot of the band. It used to stop short
+      // whenever the next row was too tall for what was left, leaving a strip
+      // of nothing that read as the end of the list.
+      if (lastBottom < bands.middle.getBottom())
+        ++gaps;
+
+      if (lastBottom > bands.middle.getBottom())
+        ++overhang;
+    }
+
+    check(runs == 0, "the visible rows are one unbroken run at every scroll (" +
+                         std::to_string(runs) + " broken)");
+    check(gaps == 0, "and always reach the foot of the band (" +
+                         std::to_string(gaps) + " short)");
+    // Dragging the bar is now a plain pixel offset, so there is no snapping
+    // left to be non-monotonic. What has to hold instead is that a row can sit
+    // part way over the top of the band, since that is what smooth means and
+    // what the column's header cap exists to cover.
+    int clippedAtTop = 0;
+
+    for (int scroll = 1; scroll <= bands.maxScroll; scroll += 13) {
+      const auto rows = layoutRows(area, 0, scroll);
+
+      for (int i = 0; i < kNumRows; ++i) {
+        const auto &r = rows[(size_t)i];
+
+        if (r.getHeight() > 0 && r.getY() < bands.middle.getY())
+          ++clippedAtTop;
+      }
+    }
+
+    check(clippedAtTop > 0,
+          "a row can sit part way over the top of the band (" +
+              std::to_string(clippedAtTop) + " of them)");
+
+    check(overhang > 0,
+          "with the last one cut off by it, which is what shows there is more "
+          "below (" +
+              std::to_string(overhang) + " of them)");
+  }
 }
 
 /// The grain tile must not outlive the windows that use it.
@@ -4536,15 +4981,13 @@ void testFittingLandsWhereADragCanReturn(OvertoniumProcessor &p) {
           std::to_string(wideFloor) + " to " + std::to_string(narrowFloor) +
           ")");
 
-  // The fit has to be using that room rather than merely being allowed it.
-  // Landing at or above the narrow window's floor would mean the wide window
-  // was still being held to the narrow one's chrome, which is the fault this
-  // is about, and it would read as legal because the floor had moved up to
-  // meet it.
-  check(fitted < narrowFloor,
-        "and the fitted window is shorter than a narrow one could ever be (" +
-            std::to_string(fitted) + " against " + std::to_string(narrowFloor) +
-            ")");
+  // There used to be a third check here, that the fitted window came out
+  // shorter than a narrow one's floor. It caught the wide window being held to
+  // the narrow one's chrome, and it worked because the floor was the height of
+  // every row at once and left no slack. Now that the rows scroll, the floor
+  // is far below both and the comparison cannot fail whether the fault is
+  // there or not. The check above it still catches the fault, by asking
+  // whether the floor moves with the width at all.
 
   // The window has to have been taken with it, or the bar gains a row into
   // space the mixer is still using and the strips run off the bottom.
@@ -4635,9 +5078,13 @@ void testFoldingAndUnfoldingIsSymmetric(OvertoniumProcessor &p) {
   std::printf("  squeezed to %d, folded to %d, unfolded back to %d\n", squeezed,
               folded, back);
 
-  check(folded < squeezed, "folding takes the window down (" +
-                               std::to_string(squeezed) + " to " +
-                               std::to_string(folded) + ")");
+  // Folding used to take the window down by exactly the rows it hid, because
+  // every row had to be on screen. Now they scroll, so folding is about seeing
+  // more at once and the window is left alone, which is the half of issue #5
+  // about collapsing a section shifting the mixer out of view.
+  check(folded == squeezed, "folding leaves the window where it is (" +
+                                std::to_string(squeezed) + " to " +
+                                std::to_string(folded) + ")");
 
   check(back == squeezed, "and unfolding puts it back, not past it (" +
                               std::to_string(squeezed) + " to " +
@@ -4645,10 +5092,10 @@ void testFoldingAndUnfoldingIsSymmetric(OvertoniumProcessor &p) {
 
   // ---- and from a window with room to spare ------------------------------
   //
-  // The case the ordering in toggleSection was written for, and the one that
-  // went on working while the squeezed one did not: here the floor is below
-  // the window either way, so nothing is constrained and only the arithmetic
-  // moves it.
+  // This used to be the case the ordering in toggleSection was written for,
+  // back when folding moved the window and the order of the arithmetic against
+  // the limits decided whether it moved by the right amount. There is no
+  // arithmetic left to get wrong: the window holds still at both heights.
   {
     editor->setSize(editor->getWidth(), limits->getMinimumHeight() + 240);
 
@@ -4662,8 +5109,8 @@ void testFoldingAndUnfoldingIsSymmetric(OvertoniumProcessor &p) {
     std::printf("  with room to spare: %d, folded to %d, back to %d\n", roomy,
                 shorter, editor->getHeight());
 
-    check(shorter < roomy && editor->getHeight() == roomy,
-          "a window with room folds and comes back to where it was (" +
+    check(shorter == roomy && editor->getHeight() == roomy,
+          "a window with room holds still through a fold and an unfold (" +
               std::to_string(roomy) + " to " +
               std::to_string(editor->getHeight()) + ")");
   }
@@ -5500,7 +5947,11 @@ void testKnobSizes(OvertoniumProcessor &p) {
   if (editor == nullptr)
     return;
 
-  sizeEditor(*editor, 1348, 160);
+  // Tall enough that nothing scrolls, because this is about the sizes a knob
+  // is drawn at and a knob scrolled out of the band is not drawn at all. It
+  // used to pass at 160, back when every row had to be on screen whatever the
+  // height and the fader simply gave way.
+  sizeEditor(*editor, 1348, 1010);
 
   // The diameter the look and feel will draw, which is what the eye sees,
   // rather than the bounds, which nobody sees.
@@ -6674,9 +7125,12 @@ void testCollapsibleSections() {
   check(preferredStripHeight(envMask) ==
             preferredStripHeight() - collapsedRowsHeight(envMask),
         "the strip wants exactly that much less room");
-  check(minimumStripHeight(envMask) ==
-            minimumStripHeight() - collapsedRowsHeight(envMask),
-        "and will go exactly that much shorter");
+  // And the shortest it will go is no longer anything to do with folding.
+  // It used to be the height of every unfolded row at once, so folding was the
+  // only way to get the window down. Now what does not fit scrolls, so the
+  // floor is the pinned header and the band's own minimum whatever is folded.
+  check(minimumStripHeight(envMask) == minimumStripHeight(),
+        "and the shortest window no longer depends on what is folded");
 
   // The rows below close up rather than leaving a hole, and the fader keeps
   // the height it had rather than stretching into it.
@@ -7336,6 +7790,10 @@ int main() {
   testTheRulesFoldTheirSections(processor);
   testOneRightClickOpensOneMenu(processor);
   testWheelOverAKnobStaysOnTheKnob(processor);
+  testASidewaysWheelMovesTheMixer(processor);
+  testTheGutterBorderIsOneLine(processor);
+  testTheBandsLayOutAColumn();
+  testTheWheelScrollsTheParameters(processor);
   testTheGrainTileDoesNotOutliveTheWindows();
   testACorruptStateCannotPoisonTheOutput();
   testEveryHostRateStaysFinite();

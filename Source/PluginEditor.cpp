@@ -1,5 +1,7 @@
 #include "PluginEditor.h"
 
+#include <cmath>
+
 #include "Presets.h"
 #include "UI/Theme.h"
 #include "UpdateCheck.h"
@@ -25,7 +27,8 @@ int chromeHeight(int logicalWidth) {
 /// is worked out for is clamped up to this, so that a window with no size yet
 /// gets the narrow window's answer rather than one for a width nothing can be.
 int minimumLogicalWidth() {
-  return juce::jmax(kGutterWidth + kStripWidth + kMasterGap + 6 * kStripWidth,
+  return juce::jmax(kGutterWidth + kStripWidth + kMasterGap + 6 * kStripWidth +
+                        kScrollBarThickness,
                     ovt::ui::TopBar::minimumWidth());
 }
 
@@ -56,6 +59,15 @@ const juce::Identifier kLinkCurveId{"linkCurveId"};
 /// a state cannot carry two answers.
 const juce::Identifier kLinkCurve{"linkCurve"};
 const juce::Identifier kCollapsedSections{"collapsedSections"};
+
+/// How far the parameters are scrolled, remembered with the session.
+///
+/// Kept for the reason the fold mask is: it is where you left the window
+/// rather than anything about the sound, and coming back to a mixer scrolled
+/// somewhere else is the same small annoyance as coming back to one folded
+/// differently. Clamped on the way in, since the window it is restored into
+/// may be a different height from the one it was saved from.
+const juce::Identifier kScroll{"parameterScroll"};
 
 /// What the APVTS calls each parameter's node in the state tree. Its own
 /// constant is private, but the name is part of the format: it is what the
@@ -101,6 +113,9 @@ RowGutter::RowGutter() {
   };
 
   addAndMakeVisible(drawButton);
+
+  headerCap.onPaint = [this](juce::Graphics &g) { paintHeaderBand(g); };
+  addAndMakeVisible(headerCap);
 }
 
 void RowGutter::setHighlightedRow(Row row) {
@@ -108,7 +123,7 @@ void RowGutter::setHighlightedRow(Row row) {
     return;
 
   const auto rows =
-      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed);
+      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed, scroll);
 
   repaintRowHighlight(*this, rows, highlighted);
   highlighted = row;
@@ -121,9 +136,19 @@ void RowGutter::resized() {
   // fixed height at the top of the column and no fold can move it, which is
   // why this does not have to run again when one changes.
   const auto rows =
-      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed);
+      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed, scroll);
+
+  // The cap first, then the button, so the button is in front of the thing
+  // that hides everything else up here.
+  // Down to the foot of the header and no further. The row's own rectangle
+  // already carries the column's top padding, so adding it again put the cap
+  // nine pixels into the band and clipped the tops of the tuning knobs.
+  headerCap.setBounds(0, 0, getWidth(),
+                      juce::jmax(0, rows[(size_t)Row::Header].getBottom()));
+  headerCap.toFront(false);
 
   linkButton.setBounds(rows[(size_t)Row::Header].reduced(7, 1));
+  linkButton.toFront(false);
 
   // Under the LEVEL caption, which takes the top of the tall fader row, and
   // above the badge that sits at the foot of it. The faders are what it draws,
@@ -151,6 +176,15 @@ void RowGutter::setCollapsedSections(SectionMask mask) {
   repaint();
 }
 
+void RowGutter::setScroll(int s) {
+  if (s == scroll)
+    return;
+
+  scroll = s;
+  resized();
+  repaint();
+}
+
 void RowGutter::setSharedModulators(bool pitch, bool amp) {
   if (pitch == sharedPitchMod && amp == sharedAmpMod)
     return;
@@ -162,7 +196,7 @@ void RowGutter::setSharedModulators(bool pitch, bool amp) {
 
 void RowGutter::mouseDown(const juce::MouseEvent &e) {
   const auto rows =
-      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed);
+      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed, scroll);
   const auto section = headingSectionAt(rows, e.getPosition());
 
   if (section != Section::NumSections && onSectionToggled != nullptr)
@@ -171,7 +205,7 @@ void RowGutter::mouseDown(const juce::MouseEvent &e) {
 
 void RowGutter::mouseMove(const juce::MouseEvent &e) {
   const auto rows =
-      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed);
+      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed, scroll);
   const auto section = headingSectionAt(rows, e.getPosition());
   const bool onHeading = section != Section::NumSections;
 
@@ -190,11 +224,24 @@ void RowGutter::mouseExit(const juce::MouseEvent &) {
     onHoverChanged(kNoRow);
 }
 
+void RowGutter::paintHeaderBand(juce::Graphics &g) {
+  // The gutter's header holds the LINK button rather than anything painted,
+  // and that button sits in front of this cap so it stays reachable. See the
+  // toFront pair in resized.
+  paintChannelBackground(g, getLocalBounds(), colours::panel.darker(0.25f));
+
+  // And the divider down the right edge, which paint() draws for the whole
+  // height. Without it here the cap covers the top of the line and the border
+  // between the gutter and the channels changes colour at the header.
+  g.setColour(colours::outline);
+  g.fillRect(getWidth() - 1, 0, 1, getHeight());
+}
+
 void RowGutter::paint(juce::Graphics &g) {
   paintChannelBackground(g, getLocalBounds(), colours::panel.darker(0.25f));
 
   const auto rows =
-      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed);
+      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed, scroll);
 
   if (rowShowsHighlight(highlighted))
     paintRowHighlight(g, rows[(size_t)highlighted]);
@@ -457,6 +504,17 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
       ((1u << kNumSections) - 1u);
   publishCollapsedSections();
 
+  // Restored but not trusted: resized() clamps it against a range it can only
+  // know once the window has a size, and the window this opens into may be
+  // shorter than the one it was saved from.
+  scrollY = juce::jmax(0, (int)state.getProperty(kScroll, 0));
+
+  // Added rather than made visible: resized() shows it only when there is
+  // something to scroll.
+  content.addChildComponent(parameterBar);
+  parameterBar.addListener(this);
+  parameterBar.setAutoHide(false);
+
   gutter.onSectionToggled = [this](Section s) { toggleSection(s); };
 
   // Off the series, like the noise channel, so pointing at a caption cannot
@@ -644,6 +702,12 @@ void OvertoniumEditor::resized() {
   // the space is above and below the controls rather than around the block.
   const auto gutterArea = area.removeFromLeft(kGutterWidth);
 
+  // Beyond everything, where a scrollbar goes. Taken off the width whether it
+  // is shown or not, because a bar that appeared and disappeared would move
+  // all 32 channels sideways by ten pixels as the window crossed the height
+  // where the rows stop fitting.
+  const auto parameterBarArea = area.removeFromRight(kScrollBarThickness);
+
   // Noise is pinned on the far right, after the series it does not belong to,
   // and stays in view rather than needing a scroll to reach.
   const auto noiseArea = area.removeFromRight(kStripWidth);
@@ -659,6 +723,39 @@ void OvertoniumEditor::resized() {
 
   for (int i = 0; i < (int)strips.size(); ++i)
     strips[(size_t)i]->setBounds(i * kStripWidth, 0, kStripWidth, stripHeight);
+
+  // Every column is handed the same scroll, which is what keeps a caption in
+  // the gutter beside the knob it names. Clamped here rather than where it is
+  // set, because the range depends on the height and on what is folded away,
+  // and both move under it: a window dragged taller or a section unfolded can
+  // leave it scrolled past the end.
+  const auto bands =
+      layoutBands(juce::Rectangle<int>(0, 0, kStripWidth, stripHeight)
+                      .reduced(kStripPadX, kStripPadY),
+                  collapsedSections);
+
+  stripLayoutArea = juce::Rectangle<int>(0, 0, kStripWidth, stripHeight)
+                        .reduced(kStripPadX, kStripPadY);
+  scrollRange = bands.maxScroll;
+  scrollBandHeight = bands.middle.getHeight();
+
+  scrollY = juce::jlimit(0, scrollRange, scrollY);
+
+  // The full height of the mixer, not just the band it scrolls. Lining it up
+  // with the band left a gap above it where the pinned header is, which reads
+  // as a scrollbar that will not reach the top of its own area.
+  parameterBar.setVisible(scrollRange > 0);
+  parameterBar.setBounds(parameterBarArea);
+
+  parameterBar.setRangeLimits(0.0, (double)bands.contentHeight,
+                              juce::dontSendNotification);
+  syncScrollBar();
+
+  gutter.setScroll(scrollY);
+  noiseStrip.setScroll(scrollY);
+
+  for (auto &strip : strips)
+    strip->setScroll(scrollY);
 
   // Only write when something actually moved: a live resize drag fires this
   // constantly, and every property set notifies the APVTS listener on the state
@@ -679,8 +776,8 @@ void OvertoniumEditor::resized() {
 juce::Rectangle<int> OvertoniumEditor::standardSize() const {
   // Wide enough for all 32 strips at once, which is the whole point of the
   // layout, and tall enough for whatever is not folded away.
-  const int width =
-      kGutterWidth + kStripWidth + kMasterGap + kNumHarmonics * kStripWidth;
+  const int width = kGutterWidth + kStripWidth + kMasterGap +
+                    kNumHarmonics * kStripWidth + kScrollBarThickness;
 
   return {width, chromeHeight(width) + preferredStripHeight(collapsedSections)};
 }
@@ -766,39 +863,104 @@ void OvertoniumEditor::publishCollapsedSections() {
     strip->setCollapsedSections(collapsedSections);
 }
 
+void OvertoniumEditor::scrollBarMoved(juce::ScrollBar *bar, double newStart) {
+  if (bar != &parameterBar)
+    return;
+
+  // Through the same door the wheel uses, so there is one place that decides
+  // what scrolling means and one place that tells the columns about it.
+  //
+  // Guarded, because that door ends by putting the bar where the rows ended
+  // up, and the rows snap to whole rows where a drag does not. Writing back
+  // mid-drag moved the bar out from under the pointer, which then chased it.
+  const juce::ScopedValueSetter<bool> dragging(barIsDriving, true);
+
+  scrollParameters(juce::roundToInt(newStart) - scrollY);
+}
+
+bool OvertoniumEditor::scrollParameters(int delta) {
+  if (scrollRange <= 0)
+    return false;
+
+  // Straight to the pixel asked for. It used to snap to the top of a row so
+  // that nothing could sit half over the pinned header, and the column caps
+  // that now rather than the arithmetic.
+  const int wanted = juce::jlimit(0, scrollRange, scrollY + delta);
+
+  // Taken even when it changes nothing, because at either end there is still
+  // somewhere to scroll and letting the wheel fall through would have the
+  // mixer lurch sideways the moment the parameters hit the top.
+  if (wanted == scrollY)
+    return true;
+
+  scrollY = wanted;
+
+  gutter.setScroll(scrollY);
+  noiseStrip.setScroll(scrollY);
+
+  for (auto &strip : strips)
+    strip->setScroll(scrollY);
+
+  if (!barIsDriving)
+    syncScrollBar();
+
+  plugin().apvts.state.setProperty(kScroll, scrollY, nullptr);
+
+  return true;
+}
+
+void OvertoniumEditor::syncScrollBar() {
+  // The wheel moves the rows without going through resized(), so the bar is
+  // told separately or it sits where the last drag left it. Silently, because
+  // the bar telling us back is how a drag arrives and would be a loop.
+  parameterBar.setCurrentRange(
+      juce::Range<double>((double)scrollY,
+                          (double)(scrollY + scrollBandHeight)),
+      juce::dontSendNotification);
+}
+
+void OvertoniumEditor::mouseWheelMove(const juce::MouseEvent &e,
+                                      const juce::MouseWheelDetails &wheel) {
+  // Sideways is handed to the mixer's viewport outright rather than left to
+  // bubble. The gutter and the noise channel are siblings of that viewport
+  // rather than children of it, so an event let go from here goes up to the
+  // editor and stops, and a swipe over either of them did nothing.
+  const bool sideways = std::abs(wheel.deltaX) > std::abs(wheel.deltaY);
+
+  if (sideways || e.mods.isShiftDown()) {
+    if (viewport.useMouseWheelMoveIfNeeded(e, wheel))
+      return;
+  } else if (scrollParameters(
+                 -juce::roundToInt(wheel.deltaY * 14.0f * 16.0f))) {
+    return;
+  }
+
+  juce::Component::mouseWheelMove(e, wheel);
+}
+
 void OvertoniumEditor::toggleSection(Section section) {
   if (section == Section::NumSections)
     return;
 
-  const int wasFolded = collapsedRowsHeight(collapsedSections);
   collapsedSections ^= sectionBit(section);
-  const int nowFolded = collapsedRowsHeight(collapsedSections);
 
   publishCollapsedSections();
   plugin().apvts.state.setProperty(kCollapsedSections, (int)collapsedSections,
                                    nullptr);
 
-  // Read before anything moves. Applying the limits can resize the window on
-  // its own: setResizeLimits ends by constraining the current bounds to the
-  // new ones, and unfolding raises the floor by exactly the rows coming back.
-  // So on a window already squeezed against that floor, the limits grew it by
-  // the rows and then the arithmetic below added the rows again. Measured, a
-  // window squeezed to 997 folded to 847 and came back at 1147 instead of 997,
-  // and the surplus went where every surplus goes, into the fader: the report
-  // was of faders filling the screen and running under the dock.
-  const int logicalHeight = juce::roundToInt((float)getHeight() / zoom);
-
-  // The window follows, which is the point: left alone the fader would stretch
-  // into the space and the mixer would be exactly as tall as before. Limits
-  // are applied first, since folding lowers the floor and the new height may
-  // be below the old one.
-  applyResizeLimits();
-
-  const int wanted = logicalHeight - (nowFolded - wasFolded);
-  setSize(getWidth(), juce::roundToInt((float)wanted * zoom));
-
-  // setSize does nothing when the height was already at a limit, and the
-  // strips still have to be laid out again for the rows that just changed.
+  // The window does not move any more.
+  //
+  // It used to shrink by exactly the rows being folded away, because every row
+  // had to be on screen and folding was the only way to get the mixer's height
+  // down. Now that the rows scroll, folding is about seeing more of them at
+  // once rather than about fitting, so the window stays where it is and the
+  // band simply has less to hold.
+  //
+  // That is also the end of a whole class of fault. The arithmetic that moved
+  // the window had to read the height before applying the limits, because
+  // applying them is itself a resize, and getting that order wrong was what
+  // made unfolding swell the faders until they ran under the dock. There is no
+  // order to get wrong now.
   resized();
 }
 

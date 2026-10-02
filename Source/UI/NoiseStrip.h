@@ -36,6 +36,14 @@ public:
   /// mixer's rows, so it folds with everything else.
   void setCollapsedSections(SectionMask);
 
+  /// How far the parameters are scrolled, shared by every column.
+  ///
+  /// The gutter, the 32 strips and the noise channel are handed the same
+  /// number by the editor, which is what keeps a caption pointing at the knob
+  /// beside it. Snapped to a row boundary inside layoutRows, so a row is never
+  /// half over the header.
+  void setScroll(int);
+
   /// Asked for when a click lands on one of the rules between sections, which
   /// line up with the gutter's headings and do the same thing.
   std::function<void(Section)> onSectionToggled;
@@ -134,6 +142,12 @@ private:
 
   /// Folded groups, set by the editor. See ChannelStrip.
   SectionMask collapsed = 0;
+  int scroll = 0;
+
+  /// Hides a row that has scrolled under the pinned header. See HeaderCap.
+  HeaderCap headerCap;
+
+  void paintHeaderBand(juce::Graphics &);
   bool hovered = false;
 
   /// Set when a menu takes the pointer away, and cleared when the pointer

@@ -137,6 +137,9 @@ void NoiseStrip::setUpKnob(juce::Slider &s, const char *suffix,
   s.setDescription(tooltip);
   addAndMakeVisible(s);
 
+  headerCap.onPaint = [this](juce::Graphics &g) { paintHeaderBand(g); };
+  addAndMakeVisible(headerCap);
+
   const auto id = params::noiseParamId(suffix);
   sliderAttachments.push_back(std::make_unique<SliderAttachment>(apvts, id, s));
 
@@ -154,6 +157,15 @@ void NoiseStrip::setCollapsedSections(SectionMask mask) {
   if (rowIsCollapsed(highlighted, collapsed))
     highlighted = kNoRow;
 
+  resized();
+  repaint();
+}
+
+void NoiseStrip::setScroll(int s) {
+  if (s == scroll)
+    return;
+
+  scroll = s;
   resized();
   repaint();
 }
@@ -214,8 +226,8 @@ void NoiseStrip::mouseDown(const juce::MouseEvent &e) {
       onSectionToggled == nullptr)
     return;
 
-  const auto rows =
-      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
+                               collapsed, scroll);
   const auto section = headingSectionAt(rows, e.getPosition());
 
   if (section != Section::NumSections)
@@ -250,8 +262,8 @@ void NoiseStrip::mouseMove(const juce::MouseEvent &e) {
 
   // The hand the gutter's headings show, so a rule that folds looks like one.
   if (e.originalComponent == this) {
-    const auto rows =
-        layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+    const auto rows = layoutRows(
+        getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed, scroll);
 
     setMouseCursor(headingSectionAt(rows, e.getPosition()) !=
                            Section::NumSections
@@ -263,8 +275,8 @@ void NoiseStrip::mouseExit(const juce::MouseEvent &e) { reportHover(e); }
 
 void NoiseStrip::reportHover(const juce::MouseEvent &e) {
   const auto p = e.getEventRelativeTo(this).getPosition();
-  const auto rows =
-      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
+                               collapsed, scroll);
   const auto inside = getLocalBounds().contains(p) && !hoverSuppressed;
 
   // -1 says the pointer is off the harmonic series, which is what stops a
@@ -284,8 +296,8 @@ void NoiseStrip::paintOverChildren(juce::Graphics &g) {
   // underneath is covered by it and only the output heading, which has no
   // lamp, appeared to highlight at all.
   if (rowShowsHighlight(highlighted) && isHeadingRow(highlighted)) {
-    const auto rows =
-        layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+    const auto rows = layoutRows(
+        getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed, scroll);
 
     paintRowHighlight(g, rows[rowIndex(highlighted)]);
   }
@@ -298,8 +310,8 @@ void NoiseStrip::setHighlightedRow(Row row) {
   if (row == highlighted)
     return;
 
-  const auto rows =
-      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
+                               collapsed, scroll);
 
   repaintRowHighlight(*this, rows, highlighted);
   highlighted = row;
@@ -315,30 +327,13 @@ void NoiseStrip::paint(juce::Graphics &g) {
   paintChannelBackground(g, bounds, colours::channel.brighter(0.03f));
 
   const auto rows =
-      layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed);
+      layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed, scroll);
 
   // The same band the numbered channels light. This strip tracked the hovered
   // row and repainted for it but never drew it, so the mixer highlighted
   // across thirty-two columns and stopped at the thirty-third.
   if (rowShowsHighlight(highlighted) && !isHeadingRow(highlighted))
     paintRowHighlight(g, rows[rowIndex(highlighted)]);
-
-  auto header = rows[rowIndex(Row::Header)];
-
-  g.setColour(colour);
-  g.fillRect(header.removeFromTop(3).reduced(1, 0));
-
-  header.removeFromTop(1);
-
-  // Accent when hovered, the same as a numbered channel. See ChannelStrip.
-  g.setColour(hovered ? colours::accent : colours::text);
-  g.setFont(makeFont(11.0f, true));
-  g.drawText("NZ", header.removeFromTop(14), juce::Justification::centred,
-             false);
-
-  g.setColour(colour.withAlpha(0.85f));
-  g.setFont(makeFont(9.0f));
-  g.drawText("noise", header, juce::Justification::centred, false);
 
   // The envelope, key-off and tremolo rules carry lamps and draw themselves.
   g.setColour(colours::outline.withAlpha(0.7f));
@@ -385,9 +380,36 @@ void NoiseStrip::setActivity(float envelope, float tremolo,
   refresh(tremoloLamp, tremoloLamp.push(level > 0.0f ? tremolo : 0.0f));
 }
 
-void NoiseStrip::resized() {
+void NoiseStrip::paintHeaderBand(juce::Graphics &g) {
+  // See ChannelStrip::paintHeaderBand. The background is drawn for the whole
+  // column and clipped to the cap, so the two cannot come adrift.
+  const auto bounds = getLocalBounds();
+  paintChannelBackground(g, bounds, colours::channel.brighter(0.03f));
+
   const auto rows =
-      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+      layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed, scroll);
+
+  auto header = rows[rowIndex(Row::Header)];
+
+  g.setColour(colour);
+  g.fillRect(header.removeFromTop(3).reduced(1, 0));
+
+  header.removeFromTop(1);
+
+  // Accent when hovered, the same as a numbered channel. See ChannelStrip.
+  g.setColour(hovered ? colours::accent : colours::text);
+  g.setFont(makeFont(11.0f, true));
+  g.drawText("NZ", header.removeFromTop(14), juce::Justification::centred,
+             false);
+
+  g.setColour(colour.withAlpha(0.85f));
+  g.setFont(makeFont(9.0f));
+  g.drawText("noise", header, juce::Justification::centred, false);
+}
+
+void NoiseStrip::resized() {
+  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
+                               collapsed, scroll);
 
   // Colour takes the tuning row, which is the one thing noise has that a
   // partial does not.
@@ -396,7 +418,12 @@ void NoiseStrip::resized() {
   // See ChannelStrip::resized: a folded row's control is hidden, not merely
   // flattened, so it stops taking the mouse.
   const auto placeRow = [&](juce::Component &c, Row r, int shrink) {
-    if (rowIsCollapsed(r, collapsed)) {
+    // Hidden rather than left at zero height, and asked of the rectangle
+    // rather than of the fold mask, because a row now comes back empty for
+    // two reasons: folded away, or scrolled out of the band. Both want the
+    // same answer, and a knob with no height still takes the mouse and still
+    // answers a hover.
+    if (rows[rowIndex(r)].isEmpty()) {
       c.setVisible(false);
       return;
     }
@@ -422,6 +449,13 @@ void NoiseStrip::resized() {
   placeRow(velocity, Row::Velocity, 1);
   placeRow(aftertouch, Row::Aftertouch, 1);
   placeRow(pan, Row::Pan, 1);
+
+  // Down to the foot of the header and no further. The row's own rectangle
+  // already carries the column's top padding, so adding it again put the cap
+  // nine pixels into the band and clipped the tops of the tuning knobs.
+  headerCap.setBounds(0, 0, getWidth(),
+                      juce::jmax(0, rows[rowIndex(Row::Header)].getBottom()));
+  headerCap.toFront(false);
 
   const auto faderRow = rows[rowIndex(Row::Fader)];
   meter.setBounds(faderRow.reduced(2, 1));

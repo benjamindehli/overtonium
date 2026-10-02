@@ -8,6 +8,24 @@
 namespace ovt::ui {
 
 namespace {
+/// A wheel notch in pixels, by the same arithmetic a Viewport uses on itself.
+///
+/// Taken from JUCE rather than chosen so that scrolling the parameters and
+/// scrolling the mixer sideways move by the same amount for the same gesture,
+/// which they would not if this were a number somebody liked the feel of.
+int wheelDistance(const juce::MouseWheelDetails &wheel) {
+  constexpr float kViewportSingleStep = 16.0f;
+
+  // deltaY as the platform gives it, with no account taken of isReversed. The
+  // platform has already turned the wheel the way the person asked for, so
+  // natural scrolling arrives here pointing the right way and undoing it is
+  // what made it scroll backwards on a Mac set up that way. A Viewport reads
+  // it the same, which is why the sideways scroll was always right.
+  return -juce::roundToInt(wheel.deltaY * 14.0f * kViewportSingleStep);
+}
+} // namespace
+
+namespace {
 inline size_t rowIndex(Row r) { return (size_t)r; }
 } // namespace
 
@@ -801,6 +819,9 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   }
 
   addAndMakeVisible(meter);
+
+  headerCap.onPaint = [this](juce::Graphics &g) { paintHeaderBand(g); };
+  addAndMakeVisible(headerCap);
   meter.toBack(); // the fader cap has to draw over it
 
   updateTuneReadout();
@@ -1043,8 +1064,8 @@ void ChannelStrip::foldSectionUnder(const juce::MouseEvent &e, bool echo) {
   if (e.originalComponent != this || echo || onSectionToggled == nullptr)
     return;
 
-  const auto rows =
-      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
+                               collapsed, scroll);
   const auto section = headingSectionAt(rows, e.getPosition());
 
   if (section != Section::NumSections)
@@ -1086,8 +1107,8 @@ void ChannelStrip::mouseMove(const juce::MouseEvent &e) {
   // that LINK and the drawing tool can set one across the whole mixer at once,
   // and an arrow set here would mask it for everything below this strip.
   if (e.originalComponent == this) {
-    const auto rows =
-        layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+    const auto rows = layoutRows(
+        getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed, scroll);
 
     setMouseCursor(headingSectionAt(rows, e.getPosition()) !=
                            Section::NumSections
@@ -1107,8 +1128,8 @@ Row ChannelStrip::rowUnder(const RowBounds &rows, juce::Point<int> p) {
 
 void ChannelStrip::reportHover(const juce::MouseEvent &e) {
   const auto p = e.getEventRelativeTo(this).getPosition();
-  const auto rows =
-      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
+                               collapsed, scroll);
   const auto inside = getLocalBounds().contains(p) && !hoverSuppressed;
 
   // Leaving one knob for the next fires the exit before the enter, so the
@@ -1139,8 +1160,8 @@ void ChannelStrip::paintOverChildren(juce::Graphics &g) {
   // underneath is covered by it and only the output heading, which has no
   // lamp, appeared to highlight at all.
   if (rowShowsHighlight(highlighted) && isHeadingRow(highlighted)) {
-    const auto rows =
-        layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+    const auto rows = layoutRows(
+        getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed, scroll);
 
     paintRowHighlight(g, rows[rowIndex(highlighted)]);
   }
@@ -1153,8 +1174,8 @@ void ChannelStrip::setHighlightedRow(Row row) {
   if (row == highlighted)
     return;
 
-  const auto rows =
-      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
+                               collapsed, scroll);
 
   // Only the two bands that changed are repainted. With 33 strips answering
   // every time the pointer crosses a row, repainting whole channels would
@@ -1175,6 +1196,15 @@ void ChannelStrip::setCollapsedSections(SectionMask mask) {
   if (rowIsCollapsed(highlighted, collapsed))
     highlighted = kNoRow;
 
+  resized();
+  repaint();
+}
+
+void ChannelStrip::setScroll(int s) {
+  if (s == scroll)
+    return;
+
+  scroll = s;
   resized();
   repaint();
 }
@@ -1269,27 +1299,10 @@ void ChannelStrip::paint(juce::Graphics &g) {
   paintChannelBackground(g, bounds, backdropBase());
 
   const auto rows =
-      layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed);
+      layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed, scroll);
 
   if (rowShowsHighlight(highlighted) && !isHeadingRow(highlighted))
     paintRowHighlight(g, rows[rowIndex(highlighted)]);
-
-  auto header = rows[rowIndex(Row::Header)];
-
-  g.setColour(colour);
-  g.fillRect(header.removeFromTop(3).reduced(1, 0));
-
-  header.removeFromTop(1);
-
-  // Accent when the pointer is on this channel, which is exactly what the
-  // gutter does to the caption of the row it is on. The number is the name of
-  // the channel, so lighting it is the same gesture.
-  // Centred in what is left of the header rather than pinned to the top of
-  // it. The number is the only thing standing here.
-  g.setColour(hovered ? colours::accent : colours::text);
-  g.setFont(makeFont(14.0f, true));
-  g.drawText(juce::String(info.harmonic), header, juce::Justification::centred,
-             false);
 
   // Section rules, aligned with the gutter headings. Four of the five carry a
   // lamp, and those draw their own rule around it, so only the output divider
@@ -1307,15 +1320,49 @@ void ChannelStrip::paint(juce::Graphics &g) {
   }
 }
 
-void ChannelStrip::resized() {
+void ChannelStrip::paintHeaderBand(juce::Graphics &g) {
+  // The column's own background first, so the cap is opaque and the gradient
+  // under the header is the same one the rest of the strip has. Drawn for the
+  // whole strip and clipped to the cap, rather than worked out again for a
+  // smaller rectangle, so the two cannot come adrift.
+  const auto bounds = getLocalBounds();
+  paintChannelBackground(g, bounds, backdropBase());
+
   const auto rows =
-      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+      layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed, scroll);
+
+  auto header = rows[rowIndex(Row::Header)];
+
+  g.setColour(colour);
+  g.fillRect(header.removeFromTop(3).reduced(1, 0));
+
+  header.removeFromTop(1);
+
+  // Accent when the pointer is on this channel, which is exactly what the
+  // gutter does to the caption of the row it is on. The number is the name of
+  // the channel, so lighting it is the same gesture.
+  // Centred in what is left of the header rather than pinned to the top of
+  // it. The number is the only thing standing here.
+  g.setColour(hovered ? colours::accent : colours::text);
+  g.setFont(makeFont(14.0f, true));
+  g.drawText(juce::String(info.harmonic), header, juce::Justification::centred,
+             false);
+}
+
+void ChannelStrip::resized() {
+  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
+                               collapsed, scroll);
 
   // Hidden rather than left at zero height. A knob with no height still takes
   // the mouse and still answers a hover, so a folded section would go on
   // lighting gutter captions and opening LINK menus for knobs nobody can see.
   const auto placeRow = [&](juce::Component &c, Row r, int shrink) {
-    if (rowIsCollapsed(r, collapsed)) {
+    // Hidden rather than left at zero height, and asked of the rectangle
+    // rather than of the fold mask, because a row now comes back empty for
+    // two reasons: folded away, or scrolled out of the band. Both want the
+    // same answer, and a knob with no height still takes the mouse and still
+    // answers a hover.
+    if (rows[rowIndex(r)].isEmpty()) {
       c.setVisible(false);
       return;
     }
@@ -1370,6 +1417,16 @@ void ChannelStrip::resized() {
   }
   volume.setBounds(faderRow.reduced(2, 1));
   levelReadout.setBounds(rows[rowIndex(Row::FaderText)]);
+
+  // Over the header and over anything that has scrolled under it. Brought to
+  // the front because controls are added after it and would otherwise be in
+  // front of the thing meant to hide them.
+  // Down to the foot of the header and no further. The row's own rectangle
+  // already carries the column's top padding, so adding it again put the cap
+  // nine pixels into the band and clipped the tops of the tuning knobs.
+  headerCap.setBounds(0, 0, getWidth(),
+                      juce::jmax(0, rows[rowIndex(Row::Header)].getBottom()));
+  headerCap.toFront(false);
 
   auto ms = rows[rowIndex(Row::MuteSolo)];
   muteButton.setBounds(ms.removeFromLeft(ms.getWidth() / 2).reduced(1));
@@ -1456,8 +1513,30 @@ void ChannelStrip::setActivity(float envelope, float tremolo, float pitch,
 
 void ChannelStrip::mouseWheelMove(const juce::MouseEvent &e,
                                   const juce::MouseWheelDetails &wheel) {
-  if (e.originalComponent == this)
-    juce::Component::mouseWheelMove(e, wheel);
+  // Only a wheel that began on the strip itself. One over a knob belongs to
+  // the knob, and this is a deep listener so it hears both.
+  if (e.originalComponent != this)
+    return;
+
+  // A sideways gesture belongs to the mixer rather than to the parameters. A
+  // trackpad sends one as deltaX with deltaY near zero, and the vertical
+  // distance worked out from deltaY alone came to nothing while the handler
+  // still reported the wheel as taken, so the event was swallowed and a
+  // two-finger swipe moved nothing at all.
+  //
+  // Shift goes the same way, which is how a mouse with one wheel asks for it.
+  // Both fall through to the viewport, which reads deltaX and shift as a
+  // sideways scroll of its own accord.
+  const bool sideways = std::abs(wheel.deltaX) > std::abs(wheel.deltaY);
+
+  if (!sideways && !e.mods.isShiftDown() && scrollParametersBy(wheel))
+    return;
+
+  juce::Component::mouseWheelMove(e, wheel);
+}
+
+bool ChannelStrip::scrollParametersBy(const juce::MouseWheelDetails &wheel) {
+  return link.scrollParameters(wheelDistance(wheel));
 }
 
 } // namespace ovt::ui

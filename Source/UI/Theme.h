@@ -1,6 +1,8 @@
 #pragma once
 
 #include <array>
+#include <functional>
+#include <vector>
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -237,7 +239,54 @@ bool rowIsCollapsed(Row, SectionMask);
 /// The section whose heading row is under this point, or NumSections.
 Section headingSectionAt(const RowBounds &, juce::Point<int>);
 
-RowBounds layoutRows(juce::Rectangle<int> area, SectionMask collapsed = 0);
+/// How a column's height divides when the parameters can scroll.
+///
+/// Two bands. The channel header is pinned at the top and everything below it
+/// scrolls as one list, the mixer included. The header stays because it is
+/// what tells you which channel you are looking at, and a column of knobs with
+/// no number on it is thirty-two identical columns.
+///
+/// It exists because the parameters are small on a 1080p screen and zooming in
+/// to read them made the window taller than such a screen has room for.
+/// Scrolling is what lets the window stay the height of the screen while the
+/// rows inside it get bigger.
+struct Bands {
+  juce::Rectangle<int> header; ///< Row::Header, pinned
+  juce::Rectangle<int> middle; ///< the opening the rest is seen through
+
+  /// What the rows need, with the fader at whatever height it has here.
+  int contentHeight = 0;
+
+  /// How far the middle can be scrolled, which is zero when it all fits.
+  int maxScroll = 0;
+
+  /// The fader's height, which is its ideal until everything fits and the
+  /// slack has nowhere else to go.
+  int faderHeight = 0;
+};
+
+/// What the scrolling band holds: every row but the header, with the fader at
+/// its ideal height.
+int middleContentHeight(SectionMask collapsed = 0);
+
+/// Divides a column into its two bands.
+///
+/// At or above the preferred height this is exactly the old layout: every row
+/// is on screen and the fader takes the slack, so a window nobody has shrunk
+/// looks as it always did. Below it the fader stops growing and keeps the
+/// height it wants while the rows scroll past it instead.
+Bands layoutBands(juce::Rectangle<int> area, SectionMask collapsed = 0);
+
+/// Every offset the band can rest at: the top of each scrolling row.
+///
+/// Scrolling snaps to these so nothing is ever half over the pinned header.
+/// The foot of the band is free to cut a row off, which is what shows there is
+/// more below it.
+std::vector<int> scrollStopsFor(juce::Rectangle<int> area,
+                                SectionMask collapsed);
+
+RowBounds layoutRows(juce::Rectangle<int> area, SectionMask collapsed = 0,
+                     int scroll = 0);
 
 /// The row a point in a strip belongs to, or kNoRow for the header and the
 /// section rules, which have nothing to point at.
@@ -474,6 +523,28 @@ struct HoverTarget {
 };
 
 /// Implemented by the editor; lets a strip broadcast a drag to its 31 siblings.
+/// An opaque lid over a column's pinned header.
+///
+/// Scrolling is smooth, so a row can sit half over the top of the band. This
+/// covers it, and being a component it takes the mouse as well, so a control
+/// that has slid under the header is neither seen nor clickable.
+///
+/// It is here rather than each column moving its controls into a clipping
+/// child, which is the other way to get those two things and would have taken
+/// hover, LINK, folding and the draw tool through a change none of them
+/// needed: they all reach the controls through the column itself.
+class HeaderCap final : public juce::Component {
+public:
+  /// What to draw. Given the column's own coordinates, since the cap sits at
+  /// the column's top left and shares them.
+  std::function<void(juce::Graphics &)> onPaint;
+
+  void paint(juce::Graphics &g) override {
+    if (onPaint)
+      onPaint(g);
+  }
+};
+
 struct LinkTarget {
   virtual ~LinkTarget() = default;
 
@@ -489,6 +560,19 @@ struct LinkTarget {
   /// is the quickest way to change what the next drag will do, without going
   /// back up to the bar for it.
   virtual void showLinkMenu() = 0;
+
+  /// A wheel over a column, which moves the parameters rather than the mixer.
+  ///
+  /// Through the editor because the scroll belongs to the whole mixer: every
+  /// column is handed the same number, and a column that scrolled itself would
+  /// leave the gutter's captions beside the wrong knobs.
+  ///
+  /// @param delta  pixels to move by, positive downward. Snapped to a row
+  ///               boundary by the layout, so the caller need not.
+  /// @returns whether it was taken. False means there is nothing to scroll,
+  ///          and the wheel falls through to the viewport to move sideways,
+  ///          which is what it did before there was a second axis.
+  virtual bool scrollParameters(int delta) = 0;
 
   /// A drag held with a modifier, which draws the faders it passes over
   /// instead of moving one of them.

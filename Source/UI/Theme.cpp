@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <vector>
 
 #include "../PluginParameters.h"
 #include "LookAndFeel.h"
@@ -166,8 +167,28 @@ constexpr int kRowHeights[kNumRows] = {
     16  // FaderText
 };
 
-constexpr int kMinFaderHeight = 60;
+/// The height the fader wants, and now the least it is ever given.
+///
+/// There used to be a smaller floor beside this, 60, for a window too short to
+/// give every row its height: the fader was squeezed so that nothing had to
+/// scroll. Nothing has to fit any more, so the fader keeps the height it wants
+/// and the rows scroll past it instead, and a minimum below the ideal has
+/// nothing left to mean.
 constexpr int kIdealFaderHeight = 92;
+
+/// The least the scrolling band is ever reduced to.
+///
+/// Enough for the mixer and a little of what is above it: the fader at its
+/// ideal height, its readout, the mute and solo pair, and a knob row or two
+/// for context. Below that the band stops being something you scroll and
+/// becomes a slot you hunt through.
+///
+/// This is what sets the shortest window the plugin allows, and that floor is
+/// the whole reason the scrolling works. It used to be the height of every row
+/// at once, 805, and at 150% zoom a 1080p screen offers about 577 for the
+/// strips, so zooming in far enough to read the knobs was not refused so much
+/// as impossible.
+constexpr int kMinMiddleHeight = 240;
 
 int fixedHeight(SectionMask collapsed) {
   int total = 0;
@@ -290,27 +311,110 @@ int preferredStripHeight(SectionMask collapsed) {
   return fixedHeight(collapsed) + kIdealFaderHeight;
 }
 
-int minimumStripHeight(SectionMask collapsed) {
-  return fixedHeight(collapsed) + kMinFaderHeight;
+int minimumStripHeight(SectionMask) {
+  // No longer anything to do with how much is folded away, because nothing has
+  // to fit any more: what does not fit scrolls. The header is pinned and the
+  // band has a floor, and that is the whole of it.
+  return kRowHeights[(size_t)Row::Header] + kMinMiddleHeight;
 }
 
-RowBounds layoutRows(juce::Rectangle<int> area, SectionMask collapsed) {
-  const int flexible =
-      juce::jmax(kMinFaderHeight, area.getHeight() - fixedHeight(collapsed));
+namespace {
+/// The header is the only row that does not scroll.
+bool rowIsPinned(Row r) { return r == Row::Header; }
 
-  RowBounds out;
-  auto remaining = area;
+/// Every scrolling row but the fader, whose height is not fixed.
+int rowsAroundTheFader(SectionMask collapsed) {
+  int total = 0;
 
   for (int i = 0; i < kNumRows; ++i) {
-    // A folded row keeps its place in the array and takes no height, so
-    // everything that reads RowBounds carries on working and simply lays out
-    // an empty rectangle. The window shrinks by the same amount, so the fader
-    // keeps the height it had rather than stretching into the gap.
-    const int h = rowIsCollapsed((Row)i, collapsed) ? 0
-                  : kRowHeights[i] > 0              ? kRowHeights[i]
-                                                    : flexible;
+    const auto row = (Row)i;
 
-    out[(size_t)i] = remaining.removeFromTop(h);
+    if (rowIsPinned(row) || row == Row::Fader)
+      continue;
+
+    if (!rowIsCollapsed(row, collapsed))
+      total += kRowHeights[i];
+  }
+
+  return total;
+}
+} // namespace
+
+/// Every offset at which the band can rest: the top of each scrolling row.
+///
+/// Scrolling snaps to these at the top of the band so that nothing is ever
+/// half over the pinned header. The bottom is free to cut a row off, which is
+/// what tells you there is more below.
+int middleContentHeight(SectionMask collapsed) {
+  return rowsAroundTheFader(collapsed) + kIdealFaderHeight;
+}
+
+Bands layoutBands(juce::Rectangle<int> area, SectionMask collapsed) {
+  Bands out;
+
+  auto remaining = area;
+  out.header = remaining.removeFromTop(kRowHeights[(size_t)Row::Header]);
+  out.middle = remaining;
+
+  const int around = rowsAroundTheFader(collapsed);
+
+  // The fader takes what is left over, and never less than it wants. Which
+  // means it grows in a window with room to spare, exactly as it always has,
+  // and stops growing the moment there is anything left to scroll.
+  out.faderHeight =
+      juce::jmax(kIdealFaderHeight, out.middle.getHeight() - around);
+
+  out.contentHeight = around + out.faderHeight;
+
+  out.maxScroll = juce::jmax(0, out.contentHeight - out.middle.getHeight());
+
+  return out;
+}
+
+RowBounds layoutRows(juce::Rectangle<int> area, SectionMask collapsed,
+                     int scroll) {
+  const auto bands = layoutBands(area, collapsed);
+  const int clamped = juce::jlimit(0, bands.maxScroll, scroll);
+
+  RowBounds out;
+  out[(size_t)Row::Header] = bands.header;
+
+  // The scrolling rows, a pixel at a time.
+  //
+  // A row may sit half over the top of the band. The column covers that with
+  // an opaque cap over its header, which also takes the mouse, so a row under
+  // it is neither seen nor clickable. At the foot there is nothing to cover: a
+  // row runs past the band and is cut off by the column's own edge, which is
+  // what shows there is more underneath.
+  //
+  // A row wholly outside the band comes back empty, which is what a folded row
+  // comes back as, so every caller already copes: the control hides itself and
+  // rowUnder cannot find it.
+  int y = bands.middle.getY() - clamped;
+
+  for (int i = 0; i < kNumRows; ++i) {
+    const auto row = (Row)i;
+
+    if (rowIsPinned(row))
+      continue;
+
+    const int h = rowIsCollapsed(row, collapsed) ? 0
+                  : row == Row::Fader            ? bands.faderHeight
+                                                 : kRowHeights[i];
+
+    const juce::Rectangle<int> at(bands.middle.getX(), y,
+                                  bands.middle.getWidth(), h);
+
+    // Advanced for every row whether it is placed or not. Counting only the
+    // ones that were placed is what made short rows vanish out of order.
+    y += h;
+
+    const bool gone = h == 0 || at.getBottom() <= bands.middle.getY() ||
+                      at.getY() >= bands.middle.getBottom();
+
+    out[(size_t)i] =
+        gone ? juce::Rectangle<int>(at.getX(), at.getY(), at.getWidth(), 0)
+             : at;
   }
 
   return out;
