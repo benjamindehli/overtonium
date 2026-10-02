@@ -1,5 +1,7 @@
 #include "PluginEditor.h"
 
+#include <cmath>
+
 #include "Presets.h"
 #include "UI/Theme.h"
 #include "UpdateCheck.h"
@@ -919,9 +921,19 @@ void OvertoniumEditor::syncScrollBar() {
 
 void OvertoniumEditor::mouseWheelMove(const juce::MouseEvent &e,
                                       const juce::MouseWheelDetails &wheel) {
-  if (!e.mods.isShiftDown() &&
-      scrollParameters(-juce::roundToInt(wheel.deltaY * 14.0f * 16.0f)))
+  // Sideways is handed to the mixer's viewport outright rather than left to
+  // bubble. The gutter and the noise channel are siblings of that viewport
+  // rather than children of it, so an event let go from here goes up to the
+  // editor and stops, and a swipe over either of them did nothing.
+  const bool sideways = std::abs(wheel.deltaX) > std::abs(wheel.deltaY);
+
+  if (sideways || e.mods.isShiftDown()) {
+    if (viewport.useMouseWheelMoveIfNeeded(e, wheel))
+      return;
+  } else if (scrollParameters(
+                 -juce::roundToInt(wheel.deltaY * 14.0f * 16.0f))) {
     return;
+  }
 
   juce::Component::mouseWheelMove(e, wheel);
 }

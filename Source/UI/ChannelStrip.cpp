@@ -1518,10 +1518,18 @@ void ChannelStrip::mouseWheelMove(const juce::MouseEvent &e,
   if (e.originalComponent != this)
     return;
 
-  // Shift falls through to the viewport, which already reads it as a sideways
-  // scroll of its own accord, so the gesture that used to move the mixer is
-  // still there with a modifier on it.
-  if (!e.mods.isShiftDown() && scrollParametersBy(wheel))
+  // A sideways gesture belongs to the mixer rather than to the parameters. A
+  // trackpad sends one as deltaX with deltaY near zero, and the vertical
+  // distance worked out from deltaY alone came to nothing while the handler
+  // still reported the wheel as taken, so the event was swallowed and a
+  // two-finger swipe moved nothing at all.
+  //
+  // Shift goes the same way, which is how a mouse with one wheel asks for it.
+  // Both fall through to the viewport, which reads deltaX and shift as a
+  // sideways scroll of its own accord.
+  const bool sideways = std::abs(wheel.deltaX) > std::abs(wheel.deltaY);
+
+  if (!sideways && !e.mods.isShiftDown() && scrollParametersBy(wheel))
     return;
 
   juce::Component::mouseWheelMove(e, wheel);

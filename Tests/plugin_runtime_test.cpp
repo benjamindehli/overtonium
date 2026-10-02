@@ -4373,6 +4373,95 @@ void testTheWheelScrollsTheParameters(OvertoniumProcessor &p) {
             std::to_string(marker->getY()) + ")");
 }
 
+/// A sideways gesture moves the mixer, not the parameters.
+///
+/// A trackpad sends one as deltaX with deltaY near zero. The vertical handler
+/// worked its distance out from deltaY alone, came to nothing, and still
+/// reported the wheel as taken, so the event was swallowed and a two-finger
+/// swipe moved nothing at all. On a screen too narrow for 32 channels that is
+/// the only way across.
+void testASidewaysWheelMovesTheMixer(OvertoniumProcessor &p) {
+  section("A sideways wheel moves the mixer");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  // Narrow enough to have somewhere to go sideways, short enough to have
+  // somewhere to go down, so neither axis is tested where it cannot move.
+  editor->setSize(900, 700);
+
+  juce::Viewport *viewport = nullptr;
+  std::function<void(juce::Component &)> findViewport =
+      [&](juce::Component &c) {
+        for (auto *child : c.getChildren()) {
+          if (auto *v = dynamic_cast<juce::Viewport *>(child))
+            viewport = v;
+          findViewport(*child);
+        }
+      };
+  findViewport(*editor);
+
+  ovt::ui::ChannelStrip *strip = nullptr;
+  std::function<void(juce::Component &)> findStrip = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (auto *s = dynamic_cast<ovt::ui::ChannelStrip *>(child))
+        if (strip == nullptr)
+          strip = s;
+      findStrip(*child);
+    }
+  };
+  findStrip(*editor);
+
+  check(viewport != nullptr && strip != nullptr,
+        "with a viewport and strips in it");
+  if (viewport == nullptr || strip == nullptr)
+    return;
+
+  viewport->setViewPosition(120, 0);
+
+  const auto centre = strip->getLocalBounds().getCentre().toFloat();
+  const juce::MouseEvent onStrip(
+      juce::Desktop::getInstance().getMainMouseSource(), centre,
+      juce::ModifierKeys(), juce::MouseInputSource::defaultPressure,
+      juce::MouseInputSource::defaultOrientation,
+      juce::MouseInputSource::defaultRotation,
+      juce::MouseInputSource::defaultTiltX,
+      juce::MouseInputSource::defaultTiltY, strip, strip,
+      juce::Time::getCurrentTime(), centre, juce::Time::getCurrentTime(), 1,
+      false);
+
+  // What a trackpad sends for a swipe: sideways only.
+  juce::MouseWheelDetails swipe{};
+  swipe.deltaX = 0.6f;
+  swipe.deltaY = 0.0f;
+
+  const int before = viewport->getViewPositionX();
+  strip->mouseWheelMove(onStrip, swipe);
+
+  check(viewport->getViewPositionX() != before,
+        "a sideways swipe over a strip moves the mixer (" +
+            std::to_string(before) + " to " +
+            std::to_string(viewport->getViewPositionX()) + ")");
+
+  // And it must not have scrolled the parameters while it was at it.
+  juce::Slider *marker = nullptr;
+  for (auto *child : strip->getChildren())
+    if (auto *s = dynamic_cast<juce::Slider *>(child))
+      if (marker == nullptr)
+        marker = s;
+
+  if (marker != nullptr) {
+    const int y = marker->getY();
+    strip->mouseWheelMove(onStrip, swipe);
+
+    check(marker->getY() == y, "and leaves the parameters where they were");
+  }
+}
+
 /// The border between the gutter and the channels is one line, all the way.
 ///
 /// Each column covers its pinned header with an opaque cap so a row can scroll
@@ -7701,6 +7790,7 @@ int main() {
   testTheRulesFoldTheirSections(processor);
   testOneRightClickOpensOneMenu(processor);
   testWheelOverAKnobStaysOnTheKnob(processor);
+  testASidewaysWheelMovesTheMixer(processor);
   testTheGutterBorderIsOneLine(processor);
   testTheBandsLayOutAColumn();
   testTheWheelScrollsTheParameters(processor);
