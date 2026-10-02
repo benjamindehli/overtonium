@@ -450,9 +450,11 @@ void NoiseStrip::resized() {
   placeRow(aftertouch, Row::Aftertouch, 1);
   placeRow(pan, Row::Pan, 1);
 
-  headerCap.setBounds(
-      0, 0, getWidth(),
-      juce::jmax(0, rows[rowIndex(Row::Header)].getBottom() + kStripPadY));
+  // Down to the foot of the header and no further. The row's own rectangle
+  // already carries the column's top padding, so adding it again put the cap
+  // nine pixels into the band and clipped the tops of the tuning knobs.
+  headerCap.setBounds(0, 0, getWidth(),
+                      juce::jmax(0, rows[rowIndex(Row::Header)].getBottom()));
   headerCap.toFront(false);
 
   const auto faderRow = rows[rowIndex(Row::Fader)];

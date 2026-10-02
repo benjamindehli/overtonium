@@ -138,9 +138,11 @@ void RowGutter::resized() {
 
   // The cap first, then the button, so the button is in front of the thing
   // that hides everything else up here.
-  headerCap.setBounds(
-      0, 0, getWidth(),
-      juce::jmax(0, rows[(size_t)Row::Header].getBottom() + kStripPadY));
+  // Down to the foot of the header and no further. The row's own rectangle
+  // already carries the column's top padding, so adding it again put the cap
+  // nine pixels into the band and clipped the tops of the tuning knobs.
+  headerCap.setBounds(0, 0, getWidth(),
+                      juce::jmax(0, rows[(size_t)Row::Header].getBottom()));
   headerCap.toFront(false);
 
   linkButton.setBounds(rows[(size_t)Row::Header].reduced(7, 1));

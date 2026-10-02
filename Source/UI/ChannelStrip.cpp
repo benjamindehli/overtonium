@@ -1421,9 +1421,11 @@ void ChannelStrip::resized() {
   // Over the header and over anything that has scrolled under it. Brought to
   // the front because controls are added after it and would otherwise be in
   // front of the thing meant to hide them.
-  headerCap.setBounds(
-      0, 0, getWidth(),
-      juce::jmax(0, rows[rowIndex(Row::Header)].getBottom() + kStripPadY));
+  // Down to the foot of the header and no further. The row's own rectangle
+  // already carries the column's top padding, so adding it again put the cap
+  // nine pixels into the band and clipped the tops of the tuning knobs.
+  headerCap.setBounds(0, 0, getWidth(),
+                      juce::jmax(0, rows[rowIndex(Row::Header)].getBottom()));
   headerCap.toFront(false);
 
   auto ms = rows[rowIndex(Row::MuteSolo)];
