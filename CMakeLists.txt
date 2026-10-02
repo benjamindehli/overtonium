@@ -107,6 +107,7 @@ set(OVERTONIUM_SOURCES
     Source/dsp/PlateReverb.cpp
     Source/dsp/SpringReverb.cpp
     Source/dsp/BusDrive.cpp
+    Source/dsp/OutputStage.cpp
     Source/dsp/Voice.cpp
     Source/dsp/SynthEngine.cpp
     Source/dsp/TapeEcho.cpp
@@ -296,6 +297,7 @@ if(OVERTONIUM_BUILD_TESTS)
         Source/dsp/PlateReverb.cpp
         Source/dsp/SpringReverb.cpp
         Source/dsp/BusDrive.cpp
+        Source/dsp/OutputStage.cpp
         Source/dsp/Voice.cpp
         Source/dsp/SynthEngine.cpp
         Source/dsp/TapeEcho.cpp

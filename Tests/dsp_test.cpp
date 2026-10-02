@@ -26,6 +26,7 @@
 #include "dsp/Envelope.h"
 #include "dsp/Halfband.h"
 #include "dsp/Harmonics.h"
+#include "dsp/OutputStage.h"
 #include "dsp/PlateReverb.h"
 #include "dsp/Reverb.h"
 #include "dsp/SineTable.h"
@@ -7730,6 +7731,153 @@ void benchmarkLofi() {
   }
 }
 
+/// The output stage: five ways to run out of room, all of them bounded.
+///
+/// The bound is the point of the stage rather than a property of the shapes
+/// that happen to be in it. A type that could be driven past unity would make
+/// the clipper's own promise false, and the plugin hands its output to a host
+/// that was told what to expect.
+void testOutputStage() {
+  section("The output stage");
+
+  constexpr double sr = 48000.0;
+  constexpr int kN = 4096;
+
+  const auto run = [&](ClipType type, float drive) {
+    OutputStage stage;
+    stage.prepare(sr);
+
+    std::vector<float> l((size_t)kN), r((size_t)kN);
+
+    for (int n = 0; n < kN; ++n) {
+      const auto s =
+          (float)(drive * std::sin(6.283185307179586 * 220.0 * n / sr));
+      l[(size_t)n] = s;
+      r[(size_t)n] = s;
+    }
+
+    stage.process(l.data(), r.data(), kN, type);
+    return l;
+  };
+
+  // ---- bounded, every one of them ----------------------------------------
+  int unbounded = 0;
+
+  for (int i = 0; i < (int)ClipType::NumTypes; ++i) {
+    const auto type = (ClipType)i;
+
+    // Far past anything the instrument can produce, so the answer is about the
+    // shape rather than about what happens to reach it.
+    for (float drive : {1.01f, 2.0f, 11.0f, 400.0f}) {
+      const auto out = run(type, drive);
+
+      for (float v : out)
+        if (!(std::abs(v) <= 1.0f) || !std::isfinite(v)) {
+          ++unbounded;
+          break;
+        }
+    }
+  }
+
+  check(unbounded == 0, "every type stays inside unity however hard it is "
+                        "driven (" +
+                            std::to_string(unbounded) + " did not)");
+
+  // ---- Soft is exactly what it always was --------------------------------
+  //
+  // Every patch in the set was dialled in against this curve, so it has to
+  // come through the change bit for bit rather than merely close.
+  {
+    OutputStage stage;
+    stage.prepare(sr);
+
+    std::vector<float> l, r;
+    for (int n = -2000; n <= 2000; ++n)
+      l.push_back((float)n / 1000.0f);
+    r = l;
+
+    const auto before = l;
+    stage.process(l.data(), r.data(), (int)l.size(), ClipType::Soft);
+
+    int differed = 0;
+    for (size_t i = 0; i < l.size(); ++i) {
+      const float x = before[i];
+      const float a = std::abs(x);
+
+      // The old function, written out rather than called, so this compares
+      // against the formula and not against the code under test.
+      float want = x;
+      if (a > 0.7f) {
+        const float over = (a - 0.7f) / 0.3f;
+        const float y = 0.7f + 0.3f * std::tanh(over);
+        want = x < 0.0f ? -y : y;
+      }
+
+      if (l[i] != want)
+        ++differed;
+    }
+
+    check(differed == 0, "Soft is the curve every preset was dialled against "
+                         "(" +
+                             std::to_string(differed) + " samples differ)");
+  }
+
+  // ---- and each one differs in the way it claims to ----------------------
+  const auto harmonic = [&](ClipType type, float drive, double multiple) {
+    return binMagnitude(run(type, drive), 220.0 * multiple, sr);
+  };
+
+  // Soft and Hard fold both halves alike, so the even harmonics cancel. Bias
+  // does not, which is the whole of what it is for.
+  const auto soft2 = harmonic(ClipType::Soft, 2.0f, 2.0);
+  const auto bias2 = harmonic(ClipType::Bias, 2.0f, 2.0);
+
+  std::printf("  second harmonic: soft %.5f, bias %.5f\n", soft2, bias2);
+  check(bias2 > 20.0 * soft2 + 1.0e-6,
+        "Bias puts a second harmonic where Soft puts none");
+
+  // A limiter turns the signal down rather than bending it, so what comes out
+  // is still a sine where a clipper's is not.
+  const auto hard3 = harmonic(ClipType::Hard, 2.0f, 3.0);
+  const auto limit3 = harmonic(ClipType::Limiter, 2.0f, 3.0);
+
+  std::printf("  third harmonic: hard %.5f, limiter %.5f\n", hard3, limit3);
+  check(limit3 < hard3 * 0.25, "the Limiter distorts far less than Hard does");
+
+  // And the folder makes more of everything than the shaper it replaces.
+  const auto soft5 = harmonic(ClipType::Soft, 2.0f, 5.0);
+  const auto fold5 = harmonic(ClipType::Fold, 2.0f, 5.0);
+
+  std::printf("  fifth harmonic: soft %.5f, fold %.5f\n", soft5, fold5);
+  check(fold5 > soft5 * 2.0, "and Fold generates far more than Soft");
+
+  // ---- below the knee nothing touches it ---------------------------------
+  //
+  // The input is built once and kept rather than worked out twice, because
+  // 0.4f and 0.4 are not the same number and comparing a run against a freshly
+  // written expression failed on that alone.
+  {
+    std::vector<float> in((size_t)kN);
+    for (int n = 0; n < kN; ++n)
+      in[(size_t)n] =
+          (float)(0.4 * std::sin(6.283185307179586 * 220.0 * n / sr));
+
+    auto l = in;
+    auto r = in;
+
+    OutputStage stage;
+    stage.prepare(sr);
+    stage.process(l.data(), r.data(), kN, ClipType::Soft);
+
+    int moved = 0;
+    for (size_t i = 0; i < in.size(); ++i)
+      if (l[i] != in[i])
+        ++moved;
+
+    check(moved == 0, "and a signal under the knee comes through untouched");
+  }
+}
+
 int main() {
   // Unbuffered, so a crash leaves behind everything printed up to it. ctest
   // captures the output through a pipe, which buffers it by default, and a
@@ -7784,6 +7932,7 @@ int main() {
   testPlateReverb();
   testSpringReverb();
   testLofi();
+  testOutputStage();
   benchmark();
   benchmarkLofi();
 

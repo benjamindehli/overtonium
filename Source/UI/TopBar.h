@@ -232,6 +232,9 @@ public:
   ///
   /// Built as data for the same reason the settings menu is: a menu that can
   /// only be reached by clicking is a menu that never gets tested.
+  juce::PopupMenu buildClipMenu();
+  void chooseClip(int id);
+
   juce::PopupMenu buildEchoMenu();
 
   /// The same, for the reverb, and for the same two reasons: its on switch
@@ -265,7 +268,10 @@ public:
   ///
   /// Sized for the one word it ever says, at the font a button this short
   /// picks for itself, which is the same 9 px the captions around it use.
-  static constexpr int kClipWidth = 34;
+  /// Wide enough for the longest shape's name rather than for the word CLIP,
+  /// since the button says which machine is running the way the echo's and
+  /// the reverb's do.
+  static constexpr int kClipWidth = 62;
 
   /// The one word it ever says. Shared with the tests, which have to pick this
   /// button out of the bar's children: it is the only one that stands in the
@@ -418,7 +424,6 @@ private:
   /// attachment's destructor asks the button to stop listening to it. The
   /// sanitizers catch that as a call on an object that is no longer a Button,
   /// and nothing else does: the memory is still there and still looks right.
-  std::unique_ptr<ButtonAttachment> clipAttachment;
 
   /// Likewise. Zoom is set once to suit the screen and then left, and giving
   /// its box back to the bar is what lets the output group keep its readouts

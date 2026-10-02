@@ -10,6 +10,7 @@
 #include "BucketEcho.h"
 #include "BusDrive.h"
 #include "DigitalEcho.h"
+#include "OutputStage.h"
 #include "PlateReverb.h"
 #include "Reverb.h"
 #include "SpringReverb.h"
@@ -336,6 +337,10 @@ private:
   // recording of one.
   Wobble wobble;
   BusDrive busDrive;
+
+  /// What the mix runs into on its way out, which is five machines rather
+  /// than the one soft clipper it began as. See OutputStage.
+  OutputStage outputStage;
   TapeEcho echo;
   BucketEcho bucket;
   DigitalEcho digital;

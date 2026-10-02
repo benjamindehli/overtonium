@@ -5,25 +5,11 @@
 
 namespace ovt {
 
-namespace {
-/// Linear below the threshold, smoothly compressed above it, bounded at 1.0.
-inline float softClip(float x) noexcept {
-  constexpr float threshold = 0.7f;
-
-  const float a = std::abs(x);
-  if (a <= threshold)
-    return x;
-
-  const float over = (a - threshold) / (1.0f - threshold);
-  const float y = threshold + (1.0f - threshold) * std::tanh(over);
-
-  return x < 0.0f ? -y : y;
-}
-} // namespace
-
 void SynthEngine::prepare(double newSampleRate) noexcept {
   sampleRate = std::max(1.0, newSampleRate);
   renderRate = sampleRate;
+
+  outputStage.prepare(sampleRate);
 
   // Builds the oscillator tables if nothing has yet, which takes about eight
   // milliseconds: each circuit run over a sine, the harmonics read off it, and
@@ -59,6 +45,7 @@ void SynthEngine::reset() noexcept {
 
   wobble.reset();
   busDrive.reset();
+  outputStage.reset();
   echo.reset();
   bucket.reset();
   digital.reset();
@@ -688,12 +675,8 @@ void SynthEngine::render(float *left, float *right, int numSamples,
     smoothedMasterGain = g;
   }
 
-  if (p.global.safetyClip) {
-    for (int n = 0; n < numSamples; ++n) {
-      left[n] = softClip(left[n]);
-      right[n] = softClip(right[n]);
-    }
-  }
+  if (p.global.safetyClip)
+    outputStage.process(left, right, numSamples, p.global.clipType);
 
   float peakL = 0.0f, peakR = 0.0f;
   for (int n = 0; n < numSamples; ++n) {
