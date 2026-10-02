@@ -706,8 +706,17 @@ void OvertoniumEditor::resized() {
                       .reduced(kStripPadX, kStripPadY),
                   collapsedSections);
 
+  stripLayoutArea = juce::Rectangle<int>(0, 0, kStripWidth, stripHeight)
+                        .reduced(kStripPadX, kStripPadY);
   scrollRange = bands.maxScroll;
-  scrollY = juce::jlimit(0, scrollRange, scrollY);
+  scrollBandHeight = bands.middle.getHeight();
+
+  // Snapped as well as clamped, so the bar and the rows agree about where they
+  // are. Left unsnapped, the bar sits wherever the wheel put it while the rows
+  // show the stop below it, which reads as a scrollbar that will not reach its
+  // own top.
+  scrollY = snapScroll(stripLayoutArea, collapsedSections,
+                       juce::jlimit(0, scrollRange, scrollY));
 
   // Beside what it scrolls rather than down the whole window: it starts under
   // the pinned header and ends with the band, so its travel is the travel.
@@ -718,10 +727,7 @@ void OvertoniumEditor::resized() {
 
   parameterBar.setRangeLimits(0.0, (double)bands.contentHeight,
                               juce::dontSendNotification);
-  parameterBar.setCurrentRange(
-      juce::Range<double>((double)scrollY,
-                          (double)(scrollY + bands.middle.getHeight())),
-      juce::dontSendNotification);
+  syncScrollBar();
 
   gutter.setScroll(scrollY);
   noiseStrip.setScroll(scrollY);
@@ -848,7 +854,30 @@ bool OvertoniumEditor::scrollParameters(int delta) {
   if (scrollRange <= 0)
     return false;
 
-  const int wanted = juce::jlimit(0, scrollRange, scrollY + delta);
+  const auto stops = scrollStopsFor(stripLayoutArea, collapsedSections);
+  const int target = juce::jlimit(0, scrollRange, scrollY + delta);
+
+  int wanted = 0;
+  for (int stop : stops)
+    if (stop <= target && stop <= scrollRange)
+      wanted = stop;
+
+  // A trackpad sends a few pixels at a time, which can land back inside the
+  // row it started in and snap to the stop it came from, so it would never
+  // move at all. A gesture that asked for movement gets one stop of it.
+  if (wanted == scrollY && delta != 0) {
+    for (size_t i = 0; i < stops.size(); ++i) {
+      if (stops[i] != scrollY)
+        continue;
+
+      const size_t next = delta > 0 ? i + 1 : (i == 0 ? 0 : i - 1);
+
+      if (next < stops.size() && stops[next] <= scrollRange)
+        wanted = stops[next];
+
+      break;
+    }
+  }
 
   // Taken even when it changes nothing, because at either end there is still
   // somewhere to scroll and letting the wheel fall through would have the
@@ -864,19 +893,27 @@ bool OvertoniumEditor::scrollParameters(int delta) {
   for (auto &strip : strips)
     strip->setScroll(scrollY);
 
+  syncScrollBar();
   plugin().apvts.state.setProperty(kScroll, scrollY, nullptr);
 
   return true;
 }
 
+void OvertoniumEditor::syncScrollBar() {
+  // The wheel moves the rows without going through resized(), so the bar is
+  // told separately or it sits where the last drag left it. Silently, because
+  // the bar telling us back is how a drag arrives and would be a loop.
+  parameterBar.setCurrentRange(
+      juce::Range<double>((double)scrollY,
+                          (double)(scrollY + scrollBandHeight)),
+      juce::dontSendNotification);
+}
+
 void OvertoniumEditor::mouseWheelMove(const juce::MouseEvent &e,
                                       const juce::MouseWheelDetails &wheel) {
-  if (!e.mods.isShiftDown()) {
-    const float d = wheel.isReversed ? -wheel.deltaY : wheel.deltaY;
-
-    if (scrollParameters(-juce::roundToInt(d * 14.0f * 16.0f)))
-      return;
-  }
+  if (!e.mods.isShiftDown() &&
+      scrollParameters(-juce::roundToInt(wheel.deltaY * 14.0f * 16.0f)))
+    return;
 
   juce::Component::mouseWheelMove(e, wheel);
 }

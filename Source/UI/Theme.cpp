@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <vector>
 
 #include "../PluginParameters.h"
 #include "LookAndFeel.h"
@@ -333,6 +334,40 @@ int rowsAroundTheFader(SectionMask collapsed) {
 }
 } // namespace
 
+/// Every offset at which the band can rest: the top of each scrolling row.
+///
+/// Scrolling snaps to these at the top of the band so that nothing is ever
+/// half over the pinned header. The bottom is free to cut a row off, which is
+/// what tells you there is more below.
+namespace {
+/// The stops, given a fader height already worked out.
+///
+/// Separate from the public one so that layoutBands can use it without asking
+/// layoutBands for the fader height, which is how these two called each other
+/// until the stack ran out.
+std::vector<int> stopsWith(SectionMask collapsed, int faderHeight) {
+  std::vector<int> stops{0};
+  int y = 0;
+
+  for (int i = 0; i < kNumRows; ++i) {
+    const auto row = (Row)i;
+
+    if (rowIsPinned(row) || rowIsCollapsed(row, collapsed))
+      continue;
+
+    y += (row == Row::Fader) ? faderHeight : kRowHeights[i];
+    stops.push_back(y);
+  }
+
+  return stops;
+}
+} // namespace
+
+std::vector<int> scrollStopsFor(juce::Rectangle<int> area,
+                                SectionMask collapsed) {
+  return stopsWith(collapsed, layoutBands(area, collapsed).faderHeight);
+}
+
 int middleContentHeight(SectionMask collapsed) {
   return rowsAroundTheFader(collapsed) + kIdealFaderHeight;
 }
@@ -353,9 +388,34 @@ Bands layoutBands(juce::Rectangle<int> area, SectionMask collapsed) {
       juce::jmax(kIdealFaderHeight, out.middle.getHeight() - around);
 
   out.contentHeight = around + out.faderHeight;
-  out.maxScroll = juce::jmax(0, out.contentHeight - out.middle.getHeight());
+
+  // The furthest it goes is the first stop from which everything left fits,
+  // rather than the raw overflow. Taking the raw figure would leave a last
+  // position that is not a stop, so the bar would show a travel the rows
+  // cannot reach and the thumb would never quite arrive.
+  out.maxScroll = 0;
+
+  for (int stop : stopsWith(collapsed, out.faderHeight)) {
+    out.maxScroll = stop;
+
+    if (out.contentHeight - stop <= out.middle.getHeight())
+      break;
+  }
 
   return out;
+}
+
+int snapScroll(juce::Rectangle<int> area, SectionMask collapsed, int desired) {
+  const auto bands = layoutBands(area, collapsed);
+  const auto stops = scrollStopsFor(area, collapsed);
+
+  int best = 0;
+
+  for (int stop : stops)
+    if (stop <= desired && stop <= bands.maxScroll)
+      best = stop;
+
+  return best;
 }
 
 RowBounds layoutRows(juce::Rectangle<int> area, SectionMask collapsed,
@@ -367,7 +427,12 @@ RowBounds layoutRows(juce::Rectangle<int> area, SectionMask collapsed,
   out[(size_t)Row::Header] = bands.header;
 
   auto remaining = bands.middle.withHeight(0);
-  int above = 0; // how much has been scrolled off the top so far
+
+  // How far down the content this row begins. It counts every row, placed or
+  // not: counting only the ones already scrolled away left it at zero after a
+  // tall row had been placed, so the next short row measured as though it
+  // began at the top and vanished while its taller neighbours stayed.
+  int offset = 0;
 
   for (int i = 0; i < kNumRows; ++i) {
     const auto row = (Row)i;
@@ -379,14 +444,18 @@ RowBounds layoutRows(juce::Rectangle<int> area, SectionMask collapsed,
                   : row == Row::Fader            ? bands.faderHeight
                                                  : kRowHeights[i];
 
-    const bool scrolledPast = above + h <= clamped;
-    const bool noRoomBelow =
-        remaining.getBottom() + h > bands.middle.getBottom();
+    const bool scrolledPast = offset + h <= clamped;
+    offset += h;
 
-    if (h == 0 || scrolledPast || noRoomBelow) {
-      if (scrolledPast)
-        above += h;
+    // A row that starts at or below the foot of the band is gone. One that
+    // merely runs past it is laid out in full and cut off by the strip's own
+    // edge, which is what shows there is more underneath. Checked on where the
+    // row starts rather than where it ends, because testing whether it fits
+    // and skipping it if not let a shorter row behind it slip into the gap and
+    // appear out of order.
+    const bool below = remaining.getBottom() >= bands.middle.getBottom();
 
+    if (h == 0 || scrolledPast || below) {
       out[(size_t)i] = {remaining.getX(), remaining.getBottom(),
                         remaining.getWidth(), 0};
       continue;

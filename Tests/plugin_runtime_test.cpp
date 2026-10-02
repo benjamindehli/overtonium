@@ -4458,6 +4458,66 @@ void testTheBandsLayOutAColumn() {
         "the band keeps its four rows at the shortest window (" +
             std::to_string(squeezed.middle.getHeight()) + ")");
   check(squeezed.maxScroll > 0, "and scrolls there");
+
+  // ---- what scrolling looks like from the outside -------------------------
+  //
+  // Two properties that were both wrong at first and that no height or total
+  // would have caught.
+  {
+    const juce::Rectangle<int> area(0, 0, kStripWidth, 600);
+    const auto bands = layoutBands(area, 0);
+
+    check(bands.maxScroll > 0, "a 600px column has somewhere to scroll");
+
+    int runs = 0, gaps = 0, overhang = 0;
+
+    for (int scroll = 0; scroll <= bands.maxScroll; scroll += 17) {
+      const auto rows = layoutRows(area, 0, scroll);
+
+      // The rows on screen have to be one unbroken run in layout order. They
+      // were not: a row too tall to fit was skipped and a shorter one behind
+      // it took the space, so controls came and went out of order.
+      bool started = false, ended = false, broken = false;
+      int lastBottom = -1;
+
+      for (int i = 0; i < kNumRows; ++i) {
+        const auto &r = rows[(size_t)i];
+
+        if ((Row)i == Row::Header || rowIsCollapsed((Row)i, 0))
+          continue;
+
+        if (r.getHeight() > 0) {
+          if (ended)
+            broken = true;
+          started = true;
+          lastBottom = r.getBottom();
+        } else if (started) {
+          ended = true;
+        }
+      }
+
+      if (broken)
+        ++runs;
+
+      // And the run has to reach the foot of the band. It used to stop short
+      // whenever the next row was too tall for what was left, leaving a strip
+      // of nothing that read as the end of the list.
+      if (lastBottom < bands.middle.getBottom())
+        ++gaps;
+
+      if (lastBottom > bands.middle.getBottom())
+        ++overhang;
+    }
+
+    check(runs == 0, "the visible rows are one unbroken run at every scroll (" +
+                         std::to_string(runs) + " broken)");
+    check(gaps == 0, "and always reach the foot of the band (" +
+                         std::to_string(gaps) + " short)");
+    check(overhang > 0,
+          "with the last one cut off by it, which is what shows there is more "
+          "below (" +
+              std::to_string(overhang) + " of them)");
+  }
 }
 
 /// The grain tile must not outlive the windows that use it.

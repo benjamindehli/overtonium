@@ -15,9 +15,13 @@ namespace {
 /// which they would not if this were a number somebody liked the feel of.
 int wheelDistance(const juce::MouseWheelDetails &wheel) {
   constexpr float kViewportSingleStep = 16.0f;
-  const float d = wheel.isReversed ? -wheel.deltaY : wheel.deltaY;
 
-  return -juce::roundToInt(d * 14.0f * kViewportSingleStep);
+  // deltaY as the platform gives it, with no account taken of isReversed. The
+  // platform has already turned the wheel the way the person asked for, so
+  // natural scrolling arrives here pointing the right way and undoing it is
+  // what made it scroll backwards on a Mac set up that way. A Viewport reads
+  // it the same, which is why the sideways scroll was always right.
+  return -juce::roundToInt(wheel.deltaY * 14.0f * kViewportSingleStep);
 }
 } // namespace
 

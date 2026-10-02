@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <vector>
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -274,6 +275,22 @@ int middleContentHeight(SectionMask collapsed = 0);
 /// looks as it always did. Below it the fader stops growing and keeps the
 /// height it wants while the rows scroll past it instead.
 Bands layoutBands(juce::Rectangle<int> area, SectionMask collapsed = 0);
+
+/// Every offset the band can rest at: the top of each scrolling row.
+///
+/// Scrolling snaps to these so nothing is ever half over the pinned header.
+/// The foot of the band is free to cut a row off, which is what shows there is
+/// more below it.
+std::vector<int> scrollStopsFor(juce::Rectangle<int> area,
+                                SectionMask collapsed);
+
+/// The nearest scroll position at or below `desired` that a row starts at.
+///
+/// The editor snaps with this before storing a scroll, so the scrollbar and
+/// the rows agree about where they are. Without it the bar sits wherever the
+/// wheel left it while the rows show the stop below, which reads as a
+/// scrollbar that will not reach its own top.
+int snapScroll(juce::Rectangle<int> area, SectionMask collapsed, int desired);
 
 RowBounds layoutRows(juce::Rectangle<int> area, SectionMask collapsed = 0,
                      int scroll = 0);

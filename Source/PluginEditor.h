@@ -346,6 +346,14 @@ private:
   int scrollY = 0;
   int scrollRange = 0;
 
+  /// What scrollParameters needs and cannot work out for itself: the rectangle
+  /// a column lays its rows in, and how tall the band is. Both are recorded by
+  /// resized(), which is the only place the geometry is known.
+  juce::Rectangle<int> stripLayoutArea;
+  int scrollBandHeight = 0;
+
+  void syncScrollBar();
+
   /// The one thing on screen that says the parameters can move.
   ///
   /// Vertical, at the far right beyond the noise channel, which is where a
