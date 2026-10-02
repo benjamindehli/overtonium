@@ -169,13 +169,19 @@ constexpr int kRowHeights[kNumRows] = {
 constexpr int kMinFaderHeight = 60;
 constexpr int kIdealFaderHeight = 92;
 
-/// The least the scrolling band is ever reduced to, four rows of knobs.
+/// The least the scrolling band is ever reduced to.
 ///
-/// Three would fit and read as an accident. Below about this the band stops
-/// being a thing you scroll and becomes a slot you hunt through, and the
-/// window has to stop somewhere: this is what sets the shortest window the
-/// plugin allows, along with the pinned rows and the fader's own floor.
-constexpr int kMinMiddleHeight = 120;
+/// Enough for the mixer and a little of what is above it: the fader at its
+/// ideal height, its readout, the mute and solo pair, and a knob row or two
+/// for context. Below that the band stops being something you scroll and
+/// becomes a slot you hunt through.
+///
+/// This is what sets the shortest window the plugin allows, and that floor is
+/// the whole reason the scrolling works. It used to be the height of every row
+/// at once, 805, and at 150% zoom a 1080p screen offers about 577 for the
+/// strips, so zooming in far enough to read the knobs was not refused so much
+/// as impossible.
+constexpr int kMinMiddleHeight = 240;
 
 int fixedHeight(SectionMask collapsed) {
   int total = 0;
@@ -298,67 +304,56 @@ int preferredStripHeight(SectionMask collapsed) {
   return fixedHeight(collapsed) + kIdealFaderHeight;
 }
 
-int minimumStripHeight(SectionMask collapsed) {
-  return fixedHeight(collapsed) + kMinFaderHeight;
+int minimumStripHeight(SectionMask) {
+  // No longer anything to do with how much is folded away, because nothing has
+  // to fit any more: what does not fit scrolls. The header is pinned and the
+  // band has a floor, and that is the whole of it.
+  return kRowHeights[(size_t)Row::Header] + kMinMiddleHeight;
 }
 
 namespace {
-/// Which band a row belongs to. The header and the mixer foot are pinned and
-/// everything else scrolls between them.
-bool rowIsPinned(Row r) {
-  return r == Row::Header || r == Row::MuteSolo || r == Row::Fader ||
-         r == Row::FaderText;
+/// The header is the only row that does not scroll.
+bool rowIsPinned(Row r) { return r == Row::Header; }
+
+/// Every scrolling row but the fader, whose height is not fixed.
+int rowsAroundTheFader(SectionMask collapsed) {
+  int total = 0;
+
+  for (int i = 0; i < kNumRows; ++i) {
+    const auto row = (Row)i;
+
+    if (rowIsPinned(row) || row == Row::Fader)
+      continue;
+
+    if (!rowIsCollapsed(row, collapsed))
+      total += kRowHeights[i];
+  }
+
+  return total;
 }
 } // namespace
 
 int middleContentHeight(SectionMask collapsed) {
-  int total = 0;
-
-  for (int i = 0; i < kNumRows; ++i)
-    if (!rowIsPinned((Row)i) && !rowIsCollapsed((Row)i, collapsed))
-      total += kRowHeights[i];
-
-  return total;
+  return rowsAroundTheFader(collapsed) + kIdealFaderHeight;
 }
 
 Bands layoutBands(juce::Rectangle<int> area, SectionMask collapsed) {
-  const int content = middleContentHeight(collapsed);
-
-  // What the middle and the fader divide between them. The other three pinned
-  // rows are fixed whatever happens.
-  const int available = area.getHeight() - kRowHeights[(size_t)Row::Header] -
-                        kRowHeights[(size_t)Row::MuteSolo] -
-                        kRowHeights[(size_t)Row::FaderText];
-
-  int middleHeight = 0;
-  int faderHeight = 0;
-
-  if (available >= content + kIdealFaderHeight) {
-    // Room for everything, so nothing scrolls and the fader takes the slack.
-    // This is the whole of the old behaviour and is what every window at 100%
-    // zoom gets.
-    middleHeight = content;
-    faderHeight = available - content;
-  } else {
-    // The fader keeps the height it wants for as long as it can and the rows
-    // scroll instead. Only once the band is down to its own floor does the
-    // fader start giving way, and both have a floor so that a window somehow
-    // shorter than either can still lay out rather than produce nonsense.
-    middleHeight = juce::jmax(kMinMiddleHeight, available - kIdealFaderHeight);
-    faderHeight = juce::jmax(kMinFaderHeight, available - middleHeight);
-  }
-
   Bands out;
+
   auto remaining = area;
-
   out.header = remaining.removeFromTop(kRowHeights[(size_t)Row::Header]);
-  out.middle = remaining.removeFromTop(middleHeight);
-  out.foot =
-      remaining.removeFromTop(kRowHeights[(size_t)Row::MuteSolo] + faderHeight +
-                              kRowHeights[(size_t)Row::FaderText]);
+  out.middle = remaining;
 
-  out.contentHeight = content;
-  out.maxScroll = juce::jmax(0, content - middleHeight);
+  const int around = rowsAroundTheFader(collapsed);
+
+  // The fader takes what is left over, and never less than it wants. Which
+  // means it grows in a window with room to spare, exactly as it always has,
+  // and stops growing the moment there is anything left to scroll.
+  out.faderHeight =
+      juce::jmax(kIdealFaderHeight, out.middle.getHeight() - around);
+
+  out.contentHeight = around + out.faderHeight;
+  out.maxScroll = juce::jmax(0, out.contentHeight - out.middle.getHeight());
 
   return out;
 }
@@ -369,24 +364,10 @@ RowBounds layoutRows(juce::Rectangle<int> area, SectionMask collapsed,
   const int clamped = juce::jlimit(0, bands.maxScroll, scroll);
 
   RowBounds out;
+  out[(size_t)Row::Header] = bands.header;
 
-  // The pinned rows first, each in its own band. The fader takes whatever the
-  // foot has left after its two neighbours, which is how it keeps absorbing
-  // slack in a tall window.
-  auto foot = bands.foot;
-  out[(size_t)(size_t)Row::Header] = bands.header;
-  out[(size_t)(size_t)Row::MuteSolo] =
-      foot.removeFromTop(kRowHeights[(size_t)Row::MuteSolo]);
-  out[(size_t)(size_t)Row::FaderText] =
-      foot.removeFromBottom(kRowHeights[(size_t)Row::FaderText]);
-  out[(size_t)(size_t)Row::Fader] = foot;
-
-  // Then the scrolling ones, from above the band by however far it has been
-  // scrolled. A row off either end keeps a real rectangle rather than an empty
-  // one, so a caller can still measure it, and is bounded by the band only
-  // when it comes to paint or to be pointed at.
-  auto remaining =
-      bands.middle.withY(bands.middle.getY() - clamped).withHeight(0);
+  auto remaining = bands.middle.withHeight(0);
+  int above = 0; // how much has been scrolled off the top so far
 
   for (int i = 0; i < kNumRows; ++i) {
     const auto row = (Row)i;
@@ -394,13 +375,25 @@ RowBounds layoutRows(juce::Rectangle<int> area, SectionMask collapsed,
     if (rowIsPinned(row))
       continue;
 
-    // A folded row keeps its place in the array and takes no height, so
-    // everything that reads RowBounds carries on working and simply lays out
-    // an empty rectangle.
-    const int h = rowIsCollapsed(row, collapsed) ? 0 : kRowHeights[i];
+    const int h = rowIsCollapsed(row, collapsed) ? 0
+                  : row == Row::Fader            ? bands.faderHeight
+                                                 : kRowHeights[i];
 
-    out[(size_t)i] = juce::Rectangle<int>(
-        remaining.getX(), remaining.getBottom(), remaining.getWidth(), h);
+    const bool scrolledPast = above + h <= clamped;
+    const bool noRoomBelow =
+        remaining.getBottom() + h > bands.middle.getBottom();
+
+    if (h == 0 || scrolledPast || noRoomBelow) {
+      if (scrolledPast)
+        above += h;
+
+      out[(size_t)i] = {remaining.getX(), remaining.getBottom(),
+                        remaining.getWidth(), 0};
+      continue;
+    }
+
+    out[(size_t)i] = {remaining.getX(), remaining.getBottom(),
+                      remaining.getWidth(), h};
     remaining = out[(size_t)i];
   }
 

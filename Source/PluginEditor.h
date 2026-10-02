@@ -31,6 +31,14 @@ public:
   /// and the headings can show which way they point.
   void setCollapsedSections(ovt::ui::SectionMask);
 
+  /// How far the parameters are scrolled, shared by every column.
+  ///
+  /// The gutter, the 32 strips and the noise channel are handed the same
+  /// number by the editor, which is what keeps a caption pointing at the knob
+  /// beside it. Snapped to a row boundary inside layoutRows, so a row is never
+  /// half over the header.
+  void setScroll(int);
+
   /// Which of the two modulators are one circuit the whole keyboard hears.
   ///
   /// Lights that group's heading. The switch is part of the patch and lives in
@@ -76,6 +84,7 @@ public:
 private:
   ovt::ui::Row highlighted = ovt::ui::kNoRow;
   ovt::ui::SectionMask collapsed = 0;
+  int scroll = 0;
   bool sharedPitchMod = false, sharedAmpMod = false;
 
   /// LINK stands in the empty band above the captions, where the strips beside
@@ -314,6 +323,17 @@ private:
   /// Which groups of rows are folded away. Restored from the saved state and
   /// written back when it changes, alongside the window size and the zoom.
   ovt::ui::SectionMask collapsedSections = 0;
+
+  /// How far the parameters are scrolled, and how far they can be.
+  ///
+  /// One number for the whole mixer rather than one per column, because the
+  /// gutter's captions name the knobs beside them and two columns that
+  /// disagreed by a row would be captions pointing at the wrong controls. The
+  /// range falls to zero in a window with room for everything, which is every
+  /// window at 100% zoom, so scrolling is a thing that only appears when it is
+  /// needed.
+  int scrollY = 0;
+  int scrollRange = 0;
 
   /// The bar height the limits in force were worked out for.
   ///

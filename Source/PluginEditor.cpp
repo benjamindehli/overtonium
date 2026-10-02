@@ -108,7 +108,7 @@ void RowGutter::setHighlightedRow(Row row) {
     return;
 
   const auto rows =
-      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed);
+      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed, scroll);
 
   repaintRowHighlight(*this, rows, highlighted);
   highlighted = row;
@@ -121,7 +121,7 @@ void RowGutter::resized() {
   // fixed height at the top of the column and no fold can move it, which is
   // why this does not have to run again when one changes.
   const auto rows =
-      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed);
+      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed, scroll);
 
   linkButton.setBounds(rows[(size_t)Row::Header].reduced(7, 1));
 
@@ -151,6 +151,15 @@ void RowGutter::setCollapsedSections(SectionMask mask) {
   repaint();
 }
 
+void RowGutter::setScroll(int s) {
+  if (s == scroll)
+    return;
+
+  scroll = s;
+  resized();
+  repaint();
+}
+
 void RowGutter::setSharedModulators(bool pitch, bool amp) {
   if (pitch == sharedPitchMod && amp == sharedAmpMod)
     return;
@@ -162,7 +171,7 @@ void RowGutter::setSharedModulators(bool pitch, bool amp) {
 
 void RowGutter::mouseDown(const juce::MouseEvent &e) {
   const auto rows =
-      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed);
+      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed, scroll);
   const auto section = headingSectionAt(rows, e.getPosition());
 
   if (section != Section::NumSections && onSectionToggled != nullptr)
@@ -171,7 +180,7 @@ void RowGutter::mouseDown(const juce::MouseEvent &e) {
 
 void RowGutter::mouseMove(const juce::MouseEvent &e) {
   const auto rows =
-      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed);
+      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed, scroll);
   const auto section = headingSectionAt(rows, e.getPosition());
   const bool onHeading = section != Section::NumSections;
 
@@ -194,7 +203,7 @@ void RowGutter::paint(juce::Graphics &g) {
   paintChannelBackground(g, getLocalBounds(), colours::panel.darker(0.25f));
 
   const auto rows =
-      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed);
+      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed, scroll);
 
   if (rowShowsHighlight(highlighted))
     paintRowHighlight(g, rows[(size_t)highlighted]);
@@ -660,6 +669,25 @@ void OvertoniumEditor::resized() {
   for (int i = 0; i < (int)strips.size(); ++i)
     strips[(size_t)i]->setBounds(i * kStripWidth, 0, kStripWidth, stripHeight);
 
+  // Every column is handed the same scroll, which is what keeps a caption in
+  // the gutter beside the knob it names. Clamped here rather than where it is
+  // set, because the range depends on the height and on what is folded away,
+  // and both move under it: a window dragged taller or a section unfolded can
+  // leave it scrolled past the end.
+  const auto bands =
+      layoutBands(juce::Rectangle<int>(0, 0, kStripWidth, stripHeight)
+                      .reduced(kStripPadX, kStripPadY),
+                  collapsedSections);
+
+  scrollRange = bands.maxScroll;
+  scrollY = juce::jlimit(0, scrollRange, scrollY);
+
+  gutter.setScroll(scrollY);
+  noiseStrip.setScroll(scrollY);
+
+  for (auto &strip : strips)
+    strip->setScroll(scrollY);
+
   // Only write when something actually moved: a live resize drag fires this
   // constantly, and every property set notifies the APVTS listener on the state
   // tree.
@@ -770,35 +798,25 @@ void OvertoniumEditor::toggleSection(Section section) {
   if (section == Section::NumSections)
     return;
 
-  const int wasFolded = collapsedRowsHeight(collapsedSections);
   collapsedSections ^= sectionBit(section);
-  const int nowFolded = collapsedRowsHeight(collapsedSections);
 
   publishCollapsedSections();
   plugin().apvts.state.setProperty(kCollapsedSections, (int)collapsedSections,
                                    nullptr);
 
-  // Read before anything moves. Applying the limits can resize the window on
-  // its own: setResizeLimits ends by constraining the current bounds to the
-  // new ones, and unfolding raises the floor by exactly the rows coming back.
-  // So on a window already squeezed against that floor, the limits grew it by
-  // the rows and then the arithmetic below added the rows again. Measured, a
-  // window squeezed to 997 folded to 847 and came back at 1147 instead of 997,
-  // and the surplus went where every surplus goes, into the fader: the report
-  // was of faders filling the screen and running under the dock.
-  const int logicalHeight = juce::roundToInt((float)getHeight() / zoom);
-
-  // The window follows, which is the point: left alone the fader would stretch
-  // into the space and the mixer would be exactly as tall as before. Limits
-  // are applied first, since folding lowers the floor and the new height may
-  // be below the old one.
-  applyResizeLimits();
-
-  const int wanted = logicalHeight - (nowFolded - wasFolded);
-  setSize(getWidth(), juce::roundToInt((float)wanted * zoom));
-
-  // setSize does nothing when the height was already at a limit, and the
-  // strips still have to be laid out again for the rows that just changed.
+  // The window does not move any more.
+  //
+  // It used to shrink by exactly the rows being folded away, because every row
+  // had to be on screen and folding was the only way to get the mixer's height
+  // down. Now that the rows scroll, folding is about seeing more of them at
+  // once rather than about fitting, so the window stays where it is and the
+  // band simply has less to hold.
+  //
+  // That is also the end of a whole class of fault. The arithmetic that moved
+  // the window had to read the height before applying the limits, because
+  // applying them is itself a resize, and getting that order wrong was what
+  // made unfolding swell the faders until they ran under the dock. There is no
+  // order to get wrong now.
   resized();
 }
 

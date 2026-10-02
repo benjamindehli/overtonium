@@ -2379,9 +2379,10 @@ void testRowHover() {
   // actually asks for. Taking that from preferredStripHeight rather than
   // writing a number here means adding a row cannot quietly push the last one
   // off the bottom of the test without the test noticing.
-  const auto rows = layoutRows(
-      juce::Rectangle<int>(0, 0, kStripWidth, preferredStripHeight() + 8)
-          .reduced(kStripPadX, kStripPadY));
+  const auto rows =
+      layoutRows(juce::Rectangle<int>(0, 0, kStripWidth,
+                                      preferredStripHeight() + 2 * kStripPadY)
+                     .reduced(kStripPadX, kStripPadY));
 
   const auto rowAtCentre = [&rows](Row r) {
     const auto band = rows[(size_t)r];
@@ -3558,14 +3559,18 @@ void testFitAllChannels(OvertoniumProcessor &p) {
                                        std::to_string(editor->getWidth()) +
                                        ")");
 
-  // Short, but not as short as it was asked for. The bar's second row costs
-  // the mixer the room it needed, so the window comes to rest on the floor for
-  // this width instead of going under it, which is where the strips would
-  // start running out through the bottom. This check used to read the asked-for
-  // height back unchanged, because nothing was watching the reflow.
-  check(editor->getHeight() == editor->getConstrainer()->getMinimumHeight(),
-        "and its height comes to rest on the floor for that width (" +
+  // Short, and now allowed to be: the rows scroll, so the floor is far below
+  // this and the height asked for is simply taken. It used to come to rest on
+  // the floor here, because the floor was the height of every row at once and
+  // the bar's second row had pushed it above what was asked for.
+  check(editor->getHeight() == fitted.getHeight() - 120,
+        "and as short as it was asked for (" +
             std::to_string(editor->getHeight()) + ")");
+
+  // Not checked here that a shorter request stops at the floor, because
+  // setSize does not consult the constrainer at all, which is the whole reason
+  // Fit all 32 channels could land under it. The floor itself is asserted in
+  // testFittingLandsWhereADragCanReturn, through the constrainer.
 
   editor->fitAllChannels();
 
@@ -4623,15 +4628,13 @@ void testFittingLandsWhereADragCanReturn(OvertoniumProcessor &p) {
           std::to_string(wideFloor) + " to " + std::to_string(narrowFloor) +
           ")");
 
-  // The fit has to be using that room rather than merely being allowed it.
-  // Landing at or above the narrow window's floor would mean the wide window
-  // was still being held to the narrow one's chrome, which is the fault this
-  // is about, and it would read as legal because the floor had moved up to
-  // meet it.
-  check(fitted < narrowFloor,
-        "and the fitted window is shorter than a narrow one could ever be (" +
-            std::to_string(fitted) + " against " + std::to_string(narrowFloor) +
-            ")");
+  // There used to be a third check here, that the fitted window came out
+  // shorter than a narrow one's floor. It caught the wide window being held to
+  // the narrow one's chrome, and it worked because the floor was the height of
+  // every row at once and left no slack. Now that the rows scroll, the floor
+  // is far below both and the comparison cannot fail whether the fault is
+  // there or not. The check above it still catches the fault, by asking
+  // whether the floor moves with the width at all.
 
   // The window has to have been taken with it, or the bar gains a row into
   // space the mixer is still using and the strips run off the bottom.
@@ -4722,9 +4725,13 @@ void testFoldingAndUnfoldingIsSymmetric(OvertoniumProcessor &p) {
   std::printf("  squeezed to %d, folded to %d, unfolded back to %d\n", squeezed,
               folded, back);
 
-  check(folded < squeezed, "folding takes the window down (" +
-                               std::to_string(squeezed) + " to " +
-                               std::to_string(folded) + ")");
+  // Folding used to take the window down by exactly the rows it hid, because
+  // every row had to be on screen. Now they scroll, so folding is about seeing
+  // more at once and the window is left alone, which is the half of issue #5
+  // about collapsing a section shifting the mixer out of view.
+  check(folded == squeezed, "folding leaves the window where it is (" +
+                                std::to_string(squeezed) + " to " +
+                                std::to_string(folded) + ")");
 
   check(back == squeezed, "and unfolding puts it back, not past it (" +
                               std::to_string(squeezed) + " to " +
@@ -4732,10 +4739,10 @@ void testFoldingAndUnfoldingIsSymmetric(OvertoniumProcessor &p) {
 
   // ---- and from a window with room to spare ------------------------------
   //
-  // The case the ordering in toggleSection was written for, and the one that
-  // went on working while the squeezed one did not: here the floor is below
-  // the window either way, so nothing is constrained and only the arithmetic
-  // moves it.
+  // This used to be the case the ordering in toggleSection was written for,
+  // back when folding moved the window and the order of the arithmetic against
+  // the limits decided whether it moved by the right amount. There is no
+  // arithmetic left to get wrong: the window holds still at both heights.
   {
     editor->setSize(editor->getWidth(), limits->getMinimumHeight() + 240);
 
@@ -4749,8 +4756,8 @@ void testFoldingAndUnfoldingIsSymmetric(OvertoniumProcessor &p) {
     std::printf("  with room to spare: %d, folded to %d, back to %d\n", roomy,
                 shorter, editor->getHeight());
 
-    check(shorter < roomy && editor->getHeight() == roomy,
-          "a window with room folds and comes back to where it was (" +
+    check(shorter == roomy && editor->getHeight() == roomy,
+          "a window with room holds still through a fold and an unfold (" +
               std::to_string(roomy) + " to " +
               std::to_string(editor->getHeight()) + ")");
   }
@@ -6761,9 +6768,12 @@ void testCollapsibleSections() {
   check(preferredStripHeight(envMask) ==
             preferredStripHeight() - collapsedRowsHeight(envMask),
         "the strip wants exactly that much less room");
-  check(minimumStripHeight(envMask) ==
-            minimumStripHeight() - collapsedRowsHeight(envMask),
-        "and will go exactly that much shorter");
+  // And the shortest it will go is no longer anything to do with folding.
+  // It used to be the height of every unfolded row at once, so folding was the
+  // only way to get the window down. Now what does not fit scrolls, so the
+  // floor is the pinned header and the band's own minimum whatever is folded.
+  check(minimumStripHeight(envMask) == minimumStripHeight(),
+        "and the shortest window no longer depends on what is folded");
 
   // The rows below close up rather than leaving a hole, and the fader keeps
   // the height it had rather than stretching into it.

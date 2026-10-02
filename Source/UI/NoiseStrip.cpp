@@ -158,6 +158,15 @@ void NoiseStrip::setCollapsedSections(SectionMask mask) {
   repaint();
 }
 
+void NoiseStrip::setScroll(int s) {
+  if (s == scroll)
+    return;
+
+  scroll = s;
+  resized();
+  repaint();
+}
+
 void NoiseStrip::setSilencedByOthers(bool shouldDim) {
   if (silenced == shouldDim)
     return;
@@ -214,8 +223,8 @@ void NoiseStrip::mouseDown(const juce::MouseEvent &e) {
       onSectionToggled == nullptr)
     return;
 
-  const auto rows =
-      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
+                               collapsed, scroll);
   const auto section = headingSectionAt(rows, e.getPosition());
 
   if (section != Section::NumSections)
@@ -250,8 +259,8 @@ void NoiseStrip::mouseMove(const juce::MouseEvent &e) {
 
   // The hand the gutter's headings show, so a rule that folds looks like one.
   if (e.originalComponent == this) {
-    const auto rows =
-        layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+    const auto rows = layoutRows(
+        getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed, scroll);
 
     setMouseCursor(headingSectionAt(rows, e.getPosition()) !=
                            Section::NumSections
@@ -263,8 +272,8 @@ void NoiseStrip::mouseExit(const juce::MouseEvent &e) { reportHover(e); }
 
 void NoiseStrip::reportHover(const juce::MouseEvent &e) {
   const auto p = e.getEventRelativeTo(this).getPosition();
-  const auto rows =
-      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
+                               collapsed, scroll);
   const auto inside = getLocalBounds().contains(p) && !hoverSuppressed;
 
   // -1 says the pointer is off the harmonic series, which is what stops a
@@ -284,8 +293,8 @@ void NoiseStrip::paintOverChildren(juce::Graphics &g) {
   // underneath is covered by it and only the output heading, which has no
   // lamp, appeared to highlight at all.
   if (rowShowsHighlight(highlighted) && isHeadingRow(highlighted)) {
-    const auto rows =
-        layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+    const auto rows = layoutRows(
+        getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed, scroll);
 
     paintRowHighlight(g, rows[rowIndex(highlighted)]);
   }
@@ -298,8 +307,8 @@ void NoiseStrip::setHighlightedRow(Row row) {
   if (row == highlighted)
     return;
 
-  const auto rows =
-      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
+                               collapsed, scroll);
 
   repaintRowHighlight(*this, rows, highlighted);
   highlighted = row;
@@ -315,7 +324,7 @@ void NoiseStrip::paint(juce::Graphics &g) {
   paintChannelBackground(g, bounds, colours::channel.brighter(0.03f));
 
   const auto rows =
-      layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed);
+      layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed, scroll);
 
   // The same band the numbered channels light. This strip tracked the hovered
   // row and repainted for it but never drew it, so the mixer highlighted
@@ -386,8 +395,8 @@ void NoiseStrip::setActivity(float envelope, float tremolo,
 }
 
 void NoiseStrip::resized() {
-  const auto rows =
-      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
+                               collapsed, scroll);
 
   // Colour takes the tuning row, which is the one thing noise has that a
   // partial does not.

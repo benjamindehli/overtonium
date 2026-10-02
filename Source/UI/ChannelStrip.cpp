@@ -1043,8 +1043,8 @@ void ChannelStrip::foldSectionUnder(const juce::MouseEvent &e, bool echo) {
   if (e.originalComponent != this || echo || onSectionToggled == nullptr)
     return;
 
-  const auto rows =
-      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
+                               collapsed, scroll);
   const auto section = headingSectionAt(rows, e.getPosition());
 
   if (section != Section::NumSections)
@@ -1086,8 +1086,8 @@ void ChannelStrip::mouseMove(const juce::MouseEvent &e) {
   // that LINK and the drawing tool can set one across the whole mixer at once,
   // and an arrow set here would mask it for everything below this strip.
   if (e.originalComponent == this) {
-    const auto rows =
-        layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+    const auto rows = layoutRows(
+        getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed, scroll);
 
     setMouseCursor(headingSectionAt(rows, e.getPosition()) !=
                            Section::NumSections
@@ -1107,8 +1107,8 @@ Row ChannelStrip::rowUnder(const RowBounds &rows, juce::Point<int> p) {
 
 void ChannelStrip::reportHover(const juce::MouseEvent &e) {
   const auto p = e.getEventRelativeTo(this).getPosition();
-  const auto rows =
-      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
+                               collapsed, scroll);
   const auto inside = getLocalBounds().contains(p) && !hoverSuppressed;
 
   // Leaving one knob for the next fires the exit before the enter, so the
@@ -1139,8 +1139,8 @@ void ChannelStrip::paintOverChildren(juce::Graphics &g) {
   // underneath is covered by it and only the output heading, which has no
   // lamp, appeared to highlight at all.
   if (rowShowsHighlight(highlighted) && isHeadingRow(highlighted)) {
-    const auto rows =
-        layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+    const auto rows = layoutRows(
+        getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed, scroll);
 
     paintRowHighlight(g, rows[rowIndex(highlighted)]);
   }
@@ -1153,8 +1153,8 @@ void ChannelStrip::setHighlightedRow(Row row) {
   if (row == highlighted)
     return;
 
-  const auto rows =
-      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
+                               collapsed, scroll);
 
   // Only the two bands that changed are repainted. With 33 strips answering
   // every time the pointer crosses a row, repainting whole channels would
@@ -1175,6 +1175,15 @@ void ChannelStrip::setCollapsedSections(SectionMask mask) {
   if (rowIsCollapsed(highlighted, collapsed))
     highlighted = kNoRow;
 
+  resized();
+  repaint();
+}
+
+void ChannelStrip::setScroll(int s) {
+  if (s == scroll)
+    return;
+
+  scroll = s;
   resized();
   repaint();
 }
@@ -1269,7 +1278,7 @@ void ChannelStrip::paint(juce::Graphics &g) {
   paintChannelBackground(g, bounds, backdropBase());
 
   const auto rows =
-      layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed);
+      layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed, scroll);
 
   if (rowShowsHighlight(highlighted) && !isHeadingRow(highlighted))
     paintRowHighlight(g, rows[rowIndex(highlighted)]);
@@ -1308,8 +1317,8 @@ void ChannelStrip::paint(juce::Graphics &g) {
 }
 
 void ChannelStrip::resized() {
-  const auto rows =
-      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
+                               collapsed, scroll);
 
   // Hidden rather than left at zero height. A knob with no height still takes
   // the mouse and still answers a hover, so a folded section would go on
