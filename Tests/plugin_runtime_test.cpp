@@ -3532,7 +3532,10 @@ void testFitAllChannels(OvertoniumProcessor &p) {
   if (editor == nullptr)
     return;
 
-  const auto wanted = ovt::ui::kGutterWidth + ovt::ui::kStripWidth + 8 +
+  // The 8 is the gap before the noise channel and the 10 is the parameter
+  // scrollbar beyond it, both private to the editor, both written here the
+  // same way the gap already was.
+  const auto wanted = ovt::ui::kGutterWidth + ovt::ui::kStripWidth + 8 + 10 +
                       ovt::kNumHarmonics * ovt::ui::kStripWidth;
 
   // The size to come back to, taken from the editor rather than worked out

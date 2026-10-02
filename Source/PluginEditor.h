@@ -101,6 +101,7 @@ private:
 
 class OvertoniumEditor : public juce::AudioProcessorEditor,
                          public ovt::ui::LinkTarget,
+                         public juce::ScrollBar::Listener,
                          public ovt::ui::HoverTarget,
                          private juce::Timer,
                          private juce::ComponentListener {
@@ -162,6 +163,8 @@ public:
   /// scroll the parameters like everything else.
   void mouseWheelMove(const juce::MouseEvent &,
                       const juce::MouseWheelDetails &) override;
+
+  void scrollBarMoved(juce::ScrollBar *, double newStart) override;
 
   // ---- ovt::ui::HoverTarget ----
   void hoverChanged(int stripIndex, ovt::ui::Row) override;
@@ -342,6 +345,14 @@ private:
   /// needed.
   int scrollY = 0;
   int scrollRange = 0;
+
+  /// The one thing on screen that says the parameters can move.
+  ///
+  /// Vertical, at the far right beyond the noise channel, which is where a
+  /// scrollbar goes and cost the window ten pixels of width to put there.
+  /// Shown only when there is something to scroll, so a window at 100% zoom
+  /// with room for every row never sees it.
+  juce::ScrollBar parameterBar{true};
 
   /// The bar height the limits in force were worked out for.
   ///

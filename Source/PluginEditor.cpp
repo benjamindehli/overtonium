@@ -25,7 +25,8 @@ int chromeHeight(int logicalWidth) {
 /// is worked out for is clamped up to this, so that a window with no size yet
 /// gets the narrow window's answer rather than one for a width nothing can be.
 int minimumLogicalWidth() {
-  return juce::jmax(kGutterWidth + kStripWidth + kMasterGap + 6 * kStripWidth,
+  return juce::jmax(kGutterWidth + kStripWidth + kMasterGap + 6 * kStripWidth +
+                        kScrollBarThickness,
                     ovt::ui::TopBar::minimumWidth());
 }
 
@@ -480,6 +481,12 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   // shorter than the one it was saved from.
   scrollY = juce::jmax(0, (int)state.getProperty(kScroll, 0));
 
+  // Added rather than made visible: resized() shows it only when there is
+  // something to scroll.
+  content.addChildComponent(parameterBar);
+  parameterBar.addListener(this);
+  parameterBar.setAutoHide(false);
+
   gutter.onSectionToggled = [this](Section s) { toggleSection(s); };
 
   // Off the series, like the noise channel, so pointing at a caption cannot
@@ -667,6 +674,12 @@ void OvertoniumEditor::resized() {
   // the space is above and below the controls rather than around the block.
   const auto gutterArea = area.removeFromLeft(kGutterWidth);
 
+  // Beyond everything, where a scrollbar goes. Taken off the width whether it
+  // is shown or not, because a bar that appeared and disappeared would move
+  // all 32 channels sideways by ten pixels as the window crossed the height
+  // where the rows stop fitting.
+  const auto parameterBarArea = area.removeFromRight(kScrollBarThickness);
+
   // Noise is pinned on the far right, after the series it does not belong to,
   // and stays in view rather than needing a scroll to reach.
   const auto noiseArea = area.removeFromRight(kStripWidth);
@@ -696,6 +709,20 @@ void OvertoniumEditor::resized() {
   scrollRange = bands.maxScroll;
   scrollY = juce::jlimit(0, scrollRange, scrollY);
 
+  // Beside what it scrolls rather than down the whole window: it starts under
+  // the pinned header and ends with the band, so its travel is the travel.
+  parameterBar.setVisible(scrollRange > 0);
+  parameterBar.setBounds(
+      parameterBarArea.withY(gutterArea.getY() + bands.middle.getY())
+          .withHeight(bands.middle.getHeight()));
+
+  parameterBar.setRangeLimits(0.0, (double)bands.contentHeight,
+                              juce::dontSendNotification);
+  parameterBar.setCurrentRange(
+      juce::Range<double>((double)scrollY,
+                          (double)(scrollY + bands.middle.getHeight())),
+      juce::dontSendNotification);
+
   gutter.setScroll(scrollY);
   noiseStrip.setScroll(scrollY);
 
@@ -721,8 +748,8 @@ void OvertoniumEditor::resized() {
 juce::Rectangle<int> OvertoniumEditor::standardSize() const {
   // Wide enough for all 32 strips at once, which is the whole point of the
   // layout, and tall enough for whatever is not folded away.
-  const int width =
-      kGutterWidth + kStripWidth + kMasterGap + kNumHarmonics * kStripWidth;
+  const int width = kGutterWidth + kStripWidth + kMasterGap +
+                    kNumHarmonics * kStripWidth + kScrollBarThickness;
 
   return {width, chromeHeight(width) + preferredStripHeight(collapsedSections)};
 }
@@ -806,6 +833,15 @@ void OvertoniumEditor::publishCollapsedSections() {
 
   for (auto &strip : strips)
     strip->setCollapsedSections(collapsedSections);
+}
+
+void OvertoniumEditor::scrollBarMoved(juce::ScrollBar *bar, double newStart) {
+  if (bar != &parameterBar)
+    return;
+
+  // Through the same door the wheel uses, so there is one place that decides
+  // what scrolling means and one place that tells the columns about it.
+  scrollParameters(juce::roundToInt(newStart) - scrollY);
 }
 
 bool OvertoniumEditor::scrollParameters(int delta) {
