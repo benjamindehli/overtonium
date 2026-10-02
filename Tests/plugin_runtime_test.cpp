@@ -4373,6 +4373,51 @@ void testTheWheelScrollsTheParameters(OvertoniumProcessor &p) {
             std::to_string(marker->getY()) + ")");
 }
 
+/// The border between the gutter and the channels is one line, all the way.
+///
+/// Each column covers its pinned header with an opaque cap so a row can scroll
+/// under it. A cap repeats what the column paints, and the gutter paints one
+/// thing its cap did not: a divider down its right edge, drawn for the full
+/// height after the background. The cap covered the top of it and the border
+/// changed colour at the header.
+///
+/// Read off a render rather than argued about, because the fault is a colour
+/// in one band of pixels and nothing short of looking at them would see it.
+void testTheGutterBorderIsOneLine(OvertoniumProcessor &p) {
+  section("The gutter border is one line");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  // Short enough that the parameters scroll, which is when the caps matter.
+  editor->setSize(1350, 700);
+
+  const auto shot = editor->createComponentSnapshot(editor->getLocalBounds());
+  const int x = ovt::ui::kGutterWidth - 1;
+
+  // Below the top bar, down to the foot of the window.
+  const int from = ovt::ui::TopBar::heightForWidth(1350) + 4;
+  const int to = shot.getHeight() - 4;
+
+  check(to > from + 200, "and is tall enough to read a border down");
+
+  const auto first = shot.getPixelAt(x, from);
+  int different = 0;
+
+  for (int y = from; y < to; ++y)
+    if (shot.getPixelAt(x, y) != first)
+      ++different;
+
+  check(different == 0,
+        "the gutter's right edge is one colour for its whole height (" +
+            std::to_string(different) + " of " + std::to_string(to - from) +
+            " rows differ)");
+}
+
 /// The three bands have to lay a column out exactly as one column used to.
 ///
 /// Scrolling the parameters is a change to what a short window does, and must
@@ -7656,6 +7701,7 @@ int main() {
   testTheRulesFoldTheirSections(processor);
   testOneRightClickOpensOneMenu(processor);
   testWheelOverAKnobStaysOnTheKnob(processor);
+  testTheGutterBorderIsOneLine(processor);
   testTheBandsLayOutAColumn();
   testTheWheelScrollsTheParameters(processor);
   testTheGrainTileDoesNotOutliveTheWindows();

@@ -223,10 +223,16 @@ void RowGutter::mouseExit(const juce::MouseEvent &) {
 }
 
 void RowGutter::paintHeaderBand(juce::Graphics &g) {
-  // Only the background. The gutter's header holds the LINK button rather than
-  // anything painted, and that button sits in front of this cap so it stays
-  // reachable. See the toFront pair in resized.
+  // The gutter's header holds the LINK button rather than anything painted,
+  // and that button sits in front of this cap so it stays reachable. See the
+  // toFront pair in resized.
   paintChannelBackground(g, getLocalBounds(), colours::panel.darker(0.25f));
+
+  // And the divider down the right edge, which paint() draws for the whole
+  // height. Without it here the cap covers the top of the line and the border
+  // between the gutter and the channels changes colour at the header.
+  g.setColour(colours::outline);
+  g.fillRect(getWidth() - 1, 0, 1, getHeight());
 }
 
 void RowGutter::paint(juce::Graphics &g) {
