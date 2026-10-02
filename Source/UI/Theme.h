@@ -237,7 +237,54 @@ bool rowIsCollapsed(Row, SectionMask);
 /// The section whose heading row is under this point, or NumSections.
 Section headingSectionAt(const RowBounds &, juce::Point<int>);
 
-RowBounds layoutRows(juce::Rectangle<int> area, SectionMask collapsed = 0);
+/// How a column's height divides when the parameters can scroll.
+///
+/// Three bands. The header is pinned at the top, the mixer foot is pinned at
+/// the bottom, and everything between them scrolls behind `middle`. That is
+/// what a mixing desk does: the channel number and the fader are the two
+/// things you find your place by, so neither is ever the thing that has
+/// scrolled away.
+///
+/// It exists because the parameters are small on a 1080p screen and zooming
+/// in to read them made the window taller than such a screen has room for.
+/// Scrolling is what lets the window stay the height of the screen while the
+/// rows inside it get bigger.
+struct Bands {
+  juce::Rectangle<int> header; ///< Row::Header, pinned
+  juce::Rectangle<int>
+      middle; ///< the opening the scrolling rows are seen through
+  juce::Rectangle<int> foot; ///< MuteSolo, Fader and FaderText, pinned
+
+  /// What the middle's rows need if none of them is hidden.
+  int contentHeight = 0;
+
+  /// How far the middle can be scrolled, which is zero when it all fits.
+  int maxScroll = 0;
+};
+
+/// What the scrolling band has to hold: every row that is neither the header
+/// nor part of the mixer foot, at this fold state.
+int middleContentHeight(SectionMask collapsed = 0);
+
+/// Divides a column into its three bands.
+///
+/// Above the preferred height this is exactly the old single-column layout:
+/// the middle gets all its content, nothing scrolls, and the fader takes the
+/// slack as it always did. Below it the two part company on purpose. The old
+/// layout squeezed the fader to its minimum and kept every row on screen,
+/// where this keeps the fader at the height it wants and scrolls the rows
+/// instead, because the fader is the thing the complaint was about being
+/// pushed off the bottom.
+Bands layoutBands(juce::Rectangle<int> area, SectionMask collapsed = 0);
+
+/// Where every row sits, with the middle ones offset by `scroll`.
+///
+/// Rows scrolled out of the band come back with rectangles outside it rather
+/// than empty ones, so arithmetic on them still works. Anything that paints or
+/// hit-tests a middle row has to bound it by `Bands::middle` itself. A folded
+/// row still comes back empty, as before.
+RowBounds layoutRows(juce::Rectangle<int> area, SectionMask collapsed = 0,
+                     int scroll = 0);
 
 /// The row a point in a strip belongs to, or kNoRow for the header and the
 /// section rules, which have nothing to point at.

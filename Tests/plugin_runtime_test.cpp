@@ -4230,6 +4230,93 @@ std::vector<float> renderTone(OvertoniumProcessor &p, double sampleRate,
   return out;
 }
 
+/// The three bands have to lay a column out exactly as one column used to.
+///
+/// Scrolling the parameters is a change to what a short window does, and must
+/// be no change at all to a window with room in it. At or above the preferred
+/// height everything fits, so nothing scrolls, the rows run from the top of
+/// the strip to the bottom without a gap or an overlap, and the fader takes
+/// the slack the way it always has. That is the whole of the old behaviour,
+/// asserted here rather than left to be noticed.
+///
+/// Below the preferred height the two part company on purpose: the old layout
+/// squeezed the fader to its floor to keep every row on screen, and this keeps
+/// the fader and scrolls the rows, because a fader pushed off the bottom is
+/// what the request was about.
+void testTheBandsLayOutAColumn() {
+  section("The bands lay out a column");
+
+  using namespace ovt::ui;
+
+  // Every fold state, since the bands are worked out from the fold mask and a
+  // section folded away is the case where the arithmetic is easiest to get
+  // wrong.
+  int states = 0, scrolling = 0;
+
+  for (SectionMask mask = 0; mask < (1 << kNumSections); ++mask) {
+    const int preferred = preferredStripHeight(mask);
+
+    for (int height : {preferred, preferred + 1, preferred + 200}) {
+      const juce::Rectangle<int> area(0, 0, kStripWidth, height);
+      const auto bands = layoutBands(area, mask);
+      const auto rows = layoutRows(area, mask, 0);
+
+      check(bands.maxScroll == 0,
+            "at or above the preferred height nothing scrolls");
+
+      // Contiguous from the top of the area to the bottom, which is what
+      // makes a caption in the gutter point at the knob beside it.
+      int y = area.getY();
+      bool contiguous = true;
+
+      for (int i = 0; i < kNumRows; ++i) {
+        const auto &r = rows[(size_t)i];
+        if (r.getHeight() == 0)
+          continue;
+        contiguous &= (r.getY() == y);
+        y = r.getBottom();
+      }
+
+      contiguous &= (y == area.getBottom());
+
+      if (!contiguous) {
+        check(false, "mask " + std::to_string(mask) + " at " +
+                         std::to_string(height) +
+                         " lays out without a gap or an overlap");
+        return;
+      }
+
+      ++states;
+    }
+
+    // One pixel under, and the rows have to start scrolling rather than the
+    // fader giving way.
+    const juce::Rectangle<int> tight(0, 0, kStripWidth, preferred - 1);
+    const auto bands = layoutBands(tight, mask);
+
+    if (bands.maxScroll > 0)
+      ++scrolling;
+  }
+
+  check(states == (1 << kNumSections) * 3,
+        "every fold state lays out at three heights (" +
+            std::to_string(states) + ")");
+  check(scrolling == (1 << kNumSections),
+        "and every one of them scrolls a pixel under its preferred height (" +
+            std::to_string(scrolling) + ")");
+
+  // The shortest window the bands allow, which is what the resize limits will
+  // be built from. Far shorter than the old floor, which is the point: the old
+  // one had to fit every row at once.
+  const int shortest = minimumStripHeight(0);
+  const auto squeezed = layoutBands({0, 0, kStripWidth, shortest}, 0);
+
+  check(squeezed.middle.getHeight() >= 120,
+        "the band keeps its four rows at the shortest window (" +
+            std::to_string(squeezed.middle.getHeight()) + ")");
+  check(squeezed.maxScroll > 0, "and scrolls there");
+}
+
 /// The grain tile must not outlive the windows that use it.
 ///
 /// It used to be a static, built once and kept for the life of the process,
@@ -7336,6 +7423,7 @@ int main() {
   testTheRulesFoldTheirSections(processor);
   testOneRightClickOpensOneMenu(processor);
   testWheelOverAKnobStaysOnTheKnob(processor);
+  testTheBandsLayOutAColumn();
   testTheGrainTileDoesNotOutliveTheWindows();
   testACorruptStateCannotPoisonTheOutput();
   testEveryHostRateStaysFinite();
