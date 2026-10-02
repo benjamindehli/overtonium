@@ -718,12 +718,11 @@ void OvertoniumEditor::resized() {
   scrollY = snapScroll(stripLayoutArea, collapsedSections,
                        juce::jlimit(0, scrollRange, scrollY));
 
-  // Beside what it scrolls rather than down the whole window: it starts under
-  // the pinned header and ends with the band, so its travel is the travel.
+  // The full height of the mixer, not just the band it scrolls. Lining it up
+  // with the band left a gap above it where the pinned header is, which reads
+  // as a scrollbar that will not reach the top of its own area.
   parameterBar.setVisible(scrollRange > 0);
-  parameterBar.setBounds(
-      parameterBarArea.withY(gutterArea.getY() + bands.middle.getY())
-          .withHeight(bands.middle.getHeight()));
+  parameterBar.setBounds(parameterBarArea);
 
   parameterBar.setRangeLimits(0.0, (double)bands.contentHeight,
                               juce::dontSendNotification);
@@ -847,6 +846,12 @@ void OvertoniumEditor::scrollBarMoved(juce::ScrollBar *bar, double newStart) {
 
   // Through the same door the wheel uses, so there is one place that decides
   // what scrolling means and one place that tells the columns about it.
+  //
+  // Guarded, because that door ends by putting the bar where the rows ended
+  // up, and the rows snap to whole rows where a drag does not. Writing back
+  // mid-drag moved the bar out from under the pointer, which then chased it.
+  const juce::ScopedValueSetter<bool> dragging(barIsDriving, true);
+
   scrollParameters(juce::roundToInt(newStart) - scrollY);
 }
 
@@ -893,7 +898,9 @@ bool OvertoniumEditor::scrollParameters(int delta) {
   for (auto &strip : strips)
     strip->setScroll(scrollY);
 
-  syncScrollBar();
+  if (!barIsDriving)
+    syncScrollBar();
+
   plugin().apvts.state.setProperty(kScroll, scrollY, nullptr);
 
   return true;

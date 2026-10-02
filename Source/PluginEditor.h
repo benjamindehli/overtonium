@@ -352,6 +352,11 @@ private:
   juce::Rectangle<int> stripLayoutArea;
   int scrollBandHeight = 0;
 
+  /// Whether the scroll is being driven by a drag on the bar itself, in which
+  /// case the bar is left where the pointer has it rather than moved to where
+  /// the rows settled.
+  bool barIsDriving = false;
+
   void syncScrollBar();
 
   /// The one thing on screen that says the parameters can move.
