@@ -167,7 +167,13 @@ constexpr int kRowHeights[kNumRows] = {
     16  // FaderText
 };
 
-constexpr int kMinFaderHeight = 60;
+/// The height the fader wants, and now the least it is ever given.
+///
+/// There used to be a smaller floor beside this, 60, for a window too short to
+/// give every row its height: the fader was squeezed so that nothing had to
+/// scroll. Nothing has to fit any more, so the fader keeps the height it wants
+/// and the rows scroll past it instead, and a minimum below the ideal has
+/// nothing left to mean.
 constexpr int kIdealFaderHeight = 92;
 
 /// The least the scrolling band is ever reduced to.
