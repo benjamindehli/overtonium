@@ -37,10 +37,49 @@ public:
   /// Asked to close, either by the button or by a click on the dim.
   std::function<void()> onDismiss;
 
+  /// A right-click on a macro's amount, carrying that parameter's id. As
+  /// TopBar::onLearnRequested: what the menu offers is the editor's to say.
+  std::function<void(const juce::String &)> onLearnRequested;
+
   /// How many macros are made, for the button that opens this to say so.
   static int madeCount(const juce::AudioProcessorValueTreeState &);
 
 private:
+  /// A fader that hands its right-click on rather than dragging.
+  ///
+  /// The same reasoning as ui::LinkableSlider: left to itself the slider
+  /// opens a drag gesture it never closes, because the mouse-up goes to the
+  /// menu instead of back here.
+  class AmountSlider final : public juce::Slider {
+  public:
+    AmountSlider()
+        : juce::Slider(juce::Slider::LinearHorizontal,
+                       juce::Slider::NoTextBox) {}
+
+    std::function<void()> onPopup;
+
+    void mouseDown(const juce::MouseEvent &e) override {
+      if (e.mods.isPopupMenu()) {
+        if (onPopup != nullptr)
+          onPopup();
+
+        return;
+      }
+
+      juce::Slider::mouseDown(e);
+    }
+
+    void mouseDrag(const juce::MouseEvent &e) override {
+      if (!e.mods.isPopupMenu())
+        juce::Slider::mouseDrag(e);
+    }
+
+    void mouseUp(const juce::MouseEvent &e) override {
+      if (!e.mods.isPopupMenu())
+        juce::Slider::mouseUp(e);
+    }
+  };
+
   /// One macro's controls. The row button doubles as what says the macro
   /// exists at all: a macro pointing at None is one nobody has made.
   struct Strip {
@@ -50,8 +89,7 @@ private:
     /// form of it anybody can act on: an amount of 0.25 means nothing until
     /// it says what 0.25 of that row is.
     juce::Label reading;
-    juce::Slider amount{juce::Slider::LinearHorizontal,
-                        juce::Slider::NoTextBox};
+    AmountSlider amount;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>
         attachment;
   };

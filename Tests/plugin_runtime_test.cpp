@@ -876,6 +876,51 @@ void testMidiLearnBindsControllers(OvertoniumProcessor &p) {
     p.midiLearn.arm(nullptr);
   }
 
+  // ---- including the macro amounts ---------------------------------------
+  //
+  // The amount is what a host automates, so it is the one worth binding to a
+  // controller. It lives on the macro panel rather than on a strip, which
+  // means it is reachable at all only if that panel is in the window and its
+  // fader carries the same tag every other control does.
+  {
+    std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+    auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+    if (editor != nullptr) {
+      auto *amount =
+          ovt::ui::learn::controlFor(*editor, ovt::params::macroAmountId(0));
+
+      check(amount != nullptr,
+            "a macro's amount can be found by the parameter it moves");
+
+      auto *q = dynamic_cast<juce::RangedAudioParameter *>(
+          p.apvts.getParameter(ovt::params::macroAmountId(0)));
+
+      if (amount != nullptr && q != nullptr) {
+        p.midiLearn.forget(q);
+        p.midiLearn.arm(q);
+
+        juce::MidiBuffer midi;
+        midi.addEvent(juce::MidiMessage::controllerEvent(1, 23, 64), 0);
+        renderBlocks(p, 2, 256, midi);
+
+        check(p.midiLearn.controllerFor(q) == 23,
+              "and a controller binds to it (" +
+                  std::to_string(p.midiLearn.controllerFor(q)) + ")");
+
+        midi.clear();
+        midi.addEvent(juce::MidiMessage::controllerEvent(1, 23, 127), 0);
+        renderBlocks(p, 2, 256, midi);
+
+        check(q->getValue() > 0.9f,
+              "and moves it (" + std::to_string(q->getValue()) + ")");
+
+        p.midiLearn.forget(q);
+        q->setValueNotifyingHost(q->convertTo0to1(0.0f));
+      }
+    }
+  }
+
   p.midiLearn.clear();
   p.applyFactoryPreset(presetIndex("Init"));
 }

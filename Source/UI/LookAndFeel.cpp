@@ -652,6 +652,17 @@ void OvertoniumLookAndFeel::drawLinearSlider(
   if (style != juce::Slider::LinearVertical) {
     LookAndFeel_V4::drawLinearSlider(g, x, y, width, height, sliderPos,
                                      minSliderPos, maxSliderPos, style, slider);
+
+    // The waiting marker, for the plain faders JUCE draws for us. The macro
+    // amounts are these, and a control that can be learned has to be able to
+    // say it is listening wherever it lives.
+    if ((bool)slider.getProperties().getWithDefault("learnArmed", false)) {
+      g.setColour(colours::learning);
+      g.drawRoundedRectangle(
+          juce::Rectangle<int>(x, y, width, height).toFloat().reduced(0.5f),
+          3.0f, 1.4f);
+    }
+
     return;
   }
 

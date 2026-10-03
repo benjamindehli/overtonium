@@ -525,6 +525,10 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   // thing you are doing instead of playing, not a part of the mixer.
   addChildComponent(macroPanel);
 
+  macroPanel.onLearnRequested = [this](const juce::String &id) {
+    showLearnMenu(id);
+  };
+
   macroPanel.onDismiss = [this] {
     macroPanel.setVisible(false);
     gutter.setMacrosOn(false);

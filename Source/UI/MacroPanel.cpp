@@ -1,5 +1,6 @@
 #include "MacroPanel.h"
 
+#include "LearnMenu.h"
 #include "LookAndFeel.h"
 
 namespace ovt::ui {
@@ -145,6 +146,16 @@ void MacroPanel::buildStrip(int macro) {
   strip.reading.setColour(juce::Label::textColourId, colours::textDim);
 
   strip.amount.onValueChange = [this, macro] { showReading(macro); };
+
+  // The amount is the one a host automates, so it is the one worth binding
+  // to a controller: the row, the scope and the curve say what a macro is
+  // rather than what it is doing.
+  learn::tag(strip.amount, params::macroAmountId(macro));
+
+  strip.amount.onPopup = [this, macro] {
+    if (onLearnRequested != nullptr)
+      onLearnRequested(params::macroAmountId(macro));
+  };
 
   strip.remove.setButtonText("x");
   strip.remove.setTooltip("Puts this macro back in the pool. What it was "
@@ -425,10 +436,7 @@ void MacroPanel::paint(juce::Graphics &g) {
   g.setFont(makeFont(10.0f, false));
 
   for (size_t i = 0; i < columnLabel.size(); ++i)
-    g.drawText(names[i], columnLabel[i],
-               i + 1 == columnLabel.size() ? juce::Justification::centredLeft
-                                           : juce::Justification::centred,
-               false);
+    g.drawText(names[i], columnLabel[i], juce::Justification::centred, false);
 }
 
 void MacroPanel::mouseDown(const juce::MouseEvent &e) {
