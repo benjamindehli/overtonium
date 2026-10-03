@@ -766,6 +766,33 @@ void OvertoniumLookAndFeel::drawLinearSlider(
   const auto macro = slider.getProperties().getWithDefault("macroColour", {});
   const bool driven = !macro.isVoid();
 
+  // Where the macro has taken this fader, drawn before the cap so the cap
+  // sits over it when the two coincide.
+  //
+  // A bar across the groove rather than a second cap: a fader with two caps
+  // reads as two faders, and the one you can grab has to be unmistakable.
+  // The knobs can show this on their ring because a ring is not the thing
+  // you grab, and a fader has no such spare surface.
+  if (driven) {
+    const auto result =
+        (double)slider.getProperties().getWithDefault("macroResult", -1.0);
+
+    if (result >= 0.0) {
+      const auto at =
+          juce::jlimit(bounds.getY(), bounds.getBottom(),
+                       bounds.getBottom() - (float)result * bounds.getHeight());
+
+      // Only worth drawing when it has parted company with the cap, which is
+      // what makes a macro at rest look like no macro at all.
+      if (std::abs(at - fillTop) > 1.0f) {
+        g.setColour(juce::Colour((juce::uint32)(int)macro)
+                        .withMultipliedAlpha(0.95f * dim));
+        g.fillRoundedRectangle(bounds.getX() + 1.0f, at - 1.0f,
+                               bounds.getWidth() - 2.0f, 2.0f, 1.0f);
+      }
+    }
+  }
+
   g.setColour(driven ? juce::Colour((juce::uint32)(int)macro)
                      : juce::Colours::white.withAlpha(0.46f * dim));
   g.drawRoundedRectangle(cap.reduced(0.5f), 2.0f, driven ? 1.4f : 1.0f);

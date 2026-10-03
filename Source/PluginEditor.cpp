@@ -1242,14 +1242,6 @@ void OvertoniumEditor::syncLinkUi() {
 bool OvertoniumEditor::isLinkEnabled() const { return topBar.isLinkEnabled(); }
 
 void OvertoniumEditor::followMacroTints() {
-  const auto amountOf = [this](int macro) {
-    if (auto *p = dynamic_cast<juce::RangedAudioParameter *>(
-            plugin().apvts.getParameter(ovt::params::macroAmountId(macro))))
-      return p->convertFrom0to1(p->getValue());
-
-    return 0.0f;
-  };
-
   const auto readInt = [this](const juce::String &id) {
     if (auto *p = dynamic_cast<juce::RangedAudioParameter *>(
             plugin().apvts.getParameter(id)))
@@ -1258,80 +1250,89 @@ void OvertoniumEditor::followMacroTints() {
     return 0;
   };
 
-  // Everything that decides who owns what, joined. The amount is not in it:
-  // a macro at rest still owns the controls it was pointed at, and saying so
-  // is the whole point of the colour.
-  // The amount is in it now, because the ring shows where the macro has
-  // taken the value and that moves with the fader. A macro nobody is
-  // touching still costs only one string compare a frame.
-  juce::String now;
-  for (int m = 0; m < ovt::params::kNumMacros; ++m)
-    now << readInt(ovt::params::macroRowId(m)) << ","
-        << readInt(ovt::params::macroScopeId(m)) << ","
-        << readInt(ovt::params::macroCurveId(m)) << ","
-        << readInt(ovt::params::macroColourId(m)) << ","
-        << juce::String(amountOf(m), 4) << ";";
+  // The eight read once rather than per control. There was a signature here
+  // that skipped the whole pass when no macro had moved, which was wrong in
+  // the way that matters: the result is the patch's value plus the macro's
+  // offset, so turning a knob moves it while every macro stands still, and
+  // the ring sat where it had been left until a macro was touched.
+  //
+  // What makes skipping unnecessary is that the strips compare before they
+  // repaint, so a pass that finds nothing changed costs arithmetic and no
+  // frames.
+  struct Reach {
+    int row = 0;
+    int scope = 0;
+    ovt::params::MacroCurve curve = ovt::params::MacroCurve::Uniform;
+    int anchor = 0;
+    juce::Colour colour;
+    float amount = 0.0f;
+    juce::NormalisableRange<float> range{0.0f, 1.0f};
+  };
 
-  if (now == macroSignature)
-    return;
+  std::array<Reach, (size_t)ovt::params::kNumMacros> macros;
 
-  macroSignature = now;
+  for (int m = 0; m < ovt::params::kNumMacros; ++m) {
+    auto &reach = macros[(size_t)m];
+
+    reach.row = readInt(ovt::params::macroRowId(m));
+
+    if (reach.row == 0)
+      continue;
+
+    reach.scope = readInt(ovt::params::macroScopeId(m));
+    reach.curve =
+        (ovt::params::MacroCurve)readInt(ovt::params::macroCurveId(m));
+    reach.colour =
+        ovt::params::macroColour(readInt(ovt::params::macroColourId(m)));
+    reach.range = ovt::params::macroRowRange(plugin().apvts, reach.row);
+    reach.anchor = readInt(ovt::params::macroAnchorId(m)) - 1;
+
+    if (auto *p = dynamic_cast<juce::RangedAudioParameter *>(
+            plugin().apvts.getParameter(ovt::params::macroAmountId(m))))
+      reach.amount = p->convertFrom0to1(p->getValue());
+  }
 
   for (int i = 0; i < kNumHarmonics; ++i) {
     for (int r = 0; r < kNumRoles; ++r) {
+      auto *q = oscParameter((Role)r, i);
+
+      if (q == nullptr)
+        continue;
+
       juce::Colour wearing;
+      auto result = q->getValue();
 
       // The lowest-numbered macro reaching this control takes it, and the
       // rest are invisible here. Two colours mixed would usually name a
       // third macro, and a control saying "more than one" says nothing about
       // which.
-      float result = 0.0f;
-      bool driven = false;
-
-      for (int m = 0; m < ovt::params::kNumMacros; ++m) {
-        const auto row = readInt(ovt::params::macroRowId(m));
-
+      for (const auto &reach : macros) {
         // None, or a different row from this one. Row 1 is the first real
         // one, so a role is row + 1.
-        if (row == 0 || row - 1 != r)
+        if (reach.row == 0 || reach.row - 1 != r)
           continue;
 
-        if (!ovt::params::macroReaches(readInt(ovt::params::macroScopeId(m)),
-                                       i))
+        if (!ovt::params::macroReaches(reach.scope, i))
           continue;
 
         // A macro wearing None drives the control without colouring it,
         // which is for anyone who would rather the mixer stayed the colour
         // the series makes it.
-        wearing =
-            ovt::params::macroColour(readInt(ovt::params::macroColourId(m)));
+        wearing = reach.colour;
 
         // Where the engine will actually put it, by the arithmetic the
         // snapshot uses: the amount across the row's span, shared out by the
         // curve, and clamped to the ends the control has.
-        if (auto *q = oscParameter((Role)r, i)) {
-          const auto range = ovt::params::macroRowRange(plugin().apvts, row);
-          const auto curve =
-              (ovt::params::MacroCurve)readInt(ovt::params::macroCurveId(m));
+        const auto span = reach.range.end - reach.range.start;
+        const auto base = q->convertFrom0to1(q->getValue());
+        const auto landed = juce::jlimit(
+            reach.range.start, reach.range.end,
+            base + reach.amount * span *
+                       ovt::params::macroWeight(reach.curve, i, reach.anchor));
 
-          const auto span = range.second - range.first;
-          const auto base = q->convertFrom0to1(q->getValue());
-          const auto landed = juce::jlimit(
-              range.first, range.second,
-              base + amountOf(m) * span * ovt::params::macroWeight(curve, i));
-
-          result = q->convertTo0to1(landed);
-          driven = true;
-        }
-
+        result = q->convertTo0to1(landed);
         break;
       }
-
-      // The control's own position when nothing is driving it, which is what
-      // makes a macro at rest look like no macro at all.
-      if (!driven)
-        if (auto *q = oscParameter((Role)r, i))
-          result = q->getValue();
 
       strips[(size_t)i]->setMacroTint((Role)r, wearing, result);
     }

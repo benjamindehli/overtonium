@@ -249,12 +249,13 @@ void testParameterWiring(OvertoniumProcessor &p) {
   // setting rather than part of a patch and is the only parameter here that
   // changes what the plugin reports to the host. See params::lookaheadId.
   //
-  // And five each for the macros, which are a pool rather than a count: an
+  // And six each for the macros, which are a pool rather than a count: an
   // amount, which is the one a host draws, the row it reaches, the channels
-  // of it and how it is shared out, and the colour it wears. A macro nobody
-  // has made points its row at None. See params::kNumMacros.
+  // of it, how it is shared out, which channel a taper leans on, and the
+  // colour it wears. A macro nobody has made points its row at None. See
+  // params::kNumMacros.
   const int expected =
-      ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + ovt::params::kNumMacros * 5;
+      ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + ovt::params::kNumMacros * 6;
 
   // The behaviour that was there before it became a choice. Asked of the
   // parameter rather than of the tree, so the answer does not depend on what
@@ -1162,6 +1163,40 @@ void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
       check(mismatched == 0,
             "the ring shows the value the engine is playing (" +
                 std::to_string(mismatched) + " channels differ)");
+
+      // ---- and follows the control, not only the macro ------------------
+      //
+      // The result is the patch's value plus the macro's offset, so turning
+      // a knob moves it while every macro stands still. There was a
+      // signature here that skipped the pass when no macro had moved, and
+      // the ring sat where it had been left until a macro was touched.
+      {
+        auto *first =
+            dynamic_cast<juce::RangedAudioParameter *>(p.apvts.getParameter(
+                ovt::params::oscParamId(ovt::params::tuneSuffix, 0)));
+
+        auto *control = ovt::ui::learn::controlFor(
+            *editor, ovt::params::oscParamId(ovt::params::tuneSuffix, 0));
+
+        if (first != nullptr && control != nullptr) {
+          const auto ringAt = [control] {
+            return (float)(double)control->getProperties().getWithDefault(
+                "macroResult", -1.0);
+          };
+
+          const auto was = ringAt();
+
+          // The control alone, with the macro left exactly where it is.
+          first->setValueNotifyingHost(first->getValue() > 0.5f ? 0.1f : 0.9f);
+          editor->followMacroTints();
+
+          check(std::abs(ringAt() - was) > 0.05f,
+                "the ring follows the control being turned, not only the "
+                "macro (" +
+                    std::to_string(was) + " to " + std::to_string(ringAt()) +
+                    ")");
+        }
+      }
 
       set(ovt::params::macroAmountId(0), 0.0f);
       set(ovt::params::macroRowId(0), 0.0f);

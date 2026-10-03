@@ -184,6 +184,7 @@ struct Applier {
       set(params::macroRowId(m), 0.0f);
       set(params::macroScopeId(m), 0.0f);
       set(params::macroCurveId(m), 0.0f);
+      set(params::macroAnchorId(m), 1.0f);
 
       // Each one a different colour, matching the default, so a patch that
       // makes four macros gets four colours without anybody choosing them.

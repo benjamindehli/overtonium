@@ -44,7 +44,12 @@ private:
   /// One macro's controls. The row button doubles as what says the macro
   /// exists at all: a macro pointing at None is one nobody has made.
   struct Strip {
-    juce::TextButton colour, row, scope, curve, remove;
+    juce::TextButton colour, row, scope, curve, anchor, remove;
+
+    /// What the amount comes to in the row's own units, which is the only
+    /// form of it anybody can act on: an amount of 0.25 means nothing until
+    /// it says what 0.25 of that row is.
+    juce::Label reading;
     juce::Slider amount{juce::Slider::LinearHorizontal,
                         juce::Slider::NoTextBox};
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>
@@ -54,7 +59,11 @@ private:
   void buildStrip(int macro);
   void choose(int macro, const juce::String &parameterId, const char *title,
               int count, const std::function<juce::String(int)> &nameOf,
-              juce::Component *anchor);
+              juce::Component *under, int firstValue = 0);
+
+  /// Puts the amount into the row's own units under the fader, and borrows
+  /// the row's own feel for the fader while it is there.
+  void showReading(int macro);
 
   int chosen(const juce::String &parameterId) const;
   void write(const juce::String &parameterId, int value);

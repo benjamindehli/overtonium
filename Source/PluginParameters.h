@@ -185,11 +185,15 @@ bool macroReaches(int scope, int index0);
 /// offset, and the window multiplies by it to work out where to light the
 /// ring, and a knob showing a result the engine is not playing would be worse
 /// than showing nothing.
-float macroWeight(MacroCurve curve, int index0);
+/// @param anchor  the channel a taper leans on hardest, 0-based. Uniform
+///                ignores it.
+float macroWeight(MacroCurve curve, int index0, int anchor);
 
-/// The low and high end of a row a macro can drive, which is what an amount
-/// of 1 spans. Row 1 is the first real one, since the list opens with None.
-std::pair<float, float>
+/// The range of a row a macro can drive, which is what an amount of 1 spans
+/// and whose skew a macro's own fader borrows, so that pushing the macro
+/// feels like turning the thing it drives. Row 1 is the first real one, since
+/// the list opens with None.
+juce::NormalisableRange<float>
 macroRowRange(const juce::AudioProcessorValueTreeState &, int row);
 const char *macroCurveName(MacroCurve);
 const char *macroRowName(int row);
@@ -206,6 +210,7 @@ juce::String macroRowId(int macro);
 juce::String macroScopeId(int macro);
 juce::String macroCurveId(int macro);
 juce::String macroColourId(int macro);
+juce::String macroAnchorId(int macro);
 
 /// What each modulation destination offers, in the order its parameter stores.
 ///
@@ -346,6 +351,7 @@ struct Cache {
     std::atomic<float> *row = nullptr;
     std::atomic<float> *scope = nullptr;
     std::atomic<float> *curve = nullptr;
+    std::atomic<float> *anchor = nullptr;
   };
 
   std::array<Macro, (size_t)kNumMacros> macro{};

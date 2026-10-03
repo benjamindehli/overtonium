@@ -273,6 +273,10 @@ juce::String macroColourId(int macro) {
   return "macro" + juce::String(macro + 1) + "_colour";
 }
 
+juce::String macroAnchorId(int macro) {
+  return "macro" + juce::String(macro + 1) + "_anchor";
+}
+
 const char *macroScopeName(int scope) {
   switch ((MacroScope)scope) {
   case MacroScope::All:
@@ -335,26 +339,30 @@ bool macroReaches(int scope, int index0) {
 /// Taper is measured against the full width of the mixer rather than against
 /// whichever end is nearer, which is what ui::linkCurveWeight does from the
 /// strip under the mouse. A test holds the two together.
-float macroWeight(MacroCurve curve, int index0) {
+float macroWeight(MacroCurve curve, int index0, int anchor) {
   if (curve != MacroCurve::Taper)
     return 1.0f;
 
-  const auto distance = (float)juce::jlimit(0, kNumHarmonics - 1, index0) /
-                        (float)(kNumHarmonics - 1);
+  // Measured against the full width of the mixer rather than against
+  // whichever end is nearer, which is what ui::linkCurveWeight does from the
+  // strip under the mouse. A macro has no strip under the mouse, so it is
+  // told which channel to lean on.
+  const auto distance =
+      (float)std::abs(juce::jlimit(0, kNumHarmonics - 1, index0) -
+                      juce::jlimit(0, kNumHarmonics - 1, anchor)) /
+      (float)(kNumHarmonics - 1);
 
   return 1.0f - distance;
 }
 
-std::pair<float, float>
+juce::NormalisableRange<float>
 macroRowRange(const juce::AudioProcessorValueTreeState &state, int row) {
-  if (row < 1 || row > kNumMacroRows)
-    return {0.0f, 1.0f};
+  if (row >= 1 && row <= kNumMacroRows)
+    if (auto *p = dynamic_cast<juce::RangedAudioParameter *>(
+            state.getParameter(oscParamId(kMacroRows[(size_t)(row - 1)], 0))))
+      return p->getNormalisableRange();
 
-  if (auto *p = dynamic_cast<juce::RangedAudioParameter *>(
-          state.getParameter(oscParamId(kMacroRows[(size_t)(row - 1)], 0))))
-    return {p->getNormalisableRange().start, p->getNormalisableRange().end};
-
-  return {0.0f, 1.0f};
+  return juce::NormalisableRange<float>(0.0f, 1.0f);
 }
 
 const char *macroColourName(int colour) {
@@ -600,6 +608,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     juce::StringArray colours;
     for (int i = 0; i < kNumMacroColours; ++i)
       colours.add(macroColourName(i));
+
+    // Which channel a taper leans on hardest. Numbered as the mixer numbers
+    // its channels rather than from zero, since that is what the person
+    // choosing it is looking at.
+    layout.add(std::make_unique<juce::AudioParameterInt>(
+        juce::ParameterID{macroAnchorId(m), 1}, name + " Anchor", 1,
+        kNumHarmonics, 1));
 
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID{macroColourId(m), 1}, name + " Colour", colours,
@@ -1004,6 +1019,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
     cached.row = apvts.getRawParameterValue(macroRowId(m));
     cached.scope = apvts.getRawParameterValue(macroScopeId(m));
     cached.curve = apvts.getRawParameterValue(macroCurveId(m));
+    cached.anchor = apvts.getRawParameterValue(macroAnchorId(m));
   }
 
   // Read once here rather than per block. A row's range is a property of the
@@ -1270,6 +1286,12 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
         (MacroCurve)juce::jlimit(0, (int)MacroCurve::NumCurves - 1,
                                  (int)std::lround(cached.curve->load()));
 
+    // Numbered from one on the panel, counted from zero here.
+    const auto anchor = juce::jlimit(
+        0, kNumHarmonics - 1,
+        cached.anchor == nullptr ? 0
+                                 : (int)std::lround(cached.anchor->load()) - 1);
+
     const auto range = rowRange[(size_t)(row - 1)];
     const auto span = range.second - range.first;
 
@@ -1285,8 +1307,9 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
       // Clamped to the row's own range, so a macro can take a control to its
       // end and no further. Two macros on one row add up and the clamp still
       // holds.
-      *field = juce::jlimit(range.first, range.second,
-                            *field + amount * span * macroWeight(curve, i));
+      *field =
+          juce::jlimit(range.first, range.second,
+                       *field + amount * span * macroWeight(curve, i, anchor));
     }
   }
 

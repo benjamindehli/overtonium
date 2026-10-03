@@ -188,10 +188,6 @@ public:
   /// its own column. Pushed the way the LINK glow already is.
   void followMacroTints();
 
-  /// What the macros said last time, so 608 controls are only revisited when
-  /// one of them has actually moved.
-  juce::String macroSignature;
-
   /// What carries the marker now, so it can be taken off again without
   /// searching the window for anything that might have one.
   juce::String armedParameter;

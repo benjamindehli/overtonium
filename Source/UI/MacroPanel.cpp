@@ -12,7 +12,7 @@ constexpr int kRowHeight = 30;
 constexpr int kRowGap = 6;
 constexpr int kHeaderHeight = 34;
 constexpr int kFooterHeight = 38;
-constexpr int kMaxCardWidth = 620;
+constexpr int kMaxCardWidth = 760;
 
 /// What each control on a strip is given, left to right. The amount takes
 /// whatever is left, since it is the one being drawn on and the rest are
@@ -21,6 +21,8 @@ constexpr int kColourWidth = 30;
 constexpr int kRowWidth = 124;
 constexpr int kScopeWidth = 104;
 constexpr int kCurveWidth = 74;
+constexpr int kAnchorWidth = 40;
+constexpr int kReadingWidth = 74;
 constexpr int kRemoveWidth = 26;
 constexpr int kGap = 6;
 
@@ -74,6 +76,7 @@ void MacroPanel::buildStrip(int macro) {
   strip.row.setTitle(which + "row");
   strip.scope.setTitle(which + "scope");
   strip.curve.setTitle(which + "curve");
+  strip.anchor.setTitle(which + "taper anchor");
   strip.remove.setTitle("Remove macro " + juce::String(macro + 1));
 
   // A swatch rather than a word. The colour is the thing it says, and a
@@ -119,6 +122,21 @@ void MacroPanel::buildStrip(int macro) {
         &strips[(size_t)macro].curve);
   };
 
+  strip.anchor.setTooltip("The channel a taper leans on hardest. Shown only "
+                          "when the curve has somewhere to lean.");
+  strip.anchor.onClick = [this, macro] {
+    choose(
+        macro, params::macroAnchorId(macro), "Anchor", kNumHarmonics,
+        [](int i) { return juce::String(i + 1); },
+        &strips[(size_t)macro].anchor, 1);
+  };
+
+  strip.reading.setJustificationType(juce::Justification::centredRight);
+  strip.reading.setInterceptsMouseClicks(false, false);
+  strip.reading.setColour(juce::Label::textColourId, colours::textDim);
+
+  strip.amount.onValueChange = [this, macro] { showReading(macro); };
+
   strip.remove.setButtonText("x");
   strip.remove.setTooltip("Puts this macro back in the pool. What it was "
                           "driving goes back to what the patch says.");
@@ -136,9 +154,9 @@ void MacroPanel::buildStrip(int macro) {
       std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
           apvts, params::macroAmountId(macro), strip.amount);
 
-  const std::array<juce::Component *, 6> parts{&strip.colour, &strip.row,
-                                               &strip.scope,  &strip.curve,
-                                               &strip.remove, &strip.amount};
+  const std::array<juce::Component *, 8> parts{
+      &strip.colour, &strip.row,    &strip.scope,  &strip.curve,
+      &strip.anchor, &strip.remove, &strip.amount, &strip.reading};
 
   for (auto *c : parts)
     addChildComponent(c);
@@ -180,7 +198,7 @@ int MacroPanel::madeCount(const juce::AudioProcessorValueTreeState &state) {
 void MacroPanel::choose(int macro, const juce::String &parameterId,
                         const char *title, int count,
                         const std::function<juce::String(int)> &nameOf,
-                        juce::Component *anchor) {
+                        juce::Component *under, int firstValue) {
   juce::PopupMenu menu;
   menu.setLookAndFeel(&getLookAndFeel());
   menu.addSectionHeader("Macro " + juce::String(macro + 1) + ": " + title);
@@ -188,18 +206,56 @@ void MacroPanel::choose(int macro, const juce::String &parameterId,
   const auto at = chosen(parameterId);
 
   for (int i = 0; i < count; ++i)
-    menu.addItem(i + 1, nameOf(i), true, i == at);
+    menu.addItem(i + 1, nameOf(i), true, i + firstValue == at);
 
   menu.showMenuAsync(
       juce::PopupMenu::Options().withStandardItemHeight(22).withTargetComponent(
-          anchor),
-      [this, parameterId](int result) {
+          under),
+      [this, parameterId, firstValue](int result) {
         if (result <= 0)
           return;
 
-        write(parameterId, result - 1);
+        write(parameterId, result - 1 + firstValue);
         refresh();
       });
+}
+
+void MacroPanel::showReading(int macro) {
+  auto &strip = strips[(size_t)macro];
+  const auto row = chosen(params::macroRowId(macro));
+
+  if (row == 0) {
+    strip.reading.setText({}, juce::dontSendNotification);
+    return;
+  }
+
+  const auto range = params::macroRowRange(apvts, row);
+  const auto span = range.end - range.start;
+  const auto offset = (float)strip.amount.getValue() * span;
+
+  // The number of places the row itself would want. A row spanning
+  // thousands of cents said to three places would be four digits of noise,
+  // and one spanning a single unit said to none would always read zero.
+  const int places = std::abs(span) >= 100.0f  ? 0
+                     : std::abs(span) >= 10.0f ? 1
+                                               : 3;
+
+  juce::String label;
+
+  if (auto *p = dynamic_cast<juce::RangedAudioParameter *>(apvts.getParameter(
+          params::oscParamId(params::kMacroRows[(size_t)(row - 1)], 0))))
+    label = p->getLabel();
+
+  // Signed always, because an offset of zero and an offset of plus nothing
+  // are the same thing and a macro's number is a distance rather than a
+  // position.
+  auto text =
+      juce::String(offset >= 0.0f ? "+" : "") + juce::String(offset, places);
+
+  if (label.isNotEmpty())
+    text << " " << label;
+
+  strip.reading.setText(text, juce::dontSendNotification);
 }
 
 void MacroPanel::refresh() {
@@ -214,9 +270,9 @@ void MacroPanel::refresh() {
     const bool made =
         std::find(showing.begin(), showing.end(), m) != showing.end();
 
-    const std::array<juce::Component *, 6> parts{&strip.colour, &strip.row,
-                                                 &strip.scope,  &strip.curve,
-                                                 &strip.remove, &strip.amount};
+    const std::array<juce::Component *, 8> parts{
+        &strip.colour, &strip.row,    &strip.scope,  &strip.curve,
+        &strip.anchor, &strip.remove, &strip.amount, &strip.reading};
 
     for (auto *c : parts)
       c->setVisible(made);
@@ -224,12 +280,26 @@ void MacroPanel::refresh() {
     if (!made)
       continue;
 
-    strip.row.setButtonText(
-        params::macroRowName(chosen(params::macroRowId(m))));
+    const auto row = chosen(params::macroRowId(m));
+    const auto curve = (params::MacroCurve)chosen(params::macroCurveId(m));
+
+    strip.row.setButtonText(params::macroRowName(row));
     strip.scope.setButtonText(
         params::macroScopeName(chosen(params::macroScopeId(m))));
-    strip.curve.setButtonText(params::macroCurveName(
-        (params::MacroCurve)chosen(params::macroCurveId(m))));
+    strip.curve.setButtonText(params::macroCurveName(curve));
+
+    // The fader borrows the row's own feel, so pushing a macro on a time
+    // moves the way turning that time does rather than running away at the
+    // top. Symmetric, because the amount is signed and a skew applied from
+    // one end would make pulling down behave unlike pushing up.
+    strip.amount.setSkewFactor((double)params::macroRowRange(apvts, row).skew,
+                               true);
+
+    // Only when the curve has somewhere to lean.
+    strip.anchor.setVisible(curve == params::MacroCurve::Taper);
+    strip.anchor.setButtonText(juce::String(chosen(params::macroAnchorId(m))));
+
+    showReading(m);
 
     const auto tint = params::macroColour(chosen(params::macroColourId(m)));
 
@@ -273,7 +343,15 @@ void MacroPanel::resized() {
     line.removeFromLeft(kGap);
     strip.curve.setBounds(line.removeFromLeft(kCurveWidth));
     line.removeFromLeft(kGap);
+
+    // The anchor keeps its place whether or not it is showing, so the fader
+    // beside it does not change length when the curve does.
+    strip.anchor.setBounds(line.removeFromLeft(kAnchorWidth));
+    line.removeFromLeft(kGap);
+
     strip.remove.setBounds(line.removeFromRight(kRemoveWidth));
+    line.removeFromRight(kGap);
+    strip.reading.setBounds(line.removeFromRight(kReadingWidth));
     line.removeFromRight(kGap);
 
     // Whatever is left, which is what makes the amount the widest thing on
