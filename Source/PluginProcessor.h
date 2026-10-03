@@ -223,8 +223,21 @@ private:
   void updateAftertouch();
 
   /// Collects what MIDI has asked for and the audio thread cannot do itself.
-  /// Program changes, so far.
+  /// Program changes, and keeping the reported latency in step with the
+  /// lookahead switch.
   void timerCallback() override;
+
+  /// What the host should be told, from the two stages that are late and the
+  /// one setting that can change the second of them.
+  int latencyAtThisRate() const;
+
+  /// Tells it, if it is not what the host has already been told. Message
+  /// thread only.
+  void reportLatency();
+
+  /// What prepareToPlay was last given, so the figure above can be worked out
+  /// between calls to it.
+  double hostRate = 48000.0;
 
   // ---- juce::AudioProcessorListener ----
   //

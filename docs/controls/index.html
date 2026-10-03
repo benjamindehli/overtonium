@@ -6,7 +6,7 @@
         <title>Overtonium controls: every knob on a channel and on the bar</title>
         <meta
             name="description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 787 parameters are named for a host, and the bus drive, wobble, echo, reverb, converter and output stage on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 788 parameters are named for a host, and the bus drive, wobble, echo, reverb, converter and output stage on the bar."
         />
         <link rel="canonical" href="https://benjamindehli.github.io/overtonium/controls/" />
         <meta name="theme-color" content="#0b0d10" />
@@ -17,7 +17,7 @@
         <meta property="og:title" content="Overtonium controls: every knob on a channel and on the bar" />
         <meta
             property="og:description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 787 parameters are named for a host, and the bus drive, wobble, echo, reverb, converter and output stage on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 788 parameters are named for a host, and the bus drive, wobble, echo, reverb, converter and output stage on the bar."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-controls.jpg" />
         <meta property="og:image:width" content="1200" />
@@ -28,7 +28,7 @@
         <meta name="twitter:title" content="Overtonium controls: every knob on a channel and on the bar" />
         <meta
             name="twitter:description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 787 parameters are named for a host, and the bus drive, wobble, echo, reverb, converter and output stage on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 788 parameters are named for a host, and the bus drive, wobble, echo, reverb, converter and output stage on the bar."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-controls.jpg" />
 
@@ -782,6 +782,15 @@
                                     </td>
                                 </tr>
                                 <tr>
+                                    <td>Limiter lookahead</td>
+                                    <td>on by default</td>
+                                    <td>
+                                        Whether the Limiter may see what is coming. Off gives back the two milliseconds of latency it costs, which
+                                        only that one shape uses, at the price of a rougher limiter. The only setting here that changes what the
+                                        plugin reports to your host
+                                    </td>
+                                </tr>
+                                <tr>
                                     <td>Zoom</td>
                                     <td>75, 100, 125 or 150%</td>
                                     <td>
@@ -1118,6 +1127,15 @@
                         whose latency moved when you chose a preset would have the host re-plan its graph every time, it is paid by all five shapes
                         and by the stage switched off alike. Overtonium reports 108 samples at 48 kHz, a little over two milliseconds, which your host
                         compensates for on playback.
+                    </p>
+                    <p>
+                        <strong>Limiter lookahead</strong> in the Settings menu gives those two milliseconds back. Only the Limiter uses the window,
+                        so if you never reach for it you are paying for nothing, and this is the way to stop. Turning it off does not break the
+                        limiter: the detector sees a single sample instead of a window, so the gain is exact and immediate and the ceiling still
+                        holds, but the smoothing goes with it and a gain that steps is itself a distortion, about fifteen times as much of it. It is
+                        in Settings rather than on the bar because nothing a preset can reach is allowed to change what the plugin tells your host.
+                        Most hosts take the new figure while running, some only on playback stop or on reload, so it is worth choosing before a take
+                        rather than during one.
                     </p>
 
                     <h3>The output meter</h3>

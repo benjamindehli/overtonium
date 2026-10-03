@@ -7767,7 +7767,7 @@ void testOutputStage() {
       r[n] = s;
     }
 
-    stage.process(l.data(), r.data(), (int)l.size(), type, true);
+    stage.process(l.data(), r.data(), (int)l.size(), type, true, true);
     l.erase(l.begin(), l.begin() + (long)late);
 
     return l;
@@ -7816,7 +7816,8 @@ void testOutputStage() {
     l.resize(l.size() + late, 0.0f);
     r = l;
 
-    stage.process(l.data(), r.data(), (int)l.size(), ClipType::Soft, true);
+    stage.process(l.data(), r.data(), (int)l.size(), ClipType::Soft, true,
+                  true);
     l.erase(l.begin(), l.begin() + (long)late);
 
     int differed = 0;
@@ -7903,7 +7904,8 @@ void testOutputStage() {
     l.resize(l.size() + late, 0.0f);
     r.resize(r.size() + late, 0.0f);
 
-    stage.process(l.data(), r.data(), (int)l.size(), ClipType::Soft, true);
+    stage.process(l.data(), r.data(), (int)l.size(), ClipType::Soft, true,
+                  true);
     l.erase(l.begin(), l.begin() + (long)late);
 
     int moved = 0;
@@ -7942,7 +7944,7 @@ void testOutputStage() {
       r[(size_t)n] = s;
     }
 
-    stage.process(l.data(), r.data(), kN, ClipType::Limiter, true);
+    stage.process(l.data(), r.data(), kN, ClipType::Limiter, true, true);
 
     // Four milliseconds from the onset, which is twice the lookahead and so
     // covers the whole of the stage getting its gain into place. Fixed in
@@ -7961,6 +7963,84 @@ void testOutputStage() {
           "the Limiter holds an abrupt onset below unity with gain rather "
           "than with the clip behind it (" +
               std::to_string(onset) + ")");
+  }
+
+  // ---- and without its window it is rougher, not broken -------------------
+  //
+  // What the Settings switch buys back. With no lookahead the detector sees
+  // one sample rather than a window, so the gain it applies is exact and
+  // immediate: the ceiling still holds with nothing for the clip behind it to
+  // do. What is lost is the smoothing, and a gain that steps is itself a
+  // distortion, which is the whole of the trade.
+  {
+    const auto run = [&](bool ahead) {
+      OutputStage stage;
+      stage.prepare(sr);
+
+      std::vector<float> l((size_t)kN), r((size_t)kN);
+
+      for (int n = kN / 4; n < kN; ++n) {
+        const auto s =
+            (float)(2.0 * std::sin(6.283185307179586 * 220.0 * n / sr));
+        l[(size_t)n] = s;
+        r[(size_t)n] = s;
+      }
+
+      stage.process(l.data(), r.data(), kN, ClipType::Limiter, true, ahead);
+
+      return std::pair<float, int>{*std::max_element(l.begin(), l.end(),
+                                                     [](float a, float b) {
+                                                       return std::abs(a) <
+                                                              std::abs(b);
+                                                     }),
+                                   stage.latency()};
+    };
+
+    const auto with = run(true);
+    const auto without = run(false);
+
+    check(with.second > 0 && without.second == 0,
+          "refusing the lookahead gives the latency back (" +
+              std::to_string(with.second) + " samples to " +
+              std::to_string(without.second) + ")");
+
+    check(std::abs(without.first) <= 0.99f,
+          "and still holds the ceiling without it (" +
+              std::to_string(std::abs(without.first)) + ")");
+
+    // A steady sine rather than the onset above, since what is being compared
+    // is how the gain moves once it is working rather than how it arrives.
+    const auto steady = [&](bool ahead) {
+      OutputStage stage;
+      stage.prepare(sr);
+
+      const auto late = (size_t)(ahead ? stage.latency() : 0);
+
+      std::vector<float> l((size_t)kN + late), r((size_t)kN + late);
+
+      for (size_t n = 0; n < l.size(); ++n) {
+        const auto s =
+            (float)(2.0 * std::sin(6.283185307179586 * 220.0 * (double)n / sr));
+        l[n] = s;
+        r[n] = s;
+      }
+
+      stage.process(l.data(), r.data(), (int)l.size(), ClipType::Limiter, true,
+                    ahead);
+      l.erase(l.begin(), l.begin() + (long)late);
+
+      return l;
+    };
+
+    const auto ahead3 = binMagnitude(steady(true), 660.0, sr);
+    const auto flat3 = binMagnitude(steady(false), 660.0, sr);
+
+    std::printf("  third harmonic: looking ahead %.5f, not %.5f\n", ahead3,
+                flat3);
+
+    check(flat3 > ahead3 * 4.0,
+          "and the smoothing is what the window was for (" +
+              std::to_string(flat3 / std::max(1.0e-9, ahead3)) + " times)");
   }
 }
 

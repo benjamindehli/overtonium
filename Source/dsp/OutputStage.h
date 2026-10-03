@@ -122,6 +122,13 @@ inline const char *clipTypeShortName(ClipType t) {
 /// delay is unconditional and the four memoryless shapers run behind it,
 /// which costs them nothing since delaying a memoryless curve and curving a
 /// delayed signal are the same thing.
+///
+/// Unconditional on the patch, that is. A session setting can refuse the
+/// lookahead, and then the stage is not late at all: the detector sees one
+/// sample instead of a window, which still holds the ceiling exactly and with
+/// no overshoot, and distorts about fifteen times more doing it. Switching is
+/// free of allocation, since the buffers are sized for the window whether or
+/// not it is in use.
 class OutputStage {
 public:
   /// How far ahead the limiter is allowed to look, and therefore how late
@@ -155,10 +162,20 @@ public:
   /// @param shaping  false to pass the audio through at the same delay and
   ///                 otherwise leave it alone, which is the stage switched
   ///                 off rather than a sixth type.
+  /// @param ahead    false to give up the window and the delay with it. The
+  ///                 processor reports the matching latency from the message
+  ///                 thread, so this and what the host has been told change
+  ///                 within a timer tick of each other.
   void process(float *left, float *right, int numSamples, ClipType type,
-               bool shaping) noexcept;
+               bool shaping, bool ahead) noexcept;
 
 private:
+  /// Takes the window away or gives it back, without allocating: the buffers
+  /// are sized for it either way. The state goes with it, since a delay line
+  /// whose length has just changed holds samples that would be replayed at
+  /// the wrong moment, and a couple of milliseconds of silence on a setting
+  /// nobody flips mid-phrase is better than that.
+  void applyLookahead(bool ahead) noexcept;
   /// The gain the limiter wants for the sample about to arrive, from the
   /// loudest of the window still sitting in the delay line.
   float gainFor(float peak) noexcept;
@@ -174,6 +191,13 @@ private:
   int delay = 0;
   int window = 1;
   int box = 1;
+
+  /// What those are when the lookahead is allowed, which is what the buffers
+  /// are sized for however they are currently set.
+  int fullDelay = 0;
+  int fullWindow = 1;
+  int fullBox = 1;
+  bool looking = true;
 
   std::vector<float> lineLeft, lineRight;
   int writeIndex = 0;

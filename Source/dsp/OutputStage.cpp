@@ -82,10 +82,18 @@ float shapeFold(float x) noexcept {
 void OutputStage::prepare(double sampleRate) noexcept {
   rate = std::max(1.0, sampleRate);
 
-  delay = lookaheadSamples(rate);
-  window = std::max(1, delay / 2);
-  box = std::max(1, delay / 2);
+  fullDelay = lookaheadSamples(rate);
+  fullWindow = std::max(1, fullDelay / 2);
+  fullBox = std::max(1, fullDelay / 2);
+
+  // Sized for the window whether or not it is wanted, so that turning it on
+  // part way through a session allocates nothing on the audio thread. The
+  // active lengths follow in applyLookahead.
+  delay = fullDelay;
+  window = fullWindow;
+  box = fullBox;
   boxScale = 1.0 / (double)box;
+  looking = true;
 
   // A hundred milliseconds to let back up, which is slow enough not to pump
   // on every note. There is no attack time any more: the gain is told what is
@@ -94,16 +102,30 @@ void OutputStage::prepare(double sampleRate) noexcept {
   // far ahead it is allowed to look rather than by a coefficient.
   release = (float)std::exp(-1.0 / (0.100 * rate));
 
-  lineLeft.assign((size_t)std::max(1, delay), 0.0f);
-  lineRight.assign((size_t)std::max(1, delay), 0.0f);
+  lineLeft.assign((size_t)std::max(1, fullDelay), 0.0f);
+  lineRight.assign((size_t)std::max(1, fullDelay), 0.0f);
 
   // One longer than the window, so the wedge can hold a full window and the
   // sample displacing its oldest at the same moment.
-  wedgeValue.assign((size_t)window + 1, 0.0f);
-  wedgeIndex.assign((size_t)window + 1, 0);
+  wedgeValue.assign((size_t)fullWindow + 1, 0.0f);
+  wedgeIndex.assign((size_t)fullWindow + 1, 0);
 
-  boxOne.assign((size_t)box, 1.0f);
-  boxTwo.assign((size_t)box, 1.0f);
+  boxOne.assign((size_t)fullBox, 1.0f);
+  boxTwo.assign((size_t)fullBox, 1.0f);
+
+  reset();
+}
+
+void OutputStage::applyLookahead(bool ahead) noexcept {
+  if (ahead == looking)
+    return;
+
+  looking = ahead;
+
+  delay = ahead ? fullDelay : 0;
+  window = ahead ? fullWindow : 1;
+  box = ahead ? fullBox : 1;
+  boxScale = 1.0 / (double)box;
 
   reset();
 }
@@ -171,8 +193,9 @@ float OutputStage::gainFor(float peak) noexcept {
   boxOne[(size_t)boxOneAt] = held;
   boxOneAt = (boxOneAt + 1) % box;
 
-  // Scaled rather than divided. The length never changes between prepares, so
-  // the reciprocal is worked out once instead of twice on every sample.
+  // Scaled rather than divided. The length changes only when the lookahead is
+  // switched, so the reciprocal is worked out there instead of twice on every
+  // sample.
   const float once = (float)(boxOneSum * boxScale);
 
   boxTwoSum += once - boxTwo[(size_t)boxTwoAt];
@@ -183,9 +206,13 @@ float OutputStage::gainFor(float peak) noexcept {
 }
 
 void OutputStage::process(float *left, float *right, int numSamples,
-                          ClipType type, bool shaping) noexcept {
+                          ClipType type, bool shaping, bool ahead) noexcept {
   if (left == nullptr || right == nullptr || numSamples <= 0)
     return;
+
+  // Once per block rather than per sample, and it does nothing unless the
+  // setting actually moved.
+  applyLookahead(ahead);
 
   // Nothing is allocated from here on, so a stage that was never prepared
   // runs without its delay rather than reaching for one. The same path covers
