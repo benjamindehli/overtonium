@@ -132,8 +132,23 @@ juce::Colour characterColour(Character);
 /// the coloured smudge around it.
 class GlowButton : public juce::TextButton {
 public:
+  /// Drawn in place of the word, in the colour the word would have had.
+  ///
+  /// For the buttons whose names are longer than the bar can spare: a gear
+  /// and a rack of faders say settings and macros in a third of the width
+  /// the words want, and the words are still what a screen reader is given
+  /// and what the tooltip says.
+  std::function<void(juce::Graphics &, juce::Rectangle<float>, juce::Colour)>
+      onIcon;
+
   void paintButton(juce::Graphics &, bool highlighted, bool down) override;
 };
+
+/// The three icons the bar and the gutter wear, drawn rather than loaded so
+/// they take the colour they are given and stay sharp at any zoom.
+void drawGearIcon(juce::Graphics &, juce::Rectangle<float>, juce::Colour);
+void drawMacroIcon(juce::Graphics &, juce::Rectangle<float>, juce::Colour);
+void drawPointerIcon(juce::Graphics &, juce::Rectangle<float>, juce::Colour);
 
 /// Vertical slots in a channel strip. The gutter on the left lays out the same
 /// list so the row labels always line up with the controls.
@@ -174,6 +189,12 @@ enum class Row {
 inline constexpr int kNumRows = (int)Row::NumRows;
 inline constexpr int kStripWidth = 38;
 inline constexpr int kGutterWidth = 78;
+
+/// The scrollbar beyond the noise channel, whose width the window reserves
+/// whether or not it is showing. Here rather than in PluginEditor.cpp
+/// because the width the window opens at is built from it, and a test that
+/// worked that width out without it was ten pixels adrift.
+inline constexpr int kScrollBarThickness = 10;
 
 /// The inset every column lays its rows inside.
 ///
@@ -444,6 +465,20 @@ const char *linkCurveId(LinkCurve);
 LinkCurve linkCurveFromState(const juce::String &id, int legacy);
 
 /// Everything the LINK switch is currently set to.
+/// What a drag in the mixer does.
+///
+/// One choice rather than two switches, which is what it always was: a drag
+/// cannot be a link and a drawing at once, and the two toggles this replaces
+/// had to work around that by making LINK read as off while drawing was
+/// armed, lighting a switch for a gesture that had been taken away from it.
+enum class PointerTool { Pointer = 0, Link, Draw, NumTools };
+
+const char *pointerToolName(PointerTool);
+
+/// The cursor that tool gives, which is what its button wears instead of a
+/// word: the button shows the pointer you are about to be holding.
+juce::Image pointerToolImage(PointerTool, LinkCurve, float scale);
+
 struct LinkSettings {
   bool enabled = false;
   LinkScope scope = LinkScope::All;
@@ -456,6 +491,14 @@ struct LinkSettings {
 /// keeping it out here means it can be checked without a window. A menu that
 /// can only be reached by clicking is a menu that never gets tested.
 juce::PopupMenu buildLinkMenu(const LinkSettings &);
+
+/// The tool menu: which of the three, and under a separator the settings
+/// belonging to whichever is chosen. One place to go rather than two.
+juce::PopupMenu buildToolMenu(PointerTool, const LinkSettings &);
+
+/// @return true when the id was a tool rather than one of LINK's settings,
+///         in which case `tool` has been moved.
+bool applyToolMenuChoice(int id, PointerTool &tool);
 
 /// Applies what the menu came back with.
 ///

@@ -26,6 +26,74 @@ const juce::Colour kMacroColours[] = {
     juce::Colour(0xffd665b0)};
 } // namespace
 
+void drawGearIcon(juce::Graphics &g, juce::Rectangle<float> area,
+                  juce::Colour colour) {
+  const auto centre = area.getCentre();
+  const auto r = juce::jmin(area.getWidth(), area.getHeight()) * 0.42f;
+
+  g.setColour(colour);
+
+  // Eight teeth as spokes rather than a toothed outline, which at this size
+  // turns into a blob: at fourteen pixels across what reads as a gear is the
+  // spacing of the teeth rather than their shape.
+  for (int i = 0; i < 8; ++i) {
+    const auto a = juce::MathConstants<float>::twoPi * (float)i / 8.0f;
+    const auto s = std::sin(a);
+    const auto c = std::cos(a);
+
+    g.drawLine(centre.x + r * 0.72f * s, centre.y - r * 0.72f * c,
+               centre.x + r * 1.15f * s, centre.y - r * 1.15f * c, 1.6f);
+  }
+
+  g.drawEllipse(centre.x - r * 0.72f, centre.y - r * 0.72f, r * 1.44f,
+                r * 1.44f, 1.6f);
+  g.fillEllipse(centre.x - r * 0.26f, centre.y - r * 0.26f, r * 0.52f,
+                r * 0.52f);
+}
+
+void drawMacroIcon(juce::Graphics &g, juce::Rectangle<float> area,
+                   juce::Colour colour) {
+  // Three faders with their caps at different places, which is what the
+  // macro panel looks like and what a macro does: several controls moved
+  // from one place.
+  const auto w = juce::jmin(area.getWidth(), area.getHeight() * 1.6f) * 0.86f;
+  const auto centre = area.getCentre();
+  const auto left = centre.x - w * 0.5f;
+
+  const float at[] = {0.72f, 0.38f, 0.58f};
+
+  for (int i = 0; i < 3; ++i) {
+    const auto y = centre.y + ((float)i - 1.0f) * 4.6f;
+
+    g.setColour(colour.withMultipliedAlpha(0.45f));
+    g.fillRoundedRectangle(left, y - 0.75f, w, 1.5f, 0.75f);
+
+    g.setColour(colour);
+    g.fillRoundedRectangle(left + w * at[i] - 1.6f, y - 2.6f, 3.2f, 5.2f, 1.2f);
+  }
+}
+
+void drawPointerIcon(juce::Graphics &g, juce::Rectangle<float> area,
+                     juce::Colour colour) {
+  // The arrow every pointer is, so the tool that does what a mouse does
+  // anyway is recognisable without a word.
+  const auto h = juce::jmin(area.getWidth(), area.getHeight()) * 0.78f;
+  const auto top = area.getCentre().translated(-h * 0.26f, -h * 0.5f);
+
+  juce::Path arrow;
+  arrow.startNewSubPath(top);
+  arrow.lineTo(top.translated(0.0f, h));
+  arrow.lineTo(top.translated(h * 0.26f, h * 0.72f));
+  arrow.lineTo(top.translated(h * 0.46f, h * 1.04f));
+  arrow.lineTo(top.translated(h * 0.64f, h * 0.92f));
+  arrow.lineTo(top.translated(h * 0.44f, h * 0.6f));
+  arrow.lineTo(top.translated(h * 0.72f, h * 0.58f));
+  arrow.closeSubPath();
+
+  g.setColour(colour);
+  g.fillPath(arrow);
+}
+
 void GlowButton::paintButton(juce::Graphics &g, bool highlighted, bool down) {
   // The face, drawn as if the switch were off whatever it is, so that being
   // engaged is something the word says rather than something the button does.
@@ -43,6 +111,12 @@ void GlowButton::paintButton(juce::Graphics &g, bool highlighted, bool down) {
                                     : juce::TextButton::textColourOffId);
 
   const auto h = (float)getHeight();
+
+  if (onIcon != nullptr) {
+    onIcon(g, getLocalBounds().toFloat(), colour);
+    return;
+  }
+
   const auto font = makeFont(juce::jlimit(8.0f, 13.0f, h * 0.58f), true);
 
   juce::GlyphArrangement glyphs;
@@ -728,6 +802,78 @@ constexpr int kLinkToggleId = 1;
 constexpr int kScopeBaseId = 100;
 constexpr int kCurveBaseId = 200;
 } // namespace
+
+const char *pointerToolName(PointerTool t) {
+  switch (t) {
+  case PointerTool::Pointer:
+    return "Pointer";
+  case PointerTool::Link:
+    return "Link";
+  case PointerTool::Draw:
+    return "Draw";
+
+  case PointerTool::NumTools:
+    break;
+  }
+
+  return "Pointer";
+}
+
+juce::Image pointerToolImage(PointerTool t, LinkCurve curve, float scale) {
+  switch (t) {
+  case PointerTool::Link:
+    return linkCursorImage(curve, scale);
+  case PointerTool::Draw:
+    return drawCursorImage(scale);
+
+  case PointerTool::Pointer:
+  case PointerTool::NumTools:
+    break;
+  }
+
+  return {};
+}
+
+/// Ids for the three, kept clear of the scope and curve blocks below.
+constexpr int kToolBaseId = 40;
+
+juce::PopupMenu buildToolMenu(PointerTool tool, const LinkSettings &settings) {
+  juce::PopupMenu m;
+
+  m.addSectionHeader("Tool");
+
+  for (int i = 0; i < (int)PointerTool::NumTools; ++i)
+    m.addItem(kToolBaseId + i, pointerToolName((PointerTool)i), true,
+              i == (int)tool);
+
+  // Only Link has anything to set, so the rest of the menu is its, and it
+  // greys out rather than disappearing when another tool is chosen: a menu
+  // that changed length as you moved through it would move the item under
+  // the pointer.
+  const auto linking = tool == PointerTool::Link;
+
+  m.addSeparator();
+  m.addSectionHeader("Scope");
+  for (int i = 0; i < (int)LinkScope::NumScopes; ++i)
+    m.addItem(kScopeBaseId + i, linkScopeName((LinkScope)i), linking,
+              i == (int)settings.scope);
+
+  m.addSeparator();
+  m.addSectionHeader("Curve");
+  for (int i = 0; i < (int)LinkCurve::NumCurves; ++i)
+    m.addItem(kCurveBaseId + i, linkCurveName((LinkCurve)i), linking,
+              i == (int)settings.curve);
+
+  return m;
+}
+
+bool applyToolMenuChoice(int id, PointerTool &tool) {
+  if (id < kToolBaseId || id >= kToolBaseId + (int)PointerTool::NumTools)
+    return false;
+
+  tool = (PointerTool)(id - kToolBaseId);
+  return true;
+}
 
 juce::PopupMenu buildLinkMenu(const LinkSettings &settings) {
   juce::PopupMenu m;

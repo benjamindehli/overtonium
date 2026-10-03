@@ -11,7 +11,7 @@ using namespace ovt;
 using namespace ovt::ui;
 
 namespace {
-constexpr int kScrollBarThickness = 10;
+using ovt::ui::kScrollBarThickness;
 /// Breathing room between the noise channel and the scrolling series.
 constexpr int kMasterGap = 8;
 
@@ -81,52 +81,37 @@ RowGutter::RowGutter() {
   // One button rather than a switch and a chevron beside it. It always opens
   // the menu, and it lights when the switch inside is on, so the state is
   // visible without the state being what the click does.
-  linkButton.setButtonText("LINK");
-  linkButton.setTooltip(
-      "Gang the strips, so dragging one channel's knob moves the same knob on "
-      "the others. The menu picks which channels it reaches and how the "
-      "movement is shared out. The same menu is on a right-click in the "
-      "mixer.");
+  // No word on it. The tool a drag will use is a thing you recognise by the
+  // pointer it gives you, so the button wears that pointer, and the menu it
+  // opens is where the names are. See ui::PointerTool.
+  toolButton.setTooltip(
+      "What a drag in the mixer does. Pointer moves one control, Link moves "
+      "the row it belongs to, and Draw sweeps values across the series. Only "
+      "one at a time, since a drag cannot be two of them at once.");
+  toolButton.setTitle("Pointer tool");
+  toolButton.setColour(juce::TextButton::textColourOnId, colours::accent);
 
-  // The same colour the two effect switches light in, since it is the same
-  // kind of thing: a tool that is either engaged or not. See GlowButton.
-  linkButton.setColour(juce::TextButton::textColourOnId, colours::accent);
-
-  linkButton.onClick = [this] {
-    if (onLinkClicked)
-      onLinkClicked(&linkButton);
+  toolButton.onClick = [this] {
+    if (onLinkClicked != nullptr)
+      onLinkClicked(&toolButton);
   };
 
-  addAndMakeVisible(linkButton);
+  toolButton.onIcon = [this](juce::Graphics &g, juce::Rectangle<float> area,
+                             juce::Colour colour) {
+    if (toolIcon.isValid()) {
+      // The cursor itself, drawn at the size it is rather than stretched:
+      // this is the pointer you are about to be holding.
+      g.drawImageWithin(toolIcon, (int)area.getX(), (int)area.getY(),
+                        (int)area.getWidth(), (int)area.getHeight(),
+                        juce::RectanglePlacement::centred |
+                            juce::RectanglePlacement::onlyReduceInSize);
+      return;
+    }
 
-  drawButton.setButtonText("DRAW");
-  drawButton.setTooltip(
-      "Draw the faders: a drag across them sets every channel it passes over "
-      "from the pointer's height, rather than moving one. Holding shift does "
-      "the same for as long as it is held, and this button lights while it "
-      "is.");
-
-  drawButton.setColour(juce::TextButton::textColourOnId, colours::accent);
-
-  drawButton.onClick = [this] {
-    if (onDrawClicked)
-      onDrawClicked();
+    ovt::ui::drawPointerIcon(g, area, colour);
   };
 
-  addAndMakeVisible(drawButton);
-
-  macroButton.setButtonText("MACROS");
-  macroButton.setTooltip(
-      "One parameter that moves a whole row, and that a host can automate. "
-      "A LINK drag moves 32 parameters and a host catches only the last one "
-      "touched, which is what these are for.");
-  macroButton.setColour(juce::TextButton::textColourOnId, colours::accent);
-  macroButton.onClick = [this] {
-    if (onMacrosClicked != nullptr)
-      onMacrosClicked();
-  };
-
-  addAndMakeVisible(macroButton);
+  addAndMakeVisible(toolButton);
 
   headerCap.onPaint = [this](juce::Graphics &g) { paintHeaderBand(g); };
   addAndMakeVisible(headerCap);
@@ -161,34 +146,26 @@ void RowGutter::resized() {
                       juce::jmax(0, rows[(size_t)Row::Header].getBottom()));
   headerCap.toFront(false);
 
-  linkButton.setBounds(rows[(size_t)Row::Header].reduced(7, 1));
-  linkButton.toFront(false);
-
-  // Under the LEVEL caption, which takes the top of the tall fader row, and
-  // above the badge that sits at the foot of it. The faders are what it draws,
-  // so it belongs beside them rather than up on the bar with the things that
-  // are set once and left.
-  auto fader = rows[(size_t)Row::Fader].reduced(7, 0);
-  fader.removeFromTop(18);
-
-  drawButton.setBounds(fader.removeFromTop(22));
-
-  // Under the draw tool, which is the other thing here that acts on the
-  // mixer as a whole rather than on one knob.
-  fader.removeFromTop(6);
-  macroButton.setBounds(fader.removeFromTop(22));
+  toolButton.setBounds(rows[(size_t)Row::Header].reduced(7, 1));
+  toolButton.toFront(false);
 }
 
-void RowGutter::setLinkOn(bool on) {
-  linkButton.setToggleState(on, juce::dontSendNotification);
-}
+void RowGutter::setTool(ovt::ui::PointerTool which, ovt::ui::LinkCurve curve) {
+  if (which == tool &&
+      toolIcon.isValid() == (which != ovt::ui::PointerTool::Pointer))
+    return;
 
-void RowGutter::setDrawOn(bool on) {
-  drawButton.setToggleState(on, juce::dontSendNotification);
-}
+  tool = which;
+  toolIcon = ovt::ui::pointerToolImage(tool, curve, 1.0f);
 
-void RowGutter::setMacrosOn(bool on) {
-  macroButton.setToggleState(on, juce::dontSendNotification);
+  // Lit for anything but the plain pointer, which is the tool that does what
+  // a mouse does anyway and so has nothing to announce.
+  toolButton.setToggleState(tool != ovt::ui::PointerTool::Pointer,
+                            juce::dontSendNotification);
+  toolButton.setButtonText(tool == ovt::ui::PointerTool::Pointer ? "" : "");
+  toolButton.setTitle(juce::String("Tool: ") + ovt::ui::pointerToolName(tool));
+  toolButton.repaint();
+  repaint();
 }
 
 void RowGutter::setCollapsedSections(SectionMask mask) {
@@ -516,6 +493,10 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     topBar.showLinkMenu(anchor, {}, &plugin().midiLearn);
   };
 
+  topBar.onToolChosen = [this](ovt::ui::PointerTool which) {
+    chooseTool(which);
+  };
+
   topBar.onLearnRequested = [this](const juce::String &id) {
     showLearnMenu(id);
   };
@@ -531,10 +512,10 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
 
   macroPanel.onDismiss = [this] {
     macroPanel.setVisible(false);
-    gutter.setMacrosOn(false);
+    topBar.setMacrosOn(false);
   };
 
-  gutter.onMacrosClicked = [this] {
+  topBar.onMacrosClicked = [this] {
     const bool opening = !macroPanel.isVisible();
 
     if (opening)
@@ -542,7 +523,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
 
     macroPanel.setVisible(opening);
     macroPanel.toFront(false);
-    gutter.setMacrosOn(opening);
+    topBar.setMacrosOn(opening);
   };
 
   noiseStrip.onLearnRequested = [this](const juce::String &id) {
@@ -1229,12 +1210,19 @@ void OvertoniumEditor::syncLinkUi() {
   // The switch is in the gutter and the settings it belongs to are on the bar,
   // so the button is told rather than asked.
   //
-  // It reads as off while drawing is armed, without being off: a drag cannot
-  // be a link and a drawing at once, and a switch left lit for a gesture that
-  // has been taken away from it is a lie the mouse-up would expose. The
-  // setting itself does not move, so letting go of the modifier gives it back.
-  gutter.setLinkOn(topBar.isLinkEnabled() && !drawArmed);
-  gutter.setDrawOn(drawArmed);
+  // One button showing one tool, which is what it always was: a drag cannot
+  // be a link and a drawing at once. The two switches this replaced had to
+  // work around that by making LINK read as off while drawing was armed,
+  // lighting a switch for a gesture that had been taken away from it.
+  //
+  // Drawing wins while it is armed, which includes being armed by holding
+  // the modifier rather than by choosing it, so the button shows the pencil
+  // for as long as the key is down and gives the tool back on release.
+  gutter.setTool(currentTool(), topBar.getLinkCurve());
+
+  // And what the bar says about macros, which is the only sign of them when
+  // the panel is shut.
+  topBar.setMacroCount(ovt::ui::MacroPanel::madeCount(plugin().apvts));
 
   // Switching LINK on, or changing what it reaches, changes the answer to
   // "what would this knob take with it", so the preview follows immediately
@@ -1244,6 +1232,27 @@ void OvertoniumEditor::syncLinkUi() {
 }
 
 bool OvertoniumEditor::isLinkEnabled() const { return topBar.isLinkEnabled(); }
+
+ovt::ui::PointerTool OvertoniumEditor::currentTool() const {
+  if (drawArmed)
+    return ovt::ui::PointerTool::Draw;
+
+  return topBar.isLinkEnabled() ? ovt::ui::PointerTool::Link
+                                : ovt::ui::PointerTool::Pointer;
+}
+
+void OvertoniumEditor::chooseTool(ovt::ui::PointerTool which) {
+  // Latching drawing off is not the same as choosing another tool: the
+  // modifier can still arm it, and LINK's own switch keeps whatever it had
+  // so that going back to it finds the scope and curve you left.
+  drawLatched = which == ovt::ui::PointerTool::Draw;
+  topBar.setLinkEnabled(which == ovt::ui::PointerTool::Link);
+
+  // refreshDrawArmed rather than pollDrawModifier: the poll only acts when
+  // the modifier itself has changed, and nothing here touched the keyboard.
+  refreshDrawArmed();
+  syncLinkUi();
+}
 
 void OvertoniumEditor::followMacroTints() {
   const auto readInt = [this](const juce::String &id) {

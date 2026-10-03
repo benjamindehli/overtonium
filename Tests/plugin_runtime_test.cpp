@@ -6084,14 +6084,24 @@ void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
     return found;
   };
 
-  auto *drawSwitch = switchNamed("DRAW");
-  auto *linkSwitch = switchNamed("LINK");
+  // One button for the three tools, wearing the cursor rather than a word,
+  // so it is found by what it is called rather than by what it says.
+  auto *toolSwitch = switchNamed("");
 
-  check(drawSwitch != nullptr && linkSwitch != nullptr,
-        "the gutter carries a DRAW switch beside LINK");
+  check(toolSwitch != nullptr, "the gutter carries the tool button");
 
-  if (drawSwitch == nullptr || linkSwitch == nullptr)
+  if (toolSwitch == nullptr)
     return;
+
+  // Chosen through the editor rather than through the menu the button opens:
+  // a PopupMenu needs a real window and a headless run has none.
+  const auto choose = [editor](ovt::ui::PointerTool which) {
+    editor->chooseTool(which);
+  };
+
+  check(editor->currentTool() == ovt::ui::PointerTool::Pointer ||
+            editor->currentTool() == ovt::ui::PointerTool::Link,
+        "and starts on a tool that is not drawing");
 
   // ---- without the modifier, nothing is taken -----------------------------
   //
@@ -6107,10 +6117,10 @@ void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
 
   // ---- held, a line across four columns sets all four ----------------------
   {
-    if (drawSwitch->onClick)
-      drawSwitch->onClick();
+    choose(ovt::ui::PointerTool::Draw);
 
-    check(drawSwitch->getToggleState(), "the switch lights when it is latched");
+    check(editor->currentTool() == ovt::ui::PointerTool::Draw,
+          "choosing Draw is what latches it");
 
     // ---- and the faders light to say where the drawing reaches ------------
     //
@@ -6196,13 +6206,13 @@ void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
   // tool is let go. A switch left lit for a gesture that has been taken away
   // from it is a lie the mouse-up would expose.
   {
-    check(!linkSwitch->getToggleState(),
+    check(editor->currentTool() != ovt::ui::PointerTool::Link,
           "LINK reads as off while drawing has the drag");
 
-    if (drawSwitch->onClick)
-      drawSwitch->onClick();
+    choose(ovt::ui::PointerTool::Pointer);
 
-    check(!drawSwitch->getToggleState(), "and the switch goes out again");
+    check(editor->currentTool() == ovt::ui::PointerTool::Pointer,
+          "and choosing the plain pointer gives the drag back");
 
     // Nothing is left lit once the tool is let go, which is the half a
     // highlight most easily gets wrong.
@@ -6409,17 +6419,21 @@ void testBarComesOntoOneRow(OvertoniumProcessor &) {
       break;
     }
 
-  std::printf("  the bar comes onto one row at %d px, and the window opens at "
-              "1340, so there are %d px of slack\n",
-              onOneRow, 1340 - onOneRow);
+  const auto opensAt = ovt::ui::kGutterWidth + ovt::ui::kStripWidth + 8 +
+                       ovt::kNumHarmonics * ovt::ui::kStripWidth +
+                       ovt::ui::kScrollBarThickness;
 
-  check(onOneRow > 0 && onOneRow <= 1340,
+  std::printf("  the bar comes onto one row at %d px, and the window opens at "
+              "%d, so there are %d px of slack\n",
+              onOneRow, opensAt, opensAt - onOneRow);
+
+  check(onOneRow > 0 && onOneRow <= opensAt,
         "the bar is on one row at the width the window opens at (" +
             std::to_string(onOneRow) + ")");
 
   // The figure the design notes quote. It moves whenever a control on the bar
   // changes width, and when it moves the notes move with it.
-  check(onOneRow == 1258, "and comes onto it at the width written down (" +
+  check(onOneRow == 1252, "and comes onto it at the width written down (" +
                               std::to_string(onOneRow) + ")");
 }
 
@@ -6585,8 +6599,12 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
   // group was squeezed forty pixels at this width and both readouts came out
   // at 38, which draws the figure and nothing else.
   {
+    // The width the window opens at, scrollbar included. Leaving that out
+    // put this ten pixels short of the real thing, which is the margin the
+    // converter readouts live on.
     const int width = ovt::ui::kGutterWidth + ovt::ui::kStripWidth + 8 +
-                      ovt::kNumHarmonics * ovt::ui::kStripWidth;
+                      ovt::kNumHarmonics * ovt::ui::kStripWidth +
+                      ovt::ui::kScrollBarThickness;
 
     bar.setSize(width, TopBar::heightForWidth(width));
 

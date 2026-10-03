@@ -91,6 +91,18 @@ public:
   /// is one.
   std::function<void(const juce::String &)> onLearnRequested;
 
+  /// Fired when MACROS is clicked, which puts the macro panel up over the
+  /// mixer. On the bar rather than in the gutter because it opens something,
+  /// which is what the two buttons beside it do. See ui::MacroPanel.
+  std::function<void()> onMacrosClicked;
+
+  /// Fired when one of the three tools is chosen from the tool menu.
+  std::function<void(PointerTool)> onToolChosen;
+
+  /// Lights MACROS while its panel is up, and says how many are made.
+  void setMacrosOn(bool);
+  void setMacroCount(int);
+
   void mouseDown(const juce::MouseEvent &) override;
 
   /// Puts a newer release in the credit line under the wordmark, where the
@@ -181,7 +193,8 @@ public:
   ///                      and not the processor behind it.
   void showLinkMenu(juce::Component *anchor,
                     const juce::String &parameterId = {},
-                    MidiLearn *map = nullptr);
+                    MidiLearn *map = nullptr,
+                    PointerTool tool = PointerTool::Pointer);
 
   /// The bar reflows onto further rows when the groups no longer fit across
   /// one, so nothing has to be dropped on a narrow window. Static because the
@@ -290,7 +303,11 @@ public:
   /// Wide enough for the longest shape's name rather than for the word CLIP,
   /// since the button says which machine is running the way the echo's and
   /// the reverb's do.
-  static constexpr int kClipWidth = 62;
+  /// 50 rather than the 62 it had, which was sized for the word LIMITER
+  /// before the button started shortening to LIMIT and ASYM. The widest
+  /// label is now 33 px of text, and the twelve given back go to the
+  /// converter readouts beside it, which need 53 each to name their units.
+  static constexpr int kClipWidth = 50;
 
   /// The one word it ever says. Shared with the tests, which have to pick this
   /// button out of the bar's children: it is the only one that stands in the
@@ -420,7 +437,11 @@ private:
   /// image down to 150 on every repaint would be both slow and soft.
   juce::Image logo, logoScaled;
 
-  juce::TextButton presetButton, settingsButton;
+  juce::TextButton presetButton;
+
+  /// Icons rather than words, for the reason kGroupMinWidth gives.
+  GlowButton settingsButton, macroButton;
+  int macrosMade = 0;
 
   /// Whether LINK is on. The switch itself is a button in the gutter, since
   /// that is the column the tool belongs to, but what it switches lives here
