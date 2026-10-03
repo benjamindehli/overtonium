@@ -3,6 +3,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include <array>
+#include <utility>
 
 #include "dsp/Params.h"
 
@@ -105,6 +106,58 @@ inline constexpr const char *muteSuffix = "mute";
 inline constexpr const char *soloSuffix = "solo";
 inline constexpr const char *volumeSuffix = "volume";
 inline constexpr const char *panSuffix = "pan";
+
+// ---- macros -----------------------------------------------------------------
+
+/// How many rows can be automated as one.
+///
+/// Issue #24, which asked for it in the one place the instrument most needs
+/// it: a LINK drag across the TUNE row moves 32 parameters and the host
+/// catches only the last one touched, so a relationship you can edit by hand
+/// cannot be automated at all.
+///
+/// Four rather than more because each costs four parameters and a place to
+/// put them, and raising it later disturbs nothing: parameters added on the
+/// end leave every lane already written pointing where it pointed.
+inline constexpr int kNumMacros = 4;
+
+/// The rows a macro can drive, in the order the panel reads them.
+///
+/// Exactly the rows LINK can gang, which is the same restriction for the same
+/// reason: a row of shapes or of mute buttons has no value to offset. The UI
+/// names these again as ui::Role, in this order, and a test holds the two
+/// together rather than trusting them to stay in step.
+inline constexpr const char *kMacroRows[] = {
+    tuneSuffix,   phaseSuffix,    pmRateSuffix,  pmDepthSuffix, driftSuffix,
+    strikeSuffix, delaySuffix,    attackSuffix,  decaySuffix,   sustainSuffix,
+    swellSuffix,  offLevelSuffix, releaseSuffix, amRateSuffix,  amDepthSuffix,
+    velSuffix,    atSuffix,       panSuffix,     volumeSuffix};
+
+inline constexpr int kNumMacroRows =
+    (int)(sizeof(kMacroRows) / sizeof(kMacroRows[0]));
+
+/// Which channels a macro reaches. The same four LINK offers, in the same
+/// order, so choosing one on the bar and one here mean the same thing.
+enum class MacroScope { All = 0, SameInterval, Odd, Even, NumScopes };
+
+/// How a macro is shared out across the channels it reaches.
+///
+/// LINK's third curve, Spread, is not here and cannot be: it scatters each
+/// strip along the direction the drag gave it, relative to the strip under
+/// the mouse, and a macro has neither a direction nor a strip under the
+/// mouse. Taper is measured from the fundamental for the same reason, that
+/// being the one channel a macro can anchor to.
+enum class MacroCurve { Uniform = 0, Taper, NumCurves };
+
+const char *macroScopeName(MacroScope);
+const char *macroCurveName(MacroCurve);
+const char *macroRowName(int row);
+
+/// A macro's four parameter ids. The amount is the one a host draws.
+juce::String macroAmountId(int macro);
+juce::String macroRowId(int macro);
+juce::String macroScopeId(int macro);
+juce::String macroCurveId(int macro);
 
 /// What each modulation destination offers, in the order its parameter stores.
 ///
@@ -236,6 +289,22 @@ struct Cache {
   };
 
   NoiseChannel noise{};
+
+  /// A macro and what it reaches, plus the span of the row it drives so the
+  /// offset can be worked out without asking the parameters again on the
+  /// audio thread.
+  struct Macro {
+    std::atomic<float> *amount = nullptr;
+    std::atomic<float> *row = nullptr;
+    std::atomic<float> *scope = nullptr;
+    std::atomic<float> *curve = nullptr;
+  };
+
+  std::array<Macro, (size_t)kNumMacros> macro{};
+
+  /// The low and high end of every row a macro can drive, read once. Every
+  /// channel's copy of a row shares one range, so one pair answers for all 32.
+  std::array<std::pair<float, float>, (size_t)kNumMacroRows> rowRange{};
 
   std::atomic<float> *masterGain = nullptr;
   std::atomic<float> *polyphony = nullptr;

@@ -253,6 +253,73 @@ juce::String oscParamId(const char *suffix, int index0) {
   return "h" + juce::String(index0 + 1).paddedLeft('0', 2) + "_" + suffix;
 }
 
+juce::String macroAmountId(int macro) {
+  return "macro" + juce::String(macro + 1) + "_amount";
+}
+
+juce::String macroRowId(int macro) {
+  return "macro" + juce::String(macro + 1) + "_row";
+}
+
+juce::String macroScopeId(int macro) {
+  return "macro" + juce::String(macro + 1) + "_scope";
+}
+
+juce::String macroCurveId(int macro) {
+  return "macro" + juce::String(macro + 1) + "_curve";
+}
+
+const char *macroScopeName(MacroScope s) {
+  switch (s) {
+  case MacroScope::All:
+    return "All";
+  case MacroScope::SameInterval:
+    return "Same interval";
+  case MacroScope::Odd:
+    return "Odd";
+  case MacroScope::Even:
+    return "Even";
+
+  case MacroScope::NumScopes:
+    break;
+  }
+
+  return "All";
+}
+
+const char *macroCurveName(MacroCurve c) {
+  switch (c) {
+  case MacroCurve::Uniform:
+    return "Uniform";
+  case MacroCurve::Taper:
+    return "Taper";
+
+  case MacroCurve::NumCurves:
+    break;
+  }
+
+  return "Uniform";
+}
+
+/// What a row is called in a macro's own menu.
+///
+/// Spelt here rather than taken from the panel's row labels, which repeat: two
+/// rows are both called "rate" and three are called "depth", which reads fine
+/// under a heading and not at all in a flat list of nineteen.
+const char *macroRowName(int row) {
+  static const char *const names[] = {
+      "Tune",       "Phase",        "Pitch mod rate", "Pitch mod depth",
+      "Drift",      "Strike",       "Delay",          "Attack",
+      "Decay",      "Sustain",      "Key-off swell",  "Key-off level",
+      "Release",    "Amp mod rate", "Amp mod depth",  "Velocity",
+      "Aftertouch", "Pan",          "Level"};
+
+  static_assert((int)(sizeof(names) / sizeof(names[0])) == kNumMacroRows,
+                "every row a macro can drive has to have a name");
+
+  return names[(size_t)juce::jlimit(0, kNumMacroRows - 1, row)];
+}
+
 juce::String polyphonyName(int index) {
   if (index == kLegatoIndex)
     return "Legato";
@@ -390,6 +457,44 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   // params::lookaheadId for why it is a session parameter and not a patch's.
   layout.add(std::make_unique<BoolP>(juce::ParameterID{lookaheadId, 1},
                                      "Lookahead", true));
+
+  // ---- the macros ---------------------------------------------------------
+  //
+  // Four parameters each, of which one is the point: the amount is what a
+  // host draws, and the other three say what it reaches. Those three are
+  // parameters rather than state so that they travel with a patch by the
+  // rule everything else follows, and so a preset can define what its macros
+  // do rather than inheriting whatever the last one set.
+  for (int m = 0; m < kNumMacros; ++m) {
+    const auto name = "Macro " + juce::String(m + 1);
+
+    // Bipolar and centred, because a macro that could only push one way would
+    // need the patch dialled at an extreme to be useful in the other.
+    layout.add(std::make_unique<FloatP>(
+        juce::ParameterID{macroAmountId(m), 1}, name,
+        juce::NormalisableRange<float>(-1.0f, 1.0f, 0.0001f), 0.0f));
+
+    juce::StringArray rows;
+    for (int r = 0; r < kNumMacroRows; ++r)
+      rows.add(macroRowName(r));
+
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{macroRowId(m), 1}, name + " Row", rows, 0));
+
+    juce::StringArray scopes;
+    for (int i = 0; i < (int)MacroScope::NumScopes; ++i)
+      scopes.add(macroScopeName((MacroScope)i));
+
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{macroScopeId(m), 1}, name + " Scope", scopes, 0));
+
+    juce::StringArray curves;
+    for (int i = 0; i < (int)MacroCurve::NumCurves; ++i)
+      curves.add(macroCurveName((MacroCurve)i));
+
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{macroCurveId(m), 1}, name + " Curve", curves, 0));
+  }
 
   // Off by default, because it changes what an incoming channel number means
   // and most keyboards are not saying anything by it. See
@@ -779,6 +884,26 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   referenceHz = apvts.getRawParameterValue(referenceHzId);
   safetyClip = apvts.getRawParameterValue(safetyClipId);
   lookahead = apvts.getRawParameterValue(lookaheadId);
+
+  for (int m = 0; m < kNumMacros; ++m) {
+    auto &cached = macro[(size_t)m];
+
+    cached.amount = apvts.getRawParameterValue(macroAmountId(m));
+    cached.row = apvts.getRawParameterValue(macroRowId(m));
+    cached.scope = apvts.getRawParameterValue(macroScopeId(m));
+    cached.curve = apvts.getRawParameterValue(macroCurveId(m));
+  }
+
+  // Read once here rather than per block. A row's range is a property of the
+  // layout and cannot move while the plugin is running.
+  for (int r = 0; r < kNumMacroRows; ++r) {
+    auto &range = rowRange[(size_t)r];
+    range = {0.0f, 1.0f};
+
+    if (auto *p = dynamic_cast<juce::RangedAudioParameter *>(
+            apvts.getParameter(oscParamId(kMacroRows[(size_t)r], 0))))
+      range = {p->getNormalisableRange().start, p->getNormalisableRange().end};
+  }
   mpe = apvts.getRawParameterValue(mpeId);
   lofiRate = apvts.getRawParameterValue(lofiRateId);
   lofiBits = apvts.getRawParameterValue(lofiBitsId);
@@ -890,6 +1015,101 @@ bool Cache::legatoValue() const {
   return (int)polyphony->load() == kLegatoIndex;
 }
 
+namespace {
+
+/// The field a row writes into, so a macro can offset any of them without a
+/// switch at every call site.
+///
+/// Every row a macro can drive is a plain float with a range, which is the
+/// same restriction LINK works under and for the same reason: there is
+/// nothing to offset on a row of shapes or of mute buttons.
+float *macroField(OscParams &o, int row) {
+  switch (row) {
+  case 0:
+    return &o.tuneBlend;
+  case 1:
+    return &o.startPhase;
+  case 2:
+    return &o.pmRateHz;
+  case 3:
+    return &o.pmDepthCents;
+  case 4:
+    return &o.driftCents;
+  case 5:
+    return &o.strikeAmount;
+  case 6:
+    return &o.delay;
+  case 7:
+    return &o.attack;
+  case 8:
+    return &o.decay;
+  case 9:
+    return &o.sustain;
+  case 10:
+    return &o.swell;
+  case 11:
+    return &o.offLevel;
+  case 12:
+    return &o.release;
+  case 13:
+    return &o.amRateHz;
+  case 14:
+    return &o.amDepth;
+  case 15:
+    return &o.velAmount;
+  case 16:
+    return &o.atAmount;
+  case 17:
+    return &o.pan;
+  case 18:
+    return &o.volume;
+
+  default:
+    return nullptr;
+  }
+}
+
+static_assert(kNumMacroRows == 19,
+              "macroField has a case per row and has to grow with the list");
+
+/// Whether a macro reaches this channel.
+bool macroReaches(MacroScope scope, int index0) {
+  switch (scope) {
+  case MacroScope::SameInterval:
+    // Measured against the fundamental, which is what a macro anchors to,
+    // so this is every octave of it.
+    return harmonicTable()[(size_t)index0].pitchClass ==
+           harmonicTable()[0].pitchClass;
+  case MacroScope::Odd:
+    return ((index0 + 1) % 2) == 1;
+  case MacroScope::Even:
+    return ((index0 + 1) % 2) == 0;
+
+  case MacroScope::All:
+  case MacroScope::NumScopes:
+    break;
+  }
+
+  return true;
+}
+
+/// This channel's share, from the fundamental outwards.
+///
+/// Taper is measured against the full width of the mixer rather than against
+/// whichever end is nearer, which is what ui::linkCurveWeight does from the
+/// strip under the mouse. A test holds the two together.
+float macroWeight(MacroCurve curve, int index0) {
+  if (curve != MacroCurve::Taper)
+    return 1.0f;
+
+  const auto distance = (float)juce::jlimit(0, kNumHarmonics - 1, index0) /
+                        (float)(kNumHarmonics - 1);
+
+  return 1.0f - distance;
+}
+
+} // namespace
+
 void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   // Solo spans the noise channel too, so soloing a partial silences the noise
   // and soloing the noise silences the series.
@@ -932,6 +1152,58 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
 
     // Mixer convention: solo isolates, but an explicit mute still wins.
     o.audible = muted ? false : (anySolo ? soloed : true);
+  }
+
+  // ---- the macros ---------------------------------------------------------
+  //
+  // Offsets laid over what the patch says rather than writes into it, which
+  // is the whole point of them: a host draws one lane, 32 channels move, and
+  // nothing in the patch changes. Writing instead would mean 32 parameter
+  // changes per move for the host to catch, which is the problem issue #24
+  // reported rather than a way out of it, and it would overwrite the sound
+  // the macro was supposed to be shaping.
+  //
+  // It also means the knobs do not move when a macro does. That is what a VCA
+  // does, and it is the one thing about these worth knowing in advance.
+  for (int m = 0; m < kNumMacros; ++m) {
+    const auto &cached = macro[(size_t)m];
+
+    if (cached.amount == nullptr)
+      continue;
+
+    const auto amount = cached.amount->load();
+
+    // The common case by far, and the one that has to be free.
+    if (std::abs(amount) < 1.0e-6f)
+      continue;
+
+    const int row = juce::jlimit(0, kNumMacroRows - 1,
+                                 (int)std::lround(cached.row->load()));
+    const auto scope =
+        (MacroScope)juce::jlimit(0, (int)MacroScope::NumScopes - 1,
+                                 (int)std::lround(cached.scope->load()));
+    const auto curve =
+        (MacroCurve)juce::jlimit(0, (int)MacroCurve::NumCurves - 1,
+                                 (int)std::lround(cached.curve->load()));
+
+    const auto range = rowRange[(size_t)row];
+    const auto span = range.second - range.first;
+
+    for (int i = 0; i < kNumHarmonics; ++i) {
+      if (!macroReaches(scope, i))
+        continue;
+
+      auto *field = macroField(out.osc[(size_t)i], row);
+
+      if (field == nullptr)
+        continue;
+
+      // Clamped to the row's own range, so a macro can take a control to its
+      // end and no further. Two macros on one row add up and the clamp still
+      // holds.
+      *field = juce::jlimit(range.first, range.second,
+                            *field + amount * span * macroWeight(curve, i));
+    }
   }
 
   {

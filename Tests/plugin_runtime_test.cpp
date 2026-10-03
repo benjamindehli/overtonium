@@ -248,7 +248,12 @@ void testParameterWiring(OvertoniumProcessor &p) {
   // The fourth is whether the output stage may look ahead, which is a session
   // setting rather than part of a patch and is the only parameter here that
   // changes what the plugin reports to the host. See params::lookaheadId.
-  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4;
+  //
+  // And four each for the macros: an amount, which is the one a host draws,
+  // and the three that say which row it reaches, which channels of it and how
+  // it is shared out. See params::kNumMacros.
+  const int expected =
+      ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + ovt::params::kNumMacros * 4;
 
   // The behaviour that was there before it became a choice. Asked of the
   // parameter rather than of the tree, so the answer does not depend on what
@@ -870,6 +875,146 @@ void testMidiLearnBindsControllers(OvertoniumProcessor &p) {
   }
 
   p.midiLearn.clear();
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
+/// That one automatable parameter moves a whole row, which is what issue #24
+/// asked for: a LINK drag across TUNE moves 32 parameters and a host catches
+/// only the last touched, so a relationship you can edit cannot be automated.
+///
+/// Read off the snapshot rather than off the sound, because what a macro does
+/// is offset what the patch says on the way to the engine. The sound follows
+/// from that and is a much blunter instrument for telling 32 channels apart.
+void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
+  section("Macros");
+
+  p.applyFactoryPreset(presetIndex("Init"));
+  p.prepareToPlay(48000.0, 256);
+
+  const auto set = [&p](const juce::String &id, float plain) {
+    if (auto *q = p.apvts.getParameter(id))
+      q->setValueNotifyingHost(q->convertTo0to1(plain));
+  };
+
+  const auto snapshot = [&p] {
+    ovt::SynthParams out;
+    p.parameters().snapshot(out, 0.0f);
+    return out;
+  };
+
+  // The row the issue names, and the one a macro is most wanted on.
+  const int tuneRow = 0;
+
+  const auto resting = snapshot();
+
+  // What the parameters say before anything is asked of them, so that
+  // "the macro wrote nothing" is measured against the patch rather than
+  // against zero.
+  std::vector<float> before;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    before.push_back(
+        p.apvts
+            .getParameter(ovt::params::oscParamId(ovt::params::tuneSuffix, i))
+            ->getValue());
+
+  set(ovt::params::macroRowId(0), (float)tuneRow);
+  set(ovt::params::macroScopeId(0), 0.0f);
+  set(ovt::params::macroCurveId(0), 0.0f);
+
+  // Downward, because Init leaves TUNE at the top of its range: pushing up
+  // would clamp on every channel and the test would read "nothing moved"
+  // while the macro was working perfectly.
+  set(ovt::params::macroAmountId(0), -0.25f);
+
+  const auto moved = snapshot();
+
+  int shifted = 0;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    if (std::abs(moved.osc[(size_t)i].tuneBlend -
+                 resting.osc[(size_t)i].tuneBlend) > 1.0e-5f)
+      ++shifted;
+
+  check(shifted == ovt::kNumHarmonics, "one macro moves the whole row (" +
+                                           std::to_string(shifted) +
+                                           " of 32 channels)");
+
+  // The thing that makes it a macro rather than a drag: the parameters it
+  // offsets have not moved, so the patch is exactly where it was and the host
+  // has one lane rather than thirty-two.
+  int written = 0;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i) {
+    auto *q = p.apvts.getParameter(
+        ovt::params::oscParamId(ovt::params::tuneSuffix, i));
+
+    if (q != nullptr && std::abs(q->getValue() - before[(size_t)i]) > 1.0e-6f)
+      ++written;
+  }
+
+  check(written == 0, "and writes none of the parameters it moves (" +
+                          std::to_string(written) + " written)");
+
+  // ---- the scope decides who it reaches ----------------------------------
+  set(ovt::params::macroScopeId(0), (float)(int)ovt::params::MacroScope::Odd);
+
+  const auto odd = snapshot();
+
+  int oddMoved = 0, evenMoved = 0;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i) {
+    const bool differs = std::abs(odd.osc[(size_t)i].tuneBlend -
+                                  resting.osc[(size_t)i].tuneBlend) > 1.0e-5f;
+
+    if (differs)
+      (((i + 1) % 2) == 1 ? oddMoved : evenMoved)++;
+  }
+
+  check(oddMoved == 16 && evenMoved == 0,
+        "the scope decides which channels it reaches (" +
+            std::to_string(oddMoved) + " odd, " + std::to_string(evenMoved) +
+            " even)");
+
+  // ---- and the curve decides how much each one takes ---------------------
+  set(ovt::params::macroScopeId(0), 0.0f);
+  set(ovt::params::macroCurveId(0), (float)(int)ovt::params::MacroCurve::Taper);
+
+  const auto tapered = snapshot();
+
+  const auto shiftAt = [&](const ovt::SynthParams &s, int i) {
+    return s.osc[(size_t)i].tuneBlend - resting.osc[(size_t)i].tuneBlend;
+  };
+
+  check(std::abs(shiftAt(tapered, 0)) > std::abs(shiftAt(tapered, 16)) &&
+            std::abs(shiftAt(tapered, 16)) > std::abs(shiftAt(tapered, 31)),
+        "a tapered macro moves the fundamental most and the top least");
+
+  // Held to the curve LINK draws, so the two cannot drift into meaning
+  // different things by the same name. A macro anchors at the fundamental,
+  // which is what the 0 is.
+  int disagreed = 0;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i) {
+    const auto theirs =
+        ovt::ui::linkCurveWeight(ovt::ui::LinkCurve::Taper, i, 0);
+    const auto mine = shiftAt(tapered, i) / shiftAt(tapered, 0);
+
+    if (std::abs(theirs - mine) > 1.0e-4f)
+      ++disagreed;
+  }
+
+  check(disagreed == 0, "and takes the same share LINK would give it (" +
+                            std::to_string(disagreed) + " channels differ)");
+
+  // ---- a macro at rest is not in the way ---------------------------------
+  set(ovt::params::macroAmountId(0), 0.0f);
+
+  const auto back = snapshot();
+
+  int stillMoved = 0;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    if (std::abs(back.osc[(size_t)i].tuneBlend -
+                 resting.osc[(size_t)i].tuneBlend) > 1.0e-9f)
+      ++stillMoved;
+
+  check(stillMoved == 0, "and leaves nothing behind when it returns to zero");
+
   p.applyFactoryPreset(presetIndex("Init"));
 }
 
@@ -8219,6 +8364,7 @@ int main() {
   testEveryHostRateStaysFinite();
   testTheSafetyClipHoldsUnity();
   testMidiLearnBindsControllers(processor);
+  testMacrosMoveAWholeRow(processor);
   testSettingsNamesTheVersion(processor);
   testMachineMenusFollowTheirParameters(processor);
   testPresetMenuGroups(processor);
