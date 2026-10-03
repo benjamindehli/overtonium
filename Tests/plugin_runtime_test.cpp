@@ -5863,10 +5863,11 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
 void testPresetsAreReproducible(OvertoniumProcessor &p) {
   section("Presets start from a known state");
 
-  // What a preset deliberately leaves alone: how you play it and how loud, as
-  // opposed to what it sounds like. Asked of the one list rather than copied
-  // into a second one here, which is the whole reason that list is shared. The
-  // copy this replaced had already fallen three settings behind it.
+  // What a preset deliberately leaves alone: how you play it, as opposed to
+  // what it sounds like, which takes in how loud it is. Asked of the one list
+  // rather than copied into a second one here, which is the whole reason that
+  // list is shared. The copy this replaced had already fallen three settings
+  // behind it.
 
   const auto snapshot = [&p] {
     std::vector<std::pair<juce::String, float>> out;
@@ -6655,9 +6656,10 @@ void testPrograms(OvertoniumProcessor &p) {
 
   p.applyFactoryPreset(chosen);
 
-  // A parameter the presets actually set. Master gain is a session parameter
-  // and presets leave it alone, so an edit to it survives everything here and
-  // would make every check below pass without proving anything.
+  // A parameter the presets actually set, so the value read below is one the
+  // preset put there rather than whatever happened to be lying about. Anything
+  // a preset left alone would survive the reload and make every check pass
+  // without proving a thing.
   auto *volume = p.apvts.getParameter(
       ovt::params::oscParamId(ovt::params::volumeSuffix, 0));
 

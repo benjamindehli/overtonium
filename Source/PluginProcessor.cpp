@@ -717,7 +717,7 @@ void OvertoniumProcessor::setStateInformation(const void *data,
       //
       // It has to be caught here because there is nowhere later that is
       // cheap. The parameters are read into a snapshot every block, and
-      // testing 786 of them for being a number on the audio thread is a cost
+      // testing 787 of them for being a number on the audio thread is a cost
       // paid forever against a file that is already broken.
       for (auto *parameter : getParameters())
         if (!std::isfinite(parameter->getValue()))
