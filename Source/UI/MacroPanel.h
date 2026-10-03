@@ -82,6 +82,14 @@ private:
   /// The card the strips sit on, which is what a click has to land inside to
   /// count as a click on the panel rather than on the dim behind it.
   juce::Rectangle<int> card;
+
+  /// Where the column names go, worked out with the columns themselves so
+  /// the two cannot drift apart. Row, scope, curve and amount.
+  std::array<juce::Rectangle<int>, 4> columnLabel{};
+
+  /// The band the line about what a macro is sits in, which is the space a
+  /// first macro will take once there is one.
+  juce::Rectangle<int> emptyMessage;
 };
 
 } // namespace ovt::ui

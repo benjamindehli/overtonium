@@ -11,7 +11,16 @@ constexpr int kPadding = 18;
 constexpr int kRowHeight = 30;
 constexpr int kRowGap = 6;
 constexpr int kHeaderHeight = 34;
-constexpr int kFooterHeight = 38;
+
+/// The strip of column names between the title and the first macro.
+constexpr int kColumnsHeight = 16;
+
+/// Between the last macro and the two buttons, and under them. The buttons
+/// belong to the list rather than to the card's bottom edge, so they sit just
+/// below the rows with the breathing room underneath instead of above.
+constexpr int kButtonsGap = 12;
+constexpr int kButtonHeight = 26;
+constexpr int kBottomPad = 18;
 constexpr int kMaxCardWidth = 760;
 
 /// What each control on a strip is given, left to right. The amount takes
@@ -308,8 +317,9 @@ void MacroPanel::resized() {
   const int wanted = juce::jmin(kMaxCardWidth, getWidth() - kPadding * 2);
   const int rows = juce::jmax(1, (int)showing.size());
 
-  const int height =
-      kHeaderHeight + kFooterHeight + rows * (kRowHeight + kRowGap) + kPadding;
+  const int height = kHeaderHeight + kColumnsHeight +
+                     rows * (kRowHeight + kRowGap) + kButtonsGap +
+                     kButtonHeight + kBottomPad;
 
   card = juce::Rectangle<int>(0, 0, wanted,
                               juce::jmin(getHeight() - kPadding * 2, height))
@@ -317,6 +327,30 @@ void MacroPanel::resized() {
 
   auto body = card.reduced(kPadding, 0);
   body.removeFromTop(kHeaderHeight);
+
+  // Nothing made yet, so the space a first macro would take carries the line
+  // saying what one is. Taken out of the same body, so the buttons sit under
+  // it exactly as they sit under a list.
+  if (showing.empty())
+    emptyMessage = body.removeFromTop(kColumnsHeight + kRowHeight + kRowGap);
+
+  // The names of the columns, kept as rectangles rather than drawn from the
+  // same arithmetic twice: a heading that drifted from the thing under it
+  // would be worse than no heading.
+  if (!showing.empty()) {
+    auto line = body.removeFromTop(kColumnsHeight);
+
+    line.removeFromLeft(kColourWidth + kGap);
+    columnLabel[0] = line.removeFromLeft(kRowWidth);
+    line.removeFromLeft(kGap);
+    columnLabel[1] = line.removeFromLeft(kScopeWidth);
+    line.removeFromLeft(kGap);
+    columnLabel[2] = line.removeFromLeft(kCurveWidth);
+    line.removeFromLeft(kGap + kAnchorWidth + kGap);
+
+    line.removeFromRight(kRemoveWidth + kGap + kReadingWidth + kGap);
+    columnLabel[3] = line;
+  }
 
   for (int m : showing) {
     auto &strip = strips[(size_t)m];
@@ -347,11 +381,13 @@ void MacroPanel::resized() {
     strip.amount.setBounds(line);
   }
 
-  auto footer = card.reduced(kPadding, 0).removeFromBottom(kFooterHeight);
-  footer.removeFromTop(8);
+  // Straight under the last row, with the space left over below them.
+  body.removeFromTop(kButtonsGap - kRowGap);
 
-  addButton.setBounds(footer.removeFromLeft(110));
-  closeButton.setBounds(footer.removeFromRight(72));
+  auto buttons = body.removeFromTop(kButtonHeight);
+
+  addButton.setBounds(buttons.removeFromLeft(110));
+  closeButton.setBounds(buttons.removeFromRight(72));
 }
 
 void MacroPanel::paint(juce::Graphics &g) {
@@ -376,9 +412,23 @@ void MacroPanel::paint(juce::Graphics &g) {
     g.setFont(makeFont(12.0f, false));
     g.drawText("One parameter that moves a whole row, and that a host can "
                "automate.",
-               card.reduced(kPadding, kHeaderHeight + 4),
-               juce::Justification::centredTop, true);
+               emptyMessage, juce::Justification::centred, true);
+
+    return;
   }
+
+  // What each column is. Named as the parameters are named, so the panel and
+  // the host's own list say the same word about the same thing.
+  static const char *const names[] = {"Row", "Scope", "Curve", "Amount"};
+
+  g.setColour(colours::textDim);
+  g.setFont(makeFont(10.0f, false));
+
+  for (size_t i = 0; i < columnLabel.size(); ++i)
+    g.drawText(names[i], columnLabel[i],
+               i + 1 == columnLabel.size() ? juce::Justification::centredLeft
+                                           : juce::Justification::centred,
+               false);
 }
 
 void MacroPanel::mouseDown(const juce::MouseEvent &e) {
