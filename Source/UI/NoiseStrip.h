@@ -59,6 +59,10 @@ public:
   void setDrawGlow(bool);
 
   void mouseDown(const juce::MouseEvent &) override;
+
+  /// As TopBar::onLearnRequested. The noise channel is one strip rather than
+  /// a series, so LINK has nothing to say about it either.
+  std::function<void(const juce::String &)> onLearnRequested;
   void mouseEnter(const juce::MouseEvent &) override;
   void mouseMove(const juce::MouseEvent &) override;
   void mouseExit(const juce::MouseEvent &) override;

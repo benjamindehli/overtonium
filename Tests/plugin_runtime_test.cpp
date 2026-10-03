@@ -24,6 +24,7 @@
 #include "PluginProcessor.h"
 #include "Presets.h"
 #include "UI/ChannelStrip.h"
+#include "UI/LearnMenu.h"
 #include "UI/LookAndFeel.h"
 #include "UI/NoiseStrip.h"
 #include "UI/ShapeButton.h"
@@ -618,6 +619,258 @@ void testRendering(OvertoniumProcessor &p) {
 
   p.reset();
   renderBlocks(p, 400, 512);
+}
+
+/// That a controller can be bound to a control, that binding one does not
+/// cost the instrument something it was already using, and that the map
+/// survives the session being saved and opened again.
+///
+/// The map is reached directly rather than through the menus, since what a
+/// menu does is call these. The menu itself is checked by the item it offers.
+void testMidiLearnBindsControllers(OvertoniumProcessor &p) {
+  section("MIDI learn");
+
+  p.midiLearn.clear();
+  p.applyFactoryPreset(presetIndex("Init"));
+  p.prepareToPlay(48000.0, 256);
+
+  auto *target = dynamic_cast<juce::RangedAudioParameter *>(
+      p.apvts.getParameter(ovt::params::wobbleId));
+
+  check(target != nullptr, "there is a control to bind");
+  if (target == nullptr)
+    return;
+
+  const auto send = [&p](int controller, int value) {
+    juce::MidiBuffer midi;
+    midi.addEvent(juce::MidiMessage::controllerEvent(1, controller, value), 0);
+    renderBlocks(p, 2, 256, midi);
+  };
+
+  check(p.midiLearn.controllerFor(target) < 0, "and nothing is bound to start");
+
+  // ---- the reserved ones are refused -------------------------------------
+  //
+  // Armed and then handed the slide axis, which is the one most likely to be
+  // touched by accident on an MPE controller, since it moves whenever a
+  // finger does.
+  p.midiLearn.arm(target);
+  send(74, 100);
+
+  check(p.midiLearn.armed() == target,
+        "the slide axis does not get taken by a knob that is waiting");
+  check(p.midiLearn.controllerFor(target) < 0, "and binds nothing");
+
+  send(1, 100);
+  check(p.midiLearn.armed() == target, "nor does the mod wheel");
+
+  // ---- an ordinary one is taken ------------------------------------------
+  send(20, 64);
+
+  check(p.midiLearn.armed() == nullptr, "an ordinary controller is learned");
+  check(p.midiLearn.controllerFor(target) == 20,
+        "and is what moves that control now (" +
+            std::to_string(p.midiLearn.controllerFor(target)) + ")");
+
+  // The message that bound it does not also move the control, which would be
+  // a jump at the moment somebody is looking at it.
+  const auto afterBinding = target->getValue();
+
+  send(20, 127);
+  check(target->getValue() > afterBinding + 0.1f,
+        "the next message moves it (" + std::to_string(target->getValue()) +
+            ")");
+
+  send(20, 0);
+  check(target->getValue() < 0.01f, "and all the way back down (" +
+                                        std::to_string(target->getValue()) +
+                                        ")");
+
+  // ---- it survives the session -------------------------------------------
+  juce::MemoryBlock saved;
+  p.getStateInformation(saved);
+
+  p.midiLearn.clear();
+  check(p.midiLearn.controllerFor(target) < 0, "forgetting works");
+
+  p.setStateInformation(saved.getData(), (int)saved.getSize());
+
+  auto *afterLoad = dynamic_cast<juce::RangedAudioParameter *>(
+      p.apvts.getParameter(ovt::params::wobbleId));
+
+  check(p.midiLearn.controllerFor(afterLoad) == 20,
+        "and the binding comes back with the session (" +
+            std::to_string(p.midiLearn.controllerFor(afterLoad)) + ")");
+
+  // ---- and a preset cannot touch it --------------------------------------
+  //
+  // The map describes the desk rather than the sound, so loading a patch over
+  // it would be rearranging somebody's hardware.
+  p.applyFactoryPreset(presetIndex("Big Saw"));
+
+  check(p.midiLearn.controllerFor(afterLoad) == 20,
+        "which a preset does not disturb");
+
+  // ---- and it works where it would be easiest to break ------------------
+  //
+  // With MPE on, the parser is handed every message and only the mod wheel, a
+  // program change and all-sound-off fall through to the ordinary handler. A
+  // binding checked after that would be dead on exactly the controller this
+  // instrument is usually played from. Everything above this point passes
+  // whether the check runs before the parser or after it, because MPE is off
+  // by default, which is what makes this case worth its own lines.
+  if (auto *mpe = p.apvts.getParameter(ovt::params::mpeId)) {
+    mpe->setValueNotifyingHost(1.0f);
+    p.prepareToPlay(48000.0, 256);
+
+    // Let go of the one it already has first. Two controllers may point at
+    // one control, and controllerFor answers with the lowest of them, so
+    // leaving CC 20 bound would have this reading 20 whatever CC 21 did.
+    p.midiLearn.forget(afterLoad);
+    p.midiLearn.arm(afterLoad);
+    send(21, 64);
+
+    check(p.midiLearn.controllerFor(afterLoad) == 21,
+          "a controller is still learned with MPE on (" +
+              std::to_string(p.midiLearn.controllerFor(afterLoad)) + ")");
+
+    send(21, 127);
+    const auto high = afterLoad->getValue();
+
+    send(21, 0);
+
+    check(high > afterLoad->getValue() + 0.1f,
+          "and still moves the control it was bound to (" +
+              std::to_string(high) + " then " +
+              std::to_string(afterLoad->getValue()) + ")");
+
+    mpe->setValueNotifyingHost(0.0f);
+    p.prepareToPlay(48000.0, 256);
+  }
+
+  // ---- the menu says so, and the controls answer to it -------------------
+  //
+  // The map above is reached directly, which proves nothing about whether a
+  // right-click can get at it. Two things have to hold: a control has to know
+  // which parameter it moves, and the menu has to offer the item.
+  {
+    std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+    auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+    check(editor != nullptr, "the editor opens");
+
+    if (editor != nullptr) {
+      std::function<const juce::Component *(const juce::Component &,
+                                            const juce::String &)>
+          findTagged =
+              [&findTagged](
+                  const juce::Component &c,
+                  const juce::String &wanted) -> const juce::Component * {
+        for (auto *child : c.getChildren()) {
+          if (ovt::ui::learn::parameterIdAt(child) == wanted)
+            return child;
+
+          if (auto *found = findTagged(*child, wanted))
+            return found;
+        }
+
+        return nullptr;
+      };
+
+      // A fader on the first channel, which is tagged where its attachment is
+      // made, and the master fader on the bar, which is tagged somewhere else
+      // entirely. One of each, so a tag added in only one of the two places
+      // fails here.
+      const auto fader = ovt::params::oscParamId(ovt::params::volumeSuffix, 0);
+
+      check(findTagged(*editor, fader) != nullptr,
+            "a channel fader knows which parameter it moves");
+      check(findTagged(*editor, ovt::params::masterGainId) != nullptr,
+            "and so does the master fader on the bar");
+
+      // ---- and a waiting control says so -------------------------------
+      //
+      // Arming happens through the map, the marker is hung by the window on
+      // its timer, and the look and feel is what draws it. This checks the
+      // middle of those three: that the window finds the right control and
+      // marks it, and takes the mark off again when the wait ends.
+      auto *wobble = dynamic_cast<juce::RangedAudioParameter *>(
+          p.apvts.getParameter(ovt::params::wobbleId));
+
+      const auto markOn = [&](const juce::String &id) {
+        auto *c = ovt::ui::learn::controlFor(*editor, id);
+        return c != nullptr &&
+               (bool)c->getProperties().getWithDefault("learnArmed", false);
+      };
+
+      check(!markOn(ovt::params::wobbleId), "nothing is marked to start");
+
+      p.midiLearn.arm(wobble);
+      editor->followArmedControl();
+
+      check(markOn(ovt::params::wobbleId),
+            "the control a controller is being waited for is marked");
+
+      // Moving the wait to another control takes the mark with it, which is
+      // what right-clicking a second control does.
+      p.midiLearn.arm(dynamic_cast<juce::RangedAudioParameter *>(
+          p.apvts.getParameter(ovt::params::stretchId)));
+      editor->followArmedControl();
+
+      check(!markOn(ovt::params::wobbleId) && markOn(ovt::params::stretchId),
+            "and only one is ever marked at a time");
+
+      p.midiLearn.arm(nullptr);
+      editor->followArmedControl();
+
+      check(!markOn(ovt::params::stretchId),
+            "and the mark goes when the wait ends");
+    }
+  }
+
+  {
+    auto *target2 = dynamic_cast<juce::RangedAudioParameter *>(
+        p.apvts.getParameter(ovt::params::stretchId));
+
+    const auto itemsIn = [](juce::PopupMenu &menu) {
+      std::string found;
+
+      for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+        found += it.getItem().text.toStdString() + "|";
+
+      return found;
+    };
+
+    p.midiLearn.forget(target2);
+
+    juce::PopupMenu fresh;
+    ovt::ui::learn::appendItems(fresh, p.midiLearn, target2);
+
+    check(itemsIn(fresh).find("MIDI Learn") != std::string::npos,
+          "an unbound control is offered MIDI Learn (" + itemsIn(fresh) + ")");
+
+    p.midiLearn.bind(22, target2);
+
+    juce::PopupMenu bound;
+    ovt::ui::learn::appendItems(bound, p.midiLearn, target2);
+
+    check(itemsIn(bound).find("Forget CC 22") != std::string::npos,
+          "a bound one is offered the way back (" + itemsIn(bound) + ")");
+
+    p.midiLearn.arm(target2);
+
+    juce::PopupMenu waiting;
+    ovt::ui::learn::appendItems(waiting, p.midiLearn, target2);
+
+    check(itemsIn(waiting).find("Stop waiting") != std::string::npos,
+          "and one that is waiting can be told to stop (" + itemsIn(waiting) +
+              ")");
+
+    p.midiLearn.arm(nullptr);
+  }
+
+  p.midiLearn.clear();
+  p.applyFactoryPreset(presetIndex("Init"));
 }
 
 void testPresets(OvertoniumProcessor &p) {
@@ -4101,7 +4354,7 @@ void testOneRightClickOpensOneMenu(OvertoniumProcessor &p) {
     void linkDragStarted(ovt::ui::Role, int) override {}
     void linkValueChanged(ovt::ui::Role, int, float) override {}
     void linkDragEnded(ovt::ui::Role, int) override {}
-    void showLinkMenu() override { ++opened; }
+    void showLinkMenu(const juce::String &) override { ++opened; }
     // Nowhere to scroll, so the wheel would fall through as it used to.
     bool scrollParameters(int) override { return false; }
 
@@ -4195,7 +4448,7 @@ void testTheRulesFoldTheirSections(OvertoniumProcessor &p) {
     void linkDragStarted(ovt::ui::Role, int) override {}
     void linkValueChanged(ovt::ui::Role, int, float) override {}
     void linkDragEnded(ovt::ui::Role, int) override {}
-    void showLinkMenu() override { ++menus; }
+    void showLinkMenu(const juce::String &) override { ++menus; }
     bool scrollParameters(int) override { return false; }
 
     bool drawStarted(juce::Point<int>) override { return false; }
@@ -7965,6 +8218,7 @@ int main() {
   testACorruptStateCannotPoisonTheOutput();
   testEveryHostRateStaysFinite();
   testTheSafetyClipHoldsUnity();
+  testMidiLearnBindsControllers(processor);
   testSettingsNamesTheVersion(processor);
   testMachineMenusFollowTheirParameters(processor);
   testPresetMenuGroups(processor);

@@ -366,6 +366,15 @@ void OvertoniumProcessor::updateAftertouch() {
 }
 
 void OvertoniumProcessor::handleMidiMessage(const juce::MidiMessage &m) {
+  // Before the MPE parser rather than after it. With MPE on that parser is
+  // handed every message and only the mod wheel, a program change and
+  // all-sound-off fall through, so a controller bound to a knob would never
+  // arrive at all. MidiLearn refuses the numbers the parser needs, which is
+  // what makes taking first pass at them safe. See MidiLearn::isReserved.
+  if (m.isController() &&
+      midiLearn.handle(m.getControllerNumber(), m.getControllerValue()))
+    return;
+
   if (mpeWasOn) {
     // Notes, bend, pressure, the pedal and the layout messages are all the
     // parser's, on every channel it has been given. That includes the master
@@ -693,6 +702,13 @@ void OvertoniumProcessor::getStateInformation(juce::MemoryBlock &destData) {
   state.setProperty(kCurrentProgramProperty, currentProgram, nullptr);
   state.setProperty(kPresetNameProperty, loadedPresetName, nullptr);
 
+  // Saved with the session rather than with a patch, like the fold mask and
+  // the zoom: which controller moves which knob describes the desk this is
+  // plugged into, and a preset that rearranged it would be rearranging
+  // somebody's hardware.
+  state.removeChild(state.getChildWithName(ovt::MidiLearn::kTreeType), nullptr);
+  state.appendChild(midiLearn.toTree(), nullptr);
+
   if (auto xml = state.createXml())
     copyXmlToBinary(*xml, destData);
 }
@@ -739,6 +755,13 @@ void OvertoniumProcessor::setStateInformation(const void *data,
       programApplied = true;
 
       apvts.replaceState(tree);
+
+      // After replaceState, since a binding names a parameter and the lookup
+      // wants the parameters this session is actually going to use. A session
+      // written before this existed has no such child and comes back with
+      // nothing bound, which is what it had.
+      midiLearn.fromTree(tree.getChildWithName(ovt::MidiLearn::kTreeType),
+                         *this);
 
       // A value that is not a real number, put back to the default.
       //

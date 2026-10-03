@@ -101,6 +101,7 @@ set(OVERTONIUM_SOURCES
     Source/PluginEditor.cpp
     Source/PluginParameters.cpp
     Source/Presets.cpp
+    Source/MidiLearn.cpp
     Source/UpdateCheck.cpp
     Source/dsp/BucketEcho.cpp
     Source/dsp/DigitalEcho.cpp

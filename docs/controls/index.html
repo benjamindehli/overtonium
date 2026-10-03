@@ -6,7 +6,7 @@
         <title>Overtonium controls: every knob on a channel and on the bar</title>
         <meta
             name="description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 788 parameters are named for a host, and the bus drive, wobble, echo, reverb, converter and output stage on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, MIDI Learn, how the 788 parameters are named for a host, and the bus drive, wobble, echo, reverb, converter and output stage on the bar."
         />
         <link rel="canonical" href="https://benjamindehli.github.io/overtonium/controls/" />
         <meta name="theme-color" content="#0b0d10" />
@@ -17,7 +17,7 @@
         <meta property="og:title" content="Overtonium controls: every knob on a channel and on the bar" />
         <meta
             property="og:description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 788 parameters are named for a host, and the bus drive, wobble, echo, reverb, converter and output stage on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, MIDI Learn, how the 788 parameters are named for a host, and the bus drive, wobble, echo, reverb, converter and output stage on the bar."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-controls.jpg" />
         <meta property="og:image:width" content="1200" />
@@ -28,7 +28,7 @@
         <meta name="twitter:title" content="Overtonium controls: every knob on a channel and on the bar" />
         <meta
             name="twitter:description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 788 parameters are named for a host, and the bus drive, wobble, echo, reverb, converter and output stage on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, MIDI Learn, how the 788 parameters are named for a host, and the bus drive, wobble, echo, reverb, converter and output stage on the bar."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-controls.jpg" />
 
@@ -829,8 +829,8 @@
                     <h2>Automating it from the host</h2>
 
                     <p>
-                        Seven hundred and eighty-six parameters reach the host: thirty-two global ones, twenty-three on each of the 32 partials, and
-                        eighteen on the noise channel. They are listed in the order the panel reads, the globals first and then channel by channel
+                        Seven hundred and eighty-eight parameters reach the host: thirty-four global ones, twenty-three on each of the 32 partials,
+                        and eighteen on the noise channel. They are listed in the order the panel reads, the globals first and then channel by channel
                         with the noise channel last.
                     </p>
 
@@ -895,6 +895,50 @@
                         LINK is not a parameter, since it is a tool for the mouse rather than part of the sound. A drag under it opens a gesture on
                         every channel it reaches, writes each one, and closes them together, so what a host records is what actually moved: thirty-two
                         lanes if the drag moved thirty-two channels.
+                    </p>
+                </section>
+
+                <section>
+                    <h2>Playing it from a controller</h2>
+
+                    <p>
+                        <strong>Right-click any control and choose MIDI Learn</strong>, then move something on your controller. A violet ring marks
+                        the control while it waits, so you can see what is listening without opening the menu again, and only ever one control carries
+                        it. Right-click the same control afterwards and the menu says which controller moves it, with the way to forget it or to bind
+                        a different one. In the mixer these items sit under the LINK settings that right-click already opens. On the bar and the noise
+                        channel they are a menu of their own, since neither is part of the series LINK gangs.
+                    </p>
+
+                    <p>
+                        Your host almost certainly offers the same thing. What this does that a host cannot is let you make the map by right-clicking
+                        the knob itself rather than finding <code>H17 AM Rate</code> in a list of 788, and behave the same way wherever you open it.
+                    </p>
+
+                    <p>
+                        <strong>Eleven controllers are refused</strong>, because something is already listening for them and losing it would be felt
+                        while playing rather than noticed afterwards. Controller 1 is the mod wheel, which can feed aftertouch. 64 is the sustain
+                        pedal. 74 is the slide axis, the one most easily bound by accident since it moves whenever a finger does on an MPE keyboard.
+                        120 and 123 stop notes. Controllers 6, 38, 98, 99, 100 and 101 are how a keyboard tells the instrument what it is. Arming a
+                        knob and then reaching for the slide to steady a note leaves the note steadied and the knob still waiting.
+                    </p>
+
+                    <p>
+                        <strong>It works the same with MPE switched on</strong>, which is not free: with MPE on, nearly every message belongs to the
+                        part of the instrument that reads your keyboard's layout, so a binding is looked for before that rather than after it.
+                        Otherwise it would be dead on exactly the controllers this is usually played from.
+                    </p>
+
+                    <p>
+                        The map is saved with your project, beside the window size and the folded sections, and
+                        <strong>a preset never touches it</strong>. Which controller moves which knob describes the desk you are plugged into rather
+                        than the sound, and a patch that rearranged it would be rearranging your hardware. A binding records the parameter by name, so
+                        a later version adding controls cannot silently repoint it at something else.
+                    </p>
+
+                    <p>
+                        Two things to expect. A control jumps to wherever the controller is standing rather than waiting to be picked up, so a knob
+                        turned to the top will take the parameter there the moment you touch it. And a controller moving a control is not something
+                        undo reverses, for the same reason automation is not.
                     </p>
                 </section>
 

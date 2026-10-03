@@ -54,6 +54,7 @@ Source/
     SynthEngine.*   voice pool, allocation, stealing, effects, master stage
   PluginParameters.*  APVTS layout, 788 parameters, and the audio-thread snapshot
   Presets.*           factory presets
+  MidiLearn.*         which controller moves which control
   PluginProcessor.*   MIDI handling, sample-accurate rendering, state
   PluginEditor.*      window, zoom, LINK, gutter
   UI/                 theme, look and feel, channel and noise strips, top bar

@@ -160,7 +160,22 @@ public:
                         float plainValue) override;
   void linkDragEnded(ovt::ui::Role, int sourceIndex) override;
 
-  void showLinkMenu() override;
+  void showLinkMenu(const juce::String &parameterId) override;
+
+  /// The learn items on their own, for the controls that are not part of the
+  /// series LINK gangs: everything on the bar, and the noise channel.
+  void showLearnMenu(const juce::String &parameterId);
+
+  /// Keeps the waiting marker on whichever control the map is listening for.
+  ///
+  /// Polled rather than pushed, because the thing that ends the wait is a
+  /// controller message arriving on the audio thread, which is no place to be
+  /// repainting from. See ovt::MidiLearn.
+  void followArmedControl();
+
+  /// What carries the marker now, so it can be taken off again without
+  /// searching the window for anything that might have one.
+  juce::String armedParameter;
   bool scrollParameters(int delta) override;
 
   /// A wheel that reached the editor, which is one over the gutter or the

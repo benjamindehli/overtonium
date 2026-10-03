@@ -1,4 +1,5 @@
 #include "NoiseStrip.h"
+#include "LearnMenu.h"
 
 #include <cmath>
 
@@ -79,6 +80,7 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
   addAndMakeVisible(volume);
   sliderAttachments.push_back(std::make_unique<SliderAttachment>(
       apvts, params::noiseParamId(params::volumeSuffix), volume));
+  learn::tag(volume, params::noiseParamId(params::volumeSuffix));
 
   addAndMakeVisible(meter);
   meter.toBack(); // the fader cap has to draw over it
@@ -97,6 +99,9 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
       apvts, params::noiseParamId(params::muteSuffix), muteButton);
   soloAttachment = std::make_unique<ButtonAttachment>(
       apvts, params::noiseParamId(params::soloSuffix), soloButton);
+
+  learn::tag(muteButton, params::noiseParamId(params::muteSuffix));
+  learn::tag(soloButton, params::noiseParamId(params::soloSuffix));
 
   colourReadout.setJustificationType(juce::Justification::centred);
   colourReadout.setFont(makeFont(10.0f));
@@ -142,6 +147,7 @@ void NoiseStrip::setUpKnob(juce::Slider &s, const char *suffix,
 
   const auto id = params::noiseParamId(suffix);
   sliderAttachments.push_back(std::make_unique<SliderAttachment>(apvts, id, s));
+  learn::tag(s, id);
 
   if (auto *p = apvts.getParameter(id))
     s.setDoubleClickReturnValue(
@@ -203,11 +209,20 @@ void NoiseStrip::drawFaderAt(int y) {
 }
 
 void NoiseStrip::mouseDown(const juce::MouseEvent &e) {
-  // The noise channel opens no menu of its own, but its mute and solo buttons
-  // do, and the same modal-menu problem applies: without this the column stays
-  // lit once the pointer has moved on. See ChannelStrip::mouseDown.
+  // Its mute and solo buttons carry a menu of their own, and the same
+  // modal-menu problem applies: without this the column stays lit once the
+  // pointer has moved on. See ChannelStrip::mouseDown.
   if (e.mods.isPopupMenu()) {
     clearHover();
+
+    // A right-click on a control here asks for the learn menu, exactly as it
+    // does on the other thirty-two columns. What it does not get is the LINK
+    // settings, since this channel is not part of the series they gang.
+    const auto id = learn::parameterIdAt(e.originalComponent);
+
+    if (id.isNotEmpty() && onLearnRequested != nullptr)
+      onLearnRequested(id);
+
     return;
   }
 
