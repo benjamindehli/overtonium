@@ -1079,14 +1079,20 @@ void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
     check(editor != nullptr, "the editor opens");
 
     if (editor != nullptr) {
+      // Read off the control, which is where the look and feel reads it: the
+      // macro's colour is carried beside the control's own rather than
+      // replacing it, so the pointer can stay the channel's.
       const auto colourOf = [&](int channel) {
         auto *c = ovt::ui::learn::controlFor(
             *editor, ovt::params::oscParamId(ovt::params::tuneSuffix, channel));
-        auto *slider = dynamic_cast<juce::Slider *>(c);
 
-        return slider == nullptr
-                   ? juce::Colours::transparentBlack
-                   : slider->findColour(juce::Slider::rotarySliderFillColourId);
+        if (c == nullptr)
+          return juce::Colours::transparentBlack;
+
+        const auto said = c->getProperties().getWithDefault("macroColour", {});
+
+        return said.isVoid() ? juce::Colours::transparentBlack
+                             : juce::Colour((juce::uint32)(int)said);
       };
 
       const auto own = colourOf(2);
@@ -1102,15 +1108,64 @@ void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
       // Harmonic 3 is a fifth and harmonic 2 is not, so one takes the colour
       // and the other keeps its own.
       check(colourOf(2) == wanted,
-            "a control a macro drives wears the macro's colour");
-      check(colourOf(1) != wanted,
-            "and one it does not reach keeps the channel's");
+            "a control a macro drives carries the macro's colour");
+      check(colourOf(1) != wanted, "and one it does not reach carries none");
 
       set(ovt::params::macroRowId(0), 0.0f);
       editor->followMacroTints();
 
       check(colourOf(2) == own,
-            "and letting go puts the channel's own colour back");
+            "and letting go takes the macro's colour off again");
+
+      // ---- and the ring shows what the engine is playing ----------------
+      //
+      // The ring is worked out by the window and the offset by the snapshot,
+      // from the same shared arithmetic. If those two ever disagreed the
+      // knob would be showing a value nothing is playing, which is worse
+      // than showing nothing: it would be a lie told confidently.
+      set(ovt::params::macroRowId(0), (float)tuneRow);
+      set(ovt::params::macroScopeId(0), 0.0f);
+      set(ovt::params::macroCurveId(0),
+          (float)(int)ovt::params::MacroCurve::Taper);
+      set(ovt::params::macroAmountId(0), -0.4f);
+      editor->followMacroTints();
+
+      ovt::SynthParams played;
+      p.parameters().snapshot(played, 0.0f);
+
+      int mismatched = 0;
+      for (int i = 0; i < ovt::kNumHarmonics; ++i) {
+        auto *c = ovt::ui::learn::controlFor(
+            *editor, ovt::params::oscParamId(ovt::params::tuneSuffix, i));
+
+        if (c == nullptr)
+          continue;
+
+        const auto shown = (float)(double)c->getProperties().getWithDefault(
+            "macroResult", -1.0);
+
+        auto *q =
+            dynamic_cast<juce::RangedAudioParameter *>(p.apvts.getParameter(
+                ovt::params::oscParamId(ovt::params::tuneSuffix, i)));
+
+        if (q == nullptr)
+          continue;
+
+        // Both as a proportion of the control's travel, which is what the
+        // ring is drawn from.
+        const auto engine = q->convertTo0to1(played.osc[(size_t)i].tuneBlend);
+
+        if (std::abs(shown - engine) > 1.0e-3f)
+          ++mismatched;
+      }
+
+      check(mismatched == 0,
+            "the ring shows the value the engine is playing (" +
+                std::to_string(mismatched) + " channels differ)");
+
+      set(ovt::params::macroAmountId(0), 0.0f);
+      set(ovt::params::macroRowId(0), 0.0f);
+      set(ovt::params::macroCurveId(0), 0.0f);
     }
   }
 

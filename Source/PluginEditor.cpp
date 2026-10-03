@@ -1242,6 +1242,14 @@ void OvertoniumEditor::syncLinkUi() {
 bool OvertoniumEditor::isLinkEnabled() const { return topBar.isLinkEnabled(); }
 
 void OvertoniumEditor::followMacroTints() {
+  const auto amountOf = [this](int macro) {
+    if (auto *p = dynamic_cast<juce::RangedAudioParameter *>(
+            plugin().apvts.getParameter(ovt::params::macroAmountId(macro))))
+      return p->convertFrom0to1(p->getValue());
+
+    return 0.0f;
+  };
+
   const auto readInt = [this](const juce::String &id) {
     if (auto *p = dynamic_cast<juce::RangedAudioParameter *>(
             plugin().apvts.getParameter(id)))
@@ -1253,11 +1261,16 @@ void OvertoniumEditor::followMacroTints() {
   // Everything that decides who owns what, joined. The amount is not in it:
   // a macro at rest still owns the controls it was pointed at, and saying so
   // is the whole point of the colour.
+  // The amount is in it now, because the ring shows where the macro has
+  // taken the value and that moves with the fader. A macro nobody is
+  // touching still costs only one string compare a frame.
   juce::String now;
   for (int m = 0; m < ovt::params::kNumMacros; ++m)
     now << readInt(ovt::params::macroRowId(m)) << ","
         << readInt(ovt::params::macroScopeId(m)) << ","
-        << readInt(ovt::params::macroColourId(m)) << ";";
+        << readInt(ovt::params::macroCurveId(m)) << ","
+        << readInt(ovt::params::macroColourId(m)) << ","
+        << juce::String(amountOf(m), 4) << ";";
 
   if (now == macroSignature)
     return;
@@ -1272,6 +1285,9 @@ void OvertoniumEditor::followMacroTints() {
       // rest are invisible here. Two colours mixed would usually name a
       // third macro, and a control saying "more than one" says nothing about
       // which.
+      float result = 0.0f;
+      bool driven = false;
+
       for (int m = 0; m < ovt::params::kNumMacros; ++m) {
         const auto row = readInt(ovt::params::macroRowId(m));
 
@@ -1284,17 +1300,40 @@ void OvertoniumEditor::followMacroTints() {
                                        i))
           continue;
 
-        const auto tint =
-            ovt::params::macroColour(readInt(ovt::params::macroColourId(m)));
-
         // A macro wearing None drives the control without colouring it,
         // which is for anyone who would rather the mixer stayed the colour
         // the series makes it.
-        wearing = tint;
+        wearing =
+            ovt::params::macroColour(readInt(ovt::params::macroColourId(m)));
+
+        // Where the engine will actually put it, by the arithmetic the
+        // snapshot uses: the amount across the row's span, shared out by the
+        // curve, and clamped to the ends the control has.
+        if (auto *q = oscParameter((Role)r, i)) {
+          const auto range = ovt::params::macroRowRange(plugin().apvts, row);
+          const auto curve =
+              (ovt::params::MacroCurve)readInt(ovt::params::macroCurveId(m));
+
+          const auto span = range.second - range.first;
+          const auto base = q->convertFrom0to1(q->getValue());
+          const auto landed = juce::jlimit(
+              range.first, range.second,
+              base + amountOf(m) * span * ovt::params::macroWeight(curve, i));
+
+          result = q->convertTo0to1(landed);
+          driven = true;
+        }
+
         break;
       }
 
-      strips[(size_t)i]->setMacroTint((Role)r, wearing);
+      // The control's own position when nothing is driving it, which is what
+      // makes a macro at rest look like no macro at all.
+      if (!driven)
+        if (auto *q = oscParameter((Role)r, i))
+          result = q->getValue();
+
+      strips[(size_t)i]->setMacroTint((Role)r, wearing, result);
     }
   }
 }

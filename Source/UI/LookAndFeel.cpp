@@ -500,9 +500,31 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   // Discrete ticks rather than a continuous arc. It reads as a measurement
   // instrument, which is what this thing is, and it echoes the 32 discrete
   // partials the whole synth is built from.
+  //
+  // When a macro drives this control the ring lights to where the macro has
+  // taken the value, in the macro's colour, while the pointer on the cap
+  // stays at the value the patch holds, in the channel's. The gap between
+  // them is the modulation, and it has to be visible as a gap: a macro
+  // offsets what the patch says on its way to the engine and never writes
+  // it, so a knob showing only one of the two would be hiding the other.
+  const auto drivenBy =
+      slider.getProperties().getWithDefault("macroColour", {});
+
+  const bool driven = !drivenBy.isVoid();
+
+  const auto ringColour =
+      driven ? juce::Colour((juce::uint32)(int)drivenBy) : fill;
+
+  const auto ringAngle =
+      driven ? rotaryStartAngle +
+                   (float)(double)slider.getProperties().getWithDefault(
+                       "macroResult", (double)sliderPos) *
+                       (rotaryEndAngle - rotaryStartAngle)
+             : angle;
+
   const int ticks = juce::jlimit(9, 25, juce::roundToInt(radius * 1.15f));
-  const auto lo = juce::jmin(anchor, angle);
-  const auto hi = juce::jmax(anchor, angle);
+  const auto lo = juce::jmin(anchor, ringAngle);
+  const auto hi = juce::jmax(anchor, ringAngle);
 
   for (int i = 0; i < ticks; ++i) {
     const auto t = (float)i / (float)(ticks - 1);
@@ -519,7 +541,7 @@ void OvertoniumLookAndFeel::drawRotarySlider(
     const auto unlit =
         colours::groove.brighter(0.22f).interpolatedWith(fill, 0.65f * glow);
 
-    g.setColour(lit ? fill.withMultipliedAlpha(dim)
+    g.setColour(lit ? ringColour.withMultipliedAlpha(dim)
                     : unlit.withMultipliedAlpha(dim));
     g.drawLine({centre.x + inner * sinA, centre.y - inner * cosA,
                 centre.x + outer * sinA, centre.y - outer * cosA},
@@ -741,10 +763,10 @@ void OvertoniumLookAndFeel::drawLinearSlider(
   // meter and its colour is the level rather than the control's. Edging the
   // thing you grab is the only place a fader has to say it is being driven
   // by something other than your hand. See ChannelStrip::setMacroTint.
-  const auto driven =
-      (bool)slider.getProperties().getWithDefault("macroTinted", false);
+  const auto macro = slider.getProperties().getWithDefault("macroColour", {});
+  const bool driven = !macro.isVoid();
 
-  g.setColour(driven ? slider.findColour(juce::Slider::trackColourId)
+  g.setColour(driven ? juce::Colour((juce::uint32)(int)macro)
                      : juce::Colours::white.withAlpha(0.46f * dim));
   g.drawRoundedRectangle(cap.reduced(0.5f), 2.0f, driven ? 1.4f : 1.0f);
 

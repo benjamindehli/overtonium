@@ -1265,32 +1265,35 @@ LinkableSlider *ChannelStrip::sliderForRole(Role role) {
   }
 }
 
-void ChannelStrip::setMacroTint(Role role, juce::Colour tint) {
+void ChannelStrip::setMacroTint(Role role, juce::Colour tint, float result) {
   const auto at = (size_t)role;
 
-  if (at >= macroTint.size() || macroTint[at] == tint)
+  if (at >= macroTint.size())
     return;
-
-  macroTint[at] = tint;
 
   auto *slider = sliderForRole(role);
 
   if (slider == nullptr)
     return;
 
-  // Transparent means no macro has it, which is the channel's own colour
-  // back rather than nothing: these ids are what the control is drawn in.
-  const auto wearing = tint.isTransparent() ? baseColour[at] : tint;
+  const bool sameColour = macroTint[at] == tint;
+  const bool sameResult = std::abs(macroResult[at] - result) < 1.0e-4f;
 
-  slider->setColour(juce::Slider::rotarySliderFillColourId, wearing);
-  slider->setColour(juce::Slider::trackColourId, wearing);
+  if (sameColour && sameResult)
+    return;
 
-  // A metered fader draws its groove from the meter, so the colour above is
-  // nearly invisible there. This is what tells it to edge its cap instead.
-  if (tint.isTransparent())
-    slider->getProperties().remove("macroTinted");
-  else
-    slider->getProperties().set("macroTinted", true);
+  macroTint[at] = tint;
+  macroResult[at] = result;
+
+  // Both read by the look and feel, which keeps the control's own colour for
+  // the pointer and uses these for the ring. See drawRotarySlider.
+  if (tint.isTransparent()) {
+    slider->getProperties().remove("macroColour");
+    slider->getProperties().remove("macroResult");
+  } else {
+    slider->getProperties().set("macroColour", (int)tint.getARGB());
+    slider->getProperties().set("macroResult", (double)result);
+  }
 
   slider->repaint();
 }

@@ -330,6 +330,33 @@ bool macroReaches(int scope, int index0) {
          scope - (int)MacroScope::Interval;
 }
 
+/// This channel's share, from the fundamental outwards.
+///
+/// Taper is measured against the full width of the mixer rather than against
+/// whichever end is nearer, which is what ui::linkCurveWeight does from the
+/// strip under the mouse. A test holds the two together.
+float macroWeight(MacroCurve curve, int index0) {
+  if (curve != MacroCurve::Taper)
+    return 1.0f;
+
+  const auto distance = (float)juce::jlimit(0, kNumHarmonics - 1, index0) /
+                        (float)(kNumHarmonics - 1);
+
+  return 1.0f - distance;
+}
+
+std::pair<float, float>
+macroRowRange(const juce::AudioProcessorValueTreeState &state, int row) {
+  if (row < 1 || row > kNumMacroRows)
+    return {0.0f, 1.0f};
+
+  if (auto *p = dynamic_cast<juce::RangedAudioParameter *>(
+          state.getParameter(oscParamId(kMacroRows[(size_t)(row - 1)], 0))))
+    return {p->getNormalisableRange().start, p->getNormalisableRange().end};
+
+  return {0.0f, 1.0f};
+}
+
 const char *macroColourName(int colour) {
   static const char *const names[] = {"None",   "Red",    "Orange",
                                       "Yellow", "Green",  "Cyan",
@@ -1158,21 +1185,6 @@ float *macroField(OscParams &o, int row) {
 
 static_assert(kNumMacroRows == 19,
               "macroField has a case per row and has to grow with the list");
-
-/// This channel's share, from the fundamental outwards.
-///
-/// Taper is measured against the full width of the mixer rather than against
-/// whichever end is nearer, which is what ui::linkCurveWeight does from the
-/// strip under the mouse. A test holds the two together.
-float macroWeight(MacroCurve curve, int index0) {
-  if (curve != MacroCurve::Taper)
-    return 1.0f;
-
-  const auto distance = (float)juce::jlimit(0, kNumHarmonics - 1, index0) /
-                        (float)(kNumHarmonics - 1);
-
-  return 1.0f - distance;
-}
 
 } // namespace
 

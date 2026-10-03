@@ -178,6 +178,19 @@ const char *macroScopeName(int scope);
 /// offset, and the window asks it to decide what to tint, and those two
 /// disagreeing would colour a control that is not being driven.
 bool macroReaches(int scope, int index0);
+
+/// This channel's share of a macro, from the fundamental outwards.
+///
+/// Shared for the same reason: the snapshot multiplies by it to work out the
+/// offset, and the window multiplies by it to work out where to light the
+/// ring, and a knob showing a result the engine is not playing would be worse
+/// than showing nothing.
+float macroWeight(MacroCurve curve, int index0);
+
+/// The low and high end of a row a macro can drive, which is what an amount
+/// of 1 spans. Row 1 is the first real one, since the list opens with None.
+std::pair<float, float>
+macroRowRange(const juce::AudioProcessorValueTreeState &, int row);
 const char *macroCurveName(MacroCurve);
 const char *macroRowName(int row);
 const char *macroColourName(int colour);
