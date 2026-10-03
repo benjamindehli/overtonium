@@ -43,6 +43,50 @@ inline juce::String parameterIdAt(const juce::Component *hit) {
   return {};
 }
 
+/// The control that moves this parameter, looking inwards from a window.
+///
+/// The other direction from parameterIdAt, and wanted for the same reason in
+/// reverse: the map knows which parameter is waiting and the window has to
+/// find the thing to mark.
+inline juce::Component *controlFor(juce::Component &root,
+                                   const juce::String &parameterId) {
+  if (parameterId.isEmpty())
+    return nullptr;
+
+  for (auto *child : root.getChildren()) {
+    const auto id =
+        child->getProperties().getWithDefault(kParameterProperty, {});
+
+    if (id.toString() == parameterId)
+      return child;
+
+    if (auto *found = controlFor(*child, parameterId))
+      return found;
+  }
+
+  return nullptr;
+}
+
+/// Hangs the waiting marker on a control, or takes it off. The look and feel
+/// draws it: see the "learnArmed" property in OvertoniumLookAndFeel.
+inline void markArmed(juce::Component &control, bool armed) {
+  if (armed)
+    control.getProperties().set("learnArmed", true);
+  else
+    control.getProperties().remove("learnArmed");
+
+  // And on whatever inside it the look and feel actually draws. A knob on the
+  // bar is a slider inside a frame that carries the caption, and the tag goes
+  // on the frame so that a right-click on the caption still finds it, so the
+  // mark has to reach inwards to the part with a paint method that reads it.
+  for (auto *child : control.getChildren())
+    if (dynamic_cast<juce::Slider *>(child) != nullptr ||
+        dynamic_cast<juce::Button *>(child) != nullptr)
+      markArmed(*child, armed);
+
+  control.repaint();
+}
+
 /// Adds the learn items to a menu that is about to be shown, if the click
 /// landed on something a controller could move.
 ///

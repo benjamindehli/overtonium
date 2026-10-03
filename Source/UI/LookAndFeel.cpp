@@ -486,6 +486,16 @@ void OvertoniumLookAndFeel::drawRotarySlider(
     g.fillEllipse(bounds.withSizeKeepingCentre(radius * 1.5f, radius * 1.5f));
   }
 
+  // ---- waiting for a controller ---------------------------------------------
+  // A drawn ring rather than a filled halo, so it reads as a different kind of
+  // statement from the LINK glow underneath it and the two can be true at
+  // once. See colours::learning.
+  if ((bool)slider.getProperties().getWithDefault("learnArmed", false)) {
+    g.setColour(colours::learning.withAlpha(0.9f * dim));
+    g.drawEllipse(bounds.withSizeKeepingCentre(radius * 2.0f, radius * 2.0f),
+                  1.4f);
+  }
+
   // ---- the tick ring --------------------------------------------------------
   // Discrete ticks rather than a continuous arc. It reads as a measurement
   // instrument, which is what this thing is, and it echoes the 32 discrete
@@ -606,6 +616,14 @@ void OvertoniumLookAndFeel::drawLinearSlider(
     g.fillRect(cap.getX() + 1.5f, cap.getY() + 2.5f, 1.0f,
                cap.getHeight() - 5.0f);
 
+    // Waiting for a controller. Around the cap rather than around the whole
+    // control, since this fader lies across the meter that reads it and a
+    // ring at its bounds would enclose the meter and read as marking that.
+    if ((bool)slider.getProperties().getWithDefault("learnArmed", false)) {
+      g.setColour(colours::learning);
+      g.drawRoundedRectangle(cap.expanded(1.5f), 2.5f, 1.6f);
+    }
+
     return;
   }
 
@@ -667,6 +685,12 @@ void OvertoniumLookAndFeel::drawLinearSlider(
 
     g.setColour(lit.withAlpha(0.55f * glow * dim));
     g.drawRoundedRectangle(bounds.reduced(0.5f), 3.0f, 1.2f);
+  }
+
+  // The same statement a knob's ring makes, on the one shape a fader has.
+  if ((bool)slider.getProperties().getWithDefault("learnArmed", false)) {
+    g.setColour(colours::learning.withAlpha(0.9f * dim));
+    g.drawRoundedRectangle(bounds.reduced(0.5f), 3.0f, 1.4f);
   }
 
   // Scale ticks either side of the track, in the same language as the tick
@@ -764,6 +788,13 @@ void OvertoniumLookAndFeel::drawButtonFace(juce::Graphics &g,
 
   g.setColour(on ? fill.brighter(0.45f) : colours::outline);
   g.drawRoundedRectangle(bounds.reduced(0.5f), corner, 1.0f);
+
+  // Waiting for a controller, in place of the outline rather than beside it:
+  // a mute button is too small to carry a second ring outside its own.
+  if ((bool)button.getProperties().getWithDefault("learnArmed", false)) {
+    g.setColour(colours::learning);
+    g.drawRoundedRectangle(bounds.reduced(0.5f), corner, 1.4f);
+  }
 }
 
 void OvertoniumLookAndFeel::drawButtonText(juce::Graphics &g,

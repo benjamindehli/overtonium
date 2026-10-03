@@ -39,6 +39,15 @@ inline const juce::Colour accent{0xff62bbd9};
 /// channel means.
 inline const juce::Colour muteOn{0xffe04831};
 inline const juce::Colour soloOn{0xffe8c34a};
+
+/// A control waiting to be told which controller moves it.
+///
+/// Its own colour rather than one borrowed, because all three of the others
+/// are already saying something that could be true of the same control at the
+/// same moment: the accent is what LINK warms and what the draw tool lights,
+/// red is a cut channel and amber a soloed one. A violet is in none of those
+/// conversations, and nothing else in the window uses it.
+inline const juce::Colour learning{0xffb07bd4};
 } // namespace colours
 
 /// A tile of fine monochrome noise, built once and shared.

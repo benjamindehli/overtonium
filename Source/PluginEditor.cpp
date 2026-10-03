@@ -1192,6 +1192,25 @@ void OvertoniumEditor::syncLinkUi() {
 
 bool OvertoniumEditor::isLinkEnabled() const { return topBar.isLinkEnabled(); }
 
+void OvertoniumEditor::followArmedControl() {
+  auto *waiting = plugin().midiLearn.armed();
+  const juce::String wanted =
+      waiting != nullptr ? waiting->paramID : juce::String();
+
+  if (wanted == armedParameter)
+    return;
+
+  // Off the old one first, since arming a second control while the first is
+  // waiting is a thing somebody can do by right-clicking twice.
+  if (auto *was = ovt::ui::learn::controlFor(*this, armedParameter))
+    ovt::ui::learn::markArmed(*was, false);
+
+  armedParameter = wanted;
+
+  if (auto *now = ovt::ui::learn::controlFor(*this, armedParameter))
+    ovt::ui::learn::markArmed(*now, true);
+}
+
 void OvertoniumEditor::showLearnMenu(const juce::String &parameterId) {
   auto *parameter = dynamic_cast<juce::RangedAudioParameter *>(
       plugin().apvts.getParameter(parameterId));
@@ -1500,6 +1519,7 @@ void OvertoniumEditor::timerCallback() {
   ++tick;
 
   pollDrawModifier();
+  followArmedControl();
 
   // Two things about a frame cost the window manager: that it happened at all,
   // and how much of the window the dirty rectangles enclose. It enlarges them

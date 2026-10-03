@@ -787,6 +787,44 @@ void testMidiLearnBindsControllers(OvertoniumProcessor &p) {
             "a channel fader knows which parameter it moves");
       check(findTagged(*editor, ovt::params::masterGainId) != nullptr,
             "and so does the master fader on the bar");
+
+      // ---- and a waiting control says so -------------------------------
+      //
+      // Arming happens through the map, the marker is hung by the window on
+      // its timer, and the look and feel is what draws it. This checks the
+      // middle of those three: that the window finds the right control and
+      // marks it, and takes the mark off again when the wait ends.
+      auto *wobble = dynamic_cast<juce::RangedAudioParameter *>(
+          p.apvts.getParameter(ovt::params::wobbleId));
+
+      const auto markOn = [&](const juce::String &id) {
+        auto *c = ovt::ui::learn::controlFor(*editor, id);
+        return c != nullptr &&
+               (bool)c->getProperties().getWithDefault("learnArmed", false);
+      };
+
+      check(!markOn(ovt::params::wobbleId), "nothing is marked to start");
+
+      p.midiLearn.arm(wobble);
+      editor->followArmedControl();
+
+      check(markOn(ovt::params::wobbleId),
+            "the control a controller is being waited for is marked");
+
+      // Moving the wait to another control takes the mark with it, which is
+      // what right-clicking a second control does.
+      p.midiLearn.arm(dynamic_cast<juce::RangedAudioParameter *>(
+          p.apvts.getParameter(ovt::params::stretchId)));
+      editor->followArmedControl();
+
+      check(!markOn(ovt::params::wobbleId) && markOn(ovt::params::stretchId),
+            "and only one is ever marked at a time");
+
+      p.midiLearn.arm(nullptr);
+      editor->followArmedControl();
+
+      check(!markOn(ovt::params::stretchId),
+            "and the mark goes when the wait ends");
     }
   }
 
