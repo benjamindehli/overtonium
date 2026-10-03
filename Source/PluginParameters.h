@@ -25,6 +25,13 @@ inline constexpr const char *temperamentId = "temperament";
 inline constexpr const char *tuningRootId = "tuningRoot";
 inline constexpr const char *referenceHzId = "referenceHz";
 inline constexpr const char *safetyClipId = "safetyClip";
+
+/// Which of the five shapes the output stage uses, when it is on.
+///
+/// Beside the switch rather than replacing it, for the reason echoTypeId is:
+/// a boolean every saved patch stores and every lane points at cannot become a
+/// five-position choice without taking both with it.
+inline constexpr const char *clipTypeId = "clipType";
 inline constexpr const char *mpeId = "mpe";
 inline constexpr const char *lofiRateId = "lofiRate";
 inline constexpr const char *lofiBitsId = "lofiBits";
@@ -231,6 +238,7 @@ struct Cache {
   std::atomic<float> *tuningRoot = nullptr;
   std::atomic<float> *referenceHz = nullptr;
   std::atomic<float> *safetyClip = nullptr;
+  std::atomic<float> *clipType = nullptr;
   std::atomic<float> *mpe = nullptr;
   std::atomic<float> *lofiRate = nullptr;
   std::atomic<float> *lofiBits = nullptr;
@@ -288,23 +296,28 @@ juce::String polyphonyName(int index);
 
 /// What a preset leaves alone.
 ///
-/// How you play the instrument, how loud it is, and what it is tuned to. A
-/// patch describes a sound, and none of these are part of one: a temperament
-/// and a reference pitch belong to the music you are playing, polyphony and
-/// bend range to the keyboard you are playing it on, and the master fader and
-/// the clipper to the desk. Loading a sound should move none of them.
+/// How you play the instrument and what it is tuned to. A patch describes a
+/// sound, and none of these are part of one: a temperament and a reference
+/// pitch belong to the music you are playing, and polyphony and bend range to
+/// the keyboard you are playing it on. Loading a sound should move none of
+/// them.
 ///
-/// This is everything the settings menu offers, plus the master fader. That is
-/// the rule rather than a coincidence: the menu is where the instrument is set
-/// up and the panel is where the sound is made, so anything that appears in
-/// the menu belongs here. Adding a setting means adding it here too.
+/// This is everything the settings menu offers. That is the rule rather than a
+/// coincidence: the menu is where the instrument is set up and the panel is
+/// where the sound is made, so anything that appears in the menu belongs here.
+/// Adding a setting means adding it here too.
+///
+/// The master fader and the clipper were here and are not any more. The output
+/// stage became five machines rather than a guard with a switch, which makes
+/// it part of the sound, and the master sits in front of it, so how hard a
+/// patch drives it is something the patch has to be able to say. The cost is
+/// honest: loading a preset now moves the output level.
 ///
 /// Named here rather than in Presets.cpp so the code that honours the rule and
 /// the test that checks it cannot come to disagree about what the rule is.
-inline const std::array<const char *, 12> kSessionParamIds{
-    masterGainId, polyphonyId,   bendRangeId,      atSourceId,
-    safetyClipId, referenceHzId, temperamentId,    tuningRootId,
-    mpeId,        slideDestId,   oneVoicePerKeyId, phaseResetId};
+inline const std::array<const char *, 10> kSessionParamIds{
+    polyphonyId,  bendRangeId, atSourceId,  referenceHzId,    temperamentId,
+    tuningRootId, mpeId,       slideDestId, oneVoicePerKeyId, phaseResetId};
 
 /// Whether `id` is one of those, for the several places that have to ask.
 inline bool isSessionParam(juce::StringRef id) {

@@ -10,6 +10,7 @@
 #include "BucketEcho.h"
 #include "BusDrive.h"
 #include "DigitalEcho.h"
+#include "OutputStage.h"
 #include "PlateReverb.h"
 #include "Reverb.h"
 #include "SpringReverb.h"
@@ -52,6 +53,10 @@ public:
 
   void prepare(double sampleRate) noexcept;
   void reset() noexcept;
+
+  /// What the output stage's lookahead costs, in samples, for the host to be
+  /// told along with the bus stage's. Valid once prepare has run.
+  int outputLatency() const noexcept { return outputStage.latency(); }
 
   void setPolyphony(int n) noexcept;
 
@@ -336,6 +341,10 @@ private:
   // recording of one.
   Wobble wobble;
   BusDrive busDrive;
+
+  /// What the mix runs into on its way out, which is five machines rather
+  /// than the one soft clipper it began as. See OutputStage.
+  OutputStage outputStage;
   TapeEcho echo;
   BucketEcho bucket;
   DigitalEcho digital;

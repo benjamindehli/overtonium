@@ -735,6 +735,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::ParameterID{echoTypeId, 1}, "Echo Type", echoTypeChoices,
       (int)EchoType::Tape));
 
+  juce::StringArray clipTypeChoices;
+  for (int i = 0; i < (int)ClipType::NumTypes; ++i)
+    clipTypeChoices.add(clipTypeName((ClipType)i));
+
+  layout.add(std::make_unique<juce::AudioParameterChoice>(
+      juce::ParameterID{clipTypeId, 1}, "Clip Type", clipTypeChoices,
+      (int)ClipType::Soft));
+
   juce::StringArray reverbTypeChoices;
   for (int i = 0; i < (int)ReverbType::NumTypes; ++i)
     reverbTypeChoices.add(reverbTypeName((ReverbType)i));
@@ -769,6 +777,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   lofiBits = apvts.getRawParameterValue(lofiBitsId);
 
   echo.on = apvts.getRawParameterValue(echoOnId);
+  clipType = apvts.getRawParameterValue(clipTypeId);
   echo.type = apvts.getRawParameterValue(echoTypeId);
   echo.mix = apvts.getRawParameterValue(echoMixId);
   echo.time = apvts.getRawParameterValue(echoTimeId);
@@ -975,6 +984,14 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   // it for that reason. See BusDrive::amountFor.
   out.global.busDrive = (float)ovt::BusDrive::amountFor(out.global.character);
   out.global.safetyClip = safetyClip->load() > 0.5f;
+
+  // A patch saved before there were types says nothing about one and reads
+  // back as zero, which is the soft clipper it was made on.
+  out.global.clipType =
+      clipType == nullptr
+          ? ClipType::Soft
+          : (ClipType)juce::jlimit(0, (int)ClipType::NumTypes - 1,
+                                   (int)std::lround(clipType->load()));
   out.global.oneVoicePerKey = oneVoicePerKey->load() > 0.5f;
   out.global.pitchModInPhase = pmInPhase->load() > 0.5f;
   out.global.ampModInPhase = amInPhase->load() > 0.5f;

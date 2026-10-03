@@ -57,7 +57,9 @@ A preset holds parameter values and nothing else. Not the window size, the zoom 
 
 Factory presets start from a neutral base rather than from wherever you happened to be, so one always gives the instrument it describes. That covers the globals that are part of the sound: STRETCH, TRACK, the converter and phase reset all go back to neutral unless the preset asks for otherwise.
 
-What it will not touch is listed once, as `kSessionParamIds`, and holds for every preset including Init: master gain, polyphony, bend range, the aftertouch source, the safety clipper, the temperament, its root, the reference pitch and MPE. How you play the instrument, how loud it is and what it is tuned to are not part of a patch. Both halves are tested from that same list, so the code and the test cannot come to disagree about what the rule is: every preset is loaded twice, once clean and once after deliberately making a mess of everything, and required to come out identical, and then all thirty-two presets are loaded in turn against a session set to Werckmeister on F at 415 Hz, which has to survive.
+What it will not touch is listed once, as `kSessionParamIds`, and holds for every preset including Init: polyphony, bend range, the aftertouch source, what the slide reaches, one voice per key, phase reset, the temperament, its root, the reference pitch and MPE. How you play the instrument and what it is tuned to are not part of a patch.
+
+How loud it is used to be on that list, and the master fader and the safety clipper sat there together on those grounds. They came off it when the clipper became five shapes rather than one with a switch. The fader is the drive into that stage, so a patch that wants to be heard leaning on the Asymmetric curve, or arriving under the Limiter's ceiling, has to be able to say how hard it pushes, and a preset that could choose the shape but not the level could not describe either. Loading a preset therefore moves the output level, which is a real cost and is written down here rather than discovered. Both halves are tested from that same list, so the code and the test cannot come to disagree about what the rule is: every preset is loaded twice, once clean and once after deliberately making a mess of everything, and required to come out identical, and then all thirty-two presets are loaded in turn against a session set to Werckmeister on F at 415 Hz, which has to survive.
 
 Values are stored plain rather than normalised, so a preset survives a parameter's range being widened later, and anything a file does not mention keeps its default rather than being reset, so a preset saved by an older build loads into a newer one without silently zeroing whatever was added in between. The tests cover both of those directly.
 
@@ -73,7 +75,7 @@ It loads whether or not the preset is the one already showing, which is what the
 
 What tells the two apart is a gesture. Every control opens one before it writes and closes one after, which is how a host is told that a move has begun and ended, and automation does not: it sets values and says nothing. So the processor listens to itself for gesture begin and end, takes a baseline of every parameter when the first one opens, and when the last one closes puts whatever actually moved into the history as one step. A drag, a scroll wheel and a LINK drag across 32 channels are each one gesture and therefore each one step, however many values they moved and however long they took. A gesture that ends where it began is not a step at all.
 
-Only from the message thread. A host is allowed to open a gesture from the audio thread, and taking a baseline of 786 parameters there would allocate on it, so one that arrives from anywhere else is left alone. Nobody is turning a knob from the audio thread.
+Only from the message thread. A host is allowed to open a gesture from the audio thread, and taking a baseline of 787 parameters there would allocate on it, so one that arrives from anywhere else is left alone. Nobody is turning a knob from the audio thread.
 
 The things a person does that are not one gesture go through `recordEdit`, which takes the same baseline around whatever it is given: loading a preset writes hundreds of parameters and has to come back in one undo. The caller decides, and that is the point of it. Loading a preset from the menu is recorded and a clip firing a program change at the same `applyFactoryPreset` is not, because one of them is editing and the other is playing.
 
@@ -340,6 +342,8 @@ Echo, Reverb and Output are drawn as boxes, because a box is what says "these be
 Settings and Link are menus rather than panels. Everything behind Settings is set once and then left, and a short list of whole numbers reads better written out than dialled in on a knob. Phase reset gives a coherent, percussive attack by restarting partial phase on each note, and it is not something you sit and adjust, so it is not worth the width of a button.
 
 The safety clipper was in that list on the same grounds and has since come out of it, onto the bar as CLIP, under the meter beside the converter readouts. The argument was that it is set once and left, which is true of how it ends up and not of how you arrive there: it is the one thing behind Settings you reach for while listening, because whether the output is being caught is a question about what you are hearing right now. It also had somewhere to go, which it did not before. The master fader moving onto the meter freed the group its knob had, and the three facts about the output stage now stand together under the lamps: the rate, the bits, and whether anything is being held back. It keeps its entry in the menu as well, since a switch with two homes costs nothing and both follow the one parameter.
+
+It has since stopped being a switch at all. CLIP chooses between five shapes the way ECHO and REVERB choose between their machines, and the Settings entry keeps the switch that decides whether any of them is running, which is the one question that still has a yes and a no. The button abbreviates where it must: ASYM, because Asymmetric is 54 px of label in a space that gives 46, and the ten pixels it would take belong to the converter readouts beside it, which are already at the width they need to name their units. LIMIT follows it so the five read as one set of choices rather than four short words and a long one. Only the button shortens them; the menu, the host's automation lane and the documentation have room for the words.
 
 Everything fits across one row above about 1200 px of logical width. Below that the bar reflows onto further rows rather than dropping controls or letting captions collide. It fills each row as far as it will go, so it stays compact and anchored to the title, and the rows below the first run the full width since the title is above them rather than beside them. One row per group is the worst case, and the window will not shrink past 512 px, which is where it stops fitting in three.
 
@@ -957,3 +961,34 @@ Modulation gets coarser along with everything else. The LFOs, drift and gain ram
 **Bit depth** picks from 16 bits down to 2, quantising to 2^(n-1) steps either side of zero. It sits with the rate, ahead of the echo, the reverb and the master fader, so those behave like outboard on a lo-fi source rather than being crushed themselves. It does not clip: that is the safety clipper's job further down, and a bit-depth setting that also distorted would be doing something the panel does not mention.
 
 Both settings are stored with a preset, since at that point they are part of the sound rather than part of the setup.
+
+### The output stage
+
+The last thing that happens to the signal, after the master fader, which is therefore the drive into it. It began as one soft clipper with a switch, there so that pushing 32 faders up could not hand the host something louder than it asked for. It is five machines now, which makes it part of the sound rather than only a guard, and that is why the fader in front of it travels with a preset.
+
+Every one of them is bounded by full scale. That is not a coincidence of the curves chosen but the point of the stage, and it is tested: a safety clipper that could be driven past unity would not be one. Each is held to it at drives up to 400 times, both on its own and through the whole instrument at three sample rates.
+
+**Soft** runs straight to seven tenths and then takes a tanh knee. Gradual, symmetric, odd harmonics arriving as you lean on it. It is the curve that was already there and it is still the default, and it came through the change bit for bit, compared against the old formula written out longhand rather than against the code, so no patch dialled in against it sounds different.
+
+**Hard** is a wall at unity. Nothing happens until it does, which is a converter with no headroom left: abrupt, bright, the same odd harmonics as Soft but all at once.
+
+**Asymmetric** lets one half of the wave lean over before the other, half against nine tenths, the way a single-ended stage runs out of supply in one direction first. Where Soft and Hard treat both halves alike and give odd harmonics, this gives even ones: measured against Soft at the same drive, the second harmonic is a hundred times larger. It is called Asymmetric rather than Bias because bias is the mechanism and this file already uses that word for the offset several of the characters have. The name on the bar says what comes out.
+
+**Limiter** does not bend the wave at all. It turns the level down as the signal approaches the ceiling and lets it back up afterwards, so what you hear is the level moving rather than the shape, and it is the only one here a mastering engineer would recognise.
+
+**Fold** turns the wave back on itself past the threshold instead of flattening it. Not protection that happens to colour but an effect that happens to be bounded: it makes far more harmonics than the others and moves them with the level, so it sings where the rest crunch. Done in closed form rather than by looping, so a sample arriving at a hundred costs what one at a half costs.
+
+**The limiter looks ahead, and that is why the plugin reports latency.** Without it the gain only starts moving once the peak has arrived, so what actually held the signal down was the hard clip behind it: on the presets that drive it hardest, two seconds of audio reached 1.294 and had 1741 samples cut off. A limiter whose work is done by a clipper is a clipper.
+
+Two milliseconds, and the whole gain path fits inside it. A causal box filter of B samples carries its output back by (B-1)/2, so a detector window of W followed by two boxes costs (W-1)+(B-1), which at W = B = half the delay comes to two samples less than the budget. One box would turn the gain step into a straight ramp with a corner at each end, and the second rounds those corners off, which is the difference between a gain that arrives in time and one that arrives in time without being heard doing it. There is no attack coefficient any more: how fast the gain can fall is set by how far ahead it can see.
+
+| Lookahead | Peak before the backstop | Samples clipped | Gain movement |
+| --------- | ------------------------ | --------------- | ------------- |
+| none      | 1.294                    | 1741            | 0.0041        |
+| 1 ms      | 0.980                    | 0               | 0.0040        |
+| 2 ms      | 0.981                    | 0               | 0.0020        |
+| 5 ms      | 0.983                    | 0               | 0.0007        |
+
+Every size removes the clipping, so the choice was how gently the gain moves against how much latency to charge for it. Five milliseconds was the first thought and would have bought a curve two and a half times gentler still, which is below where it can be heard, for three more milliseconds. At two, an abrupt onset at twice full scale holds at 0.98, and the third harmonic the limiter adds falls from 0.00259 to 0.00012.
+
+**Every shape pays that latency, and so does the stage switched off**, for the reason the bus drive already gives: one that reported a different figure depending on the patch would have the host re-plan its graph every time a preset was chosen. The two stages together come to 108 samples at 48 kHz, a little over two milliseconds, reported once at `prepareToPlay` and never moved. The hard clip stays behind the limiter, with nothing left to do, because the stage has to be bounded at a rate low enough that the window is a couple of samples.

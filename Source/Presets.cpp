@@ -165,6 +165,17 @@ struct Applier {
     set(params::lofiRateId, 0.0f);
     set(params::lofiBitsId, 0.0f);
 
+    // The output stage, which a preset decides because it is part of the sound
+    // rather than part of the desk: five machines rather than a guard with a
+    // switch, and the master in front of them setting how hard they are
+    // driven. Both were things a preset left alone until that was true.
+    //
+    // Twelve down is the panel default and what every patch was dialled at, so
+    // a preset that says nothing about its level sounds as it always did.
+    set(params::masterGainId, -12.0f);
+    set(params::safetyClipId, 1.0f);
+    set(params::clipTypeId, (float)(int)ClipType::Soft);
+
     // The master effects are off unless a preset switches them on, and their
     // settings go back to the panel defaults either way, so loading a preset
     // never leaves the last one's tail behind.
@@ -684,6 +695,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h03_pan", -0.7971f);
     ap.set("h03_sustain", 0.5084f);
     ap.set("h03_vel", 0.0021f);
+    ap.set("clipType", 4.0f); // Fold
     ap.set("echoAge", 0.3247f);
     ap.set("echoFeedback", 0.057f);
     ap.set("echoMix", 0.1557f);
@@ -812,6 +824,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h16_vel", -0.0004f);
     ap.set("h16_volume", 0.2081f);
     ap.character(Character::Diode);
+    ap.set("clipType", 2.0f); // Asymmetric
     ap.set("noise_amDepth", 0.7546f);
     ap.set("noise_amRate", 1.0769f);
     ap.set("noise_amShape", 6.0f);
@@ -941,6 +954,7 @@ void apply(APVTS &apvts, int index) {
     ap.character(Character::Rail);
 
     ap.reverb(0.5f, 9.0f, 0.35f);
+    ap.set("clipType", 3.0f); // Limiter
     break;
   }
   case 4: // DigiLog
@@ -1060,6 +1074,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("echoTime", 0.1882f);
     ap.set("lofiBits", 4.0f);
     ap.set("lofiRate", 3.0f);
+    ap.set("masterGain", -16.0f);
     ap.set("noise_amDepth", 1.0f);
     ap.set("noise_amRate", 11.6296f);
     ap.set("noise_attack", 2.5622f);
@@ -1210,6 +1225,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("echoOn", 1.0f);
     ap.set("echoTime", 0.0882f);
     ap.set("lofiBits", 1.0f);
+    ap.set("masterGain", -4.0f);
     ap.set("noise_attack", 0.0088f);
     ap.set("noise_colour", 0.0f);
     ap.set("noise_decay", 1.6672f);
@@ -1283,6 +1299,7 @@ void apply(APVTS &apvts, int index) {
                  0.2271f, 0.0f, 0.0892f, 0.0f, 0.0492f, 0.0f, 0.0f, 0.0f,
                  0.109f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                  0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
+    ap.set("clipType", 2.0f); // Asymmetric
     ap.set("stretch", -0.2168f);
     ap.set("track", 3.2f);
     ap.character(Character::Bulb);
@@ -1656,6 +1673,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("echoTime", 0.2584f);
     ap.set("lofiBits", 5.0f);
     ap.set("lofiRate", 2.0f);
+    ap.set("masterGain", -10.0f);
     ap.set("noise_amDepth", 0.9768f);
     ap.set("noise_amRate", 2.5121f);
     ap.set("noise_amShape", 6.0f);
@@ -1872,6 +1890,7 @@ void apply(APVTS &apvts, int index) {
     ap.allOsc(params::releaseSuffix, [](int) { return 0.001; });
     ap.allOsc(params::velSuffix, [](int) { return 0.0009; });
     ap.allOsc(params::volumeSuffix, [](int n) { return 1.0 / n; });
+    ap.set("masterGain", -16.0f);
     ap.set("stretch", -0.0515f);
     ap.set("track", 1.0f);
     break;
@@ -1960,6 +1979,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("echoOn", 1.0f);
     ap.set("echoTime", 0.1318f);
     ap.set("lofiBits", 2.0f);
+    ap.set("masterGain", -10.0f);
     ap.set("noise_attack", 0.0009f);
     ap.set("noise_colour", 0.0311f);
     ap.set("noise_decay", 0.0348f);
@@ -2011,6 +2031,7 @@ void apply(APVTS &apvts, int index) {
                  0.5692f, 0.6148f, -0.6148f, -0.6573f, 0.6573f, 0.6971f,
                  -0.6971f, -0.7348f, 0.7348f, 0.7707f, -0.7707f, -0.805f,
                  0.805f, 0.8379f, -0.8379f, -0.8695f, 0.8695f, 0.9f, -0.9f});
+    ap.set("masterGain", -10.0f);
     ap.set("stretch", 180.0f);
     ap.set("track", 4.0f);
     ap.character(Character::Bulb);
@@ -2156,6 +2177,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("echoMix", 0.0989f);
     ap.set("echoOn", 1.0f);
     ap.set("echoTime", 0.0726f);
+    ap.set("masterGain", -6.0f);
     ap.set("noise_amShape", 6.0f);
     ap.set("noise_attack", 0.0002f);
     ap.set("noise_colour", 0.2254f);
@@ -2201,6 +2223,7 @@ void apply(APVTS &apvts, int index) {
     ap.allOsc(params::releaseSuffix, [](int) { return 0.001; });
     ap.allOsc(params::velSuffix, [](int) { return 0.0009; });
     ap.allOsc(params::volumeSuffix, [](int n) { return 1.0 / n; });
+    ap.set("masterGain", -16.0f);
     ap.set("stretch", -0.0515f);
     ap.set("track", 1.0f);
     break;
@@ -2270,6 +2293,8 @@ void apply(APVTS &apvts, int index) {
                  1.0f, -1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f,
                  -1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f, -1.0f,
                  1.0f, -1.0f, 1.0f, -1.0f, 1.0f, 0.0f});
+    ap.set("clipType", 2.0f); // Asymmetric
+    ap.set("masterGain", -8.0f);
     ap.set("track", 4.0f);
     ap.character(Character::Opamp);
     ap.set("wobble", 0.286f);
@@ -2372,6 +2397,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h30_delay", 0.0039f);
     ap.set("h31_delay", 0.006f);
     ap.set("h32_delay", 0.0063f);
+    ap.set("clipType", 2.0f); // Asymmetric
     ap.set("echoAge", 0.595f);
     ap.set("echoFeedback", 0.2911f);
     ap.set("echoMix", 0.1588f);
@@ -2484,6 +2510,7 @@ void apply(APVTS &apvts, int index) {
                  0.1875f, -0.71f, 0.1436f, -0.3988f, 0.4998f, -1.0f, 1.0f,
                  0.85f, -0.5015f, -1.0f, -0.2024f, 1.0f, 0.493f, -1.0f, 1.0f,
                  -0.5536f, 0.0f});
+    ap.set("masterGain", -6.0f);
     ap.set("stretch", -22.6682f);
     ap.set("track", 1.5f);
     ap.character(Character::Bulb);
@@ -2641,6 +2668,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("echoMix", 0.1569f);
     ap.set("echoOn", 1.0f);
     ap.set("echoTime", 0.0528f);
+    ap.set("masterGain", -6.0f);
     ap.set("noise_aftertouch", 0.0f);
     ap.set("noise_amRate", 0.3122f);
     ap.set("noise_attack", 0.0005f);
@@ -2685,6 +2713,7 @@ void apply(APVTS &apvts, int index) {
     // halves of the wave alike. Anything else here would fill in the gaps this
     // patch is made of.
     ap.character(Character::Rail);
+    ap.set("masterGain", -10.0f);
     break;
   }
   case 20: // Omni-84
@@ -2728,6 +2757,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("echoMix", 0.1338f);
     ap.set("echoOn", 1.0f);
     ap.set("echoTime", 0.0934f);
+    ap.set("masterGain", -10.0f);
     ap.set("noise_amDepth", 0.5819f);
     ap.set("noise_attack", 0.0002f);
     ap.set("noise_colour", 0.0012f);
@@ -2769,6 +2799,7 @@ void apply(APVTS &apvts, int index) {
 
     ap.reverb(0.45f, 8.0f, 0.4f, ReverbType::Plate);
     ap.echo(0.28f, 0.66f, 0.55f, 0.6f);
+    ap.set("masterGain", -9.0f);
     break;
   }
   case 22: // Slow Pad
@@ -2816,6 +2847,7 @@ void apply(APVTS &apvts, int index) {
                  0.4427f, 0.4782f, -0.4782f, -0.5112f, 0.5112f, 0.5422f,
                  -0.5422f, -0.5715f, 0.5715f, 0.5994f, -0.5994f, -0.6261f,
                  0.6261f, 0.6517f, -0.6517f, -0.6763f, 0.6763f, 0.7f, -0.7f});
+    ap.set("masterGain", -9.0f);
     ap.set("track", 2.5f);
     ap.character(Character::Bulb);
     ap.set("wobble", 0.1463f);
@@ -2938,12 +2970,14 @@ void apply(APVTS &apvts, int index) {
     ap.set("h31_pan", 1.0f);
     ap.set("h32_decay", 0.0926f);
     ap.set("h32_pan", -1.0f);
+    ap.set("clipType", 2.0f); // Asymmetric
     ap.set("echoAge", 0.4097f);
     ap.set("echoFeedback", 0.7189f);
     ap.set("echoMix", 0.2533f);
     ap.set("echoOn", 1.0f);
     ap.set("echoTime", 0.3583f);
     ap.set("lofiBits", 4.0f);
+    ap.set("masterGain", -6.0f);
     ap.set("noise_attack", 0.0645f);
     ap.set("noise_colour", 0.1192f);
     ap.set("noise_decay", 0.1374f);
@@ -3149,12 +3183,14 @@ void apply(APVTS &apvts, int index) {
     ap.set("h32_amShape", 6.0f);
     ap.set("h32_delay", 0.0009f);
     ap.set("h32_sustain", 0.0f);
+    ap.set("clipType", 2.0f); // Asymmetric
     ap.set("echoAge", 0.5285f);
     ap.set("echoFeedback", 0.9475f);
     ap.set("echoMix", 0.2298f);
     ap.set("echoOn", 1.0f);
     ap.set("echoTime", 0.213f);
     ap.set("lofiBits", 3.0f);
+    ap.set("masterGain", -10.0f);
     ap.set("noise_aftertouch", 0.7961f);
     ap.set("noise_amDepth", 0.5977f);
     ap.set("noise_amRate", 4.6261f);
@@ -3355,6 +3391,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("echoMix", 0.3064f);
     ap.set("echoOn", 1.0f);
     ap.set("echoTime", 0.236f);
+    ap.set("masterGain", -6.0f);
     ap.set("noise_amDepth", 1.0f);
     ap.set("noise_amRate", 0.2139f);
     ap.set("noise_colour", 0.0172f);
@@ -3396,6 +3433,7 @@ void apply(APVTS &apvts, int index) {
 
     // A small, quick room. Struck things are heard somewhere.
     ap.reverb(0.22f, 1.8f, 0.5f);
+    ap.set("clipType", 1.0f); // Hard
     break;
   }
   case 27: // StyloPoly
@@ -3446,11 +3484,13 @@ void apply(APVTS &apvts, int index) {
                  0.0443f, 0.1287f, 0.0653f, 0.0906f, 0.0541f, 0.1366f, 0.1482f,
                  0.0762f, 0.0833f, 0.0991f, 0.0809f, 0.0906f, 0.1218f, 0.1214f,
                  0.0997f, 0.1145f, 0.1916f, 0.4775f});
+    ap.set("clipType", 1.0f); // Hard
     ap.set("echoAge", 0.728f);
     ap.set("echoFeedback", 0.1156f);
     ap.set("echoMix", 0.1424f);
     ap.set("echoOn", 1.0f);
     ap.set("echoTime", 0.0632f);
+    ap.set("masterGain", -10.0f);
     ap.set("noise_amShape", 6.0f);
     ap.set("noise_attack", 0.0002f);
     ap.set("noise_colour", 0.1722f);
@@ -3717,6 +3757,7 @@ void apply(APVTS &apvts, int index) {
     // An old machine: dark, unsteady repeats a beat and a half behind.
     ap.echo(0.33f, 0.5f, 0.55f, 0.8f);
     ap.reverb(0.4f, 4.5f, 0.5f, ReverbType::Plate);
+    ap.set("masterGain", -13.0f);
     break;
   }
   case 30: // Vibraphone
@@ -3767,6 +3808,7 @@ void apply(APVTS &apvts, int index) {
                  -0.357f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                  0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                  0.0f, 0.0f, 0.0f});
+    ap.set("masterGain", -6.0f);
     ap.set("track", 3.0f);
     ap.character(Character::Opamp);
     ap.set("echoOn", 1.0f);
@@ -3843,6 +3885,8 @@ void apply(APVTS &apvts, int index) {
                  0.0845f, 0.0222f, 0.067f, 0.0149f, 0.0393f, 0.0231f, 0.0452f,
                  0.0231f, 0.0294f, 0.0175f, 0.0246f, 0.0085f, 0.0115f, 0.0101f,
                  0.0052f, 0.0059f, 0.0071f, 0.005f});
+    ap.set("clipType", 2.0f); // Asymmetric
+    ap.set("masterGain", -7.0f);
     ap.set("stretch", 0.1305f);
     ap.set("track", 3.1f);
     ap.character(Character::Bulb);

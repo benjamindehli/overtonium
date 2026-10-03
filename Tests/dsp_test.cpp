@@ -26,6 +26,7 @@
 #include "dsp/Envelope.h"
 #include "dsp/Halfband.h"
 #include "dsp/Harmonics.h"
+#include "dsp/OutputStage.h"
 #include "dsp/PlateReverb.h"
 #include "dsp/Reverb.h"
 #include "dsp/SineTable.h"
@@ -376,14 +377,16 @@ void testStartPhase() {
 
     // How much has arrived one millisecond in, against everything it reaches,
     // counted from where the sound starts rather than from the first sample.
-    // The bus stage runs at twice the rate and everything passes through it,
-    // so the whole engine is a fixed few samples behind whatever it is asked
-    // for. See BusDrive::kLatency.
+    // Two stages are late and everything passes through both: the bus stage
+    // runs at twice the rate, and the output stage holds its lookahead back.
+    // See BusDrive::kLatency and OutputStage::kLookaheadSeconds.
+    const int late = BusDrive::kLatency + engine.outputLatency();
+
     double early = 0.0, whole = 0.0;
-    for (int n = BusDrive::kLatency; n < N; ++n) {
+    for (int n = late; n < N; ++n) {
       const auto s = std::abs((double)l[(size_t)n]);
       whole = std::max(whole, s);
-      if (n - BusDrive::kLatency < (int)(0.001 * sr))
+      if (n - late < (int)(0.001 * sr))
         early = std::max(early, s);
     }
 
@@ -7533,9 +7536,12 @@ void testLofi() {
   // Runs must be the same length throughout rather than drifting, which is
   // what a resampler phase that restarts every block would produce.
   // Past the engine's own latency, whose leading samples are one long run of
-  // silence and would count as the longest hold of all. See BusDrive.
+  // silence and would count as the longest hold of all. Both stages that are
+  // late contribute to it. See BusDrive and OutputStage.
+  const int late = BusDrive::kLatency + OutputStage::lookaheadSamples(sr);
+
   int longest = 1, run = 1;
-  for (int n = BusDrive::kLatency + 1; n < N; ++n) {
+  for (int n = late + 1; n < N; ++n) {
     run = heldL[(size_t)n] == heldL[(size_t)n - 1] ? run + 1 : 1;
     longest = std::max(longest, run);
   }
@@ -7730,6 +7736,234 @@ void benchmarkLofi() {
   }
 }
 
+/// The output stage: five ways to run out of room, all of them bounded.
+///
+/// The bound is the point of the stage rather than a property of the shapes
+/// that happen to be in it. A type that could be driven past unity would make
+/// the clipper's own promise false, and the plugin hands its output to a host
+/// that was told what to expect.
+void testOutputStage() {
+  section("The output stage");
+
+  constexpr double sr = 48000.0;
+  constexpr int kN = 4096;
+
+  // The stage is late by its lookahead, so everything below renders that much
+  // extra and drops it. Without that every comparison against the input is
+  // off by ninety-six samples, which on a 220 Hz sine is most of a quarter
+  // cycle and would read as the shapes having changed.
+  const auto run = [&](ClipType type, float drive) {
+    OutputStage stage;
+    stage.prepare(sr);
+
+    const auto late = (size_t)stage.latency();
+
+    std::vector<float> l((size_t)kN + late), r((size_t)kN + late);
+
+    for (size_t n = 0; n < l.size(); ++n) {
+      const auto s =
+          (float)(drive * std::sin(6.283185307179586 * 220.0 * (double)n / sr));
+      l[n] = s;
+      r[n] = s;
+    }
+
+    stage.process(l.data(), r.data(), (int)l.size(), type, true);
+    l.erase(l.begin(), l.begin() + (long)late);
+
+    return l;
+  };
+
+  // ---- bounded, every one of them ----------------------------------------
+  int unbounded = 0;
+
+  for (int i = 0; i < (int)ClipType::NumTypes; ++i) {
+    const auto type = (ClipType)i;
+
+    // Far past anything the instrument can produce, so the answer is about the
+    // shape rather than about what happens to reach it.
+    for (float drive : {1.01f, 2.0f, 11.0f, 400.0f}) {
+      const auto out = run(type, drive);
+
+      for (float v : out)
+        if (!(std::abs(v) <= 1.0f) || !std::isfinite(v)) {
+          ++unbounded;
+          break;
+        }
+    }
+  }
+
+  check(unbounded == 0, "every type stays inside unity however hard it is "
+                        "driven (" +
+                            std::to_string(unbounded) + " did not)");
+
+  // ---- Soft is exactly what it always was --------------------------------
+  //
+  // Every patch in the set was dialled in against this curve, so it has to
+  // come through the change bit for bit rather than merely close.
+  {
+    OutputStage stage;
+    stage.prepare(sr);
+
+    const auto late = (size_t)stage.latency();
+
+    std::vector<float> l, r;
+    for (int n = -2000; n <= 2000; ++n)
+      l.push_back((float)n / 1000.0f);
+
+    const auto before = l;
+
+    // Enough silence after the ramp to push all of it out of the delay.
+    l.resize(l.size() + late, 0.0f);
+    r = l;
+
+    stage.process(l.data(), r.data(), (int)l.size(), ClipType::Soft, true);
+    l.erase(l.begin(), l.begin() + (long)late);
+
+    int differed = 0;
+    for (size_t i = 0; i < l.size(); ++i) {
+      const float x = before[i];
+      const float a = std::abs(x);
+
+      // The old function, written out rather than called, so this compares
+      // against the formula and not against the code under test.
+      float want = x;
+      if (a > 0.7f) {
+        const float over = (a - 0.7f) / 0.3f;
+        const float y = 0.7f + 0.3f * std::tanh(over);
+        want = x < 0.0f ? -y : y;
+      }
+
+      if (l[i] != want)
+        ++differed;
+    }
+
+    check(differed == 0, "Soft is the curve every preset was dialled against "
+                         "(" +
+                             std::to_string(differed) + " samples differ)");
+  }
+
+  // ---- and each one differs in the way it claims to ----------------------
+  const auto harmonic = [&](ClipType type, float drive, double multiple) {
+    return binMagnitude(run(type, drive), 220.0 * multiple, sr);
+  };
+
+  // Soft and Hard fold both halves alike, so the even harmonics cancel.
+  // Asymmetric does not, which is the whole of what it is for.
+  const auto soft2 = harmonic(ClipType::Soft, 2.0f, 2.0);
+  const auto asym2 = harmonic(ClipType::Asymmetric, 2.0f, 2.0);
+
+  std::printf("  second harmonic: soft %.5f, asymmetric %.5f\n", soft2, asym2);
+  check(asym2 > 20.0 * soft2 + 1.0e-6,
+        "Asymmetric puts a second harmonic where Soft puts none");
+
+  // A limiter turns the signal down rather than bending it, so what comes out
+  // is still a sine where a clipper's is not.
+  //
+  // The bound is tight on purpose. A quarter of what Hard makes is satisfied
+  // by any limiter at all, including one whose gain jumps to where it is
+  // needed the instant it is needed: that one holds the ceiling perfectly and
+  // puts 0.00185 into the third harmonic doing it, because a gain that steps
+  // is itself a distortion. Looking ahead and easing the gain into place with
+  // the two box filters is what takes that to 0.00012, and it is the whole
+  // reason this stage carries two milliseconds of latency. A threshold at a
+  // quarter would let that improvement be deleted silently.
+  const auto hard3 = harmonic(ClipType::Hard, 2.0f, 3.0);
+  const auto limit3 = harmonic(ClipType::Limiter, 2.0f, 3.0);
+
+  std::printf("  third harmonic: hard %.5f, limiter %.5f\n", hard3, limit3);
+  check(limit3 < hard3 * 0.005,
+        "the Limiter holds the ceiling without distorting to do it (" +
+            std::to_string(limit3) + ")");
+
+  // And the folder makes more of everything than the shaper it replaces.
+  const auto soft5 = harmonic(ClipType::Soft, 2.0f, 5.0);
+  const auto fold5 = harmonic(ClipType::Fold, 2.0f, 5.0);
+
+  std::printf("  fifth harmonic: soft %.5f, fold %.5f\n", soft5, fold5);
+  check(fold5 > soft5 * 2.0, "and Fold generates far more than Soft");
+
+  // ---- below the knee nothing touches it ---------------------------------
+  //
+  // The input is built once and kept rather than worked out twice, because
+  // 0.4f and 0.4 are not the same number and comparing a run against a freshly
+  // written expression failed on that alone.
+  {
+    std::vector<float> in((size_t)kN);
+    for (int n = 0; n < kN; ++n)
+      in[(size_t)n] =
+          (float)(0.4 * std::sin(6.283185307179586 * 220.0 * n / sr));
+
+    OutputStage stage;
+    stage.prepare(sr);
+
+    const auto late = (size_t)stage.latency();
+
+    auto l = in;
+    auto r = in;
+    l.resize(l.size() + late, 0.0f);
+    r.resize(r.size() + late, 0.0f);
+
+    stage.process(l.data(), r.data(), (int)l.size(), ClipType::Soft, true);
+    l.erase(l.begin(), l.begin() + (long)late);
+
+    int moved = 0;
+    for (size_t i = 0; i < in.size(); ++i)
+      if (l[i] != in[i])
+        ++moved;
+
+    check(moved == 0, "and a signal under the knee comes through untouched");
+  }
+
+  // ---- the limiter limits, rather than leaving it to the backstop ---------
+  //
+  // The point of the lookahead. Without it the gain is always arriving after
+  // the peak it was meant for, so what actually holds the signal down is the
+  // hard clip behind it: on the presets that drive it, 1741 samples in two
+  // seconds were being clipped and the signal reached 1.294 on its way there.
+  // With it the gain is in place before the peak lands and the clip has
+  // nothing to do, which is audible as the difference between a limiter and a
+  // clipper.
+  //
+  // Asserted as a ceiling rather than as a count of clipped samples, because
+  // the ceiling is the claim: anything at unity got there by being cut off.
+  {
+    OutputStage stage;
+    stage.prepare(sr);
+
+    // Silence, then a loud sine arriving at full amplitude with no ramp. The
+    // envelopes in this instrument open in as little as 0.2 ms, so an onset
+    // this abrupt is not far past what it really produces.
+    std::vector<float> l((size_t)kN), r((size_t)kN);
+
+    for (int n = kN / 4; n < kN; ++n) {
+      const auto s =
+          (float)(2.0 * std::sin(6.283185307179586 * 220.0 * n / sr));
+      l[(size_t)n] = s;
+      r[(size_t)n] = s;
+    }
+
+    stage.process(l.data(), r.data(), kN, ClipType::Limiter, true);
+
+    // Four milliseconds from the onset, which is twice the lookahead and so
+    // covers the whole of the stage getting its gain into place. Fixed in
+    // milliseconds rather than taken from latency(), because a window derived
+    // from the thing under test is empty when that thing is zero and the
+    // check then passes by having nothing to look at.
+    const int onsetSamples = (int)(0.004 * sr);
+
+    float onset = 0.0f;
+    for (int n = kN / 4; n < kN / 4 + onsetSamples; ++n)
+      onset = std::max(onset, std::abs(l[(size_t)n]));
+
+    std::printf("  limiter through the onset at %.4f\n", (double)onset);
+
+    check(onset <= 0.99f,
+          "the Limiter holds an abrupt onset below unity with gain rather "
+          "than with the clip behind it (" +
+              std::to_string(onset) + ")");
+  }
+}
+
 int main() {
   // Unbuffered, so a crash leaves behind everything printed up to it. ctest
   // captures the output through a pipe, which buffers it by default, and a
@@ -7784,6 +8018,7 @@ int main() {
   testPlateReverb();
   testSpringReverb();
   testLofi();
+  testOutputStage();
   benchmark();
   benchmarkLofi();
 

@@ -31,6 +31,7 @@
 #include "UI/TopBar.h"
 #include "UpdateCheck.h"
 #include "dsp/Exact.h"
+#include "dsp/OutputStage.h"
 #include "dsp/TapeEcho.h"
 
 namespace {
@@ -237,11 +238,12 @@ void testParameterWiring(OvertoniumProcessor &p) {
   // than controls of their own: whether each of the two is one circuit the
   // keyboard shares. See GlobalParams::ampModInPhase.
   //
-  // The trailing one is the echo's type, which arrived beside the switch that
-  // turns it on rather than replacing it: a boolean every saved patch stores
-  // and every lane points at cannot become a four-position choice without
-  // taking both with it. See params::echoTypeId.
-  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 2;
+  // The trailing three are the echo's type, the reverb's and the output
+  // stage's, each of which arrived beside the switch that turns its thing on
+  // rather than replacing it: a boolean every saved patch stores and every
+  // lane points at cannot become a choice without taking both with it. See
+  // params::echoTypeId and params::clipTypeId.
+  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 3;
 
   // The behaviour that was there before it became a choice. Asked of the
   // parameter rather than of the tree, so the answer does not depend on what
@@ -512,14 +514,33 @@ void testBusStageFollowsTheCharacter(OvertoniumProcessor &p) {
             std::to_string(differs(valve, bulb)) + ")");
 
   // Every character, including the one that has none, costs the same few
-  // samples, so a preset cannot make a host re-plan its graph.
-  check(idle == ovt::BusDrive::kLatency, "the stage's latency is reported (" +
-                                             std::to_string(idle) +
-                                             " samples)");
+  // samples, so a preset cannot make a host re-plan its graph. The output
+  // stage's lookahead is in the figure too and is just as fixed: it is paid
+  // on every clip type and with the clipper switched off.
+  const auto expected =
+      ovt::BusDrive::kLatency + ovt::OutputStage::lookaheadSamples(48000.0);
+
+  check(idle == expected, "both stages' latency is reported (" +
+                              std::to_string(idle) + " samples, expected " +
+                              std::to_string(expected) + ")");
 
   check(p.getLatencySamples() == idle,
         "and does not move when the character does (" +
             std::to_string(p.getLatencySamples()) + ")");
+
+  // The other half of the same rule. The lookahead belongs to one of the five
+  // types and is paid by all of them, so switching the stage off entirely has
+  // to leave the figure alone.
+  auto *clip = p.apvts.getParameter(ovt::params::safetyClipId);
+  clip->setValueNotifyingHost(0.0f);
+  p.prepareToPlay(48000.0, 512);
+
+  check(p.getLatencySamples() == idle,
+        "nor when the output stage is switched off (" +
+            std::to_string(p.getLatencySamples()) + ")");
+
+  clip->setValueNotifyingHost(1.0f);
+  p.prepareToPlay(48000.0, 512);
 
   p.applyFactoryPreset(presetIndex("Init"));
 }
@@ -3660,6 +3681,96 @@ void testMachineMenusFollowTheirParameters(OvertoniumProcessor &p) {
               tickedIn(stillDigital) + ")");
   }
 
+  // ---- and the output stage, which became one of these ---------------------
+  {
+    write(ovt::params::safetyClipId, 0.0f);
+
+    auto off = bar->buildClipMenu();
+    check(tickedIn(off) == "Off",
+          "the clipper says Off when its switch is off (" + tickedIn(off) +
+              ")");
+
+    write(ovt::params::safetyClipId, 1.0f);
+
+    for (int i = 0; i < (int)ovt::ClipType::NumTypes; ++i) {
+      write(ovt::params::clipTypeId, (float)i);
+
+      auto menu = bar->buildClipMenu();
+      const std::string wanted = ovt::clipTypeName((ovt::ClipType)i);
+
+      check(tickedIn(menu) == wanted, "and names " + wanted +
+                                          " when that is the shape running (" +
+                                          tickedIn(menu) + ")");
+    }
+
+    write(ovt::params::safetyClipId, 0.0f);
+
+    auto stillFold = bar->buildClipMenu();
+    check(tickedIn(stillFold) == "Off",
+          "and goes back to Off without forgetting which shape it was (" +
+              tickedIn(stillFold) + ")");
+  }
+
+  // ---- and the button they came from can say them ------------------------
+  //
+  // The menu above has room for whatever a shape is called. The button does
+  // not: it is 62 px with a label area of 46, and the ten pixels it would
+  // take to fit ASYMMETRIC belong to the converter's readouts beside it,
+  // which are already at the width they need to name their units. So the
+  // button carries short forms, and this is what says they are short enough.
+  //
+  // Measured rather than eyed, because a label that overflows is not a
+  // failure a rendered window announces: JUCE shaves the ends and the word
+  // goes on looking like a word.
+  {
+    std::function<juce::TextButton *(juce::Component &)> findClip =
+        [&findClip](juce::Component &c) -> juce::TextButton * {
+      for (auto *child : c.getChildren()) {
+        if (auto *b = dynamic_cast<juce::TextButton *>(child))
+          if (b->getTitle().startsWith("Clip"))
+            return b;
+
+        if (auto *found = findClip(*child))
+          return found;
+      }
+
+      return nullptr;
+    };
+
+    editor->setSize(editor->getWidth(), editor->getHeight());
+
+    auto *clip = findClip(*editor);
+
+    check(clip != nullptr, "the bar carries a clip button");
+
+    if (clip != nullptr && clip->getWidth() > 0) {
+      const auto font =
+          clip->getLookAndFeel().getTextButtonFont(*clip, clip->getHeight());
+
+      // The margin JUCE's own text button keeps either side of a label.
+      const int margin = juce::jmin(clip->getWidth() / 4, 8);
+      const auto room = (float)(clip->getWidth() - margin * 2);
+
+      int tooWide = 0;
+      for (int i = 0; i < (int)ovt::ClipType::NumTypes; ++i) {
+        const juce::String label =
+            juce::String(ovt::clipTypeShortName((ovt::ClipType)i))
+                .toUpperCase();
+
+        const auto width = juce::GlyphArrangement::getStringWidth(font, label);
+
+        if (width > room) {
+          ++tooWide;
+          std::printf("  %s is %.1f px against %.1f\n", label.toRawUTF8(),
+                      (double)width, (double)room);
+        }
+      }
+
+      check(tooWide == 0, "and every shape's name fits across it (" +
+                              std::to_string(tooWide) + " do not)");
+    }
+  }
+
   // ---- and the reverb, which works the same way ----------------------------
   {
     write(ovt::params::reverbOnId, 0.0f);
@@ -4908,6 +5019,30 @@ void testTheSafetyClipHoldsUnity() {
     set(ovt::params::masterGainId, 1.0f);
     set(ovt::params::safetyClipId, 1.0f);
 
+    // Every one of the five, because the bound is the stage's promise rather
+    // than a property of whichever shape happens to be selected. The limiter
+    // is the one that does not keep it by its shape: it keeps it by seeing
+    // the peak coming, with a hard clip behind it for whatever its window is
+    // too short to have seen, and this is what says so.
+    for (int type = 0; type < (int)ovt::ClipType::NumTypes; ++type) {
+      set(ovt::params::clipTypeId,
+          (float)type / (float)((int)ovt::ClipType::NumTypes - 1));
+
+      juce::MidiBuffer chord;
+      for (int note : {36, 43, 48, 52, 55, 59, 60, 64, 67, 72})
+        chord.addEvent(juce::MidiMessage::noteOn(1, note, 1.0f), 0);
+
+      const auto each =
+          renderBlocks(fresh, (int)(1.0 * rate / 256.0) + 1, 256, chord);
+
+      check(each.finite && each.peak <= 1.0f,
+            std::string(ovt::clipTypeName((ovt::ClipType)type)) +
+                " stays inside unity at " + std::to_string((int)rate) +
+                " Hz (" + std::to_string(each.peak) + ")");
+    }
+
+    set(ovt::params::clipTypeId, 0.0f);
+
     juce::MidiBuffer midi;
     for (int note : {36, 43, 48, 52, 55, 59, 60, 64, 67, 72})
       midi.addEvent(juce::MidiMessage::noteOn(1, note, 1.0f), 0);
@@ -5807,10 +5942,11 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
 void testPresetsAreReproducible(OvertoniumProcessor &p) {
   section("Presets start from a known state");
 
-  // What a preset deliberately leaves alone: how you play it and how loud, as
-  // opposed to what it sounds like. Asked of the one list rather than copied
-  // into a second one here, which is the whole reason that list is shared. The
-  // copy this replaced had already fallen three settings behind it.
+  // What a preset deliberately leaves alone: how you play it, as opposed to
+  // what it sounds like, which takes in how loud it is. Asked of the one list
+  // rather than copied into a second one here, which is the whole reason that
+  // list is shared. The copy this replaced had already fallen three settings
+  // behind it.
 
   const auto snapshot = [&p] {
     std::vector<std::pair<juce::String, float>> out;
@@ -6599,9 +6735,10 @@ void testPrograms(OvertoniumProcessor &p) {
 
   p.applyFactoryPreset(chosen);
 
-  // A parameter the presets actually set. Master gain is a session parameter
-  // and presets leave it alone, so an edit to it survives everything here and
-  // would make every check below pass without proving anything.
+  // A parameter the presets actually set, so the value read below is one the
+  // preset put there rather than whatever happened to be lying about. Anything
+  // a preset left alone would survive the reload and make every check pass
+  // without proving a thing.
   auto *volume = p.apvts.getParameter(
       ovt::params::oscParamId(ovt::params::volumeSuffix, 0));
 

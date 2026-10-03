@@ -381,21 +381,32 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   echoButton.setColour(juce::TextButton::textColourOnId, colours::accent);
   reverbButton.setColour(juce::TextButton::textColourOnId, colours::accent);
 
-  // The clipper stands with the converter rather than with the effects, since
-  // what it does is the last thing that happens to the signal and the readouts
-  // beside it are the other two facts about the output stage. It keeps its
-  // entry in the settings menu as well: a switch that is set once and left is
-  // a settings-menu thing, and a switch this close to the meter is worth
-  // reaching for while listening.
+  // The output stage stands with the converter rather than with the effects,
+  // since what it does is the last thing that happens to the signal and the
+  // readouts beside it are the other two facts about the output. It is a
+  // machine button like the echo and the reverb now rather than a switch,
+  // because it chooses between five shapes rather than turning one on, and it
+  // has left the settings menu for the same reason: it is part of the sound.
   styleToggle(clipButton, kClipName,
-              "A soft clipper across the finished output, after the master "
-              "fader. On is a limit you can hear yourself reach; off lets the "
-              "output go past full scale and out to the host as it is.");
+              "What the finished output runs into, after the master fader, "
+              "which is therefore the drive into it. Soft bends, Hard stops "
+              "dead, Asymmetric leans one half of the wave over before the "
+              "other, "
+              "Limiter turns the level down instead of bending anything, and "
+              "Fold turns the wave back on itself. None of them lets the "
+              "output past full scale; off does.");
+
+  clipButton.onClick = [this] {
+    auto m = buildClipMenu();
+    m.setLookAndFeel(&getLookAndFeel());
+
+    m.showMenuAsync(juce::PopupMenu::Options()
+                        .withTargetComponent(&clipButton)
+                        .withStandardItemHeight(22),
+                    [this](int result) { chooseClip(result); });
+  };
 
   clipButton.setColour(juce::TextButton::textColourOnId, colours::accent);
-
-  clipAttachment = std::make_unique<ButtonAttachment>(
-      apvts, params::safetyClipId, clipButton);
 
   addKnob(echoControls, "Echo", "MIX", params::echoMixId,
           "How much of the output is repeats", popupParent);
@@ -519,6 +530,50 @@ void TopBar::setPresetName(const juce::String &name) {
 juce::String TopBar::getPresetName() const {
   const auto shown = presetButton.getButtonText();
   return shown == kNoPreset ? juce::String() : shown;
+}
+
+juce::PopupMenu TopBar::buildClipMenu() {
+  juce::PopupMenu m;
+
+  auto *on = apvts.getParameter(params::safetyClipId);
+  auto *type = apvts.getParameter(params::clipTypeId);
+
+  const bool running = on != nullptr && on->getValue() > 0.5f;
+  const auto which =
+      type == nullptr
+          ? 0
+          : juce::roundToInt(type->convertFrom0to1(type->getValue()));
+
+  m.addItem(1, "Off", true, !running);
+  m.addSeparator();
+
+  for (int i = 0; i < (int)ClipType::NumTypes; ++i)
+    m.addItem(i + 2, clipTypeName((ClipType)i), true, running && i == which);
+
+  return m;
+}
+
+void TopBar::chooseClip(int id) {
+  if (id <= 0)
+    return;
+
+  auto *on = apvts.getParameter(params::safetyClipId);
+  auto *type = apvts.getParameter(params::clipTypeId);
+
+  if (on == nullptr)
+    return;
+
+  // Off writes the switch alone, as the echo does, so coming back on returns
+  // to the shape that was chosen rather than to the first in the list.
+  if (id == 1) {
+    on->setValueNotifyingHost(0.0f);
+    return;
+  }
+
+  if (type != nullptr)
+    type->setValueNotifyingHost(type->convertTo0to1((float)(id - 2)));
+
+  on->setValueNotifyingHost(1.0f);
 }
 
 juce::PopupMenu TopBar::buildEchoMenu() {
@@ -1193,6 +1248,32 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
     reverbButton.setToggleState(running, juce::dontSendNotification);
 
     setRingsLive(reverbControls, running);
+  }
+
+  // ---- and which output stage, by the same rule ----------------------------
+  {
+    auto *on = apvts.getParameter(params::safetyClipId);
+    auto *type = apvts.getParameter(params::clipTypeId);
+
+    const bool running = on != nullptr && on->getValue() > 0.5f;
+    const auto which = type == nullptr
+                           ? ClipType::Soft
+                           : (ClipType)juce::roundToInt(
+                                 type->convertFrom0to1(type->getValue()));
+
+    const juce::String name = clipTypeName(which);
+
+    // The short form, because Asymmetric does not fit across 46 px of label
+    // and the pixels it would need belong to the readouts beside it. See
+    // clipTypeShortName.
+    clipButton.setButtonText(
+        running ? juce::String(clipTypeShortName(which)).toUpperCase()
+                : juce::String("OFF"));
+
+    // "Clip" rather than the parameter's own word, because what it is called
+    // on the bar is what someone is looking for when they hear it.
+    clipButton.setTitle(running ? "Clip: " + name : juce::String("Clip: off"));
+    clipButton.setToggleState(running, juce::dontSendNotification);
   }
 
   // In capitals, like every other word on the bar. The menu it comes from
