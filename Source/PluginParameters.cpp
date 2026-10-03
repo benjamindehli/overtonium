@@ -1026,11 +1026,17 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   // layout and cannot move while the plugin is running.
   for (int r = 0; r < kNumMacroRows; ++r) {
     auto &range = rowRange[(size_t)r];
-    range = {0.0f, 1.0f};
+    range = juce::NormalisableRange<float>(0.0f, 1.0f);
 
+    // The whole range, not its two ends. Several of these rows are built by
+    // logRange, which carries its curve in conversion functions rather than
+    // in the skew, so a range rebuilt from start and end alone comes back
+    // linear and silently so. That is what made a quarter turn of a macro
+    // add five seconds to a decay: linear in seconds across a range that
+    // spans four orders of magnitude.
     if (auto *p = dynamic_cast<juce::RangedAudioParameter *>(
             apvts.getParameter(oscParamId(kMacroRows[(size_t)r], 0))))
-      range = {p->getNormalisableRange().start, p->getNormalisableRange().end};
+      range = p->getNormalisableRange();
   }
   mpe = apvts.getRawParameterValue(mpeId);
   lofiRate = apvts.getRawParameterValue(lofiRateId);
@@ -1292,8 +1298,7 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
         cached.anchor == nullptr ? 0
                                  : (int)std::lround(cached.anchor->load()) - 1);
 
-    const auto range = rowRange[(size_t)(row - 1)];
-    const auto span = range.second - range.first;
+    const auto &range = rowRange[(size_t)(row - 1)];
 
     for (int i = 0; i < kNumHarmonics; ++i) {
       if (!macroReaches(scope, i))
@@ -1304,12 +1309,22 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
       if (field == nullptr)
         continue;
 
-      // Clamped to the row's own range, so a macro can take a control to its
-      // end and no further. Two macros on one row add up and the clamp still
-      // holds.
-      *field =
-          juce::jlimit(range.first, range.second,
-                       *field + amount * span * macroWeight(curve, i, anchor));
+      // Shifted across the control's own travel rather than across its units.
+      //
+      // A row's range is rarely linear: decay spans a thousandth of a second
+      // to ten, so adding the same number of seconds is a twentyfold change
+      // at one end of it and a rounding error at the other. Moving a
+      // proportion of the travel instead means a macro does the same thing
+      // to a control wherever that control is set, and it is what lets the
+      // macro's own fader be linear: equal travel there is equal travel
+      // here.
+      //
+      // Clamped to the ends, so a macro takes a control as far as it goes
+      // and no further. Two macros on one row add up and the clamp holds.
+      const auto moved =
+          range.convertTo0to1(*field) + amount * macroWeight(curve, i, anchor);
+
+      *field = range.convertFrom0to1(juce::jlimit(0.0f, 1.0f, moved));
     }
   }
 

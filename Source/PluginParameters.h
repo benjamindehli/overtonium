@@ -358,7 +358,7 @@ struct Cache {
 
   /// The low and high end of every row a macro can drive, read once. Every
   /// channel's copy of a row shares one range, so one pair answers for all 32.
-  std::array<std::pair<float, float>, (size_t)kNumMacroRows> rowRange{};
+  std::array<juce::NormalisableRange<float>, (size_t)kNumMacroRows> rowRange{};
 
   std::atomic<float> *masterGain = nullptr;
   std::atomic<float> *polyphony = nullptr;

@@ -222,40 +222,28 @@ void MacroPanel::choose(int macro, const juce::String &parameterId,
 
 void MacroPanel::showReading(int macro) {
   auto &strip = strips[(size_t)macro];
-  const auto row = chosen(params::macroRowId(macro));
 
-  if (row == 0) {
+  if (chosen(params::macroRowId(macro)) == 0) {
     strip.reading.setText({}, juce::dontSendNotification);
     return;
   }
 
-  const auto range = params::macroRowRange(apvts, row);
-  const auto span = range.end - range.start;
-  const auto offset = (float)strip.amount.getValue() * span;
+  // A share of the control's travel rather than a number of its units.
+  //
+  // Units were wrong twice over. A macro shifts a proportion of the travel,
+  // so what it comes to in seconds or cents depends on where each of the 32
+  // channels is already sitting, and there is no single number to print. And
+  // on a row like decay, which runs from a thousandth of a second to twenty,
+  // the same proportion is a few milliseconds at one end and seconds at the
+  // other.
+  //
+  // Signed always, because a macro's number is a distance rather than a
+  // position and plus nothing is not the same statement as nothing.
+  const auto share = (float)strip.amount.getValue() * 100.0f;
 
-  // The number of places the row itself would want. A row spanning
-  // thousands of cents said to three places would be four digits of noise,
-  // and one spanning a single unit said to none would always read zero.
-  const int places = std::abs(span) >= 100.0f  ? 0
-                     : std::abs(span) >= 10.0f ? 1
-                                               : 3;
-
-  juce::String label;
-
-  if (auto *p = dynamic_cast<juce::RangedAudioParameter *>(apvts.getParameter(
-          params::oscParamId(params::kMacroRows[(size_t)(row - 1)], 0))))
-    label = p->getLabel();
-
-  // Signed always, because an offset of zero and an offset of plus nothing
-  // are the same thing and a macro's number is a distance rather than a
-  // position.
-  auto text =
-      juce::String(offset >= 0.0f ? "+" : "") + juce::String(offset, places);
-
-  if (label.isNotEmpty())
-    text << " " << label;
-
-  strip.reading.setText(text, juce::dontSendNotification);
+  strip.reading.setText(juce::String(share >= 0.0f ? "+" : "") +
+                            juce::String(share, 1) + " %",
+                        juce::dontSendNotification);
 }
 
 void MacroPanel::refresh() {

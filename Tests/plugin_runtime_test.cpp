@@ -1124,7 +1124,16 @@ void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
       // from the same shared arithmetic. If those two ever disagreed the
       // knob would be showing a value nothing is playing, which is worse
       // than showing nothing: it would be a lie told confidently.
-      set(ovt::params::macroRowId(0), (float)tuneRow);
+      // The decay row rather than tune, because decay is built by logRange
+      // and tune is linear. A macro that moved a proportion of the units
+      // instead of a proportion of the travel passes on a linear row and is
+      // wrong by orders of magnitude on this one, which is exactly the fault
+      // this guards: the cached range was being rebuilt from its two ends,
+      // which throws away the curve logRange keeps in its conversion
+      // functions and leaves a range that looks right and is linear.
+      const int decayRow = 9;
+
+      set(ovt::params::macroRowId(0), (float)decayRow);
       set(ovt::params::macroScopeId(0), 0.0f);
       set(ovt::params::macroCurveId(0),
           (float)(int)ovt::params::MacroCurve::Taper);
@@ -1137,7 +1146,7 @@ void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
       int mismatched = 0;
       for (int i = 0; i < ovt::kNumHarmonics; ++i) {
         auto *c = ovt::ui::learn::controlFor(
-            *editor, ovt::params::oscParamId(ovt::params::tuneSuffix, i));
+            *editor, ovt::params::oscParamId(ovt::params::decaySuffix, i));
 
         if (c == nullptr)
           continue;
@@ -1147,14 +1156,14 @@ void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
 
         auto *q =
             dynamic_cast<juce::RangedAudioParameter *>(p.apvts.getParameter(
-                ovt::params::oscParamId(ovt::params::tuneSuffix, i)));
+                ovt::params::oscParamId(ovt::params::decaySuffix, i)));
 
         if (q == nullptr)
           continue;
 
         // Both as a proportion of the control's travel, which is what the
         // ring is drawn from.
-        const auto engine = q->convertTo0to1(played.osc[(size_t)i].tuneBlend);
+        const auto engine = q->convertTo0to1(played.osc[(size_t)i].decay);
 
         if (std::abs(shown - engine) > 1.0e-3f)
           ++mismatched;
@@ -1173,10 +1182,10 @@ void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
       {
         auto *first =
             dynamic_cast<juce::RangedAudioParameter *>(p.apvts.getParameter(
-                ovt::params::oscParamId(ovt::params::tuneSuffix, 0)));
+                ovt::params::oscParamId(ovt::params::decaySuffix, 0)));
 
         auto *control = ovt::ui::learn::controlFor(
-            *editor, ovt::params::oscParamId(ovt::params::tuneSuffix, 0));
+            *editor, ovt::params::oscParamId(ovt::params::decaySuffix, 0));
 
         if (first != nullptr && control != nullptr) {
           const auto ringAt = [control] {

@@ -1321,16 +1321,12 @@ void OvertoniumEditor::followMacroTints() {
         wearing = reach.colour;
 
         // Where the engine will actually put it, by the arithmetic the
-        // snapshot uses: the amount across the row's span, shared out by the
-        // curve, and clamped to the ends the control has.
-        const auto span = reach.range.end - reach.range.start;
-        const auto base = q->convertFrom0to1(q->getValue());
-        const auto landed = juce::jlimit(
-            reach.range.start, reach.range.end,
-            base + reach.amount * span *
-                       ovt::params::macroWeight(reach.curve, i, reach.anchor));
-
-        result = q->convertTo0to1(landed);
+        // snapshot uses: a proportion of the control's own travel, shared out
+        // by the curve and clamped to the ends.
+        result = juce::jlimit(
+            0.0f, 1.0f,
+            q->getValue() + reach.amount * ovt::params::macroWeight(
+                                               reach.curve, i, reach.anchor));
         break;
       }
 
