@@ -278,4 +278,13 @@ It used to be a screenshot with a blur and a grade over it, kept outside the rep
 
 The stylesheet takes its palette from `Source/UI/Theme.h`, so the page and the instrument stay the same colour. One value deliberately does not. The instrument's dim text is `#6f7a86`, which measures 4.45 against the page background and 4.08 against a panel, either side of the 4.5 that WCAG AA asks for at this size, and it is the colour behind the nav, the fact labels, the captions and the footer. The page lifts it to `#838d97`, which clears the bar on every surface it lands on. Changing it in `Theme.h` instead would drag the instrument's own captions with it and put the hero wordmark, which is hand-composed, out of step with the plugin.
 
-Images wider than the column that shows them carry a `srcset`. A phone lays the front page out at 364 CSS pixels, so the window shot goes out at 674 rather than 1348, which is the difference between 63 KB and 205 KB on the connection least able to afford it.
+Images wider than the column that shows them carry a `srcset`. A phone lays the front page out at 364 CSS pixels, so the window shot goes out at 674 rather than 1350, which is the difference between 61 KB and 205 KB on the connection least able to afford it.
+
+**Every `<img>` carries a width and a height**, so the browser reserves the space before the bytes arrive, and `.github/scripts/image_dimensions.py` checks that what a page says matches what the file is. Getting it wrong is the layout shift those attributes exist to prevent, and nothing says so: the page looks right to whoever is testing it on a fast connection. It went wrong exactly that way. The scrollbar that came with the scrolling parameters made the window ten pixels wider, the renderer went on asking for the old size because it was a literal, and the pages went on declaring a width the picture had not had for two releases.
+
+```
+python3 .github/scripts/image_dimensions.py --self-test
+python3 .github/scripts/image_dimensions.py docs
+```
+
+It reads PNG, JPEG and WebP headers itself rather than reaching for Pillow, so it costs what the checks beside it cost. The attributes have to match one of the pictures the element can actually load, since declaring the largest of a `srcset` is as honest as declaring the one in `src`, and every other entry has to be the same shape within a percent. A percent rather than exactly, because halving 383 gives 191.5 and a file cannot be half a pixel tall, so a resampled entry is always a fraction off. It checks the social cards are 1200x630 as well, which is the one thing about them nothing on the site would reveal: no browser loads a card, so a card of the wrong shape only shows up in somebody else's link preview. It self-tests first, for the reason `lambda_captures.py` does.
