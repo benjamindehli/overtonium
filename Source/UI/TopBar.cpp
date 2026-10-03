@@ -861,6 +861,7 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
   auto *bendRange = apvts.getParameter(params::bendRangeId);
   auto *phase = apvts.getParameter(params::phaseResetId);
   auto *clip = apvts.getParameter(params::safetyClipId);
+  auto *ahead = apvts.getParameter(params::lookaheadId);
   auto *onePerKey = apvts.getParameter(params::oneVoicePerKeyId);
   auto *mpe = apvts.getParameter(params::mpeId);
 
@@ -1018,6 +1019,12 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
   m.addItem(301, "Safety clip", true,
             clip != nullptr && clip->getValue() > 0.5f);
 
+  // Under the clipper, because what it does is to that stage's limiter. It is
+  // the one setting here that changes what the plugin tells the host, so it
+  // says what it costs rather than leaving that to be found.
+  m.addItem(304, "Limiter lookahead (2 ms latency)", true,
+            ahead != nullptr && ahead->getValue() > 0.5f);
+
   // Last, and on its own. Everything above it is the instrument: how many
   // voices, what the controller sends, how the keyboard is tuned, what leaves
   // the outputs. How big the window is on your screen is not, and grouping it
@@ -1057,6 +1064,9 @@ void TopBar::showSettingsMenu() {
 
         if (result == 302)
           return flip(params::mpeId);
+
+        if (result == 304)
+          return flip(params::lookaheadId);
 
         if (result == 303)
           return flip(params::oneVoicePerKeyId);

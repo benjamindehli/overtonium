@@ -385,6 +385,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   layout.add(std::make_unique<BoolP>(juce::ParameterID{safetyClipId, 1},
                                      "Safety Clip", true));
 
+  // On, because the limiter without it is a rougher limiter rather than a
+  // broken one and the two milliseconds are worth that to most people. See
+  // params::lookaheadId for why it is a session parameter and not a patch's.
+  layout.add(std::make_unique<BoolP>(juce::ParameterID{lookaheadId, 1},
+                                     "Lookahead", true));
+
   // Off by default, because it changes what an incoming channel number means
   // and most keyboards are not saying anything by it. See
   // OvertoniumProcessor::handleMidiMessage.
@@ -772,6 +778,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   tuningRoot = apvts.getRawParameterValue(tuningRootId);
   referenceHz = apvts.getRawParameterValue(referenceHzId);
   safetyClip = apvts.getRawParameterValue(safetyClipId);
+  lookahead = apvts.getRawParameterValue(lookaheadId);
   mpe = apvts.getRawParameterValue(mpeId);
   lofiRate = apvts.getRawParameterValue(lofiRateId);
   lofiBits = apvts.getRawParameterValue(lofiBitsId);
@@ -984,6 +991,11 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   // it for that reason. See BusDrive::amountFor.
   out.global.busDrive = (float)ovt::BusDrive::amountFor(out.global.character);
   out.global.safetyClip = safetyClip->load() > 0.5f;
+
+  // Older states have no such parameter, so a null pointer means a build
+  // that predates the switch, which had the lookahead and no way to refuse
+  // it.
+  out.global.lookahead = lookahead == nullptr || lookahead->load() > 0.5f;
 
   // A patch saved before there were types says nothing about one and reads
   // back as zero, which is the soft clipper it was made on.

@@ -32,6 +32,20 @@ inline constexpr const char *safetyClipId = "safetyClip";
 /// a boolean every saved patch stores and every lane points at cannot become a
 /// five-position choice without taking both with it.
 inline constexpr const char *clipTypeId = "clipType";
+
+/// Whether the output stage is allowed its lookahead.
+///
+/// A session parameter rather than part of a patch, which is what makes it
+/// safe: the whole reason the lookahead is paid by every shape is that a
+/// latency depending on the patch would have the host re-plan its graph each
+/// time a preset loaded. Nothing a preset can reach may move it, so this sits
+/// in Settings with the temperament and the polyphony and is listed in
+/// kSessionParamIds with them.
+///
+/// On by default. Off is worth having because only one of the five shapes
+/// uses the window at all, so anyone who never reaches for the Limiter is
+/// paying two milliseconds for nothing.
+inline constexpr const char *lookaheadId = "lookahead";
 inline constexpr const char *mpeId = "mpe";
 inline constexpr const char *lofiRateId = "lofiRate";
 inline constexpr const char *lofiBitsId = "lofiBits";
@@ -238,6 +252,7 @@ struct Cache {
   std::atomic<float> *tuningRoot = nullptr;
   std::atomic<float> *referenceHz = nullptr;
   std::atomic<float> *safetyClip = nullptr;
+  std::atomic<float> *lookahead = nullptr;
   std::atomic<float> *clipType = nullptr;
   std::atomic<float> *mpe = nullptr;
   std::atomic<float> *lofiRate = nullptr;
@@ -315,9 +330,10 @@ juce::String polyphonyName(int index);
 ///
 /// Named here rather than in Presets.cpp so the code that honours the rule and
 /// the test that checks it cannot come to disagree about what the rule is.
-inline const std::array<const char *, 10> kSessionParamIds{
-    polyphonyId,  bendRangeId, atSourceId,  referenceHzId,    temperamentId,
-    tuningRootId, mpeId,       slideDestId, oneVoicePerKeyId, phaseResetId};
+inline const std::array<const char *, 11> kSessionParamIds{
+    polyphonyId,      bendRangeId,  atSourceId, referenceHzId,
+    temperamentId,    tuningRootId, mpeId,      slideDestId,
+    oneVoicePerKeyId, phaseResetId, lookaheadId};
 
 /// Whether `id` is one of those, for the several places that have to ask.
 inline bool isSessionParam(juce::StringRef id) {

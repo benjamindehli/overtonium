@@ -238,12 +238,16 @@ void testParameterWiring(OvertoniumProcessor &p) {
   // than controls of their own: whether each of the two is one circuit the
   // keyboard shares. See GlobalParams::ampModInPhase.
   //
-  // The trailing three are the echo's type, the reverb's and the output
-  // stage's, each of which arrived beside the switch that turns its thing on
-  // rather than replacing it: a boolean every saved patch stores and every
-  // lane points at cannot become a choice without taking both with it. See
-  // params::echoTypeId and params::clipTypeId.
-  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 3;
+  // Three of the trailing four are the echo's type, the reverb's and the
+  // output stage's, each of which arrived beside the switch that turns its
+  // thing on rather than replacing it: a boolean every saved patch stores and
+  // every lane points at cannot become a choice without taking both with it.
+  // See params::echoTypeId and params::clipTypeId.
+  //
+  // The fourth is whether the output stage may look ahead, which is a session
+  // setting rather than part of a patch and is the only parameter here that
+  // changes what the plugin reports to the host. See params::lookaheadId.
+  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4;
 
   // The behaviour that was there before it became a choice. Asked of the
   // parameter rather than of the tree, so the answer does not depend on what
@@ -541,6 +545,32 @@ void testBusStageFollowsTheCharacter(OvertoniumProcessor &p) {
 
   clip->setValueNotifyingHost(1.0f);
   p.prepareToPlay(48000.0, 512);
+
+  // The one thing that is allowed to move it, and the reason it is allowed:
+  // it sits in Settings, so no preset and nothing on the bar can reach it.
+  // Giving the window up gives the whole of the output stage's share back.
+  auto *ahead = p.apvts.getParameter(ovt::params::lookaheadId);
+
+  check(ahead != nullptr, "the lookahead has a switch");
+
+  if (ahead != nullptr) {
+    check(ovt::params::isSessionParam(ovt::params::lookaheadId),
+          "which is a session setting, so no preset can move the latency");
+
+    ahead->setValueNotifyingHost(0.0f);
+    p.prepareToPlay(48000.0, 512);
+
+    check(p.getLatencySamples() == ovt::BusDrive::kLatency,
+          "refusing it leaves only the bus stage (" +
+              std::to_string(p.getLatencySamples()) + " samples)");
+
+    ahead->setValueNotifyingHost(1.0f);
+    p.prepareToPlay(48000.0, 512);
+
+    check(p.getLatencySamples() == idle,
+          "and asking for it again restores it (" +
+              std::to_string(p.getLatencySamples()) + ")");
+  }
 
   p.applyFactoryPreset(presetIndex("Init"));
 }

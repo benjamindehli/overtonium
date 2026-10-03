@@ -192,7 +192,11 @@ void OvertoniumProcessor::prepareToPlay(double sampleRate,
   // host re-plan its graph every time a preset was chosen. Both stages delay
   // by the same amount when they are doing nothing so that they do not have
   // to. See BusDrive::kLatency and OutputStage::kLookaheadSeconds.
-  setLatencySamples(ovt::BusDrive::kLatency + engine.outputLatency());
+  //
+  // The one thing that does move it is the Settings switch, which no preset
+  // can reach. See params::lookaheadId and reportLatency.
+  hostRate = sampleRate;
+  setLatencySamples(latencyAtThisRate());
 
   // A floor under whatever the host asks for, so a host that promises a very
   // small block and then hands over a large one is not cut into a great many
@@ -438,7 +442,35 @@ void OvertoniumProcessor::handleOrdinaryMidiMessage(
   }
 }
 
-void OvertoniumProcessor::timerCallback() { applyPendingProgramChange(); }
+void OvertoniumProcessor::timerCallback() {
+  applyPendingProgramChange();
+  reportLatency();
+}
+
+int OvertoniumProcessor::latencyAtThisRate() const {
+  const auto *ahead = apvts.getRawParameterValue(ovt::params::lookaheadId);
+
+  return ovt::BusDrive::kLatency +
+         (ahead == nullptr || ahead->load() > 0.5f
+              ? ovt::OutputStage::lookaheadSamples(hostRate)
+              : 0);
+}
+
+void OvertoniumProcessor::reportLatency() {
+  // Polled on the timer rather than pushed from a parameter listener, because
+  // a listener fires on whichever thread moved the parameter and a host
+  // automating this one would move it from the audio thread. Telling a host
+  // its graph has changed from there is how a plugin deadlocks a transport.
+  // Twenty times a second is faster than anyone can notice on a setting they
+  // reach for once.
+  //
+  // setLatencySamples says nothing to the host unless the figure actually
+  // changed, so this costs an atomic read and a comparison.
+  const auto wanted = latencyAtThisRate();
+
+  if (wanted != getLatencySamples())
+    setLatencySamples(wanted);
+}
 
 void OvertoniumProcessor::applyPendingProgramChange() {
   const int index = pendingProgram.exchange(-1, std::memory_order_relaxed);

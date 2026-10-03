@@ -160,6 +160,10 @@ struct GlobalParams {
   /// how hard it is driven is a thing a patch decides. See OutputStage.
   bool safetyClip = true;
 
+  /// Whether the output stage may look ahead. Off trades the limiter's
+  /// smoothness for the two milliseconds it costs everything else.
+  bool lookahead = true;
+
   /// Which of the five, when it is on. Soft is what every patch had before
   /// there was a choice.
   ClipType clipType = ClipType::Soft;

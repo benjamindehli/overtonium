@@ -679,7 +679,7 @@ void SynthEngine::render(float *left, float *right, int numSamples,
   // declared once and must not depend on whether this switch is on. See
   // OutputStage::kLookaheadSeconds.
   outputStage.process(left, right, numSamples, p.global.clipType,
-                      p.global.safetyClip);
+                      p.global.safetyClip, p.global.lookahead);
 
   float peakL = 0.0f, peakR = 0.0f;
   for (int n = 0; n < numSamples; ++n) {
