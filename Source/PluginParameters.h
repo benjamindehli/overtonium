@@ -171,6 +171,13 @@ enum class MacroCurve { Uniform = 0, Taper, NumCurves };
 inline constexpr int kNumMacroColours = 9;
 
 const char *macroScopeName(int scope);
+
+/// Whether a macro with this scope reaches this channel.
+///
+/// Shared rather than written twice: the snapshot asks it to decide what to
+/// offset, and the window asks it to decide what to tint, and those two
+/// disagreeing would colour a control that is not being driven.
+bool macroReaches(int scope, int index0);
 const char *macroCurveName(MacroCurve);
 const char *macroRowName(int row);
 const char *macroColourName(int colour);

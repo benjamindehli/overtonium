@@ -467,6 +467,12 @@ public:
   ///                of the drag it takes relative to the strip that takes most.
   void setLinkGlow(Role, float amount, bool accent = false);
 
+  /// Lends this row the colour of the macro driving it, or a transparent
+  /// colour to give the channel's own back. The look and feel needs no part
+  /// in it: it already reads these colour ids, so a macro taking a control
+  /// over is the control being told it is a different colour.
+  void setMacroTint(Role, juce::Colour);
+
 private:
   using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
   using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
@@ -492,6 +498,14 @@ private:
   void clearHover();
 
   LinkableSlider *sliderForRole(Role);
+
+  /// The colour each control wears when no macro has it, kept so that one
+  /// letting go puts the channel's own back rather than an approximation.
+  std::array<juce::Colour, (size_t)kNumRoles> baseColour{};
+
+  /// Which macro colour each row is wearing now, so a repaint only happens
+  /// when one actually changes.
+  std::array<juce::Colour, (size_t)kNumRoles> macroTint{};
 
   juce::AudioProcessorValueTreeState &apvts;
   LinkTarget &link;

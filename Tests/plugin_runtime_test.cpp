@@ -1065,6 +1065,55 @@ void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
             std::to_string(reached) + " fifths, " + std::to_string(strayed) +
             " wrong)");
 
+  // ---- and a driven control wears the macro's colour ---------------------
+  //
+  // Which control belongs to which macro is a fact about all eight of them,
+  // so the window works it out and the strips are told. Read off the control
+  // itself, since what the look and feel draws is whatever colour it has been
+  // given: a macro taking a control over is the control being told it is a
+  // different colour.
+  {
+    std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+    auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+    check(editor != nullptr, "the editor opens");
+
+    if (editor != nullptr) {
+      const auto colourOf = [&](int channel) {
+        auto *c = ovt::ui::learn::controlFor(
+            *editor, ovt::params::oscParamId(ovt::params::tuneSuffix, channel));
+        auto *slider = dynamic_cast<juce::Slider *>(c);
+
+        return slider == nullptr
+                   ? juce::Colours::transparentBlack
+                   : slider->findColour(juce::Slider::rotarySliderFillColourId);
+      };
+
+      const auto own = colourOf(2);
+
+      set(ovt::params::macroRowId(0), (float)tuneRow);
+      set(ovt::params::macroScopeId(0),
+          (float)((int)ovt::params::MacroScope::Interval + 7));
+      set(ovt::params::macroColourId(0), 1.0f);
+      editor->followMacroTints();
+
+      const auto wanted = ovt::params::macroColour(1);
+
+      // Harmonic 3 is a fifth and harmonic 2 is not, so one takes the colour
+      // and the other keeps its own.
+      check(colourOf(2) == wanted,
+            "a control a macro drives wears the macro's colour");
+      check(colourOf(1) != wanted,
+            "and one it does not reach keeps the channel's");
+
+      set(ovt::params::macroRowId(0), 0.0f);
+      editor->followMacroTints();
+
+      check(colourOf(2) == own,
+            "and letting go puts the channel's own colour back");
+    }
+  }
+
   set(ovt::params::macroRowId(0), 0.0f);
   set(ovt::params::macroAmountId(0), 0.0f);
   set(ovt::params::macroScopeId(0), 0.0f);

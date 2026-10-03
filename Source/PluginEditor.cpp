@@ -1241,6 +1241,64 @@ void OvertoniumEditor::syncLinkUi() {
 
 bool OvertoniumEditor::isLinkEnabled() const { return topBar.isLinkEnabled(); }
 
+void OvertoniumEditor::followMacroTints() {
+  const auto readInt = [this](const juce::String &id) {
+    if (auto *p = dynamic_cast<juce::RangedAudioParameter *>(
+            plugin().apvts.getParameter(id)))
+      return (int)std::lround(p->convertFrom0to1(p->getValue()));
+
+    return 0;
+  };
+
+  // Everything that decides who owns what, joined. The amount is not in it:
+  // a macro at rest still owns the controls it was pointed at, and saying so
+  // is the whole point of the colour.
+  juce::String now;
+  for (int m = 0; m < ovt::params::kNumMacros; ++m)
+    now << readInt(ovt::params::macroRowId(m)) << ","
+        << readInt(ovt::params::macroScopeId(m)) << ","
+        << readInt(ovt::params::macroColourId(m)) << ";";
+
+  if (now == macroSignature)
+    return;
+
+  macroSignature = now;
+
+  for (int i = 0; i < kNumHarmonics; ++i) {
+    for (int r = 0; r < kNumRoles; ++r) {
+      juce::Colour wearing;
+
+      // The lowest-numbered macro reaching this control takes it, and the
+      // rest are invisible here. Two colours mixed would usually name a
+      // third macro, and a control saying "more than one" says nothing about
+      // which.
+      for (int m = 0; m < ovt::params::kNumMacros; ++m) {
+        const auto row = readInt(ovt::params::macroRowId(m));
+
+        // None, or a different row from this one. Row 1 is the first real
+        // one, so a role is row + 1.
+        if (row == 0 || row - 1 != r)
+          continue;
+
+        if (!ovt::params::macroReaches(readInt(ovt::params::macroScopeId(m)),
+                                       i))
+          continue;
+
+        const auto tint =
+            ovt::params::macroColour(readInt(ovt::params::macroColourId(m)));
+
+        // A macro wearing None drives the control without colouring it,
+        // which is for anyone who would rather the mixer stayed the colour
+        // the series makes it.
+        wearing = tint;
+        break;
+      }
+
+      strips[(size_t)i]->setMacroTint((Role)r, wearing);
+    }
+  }
+}
+
 void OvertoniumEditor::followArmedControl() {
   auto *waiting = plugin().midiLearn.armed();
   const juce::String wanted =
@@ -1569,6 +1627,7 @@ void OvertoniumEditor::timerCallback() {
 
   pollDrawModifier();
   followArmedControl();
+  followMacroTints();
 
   // Two things about a frame cost the window manager: that it happened at all,
   // and how much of the window the dirty rectangles enclose. It enlarges them

@@ -309,6 +309,27 @@ const char *macroScopeName(int scope) {
   return "All";
 }
 
+/// Whether a macro reaches this channel.
+bool macroReaches(int scope, int index0) {
+  switch ((MacroScope)scope) {
+  case MacroScope::Odd:
+    return ((index0 + 1) % 2) == 1;
+  case MacroScope::Even:
+    return ((index0 + 1) % 2) == 0;
+
+  case MacroScope::All:
+    return true;
+
+  case MacroScope::Interval:
+    break;
+  }
+
+  // Everything past the three names an interval, and reaches every channel
+  // standing at it: the fifth is harmonics 3, 6, 12 and 24.
+  return harmonicTable()[(size_t)index0].pitchClass ==
+         scope - (int)MacroScope::Interval;
+}
+
 const char *macroColourName(int colour) {
   static const char *const names[] = {"None",   "Red",    "Orange",
                                       "Yellow", "Green",  "Cyan",
@@ -1137,27 +1158,6 @@ float *macroField(OscParams &o, int row) {
 
 static_assert(kNumMacroRows == 19,
               "macroField has a case per row and has to grow with the list");
-
-/// Whether a macro reaches this channel.
-bool macroReaches(int scope, int index0) {
-  switch ((MacroScope)scope) {
-  case MacroScope::Odd:
-    return ((index0 + 1) % 2) == 1;
-  case MacroScope::Even:
-    return ((index0 + 1) % 2) == 0;
-
-  case MacroScope::All:
-    return true;
-
-  case MacroScope::Interval:
-    break;
-  }
-
-  // Everything past the three names an interval, and reaches every channel
-  // standing at it: the fifth is harmonics 3, 6, 12 and 24.
-  return harmonicTable()[(size_t)index0].pitchClass ==
-         scope - (int)MacroScope::Interval;
-}
 
 /// This channel's share, from the fundamental outwards.
 ///

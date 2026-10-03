@@ -181,6 +181,17 @@ public:
   /// repainting from. See ovt::MidiLearn.
   void followArmedControl();
 
+  /// Lends every control a macro drives that macro's colour.
+  ///
+  /// Worked out here rather than by the strips, because which macro owns a
+  /// control is a fact about all eight of them and no strip can see more than
+  /// its own column. Pushed the way the LINK glow already is.
+  void followMacroTints();
+
+  /// What the macros said last time, so 608 controls are only revisited when
+  /// one of them has actually moved.
+  juce::String macroSignature;
+
   /// What carries the marker now, so it can be taken off again without
   /// searching the window for anything that might have one.
   juce::String armedParameter;

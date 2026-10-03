@@ -735,8 +735,18 @@ void OvertoniumLookAndFeel::drawLinearSlider(
   g.setColour(juce::Colours::white.withAlpha(0.13f * dim));
   g.fillRoundedRectangle(cap, 2.0f);
 
-  g.setColour(juce::Colours::white.withAlpha(0.46f * dim));
-  g.drawRoundedRectangle(cap.reduced(0.5f), 2.0f, 1.0f);
+  // Edged in the macro's colour when one has this fader, white otherwise.
+  //
+  // The cap rather than the groove, because a metered fader's groove is the
+  // meter and its colour is the level rather than the control's. Edging the
+  // thing you grab is the only place a fader has to say it is being driven
+  // by something other than your hand. See ChannelStrip::setMacroTint.
+  const auto driven =
+      (bool)slider.getProperties().getWithDefault("macroTinted", false);
+
+  g.setColour(driven ? slider.findColour(juce::Slider::trackColourId)
+                     : juce::Colours::white.withAlpha(0.46f * dim));
+  g.drawRoundedRectangle(cap.reduced(0.5f), 2.0f, driven ? 1.4f : 1.0f);
 
   // The lip catches the light off centre, so it says glass rather than
   // dividing the cap in half.

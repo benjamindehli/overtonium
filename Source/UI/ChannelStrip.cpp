@@ -869,6 +869,7 @@ void ChannelStrip::setUpKnob(LinkableSlider &s, Role role, juce::Colour fill) {
   s.setSliderStyle(juce::Slider::RotaryVerticalDrag);
   s.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
   s.setColour(juce::Slider::rotarySliderFillColourId, fill);
+  baseColour[(size_t)role] = fill;
   s.setPopupDisplayEnabled(true, true, &popupHost);
   addAndMakeVisible(s);
 
@@ -882,6 +883,7 @@ void ChannelStrip::setUpFader(LinkableSlider &s, Role role, juce::Colour fill) {
   s.setSliderStyle(juce::Slider::LinearVertical);
   s.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
   s.setColour(juce::Slider::trackColourId, fill);
+  baseColour[(size_t)role] = fill;
   s.getProperties().set("meteredGroove", true);
   s.setPopupDisplayEnabled(true, true, &popupHost);
   addAndMakeVisible(s);
@@ -1261,6 +1263,36 @@ LinkableSlider *ChannelStrip::sliderForRole(Role role) {
     jassertfalse;
     return nullptr;
   }
+}
+
+void ChannelStrip::setMacroTint(Role role, juce::Colour tint) {
+  const auto at = (size_t)role;
+
+  if (at >= macroTint.size() || macroTint[at] == tint)
+    return;
+
+  macroTint[at] = tint;
+
+  auto *slider = sliderForRole(role);
+
+  if (slider == nullptr)
+    return;
+
+  // Transparent means no macro has it, which is the channel's own colour
+  // back rather than nothing: these ids are what the control is drawn in.
+  const auto wearing = tint.isTransparent() ? baseColour[at] : tint;
+
+  slider->setColour(juce::Slider::rotarySliderFillColourId, wearing);
+  slider->setColour(juce::Slider::trackColourId, wearing);
+
+  // A metered fader draws its groove from the meter, so the colour above is
+  // nearly invisible there. This is what tells it to edge its cap instead.
+  if (tint.isTransparent())
+    slider->getProperties().remove("macroTinted");
+  else
+    slider->getProperties().set("macroTinted", true);
+
+  slider->repaint();
 }
 
 void ChannelStrip::setLinkGlow(Role role, float amount, bool accent) {
