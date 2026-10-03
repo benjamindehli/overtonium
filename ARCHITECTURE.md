@@ -52,12 +52,13 @@ Source/
     PlateReverb.*   the same as a modulated plate
     SpringReverb.*  the same as a tray of springs
     SynthEngine.*   voice pool, allocation, stealing, effects, master stage
-  PluginParameters.*  APVTS layout, 828 parameters, and the audio-thread snapshot
+  PluginParameters.*  APVTS layout, 836 parameters, and the audio-thread snapshot
   Presets.*           factory presets
   MidiLearn.*         which controller moves which control
   PluginProcessor.*   MIDI handling, sample-accurate rendering, state
   PluginEditor.*      window, zoom, LINK, gutter
-  UI/                 theme, look and feel, channel and noise strips, top bar
+  UI/                 theme, look and feel, channel and noise strips, top bar,
+                      macro panel
 Tests/
   dsp_test.cpp            standalone DSP tests and CPU benchmark
   plugin_runtime_test.cpp headless plugin integration tests
