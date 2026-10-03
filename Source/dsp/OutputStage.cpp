@@ -16,6 +16,11 @@ constexpr float kSoftKnee = 0.7f;
 /// supply before the other. Half against nine tenths is enough to hear as a
 /// different flavour rather than as a fault, and it is what puts a second
 /// harmonic where Soft and Hard put a third.
+///
+/// Still called bias, while the type it produces is called Asymmetric. That
+/// is deliberate: the bias is the mechanism, and BusDrive and Character use
+/// the same word for the same mechanism, while the name on the bar says what
+/// comes out of it.
 constexpr float kBiasUp = 0.5f;
 constexpr float kBiasDown = 0.9f;
 
@@ -48,7 +53,7 @@ float shapeSoft(float x) noexcept {
 
 float shapeHard(float x) noexcept { return std::clamp(x, -1.0f, 1.0f); }
 
-float shapeBias(float x) noexcept {
+float shapeAsymmetric(float x) noexcept {
   // The two halves get the same knee at different heights, so the shape is
   // continuous at zero and the asymmetry is in how soon each side gives way.
   const float threshold = x >= 0.0f ? kBiasUp : kBiasDown;
@@ -187,10 +192,10 @@ void OutputStage::process(float *left, float *right, int numSamples,
   // a rate low enough that two milliseconds is not a whole sample.
   const bool delaying = delay > 0 && !lineLeft.empty();
 
-  auto *shape = type == ClipType::Hard   ? shapeHard
-                : type == ClipType::Bias ? shapeBias
-                : type == ClipType::Fold ? shapeFold
-                                         : shapeSoft;
+  auto *shape = type == ClipType::Hard         ? shapeHard
+                : type == ClipType::Asymmetric ? shapeAsymmetric
+                : type == ClipType::Fold       ? shapeFold
+                                               : shapeSoft;
 
   for (int n = 0; n < numSamples; ++n) {
     // Linked, from whichever channel is louder, so the image holds still.

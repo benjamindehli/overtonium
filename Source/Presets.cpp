@@ -824,7 +824,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h16_vel", -0.0004f);
     ap.set("h16_volume", 0.2081f);
     ap.character(Character::Diode);
-    ap.set("clipType", 2.0f); // Bias
+    ap.set("clipType", 2.0f); // Asymmetric
     ap.set("noise_amDepth", 0.7546f);
     ap.set("noise_amRate", 1.0769f);
     ap.set("noise_amShape", 6.0f);
@@ -1299,7 +1299,7 @@ void apply(APVTS &apvts, int index) {
                  0.2271f, 0.0f, 0.0892f, 0.0f, 0.0492f, 0.0f, 0.0f, 0.0f,
                  0.109f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                  0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
-    ap.set("clipType", 2.0f); // Bias
+    ap.set("clipType", 2.0f); // Asymmetric
     ap.set("stretch", -0.2168f);
     ap.set("track", 3.2f);
     ap.character(Character::Bulb);
@@ -2293,7 +2293,7 @@ void apply(APVTS &apvts, int index) {
                  1.0f, -1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f,
                  -1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f, -1.0f,
                  1.0f, -1.0f, 1.0f, -1.0f, 1.0f, 0.0f});
-    ap.set("clipType", 2.0f); // Bias
+    ap.set("clipType", 2.0f); // Asymmetric
     ap.set("masterGain", -8.0f);
     ap.set("track", 4.0f);
     ap.character(Character::Opamp);
@@ -2397,7 +2397,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h30_delay", 0.0039f);
     ap.set("h31_delay", 0.006f);
     ap.set("h32_delay", 0.0063f);
-    ap.set("clipType", 2.0f); // Bias
+    ap.set("clipType", 2.0f); // Asymmetric
     ap.set("echoAge", 0.595f);
     ap.set("echoFeedback", 0.2911f);
     ap.set("echoMix", 0.1588f);
@@ -2970,7 +2970,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h31_pan", 1.0f);
     ap.set("h32_decay", 0.0926f);
     ap.set("h32_pan", -1.0f);
-    ap.set("clipType", 2.0f); // Bias
+    ap.set("clipType", 2.0f); // Asymmetric
     ap.set("echoAge", 0.4097f);
     ap.set("echoFeedback", 0.7189f);
     ap.set("echoMix", 0.2533f);
@@ -3183,7 +3183,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h32_amShape", 6.0f);
     ap.set("h32_delay", 0.0009f);
     ap.set("h32_sustain", 0.0f);
-    ap.set("clipType", 2.0f); // Bias
+    ap.set("clipType", 2.0f); // Asymmetric
     ap.set("echoAge", 0.5285f);
     ap.set("echoFeedback", 0.9475f);
     ap.set("echoMix", 0.2298f);
@@ -3885,7 +3885,7 @@ void apply(APVTS &apvts, int index) {
                  0.0845f, 0.0222f, 0.067f, 0.0149f, 0.0393f, 0.0231f, 0.0452f,
                  0.0231f, 0.0294f, 0.0175f, 0.0246f, 0.0085f, 0.0115f, 0.0101f,
                  0.0052f, 0.0059f, 0.0071f, 0.005f});
-    ap.set("clipType", 2.0f); // Bias
+    ap.set("clipType", 2.0f); // Asymmetric
     ap.set("masterGain", -7.0f);
     ap.set("stretch", 0.1305f);
     ap.set("track", 3.1f);

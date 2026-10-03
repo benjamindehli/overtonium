@@ -28,11 +28,16 @@ enum class ClipType {
   /// harmonics as Soft but all at once.
   Hard,
 
-  /// Biased so one half of the wave leans over before the other, the way a
-  /// single-ended stage does. The asymmetry is the whole of it: where Soft and
-  /// Hard fold the two halves alike and give odd harmonics, this gives even
-  /// ones, which is a different kind of loud rather than more of it.
-  Bias,
+  /// One half of the wave leans over before the other, the way a single-ended
+  /// stage does. The asymmetry is the whole of it: where Soft and Hard fold
+  /// the two halves alike and give odd harmonics, this gives even ones, which
+  /// is a different kind of loud rather than more of it.
+  ///
+  /// Named for what it does to the wave rather than for the bias that makes
+  /// it do that, which is the word BusDrive and Character already use, there
+  /// for a property several circuits have rather than for a machine of its
+  /// own.
+  Asymmetric,
 
   /// Gain reduction rather than waveshaping. It does not distort at all: it
   /// turns the whole signal down as it approaches the ceiling and lets it back
@@ -55,8 +60,8 @@ inline const char *clipTypeName(ClipType t) {
     return "Soft";
   case ClipType::Hard:
     return "Hard";
-  case ClipType::Bias:
-    return "Bias";
+  case ClipType::Asymmetric:
+    return "Asymmetric";
   case ClipType::Limiter:
     return "Limiter";
   case ClipType::Fold:
@@ -69,6 +74,37 @@ inline const char *clipTypeName(ClipType t) {
   }
 
   return "Soft";
+}
+
+/// What the bar's button says, which is the name itself for three of the five.
+///
+/// Asymmetric has to be shortened. The button is 62 px wide and gives a label
+/// 46 of them, and in that button's own font ASYMMETRIC is 54.3. The ten
+/// pixels it would take have an owner: the converter's two readouts share the
+/// row and are already at the 66 px they need to name their units, so the
+/// button growing is those readouts shrinking. ASYM is 23.
+///
+/// Limiter is shortened because the other four are short. It fits at 32.6 and
+/// could stay, but SOFT, HARD, ASYM, LIMIT and FOLD read as one set of
+/// choices where a single long word among them reads as the odd one.
+///
+/// Only the button abbreviates. The menu it opens, the name the host shows on
+/// the automation lane and the documentation all have room for the word.
+inline const char *clipTypeShortName(ClipType t) {
+  switch (t) {
+  case ClipType::Asymmetric:
+    return "Asym";
+  case ClipType::Limiter:
+    return "Limit";
+
+  case ClipType::Soft:
+  case ClipType::Hard:
+  case ClipType::Fold:
+  case ClipType::NumTypes:
+    break;
+  }
+
+  return clipTypeName(t);
 }
 
 /// The output stage, which is stateful because one of the five is.

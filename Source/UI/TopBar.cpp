@@ -390,7 +390,8 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   styleToggle(clipButton, kClipName,
               "What the finished output runs into, after the master fader, "
               "which is therefore the drive into it. Soft bends, Hard stops "
-              "dead, Bias leans one half of the wave over before the other, "
+              "dead, Asymmetric leans one half of the wave over before the "
+              "other, "
               "Limiter turns the level down instead of bending anything, and "
               "Fold turns the wave back on itself. None of them lets the "
               "output past full scale; off does.");
@@ -1262,8 +1263,12 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
 
     const juce::String name = clipTypeName(which);
 
-    clipButton.setButtonText(running ? name.toUpperCase()
-                                     : juce::String("OFF"));
+    // The short form, because Asymmetric does not fit across 46 px of label
+    // and the pixels it would need belong to the readouts beside it. See
+    // clipTypeShortName.
+    clipButton.setButtonText(
+        running ? juce::String(clipTypeShortName(which)).toUpperCase()
+                : juce::String("OFF"));
 
     // "Clip" rather than the parameter's own word, because what it is called
     // on the bar is what someone is looking for when they hear it.

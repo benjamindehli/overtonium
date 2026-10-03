@@ -3711,6 +3711,66 @@ void testMachineMenusFollowTheirParameters(OvertoniumProcessor &p) {
               tickedIn(stillFold) + ")");
   }
 
+  // ---- and the button they came from can say them ------------------------
+  //
+  // The menu above has room for whatever a shape is called. The button does
+  // not: it is 62 px with a label area of 46, and the ten pixels it would
+  // take to fit ASYMMETRIC belong to the converter's readouts beside it,
+  // which are already at the width they need to name their units. So the
+  // button carries short forms, and this is what says they are short enough.
+  //
+  // Measured rather than eyed, because a label that overflows is not a
+  // failure a rendered window announces: JUCE shaves the ends and the word
+  // goes on looking like a word.
+  {
+    std::function<juce::TextButton *(juce::Component &)> findClip =
+        [&findClip](juce::Component &c) -> juce::TextButton * {
+      for (auto *child : c.getChildren()) {
+        if (auto *b = dynamic_cast<juce::TextButton *>(child))
+          if (b->getTitle().startsWith("Clip"))
+            return b;
+
+        if (auto *found = findClip(*child))
+          return found;
+      }
+
+      return nullptr;
+    };
+
+    editor->setSize(editor->getWidth(), editor->getHeight());
+
+    auto *clip = findClip(*editor);
+
+    check(clip != nullptr, "the bar carries a clip button");
+
+    if (clip != nullptr && clip->getWidth() > 0) {
+      const auto font =
+          clip->getLookAndFeel().getTextButtonFont(*clip, clip->getHeight());
+
+      // The margin JUCE's own text button keeps either side of a label.
+      const int margin = juce::jmin(clip->getWidth() / 4, 8);
+      const auto room = (float)(clip->getWidth() - margin * 2);
+
+      int tooWide = 0;
+      for (int i = 0; i < (int)ovt::ClipType::NumTypes; ++i) {
+        const juce::String label =
+            juce::String(ovt::clipTypeShortName((ovt::ClipType)i))
+                .toUpperCase();
+
+        const auto width = juce::GlyphArrangement::getStringWidth(font, label);
+
+        if (width > room) {
+          ++tooWide;
+          std::printf("  %s is %.1f px against %.1f\n", label.toRawUTF8(),
+                      (double)width, (double)room);
+        }
+      }
+
+      check(tooWide == 0, "and every shape's name fits across it (" +
+                              std::to_string(tooWide) + " do not)");
+    }
+  }
+
   // ---- and the reverb, which works the same way ----------------------------
   {
     write(ovt::params::reverbOnId, 0.0f);

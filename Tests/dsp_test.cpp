@@ -7847,14 +7847,14 @@ void testOutputStage() {
     return binMagnitude(run(type, drive), 220.0 * multiple, sr);
   };
 
-  // Soft and Hard fold both halves alike, so the even harmonics cancel. Bias
-  // does not, which is the whole of what it is for.
+  // Soft and Hard fold both halves alike, so the even harmonics cancel.
+  // Asymmetric does not, which is the whole of what it is for.
   const auto soft2 = harmonic(ClipType::Soft, 2.0f, 2.0);
-  const auto bias2 = harmonic(ClipType::Bias, 2.0f, 2.0);
+  const auto asym2 = harmonic(ClipType::Asymmetric, 2.0f, 2.0);
 
-  std::printf("  second harmonic: soft %.5f, bias %.5f\n", soft2, bias2);
-  check(bias2 > 20.0 * soft2 + 1.0e-6,
-        "Bias puts a second harmonic where Soft puts none");
+  std::printf("  second harmonic: soft %.5f, asymmetric %.5f\n", soft2, asym2);
+  check(asym2 > 20.0 * soft2 + 1.0e-6,
+        "Asymmetric puts a second harmonic where Soft puts none");
 
   // A limiter turns the signal down rather than bending it, so what comes out
   // is still a sine where a clipper's is not.
