@@ -6,7 +6,7 @@
         <title>Overtonium controls: every knob on a channel and on the bar</title>
         <meta
             name="description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 786 parameters are named for a host, and the bus drive, wobble, echo, reverb and converter on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 787 parameters are named for a host, and the bus drive, wobble, echo, reverb, converter and output stage on the bar."
         />
         <link rel="canonical" href="https://benjamindehli.github.io/overtonium/controls/" />
         <meta name="theme-color" content="#0b0d10" />
@@ -17,7 +17,7 @@
         <meta property="og:title" content="Overtonium controls: every knob on a channel and on the bar" />
         <meta
             property="og:description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 786 parameters are named for a host, and the bus drive, wobble, echo, reverb and converter on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 787 parameters are named for a host, and the bus drive, wobble, echo, reverb, converter and output stage on the bar."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-controls.jpg" />
         <meta property="og:image:width" content="1200" />
@@ -28,7 +28,7 @@
         <meta name="twitter:title" content="Overtonium controls: every knob on a channel and on the bar" />
         <meta
             name="twitter:description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 786 parameters are named for a host, and the bus drive, wobble, echo, reverb and converter on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 787 parameters are named for a host, and the bus drive, wobble, echo, reverb, converter and output stage on the bar."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-controls.jpg" />
 
@@ -776,7 +776,10 @@
                                 <tr>
                                     <td>Safety clip</td>
                                     <td>on by default</td>
-                                    <td>The clipper at the end of the chain, worth leaving on when you push 32 faders up</td>
+                                    <td>
+                                        Whether the output stage at the end of the chain is running, worth leaving on when you push 32 faders up.
+                                        Which of its five shapes is running is chosen on the bar, under the meter
+                                    </td>
                                 </tr>
                                 <tr>
                                     <td>Zoom</td>
@@ -800,10 +803,16 @@
                     </div>
 
                     <p>
-                        None of it travels with a <a href="../presets/">preset</a>, and that is the rule rather than a list that might fall behind
-                        one. How you play the instrument, how loud it is and what it is tuned to are properties of the session rather than of any one
-                        sound in it. The master fader is in the same position for the same reason, and so are the zoom, the window size and which
-                        groups of rows you have folded away.
+                        Almost none of it travels with a <a href="../presets/">preset</a>, and that is a rule rather than a list that might fall
+                        behind one: how you play the instrument and what it is tuned to are properties of the session rather than of any one sound in
+                        it. The zoom, the window size and which groups of rows you have folded away are in the same position for the same reason.
+                    </p>
+                    <p>
+                        The safety clip is the exception in this table, and the master fader is the exception outside it. Both used to sit with the
+                        rest on the grounds that how loud the instrument is belongs to the session, and both moved when the clipper became five shapes
+                        you choose between: the fader is the drive into that stage, so how hard a patch leans on it is part of the patch rather than
+                        part of the desk. The cost is worth knowing before you go looking for it:
+                        <strong>loading a preset now moves your output level</strong>.
                     </p>
                 </section>
 
@@ -1084,10 +1093,31 @@
 
                     <h3>CLIP</h3>
                     <p>
-                        A soft clipper across the finished output, after the master fader, switched on by default. On is a limit you can hear yourself
-                        reach rather than one that arrives silently; off lets the output go past full scale and reach the host as it is, which is what
-                        you want when something downstream is doing the catching. It stands under the meter with the converter readouts because those
-                        three are the whole of what happens to the signal on its way out, and it is also in the Settings menu.
+                        Five machines behind one button, across the finished output and after the master fader, which is therefore the drive into
+                        them. The fader and the choice both travel with the preset, so how hard a patch leans on this stage is part of the patch.
+                        <strong>Soft</strong> runs straight to seven tenths and then bends, gradually and symmetrically, and is what every preset was
+                        dialled against. <strong>Hard</strong> is a wall at full scale: nothing happens until it does, which is the sound of a
+                        converter with no headroom left. <strong>Asymmetric</strong> lets one half of the wave lean over before the other, the way a
+                        single-ended stage does, and that lopsidedness is the whole of it: where Soft and Hard treat both halves alike and give odd
+                        harmonics, this gives even ones, which is a different kind of loud rather than more of it. <strong>Limiter</strong> does not
+                        bend the wave at all, it turns the level down as the signal approaches the ceiling and lets it back up afterwards.
+                        <strong>Fold</strong> turns the wave back on itself instead of flattening it, which makes far more harmonics than the others
+                        and moves them with the level, so it sings where the rest crunch.
+                    </p>
+                    <p>
+                        Off lets the output go past full scale and reach the host as it is, which is what you want when something downstream is doing
+                        the catching. None of the five will: being bounded by full scale is the point of the stage rather than a property of the
+                        shapes chosen, and each is held to it however hard it is driven. The button abbreviates Asymmetric to ASYM and Limiter to
+                        LIMIT, for room, while the menu and your host's automation lane spell them out. It stands under the meter with the converter
+                        readouts because those three are the whole of what happens to the signal on its way out, and the switch is also in the
+                        Settings menu.
+                    </p>
+                    <p>
+                        The Limiter looks two milliseconds ahead, so the gain is already in place when the peak arrives rather than chasing it
+                        afterwards, which is the difference between a limiter and a clipper wearing the name. That costs latency, and because a plugin
+                        whose latency moved when you chose a preset would have the host re-plan its graph every time, it is paid by all five shapes
+                        and by the stage switched off alike. Overtonium reports 108 samples at 48 kHz, a little over two milliseconds, which your host
+                        compensates for on playback.
                     </p>
 
                     <h3>The output meter</h3>
