@@ -29,7 +29,10 @@ const juce::Colour kMacroColours[] = {
 void drawGearIcon(juce::Graphics &g, juce::Rectangle<float> area,
                   juce::Colour colour) {
   const auto centre = area.getCentre();
-  const auto outer = juce::jmin(area.getWidth(), area.getHeight()) * 0.46f;
+  // 0.38 of the shorter side rather than 0.46, which left a pixel of margin
+  // in a 24 px button and read as a cog jammed into its face. The teeth are
+  // the outermost thing drawn, so the radius is the whole of the margin.
+  const auto outer = juce::jmin(area.getWidth(), area.getHeight()) * 0.38f;
   const auto root = outer * 0.74f;
 
   // A filled cog rather than spokes on a ring, which is what it was and what

@@ -1163,6 +1163,52 @@ void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
       check(colourOf(2) == own,
             "and letting go takes the macro's colour off again");
 
+      // ---- and the bar follows the macros, not the tool ------------------
+      //
+      // The count sat in syncLinkUi, which runs when the tool or LINK
+      // changes, so making a macro lit the button only once you went near
+      // the tool menu. Read off the button's own name, which carries the
+      // count for a screen reader.
+      {
+        juce::TextButton *bar = nullptr;
+
+        std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+          for (auto *child : c.getChildren()) {
+            if (auto *b = dynamic_cast<juce::TextButton *>(child))
+              if (b->getTitle().startsWith("Macros"))
+                bar = b;
+
+            look(*child);
+          }
+        };
+        look(*editor);
+
+        check(bar != nullptr, "the bar carries a macros button");
+
+        if (bar != nullptr) {
+          set(ovt::params::macroRowId(0), 0.0f);
+          editor->followMacroTints();
+
+          check(!bar->getToggleState(), "which is dark with no macros made (" +
+                                            bar->getTitle().toStdString() +
+                                            ")");
+
+          // The macro alone, with nothing touching the tool.
+          set(ovt::params::macroRowId(0), (float)tuneRow);
+          editor->followMacroTints();
+
+          check(bar->getToggleState(),
+                "and lights as soon as one is made, without the tool being "
+                "touched (" +
+                    bar->getTitle().toStdString() + ")");
+
+          set(ovt::params::macroRowId(0), 0.0f);
+          editor->followMacroTints();
+
+          check(!bar->getToggleState(), "and goes out when the last one goes");
+        }
+      }
+
       // ---- and the ring shows what the engine is playing ----------------
       //
       // The ring is worked out by the window and the offset by the snapshot,

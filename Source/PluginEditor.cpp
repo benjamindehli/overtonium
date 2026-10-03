@@ -1210,10 +1210,6 @@ void OvertoniumEditor::syncLinkUi() {
   // for as long as the key is down and gives the tool back on release.
   gutter.setTool(currentTool(), topBar.getLinkCurve());
 
-  // And what the bar says about macros, which is the only sign of them when
-  // the panel is shut.
-  topBar.setMacroCount(ovt::ui::MacroPanel::madeCount(plugin().apvts));
-
   // Switching LINK on, or changing what it reaches, changes the answer to
   // "what would this knob take with it", so the preview follows immediately
   // rather than waiting for the pointer to move.
@@ -1294,6 +1290,17 @@ void OvertoniumEditor::followMacroTints() {
             plugin().apvts.getParameter(ovt::params::macroAmountId(m))))
       reach.amount = p->convertFrom0to1(p->getValue());
   }
+
+  // What the bar says about macros, which is the only sign of them while the
+  // panel is shut. Counted here because here is where the eight are already
+  // being read, and on this timer because that is what follows the macros
+  // themselves: it sat in syncLinkUi, which runs when the tool changes, so
+  // making a macro lit the button only once you touched the tool menu.
+  int made = 0;
+  for (const auto &reach : macros)
+    made += reach.row != 0 ? 1 : 0;
+
+  topBar.setMacroCount(made);
 
   for (int i = 0; i < kNumHarmonics; ++i) {
     for (int r = 0; r < kNumRoles; ++r) {
