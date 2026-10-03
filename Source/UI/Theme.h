@@ -559,7 +559,11 @@ struct LinkTarget {
   /// Pops the LINK menu under the pointer. A right-click anywhere in the mixer
   /// is the quickest way to change what the next drag will do, without going
   /// back up to the bar for it.
-  virtual void showLinkMenu() = 0;
+  ///
+  /// @param parameterId  what the click landed on, empty if it landed on
+  ///                     nothing a controller could move. The menu grows its
+  ///                     MIDI Learn items from this. See ui::learn.
+  virtual void showLinkMenu(const juce::String &parameterId) = 0;
 
   /// A wheel over a column, which moves the parameters rather than the mixer.
   ///

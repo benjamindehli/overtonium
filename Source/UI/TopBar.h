@@ -9,6 +9,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include "../MidiLearn.h"
 #include "ChannelStrip.h"
 #include "LookAndFeel.h"
 #include "Theme.h"
@@ -80,6 +81,17 @@ public:
 
   void paint(juce::Graphics &) override;
   void resized() override;
+
+  /// A right-click on one of the bar's own controls, carrying the parameter
+  /// it moves. The bar puts up no menu itself: what it offers is the editor's
+  /// to decide, the same way the gutter hands back the LINK button's anchor.
+  ///
+  /// Learn items only, with none of the LINK settings the mixer's menu
+  /// carries, since what LINK does is gang channel strips and none of these
+  /// is one.
+  std::function<void(const juce::String &)> onLearnRequested;
+
+  void mouseDown(const juce::MouseEvent &) override;
 
   /// Puts a newer release in the credit line under the wordmark, where the
   /// tagline usually sits, and makes it clickable. Called with an empty
@@ -160,9 +172,16 @@ public:
   /// Shared by the button in the bar and by a right-click anywhere on a strip,
   /// so there is one list rather than two that can drift apart.
   ///
-  /// @param anchor  what to hang the menu off, or nullptr to put it under the
-  ///                pointer.
-  void showLinkMenu(juce::Component *anchor);
+  /// @param anchor       what to hang the menu off, or nullptr to put it
+  ///                      under the pointer.
+  /// @param parameterId   what a right-click landed on, empty when the menu
+  ///                      came from the LINK button instead.
+  /// @param map           where a learned binding goes. Passed in rather than
+  ///                      reached for, since the bar is given its state tree
+  ///                      and not the processor behind it.
+  void showLinkMenu(juce::Component *anchor,
+                    const juce::String &parameterId = {},
+                    MidiLearn *map = nullptr);
 
   /// The bar reflows onto further rows when the groups no longer fit across
   /// one, so nothing has to be dropped on a narrow window. Static because the

@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "UI/LearnMenu.h"
 
 #include <cmath>
 
@@ -490,7 +491,15 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   // The menu belongs to the bar, which holds what it changes. The gutter holds
   // the button that opens it, and hands back what to hang it off.
   gutter.onLinkClicked = [this](juce::Component *anchor) {
-    topBar.showLinkMenu(anchor);
+    topBar.showLinkMenu(anchor, {}, &plugin().midiLearn);
+  };
+
+  topBar.onLearnRequested = [this](const juce::String &id) {
+    showLearnMenu(id);
+  };
+
+  noiseStrip.onLearnRequested = [this](const juce::String &id) {
+    showLearnMenu(id);
   };
 
   // Housekeeping runs at 4 Hz, and a readout that is blank for the first
@@ -1183,7 +1192,38 @@ void OvertoniumEditor::syncLinkUi() {
 
 bool OvertoniumEditor::isLinkEnabled() const { return topBar.isLinkEnabled(); }
 
-void OvertoniumEditor::showLinkMenu() { topBar.showLinkMenu(nullptr); }
+void OvertoniumEditor::showLearnMenu(const juce::String &parameterId) {
+  auto *parameter = dynamic_cast<juce::RangedAudioParameter *>(
+      plugin().apvts.getParameter(parameterId));
+
+  if (parameter == nullptr)
+    return;
+
+  juce::PopupMenu m;
+  m.setLookAndFeel(&getLookAndFeel());
+
+  // appendItems opens with a separator, which is right where these join the
+  // LINK menu and wrong at the top of a menu of their own.
+  m.addSectionHeader(parameter->getName(40));
+  ovt::ui::learn::appendItems(m, plugin().midiLearn, parameter);
+
+  const auto p = juce::Desktop::getInstance()
+                     .getMainMouseSource()
+                     .getScreenPosition()
+                     .roundToInt();
+
+  m.showMenuAsync(juce::PopupMenu::Options()
+                      .withStandardItemHeight(22)
+                      .withTargetScreenArea({p.x, p.y, 1, 1}),
+                  [this, parameter](int result) {
+                    ovt::ui::learn::applyChoice(result, plugin().midiLearn,
+                                                parameter);
+                  });
+}
+
+void OvertoniumEditor::showLinkMenu(const juce::String &parameterId) {
+  topBar.showLinkMenu(nullptr, parameterId, &plugin().midiLearn);
+}
 
 void OvertoniumEditor::updateLinkCursor() {
   // Set on the holder rather than on each control: the strips and their knobs

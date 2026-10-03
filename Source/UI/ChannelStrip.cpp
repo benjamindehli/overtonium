@@ -1,4 +1,5 @@
 #include "ChannelStrip.h"
+#include "LearnMenu.h"
 
 #include <cmath>
 
@@ -811,6 +812,9 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   soloAttachment = std::make_unique<ButtonAttachment>(
       apvts, params::oscParamId(params::soloSuffix, index), soloButton);
 
+  learn::tag(muteButton, params::oscParamId(params::muteSuffix, index));
+  learn::tag(soloButton, params::oscParamId(params::soloSuffix, index));
+
   // Readouts rather than controls, so they take no clicks of their own and
   // the strip underneath goes on reporting which row the pointer is over.
   for (auto *d : {&tuneReadout, &levelReadout}) {
@@ -892,6 +896,8 @@ void ChannelStrip::wireUp(LinkableSlider &s, Role role) {
   // reads a slider whose range has not been set up yet.
   sliderAttachments.push_back(
       std::make_unique<SliderAttachment>(apvts, paramId, s));
+
+  learn::tag(s, paramId);
 
   // Double-click restores the parameter's own default rather than the range
   // minimum.
@@ -1048,7 +1054,7 @@ void ChannelStrip::mouseDown(const juce::MouseEvent &e) {
   if (echoOfTheSameClick)
     return;
 
-  link.showLinkMenu();
+  link.showLinkMenu(learn::parameterIdAt(e.originalComponent));
 }
 
 /// Folds the section whose rule the click landed on, if it landed on one.

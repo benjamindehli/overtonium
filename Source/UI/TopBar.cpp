@@ -1,4 +1,5 @@
 #include "TopBar.h"
+#include "LearnMenu.h"
 
 #include "../PluginParameters.h"
 #include "../Presets.h"
@@ -240,6 +241,7 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
 
   masterAttachment = std::make_unique<SliderAttachment>(
       apvts, params::masterGainId, masterFader);
+  learn::tag(masterFader, params::masterGainId);
 
   stretch.slider.setPopupDisplayEnabled(true, true, &popupParent);
   stretch.slider.setTooltip(
@@ -252,6 +254,7 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
 
   stretchAttachment = std::make_unique<SliderAttachment>(
       apvts, params::stretchId, stretch.slider);
+  learn::tag(stretch, params::stretchId);
 
   track.slider.setPopupDisplayEnabled(true, true, &popupParent);
   track.slider.setTooltip(
@@ -263,6 +266,7 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
 
   trackAttachment =
       std::make_unique<SliderAttachment>(apvts, params::trackId, track.slider);
+  learn::tag(track, params::trackId);
 
   wobble.slider.setPopupDisplayEnabled(true, true, &popupParent);
   wobble.slider.setTooltip(
@@ -274,6 +278,7 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
 
   wobbleAttachment = std::make_unique<SliderAttachment>(apvts, params::wobbleId,
                                                         wobble.slider);
+  learn::tag(wobble, params::wobbleId);
 
   // Two bars beside the master fader, at the end of the signal path, need no
   // caption to say what they are.
@@ -469,6 +474,7 @@ void TopBar::addKnob(std::vector<Control> &into, const juce::String &group,
 
   c.attachment =
       std::make_unique<SliderAttachment>(apvts, paramId, c.knob->slider);
+  learn::tag(*c.knob, paramId);
 
   into.push_back(std::move(c));
 }
@@ -483,10 +489,30 @@ void TopBar::setLinkCurve(LinkCurve c) {
   curve = (LinkCurve)juce::jlimit(0, (int)LinkCurve::NumCurves - 1, (int)c);
 }
 
-void TopBar::showLinkMenu(juce::Component *anchor) {
+void TopBar::mouseDown(const juce::MouseEvent &e) {
+  if (!e.mods.isPopupMenu() || onLearnRequested == nullptr)
+    return;
+
+  const auto id = learn::parameterIdAt(e.originalComponent);
+
+  if (id.isNotEmpty())
+    onLearnRequested(id);
+}
+
+void TopBar::showLinkMenu(juce::Component *anchor,
+                          const juce::String &parameterId, MidiLearn *map) {
   const LinkSettings settings{linkOn, scope, curve};
 
   auto m = buildLinkMenu(settings);
+
+  // Grown onto the end of the LINK menu rather than given a gesture of its
+  // own. A right-click on a control already opens this, and a second menu
+  // would mean teaching somebody a second way to ask.
+  auto *parameter = dynamic_cast<juce::RangedAudioParameter *>(
+      parameterId.isEmpty() ? nullptr : apvts.getParameter(parameterId));
+
+  if (map != nullptr)
+    learn::appendItems(m, *map, parameter);
   m.setLookAndFeel(&getLookAndFeel());
 
   auto options = juce::PopupMenu::Options().withStandardItemHeight(22);
@@ -503,7 +529,10 @@ void TopBar::showLinkMenu(juce::Component *anchor) {
     options = options.withTargetScreenArea({p.x, p.y, 1, 1});
   }
 
-  m.showMenuAsync(options, [this, settings](int result) {
+  m.showMenuAsync(options, [this, settings, map, parameter](int result) {
+    if (map != nullptr && learn::applyChoice(result, *map, parameter))
+      return;
+
     auto chosen = settings;
 
     if (!applyLinkMenuChoice(result, chosen))

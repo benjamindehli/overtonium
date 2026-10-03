@@ -6,6 +6,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "MidiLearn.h"
 #include "PluginParameters.h"
 #include "UpdateCheck.h"
 #include "dsp/SynthEngine.h"
@@ -168,6 +169,11 @@ public:
   /// stop, and the one place that waits is this object going away, which is
   /// the whole plugin being removed rather than a window being shut.
   ovt::UpdateCheck &updates() noexcept { return updateCheck; }
+
+  /// Which controller moves which control. Public because the menus that edit
+  /// it are in the editor and the messages that use it arrive here. See
+  /// ovt::MidiLearn for which thread may do what.
+  ovt::MidiLearn midiLearn;
 
   /// What is loaded, by name, for the editor to show and for the state to
   /// carry.
