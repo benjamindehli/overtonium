@@ -184,6 +184,11 @@ struct Applier {
       set(params::macroRowId(m), 0.0f);
       set(params::macroScopeId(m), 0.0f);
       set(params::macroCurveId(m), 0.0f);
+
+      // Each one a different colour, matching the default, so a patch that
+      // makes four macros gets four colours without anybody choosing them.
+      set(params::macroColourId(m),
+          (float)(1 + m % (params::kNumMacroColours - 1)));
     }
 
     // The master effects are off unless a preset switches them on, and their

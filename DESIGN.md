@@ -75,7 +75,7 @@ It loads whether or not the preset is the one already showing, which is what the
 
 What tells the two apart is a gesture. Every control opens one before it writes and closes one after, which is how a host is told that a move has begun and ended, and automation does not: it sets values and says nothing. So the processor listens to itself for gesture begin and end, takes a baseline of every parameter when the first one opens, and when the last one closes puts whatever actually moved into the history as one step. A drag, a scroll wheel and a LINK drag across 32 channels are each one gesture and therefore each one step, however many values they moved and however long they took. A gesture that ends where it began is not a step at all.
 
-Only from the message thread. A host is allowed to open a gesture from the audio thread, and taking a baseline of 788 parameters there would allocate on it, so one that arrives from anywhere else is left alone. Nobody is turning a knob from the audio thread.
+Only from the message thread. A host is allowed to open a gesture from the audio thread, and taking a baseline of 828 parameters there would allocate on it, so one that arrives from anywhere else is left alone. Nobody is turning a knob from the audio thread.
 
 The things a person does that are not one gesture go through `recordEdit`, which takes the same baseline around whatever it is given: loading a preset writes hundreds of parameters and has to come back in one undo. The caller decides, and that is the point of it. Loading a preset from the menu is recorded and a clip firing a program change at the same `applyFactoryPreset` is not, because one of them is editing and the other is playing.
 

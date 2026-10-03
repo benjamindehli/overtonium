@@ -116,10 +116,15 @@ inline constexpr const char *panSuffix = "pan";
 /// catches only the last one touched, so a relationship you can edit by hand
 /// cannot be automated at all.
 ///
-/// Four rather than more because each costs four parameters and a place to
-/// put them, and raising it later disturbs nothing: parameters added on the
-/// end leave every lane already written pointing where it pointed.
-inline constexpr int kNumMacros = 4;
+/// Eight, which is a pool rather than a count: a plugin declares its
+/// parameters once and neither VST3 nor AU can add one later, so "make a
+/// macro" means taking one of these and "remove it" means putting it back.
+/// The panel shows the ones in use and the host sees all eight.
+///
+/// Raising this later disturbs nothing, since parameters added on the end
+/// leave every lane already written pointing where it pointed. Lowering it
+/// would strand automation, so it is the one direction to be sure about.
+inline constexpr int kNumMacros = 8;
 
 /// The rows a macro can drive, in the order the panel reads them.
 ///
@@ -136,9 +141,20 @@ inline constexpr const char *kMacroRows[] = {
 inline constexpr int kNumMacroRows =
     (int)(sizeof(kMacroRows) / sizeof(kMacroRows[0]));
 
-/// Which channels a macro reaches. The same four LINK offers, in the same
-/// order, so choosing one on the bar and one here mean the same thing.
-enum class MacroScope { All = 0, SameInterval, Odd, Even, NumScopes };
+/// Which channels a macro reaches.
+///
+/// Three that need no argument and then one per interval, rather than a
+/// "same interval" that needs a second menu to say which. Everything from
+/// Interval onwards is a pitch class, so the entry at Interval + 7 is every
+/// channel a fifth above the fundamental: harmonics 3, 6, 12 and 24.
+///
+/// All twelve occur among 32 harmonics, though four of them reach a single
+/// channel, which makes those a way of naming one harmonic rather than a
+/// family. Listed anyway, since a list of intervals with gaps in it is
+/// stranger to read than a few narrow entries.
+enum class MacroScope { All = 0, Odd, Even, Interval };
+
+inline constexpr int kNumMacroScopes = (int)MacroScope::Interval + 12;
 
 /// How a macro is shared out across the channels it reaches.
 ///
@@ -149,15 +165,27 @@ enum class MacroScope { All = 0, SameInterval, Odd, Even, NumScopes };
 /// being the one channel a macro can anchor to.
 enum class MacroCurve { Uniform = 0, Taper, NumCurves };
 
-const char *macroScopeName(MacroScope);
+/// The colours a macro can wear, so a control it drives can say which one
+/// has it. The first is no colour at all, for anyone who would rather the
+/// mixer stayed the colour the series makes it.
+inline constexpr int kNumMacroColours = 9;
+
+const char *macroScopeName(int scope);
 const char *macroCurveName(MacroCurve);
 const char *macroRowName(int row);
+const char *macroColourName(int colour);
 
-/// A macro's four parameter ids. The amount is the one a host draws.
+/// What a macro's tint actually is, or a fully transparent colour for the
+/// first entry. Defined in Theme.cpp beside the rest of the palette.
+juce::Colour macroColour(int colour);
+
+/// A macro's parameter ids. The amount is the one a host draws, and the row
+/// is what says whether the macro has been made at all: row 0 is None.
 juce::String macroAmountId(int macro);
 juce::String macroRowId(int macro);
 juce::String macroScopeId(int macro);
 juce::String macroCurveId(int macro);
+juce::String macroColourId(int macro);
 
 /// What each modulation destination offers, in the order its parameter stores.
 ///

@@ -249,11 +249,12 @@ void testParameterWiring(OvertoniumProcessor &p) {
   // setting rather than part of a patch and is the only parameter here that
   // changes what the plugin reports to the host. See params::lookaheadId.
   //
-  // And four each for the macros: an amount, which is the one a host draws,
-  // and the three that say which row it reaches, which channels of it and how
-  // it is shared out. See params::kNumMacros.
+  // And five each for the macros, which are a pool rather than a count: an
+  // amount, which is the one a host draws, the row it reaches, the channels
+  // of it and how it is shared out, and the colour it wears. A macro nobody
+  // has made points its row at None. See params::kNumMacros.
   const int expected =
-      ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + ovt::params::kNumMacros * 4;
+      ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + ovt::params::kNumMacros * 5;
 
   // The behaviour that was there before it became a choice. Asked of the
   // parameter rather than of the tree, so the answer does not depend on what
@@ -902,8 +903,9 @@ void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
     return out;
   };
 
-  // The row the issue names, and the one a macro is most wanted on.
-  const int tuneRow = 0;
+  // The row the issue names, and the one a macro is most wanted on. One
+  // rather than zero: the list opens with None, which is an unmade macro.
+  const int tuneRow = 1;
 
   const auto resting = snapshot();
 
@@ -1014,6 +1016,59 @@ void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
       ++stillMoved;
 
   check(stillMoved == 0, "and leaves nothing behind when it returns to zero");
+
+  // ---- a macro nobody has made does nothing ------------------------------
+  //
+  // Which is how one is removed: the row goes back to None and the amount is
+  // left wherever the fader was. A macro that went on working after being
+  // taken away would be the worst of both.
+  set(ovt::params::macroAmountId(0), -0.25f);
+  set(ovt::params::macroRowId(0), 0.0f);
+
+  const auto unmade = snapshot();
+
+  int byUnmade = 0;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    if (std::abs(unmade.osc[(size_t)i].tuneBlend -
+                 resting.osc[(size_t)i].tuneBlend) > 1.0e-9f)
+      ++byUnmade;
+
+  check(byUnmade == 0,
+        "a macro with no row does nothing, whatever its amount says (" +
+            std::to_string(byUnmade) + " channels moved)");
+
+  // ---- and an interval scope reaches that interval -----------------------
+  //
+  // The fifth, which is harmonics 3, 6, 12 and 24. Counted against the table
+  // rather than against a list written here, so this cannot drift from what
+  // the mixer calls those channels.
+  set(ovt::params::macroRowId(0), (float)tuneRow);
+  set(ovt::params::macroScopeId(0),
+      (float)((int)ovt::params::MacroScope::Interval + 7));
+
+  const auto fifths = snapshot();
+
+  int reached = 0, strayed = 0;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i) {
+    const bool took = std::abs(fifths.osc[(size_t)i].tuneBlend -
+                               resting.osc[(size_t)i].tuneBlend) > 1.0e-5f;
+    const bool isFifth = ovt::harmonicTable()[(size_t)i].pitchClass == 7;
+
+    if (took && isFifth)
+      ++reached;
+    if (took != isFifth)
+      ++strayed;
+  }
+
+  check(reached == 4 && strayed == 0,
+        "an interval scope reaches exactly that interval (" +
+            std::to_string(reached) + " fifths, " + std::to_string(strayed) +
+            " wrong)");
+
+  set(ovt::params::macroRowId(0), 0.0f);
+  set(ovt::params::macroAmountId(0), 0.0f);
+  set(ovt::params::macroScopeId(0), 0.0f);
+  set(ovt::params::macroCurveId(0), 0.0f);
 
   p.applyFactoryPreset(presetIndex("Init"));
 }

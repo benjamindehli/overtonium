@@ -269,22 +269,40 @@ juce::String macroCurveId(int macro) {
   return "macro" + juce::String(macro + 1) + "_curve";
 }
 
-const char *macroScopeName(MacroScope s) {
-  switch (s) {
+juce::String macroColourId(int macro) {
+  return "macro" + juce::String(macro + 1) + "_colour";
+}
+
+const char *macroScopeName(int scope) {
+  switch ((MacroScope)scope) {
   case MacroScope::All:
     return "All";
-  case MacroScope::SameInterval:
-    return "Same interval";
   case MacroScope::Odd:
     return "Odd";
   case MacroScope::Even:
     return "Even";
 
-  case MacroScope::NumScopes:
+  case MacroScope::Interval:
     break;
   }
 
+  // Everything past the three is an interval, named as the mixer names it so
+  // that a scope and a channel's own caption say the same word.
+  if (scope >= (int)MacroScope::Interval && scope < kNumMacroScopes)
+    return intervalName(scope - (int)MacroScope::Interval);
+
   return "All";
+}
+
+const char *macroColourName(int colour) {
+  static const char *const names[] = {"None",   "Red",    "Orange",
+                                      "Yellow", "Green",  "Cyan",
+                                      "Blue",   "Violet", "Magenta"};
+
+  static_assert((int)(sizeof(names) / sizeof(names[0])) == kNumMacroColours,
+                "every colour a macro can wear has to have a name");
+
+  return names[(size_t)juce::jlimit(0, kNumMacroColours - 1, colour)];
 }
 
 const char *macroCurveName(MacroCurve c) {
@@ -307,17 +325,33 @@ const char *macroCurveName(MacroCurve c) {
 /// rows are both called "rate" and three are called "depth", which reads fine
 /// under a heading and not at all in a flat list of nineteen.
 const char *macroRowName(int row) {
-  static const char *const names[] = {
-      "Tune",       "Phase",        "Pitch mod rate", "Pitch mod depth",
-      "Drift",      "Strike",       "Delay",          "Attack",
-      "Decay",      "Sustain",      "Key-off swell",  "Key-off level",
-      "Release",    "Amp mod rate", "Amp mod depth",  "Velocity",
-      "Aftertouch", "Pan",          "Level"};
+  // None first, which is a macro nobody has made yet, so this is one longer
+  // than the list of rows.
+  static const char *const names[] = {"None",
+                                      "Tune",
+                                      "Phase",
+                                      "Pitch mod rate",
+                                      "Pitch mod depth",
+                                      "Drift",
+                                      "Strike",
+                                      "Delay",
+                                      "Attack",
+                                      "Decay",
+                                      "Sustain",
+                                      "Key-off swell",
+                                      "Key-off level",
+                                      "Release",
+                                      "Amp mod rate",
+                                      "Amp mod depth",
+                                      "Velocity",
+                                      "Aftertouch",
+                                      "Pan",
+                                      "Level"};
 
-  static_assert((int)(sizeof(names) / sizeof(names[0])) == kNumMacroRows,
-                "every row a macro can drive has to have a name");
+  static_assert((int)(sizeof(names) / sizeof(names[0])) == kNumMacroRows + 1,
+                "every row a macro can drive has to have a name, and None too");
 
-  return names[(size_t)juce::jlimit(0, kNumMacroRows - 1, row)];
+  return names[(size_t)juce::jlimit(0, kNumMacroRows, row)];
 }
 
 juce::String polyphonyName(int index) {
@@ -474,16 +508,18 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::ParameterID{macroAmountId(m), 1}, name,
         juce::NormalisableRange<float>(-1.0f, 1.0f, 0.0001f), 0.0f));
 
+    // None first, which is what an unmade macro points at. Every one of the
+    // eight starts there, so a fresh instrument has a pool and no macros.
     juce::StringArray rows;
-    for (int r = 0; r < kNumMacroRows; ++r)
+    for (int r = 0; r <= kNumMacroRows; ++r)
       rows.add(macroRowName(r));
 
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID{macroRowId(m), 1}, name + " Row", rows, 0));
 
     juce::StringArray scopes;
-    for (int i = 0; i < (int)MacroScope::NumScopes; ++i)
-      scopes.add(macroScopeName((MacroScope)i));
+    for (int i = 0; i < kNumMacroScopes; ++i)
+      scopes.add(macroScopeName(i));
 
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID{macroScopeId(m), 1}, name + " Scope", scopes, 0));
@@ -494,6 +530,19 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID{macroCurveId(m), 1}, name + " Curve", curves, 0));
+
+    // Visual only, and a parameter anyway, because a preset file carries
+    // parameters and nothing else: a patch that makes four macros has to be
+    // able to say what colour they are. See presets::capture.
+    juce::StringArray colours;
+    for (int i = 0; i < kNumMacroColours; ++i)
+      colours.add(macroColourName(i));
+
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{macroColourId(m), 1}, name + " Colour", colours,
+        // Each macro starts wearing a different one, so making four in a row
+        // gives four colours without anyone choosing them.
+        1 + m % (kNumMacroColours - 1)));
   }
 
   // Off by default, because it changes what an incoming channel number means
@@ -1024,44 +1073,46 @@ namespace {
 /// same restriction LINK works under and for the same reason: there is
 /// nothing to offset on a row of shapes or of mute buttons.
 float *macroField(OscParams &o, int row) {
+  // Shifted by the None the menu opens with, so case 1 is the first
+  // real row. A macro still pointing at None never reaches here.
   switch (row) {
-  case 0:
-    return &o.tuneBlend;
   case 1:
-    return &o.startPhase;
+    return &o.tuneBlend;
   case 2:
-    return &o.pmRateHz;
+    return &o.startPhase;
   case 3:
-    return &o.pmDepthCents;
+    return &o.pmRateHz;
   case 4:
-    return &o.driftCents;
+    return &o.pmDepthCents;
   case 5:
-    return &o.strikeAmount;
+    return &o.driftCents;
   case 6:
-    return &o.delay;
+    return &o.strikeAmount;
   case 7:
-    return &o.attack;
+    return &o.delay;
   case 8:
-    return &o.decay;
+    return &o.attack;
   case 9:
-    return &o.sustain;
+    return &o.decay;
   case 10:
-    return &o.swell;
+    return &o.sustain;
   case 11:
-    return &o.offLevel;
+    return &o.swell;
   case 12:
-    return &o.release;
+    return &o.offLevel;
   case 13:
-    return &o.amRateHz;
+    return &o.release;
   case 14:
-    return &o.amDepth;
+    return &o.amRateHz;
   case 15:
-    return &o.velAmount;
+    return &o.amDepth;
   case 16:
-    return &o.atAmount;
+    return &o.velAmount;
   case 17:
-    return &o.pan;
+    return &o.atAmount;
   case 18:
+    return &o.pan;
+  case 19:
     return &o.volume;
 
   default:
@@ -1073,24 +1124,24 @@ static_assert(kNumMacroRows == 19,
               "macroField has a case per row and has to grow with the list");
 
 /// Whether a macro reaches this channel.
-bool macroReaches(MacroScope scope, int index0) {
-  switch (scope) {
-  case MacroScope::SameInterval:
-    // Measured against the fundamental, which is what a macro anchors to,
-    // so this is every octave of it.
-    return harmonicTable()[(size_t)index0].pitchClass ==
-           harmonicTable()[0].pitchClass;
+bool macroReaches(int scope, int index0) {
+  switch ((MacroScope)scope) {
   case MacroScope::Odd:
     return ((index0 + 1) % 2) == 1;
   case MacroScope::Even:
     return ((index0 + 1) % 2) == 0;
 
   case MacroScope::All:
-  case MacroScope::NumScopes:
+    return true;
+
+  case MacroScope::Interval:
     break;
   }
 
-  return true;
+  // Everything past the three names an interval, and reaches every channel
+  // standing at it: the fifth is harmonics 3, 6, 12 and 24.
+  return harmonicTable()[(size_t)index0].pitchClass ==
+         scope - (int)MacroScope::Interval;
 }
 
 /// This channel's share, from the fundamental outwards.
@@ -1177,16 +1228,22 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     if (std::abs(amount) < 1.0e-6f)
       continue;
 
-    const int row = juce::jlimit(0, kNumMacroRows - 1,
-                                 (int)std::lround(cached.row->load()));
-    const auto scope =
-        (MacroScope)juce::jlimit(0, (int)MacroScope::NumScopes - 1,
-                                 (int)std::lround(cached.scope->load()));
+    const int row =
+        juce::jlimit(0, kNumMacroRows, (int)std::lround(cached.row->load()));
+
+    // Pointing at None, which is what an unmade macro does. Its amount may
+    // well be somewhere other than zero: taking the row away is how a macro
+    // is removed, and the fader it was on keeps wherever it was left.
+    if (row == 0)
+      continue;
+
+    const auto scope = juce::jlimit(0, kNumMacroScopes - 1,
+                                    (int)std::lround(cached.scope->load()));
     const auto curve =
         (MacroCurve)juce::jlimit(0, (int)MacroCurve::NumCurves - 1,
                                  (int)std::lround(cached.curve->load()));
 
-    const auto range = rowRange[(size_t)row];
+    const auto range = rowRange[(size_t)(row - 1)];
     const auto span = range.second - range.first;
 
     for (int i = 0; i < kNumHarmonics; ++i) {
