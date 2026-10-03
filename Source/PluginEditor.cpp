@@ -115,6 +115,19 @@ RowGutter::RowGutter() {
 
   addAndMakeVisible(drawButton);
 
+  macroButton.setButtonText("MACROS");
+  macroButton.setTooltip(
+      "One parameter that moves a whole row, and that a host can automate. "
+      "A LINK drag moves 32 parameters and a host catches only the last one "
+      "touched, which is what these are for.");
+  macroButton.setColour(juce::TextButton::textColourOnId, colours::accent);
+  macroButton.onClick = [this] {
+    if (onMacrosClicked != nullptr)
+      onMacrosClicked();
+  };
+
+  addAndMakeVisible(macroButton);
+
   headerCap.onPaint = [this](juce::Graphics &g) { paintHeaderBand(g); };
   addAndMakeVisible(headerCap);
 }
@@ -159,6 +172,11 @@ void RowGutter::resized() {
   fader.removeFromTop(18);
 
   drawButton.setBounds(fader.removeFromTop(22));
+
+  // Under the draw tool, which is the other thing here that acts on the
+  // mixer as a whole rather than on one knob.
+  fader.removeFromTop(6);
+  macroButton.setBounds(fader.removeFromTop(22));
 }
 
 void RowGutter::setLinkOn(bool on) {
@@ -167,6 +185,10 @@ void RowGutter::setLinkOn(bool on) {
 
 void RowGutter::setDrawOn(bool on) {
   drawButton.setToggleState(on, juce::dontSendNotification);
+}
+
+void RowGutter::setMacrosOn(bool on) {
+  macroButton.setToggleState(on, juce::dontSendNotification);
 }
 
 void RowGutter::setCollapsedSections(SectionMask mask) {
@@ -354,7 +376,7 @@ void RowGutter::paint(juce::Graphics &g) {
 
 OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     : juce::AudioProcessorEditor(&p), topBar(p.apvts, *this),
-      noiseStrip(p.apvts, *this, *this) {
+      noiseStrip(p.apvts, *this, *this), macroPanel(p.apvts) {
   setLookAndFeel(&lookAndFeel);
 
   // The background is filled edge to edge, so say so: an opaque top-level
@@ -496,6 +518,27 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
 
   topBar.onLearnRequested = [this](const juce::String &id) {
     showLearnMenu(id);
+  };
+
+  // Over everything, and hidden until asked for. Added to the editor rather
+  // than to the scrolling content, so it covers the bar as well: it is a
+  // thing you are doing instead of playing, not a part of the mixer.
+  addChildComponent(macroPanel);
+
+  macroPanel.onDismiss = [this] {
+    macroPanel.setVisible(false);
+    gutter.setMacrosOn(false);
+  };
+
+  gutter.onMacrosClicked = [this] {
+    const bool opening = !macroPanel.isVisible();
+
+    if (opening)
+      macroPanel.refresh();
+
+    macroPanel.setVisible(opening);
+    macroPanel.toFront(false);
+    gutter.setMacrosOn(opening);
   };
 
   noiseStrip.onLearnRequested = [this](const juce::String &id) {
@@ -698,6 +741,12 @@ void OvertoniumEditor::resized() {
   if (ovt::ui::TopBar::heightForWidth(
           juce::jmax(minimumLogicalWidth(), logicalWidth)) != limitsBarHeight)
     applyResizeLimits(logicalWidth);
+
+  // Over the whole window rather than over the content, and untransformed:
+  // the dim and the card are chrome for a thing you are doing instead of
+  // playing, so the zoom that sizes the instrument has nothing to say about
+  // how big a menu of macros should be.
+  macroPanel.setBounds(getLocalBounds());
 
   content.setTransform(juce::AffineTransform::scale(zoom));
   content.setBounds(0, 0, logicalWidth, logicalHeight);

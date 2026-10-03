@@ -10,6 +10,7 @@
 #include "PluginProcessor.h"
 #include "UI/ChannelStrip.h"
 #include "UI/LookAndFeel.h"
+#include "UI/MacroPanel.h"
 #include "UI/NoiseStrip.h"
 #include "UI/TopBar.h"
 #include "dsp/Drift.h"
@@ -65,6 +66,10 @@ public:
   /// changes.
   std::function<void(juce::Component *)> onLinkClicked;
 
+  /// Fired when MACROS is clicked, which puts the macro panel up over the
+  /// mixer. See ui::MacroPanel.
+  std::function<void()> onMacrosClicked;
+
   /// Lights the button while LINK is on.
   void setLinkOn(bool);
 
@@ -75,6 +80,9 @@ public:
   /// Lights the button while a drag across the faders would draw them, whether
   /// that is because the modifier is held or because it is latched.
   void setDrawOn(bool);
+
+  /// Lights MACROS while the panel is up.
+  void setMacrosOn(bool);
 
   void resized() override;
   void mouseDown(const juce::MouseEvent &) override;
@@ -99,7 +107,7 @@ private:
   /// Here rather than in the bar because this is the column the tool belongs
   /// to: it gangs the rows the captions name. What it leaves behind on the bar
   /// is the room the converter readouts needed to say what their numbers mean.
-  ovt::ui::GlowButton linkButton, drawButton;
+  ovt::ui::GlowButton linkButton, drawButton, macroButton;
 
   /// The maker's badge, in the empty foot of the gutter.
   std::unique_ptr<juce::Drawable> makersMark{ovt::ui::logoMakersMark()};
@@ -341,6 +349,9 @@ private:
   ovt::ui::TopBar topBar;
   RowGutter gutter;
   ovt::ui::NoiseStrip noiseStrip;
+
+  /// Over the mixer when it is up, and not in the way when it is not.
+  ovt::ui::MacroPanel macroPanel;
 
   // stripsHolder is declared before the viewport that displays it, so on
   // teardown the viewport is destroyed first and never sees a dangling viewed

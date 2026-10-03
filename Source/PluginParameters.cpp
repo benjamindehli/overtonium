@@ -286,10 +286,25 @@ const char *macroScopeName(int scope) {
     break;
   }
 
-  // Everything past the three is an interval, named as the mixer names it so
-  // that a scope and a channel's own caption say the same word.
-  if (scope >= (int)MacroScope::Interval && scope < kNumMacroScopes)
-    return intervalName(scope - (int)MacroScope::Interval);
+  // Everything past the three is an interval. Taken from the one table that
+  // names them rather than written again here, and capitalised to sit beside
+  // All, Odd and Even without looking like a different kind of thing. Built
+  // once and kept, since this hands back a pointer that has to outlive it.
+  if (scope >= (int)MacroScope::Interval && scope < kNumMacroScopes) {
+    static const auto capitalised = [] {
+      std::array<juce::String, 12> out;
+
+      for (int i = 0; i < 12; ++i) {
+        out[(size_t)i] = juce::String(intervalName(i));
+        out[(size_t)i] = out[(size_t)i].substring(0, 1).toUpperCase() +
+                         out[(size_t)i].substring(1);
+      }
+
+      return out;
+    }();
+
+    return capitalised[(size_t)(scope - (int)MacroScope::Interval)].toRawUTF8();
+  }
 
   return "All";
 }

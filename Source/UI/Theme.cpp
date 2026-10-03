@@ -10,6 +10,22 @@
 
 namespace ovt::ui {
 
+namespace {
+/// What each macro colour actually is.
+///
+/// Chosen to be told apart at the size of a knob's ring rather than to be
+/// pretty in a row: eight hues spread around the wheel, all at a lightness
+/// that reads against the panel without competing with a lit mute or solo.
+/// The first is no colour at all, for anyone who would rather the mixer
+/// stayed the colour the series makes it.
+const juce::Colour kMacroColours[] = {
+    juce::Colour(0x00000000), juce::Colour(0xffe0584a),
+    juce::Colour(0xffe08a3c), juce::Colour(0xffd8c24a),
+    juce::Colour(0xff64c07a), juce::Colour(0xff52c0c0),
+    juce::Colour(0xff5a8fe0), juce::Colour(0xffb07bd4),
+    juce::Colour(0xffd665b0)};
+} // namespace
+
 void GlowButton::paintButton(juce::Graphics &g, bool highlighted, bool down) {
   // The face, drawn as if the switch were off whatever it is, so that being
   // engaged is something the word says rather than something the button does.
@@ -995,3 +1011,12 @@ bool roleForRow(Row r, Role &out) {
 }
 
 } // namespace ovt::ui
+
+namespace ovt::params {
+
+juce::Colour macroColour(int colour) {
+  return ovt::ui::kMacroColours[(size_t)juce::jlimit(0, kNumMacroColours - 1,
+                                                     colour)];
+}
+
+} // namespace ovt::params
