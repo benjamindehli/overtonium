@@ -1321,6 +1321,14 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
       //
       // Clamped to the ends, so a macro takes a control as far as it goes
       // and no further. Two macros on one row add up and the clamp holds.
+      //
+      // That a patch sitting near an end of its range has a dead stretch of
+      // fader at that end is the price of the amount spanning the whole
+      // travel, and the whole travel is what it has to span: one macro
+      // reaches up to 32 controls which may be set anywhere, so there is no
+      // single sensible fraction of the range to offer instead. Scaling the
+      // amount down would buy resolution for a patch dialled mid-range by
+      // taking reach away from every other one.
       const auto moved =
           range.convertTo0to1(*field) + amount * macroWeight(curve, i, anchor);
 
