@@ -43,9 +43,22 @@
 namespace {
 
 /// The editor takes its size from the saved state and the zoom, so a picture
-/// has to ask for a size rather than accept whatever a session left behind.
-constexpr int kWindowWidth = 1348;
-constexpr int kWindowHeight = 1010;
+/// has to ask for one rather than accept whatever a session left behind.
+///
+/// Asked of the editor rather than written down here. The numbers used to be
+/// a pair of literals, 1348 by 1010, and the scrollbar that arrived with the
+/// scrolling parameters made the window ten pixels wider without making them
+/// wrong enough to notice: the pictures went on rendering at a size the
+/// window no longer has. fitAllChannels is the same call the Settings menu
+/// makes, and what it means is what these pictures are of.
+///
+/// The height is still a number, because it is a choice rather than a fact.
+/// What fitAllChannels gives is the shortest window that shows every row,
+/// which leaves the faders at their fixed 92 and reads as cramped: the travel
+/// is what a mixer looks like. Anything above the natural height goes to the
+/// faders, so this asks for enough to show them at the length the pages have
+/// always shown them at.
+constexpr int kPictureHeight = 1010;
 
 /// What the pages show. Big Saw puts a 1/n spectrum on the faders and its own
 /// table on the tuning knobs, so the mixer shows a shape rather than a row of
@@ -153,7 +166,13 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  editor->setSize(kWindowWidth, kWindowHeight);
+  // The width that shows all 32 channels, whatever that is today, and a
+  // height chosen for the picture. See kPictureHeight.
+  editor->fitAllChannels();
+  editor->setSize(editor->getWidth(),
+                  juce::jmax(editor->getHeight(), kPictureHeight));
+
+  std::printf("window %d x %d\n", editor->getWidth(), editor->getHeight());
 
   auto strips = descendantsOf<ovt::ui::ChannelStrip>(*editor);
   auto noise = descendantsOf<ovt::ui::NoiseStrip>(*editor);
@@ -202,7 +221,10 @@ int main(int argc, char **argv) {
 
   // Measured rather than assumed, so a taller bar or a wider strip moves these
   // with it instead of slicing the next picture through the middle of a row.
-  const int barHeight = ovt::ui::TopBar::heightForWidth(kWindowWidth);
+  const int windowWidth = editor->getWidth();
+  const int windowHeight = editor->getHeight();
+
+  const int barHeight = ovt::ui::TopBar::heightForWidth(windowWidth);
   const int detailWidth =
       ovt::ui::kGutterWidth + kDetailChannels * ovt::ui::kStripWidth;
 
@@ -227,11 +249,11 @@ int main(int argc, char **argv) {
   };
 
   const bool ok =
-      writePng(*editor, {0, 0, kWindowWidth, kWindowHeight}, scale,
+      writePng(*editor, {0, 0, windowWidth, windowHeight}, scale,
                png("overtonium")) &&
-      writePng(*editor, {0, barHeight, detailWidth, kWindowHeight - barHeight},
+      writePng(*editor, {0, barHeight, detailWidth, windowHeight - barHeight},
                scale, png("overtonium-strips")) &&
-      writePng(*editor, {0, 0, kWindowWidth, barHeight}, scale,
+      writePng(*editor, {0, 0, windowWidth, barHeight}, scale,
                png("overtonium-bar"));
 
   return ok ? 0 : 1;
