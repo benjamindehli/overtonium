@@ -6103,6 +6103,66 @@ void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
             editor->currentTool() == ovt::ui::PointerTool::Link,
         "and starts on a tool that is not drawing");
 
+  // ---- the menu knows which tool is current -------------------------------
+  //
+  // It took the tool as a defaulted argument and both callers left it out, so
+  // it built itself as though the plain pointer were always chosen: a tick
+  // that never moved and LINK's two lists greyed out for good. Read as data,
+  // which is the only way to read a menu that needs a window to open in.
+  {
+    // Only the three tools. The scope and the curve carry ticks of their
+    // own, which are theirs to carry and say nothing about the tool.
+    const auto toolTickedIn = [](juce::PopupMenu &menu) {
+      std::string found;
+
+      for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+        for (int i = 0; i < (int)ovt::ui::PointerTool::NumTools; ++i)
+          if (it.getItem().isTicked &&
+              it.getItem().text ==
+                  ovt::ui::pointerToolName((ovt::ui::PointerTool)i))
+            found += it.getItem().text.toStdString() + " ";
+
+      return found;
+    };
+
+    // Asked for by the name the menu gives it rather than by a word guessed
+    // at here: the item reads "Odd harmonics", and a test looking for "Odd"
+    // found nothing and called it disabled.
+    const auto scopeEnabled = [](juce::PopupMenu &menu) {
+      const auto wanted =
+          juce::String(ovt::ui::linkScopeName(ovt::ui::LinkScope::Odd));
+
+      for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+        if (it.getItem().text == wanted)
+          return it.getItem().isEnabled;
+
+      return false;
+    };
+
+    for (auto which :
+         {ovt::ui::PointerTool::Pointer, ovt::ui::PointerTool::Link,
+          ovt::ui::PointerTool::Draw}) {
+      editor->chooseTool(which);
+
+      auto menu = ovt::ui::buildToolMenu(editor->currentTool(),
+                                         {which == ovt::ui::PointerTool::Link,
+                                          ovt::ui::LinkScope::All,
+                                          ovt::ui::LinkCurve::Uniform});
+
+      const auto wanted = std::string(ovt::ui::pointerToolName(which)) + " ";
+
+      check(toolTickedIn(menu) == wanted,
+            std::string("the menu ticks ") + ovt::ui::pointerToolName(which) +
+                " when it is the tool (" + toolTickedIn(menu) + ")");
+
+      check(scopeEnabled(menu) == (which == ovt::ui::PointerTool::Link),
+            std::string("and LINK's lists are live only for Link (") +
+                ovt::ui::pointerToolName(which) + ")");
+    }
+
+    editor->chooseTool(ovt::ui::PointerTool::Pointer);
+  }
+
   // ---- without the modifier, nothing is taken -----------------------------
   //
   // The fader moves itself, as it always has, and the drawing never hears

@@ -29,26 +29,46 @@ const juce::Colour kMacroColours[] = {
 void drawGearIcon(juce::Graphics &g, juce::Rectangle<float> area,
                   juce::Colour colour) {
   const auto centre = area.getCentre();
-  const auto r = juce::jmin(area.getWidth(), area.getHeight()) * 0.42f;
+  const auto outer = juce::jmin(area.getWidth(), area.getHeight()) * 0.46f;
+  const auto root = outer * 0.74f;
 
-  g.setColour(colour);
+  // A filled cog rather than spokes on a ring, which is what it was and what
+  // made it a ship's wheel: a wheel is a rim with spokes reaching in, and a
+  // cog is a solid body with teeth standing out of it. Drawn as one outline
+  // that steps between the two radii, with the bore punched by an even-odd
+  // fill rather than painted over, since what is behind the button is not a
+  // colour this knows.
+  constexpr int teeth = 8;
+  constexpr float tooth = 0.46f; // of each tooth's share of the circle
 
-  // Eight teeth as spokes rather than a toothed outline, which at this size
-  // turns into a blob: at fourteen pixels across what reads as a gear is the
-  // spacing of the teeth rather than their shape.
-  for (int i = 0; i < 8; ++i) {
-    const auto a = juce::MathConstants<float>::twoPi * (float)i / 8.0f;
-    const auto s = std::sin(a);
-    const auto c = std::cos(a);
+  juce::Path path;
 
-    g.drawLine(centre.x + r * 0.72f * s, centre.y - r * 0.72f * c,
-               centre.x + r * 1.15f * s, centre.y - r * 1.15f * c, 1.6f);
+  for (int i = 0; i < teeth; ++i) {
+    const auto step = juce::MathConstants<float>::twoPi / (float)teeth;
+    const auto from = (float)i * step;
+
+    const auto at = [&](float angle, float radius) {
+      return juce::Point<float>(centre.x + radius * std::sin(angle),
+                                centre.y - radius * std::cos(angle));
+    };
+
+    if (i == 0)
+      path.startNewSubPath(at(from, root));
+    else
+      path.lineTo(at(from, root));
+
+    path.lineTo(at(from + step * (0.5f - tooth * 0.5f), outer));
+    path.lineTo(at(from + step * (0.5f + tooth * 0.5f), outer));
+    path.lineTo(at(from + step, root));
   }
 
-  g.drawEllipse(centre.x - r * 0.72f, centre.y - r * 0.72f, r * 1.44f,
-                r * 1.44f, 1.6f);
-  g.fillEllipse(centre.x - r * 0.26f, centre.y - r * 0.26f, r * 0.52f,
-                r * 0.52f);
+  path.closeSubPath();
+  path.addEllipse(centre.x - outer * 0.34f, centre.y - outer * 0.34f,
+                  outer * 0.68f, outer * 0.68f);
+  path.setUsingNonZeroWinding(false);
+
+  g.setColour(colour);
+  g.fillPath(path);
 }
 
 void drawMacroIcon(juce::Graphics &g, juce::Rectangle<float> area,
@@ -73,25 +93,71 @@ void drawMacroIcon(juce::Graphics &g, juce::Rectangle<float> area,
   }
 }
 
-void drawPointerIcon(juce::Graphics &g, juce::Rectangle<float> area,
-                     juce::Colour colour) {
-  // The arrow every pointer is, so the tool that does what a mouse does
-  // anyway is recognisable without a word.
-  const auto h = juce::jmin(area.getWidth(), area.getHeight()) * 0.78f;
-  const auto top = area.getCentre().translated(-h * 0.26f, -h * 0.5f);
+void drawToolIcon(juce::Graphics &g, juce::Rectangle<float> area,
+                  juce::Colour colour, PointerTool tool) {
+  // The arrow sits left of centre when something stands beside it, and in
+  // the middle when nothing does, so the pair reads as one mark rather than
+  // as an arrow that has drifted.
+  const auto marked = tool != PointerTool::Pointer;
+  const auto h = juce::jmin(area.getHeight() * 0.62f, area.getWidth() * 0.44f);
+
+  auto arrowAt = area.getCentre();
+
+  if (marked)
+    arrowAt.x -= h * 0.52f;
+
+  const auto top = arrowAt.translated(-h * 0.22f, -h * 0.5f);
 
   juce::Path arrow;
   arrow.startNewSubPath(top);
   arrow.lineTo(top.translated(0.0f, h));
-  arrow.lineTo(top.translated(h * 0.26f, h * 0.72f));
-  arrow.lineTo(top.translated(h * 0.46f, h * 1.04f));
-  arrow.lineTo(top.translated(h * 0.64f, h * 0.92f));
-  arrow.lineTo(top.translated(h * 0.44f, h * 0.6f));
-  arrow.lineTo(top.translated(h * 0.72f, h * 0.58f));
+  arrow.lineTo(top.translated(h * 0.24f, h * 0.73f));
+  arrow.lineTo(top.translated(h * 0.42f, h * 1.02f));
+  arrow.lineTo(top.translated(h * 0.60f, h * 0.90f));
+  arrow.lineTo(top.translated(h * 0.42f, h * 0.62f));
+  arrow.lineTo(top.translated(h * 0.68f, h * 0.60f));
   arrow.closeSubPath();
 
   g.setColour(colour);
   g.fillPath(arrow);
+
+  if (!marked)
+    return;
+
+  // Centred on the arrow rather than on the button, so the two sit on one
+  // line whatever the button's height.
+  const auto markAt =
+      juce::Point<float>(arrowAt.x + h * 0.88f, area.getCentreY());
+
+  if (tool == PointerTool::Link) {
+    // Two rings side by side, overlapping, which is a chain at any size. The
+    // first attempt drew them as rounded bars touching the arrow, and at
+    // twenty pixels that is one blob rather than two links.
+    const auto r = h * 0.26f;
+
+    g.drawEllipse(markAt.x - r * 1.7f, markAt.y - r, r * 2.0f, r * 2.0f, 1.3f);
+    g.drawEllipse(markAt.x - r * 0.3f, markAt.y - r, r * 2.0f, r * 2.0f, 1.3f);
+    return;
+  }
+
+  // A drawn contour rather than a pencil.
+  //
+  // Two attempts at a pencil both read as a tick: at twenty pixels the body
+  // and the point are three or four pixels each and the eye joins them into
+  // one stroke. A contour is also the truer picture of what this tool does,
+  // which is to sweep a shape across the series rather than to mark a single
+  // control.
+  const auto w = h * 0.86f;
+  const auto half = w * 0.5f;
+
+  juce::Path contour;
+  contour.startNewSubPath(markAt.x - half, markAt.y + h * 0.26f);
+  contour.lineTo(markAt.x - half * 0.33f, markAt.y - h * 0.30f);
+  contour.lineTo(markAt.x + half * 0.33f, markAt.y + h * 0.12f);
+  contour.lineTo(markAt.x + half, markAt.y - h * 0.34f);
+
+  g.strokePath(contour, juce::PathStrokeType(1.5f, juce::PathStrokeType::curved,
+                                             juce::PathStrokeType::rounded));
 }
 
 void GlowButton::paintButton(juce::Graphics &g, bool highlighted, bool down) {

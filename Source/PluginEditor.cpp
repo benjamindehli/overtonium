@@ -98,17 +98,7 @@ RowGutter::RowGutter() {
 
   toolButton.onIcon = [this](juce::Graphics &g, juce::Rectangle<float> area,
                              juce::Colour colour) {
-    if (toolIcon.isValid()) {
-      // The cursor itself, drawn at the size it is rather than stretched:
-      // this is the pointer you are about to be holding.
-      g.drawImageWithin(toolIcon, (int)area.getX(), (int)area.getY(),
-                        (int)area.getWidth(), (int)area.getHeight(),
-                        juce::RectanglePlacement::centred |
-                            juce::RectanglePlacement::onlyReduceInSize);
-      return;
-    }
-
-    ovt::ui::drawPointerIcon(g, area, colour);
+    ovt::ui::drawToolIcon(g, area, colour, tool);
   };
 
   addAndMakeVisible(toolButton);
@@ -490,7 +480,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   // The menu belongs to the bar, which holds what it changes. The gutter holds
   // the button that opens it, and hands back what to hang it off.
   gutter.onLinkClicked = [this](juce::Component *anchor) {
-    topBar.showLinkMenu(anchor, {}, &plugin().midiLearn);
+    topBar.showLinkMenu(anchor, {}, &plugin().midiLearn, currentTool());
   };
 
   topBar.onToolChosen = [this](ovt::ui::PointerTool which) {
@@ -1397,7 +1387,7 @@ void OvertoniumEditor::showLearnMenu(const juce::String &parameterId) {
 }
 
 void OvertoniumEditor::showLinkMenu(const juce::String &parameterId) {
-  topBar.showLinkMenu(nullptr, parameterId, &plugin().midiLearn);
+  topBar.showLinkMenu(nullptr, parameterId, &plugin().midiLearn, currentTool());
 }
 
 void OvertoniumEditor::updateLinkCursor() {

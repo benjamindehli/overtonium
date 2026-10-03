@@ -191,10 +191,11 @@ public:
   /// @param map           where a learned binding goes. Passed in rather than
   ///                      reached for, since the bar is given its state tree
   ///                      and not the processor behind it.
-  void showLinkMenu(juce::Component *anchor,
-                    const juce::String &parameterId = {},
-                    MidiLearn *map = nullptr,
-                    PointerTool tool = PointerTool::Pointer);
+  /// No default for the tool. It had one, and both callers left it out, so
+  /// the menu built itself as though the plain pointer were always chosen:
+  /// a permanent tick on Pointer and LINK's two lists greyed out for good.
+  void showLinkMenu(juce::Component *anchor, const juce::String &parameterId,
+                    MidiLearn *map, PointerTool tool);
 
   /// The bar reflows onto further rows when the groups no longer fit across
   /// one, so nothing has to be dropped on a narrow window. Static because the

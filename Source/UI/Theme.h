@@ -144,11 +144,23 @@ public:
   void paintButton(juce::Graphics &, bool highlighted, bool down) override;
 };
 
+enum class PointerTool : int;
+
 /// The three icons the bar and the gutter wear, drawn rather than loaded so
 /// they take the colour they are given and stay sharp at any zoom.
 void drawGearIcon(juce::Graphics &, juce::Rectangle<float>, juce::Colour);
 void drawMacroIcon(juce::Graphics &, juce::Rectangle<float>, juce::Colour);
-void drawPointerIcon(juce::Graphics &, juce::Rectangle<float>, juce::Colour);
+/// The arrow, alone for the plain pointer and with a mark beside it for the
+/// other two.
+///
+/// Drawn here rather than taken from the cursors themselves, which is what
+/// it did first and what did not work: a cursor's artwork hangs down and to
+/// the right of its hotspot, so each one landed at a different size and a
+/// different place inside the button. One arrow at one size, with the mark
+/// standing to its right and centred on it, gives the three the same height
+/// and the same footing.
+void drawToolIcon(juce::Graphics &, juce::Rectangle<float>, juce::Colour,
+                  PointerTool);
 
 /// Vertical slots in a channel strip. The gutter on the left lays out the same
 /// list so the row labels always line up with the controls.
@@ -471,7 +483,7 @@ LinkCurve linkCurveFromState(const juce::String &id, int legacy);
 /// cannot be a link and a drawing at once, and the two toggles this replaces
 /// had to work around that by making LINK read as off while drawing was
 /// armed, lighting a switch for a gesture that had been taken away from it.
-enum class PointerTool { Pointer = 0, Link, Draw, NumTools };
+enum class PointerTool : int { Pointer = 0, Link, Draw, NumTools };
 
 const char *pointerToolName(PointerTool);
 
