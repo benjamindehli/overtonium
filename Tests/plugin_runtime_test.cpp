@@ -514,14 +514,33 @@ void testBusStageFollowsTheCharacter(OvertoniumProcessor &p) {
             std::to_string(differs(valve, bulb)) + ")");
 
   // Every character, including the one that has none, costs the same few
-  // samples, so a preset cannot make a host re-plan its graph.
-  check(idle == ovt::BusDrive::kLatency, "the stage's latency is reported (" +
-                                             std::to_string(idle) +
-                                             " samples)");
+  // samples, so a preset cannot make a host re-plan its graph. The output
+  // stage's lookahead is in the figure too and is just as fixed: it is paid
+  // on every clip type and with the clipper switched off.
+  const auto expected =
+      ovt::BusDrive::kLatency + ovt::OutputStage::lookaheadSamples(48000.0);
+
+  check(idle == expected, "both stages' latency is reported (" +
+                              std::to_string(idle) + " samples, expected " +
+                              std::to_string(expected) + ")");
 
   check(p.getLatencySamples() == idle,
         "and does not move when the character does (" +
             std::to_string(p.getLatencySamples()) + ")");
+
+  // The other half of the same rule. The lookahead belongs to one of the five
+  // types and is paid by all of them, so switching the stage off entirely has
+  // to leave the figure alone.
+  auto *clip = p.apvts.getParameter(ovt::params::safetyClipId);
+  clip->setValueNotifyingHost(0.0f);
+  p.prepareToPlay(48000.0, 512);
+
+  check(p.getLatencySamples() == idle,
+        "nor when the output stage is switched off (" +
+            std::to_string(p.getLatencySamples()) + ")");
+
+  clip->setValueNotifyingHost(1.0f);
+  p.prepareToPlay(48000.0, 512);
 
   p.applyFactoryPreset(presetIndex("Init"));
 }
@@ -4942,9 +4961,9 @@ void testTheSafetyClipHoldsUnity() {
 
     // Every one of the five, because the bound is the stage's promise rather
     // than a property of whichever shape happens to be selected. The limiter
-    // is the one that cannot keep it on its own: its gain is always a little
-    // behind the signal, so a hard clip stands behind it, and this is what
-    // says so.
+    // is the one that does not keep it by its shape: it keeps it by seeing
+    // the peak coming, with a hard clip behind it for whatever its window is
+    // too short to have seen, and this is what says so.
     for (int type = 0; type < (int)ovt::ClipType::NumTypes; ++type) {
       set(ovt::params::clipTypeId,
           (float)type / (float)((int)ovt::ClipType::NumTypes - 1));

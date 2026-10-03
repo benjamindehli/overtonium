@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <vector>
 
 namespace ovt {
 
@@ -76,29 +78,92 @@ inline const char *clipTypeName(ClipType t) {
 /// shared between the two channels rather than kept per channel: a limiter
 /// that ducked one side on its own would pull the stereo image towards the
 /// quieter one every time something loud happened on the other.
+///
+/// The whole stage is late by kLookaheadSeconds, every type and no type
+/// alike. That is the limiter's doing and the rest pay it, for the reason
+/// BusDrive::kLatency gives: a stage whose latency depended on the patch would
+/// have the host re-plan its graph every time a preset was chosen. So the
+/// delay is unconditional and the four memoryless shapers run behind it,
+/// which costs them nothing since delaying a memoryless curve and curving a
+/// delayed signal are the same thing.
 class OutputStage {
 public:
+  /// How far ahead the limiter is allowed to look, and therefore how late
+  /// everything leaving here is.
+  ///
+  /// Two milliseconds. Measured against the presets that drive the limiter
+  /// hardest, where the stage without it reached 1.294 and handed 1741 samples
+  /// in two seconds to the hard clip behind it. One millisecond already takes
+  /// that to none, and the rest of the choice is how gently the gain moves:
+  /// 0.0041 per sample as it was, 0.0040 at one millisecond, 0.0020 at two and
+  /// 0.0007 at five. Two is where the clipping is gone and the gain has
+  /// visibly settled, and five would cost three more milliseconds of latency
+  /// to improve something already below where it can be heard.
+  static constexpr double kLookaheadSeconds = 0.002;
+
+  /// The delay in samples at a given rate, which the processor has to be able
+  /// to ask for before anything has been prepared.
+  static int lookaheadSamples(double sampleRate) noexcept {
+    return (int)(kLookaheadSeconds * std::max(1.0, sampleRate) + 0.5);
+  }
+
   void prepare(double sampleRate) noexcept;
   void reset() noexcept;
 
-  /// Shapes both channels in place.
-  ///
-  /// @param type  which of the five.
-  void process(float *left, float *right, int numSamples,
-               ClipType type) noexcept;
+  /// How late this stage is, in samples, at the rate it was prepared with.
+  int latency() const noexcept { return delay; }
 
-  /// How much the limiter is pulling down, 0 to 1, for a meter to read. One
-  /// for every other type, which do not pull down at all.
-  float reduction() const noexcept { return gain; }
+  /// Shapes both channels in place, and delays them whether or not it shapes.
+  ///
+  /// @param type     which of the five.
+  /// @param shaping  false to pass the audio through at the same delay and
+  ///                 otherwise leave it alone, which is the stage switched
+  ///                 off rather than a sixth type.
+  void process(float *left, float *right, int numSamples, ClipType type,
+               bool shaping) noexcept;
 
 private:
-  void processLimiter(float *left, float *right, int numSamples) noexcept;
+  /// The gain the limiter wants for the sample about to arrive, from the
+  /// loudest of the window still sitting in the delay line.
+  float gainFor(float peak) noexcept;
+
+  float delayed(std::vector<float> &line, float in) noexcept;
 
   double rate = 48000.0;
 
-  /// The limiter's current gain, and the two coefficients it moves by.
-  float gain = 1.0f;
-  float attack = 0.0f;
+  /// Samples of delay, and the two halves the gain path spends it on. A
+  /// causal box of B samples carries its output back by (B - 1) / 2, so a
+  /// window of W followed by two of them costs (W - 1) + (B - 1), which at
+  /// W = B = delay / 2 is delay - 2 and arrives with a sample in hand.
+  int delay = 0;
+  int window = 1;
+  int box = 1;
+
+  std::vector<float> lineLeft, lineRight;
+  int writeIndex = 0;
+
+  /// A monotonic wedge over the window: values decreasing from the front, so
+  /// the front is the loudest sample still to be heard. Kept as a ring rather
+  /// than a deque so that nothing allocates once this is running.
+  std::vector<float> wedgeValue;
+
+  /// Counted rather than wrapped, so a sample's place in the window is one
+  /// comparison. Sixty-four bits because thirty-two of them is twelve hours
+  /// at forty-eight kilohertz, and long is thirty-two bits on Windows.
+  std::vector<std::int64_t> wedgeIndex;
+  int wedgeHead = 0, wedgeTail = 0;
+  std::int64_t seen = 0;
+
+  /// The two box filters, each a ring and a running sum, and the reciprocal
+  /// of their length so that the average is a multiply.
+  double boxScale = 1.0;
+  std::vector<float> boxOne, boxTwo;
+  int boxOneAt = 0, boxTwoAt = 0;
+  double boxOneSum = 0.0, boxTwoSum = 0.0;
+
+  /// What the gain has fallen to before the boxes smooth it, and the
+  /// coefficient it recovers by.
+  float held = 1.0f;
   float release = 0.0f;
 };
 

@@ -181,14 +181,18 @@ void OvertoniumProcessor::prepareToPlay(double sampleRate,
                                         int maximumExpectedSamplesPerBlock) {
   engine.prepare(sampleRate);
 
-  // The bus stage runs at twice whatever rate this is, so everything leaving
-  // here has been through a half-band filter twice and is a fixed few samples
-  // behind. Told to the host rather than left for it to find, and told
-  // whatever the patch says: a stage that reported one latency on Pure and
-  // another on Valve would have the host re-plan its graph every time a preset
-  // was chosen, and a bypassed stage delays by the same amount through a plain
-  // delay so that it does not have to. See BusDrive::kLatency.
-  setLatencySamples(ovt::BusDrive::kLatency);
+  // Two stages are late. The bus stage runs at twice whatever rate this is,
+  // so everything leaving it has been through a half-band filter twice and is
+  // a fixed few samples behind, and the output stage holds two milliseconds
+  // back so its limiter can see what is coming.
+  //
+  // Told to the host rather than left for it to find, and told whatever the
+  // patch says: a stage that reported one latency on Pure and another on
+  // Valve, or one with the clipper on and another with it off, would have the
+  // host re-plan its graph every time a preset was chosen. Both stages delay
+  // by the same amount when they are doing nothing so that they do not have
+  // to. See BusDrive::kLatency and OutputStage::kLookaheadSeconds.
+  setLatencySamples(ovt::BusDrive::kLatency + engine.outputLatency());
 
   // A floor under whatever the host asks for, so a host that promises a very
   // small block and then hands over a large one is not cut into a great many

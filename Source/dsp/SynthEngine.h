@@ -54,6 +54,10 @@ public:
   void prepare(double sampleRate) noexcept;
   void reset() noexcept;
 
+  /// What the output stage's lookahead costs, in samples, for the host to be
+  /// told along with the bus stage's. Valid once prepare has run.
+  int outputLatency() const noexcept { return outputStage.latency(); }
+
   void setPolyphony(int n) noexcept;
 
   /// Monophonic, and the envelope carries on rather than starting again while

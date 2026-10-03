@@ -77,26 +77,115 @@ float shapeFold(float x) noexcept {
 void OutputStage::prepare(double sampleRate) noexcept {
   rate = std::max(1.0, sampleRate);
 
-  // One millisecond to pull down and a hundred to let back up. Fast enough
-  // that the hard clip behind it rarely has anything to do, slow enough that
-  // it does not pump on every note.
-  attack = (float)std::exp(-1.0 / (0.001 * rate));
+  delay = lookaheadSamples(rate);
+  window = std::max(1, delay / 2);
+  box = std::max(1, delay / 2);
+  boxScale = 1.0 / (double)box;
+
+  // A hundred milliseconds to let back up, which is slow enough not to pump
+  // on every note. There is no attack time any more: the gain is told what is
+  // coming while it is still in the delay line, so what used to be an attack
+  // is now the two box filters, and how fast it can pull down is set by how
+  // far ahead it is allowed to look rather than by a coefficient.
   release = (float)std::exp(-1.0 / (0.100 * rate));
+
+  lineLeft.assign((size_t)std::max(1, delay), 0.0f);
+  lineRight.assign((size_t)std::max(1, delay), 0.0f);
+
+  // One longer than the window, so the wedge can hold a full window and the
+  // sample displacing its oldest at the same moment.
+  wedgeValue.assign((size_t)window + 1, 0.0f);
+  wedgeIndex.assign((size_t)window + 1, 0);
+
+  boxOne.assign((size_t)box, 1.0f);
+  boxTwo.assign((size_t)box, 1.0f);
 
   reset();
 }
 
-void OutputStage::reset() noexcept { gain = 1.0f; }
+void OutputStage::reset() noexcept {
+  held = 1.0f;
+
+  std::fill(lineLeft.begin(), lineLeft.end(), 0.0f);
+  std::fill(lineRight.begin(), lineRight.end(), 0.0f);
+  writeIndex = 0;
+
+  wedgeHead = wedgeTail = 0;
+  seen = 0;
+
+  // Primed at unity rather than at nothing, so the first sample after a reset
+  // leaves at the level it arrived at. Filled with zeros these would spend a
+  // window climbing out of silence, which is a fade-in on every transport
+  // stop and start.
+  std::fill(boxOne.begin(), boxOne.end(), 1.0f);
+  std::fill(boxTwo.begin(), boxTwo.end(), 1.0f);
+  boxOneAt = boxTwoAt = 0;
+  boxOneSum = boxTwoSum = (double)box;
+}
+
+float OutputStage::delayed(std::vector<float> &line, float in) noexcept {
+  const float out = line[(size_t)writeIndex];
+  line[(size_t)writeIndex] = in;
+
+  return out;
+}
+
+float OutputStage::gainFor(float peak) noexcept {
+  // Drop everything the newcomer is at least as loud as: none of it can be
+  // the maximum of any window this one is in.
+  const auto capacity = (int)wedgeValue.size();
+
+  while (wedgeTail > wedgeHead &&
+         wedgeValue[(size_t)((wedgeTail - 1) % capacity)] <= peak)
+    --wedgeTail;
+
+  wedgeValue[(size_t)(wedgeTail % capacity)] = peak;
+  wedgeIndex[(size_t)(wedgeTail % capacity)] = seen;
+  ++wedgeTail;
+
+  // And drop the front once it has fallen out of the window behind us.
+  if (wedgeIndex[(size_t)(wedgeHead % capacity)] <= seen - (std::int64_t)window)
+    ++wedgeHead;
+
+  ++seen;
+
+  const float worst =
+      wedgeTail > wedgeHead ? wedgeValue[(size_t)(wedgeHead % capacity)] : 0.0f;
+
+  const float wanted = worst > kLimitCeiling ? kLimitCeiling / worst : 1.0f;
+
+  // Straight down to whatever is needed, and back up on the release. The
+  // boxes below are what stop that step being heard as a step.
+  held = wanted < held ? wanted : wanted + (held - wanted) * release;
+
+  // Two box filters. One alone turns the step into a straight ramp with a
+  // corner at each end, and the second rounds the corners off, which is the
+  // difference between a gain that arrives in time and one that arrives in
+  // time without being audible on its way.
+  boxOneSum += held - boxOne[(size_t)boxOneAt];
+  boxOne[(size_t)boxOneAt] = held;
+  boxOneAt = (boxOneAt + 1) % box;
+
+  // Scaled rather than divided. The length never changes between prepares, so
+  // the reciprocal is worked out once instead of twice on every sample.
+  const float once = (float)(boxOneSum * boxScale);
+
+  boxTwoSum += once - boxTwo[(size_t)boxTwoAt];
+  boxTwo[(size_t)boxTwoAt] = once;
+  boxTwoAt = (boxTwoAt + 1) % box;
+
+  return (float)(boxTwoSum * boxScale);
+}
 
 void OutputStage::process(float *left, float *right, int numSamples,
-                          ClipType type) noexcept {
+                          ClipType type, bool shaping) noexcept {
   if (left == nullptr || right == nullptr || numSamples <= 0)
     return;
 
-  if (type == ClipType::Limiter) {
-    processLimiter(left, right, numSamples);
-    return;
-  }
+  // Nothing is allocated from here on, so a stage that was never prepared
+  // runs without its delay rather than reaching for one. The same path covers
+  // a rate low enough that two milliseconds is not a whole sample.
+  const bool delaying = delay > 0 && !lineLeft.empty();
 
   auto *shape = type == ClipType::Hard   ? shapeHard
                 : type == ClipType::Bias ? shapeBias
@@ -104,31 +193,36 @@ void OutputStage::process(float *left, float *right, int numSamples,
                                          : shapeSoft;
 
   for (int n = 0; n < numSamples; ++n) {
-    left[n] = shape(left[n]);
-    right[n] = shape(right[n]);
-  }
-}
-
-void OutputStage::processLimiter(float *left, float *right,
-                                 int numSamples) noexcept {
-  for (int n = 0; n < numSamples; ++n) {
     // Linked, from whichever channel is louder, so the image holds still.
-    const float peak = std::max(std::abs(left[n]), std::abs(right[n]));
-    const float wanted = peak > kLimitCeiling ? kLimitCeiling / peak : 1.0f;
+    // Run whatever the type is, so that choosing the limiter half way through
+    // a note finds a detector that already knows what the last window held
+    // rather than one starting from silence.
+    const float gain = gainFor(std::max(std::abs(left[n]), std::abs(right[n])));
 
-    // Down quickly, up slowly, which is what stops it breathing on every note
-    // while still catching the front of one.
-    const float coef = wanted < gain ? attack : release;
-    gain = wanted + (gain - wanted) * coef;
+    const float outLeft = delaying ? delayed(lineLeft, left[n]) : left[n];
+    const float outRight = delaying ? delayed(lineRight, right[n]) : right[n];
 
-    left[n] *= gain;
-    right[n] *= gain;
+    if (delaying)
+      writeIndex = (writeIndex + 1) % delay;
 
-    // The backstop. The gain is always a little behind the signal, so a fast
-    // enough transient arrives before the reduction does, and this stage has
-    // to be bounded whichever type is chosen.
-    left[n] = shapeHard(left[n]);
-    right[n] = shapeHard(right[n]);
+    if (!shaping) {
+      left[n] = outLeft;
+      right[n] = outRight;
+      continue;
+    }
+
+    if (type == ClipType::Limiter) {
+      // The backstop. It has nothing to do now that the gain arrives with the
+      // peak rather than after it, and it stays because this stage has to be
+      // bounded whatever arrives: a rate so low that the window is a couple of
+      // samples, or a patch that moves faster than the window is long.
+      left[n] = shapeHard(outLeft * gain);
+      right[n] = shapeHard(outRight * gain);
+      continue;
+    }
+
+    left[n] = shape(outLeft);
+    right[n] = shape(outRight);
   }
 }
 
