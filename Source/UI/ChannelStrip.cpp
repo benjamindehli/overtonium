@@ -492,7 +492,14 @@ void SegmentDisplay::paintGlyph(juce::Graphics &g, juce::Rectangle<float> area,
   // Every bar is drawn whether it is on or not, which is what makes it read as
   // a display with something switched off rather than as floating shapes.
   const auto t = juce::jmax(1.0f, area.getHeight() * 0.16f);
-  const auto gap = t * 0.35f;
+
+  // What separates one segment from the next. Tight, because the gap is what
+  // the eye reads as the join between two bars and a wide one reads as seven
+  // marks that happen to be near each other. It cannot go to nothing: the
+  // mitred ends point at each other, so the gap at a corner is already about
+  // seven tenths of this, and below about a fifth of a bar's thickness the
+  // corners close up and a figure becomes a blob.
+  const auto gap = t * 0.24f;
   const auto w = area.getWidth();
   const auto h = area.getHeight();
   const auto mid = (h - t) * 0.5f;
@@ -534,7 +541,11 @@ void SegmentDisplay::paintStarburst(juce::Graphics &g,
   // diagonals crossing the middle, and at the seven-bar weight they meet in a
   // blot with no cell showing through.
   const auto t = juce::jmax(1.0f, area.getHeight() * 0.095f);
-  const auto gap = t * 0.45f;
+  // Tighter than it was, for the reason the seven-bar one is. A little wider
+  // than that one in proportion, because fourteen bars in the same box means
+  // four diagonals crossing the middle as well, and those have ends of their
+  // own to stay clear of.
+  const auto gap = t * 0.32f;
   const auto w = area.getWidth();
   const auto h = area.getHeight();
   const auto mid = (h - t) * 0.5f;
