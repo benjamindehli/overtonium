@@ -92,6 +92,9 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
   soloButton.setTooltip("Solo the noise channel");
   muteButton.setTitle("Noise mute");
   soloButton.setTitle("Noise solo");
+  // One moulding around the pair, each half lighting on its own.
+  OvertoniumLookAndFeel::gangLamps(muteButton, soloButton);
+
   addAndMakeVisible(muteButton);
   addAndMakeVisible(soloButton);
 
@@ -181,7 +184,36 @@ void NoiseStrip::setSilencedByOthers(bool shouldDim) {
     return;
 
   silenced = shouldDim;
-  setAlpha(silenced ? 0.4f : 1.0f);
+
+  // The light out of the controls rather than a wash over the whole strip.
+  // The wash dimmed the mute along with everything else, and on a silenced
+  // channel the mute is the one thing that has to stay readable, since it is
+  // usually what silenced it. Greying the controls instead is what the echo
+  // and reverb knobs already do when their machine is off, and what the
+  // converter readouts do when they are following the host: the value stays
+  // where it was set and the light comes out of it.
+  std::function<void(juce::Component &)> drain = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      // Not the pair. They are the answer to the question the dimming asks.
+      if (dynamic_cast<MuteSoloButton *>(child) != nullptr)
+        continue;
+
+      // Sliders and the waveform displays, which are the two things on a
+      // strip that carry colour of their own. The meters and the activity
+      // lamps need no telling: a silenced channel gives them nothing to show.
+      if (dynamic_cast<juce::Slider *>(child) != nullptr ||
+          dynamic_cast<ShapeButton *>(child) != nullptr) {
+        child->getProperties().set("unlit", silenced);
+        child->repaint();
+      }
+
+      drain(*child);
+    }
+  };
+
+  drain(*this);
+
+  repaint();
 }
 
 void NoiseStrip::setDrawGlow(bool on) {
@@ -501,9 +533,10 @@ void NoiseStrip::resized() {
   volume.setBounds(faderRow.reduced(2, 1));
   levelReadout.setBounds(rows[rowIndex(Row::FaderText)]);
 
-  auto ms = rows[rowIndex(Row::MuteSolo)];
-  muteButton.setBounds(ms.removeFromLeft(ms.getWidth() / 2).reduced(1));
-  soloButton.setBounds(ms.reduced(1));
+  // Touching, because the two are one moulded block. See ChannelStrip.
+  auto ms = rows[rowIndex(Row::MuteSolo)].reduced(1);
+  muteButton.setBounds(ms.removeFromLeft(ms.getWidth() / 2));
+  soloButton.setBounds(ms);
 }
 
 void NoiseStrip::mouseWheelMove(const juce::MouseEvent &e,

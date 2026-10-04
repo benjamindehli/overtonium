@@ -372,6 +372,12 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
 
   settingsButton.setButtonText("SETTINGS");
 
+  // The same plastic as the button beside it. The cap takes its colour from
+  // the one a button lights in, and a button that never lights names none, so
+  // this one was being moulded in the scheme's grey while MACROS was moulded
+  // in the accent. Side by side that read as two different parts.
+  settingsButton.setColour(juce::TextButton::textColourOnId, colours::accent);
+
   // A gear rather than the word, which wants 62 px of the 58 the bar can
   // spare it. The word is still what a screen reader is given and what the
   // tooltip says. See kGroupMinWidth.

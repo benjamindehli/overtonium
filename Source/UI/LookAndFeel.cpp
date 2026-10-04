@@ -1,6 +1,7 @@
 #include "LookAndFeel.h"
 
 #include <array>
+#include <cmath>
 
 #include <BinaryData.h>
 
@@ -512,8 +513,12 @@ void OvertoniumLookAndFeel::drawRotarySlider(
 
   const bool driven = !drivenBy.isVoid();
 
+  // A macro's colour is a light like any other, so it goes out with the rest
+  // when the channel is silenced. The ring still stands where the macro took
+  // the value, which is the same bargain the knobs of a switched-off effect
+  // make: the setting is kept and the light is not.
   const auto ringColour =
-      driven ? juce::Colour((juce::uint32)(int)drivenBy) : fill;
+      driven && live ? juce::Colour((juce::uint32)(int)drivenBy) : fill;
 
   const auto ringAngle =
       driven ? rotaryStartAngle +
@@ -667,7 +672,14 @@ void OvertoniumLookAndFeel::drawLinearSlider(
   }
 
   const auto bounds = juce::Rectangle<int>(x, y, width, height).toFloat();
-  const auto dim = slider.isEnabled() ? 1.0f : 0.4f;
+
+  // A fader on a channel nobody can hear, which is told the same way a knob
+  // is. It had no answer to this at all: a channel's fader is metered, so it
+  // draws no track fill to take the colour out of, and the glass cap and its
+  // macro bar were staying lit on a silenced strip.
+  const bool live =
+      !(bool)slider.getProperties().getWithDefault("unlit", false);
+  const auto dim = slider.isEnabled() && live ? 1.0f : 0.4f;
 
   // When a meter sits behind the fader it owns the groove, so the track fill
   // that would otherwise show the set level is dropped. The cap alone says
@@ -796,16 +808,17 @@ void OvertoniumLookAndFeel::drawLinearSlider(
       // Only worth drawing when it has parted company with the cap, which is
       // what makes a macro at rest look like no macro at all.
       if (std::abs(at - fillTop) > 1.0f) {
-        g.setColour(juce::Colour((juce::uint32)(int)macro)
-                        .withMultipliedAlpha(0.95f * dim));
+        g.setColour(
+            (live ? juce::Colour((juce::uint32)(int)macro) : colours::textDim)
+                .withMultipliedAlpha(0.95f * dim));
         g.fillRoundedRectangle(bounds.getX() + 1.0f, at - 1.0f,
                                bounds.getWidth() - 2.0f, 2.0f, 1.0f);
       }
     }
   }
 
-  g.setColour(driven ? juce::Colour((juce::uint32)(int)macro)
-                     : juce::Colours::white.withAlpha(0.46f * dim));
+  g.setColour(driven && live ? juce::Colour((juce::uint32)(int)macro)
+                             : juce::Colours::white.withAlpha(0.46f * dim));
   g.drawRoundedRectangle(cap.reduced(0.5f), 2.0f, driven ? 1.4f : 1.0f);
 
   // The lip catches the light off centre, so it says glass rather than
@@ -822,46 +835,330 @@ void OvertoniumLookAndFeel::drawButtonBackground(
                  shouldDrawButtonAsHighlighted, shouldDrawButtonAsDown);
 }
 
+OvertoniumLookAndFeel::LampGang
+OvertoniumLookAndFeel::lampGangOf(const juce::Component &c) {
+  const auto side = c.getProperties().getWithDefault("lampGang", {}).toString();
+
+  if (side == "left")
+    return LampGang::Left;
+
+  if (side == "right")
+    return LampGang::Right;
+
+  return LampGang::Alone;
+}
+
+void OvertoniumLookAndFeel::gangLamps(juce::Component &left,
+                                      juce::Component &right) {
+  left.getProperties().set("lampGang", "left");
+  right.getProperties().set("lampGang", "right");
+}
+
+juce::Rectangle<float>
+OvertoniumLookAndFeel::lampCapBounds(juce::Rectangle<float> bounds,
+                                     LampGang gang) {
+  const auto wall = juce::jlimit(2.0f, 4.5f, bounds.getHeight() * 0.15f);
+  auto cap = bounds.reduced(wall);
+
+  // Half a wall on the joined side, the neighbour giving the other half.
+  if (gang == LampGang::Left)
+    cap.setRight(bounds.getRight() - wall * 0.5f);
+  else if (gang == LampGang::Right)
+    cap.setLeft(bounds.getX() + wall * 0.5f);
+
+  return cap;
+}
+
+namespace {
+/// WCAG relative luminance, which is what checking a legend against a lit cap
+/// needs. Perceived brightness will not do it: a saturated blue and a
+/// saturated yellow at the same nominal value are nowhere near as far apart
+/// in how much light they put out.
+float channelLuminance(float c) {
+  return c <= 0.03928f ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f);
+}
+
+float relativeLuminance(juce::Colour c) {
+  return 0.2126f * channelLuminance(c.getFloatRed()) +
+         0.7152f * channelLuminance(c.getFloatGreen()) +
+         0.0722f * channelLuminance(c.getFloatBlue());
+}
+} // namespace
+
+float OvertoniumLookAndFeel::lampContrast(juce::Colour a, juce::Colour b) {
+  const auto one = relativeLuminance(a);
+  const auto other = relativeLuminance(b);
+
+  return (juce::jmax(one, other) + 0.05f) / (juce::jmin(one, other) + 0.05f);
+}
+
+juce::Colour OvertoniumLookAndFeel::lampFace(juce::Colour lamp, bool on) {
+  if (!on)
+    // White plastic in an unlit room, which is a grey rather than a white.
+    // Light enough to read a printed legend off it, dark enough that every
+    // lamp is brighter than it when one comes on, and the second condition is
+    // the binding one: the reds are the darkest lamps here and they are what
+    // this has to stay under. Raising it is the lever if the caps want to be
+    // whiter, and the margin on the mute is what it costs.
+    return juce::Colour(0xff6f757c);
+
+  // The lamp seen through that plastic. Bright, because the light is behind
+  // the whole face rather than painted onto part of it, and milky, because it
+  // has come through a diffuser. The mix towards white is both what a white
+  // cap with a lamp in it looks like and what lifts the reds clear of the
+  // unlit grey.
+  //
+  // Saturation goes up rather than down with the light. These lamps are
+  // chrome colours chosen to be read as small text on a dark panel, so they
+  // are already pale, and raising the value without the saturation walks them
+  // towards white before the diffuser gets to.
+  return lamp.withMultipliedSaturation(1.25f)
+      .withBrightness(juce::jmax(lamp.getBrightness(), 0.92f))
+      .interpolatedWith(juce::Colours::white, 0.14f);
+}
+
+juce::Colour OvertoniumLookAndFeel::lampLegend() {
+  // Printed on the plastic, so it is the same whatever is behind it, and a
+  // button never changes the colour of its own word by lighting. Not quite
+  // black, which against a lit gold reads as a hole in the cap rather than
+  // as ink on it.
+  return juce::Colour(0xff0e1116);
+}
+
+void OvertoniumLookAndFeel::drawLampCap(juce::Graphics &g,
+                                        juce::Rectangle<float> bounds,
+                                        juce::Colour lamp, bool on,
+                                        bool highlighted, bool down,
+                                        LampGang gang) {
+  // How much of the button the bezel takes. A fixed inset rather than a
+  // share of the size, because the bezel is a moulding: it is the same few
+  // millimetres whether the button is a wide one or a small one, and scaling
+  // it would turn the small ones into a frame with a dot in the middle.
+  const auto cap = lampCapBounds(bounds, gang);
+  const auto wall = cap.getY() - bounds.getY();
+  // Barely rounded. These are moulded square caps, and the radius that read
+  // as a chamfer on a wide button turned the small ones into lozenges: a
+  // 14 px mute has only 7 px of half-height for a corner to eat into.
+  const auto outerCorner = juce::jmin(2.6f, bounds.getHeight() * 0.18f);
+
+  // The moulding both halves of a gang stand in, which each of them draws in
+  // full and shows its own half of, the rest falling outside the component
+  // and being clipped away. Drawing half a well each would mean mitring the
+  // joint and suppressing two edge strokes along it, for the same picture.
+  auto well = bounds;
+
+  if (gang == LampGang::Left) {
+    well.setWidth(bounds.getWidth() * 2.0f);
+  } else if (gang == LampGang::Right) {
+    // setX moves the rectangle rather than growing it, so the width has to
+    // follow or the far edge comes back with it.
+    well.setX(bounds.getX() - bounds.getWidth());
+    well.setWidth(bounds.getWidth() * 2.0f);
+  }
+
+  // ---- the well -----------------------------------------------------------
+  // Darker than the panel it sits in, so the cap is in a hole rather than on
+  // a plinth, and lit along its lower inside edge where a carved well catches
+  // the light that misses its top wall.
+  //
+  // Dark against this panel rather than dark absolutely. The reference
+  // photographs are of a machine whose panel is near black, so their bezels
+  // can be too, and copying the value put a pit in a panel that is (20, 24,
+  // 29). This is a step below what it is cut into, which is what reads as a
+  // moulding here.
+  g.setColour(juce::Colour(0xff0d1015));
+  g.fillRoundedRectangle(well, outerCorner);
+
+  // Two edges rather than one. The dark outside is the moulding standing
+  // above the panel and the light inside is the floor of the well catching
+  // what misses its top wall, and together they are what says "carved" at a
+  // size too small to model properly.
+  g.setColour(juce::Colours::black.withAlpha(0.45f));
+  g.drawRoundedRectangle(well.reduced(0.5f), outerCorner, 1.0f);
+
+  g.setColour(juce::Colours::white.withAlpha(0.09f));
+  g.drawRoundedRectangle(well.reduced(1.2f).translated(0.0f, 0.8f),
+                         outerCorner * 0.9f, 1.0f);
+
+  const auto corner = juce::jmax(1.0f, outerCorner - wall * 0.5f);
+
+  // ---- what the lamp is doing ---------------------------------------------
+  // Lit, the plastic is the colour itself. Unlit, it is the same hue with the
+  // light taken out of it rather than a grey: an unlit amber reads as brown
+  // and an unlit green as olive, which is what says the button could light.
+  // The plastic at the middle of the cap, where the lamp is behind it. Every
+  // shade below is this darkened: the hotspot is the base rather than
+  // something added, so the whole face is lit and only the edges fall away.
+  auto face = lampFace(lamp, on);
+
+  if (down)
+    face = face.brighter(0.12f);
+  else if (highlighted)
+    face = face.brighter(on ? 0.06f : 0.18f);
+
+  // ---- the cast ------------------------------------------------------------
+  // A lit cap puts a trace of its colour on the moulding around it, and that
+  // is all it does: an even wash over the whole bezel rather than a halo
+  // hugging the cap.
+  //
+  // The halo was the better physics and the worse picture. Light fading out
+  // from the cap's edge is light escaping around the cap, which only happens
+  // if the cap has sunk below the moulding, so a lit button read as pressed
+  // in no matter how faint the glow was. The shape was the problem rather
+  // than the strength. There is also nowhere to put a real bloom: the
+  // component ends at the bezel's outside edge, perhaps three pixels out,
+  // which is too little to fall off in and is exactly the ring that reads as
+  // a gap.
+  if (on) {
+    g.setColour(lamp.withAlpha(0.07f));
+    g.fillRoundedRectangle(well, outerCorner);
+  }
+
+  if (!down) {
+    // Proud: the cap stands above the well and drops a shadow onto its floor.
+    //
+    // Whether it is lit or not. These are indicator lamps rather than latching
+    // switches, and a cap that sinks when its thing is on says that pressing
+    // it is what turns the thing off, which is the wrong way round for ECHO or
+    // for a mute. Only a finger on it puts it down, and only while it is
+    // there: see the branch below.
+    g.setColour(juce::Colours::black.withAlpha(0.45f));
+    g.fillRoundedRectangle(cap.translated(0.0f, 1.0f), corner);
+  }
+
+  // ---- the cap ------------------------------------------------------------
+  // One shading for both states, because the cap does not move when the lamp
+  // comes on. It is lit from above like any raised surface, brightest just
+  // below its top edge and falling away to the bottom.
+  //
+  // Shallow. The plastic is flat and what says it stands proud is the shadow
+  // it throws into the well and the lip along its top rather than a steep
+  // gradient down its face, which is what the photographs show: an unlit cap
+  // there reads (59, 42, 18) at the top and (59, 42, 17) at the bottom.
+  {
+    juce::ColourGradient down_(face.brighter(0.10f), cap.getCentreX(),
+                               cap.getY(), face.darker(0.22f), cap.getCentreX(),
+                               cap.getBottom(), false);
+
+    // The lamp sits behind the middle of the cap, so a lit one holds its
+    // brightness further down the face before it falls away. Unlit there is
+    // nothing behind it and the fall is even.
+    if (on)
+      down_.addColour(0.52, face);
+
+    g.setGradientFill(down_);
+  }
+
+  g.fillRoundedRectangle(cap, corner);
+
+  // The lamp is a point behind the middle of the cap, so the light falls off
+  // towards the ends as well as towards the top and bottom. Without this the
+  // gradient above was the only shading and a wide cap was a uniform bar of
+  // colour from end to end, which is what a painted face looks like rather
+  // than a lit one. A horizontal wash rather than a radial gradient, because
+  // the caps run from a 14 px square mute to a 62 px CHARACTER and a circular
+  // hotspot would be a disc on the wide ones.
+  {
+    const auto edge = juce::Colours::black.withAlpha(on ? 0.18f : 0.16f);
+
+    juce::ColourGradient sides(edge, cap.getX(), cap.getCentreY(), edge,
+                               cap.getRight(), cap.getCentreY(), false);
+
+    // Flat across the middle third, so the word sits on an even face and only
+    // the ends darken.
+    sides.addColour(0.28, juce::Colours::transparentBlack);
+    sides.addColour(0.72, juce::Colours::transparentBlack);
+
+    g.setGradientFill(sides);
+    g.fillRoundedRectangle(cap, corner);
+  }
+
+  if (down) {
+    // The one time a cap sits in its well, and only while a finger is on it.
+    // The wall above then throws a shadow across its top, which is the step
+    // that says it has moved.
+    const auto deep = juce::jmax(2.0f, cap.getHeight() * 0.3f);
+
+    g.setGradientFill(juce::ColourGradient(
+        juce::Colours::black.withAlpha(0.34f), cap.getCentreX(), cap.getY(),
+        juce::Colours::transparentBlack, cap.getCentreX(), cap.getY() + deep,
+        false));
+    g.fillRoundedRectangle(cap, corner);
+  } else {
+    // A lip along the top, which is the light the raised edge catches. The
+    // whole of what it has to beat is the shadow under the cap, so it is here
+    // whether the lamp is on or off.
+    g.setColour(juce::Colours::white.withAlpha(0.16f));
+    g.fillRoundedRectangle(cap.getX() + 1.2f, cap.getY() + 0.6f,
+                           cap.getWidth() - 2.4f, 1.0f, 0.5f);
+  }
+
+  // ---- the sheen ----------------------------------------------------------
+  // A white wash down from the top, which is light falling on a raised
+  // surface. Faint, because white over a colour takes the colour out of it,
+  // and the whole of what makes the plastic read as plastic is that it keeps
+  // its hue. Fainter still on a lit cap, which has its own light to show and
+  // less of anything else to lose.
+  if (!down) {
+    const auto sheen =
+        cap.withHeight(cap.getHeight() * 0.52f).reduced(1.0f, 0.0f);
+
+    g.setGradientFill(juce::ColourGradient(
+        juce::Colours::white.withAlpha(on ? 0.04f : 0.06f), sheen.getCentreX(),
+        sheen.getY(), juce::Colours::transparentWhite, sheen.getCentreX(),
+        sheen.getBottom(), false));
+    g.fillRoundedRectangle(sheen, corner * 0.8f);
+  }
+
+  // ---- the cap's edge -----------------------------------------------------
+  // What separates the plastic from the well it stands in. Lighter on a lit
+  // cap, where a hard black line around a bright face reads as a border drawn
+  // on rather than as the side of something.
+  g.setColour(juce::Colours::black.withAlpha(on ? 0.30f : 0.45f));
+  g.drawRoundedRectangle(cap.reduced(0.5f), corner, 1.0f);
+}
+
 void OvertoniumLookAndFeel::drawButtonFace(juce::Graphics &g,
                                            juce::Button &button, bool on,
                                            const juce::Colour &backgroundColour,
                                            bool shouldDrawButtonAsHighlighted,
                                            bool shouldDrawButtonAsDown) {
-  const auto bounds = button.getLocalBounds().toFloat().reduced(0.5f);
-  const auto corner = juce::jmin(4.0f, bounds.getHeight() * 0.3f);
+  const auto gang = lampGangOf(button);
 
-  auto fill = on ? backgroundColour : colours::panelAlt;
+  auto bounds = button.getLocalBounds().toFloat().reduced(0.5f);
 
-  if (shouldDrawButtonAsDown)
-    fill = fill.brighter(0.15f);
-  else if (shouldDrawButtonAsHighlighted)
-    fill = fill.brighter(0.08f);
+  // The half pixel goes back on the joined side. It is there so a stroked
+  // edge lands on the pixel rather than across two of it, and there is no
+  // edge to land on where the two halves meet: leaving it took a pixel out of
+  // the moulding down the middle of every gang.
+  if (gang == LampGang::Left)
+    bounds.setRight(bounds.getRight() + 0.5f);
+  else if (gang == LampGang::Right)
+    bounds.setLeft(bounds.getX() - 0.5f);
 
-  // Raised buttons cast, engaged ones sit down into the panel and do not.
-  if (!on && !shouldDrawButtonAsDown) {
-    g.setColour(juce::Colours::black.withAlpha(0.30f));
-    g.fillRoundedRectangle(bounds.translated(0.0f, 1.0f), corner);
-  }
+  // The colour behind the plastic, which every button already declares as
+  // the colour its word lights in. A button that names none is chrome rather
+  // than a lamp, and wears the accent.
+  auto lamp = button.findColour(juce::TextButton::textColourOnId);
 
-  // Lit from above when on and merely raised when off, so the state reads at a
-  // glance across 33 channels rather than needing a colour comparison.
-  g.setGradientFill(juce::ColourGradient(
-      fill.brighter(on ? 0.30f : 0.12f), bounds.getCentreX(), bounds.getY(),
-      fill.darker(on ? 0.10f : 0.05f), bounds.getCentreX(), bounds.getBottom(),
-      false));
-  g.fillRoundedRectangle(bounds, corner);
+  if (lamp.isTransparent())
+    lamp = colours::accent;
 
-  // A bright lip along the top edge, matching the glass on the indicators.
-  g.setColour(juce::Colours::white.withAlpha(on ? 0.35f : 0.10f));
-  g.fillRoundedRectangle(bounds.getX() + 1.5f, bounds.getY() + 1.0f,
-                         bounds.getWidth() - 3.0f, 1.0f, 0.5f);
+  // backgroundColour still decides for anything that asked for a particular
+  // face, which is how the macro panel's colour swatches are drawn.
+  if (!backgroundColour.isTransparent() &&
+      backgroundColour != colours::panelAlt)
+    lamp = backgroundColour;
 
-  g.setColour(on ? fill.brighter(0.45f) : colours::outline);
-  g.drawRoundedRectangle(bounds.reduced(0.5f), corner, 1.0f);
+  drawLampCap(g, bounds, lamp, on, shouldDrawButtonAsHighlighted,
+              shouldDrawButtonAsDown, gang);
 
-  // Waiting for a controller, in place of the outline rather than beside it:
-  // a mute button is too small to carry a second ring outside its own.
+  // Waiting for a controller, in place of the cap's own edge rather than
+  // beside it: a mute button is too small to carry a second ring outside its
+  // own.
   if ((bool)button.getProperties().getWithDefault("learnArmed", false)) {
+    const auto corner = juce::jmin(4.5f, bounds.getHeight() * 0.28f);
+
     g.setColour(colours::learning);
     g.drawRoundedRectangle(bounds.reduced(0.5f), corner, 1.4f);
   }
@@ -873,9 +1170,9 @@ void OvertoniumLookAndFeel::drawButtonText(juce::Graphics &g,
   const auto h = (float)button.getHeight();
   g.setFont(makeFont(juce::jlimit(8.0f, 13.0f, h * 0.58f), true));
 
-  g.setColour(button.findColour(button.getToggleState()
-                                    ? juce::TextButton::textColourOnId
-                                    : juce::TextButton::textColourOffId));
+  // The same ink whatever the lamp is doing: the word is printed on the cap
+  // rather than being part of what lights. See lampLegend.
+  g.setColour(lampLegend());
 
   g.drawText(button.getButtonText(), button.getLocalBounds(),
              juce::Justification::centred, false);

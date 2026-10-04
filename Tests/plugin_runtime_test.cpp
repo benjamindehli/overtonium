@@ -2335,6 +2335,243 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
 ///
 /// Each strip works it out from where the pointer is rather than being told by
 /// the editor, so what is checked here is that the answer follows the pointer
+/// That a silenced channel loses the light out of its controls and not the
+/// light out of its mute.
+///
+/// The strip used to go to four tenths alpha as a whole, which took the pair
+/// down with it, and the mute is the one thing on a silenced channel that has
+/// to stay readable because it is usually what silenced it. Nothing else
+/// checks this: a wash and a drain both look dim from a distance and neither
+/// changes a parameter.
+void testSilencedChannel(OvertoniumProcessor &p) {
+  section("A silenced channel");
+
+  using namespace ovt::ui;
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  sizeEditor(*editor, 1348, 160);
+
+  ChannelStrip *strip = nullptr;
+
+  std::function<void(juce::Component &)> findStrip = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (strip == nullptr)
+        if (auto *s = dynamic_cast<ChannelStrip *>(child))
+          strip = s;
+
+      findStrip(*child);
+    }
+  };
+
+  findStrip(*editor);
+
+  check(strip != nullptr, "and has channel strips in it");
+  if (strip == nullptr)
+    return;
+
+  // Counts the two kinds apart, because the whole point is that they answer
+  // differently.
+  const auto survey = [](juce::Component &c) {
+    struct Count {
+      int controlsUnlit = 0, controlsLit = 0, pairUnlit = 0;
+    } n;
+
+    std::function<void(juce::Component &)> walk = [&](juce::Component &in) {
+      for (auto *child : in.getChildren()) {
+        const bool unlit =
+            (bool)child->getProperties().getWithDefault("unlit", false);
+
+        if (dynamic_cast<MuteSoloButton *>(child) != nullptr) {
+          n.pairUnlit += unlit ? 1 : 0;
+        } else if (dynamic_cast<juce::Slider *>(child) != nullptr ||
+                   dynamic_cast<ShapeButton *>(child) != nullptr) {
+          (unlit ? n.controlsUnlit : n.controlsLit) += 1;
+        }
+
+        walk(*child);
+      }
+    };
+
+    walk(c);
+    return n;
+  };
+
+  const auto heard = survey(*strip);
+
+  check(heard.controlsLit > 20 && heard.controlsUnlit == 0,
+        "an audible channel has every control lit (" +
+            std::to_string(heard.controlsLit) + " lit, " +
+            std::to_string(heard.controlsUnlit) + " not)");
+
+  strip->setSilencedByOthers(true);
+
+  const auto cut = survey(*strip);
+
+  check(cut.controlsUnlit == heard.controlsLit && cut.controlsLit == 0,
+        "a silenced one has the light out of all of them (" +
+            std::to_string(cut.controlsUnlit) + " of " +
+            std::to_string(heard.controlsLit) + ")");
+
+  check(cut.pairUnlit == 0, "and its mute and solo keep theirs");
+
+  // The wash this replaced. A strip that dims itself dims the pair with it
+  // however carefully the controls are handled.
+  check(std::abs(strip->getAlpha() - 1.0f) < 0.001f,
+        "with nothing washed over the strip as a whole (" +
+            std::to_string(strip->getAlpha()) + ")");
+
+  strip->setSilencedByOthers(false);
+
+  const auto back = survey(*strip);
+
+  check(back.controlsLit == heard.controlsLit && back.controlsUnlit == 0,
+        "and it all comes back when the channel is audible again");
+
+  // ---- and a macro does not relight it --------------------------------------
+  //
+  // Read off a render rather than off a property, because this one lives in
+  // the drawing: a macro's colour is carried beside the control's own and the
+  // ring is painted in whichever of the two applies, so the control is told
+  // the channel is silenced and still came out lit.
+  const auto set = [&p](const juce::String &id, float v) {
+    if (auto *q = dynamic_cast<juce::RangedAudioParameter *>(
+            p.apvts.getParameter(id)))
+      q->setValueNotifyingHost(q->convertTo0to1(v));
+  };
+
+  // Green, which is nowhere on the channel ramp: that runs blue to yellow and
+  // never enters green or cyan, so any green pixel in a strip is the macro's.
+  constexpr int green = 4;
+
+  set(ovt::params::macroRowId(0), 1.0f);
+  set(ovt::params::macroScopeId(0), (float)(int)ovt::params::MacroScope::All);
+  set(ovt::params::macroColourId(0), (float)green);
+  set(ovt::params::macroAmountId(0), 0.8f);
+  editor->followMacroTints();
+
+  const auto wanted = ovt::params::macroColour(green);
+
+  const auto macroPixels = [&wanted](juce::Component &c) {
+    const auto shot = c.createComponentSnapshot(c.getLocalBounds());
+    int n = 0;
+
+    for (int y = 0; y < shot.getHeight(); ++y)
+      for (int x = 0; x < shot.getWidth(); ++x) {
+        const auto px = shot.getPixelAt(x, y);
+
+        if (std::abs(px.getRed() - wanted.getRed()) < 30 &&
+            std::abs(px.getGreen() - wanted.getGreen()) < 30 &&
+            std::abs(px.getBlue() - wanted.getBlue()) < 30)
+          ++n;
+      }
+
+    return n;
+  };
+
+  const auto driven = macroPixels(*strip);
+
+  check(driven > 0, "a macro paints its colour onto an audible channel (" +
+                        std::to_string(driven) + " pixels)");
+
+  strip->setSilencedByOthers(true);
+
+  const auto drivenAndCut = macroPixels(*strip);
+
+  check(drivenAndCut == 0, "and none of it onto a silenced one (" +
+                               std::to_string(drivenAndCut) + " pixels)");
+
+  strip->setSilencedByOthers(false);
+  set(ovt::params::macroRowId(0), 0.0f);
+  editor->followMacroTints();
+}
+
+/// That the mute and the solo share one moulding.
+///
+/// Two things have to hold together or the pair draws as a block with a seam
+/// down it or as two blocks pretending to be one: the components have to
+/// touch, and each has to know which half of the gang it is. Neither shows up
+/// in any other test, because a wrong answer still lays out, still clicks and
+/// still lights.
+void testMuteSoloGang(OvertoniumProcessor &p) {
+  section("The mute and solo gang");
+
+  using namespace ovt::ui;
+  using LAF = OvertoniumLookAndFeel;
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  sizeEditor(*editor, 1348, 160);
+
+  // Every pair in the window, the noise channel's included: it lays its own
+  // out and has been missed by a change to the channel strip before.
+  std::vector<std::pair<MuteSoloButton *, MuteSoloButton *>> pairs;
+
+  std::function<void(juce::Component &)> gather = [&](juce::Component &c) {
+    MuteSoloButton *first = nullptr;
+
+    for (auto *child : c.getChildren()) {
+      if (auto *b = dynamic_cast<MuteSoloButton *>(child)) {
+        if (first == nullptr)
+          first = b;
+        else
+          pairs.emplace_back(first, b);
+      }
+
+      gather(*child);
+    }
+  };
+
+  gather(*editor);
+
+  check(pairs.size() >= 33,
+        "every channel has a pair (" + std::to_string(pairs.size()) + ")");
+
+  int apart = 0;
+  int unganged = 0;
+  int overlapping = 0;
+
+  for (const auto &[mute, solo] : pairs) {
+    if (mute->getBounds().getRight() != solo->getBounds().getX())
+      ++apart;
+
+    if (LAF::lampGangOf(*mute) != LAF::LampGang::Left ||
+        LAF::lampGangOf(*solo) != LAF::LampGang::Right)
+      ++unganged;
+
+    // The caps themselves, which is where the half wall each gives up has to
+    // come out as one divider rather than as an overlap or a gap of nothing.
+    const auto left =
+        LAF::lampCapBounds(mute->getBounds().toFloat(), LAF::LampGang::Left);
+    const auto right =
+        LAF::lampCapBounds(solo->getBounds().toFloat(), LAF::LampGang::Right);
+
+    const auto divider = right.getX() - left.getRight();
+    const auto wall = left.getY() - (float)mute->getBounds().getY();
+
+    if (divider < wall - 0.01f || divider > wall + 0.01f)
+      ++overlapping;
+  }
+
+  check(apart == 0, "the two halves touch, so one moulding covers both (" +
+                        std::to_string(apart) + " apart)");
+  check(unganged == 0, "and each knows which half it is (" +
+                           std::to_string(unganged) + " wrong)");
+  check(overlapping == 0,
+        "leaving a divider the width of the moulding around them (" +
+            std::to_string(overlapping) + " wrong)");
+}
+
 /// and that exactly one channel ever claims it.
 void testChannelHover(OvertoniumProcessor &p) {
   section("Channel hover");
@@ -8705,6 +8942,8 @@ int main() {
   testStrikeReadout();
   testSegmentReadouts(processor);
   testChannelHover(processor);
+  testMuteSoloGang(processor);
+  testSilencedChannel(processor);
   testFactoryCodeGenerator(processor);
   testBothPresetKindsCarryTheSame();
   testOversizedBlocks(processor);

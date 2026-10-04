@@ -804,6 +804,9 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   soloButton.setTooltip("Solo harmonic " + juce::String(info.harmonic));
   muteButton.setTitle("Harmonic " + juce::String(info.harmonic) + " mute");
   soloButton.setTitle("Harmonic " + juce::String(info.harmonic) + " solo");
+  // One moulding around the pair, each half lighting on its own.
+  OvertoniumLookAndFeel::gangLamps(muteButton, soloButton);
+
   addAndMakeVisible(muteButton);
   addAndMakeVisible(soloButton);
 
@@ -984,7 +987,7 @@ void ChannelStrip::updateTuneReadout() {
         std::abs(cents) < 0.05 ? juce::String("0.0") : juce::String(cents, 1);
   }
 
-  tuneReadout.setReading(text, active);
+  tuneReadout.setReading(text, active && !silenced);
 }
 
 void ChannelStrip::updateLevelReadout() {
@@ -1000,7 +1003,7 @@ void ChannelStrip::updateLevelReadout() {
   const auto db = params::levelDecibels(v);
 
   levelReadout.setReading(
-      (db >= 0.0f ? "" : "-") + juce::String(std::abs(db), 1), true);
+      (db >= 0.0f ? "" : "-") + juce::String(std::abs(db), 1), !silenced);
 }
 
 void ChannelStrip::setSilencedByOthers(bool shouldDim) {
@@ -1008,7 +1011,38 @@ void ChannelStrip::setSilencedByOthers(bool shouldDim) {
     return;
 
   silenced = shouldDim;
-  setAlpha(silenced ? 0.4f : 1.0f);
+
+  // The light out of the controls rather than a wash over the whole strip.
+  // The wash dimmed the mute along with everything else, and on a silenced
+  // channel the mute is the one thing that has to stay readable, since it is
+  // usually what silenced it. Greying the controls instead is what the echo
+  // and reverb knobs already do when their machine is off, and what the
+  // converter readouts do when they are following the host: the value stays
+  // where it was set and the light comes out of it.
+  std::function<void(juce::Component &)> drain = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      // Not the pair. They are the answer to the question the dimming asks.
+      if (dynamic_cast<MuteSoloButton *>(child) != nullptr)
+        continue;
+
+      // Sliders and the waveform displays, which are the two things on a
+      // strip that carry colour of their own. The meters and the activity
+      // lamps need no telling: a silenced channel gives them nothing to show.
+      if (dynamic_cast<juce::Slider *>(child) != nullptr ||
+          dynamic_cast<ShapeButton *>(child) != nullptr) {
+        child->getProperties().set("unlit", silenced);
+        child->repaint();
+      }
+
+      drain(*child);
+    }
+  };
+
+  drain(*this);
+
+  updateTuneReadout();
+  updateLevelReadout();
+  repaint();
 }
 
 void ChannelStrip::mouseDown(const juce::MouseEvent &e) {
@@ -1469,9 +1503,12 @@ void ChannelStrip::resized() {
                       juce::jmax(0, rows[rowIndex(Row::Header)].getBottom()));
   headerCap.toFront(false);
 
-  auto ms = rows[rowIndex(Row::MuteSolo)];
-  muteButton.setBounds(ms.removeFromLeft(ms.getWidth() / 2).reduced(1));
-  soloButton.setBounds(ms.reduced(1));
+  // Touching, because the two are one moulded block and the moulding between
+  // them is drawn by the pair rather than left as a gap. Inset once around
+  // the outside instead of once around each.
+  auto ms = rows[rowIndex(Row::MuteSolo)].reduced(1);
+  muteButton.setBounds(ms.removeFromLeft(ms.getWidth() / 2));
+  soloButton.setBounds(ms);
 
   // The lamps stand on the rules that divide the strip into groups, each one
   // at the head of the group it reports on. No row grew to make space for

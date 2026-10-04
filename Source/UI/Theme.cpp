@@ -79,20 +79,32 @@ void drawMacroIcon(juce::Graphics &g, juce::Rectangle<float> area,
   // Three faders with their caps at different places, which is what the
   // macro panel looks like and what a macro does: several controls moved
   // from one place.
-  const auto w = juce::jmin(area.getWidth(), area.getHeight() * 1.6f) * 0.86f;
+  //
+  // Everything here is a fraction of the height it is given, because the
+  // area is the lamp cap rather than the button, and the cap is some 6 px
+  // shorter: the fixed spacing this had before ran the outer two rows
+  // under the bezel.
+  const auto h = area.getHeight();
+  const auto w = juce::jmin(area.getWidth() * 0.78f, h * 1.5f);
   const auto centre = area.getCentre();
   const auto left = centre.x - w * 0.5f;
+
+  const auto step = h * 0.26f;
+  const auto capH = h * 0.30f;
+  const auto capW = juce::jmax(2.4f, w * 0.17f);
+  const auto track = juce::jmax(1.0f, h * 0.1f);
 
   const float at[] = {0.72f, 0.38f, 0.58f};
 
   for (int i = 0; i < 3; ++i) {
-    const auto y = centre.y + ((float)i - 1.0f) * 4.6f;
+    const auto y = centre.y + ((float)i - 1.0f) * step;
 
-    g.setColour(colour.withMultipliedAlpha(0.45f));
-    g.fillRoundedRectangle(left, y - 0.75f, w, 1.5f, 0.75f);
+    g.setColour(colour.withMultipliedAlpha(0.24f));
+    g.fillRoundedRectangle(left, y - track * 0.5f, w, track, track * 0.5f);
 
     g.setColour(colour);
-    g.fillRoundedRectangle(left + w * at[i] - 1.6f, y - 2.6f, 3.2f, 5.2f, 1.2f);
+    g.fillRoundedRectangle(left + w * at[i] - capW * 0.5f, y - capH * 0.5f,
+                           capW, capH, capW * 0.36f);
   }
 }
 
@@ -164,83 +176,51 @@ void drawToolIcon(juce::Graphics &g, juce::Rectangle<float> area,
 }
 
 void GlowButton::paintButton(juce::Graphics &g, bool highlighted, bool down) {
-  // The face, drawn as if the switch were off whatever it is, so that being
-  // engaged is something the word says rather than something the button does.
-  // Not even the shade of grey moves: all that reaches the face is the light
-  // off the text, further down.
+  // What the cap is moulded in, for the few buttons that ask for a particular
+  // face. Everything else leaves it and the lamp decides.
   const auto fill = findColour(juce::TextButton::buttonColourId);
 
   if (auto *laf = dynamic_cast<OvertoniumLookAndFeel *>(&getLookAndFeel()))
-    laf->drawButtonFace(g, *this, false, fill, highlighted, down);
+    laf->drawButtonFace(g, *this, getToggleState(), fill, highlighted, down);
   else
     getLookAndFeel().drawButtonBackground(g, *this, fill, highlighted, down);
 
-  const auto on = getToggleState();
-  const auto colour = findColour(on ? juce::TextButton::textColourOnId
-                                    : juce::TextButton::textColourOffId);
+  // The same ink whatever the lamp is doing. The word is printed on the
+  // plastic rather than being part of what lights, so it does not change
+  // colour under its own lamp, and the state is read off the cap alone.
+  const auto colour = OvertoniumLookAndFeel::lampLegend();
 
   const auto h = (float)getHeight();
 
+  // The cap rather than the whole button, or anything drawn on it runs out
+  // under the bezel: the moulding is part of this component.
+  const auto cap = OvertoniumLookAndFeel::lampCapBounds(
+      getLocalBounds().toFloat(), OvertoniumLookAndFeel::lampGangOf(*this));
+
   if (onIcon != nullptr) {
-    onIcon(g, getLocalBounds().toFloat(), colour);
+    onIcon(g, cap, colour);
     return;
   }
 
   const auto font = makeFont(juce::jlimit(8.0f, 13.0f, h * 0.58f), true);
 
+  // Centred on the cap, laid out across the whole width. Both halves matter.
+  // The cap decides where the middle is, because a ganged one is not centred
+  // in its component: it gives up a whole wall on the outside and half a wall
+  // where it joins, which put the M and the S a pixel out towards the ends of
+  // their block. The width is the button's because these are sized against
+  // the words they carry and REVERB fills its own to within a pixel either
+  // side, so fitting to the cap would take the B off it.
+  const auto line = juce::Rectangle<float>((float)getWidth(), h)
+                        .withCentre({cap.getCentreX(), h * 0.5f});
+
   juce::GlyphArrangement glyphs;
-  // The whole width, because the buttons on this panel are sized against the
-  // words they carry and REVERB fills its own to within a pixel either side.
-  // An inset here would take the B off it.
-  glyphs.addFittedText(font, getButtonText(), 0.0f, 0.0f, (float)getWidth(), h,
+  glyphs.addFittedText(font, getButtonText(), line.getX(), line.getY(),
+                       line.getWidth(), line.getHeight(),
                        juce::Justification::centred, 1, 1.0f);
 
-  if (!on) {
-    g.setColour(colour);
-    glyphs.draw(g);
-    return;
-  }
-
-  // Strokes over the text's own path rather than the text drawn over itself at
-  // a ring of offsets: a path gives light that is even all the way round a
-  // letter, where offsets pile up at the corners and leave the curves thin.
-  juce::Path path;
-  glyphs.createPath(path);
-
-  // The word is the lamp and the face is what it falls on. Each stroke is
-  // wider and fainter than the one inside it, so the light leaves the letters
-  // and thins out across the button instead of stopping at an outline.
-  //
-  // Clipped to the face, which is what makes it read as light caught by the
-  // button rather than as a halo floating over it. The rounded rectangle is
-  // the one the look and feel draws the face with.
-  {
-    juce::Graphics::ScopedSaveState clipped(g);
-
-    const auto face = getLocalBounds().toFloat().reduced(0.5f);
-
-    juce::Path lit;
-    lit.addRoundedRectangle(face, juce::jmin(4.0f, face.getHeight() * 0.3f));
-
-    g.reduceClipRegion(lit);
-
-    struct Spill {
-      float width;
-      float alpha;
-    };
-
-    for (const auto spill :
-         {Spill{16.0f, 0.030f}, Spill{11.0f, 0.045f}, Spill{7.0f, 0.070f},
-          Spill{4.0f, 0.130f}, Spill{2.0f, 0.260f}}) {
-      g.setColour(colour.withAlpha(spill.alpha));
-      g.strokePath(path, juce::PathStrokeType(spill.width,
-                                              juce::PathStrokeType::curved,
-                                              juce::PathStrokeType::rounded));
-    }
-  }
-
   g.setColour(colour);
-  g.fillPath(path);
+  glyphs.draw(g);
 }
 
 juce::Colour bandColour(float t) {
