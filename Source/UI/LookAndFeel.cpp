@@ -882,16 +882,24 @@ void OvertoniumLookAndFeel::drawLinearSlider(
   // say here, and the meter, the cap and the figure under it already say
   // where the level is three times over.
   if (driven && bounds.getWidth() >= 22.0f) {
-    const auto trackW = juce::jmax(6.0f, bounds.getWidth() * 0.62f);
-    const auto track = bounds.withSizeKeepingCentre(trackW, bounds.getHeight());
+    // The slider's own rectangle, not the one this was handed. JUCE insets
+    // what it passes a look and feel by the thumb's radius, so the track it
+    // gives is a few pixels shorter than the component, and the meter lays
+    // its segments out across the whole of its own. Both read the same
+    // arithmetic from meterSegments and still came out at different heights:
+    // the same count of shorter segments, covering less of the track.
+    const auto whole = slider.getLocalBounds().toFloat();
 
-    const int count = meterSegments((int)bounds.getHeight());
+    const auto trackW = juce::jmax(6.0f, whole.getWidth() * 0.62f);
+    const auto track = whole.withSizeKeepingCentre(trackW, whole.getHeight());
+
+    const int count = meterSegments((int)whole.getHeight());
     const auto step = track.getHeight() / (float)count;
     const auto gap = juce::jlimit(1.0f, 3.0f, step * 0.18f);
 
     // What is left either side of the track, less a pixel of air against the
     // track and another against the edge of the strip.
-    const auto lane = juce::jmax(1.5f, (track.getX() - bounds.getX()) - 2.0f);
+    const auto lane = juce::jmax(1.5f, (track.getX() - whole.getX()) - 2.0f);
 
     const auto onNow =
         juce::jlimit(0, count, juce::roundToInt(reached * (float)count));
@@ -911,8 +919,8 @@ void OvertoniumLookAndFeel::drawLinearSlider(
       const auto corner = juce::jmin(2.0f, cell.getHeight() * 0.4f);
 
       g.setColour(i < onNow ? on : off);
-      g.fillRoundedRectangle(cell.withX(bounds.getX() + 1.0f), corner);
-      g.fillRoundedRectangle(cell.withX(bounds.getRight() - 1.0f - lane),
+      g.fillRoundedRectangle(cell.withX(whole.getX() + 1.0f), corner);
+      g.fillRoundedRectangle(cell.withX(whole.getRight() - 1.0f - lane),
                              corner);
     }
   }
