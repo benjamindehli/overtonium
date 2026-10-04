@@ -91,6 +91,15 @@ RowGutter::RowGutter() {
   toolButton.setTitle("Pointer tool");
   toolButton.setColour(juce::TextButton::textColourOnId, colours::accent);
 
+  // Lit, and it stays lit. A lamp going out says a thing is off, and there is
+  // no off here: the pointer is as much a choice as the other two, and a dark
+  // cap read as a tool that had been disabled rather than as the plain
+  // pointer being the one selected. Which tool it holds is said by the icon.
+  //
+  // Here rather than in syncLinkUi, which returns early when the tool has not
+  // changed and so would never have reached it on the way to the first paint.
+  toolButton.setToggleState(true, juce::dontSendNotification);
+
   toolButton.onClick = [this] {
     if (onLinkClicked != nullptr)
       onLinkClicked(&toolButton);
@@ -148,10 +157,8 @@ void RowGutter::setTool(ovt::ui::PointerTool which, ovt::ui::LinkCurve curve) {
   tool = which;
   toolIcon = ovt::ui::pointerToolImage(tool, curve, 1.0f);
 
-  // Lit for anything but the plain pointer, which is the tool that does what
-  // a mouse does anyway and so has nothing to announce.
-  toolButton.setToggleState(tool != ovt::ui::PointerTool::Pointer,
-                            juce::dontSendNotification);
+  // The lamp does not move with the tool: see where it is set, in the
+  // constructor. Only the icon changes.
   toolButton.setButtonText(tool == ovt::ui::PointerTool::Pointer ? "" : "");
   toolButton.setTitle(juce::String("Tool: ") + ovt::ui::pointerToolName(tool));
   toolButton.repaint();

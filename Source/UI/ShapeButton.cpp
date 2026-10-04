@@ -158,8 +158,15 @@ void ShapeButton::paint(juce::Graphics &g) {
 
   // The same accent the tuning digits light up in, so the two displays on a
   // strip read as the same kind of thing rather than as a screen and a label.
+  //
+  // Unlit it goes to the same grey everything else on a silenced channel does,
+  // this being a display and the display beside it having gone dark. A lit
+  // waveform on a channel nobody can hear says the opposite of the truth.
+  const bool live = !(bool)getProperties().getWithDefault("unlit", false);
+
   drawShape(g, area.reduced(3.0f, 2.5f), selectedShape(),
-            colours::accent.withAlpha(hovered ? 1.0f : 0.88f));
+            live ? colours::accent.withAlpha(hovered ? 1.0f : 0.88f)
+                 : colours::textDim.withAlpha(0.65f));
 }
 
 juce::PopupMenu ShapeButton::buildMenu() const {

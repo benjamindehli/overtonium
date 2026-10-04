@@ -11,6 +11,18 @@
 
 namespace ovt::ui {
 
+/// How many segments a meter of this height divides into.
+///
+/// Here rather than on the meter because two drawings have to agree about it:
+/// the meter paints the segments and the fader laid over the same rectangle
+/// paints its own in the gutters either side, and sharing the rectangle is not
+/// enough. They have to share the arithmetic, or the gutters drift out of step
+/// with the track by a pixel and read as a second scale beside it.
+///
+/// Aiming at sixteen, but a short window gets fewer rather than a column of
+/// slivers, and a tall one gets more rather than bars.
+int meterSegments(int height);
+
 namespace colours {
 inline const juce::Colour background{0xff0b0d10};
 inline const juce::Colour panel{0xff14181d};
@@ -33,10 +45,9 @@ inline const juce::Colour textDim{0xff6f7a86};
 /// Chrome, not content. Sits in the cyan the channel ramp never reaches, so
 /// the global controls never read as one of the channels.
 inline const juce::Colour accent{0xff62bbd9};
-/// Red rather than the orange it used to be, now that what lights is the
-/// letter rather than the whole face. A filled orange face was unmistakable;
-/// a lit letter has less of itself to say it with, and red is what a cut
-/// channel means.
+/// Red rather than orange, because red is what a cut channel means. It is
+/// the lamp behind the cap rather than the plastic, which is white: an unlit
+/// mute shows none of this and a lit one shows all of it.
 inline const juce::Colour muteOn{0xffe04831};
 inline const juce::Colour soloOn{0xffe8c34a};
 
@@ -117,19 +128,20 @@ juce::Colour bandColour(float t);
 /// character rather than one of them, and it does not light.
 juce::Colour characterColour(Character);
 
-/// A button whose text lights rather than whose face does.
+/// A lamp behind a square plastic cap, the way a tape machine's are.
 ///
-/// Every switch on the panel is one of these: the two effect toggles, LINK,
-/// the character button and the M and S on all thirty-three channels. The
-/// word is the lamp and the face is only what its light falls on, the way an
-/// engaged switch on a lit console is. So the face is drawn exactly as it is
-/// when the switch is off, down to the shade of grey, and everything that
-/// reaches it comes off the text. Which colour that is comes from
-/// textColourOnId, so a button can say what it means by it.
+/// Every switch on the panel is one of these: the two effect toggles, the
+/// character button, the two on the bar that open something, the tool, and
+/// the M and S on all thirty-three channels. The cap sits in a moulded well
+/// and the whole of it lights, so what the eye finds scanning 33 channels is
+/// a lit square rather than a letter it would have to read.
 ///
-/// At the size the mixer's own switches are drawn, the spill is what does the
-/// work: the letter is small and what the eye finds scanning 33 channels is
-/// the coloured smudge around it.
+/// The plastic is white and the same on every one of them. What a button
+/// names in textColourOnId is the lamp behind it, which is what it shows
+/// when it is on and nothing at all when it is off, so a button that never
+/// lights need not name one. The word is printed on the cap in the same ink
+/// whatever the lamp is doing, textColourOffId reaching nothing here. See
+/// OvertoniumLookAndFeel::lampFace and lampLegend.
 class GlowButton : public juce::TextButton {
 public:
   /// Drawn in place of the word, in the colour the word would have had.

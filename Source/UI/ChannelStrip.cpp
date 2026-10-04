@@ -129,12 +129,6 @@ void LabelledKnob::resized() { slider.setBounds(dialBounds(getLocalBounds())); }
 
 // =============================================================================
 
-namespace {
-/// How many lamps fit. Aiming at sixteen, but a short window gets fewer rather
-/// than a column of slivers, and a tall one gets more rather than bars.
-int segmentsFor(int height) { return juce::jlimit(6, 24, height / 15); }
-} // namespace
-
 // =============================================================================
 
 namespace {
@@ -186,6 +180,28 @@ uint8_t segmentsFor(char c) {
   case 'i':
     return kSegC;
 
+  // ---- a sign sharing the hundreds digit's cell ---------------------------
+  //
+  // A reading that runs to three digits and can be negative has a hundreds
+  // place that is only ever a one or nothing, and a sign that is only ever a
+  // minus or nothing. The bar a minus needs and the two uprights a one needs
+  // are different segments, so one cell carries both and the reading saves
+  // the whole width of a separate sign.
+  //
+  // Which is worth having twice over: the digits get the room, and the sign
+  // stops being a narrow cell that the digits have to be padded around to
+  // keep them from shifting when a value crosses zero.
+  //
+  // Only the macro panel's amount asks for these. Nothing on a channel
+  // changes sign.
+  // The sign is the middle bar, lit like any other segment, and the one
+  // beside it is the pair of uprights. Nothing is drawn specially for either:
+  // a cell shows the bars it has and these are two of them.
+  case '~':
+    return kSegG;
+  case '!':
+    return kSegG | kSegB | kSegC;
+
   default:
     return 0;
   }
@@ -202,19 +218,247 @@ uint8_t segmentsFor(char c) {
 /// asks for one, and a character with no form here comes out blank rather
 /// than as the speck a plus would be.
 bool isNarrow(char c) { return c == '.' || c == '-'; }
+
+/// One segment, as an elongated hexagon with mitred ends.
+///
+/// This is the shape a real one is, and it is most of what makes a drawn
+/// display look drawn: a rounded rectangle has the same footprint but reads
+/// as a lozenge laid on a panel, where a mitred bar reads as one of a set cut
+/// from a single mask. The ends slope so that neighbouring segments point at
+/// each other across the small gap between them, which is what turns seven
+/// separate bars into a figure.
+juce::Path segmentShape(juce::Rectangle<float> r) {
+  const bool flat = r.getWidth() >= r.getHeight();
+  const auto thick = flat ? r.getHeight() : r.getWidth();
+  const auto along = flat ? r.getWidth() : r.getHeight();
+
+  // Never more than the bar can give. A half-middle on a narrow cell is
+  // barely longer than it is thick, and a full mitre on that leaves two
+  // triangles meeting at a point.
+  const auto nose = juce::jmin(thick * 0.5f, along * 0.42f);
+
+  juce::Path p;
+
+  if (flat) {
+    p.startNewSubPath(r.getX(), r.getCentreY());
+    p.lineTo(r.getX() + nose, r.getY());
+    p.lineTo(r.getRight() - nose, r.getY());
+    p.lineTo(r.getRight(), r.getCentreY());
+    p.lineTo(r.getRight() - nose, r.getBottom());
+    p.lineTo(r.getX() + nose, r.getBottom());
+  } else {
+    p.startNewSubPath(r.getCentreX(), r.getY());
+    p.lineTo(r.getRight(), r.getY() + nose);
+    p.lineTo(r.getRight(), r.getBottom() - nose);
+    p.lineTo(r.getCentreX(), r.getBottom());
+    p.lineTo(r.getX(), r.getBottom() - nose);
+    p.lineTo(r.getX(), r.getY() + nose);
+  }
+
+  p.closeSubPath();
+  return p;
+}
+
+// ---- fourteen bars, for the displays that have to spell ---------------------
+//
+//      aaaaaaa
+//     f  h i j  b
+//     f   hij   b
+//      ggg   GGG
+//     e   mlk   c
+//     e  m l k  c
+//      ddddddd
+//
+// Seven bars cannot write a name. They manage digits and about five letters,
+// which is all the readouts on a channel ever have to say, but a preset is
+// called Glockenspiel or Wurli and there is no seven-bar W at all. Fourteen
+// is what the hardware that had to show words used, and it carries the whole
+// alphabet: the middle bar splits in two and four diagonals and two uprights
+// fill the cell.
+constexpr uint16_t kStA = 1 << 0, kStB = 1 << 1, kStC = 1 << 2, kStD = 1 << 3,
+                   kStE = 1 << 4, kStF = 1 << 5, kStG1 = 1 << 6, kStG2 = 1 << 7,
+                   kStH = 1 << 8, kStI = 1 << 9, kStJ = 1 << 10, kStK = 1 << 11,
+                   kStL = 1 << 12, kStM = 1 << 13;
+
+constexpr uint16_t kStG = kStG1 | kStG2;
+
+uint16_t starburstFor(char c) {
+  switch (c) {
+  case '0':
+    return kStA | kStB | kStC | kStD | kStE | kStF | kStJ | kStM;
+  case '1':
+    return kStB | kStC | kStJ;
+  case '2':
+    return kStA | kStB | kStG | kStE | kStD;
+  case '3':
+    return kStA | kStB | kStC | kStD | kStG2;
+  case '4':
+    return kStF | kStG | kStB | kStC;
+  case '5':
+    return kStA | kStF | kStG | kStC | kStD;
+  case '6':
+    return kStA | kStF | kStE | kStD | kStC | kStG;
+  case '7':
+    return kStA | kStB | kStC;
+  case '8':
+    return kStA | kStB | kStC | kStD | kStE | kStF | kStG;
+  case '9':
+    return kStA | kStB | kStC | kStD | kStF | kStG;
+
+  case 'A':
+    return kStA | kStB | kStC | kStE | kStF | kStG;
+  case 'B':
+    return kStA | kStB | kStC | kStD | kStG2 | kStI | kStL;
+  case 'C':
+    return kStA | kStD | kStE | kStF;
+  case 'D':
+    return kStA | kStB | kStC | kStD | kStI | kStL;
+  case 'E':
+    return kStA | kStD | kStE | kStF | kStG1;
+  case 'F':
+    return kStA | kStE | kStF | kStG1;
+  case 'G':
+    return kStA | kStC | kStD | kStE | kStF | kStG2;
+  case 'H':
+    return kStB | kStC | kStE | kStF | kStG;
+  case 'I':
+    return kStA | kStD | kStI | kStL;
+  case 'J':
+    return kStB | kStC | kStD | kStE;
+  case 'K':
+    return kStE | kStF | kStG1 | kStJ | kStK;
+  case 'L':
+    return kStD | kStE | kStF;
+  case 'M':
+    return kStB | kStC | kStE | kStF | kStH | kStJ;
+  case 'N':
+    return kStB | kStC | kStE | kStF | kStH | kStK;
+  case 'O':
+    return kStA | kStB | kStC | kStD | kStE | kStF;
+  case 'P':
+    return kStA | kStB | kStE | kStF | kStG;
+  case 'Q':
+    return kStA | kStB | kStC | kStD | kStE | kStF | kStK;
+  case 'R':
+    return kStA | kStB | kStE | kStF | kStG | kStK;
+  case 'S':
+    return kStA | kStC | kStD | kStF | kStG;
+  case 'T':
+    return kStA | kStI | kStL;
+  case 'U':
+    return kStB | kStC | kStD | kStE | kStF;
+  case 'V':
+    return kStE | kStF | kStJ | kStM;
+  case 'W':
+    return kStB | kStC | kStE | kStF | kStK | kStM;
+  case 'X':
+    return kStH | kStJ | kStK | kStM;
+  case 'Y':
+    return kStH | kStJ | kStL;
+  case 'Z':
+    return kStA | kStD | kStJ | kStM;
+
+  // The punctuation a preset name can carry. A saved name keeps everything a
+  // filename can hold, which is nearly everything, so these are the ones
+  // worth having rather than all of them: the hyphen alone is in three of the
+  // factory names and without it Lo-fi reads as LO FI.
+  case '-':
+    return kStG;
+  case '_':
+    return kStD;
+  case '=':
+    return kStG | kStD;
+  case '+':
+    return kStG | kStI | kStL;
+  case '\'':
+    return kStI;
+  case '(':
+    return kStJ | kStK;
+  case ')':
+    return kStH | kStM;
+  case '!':
+    return kStI | kStL;
+
+  // A space is a cell with nothing lit, which is a word break rather than a
+  // character that failed to draw. Both come out the same and that is right:
+  // a cell on a real display either has bars on or it does not, and a name
+  // with something unspellable in it shows a gap where a real one would.
+  case ' ':
+    return 0;
+
+  default:
+    return 0;
+  }
+}
 } // namespace
 
-bool SegmentDisplay::canDraw(char c) {
+bool SegmentDisplay::canDraw(char c, Bars bars) {
+  if (bars == Bars::Fourteen)
+    // A space has no bars lit and is still a character it can show, so the
+    // table's zero cannot be the answer on its own here.
+    return isNarrow(c) || c == ' ' ||
+           starburstFor((char)juce::CharacterFunctions::toUpperCase(c)) != 0;
+
   return isNarrow(c) || segmentsFor(c) != 0;
 }
 
-SegmentDisplay::SegmentDisplay(juce::String unit) : unitText(std::move(unit)) {}
+SegmentDisplay::SegmentDisplay(juce::String unit, Bars howMany, int cells)
+    : bars(howMany), fixedCells(cells), unitText(std::move(unit)) {}
+
+juce::String SegmentDisplay::squeeze(const juce::String &name, int cells) {
+  const auto upper = name.toUpperCase();
+
+  if (cells <= 0)
+    return upper;
+
+  if (upper.length() <= cells)
+    return upper.paddedRight(' ', cells);
+
+  std::vector<juce::juce_wchar> kept;
+  kept.reserve((size_t)upper.length());
+
+  for (int i = 0; i < upper.length(); ++i)
+    kept.push_back(upper[i]);
+
+  const auto drop = [&kept, cells](bool (*wanted)(juce::juce_wchar)) {
+    // From the right, so what goes is the end of the name rather than the
+    // start of it, which is the half you recognise.
+    //
+    // Stopping at index one is belt and braces rather than a rule doing any
+    // work. Reaching index zero would mean everything after it had already
+    // gone and one character were still too many, and there is no cell count
+    // below one, so the loop stops on its own first. It is written down
+    // because a name has to keep its first character whatever else changes
+    // here, and nothing else in this function would say so.
+    for (auto i = (int)kept.size() - 1; i > 0 && (int)kept.size() > cells; --i)
+      if (wanted(kept[(size_t)i]))
+        kept.erase(kept.begin() + i);
+  };
+
+  drop([](juce::juce_wchar c) { return c == ' '; });
+  drop([](juce::juce_wchar c) {
+    return c == 'A' || c == 'E' || c == 'I' || c == 'O' || c == 'U';
+  });
+
+  juce::String out;
+
+  for (auto c : kept)
+    out += juce::String::charToString(c);
+
+  return out.substring(0, cells).paddedRight(' ', cells);
+}
 
 void SegmentDisplay::setReading(const juce::String &digits, bool isActive) {
-  if (digits == reading && isActive == active)
+  // Upper case, and fitted to the cells there are. Done here rather than at
+  // every caller so that what getReading hands back is what the cells are
+  // actually showing.
+  const auto shown =
+      bars == Bars::Fourteen ? squeeze(digits, fixedCells) : digits;
+
+  if (shown == reading && isActive == active)
     return;
 
-  reading = digits;
+  reading = shown;
   active = isActive;
   repaint();
 }
@@ -248,7 +492,14 @@ void SegmentDisplay::paintGlyph(juce::Graphics &g, juce::Rectangle<float> area,
   // Every bar is drawn whether it is on or not, which is what makes it read as
   // a display with something switched off rather than as floating shapes.
   const auto t = juce::jmax(1.0f, area.getHeight() * 0.16f);
-  const auto gap = t * 0.35f;
+
+  // What separates one segment from the next. Tight, because the gap is what
+  // the eye reads as the join between two bars and a wide one reads as seven
+  // marks that happen to be near each other. It cannot go to nothing: the
+  // mitred ends point at each other, so the gap at a corner is already about
+  // seven tenths of this, and below about a fifth of a bar's thickness the
+  // corners close up and a figure becomes a blob.
+  const auto gap = t * 0.24f;
   const auto w = area.getWidth();
   const auto h = area.getHeight();
   const auto mid = (h - t) * 0.5f;
@@ -258,7 +509,7 @@ void SegmentDisplay::paintGlyph(juce::Graphics &g, juce::Rectangle<float> area,
     juce::Rectangle<float> r;
   };
 
-  const Bar bars[] = {
+  const Bar straight[] = {
       {kSegA, {t * 0.5f + gap, 0.0f, w - t - gap * 2.0f, t}},
       {kSegB, {w - t, t * 0.5f + gap, t, mid - gap * 1.5f}},
       {kSegC, {w - t, mid + t * 0.5f + gap * 0.5f, t, mid - gap * 1.5f}},
@@ -268,10 +519,128 @@ void SegmentDisplay::paintGlyph(juce::Graphics &g, juce::Rectangle<float> area,
       {kSegG, {t * 0.5f + gap, mid, w - t - gap * 2.0f, t}},
   };
 
-  for (const auto &bar : bars) {
-    g.setColour((lit & bar.flag) != 0 ? on : off);
-    g.fillRoundedRectangle(bar.r.translated(area.getX(), area.getY()),
-                           t * 0.35f);
+  for (const auto &bar : straight) {
+    const bool isLit = (lit & bar.flag) != 0;
+    const auto shape = segmentShape(bar.r.translated(area.getX(), area.getY()));
+
+    // No bloom around a lit segment, though a real one has it. A bar here is
+    // about three pixels thick, so any spill worth seeing is wider than the
+    // bar it comes from: what it reads as is blur, and a blurred figure is
+    // further from a real display than a crisp one is.
+    g.setColour(isLit ? on : off);
+    g.fillPath(shape);
+  }
+}
+
+void SegmentDisplay::paintStarburst(juce::Graphics &g,
+                                    juce::Rectangle<float> area, char c,
+                                    juce::Colour on, juce::Colour off) const {
+  const auto lit = starburstFor(c);
+
+  // Thinner than a seven-bar cell's. Fourteen bars in the same box means four
+  // diagonals crossing the middle, and at the seven-bar weight they meet in a
+  // blot with no cell showing through.
+  const auto t = juce::jmax(1.0f, area.getHeight() * 0.095f);
+  // Tighter than it was, for the reason the seven-bar one is. A little wider
+  // than that one in proportion, because fourteen bars in the same box means
+  // four diagonals crossing the middle as well, and those have ends of their
+  // own to stay clear of.
+  const auto gap = t * 0.32f;
+  const auto w = area.getWidth();
+  const auto h = area.getHeight();
+  const auto mid = (h - t) * 0.5f;
+  const auto half = (w - t) * 0.5f;
+
+  // The uprights and the two halves of the middle, drawn as rectangles the
+  // way the seven-bar ones are.
+  struct Bar {
+    uint16_t flag;
+    juce::Rectangle<float> r;
+  };
+
+  const Bar straight[] = {
+      {kStA, {t * 0.5f + gap, 0.0f, w - t - gap * 2.0f, t}},
+      {kStB, {w - t, t * 0.5f + gap, t, mid - gap * 1.5f}},
+      {kStC, {w - t, mid + t * 0.5f + gap * 0.5f, t, mid - gap * 1.5f}},
+      {kStD, {t * 0.5f + gap, h - t, w - t - gap * 2.0f, t}},
+      {kStE, {0.0f, mid + t * 0.5f + gap * 0.5f, t, mid - gap * 1.5f}},
+      {kStF, {0.0f, t * 0.5f + gap, t, mid - gap * 1.5f}},
+      // The two halves of the middle, each running from its own end of the
+      // cell to the upright that stands in the centre of it.
+      //
+      // Mirror images, which they were not: the right one used to start half
+      // a bar past the centre instead of a whole one past it, so it reached
+      // a bar's width too far left and the middle of every cell sat off to
+      // that side.
+      //
+      // And longer than they were. A half-middle is squeezed between the
+      // outer upright and the centre one, and at the inset the other bars
+      // use it came out three pixels: a dot rather than a bar, so a hyphen
+      // read as two specks.
+      {kStG1, {t * 0.5f, mid, half - t * 0.5f - gap, t}},
+      {kStG2, {half + t + gap, mid, w - t * 1.5f - half - gap, t}},
+      {kStI, {half, t * 0.5f + gap, t, mid - gap * 1.5f}},
+      {kStL, {half, mid + t * 0.5f + gap * 0.5f, t, mid - gap * 1.5f}},
+  };
+
+  for (const auto &bar : straight) {
+    const bool isLit = (lit & bar.flag) != 0;
+    const auto shape = segmentShape(bar.r.translated(area.getX(), area.getY()));
+
+    // No bloom around a lit segment, though a real one has it. A bar here is
+    // about three pixels thick, so any spill worth seeing is wider than the
+    // bar it comes from: what it reads as is blur, and a blurred figure is
+    // further from a real display than a crisp one is.
+    g.setColour(isLit ? on : off);
+    g.fillPath(shape);
+  }
+
+  // The four diagonals, which are strokes rather than rectangles. Each runs
+  // from a corner of the cell to the middle of it.
+  //
+  // Trimmed along its own direction rather than by the same amount in x and
+  // in y. A cell is half as wide as it is tall, so these are nowhere near
+  // forty-five degrees, and pulling both ends in by an equal step on each
+  // axis stopped them a third of the way short: X came out as four marks
+  // around a hole and V and W did not close at the bottom.
+  const auto cx = w * 0.5f;
+  const auto cy = h * 0.5f;
+  const auto corner = t * 0.9f;
+
+  const auto spoke = [&](juce::Point<float> from) {
+    const auto to = juce::Point<float>(cx, cy);
+    const auto along = to - from;
+    const auto len = std::sqrt(along.x * along.x + along.y * along.y);
+
+    if (len < 1.0e-3f)
+      return juce::Line<float>(from, to);
+
+    const auto step = along / len;
+
+    // Clear of the frame at the outer end and of the centre bars at the
+    // inner one, both measured in bar widths so they hold at any size.
+    return juce::Line<float>(from + step * (t * 0.3f), to - step * (t * 0.85f));
+  };
+
+  struct Slash {
+    uint16_t flag;
+    juce::Line<float> line;
+  };
+
+  const Slash slashes[] = {
+      {kStH, spoke({corner, corner})},
+      {kStJ, spoke({w - corner, corner})},
+      {kStK, spoke({w - corner, h - corner})},
+      {kStM, spoke({corner, h - corner})},
+  };
+
+  for (const auto &slash : slashes) {
+    const bool isLit = (lit & slash.flag) != 0;
+    const juce::Line<float> at{slash.line.getStart() + area.getPosition(),
+                               slash.line.getEnd() + area.getPosition()};
+
+    g.setColour(isLit ? on : off);
+    g.drawLine(at, t * 0.9f);
   }
 }
 
@@ -308,7 +677,12 @@ void SegmentDisplay::paint(juce::Graphics &g) {
   auto area = getLocalBounds().toFloat().reduced(1.0f);
 
   const auto on = active ? colours::accent : colours::textDim;
-  const auto off = on.withAlpha(hovered ? 0.20f : 0.12f);
+
+  // Fainter where there are fourteen bars to a cell. Twice the bars means
+  // twice the unlit ones, and at the seven-bar weight the dead segments add
+  // up to a grid the lit ones have to be picked out of.
+  const auto rest = bars == Bars::Fourteen ? 0.55f : 1.0f;
+  const auto off = on.withAlpha((hovered ? 0.20f : 0.12f) * rest);
   const auto lit = on.withAlpha(active ? 0.95f : 0.75f);
 
   // Set into the panel rather than laid on it. The margin this uses is the one
@@ -328,6 +702,8 @@ void SegmentDisplay::paint(juce::Graphics &g) {
 
   area = area.reduced(3.0f, 2.0f);
 
+  drawn = 0;
+
   if (reading.isEmpty())
     return;
 
@@ -338,6 +714,30 @@ void SegmentDisplay::paint(juce::Graphics &g) {
   for (auto c : reading)
     (isNarrow((char)c) ? points : cells) += 1;
 
+  // Every character takes a whole cell where there are fourteen bars. A sign
+  // riding on a narrow stripe is a thing a number does, and this one spells,
+  // so a hyphen is a letter's worth of room like anything else. Counting it
+  // as a stripe left the cells one short of the characters and dropped the
+  // last one: Lo-fi came out as LO-F.
+  if (bars == Bars::Fourteen) {
+    cells += points;
+    points = 0;
+  }
+
+  // A name longer than the display can spell legibly is cut rather than
+  // squeezed. Below about five pixels a fourteen-bar cell is four diagonals
+  // in a smudge, and a reading nobody can make out is worse than a short one.
+  if (bars == Bars::Fourteen) {
+    constexpr float kNarrowestCell = 5.0f;
+
+    const auto room = (int)(area.getWidth() / kNarrowestCell);
+
+    if (cells > room) {
+      cells = juce::jmax(1, room);
+      points = 0;
+    }
+  }
+
   if (cells < 1)
     return;
 
@@ -347,9 +747,15 @@ void SegmentDisplay::paint(juce::Graphics &g) {
 
   // A point costs about a third of a digit, which is what the extra term in
   // the denominator is buying.
+  // Wider than a seven-bar cell for its height, because there is more to fit
+  // across it: the two middle uprights and the four diagonals all live in the
+  // width, and at the narrower ratio they met in the middle as a blot.
+  const auto widest =
+      area.getHeight() * (bars == Bars::Fourteen ? 0.74f : 0.72f);
+
   const auto cellW = juce::jmin((area.getWidth() - unitW) /
                                     ((float)cells + 0.32f * (float)points),
-                                area.getHeight() * 0.72f);
+                                widest);
 
   const auto glyphW = cellW * 0.82f;
   const auto pointW = cellW * 0.32f;
@@ -369,8 +775,23 @@ void SegmentDisplay::paint(juce::Graphics &g) {
                juce::Justification::centredLeft, false);
   }
 
+  drawn = 0;
+
   for (int i = 0; i < reading.length(); ++i) {
     const auto c = (char)reading[i];
+
+    if (bars == Bars::Fourteen && drawn >= cells)
+      break;
+
+    if (bars == Bars::Fourteen) {
+      // Everything takes a whole cell here. A sign riding on a narrow stripe
+      // is a thing a number does, and this one is spelling.
+      paintStarburst(g, {x, digitArea.getY(), glyphW, digitArea.getHeight()}, c,
+                     lit, off);
+      x += cellW;
+      ++drawn;
+      continue;
+    }
 
     if (isNarrow(c)) {
       // Same weight as a segment. The point sits on the baseline the segments
@@ -387,12 +808,14 @@ void SegmentDisplay::paint(juce::Graphics &g) {
         g.fillRoundedRectangle(x, midY, pointW, t, t * 0.35f);
 
       x += pointW;
+      ++drawn;
       continue;
     }
 
     paintGlyph(g, {x, digitArea.getY(), glyphW, digitArea.getHeight()}, c, lit,
                off);
     x += cellW;
+    ++drawn;
   }
 }
 
@@ -561,7 +984,7 @@ void LevelMeter::setBackdrop(juce::Colour top, juce::Colour bottom) {
   repaint();
 }
 
-int LevelMeter::segments() const { return segmentsFor(getHeight()); }
+int LevelMeter::segments() const { return meterSegments(getHeight()); }
 
 namespace {
 /// How far the bloom around a lit meter run reaches beyond it, in pixels.
@@ -804,6 +1227,9 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   soloButton.setTooltip("Solo harmonic " + juce::String(info.harmonic));
   muteButton.setTitle("Harmonic " + juce::String(info.harmonic) + " mute");
   soloButton.setTitle("Harmonic " + juce::String(info.harmonic) + " solo");
+  // One moulding around the pair, each half lighting on its own.
+  OvertoniumLookAndFeel::gangLamps(muteButton, soloButton);
+
   addAndMakeVisible(muteButton);
   addAndMakeVisible(soloButton);
 
@@ -984,7 +1410,7 @@ void ChannelStrip::updateTuneReadout() {
         std::abs(cents) < 0.05 ? juce::String("0.0") : juce::String(cents, 1);
   }
 
-  tuneReadout.setReading(text, active);
+  tuneReadout.setReading(text, active && !silenced);
 }
 
 void ChannelStrip::updateLevelReadout() {
@@ -1000,7 +1426,7 @@ void ChannelStrip::updateLevelReadout() {
   const auto db = params::levelDecibels(v);
 
   levelReadout.setReading(
-      (db >= 0.0f ? "" : "-") + juce::String(std::abs(db), 1), true);
+      (db >= 0.0f ? "" : "-") + juce::String(std::abs(db), 1), !silenced);
 }
 
 void ChannelStrip::setSilencedByOthers(bool shouldDim) {
@@ -1008,7 +1434,38 @@ void ChannelStrip::setSilencedByOthers(bool shouldDim) {
     return;
 
   silenced = shouldDim;
-  setAlpha(silenced ? 0.4f : 1.0f);
+
+  // The light out of the controls rather than a wash over the whole strip.
+  // The wash dimmed the mute along with everything else, and on a silenced
+  // channel the mute is the one thing that has to stay readable, since it is
+  // usually what silenced it. Greying the controls instead is what the echo
+  // and reverb knobs already do when their machine is off, and what the
+  // converter readouts do when they are following the host: the value stays
+  // where it was set and the light comes out of it.
+  std::function<void(juce::Component &)> drain = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      // Not the pair. They are the answer to the question the dimming asks.
+      if (dynamic_cast<MuteSoloButton *>(child) != nullptr)
+        continue;
+
+      // Sliders and the waveform displays, which are the two things on a
+      // strip that carry colour of their own. The meters and the activity
+      // lamps need no telling: a silenced channel gives them nothing to show.
+      if (dynamic_cast<juce::Slider *>(child) != nullptr ||
+          dynamic_cast<ShapeButton *>(child) != nullptr) {
+        child->getProperties().set("unlit", silenced);
+        child->repaint();
+      }
+
+      drain(*child);
+    }
+  };
+
+  drain(*this);
+
+  updateTuneReadout();
+  updateLevelReadout();
+  repaint();
 }
 
 void ChannelStrip::mouseDown(const juce::MouseEvent &e) {
@@ -1469,9 +1926,12 @@ void ChannelStrip::resized() {
                       juce::jmax(0, rows[rowIndex(Row::Header)].getBottom()));
   headerCap.toFront(false);
 
-  auto ms = rows[rowIndex(Row::MuteSolo)];
-  muteButton.setBounds(ms.removeFromLeft(ms.getWidth() / 2).reduced(1));
-  soloButton.setBounds(ms.reduced(1));
+  // Touching, because the two are one moulded block and the moulding between
+  // them is drawn by the pair rather than left as a gap. Inset once around
+  // the outside instead of once around each.
+  auto ms = rows[rowIndex(Row::MuteSolo)].reduced(1);
+  muteButton.setBounds(ms.removeFromLeft(ms.getWidth() / 2));
+  soloButton.setBounds(ms);
 
   // The lamps stand on the rules that divide the strip into groups, each one
   // at the head of the group it reports on. No row grew to make space for

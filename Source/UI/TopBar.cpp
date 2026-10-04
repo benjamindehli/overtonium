@@ -342,11 +342,11 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   addAndMakeVisible(characterButton);
 
   // ---- presets --------------------------------------------------------------
-  presetButton.setButtonText(kNoPreset);
-  presetButton.setTooltip("Factory and saved presets, and somewhere to put "
-                          "the one you are working on");
-  presetButton.onClick = [this] { showPresetMenu(); };
-  addAndMakeVisible(presetButton);
+  presetDisplay.setReading(kNoPreset, false);
+  presetDisplay.setTooltip("Factory and saved presets, and somewhere to put "
+                           "the one you are working on");
+  presetDisplay.onClick = [this] { showPresetMenu(); };
+  addAndMakeVisible(presetDisplay);
 
   // ---- settings -------------------------------------------------------------
   // Everything that is set once and then left: polyphony, bend range, and the
@@ -371,6 +371,12 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   addAndMakeVisible(macroButton);
 
   settingsButton.setButtonText("SETTINGS");
+
+  // The same plastic as the button beside it. The cap takes its colour from
+  // the one a button lights in, and a button that never lights names none, so
+  // this one was being moulded in the scheme's grey while MACROS was moulded
+  // in the accent. Side by side that read as two different parts.
+  settingsButton.setColour(juce::TextButton::textColourOnId, colours::accent);
 
   // A gear rather than the word, which wants 62 px of the 58 the bar can
   // spare it. The word is still what a screen reader is given and what the
@@ -617,18 +623,22 @@ void TopBar::showLinkMenu(juce::Component *anchor,
 }
 
 void TopBar::setPresetName(const juce::String &name) {
-  presetButton.setButtonText(name.isEmpty() ? kNoPreset : name);
+  presetName = name;
+
+  // Lit when something is loaded and dim when nothing is, which is the rule
+  // the converter readouts beside it follow: a display says whether what it
+  // shows is a setting or a statement of fact.
+  presetDisplay.setReading(name.isEmpty() ? kNoPreset : name,
+                           name.isNotEmpty());
 
   // The same as the character button: the text on it is a value, so the name
-  // has to supply what the value is of.
-  presetButton.setTitle(name.isEmpty() ? "Preset: none loaded"
-                                       : "Preset: " + name);
+  // has to supply what the value is of. It matters more here than anywhere,
+  // the cells being drawn rather than written and unreadable any other way.
+  presetDisplay.setTitle(name.isEmpty() ? "Preset: none loaded"
+                                        : "Preset: " + name);
 }
 
-juce::String TopBar::getPresetName() const {
-  const auto shown = presetButton.getButtonText();
-  return shown == kNoPreset ? juce::String() : shown;
-}
+juce::String TopBar::getPresetName() const { return presetName; }
 
 juce::PopupMenu TopBar::buildClipMenu() {
   juce::PopupMenu m;
@@ -888,7 +898,7 @@ void TopBar::showPresetMenu() {
   auto m = buildPresetMenu();
 
   m.showMenuAsync(juce::PopupMenu::Options()
-                      .withTargetComponent(&presetButton)
+                      .withTargetComponent(&presetDisplay)
                       .withStandardItemHeight(22),
                   [this](int result) {
                     if (result == 0)
@@ -1491,7 +1501,7 @@ int TopBar::minimumWidth() {
 }
 
 void TopBar::parkControls() {
-  juce::Component *all[] = {&masterFader,    &meter,          &presetButton,
+  juce::Component *all[] = {&masterFader,    &meter,          &presetDisplay,
                             &settingsButton, &echoButton,     &reverbButton,
                             &stretch,        &track,          &rateDisplay,
                             &bitsDisplay,    &characterButton};
@@ -1540,7 +1550,10 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
 
   switch (group) {
   case PresetGroup:
-    button(presetButton, r);
+    // Not a button. It is a display that opens a menu, the way the converter
+    // readouts are, so it is placed as a component rather than through the
+    // button helper.
+    alignedWithDials(presetDisplay, r);
     break;
 
   case VoiceGroup: {

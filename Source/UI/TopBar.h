@@ -438,7 +438,24 @@ private:
   /// image down to 150 on every repaint would be both slow and soft.
   juce::Image logo, logoScaled;
 
-  juce::TextButton presetButton;
+  /// Fourteen bars, because it has to spell: Glockenspiel and Wurli are not
+  /// things seven can say. The one display on the panel that carries a name
+  /// rather than a number.
+  /// Nine cells, always. Sizing itself to the reading meant the letters grew
+  /// and shrank as presets were loaded, so the same display was a different
+  /// instrument depending on what was in it, and nine is where it looks best:
+  /// wide enough for most of the names whole and narrow enough that the cells
+  /// stay the size they want to be. Longer names are fitted by
+  /// SegmentDisplay::squeeze and shorter ones leave the rest of the cells
+  /// standing unlit, which is what a display with a real number of digits in
+  /// it does.
+  SegmentDisplay presetDisplay{{}, SegmentDisplay::Bars::Fourteen, 9};
+
+  /// The name as it was given, which the display cannot hand back: its cells
+  /// have no lower case and it upper-cases what it is told. Saving a preset
+  /// reads this, and so does the check that decides whether the bar has
+  /// drifted from what is loaded.
+  juce::String presetName;
 
   /// Icons rather than words, for the reason kGroupMinWidth gives.
   GlowButton settingsButton, macroButton;

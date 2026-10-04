@@ -7,6 +7,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "../PluginParameters.h"
+#include "ChannelStrip.h"
 #include "Theme.h"
 
 namespace ovt::ui {
@@ -85,10 +86,17 @@ private:
   struct Strip {
     juce::TextButton colour, row, scope, curve, anchor, remove;
 
-    /// What the amount comes to in the row's own units, which is the only
-    /// form of it anybody can act on: an amount of 0.25 means nothing until
-    /// it says what 0.25 of that row is.
-    juce::Label reading;
+    /// What the amount comes to, on the same kind of display every other
+    /// number in this window is read off. A seven-bar one has no plus to
+    /// draw, which is why a positive amount shows no sign: that is also how
+    /// the tuning readouts write a partial sharp of equal temperament.
+    ///
+    /// No unit on it. A per cent sign is not a thing seven bars can make, so
+    /// it would have been drawn in text beside the digits, which is the one
+    /// mark in the box that is not a segment. The column is headed PERCENT
+    /// instead, the way the channel readouts leave their units to the gutter
+    /// caption beside them.
+    SegmentDisplay reading{{}};
     AmountSlider amount;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>
         attachment;
@@ -122,8 +130,8 @@ private:
   juce::Rectangle<int> card;
 
   /// Where the column names go, worked out with the columns themselves so
-  /// the two cannot drift apart. Row, scope, curve and amount.
-  std::array<juce::Rectangle<int>, 4> columnLabel{};
+  /// the two cannot drift apart. Row, scope, curve, amount and percent.
+  std::array<juce::Rectangle<int>, 5> columnLabel{};
 
   /// The band the line about what a macro is sits in, which is the space a
   /// first macro will take once there is one.

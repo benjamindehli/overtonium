@@ -32,8 +32,15 @@ constexpr int kRowWidth = 124;
 constexpr int kScopeWidth = 104;
 constexpr int kCurveWidth = 74;
 constexpr int kAnchorWidth = 40;
-constexpr int kReadingWidth = 74;
-constexpr int kRemoveWidth = 26;
+/// Wide enough for a sign, three digits, a point and the unit beside them.
+/// At 74 the digits had 53 px between five cells and came out touching: see
+/// SegmentDisplay::hasRoomForUnit, which is the floor rather than the aim.
+/// The amount gives the difference up and still has the widest column.
+constexpr int kReadingWidth = 92;
+/// Square, like the colour swatch at the other end of the row. Both are a
+/// mark rather than a word and the row is thirty tall, so anything narrower
+/// read as a button that had been squeezed.
+constexpr int kRemoveWidth = 30;
 constexpr int kGap = 6;
 
 } // namespace
@@ -141,9 +148,9 @@ void MacroPanel::buildStrip(int macro) {
         &strips[(size_t)macro].anchor, 1);
   };
 
-  strip.reading.setJustificationType(juce::Justification::centredRight);
+  // A readout rather than a control, so it stays quiet under the pointer:
+  // it has no onClick, which is what a SegmentDisplay reads as a readout.
   strip.reading.setInterceptsMouseClicks(false, false);
-  strip.reading.setColour(juce::Label::textColourId, colours::textDim);
 
   strip.amount.onValueChange = [this, macro] { showReading(macro); };
 
@@ -165,6 +172,10 @@ void MacroPanel::buildStrip(int macro) {
     refresh();
   };
 
+  // A channel fader laid on its side, with its own segments rather than a
+  // meter's: the panel is over the mixer and should be made of the same
+  // things it is covering.
+  strip.amount.getProperties().set("segmentedTrack", true);
   strip.amount.getProperties().set("bipolar", true);
   strip.amount.setTooltip("How far it pushes the row, and the one a host "
                           "automates.");
@@ -244,7 +255,7 @@ void MacroPanel::showReading(int macro) {
   auto &strip = strips[(size_t)macro];
 
   if (chosen(params::macroRowId(macro)) == 0) {
-    strip.reading.setText({}, juce::dontSendNotification);
+    strip.reading.setReading({}, false);
     return;
   }
 
@@ -257,13 +268,53 @@ void MacroPanel::showReading(int macro) {
   // the same proportion is a few milliseconds at one end and seconds at the
   // other.
   //
-  // Signed always, because a macro's number is a distance rather than a
-  // position and plus nothing is not the same statement as nothing.
+  // A minus and no plus, which is what seven bars can draw: an upright has
+  // to go into the same narrow cell as the minus and what comes out reads as
+  // a speck beside it. The tuning readouts write a sharp partial the same
+  // way, with no sign at all, and a tuner does too.
+  //
+  // Dim at nothing, the way a fader all the way down reads -inF dimmed: an
+  // amount of zero is a statement that the macro is doing nothing rather
+  // than a level it has been set to.
   const auto share = (float)strip.amount.getValue() * 100.0f;
 
-  strip.reading.setText(juce::String(share >= 0.0f ? "+" : "") +
-                            juce::String(share, 1) + " %",
-                        juce::dontSendNotification);
+  // Every element in the same place whatever the number is, which is what a
+  // display with real cells in it does. Left to itself the reading walks
+  // left and right as the amount passes ten and a hundred, and shuffles
+  // along by half a cell the moment it goes negative.
+  //
+  // Four cells and a point. The amount runs to a hundred either way, so the
+  // first cell is a one or nothing and the sign is a minus or nothing: both
+  // live in that one cell, the sign on the middle bar and the one on the two
+  // uprights beside it. See segmentsFor, where those two glyphs are.
+  const auto tenths = juce::roundToInt(std::abs(share) * 10.0f);
+  const bool hundred = tenths >= 1000;
+  const bool minus = share < 0.0f;
+
+  const auto digit = [](int d) {
+    return juce::String::charToString((juce::juce_wchar)('0' + d));
+  };
+
+  const auto tens = (tenths / 100) % 10;
+
+  juce::String shown;
+
+  shown += hundred ? (minus ? "!" : "1") : (minus ? "~" : " ");
+
+  // A leading zero is a blank cell, the way it is on anything with real
+  // cells in it, unless there is a hundreds digit in front of it.
+  shown += hundred || tens > 0 ? digit(tens) : juce::String(" ");
+  shown += digit((tenths / 10) % 10);
+  shown += ".";
+  shown += digit(tenths % 10);
+
+  strip.reading.setReading(shown, tenths > 0);
+
+  // Said in words as well, because the cells are drawn rather than written
+  // and there is no other way to read them. This was a Label before, whose
+  // text is its own accessible name, so swapping it for a display quietly
+  // took the number away from anyone not looking at it.
+  strip.reading.setTitle("Amount: " + juce::String(share, 1) + " per cent");
 }
 
 void MacroPanel::refresh() {
@@ -294,6 +345,7 @@ void MacroPanel::refresh() {
     strip.row.setButtonText(params::macroRowName(row));
     strip.scope.setButtonText(
         params::macroScopeName(chosen(params::macroScopeId(m))));
+
     strip.curve.setButtonText(params::macroCurveName(curve));
 
     // The fader borrows the row's own feel, so pushing a macro on a time
@@ -303,9 +355,41 @@ void MacroPanel::refresh() {
     strip.amount.setSkewFactor((double)params::macroRowRange(apvts, row).skew,
                                true);
 
+    // ---- what the scope is, in the colour the mixer says it in ------------
+    // A scope naming an interval lights in that interval's own colour, which
+    // is the colour every channel of it is drawn in across the mixer. So the
+    // word and the channels it reaches are the same colour and the panel is
+    // saying what the mixer is about to show. All, Odd and Even reach the
+    // whole series rather than one interval, so they take the accent, which
+    // is what the chrome uses for anything that is not one partial.
+    const auto scope = chosen(params::macroScopeId(m));
+    const auto interval = scope - (int)params::MacroScope::Interval;
+
+    //
+    // Through buttonOnColourId rather than the colour the button lights its
+    // word in. JUCE hands a look and feel buttonOnColourId for a button that
+    // is toggled, and drawButtonFace lets a background that has been named
+    // win over the lamp, which is the door the colour swatches go through.
+    // Setting only the lamp left every one of these the scheme's own blue.
+    const auto scopeTint =
+        interval >= 0 ? intervalColour(interval) : colours::accent;
+
+    strip.scope.setColour(juce::TextButton::buttonOnColourId, scopeTint);
+    strip.scope.setToggleState(true, juce::dontSendNotification);
+
     // Only when the curve has somewhere to lean.
     strip.anchor.setVisible(curve == params::MacroCurve::Taper);
-    strip.anchor.setButtonText(juce::String(chosen(params::macroAnchorId(m))));
+
+    const auto anchor =
+        juce::jlimit(1, kNumHarmonics, chosen(params::macroAnchorId(m)));
+
+    strip.anchor.setButtonText(juce::String(anchor));
+
+    // And the channel it leans on, in that channel's own colour, so the
+    // number and the strip it names agree without having to be counted to.
+    strip.anchor.setColour(juce::TextButton::buttonOnColourId,
+                           intervalColour(harmonic(anchor - 1).pitchClass));
+    strip.anchor.setToggleState(true, juce::dontSendNotification);
 
     showReading(m);
 
@@ -359,7 +443,9 @@ void MacroPanel::resized() {
     columnLabel[2] = line.removeFromLeft(kCurveWidth);
     line.removeFromLeft(kGap + kAnchorWidth + kGap);
 
-    line.removeFromRight(kRemoveWidth + kGap + kReadingWidth + kGap);
+    line.removeFromRight(kRemoveWidth + kGap);
+    columnLabel[4] = line.removeFromRight(kReadingWidth);
+    line.removeFromRight(kGap);
     columnLabel[3] = line;
   }
 
@@ -429,11 +515,15 @@ void MacroPanel::paint(juce::Graphics &g) {
   }
 
   // What each column is. Named as the parameters are named, so the panel and
-  // the host's own list say the same word about the same thing.
-  static const char *const names[] = {"Row", "Scope", "Curve", "Amount"};
+  // the host's own list say the same word about the same thing, and set the
+  // way every other caption in this window is set: upper case, nine point,
+  // bold, dim. A heading in a different hand from the ones over the mixer
+  // reads as belonging to a different program.
+  static const char *const names[] = {"ROW", "SCOPE", "CURVE", "AMOUNT",
+                                      "PERCENT"};
 
   g.setColour(colours::textDim);
-  g.setFont(makeFont(10.0f, false));
+  g.setFont(makeFont(9.0f, true));
 
   for (size_t i = 0; i < columnLabel.size(); ++i)
     g.drawText(names[i], columnLabel[i], juce::Justification::centred, false);
