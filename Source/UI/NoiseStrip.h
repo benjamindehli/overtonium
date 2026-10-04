@@ -94,7 +94,7 @@ public:
   /// any other channel, so it gets those two. It has no pitch, so the pitch
   /// rule stays a plain rule, which is the same thing the "no pitch" label
   /// above it is saying. See ChannelStrip::setActivity.
-  void setActivity(float envelope, float tremolo,
+  void setActivity(float envelope, float tremolo, float touch,
                    juce::Array<juce::Rectangle<int>> &into);
 
   /// Whether the pointer is on this channel, which is what lights the column.
@@ -136,7 +136,7 @@ private:
   juce::Label colourReadout;
   SegmentDisplay levelReadout{{}};
   LevelMeter meter;
-  ActivityLamp envLamp, keyOffLamp, tremoloLamp;
+  ActivityLamp envLamp, keyOffLamp, tremoloLamp, touchLamp;
 
   std::vector<std::unique_ptr<SliderAttachment>> sliderAttachments;
   std::unique_ptr<ButtonAttachment> muteAttachment, soloAttachment;

@@ -1152,14 +1152,15 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
               params::ampShapeNames()),
       muteButton(state, "M"), soloButton(state, "S"), meter(colour),
       pitchLamp(colour), envLamp(colour), keyOffLamp(colour),
-      tremoloLamp(colour) {
+      tremoloLamp(colour), touchLamp(colour) {
   // Deep listener, so a pointer resting on a knob is reported by the strip that
   // owns it rather than being swallowed by the control.
   addMouseListener(this, true);
 
   for (juce::Component *lamp :
        {(juce::Component *)&pitchLamp, (juce::Component *)&envLamp,
-        (juce::Component *)&keyOffLamp, (juce::Component *)&tremoloLamp})
+        (juce::Component *)&keyOffLamp, (juce::Component *)&tremoloLamp,
+        (juce::Component *)&touchLamp})
     addAndMakeVisible(*lamp);
 
   // The strip decides the pointer for everything on it, which is how the LINK
@@ -1792,20 +1793,9 @@ void ChannelStrip::paint(juce::Graphics &g) {
   if (rowShowsHighlight(highlighted) && !isHeadingRow(highlighted))
     paintRowHighlight(g, rows[rowIndex(highlighted)]);
 
-  // Section rules, aligned with the gutter headings. Four of the five carry a
-  // lamp, and those draw their own rule around it, so only the output divider
-  // is left for the strip to draw.
-  for (auto r : {Row::OutputHeading}) {
-    const auto row = rows[rowIndex(r)];
-    const auto y = row.getY() + row.getHeight() / 2;
-
-    // Scored, like the rules the lamps sit on. See ActivityLamp::paint.
-    g.setColour(colours::outline.withAlpha(0.7f));
-    g.fillRect(row.getX(), y, row.getWidth(), 1);
-
-    g.setColour(juce::Colours::white.withAlpha(0.055f));
-    g.fillRect(row.getX(), y + 1, row.getWidth(), 1);
-  }
+  // Section rules, aligned with the gutter headings. All five carry a lamp
+  // now, and a lamp draws the rule either side of itself, so the strip has
+  // none of them left to draw. See ActivityLamp::paint.
 }
 
 void ChannelStrip::paintHeaderBand(juce::Graphics &g) {
@@ -1948,6 +1938,7 @@ void ChannelStrip::resized() {
     envLamp.setBackdrop(place(envLamp, Row::EnvHeading));
     keyOffLamp.setBackdrop(place(keyOffLamp, Row::KeyOffHeading));
     tremoloLamp.setBackdrop(place(tremoloLamp, Row::AmpModHeading));
+    touchLamp.setBackdrop(place(touchLamp, Row::OutputHeading));
   }
 }
 
@@ -1972,6 +1963,7 @@ float ChannelStrip::needlePosition(float cents) {
 }
 
 void ChannelStrip::setActivity(float envelope, float tremolo, float pitch,
+                               float touch,
                                juce::Array<juce::Rectangle<int>> &into) {
   const auto refresh = [&into](juce::Component &lamp, bool moved) {
     if (moved)
@@ -1999,6 +1991,15 @@ void ChannelStrip::setActivity(float envelope, float tremolo, float pitch,
 
   refresh(pitchLamp,
           pitchLamp.push(level <= 0.0f ? kParked : needlePosition(pitch)));
+
+  // What the hand is worth on this partial, which is the two rows under this
+  // heading working together: the blow that started the note and the pressure
+  // on the key now. Already 0 to 1 by the time it arrives, so the lamp takes
+  // it as it comes.
+  //
+  // Gated on the envelope like the tremolo, so a lamp does not sit lit over a
+  // partial that has finished sounding.
+  refresh(touchLamp, touchLamp.push(level > 0.0f ? touch : 0.0f));
 }
 
 void ChannelStrip::mouseWheelMove(const juce::MouseEvent &e,

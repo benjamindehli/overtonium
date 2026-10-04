@@ -141,12 +141,23 @@ public:
     return partialPitches[(size_t)index0].load(std::memory_order_relaxed);
   }
 
+  /// How far velocity and aftertouch have moved this partial from its fader,
+  /// See Voice::getPartialTouches.
+  float getPartialTouch(int index0) const noexcept {
+    return partialTouches[(size_t)index0].load(std::memory_order_relaxed);
+  }
+
   float getNoiseEnvelope() const noexcept {
     return noiseEnvelope.load(std::memory_order_relaxed);
   }
 
   float getNoiseTremolo() const noexcept {
     return noiseTremolo.load(std::memory_order_relaxed);
+  }
+
+  /// See getPartialTouch. The noise channel's own.
+  float getNoiseTouch() const noexcept {
+    return noiseTouch.load(std::memory_order_relaxed);
   }
 
   /// Peak of the finished output per channel, after master gain and the
@@ -205,10 +216,12 @@ private:
     std::array<float, kNumHarmonics> envelopes{};
     std::array<float, kNumHarmonics> tremolos{};
     std::array<float, kNumHarmonics> pitches{};
+    std::array<float, kNumHarmonics> touches{};
 
     float noisePeak = 0.0f;
     float noiseEnvelope = 0.0f;
     float noiseTremolo = 0.0f;
+    float noiseTouch = 0.0f;
   };
 
   /// Sums every sounding voice into the buffers and takes the meter peaks.
@@ -323,9 +336,11 @@ private:
   std::array<std::atomic<float>, kNumHarmonics> partialEnvelopes{};
   std::array<std::atomic<float>, kNumHarmonics> partialTremolos{};
   std::array<std::atomic<float>, kNumHarmonics> partialPitches{};
+  std::array<std::atomic<float>, kNumHarmonics> partialTouches{};
   std::atomic<float> noiseLevel{0.0f};
   std::atomic<float> noiseEnvelope{0.0f};
   std::atomic<float> noiseTremolo{0.0f};
+  std::atomic<float> noiseTouch{0.0f};
   std::atomic<float> outputLevelL{0.0f};
   std::atomic<float> outputLevelR{0.0f};
 

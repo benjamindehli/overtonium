@@ -25,8 +25,8 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
               params::ampShapeNames()),
       muteButton(state, "M"), soloButton(state, "S"), meter(kNoiseColour),
       envLamp(kNoiseColour), keyOffLamp(kNoiseColour),
-      tremoloLamp(kNoiseColour) {
-  for (auto *lamp : {&envLamp, &keyOffLamp, &tremoloLamp})
+      tremoloLamp(kNoiseColour), touchLamp(kNoiseColour) {
+  for (auto *lamp : {&envLamp, &keyOffLamp, &tremoloLamp, &touchLamp})
     addAndMakeVisible(*lamp);
 
   addMouseListener(this, true);
@@ -383,9 +383,10 @@ void NoiseStrip::paint(juce::Graphics &g) {
   if (rowShowsHighlight(highlighted) && !isHeadingRow(highlighted))
     paintRowHighlight(g, rows[rowIndex(highlighted)]);
 
-  // The envelope, key-off and tremolo rules carry lamps and draw themselves.
+  // Every other section rule carries a lamp and draws itself. This strip has
+  // no pitch to modulate, so that one heading is left plain.
   g.setColour(colours::outline.withAlpha(0.7f));
-  for (auto r : {Row::PitchModHeading, Row::OutputHeading}) {
+  for (auto r : {Row::PitchModHeading}) {
     const auto row = rows[rowIndex(r)];
     g.fillRect(row.getX(), row.getY() + row.getHeight() / 2, row.getWidth(), 1);
   }
@@ -413,7 +414,7 @@ void NoiseStrip::updateLevelReadout() {
       (db >= 0.0f ? "" : "-") + juce::String(std::abs(db), 1), true);
 }
 
-void NoiseStrip::setActivity(float envelope, float tremolo,
+void NoiseStrip::setActivity(float envelope, float tremolo, float touch,
                              juce::Array<juce::Rectangle<int>> &into) {
   const auto refresh = [&into](juce::Component &lamp, bool moved) {
     if (moved)
@@ -426,6 +427,9 @@ void NoiseStrip::setActivity(float envelope, float tremolo,
   refresh(envLamp, envLamp.push(afterKeyOff ? 0.0f : level));
   refresh(keyOffLamp, keyOffLamp.push(afterKeyOff ? level : 0.0f));
   refresh(tremoloLamp, tremoloLamp.push(level > 0.0f ? tremolo : 0.0f));
+
+  // What the hand is worth on this channel. See ChannelStrip::setActivity.
+  refresh(touchLamp, touchLamp.push(level > 0.0f ? touch : 0.0f));
 }
 
 void NoiseStrip::paintHeaderBand(juce::Graphics &g) {
@@ -530,6 +534,7 @@ void NoiseStrip::resized() {
     place(envLamp, Row::EnvHeading);
     place(keyOffLamp, Row::KeyOffHeading);
     place(tremoloLamp, Row::AmpModHeading);
+    place(touchLamp, Row::OutputHeading);
   }
   volume.setBounds(faderRow.reduced(2, 1));
   levelReadout.setBounds(rows[rowIndex(Row::FaderText)]);

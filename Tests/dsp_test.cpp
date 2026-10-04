@@ -2236,6 +2236,133 @@ void testActivity() {
     check(reading > 0.5f,
           "the lamp follows the voice the meter follows, not the newest one");
   }
+
+  // ---- the touch lamp reports the rows, not the fader ---------------------
+  //
+  // The quantity is what the VELOCITY and AFTERTOUCH rows are worth at the
+  // controller values arriving, so a strip set to take neither reads zero
+  // however hard the note is played. That is the whole point of it: a lamp
+  // that lit on every note would say nothing about whether the hand reaches
+  // this channel.
+  //
+  // Measured against the rows rather than against the level, which is what
+  // keeps a quiet partial honest. Velocity taking all of a strip set to 0.1
+  // has taken the whole of that strip.
+  {
+    engine.allSoundOff();
+    p.osc[0].velAmount = 0.0f;
+    p.osc[0].atAmount = 0.0f;
+
+    engine.noteOn(60, 0.2f, p);
+    render(0.2);
+
+    check(engine.getPartialTouch(0) == 0.0f,
+          "a strip taking neither velocity nor pressure reads zero however "
+          "the note is played (" +
+              std::to_string(engine.getPartialTouch(0)) + ")");
+
+    // A soft blow on a strip that takes velocity is the hand deciding most of
+    // what that partial is worth.
+    engine.allSoundOff();
+    p.osc[0].velAmount = 1.0f;
+
+    engine.noteOn(60, 0.2f, p);
+    render(0.2);
+
+    const auto soft = engine.getPartialTouch(0);
+    std::printf("  a soft blow reads %.3f\n", soft);
+
+    check(soft > 0.7f,
+          "a soft blow on a strip that takes velocity reads high (" +
+              std::to_string(soft) + ")");
+
+    // And a hard one leaves the row with nothing to take, which is the end of
+    // the travel the row itself is built around.
+    engine.allSoundOff();
+    engine.noteOn(60, 1.0f, p);
+    render(0.2);
+
+    const auto hard = engine.getPartialTouch(0);
+    std::printf("  a hard blow reads %.3f\n", hard);
+
+    check(hard < 0.05f,
+          "and a hard one reads near nothing (" + std::to_string(hard) + ")");
+
+    // The fader has no say in it. The same blow on a strip set a tenth as
+    // loud has taken the same share of that strip.
+    engine.allSoundOff();
+    p.osc[0].volume = 0.05f;
+
+    engine.noteOn(60, 0.2f, p);
+    render(0.2);
+
+    const auto quiet = engine.getPartialTouch(0);
+    std::printf("  the same blow on a strip at 0.05 reads %.3f\n", quiet);
+
+    check(std::abs(quiet - soft) < 0.001f,
+          "and where the fader stands makes no difference to it (" +
+              std::to_string(quiet) + " against " + std::to_string(soft) + ")");
+
+    p.osc[0].volume = 0.5f;
+
+    // Pressure arrives while the note is held rather than at the start of it,
+    // which is the half a velocity-only reading would miss.
+    engine.allSoundOff();
+    p.osc[0].velAmount = 0.0f;
+    p.osc[0].atAmount = 0.5f;
+
+    engine.noteOn(60, 1.0f, p);
+    render(0.2);
+
+    const auto resting = engine.getPartialTouch(0);
+
+    engine.setPolyPressure(60, 1.0f);
+    for (int i = 0; i < 4; ++i)
+      render(0.2);
+
+    const auto pressed = engine.getPartialTouch(0);
+    std::printf("  pressure takes it from %.3f to %.3f\n", resting, pressed);
+
+    check(resting == 0.0f && pressed > 0.4f,
+          "leaning on the key lights it on its own (" +
+              std::to_string(pressed) + ")");
+
+    // A row set to push down counts as much as one set to push up. What the
+    // lamp has to say is how much of the partial the hand is deciding, not
+    // which way it took it.
+    engine.allSoundOff();
+    p.osc[0].atAmount = -0.5f;
+    p.osc[0].volume = 1.0f;
+
+    engine.noteOn(60, 1.0f, p);
+    render(0.2);
+    engine.setPolyPressure(60, 1.0f);
+
+    // Pressure is smoothed on its way in, so it is given the same time to
+    // arrive that the reading above was given.
+    for (int i = 0; i < 4; ++i)
+      render(0.2);
+
+    const auto pushedDown = engine.getPartialTouch(0);
+    std::printf("  the same amount pushing down reads %.3f\n", pushedDown);
+
+    check(std::abs(pushedDown - pressed) < 0.001f,
+          "and a row pushing down counts the same as one pushing up (" +
+              std::to_string(pushedDown) + ")");
+
+    // Nothing to say once the note has gone, the same as every other lamp.
+    engine.allSoundOff();
+    for (int i = 0; i < 8; ++i)
+      render(0.25);
+
+    check(engine.getPartialTouch(0) == 0.0f,
+          "and it has nothing to say over silence (" +
+              std::to_string(engine.getPartialTouch(0)) + ")");
+
+    p.osc[0].volume = 0.5f;
+    p.osc[0].velAmount = 0.0f;
+    p.osc[0].atAmount = 0.0f;
+  }
 }
 
 /// Notes that own a channel each, which is what an MPE controller sends.

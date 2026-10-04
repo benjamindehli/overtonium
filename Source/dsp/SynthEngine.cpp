@@ -505,6 +505,7 @@ void SynthEngine::sumChunk(float *left, float *right, int numFrames,
     const auto &envelopes = v.getPartialEnvelopes();
     const auto &tremolos = v.getPartialTremolos();
     const auto &pitches = v.getPartialPitches();
+    const auto &touches = v.getPartialTouches();
 
     for (size_t i = 0; i < peaks.size(); ++i) {
       if (peaks[i] <= into.peaks[i])
@@ -514,12 +515,14 @@ void SynthEngine::sumChunk(float *left, float *right, int numFrames,
       into.envelopes[i] = envelopes[i];
       into.tremolos[i] = tremolos[i];
       into.pitches[i] = pitches[i];
+      into.touches[i] = touches[i];
     }
 
     if (v.getNoisePeak() > into.noisePeak) {
       into.noisePeak = v.getNoisePeak();
       into.noiseEnvelope = v.getNoiseEnvelope();
       into.noiseTremolo = v.getNoiseTremolo();
+      into.noiseTouch = v.getNoiseTouch();
     }
   }
 }
@@ -530,11 +533,13 @@ void SynthEngine::publish(const Activity &a) noexcept {
     partialEnvelopes[i].store(a.envelopes[i], std::memory_order_relaxed);
     partialTremolos[i].store(a.tremolos[i], std::memory_order_relaxed);
     partialPitches[i].store(a.pitches[i], std::memory_order_relaxed);
+    partialTouches[i].store(a.touches[i], std::memory_order_relaxed);
   }
 
   noiseLevel.store(a.noisePeak, std::memory_order_relaxed);
   noiseEnvelope.store(a.noiseEnvelope, std::memory_order_relaxed);
   noiseTremolo.store(a.noiseTremolo, std::memory_order_relaxed);
+  noiseTouch.store(a.noiseTouch, std::memory_order_relaxed);
 }
 
 void SynthEngine::renderVoices(float *left, float *right, int numSamples,

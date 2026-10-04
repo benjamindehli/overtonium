@@ -1948,11 +1948,11 @@ void testActivityLamps(OvertoniumProcessor &p) {
     juce::Array<juce::Rectangle<int>> bands;
 
     // First call has everything to say, since the lamps start dark.
-    strip.setActivity(0.5f, 0.5f, 0.0f, bands);
+    strip.setActivity(0.5f, 0.5f, 0.0f, 0.0f, bands);
     const auto first = bands.size();
 
     bands.clearQuick();
-    strip.setActivity(0.5f, 0.5f, 0.0f, bands);
+    strip.setActivity(0.5f, 0.5f, 0.0f, 0.0f, bands);
 
     check(first > 0, "a lamp that lights asks to be repainted");
     check(bands.isEmpty(), "and the same values again ask for nothing (" +
@@ -1961,31 +1961,60 @@ void testActivityLamps(OvertoniumProcessor &p) {
     // A move too small to cross a step is a move nobody can see.
     bands.clearQuick();
     strip.setActivity(0.5f + 1.0f / (4.0f * ActivityLamp::kSteps), 0.5f, 0.0f,
-                      bands);
+                      0.0f, bands);
 
     check(bands.isEmpty(), "nor does a change smaller than one step");
 
     // A move of a whole step does.
     bands.clearQuick();
     strip.setActivity(0.5f + 1.5f / (float)ActivityLamp::kSteps, 0.5f, 0.0f,
-                      bands);
+                      0.0f, bands);
 
     check(!bands.isEmpty(), "a change of a whole step does");
 
     // ---- the two envelope lamps never both light --------------------------
     bands.clearQuick();
-    strip.setActivity(-0.8f, 0.0f, 0.0f, bands);
-    strip.setActivity(-0.8f, 0.0f, 0.0f, bands);
+    strip.setActivity(-0.8f, 0.0f, 0.0f, 0.0f, bands);
+    strip.setActivity(-0.8f, 0.0f, 0.0f, 0.0f, bands);
 
     // Reading the lamps back is not possible from here, so this is checked by
     // the shape of the request instead: flipping the sign has to move both
     // lamps, one out and one in, and nothing else.
     bands.clearQuick();
-    strip.setActivity(0.8f, 0.0f, 0.0f, bands);
+    strip.setActivity(0.8f, 0.0f, 0.0f, 0.0f, bands);
 
     check(bands.size() == 2,
           "flipping to the key-off half moves exactly two lamps, one out and "
           "one in (" +
+              std::to_string(bands.size()) + ")");
+
+    // ---- the output lamp is gated on the note like the rest ---------------
+    //
+    // It is the one lamp whose value keeps standing while a note dies away:
+    // the velocity is latched at the note-on and the pressure is whatever the
+    // key is under, so neither falls to nothing on its own. Fed straight
+    // through, it would be the one lamp left lit over silence.
+    bands.clearQuick();
+    strip.setActivity(0.0f, 0.0f, 0.0f, 0.0f, bands);
+
+    bands.clearQuick();
+    strip.setActivity(0.0f, 0.0f, 0.0f, 1.0f, bands);
+
+    check(bands.isEmpty(),
+          "a strip with nothing sounding keeps its output lamp dark however "
+          "hard the hand is on it (" +
+              std::to_string(bands.size()) + " bands)");
+
+    // And with a note under it, the same value is the one thing that moves.
+    bands.clearQuick();
+    strip.setActivity(0.8f, 0.0f, 0.0f, 0.0f, bands);
+
+    bands.clearQuick();
+    strip.setActivity(0.8f, 0.0f, 0.0f, 1.0f, bands);
+
+    check(bands.size() == 1,
+          "and with a note under it that same hand moves exactly the one "
+          "lamp (" +
               std::to_string(bands.size()) + ")");
   }
 }

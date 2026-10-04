@@ -1724,9 +1724,9 @@ void OvertoniumEditor::timerCallback() {
 
     // Kept apart from the meter bands, because the two want different
     // merges. See mergeIntoRows.
-    strip.setActivity(plugin().getPartialEnvelope(i),
-                      plugin().getPartialTremolo(i),
-                      plugin().getPartialPitch(i), stripLamps);
+    strip.setActivity(
+        plugin().getPartialEnvelope(i), plugin().getPartialTremolo(i),
+        plugin().getPartialPitch(i), plugin().getPartialTouch(i), stripLamps);
 
     for (const auto &band : stripLamps)
       lampRegions.add(content.getLocalArea(&strip, band));
@@ -1737,7 +1737,8 @@ void OvertoniumEditor::timerCallback() {
   add(noiseStrip, noiseStrip.setMeterLevel(plugin().getNoiseLevel()));
 
   noiseStrip.setActivity(plugin().getNoiseEnvelope(),
-                         plugin().getNoiseTremolo(), stripLamps);
+                         plugin().getNoiseTremolo(), plugin().getNoiseTouch(),
+                         stripLamps);
 
   for (const auto &band : stripLamps)
     lampRegions.add(content.getLocalArea(&noiseStrip, band));

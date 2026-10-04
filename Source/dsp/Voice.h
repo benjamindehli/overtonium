@@ -255,8 +255,30 @@ public:
     return partialPitches;
   }
 
+  /// How much the hand is reaching each partial, 0 to 1, which is the
+  /// VELOCITY and AFTERTOUCH rows and the playing together.
+  ///
+  /// Each row contributes what its amount is worth at the controller value
+  /// arriving, so a row set to nothing contributes nothing however hard the
+  /// note is played, and a row set to full contributes nothing while the
+  /// controller sits where the row leaves the partial alone. The two are
+  /// added, because the question is how much of this partial the hand is
+  /// deciding rather than which direction it took it.
+  ///
+  /// Measured against the rows rather than against the fader, which is the
+  /// difference that matters on a quiet strip: velocity taking all of a
+  /// partial set to 0.1 has taken the whole of it, and a reading in level
+  /// would call that a tenth of nothing and leave the lamp dark.
+  const std::array<float, kNumHarmonics> &getPartialTouches() const noexcept {
+    return partialTouches;
+  }
+
   float getNoiseEnvelope() const noexcept { return noiseEnvelope; }
   float getNoiseTremolo() const noexcept { return noiseTremolo; }
+
+  /// The same reading for the noise channel, which has a velocity and an
+  /// aftertouch amount of its own.
+  float getNoiseTouch() const noexcept { return noiseTouch; }
 
   /// Roughly how loud this voice was during the last render, for deciding
   /// which one it costs least to take away.
@@ -341,11 +363,13 @@ private:
   std::array<float, kNumHarmonics> partialEnvelopes{};
   std::array<float, kNumHarmonics> partialTremolos{};
   std::array<float, kNumHarmonics> partialPitches{};
+  std::array<float, kNumHarmonics> partialTouches{};
 
   Noise noise;
   float noisePeak = 0.0f;
   float noiseEnvelope = 0.0f;
   float noiseTremolo = 0.0f;
+  float noiseTouch = 0.0f;
   float lowpassCoef = 0.1f;
 
   double sampleRate = 44100.0;

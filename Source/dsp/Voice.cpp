@@ -121,6 +121,7 @@ void Voice::reset() noexcept {
   noisePeak = 0.0f;
   noiseEnvelope = 0.0f;
   noiseTremolo = 0.0f;
+  noiseTouch = 0.0f;
 
   active = false;
   released = false;
@@ -370,9 +371,11 @@ void Voice::render(float *left, float *right, int numSamples,
   partialEnvelopes.fill(0.0f);
   partialTremolos.fill(0.0f);
   partialPitches.fill(0.0f);
+  partialTouches.fill(0.0f);
   noisePeak = 0.0f;
   noiseEnvelope = 0.0f;
   noiseTremolo = 0.0f;
+  noiseTouch = 0.0f;
 
   const float pressureTarget =
       std::max(std::clamp(p.global.aftertouch, 0.0f, 1.0f), polyPressure);
@@ -576,7 +579,7 @@ void Voice::render(float *left, float *right, int numSamples,
           std::max(partialPeaks[(size_t)i], pt.env.getLevel() * gEnd);
 
       // The same again for the lamps: everything here was worked out above for
-      // the oscillator's own use, so this is three stores and a compare.
+      // the oscillator's own use, so this is four stores and a compare.
       //
       // The envelope carries its stage in its sign. Swell and release are the
       // two that run after the key is up, and they are the ones the second
@@ -593,6 +596,14 @@ void Voice::render(float *left, float *right, int numSamples,
       // is a lamp that is dark rather than one that is on and never moves.
       partialTremolos[(size_t)i] = 1.0f - amEnd;
       partialPitches[(size_t)i] = (float)(pmCents + driftCents);
+
+      // What the hand is worth on this partial. Both rows arrive here
+      // already, the velocity latched into velGain at the note-on and the
+      // pressure read this block, so this is an add and a clamp rather than
+      // any new work.
+      partialTouches[(size_t)i] = std::min(
+          1.0f, (1.0f - pt.velGain) +
+                    std::abs(std::clamp(op.atAmount, -1.0f, 1.0f) * pressure));
 
       if ((g <= 1.0e-7f && gEnd <= 1.0e-7f) || pt.env.isSilentlyHolding()) {
         // Inaudible right now: muted, faded out above Nyquist, fader at zero,
@@ -740,6 +751,9 @@ void Voice::renderNoise(float *left, float *right, int len,
 
     noiseEnvelope = afterKeyOff ? -noise.env.getLevel() : noise.env.getLevel();
     noiseTremolo = 1.0f - amEnd;
+    noiseTouch = std::min(
+        1.0f, (1.0f - noise.velGain) +
+                  std::abs(std::clamp(np.atAmount, -1.0f, 1.0f) * pressure));
   }
 
   if (g <= 1.0e-7f && gEnd <= 1.0e-7f) {
