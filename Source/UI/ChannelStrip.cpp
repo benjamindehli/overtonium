@@ -202,19 +202,163 @@ uint8_t segmentsFor(char c) {
 /// asks for one, and a character with no form here comes out blank rather
 /// than as the speck a plus would be.
 bool isNarrow(char c) { return c == '.' || c == '-'; }
+
+// ---- fourteen bars, for the displays that have to spell ---------------------
+//
+//      aaaaaaa
+//     f  h i j  b
+//     f   hij   b
+//      ggg   GGG
+//     e   mlk   c
+//     e  m l k  c
+//      ddddddd
+//
+// Seven bars cannot write a name. They manage digits and about five letters,
+// which is all the readouts on a channel ever have to say, but a preset is
+// called Glockenspiel or Wurli and there is no seven-bar W at all. Fourteen
+// is what the hardware that had to show words used, and it carries the whole
+// alphabet: the middle bar splits in two and four diagonals and two uprights
+// fill the cell.
+constexpr uint16_t kStA = 1 << 0, kStB = 1 << 1, kStC = 1 << 2, kStD = 1 << 3,
+                   kStE = 1 << 4, kStF = 1 << 5, kStG1 = 1 << 6, kStG2 = 1 << 7,
+                   kStH = 1 << 8, kStI = 1 << 9, kStJ = 1 << 10, kStK = 1 << 11,
+                   kStL = 1 << 12, kStM = 1 << 13;
+
+constexpr uint16_t kStG = kStG1 | kStG2;
+
+uint16_t starburstFor(char c) {
+  switch (c) {
+  case '0':
+    return kStA | kStB | kStC | kStD | kStE | kStF | kStJ | kStM;
+  case '1':
+    return kStB | kStC | kStJ;
+  case '2':
+    return kStA | kStB | kStG | kStE | kStD;
+  case '3':
+    return kStA | kStB | kStC | kStD | kStG2;
+  case '4':
+    return kStF | kStG | kStB | kStC;
+  case '5':
+    return kStA | kStF | kStG | kStC | kStD;
+  case '6':
+    return kStA | kStF | kStE | kStD | kStC | kStG;
+  case '7':
+    return kStA | kStB | kStC;
+  case '8':
+    return kStA | kStB | kStC | kStD | kStE | kStF | kStG;
+  case '9':
+    return kStA | kStB | kStC | kStD | kStF | kStG;
+
+  case 'A':
+    return kStA | kStB | kStC | kStE | kStF | kStG;
+  case 'B':
+    return kStA | kStB | kStC | kStD | kStG2 | kStI | kStL;
+  case 'C':
+    return kStA | kStD | kStE | kStF;
+  case 'D':
+    return kStA | kStB | kStC | kStD | kStI | kStL;
+  case 'E':
+    return kStA | kStD | kStE | kStF | kStG1;
+  case 'F':
+    return kStA | kStE | kStF | kStG1;
+  case 'G':
+    return kStA | kStC | kStD | kStE | kStF | kStG2;
+  case 'H':
+    return kStB | kStC | kStE | kStF | kStG;
+  case 'I':
+    return kStA | kStD | kStI | kStL;
+  case 'J':
+    return kStB | kStC | kStD | kStE;
+  case 'K':
+    return kStE | kStF | kStG1 | kStJ | kStK;
+  case 'L':
+    return kStD | kStE | kStF;
+  case 'M':
+    return kStB | kStC | kStE | kStF | kStH | kStJ;
+  case 'N':
+    return kStB | kStC | kStE | kStF | kStH | kStK;
+  case 'O':
+    return kStA | kStB | kStC | kStD | kStE | kStF;
+  case 'P':
+    return kStA | kStB | kStE | kStF | kStG;
+  case 'Q':
+    return kStA | kStB | kStC | kStD | kStE | kStF | kStK;
+  case 'R':
+    return kStA | kStB | kStE | kStF | kStG | kStK;
+  case 'S':
+    return kStA | kStC | kStD | kStF | kStG;
+  case 'T':
+    return kStA | kStI | kStL;
+  case 'U':
+    return kStB | kStC | kStD | kStE | kStF;
+  case 'V':
+    return kStE | kStF | kStJ | kStM;
+  case 'W':
+    return kStB | kStC | kStE | kStF | kStK | kStM;
+  case 'X':
+    return kStH | kStJ | kStK | kStM;
+  case 'Y':
+    return kStH | kStJ | kStL;
+  case 'Z':
+    return kStA | kStD | kStJ | kStM;
+
+  // The punctuation a preset name can carry. A saved name keeps everything a
+  // filename can hold, which is nearly everything, so these are the ones
+  // worth having rather than all of them: the hyphen alone is in three of the
+  // factory names and without it Lo-fi reads as LO FI.
+  case '-':
+    return kStG;
+  case '_':
+    return kStD;
+  case '=':
+    return kStG | kStD;
+  case '+':
+    return kStG | kStI | kStL;
+  case '\'':
+    return kStI;
+  case '(':
+    return kStJ | kStK;
+  case ')':
+    return kStH | kStM;
+  case '!':
+    return kStI | kStL;
+
+  // A space is a cell with nothing lit, which is a word break rather than a
+  // character that failed to draw. Both come out the same and that is right:
+  // a cell on a real display either has bars on or it does not, and a name
+  // with something unspellable in it shows a gap where a real one would.
+  case ' ':
+    return 0;
+
+  default:
+    return 0;
+  }
+}
 } // namespace
 
-bool SegmentDisplay::canDraw(char c) {
+bool SegmentDisplay::canDraw(char c, Bars bars) {
+  if (bars == Bars::Fourteen)
+    // A space has no bars lit and is still a character it can show, so the
+    // table's zero cannot be the answer on its own here.
+    return isNarrow(c) || c == ' ' ||
+           starburstFor((char)juce::CharacterFunctions::toUpperCase(c)) != 0;
+
   return isNarrow(c) || segmentsFor(c) != 0;
 }
 
-SegmentDisplay::SegmentDisplay(juce::String unit) : unitText(std::move(unit)) {}
+SegmentDisplay::SegmentDisplay(juce::String unit, Bars howMany)
+    : bars(howMany), unitText(std::move(unit)) {}
 
 void SegmentDisplay::setReading(const juce::String &digits, bool isActive) {
-  if (digits == reading && isActive == active)
+  // Upper case, because a display with no lower case form shows none. Done
+  // here rather than at every caller so that what getReading hands back is
+  // what the cells are actually showing.
+  const auto shown = bars == Bars::Fourteen ? digits.toUpperCase() : digits;
+
+  if (shown == reading && isActive == active)
     return;
 
-  reading = digits;
+  reading = shown;
   active = isActive;
   repaint();
 }
@@ -258,7 +402,7 @@ void SegmentDisplay::paintGlyph(juce::Graphics &g, juce::Rectangle<float> area,
     juce::Rectangle<float> r;
   };
 
-  const Bar bars[] = {
+  const Bar straight[] = {
       {kSegA, {t * 0.5f + gap, 0.0f, w - t - gap * 2.0f, t}},
       {kSegB, {w - t, t * 0.5f + gap, t, mid - gap * 1.5f}},
       {kSegC, {w - t, mid + t * 0.5f + gap * 0.5f, t, mid - gap * 1.5f}},
@@ -268,10 +412,98 @@ void SegmentDisplay::paintGlyph(juce::Graphics &g, juce::Rectangle<float> area,
       {kSegG, {t * 0.5f + gap, mid, w - t - gap * 2.0f, t}},
   };
 
-  for (const auto &bar : bars) {
+  for (const auto &bar : straight) {
     g.setColour((lit & bar.flag) != 0 ? on : off);
     g.fillRoundedRectangle(bar.r.translated(area.getX(), area.getY()),
                            t * 0.35f);
+  }
+}
+
+void SegmentDisplay::paintStarburst(juce::Graphics &g,
+                                    juce::Rectangle<float> area, char c,
+                                    juce::Colour on, juce::Colour off) const {
+  const auto lit = starburstFor(c);
+
+  // Thinner than a seven-bar cell's. Fourteen bars in the same box means four
+  // diagonals crossing the middle, and at the seven-bar weight they meet in a
+  // blot with no cell showing through.
+  const auto t = juce::jmax(1.0f, area.getHeight() * 0.095f);
+  const auto gap = t * 0.45f;
+  const auto w = area.getWidth();
+  const auto h = area.getHeight();
+  const auto mid = (h - t) * 0.5f;
+  const auto half = (w - t) * 0.5f;
+
+  // The uprights and the two halves of the middle, drawn as rectangles the
+  // way the seven-bar ones are.
+  struct Bar {
+    uint16_t flag;
+    juce::Rectangle<float> r;
+  };
+
+  const Bar straight[] = {
+      {kStA, {t * 0.5f + gap, 0.0f, w - t - gap * 2.0f, t}},
+      {kStB, {w - t, t * 0.5f + gap, t, mid - gap * 1.5f}},
+      {kStC, {w - t, mid + t * 0.5f + gap * 0.5f, t, mid - gap * 1.5f}},
+      {kStD, {t * 0.5f + gap, h - t, w - t - gap * 2.0f, t}},
+      {kStE, {0.0f, mid + t * 0.5f + gap * 0.5f, t, mid - gap * 1.5f}},
+      {kStF, {0.0f, t * 0.5f + gap, t, mid - gap * 1.5f}},
+      {kStG1, {t * 0.5f + gap, mid, half - t - gap * 1.5f, t}},
+      {kStG2, {half + t * 0.5f + gap * 0.5f, mid, half - t - gap * 1.5f, t}},
+      {kStI, {half, t * 0.5f + gap, t, mid - gap * 1.5f}},
+      {kStL, {half, mid + t * 0.5f + gap * 0.5f, t, mid - gap * 1.5f}},
+  };
+
+  for (const auto &bar : straight) {
+    g.setColour((lit & bar.flag) != 0 ? on : off);
+    g.fillRoundedRectangle(bar.r.translated(area.getX(), area.getY()),
+                           t * 0.35f);
+  }
+
+  // The four diagonals, which are strokes rather than rectangles. Each runs
+  // from a corner of the cell to the middle of it.
+  //
+  // Trimmed along its own direction rather than by the same amount in x and
+  // in y. A cell is half as wide as it is tall, so these are nowhere near
+  // forty-five degrees, and pulling both ends in by an equal step on each
+  // axis stopped them a third of the way short: X came out as four marks
+  // around a hole and V and W did not close at the bottom.
+  const auto cx = w * 0.5f;
+  const auto cy = h * 0.5f;
+  const auto corner = t * 0.9f;
+
+  const auto spoke = [&](juce::Point<float> from) {
+    const auto to = juce::Point<float>(cx, cy);
+    const auto along = to - from;
+    const auto len = std::sqrt(along.x * along.x + along.y * along.y);
+
+    if (len < 1.0e-3f)
+      return juce::Line<float>(from, to);
+
+    const auto step = along / len;
+
+    // Clear of the frame at the outer end and of the centre bars at the
+    // inner one, both measured in bar widths so they hold at any size.
+    return juce::Line<float>(from + step * (t * 0.3f), to - step * (t * 0.85f));
+  };
+
+  struct Slash {
+    uint16_t flag;
+    juce::Line<float> line;
+  };
+
+  const Slash slashes[] = {
+      {kStH, spoke({corner, corner})},
+      {kStJ, spoke({w - corner, corner})},
+      {kStK, spoke({w - corner, h - corner})},
+      {kStM, spoke({corner, h - corner})},
+  };
+
+  for (const auto &slash : slashes) {
+    g.setColour((lit & slash.flag) != 0 ? on : off);
+    g.drawLine({slash.line.getStart() + area.getPosition(),
+                slash.line.getEnd() + area.getPosition()},
+               t * 0.9f);
   }
 }
 
@@ -308,7 +540,12 @@ void SegmentDisplay::paint(juce::Graphics &g) {
   auto area = getLocalBounds().toFloat().reduced(1.0f);
 
   const auto on = active ? colours::accent : colours::textDim;
-  const auto off = on.withAlpha(hovered ? 0.20f : 0.12f);
+
+  // Fainter where there are fourteen bars to a cell. Twice the bars means
+  // twice the unlit ones, and at the seven-bar weight the dead segments add
+  // up to a grid the lit ones have to be picked out of.
+  const auto rest = bars == Bars::Fourteen ? 0.55f : 1.0f;
+  const auto off = on.withAlpha((hovered ? 0.20f : 0.12f) * rest);
   const auto lit = on.withAlpha(active ? 0.95f : 0.75f);
 
   // Set into the panel rather than laid on it. The margin this uses is the one
@@ -328,6 +565,8 @@ void SegmentDisplay::paint(juce::Graphics &g) {
 
   area = area.reduced(3.0f, 2.0f);
 
+  drawn = 0;
+
   if (reading.isEmpty())
     return;
 
@@ -338,6 +577,30 @@ void SegmentDisplay::paint(juce::Graphics &g) {
   for (auto c : reading)
     (isNarrow((char)c) ? points : cells) += 1;
 
+  // Every character takes a whole cell where there are fourteen bars. A sign
+  // riding on a narrow stripe is a thing a number does, and this one spells,
+  // so a hyphen is a letter's worth of room like anything else. Counting it
+  // as a stripe left the cells one short of the characters and dropped the
+  // last one: Lo-fi came out as LO-F.
+  if (bars == Bars::Fourteen) {
+    cells += points;
+    points = 0;
+  }
+
+  // A name longer than the display can spell legibly is cut rather than
+  // squeezed. Below about five pixels a fourteen-bar cell is four diagonals
+  // in a smudge, and a reading nobody can make out is worse than a short one.
+  if (bars == Bars::Fourteen) {
+    constexpr float kNarrowestCell = 5.0f;
+
+    const auto room = (int)(area.getWidth() / kNarrowestCell);
+
+    if (cells > room) {
+      cells = juce::jmax(1, room);
+      points = 0;
+    }
+  }
+
   if (cells < 1)
     return;
 
@@ -347,9 +610,15 @@ void SegmentDisplay::paint(juce::Graphics &g) {
 
   // A point costs about a third of a digit, which is what the extra term in
   // the denominator is buying.
+  // Wider than a seven-bar cell for its height, because there is more to fit
+  // across it: the two middle uprights and the four diagonals all live in the
+  // width, and at the narrower ratio they met in the middle as a blot.
+  const auto widest =
+      area.getHeight() * (bars == Bars::Fourteen ? 0.74f : 0.72f);
+
   const auto cellW = juce::jmin((area.getWidth() - unitW) /
                                     ((float)cells + 0.32f * (float)points),
-                                area.getHeight() * 0.72f);
+                                widest);
 
   const auto glyphW = cellW * 0.82f;
   const auto pointW = cellW * 0.32f;
@@ -369,8 +638,23 @@ void SegmentDisplay::paint(juce::Graphics &g) {
                juce::Justification::centredLeft, false);
   }
 
+  drawn = 0;
+
   for (int i = 0; i < reading.length(); ++i) {
     const auto c = (char)reading[i];
+
+    if (bars == Bars::Fourteen && drawn >= cells)
+      break;
+
+    if (bars == Bars::Fourteen) {
+      // Everything takes a whole cell here. A sign riding on a narrow stripe
+      // is a thing a number does, and this one is spelling.
+      paintStarburst(g, {x, digitArea.getY(), glyphW, digitArea.getHeight()}, c,
+                     lit, off);
+      x += cellW;
+      ++drawn;
+      continue;
+    }
 
     if (isNarrow(c)) {
       // Same weight as a segment. The point sits on the baseline the segments
@@ -387,12 +671,14 @@ void SegmentDisplay::paint(juce::Graphics &g) {
         g.fillRoundedRectangle(x, midY, pointW, t, t * 0.35f);
 
       x += pointW;
+      ++drawn;
       continue;
     }
 
     paintGlyph(g, {x, digitArea.getY(), glyphW, digitArea.getHeight()}, c, lit,
                off);
     x += cellW;
+    ++drawn;
   }
 }
 

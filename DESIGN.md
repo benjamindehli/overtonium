@@ -481,6 +481,14 @@ The risk in replacing a label with one of these is a reading the display has no 
 
 The noise channel's level reads the same way.
 
+**The preset name is a display too, with fourteen bars to a cell instead of seven.** Seven manage the digits and about five letters, which is everything a readout on a channel has to say, and a preset is called Glockenspiel. Fourteen is what the hardware that had to show words used: the middle bar splits in two and four diagonals and two uprights fill the cell, which carries the whole alphabet. The cells have no lower case, so the name is upper-cased on its way in and kept as it was given for saving.
+
+A name wider than the display can spell is cut rather than squeezed, because below about five pixels a cell is four diagonals in a smudge and a reading nobody can make out is worse than a short one. Nothing the instrument ships is cut: the longest is 2-bit Fuzz Organ at sixteen characters, and the display has room for twenty-five.
+
+Three things here came out of looking at a render rather than out of reasoning. The diagonals were trimmed by the same step in x and in y, which on a cell half as wide as it is tall left them a third short, so X was four marks around a hole and V did not close. A hyphen was counted as a sign riding between cells, the way the minus does on the seven-bar displays, which left the cells one short of the characters and took the last letter off Lo-fi. And the five had two of its bars wrong. The display reports how many cells it drew so a test can hold the second of those: counting marks in a picture cannot, a K having a wider gap down its own middle than there is between one cell and the next.
+
+S and 5 are the same shape, here and on every seven-bar display ever built. The test that holds the thirty-six characters apart names that pair rather than loosening the rule, since writing them apart would mean inventing a five no hardware has.
+
 ### Lamps on the rules
 
 The rules that divide a strip into groups carry a lamp each, showing what the group under them is doing to this partial right now. They cost no height, because the rule was already using that row to draw a line.

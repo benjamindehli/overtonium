@@ -165,13 +165,38 @@ private:
 class SegmentDisplay : public juce::Component,
                        public juce::SettableTooltipClient {
 public:
+  /// How many bars a cell has, which decides what it can say.
+  ///
+  /// Seven manages the digits and about five letters, which is everything a
+  /// readout on this panel has to report. Fourteen carries the alphabet, for
+  /// the one display that has to spell: a preset is called Glockenspiel.
+  enum class Bars { Seven, Fourteen };
+
   /// @param unit  drawn small beside the digits, or empty for none.
-  explicit SegmentDisplay(juce::String unit);
+  explicit SegmentDisplay(juce::String unit, Bars bars = Bars::Seven);
 
   /// @param digits  0 to 9, a decimal point, a leading + or -, and the
-  ///                 letters in segmentsFor. Anything else is drawn blank.
+  ///                 letters in segmentsFor. A fourteen-bar display takes the
+  ///                 whole alphabet as well, upper-casing as it goes, which is
+  ///                 what a display with no lower case does. Anything else is
+  ///                 drawn blank.
   /// @param active  false dims it, meaning nothing is being changed.
   void setReading(const juce::String &digits, bool active);
+
+  /// How many bars its cells have, which says what it is for: a seven-bar one
+  /// reports a number and a fourteen-bar one spells a name. Read back by the
+  /// tests, which hold each display's reading against what its own cells can
+  /// draw rather than against a single alphabet.
+  Bars howManyBars() const noexcept { return bars; }
+
+  /// How many of the reading's characters the last paint had room for.
+  ///
+  /// A name wider than the display is cut rather than squeezed, and a cell
+  /// count that is one short of the characters is what a dropped letter looks
+  /// like from here. Nothing else can see it: the cells are drawn, so the
+  /// only other way to ask is to count marks in a render, and a K has a wider
+  /// gap down its own middle than there is between one cell and the next.
+  int cellsDrawn() const noexcept { return drawn; }
 
   /// What it is showing, and whether it is showing it lit. Read back by the
   /// tests, which is the only way to check a component that is otherwise
@@ -189,7 +214,7 @@ public:
   /// Whether this character has a form to draw, either as a glyph or as one
   /// of the narrow cells. Anything else comes out as an unlit digit, so the
   /// tests hold every reading the panel can produce against this.
-  static bool canDraw(char);
+  static bool canDraw(char, Bars = Bars::Seven);
 
   std::function<void()> onClick;
 
@@ -212,6 +237,15 @@ private:
   /// Draws one character in the classic seven-bar arrangement.
   void paintGlyph(juce::Graphics &, juce::Rectangle<float>, char,
                   juce::Colour on, juce::Colour off) const;
+
+  /// The same, in fourteen.
+  void paintStarburst(juce::Graphics &, juce::Rectangle<float>, char,
+                      juce::Colour on, juce::Colour off) const;
+
+  const Bars bars;
+
+  /// Set by paint, read by cellsDrawn.
+  mutable int drawn = 0;
 
   juce::String reading, unitText;
   bool active = false;

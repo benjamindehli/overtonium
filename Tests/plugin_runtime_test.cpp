@@ -2109,18 +2109,22 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   };
   collect(*editor);
 
-  // Two on the bar and two on each of the thirty-two channels, plus the level
-  // on the noise strip, which never had a reading at all before.
-  check(displays.size() == 2 + 2 * ovt::kNumHarmonics + 1,
+  // Three on the bar, the two converter readouts and the preset name, and two
+  // on each of the thirty-two channels, plus the level on the noise strip.
+  check(displays.size() == 3 + 2 * ovt::kNumHarmonics + 1,
         "every readout is a segment display now (" +
             std::to_string(displays.size()) + ")");
 
   bool allDrawable = true;
   std::string firstBad;
 
+  // Against its own cells. The preset name is on a fourteen-bar display and
+  // spells words a seven-bar one has no forms for, which is the whole reason
+  // it is a different display.
   for (auto *d : displays)
     for (int i = 0; i < d->getReading().length(); ++i)
-      if (!SegmentDisplay::canDraw((char)d->getReading()[i])) {
+      if (!SegmentDisplay::canDraw((char)d->getReading()[i],
+                                   d->howManyBars())) {
         allDrawable = false;
         if (firstBad.empty())
           firstBad = d->getReading().toStdString();
@@ -2335,6 +2339,152 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
 ///
 /// Each strip works it out from where the pointer is rather than being told by
 /// the editor, so what is checked here is that the answer follows the pointer
+/// That the preset display can spell.
+///
+/// Seven bars manage five letters, which is all a readout on a channel has to
+/// say, and a preset is called Glockenspiel. The display that carries the
+/// name has fourteen, and three faults in it came out of looking at a render
+/// rather than out of reasoning: a hyphen counted as a sign rather than as a
+/// letter, so Lo-fi lost its last character; the five had two bars wrong; and
+/// the diagonals were trimmed along the wrong axis, so X was four marks
+/// around a hole. The first and the third are what this holds.
+void testThePresetDisplaySpells(OvertoniumProcessor &) {
+  section("The preset display spells");
+
+  using namespace ovt::ui;
+
+  // Every name the instrument ships, which is where an unspellable character
+  // would show up first.
+  const auto names = ovt::presets::names();
+
+  int unspellable = 0;
+  juce::String firstBad;
+
+  for (const auto &name : names)
+    for (int i = 0; i < name.length(); ++i)
+      if (!SegmentDisplay::canDraw((char)name[i],
+                                   SegmentDisplay::Bars::Fourteen)) {
+        ++unspellable;
+        if (firstBad.isEmpty())
+          firstBad = name;
+      }
+
+  check(unspellable == 0,
+        "every factory name has a form for all of its characters (" +
+            std::to_string(unspellable) + ", first in " +
+            firstBad.toStdString() + ")");
+
+  // ---- and shows all of it -------------------------------------------------
+  //
+  // Counted off a render, in runs of columns that have anything lit in them.
+  // The cells are drawn with a gap between them, so one run is one character,
+  // and a name that has lost its tail comes back one run short.
+  // ---- and shows all of it -------------------------------------------------
+  //
+  // Asked of the display rather than counted off a render. The cells are
+  // drawn whether they are lit or not, and a letter like K has a wider gap
+  // down its own middle than there is between one cell and the next, so marks
+  // in a picture do not divide into characters.
+  const auto cellsShown = [](const juce::String &reading) {
+    SegmentDisplay d({}, SegmentDisplay::Bars::Fourteen);
+
+    // The size the bar actually gives it. See TopBar::placeGroup.
+    d.setBounds(0, 0, 132, 24);
+    d.setReading(reading, true);
+
+    // Nothing has drawn it yet, and the count is what drawing it produced.
+    d.createComponentSnapshot(d.getLocalBounds());
+
+    return d.cellsDrawn();
+  };
+
+  check(cellsShown("Glockenspiel") == 12,
+        "a twelve-letter name shows every letter (" +
+            std::to_string(cellsShown("Glockenspiel")) + " of 12)");
+
+  // The one that caught the hyphen. Five characters, one of them a hyphen,
+  // which used to be counted as a sign riding between cells rather than as a
+  // cell of its own, taking the I off the end.
+  check(cellsShown("Lo-fi") == 5,
+        "and a hyphen takes a cell like any other character (" +
+            std::to_string(cellsShown("Lo-fi")) + " of 5)");
+
+  // The longest the instrument ships, which is the one that decides whether
+  // the width is enough.
+  check(cellsShown("2-bit Fuzz Organ") == 16,
+        "and the longest factory name fits (" +
+            std::to_string(cellsShown("2-bit Fuzz Organ")) + " of 16)");
+
+  // Past what it can spell legibly it cuts rather than squeezing, which is
+  // the one case where showing less is the right answer.
+  check(cellsShown(juce::String::repeatedString("W", 40)) < 40,
+        "and a name past what it can show legibly is cut (" +
+            std::to_string(cellsShown(juce::String::repeatedString("W", 40))) +
+            " of 40)");
+
+  // ---- every character is its own shape ------------------------------------
+  //
+  // A table of fourteen flags per character is a page of copy and paste, and
+  // the way it goes wrong is two characters ending up with the same bars. A
+  // render tells them apart whatever the table says.
+  // A bar that is on, as against the ground or one that is off. The cells are
+  // drawn whether they are lit or not, which is what makes them read as a
+  // display, so anything that merely differs from the ground is no use: the
+  // accent comes through at around 206 against the 25 of the ground and the
+  // 35 to 59 of an unlit bar.
+  const auto isLit = [](juce::Colour px) { return px.getBlue() > 120; };
+
+  const auto fingerprint = [&isLit](char c) {
+    SegmentDisplay d({}, SegmentDisplay::Bars::Fourteen);
+    d.setBounds(0, 0, 40, 40);
+    d.setReading(juce::String::charToString((juce::juce_wchar)c), true);
+
+    const auto shot = d.createComponentSnapshot(d.getLocalBounds());
+    juce::String bits;
+
+    for (int y = 0; y < shot.getHeight(); ++y)
+      for (int x = 0; x < shot.getWidth(); ++x)
+        bits += isLit(shot.getPixelAt(x, y)) ? '1' : '0';
+
+    return bits;
+  };
+
+  const juce::String alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+  std::map<juce::String, char> seen;
+  int collisions = 0;
+  juce::String pair;
+
+  for (int i = 0; i < alphabet.length(); ++i) {
+    const auto c = (char)alphabet[i];
+    const auto print = fingerprint(c);
+
+    if (const auto found = seen.find(print); found != seen.end()) {
+      // S and 5 are the same shape, on this display and on every seven-bar
+      // one ever built. Writing them apart would mean inventing a five that
+      // no hardware has, so the pair is allowed by name rather than the rule
+      // being loosened for everything.
+      const auto both =
+          juce::String::charToString((juce::juce_wchar)found->second) +
+          juce::String::charToString((juce::juce_wchar)c);
+
+      if (both == "S5" || both == "5S")
+        continue;
+
+      ++collisions;
+      if (pair.isEmpty())
+        pair = juce::String::charToString((juce::juce_wchar)found->second) +
+               " and " + juce::String::charToString((juce::juce_wchar)c);
+    } else {
+      seen[print] = c;
+    }
+  }
+
+  check(collisions == 0, "and no two of the thirty-six draw the same (" +
+                             std::to_string(collisions) + ", " +
+                             pair.toStdString() + ")");
+}
+
 /// That a silenced channel loses the light out of its controls and not the
 /// light out of its mute.
 ///
@@ -6904,8 +7054,12 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
       if (dynamic_cast<StereoOutputMeter *>(child) != nullptr)
         meterBounds = child->getBounds();
 
-      if (dynamic_cast<SegmentDisplay *>(child) != nullptr)
-        under.add(child->getBounds());
+      // The converter readouts, which count. The preset name is a display on
+      // this bar too and does not sit under the meter, and it is told apart
+      // by having the cells to spell with.
+      if (auto *d = dynamic_cast<SegmentDisplay *>(child))
+        if (d->howManyBars() == SegmentDisplay::Bars::Seven)
+          under.add(child->getBounds());
 
       if (auto *button = dynamic_cast<juce::TextButton *>(child))
         if (button->getButtonText() == TopBar::kClipName)
@@ -6959,9 +7113,12 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
 
     int named = 0;
 
+    // The two that have a unit to name. The preset display is the third on
+    // this bar and has none: a name is not measured in anything.
     for (auto *child : bar.getChildren())
-      if (dynamic_cast<SegmentDisplay *>(child) != nullptr)
-        named += SegmentDisplay::hasRoomForUnit(child->getWidth()) ? 1 : 0;
+      if (auto *d = dynamic_cast<SegmentDisplay *>(child))
+        if (d->howManyBars() == SegmentDisplay::Bars::Seven)
+          named += SegmentDisplay::hasRoomForUnit(child->getWidth()) ? 1 : 0;
 
     check(named == 2, "and both converter readouts can name their unit there");
   }
@@ -8944,6 +9101,7 @@ int main() {
   testChannelHover(processor);
   testMuteSoloGang(processor);
   testSilencedChannel(processor);
+  testThePresetDisplaySpells(processor);
   testFactoryCodeGenerator(processor);
   testBothPresetKindsCarryTheSame();
   testOversizedBlocks(processor);
