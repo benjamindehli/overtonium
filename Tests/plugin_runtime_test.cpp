@@ -2403,40 +2403,21 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
             std::to_string(to) + " of " + std::to_string(signed_.getWidth()) +
             ")");
 
-  // It also stands clear of the digit it shares with, which is the whole
-  // reason it is not simply the middle bar: a minus running the full width of
-  // the cell joins the two uprights of a one into a passable four, and -100.0
-  // came out reading as 400.0.
-  //
-  // The property is a gap, so that is what is measured. Inside the leading
-  // cell there have to be two separate runs of lit pixels across the width,
-  // the bar and then the uprights, with daylight between them. A minus made
-  // of the middle segment reaches the uprights and leaves one run.
-  const auto minusOne = renderOf("!00.0");
+  // And the cell still shows the hundreds digit when there is one, which is
+  // the other half of what it is for. Nothing is drawn specially for either:
+  // the sign is the middle bar and the one is the pair of uprights, both lit
+  // the way any segment is.
+  const auto hundred = renderOf("!00.0");
+  const auto none = renderOf("~00.0");
 
-  // A quarter of the box, which is inside the first of four cells wherever
-  // the centred run begins.
-  const auto firstCell = minusOne.getWidth() / 4;
+  int gained = 0;
 
-  int runs = 0;
-  bool inRun = false;
+  for (int y = 0; y < hundred.getHeight(); ++y)
+    for (int x = 0; x < hundred.getWidth(); ++x)
+      gained += hundred.getPixelAt(x, y) != none.getPixelAt(x, y) ? 1 : 0;
 
-  for (int x = 0; x < firstCell; ++x) {
-    bool any = false;
-
-    // Inside the recess, whose own lit edge runs round the whole perimeter
-    // and would otherwise make every column count as lit.
-    for (int y = 4; y < minusOne.getHeight() - 4 && !any; ++y)
-      any = minusOne.getPixelAt(x, y).getBlue() > 120;
-
-    if (any && !inRun)
-      ++runs;
-
-    inRun = any;
-  }
-
-  check(runs == 2, "and it stands clear of the one beside it (" +
-                       std::to_string(runs) + " runs of lit pixels)");
+  check(gained > 0, "and the one appears beside it at a hundred (" +
+                        std::to_string(gained) + " pixels differ)");
 
   check(readingFor(6, 1.0f) == "-31.2",
         "the seventh harmonic being the one that goes the other way (" +

@@ -194,15 +194,13 @@ uint8_t segmentsFor(char c) {
   //
   // Only the macro panel's amount asks for these. Nothing on a channel
   // changes sign.
-  // The digit's own bars only. The sign beside them is drawn by paintGlyph,
-  // because a minus made of the middle bar runs the full width of the cell
-  // and joins the two uprights into a passable four: -100.0 came out reading
-  // as 400.0. A real display keeps the sign clear of the digit, so this one
-  // does too.
+  // The sign is the middle bar, lit like any other segment, and the one
+  // beside it is the pair of uprights. Nothing is drawn specially for either:
+  // a cell shows the bars it has and these are two of them.
   case '~':
-    return 0;
+    return kSegG;
   case '!':
-    return kSegB | kSegC;
+    return kSegG | kSegB | kSegC;
 
   default:
     return 0;
@@ -221,9 +219,45 @@ uint8_t segmentsFor(char c) {
 /// than as the speck a plus would be.
 bool isNarrow(char c) { return c == '.' || c == '-'; }
 
-/// Whether this cell carries a minus of its own beside whatever digit it
-/// shows. See the '~' and '!' cases in segmentsFor.
-bool carriesSign(char c) { return c == '~' || c == '!'; }
+/// One segment, as an elongated hexagon with mitred ends.
+///
+/// This is the shape a real one is, and it is most of what makes a drawn
+/// display look drawn: a rounded rectangle has the same footprint but reads
+/// as a lozenge laid on a panel, where a mitred bar reads as one of a set cut
+/// from a single mask. The ends slope so that neighbouring segments point at
+/// each other across the small gap between them, which is what turns seven
+/// separate bars into a figure.
+juce::Path segmentShape(juce::Rectangle<float> r) {
+  const bool flat = r.getWidth() >= r.getHeight();
+  const auto thick = flat ? r.getHeight() : r.getWidth();
+  const auto along = flat ? r.getWidth() : r.getHeight();
+
+  // Never more than the bar can give. A half-middle on a narrow cell is
+  // barely longer than it is thick, and a full mitre on that leaves two
+  // triangles meeting at a point.
+  const auto nose = juce::jmin(thick * 0.5f, along * 0.42f);
+
+  juce::Path p;
+
+  if (flat) {
+    p.startNewSubPath(r.getX(), r.getCentreY());
+    p.lineTo(r.getX() + nose, r.getY());
+    p.lineTo(r.getRight() - nose, r.getY());
+    p.lineTo(r.getRight(), r.getCentreY());
+    p.lineTo(r.getRight() - nose, r.getBottom());
+    p.lineTo(r.getX() + nose, r.getBottom());
+  } else {
+    p.startNewSubPath(r.getCentreX(), r.getY());
+    p.lineTo(r.getRight(), r.getY() + nose);
+    p.lineTo(r.getRight(), r.getBottom() - nose);
+    p.lineTo(r.getCentreX(), r.getBottom());
+    p.lineTo(r.getX(), r.getBottom() - nose);
+    p.lineTo(r.getX(), r.getY() + nose);
+  }
+
+  p.closeSubPath();
+  return p;
+}
 
 // ---- fourteen bars, for the displays that have to spell ---------------------
 //
@@ -359,9 +393,6 @@ uint16_t starburstFor(char c) {
 } // namespace
 
 bool SegmentDisplay::canDraw(char c, Bars bars) {
-  if (carriesSign(c))
-    return bars == Bars::Seven;
-
   if (bars == Bars::Fourteen)
     // A space has no bars lit and is still a character it can show, so the
     // table's zero cannot be the answer on its own here.
@@ -482,31 +513,15 @@ void SegmentDisplay::paintGlyph(juce::Graphics &g, juce::Rectangle<float> area,
   };
 
   for (const auto &bar : straight) {
-    g.setColour((lit & bar.flag) != 0 ? on : off);
-    g.fillRoundedRectangle(bar.r.translated(area.getX(), area.getY()),
-                           t * 0.35f);
-  }
+    const bool isLit = (lit & bar.flag) != 0;
+    const auto shape = segmentShape(bar.r.translated(area.getX(), area.getY()));
 
-  // The sign, on the left of the cell and well short of the uprights, so it
-  // reads as a minus standing beside a digit rather than as one more bar of
-  // it. Drawn rather than left to the middle segment for that reason alone.
-  if (carriesSign(c)) {
-    g.setColour(on);
-    // Centred in the room it has, which is the whole cell when there is no
-    // digit sharing it and everything left of the uprights when there is.
-    //
-    // A real half-digit keeps its sign in one place and lets it sit left of
-    // centre, which is what this did. On a cell that is empty the rest of
-    // the time that reads as a mark that has slipped, and the one reading
-    // that uses this shows a bare minus far more often than it shows a
-    // hundred. The two positions differ by less than two pixels and the only
-    // value where the cell changes between them is the end of the range,
-    // where it gains a whole digit anyway.
-    const auto bar = (w - t) * 0.58f;
-    const auto room = c == '!' ? w - t : w;
-
-    g.fillRoundedRectangle(area.getX() + (room - bar) * 0.5f, area.getY() + mid,
-                           bar, t, t * 0.35f);
+    // No bloom around a lit segment, though a real one has it. A bar here is
+    // about three pixels thick, so any spill worth seeing is wider than the
+    // bar it comes from: what it reads as is blur, and a blurred figure is
+    // further from a real display than a crisp one is.
+    g.setColour(isLit ? on : off);
+    g.fillPath(shape);
   }
 }
 
@@ -558,9 +573,15 @@ void SegmentDisplay::paintStarburst(juce::Graphics &g,
   };
 
   for (const auto &bar : straight) {
-    g.setColour((lit & bar.flag) != 0 ? on : off);
-    g.fillRoundedRectangle(bar.r.translated(area.getX(), area.getY()),
-                           t * 0.35f);
+    const bool isLit = (lit & bar.flag) != 0;
+    const auto shape = segmentShape(bar.r.translated(area.getX(), area.getY()));
+
+    // No bloom around a lit segment, though a real one has it. A bar here is
+    // about three pixels thick, so any spill worth seeing is wider than the
+    // bar it comes from: what it reads as is blur, and a blurred figure is
+    // further from a real display than a crisp one is.
+    g.setColour(isLit ? on : off);
+    g.fillPath(shape);
   }
 
   // The four diagonals, which are strokes rather than rectangles. Each runs
@@ -603,10 +624,12 @@ void SegmentDisplay::paintStarburst(juce::Graphics &g,
   };
 
   for (const auto &slash : slashes) {
-    g.setColour((lit & slash.flag) != 0 ? on : off);
-    g.drawLine({slash.line.getStart() + area.getPosition(),
-                slash.line.getEnd() + area.getPosition()},
-               t * 0.9f);
+    const bool isLit = (lit & slash.flag) != 0;
+    const juce::Line<float> at{slash.line.getStart() + area.getPosition(),
+                               slash.line.getEnd() + area.getPosition()};
+
+    g.setColour(isLit ? on : off);
+    g.drawLine(at, t * 0.9f);
   }
 }
 
