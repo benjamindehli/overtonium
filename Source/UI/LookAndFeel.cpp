@@ -555,11 +555,15 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   }
 
   // ---- the cap --------------------------------------------------------------
-  // A machined disc, not a dome. A strong radial gradient with a specular bloom
-  // reads as a ball bearing, which is not what the top of a control looks like.
-  // The face is nearly flat and the roundness lives entirely in the rim, which
-  // catches the light along its upper edge and falls into shadow underneath.
-  const auto bodyR = radius * 0.60f;
+  // A skirted disc of the kind a large-format desk has: a flat dark face with
+  // a fluted collar poking out from under it, and one wide stripe running
+  // from the middle of the face out across the collar.
+  //
+  // Flat, not domed. A strong radial gradient with a specular bloom reads as
+  // a ball bearing, which is not what the top of a control looks like. What
+  // little roundness there is lives in the rim and in the shadow the cap
+  // throws onto the panel.
+  const auto bodyR = radius * 0.68f;
   const juce::Rectangle<float> body(centre.x - bodyR, centre.y - bodyR,
                                     bodyR * 2.0f, bodyR * 2.0f);
 
@@ -572,39 +576,151 @@ void OvertoniumLookAndFeel::drawRotarySlider(
     g.fillEllipse(cast.expanded((float)i * bodyR * 0.07f));
   }
 
+  // ---- the collar -----------------------------------------------------------
+  // A continuous ring with narrow slots cut into it, which is what the
+  // reference has: wide flutes with thin gaps between them, not teeth with
+  // daylight between them. Drawn as the ring first and the slots over it, so
+  // that the flutes are what is left rather than what is added and the ring
+  // can take one gradient for the whole of its lighting.
+  const auto rimOut = bodyR;
+  const auto rimIn = rimOut * 0.82f;
+
+  // The wash runs from the upper left to the lower right, which is where the
+  // light on this panel comes from. A linear gradient across a band two
+  // pixels deep is indistinguishable from shading it by angle, and it is one
+  // fill rather than one per segment on six hundred knobs.
+  // Lighter than the face it rings, or the band and the face are one tone
+  // and the collar is two pixels of nothing. What tells them apart is that
+  // the collar is a turned edge catching the light and the face is flat.
+  const auto litSide = colours::panelAlt.brighter(0.78f);
+  const auto darkSide = colours::panelAlt.darker(0.30f);
+
   g.setGradientFill(juce::ColourGradient(
-      colours::panelAlt.brighter(0.16f), centre.x, body.getY(),
-      colours::panelAlt.darker(0.34f), centre.x, body.getBottom(), false));
+      litSide.withMultipliedAlpha(dim), centre.x - rimOut * 0.7f,
+      centre.y - rimOut * 0.7f, darkSide.withMultipliedAlpha(dim),
+      centre.x + rimOut * 0.7f, centre.y + rimOut * 0.7f, false));
   g.fillEllipse(body);
 
-  // The rim is the only part that is meant to look curved.
+  // Eight, as the reference has, whatever size the knob is drawn at. Sized
+  // off the radius this ran to sixteen on a bar knob, and at that pitch the
+  // slots are a pixel apart, they alias into a shimmer as they turn, and no
+  // single one of them can be followed round, which is exactly what the eye
+  // needs in order to see the knob turning at all. Eight is also wide enough
+  // apart that the flute between two of them is a face rather than a tooth.
+  constexpr int flutes = 8;
+
+  for (int i = 0; i < flutes; ++i) {
+    // Turned with the knob, which is the whole of what makes it look like a
+    // knob turning rather than a stripe sliding round a disc that never
+    // moves. The slots sat at fixed angles and only the stripe travelled, so
+    // the cap read as a dial face with a hand on it.
+    //
+    // What sells it is that the lighting does not turn: the wash above stays
+    // put while the slots move through it, so each flute darkens and lightens
+    // as it comes round. A texture moving against a fixed light is what a
+    // turning surface looks like.
+    //
+    // The first slot is at the stripe's own angle, so the stripe crosses the
+    // collar in the gap between two flutes rather than over the top of one.
+    const auto a =
+        angle + juce::MathConstants<float>::twoPi * (float)i / (float)flutes;
+
+    const auto sinF = std::sin(a);
+    const auto cosF = std::cos(a);
+
+    g.setColour(juce::Colours::black.withAlpha(0.8f * dim));
+    // Shallower than the collar is deep, so a ring of it survives unbroken
+    // between the slots and the face plate. Cut all the way in and the
+    // flutes are separate teeth with the face showing between them, which is
+    // a gear rather than a knurled edge.
+    const auto slotIn = rimIn + (rimOut - rimIn) * 0.38f;
+
+    g.drawLine({centre.x + slotIn * sinF, centre.y - slotIn * cosF,
+                centre.x + (rimOut + 0.3f) * sinF,
+                centre.y - (rimOut + 0.3f) * cosF},
+               juce::jmax(1.0f, rimOut * 0.13f));
+  }
+
+  // ---- the face -------------------------------------------------------------
+  // Most of the knob. The collar is a band around the edge rather than a
+  // third of the cap, which is the proportion the reference has and what
+  // makes the thing read as a disc with a grip round it instead of as a gear.
+  const juce::Rectangle<float> face =
+      body.withSizeKeepingCentre(rimIn * 2.0f, rimIn * 2.0f);
+
   g.setGradientFill(juce::ColourGradient(
-      juce::Colours::white.withAlpha(0.28f * dim), centre.x, body.getY(),
-      juce::Colours::black.withAlpha(0.45f * dim), centre.x, body.getBottom(),
-      false));
-  g.drawEllipse(body.reduced(0.6f), 1.2f);
+      colours::panelAlt.brighter(0.10f), centre.x, face.getY(),
+      colours::panelAlt.darker(0.30f), centre.x, face.getBottom(), false));
+  g.fillEllipse(face);
 
-  // ---- the pointer ----------------------------------------------------------
-  // In the control's own colour rather than white, so it belongs to the knob
-  // and lines up with the lit ticks beyond the rim instead of sitting on the
-  // cap like something stuck there. Seated in a dark groove so it reads as
-  // inlaid into the face.
-  const auto sinA = std::sin(angle);
-  const auto cosA = std::cos(angle);
-  const auto inner = bodyR * 0.26f;
-  const auto outer = bodyR * 0.84f;
-  const auto weight = juce::jmax(1.8f, radius * 0.12f);
+  // What separates the face from the collar around it. A line along the
+  // underside rather than a ring all the way round, because a full ring on a
+  // flat face reads as an outline drawn on it.
+  //
+  // On the lower right, which is the mirror of where the reference has it.
+  // That photograph is lit from the upper right and this panel is lit from
+  // the upper left, and every shadow on it already falls the other way: the
+  // cast shadow under this very cap is offset down and to the right. One rim
+  // catching the light from the other side would be the only thing in the
+  // window disagreeing about where the light is.
+  //
+  // Measured clockwise from twelve, so this runs from three o'clock round
+  // past six and a little beyond.
+  juce::Path underside;
+  underside.addCentredArc(centre.x, centre.y, rimIn - 0.4f, rimIn - 0.4f, 0.0f,
+                          1.1f, 3.5f, true);
 
-  const auto x1 = centre.x + inner * sinA;
-  const auto y1 = centre.y - inner * cosA;
-  const auto x2 = centre.x + outer * sinA;
-  const auto y2 = centre.y - outer * cosA;
+  g.setColour(juce::Colours::black.withAlpha(0.45f * dim));
+  g.strokePath(underside, juce::PathStrokeType(1.1f));
 
-  g.setColour(juce::Colours::black.withAlpha(0.55f * dim));
-  g.drawLine(x1, y1 + 0.9f, x2, y2 + 0.9f, weight);
+  juce::Path topside;
+  topside.addCentredArc(centre.x, centre.y, rimIn - 0.4f, rimIn - 0.4f, 0.0f,
+                        -2.1f, 0.6f, true);
 
-  g.setColour(fill.brighter(0.25f).withMultipliedAlpha(dim));
-  g.drawLine(x1, y1, x2, y2, weight);
+  g.setColour(juce::Colours::white.withAlpha(0.14f * dim));
+  g.strokePath(topside, juce::PathStrokeType(1.0f));
+
+  // ---- the stripe -----------------------------------------------------------
+  // One wide mark from the middle of the face out across the collar, in the
+  // control's own colour rather than white, so it belongs to the knob and
+  // lines up with the lit ticks beyond it instead of sitting on the cap like
+  // something stuck there.
+  //
+  // A rectangle rather than a stroked line, so both ends are square. A line
+  // with round caps puts a dome at the centre of the face, which is where the
+  // eye is least willing to forgive one.
+  const auto weight = juce::jmax(2.0f, radius * 0.15f);
+
+  const auto mark = [&](float from, float to, juce::Colour colour) {
+    juce::Path bar;
+    bar.addRectangle(-weight * 0.5f, -to, weight, to - from);
+    bar.applyTransform(
+        juce::AffineTransform::rotation(angle).translated(centre.x, centre.y));
+
+    g.setColour(colour);
+    g.fillPath(bar);
+  };
+
+  const auto head = fill.brighter(0.25f).withMultipliedAlpha(dim);
+
+  mark(0.0f, rimIn, head);
+
+  // It stops in the slot rather than running out to the edge of the collar,
+  // so the two flutes either side of it stand a little proud of its tip. That
+  // is what the reference does, and it is the difference between a mark let
+  // into the knob and one laid across the top of it.
+
+  // The part crossing the collar is a step down from the face, so it takes
+  // the collar's light rather than the face's: bright where the stripe is
+  // pointing into the light and dark where it is pointing away from it. That
+  // is the one place on the knob where the stripe and the lighting have to
+  // agree, and it is what stops the mark reading as painted across the top of
+  // the flutes rather than let into the gap between two of them.
+  const auto into =
+      0.5f - 0.5f * (std::cos(angle) * 0.72f - std::sin(angle) * 0.69f);
+
+  mark(rimIn, rimIn + (rimOut - rimIn) * 0.55f,
+       head.interpolatedWith(head.darker(0.38f), into));
 }
 
 void OvertoniumLookAndFeel::drawLinearSlider(
