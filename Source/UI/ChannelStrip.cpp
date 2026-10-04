@@ -1781,20 +1781,10 @@ void ChannelStrip::setLinkGlow(Role role, float amount, bool accent) {
   }
 }
 
-juce::Colour ChannelStrip::backdropBase() const {
-  // Octaves stand a shade brighter, which is the same shade the noise channel
-  // stands at. It used to be a wash of the channel's own blue, and that was
-  // one more colour in a mixer that has plenty: the point of marking the
-  // octaves is where they are, not what they are, and a change of level says
-  // that without adding a hue.
-  return info.pitchClass == 0 ? colours::channel.brighter(0.03f)
-                              : colours::channel;
-}
-
 void ChannelStrip::paint(juce::Graphics &g) {
   auto bounds = getLocalBounds();
 
-  paintChannelBackground(g, bounds, backdropBase());
+  paintChannelBackground(g, bounds, colours::channel);
 
   const auto rows =
       layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed, scroll);
@@ -1824,7 +1814,7 @@ void ChannelStrip::paintHeaderBand(juce::Graphics &g) {
   // whole strip and clipped to the cap, rather than worked out again for a
   // smaller rectangle, so the two cannot come adrift.
   const auto bounds = getLocalBounds();
-  paintChannelBackground(g, bounds, backdropBase());
+  paintChannelBackground(g, bounds, colours::channel);
 
   const auto rows =
       layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed, scroll);
@@ -1896,10 +1886,9 @@ void ChannelStrip::resized() {
   meter.setBounds(faderRow.reduced(2, 1));
 
   // The strip's background is a gradient down the whole channel, so the meter
-  // is told the two colours at its own edges. Both take their base from
-  // backdropBase, so an octave's shade cannot come adrift from the rest of it.
+  // is told the two colours at its own edges.
   {
-    const auto base = backdropBase();
+    const auto base = colours::channel;
     const auto top = base.brighter(0.10f);
     const auto bottom = base.darker(0.06f);
 
@@ -1937,7 +1926,7 @@ void ChannelStrip::resized() {
   // at the head of the group it reports on. No row grew to make space for
   // them: the rule was already occupying that height to draw a single line.
   {
-    const auto base = backdropBase();
+    const auto base = colours::channel;
     const auto top = base.brighter(0.10f);
     const auto bottom = base.darker(0.06f);
 

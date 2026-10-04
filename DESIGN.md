@@ -220,7 +220,9 @@ The band is deliberately narrow, a crop from the middle of a full blue to yellow
 
 Every channel stands on the same grey. Alternating two shades to tell one strip from the next would put a stripe behind every knob's interval colour, behind the lit meters, the lamps and the readouts, competing with all of it. The strips are told apart by their own lit and shadowed edges instead, a one pixel groove at every boundary, which is how a console does it.
 
-There are two greys in the mixer and no third. Most channels stand on the darker one. The octaves stand a shade up from it, so the shape of the series is readable when you are scrolled out at harmonic 28, and the noise channel stands at that same shade, since it is also worth telling apart from the run of the series. What marking an octave has to say is where it is, not what it is, so it is a change of level rather than a hue: a wash of the channel's own blue would be one more colour in a window that has plenty.
+Every partial stands on the same grey, and only the noise channel stands a shade up from it, since it is the one strip that is not a partial at all.
+
+The octaves used to take that lighter shade too, to make the shape of the series readable when you are scrolled out at harmonic 28. It had to go, because the hover highlight is also a wash across a strip and of much the same weight, so a mixer with both on it has two kinds of lightened channel and no way to tell which is which without counting. The colour bar at the head of every strip already says which interval it is, the octaves included, and it says it at a glance and in a language nothing else on the panel uses. One signal doing that job is enough.
 
 **Every switch on the panel is a lamp behind a square plastic cap**, the way the buttons on an old mixer or tape machine are. ECHO, REVERB, the character button, the tool, the two on the bar that open something, and the M and S on all thirty-three channels. The cap sits in a moulded well with a dark edge outside it and a light one inside, which is what says "carved" at a size too small to model properly.
 
