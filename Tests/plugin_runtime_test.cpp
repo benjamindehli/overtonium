@@ -248,7 +248,14 @@ void testParameterWiring(OvertoniumProcessor &p) {
   // The fourth is whether the output stage may look ahead, which is a session
   // setting rather than part of a patch and is the only parameter here that
   // changes what the plugin reports to the host. See params::lookaheadId.
-  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4;
+  //
+  // And six each for the macros, which are a pool rather than a count: an
+  // amount, which is the one a host draws, the row it reaches, the channels
+  // of it, how it is shared out, which channel a taper leans on, and the
+  // colour it wears. A macro nobody has made points its row at None. See
+  // params::kNumMacros.
+  const int expected =
+      ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + ovt::params::kNumMacros * 6;
 
   // The behaviour that was there before it became a choice. Asked of the
   // parameter rather than of the tree, so the answer does not depend on what
@@ -869,7 +876,439 @@ void testMidiLearnBindsControllers(OvertoniumProcessor &p) {
     p.midiLearn.arm(nullptr);
   }
 
+  // ---- including the macro amounts ---------------------------------------
+  //
+  // The amount is what a host automates, so it is the one worth binding to a
+  // controller. It lives on the macro panel rather than on a strip, which
+  // means it is reachable at all only if that panel is in the window and its
+  // fader carries the same tag every other control does.
+  {
+    std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+    auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+    if (editor != nullptr) {
+      auto *amount =
+          ovt::ui::learn::controlFor(*editor, ovt::params::macroAmountId(0));
+
+      check(amount != nullptr,
+            "a macro's amount can be found by the parameter it moves");
+
+      auto *q = dynamic_cast<juce::RangedAudioParameter *>(
+          p.apvts.getParameter(ovt::params::macroAmountId(0)));
+
+      if (amount != nullptr && q != nullptr) {
+        p.midiLearn.forget(q);
+        p.midiLearn.arm(q);
+
+        juce::MidiBuffer midi;
+        midi.addEvent(juce::MidiMessage::controllerEvent(1, 23, 64), 0);
+        renderBlocks(p, 2, 256, midi);
+
+        check(p.midiLearn.controllerFor(q) == 23,
+              "and a controller binds to it (" +
+                  std::to_string(p.midiLearn.controllerFor(q)) + ")");
+
+        midi.clear();
+        midi.addEvent(juce::MidiMessage::controllerEvent(1, 23, 127), 0);
+        renderBlocks(p, 2, 256, midi);
+
+        check(q->getValue() > 0.9f,
+              "and moves it (" + std::to_string(q->getValue()) + ")");
+
+        p.midiLearn.forget(q);
+        q->setValueNotifyingHost(q->convertTo0to1(0.0f));
+      }
+    }
+  }
+
   p.midiLearn.clear();
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
+/// That one automatable parameter moves a whole row, which is what issue #24
+/// asked for: a LINK drag across TUNE moves 32 parameters and a host catches
+/// only the last touched, so a relationship you can edit cannot be automated.
+///
+/// Read off the snapshot rather than off the sound, because what a macro does
+/// is offset what the patch says on the way to the engine. The sound follows
+/// from that and is a much blunter instrument for telling 32 channels apart.
+void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
+  section("Macros");
+
+  p.applyFactoryPreset(presetIndex("Init"));
+  p.prepareToPlay(48000.0, 256);
+
+  const auto set = [&p](const juce::String &id, float plain) {
+    if (auto *q = p.apvts.getParameter(id))
+      q->setValueNotifyingHost(q->convertTo0to1(plain));
+  };
+
+  const auto snapshot = [&p] {
+    ovt::SynthParams out;
+    p.parameters().snapshot(out, 0.0f);
+    return out;
+  };
+
+  // The row the issue names, and the one a macro is most wanted on. One
+  // rather than zero: the list opens with None, which is an unmade macro.
+  const int tuneRow = 1;
+
+  const auto resting = snapshot();
+
+  // What the parameters say before anything is asked of them, so that
+  // "the macro wrote nothing" is measured against the patch rather than
+  // against zero.
+  std::vector<float> before;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    before.push_back(
+        p.apvts
+            .getParameter(ovt::params::oscParamId(ovt::params::tuneSuffix, i))
+            ->getValue());
+
+  set(ovt::params::macroRowId(0), (float)tuneRow);
+  set(ovt::params::macroScopeId(0), 0.0f);
+  set(ovt::params::macroCurveId(0), 0.0f);
+
+  // Downward, because Init leaves TUNE at the top of its range: pushing up
+  // would clamp on every channel and the test would read "nothing moved"
+  // while the macro was working perfectly.
+  set(ovt::params::macroAmountId(0), -0.25f);
+
+  const auto moved = snapshot();
+
+  int shifted = 0;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    if (std::abs(moved.osc[(size_t)i].tuneBlend -
+                 resting.osc[(size_t)i].tuneBlend) > 1.0e-5f)
+      ++shifted;
+
+  check(shifted == ovt::kNumHarmonics, "one macro moves the whole row (" +
+                                           std::to_string(shifted) +
+                                           " of 32 channels)");
+
+  // The thing that makes it a macro rather than a drag: the parameters it
+  // offsets have not moved, so the patch is exactly where it was and the host
+  // has one lane rather than thirty-two.
+  int written = 0;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i) {
+    auto *q = p.apvts.getParameter(
+        ovt::params::oscParamId(ovt::params::tuneSuffix, i));
+
+    if (q != nullptr && std::abs(q->getValue() - before[(size_t)i]) > 1.0e-6f)
+      ++written;
+  }
+
+  check(written == 0, "and writes none of the parameters it moves (" +
+                          std::to_string(written) + " written)");
+
+  // ---- the scope decides who it reaches ----------------------------------
+  set(ovt::params::macroScopeId(0), (float)(int)ovt::params::MacroScope::Odd);
+
+  const auto odd = snapshot();
+
+  int oddMoved = 0, evenMoved = 0;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i) {
+    const bool differs = std::abs(odd.osc[(size_t)i].tuneBlend -
+                                  resting.osc[(size_t)i].tuneBlend) > 1.0e-5f;
+
+    if (differs)
+      (((i + 1) % 2) == 1 ? oddMoved : evenMoved)++;
+  }
+
+  check(oddMoved == 16 && evenMoved == 0,
+        "the scope decides which channels it reaches (" +
+            std::to_string(oddMoved) + " odd, " + std::to_string(evenMoved) +
+            " even)");
+
+  // ---- and the curve decides how much each one takes ---------------------
+  set(ovt::params::macroScopeId(0), 0.0f);
+  set(ovt::params::macroCurveId(0), (float)(int)ovt::params::MacroCurve::Taper);
+
+  const auto tapered = snapshot();
+
+  const auto shiftAt = [&](const ovt::SynthParams &s, int i) {
+    return s.osc[(size_t)i].tuneBlend - resting.osc[(size_t)i].tuneBlend;
+  };
+
+  check(std::abs(shiftAt(tapered, 0)) > std::abs(shiftAt(tapered, 16)) &&
+            std::abs(shiftAt(tapered, 16)) > std::abs(shiftAt(tapered, 31)),
+        "a tapered macro moves the fundamental most and the top least");
+
+  // Held to the curve LINK draws, so the two cannot drift into meaning
+  // different things by the same name. A macro anchors at the fundamental,
+  // which is what the 0 is.
+  int disagreed = 0;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i) {
+    const auto theirs =
+        ovt::ui::linkCurveWeight(ovt::ui::LinkCurve::Taper, i, 0);
+    const auto mine = shiftAt(tapered, i) / shiftAt(tapered, 0);
+
+    if (std::abs(theirs - mine) > 1.0e-4f)
+      ++disagreed;
+  }
+
+  check(disagreed == 0, "and takes the same share LINK would give it (" +
+                            std::to_string(disagreed) + " channels differ)");
+
+  // ---- a macro at rest is not in the way ---------------------------------
+  set(ovt::params::macroAmountId(0), 0.0f);
+
+  const auto back = snapshot();
+
+  int stillMoved = 0;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    if (std::abs(back.osc[(size_t)i].tuneBlend -
+                 resting.osc[(size_t)i].tuneBlend) > 1.0e-9f)
+      ++stillMoved;
+
+  check(stillMoved == 0, "and leaves nothing behind when it returns to zero");
+
+  // ---- a macro nobody has made does nothing ------------------------------
+  //
+  // Which is how one is removed: the row goes back to None and the amount is
+  // left wherever the fader was. A macro that went on working after being
+  // taken away would be the worst of both.
+  set(ovt::params::macroAmountId(0), -0.25f);
+  set(ovt::params::macroRowId(0), 0.0f);
+
+  const auto unmade = snapshot();
+
+  int byUnmade = 0;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    if (std::abs(unmade.osc[(size_t)i].tuneBlend -
+                 resting.osc[(size_t)i].tuneBlend) > 1.0e-9f)
+      ++byUnmade;
+
+  check(byUnmade == 0,
+        "a macro with no row does nothing, whatever its amount says (" +
+            std::to_string(byUnmade) + " channels moved)");
+
+  // ---- and an interval scope reaches that interval -----------------------
+  //
+  // The fifth, which is harmonics 3, 6, 12 and 24. Counted against the table
+  // rather than against a list written here, so this cannot drift from what
+  // the mixer calls those channels.
+  set(ovt::params::macroRowId(0), (float)tuneRow);
+  set(ovt::params::macroScopeId(0),
+      (float)((int)ovt::params::MacroScope::Interval + 7));
+
+  const auto fifths = snapshot();
+
+  int reached = 0, strayed = 0;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i) {
+    const bool took = std::abs(fifths.osc[(size_t)i].tuneBlend -
+                               resting.osc[(size_t)i].tuneBlend) > 1.0e-5f;
+    const bool isFifth = ovt::harmonicTable()[(size_t)i].pitchClass == 7;
+
+    if (took && isFifth)
+      ++reached;
+    if (took != isFifth)
+      ++strayed;
+  }
+
+  check(reached == 4 && strayed == 0,
+        "an interval scope reaches exactly that interval (" +
+            std::to_string(reached) + " fifths, " + std::to_string(strayed) +
+            " wrong)");
+
+  // ---- and a driven control wears the macro's colour ---------------------
+  //
+  // Which control belongs to which macro is a fact about all eight of them,
+  // so the window works it out and the strips are told. Read off the control
+  // itself, since what the look and feel draws is whatever colour it has been
+  // given: a macro taking a control over is the control being told it is a
+  // different colour.
+  {
+    std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+    auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+    check(editor != nullptr, "the editor opens");
+
+    if (editor != nullptr) {
+      // Read off the control, which is where the look and feel reads it: the
+      // macro's colour is carried beside the control's own rather than
+      // replacing it, so the pointer can stay the channel's.
+      const auto colourOf = [&](int channel) {
+        auto *c = ovt::ui::learn::controlFor(
+            *editor, ovt::params::oscParamId(ovt::params::tuneSuffix, channel));
+
+        if (c == nullptr)
+          return juce::Colours::transparentBlack;
+
+        const auto said = c->getProperties().getWithDefault("macroColour", {});
+
+        return said.isVoid() ? juce::Colours::transparentBlack
+                             : juce::Colour((juce::uint32)(int)said);
+      };
+
+      const auto own = colourOf(2);
+
+      set(ovt::params::macroRowId(0), (float)tuneRow);
+      set(ovt::params::macroScopeId(0),
+          (float)((int)ovt::params::MacroScope::Interval + 7));
+      set(ovt::params::macroColourId(0), 1.0f);
+      editor->followMacroTints();
+
+      const auto wanted = ovt::params::macroColour(1);
+
+      // Harmonic 3 is a fifth and harmonic 2 is not, so one takes the colour
+      // and the other keeps its own.
+      check(colourOf(2) == wanted,
+            "a control a macro drives carries the macro's colour");
+      check(colourOf(1) != wanted, "and one it does not reach carries none");
+
+      set(ovt::params::macroRowId(0), 0.0f);
+      editor->followMacroTints();
+
+      check(colourOf(2) == own,
+            "and letting go takes the macro's colour off again");
+
+      // ---- and the bar follows the macros, not the tool ------------------
+      //
+      // The count sat in syncLinkUi, which runs when the tool or LINK
+      // changes, so making a macro lit the button only once you went near
+      // the tool menu. Read off the button's own name, which carries the
+      // count for a screen reader.
+      {
+        juce::TextButton *bar = nullptr;
+
+        std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+          for (auto *child : c.getChildren()) {
+            if (auto *b = dynamic_cast<juce::TextButton *>(child))
+              if (b->getTitle().startsWith("Macros"))
+                bar = b;
+
+            look(*child);
+          }
+        };
+        look(*editor);
+
+        check(bar != nullptr, "the bar carries a macros button");
+
+        if (bar != nullptr) {
+          set(ovt::params::macroRowId(0), 0.0f);
+          editor->followMacroTints();
+
+          check(!bar->getToggleState(), "which is dark with no macros made (" +
+                                            bar->getTitle().toStdString() +
+                                            ")");
+
+          // The macro alone, with nothing touching the tool.
+          set(ovt::params::macroRowId(0), (float)tuneRow);
+          editor->followMacroTints();
+
+          check(bar->getToggleState(),
+                "and lights as soon as one is made, without the tool being "
+                "touched (" +
+                    bar->getTitle().toStdString() + ")");
+
+          set(ovt::params::macroRowId(0), 0.0f);
+          editor->followMacroTints();
+
+          check(!bar->getToggleState(), "and goes out when the last one goes");
+        }
+      }
+
+      // ---- and the ring shows what the engine is playing ----------------
+      //
+      // The ring is worked out by the window and the offset by the snapshot,
+      // from the same shared arithmetic. If those two ever disagreed the
+      // knob would be showing a value nothing is playing, which is worse
+      // than showing nothing: it would be a lie told confidently.
+      // The decay row rather than tune, because decay is built by logRange
+      // and tune is linear. A macro that moved a proportion of the units
+      // instead of a proportion of the travel passes on a linear row and is
+      // wrong by orders of magnitude on this one, which is exactly the fault
+      // this guards: the cached range was being rebuilt from its two ends,
+      // which throws away the curve logRange keeps in its conversion
+      // functions and leaves a range that looks right and is linear.
+      const int decayRow = 9;
+
+      set(ovt::params::macroRowId(0), (float)decayRow);
+      set(ovt::params::macroScopeId(0), 0.0f);
+      set(ovt::params::macroCurveId(0),
+          (float)(int)ovt::params::MacroCurve::Taper);
+      set(ovt::params::macroAmountId(0), -0.4f);
+      editor->followMacroTints();
+
+      ovt::SynthParams played;
+      p.parameters().snapshot(played, 0.0f);
+
+      int mismatched = 0;
+      for (int i = 0; i < ovt::kNumHarmonics; ++i) {
+        auto *c = ovt::ui::learn::controlFor(
+            *editor, ovt::params::oscParamId(ovt::params::decaySuffix, i));
+
+        if (c == nullptr)
+          continue;
+
+        const auto shown = (float)(double)c->getProperties().getWithDefault(
+            "macroResult", -1.0);
+
+        auto *q =
+            dynamic_cast<juce::RangedAudioParameter *>(p.apvts.getParameter(
+                ovt::params::oscParamId(ovt::params::decaySuffix, i)));
+
+        if (q == nullptr)
+          continue;
+
+        // Both as a proportion of the control's travel, which is what the
+        // ring is drawn from.
+        const auto engine = q->convertTo0to1(played.osc[(size_t)i].decay);
+
+        if (std::abs(shown - engine) > 1.0e-3f)
+          ++mismatched;
+      }
+
+      check(mismatched == 0,
+            "the ring shows the value the engine is playing (" +
+                std::to_string(mismatched) + " channels differ)");
+
+      // ---- and follows the control, not only the macro ------------------
+      //
+      // The result is the patch's value plus the macro's offset, so turning
+      // a knob moves it while every macro stands still. There was a
+      // signature here that skipped the pass when no macro had moved, and
+      // the ring sat where it had been left until a macro was touched.
+      {
+        auto *first =
+            dynamic_cast<juce::RangedAudioParameter *>(p.apvts.getParameter(
+                ovt::params::oscParamId(ovt::params::decaySuffix, 0)));
+
+        auto *control = ovt::ui::learn::controlFor(
+            *editor, ovt::params::oscParamId(ovt::params::decaySuffix, 0));
+
+        if (first != nullptr && control != nullptr) {
+          const auto ringAt = [control] {
+            return (float)(double)control->getProperties().getWithDefault(
+                "macroResult", -1.0);
+          };
+
+          const auto was = ringAt();
+
+          // The control alone, with the macro left exactly where it is.
+          first->setValueNotifyingHost(first->getValue() > 0.5f ? 0.1f : 0.9f);
+          editor->followMacroTints();
+
+          check(std::abs(ringAt() - was) > 0.05f,
+                "the ring follows the control being turned, not only the "
+                "macro (" +
+                    std::to_string(was) + " to " + std::to_string(ringAt()) +
+                    ")");
+        }
+      }
+
+      set(ovt::params::macroAmountId(0), 0.0f);
+      set(ovt::params::macroRowId(0), 0.0f);
+      set(ovt::params::macroCurveId(0), 0.0f);
+    }
+  }
+
+  set(ovt::params::macroRowId(0), 0.0f);
+  set(ovt::params::macroAmountId(0), 0.0f);
+  set(ovt::params::macroScopeId(0), 0.0f);
+  set(ovt::params::macroCurveId(0), 0.0f);
+
   p.applyFactoryPreset(presetIndex("Init"));
 }
 
@@ -5691,14 +6130,84 @@ void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
     return found;
   };
 
-  auto *drawSwitch = switchNamed("DRAW");
-  auto *linkSwitch = switchNamed("LINK");
+  // One button for the three tools, wearing the cursor rather than a word,
+  // so it is found by what it is called rather than by what it says.
+  auto *toolSwitch = switchNamed("");
 
-  check(drawSwitch != nullptr && linkSwitch != nullptr,
-        "the gutter carries a DRAW switch beside LINK");
+  check(toolSwitch != nullptr, "the gutter carries the tool button");
 
-  if (drawSwitch == nullptr || linkSwitch == nullptr)
+  if (toolSwitch == nullptr)
     return;
+
+  // Chosen through the editor rather than through the menu the button opens:
+  // a PopupMenu needs a real window and a headless run has none.
+  const auto choose = [editor](ovt::ui::PointerTool which) {
+    editor->chooseTool(which);
+  };
+
+  check(editor->currentTool() == ovt::ui::PointerTool::Pointer ||
+            editor->currentTool() == ovt::ui::PointerTool::Link,
+        "and starts on a tool that is not drawing");
+
+  // ---- the menu knows which tool is current -------------------------------
+  //
+  // It took the tool as a defaulted argument and both callers left it out, so
+  // it built itself as though the plain pointer were always chosen: a tick
+  // that never moved and LINK's two lists greyed out for good. Read as data,
+  // which is the only way to read a menu that needs a window to open in.
+  {
+    // Only the three tools. The scope and the curve carry ticks of their
+    // own, which are theirs to carry and say nothing about the tool.
+    const auto toolTickedIn = [](juce::PopupMenu &menu) {
+      std::string found;
+
+      for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+        for (int i = 0; i < (int)ovt::ui::PointerTool::NumTools; ++i)
+          if (it.getItem().isTicked &&
+              it.getItem().text ==
+                  ovt::ui::pointerToolName((ovt::ui::PointerTool)i))
+            found += it.getItem().text.toStdString() + " ";
+
+      return found;
+    };
+
+    // Asked for by the name the menu gives it rather than by a word guessed
+    // at here: the item reads "Odd harmonics", and a test looking for "Odd"
+    // found nothing and called it disabled.
+    const auto scopeEnabled = [](juce::PopupMenu &menu) {
+      const auto wanted =
+          juce::String(ovt::ui::linkScopeName(ovt::ui::LinkScope::Odd));
+
+      for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+        if (it.getItem().text == wanted)
+          return it.getItem().isEnabled;
+
+      return false;
+    };
+
+    for (auto which :
+         {ovt::ui::PointerTool::Pointer, ovt::ui::PointerTool::Link,
+          ovt::ui::PointerTool::Draw}) {
+      editor->chooseTool(which);
+
+      auto menu = ovt::ui::buildToolMenu(editor->currentTool(),
+                                         {which == ovt::ui::PointerTool::Link,
+                                          ovt::ui::LinkScope::All,
+                                          ovt::ui::LinkCurve::Uniform});
+
+      const auto wanted = std::string(ovt::ui::pointerToolName(which)) + " ";
+
+      check(toolTickedIn(menu) == wanted,
+            std::string("the menu ticks ") + ovt::ui::pointerToolName(which) +
+                " when it is the tool (" + toolTickedIn(menu) + ")");
+
+      check(scopeEnabled(menu) == (which == ovt::ui::PointerTool::Link),
+            std::string("and LINK's lists are live only for Link (") +
+                ovt::ui::pointerToolName(which) + ")");
+    }
+
+    editor->chooseTool(ovt::ui::PointerTool::Pointer);
+  }
 
   // ---- without the modifier, nothing is taken -----------------------------
   //
@@ -5714,10 +6223,10 @@ void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
 
   // ---- held, a line across four columns sets all four ----------------------
   {
-    if (drawSwitch->onClick)
-      drawSwitch->onClick();
+    choose(ovt::ui::PointerTool::Draw);
 
-    check(drawSwitch->getToggleState(), "the switch lights when it is latched");
+    check(editor->currentTool() == ovt::ui::PointerTool::Draw,
+          "choosing Draw is what latches it");
 
     // ---- and the faders light to say where the drawing reaches ------------
     //
@@ -5803,13 +6312,13 @@ void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
   // tool is let go. A switch left lit for a gesture that has been taken away
   // from it is a lie the mouse-up would expose.
   {
-    check(!linkSwitch->getToggleState(),
+    check(editor->currentTool() != ovt::ui::PointerTool::Link,
           "LINK reads as off while drawing has the drag");
 
-    if (drawSwitch->onClick)
-      drawSwitch->onClick();
+    choose(ovt::ui::PointerTool::Pointer);
 
-    check(!drawSwitch->getToggleState(), "and the switch goes out again");
+    check(editor->currentTool() == ovt::ui::PointerTool::Pointer,
+          "and choosing the plain pointer gives the drag back");
 
     // Nothing is left lit once the tool is let go, which is the half a
     // highlight most easily gets wrong.
@@ -6016,17 +6525,21 @@ void testBarComesOntoOneRow(OvertoniumProcessor &) {
       break;
     }
 
-  std::printf("  the bar comes onto one row at %d px, and the window opens at "
-              "1340, so there are %d px of slack\n",
-              onOneRow, 1340 - onOneRow);
+  const auto opensAt = ovt::ui::kGutterWidth + ovt::ui::kStripWidth + 8 +
+                       ovt::kNumHarmonics * ovt::ui::kStripWidth +
+                       ovt::ui::kScrollBarThickness;
 
-  check(onOneRow > 0 && onOneRow <= 1340,
+  std::printf("  the bar comes onto one row at %d px, and the window opens at "
+              "%d, so there are %d px of slack\n",
+              onOneRow, opensAt, opensAt - onOneRow);
+
+  check(onOneRow > 0 && onOneRow <= opensAt,
         "the bar is on one row at the width the window opens at (" +
             std::to_string(onOneRow) + ")");
 
   // The figure the design notes quote. It moves whenever a control on the bar
   // changes width, and when it moves the notes move with it.
-  check(onOneRow == 1258, "and comes onto it at the width written down (" +
+  check(onOneRow == 1252, "and comes onto it at the width written down (" +
                               std::to_string(onOneRow) + ")");
 }
 
@@ -6192,8 +6705,12 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
   // group was squeezed forty pixels at this width and both readouts came out
   // at 38, which draws the figure and nothing else.
   {
+    // The width the window opens at, scrollbar included. Leaving that out
+    // put this ten pixels short of the real thing, which is the margin the
+    // converter readouts live on.
     const int width = ovt::ui::kGutterWidth + ovt::ui::kStripWidth + 8 +
-                      ovt::kNumHarmonics * ovt::ui::kStripWidth;
+                      ovt::kNumHarmonics * ovt::ui::kStripWidth +
+                      ovt::ui::kScrollBarThickness;
 
     bar.setSize(width, TopBar::heightForWidth(width));
 
@@ -8219,6 +8736,7 @@ int main() {
   testEveryHostRateStaysFinite();
   testTheSafetyClipHoldsUnity();
   testMidiLearnBindsControllers(processor);
+  testMacrosMoveAWholeRow(processor);
   testSettingsNamesTheVersion(processor);
   testMachineMenusFollowTheirParameters(processor);
   testPresetMenuGroups(processor);

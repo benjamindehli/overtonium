@@ -869,6 +869,7 @@ void ChannelStrip::setUpKnob(LinkableSlider &s, Role role, juce::Colour fill) {
   s.setSliderStyle(juce::Slider::RotaryVerticalDrag);
   s.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
   s.setColour(juce::Slider::rotarySliderFillColourId, fill);
+  baseColour[(size_t)role] = fill;
   s.setPopupDisplayEnabled(true, true, &popupHost);
   addAndMakeVisible(s);
 
@@ -882,6 +883,7 @@ void ChannelStrip::setUpFader(LinkableSlider &s, Role role, juce::Colour fill) {
   s.setSliderStyle(juce::Slider::LinearVertical);
   s.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
   s.setColour(juce::Slider::trackColourId, fill);
+  baseColour[(size_t)role] = fill;
   s.getProperties().set("meteredGroove", true);
   s.setPopupDisplayEnabled(true, true, &popupHost);
   addAndMakeVisible(s);
@@ -1261,6 +1263,39 @@ LinkableSlider *ChannelStrip::sliderForRole(Role role) {
     jassertfalse;
     return nullptr;
   }
+}
+
+void ChannelStrip::setMacroTint(Role role, juce::Colour tint, float result) {
+  const auto at = (size_t)role;
+
+  if (at >= macroTint.size())
+    return;
+
+  auto *slider = sliderForRole(role);
+
+  if (slider == nullptr)
+    return;
+
+  const bool sameColour = macroTint[at] == tint;
+  const bool sameResult = std::abs(macroResult[at] - result) < 1.0e-4f;
+
+  if (sameColour && sameResult)
+    return;
+
+  macroTint[at] = tint;
+  macroResult[at] = result;
+
+  // Both read by the look and feel, which keeps the control's own colour for
+  // the pointer and uses these for the ring. See drawRotarySlider.
+  if (tint.isTransparent()) {
+    slider->getProperties().remove("macroColour");
+    slider->getProperties().remove("macroResult");
+  } else {
+    slider->getProperties().set("macroColour", (int)tint.getARGB());
+    slider->getProperties().set("macroResult", (double)result);
+  }
+
+  slider->repaint();
 }
 
 void ChannelStrip::setLinkGlow(Role role, float amount, bool accent) {

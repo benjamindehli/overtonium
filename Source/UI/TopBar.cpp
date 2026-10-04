@@ -25,7 +25,18 @@ constexpr int kGroupPad = 6;
 
 /// Minimum width of each group, in the order they are laid out. Only the
 /// output group grows, because the meter is the one thing worth more room.
-constexpr int kGroupMinWidth[] = {144, 90, 218, 232, 228, 172};
+///
+/// The second holds the two buttons that open something, SETTINGS and
+/// MACROS, and is sized against what the bar can spare rather than against
+/// what would be comfortable. Measured in the font a 24 px button picks,
+/// SETTINGS is 61 px of text and MACROS is 54.
+///
+/// Both wear an icon instead, which is what makes 84 enough: the words want
+/// 62 and 54 px and the bar could spare 58 each, and every pixel taken here
+/// is half a pixel off each converter readout, which stop naming their units
+/// below 53. A gear and a rack of faders say the same thing in a third of
+/// the room, and the words are still what a screen reader is given.
+constexpr int kGroupMinWidth[] = {144, 84, 218, 232, 228, 172};
 constexpr int kOutputGroupIndex = 5;
 constexpr int kGroupCount = 6;
 
@@ -341,7 +352,33 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   // Everything that is set once and then left: polyphony, bend range, and the
   // two switches that used to sit on the panel taking up room they had not
   // earned.
+  macroButton.setButtonText("MACROS");
+  macroButton.setTooltip(
+      "One parameter that moves a whole row, and that a host can automate. "
+      "A LINK drag moves 32 parameters and a host catches only the last one "
+      "touched, which is what these are for.");
+  macroButton.setTitle("Macros");
+  macroButton.setColour(juce::TextButton::textColourOnId, colours::accent);
+  macroButton.onClick = [this] {
+    if (onMacrosClicked != nullptr)
+      onMacrosClicked();
+  };
+  macroButton.onIcon = [](juce::Graphics &g, juce::Rectangle<float> area,
+                          juce::Colour colour) {
+    drawMacroIcon(g, area, colour);
+  };
+
+  addAndMakeVisible(macroButton);
+
   settingsButton.setButtonText("SETTINGS");
+
+  // A gear rather than the word, which wants 62 px of the 58 the bar can
+  // spare it. The word is still what a screen reader is given and what the
+  // tooltip says. See kGroupMinWidth.
+  settingsButton.onIcon = [](juce::Graphics &g, juce::Rectangle<float> area,
+                             juce::Colour colour) {
+    drawGearIcon(g, area, colour);
+  };
   // The sections it opens, in the order it opens them.
   settingsButton.setTooltip("Polyphony, pitch bend range, expression, tuning, "
                             "output and zoom");
@@ -499,11 +536,34 @@ void TopBar::mouseDown(const juce::MouseEvent &e) {
     onLearnRequested(id);
 }
 
+void TopBar::setMacrosOn(bool on) {
+  // The panel being up does not change whether any macros are made, and the
+  // lit state says the latter, so opening it is shown by the panel itself.
+  juce::ignoreUnused(on);
+}
+
+void TopBar::setMacroCount(int made) {
+  if (made == macrosMade)
+    return;
+
+  macrosMade = made;
+
+  // Lit when any are made, rather than counted. A macro's work is invisible
+  // until you look at a ring, so the bar should say that something is
+  // modulating, and a count would want twelve pixels the converter readouts
+  // need more: see kGroupMinWidth. The number itself is in the name a screen
+  // reader gets and in the panel, which has room for it.
+  macroButton.setToggleState(made > 0, juce::dontSendNotification);
+  macroButton.setTitle(made > 0 ? "Macros, " + juce::String(made) + " made"
+                                : juce::String("Macros"));
+}
+
 void TopBar::showLinkMenu(juce::Component *anchor,
-                          const juce::String &parameterId, MidiLearn *map) {
+                          const juce::String &parameterId, MidiLearn *map,
+                          PointerTool tool) {
   const LinkSettings settings{linkOn, scope, curve};
 
-  auto m = buildLinkMenu(settings);
+  auto m = buildToolMenu(tool, settings);
 
   // Grown onto the end of the LINK menu rather than given a gesture of its
   // own. A right-click on a control already opens this, and a second menu
@@ -532,6 +592,15 @@ void TopBar::showLinkMenu(juce::Component *anchor,
   m.showMenuAsync(options, [this, settings, map, parameter](int result) {
     if (map != nullptr && learn::applyChoice(result, *map, parameter))
       return;
+
+    auto picked = PointerTool::Pointer;
+
+    if (applyToolMenuChoice(result, picked)) {
+      if (onToolChosen != nullptr)
+        onToolChosen(picked);
+
+      return;
+    }
 
     auto chosen = settings;
 
@@ -1474,9 +1543,17 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
     button(presetButton, r);
     break;
 
-  case VoiceGroup:
-    button(settingsButton, r);
+  case VoiceGroup: {
+    // The two things on the bar that open something, side by side. The
+    // preset button is the third and stands on its own because it carries
+    // the name of what is loaded rather than a word.
+    const auto half = (r.getWidth() - kFxToggleGap) / 2;
+
+    button(settingsButton, r.removeFromLeft(half));
+    r.removeFromLeft(kFxToggleGap);
+    button(macroButton, r);
     break;
+  }
 
   case SeriesGroup: {
     // What the partials are comes before what is done to them, so the

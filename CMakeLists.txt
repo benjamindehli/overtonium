@@ -102,6 +102,7 @@ set(OVERTONIUM_SOURCES
     Source/PluginParameters.cpp
     Source/Presets.cpp
     Source/MidiLearn.cpp
+    Source/UI/MacroPanel.cpp
     Source/UpdateCheck.cpp
     Source/dsp/BucketEcho.cpp
     Source/dsp/DigitalEcho.cpp

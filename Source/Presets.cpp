@@ -176,6 +176,22 @@ struct Applier {
     set(params::safetyClipId, 1.0f);
     set(params::clipTypeId, (float)(int)ClipType::Soft);
 
+    // Every macro at rest, pointing at the first row. A preset made before
+    // macros existed had no macro doing anything, and that is what loading
+    // one still has to mean.
+    for (int m = 0; m < params::kNumMacros; ++m) {
+      set(params::macroAmountId(m), 0.0f);
+      set(params::macroRowId(m), 0.0f);
+      set(params::macroScopeId(m), 0.0f);
+      set(params::macroCurveId(m), 0.0f);
+      set(params::macroAnchorId(m), 1.0f);
+
+      // Each one a different colour, matching the default, so a patch that
+      // makes four macros gets four colours without anybody choosing them.
+      set(params::macroColourId(m),
+          (float)(1 + m % (params::kNumMacroColours - 1)));
+    }
+
     // The master effects are off unless a preset switches them on, and their
     // settings go back to the panel defaults either way, so loading a preset
     // never leaves the last one's tail behind.
