@@ -346,14 +346,58 @@ bool SegmentDisplay::canDraw(char c, Bars bars) {
   return isNarrow(c) || segmentsFor(c) != 0;
 }
 
-SegmentDisplay::SegmentDisplay(juce::String unit, Bars howMany)
-    : bars(howMany), unitText(std::move(unit)) {}
+SegmentDisplay::SegmentDisplay(juce::String unit, Bars howMany, int cells)
+    : bars(howMany), fixedCells(cells), unitText(std::move(unit)) {}
+
+juce::String SegmentDisplay::squeeze(const juce::String &name, int cells) {
+  const auto upper = name.toUpperCase();
+
+  if (cells <= 0)
+    return upper;
+
+  if (upper.length() <= cells)
+    return upper.paddedRight(' ', cells);
+
+  std::vector<juce::juce_wchar> kept;
+  kept.reserve((size_t)upper.length());
+
+  for (int i = 0; i < upper.length(); ++i)
+    kept.push_back(upper[i]);
+
+  const auto drop = [&kept, cells](bool (*wanted)(juce::juce_wchar)) {
+    // From the right, so what goes is the end of the name rather than the
+    // start of it, which is the half you recognise.
+    //
+    // Stopping at index one is belt and braces rather than a rule doing any
+    // work. Reaching index zero would mean everything after it had already
+    // gone and one character were still too many, and there is no cell count
+    // below one, so the loop stops on its own first. It is written down
+    // because a name has to keep its first character whatever else changes
+    // here, and nothing else in this function would say so.
+    for (auto i = (int)kept.size() - 1; i > 0 && (int)kept.size() > cells; --i)
+      if (wanted(kept[(size_t)i]))
+        kept.erase(kept.begin() + i);
+  };
+
+  drop([](juce::juce_wchar c) { return c == ' '; });
+  drop([](juce::juce_wchar c) {
+    return c == 'A' || c == 'E' || c == 'I' || c == 'O' || c == 'U';
+  });
+
+  juce::String out;
+
+  for (auto c : kept)
+    out += juce::String::charToString(c);
+
+  return out.substring(0, cells).paddedRight(' ', cells);
+}
 
 void SegmentDisplay::setReading(const juce::String &digits, bool isActive) {
-  // Upper case, because a display with no lower case form shows none. Done
-  // here rather than at every caller so that what getReading hands back is
-  // what the cells are actually showing.
-  const auto shown = bars == Bars::Fourteen ? digits.toUpperCase() : digits;
+  // Upper case, and fitted to the cells there are. Done here rather than at
+  // every caller so that what getReading hands back is what the cells are
+  // actually showing.
+  const auto shown =
+      bars == Bars::Fourteen ? squeeze(digits, fixedCells) : digits;
 
   if (shown == reading && isActive == active)
     return;

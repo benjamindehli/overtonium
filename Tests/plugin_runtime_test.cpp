@@ -2374,53 +2374,105 @@ void testThePresetDisplaySpells(OvertoniumProcessor &) {
             std::to_string(unspellable) + ", first in " +
             firstBad.toStdString() + ")");
 
-  // ---- and shows all of it -------------------------------------------------
+  // ---- and fits every one of them to its nine cells ------------------------
   //
-  // Counted off a render, in runs of columns that have anything lit in them.
-  // The cells are drawn with a gap between them, so one run is one character,
-  // and a name that has lost its tail comes back one run short.
-  // ---- and shows all of it -------------------------------------------------
-  //
-  // Asked of the display rather than counted off a render. The cells are
-  // drawn whether they are lit or not, and a letter like K has a wider gap
-  // down its own middle than there is between one cell and the next, so marks
-  // in a picture do not divide into characters.
+  // Spaces from the right, then vowels, then a cut, and never the first
+  // character. Held against the names the instrument ships rather than
+  // against invented ones, because those are what anyone will see.
+  struct Fitted {
+    const char *name;
+    const char *shown;
+  };
+
+  const Fitted fitted[] = {
+      // Shorter than the display, so it stands as it is with the rest of the
+      // cells left unlit.
+      {"Big Saw", "BIG SAW  "},
+      {"Lo-fi", "LO-FI    "},
+      {"Init", "INIT     "},
+
+      // Exactly nine, which is the case that must not be touched.
+      {"Cathedral", "CATHEDRAL"},
+      {"Equal Saw", "EQUAL SAW"},
+
+      // The space goes and nothing else has to.
+      {"Tape Choir", "TAPECHOIR"},
+      {"Vibraphone", "VIBRAPHON"},
+
+      // The space, then vowels from the right.
+      {"Glockenspiel", "GLOCKNSPL"},
+      {"Glass Armonica", "GLASSRMNC"},
+      {"Metallic Piano", "METALLCPN"},
+      {"Odd Harmonics", "ODDHRMNCS"},
+      {"Struck Bell", "STRUCKBLL"},
+
+      // And a cut on top of both, which is the longest name there is.
+      {"2-bit Fuzz Organ", "2-BTFZZRG"},
+      {"Synth Ensemble", "SYNTHNSMB"},
+  };
+
+  int wrong = 0;
+  juce::String firstWrong;
+
+  for (const auto &f : fitted) {
+    const auto got = SegmentDisplay::squeeze(f.name, 9);
+
+    if (got != f.shown) {
+      ++wrong;
+      if (firstWrong.isEmpty())
+        firstWrong = juce::String(f.name) + " -> " + got;
+    }
+  }
+
+  check(wrong == 0, "every name is fitted to its cells as it should be (" +
+                        std::to_string(wrong) + " wrong, " +
+                        firstWrong.toStdString() + ")");
+
+  // Every name comes out at exactly the cell count, long or short, which is
+  // what keeps the letters the same size whatever is loaded.
+  int misfits = 0;
+
+  for (const auto &name : names)
+    misfits += SegmentDisplay::squeeze(name, 9).length() == 9 ? 0 : 1;
+
+  check(misfits == 0, "and every factory name comes out at nine cells (" +
+                          std::to_string(misfits) + " did not)");
+
+  // What the squeeze leaves has to be spellable too. Dropping a vowel cannot
+  // introduce a character, but a cut landing mid-name could expose one that
+  // the whole name test above happened not to reach.
+  int unshowable = 0;
+
+  for (const auto &name : names) {
+    const auto shown = SegmentDisplay::squeeze(name, 9);
+
+    for (int i = 0; i < shown.length(); ++i)
+      unshowable += SegmentDisplay::canDraw((char)shown[i],
+                                            SegmentDisplay::Bars::Fourteen)
+                        ? 0
+                        : 1;
+  }
+
+  check(unshowable == 0, "and what is left of it is still spellable (" +
+                             std::to_string(unshowable) + ")");
+
+  // The display draws all of its cells, the unlit ones included: a nine-cell
+  // display showing INIT is four letters and five cells standing dark, not a
+  // four-cell display.
   const auto cellsShown = [](const juce::String &reading) {
-    SegmentDisplay d({}, SegmentDisplay::Bars::Fourteen);
+    SegmentDisplay d({}, SegmentDisplay::Bars::Fourteen, 9);
 
     // The size the bar actually gives it. See TopBar::placeGroup.
     d.setBounds(0, 0, 132, 24);
     d.setReading(reading, true);
-
-    // Nothing has drawn it yet, and the count is what drawing it produced.
     d.createComponentSnapshot(d.getLocalBounds());
 
     return d.cellsDrawn();
   };
 
-  check(cellsShown("Glockenspiel") == 12,
-        "a twelve-letter name shows every letter (" +
-            std::to_string(cellsShown("Glockenspiel")) + " of 12)");
-
-  // The one that caught the hyphen. Five characters, one of them a hyphen,
-  // which used to be counted as a sign riding between cells rather than as a
-  // cell of its own, taking the I off the end.
-  check(cellsShown("Lo-fi") == 5,
-        "and a hyphen takes a cell like any other character (" +
-            std::to_string(cellsShown("Lo-fi")) + " of 5)");
-
-  // The longest the instrument ships, which is the one that decides whether
-  // the width is enough.
-  check(cellsShown("2-bit Fuzz Organ") == 16,
-        "and the longest factory name fits (" +
-            std::to_string(cellsShown("2-bit Fuzz Organ")) + " of 16)");
-
-  // Past what it can spell legibly it cuts rather than squeezing, which is
-  // the one case where showing less is the right answer.
-  check(cellsShown(juce::String::repeatedString("W", 40)) < 40,
-        "and a name past what it can show legibly is cut (" +
-            std::to_string(cellsShown(juce::String::repeatedString("W", 40))) +
-            " of 40)");
+  check(cellsShown("Init") == 9 && cellsShown("Glockenspiel") == 9,
+        "and a short name leaves the rest of the cells standing (" +
+            std::to_string(cellsShown("Init")) + ")");
 
   // ---- every character is its own shape ------------------------------------
   //
