@@ -4383,6 +4383,110 @@ void testFirstProgramIsReachable() {
         "and asking for it a second time leaves an edit alone");
 }
 
+/// That the tool a window was left on is the one the next window opens with.
+///
+/// The tool is derived from two flags rather than stored: LINK's own switch
+/// and whether drawing is latched. That is the right model, since the
+/// modifier can arm drawing without choosing it, but it means remembering
+/// the tool is remembering both of them, and only one of them was being
+/// written. Picking LINK once wrote its flag through the settings callback
+/// and picking anything afterwards wrote nothing, so every window after that
+/// opened on LINK whatever it had been left on.
+void testTheToolOutlivesTheWindow(OvertoniumProcessor &) {
+  section("The tool outlives the window");
+
+  using ovt::ui::PointerTool;
+
+  OvertoniumProcessor proc;
+
+  // What a window left on this tool reports when the next one opens, with the
+  // session carried between them the way a host carries it.
+  const auto reopenedOn = [&proc](PointerTool chosen) {
+    {
+      std::unique_ptr<juce::AudioProcessorEditor> ed(proc.createEditor());
+      auto *editor = dynamic_cast<OvertoniumEditor *>(ed.get());
+
+      if (editor == nullptr)
+        return PointerTool::NumTools;
+
+      sizeEditor(*editor, 1340);
+      editor->chooseTool(chosen);
+    }
+
+    juce::MemoryBlock carried;
+    proc.getStateInformation(carried);
+    proc.setStateInformation(carried.getData(), (int)carried.getSize());
+
+    std::unique_ptr<juce::AudioProcessorEditor> ed(proc.createEditor());
+    auto *editor = dynamic_cast<OvertoniumEditor *>(ed.get());
+
+    if (editor == nullptr)
+      return PointerTool::NumTools;
+
+    sizeEditor(*editor, 1340);
+    return editor->currentTool();
+  };
+
+  const auto name = [](PointerTool t) {
+    return t == PointerTool::NumTools
+               ? juce::String("(no window)")
+               : juce::String(ovt::ui::pointerToolName(t));
+  };
+
+  // Every one of the three, and in an order that leaves LINK in the session
+  // before the other two are asked for: that is the case the fault needed.
+  for (auto chosen : {PointerTool::Link, PointerTool::Pointer,
+                      PointerTool::Draw, PointerTool::Pointer}) {
+    const auto got = reopenedOn(chosen);
+
+    check(got == chosen, "a window left on " + name(chosen).toStdString() +
+                             " opens on it again (" + name(got).toStdString() +
+                             ")");
+  }
+
+  // ---- and after LINK's own settings have been touched ---------------------
+  //
+  // The way it was actually met. Changing LINK's scope or curve writes its
+  // switch through the settings callback, so the session says LINK until
+  // something writes it again, and choosing another tool did not. A window
+  // opened after that came up on LINK whatever it had been left on.
+  {
+    {
+      std::unique_ptr<juce::AudioProcessorEditor> ed(proc.createEditor());
+      auto *editor = dynamic_cast<OvertoniumEditor *>(ed.get());
+
+      check(editor != nullptr, "a window opens to leave LINK's mark in");
+
+      if (editor != nullptr) {
+        sizeEditor(*editor, 1340);
+        editor->chooseTool(PointerTool::Link);
+
+        if (auto *bar = findTopBar(*editor))
+          if (bar->onLinkSettingsChanged != nullptr)
+            bar->onLinkSettingsChanged();
+
+        editor->chooseTool(PointerTool::Pointer);
+      }
+    }
+
+    juce::MemoryBlock carried;
+    proc.getStateInformation(carried);
+    proc.setStateInformation(carried.getData(), (int)carried.getSize());
+
+    std::unique_ptr<juce::AudioProcessorEditor> ed(proc.createEditor());
+    auto *editor = dynamic_cast<OvertoniumEditor *>(ed.get());
+
+    if (editor != nullptr) {
+      sizeEditor(*editor, 1340);
+
+      check(editor->currentTool() == PointerTool::Pointer,
+            "and choosing another tool afterwards is what the next one opens "
+            "on (" +
+                name(editor->currentTool()).toStdString() + ")");
+    }
+  }
+}
+
 /// The preset button survives the window being shut.
 ///
 /// A window is opened and closed far more often than a preset is chosen, and a
@@ -9286,6 +9390,7 @@ int main() {
   testShapeButtonFollowsTheParameter(processor);
   testFirstProgramIsReachable();
   testPresetNameOutlivesTheWindow();
+  testTheToolOutlivesTheWindow(processor);
   testBarButtonsFitTheirWords(processor);
   testBarComesOntoOneRow(processor);
   testTopBarAlignment(processor);

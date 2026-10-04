@@ -470,7 +470,9 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
 
   topBar.onLinkSettingsChanged = [this] {
     auto &tree = plugin().apvts.state;
-    tree.setProperty(kLinkOn, topBar.isLinkEnabled(), nullptr);
+
+    rememberTool();
+
     tree.setProperty(kLinkScope, (int)topBar.getLinkScope(), nullptr);
     tree.setProperty(kLinkCurveId, linkCurveId(topBar.getLinkCurve()), nullptr);
     tree.removeProperty(kLinkCurve, nullptr);
@@ -1195,11 +1197,17 @@ void OvertoniumEditor::refreshDrawArmed() {
   syncLinkUi();
 }
 
+void OvertoniumEditor::rememberTool() {
+  auto &tree = plugin().apvts.state;
+
+  tree.setProperty(kLinkOn, topBar.isLinkEnabled(), nullptr);
+  tree.setProperty(kDrawLatched, drawLatched, nullptr);
+}
+
 void OvertoniumEditor::toggleDrawLatch() {
   drawLatched = !drawLatched;
 
-  plugin().apvts.state.setProperty(kDrawLatched, drawLatched, nullptr);
-
+  rememberTool();
   refreshDrawArmed();
 }
 
@@ -1240,6 +1248,12 @@ void OvertoniumEditor::chooseTool(ovt::ui::PointerTool which) {
   // so that going back to it finds the scope and curve you left.
   drawLatched = which == ovt::ui::PointerTool::Draw;
   topBar.setLinkEnabled(which == ovt::ui::PointerTool::Link);
+
+  // Written down, or the next window opens on whatever was last written by
+  // something else. LINK's settings callback writes its switch when a scope
+  // or a curve is chosen, so picking LINK once and then picking another tool
+  // left a session that said LINK and a window that did not.
+  rememberTool();
 
   // refreshDrawArmed rather than pollDrawModifier: the poll only acts when
   // the modifier itself has changed, and nothing here touched the keyboard.

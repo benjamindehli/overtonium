@@ -148,6 +148,14 @@ public:
   void refreshDrawArmed();
   void toggleDrawLatch();
 
+  /// Writes which tool is selected into the session.
+  ///
+  /// Both halves of it, because the tool is derived from two flags and
+  /// remembering it means remembering both. Everything that moves either of
+  /// them goes through here rather than writing its own, which is what the
+  /// fault was: one path wrote one flag and the others wrote neither.
+  void rememberTool();
+
   /// Whether a drawn drag is under way, as opposed to merely possible.
   bool drawingNow = false;
 
