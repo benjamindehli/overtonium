@@ -467,6 +467,19 @@ public:
   ///                of the drag it takes relative to the strip that takes most.
   void setLinkGlow(Role, float amount, bool accent = false);
 
+  /// Which macro drives this row, as its colour, or transparent for none.
+  ///
+  /// Carried beside the control's own colour rather than replacing it. The
+  /// pointer on a knob stays the channel's colour, which is what says which
+  /// partial you are looking at, and the ring beyond it goes to the macro's,
+  /// which is what says where the macro has taken the value.
+  ///
+  /// @param result  where the row ends up once the macro has had its say, as
+  ///                a proportion of the control's travel. The same as the
+  ///                control's own position when no macro is driving it, which
+  ///                is what makes a macro at rest look like no macro at all.
+  void setMacroTint(Role, juce::Colour, float result);
+
 private:
   using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
   using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
@@ -492,6 +505,17 @@ private:
   void clearHover();
 
   LinkableSlider *sliderForRole(Role);
+
+  /// The colour each control wears when no macro has it, kept so that one
+  /// letting go puts the channel's own back rather than an approximation.
+  std::array<juce::Colour, (size_t)kNumRoles> baseColour{};
+
+  /// Which macro colour each row is wearing now, so a repaint only happens
+  /// when one actually changes.
+  std::array<juce::Colour, (size_t)kNumRoles> macroTint{};
+
+  /// And where the macro has taken that row, for the same reason.
+  std::array<float, (size_t)kNumRoles> macroResult{};
 
   juce::AudioProcessorValueTreeState &apvts;
   LinkTarget &link;

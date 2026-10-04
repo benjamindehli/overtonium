@@ -10,6 +10,7 @@
 #include "PluginProcessor.h"
 #include "UI/ChannelStrip.h"
 #include "UI/LookAndFeel.h"
+#include "UI/MacroPanel.h"
 #include "UI/NoiseStrip.h"
 #include "UI/TopBar.h"
 #include "dsp/Drift.h"
@@ -66,7 +67,6 @@ public:
   std::function<void(juce::Component *)> onLinkClicked;
 
   /// Lights the button while LINK is on.
-  void setLinkOn(bool);
 
   /// Fired when the DRAW button is clicked, which latches the tool on rather
   /// than needing the modifier held.
@@ -74,7 +74,8 @@ public:
 
   /// Lights the button while a drag across the faders would draw them, whether
   /// that is because the modifier is held or because it is latched.
-  void setDrawOn(bool);
+  /// Which tool the button wears, and the cursor to wear for it.
+  void setTool(ovt::ui::PointerTool, ovt::ui::LinkCurve);
 
   void resized() override;
   void mouseDown(const juce::MouseEvent &) override;
@@ -99,7 +100,12 @@ private:
   /// Here rather than in the bar because this is the column the tool belongs
   /// to: it gangs the rows the captions name. What it leaves behind on the bar
   /// is the room the converter readouts needed to say what their numbers mean.
-  ovt::ui::GlowButton linkButton, drawButton;
+  /// One button for the three tools, wearing the cursor rather than a word.
+  /// See ui::PointerTool.
+  ovt::ui::GlowButton toolButton;
+
+  ovt::ui::PointerTool tool = ovt::ui::PointerTool::Pointer;
+  juce::Image toolIcon;
 
   /// The maker's badge, in the empty foot of the gutter.
   std::unique_ptr<juce::Drawable> makersMark{ovt::ui::logoMakersMark()};
@@ -173,6 +179,13 @@ public:
   /// repainting from. See ovt::MidiLearn.
   void followArmedControl();
 
+  /// Lends every control a macro drives that macro's colour.
+  ///
+  /// Worked out here rather than by the strips, because which macro owns a
+  /// control is a fact about all eight of them and no strip can see more than
+  /// its own column. Pushed the way the LINK glow already is.
+  void followMacroTints();
+
   /// What carries the marker now, so it can be taken off again without
   /// searching the window for anything that might have one.
   juce::String armedParameter;
@@ -201,6 +214,20 @@ public:
   /// Public so a test can ask for it. The menu that offers it needs a window
   /// to open in, which a test has no way of giving it.
   void fitAllChannels();
+
+  /// Which of the three tools a drag would use right now.
+  ///
+  /// Derived rather than stored, from LINK's own switch and whether drawing
+  /// is armed, so there is no fourth place for the three to disagree. Drawing
+  /// wins, including when it is armed by holding the modifier rather than
+  /// chosen.
+  ovt::ui::PointerTool currentTool() const;
+
+  /// Moves whichever of those two a chosen tool means.
+  ///
+  /// Public for the same reason fitAllChannels is: what offers it is a menu,
+  /// and a menu needs a window a test has no way of giving it.
+  void chooseTool(ovt::ui::PointerTool);
 
   /// Puts this editor's look and feel and its panel colour on a window.
   ///
@@ -341,6 +368,9 @@ private:
   ovt::ui::TopBar topBar;
   RowGutter gutter;
   ovt::ui::NoiseStrip noiseStrip;
+
+  /// Over the mixer when it is up, and not in the way when it is not.
+  ovt::ui::MacroPanel macroPanel;
 
   // stripsHolder is declared before the viewport that displays it, so on
   // teardown the viewport is destroyed first and never sees a dangling viewed

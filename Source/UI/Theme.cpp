@@ -10,6 +10,159 @@
 
 namespace ovt::ui {
 
+namespace {
+/// What each macro colour actually is.
+///
+/// Chosen to be told apart at the size of a knob's ring rather than to be
+/// pretty in a row: eight hues spread around the wheel, all at a lightness
+/// that reads against the panel without competing with a lit mute or solo.
+/// The first is no colour at all, for anyone who would rather the mixer
+/// stayed the colour the series makes it.
+const juce::Colour kMacroColours[] = {
+    juce::Colour(0x00000000), juce::Colour(0xffe0584a),
+    juce::Colour(0xffe08a3c), juce::Colour(0xffd8c24a),
+    juce::Colour(0xff64c07a), juce::Colour(0xff52c0c0),
+    juce::Colour(0xff5a8fe0), juce::Colour(0xffb07bd4),
+    juce::Colour(0xffd665b0)};
+} // namespace
+
+void drawGearIcon(juce::Graphics &g, juce::Rectangle<float> area,
+                  juce::Colour colour) {
+  const auto centre = area.getCentre();
+  // 0.38 of the shorter side rather than 0.46, which left a pixel of margin
+  // in a 24 px button and read as a cog jammed into its face. The teeth are
+  // the outermost thing drawn, so the radius is the whole of the margin.
+  const auto outer = juce::jmin(area.getWidth(), area.getHeight()) * 0.38f;
+  const auto root = outer * 0.74f;
+
+  // A filled cog rather than spokes on a ring, which is what it was and what
+  // made it a ship's wheel: a wheel is a rim with spokes reaching in, and a
+  // cog is a solid body with teeth standing out of it. Drawn as one outline
+  // that steps between the two radii, with the bore punched by an even-odd
+  // fill rather than painted over, since what is behind the button is not a
+  // colour this knows.
+  constexpr int teeth = 8;
+  constexpr float tooth = 0.46f; // of each tooth's share of the circle
+
+  juce::Path path;
+
+  for (int i = 0; i < teeth; ++i) {
+    const auto step = juce::MathConstants<float>::twoPi / (float)teeth;
+    const auto from = (float)i * step;
+
+    const auto at = [&](float angle, float radius) {
+      return juce::Point<float>(centre.x + radius * std::sin(angle),
+                                centre.y - radius * std::cos(angle));
+    };
+
+    if (i == 0)
+      path.startNewSubPath(at(from, root));
+    else
+      path.lineTo(at(from, root));
+
+    path.lineTo(at(from + step * (0.5f - tooth * 0.5f), outer));
+    path.lineTo(at(from + step * (0.5f + tooth * 0.5f), outer));
+    path.lineTo(at(from + step, root));
+  }
+
+  path.closeSubPath();
+  path.addEllipse(centre.x - outer * 0.34f, centre.y - outer * 0.34f,
+                  outer * 0.68f, outer * 0.68f);
+  path.setUsingNonZeroWinding(false);
+
+  g.setColour(colour);
+  g.fillPath(path);
+}
+
+void drawMacroIcon(juce::Graphics &g, juce::Rectangle<float> area,
+                   juce::Colour colour) {
+  // Three faders with their caps at different places, which is what the
+  // macro panel looks like and what a macro does: several controls moved
+  // from one place.
+  const auto w = juce::jmin(area.getWidth(), area.getHeight() * 1.6f) * 0.86f;
+  const auto centre = area.getCentre();
+  const auto left = centre.x - w * 0.5f;
+
+  const float at[] = {0.72f, 0.38f, 0.58f};
+
+  for (int i = 0; i < 3; ++i) {
+    const auto y = centre.y + ((float)i - 1.0f) * 4.6f;
+
+    g.setColour(colour.withMultipliedAlpha(0.45f));
+    g.fillRoundedRectangle(left, y - 0.75f, w, 1.5f, 0.75f);
+
+    g.setColour(colour);
+    g.fillRoundedRectangle(left + w * at[i] - 1.6f, y - 2.6f, 3.2f, 5.2f, 1.2f);
+  }
+}
+
+void drawToolIcon(juce::Graphics &g, juce::Rectangle<float> area,
+                  juce::Colour colour, PointerTool tool) {
+  // The arrow sits left of centre when something stands beside it, and in
+  // the middle when nothing does, so the pair reads as one mark rather than
+  // as an arrow that has drifted.
+  const auto marked = tool != PointerTool::Pointer;
+  const auto h = juce::jmin(area.getHeight() * 0.62f, area.getWidth() * 0.44f);
+
+  auto arrowAt = area.getCentre();
+
+  if (marked)
+    arrowAt.x -= h * 0.52f;
+
+  const auto top = arrowAt.translated(-h * 0.22f, -h * 0.5f);
+
+  juce::Path arrow;
+  arrow.startNewSubPath(top);
+  arrow.lineTo(top.translated(0.0f, h));
+  arrow.lineTo(top.translated(h * 0.24f, h * 0.73f));
+  arrow.lineTo(top.translated(h * 0.42f, h * 1.02f));
+  arrow.lineTo(top.translated(h * 0.60f, h * 0.90f));
+  arrow.lineTo(top.translated(h * 0.42f, h * 0.62f));
+  arrow.lineTo(top.translated(h * 0.68f, h * 0.60f));
+  arrow.closeSubPath();
+
+  g.setColour(colour);
+  g.fillPath(arrow);
+
+  if (!marked)
+    return;
+
+  // Centred on the arrow rather than on the button, so the two sit on one
+  // line whatever the button's height.
+  const auto markAt =
+      juce::Point<float>(arrowAt.x + h * 0.88f, area.getCentreY());
+
+  if (tool == PointerTool::Link) {
+    // Two rings side by side, overlapping, which is a chain at any size. The
+    // first attempt drew them as rounded bars touching the arrow, and at
+    // twenty pixels that is one blob rather than two links.
+    const auto r = h * 0.26f;
+
+    g.drawEllipse(markAt.x - r * 1.7f, markAt.y - r, r * 2.0f, r * 2.0f, 1.3f);
+    g.drawEllipse(markAt.x - r * 0.3f, markAt.y - r, r * 2.0f, r * 2.0f, 1.3f);
+    return;
+  }
+
+  // A drawn contour rather than a pencil.
+  //
+  // Two attempts at a pencil both read as a tick: at twenty pixels the body
+  // and the point are three or four pixels each and the eye joins them into
+  // one stroke. A contour is also the truer picture of what this tool does,
+  // which is to sweep a shape across the series rather than to mark a single
+  // control.
+  const auto w = h * 0.86f;
+  const auto half = w * 0.5f;
+
+  juce::Path contour;
+  contour.startNewSubPath(markAt.x - half, markAt.y + h * 0.26f);
+  contour.lineTo(markAt.x - half * 0.33f, markAt.y - h * 0.30f);
+  contour.lineTo(markAt.x + half * 0.33f, markAt.y + h * 0.12f);
+  contour.lineTo(markAt.x + half, markAt.y - h * 0.34f);
+
+  g.strokePath(contour, juce::PathStrokeType(1.5f, juce::PathStrokeType::curved,
+                                             juce::PathStrokeType::rounded));
+}
+
 void GlowButton::paintButton(juce::Graphics &g, bool highlighted, bool down) {
   // The face, drawn as if the switch were off whatever it is, so that being
   // engaged is something the word says rather than something the button does.
@@ -27,6 +180,12 @@ void GlowButton::paintButton(juce::Graphics &g, bool highlighted, bool down) {
                                     : juce::TextButton::textColourOffId);
 
   const auto h = (float)getHeight();
+
+  if (onIcon != nullptr) {
+    onIcon(g, getLocalBounds().toFloat(), colour);
+    return;
+  }
+
   const auto font = makeFont(juce::jlimit(8.0f, 13.0f, h * 0.58f), true);
 
   juce::GlyphArrangement glyphs;
@@ -713,6 +872,78 @@ constexpr int kScopeBaseId = 100;
 constexpr int kCurveBaseId = 200;
 } // namespace
 
+const char *pointerToolName(PointerTool t) {
+  switch (t) {
+  case PointerTool::Pointer:
+    return "Pointer";
+  case PointerTool::Link:
+    return "Link";
+  case PointerTool::Draw:
+    return "Draw";
+
+  case PointerTool::NumTools:
+    break;
+  }
+
+  return "Pointer";
+}
+
+juce::Image pointerToolImage(PointerTool t, LinkCurve curve, float scale) {
+  switch (t) {
+  case PointerTool::Link:
+    return linkCursorImage(curve, scale);
+  case PointerTool::Draw:
+    return drawCursorImage(scale);
+
+  case PointerTool::Pointer:
+  case PointerTool::NumTools:
+    break;
+  }
+
+  return {};
+}
+
+/// Ids for the three, kept clear of the scope and curve blocks below.
+constexpr int kToolBaseId = 40;
+
+juce::PopupMenu buildToolMenu(PointerTool tool, const LinkSettings &settings) {
+  juce::PopupMenu m;
+
+  m.addSectionHeader("Tool");
+
+  for (int i = 0; i < (int)PointerTool::NumTools; ++i)
+    m.addItem(kToolBaseId + i, pointerToolName((PointerTool)i), true,
+              i == (int)tool);
+
+  // Only Link has anything to set, so the rest of the menu is its, and it
+  // greys out rather than disappearing when another tool is chosen: a menu
+  // that changed length as you moved through it would move the item under
+  // the pointer.
+  const auto linking = tool == PointerTool::Link;
+
+  m.addSeparator();
+  m.addSectionHeader("Scope");
+  for (int i = 0; i < (int)LinkScope::NumScopes; ++i)
+    m.addItem(kScopeBaseId + i, linkScopeName((LinkScope)i), linking,
+              i == (int)settings.scope);
+
+  m.addSeparator();
+  m.addSectionHeader("Curve");
+  for (int i = 0; i < (int)LinkCurve::NumCurves; ++i)
+    m.addItem(kCurveBaseId + i, linkCurveName((LinkCurve)i), linking,
+              i == (int)settings.curve);
+
+  return m;
+}
+
+bool applyToolMenuChoice(int id, PointerTool &tool) {
+  if (id < kToolBaseId || id >= kToolBaseId + (int)PointerTool::NumTools)
+    return false;
+
+  tool = (PointerTool)(id - kToolBaseId);
+  return true;
+}
+
 juce::PopupMenu buildLinkMenu(const LinkSettings &settings) {
   juce::PopupMenu m;
 
@@ -995,3 +1226,12 @@ bool roleForRow(Row r, Role &out) {
 }
 
 } // namespace ovt::ui
+
+namespace ovt::params {
+
+juce::Colour macroColour(int colour) {
+  return ovt::ui::kMacroColours[(size_t)juce::jlimit(0, kNumMacroColours - 1,
+                                                     colour)];
+}
+
+} // namespace ovt::params
