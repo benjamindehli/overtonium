@@ -867,48 +867,53 @@ void OvertoniumLookAndFeel::drawLinearSlider(
                    "macroResult", -1.0)
              : -1.0f;
 
-  // ---- the scale ------------------------------------------------------------
-  // A ladder of segments either side of the track, in the same language as
-  // the tick ring on the knobs: it gives the meter something to be read
-  // against, and when a macro has this fader it lights from the foot of the
-  // track up to the level the macro has taken it to.
+  // ---- the macro's own scale ------------------------------------------------
+  // Two columns of segments either side of the track, lit from its foot up to
+  // the level the macro has taken this fader to, exactly as a knob's ring
+  // lights from its anchor.
   //
-  // This is the fader's ring. A knob can light the ticks around its cap
-  // because a ring is not the thing you grab, and a fader's gutter is the
-  // one strip of it that is neither the groove, nor the meter, nor the cap.
+  // The same segments the meter is made of, at the same pitch and in the same
+  // places, only narrower: the fader and the meter are given one rectangle
+  // between them, so the gutters can line up with the track rather than being
+  // a second scale beside it. They share the arithmetic as well as the
+  // rectangle, or a pixel of drift puts them out of step.
   //
-  // Nine ticks was too coarse a ladder to read a level off, so the count
-  // comes off the height now and lands two to three times finer.
-  if (bounds.getWidth() >= 22.0f) {
-    const int steps =
-        juce::jlimit(9, 36, juce::roundToInt(bounds.getHeight() / 6.0f));
+  // Only when a macro has the fader. There is nothing for an undriven one to
+  // say here, and the meter, the cap and the figure under it already say
+  // where the level is three times over.
+  if (driven && bounds.getWidth() >= 22.0f) {
+    const auto trackW = juce::jmax(6.0f, bounds.getWidth() * 0.62f);
+    const auto track = bounds.withSizeKeepingCentre(trackW, bounds.getHeight());
 
-    const auto pitch = bounds.getHeight() / (float)steps;
-    const auto segH = juce::jmax(1.0f, pitch * 0.5f);
-    const auto inset = 1.0f;
+    const int count = meterSegments((int)bounds.getHeight());
+    const auto step = track.getHeight() / (float)count;
+    const auto gap = juce::jlimit(1.0f, 3.0f, step * 0.18f);
 
-    for (int i = 0; i < steps; ++i) {
-      // The middle of the segment, measured up from the foot of the track,
-      // which is where a level is read from.
-      const auto t = ((float)i + 0.5f) / (float)steps;
-      const auto ty = bounds.getBottom() - t * bounds.getHeight();
-      const bool major = (i % 6) == 0;
-      const bool on = t <= reached;
+    // What is left either side of the track, less a pixel of air against the
+    // track and another against the edge of the strip.
+    const auto lane = juce::jmax(1.5f, (track.getX() - bounds.getX()) - 2.0f);
 
-      // A lit segment is longer as well as brighter, which is what the
-      // knob's ring does and what lets the run be followed without reading
-      // any one of them.
-      const auto len = on ? 4.0f : (major ? 4.0f : 2.5f);
+    const auto onNow =
+        juce::jlimit(0, count, juce::roundToInt(reached * (float)count));
 
-      // Held back from full. This is new colour on thirty-three channels at
-      // once, and the run has its length to carry it: lit to the hilt the
-      // ladders were the loudest thing in the mixer and the meters they
-      // stand beside were reading second.
-      g.setColour(on ? tint.withMultipliedAlpha(0.72f * dim)
-                     : colours::textDim.withAlpha((major ? 0.4f : 0.2f) * dim));
+    // Unlit in the macro's own colour held down low, the way the meter's
+    // unlit segments are the channel's. A column that goes grey where it ends
+    // reads as two scales rather than as one that is partly on.
+    const auto on = tint.withMultipliedAlpha(0.8f * dim);
+    const auto off = tint.withMultipliedAlpha(0.14f * dim);
 
-      g.fillRect(bounds.getX() + inset, ty - segH * 0.5f, len, segH);
-      g.fillRect(bounds.getRight() - inset - len, ty - segH * 0.5f, len, segH);
+    for (int i = 0; i < count; ++i) {
+      const auto cell =
+          juce::Rectangle<float>(
+              0.0f, track.getBottom() - (float)(i + 1) * step, lane, step)
+              .reduced(0.0f, gap * 0.5f);
+
+      const auto corner = juce::jmin(2.0f, cell.getHeight() * 0.4f);
+
+      g.setColour(i < onNow ? on : off);
+      g.fillRoundedRectangle(cell.withX(bounds.getX() + 1.0f), corner);
+      g.fillRoundedRectangle(cell.withX(bounds.getRight() - 1.0f - lane),
+                             corner);
     }
   }
 

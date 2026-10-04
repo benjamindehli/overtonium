@@ -10,6 +10,8 @@
 
 namespace ovt::ui {
 
+int meterSegments(int height) { return juce::jlimit(6, 24, height / 15); }
+
 namespace {
 /// What each macro colour actually is.
 ///

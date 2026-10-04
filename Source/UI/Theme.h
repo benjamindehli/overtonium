@@ -11,6 +11,18 @@
 
 namespace ovt::ui {
 
+/// How many segments a meter of this height divides into.
+///
+/// Here rather than on the meter because two drawings have to agree about it:
+/// the meter paints the segments and the fader laid over the same rectangle
+/// paints its own in the gutters either side, and sharing the rectangle is not
+/// enough. They have to share the arithmetic, or the gutters drift out of step
+/// with the track by a pixel and read as a second scale beside it.
+///
+/// Aiming at sixteen, but a short window gets fewer rather than a column of
+/// slivers, and a tall one gets more rather than bars.
+int meterSegments(int height);
+
 namespace colours {
 inline const juce::Colour background{0xff0b0d10};
 inline const juce::Colour panel{0xff14181d};

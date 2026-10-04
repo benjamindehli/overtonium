@@ -129,12 +129,6 @@ void LabelledKnob::resized() { slider.setBounds(dialBounds(getLocalBounds())); }
 
 // =============================================================================
 
-namespace {
-/// How many lamps fit. Aiming at sixteen, but a short window gets fewer rather
-/// than a column of slivers, and a tall one gets more rather than bars.
-int segmentsFor(int height) { return juce::jlimit(6, 24, height / 15); }
-} // namespace
-
 // =============================================================================
 
 namespace {
@@ -891,7 +885,7 @@ void LevelMeter::setBackdrop(juce::Colour top, juce::Colour bottom) {
   repaint();
 }
 
-int LevelMeter::segments() const { return segmentsFor(getHeight()); }
+int LevelMeter::segments() const { return meterSegments(getHeight()); }
 
 namespace {
 /// How far the bloom around a lit meter run reaches beyond it, in pixels.
