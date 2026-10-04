@@ -884,34 +884,22 @@ void OvertoniumLookAndFeel::drawLinearSlider(
   // lines inside ten pixels, and it was the whitest thing on a strip that has
   // since gone darker and more colourful around it. The line is also no longer
   // needed: the exact position is printed in dB under the fader.
-  const auto capH = juce::jmax(6.0f, bounds.getWidth() * 0.30f);
-  const juce::Rectangle<float> cap(bounds.getX() + 0.5f, fillTop - capH * 0.5f,
-                                   bounds.getWidth() - 1.0f, capH);
-
-  g.setColour(juce::Colours::black.withAlpha(0.34f * dim));
-  g.fillRoundedRectangle(cap.translated(0.5f, 1.5f), 2.0f);
-
-  // Light enough that the lit segments behind it stay legible through the
-  // glass, which is the whole reason the meter runs under the fader.
-  g.setColour(juce::Colours::white.withAlpha(0.13f * dim));
-  g.fillRoundedRectangle(cap, 2.0f);
-
-  // Edged in the macro's colour when one has this fader, white otherwise.
-  //
-  // The cap rather than the groove, because a metered fader's groove is the
-  // meter and its colour is the level rather than the control's. Edging the
-  // thing you grab is the only place a fader has to say it is being driven
-  // by something other than your hand. See ChannelStrip::setMacroTint.
   const auto macro = slider.getProperties().getWithDefault("macroColour", {});
   const bool driven = !macro.isVoid();
 
-  // Where the macro has taken this fader, drawn before the cap so the cap
-  // sits over it when the two coincide.
+  const auto tint = live && driven ? juce::Colour((juce::uint32)(int)macro)
+                                   : colours::textDim;
+
+  // ---- where the macro has taken it ----------------------------------------
+  // On the scale either side of the track rather than across the track
+  // itself. The gutter already carries the fader's ticks, which are the same
+  // language the knobs' ring is in, so a macro marking the scale is the
+  // fader doing what the knob does with the furniture it has.
   //
-  // A bar across the groove rather than a second cap: a fader with two caps
-  // reads as two faders, and the one you can grab has to be unmistakable.
-  // The knobs can show this on their ring because a ring is not the thing
-  // you grab, and a fader has no such spare surface.
+  // It was a bar straight across the groove, and the groove is the meter: a
+  // line through the middle of a meter cuts it in half and belongs to
+  // neither. Two marks in the gutters belong to the scale, cross nothing,
+  // and still stand at the exact level rather than snapping to a tick.
   if (driven) {
     const auto result =
         (double)slider.getProperties().getWithDefault("macroResult", -1.0);
@@ -922,20 +910,42 @@ void OvertoniumLookAndFeel::drawLinearSlider(
                        bounds.getBottom() - (float)result * bounds.getHeight());
 
       // Only worth drawing when it has parted company with the cap, which is
-      // what makes a macro at rest look like no macro at all.
+      // what makes a macro at rest look like no macro at all. The cap is
+      // drawn over these in any case, so the two coinciding shows nothing.
       if (std::abs(at - fillTop) > 1.0f) {
-        g.setColour(
-            (live ? juce::Colour((juce::uint32)(int)macro) : colours::textDim)
-                .withMultipliedAlpha(0.95f * dim));
-        g.fillRoundedRectangle(bounds.getX() + 1.0f, at - 1.0f,
-                               bounds.getWidth() - 2.0f, 2.0f, 1.0f);
+        const auto len = 5.0f;
+
+        g.setColour(tint.withMultipliedAlpha(0.95f * dim));
+        g.fillRect(bounds.getX() + 1.0f, at - 1.0f, len, 2.0f);
+        g.fillRect(bounds.getRight() - 1.0f - len, at - 1.0f, len, 2.0f);
       }
     }
   }
 
-  g.setColour(driven && live ? juce::Colour((juce::uint32)(int)macro)
-                             : juce::Colours::white.withAlpha(0.46f * dim));
-  g.drawRoundedRectangle(cap.reduced(0.5f), 2.0f, driven ? 1.4f : 1.0f);
+  const auto capH = juce::jmax(6.0f, bounds.getWidth() * 0.30f);
+  const juce::Rectangle<float> cap(bounds.getX() + 0.5f, fillTop - capH * 0.5f,
+                                   bounds.getWidth() - 1.0f, capH);
+
+  g.setColour(juce::Colours::black.withAlpha(0.34f * dim));
+  g.fillRoundedRectangle(cap.translated(0.5f, 1.5f), 2.0f);
+
+  // Light enough that the lit segments behind it stay legible through the
+  // glass, which is the whole reason the meter runs under the fader.
+  //
+  // Tinted rather than outlined when a macro has this fader. The glass is
+  // the one part of a fader that can take a colour without becoming a line:
+  // an edge in the macro's colour sat right against the cap's own white one,
+  // two hard rings a pixel apart, and read as a sticker put on the cap
+  // rather than as the cap being driven.
+  g.setColour(driven ? tint.withMultipliedAlpha(0.3f * dim)
+                     : juce::Colours::white.withAlpha(0.13f * dim));
+  g.fillRoundedRectangle(cap, 2.0f);
+
+  // The cap's own edge, which is white whatever is driving it. What says a
+  // macro has this fader is the tint in the glass and the marks on the
+  // scale, neither of which is a line.
+  g.setColour(juce::Colours::white.withAlpha(0.46f * dim));
+  g.drawRoundedRectangle(cap.reduced(0.5f), 2.0f, 1.0f);
 
   // The lip catches the light off centre, so it says glass rather than
   // dividing the cap in half.
