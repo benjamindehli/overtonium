@@ -2109,9 +2109,12 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   };
   collect(*editor);
 
-  // Three on the bar, the two converter readouts and the preset name, and two
-  // on each of the thirty-two channels, plus the level on the noise strip.
-  check(displays.size() == 3 + 2 * ovt::kNumHarmonics + 1,
+  // Three on the bar, the two converter readouts and the preset name, two on
+  // each of the thirty-two channels, the level on the noise strip, and one
+  // per macro in the panel. The panel's eight are built whether or not the
+  // macro has been made, so they are all here whatever the patch says.
+  check(displays.size() ==
+            3 + 2 * ovt::kNumHarmonics + 1 + ovt::params::kNumMacros,
         "every readout is a segment display now (" +
             std::to_string(displays.size()) + ")");
 
@@ -2322,9 +2325,86 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
         "when sharp (" +
             readingFor(2, 1.0f).toStdString() + ")");
 
-  check(!readingFor(2, 1.0f).containsChar('+') &&
-            !ovt::ui::SegmentDisplay::canDraw('+'),
-        "and the display has no plus to draw in the first place");
+  check(!readingFor(2, 1.0f).containsChar('+'),
+        "and the display is never asked for one");
+
+  // ---- a sign sharing the leading digit's cell -----------------------------
+  //
+  // A reading that runs to three digits and can be negative has a hundreds
+  // place that is only ever a one or nothing, so the sign lives in that cell
+  // beside it rather than taking a cell of its own. The macro panel's amount
+  // is the only reading that does this.
+  //
+  // Held by rendering the same number signed and unsigned and comparing the
+  // pictures: everything but that first cell has to be identical, or the
+  // digits are shifting along to make room for the sign, which is the thing
+  // this exists to stop. Counting lit pixels will not do it, since the ground
+  // these are drawn on is lit too.
+  const auto renderOf = [](const juce::String &reading) {
+    ovt::ui::SegmentDisplay d({});
+    d.setBounds(0, 0, 92, 30);
+    d.setReading(reading, true);
+
+    return d.createComponentSnapshot(d.getLocalBounds());
+  };
+
+  const auto signed_ = renderOf("~42.0");
+  const auto unsigned_ = renderOf(" 42.0");
+
+  int differing = 0;
+  int to = -1;
+
+  for (int y = 0; y < signed_.getHeight(); ++y)
+    for (int x = 0; x < signed_.getWidth(); ++x)
+      if (signed_.getPixelAt(x, y) != unsigned_.getPixelAt(x, y)) {
+        ++differing;
+        to = juce::jmax(to, x);
+      }
+
+  check(differing > 0, "a sign is drawn in the leading cell (" +
+                           std::to_string(differing) + " pixels differ)");
+
+  // Nothing past that cell, which is the first of four in a centred run, so
+  // half the box is well clear of it and well short of the second digit.
+  check(differing > 0 && to < signed_.getWidth() / 2,
+        "and nothing beyond it moves to make room (last at " +
+            std::to_string(to) + " of " + std::to_string(signed_.getWidth()) +
+            ")");
+
+  // It also stands clear of the digit it shares with, which is the whole
+  // reason it is not simply the middle bar: a minus running the full width of
+  // the cell joins the two uprights of a one into a passable four, and -100.0
+  // came out reading as 400.0.
+  //
+  // The property is a gap, so that is what is measured. Inside the leading
+  // cell there have to be two separate runs of lit pixels across the width,
+  // the bar and then the uprights, with daylight between them. A minus made
+  // of the middle segment reaches the uprights and leaves one run.
+  const auto minusOne = renderOf("!00.0");
+
+  // A quarter of the box, which is inside the first of four cells wherever
+  // the centred run begins.
+  const auto firstCell = minusOne.getWidth() / 4;
+
+  int runs = 0;
+  bool inRun = false;
+
+  for (int x = 0; x < firstCell; ++x) {
+    bool any = false;
+
+    // Inside the recess, whose own lit edge runs round the whole perimeter
+    // and would otherwise make every column count as lit.
+    for (int y = 4; y < minusOne.getHeight() - 4 && !any; ++y)
+      any = minusOne.getPixelAt(x, y).getBlue() > 120;
+
+    if (any && !inRun)
+      ++runs;
+
+    inRun = any;
+  }
+
+  check(runs == 2, "and it stands clear of the one beside it (" +
+                       std::to_string(runs) + " runs of lit pixels)");
 
   check(readingFor(6, 1.0f) == "-31.2",
         "the seventh harmonic being the one that goes the other way (" +

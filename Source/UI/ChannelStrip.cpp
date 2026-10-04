@@ -180,6 +180,30 @@ uint8_t segmentsFor(char c) {
   case 'i':
     return kSegC;
 
+  // ---- a sign sharing the hundreds digit's cell ---------------------------
+  //
+  // A reading that runs to three digits and can be negative has a hundreds
+  // place that is only ever a one or nothing, and a sign that is only ever a
+  // minus or nothing. The bar a minus needs and the two uprights a one needs
+  // are different segments, so one cell carries both and the reading saves
+  // the whole width of a separate sign.
+  //
+  // Which is worth having twice over: the digits get the room, and the sign
+  // stops being a narrow cell that the digits have to be padded around to
+  // keep them from shifting when a value crosses zero.
+  //
+  // Only the macro panel's amount asks for these. Nothing on a channel
+  // changes sign.
+  // The digit's own bars only. The sign beside them is drawn by paintGlyph,
+  // because a minus made of the middle bar runs the full width of the cell
+  // and joins the two uprights into a passable four: -100.0 came out reading
+  // as 400.0. A real display keeps the sign clear of the digit, so this one
+  // does too.
+  case '~':
+    return 0;
+  case '!':
+    return kSegB | kSegC;
+
   default:
     return 0;
   }
@@ -196,6 +220,10 @@ uint8_t segmentsFor(char c) {
 /// asks for one, and a character with no form here comes out blank rather
 /// than as the speck a plus would be.
 bool isNarrow(char c) { return c == '.' || c == '-'; }
+
+/// Whether this cell carries a minus of its own beside whatever digit it
+/// shows. See the '~' and '!' cases in segmentsFor.
+bool carriesSign(char c) { return c == '~' || c == '!'; }
 
 // ---- fourteen bars, for the displays that have to spell ---------------------
 //
@@ -331,6 +359,9 @@ uint16_t starburstFor(char c) {
 } // namespace
 
 bool SegmentDisplay::canDraw(char c, Bars bars) {
+  if (carriesSign(c))
+    return bars == Bars::Seven;
+
   if (bars == Bars::Fourteen)
     // A space has no bars lit and is still a character it can show, so the
     // table's zero cannot be the answer on its own here.
@@ -454,6 +485,17 @@ void SegmentDisplay::paintGlyph(juce::Graphics &g, juce::Rectangle<float> area,
     g.setColour((lit & bar.flag) != 0 ? on : off);
     g.fillRoundedRectangle(bar.r.translated(area.getX(), area.getY()),
                            t * 0.35f);
+  }
+
+  // The sign, on the left of the cell and well short of the uprights, so it
+  // reads as a minus standing beside a digit rather than as one more bar of
+  // it. Drawn rather than left to the middle segment for that reason alone.
+  if (carriesSign(c)) {
+    g.setColour(on);
+    // Long enough to read as a bar rather than as a speck, and stopping
+    // well short of where the uprights stand at w - t.
+    g.fillRoundedRectangle(area.getX() + gap, area.getY() + mid,
+                           (w - t) * 0.58f, t, t * 0.35f);
   }
 }
 

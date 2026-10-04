@@ -730,6 +730,81 @@ void OvertoniumLookAndFeel::drawLinearSlider(
   const bool metered =
       (bool)slider.getProperties().getWithDefault("meteredGroove", false);
 
+  // The macro panel's amount, which is a channel fader laid on its side with
+  // its own segments rather than a meter's underneath it. There is no meter
+  // to put there and nothing to meter: an amount is a setting, not a level.
+  //
+  // Lit from the middle out rather than from one end. The amount is signed
+  // and what it says is a distance, so a run growing either way from nothing
+  // is the shape of it, the same way the relative knobs draw their arc from
+  // twelve o'clock.
+  if (style == juce::Slider::LinearHorizontal &&
+      (bool)slider.getProperties().getWithDefault("segmentedTrack", false)) {
+    const auto bounds = juce::Rectangle<int>(x, y, width, height).toFloat();
+    const auto dim = slider.isEnabled() ? 1.0f : 0.4f;
+    const auto colour = slider.findColour(juce::Slider::trackColourId);
+
+    const auto trackH = juce::jmax(6.0f, bounds.getHeight() * 0.5f);
+    const auto track = bounds.withSizeKeepingCentre(bounds.getWidth(), trackH);
+
+    g.setColour(colours::groove);
+    g.fillRoundedRectangle(track, trackH * 0.35f);
+
+    const int count =
+        juce::jlimit(8, 48, juce::roundToInt(track.getWidth() / 9.0f));
+
+    const auto step = track.getWidth() / (float)count;
+    const auto gap = juce::jlimit(1.0f, 3.0f, step * 0.18f);
+
+    // The same pair the meter uses: lit, and the same colour held down low so
+    // an amount of nothing still says which macro the row belongs to.
+    const auto on = colour.withAlpha(0.92f * dim);
+    const auto off = colour.withAlpha(0.13f * dim);
+
+    const auto at = juce::jlimit(track.getX(), track.getRight(), sliderPos);
+    const auto mid = track.getCentreX();
+    const auto lo = juce::jmin(mid, at);
+    const auto hi = juce::jmax(mid, at);
+
+    for (int i = 0; i < count; ++i) {
+      const auto cell = juce::Rectangle<float>(track.getX() + (float)i * step,
+                                               track.getY(), step, trackH)
+                            .reduced(gap * 0.5f, 1.0f);
+
+      const bool on_ = cell.getCentreX() >= lo && cell.getCentreX() <= hi;
+
+      g.setColour(on_ ? on : off);
+      g.fillRoundedRectangle(cell, juce::jmin(2.0f, cell.getWidth() * 0.4f));
+    }
+
+    // The same glass cap the master fader wears, for the same reason: it is
+    // the thing you grab and it has to be unmistakable against a track that
+    // is itself lit.
+    const auto capW = juce::jmax(6.0f, bounds.getHeight() * 0.3f);
+    const juce::Rectangle<float> cap(at - capW * 0.5f, bounds.getY() + 0.5f,
+                                     capW, bounds.getHeight() - 1.0f);
+
+    g.setColour(juce::Colours::black.withAlpha(0.34f * dim));
+    g.fillRoundedRectangle(cap.translated(1.5f, 0.5f), 2.0f);
+
+    g.setColour(juce::Colours::white.withAlpha(0.13f * dim));
+    g.fillRoundedRectangle(cap, 2.0f);
+
+    g.setColour(juce::Colours::white.withAlpha(0.46f * dim));
+    g.drawRoundedRectangle(cap.reduced(0.5f), 2.0f, 1.0f);
+
+    g.setColour(juce::Colours::white.withAlpha(0.26f * dim));
+    g.fillRect(cap.getX() + 1.5f, cap.getY() + 2.5f, 1.0f,
+               cap.getHeight() - 5.0f);
+
+    if ((bool)slider.getProperties().getWithDefault("learnArmed", false)) {
+      g.setColour(colours::learning);
+      g.drawRoundedRectangle(cap.expanded(1.5f), 2.5f, 1.6f);
+    }
+
+    return;
+  }
+
   // The master fader, which is the same idea as a channel's laid on its side:
   // a meter under the whole control and a glass cap over it saying where the
   // level is set. It has no groove of its own for the same reason a channel's
