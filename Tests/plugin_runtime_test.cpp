@@ -2438,7 +2438,7 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
 /// say, and a preset is called Glockenspiel. The display that carries the
 /// name has fourteen, and three faults in it came out of looking at a render
 /// rather than out of reasoning: a hyphen counted as a sign rather than as a
-/// letter, so Lo-fi lost its last character; the five had two bars wrong; and
+/// letter, so Lo-fi lost its last character. The five had two bars wrong, and
 /// the diagonals were trimmed along the wrong axis, so X was four marks
 /// around a hole. The first and the third are what this holds.
 void testThePresetDisplaySpells(OvertoniumProcessor &) {

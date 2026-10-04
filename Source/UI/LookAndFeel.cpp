@@ -1083,29 +1083,6 @@ OvertoniumLookAndFeel::lampCapBounds(juce::Rectangle<float> bounds,
   return cap;
 }
 
-namespace {
-/// WCAG relative luminance, which is what checking a legend against a lit cap
-/// needs. Perceived brightness will not do it: a saturated blue and a
-/// saturated yellow at the same nominal value are nowhere near as far apart
-/// in how much light they put out.
-float channelLuminance(float c) {
-  return c <= 0.03928f ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f);
-}
-
-float relativeLuminance(juce::Colour c) {
-  return 0.2126f * channelLuminance(c.getFloatRed()) +
-         0.7152f * channelLuminance(c.getFloatGreen()) +
-         0.0722f * channelLuminance(c.getFloatBlue());
-}
-} // namespace
-
-float OvertoniumLookAndFeel::lampContrast(juce::Colour a, juce::Colour b) {
-  const auto one = relativeLuminance(a);
-  const auto other = relativeLuminance(b);
-
-  return (juce::jmax(one, other) + 0.05f) / (juce::jmin(one, other) + 0.05f);
-}
-
 juce::Colour OvertoniumLookAndFeel::lampFace(juce::Colour lamp, bool on) {
   if (!on)
     // White plastic in an unlit room, which is a grey rather than a white.

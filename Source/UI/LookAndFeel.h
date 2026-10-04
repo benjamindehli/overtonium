@@ -64,10 +64,6 @@ public:
   /// state off the colour of the cap alone.
   static juce::Colour lampLegend();
 
-  /// WCAG contrast between two colours, which is what checking a legend
-  /// against the plastic it is printed on needs.
-  static float lampContrast(juce::Colour, juce::Colour);
-
   /// A square plastic cap of the kind a tape machine or a desk has, standing
   /// in a moulded well and lit from behind when its thing is on.
   ///
