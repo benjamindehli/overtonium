@@ -220,9 +220,11 @@ The band is deliberately narrow, a crop from the middle of a full blue to yellow
 
 Every channel stands on the same grey. Alternating two shades to tell one strip from the next would put a stripe behind every knob's interval colour, behind the lit meters, the lamps and the readouts, competing with all of it. The strips are told apart by their own lit and shadowed edges instead, a one pixel groove at every boundary, which is how a console does it.
 
-Every partial stands on the same grey, and only the noise channel stands a shade up from it, since it is the one strip that is not a partial at all.
+**There is one grey in the mixer and nothing stands on anything else**, the noise channel included.
 
-The octaves used to take that lighter shade too, to make the shape of the series readable when you are scrolled out at harmonic 28. It had to go, because the hover highlight is also a wash across a strip and of much the same weight, so a mixer with both on it has two kinds of lightened channel and no way to tell which is which without counting. The colour bar at the head of every strip already says which interval it is, the octaves included, and it says it at a glance and in a language nothing else on the panel uses. One signal doing that job is enough.
+Two things used to take a shade up from it: the octaves, so the shape of the series would read when you are scrolled out at harmonic 28, and the noise channel, because it is not a partial. Both had to go for the same reason. The hover highlight is a wash across a strip and of much the same weight, so a mixer carrying either of those had two kinds of lightened channel and no way to tell which was which without counting.
+
+Nothing was lost by taking them out, because in both cases something louder was already saying it. The colour bar at the head of every strip says which interval it is, octaves included, in a language nothing else on the panel uses. And the noise channel is the only strip with no interval colour anywhere on it and the only one headed with a name rather than a number, which is a larger difference than three per cent of brightness ever was.
 
 **Every switch on the panel is a lamp behind a square plastic cap**, the way the buttons on an old mixer or tape machine are. ECHO, REVERB, the character button, the tool, the two on the bar that open something, and the M and S on all thirty-three channels. The cap sits in a moulded well with a dark edge outside it and a light one inside, which is what says "carved" at a size too small to model properly.
 

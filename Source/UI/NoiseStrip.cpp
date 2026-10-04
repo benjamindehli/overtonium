@@ -368,10 +368,11 @@ void NoiseStrip::setHighlightedRow(Row row) {
 void NoiseStrip::paint(juce::Graphics &g) {
   auto bounds = getLocalBounds();
 
-  // A shade off the numbered channels, which is the one background difference
-  // left in the mixer and the one that means something: this channel is not
-  // part of the series.
-  paintChannelBackground(g, bounds, colours::channel.brighter(0.03f));
+  // The same ground every other channel stands on. What tells this one apart
+  // is that it is the only strip with no interval colour anywhere on it, and
+  // the only one headed with a name rather than a number, which it says
+  // without a second wash that the hover highlight has to be told from.
+  paintChannelBackground(g, bounds, colours::channel);
 
   const auto rows =
       layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed, scroll);
@@ -431,7 +432,7 @@ void NoiseStrip::paintHeaderBand(juce::Graphics &g) {
   // See ChannelStrip::paintHeaderBand. The background is drawn for the whole
   // column and clipped to the cap, so the two cannot come adrift.
   const auto bounds = getLocalBounds();
-  paintChannelBackground(g, bounds, colours::channel.brighter(0.03f));
+  paintChannelBackground(g, bounds, colours::channel);
 
   const auto rows =
       layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed, scroll);
@@ -508,7 +509,7 @@ void NoiseStrip::resized() {
   meter.setBounds(faderRow.reduced(2, 1));
 
   {
-    const auto base = colours::channel.brighter(0.03f);
+    const auto base = colours::channel;
     const auto top = base.brighter(0.10f);
     const auto bottom = base.darker(0.06f);
 
