@@ -2364,6 +2364,38 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   check(differing > 0, "a sign is drawn in the leading cell (" +
                            std::to_string(differing) + " pixels differ)");
 
+  // And it sits in the middle of that cell when nothing shares it, which is
+  // how the reading spends nearly all of its life. Measured against a lit
+  // eight standing in the same cell, which marks the cell's own extent.
+  const auto centreOf = [](const juce::Image &im) {
+    int first = -1, last = -1;
+
+    // The leading cell only, and inside the recess, whose own lit edge runs
+    // round the perimeter and would otherwise be the extent of everything.
+    for (int x = 0; x < im.getWidth() / 4; ++x) {
+      bool any = false;
+
+      for (int y = 4; y < im.getHeight() - 4 && !any; ++y)
+        any = im.getPixelAt(x, y).getBlue() > 120;
+
+      if (any) {
+        if (first < 0)
+          first = x;
+
+        last = x;
+      }
+    }
+
+    return first < 0 ? 0.0 : (first + last) / 2.0;
+  };
+
+  const auto cellCentre = centreOf(renderOf("830.0"));
+  const auto signCentre = centreOf(signed_);
+
+  check(std::abs(cellCentre - signCentre) < 1.0,
+        "and sits in the middle of it (cell at " + std::to_string(cellCentre) +
+            ", sign at " + std::to_string(signCentre) + ")");
+
   // Nothing past that cell, which is the first of four in a centred run, so
   // half the box is well clear of it and well short of the second digit.
   check(differing > 0 && to < signed_.getWidth() / 2,

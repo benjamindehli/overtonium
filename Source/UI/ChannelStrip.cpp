@@ -492,16 +492,21 @@ void SegmentDisplay::paintGlyph(juce::Graphics &g, juce::Rectangle<float> area,
   // it. Drawn rather than left to the middle segment for that reason alone.
   if (carriesSign(c)) {
     g.setColour(on);
-    // Long enough to read as a bar rather than as a speck, and centred in
-    // the room it has, which is everything to the left of where the
-    // uprights stand at w - t. Hung off the left edge instead it sat a
-    // pixel out of true, which showed most on a reading with no one beside
-    // it: a minus alone in a cell wants to look centred in what it is
-    // sharing, not pushed against the wall.
+    // Centred in the room it has, which is the whole cell when there is no
+    // digit sharing it and everything left of the uprights when there is.
+    //
+    // A real half-digit keeps its sign in one place and lets it sit left of
+    // centre, which is what this did. On a cell that is empty the rest of
+    // the time that reads as a mark that has slipped, and the one reading
+    // that uses this shows a bare minus far more often than it shows a
+    // hundred. The two positions differ by less than two pixels and the only
+    // value where the cell changes between them is the end of the range,
+    // where it gains a whole digit anyway.
     const auto bar = (w - t) * 0.58f;
+    const auto room = c == '!' ? w - t : w;
 
-    g.fillRoundedRectangle(area.getX() + (w - t - bar) * 0.5f,
-                           area.getY() + mid, bar, t, t * 0.35f);
+    g.fillRoundedRectangle(area.getX() + (room - bar) * 0.5f, area.getY() + mid,
+                           bar, t, t * 0.35f);
   }
 }
 
