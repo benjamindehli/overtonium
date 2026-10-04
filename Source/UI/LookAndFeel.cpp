@@ -854,23 +854,61 @@ void OvertoniumLookAndFeel::drawLinearSlider(
     g.drawRoundedRectangle(bounds.reduced(0.5f), 3.0f, 1.4f);
   }
 
-  // Scale ticks either side of the track, in the same language as the tick
-  // ring on the knobs. They give the meter something to be read against.
+  const auto macro = slider.getProperties().getWithDefault("macroColour", {});
+  const bool driven = !macro.isVoid();
+
+  const auto tint = live && driven ? juce::Colour((juce::uint32)(int)macro)
+                                   : colours::textDim;
+
+  // How far up the macro has taken this fader, as a fraction of the track.
+  // Negative when nothing is driving it, so no segment counts as lit.
+  const auto reached =
+      driven ? (float)(double)slider.getProperties().getWithDefault(
+                   "macroResult", -1.0)
+             : -1.0f;
+
+  // ---- the scale ------------------------------------------------------------
+  // A ladder of segments either side of the track, in the same language as
+  // the tick ring on the knobs: it gives the meter something to be read
+  // against, and when a macro has this fader it lights from the foot of the
+  // track up to the level the macro has taken it to.
+  //
+  // This is the fader's ring. A knob can light the ticks around its cap
+  // because a ring is not the thing you grab, and a fader's gutter is the
+  // one strip of it that is neither the groove, nor the meter, nor the cap.
+  //
+  // Nine ticks was too coarse a ladder to read a level off, so the count
+  // comes off the height now and lands two to three times finer.
   if (bounds.getWidth() >= 22.0f) {
-    constexpr int steps = 9;
+    const int steps =
+        juce::jlimit(9, 36, juce::roundToInt(bounds.getHeight() / 6.0f));
+
+    const auto pitch = bounds.getHeight() / (float)steps;
+    const auto segH = juce::jmax(1.0f, pitch * 0.5f);
     const auto inset = 1.0f;
-    const auto len = 3.0f;
 
     for (int i = 0; i < steps; ++i) {
-      const auto t = (float)i / (float)(steps - 1);
-      const auto ty = bounds.getY() + t * bounds.getHeight();
-      const bool major = (i % 4) == 0;
+      // The middle of the segment, measured up from the foot of the track,
+      // which is where a level is read from.
+      const auto t = ((float)i + 0.5f) / (float)steps;
+      const auto ty = bounds.getBottom() - t * bounds.getHeight();
+      const bool major = (i % 6) == 0;
+      const bool on = t <= reached;
 
-      g.setColour(colours::textDim.withAlpha((major ? 0.45f : 0.22f) * dim));
-      g.fillRect(bounds.getX() + inset, ty - 0.5f, major ? len + 1.0f : len,
-                 1.0f);
-      g.fillRect(bounds.getRight() - inset - (major ? len + 1.0f : len),
-                 ty - 0.5f, major ? len + 1.0f : len, 1.0f);
+      // A lit segment is longer as well as brighter, which is what the
+      // knob's ring does and what lets the run be followed without reading
+      // any one of them.
+      const auto len = on ? 4.0f : (major ? 4.0f : 2.5f);
+
+      // Held back from full. This is new colour on thirty-three channels at
+      // once, and the run has its length to carry it: lit to the hilt the
+      // ladders were the loudest thing in the mixer and the meters they
+      // stand beside were reading second.
+      g.setColour(on ? tint.withMultipliedAlpha(0.72f * dim)
+                     : colours::textDim.withAlpha((major ? 0.4f : 0.2f) * dim));
+
+      g.fillRect(bounds.getX() + inset, ty - segH * 0.5f, len, segH);
+      g.fillRect(bounds.getRight() - inset - len, ty - segH * 0.5f, len, segH);
     }
   }
 
@@ -884,44 +922,6 @@ void OvertoniumLookAndFeel::drawLinearSlider(
   // lines inside ten pixels, and it was the whitest thing on a strip that has
   // since gone darker and more colourful around it. The line is also no longer
   // needed: the exact position is printed in dB under the fader.
-  const auto macro = slider.getProperties().getWithDefault("macroColour", {});
-  const bool driven = !macro.isVoid();
-
-  const auto tint = live && driven ? juce::Colour((juce::uint32)(int)macro)
-                                   : colours::textDim;
-
-  // ---- where the macro has taken it ----------------------------------------
-  // On the scale either side of the track rather than across the track
-  // itself. The gutter already carries the fader's ticks, which are the same
-  // language the knobs' ring is in, so a macro marking the scale is the
-  // fader doing what the knob does with the furniture it has.
-  //
-  // It was a bar straight across the groove, and the groove is the meter: a
-  // line through the middle of a meter cuts it in half and belongs to
-  // neither. Two marks in the gutters belong to the scale, cross nothing,
-  // and still stand at the exact level rather than snapping to a tick.
-  if (driven) {
-    const auto result =
-        (double)slider.getProperties().getWithDefault("macroResult", -1.0);
-
-    if (result >= 0.0) {
-      const auto at =
-          juce::jlimit(bounds.getY(), bounds.getBottom(),
-                       bounds.getBottom() - (float)result * bounds.getHeight());
-
-      // Only worth drawing when it has parted company with the cap, which is
-      // what makes a macro at rest look like no macro at all. The cap is
-      // drawn over these in any case, so the two coinciding shows nothing.
-      if (std::abs(at - fillTop) > 1.0f) {
-        const auto len = 5.0f;
-
-        g.setColour(tint.withMultipliedAlpha(0.95f * dim));
-        g.fillRect(bounds.getX() + 1.0f, at - 1.0f, len, 2.0f);
-        g.fillRect(bounds.getRight() - 1.0f - len, at - 1.0f, len, 2.0f);
-      }
-    }
-  }
-
   const auto capH = juce::jmax(6.0f, bounds.getWidth() * 0.30f);
   const juce::Rectangle<float> cap(bounds.getX() + 0.5f, fillTop - capH * 0.5f,
                                    bounds.getWidth() - 1.0f, capH);
@@ -942,8 +942,8 @@ void OvertoniumLookAndFeel::drawLinearSlider(
   g.fillRoundedRectangle(cap, 2.0f);
 
   // The cap's own edge, which is white whatever is driving it. What says a
-  // macro has this fader is the tint in the glass and the marks on the
-  // scale, neither of which is a line.
+  // macro has this fader is the tint in the glass and the lit run up the
+  // scale, neither of which is a line laid over something else.
   g.setColour(juce::Colours::white.withAlpha(0.46f * dim));
   g.drawRoundedRectangle(cap.reduced(0.5f), 2.0f, 1.0f);
 
