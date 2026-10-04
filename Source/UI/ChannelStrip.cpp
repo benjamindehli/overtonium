@@ -492,10 +492,16 @@ void SegmentDisplay::paintGlyph(juce::Graphics &g, juce::Rectangle<float> area,
   // it. Drawn rather than left to the middle segment for that reason alone.
   if (carriesSign(c)) {
     g.setColour(on);
-    // Long enough to read as a bar rather than as a speck, and stopping
-    // well short of where the uprights stand at w - t.
-    g.fillRoundedRectangle(area.getX() + gap, area.getY() + mid,
-                           (w - t) * 0.58f, t, t * 0.35f);
+    // Long enough to read as a bar rather than as a speck, and centred in
+    // the room it has, which is everything to the left of where the
+    // uprights stand at w - t. Hung off the left edge instead it sat a
+    // pixel out of true, which showed most on a reading with no one beside
+    // it: a minus alone in a cell wants to look centred in what it is
+    // sharing, not pushed against the wall.
+    const auto bar = (w - t) * 0.58f;
+
+    g.fillRoundedRectangle(area.getX() + (w - t - bar) * 0.5f,
+                           area.getY() + mid, bar, t, t * 0.35f);
   }
 }
 
@@ -528,8 +534,20 @@ void SegmentDisplay::paintStarburst(juce::Graphics &g,
       {kStD, {t * 0.5f + gap, h - t, w - t - gap * 2.0f, t}},
       {kStE, {0.0f, mid + t * 0.5f + gap * 0.5f, t, mid - gap * 1.5f}},
       {kStF, {0.0f, t * 0.5f + gap, t, mid - gap * 1.5f}},
-      {kStG1, {t * 0.5f + gap, mid, half - t - gap * 1.5f, t}},
-      {kStG2, {half + t * 0.5f + gap * 0.5f, mid, half - t - gap * 1.5f, t}},
+      // The two halves of the middle, each running from its own end of the
+      // cell to the upright that stands in the centre of it.
+      //
+      // Mirror images, which they were not: the right one used to start half
+      // a bar past the centre instead of a whole one past it, so it reached
+      // a bar's width too far left and the middle of every cell sat off to
+      // that side.
+      //
+      // And longer than they were. A half-middle is squeezed between the
+      // outer upright and the centre one, and at the inset the other bars
+      // use it came out three pixels: a dot rather than a bar, so a hyphen
+      // read as two specks.
+      {kStG1, {t * 0.5f, mid, half - t * 0.5f - gap, t}},
+      {kStG2, {half + t + gap, mid, w - t * 1.5f - half - gap, t}},
       {kStI, {half, t * 0.5f + gap, t, mid - gap * 1.5f}},
       {kStL, {half, mid + t * 0.5f + gap * 0.5f, t, mid - gap * 1.5f}},
   };

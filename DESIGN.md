@@ -499,7 +499,9 @@ The minus rides on a narrow cell of its own rather than taking a digit, again th
 
 **A sign can share the leading digit's cell**, and on the one reading that runs to three digits and changes sign it does. The macro panel's amount reaches a hundred either way, so its hundreds place is only ever a one or nothing and its sign is only ever a minus or nothing: both live in that cell together and the reading saves the whole width of a separate sign.
 
-The minus is drawn beside the digit rather than being the middle segment of it, which is the obvious way and is wrong. A bar running the full width of the cell meets the two uprights a one is made of and the three together are a passable four, so -100.0 came out reading as 400.0. It is a shorter bar on the left of the cell with daylight after it, which is how a display with a real half-digit at that end looks. A test holds the gap by counting runs of lit pixels across that cell: there have to be two.
+The minus is drawn beside the digit rather than being the middle segment of it, which is the obvious way and is wrong. A bar running the full width of the cell meets the two uprights a one is made of and the three together are a passable four, so -100.0 came out reading as 400.0. It is a shorter bar with daylight after it, centred in the room it has, which is everything to the left of where those uprights stand. That is how a display with a real half-digit at that end looks. A test holds the gap by counting runs of lit pixels across that cell: there have to be two.
+
+Centred in the room it has, rather than hung off the left edge of the cell, because hung off the edge it sat a pixel out of true. It shows most on a reading with no one beside it, where a minus alone in a cell wants to look centred in what it is sharing instead of pressed against the wall.
 
 Both rows grew from thirteen pixels to sixteen. Seven-segment digits are about as wide as they are tall, so the row height caps the cell width, and at thirteen a reading like -13.7 ran its figures into each other. Three pixels on each of the two rows is what it costs to be able to read them.
 
@@ -507,7 +509,9 @@ The risk in replacing a label with one of these is a reading the display has no 
 
 The noise channel's level reads the same way.
 
-**The preset name is a display too, with fourteen bars to a cell instead of seven.** Seven manage the digits and about five letters, which is everything a readout on a channel has to say, and a preset is called Glockenspiel. Fourteen is what the hardware that had to show words used: the middle bar splits in two and four diagonals and two uprights fill the cell, which carries the whole alphabet. The cells have no lower case, so the name is upper-cased on its way in and kept as it was given for saving.
+**The preset name is a display too, with fourteen bars to a cell instead of seven.** Seven manage the digits and about five letters, which is everything a readout on a channel has to say, and a preset is called Glockenspiel. Fourteen is what the hardware that had to show words used: the middle bar splits in two and four diagonals and two uprights fill the cell, which carries the whole alphabet.
+
+The two halves of that middle bar are mirror images and had to be made so. The right one started half a bar past the centre where the left one started a whole bar from its end, so it reached a bar's width too far left and the middle of every cell sat off to that side, which shows on a hyphen more than on a letter. They are also longer than they were: a half-middle is squeezed between an outer upright and the centre one, and at the inset the other bars use it came out three pixels, a dot rather than a bar, so a hyphen read as two specks. The cells have no lower case, so the name is upper-cased on its way in and kept as it was given for saving.
 
 **It has nine cells and always shows nine.** Sizing itself to the reading meant the letters grew and shrank as presets were loaded, so the same display was a different instrument depending on what was in it. Nine is where it looks best: wide enough that most of the names stand whole and narrow enough that the cells are the size they want to be. A short name leaves the rest of them standing unlit, which is what a display with a real number of digits in it does.
 
