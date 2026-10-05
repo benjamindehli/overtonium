@@ -142,9 +142,14 @@ public:
   }
 
   /// How far velocity and aftertouch have moved this partial from its fader,
-  /// See Voice::getPartialTouches.
-  float getPartialTouch(int index0) const noexcept {
-    return partialTouches[(size_t)index0].load(std::memory_order_relaxed);
+  /// See Voice::getPartialVelocities.
+  float getPartialVelocity(int index0) const noexcept {
+    return partialVelocities[(size_t)index0].load(std::memory_order_relaxed);
+  }
+
+  /// See Voice::getPartialPressures.
+  float getPartialPressure(int index0) const noexcept {
+    return partialPressures[(size_t)index0].load(std::memory_order_relaxed);
   }
 
   float getNoiseEnvelope() const noexcept {
@@ -155,9 +160,13 @@ public:
     return noiseTremolo.load(std::memory_order_relaxed);
   }
 
-  /// See getPartialTouch. The noise channel's own.
-  float getNoiseTouch() const noexcept {
-    return noiseTouch.load(std::memory_order_relaxed);
+  /// The noise channel's own two.
+  float getNoiseVelocity() const noexcept {
+    return noiseVelocity.load(std::memory_order_relaxed);
+  }
+
+  float getNoisePressure() const noexcept {
+    return noisePressure.load(std::memory_order_relaxed);
   }
 
   /// Peak of the finished output per channel, after master gain and the
@@ -216,12 +225,14 @@ private:
     std::array<float, kNumHarmonics> envelopes{};
     std::array<float, kNumHarmonics> tremolos{};
     std::array<float, kNumHarmonics> pitches{};
-    std::array<float, kNumHarmonics> touches{};
+    std::array<float, kNumHarmonics> velocities{};
+    std::array<float, kNumHarmonics> pressures{};
 
     float noisePeak = 0.0f;
     float noiseEnvelope = 0.0f;
     float noiseTremolo = 0.0f;
-    float noiseTouch = 0.0f;
+    float noiseVelocity = 0.0f;
+    float noisePressure = 0.0f;
   };
 
   /// Sums every sounding voice into the buffers and takes the meter peaks.
@@ -336,11 +347,13 @@ private:
   std::array<std::atomic<float>, kNumHarmonics> partialEnvelopes{};
   std::array<std::atomic<float>, kNumHarmonics> partialTremolos{};
   std::array<std::atomic<float>, kNumHarmonics> partialPitches{};
-  std::array<std::atomic<float>, kNumHarmonics> partialTouches{};
+  std::array<std::atomic<float>, kNumHarmonics> partialVelocities{};
+  std::array<std::atomic<float>, kNumHarmonics> partialPressures{};
   std::atomic<float> noiseLevel{0.0f};
   std::atomic<float> noiseEnvelope{0.0f};
   std::atomic<float> noiseTremolo{0.0f};
-  std::atomic<float> noiseTouch{0.0f};
+  std::atomic<float> noiseVelocity{0.0f};
+  std::atomic<float> noisePressure{0.0f};
   std::atomic<float> outputLevelL{0.0f};
   std::atomic<float> outputLevelR{0.0f};
 

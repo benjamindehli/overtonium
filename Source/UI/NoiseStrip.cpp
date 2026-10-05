@@ -25,8 +25,10 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
               params::ampShapeNames()),
       muteButton(state, "M"), soloButton(state, "S"), meter(kNoiseColour),
       envLamp(kNoiseColour), keyOffLamp(kNoiseColour),
-      tremoloLamp(kNoiseColour), touchLamp(kNoiseColour) {
-  for (auto *lamp : {&envLamp, &keyOffLamp, &tremoloLamp, &touchLamp})
+      tremoloLamp(kNoiseColour), velocityLamp(kNoiseColour),
+      pressureLamp(kNoiseColour) {
+  for (auto *lamp :
+       {&envLamp, &keyOffLamp, &tremoloLamp, &velocityLamp, &pressureLamp})
     addAndMakeVisible(*lamp);
 
   addMouseListener(this, true);
@@ -414,7 +416,8 @@ void NoiseStrip::updateLevelReadout() {
       (db >= 0.0f ? "" : "-") + juce::String(std::abs(db), 1), true);
 }
 
-void NoiseStrip::setActivity(float envelope, float tremolo, float touch,
+void NoiseStrip::setActivity(float envelope, float tremolo, float velGain,
+                             float pressure,
                              juce::Array<juce::Rectangle<int>> &into) {
   const auto refresh = [&into](juce::Component &lamp, bool moved) {
     if (moved)
@@ -428,8 +431,10 @@ void NoiseStrip::setActivity(float envelope, float tremolo, float touch,
   refresh(keyOffLamp, keyOffLamp.push(afterKeyOff ? level : 0.0f));
   refresh(tremoloLamp, tremoloLamp.push(level > 0.0f ? tremolo : 0.0f));
 
-  // What the hand is worth on this channel. See ChannelStrip::setActivity.
-  refresh(touchLamp, touchLamp.push(level > 0.0f ? touch : 0.0f));
+  // One for each row, the same as a numbered channel. See
+  // ChannelStrip::setActivity for which way round each of them goes.
+  refresh(velocityLamp, velocityLamp.push(level > 0.0f ? velGain : 0.0f));
+  refresh(pressureLamp, pressureLamp.push(level > 0.0f ? pressure : 0.0f));
 }
 
 void NoiseStrip::paintHeaderBand(juce::Graphics &g) {
@@ -534,7 +539,17 @@ void NoiseStrip::resized() {
     place(envLamp, Row::EnvHeading);
     place(keyOffLamp, Row::KeyOffHeading);
     place(tremoloLamp, Row::AmpModHeading);
-    place(touchLamp, Row::OutputHeading);
+    // Two on the one rule, the same as a numbered channel. See ChannelStrip.
+    {
+      auto row = rows[rowIndex(Row::OutputHeading)];
+      const auto half = row.removeFromLeft(row.getWidth() / 2);
+
+      velocityLamp.setBounds(half);
+      velocityLamp.setBackdrop(at(half.getCentreY()));
+
+      pressureLamp.setBounds(row);
+      pressureLamp.setBackdrop(at(row.getCentreY()));
+    }
   }
   volume.setBounds(faderRow.reduced(2, 1));
   levelReadout.setBounds(rows[rowIndex(Row::FaderText)]);

@@ -255,32 +255,37 @@ public:
     return partialPitches;
   }
 
-  /// How much the hand is reaching each partial, 0 to 1, which is the
-  /// VELOCITY and AFTERTOUCH rows and the playing together.
+  /// What the VELOCITY row has left of each partial, 0 to 1.
   ///
-  /// Each row is its own amount against its own controller, the blow for one
-  /// and the pressure on the key for the other, and the two are added. So a
-  /// row set to nothing contributes nothing however hard the note is played,
-  /// and both rows rise together as the playing gets harder.
+  /// The row's own gain, which is what it does to the fader and nothing
+  /// else, so the lamp over it reads the way the knob does. The row can only
+  /// take level away, so full is a partial the blow has not touched and dark
+  /// is one it has taken entirely. A row set to the centre leaves every
+  /// partial alone at every velocity and reads full throughout.
   ///
-  /// The sign of an amount does not reach it. What the lamp answers is how
-  /// much of this partial the hand is deciding, and a row set to spend itself
-  /// on hard notes is doing as much as one set to spend itself on soft ones.
+  /// Latched at the note-on along with the gain itself, so this is a read
+  /// rather than any work.
+  const std::array<float, kNumHarmonics> &
+  getPartialVelocities() const noexcept {
+    return partialVelocities;
+  }
+
+  /// What the AFTERTOUCH row is putting into each partial, 0 to 1.
   ///
-  /// Measured against the rows rather than against the level, which is the
-  /// difference that matters on a quiet strip: velocity taking all of a
-  /// partial set to 0.1 has taken the whole of it, and a reading in level
-  /// would call that a tenth of nothing and leave the lamp dark.
-  const std::array<float, kNumHarmonics> &getPartialTouches() const noexcept {
-    return partialTouches;
+  /// The row's amount against the pressure on the key, so it rests dark and
+  /// brightens as the player leans in. Unsigned, since a row set to push a
+  /// partial down is doing as much as one set to lift it.
+  const std::array<float, kNumHarmonics> &getPartialPressures() const noexcept {
+    return partialPressures;
   }
 
   float getNoiseEnvelope() const noexcept { return noiseEnvelope; }
   float getNoiseTremolo() const noexcept { return noiseTremolo; }
 
-  /// The same reading for the noise channel, which has a velocity and an
+  /// The same two for the noise channel, which has a velocity and an
   /// aftertouch amount of its own.
-  float getNoiseTouch() const noexcept { return noiseTouch; }
+  float getNoiseVelocity() const noexcept { return noiseVelocity; }
+  float getNoisePressure() const noexcept { return noisePressure; }
 
   /// Roughly how loud this voice was during the last render, for deciding
   /// which one it costs least to take away.
@@ -320,10 +325,6 @@ private:
     float lastGain = 0.0f;
     /// Latched at note-on from this strip's own velocity sensitivity.
     float velGain = 1.0f;
-    /// What the blow was worth to this strip's VELOCITY row, which is the
-    /// amount the row is set to against the speed the key was played at.
-    /// Latched beside the gain and for the same reason: the blow has landed.
-    float velTouch = 0.0f;
     /// What the strike amount made of that same velocity, as multipliers on
     /// the delay and the attack. Latched for the same reason the gain is: the
     /// blow has already landed, and moving the knob afterwards cannot change
@@ -354,7 +355,6 @@ private:
     Lfo ampLfo;
     float lowpassState = 0.0f;
     float velGain = 1.0f;
-    float velTouch = 0.0f;
     float delayScale = 1.0f;
     float attackScale = 1.0f;
     float lastGain = 0.0f;
@@ -364,19 +364,21 @@ private:
   std::array<Partial, kNumHarmonics> partials{};
   std::array<float, kNumHarmonics> partialPeaks{};
 
-  /// Read by the strip lamps rather than by anything that makes sound. All
-  /// three are values the render loop has already worked out for its own
+  /// Read by the strip lamps rather than by anything that makes sound. Every
+  /// one is a value the render loop has already worked out for its own
   /// purposes, so capturing them is a store and nothing else.
   std::array<float, kNumHarmonics> partialEnvelopes{};
   std::array<float, kNumHarmonics> partialTremolos{};
   std::array<float, kNumHarmonics> partialPitches{};
-  std::array<float, kNumHarmonics> partialTouches{};
+  std::array<float, kNumHarmonics> partialVelocities{};
+  std::array<float, kNumHarmonics> partialPressures{};
 
   Noise noise;
   float noisePeak = 0.0f;
   float noiseEnvelope = 0.0f;
   float noiseTremolo = 0.0f;
-  float noiseTouch = 0.0f;
+  float noiseVelocity = 0.0f;
+  float noisePressure = 0.0f;
   float lowpassCoef = 0.1f;
 
   double sampleRate = 44100.0;

@@ -207,15 +207,15 @@ int main(int argc, char **argv) {
 
     strip.setMeterLevel(plugin.getPartialLevel(i));
     strip.setActivity(plugin.getPartialEnvelope(i), plugin.getPartialTremolo(i),
-                      plugin.getPartialPitch(i), plugin.getPartialTouch(i),
-                      lamps);
+                      plugin.getPartialPitch(i), plugin.getPartialVelocity(i),
+                      plugin.getPartialPressure(i), lamps);
     lamps.clearQuick();
   }
 
   noise.front()->setMeterLevel(plugin.getNoiseLevel());
-  noise.front()->setActivity(plugin.getNoiseEnvelope(),
-                             plugin.getNoiseTremolo(), plugin.getNoiseTouch(),
-                             lamps);
+  noise.front()->setActivity(
+      plugin.getNoiseEnvelope(), plugin.getNoiseTremolo(),
+      plugin.getNoiseVelocity(), plugin.getNoisePressure(), lamps);
 
   bars.front()->setOutputLevels(plugin.getOutputLevelLeft(),
                                 plugin.getOutputLevelRight());

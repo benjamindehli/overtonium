@@ -2237,110 +2237,148 @@ void testActivity() {
           "the lamp follows the voice the meter follows, not the newest one");
   }
 
-  // ---- the touch lamp reports the rows, not the fader ---------------------
+  // ---- the two lamps over OUTPUT, one for each row -----------------------
   //
-  // The quantity is each row's own amount against its own controller, so a
-  // strip set to take neither reads zero however hard the note is played.
-  // That is the whole point of it: a lamp that lit on every note would say
-  // nothing about whether the hand reaches this channel.
+  // Each reads its own row and nothing else, which is the whole of the
+  // design: no summing, no sign, and each one the shape of the knob above it.
   //
-  // It rises with the playing, which is the half that has to be held down by
-  // a test rather than argued about. The gain the VELOCITY row leaves runs
-  // the other way whenever the amount is positive, and a lamp fed that goes
-  // out as the player leans in.
-  //
-  // Measured against the rows rather than against the level, which is what
-  // keeps a quiet partial honest.
+  // The VELOCITY lamp shows the gain the row leaves, so full is a partial the
+  // blow has not cost anything and dark is one the row has taken entirely.
+  // That row can only subtract, which is why the lamp is full at rest rather
+  // than dark: a reading that lit as the row did more would be showing the
+  // gap rather than the thing.
   {
     engine.allSoundOff();
     p.osc[0].velAmount = 0.0f;
     p.osc[0].atAmount = 0.0f;
 
-    engine.noteOn(60, 0.2f, p);
-    render(0.2);
+    // Centred: no velocity makes any difference, so the lamp is full
+    // throughout.
+    bool flat = true;
 
-    check(engine.getPartialTouch(0) == 0.0f,
-          "a strip taking neither velocity nor pressure reads zero however "
-          "the note is played (" +
-              std::to_string(engine.getPartialTouch(0)) + ")");
-
-    // It climbs with the blow across the whole of the keyboard's travel, and
-    // never the other way. Checked step by step rather than at the two ends,
-    // because the reading it replaces was monotonic too and pointed down.
-    p.osc[0].velAmount = 1.0f;
-
-    float previous = -1.0f;
-    bool climbs = true;
-
-    for (int i = 0; i <= 10; ++i) {
-      const float v = (float)i / 10.0f;
-
+    for (int i = 1; i <= 127; ++i) {
       engine.allSoundOff();
-      engine.noteOn(60, v, p);
+      engine.noteOn(60, (float)i / 127.0f, p);
       render(0.2);
-
-      const auto reading = engine.getPartialTouch(0);
-      climbs = climbs && reading > previous;
-      previous = reading;
-
-      if (i == 0 || i == 10)
-        std::printf("  a blow at %.1f reads %.3f\n", v, reading);
+      flat = flat && engine.getPartialEnvelope(0) > 0.0f &&
+             std::abs(engine.getPartialVelocity(0) - 1.0f) < 1.0e-6f;
     }
 
-    check(climbs, "the lamp climbs with the blow at every step of it");
+    check(flat, "a row at the centre leaves the velocity lamp full at every "
+                "velocity there is");
 
-    const auto hard = previous;
-
-    check(hard > 0.95f, "a blow at full velocity into a row set to full fills "
-                        "it (" +
-                            std::to_string(hard) + ")");
+    // Full one way: the softest blow costs the partial everything and the
+    // hardest costs it nothing.
+    //
+    // The softest blow is 1 of 127 rather than 0, because 0 is a note-off and
+    // starts nothing at all. Checked at 0 this reads dark for the wrong
+    // reason, since a lamp with no note under it is dark whatever its row is
+    // set to, so the envelope is asserted alongside it.
+    constexpr float kSoftest = 1.0f / 127.0f;
 
     engine.allSoundOff();
-    engine.noteOn(60, 0.2f, p);
+    p.osc[0].velAmount = 1.0f;
+
+    engine.noteOn(60, kSoftest, p);
     render(0.2);
+    const auto positiveSoft = engine.getPartialVelocity(0);
 
-    const auto soft = engine.getPartialTouch(0);
+    check(engine.getPartialEnvelope(0) > 0.0f,
+          "the softest blow a keyboard can send still starts a note, so the "
+          "lamp under it is reporting its row rather than the silence");
 
-    check(soft < 0.3f,
-          "and a soft one barely lights it (" + std::to_string(soft) + ")");
+    engine.allSoundOff();
+    engine.noteOn(60, 1.0f, p);
+    render(0.2);
+    const auto positiveHard = engine.getPartialVelocity(0);
 
-    // A row set to spend itself on hard notes is doing as much as one set to
-    // spend itself on soft ones, so the sign of the amount does not reach it.
+    std::printf("  at +100 the lamp reads %.3f soft and %.3f hard\n",
+                positiveSoft, positiveHard);
+
+    check(positiveSoft < 0.01f,
+          "at full positive the softest blow takes all but a hundredth of the "
+          "partial (" +
+              std::to_string(positiveSoft) + ")");
+    check(std::abs(positiveHard - 1.0f) < 1.0e-6f,
+          "and a blow at full velocity takes none of it (" +
+              std::to_string(positiveHard) + ")");
+
+    // Full the other way is the exact mirror, which is what the row itself
+    // promises and the one thing worth holding a test against.
     engine.allSoundOff();
     p.osc[0].velAmount = -1.0f;
 
-    engine.noteOn(60, 0.2f, p);
+    engine.noteOn(60, kSoftest, p);
     render(0.2);
+    const auto negativeSoft = engine.getPartialVelocity(0);
 
-    const auto mirrored = engine.getPartialTouch(0);
-    std::printf("  the same blow into a negative amount reads %.3f\n",
-                mirrored);
-
-    check(std::abs(mirrored - soft) < 0.001f,
-          "and which way the row is set does not reach it (" +
-              std::to_string(mirrored) + " against " + std::to_string(soft) +
-              ")");
-
-    // The fader has no say in it either. The same blow on a strip set a tenth
-    // as loud is the same share of that strip.
     engine.allSoundOff();
-    p.osc[0].velAmount = 1.0f;
-    p.osc[0].volume = 0.05f;
+    engine.noteOn(60, 1.0f, p);
+    render(0.2);
+    const auto negativeHard = engine.getPartialVelocity(0);
 
-    engine.noteOn(60, 0.2f, p);
+    std::printf("  at -100 the lamp reads %.3f soft and %.3f hard\n",
+                negativeSoft, negativeHard);
+
+    check(negativeSoft > 0.99f,
+          "at full negative the softest blow takes almost none of it (" +
+              std::to_string(negativeSoft) + ")");
+    check(negativeHard < 1.0e-6f,
+          "and a blow at full velocity takes the whole partial (" +
+              std::to_string(negativeHard) + ")");
+
+    // The two halves of the row are exact mirrors, which is the property the
+    // row itself promises: what +100 does at one velocity is what -100 does at
+    // the opposite one. Walked rather than taken at the ends, since the ends
+    // are the two readings above and a mirror is a claim about the middle.
+    bool mirrors = true;
+
+    for (int i = 1; i <= 126; ++i) {
+      const float v = (float)i / 127.0f;
+
+      engine.allSoundOff();
+      p.osc[0].velAmount = 1.0f;
+      engine.noteOn(60, v, p);
+      render(0.05);
+      const auto up = engine.getPartialVelocity(0);
+
+      engine.allSoundOff();
+      p.osc[0].velAmount = -1.0f;
+      engine.noteOn(60, 1.0f - v, p);
+      render(0.05);
+
+      mirrors =
+          mirrors && std::abs(up - engine.getPartialVelocity(0)) < 1.0e-6f;
+    }
+
+    check(mirrors,
+          "and the two halves of the row mirror each other at every velocity "
+          "between");
+
+    // What it reads is what the row actually leaves of the fader, which is
+    // the claim that makes the lamp worth looking at.
+    engine.allSoundOff();
+    p.osc[0].velAmount = 0.6f;
+    p.osc[0].volume = 1.0f;
+    p.osc[0].amDepth = 0.0f;
+
+    engine.noteOn(60, 0.25f, p);
     render(0.2);
 
-    const auto quiet = engine.getPartialTouch(0);
-    std::printf("  the same blow on a strip at 0.05 reads %.3f\n", quiet);
+    const auto lamp = engine.getPartialVelocity(0);
+    const auto expected = velocityGain(0.6f, 0.25f);
 
-    check(std::abs(quiet - soft) < 0.001f,
-          "and where the fader stands makes no difference to it (" +
-              std::to_string(quiet) + " against " + std::to_string(soft) + ")");
+    std::printf("  a blow at 0.25 into a row at 0.6 reads %.3f, the row "
+                "leaves %.3f\n",
+                lamp, expected);
+
+    check(std::abs(lamp - expected) < 1.0e-6f,
+          "the lamp is the gain the row leaves and not a shape of its own");
 
     p.osc[0].volume = 0.5f;
 
-    // Pressure arrives while the note is held rather than at the start of it,
-    // which is the half a velocity-only reading would miss.
+    // The pressure lamp is the other way about, because its row is: nothing
+    // until the key is leaned on.
     engine.allSoundOff();
     p.osc[0].velAmount = 0.0f;
     p.osc[0].atAmount = 0.5f;
@@ -2348,22 +2386,22 @@ void testActivity() {
     engine.noteOn(60, 1.0f, p);
     render(0.2);
 
-    const auto resting = engine.getPartialTouch(0);
+    const auto resting = engine.getPartialPressure(0);
 
     engine.setPolyPressure(60, 1.0f);
     for (int i = 0; i < 4; ++i)
       render(0.2);
 
-    const auto pressed = engine.getPartialTouch(0);
-    std::printf("  pressure takes it from %.3f to %.3f\n", resting, pressed);
+    const auto pressed = engine.getPartialPressure(0);
+    std::printf("  pressure takes its lamp from %.3f to %.3f\n", resting,
+                pressed);
 
     check(resting == 0.0f && pressed > 0.4f,
-          "leaning on the key lights it on its own (" +
+          "leaning on the key lights the pressure lamp (" +
               std::to_string(pressed) + ")");
 
-    // A row set to push down counts as much as one set to push up. What the
-    // lamp has to say is how much of the partial the hand is deciding, not
-    // which way it took it.
+    // A row set to push down counts as much as one set to push up, since what
+    // that lamp answers is how much the row is doing rather than which way.
     engine.allSoundOff();
     p.osc[0].atAmount = -0.5f;
     p.osc[0].volume = 1.0f;
@@ -2372,26 +2410,59 @@ void testActivity() {
     render(0.2);
     engine.setPolyPressure(60, 1.0f);
 
-    // Pressure is smoothed on its way in, so it is given the same time to
-    // arrive that the reading above was given.
     for (int i = 0; i < 4; ++i)
       render(0.2);
 
-    const auto pushedDown = engine.getPartialTouch(0);
+    const auto pushedDown = engine.getPartialPressure(0);
     std::printf("  the same amount pushing down reads %.3f\n", pushedDown);
 
     check(std::abs(pushedDown - pressed) < 0.001f,
           "and a row pushing down counts the same as one pushing up (" +
               std::to_string(pushedDown) + ")");
 
+    // Neither says anything about the other. A strip taking only pressure
+    // leaves its velocity lamp full, and the pressure lamp of a strip taking
+    // only velocity stays dark.
+    engine.allSoundOff();
+    p.osc[0].velAmount = 0.0f;
+    p.osc[0].atAmount = 0.8f;
+
+    engine.noteOn(60, 0.1f, p);
+    render(0.2);
+    engine.setPolyPressure(60, 1.0f);
+
+    for (int i = 0; i < 4; ++i)
+      render(0.2);
+
+    check(std::abs(engine.getPartialVelocity(0) - 1.0f) < 1.0e-6f,
+          "pressure does not reach the velocity lamp (" +
+              std::to_string(engine.getPartialVelocity(0)) + ")");
+
+    engine.allSoundOff();
+    p.osc[0].velAmount = 0.8f;
+    p.osc[0].atAmount = 0.0f;
+
+    engine.noteOn(60, 0.1f, p);
+    render(0.2);
+    engine.setPolyPressure(60, 1.0f);
+
+    for (int i = 0; i < 4; ++i)
+      render(0.2);
+
+    check(engine.getPartialPressure(0) == 0.0f,
+          "and the blow does not reach the pressure lamp (" +
+              std::to_string(engine.getPartialPressure(0)) + ")");
+
     // Nothing to say once the note has gone, the same as every other lamp.
+    // Both read zero rather than the velocity lamp reading full, because the
+    // strip gates them on the envelope and zero is what says nothing.
     engine.allSoundOff();
     for (int i = 0; i < 8; ++i)
       render(0.25);
 
-    check(engine.getPartialTouch(0) == 0.0f,
-          "and it has nothing to say over silence (" +
-              std::to_string(engine.getPartialTouch(0)) + ")");
+    check(engine.getPartialVelocity(0) == 0.0f &&
+              engine.getPartialPressure(0) == 0.0f,
+          "and neither has anything to say over silence");
 
     p.osc[0].volume = 0.5f;
     p.osc[0].velAmount = 0.0f;

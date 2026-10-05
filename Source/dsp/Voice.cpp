@@ -121,7 +121,8 @@ void Voice::reset() noexcept {
   noisePeak = 0.0f;
   noiseEnvelope = 0.0f;
   noiseTremolo = 0.0f;
-  noiseTouch = 0.0f;
+  noiseVelocity = 0.0f;
+  noisePressure = 0.0f;
 
   active = false;
   released = false;
@@ -169,14 +170,6 @@ void Voice::noteOn(int channel, int note, float velocity,
     // The same shape the two strike scales below are built on, which is what
     // makes the three rows read alike: see Velocity.h.
     pt.velGain = velocityGain(op.velAmount, vel);
-
-    // What that same blow is worth to the lamp over the OUTPUT heading. The
-    // gain above is the level the row leaves, which runs the other way from
-    // the playing whenever the amount is positive, so it cannot be the thing
-    // the lamp shows: a player leaning into the keyboard would watch the
-    // light go out. This is the row's own amount against the speed played,
-    // which rises with the hand the way the pressure half does.
-    pt.velTouch = std::abs(std::clamp(op.velAmount, -1.0f, 1.0f)) * vel;
 
     // The rest of what the blow is worth. The gain above says how loud the
     // partial comes out, these two say how soon it starts and how quickly it
@@ -242,7 +235,6 @@ void Voice::noteOn(int channel, int note, float velocity,
     const auto &np = p.noise;
 
     noise.velGain = velocityGain(np.velAmount, vel);
-    noise.velTouch = std::abs(std::clamp(np.velAmount, -1.0f, 1.0f)) * vel;
 
     noise.delayScale = strikeDelayScale(np.strikeAmount, vel);
     noise.attackScale = strikeAttackScale(np.strikeAmount, vel);
@@ -380,11 +372,13 @@ void Voice::render(float *left, float *right, int numSamples,
   partialEnvelopes.fill(0.0f);
   partialTremolos.fill(0.0f);
   partialPitches.fill(0.0f);
-  partialTouches.fill(0.0f);
+  partialVelocities.fill(0.0f);
+  partialPressures.fill(0.0f);
   noisePeak = 0.0f;
   noiseEnvelope = 0.0f;
   noiseTremolo = 0.0f;
-  noiseTouch = 0.0f;
+  noiseVelocity = 0.0f;
+  noisePressure = 0.0f;
 
   const float pressureTarget =
       std::max(std::clamp(p.global.aftertouch, 0.0f, 1.0f), polyPressure);
@@ -606,13 +600,12 @@ void Voice::render(float *left, float *right, int numSamples,
       partialTremolos[(size_t)i] = 1.0f - amEnd;
       partialPitches[(size_t)i] = (float)(pmCents + driftCents);
 
-      // What the hand is worth on this partial. Both rows arrive here
-      // already, the velocity latched into velGain at the note-on and the
-      // pressure read this block, so this is an add and a clamp rather than
-      // any new work.
-      partialTouches[(size_t)i] = std::min(
-          1.0f, pt.velTouch +
-                    std::abs(std::clamp(op.atAmount, -1.0f, 1.0f) * pressure));
+      // One lamp for each of the two rows under the heading, each showing
+      // what its own row is doing and nothing else. The velocity half is the
+      // gain itself, which the note-on already latched, so it costs a read.
+      partialVelocities[(size_t)i] = pt.velGain;
+      partialPressures[(size_t)i] =
+          std::abs(std::clamp(op.atAmount, -1.0f, 1.0f) * pressure);
 
       if ((g <= 1.0e-7f && gEnd <= 1.0e-7f) || pt.env.isSilentlyHolding()) {
         // Inaudible right now: muted, faded out above Nyquist, fader at zero,
@@ -760,9 +753,8 @@ void Voice::renderNoise(float *left, float *right, int len,
 
     noiseEnvelope = afterKeyOff ? -noise.env.getLevel() : noise.env.getLevel();
     noiseTremolo = 1.0f - amEnd;
-    noiseTouch = std::min(
-        1.0f, noise.velTouch +
-                  std::abs(std::clamp(np.atAmount, -1.0f, 1.0f) * pressure));
+    noiseVelocity = noise.velGain;
+    noisePressure = std::abs(std::clamp(np.atAmount, -1.0f, 1.0f) * pressure);
   }
 
   if (g <= 1.0e-7f && gEnd <= 1.0e-7f) {

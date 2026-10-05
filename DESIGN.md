@@ -435,7 +435,7 @@ Two whole shapes rather than four arcs, the lit one and then the shadow over it 
 
 Both shapes run under the opening as well as around it, so a face drawn at low alpha shows the shadow through itself. The lamps and the needle are exactly that when they are dark, so both blend against their own backdrop instead, which is the colour they came out as anyway and covers the floor of the hole while it is at it.
 
-**It is not free, and the lamps are what pays.** Four lamps and a needle to a strip across thirty-three strips are the one thing here that repaints thirty times a second, and two shapes is half of what a lamp's whole paint used to cost. Measured on one lamp, alternating builds and taking the minimum of six runs each: 4.3 microseconds without the recess and 6.9 with it, which across all 165 of them is 0.71 ms of a frame against 1.14, so the mixer's lamps went from 2.1 percent of a core to 3.4. Two things that were tried and did not help: ellipses in place of rounded rectangles save nothing, both being general path fills, and giving the recess a third shape to put an opaque floor under those two faces costs 1.3 microseconds a lamp where blending the faces themselves costs nothing.
+**It is not free, and the lamps are what pays.** Five lamps and a needle to a strip across thirty-three strips are the one thing here that repaints thirty times a second, and two shapes is half of what a lamp's whole paint used to cost. Measured on one lamp, alternating builds and taking the minimum of six runs each: 4.3 microseconds without the recess and 6.9 with it, which across all 198 of them is 0.85 ms of a frame against 1.37, so the mixer's lamps went from 2.6 percent of a core to 4.1. Two things that were tried and did not help: ellipses in place of rounded rectangles save nothing, both being general path fills, and giving the recess a third shape to put an opaque floor under those two faces costs 1.3 microseconds a lamp where blending the faces themselves costs nothing.
 
 What would pay for itself is caching the static half of a lamp's paint, which is the backdrop, the rule, its lit lip and the recess, as a nine by nine image and blitting it, leaving only the bloom and the lamp itself to draw. That would end up cheaper than before any of this, and it is not done because the editor paints under a zoom transform and the display has a scale of its own, so the cache would have to be keyed on the physical pixel scale and rebuilt when it changes. Blitted under a transform the image is resampled rather than copied, which could cost more than the fills it replaced, and everything that can be checked here is a 1x software render, so a cache that was wrong only at 2x would look perfect in every screenshot.
 
@@ -537,13 +537,13 @@ S and 5 are the same shape, here and on every seven-bar display ever built. The 
 
 The rules that divide a strip into groups carry a lamp each, showing what the group under them is doing to this partial right now. They cost no height, because the rule was already using that row to draw a line.
 
-| Rule      | Shows                                                                                                             |
-| --------- | ----------------------------------------------------------------------------------------------------------------- |
-| PITCH MOD | a needle on a track, flat to the left and sharp to the right, where modulation and drift have the partial now     |
-| ENVELOPE  | how far up its envelope the partial is, while the key is down                                                     |
-| KEY OFF   | the same, once the key is up and the key-off stage has taken over                                                 |
-| AMP MOD   | how far the tremolo has pulled the level down, so it pulses at the rate and swings further at greater depth       |
-| OUTPUT    | how much of this partial the hand is deciding, which is the velocity and aftertouch rows and the playing together |
+| Rule      | Shows                                                                                                                             |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| PITCH MOD | a needle on a track, flat to the left and sharp to the right, where modulation and drift have the partial now                     |
+| ENVELOPE  | how far up its envelope the partial is, while the key is down                                                                     |
+| KEY OFF   | the same, once the key is up and the key-off stage has taken over                                                                 |
+| AMP MOD   | how far the tremolo has pulled the level down, so it pulses at the rate and swings further at greater depth                       |
+| OUTPUT    | two lamps, one for each of the rows beneath it: what the blow has left of the partial, and what the pressure on the key is adding |
 
 The two envelope lamps hand over rather than both being lit. The value they are fed is signed: positive while the key is down, negative once the swell and release have it, and a lamp reading zero is dark either way, so the one value that says nothing about the stage is also the one where nothing needs saying.
 
@@ -551,13 +551,15 @@ Two choices are worth knowing about. The lamps read from the voice pool rather t
 
 The tremolo lamp shows what the tremolo has taken off rather than what it has left, which is why a partial with no tremolo on it reads dark instead of sitting fully lit and never moving.
 
-**The output lamp is each row's own amount against its own controller**, the blow for one and the pressure on the key for the other, added together. So a strip set to take neither reads dark however hard the note is played, a strip set to take both lights under any playing at all, and both halves brighten together as the playing gets harder.
+**The output rule carries two lamps rather than one**, sitting side by side, the left for VELOCITY and the right for AFTERTOUCH. Each reads its own row and nothing else. A single lamp over both was tried first and the trouble with it was never the arithmetic: two rows that behave differently cannot be summed into one reading without the reading meaning something neither row means.
 
-That last part is the one worth stating, because the obvious reading has it backwards. What the VELOCITY row actually does to a partial is take level away, and with a positive amount it takes the most on the softest notes, so a lamp showing the level the row has moved goes out as the player leans into the keyboard. It was built that way first and it reads as reversed under a hand within about a minute. The row's amount against the speed played climbs the way the pressure half does, and a test walks the whole of the keyboard's travel rather than checking the two ends, since the reading it replaces was monotonic too and pointed down.
+**Each lamp is the shape of the knob above it**, which is what makes the pair readable without a legend.
 
-The sign of an amount does not reach it either. A row set to spend itself on hard notes is doing as much as one set to spend itself on soft ones, and one note can be pulled down by a soft blow and then lifted by pressure, so what the lamp answers is how much of the partial the hand is deciding rather than which way it took it.
+VELOCITY can only take level away, so its lamp shows what the row has left: full is a partial the blow has not cost anything, dark is one the row has taken entirely. At the centre the row leaves every note alone at every velocity and the lamp is full throughout. At one end a blow of nothing takes the whole partial and a blow at full velocity takes none of it, and at the other end those two swap, which is what the row itself promises and is the one thing worth holding a test against. Full at rest is the right way round for a row that subtracts: a lamp that lit as the row did more would be showing the gap rather than the thing.
 
-Measured against the rows rather than against the level, which is what keeps a quiet partial honest: velocity taking the whole of a partial set to 0.1 would come out a tenth of the way up and leave the lamp as good as dark.
+AFTERTOUCH adds rather than subtracts, so its lamp goes the other way. It rests dark and comes up with the hand, as the amount against the pressure on the key. Unsigned, since a row set to push a partial down is doing as much as one set to lift it.
+
+Both are gated on the envelope like the tremolo. The velocity half is the one that needs it and the one a reader would expect not to: it reads full when its row is taking nothing, so ungated it would sit lit on every channel of a silent mixer.
 
 **The needle's scale.** Fixed, and the same on every strip, so two channels can be compared by eye. Full deflection is 225 cents, a vibrato and a drift at full stretch together.
 
@@ -576,13 +578,15 @@ A scale normalised to each strip's own depth would run the needle to both edges 
 
 At the display's fifteen frames a second, an LFO above about seven Hz is faster than the lamp can follow and reads as a shimmer rather than as a pulse. That is a limit of the frame rate rather than of the lamp, and raising the frame rate to fix it would cost far more than the lamps do.
 
-**What they cost.** Nothing measurable on the audio thread: every value they show was already worked out by the render loop for its own use, so capturing it is four stores per partial per control block. Against a control that renders 16 voices, the build with the lamps benchmarks inside the run-to-run noise of the one without, its fastest run being the faster of the two.
+**What they cost.** Nothing measurable on the audio thread: every value they show was already worked out by the render loop for its own use, so capturing it is five stores per partial per control block. Against a control that renders 16 voices, the build with the lamps benchmarks inside the run-to-run noise of the one without, its fastest run being the faster of the two.
 
 The drawing is where the care went. Brightness is quantised to twelve steps and the needle to whole pixels, for the same reason the meters are segmented: a lamp that follows its value exactly repaints on every frame in which the value moves at all, which for anything modulated is every frame.
 
-The merging matters more than the quantising, and not in the way it looks. The lamps are handed back to the editor rather than invalidating themselves, and they are merged by row rather than by neighbour, because every strip's lamps sit at the same five heights. Putting them through the general merge alongside the meter bands costs 844,000 pixels a frame on a mixer with all 32 channels modulating, since six rectangles is not enough to keep the rows apart and each merge pairs a lamp at the top of a strip with a meter band at the bottom. Merged by row it is 75,000, against the meters' own 28,000. On the factory presets it is far smaller: 11,000 for _Slow Pad_ and 19,000 for _Shimmer_, played as a four note chord, against a mixer of 1,278,000 pixels.
+The merging matters more than the quantising, and not in the way it looks. The lamps are handed back to the editor rather than invalidating themselves, and they are merged by row rather than by neighbour, because every strip's lamps sit at the same five heights. Putting them through the general merge alongside the meter bands costs 823,000 pixels a frame on a mixer with all 32 channels modulating, since six rectangles is not enough to keep the rows apart and each merge pairs a lamp at the top of a strip with a meter band at the bottom. Merged by row it is 75,000, against the meters' own 28,000. On the factory presets it is far smaller: 11,000 for _Slow Pad_ and 19,000 for _Shimmer_, played as a four note chord, against a mixer of 1,278,000 pixels.
 
-The output lamp is most of what separates those two figures from each other and almost none of what separates them from the presets. Driven by a ramp it moves every frame like the rest and takes the row-merged figure from 56,000 to 75,000, but on a preset being played the velocity and aftertouch rows sit still and the controller does too, so the lamp quantises to the same step frame after frame and asks for nothing: _Slow Pad_ is unchanged by it and _Shimmer_ moves by 160 pixels a frame.
+The second lamp on the output rule is free in that accounting, and that is the merge doing its job rather than a coincidence. Six lamps now sit at five heights, so the band a row merges to is the one it was already, and the row-merged figure is the same to the pixel with the lamp as without it. Only the general merge notices, and it notices by getting better rather than worse: more rectangles sharing a row give it more to pair usefully.
+
+The output lamps cost almost nothing on a preset being played, either. Driven by a ramp they move every frame like the rest, but their rows sit still and so does the controller, so each lamp quantises to the same step frame after frame and asks for nothing: _Slow Pad_ is unchanged by the pair and _Shimmer_ moves by under 200 pixels a frame.
 
 ### Meters
 
