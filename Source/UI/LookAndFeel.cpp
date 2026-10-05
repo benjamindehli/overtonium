@@ -583,7 +583,9 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   // that the flutes are what is left rather than what is added and the ring
   // can take one gradient for the whole of its lighting.
   const auto rimOut = bodyR;
-  const auto rimIn = rimOut * 0.82f;
+  // The reference's own proportion, measured off a real knob: its cap ends at
+  // 0.878 of the wall's outer radius.
+  const auto rimIn = rimOut * 0.878f;
 
   // How far a notch bites into the collar band, as a share of it.
   //
@@ -602,14 +604,25 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   // stay a knurled edge rather than the teeth of a gear.
   constexpr float kNotchDepth = 0.28f;
 
-  // The lit side comes down and the shaded side stays where it is, which is
-  // not symmetry for its own sake. Measured around a knob, the collar's
-  // shaded flutes already sit at 26 of 255 against a panel whose typical is
-  // 31, so that end has nowhere left to go without the collar disappearing
-  // into what it is standing on. The gap between collar and cap closes from
-  // the bright end and from the cap, which is where the room is.
-  const auto litSide = colours::panelAlt.brighter(0.58f);
-  const auto darkSide = colours::panelAlt.darker(0.30f);
+  // Darker than the cap it rings, and flat.
+  //
+  // The collar is the wall of the knob and it goes straight down. It is not a
+  // bevel between the cap and the panel, and nothing about it is slanted, so
+  // nothing about it should be shaded as though it were: measured all the way
+  // round, the reference's wall is a single tone with a spread of zero, where
+  // this had a spread of 51 of 255. A wash across the band is what a chamfer
+  // looks like, and a chamfer is what it was reading as.
+  //
+  // Darker than the cap because the cap is the flat top taking the light
+  // square on and this is turned away from it. The reference puts its wall at
+  // 0.93 of its cap.
+  //
+  // The collar was the brighter of the two and carried the wash because it had
+  // no other way to show itself: a band two pixels deep, shaded like the face,
+  // is two pixels of nothing. It has one now. The notches are cut through, so
+  // the collar is read by its scalloped outline and by the panel showing
+  // between its flutes, and it no longer has to be lit to be seen.
+  const auto wall = colours::panelAlt.brighter(0.21f);
 
   // Eight, as the reference has, whatever size the knob is drawn at. Sized
   // off the radius this ran to sixteen on a bar knob, and at that pitch the
@@ -665,17 +678,10 @@ void OvertoniumLookAndFeel::drawRotarySlider(
 
   collar.closeSubPath();
 
-  // The wash runs from the upper left to the lower right, which is where the
-  // light on this panel comes from. A linear gradient across a band two
-  // pixels deep is indistinguishable from shading it by angle, and it is one
-  // fill rather than one per segment on six hundred knobs.
   // Lighter than the face it rings, or the band and the face are one tone
   // and the collar is two pixels of nothing. What tells them apart is that
   // the collar is a turned edge catching the light and the face is flat.
-  g.setGradientFill(juce::ColourGradient(
-      litSide.withMultipliedAlpha(dim), centre.x - rimOut * 0.7f,
-      centre.y - rimOut * 0.7f, darkSide.withMultipliedAlpha(dim),
-      centre.x + rimOut * 0.7f, centre.y + rimOut * 0.7f, false));
+  g.setColour(wall.withMultipliedAlpha(dim));
   g.fillPath(collar);
 
   // ---- the face -------------------------------------------------------------
@@ -685,16 +691,17 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   const juce::Rectangle<float> face =
       body.withSizeKeepingCentre(rimIn * 2.0f, rimIn * 2.0f);
 
-  // The cap and the collar are the same plastic, and the only reason the cap
-  // is the darker of the two is that it is the flat top of the knob while the
-  // collar is a turned edge standing into the light. That is a difference of
-  // shading, not of material, and it was being drawn as though it were both:
-  // measured around a knob, the collar came out 3.5 times the cap's
-  // brightness, where the reference has its wall at 0.93 of its cap. It only
-  // has to be enough to tell the two apart.
+  // The lighter of the two, by a little, at the reference's own ratio. Same
+  // plastic as the collar, facing the light squarely where the collar is
+  // turned away from it.
+  //
+  // The reference's cap is flat too. This keeps a shallow top-to-bottom wash
+  // because it is the one surface here that does face the light, and every
+  // other flat top on this panel is shaded the same way. It is a tenth of the
+  // range the collar used to carry.
   g.setGradientFill(juce::ColourGradient(
-      colours::panelAlt.brighter(0.44f), centre.x, face.getY(),
-      colours::panelAlt.darker(0.08f), centre.x, face.getBottom(), false));
+      colours::panelAlt.brighter(0.27f), centre.x, face.getY(),
+      colours::panelAlt.brighter(0.17f), centre.x, face.getBottom(), false));
   g.fillEllipse(face);
 
   // What separates the face from the collar around it. A line along the
@@ -710,12 +717,22 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   //
   // Measured clockwise from twelve, so this runs from three o'clock round
   // past six and a little beyond.
-  juce::Path underside;
-  underside.addCentredArc(centre.x, centre.y, rimIn - 0.4f, rimIn - 0.4f, 0.0f,
-                          1.1f, 3.5f, true);
+  //
+  // Outside the face rather than inside it, which is the difference between a
+  // thin cap and a thick one. A cap standing proud of its wall throws a
+  // shadow onto the wall; a dark band drawn inside the cap's own edge is not
+  // that shadow, it is a bevel, and a bevel is what a thick slab has. The
+  // reference's cap throws its shadow across at most 14 percent of the wall
+  // and only on the side away from the light, which is a cap with almost no
+  // height to it at all.
+  const auto lip = juce::jmax(0.7f, (rimOut - rimIn) * 0.34f);
 
-  g.setColour(juce::Colours::black.withAlpha(0.45f * dim));
-  g.strokePath(underside, juce::PathStrokeType(1.1f));
+  juce::Path underside;
+  underside.addCentredArc(centre.x, centre.y, rimIn + lip * 0.5f,
+                          rimIn + lip * 0.5f, 0.0f, 1.1f, 3.5f, true);
+
+  g.setColour(juce::Colours::black.withAlpha(0.38f * dim));
+  g.strokePath(underside, juce::PathStrokeType(lip));
 
   juce::Path topside;
   topside.addCentredArc(centre.x, centre.y, rimIn - 0.4f, rimIn - 0.4f, 0.0f,
