@@ -587,13 +587,20 @@ void OvertoniumLookAndFeel::drawRotarySlider(
 
   // How far a notch bites into the collar band, as a share of it.
   //
-  // The reference cuts 0.28 of its band, which at the sizes this panel draws
-  // knobs at is a third of a pixel and nothing at all. Everything else about
-  // the collar is already the reference's proportion exaggerated to survive a
-  // 26 pixel cap, and this is the same bargain: deep enough that a gap is a
-  // gap at 1:1, shallow enough that a ring of collar survives unbroken behind
-  // it and the flutes stay a knurled edge rather than the teeth of a gear.
-  constexpr float kNotchDepth = 0.62f;
+  // The reference's own figure, measured off its silhouette.
+  //
+  // This was 0.62 to begin with, on the reasoning that 0.28 of the band is a
+  // third of a pixel at the sizes this panel draws knobs at and so had to be
+  // exaggerated to read at all. That was answering a problem the cut had
+  // already solved. A notch drawn as a dark mark has to be deep to be seen,
+  // because it is competing with the collar it is painted on. A notch that
+  // goes through shows the panel behind it, and panel against collar is
+  // legible at a depth that paint would not have been, so the reference's
+  // proportion carries straight across after all.
+  //
+  // Shallow enough that plenty of collar survives behind it and the flutes
+  // stay a knurled edge rather than the teeth of a gear.
+  constexpr float kNotchDepth = 0.28f;
 
   const auto litSide = colours::panelAlt.brighter(0.78f);
   const auto darkSide = colours::panelAlt.darker(0.30f);
