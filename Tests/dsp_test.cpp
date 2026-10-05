@@ -2239,15 +2239,18 @@ void testActivity() {
 
   // ---- the touch lamp reports the rows, not the fader ---------------------
   //
-  // The quantity is what the VELOCITY and AFTERTOUCH rows are worth at the
-  // controller values arriving, so a strip set to take neither reads zero
-  // however hard the note is played. That is the whole point of it: a lamp
-  // that lit on every note would say nothing about whether the hand reaches
-  // this channel.
+  // The quantity is each row's own amount against its own controller, so a
+  // strip set to take neither reads zero however hard the note is played.
+  // That is the whole point of it: a lamp that lit on every note would say
+  // nothing about whether the hand reaches this channel.
+  //
+  // It rises with the playing, which is the half that has to be held down by
+  // a test rather than argued about. The gain the VELOCITY row leaves runs
+  // the other way whenever the amount is positive, and a lamp fed that goes
+  // out as the player leans in.
   //
   // Measured against the rows rather than against the level, which is what
-  // keeps a quiet partial honest. Velocity taking all of a strip set to 0.1
-  // has taken the whole of that strip.
+  // keeps a quiet partial honest.
   {
     engine.allSoundOff();
     p.osc[0].velAmount = 0.0f;
@@ -2261,36 +2264,67 @@ void testActivity() {
           "the note is played (" +
               std::to_string(engine.getPartialTouch(0)) + ")");
 
-    // A soft blow on a strip that takes velocity is the hand deciding most of
-    // what that partial is worth.
-    engine.allSoundOff();
+    // It climbs with the blow across the whole of the keyboard's travel, and
+    // never the other way. Checked step by step rather than at the two ends,
+    // because the reading it replaces was monotonic too and pointed down.
     p.osc[0].velAmount = 1.0f;
 
+    float previous = -1.0f;
+    bool climbs = true;
+
+    for (int i = 0; i <= 10; ++i) {
+      const float v = (float)i / 10.0f;
+
+      engine.allSoundOff();
+      engine.noteOn(60, v, p);
+      render(0.2);
+
+      const auto reading = engine.getPartialTouch(0);
+      climbs = climbs && reading > previous;
+      previous = reading;
+
+      if (i == 0 || i == 10)
+        std::printf("  a blow at %.1f reads %.3f\n", v, reading);
+    }
+
+    check(climbs, "the lamp climbs with the blow at every step of it");
+
+    const auto hard = previous;
+
+    check(hard > 0.95f, "a blow at full velocity into a row set to full fills "
+                        "it (" +
+                            std::to_string(hard) + ")");
+
+    engine.allSoundOff();
     engine.noteOn(60, 0.2f, p);
     render(0.2);
 
     const auto soft = engine.getPartialTouch(0);
-    std::printf("  a soft blow reads %.3f\n", soft);
 
-    check(soft > 0.7f,
-          "a soft blow on a strip that takes velocity reads high (" +
-              std::to_string(soft) + ")");
+    check(soft < 0.3f,
+          "and a soft one barely lights it (" + std::to_string(soft) + ")");
 
-    // And a hard one leaves the row with nothing to take, which is the end of
-    // the travel the row itself is built around.
+    // A row set to spend itself on hard notes is doing as much as one set to
+    // spend itself on soft ones, so the sign of the amount does not reach it.
     engine.allSoundOff();
-    engine.noteOn(60, 1.0f, p);
+    p.osc[0].velAmount = -1.0f;
+
+    engine.noteOn(60, 0.2f, p);
     render(0.2);
 
-    const auto hard = engine.getPartialTouch(0);
-    std::printf("  a hard blow reads %.3f\n", hard);
+    const auto mirrored = engine.getPartialTouch(0);
+    std::printf("  the same blow into a negative amount reads %.3f\n",
+                mirrored);
 
-    check(hard < 0.05f,
-          "and a hard one reads near nothing (" + std::to_string(hard) + ")");
+    check(std::abs(mirrored - soft) < 0.001f,
+          "and which way the row is set does not reach it (" +
+              std::to_string(mirrored) + " against " + std::to_string(soft) +
+              ")");
 
-    // The fader has no say in it. The same blow on a strip set a tenth as
-    // loud has taken the same share of that strip.
+    // The fader has no say in it either. The same blow on a strip set a tenth
+    // as loud is the same share of that strip.
     engine.allSoundOff();
+    p.osc[0].velAmount = 1.0f;
     p.osc[0].volume = 0.05f;
 
     engine.noteOn(60, 0.2f, p);

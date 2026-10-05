@@ -551,7 +551,13 @@ Two choices are worth knowing about. The lamps read from the voice pool rather t
 
 The tremolo lamp shows what the tremolo has taken off rather than what it has left, which is why a partial with no tremolo on it reads dark instead of sitting fully lit and never moving.
 
-**The output lamp is measured against its rows rather than against the fader**, and that is the whole of what makes it readable. Each of the two rows contributes what its amount is worth at the controller value arriving, and the two are added, so a strip set to take neither reads dark however hard the note is played and a strip set to take both lights under any playing at all. A reading in level instead would depend on how high the fader stands: velocity taking the whole of a partial set to 0.1 would come out a tenth of the way up and leave the lamp as good as dark, which is the opposite of the truth. The sign is dropped for the same reason, since the question is how much of the partial the hand is deciding rather than which way it took it, and one note can be pulled down by a soft blow and lifted by pressure.
+**The output lamp is each row's own amount against its own controller**, the blow for one and the pressure on the key for the other, added together. So a strip set to take neither reads dark however hard the note is played, a strip set to take both lights under any playing at all, and both halves brighten together as the playing gets harder.
+
+That last part is the one worth stating, because the obvious reading has it backwards. What the VELOCITY row actually does to a partial is take level away, and with a positive amount it takes the most on the softest notes, so a lamp showing the level the row has moved goes out as the player leans into the keyboard. It was built that way first and it reads as reversed under a hand within about a minute. The row's amount against the speed played climbs the way the pressure half does, and a test walks the whole of the keyboard's travel rather than checking the two ends, since the reading it replaces was monotonic too and pointed down.
+
+The sign of an amount does not reach it either. A row set to spend itself on hard notes is doing as much as one set to spend itself on soft ones, and one note can be pulled down by a soft blow and then lifted by pressure, so what the lamp answers is how much of the partial the hand is deciding rather than which way it took it.
+
+Measured against the rows rather than against the level, which is what keeps a quiet partial honest: velocity taking the whole of a partial set to 0.1 would come out a tenth of the way up and leave the lamp as good as dark.
 
 **The needle's scale.** Fixed, and the same on every strip, so two channels can be compared by eye. Full deflection is 225 cents, a vibrato and a drift at full stretch together.
 

@@ -258,14 +258,16 @@ public:
   /// How much the hand is reaching each partial, 0 to 1, which is the
   /// VELOCITY and AFTERTOUCH rows and the playing together.
   ///
-  /// Each row contributes what its amount is worth at the controller value
-  /// arriving, so a row set to nothing contributes nothing however hard the
-  /// note is played, and a row set to full contributes nothing while the
-  /// controller sits where the row leaves the partial alone. The two are
-  /// added, because the question is how much of this partial the hand is
-  /// deciding rather than which direction it took it.
+  /// Each row is its own amount against its own controller, the blow for one
+  /// and the pressure on the key for the other, and the two are added. So a
+  /// row set to nothing contributes nothing however hard the note is played,
+  /// and both rows rise together as the playing gets harder.
   ///
-  /// Measured against the rows rather than against the fader, which is the
+  /// The sign of an amount does not reach it. What the lamp answers is how
+  /// much of this partial the hand is deciding, and a row set to spend itself
+  /// on hard notes is doing as much as one set to spend itself on soft ones.
+  ///
+  /// Measured against the rows rather than against the level, which is the
   /// difference that matters on a quiet strip: velocity taking all of a
   /// partial set to 0.1 has taken the whole of it, and a reading in level
   /// would call that a tenth of nothing and leave the lamp dark.
@@ -318,6 +320,10 @@ private:
     float lastGain = 0.0f;
     /// Latched at note-on from this strip's own velocity sensitivity.
     float velGain = 1.0f;
+    /// What the blow was worth to this strip's VELOCITY row, which is the
+    /// amount the row is set to against the speed the key was played at.
+    /// Latched beside the gain and for the same reason: the blow has landed.
+    float velTouch = 0.0f;
     /// What the strike amount made of that same velocity, as multipliers on
     /// the delay and the attack. Latched for the same reason the gain is: the
     /// blow has already landed, and moving the knob afterwards cannot change
@@ -348,6 +354,7 @@ private:
     Lfo ampLfo;
     float lowpassState = 0.0f;
     float velGain = 1.0f;
+    float velTouch = 0.0f;
     float delayScale = 1.0f;
     float attackScale = 1.0f;
     float lastGain = 0.0f;

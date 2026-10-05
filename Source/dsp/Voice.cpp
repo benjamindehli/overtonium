@@ -170,6 +170,14 @@ void Voice::noteOn(int channel, int note, float velocity,
     // makes the three rows read alike: see Velocity.h.
     pt.velGain = velocityGain(op.velAmount, vel);
 
+    // What that same blow is worth to the lamp over the OUTPUT heading. The
+    // gain above is the level the row leaves, which runs the other way from
+    // the playing whenever the amount is positive, so it cannot be the thing
+    // the lamp shows: a player leaning into the keyboard would watch the
+    // light go out. This is the row's own amount against the speed played,
+    // which rises with the hand the way the pressure half does.
+    pt.velTouch = std::abs(std::clamp(op.velAmount, -1.0f, 1.0f)) * vel;
+
     // The rest of what the blow is worth. The gain above says how loud the
     // partial comes out, these two say how soon it starts and how quickly it
     // gets there.
@@ -234,6 +242,7 @@ void Voice::noteOn(int channel, int note, float velocity,
     const auto &np = p.noise;
 
     noise.velGain = velocityGain(np.velAmount, vel);
+    noise.velTouch = std::abs(std::clamp(np.velAmount, -1.0f, 1.0f)) * vel;
 
     noise.delayScale = strikeDelayScale(np.strikeAmount, vel);
     noise.attackScale = strikeAttackScale(np.strikeAmount, vel);
@@ -602,7 +611,7 @@ void Voice::render(float *left, float *right, int numSamples,
       // pressure read this block, so this is an add and a clamp rather than
       // any new work.
       partialTouches[(size_t)i] = std::min(
-          1.0f, (1.0f - pt.velGain) +
+          1.0f, pt.velTouch +
                     std::abs(std::clamp(op.atAmount, -1.0f, 1.0f) * pressure));
 
       if ((g <= 1.0e-7f && gEnd <= 1.0e-7f) || pt.env.isSilentlyHolding()) {
@@ -752,7 +761,7 @@ void Voice::renderNoise(float *left, float *right, int len,
     noiseEnvelope = afterKeyOff ? -noise.env.getLevel() : noise.env.getLevel();
     noiseTremolo = 1.0f - amEnd;
     noiseTouch = std::min(
-        1.0f, (1.0f - noise.velGain) +
+        1.0f, noise.velTouch +
                   std::abs(std::clamp(np.atAmount, -1.0f, 1.0f) * pressure));
   }
 
