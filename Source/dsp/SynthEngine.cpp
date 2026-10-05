@@ -509,9 +509,13 @@ void SynthEngine::sumChunk(float *left, float *right, int numFrames,
     const auto &pressures = v.getPartialPressures();
 
     for (size_t i = 0; i < peaks.size(); ++i) {
-      if (peaks[i] <= into.peaks[i])
+      // A voice that reaches here is sounding, so it has something to say
+      // about this partial even when what it is saying is that the partial
+      // is at zero. See Activity::claimed.
+      if (into.claimed[i] && peaks[i] <= into.peaks[i])
         continue;
 
+      into.claimed[i] = true;
       into.peaks[i] = peaks[i];
       into.envelopes[i] = envelopes[i];
       into.tremolos[i] = tremolos[i];
@@ -520,7 +524,8 @@ void SynthEngine::sumChunk(float *left, float *right, int numFrames,
       into.pressures[i] = pressures[i];
     }
 
-    if (v.getNoisePeak() > into.noisePeak) {
+    if (!into.noiseClaimed || v.getNoisePeak() > into.noisePeak) {
+      into.noiseClaimed = true;
       into.noisePeak = v.getNoisePeak();
       into.noiseEnvelope = v.getNoiseEnvelope();
       into.noiseTremolo = v.getNoiseTremolo();

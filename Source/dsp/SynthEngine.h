@@ -228,6 +228,19 @@ private:
     std::array<float, kNumHarmonics> velocities{};
     std::array<float, kNumHarmonics> pressures{};
 
+    /// Whether any voice has reported this partial yet in this pass.
+    ///
+    /// Peak-wins decides between voices. It is not a threshold for reporting
+    /// at all, and read as one it loses the whole strip exactly when the
+    /// strip has something to say: a partial can be sounding at a peak of
+    /// zero, because a negative AFTERTOUCH amount has taken its level to the
+    /// bottom of the clamp, or because the fader is down or the partial is
+    /// above Nyquist. Without this the first test is "is it louder than
+    /// nothing", which zero is not, so every lamp on that channel reads the
+    /// nothing the gathering started from.
+    std::array<bool, kNumHarmonics> claimed{};
+    bool noiseClaimed = false;
+
     float noisePeak = 0.0f;
     float noiseEnvelope = 0.0f;
     float noiseTremolo = 0.0f;

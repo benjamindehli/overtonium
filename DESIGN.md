@@ -549,6 +549,8 @@ The two envelope lamps hand over rather than both being lit. The value they are 
 
 Two choices are worth knowing about. The lamps read from the voice pool rather than from the knobs, so they describe a note rather than a setting, and nothing pulses over silence. And they follow the loudest voice on that partial, which is the one the meter follows, because a lamp taking the maximum across a chord would describe no note in particular.
 
+That rule is a comparison between voices and not a threshold for reporting at all, and the difference is the whole channel. Read as a threshold, a partial sitting at a peak of exactly zero never beats the nothing the gathering starts from, so every lamp on it reads that nothing instead. A partial gets there while still sounding whenever a negative AFTERTOUCH amount takes its level to the bottom of the clamp, and also with the fader down or above the Nyquist fade. The symptom is the one that points away from the cause: the aftertouch lamp dies at the moment it has the most to say, and takes the velocity lamp beside it with it, which is two independent readings appearing to be coupled.
+
 The tremolo lamp shows what the tremolo has taken off rather than what it has left, which is why a partial with no tremolo on it reads dark instead of sitting fully lit and never moving.
 
 **The output rule carries two lamps rather than one**, sitting side by side, the left for VELOCITY and the right for AFTERTOUCH. Each reads its own row and nothing else. A single lamp over both was tried first and the trouble with it was never the arithmetic: two rows that behave differently cannot be summed into one reading without the reading meaning something neither row means.

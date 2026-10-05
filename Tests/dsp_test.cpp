@@ -2453,6 +2453,58 @@ void testActivity() {
           "and the blow does not reach the pressure lamp (" +
               std::to_string(engine.getPartialPressure(0)) + ")");
 
+    // ---- a partial silenced by its own rows still reports ---------------
+    //
+    // A negative AFTERTOUCH amount takes the level down, and at enough
+    // pressure it reaches the bottom of the clamp and the partial falls
+    // silent while the note is still held. Everything on that strip has to go
+    // on reporting through that, and the velocity lamp in particular, which
+    // has nothing to do with the row that silenced it.
+    //
+    // This is what the lamps are gathered through rather than what they are:
+    // the pool picks the loudest voice per partial, and read as a threshold
+    // rather than as a comparison that test drops a partial sitting at
+    // exactly zero, which is every lamp on the channel at once.
+    {
+      engine.allSoundOff();
+      p.osc[0].volume = 0.5f;
+      p.osc[0].velAmount = 0.5f;
+      p.osc[0].atAmount = -1.0f;
+
+      engine.noteOn(60, 0.6f, p);
+      render(0.2);
+
+      const auto before = engine.getPartialVelocity(0);
+
+      engine.setPolyPressure(60, 1.0f);
+      for (int i = 0; i < 4; ++i)
+        render(0.2);
+
+      std::printf("  pressed into silence: level %.3f, velocity lamp %.3f, "
+                  "aftertouch lamp %.3f\n",
+                  engine.getPartialLevel(0), engine.getPartialVelocity(0),
+                  engine.getPartialPressure(0));
+
+      check(engine.getPartialLevel(0) == 0.0f,
+            "a full negative amount under full pressure silences the partial");
+
+      check(engine.getPartialEnvelope(0) > 0.0f,
+            "and the envelope lamp goes on reporting through it (" +
+                std::to_string(engine.getPartialEnvelope(0)) + ")");
+
+      check(std::abs(engine.getPartialVelocity(0) - before) < 1.0e-6f,
+            "the velocity lamp is untouched by the row that silenced it (" +
+                std::to_string(engine.getPartialVelocity(0)) + " against " +
+                std::to_string(before) + ")");
+
+      check(engine.getPartialPressure(0) > 0.9f,
+            "and the aftertouch lamp reads the pressure that did it (" +
+                std::to_string(engine.getPartialPressure(0)) + ")");
+
+      p.osc[0].atAmount = 0.0f;
+      p.osc[0].velAmount = 0.0f;
+    }
+
     // Nothing to say once the note has gone, the same as every other lamp.
     // Both read zero rather than the velocity lamp reading full, because the
     // strip gates them on the envelope and zero is what says nothing.
