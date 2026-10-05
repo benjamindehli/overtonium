@@ -145,12 +145,27 @@ void Voice::noteOn(int channel, int note, float velocity,
 
   const float vel = std::clamp(velocity, 0.0f, 1.0f);
 
-  // A fresh note starts unpressed and unbent, and ramps in if the key is
-  // already leaned on. A retrigger lands here too, which is what stops the
-  // previous note's bend carrying into the new one on a channel being reused.
+  // A fresh note starts unbent and under no pressure of its own. A retrigger
+  // lands here too, which is what stops the previous note's bend carrying into
+  // the new one on a channel being reused.
   noteBendSemitones = 0.0f;
   polyPressure = 0.0f;
-  pressureSmoothed = 0.0f;
+
+  // The smoothing starts where the channel is already holding it rather than
+  // at nothing.
+  //
+  // Per-note pressure is a fact about this key and begins at zero, which is
+  // what the line above says. Channel pressure is a controller that was
+  // already standing somewhere when the key went down, and a note that ramps
+  // up to meet it spends the first 15 ms somewhere the player never asked
+  // for. With a negative AFTERTOUCH amount that is a note starting at full
+  // level and falling to silence, which is a thump on every key struck under
+  // held pressure, and with a positive one it is an audible fade in.
+  //
+  // The smoothing is still what it was. It is there so that moving the
+  // controller does not step the gain, and nothing about that wants the first
+  // block of a note to start from a value the controller is not at.
+  pressureSmoothed = std::clamp(p.global.aftertouch, 0.0f, 1.0f);
 
   // And the slide axis forgets where the last note started it, so the next one
   // takes its nought from wherever the controller puts it. See setSlide.

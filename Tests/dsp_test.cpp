@@ -3390,6 +3390,95 @@ void testAftertouch() {
     std::printf("  max step on a full pressure jump: %.5f\n", worst);
     check(worst < 0.05f, "a pressure jump is smoothed, not stepped");
   }
+
+  // ---- a key struck under held pressure starts where the controller is ----
+  //
+  // The other half of that smoothing, and the half it is easy to get wrong.
+  // Pressure already standing at full when the key goes down is a controller
+  // the player has not moved, so the note begins there. Ramping up to meet it
+  // instead spends the first 15 ms at a level nobody asked for: with a
+  // negative amount that is a note at full level falling to silence, a thump
+  // on every key struck under held pressure, and with a positive one an
+  // audible fade in.
+  {
+    auto p = makeFlatParams(0.0f);
+    for (auto &o : p.osc) {
+      o.tuneBlend = 1.0f;
+      o.sustain = 1.0f;
+      o.attack = 0.0f;
+      o.release = 0.0f;
+      o.volume = 0.0f;
+      o.audible = false;
+    }
+
+    p.osc[0].audible = true;
+    p.osc[0].volume = 1.0f;
+    p.osc[0].atAmount = -1.0f;
+    p.global.masterGain = 1.0f;
+    p.global.safetyClip = false;
+
+    // Full pressure already on the channel before the key goes down, which is
+    // what a bench test with the aftertouch slider parked at 127 does.
+    p.global.aftertouch = 1.0f;
+
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+    engine.setPolyphony(8);
+    engine.noteOn(60, 1.0f, p);
+
+    // The first 60 ms, well past the 15 ms the smoothing takes.
+    std::vector<float> a(2880), b(2880);
+    engine.render(a.data(), b.data(), 2880, p);
+
+    float peak = 0.0f;
+    for (auto v : a)
+      peak = std::max(peak, std::abs(v));
+
+    std::printf("  struck under held pressure, a cancelling amount peaks at "
+                "%.5f\n",
+                peak);
+
+    check(peak < 1.0e-4f,
+          "a key struck under held pressure starts at that pressure rather "
+          "than thumping its way down to it (" +
+              std::to_string(peak) + ")");
+
+    // And the other way about: a row that adds starts added rather than
+    // fading in.
+    p.osc[0].atAmount = 1.0f;
+    p.osc[0].volume = 0.0f;
+
+    const auto riseOwner = std::make_unique<SynthEngine>();
+    auto &rise = *riseOwner;
+    rise.prepare(sr);
+    rise.setPolyphony(8);
+    rise.noteOn(60, 1.0f, p);
+
+    std::vector<float> c(480), d(480); // 10 ms, inside the smoothing
+    rise.render(c.data(), d.data(), 480, p);
+
+    float early = 0.0f;
+    for (auto v : c)
+      early = std::max(early, std::abs(v));
+
+    std::vector<float> e(4800), f(4800);
+    rise.render(e.data(), f.data(), 4800, p);
+
+    float settled = 0.0f;
+    for (auto v : e)
+      settled = std::max(settled, std::abs(v));
+
+    std::printf("  and an adding amount is at %.3f within 10 ms against "
+                "%.3f settled\n",
+                early, settled);
+
+    check(settled > 0.1f && early > 0.9f * settled,
+          "and one that adds is at its level from the first block rather than "
+          "fading in (" +
+              std::to_string(early) + " against " + std::to_string(settled) +
+              ")");
+  }
 }
 
 // -----------------------------------------------------------------------------
