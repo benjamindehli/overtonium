@@ -622,7 +622,13 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   // is two pixels of nothing. It has one now. The notches are cut through, so
   // the collar is read by its scalloped outline and by the panel showing
   // between its flutes, and it no longer has to be lit to be seen.
-  const auto wall = colours::panelAlt.brighter(0.21f);
+  // Not quite flat. The drawing's wall is a single tone with a spread of
+  // zero, but a photograph of the knob shows the wall does turn a little as
+  // it goes round, just not enough to notice from straight above. This is
+  // that much and no more: a few values of 255 across the whole ring, against
+  // the 51 it used to carry, which was a chamfer rather than a wall.
+  const auto wallLit = colours::panelAlt.brighter(0.055f);
+  const auto wallShaded = colours::panelAlt.darker(0.02f);
 
   // Eight, as the reference has, whatever size the knob is drawn at. Sized
   // off the radius this ran to sixteen on a bar knob, and at that pitch the
@@ -681,8 +687,36 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   // Lighter than the face it rings, or the band and the face are one tone
   // and the collar is two pixels of nothing. What tells them apart is that
   // the collar is a turned edge catching the light and the face is flat.
-  g.setColour(wall.withMultipliedAlpha(dim));
+  g.setGradientFill(juce::ColourGradient(
+      wallLit.withMultipliedAlpha(dim), centre.x - rimOut * 0.7f,
+      centre.y - rimOut * 0.7f, wallShaded.withMultipliedAlpha(dim),
+      centre.x + rimOut * 0.7f, centre.y + rimOut * 0.7f, false));
   g.fillPath(collar);
+
+  // The lit edge of the wall, and the reason the knob can be this dark.
+  //
+  // A notch is cut through, so what shows in it is the panel, and how rugged
+  // the knob looks is the wall's tone less the panel's. Take the wall down to
+  // sit properly on a dark panel and that difference goes with it: the
+  // notches stop reading, the outline smooths over and the thing turns back
+  // into a disc. Brightness cannot be what carries the shape on a dark knob.
+  //
+  // Light can. This strokes the collar's own outline, notches and all, so
+  // every flute gets a lit edge and every notch is a break in it. Laid on
+  // with a gradient that fades to nothing by the lower right, so it is a
+  // highlight on the side facing the light rather than an outline drawn round
+  // the whole thing, which is what a turned edge does and what a drawn
+  // outline does not.
+  //
+  // It fades to a little rather than to nothing, because the shaded flutes
+  // still have to be flutes. With the wall this dark it sits 3 values of 255
+  // above the panel showing through the notches, so on that side there is no
+  // tone left to tell one from the other and the edge is all there is.
+  g.setGradientFill(juce::ColourGradient(
+      juce::Colours::white.withAlpha(0.34f * dim), centre.x - rimOut * 0.80f,
+      centre.y - rimOut * 0.80f, juce::Colours::white.withAlpha(0.09f * dim),
+      centre.x + rimOut * 0.80f, centre.y + rimOut * 0.80f, false));
+  g.strokePath(collar, juce::PathStrokeType(juce::jmax(0.7f, radius * 0.045f)));
 
   // ---- the face -------------------------------------------------------------
   // Most of the knob. The collar is a band around the edge rather than a
@@ -700,8 +734,8 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   // other flat top on this panel is shaded the same way. It is a tenth of the
   // range the collar used to carry.
   g.setGradientFill(juce::ColourGradient(
-      colours::panelAlt.brighter(0.27f), centre.x, face.getY(),
-      colours::panelAlt.brighter(0.17f), centre.x, face.getBottom(), false));
+      colours::panelAlt.brighter(0.13f), centre.x, face.getY(),
+      colours::panelAlt.darker(0.04f), centre.x, face.getBottom(), false));
   g.fillEllipse(face);
 
   // What separates the face from the collar around it. A line along the
