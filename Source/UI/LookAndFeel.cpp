@@ -585,6 +585,73 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   const auto rimOut = bodyR;
   const auto rimIn = rimOut * 0.82f;
 
+  // How far a notch bites into the collar band, as a share of it.
+  //
+  // The reference cuts 0.28 of its band, which at the sizes this panel draws
+  // knobs at is a third of a pixel and nothing at all. Everything else about
+  // the collar is already the reference's proportion exaggerated to survive a
+  // 26 pixel cap, and this is the same bargain: deep enough that a gap is a
+  // gap at 1:1, shallow enough that a ring of collar survives unbroken behind
+  // it and the flutes stay a knurled edge rather than the teeth of a gear.
+  constexpr float kNotchDepth = 0.62f;
+
+  const auto litSide = colours::panelAlt.brighter(0.78f);
+  const auto darkSide = colours::panelAlt.darker(0.30f);
+
+  // Eight, as the reference has, whatever size the knob is drawn at. Sized
+  // off the radius this ran to sixteen on a bar knob, and at that pitch the
+  // notches are a pixel apart, they alias into a shimmer as they turn, and no
+  // single one of them can be followed round, which is exactly what the eye
+  // needs in order to see the knob turning at all. Eight is also wide enough
+  // apart that what sits between two of them is a face rather than a tooth.
+  constexpr int flutes = 8;
+
+  // The notches are cut out of the collar rather than drawn onto it.
+  //
+  // This is the shape the knob is: a wall of separate flutes standing around
+  // a smaller cap, so between two of them there is nothing, and what shows
+  // is whatever the knob is sitting on. Drawn as dark marks instead they are
+  // paint on a disc, and the only way to pick a density for them is to guess,
+  // which is how they ended up darker than the shadow the cap throws and read
+  // as holes punched through the panel. Cut, there is nothing to pick: the
+  // gap is the panel and the cap's own shadow, at whatever those already are.
+  //
+  // Measured off the reference's silhouette rather than its shading, since
+  // the shading at the cap's edge is the cap's shadow falling on the wall and
+  // not the wall's own colour. Its cap ends at 0.878 of the wall's radius,
+  // its notches take 0.32 of the pitch, and they cut 0.28 of the way into the
+  // wall band.
+  const auto pitch = juce::MathConstants<float>::twoPi / (float)flutes;
+  const auto notchW = pitch * 0.32f;
+  const auto notchR = rimOut - (rimOut - rimIn) * kNotchDepth;
+
+  juce::Path collar;
+
+  for (int i = 0; i < flutes; ++i) {
+    // Turned with the knob, which is the whole of what makes it look like a
+    // knob turning rather than a stripe sliding round a disc that never
+    // moves. The notches sat at fixed angles and only the stripe travelled,
+    // so the cap read as a dial face with a hand on it.
+    //
+    // What sells it is that the lighting does not turn: the wash below stays
+    // put while the flutes move through it, so each one darkens and lightens
+    // as it comes round. A texture moving against a fixed light is what a
+    // turning surface looks like.
+    //
+    // The first notch is at the stripe's own angle, so the stripe runs into
+    // the gap between two flutes rather than over the top of one, which is
+    // where the reference puts it too.
+    const auto fluteStart = angle + (float)i * pitch + notchW * 0.5f;
+    const auto fluteEnd = angle + (float)(i + 1) * pitch - notchW * 0.5f;
+
+    collar.addCentredArc(centre.x, centre.y, rimOut, rimOut, 0.0f, fluteStart,
+                         fluteEnd, i == 0);
+    collar.addCentredArc(centre.x, centre.y, notchR, notchR, 0.0f, fluteEnd,
+                         fluteEnd + notchW, false);
+  }
+
+  collar.closeSubPath();
+
   // The wash runs from the upper left to the lower right, which is where the
   // light on this panel comes from. A linear gradient across a band two
   // pixels deep is indistinguishable from shading it by angle, and it is one
@@ -592,54 +659,11 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   // Lighter than the face it rings, or the band and the face are one tone
   // and the collar is two pixels of nothing. What tells them apart is that
   // the collar is a turned edge catching the light and the face is flat.
-  const auto litSide = colours::panelAlt.brighter(0.78f);
-  const auto darkSide = colours::panelAlt.darker(0.30f);
-
   g.setGradientFill(juce::ColourGradient(
       litSide.withMultipliedAlpha(dim), centre.x - rimOut * 0.7f,
       centre.y - rimOut * 0.7f, darkSide.withMultipliedAlpha(dim),
       centre.x + rimOut * 0.7f, centre.y + rimOut * 0.7f, false));
-  g.fillEllipse(body);
-
-  // Eight, as the reference has, whatever size the knob is drawn at. Sized
-  // off the radius this ran to sixteen on a bar knob, and at that pitch the
-  // slots are a pixel apart, they alias into a shimmer as they turn, and no
-  // single one of them can be followed round, which is exactly what the eye
-  // needs in order to see the knob turning at all. Eight is also wide enough
-  // apart that the flute between two of them is a face rather than a tooth.
-  constexpr int flutes = 8;
-
-  for (int i = 0; i < flutes; ++i) {
-    // Turned with the knob, which is the whole of what makes it look like a
-    // knob turning rather than a stripe sliding round a disc that never
-    // moves. The slots sat at fixed angles and only the stripe travelled, so
-    // the cap read as a dial face with a hand on it.
-    //
-    // What sells it is that the lighting does not turn: the wash above stays
-    // put while the slots move through it, so each flute darkens and lightens
-    // as it comes round. A texture moving against a fixed light is what a
-    // turning surface looks like.
-    //
-    // The first slot is at the stripe's own angle, so the stripe crosses the
-    // collar in the gap between two flutes rather than over the top of one.
-    const auto a =
-        angle + juce::MathConstants<float>::twoPi * (float)i / (float)flutes;
-
-    const auto sinF = std::sin(a);
-    const auto cosF = std::cos(a);
-
-    g.setColour(juce::Colours::black.withAlpha(0.8f * dim));
-    // Shallower than the collar is deep, so a ring of it survives unbroken
-    // between the slots and the face plate. Cut all the way in and the
-    // flutes are separate teeth with the face showing between them, which is
-    // a gear rather than a knurled edge.
-    const auto slotIn = rimIn + (rimOut - rimIn) * 0.38f;
-
-    g.drawLine({centre.x + slotIn * sinF, centre.y - slotIn * cosF,
-                centre.x + (rimOut + 0.3f) * sinF,
-                centre.y - (rimOut + 0.3f) * cosF},
-               juce::jmax(1.0f, rimOut * 0.13f));
-  }
+  g.fillPath(collar);
 
   // ---- the face -------------------------------------------------------------
   // Most of the knob. The collar is a band around the edge rather than a
