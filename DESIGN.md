@@ -332,6 +332,8 @@ Setting it per partial is what separates it from a velocity curve over the whole
 
 Aftertouch works the same way but **adds** to the fader instead of scaling it, and it ignores velocity entirely. That means a strip with its fader all the way down is silent until you lean on the key, and then it fades in under your finger, while a negative amount fades an open strip back out again. Put a few upper partials on positive aftertouch and the note grows brighter the harder you press, without touching the partials you left alone. Both channel pressure and polyphonic aftertouch are accepted, and whichever is higher wins. Pressure is smoothed over about 15 ms, so seven-bit MIDI does not step the gain.
 
+A note begins at the pressure the channel is already holding rather than at nothing. The smoothing is there so that moving the controller does not step the gain, and a key struck while the controller is already somewhere has nothing to smooth towards: ramping up to meet it spends the first 15 ms at a level the player never asked for, which is a thump on every note under a negative amount and an audible fade in under a positive one. Per-note pressure is the other case and does start at nothing, because it is a fact about that key and the key has only just gone down.
+
 The mod wheel can stand in for it, and by default does. Most keyboards have no aftertouch at all, and the wheel is the control your hand already goes to, so CC1 feeds the same destination. Nothing changes for a controller that does send pressure, since a wheel left alone reads zero. Settings has an "Aftertouch from" entry if you would rather have one or the other on its own. Polyphonic aftertouch is not on that list: it is per note rather than per channel, there is nothing ambiguous about where it should go, and it stays routed whatever the setting says.
 
 ### MPE
@@ -427,7 +429,7 @@ There is no room for a proper skirt standing clear of the cap, which is what the
 
 **The stripe reaches the rim and is drawn as a rectangle rather than a stroked line.** Reaching the rim is what lines it up with the lit ticks beyond, so the two read as one statement rather than as a mark on a cap and a separate arc around it. The rectangle is for the ends: a line with round caps puts a dome at the centre of the face, which is where the eye is least willing to forgive one. Pointers and fader caps are translucent glass, so the tick ring and the meter read straight through them.
 
-**Every screen and every lamp is set into the panel**, which is the other half of a panel lit from one corner: the raised things show the two walls nearest the light and the sunk things show the two furthest, so a channel is lit along its left edge while a hole cut in one is lit along its right. The cents readout, the shape glyph, the four activity lamps and the pitch needle all get a dark edge along their top and left and a lit one along their bottom and right.
+**Every screen and every lamp is set into the panel**, which is the other half of a panel lit from one corner: the raised things show the two walls nearest the light and the sunk things show the two furthest, so a channel is lit along its left edge while a hole cut in one is lit along its right. The cents readout, the shape glyph, the five activity lamps and the pitch needle all get a dark edge along their top and left and a lit one along their bottom and right.
 
 It is drawn around each of them rather than inside, because they are a few pixels across and a border taken out of the picture would leave no picture. None of them had to move to make room: each was already standing in a margin of its own that nothing was using, so the lip costs nothing but the one pixel on each side that the margin already held.
 
@@ -435,7 +437,7 @@ Two whole shapes rather than four arcs, the lit one and then the shadow over it 
 
 Both shapes run under the opening as well as around it, so a face drawn at low alpha shows the shadow through itself. The lamps and the needle are exactly that when they are dark, so both blend against their own backdrop instead, which is the colour they came out as anyway and covers the floor of the hole while it is at it.
 
-**It is not free, and the lamps are what pays.** Three lamps and a needle to a strip across thirty-three strips are the one thing here that repaints thirty times a second, and two shapes is half of what a lamp's whole paint used to cost. Measured on one lamp, alternating builds and taking the minimum of six runs each: 4.3 microseconds without the recess and 6.9 with it, which across all 132 of them is 0.57 ms of a frame against 0.92, so the mixer's lamps went from 1.7 percent of a core to 2.7. Two things that were tried and did not help: ellipses in place of rounded rectangles save nothing, both being general path fills, and giving the recess a third shape to put an opaque floor under those two faces costs 1.3 microseconds a lamp where blending the faces themselves costs nothing.
+**It is not free, and the lamps are what pays.** Five lamps and a needle to a strip across thirty-three strips are the one thing here that repaints thirty times a second, and two shapes is half of what a lamp's whole paint used to cost. Measured on one lamp, alternating builds and taking the minimum of six runs each: 4.3 microseconds without the recess and 6.9 with it, which across all 198 of them is 0.85 ms of a frame against 1.37, so the mixer's lamps went from 2.6 percent of a core to 4.1. Two things that were tried and did not help: ellipses in place of rounded rectangles save nothing, both being general path fills, and giving the recess a third shape to put an opaque floor under those two faces costs 1.3 microseconds a lamp where blending the faces themselves costs nothing.
 
 What would pay for itself is caching the static half of a lamp's paint, which is the backdrop, the rule, its lit lip and the recess, as a nine by nine image and blitting it, leaving only the bloom and the lamp itself to draw. That would end up cheaper than before any of this, and it is not done because the editor paints under a zoom transform and the display has a scale of its own, so the cache would have to be keyed on the physical pixel scale and rebuilt when it changes. Blitted under a transform the image is resampled rather than copied, which could cost more than the fills it replaced, and everything that can be checked here is a 1x software render, so a cache that was wrong only at 2x would look perfect in every screenshot.
 
@@ -537,18 +539,31 @@ S and 5 are the same shape, here and on every seven-bar display ever built. The 
 
 The rules that divide a strip into groups carry a lamp each, showing what the group under them is doing to this partial right now. They cost no height, because the rule was already using that row to draw a line.
 
-| Rule      | Shows                                                                                                         |
-| --------- | ------------------------------------------------------------------------------------------------------------- |
-| PITCH MOD | a needle on a track, flat to the left and sharp to the right, where modulation and drift have the partial now |
-| ENVELOPE  | how far up its envelope the partial is, while the key is down                                                 |
-| KEY OFF   | the same, once the key is up and the key-off stage has taken over                                             |
-| AMP MOD   | how far the tremolo has pulled the level down, so it pulses at the rate and swings further at greater depth   |
+| Rule      | Shows                                                                                                                             |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| PITCH MOD | a needle on a track, flat to the left and sharp to the right, where modulation and drift have the partial now                     |
+| ENVELOPE  | how far up its envelope the partial is, while the key is down                                                                     |
+| KEY OFF   | the same, once the key is up and the key-off stage has taken over                                                                 |
+| AMP MOD   | how far the tremolo has pulled the level down, so it pulses at the rate and swings further at greater depth                       |
+| OUTPUT    | two lamps, one for each of the rows beneath it: what the blow has left of the partial, and what the pressure on the key is adding |
 
 The two envelope lamps hand over rather than both being lit. The value they are fed is signed: positive while the key is down, negative once the swell and release have it, and a lamp reading zero is dark either way, so the one value that says nothing about the stage is also the one where nothing needs saying.
 
 Two choices are worth knowing about. The lamps read from the voice pool rather than from the knobs, so they describe a note rather than a setting, and nothing pulses over silence. And they follow the loudest voice on that partial, which is the one the meter follows, because a lamp taking the maximum across a chord would describe no note in particular.
 
+That rule is a comparison between voices and not a threshold for reporting at all, and the difference is the whole channel. Read as a threshold, a partial sitting at a peak of exactly zero never beats the nothing the gathering starts from, so every lamp on it reads that nothing instead. A partial gets there while still sounding whenever a negative AFTERTOUCH amount takes its level to the bottom of the clamp, and also with the fader down or above the Nyquist fade. The symptom is the one that points away from the cause: the aftertouch lamp dies at the moment it has the most to say, and takes the velocity lamp beside it with it, which is two independent readings appearing to be coupled.
+
 The tremolo lamp shows what the tremolo has taken off rather than what it has left, which is why a partial with no tremolo on it reads dark instead of sitting fully lit and never moving.
+
+**The output rule carries two lamps rather than one**, sitting side by side, the left for VELOCITY and the right for AFTERTOUCH. Each reads its own row and nothing else. A single lamp over both was tried first and the trouble with it was never the arithmetic: two rows that behave differently cannot be summed into one reading without the reading meaning something neither row means.
+
+**Each lamp is the shape of the knob above it**, which is what makes the pair readable without a legend.
+
+VELOCITY can only take level away, so its lamp shows what the row has left: full is a partial the blow has not cost anything, dark is one the row has taken entirely. At the centre the row leaves every note alone at every velocity and the lamp is full throughout. At one end a blow of nothing takes the whole partial and a blow at full velocity takes none of it, and at the other end those two swap, which is what the row itself promises and is the one thing worth holding a test against. Full at rest is the right way round for a row that subtracts: a lamp that lit as the row did more would be showing the gap rather than the thing.
+
+AFTERTOUCH adds rather than subtracts, so its lamp goes the other way. It rests dark and comes up with the hand, as the amount against the pressure on the key. Unsigned, since a row set to push a partial down is doing as much as one set to lift it.
+
+Both are gated on the envelope like the tremolo. The velocity half is the one that needs it and the one a reader would expect not to: it reads full when its row is taking nothing, so ungated it would sit lit on every channel of a silent mixer.
 
 **The needle's scale.** Fixed, and the same on every strip, so two channels can be compared by eye. Full deflection is 225 cents, a vibrato and a drift at full stretch together.
 
@@ -567,11 +582,15 @@ A scale normalised to each strip's own depth would run the needle to both edges 
 
 At the display's fifteen frames a second, an LFO above about seven Hz is faster than the lamp can follow and reads as a shimmer rather than as a pulse. That is a limit of the frame rate rather than of the lamp, and raising the frame rate to fix it would cost far more than the lamps do.
 
-**What they cost.** Nothing measurable on the audio thread: every value they show was already worked out by the render loop for its own use, so capturing it is three stores per partial per control block. Against a control that renders 16 voices, the build with the lamps benchmarks inside the run-to-run noise of the one without, its fastest run being the faster of the two.
+**What they cost.** Nothing measurable on the audio thread: every value they show was already worked out by the render loop for its own use, so capturing it is five stores per partial per control block. Against a control that renders 16 voices, the build with the lamps benchmarks inside the run-to-run noise of the one without, its fastest run being the faster of the two.
 
 The drawing is where the care went. Brightness is quantised to twelve steps and the needle to whole pixels, for the same reason the meters are segmented: a lamp that follows its value exactly repaints on every frame in which the value moves at all, which for anything modulated is every frame.
 
-The merging matters more than the quantising, and not in the way it looks. The lamps are handed back to the editor rather than invalidating themselves, and they are merged by row rather than by neighbour, because every strip's lamps sit at the same four heights. Putting them through the general merge alongside the meter bands costs 762,000 pixels a frame on a mixer with all 32 channels modulating, since six rectangles is not enough to keep the rows apart and each merge pairs a lamp at the top of a strip with a meter band at the bottom. Merged by row it is 58,000, against the meters' own 22,000. On the factory presets it is smaller again: 12,000 for _Slow Pad_ and 33,000 for _Shimmer_, against a mixer of 1,278,000 pixels.
+The merging matters more than the quantising, and not in the way it looks. The lamps are handed back to the editor rather than invalidating themselves, and they are merged by row rather than by neighbour, because every strip's lamps sit at the same five heights. Putting them through the general merge alongside the meter bands costs 823,000 pixels a frame on a mixer with all 32 channels modulating, since six rectangles is not enough to keep the rows apart and each merge pairs a lamp at the top of a strip with a meter band at the bottom. Merged by row it is 75,000, against the meters' own 28,000. On the factory presets it is far smaller: 11,000 for _Slow Pad_ and 19,000 for _Shimmer_, played as a four note chord, against a mixer of 1,278,000 pixels.
+
+The second lamp on the output rule is free in that accounting, and that is the merge doing its job rather than a coincidence. Six lamps now sit at five heights, so the band a row merges to is the one it was already, and the row-merged figure is the same to the pixel with the lamp as without it. Only the general merge notices, and it notices by getting better rather than worse: more rectangles sharing a row give it more to pair usefully.
+
+The output lamps cost almost nothing on a preset being played, either. Driven by a ramp they move every frame like the rest, but their rows sit still and so does the controller, so each lamp quantises to the same step frame after frame and asks for nothing: _Slow Pad_ is unchanged by the pair and _Shimmer_ moves by under 200 pixels a frame.
 
 ### Meters
 
@@ -607,11 +626,11 @@ The window's height follows either way, and it has to be measured before it is a
 
 That needed the rules to be part of the answer to what the pointer is on, which they were not: the hover reports a row, and rows are looked up by what control stands in them, which for a rule is nothing. So the one part of a strip that could be clicked was the one part that said nothing when you pointed at it.
 
-Lighting the band took three more things, each of which had been true for a while and only showed once a heading became something you point at. A heading's wash goes over the children rather than behind them, since four of the five carry an activity lamp that fills the whole row and paints an opaque backdrop: underneath it, only the output heading appeared to highlight, because it is the one with no lamp. The noise channel had never drawn a row wash at all, so the band stopped at the thirty-second column. And the gutter had always been a passive display lit by whichever strip the pointer was on, so pointing at one of its own headings lit nothing, which is odd for the one part of it that can be clicked.
+Lighting the band took three more things, each of which had been true for a while and only showed once a heading became something you point at. A heading's wash goes over the children rather than behind them, since every one of them carries an activity lamp that fills the whole row and paints an opaque backdrop: underneath it, the headings did not appear to highlight at all. The noise channel had never drawn a row wash at all, so the band stopped at the thirty-second column. And the gutter had always been a passive display lit by whichever strip the pointer was on, so pointing at one of its own headings lit nothing, which is odd for the one part of it that can be clicked.
 
 The hand is given back as the parent's cursor rather than as a plain arrow, which is the part that is easy to get wrong. A strip asks for its parent's cursor precisely so that LINK and the drawing tool can set one across the whole mixer at once, and an arrow set on the strip would mask theirs for everything in it.
 
-Nothing had to be made clickable for it. The rules are the one part of a strip with nothing standing on them, and the lamps that four of the five carry already let clicks through so that the rule underneath reads as a continuous line. The pointer shows the same hand over a rule that it shows over a heading. Pitch modulation, envelope, key off, amp mod and output each fold. All five together is 480 pixels. The tuning at the head of the strip and the faders at the foot never fold: the first is what the instrument is for and the second is what you mix with, so neither is ever the thing in the way.
+Nothing had to be made clickable for it. The rules are the one part of a strip with nothing standing on them, and the lamps they carry already let clicks through so that the rule underneath reads as a continuous line. The pointer shows the same hand over a rule that it shows over a heading. Pitch modulation, envelope, key off, amp mod and output each fold. All five together is 480 pixels. The tuning at the head of the strip and the faders at the foot never fold: the first is what the instrument is for and the second is what you mix with, so neither is ever the thing in the way.
 
 It folds across the whole mixer rather than per channel. The strips are columns sharing one set of rows, and folding a group on one channel and not the next would put every row below it out of step with the gutter captions, which are the only thing naming the knobs.
 

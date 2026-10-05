@@ -25,8 +25,10 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
               params::ampShapeNames()),
       muteButton(state, "M"), soloButton(state, "S"), meter(kNoiseColour),
       envLamp(kNoiseColour), keyOffLamp(kNoiseColour),
-      tremoloLamp(kNoiseColour) {
-  for (auto *lamp : {&envLamp, &keyOffLamp, &tremoloLamp})
+      tremoloLamp(kNoiseColour), velocityLamp(kNoiseColour),
+      pressureLamp(kNoiseColour) {
+  for (auto *lamp :
+       {&envLamp, &keyOffLamp, &tremoloLamp, &velocityLamp, &pressureLamp})
     addAndMakeVisible(*lamp);
 
   addMouseListener(this, true);
@@ -383,9 +385,10 @@ void NoiseStrip::paint(juce::Graphics &g) {
   if (rowShowsHighlight(highlighted) && !isHeadingRow(highlighted))
     paintRowHighlight(g, rows[rowIndex(highlighted)]);
 
-  // The envelope, key-off and tremolo rules carry lamps and draw themselves.
+  // Every other section rule carries a lamp and draws itself. This strip has
+  // no pitch to modulate, so that one heading is left plain.
   g.setColour(colours::outline.withAlpha(0.7f));
-  for (auto r : {Row::PitchModHeading, Row::OutputHeading}) {
+  for (auto r : {Row::PitchModHeading}) {
     const auto row = rows[rowIndex(r)];
     g.fillRect(row.getX(), row.getY() + row.getHeight() / 2, row.getWidth(), 1);
   }
@@ -413,7 +416,8 @@ void NoiseStrip::updateLevelReadout() {
       (db >= 0.0f ? "" : "-") + juce::String(std::abs(db), 1), true);
 }
 
-void NoiseStrip::setActivity(float envelope, float tremolo,
+void NoiseStrip::setActivity(float envelope, float tremolo, float velGain,
+                             float pressure,
                              juce::Array<juce::Rectangle<int>> &into) {
   const auto refresh = [&into](juce::Component &lamp, bool moved) {
     if (moved)
@@ -426,6 +430,11 @@ void NoiseStrip::setActivity(float envelope, float tremolo,
   refresh(envLamp, envLamp.push(afterKeyOff ? 0.0f : level));
   refresh(keyOffLamp, keyOffLamp.push(afterKeyOff ? level : 0.0f));
   refresh(tremoloLamp, tremoloLamp.push(level > 0.0f ? tremolo : 0.0f));
+
+  // One for each row, the same as a numbered channel. See
+  // ChannelStrip::setActivity for which way round each of them goes.
+  refresh(velocityLamp, velocityLamp.push(level > 0.0f ? velGain : 0.0f));
+  refresh(pressureLamp, pressureLamp.push(level > 0.0f ? pressure : 0.0f));
 }
 
 void NoiseStrip::paintHeaderBand(juce::Graphics &g) {
@@ -530,6 +539,17 @@ void NoiseStrip::resized() {
     place(envLamp, Row::EnvHeading);
     place(keyOffLamp, Row::KeyOffHeading);
     place(tremoloLamp, Row::AmpModHeading);
+    // Two on the one rule, the same as a numbered channel. See ChannelStrip.
+    {
+      auto row = rows[rowIndex(Row::OutputHeading)];
+      const auto half = row.removeFromLeft(row.getWidth() / 2);
+
+      velocityLamp.setBounds(half);
+      velocityLamp.setBackdrop(at(half.getCentreY()));
+
+      pressureLamp.setBounds(row);
+      pressureLamp.setBackdrop(at(row.getCentreY()));
+    }
   }
   volume.setBounds(faderRow.reduced(2, 1));
   levelReadout.setBounds(rows[rowIndex(Row::FaderText)]);

@@ -1152,14 +1152,15 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
               params::ampShapeNames()),
       muteButton(state, "M"), soloButton(state, "S"), meter(colour),
       pitchLamp(colour), envLamp(colour), keyOffLamp(colour),
-      tremoloLamp(colour) {
+      tremoloLamp(colour), velocityLamp(colour), pressureLamp(colour) {
   // Deep listener, so a pointer resting on a knob is reported by the strip that
   // owns it rather than being swallowed by the control.
   addMouseListener(this, true);
 
   for (juce::Component *lamp :
        {(juce::Component *)&pitchLamp, (juce::Component *)&envLamp,
-        (juce::Component *)&keyOffLamp, (juce::Component *)&tremoloLamp})
+        (juce::Component *)&keyOffLamp, (juce::Component *)&tremoloLamp,
+        (juce::Component *)&velocityLamp, (juce::Component *)&pressureLamp})
     addAndMakeVisible(*lamp);
 
   // The strip decides the pointer for everything on it, which is how the LINK
@@ -1792,20 +1793,9 @@ void ChannelStrip::paint(juce::Graphics &g) {
   if (rowShowsHighlight(highlighted) && !isHeadingRow(highlighted))
     paintRowHighlight(g, rows[rowIndex(highlighted)]);
 
-  // Section rules, aligned with the gutter headings. Four of the five carry a
-  // lamp, and those draw their own rule around it, so only the output divider
-  // is left for the strip to draw.
-  for (auto r : {Row::OutputHeading}) {
-    const auto row = rows[rowIndex(r)];
-    const auto y = row.getY() + row.getHeight() / 2;
-
-    // Scored, like the rules the lamps sit on. See ActivityLamp::paint.
-    g.setColour(colours::outline.withAlpha(0.7f));
-    g.fillRect(row.getX(), y, row.getWidth(), 1);
-
-    g.setColour(juce::Colours::white.withAlpha(0.055f));
-    g.fillRect(row.getX(), y + 1, row.getWidth(), 1);
-  }
+  // Section rules, aligned with the gutter headings. All five carry a lamp
+  // now, and a lamp draws the rule either side of itself, so the strip has
+  // none of them left to draw. See ActivityLamp::paint.
 }
 
 void ChannelStrip::paintHeaderBand(juce::Graphics &g) {
@@ -1948,6 +1938,19 @@ void ChannelStrip::resized() {
     envLamp.setBackdrop(place(envLamp, Row::EnvHeading));
     keyOffLamp.setBackdrop(place(keyOffLamp, Row::KeyOffHeading));
     tremoloLamp.setBackdrop(place(tremoloLamp, Row::AmpModHeading));
+    // Two lamps on the one rule, one for each of the rows beneath it. Each
+    // takes half the row and draws the rule either side of itself, so the
+    // divider still runs the width of the strip with two lamps mounted on it.
+    {
+      auto row = rows[rowIndex(Row::OutputHeading)];
+      const auto half = row.removeFromLeft(row.getWidth() / 2);
+
+      velocityLamp.setBounds(half);
+      velocityLamp.setBackdrop(at(half.getCentreY()));
+
+      pressureLamp.setBounds(row);
+      pressureLamp.setBackdrop(at(row.getCentreY()));
+    }
   }
 }
 
@@ -1972,6 +1975,7 @@ float ChannelStrip::needlePosition(float cents) {
 }
 
 void ChannelStrip::setActivity(float envelope, float tremolo, float pitch,
+                               float velGain, float pressure,
                                juce::Array<juce::Rectangle<int>> &into) {
   const auto refresh = [&into](juce::Component &lamp, bool moved) {
     if (moved)
@@ -1999,6 +2003,24 @@ void ChannelStrip::setActivity(float envelope, float tremolo, float pitch,
 
   refresh(pitchLamp,
           pitchLamp.push(level <= 0.0f ? kParked : needlePosition(pitch)));
+
+  // One lamp for each of the two rows under this heading, each reading its own
+  // row the way that row's knob reads.
+  //
+  // The velocity lamp shows the level the row has left, so it is full when the
+  // blow has cost the partial nothing and dark when the row has taken all of
+  // it. Full at rest is the right way round for a row that can only subtract:
+  // the knob at its centre leaves every note alone, and a lamp that lit as the
+  // row did more would be showing the gap rather than the thing.
+  //
+  // The pressure lamp is the other way because its row is: aftertouch adds
+  // nothing until the key is leaned on, so it rests dark and comes up with the
+  // hand.
+  //
+  // Both gated on the envelope like the tremolo, so neither sits lit over a
+  // partial that has finished sounding.
+  refresh(velocityLamp, velocityLamp.push(level > 0.0f ? velGain : 0.0f));
+  refresh(pressureLamp, pressureLamp.push(level > 0.0f ? pressure : 0.0f));
 }
 
 void ChannelStrip::mouseWheelMove(const juce::MouseEvent &e,

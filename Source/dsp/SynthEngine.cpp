@@ -505,21 +505,32 @@ void SynthEngine::sumChunk(float *left, float *right, int numFrames,
     const auto &envelopes = v.getPartialEnvelopes();
     const auto &tremolos = v.getPartialTremolos();
     const auto &pitches = v.getPartialPitches();
+    const auto &velocities = v.getPartialVelocities();
+    const auto &pressures = v.getPartialPressures();
 
     for (size_t i = 0; i < peaks.size(); ++i) {
-      if (peaks[i] <= into.peaks[i])
+      // A voice that reaches here is sounding, so it has something to say
+      // about this partial even when what it is saying is that the partial
+      // is at zero. See Activity::claimed.
+      if (into.claimed[i] && peaks[i] <= into.peaks[i])
         continue;
 
+      into.claimed[i] = true;
       into.peaks[i] = peaks[i];
       into.envelopes[i] = envelopes[i];
       into.tremolos[i] = tremolos[i];
       into.pitches[i] = pitches[i];
+      into.velocities[i] = velocities[i];
+      into.pressures[i] = pressures[i];
     }
 
-    if (v.getNoisePeak() > into.noisePeak) {
+    if (!into.noiseClaimed || v.getNoisePeak() > into.noisePeak) {
+      into.noiseClaimed = true;
       into.noisePeak = v.getNoisePeak();
       into.noiseEnvelope = v.getNoiseEnvelope();
       into.noiseTremolo = v.getNoiseTremolo();
+      into.noiseVelocity = v.getNoiseVelocity();
+      into.noisePressure = v.getNoisePressure();
     }
   }
 }
@@ -530,11 +541,15 @@ void SynthEngine::publish(const Activity &a) noexcept {
     partialEnvelopes[i].store(a.envelopes[i], std::memory_order_relaxed);
     partialTremolos[i].store(a.tremolos[i], std::memory_order_relaxed);
     partialPitches[i].store(a.pitches[i], std::memory_order_relaxed);
+    partialVelocities[i].store(a.velocities[i], std::memory_order_relaxed);
+    partialPressures[i].store(a.pressures[i], std::memory_order_relaxed);
   }
 
   noiseLevel.store(a.noisePeak, std::memory_order_relaxed);
   noiseEnvelope.store(a.noiseEnvelope, std::memory_order_relaxed);
   noiseTremolo.store(a.noiseTremolo, std::memory_order_relaxed);
+  noiseVelocity.store(a.noiseVelocity, std::memory_order_relaxed);
+  noisePressure.store(a.noisePressure, std::memory_order_relaxed);
 }
 
 void SynthEngine::renderVoices(float *left, float *right, int numSamples,

@@ -121,6 +121,8 @@ void Voice::reset() noexcept {
   noisePeak = 0.0f;
   noiseEnvelope = 0.0f;
   noiseTremolo = 0.0f;
+  noiseVelocity = 0.0f;
+  noisePressure = 0.0f;
 
   active = false;
   released = false;
@@ -143,12 +145,27 @@ void Voice::noteOn(int channel, int note, float velocity,
 
   const float vel = std::clamp(velocity, 0.0f, 1.0f);
 
-  // A fresh note starts unpressed and unbent, and ramps in if the key is
-  // already leaned on. A retrigger lands here too, which is what stops the
-  // previous note's bend carrying into the new one on a channel being reused.
+  // A fresh note starts unbent and under no pressure of its own. A retrigger
+  // lands here too, which is what stops the previous note's bend carrying into
+  // the new one on a channel being reused.
   noteBendSemitones = 0.0f;
   polyPressure = 0.0f;
-  pressureSmoothed = 0.0f;
+
+  // The smoothing starts where the channel is already holding it rather than
+  // at nothing.
+  //
+  // Per-note pressure is a fact about this key and begins at zero, which is
+  // what the line above says. Channel pressure is a controller that was
+  // already standing somewhere when the key went down, and a note that ramps
+  // up to meet it spends the first 15 ms somewhere the player never asked
+  // for. With a negative AFTERTOUCH amount that is a note starting at full
+  // level and falling to silence, which is a thump on every key struck under
+  // held pressure, and with a positive one it is an audible fade in.
+  //
+  // The smoothing is still what it was. It is there so that moving the
+  // controller does not step the gain, and nothing about that wants the first
+  // block of a note to start from a value the controller is not at.
+  pressureSmoothed = std::clamp(p.global.aftertouch, 0.0f, 1.0f);
 
   // And the slide axis forgets where the last note started it, so the next one
   // takes its nought from wherever the controller puts it. See setSlide.
@@ -370,9 +387,13 @@ void Voice::render(float *left, float *right, int numSamples,
   partialEnvelopes.fill(0.0f);
   partialTremolos.fill(0.0f);
   partialPitches.fill(0.0f);
+  partialVelocities.fill(0.0f);
+  partialPressures.fill(0.0f);
   noisePeak = 0.0f;
   noiseEnvelope = 0.0f;
   noiseTremolo = 0.0f;
+  noiseVelocity = 0.0f;
+  noisePressure = 0.0f;
 
   const float pressureTarget =
       std::max(std::clamp(p.global.aftertouch, 0.0f, 1.0f), polyPressure);
@@ -576,7 +597,7 @@ void Voice::render(float *left, float *right, int numSamples,
           std::max(partialPeaks[(size_t)i], pt.env.getLevel() * gEnd);
 
       // The same again for the lamps: everything here was worked out above for
-      // the oscillator's own use, so this is three stores and a compare.
+      // the oscillator's own use, so this is four stores and a compare.
       //
       // The envelope carries its stage in its sign. Swell and release are the
       // two that run after the key is up, and they are the ones the second
@@ -593,6 +614,13 @@ void Voice::render(float *left, float *right, int numSamples,
       // is a lamp that is dark rather than one that is on and never moves.
       partialTremolos[(size_t)i] = 1.0f - amEnd;
       partialPitches[(size_t)i] = (float)(pmCents + driftCents);
+
+      // One lamp for each of the two rows under the heading, each showing
+      // what its own row is doing and nothing else. The velocity half is the
+      // gain itself, which the note-on already latched, so it costs a read.
+      partialVelocities[(size_t)i] = pt.velGain;
+      partialPressures[(size_t)i] =
+          std::abs(std::clamp(op.atAmount, -1.0f, 1.0f) * pressure);
 
       if ((g <= 1.0e-7f && gEnd <= 1.0e-7f) || pt.env.isSilentlyHolding()) {
         // Inaudible right now: muted, faded out above Nyquist, fader at zero,
@@ -740,6 +768,8 @@ void Voice::renderNoise(float *left, float *right, int len,
 
     noiseEnvelope = afterKeyOff ? -noise.env.getLevel() : noise.env.getLevel();
     noiseTremolo = 1.0f - amEnd;
+    noiseVelocity = noise.velGain;
+    noisePressure = std::abs(std::clamp(np.atAmount, -1.0f, 1.0f) * pressure);
   }
 
   if (g <= 1.0e-7f && gEnd <= 1.0e-7f) {

@@ -116,8 +116,18 @@ public:
     return engine.getPartialPitch(index0);
   }
 
+  float getPartialVelocity(int index0) const noexcept {
+    return engine.getPartialVelocity(index0);
+  }
+
+  float getPartialPressure(int index0) const noexcept {
+    return engine.getPartialPressure(index0);
+  }
+
   float getNoiseEnvelope() const noexcept { return engine.getNoiseEnvelope(); }
   float getNoiseTremolo() const noexcept { return engine.getNoiseTremolo(); }
+  float getNoiseVelocity() const noexcept { return engine.getNoiseVelocity(); }
+  float getNoisePressure() const noexcept { return engine.getNoisePressure(); }
 
   /// Polled by the editor to drive the output meter.
   float getOutputLevelLeft() const noexcept {

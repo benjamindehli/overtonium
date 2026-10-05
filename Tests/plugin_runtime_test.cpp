@@ -1948,11 +1948,11 @@ void testActivityLamps(OvertoniumProcessor &p) {
     juce::Array<juce::Rectangle<int>> bands;
 
     // First call has everything to say, since the lamps start dark.
-    strip.setActivity(0.5f, 0.5f, 0.0f, bands);
+    strip.setActivity(0.5f, 0.5f, 0.0f, 0.0f, 0.0f, bands);
     const auto first = bands.size();
 
     bands.clearQuick();
-    strip.setActivity(0.5f, 0.5f, 0.0f, bands);
+    strip.setActivity(0.5f, 0.5f, 0.0f, 0.0f, 0.0f, bands);
 
     check(first > 0, "a lamp that lights asks to be repainted");
     check(bands.isEmpty(), "and the same values again ask for nothing (" +
@@ -1961,32 +1961,84 @@ void testActivityLamps(OvertoniumProcessor &p) {
     // A move too small to cross a step is a move nobody can see.
     bands.clearQuick();
     strip.setActivity(0.5f + 1.0f / (4.0f * ActivityLamp::kSteps), 0.5f, 0.0f,
-                      bands);
+                      0.0f, 0.0f, bands);
 
     check(bands.isEmpty(), "nor does a change smaller than one step");
 
     // A move of a whole step does.
     bands.clearQuick();
     strip.setActivity(0.5f + 1.5f / (float)ActivityLamp::kSteps, 0.5f, 0.0f,
-                      bands);
+                      0.0f, 0.0f, bands);
 
     check(!bands.isEmpty(), "a change of a whole step does");
 
     // ---- the two envelope lamps never both light --------------------------
     bands.clearQuick();
-    strip.setActivity(-0.8f, 0.0f, 0.0f, bands);
-    strip.setActivity(-0.8f, 0.0f, 0.0f, bands);
+    strip.setActivity(-0.8f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
+    strip.setActivity(-0.8f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
 
     // Reading the lamps back is not possible from here, so this is checked by
     // the shape of the request instead: flipping the sign has to move both
     // lamps, one out and one in, and nothing else.
     bands.clearQuick();
-    strip.setActivity(0.8f, 0.0f, 0.0f, bands);
+    strip.setActivity(0.8f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
 
     check(bands.size() == 2,
           "flipping to the key-off half moves exactly two lamps, one out and "
           "one in (" +
               std::to_string(bands.size()) + ")");
+
+    // ---- the two output lamps are gated on the note like the rest --------
+    //
+    // The velocity half is the one that has to be gated, and it is the one a
+    // reader would expect not to need it: it reads full when the row is
+    // taking nothing, so fed straight through it would sit lit on every
+    // channel of a silent mixer.
+    bands.clearQuick();
+    strip.setActivity(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
+
+    bands.clearQuick();
+    strip.setActivity(0.0f, 0.0f, 0.0f, 1.0f, 1.0f, bands);
+
+    check(bands.isEmpty(),
+          "a strip with nothing sounding keeps both output lamps dark, the "
+          "velocity one included (" +
+              std::to_string(bands.size()) + " bands)");
+
+    // With a note under it each row moves its own lamp and only its own.
+    bands.clearQuick();
+    strip.setActivity(0.8f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
+
+    bands.clearQuick();
+    strip.setActivity(0.8f, 0.0f, 0.0f, 1.0f, 0.0f, bands);
+
+    check(bands.size() == 1,
+          "with a note under it the velocity row moves exactly one lamp (" +
+              std::to_string(bands.size()) + ")");
+
+    // Which one, not just how many. The velocity lamp is the left half of
+    // the rule and the pressure lamp the right, and nothing else here can
+    // tell the two apart: swapping what they are fed moves one lamp either
+    // way and every count still comes out right.
+    const auto velocityBand = bands.getFirst();
+
+    bands.clearQuick();
+    strip.setActivity(0.8f, 0.0f, 0.0f, 1.0f, 1.0f, bands);
+
+    check(bands.size() == 1,
+          "and the pressure row moves exactly the other one (" +
+              std::to_string(bands.size()) + ")");
+
+    const auto pressureBand = bands.getFirst();
+    const auto middle = strip.getWidth() / 2;
+
+    check(velocityBand.getCentreX() < middle &&
+              pressureBand.getCentreX() > middle,
+          "with velocity on the left of the rule and aftertouch on the right "
+          "(" +
+              std::to_string(velocityBand.getCentreX()) + " and " +
+              std::to_string(pressureBand.getCentreX()) + " about " +
+              std::to_string(middle) + ")");
   }
 }
 

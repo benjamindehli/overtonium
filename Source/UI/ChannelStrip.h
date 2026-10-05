@@ -501,8 +501,8 @@ public:
   /// They merge well, too. Every strip's lamps sit at the same height, so the
   /// union of a row of them is a thin wide band with no wasted area in it,
   /// which is the opposite of what the meter bands do.
-  void setActivity(float envelope, float tremolo, float pitch,
-                   juce::Array<juce::Rectangle<int>> &into);
+  void setActivity(float envelope, float tremolo, float pitch, float velGain,
+                   float pressure, juce::Array<juce::Rectangle<int>> &into);
 
   /// Where a displacement sits on the needle's travel, -1 to 1.
   ///
@@ -592,7 +592,7 @@ private:
   LevelMeter meter;
 
   ActivityNeedle pitchLamp;
-  ActivityLamp envLamp, keyOffLamp, tremoloLamp;
+  ActivityLamp envLamp, keyOffLamp, tremoloLamp, velocityLamp, pressureLamp;
 
   std::vector<std::unique_ptr<SliderAttachment>> sliderAttachments;
   std::unique_ptr<ButtonAttachment> muteAttachment, soloAttachment;
