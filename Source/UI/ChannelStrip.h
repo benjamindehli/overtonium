@@ -378,6 +378,16 @@ public:
 
   void setBackdrop(juce::Colour);
 
+  /// The margin the slot leaves itself inside the component, each side.
+  ///
+  /// The lip of a recess is drawn around the opening rather than inside it,
+  /// so an opening taken out to the component's own edge has nowhere to put
+  /// its side walls and loses its rounded ends with them. One pixel is what
+  /// the lip needs and is all this has to give. The travel is measured off
+  /// the same number, so the needle still reaches both ends of the slot and
+  /// no further.
+  static constexpr int kSlotInset = 1;
+
   /// @param position  -1 to 1, flat to sharp, already scaled by the caller.
   /// @returns true when the needle moved a pixel and needs repainting.
   bool push(float position);

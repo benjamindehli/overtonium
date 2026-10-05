@@ -918,10 +918,11 @@ bool ActivityNeedle::push(float position) {
     return true;
   }
 
-  const auto usable = juce::jmax(1, getWidth() - 3);
+  const auto usable = juce::jmax(1, getWidth() - 2 * kSlotInset - 3);
   const auto at =
-      1 + (int)std::lround(0.5 * (1.0 + juce::jlimit(-1.0f, 1.0f, position)) *
-                           (double)usable);
+      kSlotInset + 1 +
+      (int)std::lround(0.5 * (1.0 + juce::jlimit(-1.0f, 1.0f, position)) *
+                       (double)usable);
 
   if (at == column)
     return false;
@@ -945,12 +946,16 @@ void ActivityNeedle::paint(juce::Graphics &g) {
   // same bargain the unlit lamps make: a track that is dark rather than absent
   // says the needle has somewhere to go, and doubles as the rule dividing the
   // groups, so no separate line is drawn here.
-  const auto track = juce::Rectangle<float>(bounds.getWidth(), height)
+  const auto track = juce::Rectangle<float>(
+                         bounds.getWidth() - 2.0f * (float)kSlotInset, height)
                          .withCentre({bounds.getCentreX(), midY + 0.5f});
 
-  // A slot milled across the strip rather than a line drawn on it. It runs to
-  // both edges, so only the top and bottom walls of the cut are in the
-  // picture, which is the pair that carries the depth anyway.
+  // A slot milled across the strip rather than a line drawn on it, and the
+  // inset above is what lets it read as one. Run out to both edges the slot
+  // loses its rounded ends and the two side walls of the cut along with
+  // them, because the lip is drawn around the opening and the component stops
+  // where the opening does. What is left is a bar that looks sheared off
+  // rather than milled, which is visible the moment anybody looks closely.
   paintRecess(g, track, height * 0.35f);
 
   // Blended against the backdrop rather than washed over it, for the same

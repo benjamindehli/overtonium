@@ -602,7 +602,13 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   // stay a knurled edge rather than the teeth of a gear.
   constexpr float kNotchDepth = 0.28f;
 
-  const auto litSide = colours::panelAlt.brighter(0.78f);
+  // The lit side comes down and the shaded side stays where it is, which is
+  // not symmetry for its own sake. Measured around a knob, the collar's
+  // shaded flutes already sit at 26 of 255 against a panel whose typical is
+  // 31, so that end has nowhere left to go without the collar disappearing
+  // into what it is standing on. The gap between collar and cap closes from
+  // the bright end and from the cap, which is where the room is.
+  const auto litSide = colours::panelAlt.brighter(0.58f);
   const auto darkSide = colours::panelAlt.darker(0.30f);
 
   // Eight, as the reference has, whatever size the knob is drawn at. Sized
@@ -679,9 +685,16 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   const juce::Rectangle<float> face =
       body.withSizeKeepingCentre(rimIn * 2.0f, rimIn * 2.0f);
 
+  // The cap and the collar are the same plastic, and the only reason the cap
+  // is the darker of the two is that it is the flat top of the knob while the
+  // collar is a turned edge standing into the light. That is a difference of
+  // shading, not of material, and it was being drawn as though it were both:
+  // measured around a knob, the collar came out 3.5 times the cap's
+  // brightness, where the reference has its wall at 0.93 of its cap. It only
+  // has to be enough to tell the two apart.
   g.setGradientFill(juce::ColourGradient(
-      colours::panelAlt.brighter(0.10f), centre.x, face.getY(),
-      colours::panelAlt.darker(0.30f), centre.x, face.getBottom(), false));
+      colours::panelAlt.brighter(0.44f), centre.x, face.getY(),
+      colours::panelAlt.darker(0.08f), centre.x, face.getBottom(), false));
   g.fillEllipse(face);
 
   // What separates the face from the collar around it. A line along the

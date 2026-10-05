@@ -423,7 +423,9 @@ The band is under a fifth of the cap and the face plate is all the rest, and a n
 
 The depth is the reference's too, and it was not at first. A bite of 0.28 of the band is under half a pixel on a cap this size, so it was cut to 0.62 instead on the usual grounds that everything about this collar is the reference exaggerated to survive 26 pixels. That was answering a problem the cut had already solved. A notch drawn as a dark mark has to be deep to be seen, because it competes with the collar it is painted on. A notch that goes through shows the panel behind it, and panel against collar is legible at a depth that paint would not have been, so the proportion carries straight across after all. Worth remembering the next time something here looks like it needs exaggerating: check what it is competing with first.
 
-**The collar is lighter than the face.** Shaded like it, the two are one tone and the band is two pixels of nothing. What tells them apart is that the collar is a turned edge catching the light and the face is flat.
+**The collar is lighter than the face, and only just.** The two are the same plastic. The only reason the cap is the darker of them is that it is the flat top of the knob while the collar is a turned edge standing into the light, and that is a difference of shading rather than of material. It was drawn as though it were both: measured around a knob the collar came out 3.5 times the cap's brightness, where the reference has its wall at 0.93 of its cap. It is 1.28 now, which is enough to tell a flat face from a turned edge and no more.
+
+Closing that gap is not symmetrical, and the panel is what decides it. The collar's shaded flutes already sit at 26 of 255 against a panel whose typical value is 31, so taking anything off that end walks the collar into what it is standing on. The gap closes from the bright end of the collar and from the cap, which is where the room is.
 
 **There are eight slots**, as the reference has, whatever size the knob is drawn at. Taking the count off the radius ran it to sixteen on a bar knob, and at that pitch the slots are a pixel apart, they alias into a shimmer as they turn, and no single one of them can be followed round, which is exactly what the eye needs in order to see the knob turning at all. Eight is also far enough apart that what sits between two of them is a face rather than a tooth.
 
@@ -570,6 +572,8 @@ VELOCITY can only take level away, so its lamp shows what the row has left: full
 AFTERTOUCH adds rather than subtracts, so its lamp goes the other way. It rests dark and comes up with the hand, as the amount against the pressure on the key. Unsigned, since a row set to push a partial down is doing as much as one set to lift it.
 
 Both are gated on the envelope like the tremolo. The velocity half is the one that needs it and the one a reader would expect not to: it reads full when its row is taking nothing, so ungated it would sit lit on every channel of a silent mixer.
+
+**The slot leaves itself a pixel at each end.** The lip of a recess is drawn around the opening rather than inside it, so an opening taken out to its component's own edge has nowhere to put its side walls and loses its rounded ends with them. What is left is a bar that looks sheared off rather than milled, which is invisible at a glance and obvious the moment anybody zooms in. The travel is measured off the same inset, so the needle still reaches both ends of the slot and no further.
 
 **The needle's scale.** Fixed, and the same on every strip, so two channels can be compared by eye. Full deflection is 225 cents, a vibrato and a drift at full stretch together.
 
