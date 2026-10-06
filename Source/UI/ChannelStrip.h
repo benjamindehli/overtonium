@@ -534,6 +534,16 @@ public:
   ///                of the drag it takes relative to the strip that takes most.
   void setLinkGlow(Role, float amount, bool accent = false);
 
+  /// How much of a LINK drag this channel would take, 0 to 1, for the number
+  /// at the head of the strip.
+  ///
+  /// The knobs already glow by the same number, and this is the same answer
+  /// read at a glance rather than a second one: a glow on a 26 px knob is
+  /// easy to miss across thirty-two columns, and the number is the biggest,
+  /// highest contrast thing a channel owns. It is also already the channel's
+  /// name, which is exactly the question a scope raises.
+  void setLinkReach(float amount);
+
   /// Which macro drives this row, as its colour, or transparent for none.
   ///
   /// Carried beside the control's own colour rather than replacing it. The
@@ -633,6 +643,10 @@ private:
   void foldSectionUnder(const juce::MouseEvent &, bool echo);
   Role glowRole = Role::Tune;
   float glowAmount = 0.0f;
+
+  /// See setLinkReach. Quantised before it is acted on, so a curve sliding
+  /// under the pointer does not repaint thirty-two headers every frame.
+  float linkReach = 0.0f;
 
   /// Whether the glow is lit in the accent rather than in the channel's own
   /// colour. LINK's preview is per channel, since it is saying how much each

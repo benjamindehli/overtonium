@@ -1850,12 +1850,38 @@ void ChannelStrip::paintHeaderBand(juce::Graphics &g) {
   // Accent when the pointer is on this channel, which is exactly what the
   // gutter does to the caption of the row it is on. The number is the name of
   // the channel, so lighting it is the same gesture.
+  //
+  // And the same gesture again for a LINK drag, which asks the same question
+  // of the whole mixer at once: these are the channels it would reach. Mixed
+  // towards the accent by how much each one takes rather than switched on, so
+  // the curve reads across the row of numbers the way it reads across the
+  // knobs, and the channel under the pointer is the brightest because it is
+  // the one taking the most.
+  //
   // Centred in what is left of the header rather than pinned to the top of
   // it. The number is the only thing standing here.
-  g.setColour(hovered ? colours::accent : colours::text);
+  g.setColour(hovered
+                  ? colours::accent
+                  : colours::text.interpolatedWith(colours::accent, linkReach));
   g.setFont(makeFont(14.0f, true));
   g.drawText(juce::String(info.harmonic), header, juce::Justification::centred,
              false);
+}
+
+void ChannelStrip::setLinkReach(float amount) {
+  // Quantised to eight steps. The weights slide continuously as the pointer
+  // moves along a tilted curve, and a header that repainted on every change
+  // would be thirty-two repaints a frame for a difference nobody can see.
+  const auto step = std::round(juce::jlimit(0.0f, 1.0f, amount) * 8.0f) / 8.0f;
+
+  if (std::abs(step - linkReach) < 0.001f)
+    return;
+
+  linkReach = step;
+
+  // The header only. The number is all that changes, and it is drawn by the
+  // cap that pins the top of the strip rather than by the strip itself.
+  headerCap.repaint();
 }
 
 void ChannelStrip::resized() {

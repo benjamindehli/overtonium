@@ -1617,6 +1617,13 @@ void OvertoniumEditor::updateLinkGlow() {
     for (auto &strip : strips)
       strip->setLinkGlow(Role::Volume, 1.0f, true);
 
+    // The numbers light too, and all of them, because drawing reaches every
+    // channel. One rule with no exceptions: a lit number means this channel
+    // is in whatever gesture is armed. Always on for this tool carries no
+    // information by itself, which is the price of the rule holding.
+    for (auto &strip : strips)
+      strip->setLinkReach(1.0f);
+
     noiseStrip.setDrawGlow(true);
     return;
   }
@@ -1652,6 +1659,15 @@ void OvertoniumEditor::updateLinkGlow() {
         w > 0.0f && strongest > 0.0f ? 0.4f + 0.6f * (w / strongest) : 0.0f;
 
     strips[(size_t)i]->setLinkGlow(role, glow);
+
+    // The number at the head of the channel takes the same reading, which is
+    // what makes a scope legible from across the mixer rather than only from
+    // over the knob. On every scope including All: the question is which
+    // channels a drag would reach, and "all of them" is an answer that should
+    // look like all of them. Lit for some scopes and dark for others would
+    // leave an unlit mixer meaning either that nothing is armed or that
+    // everything is reached, which is the one thing an indicator must not do.
+    strips[(size_t)i]->setLinkReach(glow);
   }
 }
 
