@@ -1222,10 +1222,11 @@ void OvertoniumLookAndFeel::drawLampCap(juce::Graphics &g,
   // it would turn the small ones into a frame with a dot in the middle.
   const auto cap = lampCapBounds(bounds, gang);
   const auto wall = cap.getY() - bounds.getY();
-  // Barely rounded. These are moulded square caps, and the radius that read
-  // as a chamfer on a wide button turned the small ones into lozenges: a
-  // 14 px mute has only 7 px of half-height for a corner to eat into.
-  const auto outerCorner = juce::jmin(2.6f, bounds.getHeight() * 0.18f);
+  // Square but for the fewest pixels that stop it looking cut with scissors.
+  // These are moulded blocks and the reference's are square to the eye: a
+  // radius big enough to read as a chamfer is a radius that rounds the whole
+  // thing off, and the chamfer belongs on the facets below instead.
+  const auto outerCorner = juce::jmin(1.1f, bounds.getHeight() * 0.08f);
 
   // The moulding both halves of a gang stand in, which each of them draws in
   // full and shows its own half of, the rest falling outside the component
@@ -1255,16 +1256,60 @@ void OvertoniumLookAndFeel::drawLampCap(juce::Graphics &g,
   g.setColour(juce::Colour(0xff0d1015));
   g.fillRoundedRectangle(well, outerCorner);
 
-  // Two edges rather than one. The dark outside is the moulding standing
-  // above the panel and the light inside is the floor of the well catching
-  // what misses its top wall, and together they are what says "carved" at a
-  // size too small to model properly.
   g.setColour(juce::Colours::black.withAlpha(0.45f));
   g.drawRoundedRectangle(well.reduced(0.5f), outerCorner, 1.0f);
 
-  g.setColour(juce::Colours::white.withAlpha(0.09f));
-  g.drawRoundedRectangle(well.reduced(1.2f).translated(0.0f, 0.8f),
-                         outerCorner * 0.9f, 1.0f);
+  // ---- the bevel -----------------------------------------------------------
+  // Four facets mitred at the corners, which is what the reference's bezels
+  // are and what a moulding is: the well does not drop straight down, it
+  // slopes in to the opening the cap sits in. A pair of strokes around a dark
+  // rectangle, which is what this was, says "there is an edge here" and
+  // nothing about which way the edge faces, so the cap read as sitting on the
+  // moulding rather than down inside it.
+  //
+  // Shaded as a hole rather than as a raised thing, which is the opposite of
+  // every cap and knob on the panel and the same as every other recess on it.
+  // The walls that face the light are the ones across from it: with the light
+  // at the upper left, the bottom and the right come up lit and the top and
+  // the left stay dark. Sampled off the reference's own bezel, its top facet
+  // and its left sit at a quarter and a sixteenth of its panel while its
+  // bottom is at nine tenths and its right at two thirds, which is the same
+  // four-way split. The values themselves do not carry across, that machine's
+  // panel being near black where this one is (20, 24, 29).
+  //
+  // Mitred because the corners are where a bevel is read. Four rectangles
+  // butted together overlap at the corners and the overlap is a different
+  // tone from either, which is a seam in the wrong place and the one thing
+  // that says the four faces are drawn rather than moulded.
+  const auto opening = well.reduced(wall);
+
+  const juce::Point<float> oTL(well.getX(), well.getY());
+  const juce::Point<float> oTR(well.getRight(), well.getY());
+  const juce::Point<float> oBR(well.getRight(), well.getBottom());
+  const juce::Point<float> oBL(well.getX(), well.getBottom());
+  const juce::Point<float> iTL(opening.getX(), opening.getY());
+  const juce::Point<float> iTR(opening.getRight(), opening.getY());
+  const juce::Point<float> iBR(opening.getRight(), opening.getBottom());
+  const juce::Point<float> iBL(opening.getX(), opening.getBottom());
+
+  const auto facet = [&g](juce::Point<float> a, juce::Point<float> b,
+                          juce::Point<float> c, juce::Point<float> d,
+                          juce::Colour colour) {
+    juce::Path quad;
+    quad.startNewSubPath(a);
+    quad.lineTo(b);
+    quad.lineTo(c);
+    quad.lineTo(d);
+    quad.closeSubPath();
+
+    g.setColour(colour);
+    g.fillPath(quad);
+  };
+
+  facet(oTL, oTR, iTR, iTL, juce::Colours::black.withAlpha(0.46f));
+  facet(oBL, oTL, iTL, iBL, juce::Colours::black.withAlpha(0.30f));
+  facet(oTR, oBR, iBR, iTR, juce::Colours::white.withAlpha(0.065f));
+  facet(oBR, oBL, iBL, iBR, juce::Colours::white.withAlpha(0.125f));
 
   const auto corner = juce::jmax(1.0f, outerCorner - wall * 0.5f);
 
