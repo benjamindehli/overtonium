@@ -228,7 +228,11 @@ Nothing was lost by taking them out, because in both cases something louder was 
 
 **Every switch on the panel is a lamp behind a square plastic cap**, the way the buttons on an old mixer or tape machine are. ECHO, REVERB, the character button, the tool, the two on the bar that open something, and the M and S on all thirty-three channels. The cap sits in a moulded well, and the well is a bevel rather than a hole with straight sides: four facets sloping in to the opening, mitred at the corners.
 
-**The bevel is shaded as a hole, which is the opposite of everything else on the panel.** A cap or a knob is a raised thing and is lit along its top and left. A well is cut into the panel, so the walls facing the light are the ones across from it, and with the light at the upper left that is the bottom and the right. Sampled off the reference's own bezel, its top facet and its left sit at a quarter and a sixteenth of its panel while its bottom is at nine tenths and its right at two thirds, which is that same four-way split.
+**The moulding stands on the panel rather than being cut into it**, so it is lit like every other raised thing here: its faces slope down and outwards from the opening, the top tilts towards the light and the bottom away, and top and left come up lit while bottom and right fall into shadow. Its outer edge says the same thing, lit along the top and the left and shading to a shadow along the bottom and the right.
+
+The reference's own bezels are shaded the other way about, bottom and right lit, which is a block whose faces slope down and inwards instead. Both are real mouldings and the photograph is not wrong. It is simply the other one, and on a panel where everything stands proud, a bezel that alone reads as a hole is the thing that looks out of place.
+
+It is also lighter than the photographs, which are of machines whose panels are near black. The same trap as the well's own colour: the values do not carry across to a panel that is (20, 24, 29).
 
 It was a dark stroke outside and a light one inside, which says there is an edge without saying which way the edge faces, and the cap read as sitting on the moulding rather than down inside it. The corners are where a bevel is read, so the facets are mitred: four rectangles butted together overlap at the corners, and the overlap is a tone that belongs to neither, which is a seam in the wrong place and the one thing that gives away four faces being drawn rather than moulded.
 
@@ -240,7 +244,7 @@ One shading serves both states, since the geometry is the same either way: lit f
 
 A lit cap puts a trace of its colour on the moulding around it, and that is all it does: an even wash over the whole bezel rather than a halo hugging the cap. The halo is the better physics and the worse picture, because light fading out from a cap's edge is light escaping around the cap, which happens only if the cap has sunk below the moulding. A lit button wearing one reads as pressed in however faint the glow is, so the shape is the problem rather than the strength. There is nowhere to put a real bloom in any case: the button ends at the bezel's outside edge, some three pixels out, which is too little to fall off in and is exactly the ring that reads as a gap.
 
-The bezel is dark against this panel rather than dark absolutely. The photographs are of machines whose panels are near black, so theirs can be too, and copying the value put a pit in a panel that is (20, 24, 29). It is a step below what it is cut into, which is what reads as a moulding here.
+The bezel is pitched against this panel rather than copied from the photographs. Those are of machines whose panels are near black, so theirs can be too, and copying the value put a pit in a panel that is (20, 24, 29).
 
 **The caps are a white translucent and the lamp shines through them.** Unlit, every cap on the panel is therefore the same grey, (111, 117, 124), that being what white plastic looks like in an unlit room. The only colour anywhere is what is switched on, so a mixer at rest has none of it and reading the row is reading where the colour is.
 

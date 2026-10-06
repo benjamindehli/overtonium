@@ -1222,11 +1222,11 @@ void OvertoniumLookAndFeel::drawLampCap(juce::Graphics &g,
   // it would turn the small ones into a frame with a dot in the middle.
   const auto cap = lampCapBounds(bounds, gang);
   const auto wall = cap.getY() - bounds.getY();
-  // Square but for the fewest pixels that stop it looking cut with scissors.
-  // These are moulded blocks and the reference's are square to the eye: a
-  // radius big enough to read as a chamfer is a radius that rounds the whole
-  // thing off, and the chamfer belongs on the facets below instead.
-  const auto outerCorner = juce::jmin(1.1f, bounds.getHeight() * 0.08f);
+  // Square, with just enough taken off the corners to look moulded rather
+  // than cut with scissors. A radius big enough to read as a chamfer is a
+  // radius that rounds the whole block off, and the chamfer belongs on the
+  // facets below instead.
+  const auto outerCorner = juce::jmin(1.7f, bounds.getHeight() * 0.11f);
 
   // The moulding both halves of a gang stand in, which each of them draws in
   // full and shows its own half of, the rest falling outside the component
@@ -1253,10 +1253,17 @@ void OvertoniumLookAndFeel::drawLampCap(juce::Graphics &g,
   // can be too, and copying the value put a pit in a panel that is (20, 24,
   // 29). This is a step below what it is cut into, which is what reads as a
   // moulding here.
-  g.setColour(juce::Colour(0xff0d1015));
+  g.setColour(juce::Colour(0xff1a1f26));
   g.fillRoundedRectangle(well, outerCorner);
 
-  g.setColour(juce::Colours::black.withAlpha(0.45f));
+  // The outside of the moulding, which is what says it stands on the panel
+  // rather than being cut into it. Lit along the top and the left where it
+  // catches the light, falling to a shadow along the bottom and the right,
+  // which is one stroke under a gradient rather than two arcs.
+  g.setGradientFill(
+      juce::ColourGradient(juce::Colours::white.withAlpha(0.13f), well.getX(),
+                           well.getY(), juce::Colours::black.withAlpha(0.50f),
+                           well.getRight(), well.getBottom(), false));
   g.drawRoundedRectangle(well.reduced(0.5f), outerCorner, 1.0f);
 
   // ---- the bevel -----------------------------------------------------------
@@ -1267,15 +1274,17 @@ void OvertoniumLookAndFeel::drawLampCap(juce::Graphics &g,
   // nothing about which way the edge faces, so the cap read as sitting on the
   // moulding rather than down inside it.
   //
-  // Shaded as a hole rather than as a raised thing, which is the opposite of
-  // every cap and knob on the panel and the same as every other recess on it.
-  // The walls that face the light are the ones across from it: with the light
-  // at the upper left, the bottom and the right come up lit and the top and
-  // the left stay dark. Sampled off the reference's own bezel, its top facet
-  // and its left sit at a quarter and a sixteenth of its panel while its
-  // bottom is at nine tenths and its right at two thirds, which is the same
-  // four-way split. The values themselves do not carry across, that machine's
-  // panel being near black where this one is (20, 24, 29).
+  // Shaded as a raised thing, like every cap and knob on this panel. The
+  // moulding stands on the panel and its faces slope down and outwards from
+  // the opening, so the top face is tilted towards the light and the bottom
+  // face away from it: top and left come up lit, bottom and right fall into
+  // shadow.
+  //
+  // The reference's own bezels are shaded the other way, bottom and right
+  // lit, which is a block whose faces slope down and inwards instead. Both
+  // are real mouldings. This panel is one where everything else stands proud,
+  // and a bezel that alone reads as a hole in it is the thing that looks
+  // wrong, whatever the photograph does.
   //
   // Mitred because the corners are where a bevel is read. Four rectangles
   // butted together overlap at the corners and the overlap is a different
@@ -1306,10 +1315,10 @@ void OvertoniumLookAndFeel::drawLampCap(juce::Graphics &g,
     g.fillPath(quad);
   };
 
-  facet(oTL, oTR, iTR, iTL, juce::Colours::black.withAlpha(0.46f));
-  facet(oBL, oTL, iTL, iBL, juce::Colours::black.withAlpha(0.30f));
-  facet(oTR, oBR, iBR, iTR, juce::Colours::white.withAlpha(0.065f));
-  facet(oBR, oBL, iBL, iBR, juce::Colours::white.withAlpha(0.125f));
+  facet(oTL, oTR, iTR, iTL, juce::Colours::white.withAlpha(0.115f));
+  facet(oBL, oTL, iTL, iBL, juce::Colours::white.withAlpha(0.060f));
+  facet(oTR, oBR, iBR, iTR, juce::Colours::black.withAlpha(0.26f));
+  facet(oBR, oBL, iBL, iBR, juce::Colours::black.withAlpha(0.40f));
 
   const auto corner = juce::jmax(1.0f, outerCorner - wall * 0.5f);
 
