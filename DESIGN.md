@@ -745,11 +745,15 @@ The noise channel draws with the rest. It is not a harmonic, but it is a fader, 
 
 **Armed, every fader lights and nothing else does.** That is the same preview LINK uses rather than a second kind of highlight, and reusing it is the point: both answer the one question, which is what the next drag would reach. Two ways of saying that would be two things to keep in step.
 
-What differs is the colour and the grading. LINK's preview is per channel and graded by the curve, since it is saying how much each one would take. The drawing's is one colour at full across the whole row, since every fader is equally drawable. It is lit in the accent, which is what the switch that armed it is lit in, so the band and the switch read as one statement rather than two.
+What differs is the colour and the grading. LINK's preview is per channel and graded by the curve, since it is saying how much each one would take. The drawing's is one colour at full across the whole row, since every fader is equally drawable. It is lit in the accent, which is what the tool button is lit in, so the band and the button read as one statement rather than two.
 
 It marks the tracks rather than the caps, and that is the honest signal. A cap is what you grab, which is the right thing to light for LINK; drawing never grabs anything, it sweeps a band, so the band is what has to be visible. The noise channel lights with the rest, since it draws with the rest.
 
-**While it is armed, LINK reads as off and the pointer becomes a pencil.** Both are the same point: a drag can be a link or a drawing and not both, so offering two accounts of what it would do at once would be one too many. LINK is not actually switched off, and letting go of the tool gives it back exactly as it was. Leaving its switch lit for a gesture that has been taken away from it would be a promise the mouse-up would break.
+**There is one switch and it shows one tool.** A drag can be a link or a drawing and not both, so there is one button at the head of the gutter carrying whichever of the three is current: the plain pointer, LINK, or the pencil. What it shows is what the next drag would do, and the pointer over the mixer shows the same thing.
+
+This replaced two switches, and the thing that went with them is worth recording. LINK had a switch of its own, and while drawing was armed that switch had to read as off: it was still carrying its scope and its curve, but the gesture had been taken away from it, so a lit switch was a promise the mouse-up would break. Saying it with one control instead means there is nothing to make consistent.
+
+**Holding the modifier is a tool you are holding rather than one you chose.** Drawing can be armed either way. Latched, by picking the pencil, it stays. Held, by the modifier, the button shows the pencil for exactly as long as the key is down and gives the previous tool back on release, which is why drawing wins over LINK while it is armed rather than replacing it. LINK keeps its scope and its curve throughout, so going back to it finds what you left.
 
 ### The output meter
 
