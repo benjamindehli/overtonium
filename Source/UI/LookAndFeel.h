@@ -62,7 +62,23 @@ public:
   /// own lamp. It is printed on the plastic rather than being part of what
   /// lights, which is what the machines do and what lets the eye read the
   /// state off the colour of the cap alone.
+  /// A rectangle on whole pixels.
+  ///
+  /// A filled shape wants its edges on the grid: landed between two pixels it
+  /// gets a row of partial coverage all the way round, which comes out darker
+  /// than its face by whatever is behind it and reads as a border nobody drew.
+  /// A stroked edge wants the opposite, which is why the bounds these come
+  /// from are inset by half a pixel in the first place.
+  static juce::Rectangle<float> snapToPixels(juce::Rectangle<float>);
+
   static juce::Colour lampLegend();
+
+  /// The legend as it actually prints on a lit cap: thinnest over the middle,
+  /// where the lamp is and where most light gets through it, and closing up
+  /// towards the ends. Unlit it is very nearly ink, there being nothing
+  /// behind it to pass.
+  static juce::ColourGradient legendInk(juce::Colour ink,
+                                        juce::Rectangle<float> cap, bool on);
 
   /// A square plastic cap of the kind a tape machine or a desk has, standing
   /// in a moulded well and lit from behind when its thing is on.

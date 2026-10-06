@@ -741,9 +741,26 @@ void SegmentDisplay::paint(juce::Graphics &g) {
   if (cells < 1)
     return;
 
-  // The unit only earns its place once the digits have what they need.
-  const auto unitW =
-      unitText.isNotEmpty() && hasRoomForUnit(getWidth()) ? kUnitWidth : 0.0f;
+  // The unit only earns its place once the digits have what they need, and it
+  // takes the room the words actually need rather than the budget set aside
+  // for them.
+  //
+  // kUnitWidth is a reserve wide enough for the longest of them. Centring the
+  // block on the reserve rather than on the text puts whatever is left over
+  // inside the block, so a short unit pushes the digits left and the reading
+  // sits against the inside of the screen looking cropped. "kHz" is three
+  // characters in a reserve sized for more.
+  const auto unitFont = makeFont(7.5f, true);
+
+  auto unitW = 0.0f;
+
+  if (unitText.isNotEmpty() && hasRoomForUnit(getWidth())) {
+    juce::GlyphArrangement measure;
+    measure.addLineOfText(unitFont, unitText, 0.0f, 0.0f);
+
+    unitW = juce::jmin(kUnitWidth,
+                       measure.getBoundingBox(0, -1, true).getWidth() + 2.0f);
+  }
 
   // A point costs about a third of a digit, which is what the extra term in
   // the denominator is buying.
@@ -753,6 +770,15 @@ void SegmentDisplay::paint(juce::Graphics &g) {
   const auto widest =
       area.getHeight() * (bars == Bars::Fourteen ? 0.74f : 0.72f);
 
+  // No margin is taken out of this.
+  //
+  // Two pixels were, to stop the leading segment landing against the inside
+  // of the screen. It was not landing there, and taking them changed what the
+  // line below chooses: with less room, a reading that had been sized off its
+  // own height came to be sized off the width instead, so the figures grew
+  // and shrank with how many characters were in them. A readout whose digits
+  // change size as the number changes is worse than one sitting a pixel
+  // nearer its edge than it might.
   const auto cellW = juce::jmin((area.getWidth() - unitW) /
                                     ((float)cells + 0.32f * (float)points),
                                 widest);
@@ -769,7 +795,7 @@ void SegmentDisplay::paint(juce::Graphics &g) {
 
   if (unitW > 0.0f) {
     g.setColour(colours::textDim.withAlpha(0.8f));
-    g.setFont(makeFont(7.5f, true));
+    g.setFont(unitFont);
     g.drawText(unitText,
                area.withX(digitArea.getRight() + 2.0f).withWidth(unitW - 2.0f),
                juce::Justification::centredLeft, false);

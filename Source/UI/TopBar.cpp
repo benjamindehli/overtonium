@@ -1635,7 +1635,34 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
     trio.removeFromLeft(kFxToggleGap);
     bitsDisplay.setBounds(trio.removeFromLeft(each));
     trio.removeFromLeft(kFxToggleGap);
-    clipButton.setBounds(trio);
+    // The switch is a lamp in a moulding and the two beside it are plain
+    // recessed panels, so the same bounds leave its lit cap shorter than they
+    // are by the width of its own bezel, and the three read as two sizes. It
+    // takes that width back out of the slack above and below, which is there
+    // because the readouts are held off the group's border.
+    //
+    // Measured off the look and feel rather than written down here, so a
+    // moulding that changes width does not quietly put this back out of step.
+    const auto bezel = juce::roundToInt(
+        (trio.toFloat().getHeight() -
+         OvertoniumLookAndFeel::lampCapBounds(
+             trio.toFloat(), OvertoniumLookAndFeel::LampGang::Alone)
+             .getHeight()) *
+        0.5f);
+
+    // Upwards only, into the gap under the meter. Grown both ways it reached
+    // the group's own border, and a switch sitting on the line round its
+    // group reads as having fallen through it. The readouts are held off that
+    // border deliberately and this keeps the same footing.
+    //
+    // Clamped to the meter above, since that is the meter's own rectangle
+    // rather than spare bar. The runtime suite holds all three of these to
+    // sitting under the meter and inside the bar, which is what caught an
+    // earlier version of this taking its height from the wrong side.
+    auto lit = trio;
+    lit.setTop(juce::jmax(trio.getY() - bezel, meter.getBottom()));
+
+    clipButton.setBounds(lit);
     break;
   }
 

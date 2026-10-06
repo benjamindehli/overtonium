@@ -583,9 +583,11 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   // that the flutes are what is left rather than what is added and the ring
   // can take one gradient for the whole of its lighting.
   const auto rimOut = bodyR;
-  // The reference's own proportion, measured off a real knob: its cap ends at
-  // 0.878 of the wall's outer radius.
-  const auto rimIn = rimOut * 0.878f;
+  // The reference's own proportion is 0.878, its cap ending there against the
+  // wall's outer radius. A hair more wall than that, because what the eye
+  // reads on a 26 px knob is the alternation between the flutes and the
+  // notches, and a wall one pixel deep has no room to alternate in.
+  const auto rimIn = rimOut * 0.855f;
 
   // How far a notch bites into the collar band, as a share of it.
   //
@@ -627,8 +629,16 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   // it goes round, just not enough to notice from straight above. This is
   // that much and no more: a few values of 255 across the whole ring, against
   // the 51 it used to carry, which was a chamfer rather than a wall.
-  const auto wallLit = colours::panelAlt.brighter(0.055f);
-  const auto wallShaded = colours::panelAlt.darker(0.02f);
+  // The lighter tone, and the whole of the wall takes it.
+  //
+  // The wall was filled dark and then had a bright edge stroked round its
+  // outline, which left three bands across a ring two pixels wide: the cap,
+  // then a dark gap, then a light rim. The gap is the thing that should not
+  // be there. The wall is one surface and it is the lit one, so it is filled
+  // with the tone the rim used to supply and the rim is only what tops it off
+  // on the side facing the light.
+  const auto wallLit = colours::panelAlt.brighter(0.46f);
+  const auto wallShaded = colours::panelAlt.brighter(0.30f);
 
   // Eight, as the reference has, whatever size the knob is drawn at. Sized
   // off the radius this ran to sixteen on a bar knob, and at that pitch the
@@ -713,8 +723,8 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   // above the panel showing through the notches, so on that side there is no
   // tone left to tell one from the other and the edge is all there is.
   g.setGradientFill(juce::ColourGradient(
-      juce::Colours::white.withAlpha(0.34f * dim), centre.x - rimOut * 0.80f,
-      centre.y - rimOut * 0.80f, juce::Colours::white.withAlpha(0.09f * dim),
+      juce::Colours::white.withAlpha(0.16f * dim), centre.x - rimOut * 0.80f,
+      centre.y - rimOut * 0.80f, juce::Colours::white.withAlpha(0.04f * dim),
       centre.x + rimOut * 0.80f, centre.y + rimOut * 0.80f, false));
   g.strokePath(collar, juce::PathStrokeType(juce::jmax(0.7f, radius * 0.045f)));
 
@@ -738,42 +748,16 @@ void OvertoniumLookAndFeel::drawRotarySlider(
       colours::panelAlt.darker(0.04f), centre.x, face.getBottom(), false));
   g.fillEllipse(face);
 
-  // What separates the face from the collar around it. A line along the
-  // underside rather than a ring all the way round, because a full ring on a
-  // flat face reads as an outline drawn on it.
+  // Nothing is drawn between the cap and the collar.
   //
-  // On the lower right, which is the mirror of where the reference has it.
-  // That photograph is lit from the upper right and this panel is lit from
-  // the upper left, and every shadow on it already falls the other way: the
-  // cast shadow under this very cap is offset down and to the right. One rim
-  // catching the light from the other side would be the only thing in the
-  // window disagreeing about where the light is.
-  //
-  // Measured clockwise from twelve, so this runs from three o'clock round
-  // past six and a little beyond.
-  //
-  // Outside the face rather than inside it, which is the difference between a
-  // thin cap and a thick one. A cap standing proud of its wall throws a
-  // shadow onto the wall; a dark band drawn inside the cap's own edge is not
-  // that shadow, it is a bevel, and a bevel is what a thick slab has. The
-  // reference's cap throws its shadow across at most 14 percent of the wall
-  // and only on the side away from the light, which is a cap with almost no
-  // height to it at all.
-  const auto lip = juce::jmax(0.7f, (rimOut - rimIn) * 0.34f);
-
-  juce::Path underside;
-  underside.addCentredArc(centre.x, centre.y, rimIn + lip * 0.5f,
-                          rimIn + lip * 0.5f, 0.0f, 1.1f, 3.5f, true);
-
-  g.setColour(juce::Colours::black.withAlpha(0.38f * dim));
-  g.strokePath(underside, juce::PathStrokeType(lip));
-
-  juce::Path topside;
-  topside.addCentredArc(centre.x, centre.y, rimIn - 0.4f, rimIn - 0.4f, 0.0f,
-                        -2.1f, 0.6f, true);
-
-  g.setColour(juce::Colours::white.withAlpha(0.14f * dim));
-  g.strokePath(topside, juce::PathStrokeType(1.0f));
+  // There was a dark arc under the cap's edge and a lit one over it, and
+  // together they put a ring round the cap that read as a seam between two
+  // parts. The knob is one piece of plastic: the cap is its top and the
+  // collar is its wall, and what tells them apart is that the wall is a
+  // little darker and is notched, not a line drawn where they meet. With the
+  // ring gone the body is continuous from the middle out to the flutes and
+  // its outline is the only thing that alternates, which is what a knurled
+  // edge looks like from above.
 
   // ---- the stripe -----------------------------------------------------------
   // One wide mark from the middle of the face out across the collar, in the
@@ -800,22 +784,22 @@ void OvertoniumLookAndFeel::drawRotarySlider(
 
   mark(0.0f, rimIn, head);
 
-  // It stops in the slot rather than running out to the edge of the collar,
-  // so the two flutes either side of it stand a little proud of its tip. That
-  // is what the reference does, and it is the difference between a mark let
-  // into the knob and one laid across the top of it.
-
-  // The part crossing the collar is a step down from the face, so it takes
-  // the collar's light rather than the face's: bright where the stripe is
-  // pointing into the light and dark where it is pointing away from it. That
-  // is the one place on the knob where the stripe and the lighting have to
-  // agree, and it is what stops the mark reading as painted across the top of
-  // the flutes rather than let into the gap between two of them.
+  // Out to the edge, down the whole depth of the wall. It stopped partway
+  // before, on the reasoning that the flutes either side should stand proud
+  // of its tip, and what that actually left was the wall's own lit edge
+  // carrying on past the end of the mark: a grey line outside the blue, which
+  // is the one thing on the knob that cannot be anything real.
+  //
+  // The part crossing the wall is a step down from the face, so it takes the
+  // wall's light rather than the face's: bright where the stripe points into
+  // the light and dark where it points away. That is the one place on the
+  // knob where the stripe and the lighting have to agree, and it is what
+  // stops the mark reading as painted across the flutes rather than let into
+  // the gap between two of them.
   const auto into =
       0.5f - 0.5f * (std::cos(angle) * 0.72f - std::sin(angle) * 0.69f);
 
-  mark(rimIn, rimIn + (rimOut - rimIn) * 0.55f,
-       head.interpolatedWith(head.darker(0.38f), into));
+  mark(rimIn, rimOut, head.interpolatedWith(head.darker(0.38f), into));
 }
 
 void OvertoniumLookAndFeel::drawLinearSlider(
@@ -1166,10 +1150,37 @@ void OvertoniumLookAndFeel::gangLamps(juce::Component &left,
 juce::Rectangle<float>
 OvertoniumLookAndFeel::lampCapBounds(juce::Rectangle<float> bounds,
                                      LampGang gang) {
-  const auto wall = juce::jlimit(2.0f, 4.5f, bounds.getHeight() * 0.15f);
-  auto cap = bounds.reduced(wall);
+  // Narrow. The moulding is a frame around the lamp rather than a surround
+  // the lamp sits in the middle of: the cap is the thing being looked at, and
+  // the frame only has to be wide enough to read as one. Width and apparent
+  // height go together here, the facets being what carry the relief, so a
+  // frame trimmed to read as thinner reads as lower at the same time.
+  //
+  // A whole number of pixels, and the rounding is the point rather than
+  // tidiness. A button's bounds are integers, so a wall of 2.2 puts the cap's
+  // edges two tenths of a pixel off the grid, and a rectangle filled off the
+  // grid has a row of partial coverage all the way round it. That row comes
+  // out darker than the face by whatever is behind it: a one pixel border
+  // round every cap, which reads as a bevel and is invisible to any attempt
+  // to fix the face, because it is not the face. It is the edge of the face
+  // landing between two pixels.
+  // The seam takes the innermost pixel of this, so the facets get whatever is
+  // left. At a tenth of the height that left one pixel of facet and one of
+  // seam, which is an outline rather than a moulding: the figure was chosen
+  // before the seam existed and never re-checked against it.
+  const auto wall = (float)juce::jmax(
+      2,
+      juce::roundToInt(juce::jlimit(2.0f, 4.0f, bounds.getHeight() * 0.14f)));
+
+  auto cap = snapToPixels(bounds.reduced(wall));
 
   // Half a wall on the joined side, the neighbour giving the other half.
+  //
+  // Not snapped, unlike the three outer edges. Two halves have to add up to
+  // one wall or the divider down the middle of a gang comes out a different
+  // width from the moulding around it, and that edge has a cap on both sides
+  // of it rather than a lamp meeting its frame, so there is nothing there for
+  // a partial pixel to spoil.
   if (gang == LampGang::Left)
     cap.setRight(bounds.getRight() - wall * 0.5f);
   else if (gang == LampGang::Right)
@@ -1201,6 +1212,32 @@ juce::Colour OvertoniumLookAndFeel::lampFace(juce::Colour lamp, bool on) {
   return lamp.withMultipliedSaturation(1.25f)
       .withBrightness(juce::jmax(lamp.getBrightness(), 0.92f))
       .interpolatedWith(juce::Colours::white, 0.14f);
+}
+
+juce::ColourGradient
+OvertoniumLookAndFeel::legendInk(juce::Colour ink, juce::Rectangle<float> cap,
+                                 bool on) {
+  // How much of the lamp a printed legend lets past. Nothing is opaque at
+  // this thickness, and a word that stopped every photon would be the one
+  // part of a lit cap behaving like paint.
+  const auto middle = on ? 0.74f : 0.94f;
+  const auto ends = on ? 0.92f : 1.0f;
+
+  juce::ColourGradient ramp(ink.withAlpha(ends), cap.getX(), cap.getCentreY(),
+                            ink.withAlpha(ends), cap.getRight(),
+                            cap.getCentreY(), false);
+
+  ramp.addColour(0.5, ink.withAlpha(middle));
+  return ramp;
+}
+
+juce::Rectangle<float>
+OvertoniumLookAndFeel::snapToPixels(juce::Rectangle<float> r) {
+  const auto l = (float)juce::roundToInt(r.getX());
+  const auto t = (float)juce::roundToInt(r.getY());
+
+  return {l, t, (float)juce::roundToInt(r.getRight()) - l,
+          (float)juce::roundToInt(r.getBottom()) - t};
 }
 
 juce::Colour OvertoniumLookAndFeel::lampLegend() {
@@ -1261,8 +1298,8 @@ void OvertoniumLookAndFeel::drawLampCap(juce::Graphics &g,
   // catches the light, falling to a shadow along the bottom and the right,
   // which is one stroke under a gradient rather than two arcs.
   g.setGradientFill(
-      juce::ColourGradient(juce::Colours::white.withAlpha(0.13f), well.getX(),
-                           well.getY(), juce::Colours::black.withAlpha(0.50f),
+      juce::ColourGradient(juce::Colours::white.withAlpha(0.12f), well.getX(),
+                           well.getY(), juce::Colours::black.withAlpha(0.40f),
                            well.getRight(), well.getBottom(), false));
   g.drawRoundedRectangle(well.reduced(0.5f), outerCorner, 1.0f);
 
@@ -1290,7 +1327,9 @@ void OvertoniumLookAndFeel::drawLampCap(juce::Graphics &g,
   // butted together overlap at the corners and the overlap is a different
   // tone from either, which is a seam in the wrong place and the one thing
   // that says the four faces are drawn rather than moulded.
-  const auto opening = well.reduced(wall);
+  // The same rectangle the cap is, so the facets meet it exactly and nothing
+  // lands half a pixel short of it.
+  const auto opening = snapToPixels(well.reduced(wall));
 
   const juce::Point<float> oTL(well.getX(), well.getY());
   const juce::Point<float> oTR(well.getRight(), well.getY());
@@ -1315,10 +1354,24 @@ void OvertoniumLookAndFeel::drawLampCap(juce::Graphics &g,
     g.fillPath(quad);
   };
 
-  facet(oTL, oTR, iTR, iTL, juce::Colours::white.withAlpha(0.115f));
-  facet(oBL, oTL, iTL, iBL, juce::Colours::white.withAlpha(0.060f));
-  facet(oTR, oBR, iBR, iTR, juce::Colours::black.withAlpha(0.26f));
-  facet(oBR, oBL, iBL, iBR, juce::Colours::black.withAlpha(0.40f));
+  // How much relief, taken off the reference rather than chosen. Against its
+  // own panel its top facet sits at 1.70, its left at 1.26, and its right and
+  // its bottom both at 0.67, so the whole frame spans about one panel's worth
+  // of tone. This spanned nearly one and a half, with the top blazing and the
+  // bottom barely darker than the panel, which is a frame reading as tall
+  // rather than as a moulding a few millimetres proud.
+  facet(oTL, oTR, iTR, iTL, juce::Colours::white.withAlpha(0.055f));
+  facet(oBL, oTL, iTL, iBL, juce::Colours::white.withAlpha(0.012f));
+  facet(oTR, oBR, iBR, iTR, juce::Colours::black.withAlpha(0.21f));
+  facet(oBR, oBL, iBL, iBR, juce::Colours::black.withAlpha(0.34f));
+
+  // The line the cap sits down into. Every one of the reference's buttons has
+  // it: a dark seam all the way round between the frame's inner edge and the
+  // cap, which is the gap a part dropped into a moulding leaves. Without it
+  // the two meet tone to tone and the cap reads as laid on top of the frame
+  // rather than set into it.
+  g.setColour(juce::Colours::black.withAlpha(0.55f));
+  g.drawRect(opening.expanded(0.5f), 1.0f);
 
   const auto corner = juce::jmax(1.0f, outerCorner - wall * 0.5f);
 
@@ -1354,37 +1407,47 @@ void OvertoniumLookAndFeel::drawLampCap(juce::Graphics &g,
     g.fillRoundedRectangle(well, outerCorner);
   }
 
-  if (!down) {
-    // Proud: the cap stands above the well and drops a shadow onto its floor.
-    //
-    // Whether it is lit or not. These are indicator lamps rather than latching
-    // switches, and a cap that sinks when its thing is on says that pressing
-    // it is what turns the thing off, which is the wrong way round for ECHO or
-    // for a mute. Only a finger on it puts it down, and only while it is
-    // there: see the branch below.
-    g.setColour(juce::Colours::black.withAlpha(0.45f));
-    g.fillRoundedRectangle(cap.translated(0.0f, 1.0f), corner);
-  }
+  // No shadow under the cap.
+  //
+  // It threw one onto the floor of the well, which is what a cap standing
+  // proud of its moulding would do and is not what these are. The cap is
+  // flush in its frame, dropped into the seam that runs round it, and a dark
+  // stripe under a flat plate reads as the plate being lifted off the surface
+  // at one edge. The seam is what says it is set in, and the seam goes all
+  // the way round rather than falling to one side.
 
   // ---- the cap ------------------------------------------------------------
-  // One shading for both states, because the cap does not move when the lamp
-  // comes on. It is lit from above like any raised surface, brightest just
-  // below its top edge and falling away to the bottom.
+  // Flat, because the cap is flat. It is the top face of a square of plastic
+  // and it faces the light square on, so there is nothing across it for a
+  // gradient to describe. Measured down and across the reference's own unlit
+  // cap, it holds within about 20 of 255 either way and has no top-to-bottom
+  // fall at all, brightening a little towards the middle and nowhere else.
   //
-  // Shallow. The plastic is flat and what says it stands proud is the shadow
-  // it throws into the well and the lip along its top rather than a steep
-  // gradient down its face, which is what the photographs show: an unlit cap
-  // there reads (59, 42, 18) at the top and (59, 42, 17) at the bottom.
+  // It carried a steep wash from top to bottom, which is the shading of a
+  // dome or a bevel rather than a plate, and that was most of what stopped it
+  // reading as flat. What says the cap stands proud is the shadow it throws
+  // into the well and the moulding around it, not shading on its own face.
+  // A shallow wash from top to bottom and nothing else.
+  //
+  // The wash is not what made the cap look bevelled, and taking it out was
+  // the wrong move: it describes the light falling on a plate and a plate
+  // under a light does carry one. What made it look bevelled was the wash
+  // across the ends, below, which darkened the cap along its left and right
+  // edges, and darkening a face along its edge is the definition of shading
+  // a chamfer on it.
   {
-    juce::ColourGradient down_(face.brighter(0.10f), cap.getCentreX(),
-                               cap.getY(), face.darker(0.22f), cap.getCentreX(),
+    // Brightest across the middle and falling away to both edges, which is
+    // where the light is: the lamp sits behind the centre of the cap, and
+    // even unlit the plastic catches most of what is about there. A wash that
+    // runs from the top edge down is the shading of a surface tilted away
+    // from the light, which this is not.
+    juce::ColourGradient down_(face.darker(0.10f), cap.getCentreX(), cap.getY(),
+                               face.darker(0.16f), cap.getCentreX(),
                                cap.getBottom(), false);
 
-    // The lamp sits behind the middle of the cap, so a lit one holds its
-    // brightness further down the face before it falls away. Unlit there is
-    // nothing behind it and the fall is even.
-    if (on)
-      down_.addColour(0.52, face);
+    // A touch above the middle rather than on it, so the light still arrives
+    // from above the way it does everywhere else on the panel.
+    down_.addColour(0.46, face.brighter(on ? 0.085f : 0.065f));
 
     g.setGradientFill(down_);
   }
@@ -1392,14 +1455,11 @@ void OvertoniumLookAndFeel::drawLampCap(juce::Graphics &g,
   g.fillRoundedRectangle(cap, corner);
 
   // The lamp is a point behind the middle of the cap, so the light falls off
-  // towards the ends as well as towards the top and bottom. Without this the
-  // gradient above was the only shading and a wide cap was a uniform bar of
-  // colour from end to end, which is what a painted face looks like rather
-  // than a lit one. A horizontal wash rather than a radial gradient, because
-  // the caps run from a 14 px square mute to a 62 px CHARACTER and a circular
-  // hotspot would be a disc on the wide ones.
+  // towards the ends as well. A horizontal wash rather than a radial one,
+  // because the caps run from a 14 px square mute to a 62 px CHARACTER and a
+  // circular hotspot would be a disc on the wide ones.
   {
-    const auto edge = juce::Colours::black.withAlpha(on ? 0.18f : 0.16f);
+    const auto edge = juce::Colours::black.withAlpha(on ? 0.13f : 0.07f);
 
     juce::ColourGradient sides(edge, cap.getX(), cap.getCentreY(), edge,
                                cap.getRight(), cap.getCentreY(), false);
@@ -1424,31 +1484,22 @@ void OvertoniumLookAndFeel::drawLampCap(juce::Graphics &g,
         juce::Colours::transparentBlack, cap.getCentreX(), cap.getY() + deep,
         false));
     g.fillRoundedRectangle(cap, corner);
-  } else {
-    // A lip along the top, which is the light the raised edge catches. The
-    // whole of what it has to beat is the shadow under the cap, so it is here
-    // whether the lamp is on or off.
-    g.setColour(juce::Colours::white.withAlpha(0.16f));
-    g.fillRoundedRectangle(cap.getX() + 1.2f, cap.getY() + 0.6f,
-                           cap.getWidth() - 2.4f, 1.0f, 0.5f);
   }
 
-  // ---- the sheen ----------------------------------------------------------
-  // A white wash down from the top, which is light falling on a raised
-  // surface. Faint, because white over a colour takes the colour out of it,
-  // and the whole of what makes the plastic read as plastic is that it keeps
-  // its hue. Fainter still on a lit cap, which has its own light to show and
-  // less of anything else to lose.
-  if (!down) {
-    const auto sheen =
-        cap.withHeight(cap.getHeight() * 0.52f).reduced(1.0f, 0.0f);
-
-    g.setGradientFill(juce::ColourGradient(
-        juce::Colours::white.withAlpha(on ? 0.04f : 0.06f), sheen.getCentreX(),
-        sheen.getY(), juce::Colours::transparentWhite, sheen.getCentreX(),
-        sheen.getBottom(), false));
-    g.fillRoundedRectangle(sheen, corner * 0.8f);
-  }
+  // Nothing else goes on the face.
+  //
+  // There were two more things here and both were bevels in disguise: a white
+  // lip along the cap's top edge, and a sheen washing down over its upper
+  // half. A lit edge and a wash that falls from the top are what a rounded or
+  // chamfered surface shows, and between them they put the roundness back
+  // that flattening the fill had just taken out, which is why the cap still
+  // read as domed after its gradient went.
+  //
+  // A flat plate catches the light evenly and has nothing along its edge. The
+  // reference's caps have neither: no lip, no sheen, and no fall from top to
+  // bottom. What tells you the cap stands proud is the seam it sits in and
+  // the moulding around it, which are both outside the cap and neither of
+  // which has to be drawn on its face.
 
   // ---- the cap's edge -----------------------------------------------------
   // What separates the plastic from the well it stands in. Lighter on a lit
@@ -1512,7 +1563,16 @@ void OvertoniumLookAndFeel::drawButtonText(juce::Graphics &g,
 
   // The same ink whatever the lamp is doing: the word is printed on the cap
   // rather than being part of what lights. See lampLegend.
-  g.setColour(lampLegend());
+  //
+  // Printed rather than painted on, so it does not stop all of the light. The
+  // lamp is behind the middle of the cap, so that is where it comes through
+  // most and where the ink is thinnest in the picture, and the word darkens
+  // towards its ends where there is less light behind it to pass. Unlit there
+  // is nothing to let through and it goes back to ink.
+  const auto cap =
+      lampCapBounds(button.getLocalBounds().toFloat(), lampGangOf(button));
+
+  g.setGradientFill(legendInk(lampLegend(), cap, button.getToggleState()));
 
   g.drawText(button.getButtonText(), button.getLocalBounds(),
              juce::Justification::centred, false);

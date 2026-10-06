@@ -101,7 +101,10 @@ void drawMacroIcon(juce::Graphics &g, juce::Rectangle<float> area,
   for (int i = 0; i < 3; ++i) {
     const auto y = centre.y + ((float)i - 1.0f) * step;
 
-    g.setColour(colour.withMultipliedAlpha(0.24f));
+    // The rules carry as much of this icon as the caps do, and at a quarter
+    // of the ink they were a hint rather than a line. They are a step back
+    // from the caps rather than a whisper.
+    g.setColour(colour.withMultipliedAlpha(0.62f));
     g.fillRoundedRectangle(left, y - track * 0.5f, w, track, track * 0.5f);
 
     g.setColour(colour);
@@ -199,8 +202,21 @@ void GlowButton::paintButton(juce::Graphics &g, bool highlighted, bool down) {
   const auto cap = OvertoniumLookAndFeel::lampCapBounds(
       getLocalBounds().toFloat(), OvertoniumLookAndFeel::lampGangOf(*this));
 
+  // An icon takes a flat ink rather than the ramp a word gets, and an opaque
+  // one rather than a translucent one.
+  //
+  // These are drawn as overlapping shapes: three rules with a handle sitting
+  // on each. Handed a colour with alpha in it, every overlap composites twice
+  // and the rule shows straight through the handle that is supposed to be
+  // sitting on it, which is a drawing bug rather than translucency. The ink
+  // is mixed against the plastic here instead and laid on solid, which is the
+  // same colour on the face and has no seams in it.
   if (onIcon != nullptr) {
-    onIcon(g, cap, colour);
+    const auto plastic =
+        OvertoniumLookAndFeel::lampFace(fill, getToggleState());
+
+    onIcon(g, cap,
+           colour.interpolatedWith(plastic, getToggleState() ? 0.14f : 0.06f));
     return;
   }
 
@@ -221,7 +237,12 @@ void GlowButton::paintButton(juce::Graphics &g, bool highlighted, bool down) {
                        line.getWidth(), line.getHeight(),
                        juce::Justification::centred, 1, 1.0f);
 
-  g.setColour(colour);
+  // Printed on the plastic rather than painted over it, so the lamp comes
+  // through it: thinnest over the middle where the lamp is, closing up
+  // towards the ends. See OvertoniumLookAndFeel::legendInk.
+  g.setGradientFill(
+      OvertoniumLookAndFeel::legendInk(colour, cap, getToggleState()));
+
   glyphs.draw(g);
 }
 
