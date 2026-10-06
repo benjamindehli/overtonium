@@ -39,4 +39,4 @@ The preference is kept in a settings file beside the presets rather than in the 
 
 ## What this policy does not cover
 
-Vulnerabilities in JUCE itself belong to [the JUCE project](https://github.com/juce-framework/JUCE), and vulnerabilities in a host belong to whoever makes the host. Tell us anyway if the interaction with Overtonium is the interesting part.
+Vulnerabilities in JUCE itself belong to [the JUCE project](https://github.com/juce-framework/JUCE), and vulnerabilities in a host belong to whoever makes the host. Report it here anyway if the interaction with Overtonium is the interesting part.

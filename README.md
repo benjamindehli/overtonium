@@ -15,7 +15,7 @@ The control worth reaching for first is TUNE. It sweeps each partial continuousl
 - **Page:** [benjamindehli.github.io/overtonium](https://benjamindehli.github.io/overtonium/), built from `docs/`
 - **Listed at:** [KVR Audio](https://www.kvraudio.com/product/overtonium-by-dehli-musikk)
 - **By:** Benjamin Dehli for Dehli Musikk. Hosts list it under DehliMusikk (manufacturer code `Dhmk`, plugin code `Ovtn`)
-- **Also here:** [design notes](DESIGN.md), [contributing](CONTRIBUTING.md), [architecture](ARCHITECTURE.md), [security policy](SECURITY.md), [code of conduct](CODE_OF_CONDUCT.md)
+- **Also here:** [design notes](DESIGN.md), [contributing](CONTRIBUTING.md), [architecture](ARCHITECTURE.md), [accessibility](ACCESSIBILITY.md), [security policy](SECURITY.md), [code of conduct](CODE_OF_CONDUCT.md)
 
 CI builds all three platforms and runs the test suite on each of them on every push, and macOS is the only one where the plugin has been loaded into a host. The Audio Unit and the VST3 pass `auval` and pluginval at strictness 8 there. Nobody has yet run the Windows or Linux builds in a DAW, so treat those as untried and please report what you find.
 

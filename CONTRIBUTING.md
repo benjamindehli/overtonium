@@ -36,7 +36,7 @@ clang-format --style=LLVM -i $(find Source Tests Tools -name '*.cpp' -o -name '*
 
 One region is deliberately exempt. The factory presets inside `apply` in `Presets.cpp` sit between `clang-format off` and `on`, because `factoryCode` writes them and does its own wrapping. Reformatting them would mean a preset regenerated from the same patch no longer matched the file it came from, and that match is how a preset is checked against what its author actually dialled in.
 
-**pluginval.** CI loads the built VST3 into [pluginval](https://github.com/Tracktion/pluginval) at strictness 8 on all three platforms. It is a host that misuses the plugin on purpose, and it reaches things our own tests cannot, since they drive the processor directly rather than through a plugin format. To run it yourself, point it at a built or installed plugin:
+**pluginval.** CI loads the built VST3 into [pluginval](https://github.com/Tracktion/pluginval) at strictness 8 on all three platforms. It is a host that misuses the plugin on purpose, and it reaches things the suites here cannot, since they drive the processor directly rather than through a plugin format. To run it yourself, point it at a built or installed plugin:
 
 ```sh
 pluginval --strictness-level 8 --validate ~/Library/Audio/Plug-Ins/VST3/Overtonium.vst3
@@ -233,6 +233,8 @@ cwebp -lossless out/overtonium.png -o docs/overtonium.webp
 ```
 
 Through Pillow instead, it is `save(lossless=True, quality=100, method=6)`. The `quality` is not optional: on a lossless save it sets how hard the encoder works rather than how much it throws away, and leaving it at the default of 80 makes the window shot 341 KB where 100 makes it 204 KB, which is larger than the PNG it was supposed to beat.
+
+**A new control needs a name before it needs anything else.** JUCE reads a control's accessible name from `Component::setTitle`, and an element with neither a name nor a description may be skipped by accessibility clients entirely. The runtime suite walks the whole mixer and fails if a slider has no title or shares one with another, so "attack" on its own will not pass and "Harmonic 19 attack" will. A control that draws its value rather than writing it, as the segment readouts do, needs a spoken name and value of its own: swapping a plain label for one of those silently removed a name once. [ACCESSIBILITY.md](ACCESSIBILITY.md) has what the project does and does not do here.
 
 **One check runs for a compiler that is not here.** `.github/scripts/lambda_captures.py` looks for lambdas that read a function-local `constexpr` without capturing it. The standard asks for no capture, gcc and clang agree, and MSVC refuses with C3493, so the fault reaches the Windows job and nowhere earlier. That job runs last and takes twenty minutes to report, and it has reported this twice. Run it before pushing, or let the DSP core job do it in a fifth of a second:
 
