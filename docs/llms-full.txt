@@ -665,7 +665,7 @@ All 836 as the host lists them, with a control that every partial or every macro
 
 | What the host calls it | Id | Range | Default |
 |---|---|---|---|
-| `Macro 1 to Macro 8` | `macro1_amount to macro8_amount` | -1.0000 to 1.0000 | 0.0000 |
+| `Macro 1 to Macro 8` | `macro1_amount to macro8_amount` | -100.0 % to +100.0 % | 0.0 % |
 | `Macro 1 Row to Macro 8 Row` | `macro1_row to macro8_row` | None, Tune, Phase, Pitch mod rate, Pitch mod depth, Drift, Strike, Delay, Attack, Decay, Sustain, Key-off swell, Key-off level, Release, Amp mod rate, Amp mod depth, Velocity, Aftertouch, Pan, Level | None |
 | `Macro 1 Scope to Macro 8 Scope` | `macro1_scope to macro8_scope` | All, Odd, Even, Prime/octave, Minor second, Major second, Minor third, Major third, Fourth, Tritone, Fifth, Minor sixth, Major sixth, Minor seventh, Major seventh | All |
 | `Macro 1 Curve to Macro 8 Curve` | `macro1_curve to macro8_curve` | Uniform, Taper | Uniform |
@@ -1025,7 +1025,7 @@ What changed in each version, newest first. Each one links to its full notes, wh
 
 ## 1.11.1, 7 October 2026
 
-**Four controls read to seven decimal places.** The pitch modulator's rate and depth, the drift and the amplitude modulator's rate had no text of their own, so a host's automation lane, the panel's value popup and a screen reader all said `4.0000005 Hz` for four. They now read as the other controls do, `4.00 Hz`, `30.0 Hz` and `0 ct`. Only the text changed: ranges, defaults and stored values are as they were, so sessions, presets and automation play back exactly as before.
+**Four controls read to seven decimal places.** The pitch modulator's rate and depth, the drift and the amplitude modulator's rate had no text of their own, so a host's automation lane, the panel's value popup and a screen reader all said `4.0000005 Hz` for four. They now read as the other controls do, `4.00 Hz`, `30.0 Hz` and `0 ct`. The macro amount reads as the panel shows it, `-100.0 %` to `+100.0 %`, rather than to four places, and a value typed into a host is read as a percentage. Only the text changed: ranges, defaults and stored values are as they were, so sessions, presets and automation play back exactly as before.
 
 [The full notes for 1.11.1](https://github.com/benjamindehli/overtonium/releases/tag/v1.11.1)
 

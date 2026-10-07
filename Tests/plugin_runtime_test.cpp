@@ -349,11 +349,20 @@ void testReadoutsAreWrittenAsAPersonWould(OvertoniumProcessor &p) {
   };
 
   const Case cases[] = {
-      {"h01_pmRate", 4.0f, "4.00 Hz"},    {"h01_pmRate", 0.01f, "0.01 Hz"},
-      {"h01_pmRate", 30.0f, "30.0 Hz"},   {"h17_amRate", 0.25f, "0.25 Hz"},
-      {"noise_amRate", 12.5f, "12.5 Hz"}, {"h01_pmDepth", 0.0f, "0 ct"},
-      {"h01_pmDepth", 2.5f, "2.5 ct"},    {"h01_pmDepth", 1200.0f, "1200 ct"},
-      {"h32_drift", 25.0f, "25 ct"},      {"h32_drift", 6.04f, "6.0 ct"},
+      {"h01_pmRate", 4.0f, "4.00 Hz"},
+      {"h01_pmRate", 0.01f, "0.01 Hz"},
+      {"h01_pmRate", 30.0f, "30.0 Hz"},
+      {"h17_amRate", 0.25f, "0.25 Hz"},
+      {"noise_amRate", 12.5f, "12.5 Hz"},
+      {"h01_pmDepth", 0.0f, "0 ct"},
+      {"h01_pmDepth", 2.5f, "2.5 ct"},
+      {"h01_pmDepth", 1200.0f, "1200 ct"},
+      {"h32_drift", 25.0f, "25 ct"},
+      {"h32_drift", 6.04f, "6.0 ct"},
+      {"macro1_amount", 0.0f, "0.0 %"},
+      {"macro1_amount", 1.0f, "+100.0 %"},
+      {"macro8_amount", -1.0f, "-100.0 %"},
+      {"macro4_amount", 0.123f, "+12.3 %"},
   };
 
   for (const auto &c : cases)
@@ -362,11 +371,19 @@ void testReadoutsAreWrittenAsAPersonWould(OvertoniumProcessor &p) {
               shown(c.id, c.value).toStdString() + "\", expected \"" +
               c.expected + "\"");
 
+  // The centre a hair low, which is where macOS puts it once the range has
+  // snapped the value to its step. It printed as -0.0000 there and 0.0000
+  // here, which is how a file written on Linux failed on a Mac.
+  if (auto *amount = p.apvts.getParameter("macro1_amount"))
+    check(amount->getText(0.4999999f, 100) == "0.0 %",
+          "a macro amount a hair below its centre reads 0.0 %, and reads " +
+              amount->getText(0.4999999f, 100).toStdString());
+
   // And none of the rest, at either end, the middle or the default, prints
   // more places than anyone would read: five digits after a point is the
   // signature of a parameter that has no text function.
-  int long_ = 0;
-  juce::String first;
+  int long_ = 0, negativeZero = 0;
+  juce::String first, firstZero;
 
   for (auto *base : p.getParameters()) {
     auto *param = dynamic_cast<juce::RangedAudioParameter *>(base);
@@ -389,8 +406,23 @@ void testReadoutsAreWrittenAsAPersonWould(OvertoniumProcessor &p) {
         if (first.isEmpty())
           first = param->getParameterID() + " reads " + text;
       }
+
+      // A minus sign in front of nothing but noughts is a value a hair below
+      // zero printed without rounding first, and whether it is below zero
+      // depends on the platform's float arithmetic.
+      if (text.startsWithChar('-') &&
+          text.retainCharacters("0123456789").containsOnly("0") &&
+          text.containsAnyOf("0123456789")) {
+        ++negativeZero;
+        if (firstZero.isEmpty())
+          firstZero = param->getParameterID() + " reads " + text;
+      }
     }
   }
+
+  check(negativeZero == 0, "no parameter reads as a negative zero (" +
+                               std::to_string(negativeZero) + " do, first " +
+                               firstZero.toStdString() + ")");
 
   check(long_ == 0, "no parameter reads to five or more places (" +
                         std::to_string(long_) + " do, first " +

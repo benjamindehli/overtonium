@@ -141,6 +141,28 @@ juce::String centsText(float cents, int) {
   return juce::String(cents, cents < 10.0f ? 1 : 0) + " ct";
 }
 
+/// A macro's amount as the panel's reading shows it, a signed percentage to a
+/// tenth. Rounded to whole tenths before the sign is chosen, so a value a hair
+/// either side of zero reads 0.0 % on every platform: the range snaps to its
+/// step in float arithmetic, and on macOS that leaves the centre a few
+/// ten-millionths below zero, which printed as -0.0000.
+juce::String macroAmountText(float v, int) {
+  const auto tenths = juce::roundToInt(v * 1000.0f);
+
+  if (tenths == 0)
+    return "0.0 %";
+
+  const auto size = std::abs(tenths);
+  return (tenths > 0 ? "+" : "-") + juce::String(size / 10) + "." +
+         juce::String(size % 10) + " %";
+}
+
+/// The other way, so a host that lets you type a value reads "50" as half way
+/// rather than as fifty times the range.
+float macroAmountValue(const juce::String &text) {
+  return juce::jlimit(-1.0f, 1.0f, text.getFloatValue() / 100.0f);
+}
+
 juce::String percentText(float v, int) {
   return juce::String(juce::roundToInt(v * 100.0f)) + " %";
 }
@@ -592,7 +614,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     // need the patch dialled at an extreme to be useful in the other.
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{macroAmountId(m), 1}, name,
-        juce::NormalisableRange<float>(-1.0f, 1.0f, 0.0001f), 0.0f));
+        juce::NormalisableRange<float>(-1.0f, 1.0f, 0.0001f), 0.0f,
+        FAttr()
+            .withStringFromValueFunction(macroAmountText)
+            .withValueFromStringFunction(macroAmountValue)));
 
     // None first, which is what an unmade macro points at. Every one of the
     // eight starts there, so a fresh instrument has a pool and no macros.
