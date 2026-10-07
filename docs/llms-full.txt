@@ -930,13 +930,13 @@ Five files, because one size does not fit everyone. Take the installer for your 
 
 | File | Holds | Take this one if |
 |---|---|---|
-| [macOS installer](https://github.com/benjamindehli/overtonium/releases/download/v1.11.0/Overtonium-v1.11.0-macOS.pkg) | VST3, Audio Unit, Standalone | You are on a Mac. It asks which of the three you want and installs only those |
-| [macOS zip](https://github.com/benjamindehli/overtonium/releases/download/v1.11.0/Overtonium-v1.11.0-macOS.zip) | VST3, Audio Unit, Standalone | You have no administrator rights, or you keep plugins somewhere of your own |
-| [Windows installer](https://github.com/benjamindehli/overtonium/releases/download/v1.11.0/Overtonium-v1.11.0-Windows.exe) | VST3, Standalone | You are on Windows. It needs administrator rights, and SmartScreen will say the publisher is unknown |
-| [Windows zip](https://github.com/benjamindehli/overtonium/releases/download/v1.11.0/Overtonium-v1.11.0-Windows.zip) | VST3, Standalone | Same three reasons, or you would rather not run an unsigned installer |
-| [Linux zip](https://github.com/benjamindehli/overtonium/releases/download/v1.11.0/Overtonium-v1.11.0-Linux.zip) | VST3, LV2, Standalone | You are on Linux. There is no installer, since no two distributions agree on where a plugin goes |
+| [macOS installer](https://github.com/benjamindehli/overtonium/releases/download/v1.11.1/Overtonium-v1.11.1-macOS.pkg) | VST3, Audio Unit, Standalone | You are on a Mac. It asks which of the three you want and installs only those |
+| [macOS zip](https://github.com/benjamindehli/overtonium/releases/download/v1.11.1/Overtonium-v1.11.1-macOS.zip) | VST3, Audio Unit, Standalone | You have no administrator rights, or you keep plugins somewhere of your own |
+| [Windows installer](https://github.com/benjamindehli/overtonium/releases/download/v1.11.1/Overtonium-v1.11.1-Windows.exe) | VST3, Standalone | You are on Windows. It needs administrator rights, and SmartScreen will say the publisher is unknown |
+| [Windows zip](https://github.com/benjamindehli/overtonium/releases/download/v1.11.1/Overtonium-v1.11.1-Windows.zip) | VST3, Standalone | Same three reasons, or you would rather not run an unsigned installer |
+| [Linux zip](https://github.com/benjamindehli/overtonium/releases/download/v1.11.1/Overtonium-v1.11.1-Linux.zip) | VST3, LV2, Standalone | You are on Linux. There is no installer, since no two distributions agree on where a plugin goes |
 
-Every file above is from **version 1.11.0**, released 7 October 2026. [What changed in it](https://benjamindehli.github.io/overtonium/releases/), and in every version before it, has a page of its own. Older builds and the source are on the [releases page](https://github.com/benjamindehli/overtonium/releases/latest).
+Every file above is from **version 1.11.1**, released 7 October 2026. [What changed in it](https://benjamindehli.github.io/overtonium/releases/), and in every version before it, has a page of its own. Older builds and the source are on the [releases page](https://github.com/benjamindehli/overtonium/releases/latest).
 
 ## What each platform gets
 
