@@ -425,11 +425,7 @@ jobs:
       contents: write
 
     steps:
-      # The whole history and its tags, so the site step below can tell which
-      # pages this release changed by comparing against the tag before it.
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
 
       - uses: actions/download-artifact@v8
         with:
@@ -574,51 +570,16 @@ jobs:
           stamp "$page" '<time datetime="[0-9]{4}-[0-9]{2}-[0-9]{2}">[^<]+</time>' \
                         "<time datetime=\"$day\">$spoken</time>" 1
 
-          # The sitemap dates the pages this release actually changes. The
-          # front, install and releases pages are rewritten above on every
-          # release. The other three are dated only when their file differs
-          # from the previous tag, since a new date on a page that did not
-          # change misleads a crawler as much as an old date on one that did.
-          changed_pages=("" "install/" "releases/")
-          previous=$(git describe --tags --abbrev=0 --match 'v[0-9]*' "$GITHUB_REF_NAME^" 2>/dev/null || true)
-
-          for section in tuning controls presets; do
-            if [ -z "$previous" ] ||
-               ! git diff --quiet "$previous" "$GITHUB_REF_NAME" -- "docs/$section/index.html"; then
-              changed_pages+=("$section/")
-            fi
-          done
-
-          echo "sitemap dates the front page and ${changed_pages[*]:1}, against ${previous:-no earlier tag}"
-
-          for changed in "${changed_pages[@]}"; do
-            python3 - "$changed" "$day" <<'PY'
-          import re, sys
-
-          where, day = sys.argv[1], sys.argv[2]
-          loc = "https://benjamindehli.github.io/overtonium/" + where
-          path = "docs/sitemap.xml"
-
-          with open(path) as f:
-              sitemap = f.read()
-
-          pattern = r"(<loc>" + re.escape(loc) + r"</loc>\s*<lastmod>)[^<]*"
-          stamped, hits = re.subn(pattern, lambda m: m.group(1) + day, sitemap)
-
-          if hits != 1:
-              raise SystemExit(f"::error::{path} has {hits} entries for {loc}")
-
-          with open(path, "w") as f:
-              f.write(stamped)
-          PY
-          done
-
           # Prettier checks docs/ on every push to main, this commit included,
           # and a longer version number can push a line past the width it wants
           # to wrap at. Cheaper to reformat here than to land a commit on main
           # that fails its own format job.
           npm ci --silent
           npx prettier --write "$page" docs/latest.json
+
+          # Writes the structured data with the new day, and moves the sitemap
+          # date of any page whose words changed above, which is the install
+          # page at least.
           python3 Tools/build_site.py
 
           if git diff --quiet -- docs/; then
@@ -626,6 +587,6 @@ jobs:
             exit 0
           fi
 
-          git add docs/ Tools/site_data.py
+          git add docs/ Tools/site_data.py Tools/site_dates.json
           git commit -m "Point the site at $GITHUB_REF_NAME"
           git push origin main

@@ -11,6 +11,7 @@ in rather than trusting whoever last typed it:
 
     {presets}       the factory presets in words, "thirty-three"
     {parameters}    the host parameters in figures, "836"
+    {preset_names}  every factory preset, in the order the menu lists them
 
 The version is read from CMakeLists.txt. RELEASED is the day that version went
 out, in UTC, and the release workflow rewrites the line on the tag. Nothing
@@ -190,6 +191,8 @@ FOOTER_LINKS = [
 #   onward       the links at the foot of the page, the first one primary
 #   card         its card under "Where to go next" on the front page
 #   card_404     its card on the page-not-found page, which lists them all
+#   llms         its line in llms.txt, which may carry Markdown links
+#   priority     its priority in the sitemap
 #
 # A page's contents rail is not here. It is read from the page's own headings,
 # so a section that is renamed or added is in the rail by the next build.
@@ -207,6 +210,8 @@ PAGES = [
         "onward": [],
         "card": None,
         "card_404": "What Overtonium is, what it sounds like, and where it came from.",
+        "llms": 'what the instrument is, what TUNE does, a video of [eleven of the {presets} factory presets played on a keyboard](https://www.youtube.com/watch?v=L1oYdPxGlGA), common questions, and the two sample instruments it descends from.',
+        "priority": "1.0",
     },
     {
         "path": "tuning/",
@@ -221,6 +226,8 @@ PAGES = [
         "onward": [("controls/", "Controls"), ("presets/", "Presets")],
         "card": "TUNE, inharmonic stretch, six historical temperaments on any root, and how the spectrum thins as you play up the keyboard.",
         "card_404": "TUNE, inharmonic stretch, six temperaments and keyboard tracking.",
+        "llms": 'TUNE from equal to just, inharmonic stretch, six historical temperaments on any root, at a reference pitch from a list running 415 to 466 Hz, keyboard tracking, and per-partial drift. Carries audio of each of those and a diagram of where every partial falls against the semitone it snaps to.',
+        "priority": "0.8",
     },
     {
         "path": "controls/",
@@ -235,6 +242,8 @@ PAGES = [
         "onward": [("presets/", "Presets"), ("tuning/", "Tuning")],
         "card": "Every knob on a channel and on the bar: which oscillator the partials are, envelopes, modulation, ganging, the lamps and meters, macros, MIDI Learn, and the master effects.",
         "card_404": "Every knob on a channel and on the bar.",
+        "llms": 'every knob on a channel strip and on the global bar, the oscillator character, the two-part envelope, per-partial velocity and pressure, LINK for ganging the 32 channels, the lamps and meters, the noise channel and MPE, the gestures the panel answers to and every entry in the Settings menu with its default, macros, MIDI Learn, the five CLIP shapes on the output, how the {parameters} host parameters are named and why automation survives a release that adds more, and a diagram of the order the signal passes through.',
+        "priority": "0.8",
     },
     {
         "path": "presets/",
@@ -249,6 +258,8 @@ PAGES = [
         "onward": [("install/", "Install"), ("controls/", "Controls")],
         "card": "The {presets} that ship, what a preset carries, and where your own are kept on each platform.",
         "card_404": "The {presets} that ship, and where your own are kept.",
+        "llms": 'the {presets} that ship, each one playable on the page, [eleven of them played on a keyboard](https://www.youtube.com/watch?v=L1oYdPxGlGA) with a chapter link into each, what a preset carries and deliberately does not, how a MIDI program change picks one, where user presets are kept on each platform, and how folders in that directory become groups in the menu.',
+        "priority": "0.6",
     },
     {
         "path": "install/",
@@ -263,6 +274,8 @@ PAGES = [
         "onward": [("install/#downloads", "Download"), ("controls/", "Controls")],
         "card": "Installers for macOS and Windows, a zip for Linux, what to do when a host does not see it, and building from source.",
         "card_404": "Downloads for macOS, Windows and Linux, and what to do when a host cannot see it.",
+        "llms": 'which download to take on each platform, what to do when a host does not see the plugin, what it costs in CPU at one, eight and sixteen voices, the opt-in update check, and building from source.',
+        "priority": "0.9",
     },
     {
         "path": "releases/",
@@ -277,10 +290,62 @@ PAGES = [
         "onward": [("install/#downloads", "Download the current release"), ("controls/", "Controls")],
         "card": None,
         "card_404": "What changed in each version, newest first.",
+        "llms": 'what changed in each version since 1.0.0, newest first, with what to know before upgrading and a link to the full notes for each.',
+        "priority": "0.7",
         # Each heading is "1.11.0, 7 October 2026", and the rail has room for
         # the version alone.
         "rail_before_comma": True,
     },
+]
+
+# llms.txt, in the shape llmstxt.org describes: a summary, then the pages,
+
+# then the rest. The page entries are each page's "llms" field above.
+
+LLMS_SUMMARY = 'A free, open source additive synthesiser plugin laid out like a 32-channel mixer. Every channel is one sine oscillator locked to a harmonic of the played note, and every channel has its own tuning, envelope, modulation and place in the stereo field. VST3, Audio Unit, LV2 and standalone, for macOS, Windows and Linux, under the AGPLv3.'
+
+LLMS_INTRO = [
+    'The control worth reaching for first is TUNE. It sweeps each partial continuously between equal temperament and just intonation. At the just end a partial sits at an exact whole-number ratio with the fundamental and the stack fuses into one timbre. At the equal end each partial snaps to the nearest semitone and the same stack smears into a chord. The factory presets Just Saw and Equal Saw differ in that one control alone and sound nothing alike.',
+    'Additive synthesis usually hides its partials behind a spectrum drawing or a handful of macro controls. This puts all of them on the surface, as faders, and gives each one the controls a channel on a mixing desk would have, so shaping a sound is mixing it.',
+    'Written in C++ with JUCE 9 by Benjamin Dehli for Dehli Musikk. Hosts list it under DehliMusikk.',
+]
+
+LLMS_SOURCE = [
+    ('Repository', 'https://github.com/benjamindehli/overtonium', 'the whole source, AGPLv3.'),
+    ('Releases', 'https://github.com/benjamindehli/overtonium/releases', 'installers for macOS and Windows, and a zip for each platform holding the same builds loose.'),
+    ('README', 'https://github.com/benjamindehli/overtonium/blob/main/README.md', 'what the instrument is, how to build it, the update check and the licensing.'),
+    ('Design notes', 'https://github.com/benjamindehli/overtonium/blob/main/DESIGN.md', 'every control and how the synthesis works, with the reasoning and the measurements behind each decision. Longer than the project page.'),
+    ('Architecture', 'https://github.com/benjamindehli/overtonium/blob/main/ARCHITECTURE.md', 'how the code is arranged, and which decisions are load-bearing.'),
+    ('Contributing', 'https://github.com/benjamindehli/overtonium/blob/main/CONTRIBUTING.md', 'building, the two test suites, style, and how releases are cut.'),
+    ('Accessibility', 'https://github.com/benjamindehli/overtonium/blob/main/ACCESSIBILITY.md', 'what is checked rather than intended, with the measurements, the known barriers stated plainly, and how to report one. The plugin window is not keyboard operable and nobody who relies on assistive technology has evaluated it.'),
+]
+
+LLMS_OPTIONAL = [
+    ("The whole site", BASE + "llms-full.txt", "every page above as Markdown in one file, for reading all of it in one request."),
+    ('Update feed', 'https://benjamindehli.github.io/overtonium/latest.json', "the version the plugin's opt-in check reads."),
+    ('Security policy', 'https://github.com/benjamindehli/overtonium/blob/main/SECURITY.md', 'what the update check sends, and how to report a vulnerability.'),
+    ('KVR Audio listing', 'https://www.kvraudio.com/product/overtonium-by-dehli-musikk', 'the same instrument in the plugin database people search, where it can be rated and compared against the rest of the field.'),
+    ('Dehli Musikk', 'https://www.dehlimusikk.no/', 'the other instruments, most of them sample libraries rather than plugins.'),
+]
+
+LLMS_FACTS = [
+    ('Formats', 'VST3, Audio Unit on macOS, LV2 on Linux, and a standalone application.'),
+    ('Platforms', 'macOS as a universal binary for Apple Silicon and Intel, Windows, Linux.'),
+    ('Licence', 'GNU Affero General Public License v3, which follows from JUCE.'),
+    ('Price', 'free, and free software rather than only free of charge.'),
+    ('Partials', "32 sine oscillators plus a noise channel, each with its own tuning, envelope, key-off envelope, tremolo, pitch modulation, drift, velocity and pressure amounts, pan, mute, solo and fader. Both modulators pick a waveform per channel: sine, triangle, sawtooth, reverse sawtooth, square, sample and hold, or a smooth random glide, with pitch also offering a unipolar square that only bends upward. Each modulator can also be switched from one per note to one circuit the whole keyboard shares, so a chord breathes as one thing rather than each key breathing where it started: two switches, one per modulator, in the shape button's menu, off by default and carried by the patch. Wurli shares its tremolo and StyloPoly its vibrato. On a keyboard that senses how fast a key is let go, that speed scales the level each partial's tail starts from, twice it at the hardest lift and half at the softest, with no knob and no parameter behind it. A keyboard that cannot sense a release changes nothing, including the two ways it says so: a note-off carrying zero and a note-on of velocity zero are both read as no information."),
+    ('Tuning', 'a continuous blend from equal temperament to just intonation, inharmonic stretch, keyboard tracking, and six keyboard temperaments (equal, just, Pythagorean, quarter-comma meantone, Werckmeister III, Young).'),
+    ('Oscillator character', 'one choice for all 32 partials, saying which circuit each of them is, each named for the part that makes it what it is. Pure is an exact sine. Bulb is a Wien bridge whose lamp lags, so the level sags behind every move of the pitch and recovers over about half a second. Rail is a phase-shift oscillator grown into its own supply rail, a third harmonic at -23 dB and no even ones. Diode is a triangle shaped by two of them that do not match, a second, third and fourth near -32 dB. Valve is a triode biased so one half of the wave leans over first, a second harmonic at -20 dB over a third at -23, the only one whose loudest addition is an octave rather than a twelfth. Op-amp is an amplifier that cannot move fast enough, which does nothing below a kilohertz and turns partials above it into triangles, so the top of the series hardens as it climbs. Built as band-limited tables rather than as waveshaping, so it costs nothing per sample and nothing folds back down. Every character but Pure is a rack of 32 units rather than one oscillator: a fixed spread, the same in every session and on every machine, puts each partial a couple of cents and a fraction of a dB off spec, from 1.5 ct and 0.1 dB for Bulb to 3 ct and 0.35 dB for Valve, with partial 1 left exact as the one the rest were tuned against. Not DRIFT, which wanders. Each unit is also built to one of three drives, 15% either side of nominal, so no two channels distort by the same amount: three rather than one per channel because the drive is baked into a band-limited table. The character also says how the bus the 33 channels are summed onto behaves, which is a separate thing from the tables and works on the mix rather than on any one partial: an amplitude-reactive drive that is barely there when you play quietly and arrives when you lean on the keyboard, strongest on Bulb and Rail, gentlest on Diode, and absent on Pure. There is no knob for it, because how hard a summing amplifier is driven is part of what choosing a character means.'),
+    ('Effects', 'an echo that is one of three machines, a reverb that is one of three, a wobble across the whole series, and a converter that reduces render rate and bit depth. Five of the factory presets reach for them: 60s Organ on the bucket brigade and the spring, Shimmer and Tape Choir on the plate, Cathedral and Struck Bell on the room. The echo is a tape loop with two motors, a bucket brigade, or a digital delay that crosses every repeat to the other side, and AGE means something different on each: tape wear, a slowing clock and breathing companding, or falling bits and sample rate. The reverb is a feedback delay network sized from its decay, a modulated plate that is dense from its first instant, or a tray of springs whose dispersion turns every hit into a chirp that starts high and falls. Decay, damping and pre-delay mean the same thing on all three and the wet levels are matched, so switching machines changes the character of a tail rather than its length or its loudness.'),
+    ('MPE', 'pitch bend and pressure per note, with the slide axis routable to brightness or tuning.'),
+    ('Macros', 'up to eight, each one host parameter that moves a whole row, such as every tuning knob or every decay, across all channels, the odd or even ones, or one interval, either uniformly or tapering away from a chosen channel. A macro offsets what the patch holds rather than overwriting it, so the knobs stay put and a ring around each one shows where the macro has taken it. They exist so a relationship across 32 channels can be automated as one lane.'),
+    ('MIDI Learn', 'right-click any control, choose MIDI Learn and move a controller. It works with MPE on, the map is saved with the project rather than the preset, and eleven controllers the instrument already listens to, such as the mod wheel, sustain and the MPE slide, are refused.'),
+    ('Output stage', 'the master fader drives a CLIP stage of five shapes, Soft, Hard, Asymmetric, Limiter and Fold, or Off. The Limiter looks 2 ms ahead, and the plugin reports 108 samples of latency at 48 kHz whichever shape is chosen, so a preset change never moves it. The lookahead can be given back in Settings.'),
+    ('Automation', '{parameters} parameters reach the host, 34 global, 23 on each of the 32 partials, 18 on the noise channel and 6 on each of the eight macros. A per-channel one carries its channel in its name, as "H7 Tune" or "Noise Level", and is identified by an id of its own rather than by its position, so a release that inserts parameters leaves existing automation pointed at the same controls.'),
+    ('Program change', 'a MIDI program change loads a factory preset by its position in the alphabetical Factory list, counting from zero, on any channel and with MPE on. Numbers past the last preset are ignored, and presets of your own are not reachable this way.'),
+    ('Factory presets', "{preset_names}. Twenty-six of them ask for an oscillator character, chosen by ear: eleven on Bulb, eight on Op-amp, four on Valve, two on Rail, one on Diode, and seven on Pure, four of those deliberately so (Init, Just Saw, Equal Saw, 6581 Triangle, whose dirt is the chip's arithmetic rather than anything analogue)."),
+    ('Audio examples', 'every section of the tuning page can be heard, and so can every factory preset. Just Saw against Equal Saw and the TUNE sweep between them, a STRETCH sweep from harmonic out past a piano, one chord in equal against Werckmeister III, a run up the keyboard with tracking off and on, a held chord with and without drift, and all {presets} presets playing the same spread C major. They are rendered by the plugin rather than recorded, so they cannot drift from what it does.'),
+    ('Privacy', 'nothing reaches the network unless the update check is switched on, which is off by default and offered once.'),
 ]
 
 NOT_FOUND = {

@@ -49,6 +49,7 @@ Written in C++ with JUCE 9 by Benjamin Dehli for Dehli Musikk. Hosts list it und
 
 ## Optional
 
+- [The whole site](https://benjamindehli.github.io/overtonium/llms-full.txt): every page above as Markdown in one file, for reading all of it in one request.
 - [Update feed](https://benjamindehli.github.io/overtonium/latest.json): the version the plugin's opt-in check reads.
 - [Security policy](https://github.com/benjamindehli/overtonium/blob/main/SECURITY.md): what the update check sends, and how to report a vulnerability.
 - [KVR Audio listing](https://www.kvraudio.com/product/overtonium-by-dehli-musikk): the same instrument in the plugin database people search, where it can be rated and compared against the rest of the field.

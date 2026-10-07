@@ -62,6 +62,7 @@
                     "width": 1200,
                     "height": 630
                 },
+                "dateModified": "2026-10-07",
                 "breadcrumb": {
                     "@id": "https://benjamindehli.github.io/overtonium/install/#breadcrumb"
                 }
@@ -206,11 +207,11 @@
                      checks that it found all of them. Keep the shape of the URLs:
                      .../releases/download/<tag>/Overtonium-<tag>-<platform>.<ext>
 
-                     So are the version and the date under the table, and the
-                     softwareVersion and datePublished above. Each is matched by
-                     its own pattern and counted, so keep them one to a page: a
-                     second version line anywhere here fails the release rather
-                     than being rewritten twice.
+                     So are the version and the date under the table. Each is
+                     matched by its own pattern and counted, so keep them one to a
+                     page: a second version line anywhere here fails the release
+                     rather than being rewritten twice. The structured data above
+                     is written by Tools/build_site.py.
 
                      Which this comment must not spell out. The counting is a
                      grep and a grep cannot see a comment, so writing that line

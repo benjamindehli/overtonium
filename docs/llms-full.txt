@@ -1,0 +1,1059 @@
+# Overtonium, the whole site
+
+> A free, open source additive synthesiser plugin laid out like a 32-channel mixer. Every channel is one sine oscillator locked to a harmonic of the played note, and every channel has its own tuning, envelope, modulation and place in the stereo field. VST3, Audio Unit, LV2 and standalone, for macOS, Windows and Linux, under the AGPLv3.
+
+Every page of https://benjamindehli.github.io/overtonium/ as Markdown, in the order the site lists them, so the whole of it can be read in one request. The short version, with links into each page, is https://benjamindehli.github.io/overtonium/llms.txt.
+
+---
+
+Page: Overtonium, a free 32-partial additive synthesiser plugin
+URL: https://benjamindehli.github.io/overtonium/
+Last changed: 2026-10-07
+
+# Overtonium, a 32-partial additive overtone synthesiser
+
+32-partial overtone synthesiser
+
+An additive synthesiser laid out like a 32-channel mixer. Every channel is one sine oscillator locked to a harmonic of the played note, and every channel has its own tuning, envelope, modulation and place in the stereo field.
+
+- [Download](https://benjamindehli.github.io/overtonium/install/#downloads)
+- [Source on GitHub](https://github.com/benjamindehli/overtonium)
+- [Star the repo](https://github.com/login?return_to=%2Fbenjamindehli%2Fovertonium)
+- [Follow @benjamindehli](https://github.com/login?return_to=%2Fbenjamindehli)
+
+**Formats**
+
+VST3, Standalone, AU on macOS, LV2 on Linux
+
+**Platforms**
+
+macOS, Windows, Linux
+
+**Partials**
+
+32, plus a noise channel
+
+**Licence**
+
+AGPLv3
+
+Additive synthesis usually hides its partials behind a spectrum drawing or a handful of macro controls. This puts all of them on the surface, as faders, and gives each one the controls a channel on a desk would have. Shaping a sound is mixing it.
+
+[Image: The Overtonium window: a top bar of global controls above 32 channel strips and a noise channel, with the meters lit by a held chord.]
+
+The whole instrument. Thirty-two channels, a noise channel pinned on the right, and the global controls along the top.
+
+## What it sounds like
+
+Eleven of the thirty-three [factory presets](https://benjamindehli.github.io/overtonium/presets/), played on an Expressive E Osmose, with nothing on the output but the plugin's own effects. Everything else on this site you can listen to is the plugin rendering a chord to a file, which is what keeps those clips honest and also what stops them showing what any of this does under hands. This is the one recording of it being played.
+
+[Video: Overtonium sound examples](https://www.youtube.com/watch?v=L1oYdPxGlGA)
+
+[The presets page](https://benjamindehli.github.io/overtonium/presets/#video) has a chapter link for each of the eleven, and a clip of every one of the thirty-three presets.
+
+## The control worth reaching for first
+
+TUNE sweeps each partial continuously between equal temperament and just intonation. At the just end the partial sits at an exact whole-number ratio with the fundamental and the whole stack fuses into one timbre. At the equal end each partial snaps to the nearest semitone and the same stack smears into a chord.
+
+Two of the [factory presets](https://benjamindehli.github.io/overtonium/presets/), **Just Saw** and **Equal Saw**, are identical except for that one control. They sound nothing alike.
+
+**Just Saw**
+
+**Equal Saw**
+
+One note each, the same patch, the same level. Only TUNE differs.
+
+Nothing about the tuning is hard-coded. For harmonic `n` the just interval is `1200 * log2(n)` cents, the equal position is that rounded to the nearest semitone, and TUNE dials in the remainder. [The tuning system](https://benjamindehli.github.io/overtonium/tuning/) works through it, along with stretch, the six keyboard temperaments and keyboard tracking.
+
+## Where to go next
+
+- [**Tuning**TUNE, inharmonic stretch, six historical temperaments on any root, and how the spectrum thins as you play up the keyboard.](https://benjamindehli.github.io/overtonium/tuning/)
+- [**Controls**Every knob on a channel and on the bar: which oscillator the partials are, envelopes, modulation, ganging, the lamps and meters, macros, MIDI Learn, and the master effects.](https://benjamindehli.github.io/overtonium/controls/)
+- [**Presets**The thirty-three that ship, what a preset carries, and where your own are kept on each platform.](https://benjamindehli.github.io/overtonium/presets/)
+- [**Install**Installers for macOS and Windows, a zip for Linux, what to do when a host does not see it, and building from source.](https://benjamindehli.github.io/overtonium/install/)
+
+What changed in each version, newest first, and what to know before upgrading are on [the releases page](https://benjamindehli.github.io/overtonium/releases/).
+
+## Questions
+
+**Which hosts does Overtonium run in?**
+
+It builds as a VST3 on macOS, Windows and Linux, an Audio Unit on macOS and an LV2 on Linux, so it loads anywhere those formats do. There is a standalone build as well.
+
+**Is Overtonium free?**
+
+Yes, and free software rather than only free of charge. It is released under the AGPLv3, which follows from JUCE, and the whole source is on GitHub.
+
+**What is additive synthesis?**
+
+Building a sound by adding sine waves together rather than by filtering a rich one down. Every timbre is a stack of partials at different frequencies and levels, and additive synthesis hands you those partials directly. Overtonium gives you 32 of them, one per mixer channel.
+
+**Can Overtonium do microtonal tunings and just intonation?**
+
+Both, and separately. TUNE sweeps each partial between its equal-tempered position and its exact whole-number ratio. The keyboard underneath is tuned on its own, to equal, just, Pythagorean, quarter-comma meantone, Werckmeister III or Young, on any root, at any reference pitch from 415 to 466 Hz.
+
+**Does Overtonium support MPE?**
+
+Yes. With [MPE](https://benjamindehli.github.io/overtonium/controls/#mpe) switched on, pitch bend and pressure arrive per note, and pressure has its own amount on every one of the 33 channels. An ordinary single-channel keyboard plays either way.
+
+**Can I play Overtonium from a MIDI controller?**
+
+Yes. Right-click any control, choose [MIDI Learn](https://benjamindehli.github.io/overtonium/controls/#midi-learn) and move a knob or fader on the controller. The map is saved with your project rather than with the preset. A [macro](https://benjamindehli.github.io/overtonium/controls/#macros) moves a whole row from one parameter, so one controller or one automation lane can reach up to 32 controls at once.
+
+**How much CPU does Overtonium use?**
+
+Eight voices of 32 partials each, with every modulator running, costs about 7% of one core, and sixteen voices about 14%. Turning the render rate down is a real saving: at 8 kHz the whole voice pool costs a fifth as much. [The figures in full](https://benjamindehli.github.io/overtonium/install/#cost) are on the install page.
+
+## Where it came from
+
+Overtonium is the third instrument in a line, and the first that generates its sound rather than playing it back.
+
+The first was the [Voltage Controlled Cassette Organ](https://github.com/benjamindehli/VoltageControlledCassetteOrgan), in 2023. A Korg CX-3 sampled through cassette tape, every note of every drawbar recorded as its own file. The tape was the point of it: wow, flutter and random warbles gave the organ a movement like a chorus or a rotary speaker, but without the fixed rate a modulation effect has. It was recorded to tape twice, which doubled it, and because no tape deck plays back the same way twice the two passes never quite agreed with each other.
+
+The second was [EDB-Orgel](https://github.com/benjamindehli/EDB-Orgel), in 2024, which kept the drawbar workflow and put four digital synthesis types under it instead of an organ.
+
+Both gave every drawbar its own envelope and LFO, and that is the idea this one is built out of. A drawbar is a partial. Nine of them shaped separately already sounds unlike an organ, so thirty-two of them, each with a full channel of controls, is the same idea taken as far as it goes. Computing them rather than playing them back is what makes TUNE possible at all: a sampled partial is stuck at the pitch it was recorded at, and a computed one can be swept between equal temperament and its exact whole-number ratio.
+
+The ancestry shows up in the details. DRIFT is the cassette's random warble, per partial. WOBBLE is the same thing under the whole instrument. The tape echo's two paths, each with its own motor speed and its own random stream, are the double tracking, and its AGE control never quite reaches zero for the same reason the two tape passes never agreed: a transport that held speed exactly would put the repeat back in mono, and there is no such transport.
+
+Both earlier instruments are sample libraries, sold at [Dehli Musikk](https://store.dehlimusikk.no/). This one is free software.
+
+---
+
+Page: The Overtonium tuning system: TUNE, stretch and six temperaments
+URL: https://benjamindehli.github.io/overtonium/tuning/
+Last changed: 2026-09-11
+
+# The tuning system
+
+Three separate axes. TUNE decides how the overtone series is spelled, STRETCH decides whether it is a series at all, and the temperament decides what the keyboard underneath is tuned to. They combine rather than overlap.
+
+## TUNE, from equal to just
+
+A drawbar organ is the shortest way into what this control does, because it is the same problem answered the other way round. Every drawbar is a harmonic, but an organ has only the twelve notes of the keyboard to build one out of, so each drawbar is put on the nearest one. The second, fifth and eighth are all fifths an octave apart, which means holding a C puts three G's into the sound. A harmonic series is not spaced that way. Its intervals are whole-number ratios, 2:1, 3:2, 4:3, and apart from the octaves not one of them lands on a key. TUNE is the distance between those two answers, and it is continuous rather than a switch between them.
+
+For harmonic `n`, the just interval above the fundamental is `1200 * log2(n)` cents. Overtonium rounds that to the nearest semitone to get the equal-tempered position, and the remainder is the cent offset the TUNE knob dials in.
+
+```
+semitoneOffset(n, blend) = round(1200*log2(n)/100) + blend * (1200*log2(n) mod 100) / 100
+```
+
+At `blend = 1` this is exactly `n` times the fundamental, so the stack fuses into one timbre. At `blend = 0` every partial is on a semitone of the chromatic scale and the same stack reads as a chord. Nothing is written down as a constant, but rounded to whole cents the derivation reproduces the familiar table, which the test suite asserts so it cannot quietly drift.
+
+The same patch on the same note, differing in TUNE and nothing else: every partial at its exact whole-number ratio, then each one pulled to the nearest semitone, then the knob taken slowly from one to the other.
+
+**Just Saw**
+
+**Equal Saw**
+
+**The whole sweep**
+
+[Diagram: Where each partial sits against the nearest semitone. Thirty-two rows, one per partial. The line down the middle is the tempered semitone TUNE snaps to at one end of its travel, and each dot is where that partial actually falls as a whole-number ratio. The distance between them is what the knob dials through. Only the octaves, partials 1, 2, 4, 8, 16 and 32, sit exactly on the line. The table below gives the same figures exactly. -50 -25 the semitone +25 +50 n cents from the nearest semitone 1 2 3 4 5 6 7 -31 8 9 10 11 -49 12 13 +41 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32.]
+
+Every partial against the semitone TUNE snaps it to. The dot is the whole-number ratio, the line is the tempered position, and the distance between them is what the knob dials through. Only the octaves sit on the line.
+
+Sitting on the line has a consequence worth knowing at the panel: on channels 1, 2, 4, 8, 16 and 32 the knob does nothing to the sound. An octave is 1200 cents in both tunings, so there is nowhere for the blend to take those six, and their readouts stay at 0.0 wherever the knob is. Hovering one of those strips says so rather than leaving you to work it out. They are not stuck, they are just not moved by that knob: STRETCH moves them, and so do DRIFT, the pitch modulator, and the oscillator character, whose rack sits every partial but the first a few cents off spec.
+
+| n | Semitones | Cents | Interval | n | Semitones | Cents | Interval |
+|---|---|---|---|---|---|---|---|
+| 1 | 0 | 0 | prime/octave | 17 | 49 | +5 | minor second |
+| 2 | 12 | 0 | prime/octave | 18 | 50 | +4 | major second |
+| 3 | 19 | +2 | fifth | 19 | 51 | -2 | minor third |
+| 4 | 24 | 0 | prime/octave | 20 | 52 | -14 | major third |
+| 5 | 28 | -14 | major third | 21 | 53 | -29 | fourth |
+| 6 | 31 | +2 | fifth | 22 | 54 | -49 | tritone |
+| 7 | 34 | -31 | minor seventh | 23 | 54 | +28 | tritone |
+| 8 | 36 | 0 | prime/octave | 24 | 55 | +2 | fifth |
+| 9 | 38 | +4 | major second | 25 | 56 | -27 | minor sixth |
+| 10 | 40 | -14 | major third | 26 | 56 | +41 | minor sixth |
+| 11 | 42 | -49 | tritone | 27 | 57 | +6 | major sixth |
+| 12 | 43 | +2 | fifth | 28 | 58 | -31 | minor seventh |
+| 13 | 44 | +41 | minor sixth | 29 | 58 | +30 | minor seventh |
+| 14 | 46 | -31 | minor seventh | 30 | 59 | -12 | major seventh |
+| 15 | 47 | -12 | major seventh | 31 | 59 | +45 | major seventh |
+| 16 | 48 | 0 | prime/octave | 32 | 60 | 0 | prime/octave |
+
+The two big offsets are the ones worth knowing by ear. The seventh partial lands 31 cents flat of a minor seventh and the eleventh 49 cents flat of a tritone, which is to say halfway between two keys. Those are the partials that make a just-tuned stack sound unlike anything a keyboard can play.
+
+## Stretch
+
+Nothing real rings at integer multiples of anything. A string with any bending stiffness has partials at `n * f0 * sqrt(1 + B * n^2)`, sharp of the harmonic and increasingly so up the series, and it is that, not the hammer or the soundboard, that makes a piano sound like a piano rather than like a sawtooth. It is also what a tuner is matching when they stretch the octaves: tune the top of the instrument to the theory and it beats against its own overtones.
+
+STRETCH is that stiffness, dialled by what it does to the top partial rather than by its own value, which lives between 0.00003 and 0.008 and means nothing to anyone. At +150 cents, which is a real piano:
+
+| Partial | 2 | 8 | 16 | 32 |
+|---|---|---|---|---|
+| Cents sharp of harmonic | +0.6 | +10.2 | +40.0 | +150.0 |
+
+The bottom of the series barely moves and the top of it walks away, which is the shape that matters. Push further and the partials stop agreeing on a fundamental, and the sound stops being a note with a timbre and becomes a bell. Negative pulls them inward instead, which no physical string does and which is worth having anyway.
+
+It is a separate axis from TUNE rather than more of it, and the two combine: equal temperament with heavy stretch is a different object from just intonation with the same stretch. Zero is the plain harmonic series.
+
+One note while STRETCH is taken from a harmonic series out past a piano. The bottom of the series barely moves and the top of it walks away, and somewhere along the way the partials stop agreeing on a fundamental.
+
+**STRETCH from 0 to 500 cents**
+
+## Tuning the keyboard
+
+Everything above is about where a partial sits over the note you played. This is about where that note sits. Settings carries six temperaments.
+
+| Temperament | Major third | Fifth | What it is |
+|---|---|---|---|
+| Equal | 400.00 | 700.00 | the reference everything else is measured against |
+| Just (major) | 386.31 | 701.96 | pure by construction, chosen interval by interval |
+| Pythagorean | 407.82 | 701.96 | every fifth pure, the third pays for it |
+| Quarter-comma meantone | 386.31 | 696.58 | fifths narrowed a quarter comma, which makes the third pure |
+| Werckmeister III | 390.22 | 696.09 | four fifths narrowed, no wolf, every key playable |
+| Young | 392.18 | 698.04 | six narrowed by a sixth, gentler again |
+
+They are derived from the circle of fifths rather than copied out as tables of cents. Almost every historical temperament is described by how much each of the twelve fifths is narrowed, so that is what the code says, and the pitch classes fall out of it. The two commas it is all built from come out at 23.460 and 21.506 cents, which are the published figures, and the tests assert the property that defines each temperament rather than the numbers that happen to result: meantone's third pure to a thousandth of a cent, Pythagorean's fifth likewise, Werckmeister at its characteristic 390.2.
+
+### Root
+
+Picks which pitch class the temperament is built on, since an unequal temperament is only in tune in the keys near its centre, and that is the point of it. It is greyed out for equal temperament, which has no centre to have.
+
+### Reference pitch
+
+415 through 466 Hz. A stays exactly there in every temperament, because the offsets are taken relative to A's own: a tuner tunes A first and works outwards. Only the other eleven notes move.
+
+None of the three travels with a [preset](https://benjamindehli.github.io/overtonium/presets/). A temperament is a property of the music you are playing rather than of any one sound in it: you set it once and work, and having a patch drag you back to equal in the middle of that would be no help. That includes Init, which clears the patch rather than the session.
+
+One C major chord, twice, on a temperament built on C. Equal spaces the third at 400 cents and Werckmeister III at 390, which is most of the way to the pure 386, so the beating between the third and the root slows almost to a stop.
+
+**Equal**
+
+**Werckmeister III**
+
+## Tracking
+
+Without TRACK, a patch has the same spectrum at every pitch. Nothing real does. Play up a piano and the top of the series thins out, not because the note changed but because the body has a rolloff that stays where it is while the partials climb up through it.
+
+TRACK is that rolloff, in dB per octave above a fixed corner of 1 kHz, which is around C6. It is measured against the fundamental rather than absolutely, and that is the part that matters: taken absolutely it would be a shelf, making high notes quieter rather than duller, which is not the thing worth having. Normalised, the fundamental keeps its level at every pitch and only the spectrum above it thins.
+
+The consequence falls out of where the corner sits. A bass note has most of its series below 1 kHz and keeps nearly all of it. A treble note whose fundamental is already above the corner loses the full slope across every partial it has. At 6 dB per octave, the 32nd partial keeps 57% of its level at A1 and 4% at A5. Zero is off, and off is exact.
+
+The same five notes an octave apart, twice. With it off the spectrum is the same at every pitch. With it on the bass note keeps nearly all of its series, since most of it sits below the corner, and the top note has walked most of its into the rolloff. Measured on these two files, the partials above the fundamental come to 1.43 times it at C2 either way, and at C6 to 1.45 with tracking off against 0.49 with it on.
+
+**TRACK off**
+
+**TRACK at 6 dB/oct**
+
+## Drift, the fourth kind of detuning
+
+Per channel rather than global, and random rather than periodic. DRIFT gives a partial a smooth random walk of up to 25 cents, redrawn as the note plays, which is the cassette warble the earlier instruments in this line got from tape. Every partial draws from its own stream, so a stack with drift on it never quite settles, and no two notes drift the same way.
+
+It is the reason a held chord keeps moving without any modulation being dialled in, and it is why the pitch lamp on the PITCH MOD rule reads a needle rather than a pulse: what it shows is where modulation and drift together have the partial at this instant.
+
+One held chord, twice. With drift off a partial sits exactly where it was put. With it on every partial walks its own way and the stack never settles: measured across these files, the eighth partial holds at 0 cents in the first and wanders over 12 cents in the second.
+
+**DRIFT off**
+
+**DRIFT at 18 cents**
+
+---
+
+Page: Overtonium controls: every knob on a channel and on the bar
+URL: https://benjamindehli.github.io/overtonium/controls/
+Last changed: 2026-10-07
+
+# Controls
+
+Thirty-two channel strips, a noise channel, and a bar of global controls across the top. Every strip carries the same twenty-three controls, which is seven hundred and thirty-six of them before the bar is counted, so a good deal of the design is about not having to move them one at a time.
+
+## A channel strip
+
+[Image: A close view of the first six channels, showing the row captions in the gutter with the pointer tool button above them, and the interval colour of each channel.]
+
+Six channels and the caption gutter. Captions are named once on the left rather than repeated across every strip.
+
+| Control | Range | What it does |
+|---|---|---|
+| TUNE | equal to just | Where this partial sits between the tempered position and the exact ratio. The readout shows the resulting cent offset. On the six octave channels both tunings agree, so there is nothing for it to move and the strip says so |
+| PHASE | 0 to 1 turn | Where in its cycle the partial starts, when phase reset is on. With it off there is no reset for it to aim and the knob does nothing |
+| PITCH MOD shape, rate, depth | Eight shapes, 0.01 to 30 Hz, 0 to 1200 cents | Per-partial vibrato |
+| DRIFT | 0 to 25 cents | Smooth random pitch wander, its own stream per partial |
+| ENVELOPE strike, delay, A, D, S | -100 to +100%, 0 to 5 s, 0.2 ms to 5 s, 1 ms to 20 s, 0 to 100% | Exponential decay. STRIKE starts the partial sooner and faster the harder the key is struck |
+| KEY OFF swell, level, release | 0 to 5 s, 0 to 100%, 1 ms to 20 s | A second envelope for letting go |
+| AMP MOD shape, rate, depth | Seven shapes, 0.01 to 30 Hz, 0 to 100% | Per-partial tremolo |
+| VELOCITY | -100 to +100% | How much key velocity scales this partial. Negative inverts it |
+| AFTERTOUCH | -100 to +100% | How much key pressure moves this partial. Negative fades it out |
+| PAN | hard left to hard right | Equal power, so the level holds as the partial crosses the field |
+| M and S |  | Mute wins over solo. Right-click either one to clear every mute or every solo at once |
+| LEVEL | -inf to 0 dB | Fader spaced by decibels, with the meter filling its track |
+
+## What the modulators trace
+
+Both per-partial modulators have a shape as well as a rate and a depth, picked from a small drawing of the wave between the two knobs. Click it for the list by name. Pitch offers eight, amplitude seven, and each channel has its own, the noise channel included, which is the point: the fifth partial can be gated while the fourth breathes.
+
+| Shape | What it does |
+|---|---|
+| Sine | The default, and what both modulators were before there was a choice |
+| Triangle | The same travel at an even speed, which reads as more mechanical than a sine |
+| Sawtooth, Reverse Sawtooth | A ramp and a snap back, either way round |
+| Square | Two values and nothing in between. On pitch it is a trill, and comes in a bipolar form that goes the same distance either side of the note and a unipolar one that only ever goes up |
+| Sample & Hold | A new random value each cycle, held until the next. On pitch, with the depth wide open, that is a run of random notes anywhere within an octave either side |
+| Random | The same values, glided between rather than stepped. The contour DRIFT traces, under your own rate |
+
+**Amplitude has one square, not two.** A tremolo only ever comes down from the fader, so there is no second direction for a unipolar shape to go in and the one square gates the whole depth. For the same reason every shape on that side is read a quarter turn ahead: a note begins at full level and dips, rather than starting half attenuated.
+
+The square and stepped shapes do not click. The gain a partial is given already slides across each control block rather than jumping, so an edge arrives as a slew of about two thirds of a millisecond, which is short enough to read as an edge and long enough not to be heard as a tick.
+
+LINK does not reach these. It drags a value across the series along a weighted curve and there is no weighting a list of named shapes, so the shape menu offers to set every channel at once instead.
+
+**In phase across the keyboard** is the other entry in that menu, one for each of the two modulators. A modulator belongs to a note by default, so striking a chord a note at a time gives you three tremolos that each started where their own key did and breathe out of step. Ticked, the modulator belongs to the channel instead and a note arriving late joins whatever is already running, so a chord breathes as one thing however it was played. That is what an instrument with one tremolo circuit in it does, which is why [Wurli](https://benjamindehli.github.io/overtonium/presets/) ships with its tremolo shared and StyloPoly with its vibrato.
+
+Each channel keeps its own rate and shape either way. What is shared is one circuit per channel rather than one for the instrument, so a patch built on thirty-two rates that never line up still sounds like itself with the switch on. It is part of the patch, so a preset carries it, and both switches are off in anything that does not ask.
+
+The group's heading in the gutter lights when its modulator is shared, so the state is on the panel rather than only in the menu: **PITCH MOD** or **AMP MOD** comes up in the same accent everything else switched on here does. One mark per modulator, since all thirty-three channels answer to the one switch.
+
+## Velocity and pressure, per partial
+
+Velocity being per partial is what lets a soft note be a different timbre rather than just a quieter one. Set the fundamental to 0% and the upper partials to 100% and the tone opens up as you play harder, which is roughly what a struck string or bar does.
+
+Both controls run either side of zero. A positive amount means harder or heavier is louder. A negative amount inverts that, so the partial is at its loudest when you play softly. The two halves are exact mirrors, so -50% at a given velocity matches +50% at the opposite velocity. The reason to want the negative half is crossfading: give one set of partials a positive amount and another set a negative one, and the two timbres trade places across the velocity range instead of one simply fading in.
+
+Aftertouch works the same way but **adds** to the fader instead of scaling it, and it ignores velocity entirely. A strip with its fader all the way down is silent until you lean on the key, and then it fades in under your finger, while a negative amount fades an open strip back out. Both channel pressure and polyphonic aftertouch are accepted and whichever is higher wins. Pressure is smoothed over about 15 ms, so seven-bit MIDI does not step the gain.
+
+The mod wheel stands in for it by default, since most keyboards have no aftertouch at all and the wheel is the control your hand already goes to. A wheel left alone reads zero, so nothing changes for a controller that does send pressure. Settings has an "Aftertouch from" entry if you would rather have one or the other on its own.
+
+## The two-part envelope
+
+Delay, attack, decay and sustain on the way in. Letting go of a key then runs its own little envelope rather than simply fading out: the KEY OFF rows say where the level goes when the key is released and how long it takes to get there, and only then does the release run from that level down to silence.
+
+Above the sustain that is a release click or a bloom, the sound a damper landing or a hammer returning makes, and it can be louder than the note was while you were holding it. *Drawbar Organ* uses it that way: the upper drawbars jump to 55% for two milliseconds as the contacts break. Below the sustain it is the fast initial drop into a long tail that a piano or a struck bell actually has, which is probably the half that gets more use. A key-off level of zero skips the stage entirely and releases from wherever the level sat.
+
+**How fast you let the key up scales that tail**, on a keyboard that can sense a release. The hardest lift leaves twice the level, the softest half of it and 64 is neutral, and it scales the level the tail would have started from, so on a patch with a key-off level of its own it moves that and on a patch without one it moves the sustain. There is no knob for it and no parameter: it belongs to the gesture rather than to the patch, the way velocity does. A partial already sounding at full has nowhere for a hard lift to go, since the envelope stops at full scale.
+
+Most keyboards cannot sense a release at all, and on those nothing changes. They say so in two different ways, either a note-off carrying zero or a note-on of velocity zero standing in for one, and both are read as no information rather than as the softest lift there is.
+
+The delay stage holds a partial silent before its attack begins. Staggering it across the series makes the spectrum unfold rather than arrive all at once, which is how *Slow Pad* and *Shimmer* open up. It is latched in samples at note-on, so moving the knob cannot retime a note already waiting.
+
+**STRIKE** sits at the head of the section because it is about the blow rather than about the shape, and it aims that blow at the two rows under it, the way the velocity row aims it at the fader. Zero ignores the gesture. Positive means a hard note starts sooner and arrives faster, and a soft one waits and then opens slowly. Negative inverts it.
+
+The two halves lean opposite ways on purpose, and each knob stays the limit of its own row. Velocity only ever lengthens the attack, so ATTACK goes on meaning the fastest the partial gets, and it only ever pulls the delay in, so DELAY goes on meaning the latest it arrives. Both span eight octaves at full amount, a range of 256 to 1: a partial set to 2 ms attacks in 2 ms under a hard blow and takes half a second under the softest, and a 400 ms delay stays 400 ms under the softest and comes in to under two milliseconds under the hardest. The stretched attack stops at five seconds, which is as long as the ATTACK row itself goes.
+
+Setting it per partial is what separates it from a velocity curve over the whole instrument: give the upper partials a strike amount and leave the fundamental at zero, and a hard chord lands as one bright block while a soft one unfolds, the fundamental first and the series arriving behind it.
+
+One shape worth knowing, because it is what a music box or a thumb piano has: no sustain at all, so the partial decays to silence while the key is still down, and then a key-off level that brings it back. Reaching zero is not the same as being finished.
+
+## Ganging the channels
+
+**One button at the top of the caption column on the left** chooses what a drag in the mixer does, and it is the one control that is not on the top bar. It wears the pointer you are about to be holding rather than a word: a plain arrow, an arrow with two chain links, or an arrow with a drawn contour. Clicking it names the three, and a right-click anywhere in the mixer opens the same menu, which is where you are when you want it.
+
+**Link** gangs the strips: dragging any knob moves the same knob on the others. It works relatively, applying an offset to wherever each strip already sits rather than dragging everything to one shared value, so a spectrum you have shaped by hand keeps its shape. The offset is always measured from the values captured when the drag started, so returning the knob to where you began restores the strips exactly, even if some of them hit an end stop along the way.
+
+Which channels a drag reaches and how it is shared out are set in the same menu, under the three tools, so the tool and its settings are one click apart. With Link chosen, pointing at a knob arms every knob a drag from it would move, before you touch anything, and how brightly each one lights follows the curve.
+
+**Draw** is the third. A drag across the faders sets each channel it passes over from the pointer's height, so a spectrum can be drawn in one stroke rather than one fader at a time. Holding shift does the same for as long as it is held, whatever tool is chosen, and the button shows the contour for as long as the key is down, so the panel says what a drag would do however it came to be that way.
+
+They are one choice rather than three switches because a drag cannot be two of them at once. When they were two separate switches, LINK had to be shown as off while drawing was armed without actually being off, which is a lie the mouse-up would have exposed.
+
+It is not Link under another name: Link shares one relative move out across the channels by a rule, and drawing sets absolute values freehand, so neither can do the other's job. Columns the pointer crosses between one moment and the next are filled in, so a fast hand leaves no gaps, and the whole stroke is a single undo. It works on the faders alone, because a fader's value is where it stands and a pointer's height means nothing to a knob.
+
+While it is armed every fader lights, in the same accent the button is lit in, so what the next drag would reach is visible before you touch anything. That is the same preview LINK uses, since both answer the one question. The pointer becomes a pencil and LINK reads as off, without being off: only one of the two can be what the next drag does, and letting go gives LINK back.
+
+| Scope | Reaches |
+|---|---|
+| All | every partial |
+| Same interval | only the strips sharing the interval class of the one you grab, so you can move just the fifths, or just the octaves |
+| Odd harmonics | 1, 3, 5 and so on, the hollow half of the series |
+| Even harmonics | 2, 4, 6 and so on |
+
+| Curve | How the drag is shared out |
+|---|---|
+| Uniform | every selected strip moves by the same amount |
+| Taper from the grab | a strip moves less the further along the series it sits from the one you grabbed |
+| Spread / gather | pushing up scatters the strips apart along random directions, pulling down gathers them onto the strip you are dragging |
+
+Taper is anchored on the strip you grabbed, which always gets exactly its full share of the drag. That has to be true, since the knob under the mouse follows the mouse. From there a strip's share falls off in a straight line with distance, reaching nothing thirty-one channels away.
+
+Where you reach in is therefore the whole control. Grab channel 1 and the mixer tilts down across its full width, from everything to nothing. Grab channel 32 and it tilts up instead. Grab channel 10 and the curve peaks under your hand and falls away on both sides, to 0.71 at channel 1 and 0.29 at channel 32. Distance is measured against the full width rather than against whichever end is nearer, so the reach stays the same wherever you grab: scaling it to the nearer end would make a grab on channel 2 drop channel 1 to nothing in a single step.
+
+LINK gangs the 32 partials only. The noise channel has no tuning, pitch modulation or drift to gang.
+
+## Working the panel
+
+**Double-clicking a knob restores its default**, which is that control's own default rather than the bottom of its range. On a fader that is 0 dB rather than silence.
+
+**Undo and redo** matter here more than they would on a smaller instrument, because one LINK drag moves the same knob on all 32 channels and without a history the only way back is to reload the preset. A step is a gesture rather than a value change, so that drag comes back in one rather than thirty-two. Cmd-Z and Cmd-Shift-Z, or Ctrl with the same two keys away from a Mac, work where the host lets them through, which many do not, since a DAW usually keeps those for its own history. Both are also in the Settings menu, just under the version, which always works. Loading a session starts you with an empty history rather than with whatever the last person did.
+
+**Resting on a strip** names the partial it belongs to: the harmonic number, the interval that harmonic makes with the fundamental, how many semitones above the played note the tempered position is, and how far the exact ratio sits from that in cents. It is the row that channel has in [the table of the series](https://benjamindehli.github.io/overtonium/tuning/), without leaving the mixer. The mute and solo buttons say which harmonic they would silence.
+
+**Right-clicking anywhere in the mixer** opens the LINK menu, which is where your hand already is when you want it. The mute and solo buttons take the click instead and clear every mute or every solo at once.
+
+## Reading the mixer
+
+### The two readouts
+
+Each channel carries two figures, the cents its tuning knob is worth and the level its fader is at, both drawn as seven-segment displays rather than as text: a number the instrument is reporting back should look different from a number you typed. Two of the things they show are not numbers. A partial left in equal temperament reads **Et** and a fader all the way down reads **-inF**, both dimmed, because a statement of fact is not a level. The fundamental and the octaves read a dimmed **0.0**, since their just interval is the note itself.
+
+### Lamps on the rules
+
+The rules dividing a strip into groups carry a lamp each, showing what the group under them is doing to this partial right now.
+
+| Rule | Shows |
+|---|---|
+| PITCH MOD | a needle on a track, flat to the left and sharp to the right, where modulation and drift have the partial now |
+| ENVELOPE | how far up its envelope the partial is, while the key is down |
+| KEY OFF | the same, once the key is up and the key-off stage has taken over |
+| AMP MOD | how far the tremolo has pulled the level down, so it pulses at the rate and swings further at greater depth |
+| OUTPUT | two lamps side by side, one for each row beneath it: the left is what the blow has left of the partial, the right is what the pressure on the key is adding |
+
+They read from the voice pool rather than from the knobs, so they describe a note rather than a setting and nothing pulses over silence, and they follow the loudest voice on that partial, which is the one the meter follows. The output rule carries two of them, one for each row beneath it, and each is the shape of the knob above it. VELOCITY can only take level away, so its lamp shows what the row has left: full when the blow has cost the partial nothing, dark when the row has taken all of it, and full at every velocity when the knob sits at the centre. AFTERTOUCH adds instead, so its lamp rests dark and comes up as you lean on the key, and it does not matter which way that row is set to push. The needle's scale is fixed and the same on every strip, so two channels can be compared by eye. Full deflection is 225 cents, which is a vibrato and a drift at full stretch rather than the widest the depth knob now reaches. A square set to jump an octave pegs it, which is the honest thing for a needle to do when it is off the end of its scale: scaled to the octave instead, an ordinary vibrato would not move it at all.
+
+### Meters
+
+Each channel meters what that partial is actually putting out, on a decibel scale floored at -48 dB, so the envelope, tremolo, velocity, aftertouch and mute or solo all show at once and the spectrum can be watched evolving as a note decays. The meter fills the fader's own track rather than sitting beside it, and the cap is drawn as translucent glass so the meter reads through it. It reads the loudest instance of a partial across the sounding voices rather than the sum, so it shows the shape of the patch instead of pinning itself the moment you play a chord.
+
+### Colour and hover
+
+Channels are coloured by interval class, in chromatic order along a narrow band from blue at the octave, through magenta and red, to yellow at the major seventh, so octaves, fifths and thirds stay visible while you scroll. The band is deliberately narrow so 32 channels read as one family rather than a rainbow, and nothing in it enters the green and cyan the global controls use. Pointing at a knob picks out its row all the way across the mixer and brackets the channel it is on, so where the two cross is the control a drag would move.
+
+### Folding the mixer down
+
+Clicking a section heading in the caption gutter folds that group of rows away across every channel at once, and so does clicking the rule that section draws across any strip, which saves crossing to the gutter and finding your way back to the partial you were working on. Pointing at a rule gives the same hand a heading does and lights that section's caption and its disclosure mark, so what the click would fold is visible before you make it. The window loses exactly the height those rows were taking. Pitch modulation, envelope, key off, amp mod and output each fold. The tuning at the top and the faders at the bottom always stay. The heading keeps its activity lamp while folded, so a group you cannot see still reports whether it is doing anything, and the fold state is remembered with the session rather than with the patch.
+
+## The noise channel
+
+Pinned on the right, after the series it does not belong to, is a noise channel marked NZ. It has the same envelope, tremolo, velocity, aftertouch, pan, mute, solo, level and meter as a partial, and takes part in solo alongside them. What it does not have is pitch, so the tuning, pitch modulation and drift rows are empty.
+
+COLOUR takes the tuning row instead, tilting the noise from dark rumble at one end, through flat in the middle, to bright hiss at the other. The middle really is flat rather than merely filtered less. Each voice runs its own noise stream, so playing a chord does not layer eight copies of the identical signal.
+
+## MPE
+
+Off by default, and under Settings. With it on, a controller that gives every note its own MIDI channel can bend and press each note separately, which on this instrument means each finger gets its own copy of all 33 aftertouch destinations. Press into one note in a chord and only that note's upper partials come in.
+
+Slide, the forward and back axis under a finger, has a destination of its own under Settings. By default it moves that note's brightness, thinning or opening the top of the series, which is what a player's hands expect from that axis. It can be aimed at the tuning instead, so that pushing one finger forward slides that note alone [between equal temperament and just intonation](https://benjamindehli.github.io/overtonium/tuning/) while the rest of the chord stays where it is. A keyboard with no slide axis sends nothing and changes nothing.
+
+It is read as movement rather than as a position: the first value a note is given becomes that note's nought, and what reaches the sound is how far the axis has travelled from it since. Controllers disagree about what the axis is, which is why. A Seaboard reports where the finger sits and rests at the centre, while an Expressive E Osmose spends the first part of the key travel on pressure and only then starts sending slide, from the bottom of its range upward. Read as a position that second kind lurches the moment the axis engages. Read as movement both start the note on the patch and follow the finger from there.
+
+The travel is scaled so that the longer of the two directions away from the rest is the whole of the slide, and both directions move at that one rate. A rest near the bottom of the axis leaves very little travel underneath it, and giving that sliver a scale of its own would make it a hair-trigger: pressing in would feel smooth while coming back out snapped to dark. The short side keeps the long side's sensitivity and simply reaches less far, which is honest, since there is less of it.
+
+It is a setting rather than something permanently on because it changes what a channel number means. With it off, a channel is ignored: a key-up on channel 7 releases a note that went down on channel 1, which is what a single-channel keyboard needs. With it on, the channel is part of who the note is, so the same key can be held twice on two channels, bent in two directions, as two voices rather than one retriggering the other.
+
+## Legato
+
+The first entry in the polyphony list, above **1 voice**, and the one setting where the instrument is not polyphonic at all. One voice, and pressing a key while another is still held moves the note rather than starting it again: the envelopes carry on, so a run keeps the shape the first key gave it rather than restarting the attack under your fingers.
+
+Letting a key go while others are still down falls back to the most recent of them, which is what makes a trill work. Only the last key coming up releases the note.
+
+## The Settings menu
+
+Everything set once and then left. The menu is where the instrument is set up and the panel is where the sound is made, and a control's place says which of the two it is.
+
+| Entry | Choices | What it decides |
+|---|---|---|
+| Which version this is |  | A heading at the top of the menu rather than an entry, since it is a fact about the build and not a choice. It is the number a bug report asks for |
+| Check for new versions | off by default | The one entry that reaches outside the machine. [What it sends](https://benjamindehli.github.io/overtonium/install/) is nothing but a request for a file |
+| Undo, Redo |  | The same steps Cmd-Z reaches, for the hosts that keep that shortcut for themselves |
+| Polyphony | Legato, then 1, 2, 4, 6, 8, 12 or 16 voices. 8 by default | How many notes can sound at once. Legato heads the list because it is one voice too, differing only in what a second key does |
+| One voice per key | on by default | Striking a key again takes over the note it is already sounding rather than laying a second copy beside it, which is what a string or a bar does. Off, every strike gets a voice of its own and the tails sum, so a repeatedly struck bell builds up |
+| Pitch bend range | 0, 1, 2, 3, 4, 5, 7, 12 or 24 semitones. 2 by default | How far the wheel bends. The counts anyone actually uses rather than all twenty-five |
+| MPE | off by default | Whether a note's channel is part of who that note is, which is what lets pitch bend and pressure arrive per note |
+| Aftertouch from | Channel pressure, Mod wheel, Either. Either by default | What feeds the AT row on every strip. Polyphonic aftertouch is not on the list because it stays routed whatever this says |
+| Slide to | Off, Brightness, Tuning. Brightness by default | Where the forward and back axis under an MPE finger goes |
+| Temperament, Root, Reference pitch | Six temperaments, twelve roots, 415 to 466 Hz | What the keyboard underneath is tuned to, which [the tuning system](https://benjamindehli.github.io/overtonium/tuning/) works through. Root is greyed out for equal temperament, which has no centre to have |
+| Phase reset | on by default | Restarts each partial's phase at note-on, which gives a coherent, percussive attack and is what makes the PHASE knob mean anything |
+| Safety clip | on by default | Whether the output stage at the end of the chain is running, worth leaving on when you push 32 faders up. Which of its five shapes is running is chosen on the bar, under the meter |
+| Limiter lookahead | on by default | Whether the Limiter may see what is coming. Off gives back the two milliseconds of latency it costs, which only that one shape uses, at the price of a rougher limiter. The only setting here that changes what the plugin reports to your host |
+| Zoom | 75, 100, 125 or 150% | How big the window is on your screen. Down here with the entry under it, since everything above the two is the instrument and these are not |
+| Fit all 32 channels |  | Puts the window back to the width that shows the whole mixer, and to whatever height the rows you have left unfolded need. A window remembers what it was dragged to, so a narrow one opens narrow every session after that, and this is the way back |
+
+Almost none of it travels with a [preset](https://benjamindehli.github.io/overtonium/presets/), and that is a rule rather than a list that might fall behind one: how you play the instrument and what it is tuned to are properties of the session rather than of any one sound in it. The zoom, the window size and which groups of rows you have folded away are in the same position for the same reason.
+
+The safety clip is the exception in this table, and the master fader is the exception outside it. Both used to sit with the rest on the grounds that how loud the instrument is belongs to the session, and both moved when the clipper became five shapes you choose between: the fader is the drive into that stage, so how hard a patch leans on it is part of the patch rather than part of the desk. The cost is worth knowing before you go looking for it: **loading a preset now moves your output level**.
+
+## Automating it from the host
+
+Eight hundred and thirty-six parameters reach the host: thirty-four global ones, twenty-three on each of the 32 partials, eighteen on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals first and then channel by channel with the noise channel last.
+
+Every per-channel name carries its channel, so a parameter list answers both ways of looking for something. Type `H7` and you have that partial, type `Tune` and you have that row across the whole mixer. The same names are what a screen reader reads, which is why they are words rather than numbers.
+
+| What you are after | What the host calls it |
+|---|---|
+| The master fader | `Master` |
+| The seventh partial's tuning | `H7 Tune` |
+| The eleventh partial's fader | `H11 Level` |
+| The noise channel's brightness | `Noise Colour` |
+| How long the echo's repeats are | `Echo Time` |
+
+The noise channel has eighteen rather than twenty-three because it has no tuning, pitch modulation, drift or start phase, and gains COLOUR in their place.
+
+Everything in Settings is in the list too, even though no preset will ever move it. The temperament, the polyphony and the bend range are all automatable, so a piece that changes temperament partway through is something a host can do, whatever the panel thinks a setting is for.
+
+**A parameter is identified by an id of its own rather than by its position**, in the Audio Unit as in the VST3. That is what lets a release add controls without breaking what you have already written: 1.6.0 put 65 new parameters among the existing ones rather than after them, and every automation lane written before it still points at the control it was pointing at.
+
+LINK is not a parameter, since it is a tool for the mouse rather than part of the sound. A drag under it opens a gesture on every channel it reaches, writes each one, and closes them together, so what a host records is what actually moved: thirty-two lanes if the drag moved thirty-two channels.
+
+## Macros
+
+**A macro is one parameter that moves a whole row**, and the reason it exists is automation. A Link drag across the tuning knobs moves 32 parameters, and a host catches only the last one you touched, so a relationship you can edit by hand cannot be recorded at all. A macro gives that relationship a single control a host can draw.
+
+The icon of three faders on the top bar, beside the settings cog, opens them over the mixer. Each macro is one line: a colour, the row it drives, which channels of that row it reaches, how it is shared out across them, and the amount. Add a macro takes one of eight, and the cross at the end puts it back.
+
+**Eight is a pool rather than a limit you are meant to feel.** A plugin declares its parameters once when it is created and neither VST3 nor AU can add one later, so making a macro takes one of eight that already exist and removing it puts it back. The panel shows the ones you have made, and your host's parameter list shows all eight whether or not you use them.
+
+**Scope** is All, Odd, Even, or any one interval: choosing fifths reaches harmonics 3, 6, 12 and 24. **Curve** is Uniform or Taper, and a taper leans hardest on a channel you pick and fades with distance either side of it. Link's third curve, Spread, is not offered and could not be: it scatters each strip along the direction your drag gave it relative to the strip under the mouse, and a macro has neither a direction nor a strip under the mouse.
+
+**A macro offsets what the patch says rather than writing it.** Nothing in your sound is overwritten, the host has one lane to draw instead of thirty-two to catch, and the knobs do not move when a macro does. That last part is normal for anything that works this way and is surprising the first time, so the controls say both at once: the ring around a knob lights to where the macro has taken the value, in the macro's colour, while the pointer on the cap stays at what the patch holds, in the channel's. The gap between them is the macro. A fader, which has no ring to spare, says it in the gutters either side of its track: two narrow columns of segments appear there, cut from the same cloth as the meter behind the fader, and light from the foot of the track up to the level it has been taken to. The glass of the cap takes a wash of the same colour.
+
+With a macro at rest the two coincide, so a macro you have assigned but not moved looks like no macro at all.
+
+The amount runs from -1 to +1 whatever it drives, so a macro can always push a control either way from where the patch left it, and it moves a proportion of each control's own travel rather than a number of its units. That matters most on a row like decay, which runs from a thousandth of a second to twenty: the same number of seconds added would be a twentyfold change at one end and a rounding error at the other.
+
+A full sweep reaches the ends of the range, which means a patch already sitting near one end has a stretch of fader that does nothing in that direction. That is deliberate. One macro reaches up to 32 controls that may be set anywhere, so there is no smaller fraction of the range that would be right for all of them.
+
+**Right-click a macro's amount to bind a controller to it**, the same MIDI Learn the mixer's controls use. Only the amount: the row, the scope and the curve say what a macro is rather than what it is doing. The macros icon lights whenever any are made, since a macro's work is otherwise invisible until you look at a ring.
+
+## Playing it from a controller
+
+**Right-click any control and choose MIDI Learn**, then move something on your controller. A violet ring marks the control while it waits, so you can see what is listening without opening the menu again, and only ever one control carries it. Right-click the same control afterwards and the menu says which controller moves it, with the way to forget it or to bind a different one. In the mixer these items sit under the LINK settings that right-click already opens. On the bar and the noise channel they are a menu of their own, since neither is part of the series LINK gangs.
+
+Your host almost certainly offers the same thing. What this does that a host cannot is let you make the map by right-clicking the knob itself rather than finding `H17 AM Rate` in a list of 836, and behave the same way wherever you open it.
+
+**Eleven controllers are refused**, because something is already listening for them and losing it would be felt while playing rather than noticed afterwards. Controller 1 is the mod wheel, which can feed aftertouch. 64 is the sustain pedal. 74 is the slide axis, the one most easily bound by accident since it moves whenever a finger does on an MPE keyboard. 120 and 123 stop notes. Controllers 6, 38, 98, 99, 100 and 101 are how a keyboard tells the instrument what it is. Arming a knob and then reaching for the slide to steady a note leaves the note steadied and the knob still waiting.
+
+**It works the same with MPE switched on**, which is not free: with MPE on, nearly every message belongs to the part of the instrument that reads your keyboard's layout, so a binding is looked for before that rather than after it. Otherwise it would be dead on exactly the controllers this is usually played from.
+
+The map is saved with your project, beside the window size and the folded sections, and **a preset never touches it**. Which controller moves which knob describes the desk you are plugged into rather than the sound, and a patch that rearranged it would be rearranging your hardware. A binding records the parameter by name, so a later version adding controls cannot silently repoint it at something else.
+
+Two things to expect. A control jumps to wherever the controller is standing rather than waiting to be picked up, so a knob turned to the top will take the parameter there the moment you touch it. And a controller moving a control is not something undo reverses, for the same reason automation is not.
+
+## Across the whole instrument
+
+[Diagram: The order the signal passes through. Each of the thirty-three channels runs a sine partial through its envelope and key-off stage, its tremolo, its velocity and pressure amounts, its fader and its pan. The thirty-three are summed onto a bus that drives, and the mix then passes the wobble, the echo, the reverb, the master fader and the safety clipper before it leaves. each of the thirty-three channels sine partial n envelope and key off tremolo velocity and pressure fader pan then the mix of all of them converter rate, bits bus drive wobble echo reverb master fader clipper summed out.]
+
+The order things happen in. Everything on a channel strip runs before the mix is made, and everything on the bar runs after it, which is why a channel meter and the output meter disagree while a tail is ringing.
+
+[Image: The top bar: the loaded preset on a fourteen-segment display beside icons for settings and macros, the oscillator character, the stretch, track and wobble controls, the echo, the reverb, and the output meter with the master fader lying across it, two seven-segment converter readouts reading kilohertz and bits, and the output stage reading Soft.]
+
+### Character
+
+Which oscillator every partial is, at the head of the group that says what the series is. All six are sine oscillators, and what differs is the way each circuit fails to make one. **Pure** is the sine nothing built out of parts produces, and is what every partial was before this existed. **Bulb** is a Wien bridge held steady by a lamp: no added harmonics at all, but a level that lags half a second behind every move of the pitch. It answers gestures rather than sitting there. A vibrato is heard in the level as well as in the pitch, a bend dips and then recovers as the lamp catches up, and a held note with nothing moving sounds exactly like Pure, which is what a circuit whose whole job is holding the level steady does. **Rail** is a phase-shift oscillator grown into its own supply rail, which hardens the tone with a third harmonic and no even ones. **Diode** is a triangle bent into a sine by two of them that do not match, which puts a kink in one half of the wave and a second, third and fourth harmonic on top of it. **Valve** is a triode biased so that one half of the wave leans over before the other, which is the only one here whose loudest addition is an octave above the partial rather than a twelfth, and is the whole of what people mean by valve warmth.
+
+**Op-amp** is an amplifier that cannot move as fast as a fast note asks it to. It is the one that changes as you play: below a kilohertz nothing is being limited and the partials are untouched, and above it they lose first their corners and then everything but their slopes, which is a triangle. So the top of the series hardens as it climbs while the bottom of it stays where it was, and a chord played high is a different instrument from the same chord played low.
+
+Because this is an additive instrument, those harmonics land among the partials you are already mixing, at exact multiples of the partial that made them. The rack's own spread, below, has moved the real partials off those exact ratios, and TUNE and STRETCH move them further, so the two beat against each other rather than adding up, which is what makes a character sound like a circuit rather than like a tone control. The harmonics are dropped as a partial climbs, so nothing folds back down: a partial near the top of the range plays a plain sine whatever is chosen.
+
+Each character is also a rack of thirty-two rather than one oscillator used thirty-two times. Units built to the same spec do not come out the same, so every character except Pure puts each partial a couple of cents and a fraction of a decibel off what it was asked for, by an amount fixed for that character: the same rack every time you load the patch, in every host and on every machine. It is not DRIFT, which wanders. Partial 1 is the one the other thirty-one were tuned against and is left exactly where it is, so a note still lands on the key you played and choosing a character does not change how loud the patch is. It is what makes the beating above happen in a patch nobody has detuned, and it is the difference between a rack of thirty-two oscillators and one oscillator copied thirty-two times. No two of them distort by quite the same amount either: each unit's circuit is built to one of three drives, fifteen percent either side of the nominal.
+
+The button lights in the character's own colour, borrowed from the same band the channel strips take theirs from: yellow for Bulb, running down through the warm end to the red of channel 3 for Op-amp. Pure does not light, which is the honest thing for the one that adds nothing.
+
+It is part of the patch rather than part of the setup, so a preset can change it and saving one carries it. Twenty-six of the thirty-three [factory presets](https://benjamindehli.github.io/overtonium/presets/) ask for one, so most of what you load is already on a circuit rather than on the plain sine.
+
+### Wobble
+
+A warped record under the whole instrument. Pitch is bent by reading the output back through a delay line whose length keeps moving, which is what happens when a platter runs eccentric or a capstan slips. A slow warp near once round a 33 rpm disc, a faster wander on top, and now and then a sharp slip that bends hard and settles back. The slips grow in both rate and size with the square of the control, so a low setting is a tired turntable and a high one is a transport falling over itself. It sits ahead of the echo, so the repeats inherit what it did rather than wobbling on their own.
+
+### Bus drive
+
+The thirty-three channels are not simply added together. They are summed onto a bus that drives, by an amount and in a way that belongs to the oscillator character, so a patch gets louder into the same saturation a mixing desk would give it. It answers to level rather than to a setting: play quietly and it is barely there, lean on the keyboard and it arrives. Pure sums cleanly and does nothing, which is what Pure is for. There is no knob, because the amount is part of what choosing a character means.
+
+### Echo
+
+Three machines behind one button, and the button says which one is running. **Tape** is a loop with two motors: moving the time knob winds the tape rather than cutting to the new setting, so the repeats slide in pitch on the way, and the two paths run at slightly different speeds so a repeat comes back doubled rather than bounced. **BBD** is a line of buckets, which loses its top end because a bucket brigade is a sampler with no filter worth the name, and sweeps as the clock wanders. **Digital** is the one that does not pretend: what goes in comes back out, later and quieter, crossing to the other side on every repeat, which makes it the only ping-pong of the three.
+
+AGE means something different on each, which is the point of having three. On the tape it is wear: the top end lost on every pass, how far the motor wanders, and how hard the tape leans over. On the BBD it is the clock slowing and the companding breathing. On the digital it is bits and sample rate, so a tail starts as the signal and ends as a memory of it. Nothing on the tape ever reaches zero wear, because a transport that held speed exactly would put the repeat back in mono and there is no such transport.
+
+### Reverb
+
+Three machines again, on the same kind of button. **Room** is a feedback delay network whose room is sized from its decay time, since a long tail in a small room is a spring rather than a place. **Modulated plate** is a sheet of steel with no geometry to hear, so a hit spreads across all of it at once and the tail is dense from its first instant rather than arriving in stages. Its allpasses wander further than a real plate's would, which is why the menu says modulated: without that, a long decay repeats its own pattern instead of washing. **Spring** is a tray of helical springs, and what makes it one is that a helix carries the top of the band faster than the bottom, so a hit comes back as a chirp that starts high and falls. Every bounce adds another, which is why a spring gets less like what you played as it decays rather than merely quieter.
+
+DECAY, DAMP and PRE mean the same thing on all three and are matched, so switching machines changes the character of a tail and not its length or its loudness. DAMP is the sheet losing its top end to the air on the plate and the spring's own loss on every crossing of the tray.
+
+### The converter
+
+Shown as two seven-segment readouts under the output meter. Turning the sample rate down is a genuine cut rather than a filter over the top: the whole voice pool renders slower, which costs a fifth as much at 8 kHz, and the partials above the new ceiling fold back down instead of disappearing.
+
+### CLIP
+
+Five machines behind one button, across the finished output and after the master fader, which is therefore the drive into them. The fader and the choice both travel with the preset, so how hard a patch leans on this stage is part of the patch. **Soft** runs straight to seven tenths and then bends, gradually and symmetrically, and is what every preset was dialled against. **Hard** is a wall at full scale: nothing happens until it does, which is the sound of a converter with no headroom left. **Asymmetric** lets one half of the wave lean over before the other, the way a single-ended stage does, and that lopsidedness is the whole of it: where Soft and Hard treat both halves alike and give odd harmonics, this gives even ones, which is a different kind of loud rather than more of it. **Limiter** does not bend the wave at all, it turns the level down as the signal approaches the ceiling and lets it back up afterwards. **Fold** turns the wave back on itself instead of flattening it, which makes far more harmonics than the others and moves them with the level, so it sings where the rest crunch.
+
+Off lets the output go past full scale and reach the host as it is, which is what you want when something downstream is doing the catching. None of the five will: being bounded by full scale is the point of the stage rather than a property of the shapes chosen, and each is held to it however hard it is driven. The button abbreviates Asymmetric to ASYM and Limiter to LIMIT, for room, while the menu and your host's automation lane spell them out. It stands under the meter with the converter readouts because those three are the whole of what happens to the signal on its way out, and the switch is also in the Settings menu.
+
+The Limiter looks two milliseconds ahead, so the gain is already in place when the peak arrives rather than chasing it afterwards, which is the difference between a limiter and a clipper wearing the name. That costs latency, and because a plugin whose latency moved when you chose a preset would have the host re-plan its graph every time, it is paid by all five shapes and by the stage switched off alike. Overtonium reports 108 samples at 48 kHz, a little over two milliseconds, which your host compensates for on playback.
+
+**Limiter lookahead** in the Settings menu gives those two milliseconds back. Only the Limiter uses the window, so if you never reach for it you are paying for nothing, and this is the way to stop. Turning it off does not break the limiter: the detector sees a single sample instead of a window, so the gain is exact and immediate and the ceiling still holds, but the smoothing goes with it and a gain that steps is itself a distortion, about fifteen times as much of it. It is in Settings rather than on the bar because nothing a preset can reach is allowed to change what the plugin tells your host. Most hosts take the new figure while running, some only on playback stop or on reload, so it is worth choosing before a take rather than during one.
+
+### The output meter
+
+Horizontal, split into left and right, because the two channels are identical until something is panned off centre and a summed meter would hide precisely that. It reads the finished output after master gain and the clipper. Lamps run from teal through amber to orange as they approach full scale, anchored to their decibel positions rather than stretching with the level, with a scale beneath marked at -48, -36, -24, -12, -6 and 0 dB. Each bar carries a peak hold for a couple of seconds.
+
+---
+
+Page: Overtonium presets: the thirty-three that ship, and saving your own
+URL: https://benjamindehli.github.io/overtonium/presets/
+Last changed: 2026-10-07
+
+# Presets
+
+Thirty-three presets ship with the plugin. All but a handful were dialled in on the panel and converted straight from the saved file, so what ships is what was played rather than something written afterwards to approximate it.
+
+## Hear them played
+
+Eleven of them played rather than rendered. The clips further down are one chord each, the same chord every time, which is what makes them comparable and also what stops them showing what a preset does once somebody is playing it. The video is the other half of that.
+
+Played on an Expressive E Osmose, with nothing on the output but the plugin's own effects.
+
+[Video: Overtonium sound examples](https://www.youtube.com/watch?v=L1oYdPxGlGA)
+
+Straight to one of them:
+
+- [0:00 Synth Ensemble](https://www.youtube.com/watch?v=L1oYdPxGlGA&t=0s)
+- [2:04 Metallic Piano](https://www.youtube.com/watch?v=L1oYdPxGlGA&t=124s)
+- [2:55 Dream Phase](https://www.youtube.com/watch?v=L1oYdPxGlGA&t=175s)
+- [4:04 FM Piano](https://www.youtube.com/watch?v=L1oYdPxGlGA&t=244s)
+- [5:47 Sparkle Pad](https://www.youtube.com/watch?v=L1oYdPxGlGA&t=347s)
+- [6:56 Dire Dire EP](https://www.youtube.com/watch?v=L1oYdPxGlGA&t=416s)
+- [7:06 Music Box](https://www.youtube.com/watch?v=L1oYdPxGlGA&t=426s)
+- [7:25 Stepped](https://www.youtube.com/watch?v=L1oYdPxGlGA&t=445s)
+- [8:32 Wurli](https://www.youtube.com/watch?v=L1oYdPxGlGA&t=512s)
+- [8:45 Lo-fi](https://www.youtube.com/watch?v=L1oYdPxGlGA&t=525s)
+- [10:03 Nylon EP](https://www.youtube.com/watch?v=L1oYdPxGlGA&t=603s)
+
+## What ships
+
+Thirty-three presets, and none of them are variations on one another. **Just Saw** and **Equal Saw** are the pair worth playing against each other first: identical patches except for [TUNE](https://benjamindehli.github.io/overtonium/tuning/), and they sound nothing alike.
+
+Each one plays the same thing, a spread C major arriving a note at a time and let go together, so they can be listened down rather than each showing itself off in its own way. The clips are rendered by the plugin rather than recorded, so they cannot drift from what it does, and the levels are where the presets put them rather than matched to each other. Nothing downloads until you press play.
+
+Twenty-six of them ask for one of the six [oscillator characters](https://benjamindehli.github.io/overtonium/controls/), which is part of the patch like everything else here, so what you hear is the preset as it ships. Two of the six are worth knowing about while listening: Bulb only shows itself when the pitch moves, and Op-amp only touches partials above a kilohertz, so both of them do more on a keyboard than they do in a clip of a held chord.
+
+**2-bit Fuzz Organ**
+
+An organ at 8 kHz and 2 bits, where the aliasing and the quantisation noise are the distortion. The modulation wheel or aftertouch blends the root note towards a fifth
+
+**60s Organ**
+
+A combo organ that has not been serviced, with a few milliseconds of key click on every note. It runs into a bucket brigade driven hard enough that the repeats grow rather than fade, and falls into a spring long enough to still be ringing when the next chord arrives
+
+**6581 Triangle**
+
+The triangle of a MOS 6581, the SID in a Commodore 64. A triangle is odd harmonics falling as the square of their number, and this is not quite that: the chip folds the top bit of its accumulator and drops the lowest one, so what it draws is a staircase rather than a line. The even harmonics that leaves, and the floor underneath them, are most of why a SID sounds like a SID
+
+**Big Saw**
+
+A sawtooth with a little randomness in it, so it drifts and beats rather than sitting still
+
+**Cathedral**
+
+Principal chorus: octaves and fifths only, the registration an organ builder would recognise, arriving slowly as the pipes speak
+
+**DigiLog**
+
+A digital instrument through tired analogue gear. The envelope delay climbs with the partial, so the series arrives from the bottom up and steps open like a filter rather than sweeping, at 16 kHz and 8 bits
+
+**Dire Dire EP**
+
+A soft, round electric piano of the kind written for underwater music. Dark except for the 13th and 15th partials, left standing clear of their neighbours as the tine
+
+**Drawbar Organ**
+
+Nine drawbars, with the key-off stage used as a release click. The upper drawbars jump to 55% for two milliseconds as the contacts break
+
+**Dream Phase**
+
+A strike that becomes a pad without either half being a layer. The short partials are the transient and the long ones arrive behind them as it opens, with two stepping on squares behind it and an echo that is nearly all feedback
+
+**EP Chimes**
+
+A round electric piano with bright chimes above it, at 16 kHz and 8 bits so the artefacts belong to the sound rather than sitting on top of it
+
+**Equal Saw**
+
+Just Saw with every partial pulled back to equal temperament
+
+**FM Piano**
+
+The electric piano an FM synthesiser makes rather than the one it is imitating, in the manner of a DX7
+
+**Glass Armonica**
+
+Wet fingers on glass. Each partial arrives later and vibrates faster than the one below it
+
+**Glockenspiel**
+
+A struck bar. Nothing sustains, so every partial rings down from the moment it is hit, each for its own length, and the tone is carried by the fourth and eleventh partials rather than by the fundamental
+
+**Init**
+
+The neutral starting point: the first three partials and nothing else. It clears the patch and leaves the session alone
+
+**Just Saw**
+
+The same sound as Equal Saw with every partial at its exact whole-number ratio
+
+**Lo-fi**
+
+8 kHz and 8 bits, soft, with very short partials arriving at different times. The territory of a Roland D-50, a Korg Wavestation or a granular synthesiser
+
+**Metallic Piano**
+
+A thin, metallic upright piano
+
+**Music Box**
+
+Plucked steel teeth: irregular vibrato per partial, with one bent far further than the rest
+
+**Nylon EP**
+
+A very round electric piano, as though the tines were nylon rather than steel
+
+**Odd Harmonics**
+
+Every even partial silent, which is the hollow tone of a stopped pipe. Velocity opens the top of the series
+
+**Omni-84**
+
+The SonicStrings Voice 2 from a Suzuki Omnichord OM-84 System Two
+
+**Shimmer**
+
+Every partial breathes at its own rate, so the spectrum never repeats
+
+**Slow Pad**
+
+Staggered envelope delays, so the spectrum unfolds rather than arriving at once, with mirrored pans across the series
+
+**Space Flute**
+
+A synthesised pan flute a long way off, with the breath on the noise channel and the distance in the echo and the reverb
+
+**Sparkle Pad**
+
+Two instruments split by where a partial sits in the series. The bottom three sustain and take up to three quarters of a second to arrive, and everything above them attacks at once and is gone inside half a second
+
+**Stepped**
+
+A slow pad that will not hold still. Seven partials trill on squares set to whole intervals, two at a fifth and five at an octave, while the top three take their level from sample and hold
+
+**Struck Bell**
+
+Higher partials die away first, which is what makes a struck body sound struck. Strike it harder and the upper partials arrive
+
+**StyloPoly**
+
+Voice 3 of a Dubreq Stylophone S-1 with the vibrato on, polyphonic as the Stylophone is not, and with the vibrato shared across the keyboard the way one oscillator with one vibrato on it has to be. Every partial's level wanders on a smooth random contour of its own
+
+**Synth Ensemble**
+
+Strings and brass in one patch. Nothing in it arrives at the same moment, and the blow decides by how much: a hard chord is simply there, a quiet one swells in over a couple of seconds with the series drifting apart on the way
+
+**Tape Choir**
+
+Vowel-ish: a formant hump in the low partials rather than a straight roll-off, on an old machine with dark, unsteady repeats
+
+**Vibraphone**
+
+A fast strike where the fundamental rings for seconds and everything above it is gone inside one
+
+**Wurli**
+
+A Wurlitzer 200A electric piano, with one tremolo circuit across the whole keyboard rather than one per tine, so a chord breathes as one thing
+
+## What a preset carries
+
+The patch and nothing else. Everything in the Settings menu stays where you put it, which is the rule rather than a list that might fall behind one: the menu is where the instrument is set up and the panel is where the sound is made. So loading a preset never changes your polyphony, your temperament, your reference pitch, your pitch bend range, your MPE or aftertouch routing, or what leaves the outputs. Nor your master fader, your window size or your [LINK](https://benjamindehli.github.io/overtonium/controls/) settings. Those are properties of the session you are working in rather than of any one sound in it, and having a patch drag you back to equal temperament in the middle of a piece would be no help.
+
+Presets you save follow the same rule as the ones that ship, and carry exactly the same set of controls. A preset saved before this was true still loads, and the settings it recorded are ignored rather than applied.
+
+That includes Init. It is still a preset, so it clears the patch and leaves the session where you set it.
+
+Values are stored plain rather than normalised, so a preset survives a parameter's range being widened later, and anything a file does not mention keeps its default rather than being reset.
+
+## Switching them over MIDI
+
+A MIDI program change loads a factory preset, so a keyboard, a foot controller or a clip in your host can change the sound without anyone touching the menu. The number picks the entry by its position in the Factory list, counting from zero, and the list is alphabetical. Hosts and hardware that number program changes from one are one ahead of that, so their 1 is the first entry. A number past the last preset is ignored rather than wrapping round to the start.
+
+The preset is loaded whether or not it is the one already showing, which is what a program change does on an instrument with a panel. A clip that begins with one therefore sounds the same on every pass, and anything you had changed by hand is replaced. If you want to keep those edits, save them as a preset of your own first.
+
+Only the factory presets have a number to be called by. Presets of your own live in a folder you can add to and rename at any time, so nothing in them would stay put long enough to be worth pointing a clip at. The same goes across versions: a release that adds a factory preset moves every preset alphabetically after it, so a clip written against an older version can name a different sound in a newer one. Sessions are safe from that, since a saved session records the preset's name as well as its number and the name decides.
+
+It arrives on any channel, MPE included, and it carries the same things loading a preset by hand does. Your polyphony, temperament and the rest of the Settings menu stay where you put them.
+
+## Saving your own
+
+Saving writes one small file per preset, and the menu reads that folder every time it opens, so a preset added from outside the plugin shows up without a restart. The folder is created on demand.
+
+**What is loaded is named on the bar, on a display of nine cells.** A name longer than that is fitted rather than simply cut: the spaces go first, then the vowels from the right, and only then is what is left trimmed. So *Tape Choir* keeps every letter as TAPECHOIR and *Glass Armonica* comes out as GLASSRMNC. The menu, the file on disk and what your host is told all carry the name in full. Nothing about the name is changed by saving it.
+
+| Platform | Where they live |
+|---|---|
+| macOS | `~/Library/Application Support/Dehli Musikk/Overtonium/Presets` |
+| Windows | `%APPDATA%\Dehli Musikk\Overtonium\Presets` |
+| Linux | `~/.config/Dehli Musikk/Overtonium/Presets` |
+
+They are small XML files holding parameter values, so they can be read, edited, kept under version control and passed to someone else by copying the file. The menu sorts by name rather than by whatever order the filesystem hands them back.
+
+**Folders become groups.** Make a folder in the preset folder and it appears in the menu as a submenu holding whatever is inside it, nested as deeply as you nest the folders. There is nothing to set up and no second place to manage it: the folders are the groups, so moving a preset between them is moving a file. Groups are listed before the presets sitting loose beside them, and the preset currently loaded is ticked wherever it lives.
+
+---
+
+Page: Installing Overtonium on macOS, Windows and Linux
+URL: https://benjamindehli.github.io/overtonium/install/
+Last changed: 2026-10-07
+
+# Installing
+
+Installers for macOS and Windows, and a zip for Linux. Every release carries a zip alongside the installer holding the same builds loose, for anyone without administrator rights or with plugin folders of their own.
+
+## Download
+
+Five files, because one size does not fit everyone. Take the installer for your platform unless a row below describes you.
+
+| File | Holds | Take this one if |
+|---|---|---|
+| [macOS installer](https://github.com/benjamindehli/overtonium/releases/download/v1.11.0/Overtonium-v1.11.0-macOS.pkg) | VST3, Audio Unit, Standalone | You are on a Mac. It asks which of the three you want and installs only those |
+| [macOS zip](https://github.com/benjamindehli/overtonium/releases/download/v1.11.0/Overtonium-v1.11.0-macOS.zip) | VST3, Audio Unit, Standalone | You have no administrator rights, or you keep plugins somewhere of your own |
+| [Windows installer](https://github.com/benjamindehli/overtonium/releases/download/v1.11.0/Overtonium-v1.11.0-Windows.exe) | VST3, Standalone | You are on Windows. It needs administrator rights, and SmartScreen will say the publisher is unknown |
+| [Windows zip](https://github.com/benjamindehli/overtonium/releases/download/v1.11.0/Overtonium-v1.11.0-Windows.zip) | VST3, Standalone | Same three reasons, or you would rather not run an unsigned installer |
+| [Linux zip](https://github.com/benjamindehli/overtonium/releases/download/v1.11.0/Overtonium-v1.11.0-Linux.zip) | VST3, LV2, Standalone | You are on Linux. There is no installer, since no two distributions agree on where a plugin goes |
+
+Every file above is from **version 1.11.0**, released 7 October 2026. [What changed in it](https://benjamindehli.github.io/overtonium/releases/), and in every version before it, has a page of its own. Older builds and the source are on the [releases page](https://github.com/benjamindehli/overtonium/releases/latest).
+
+## What each platform gets
+
+| Platform | Installer | Formats |
+|---|---|---|
+| macOS | `.pkg`, with a chooser | VST3, Audio Unit, Standalone |
+| Windows | `.exe` | VST3, Standalone |
+| Linux | none, use the zip | VST3, LV2, Standalone |
+
+### macOS
+
+The package asks which of the three formats you want and installs only those. It is a universal binary, so one download covers Apple Silicon and Intel, and it is signed and notarised, so it opens without a warning. The minimum is macOS 10.13 on Intel and 11.0 on Apple Silicon, which is the floor the toolchain sets for that architecture.
+
+### Windows
+
+The installer is not signed, so SmartScreen says the publisher is unknown. Choose "More info" and then "Run anyway". If you would rather not, build from source instead, which takes one command. The VST3 goes to the shared plugin folder, so the installer asks for administrator rights.
+
+### Linux
+
+No installer, since there is no install location a distribution would agree on. The zip holds VST3, LV2 and standalone, and the two plugin folders go in `~/.vst3` and `~/.lv2`.
+
+## When a host does not see it
+
+| Symptom | What to try |
+|---|---|
+| Logic or GarageBand shows no Overtonium | They only look for new Audio Units when they start. Quit and reopen, rather than rescanning |
+| A host lists it but will not load it | Check you have the right format. Logic uses the Audio Unit, most others use the VST3, and installing only one of the two is easy to do by accident in the chooser |
+| Nothing appears after installing on macOS | Confirm where the files went with `pkgutil --files com.dehlimusikk.overtonium.vst3`. The plugins belong in `/Library/Audio/Plug-Ins` and the app in `/Applications` |
+| The plugin loads but is silent | Check the master fader and whether a channel is [soloed](https://benjamindehli.github.io/overtonium/controls/). Solo is per channel and mute wins over solo, so a strip can be muted inside a solo |
+| Held notes sound but nothing new does | Overtonium is a synthesiser and needs MIDI. Check the track's input rather than the plugin |
+
+Anything else is worth reporting on the [issue tracker](https://github.com/benjamindehli/overtonium/issues), particularly on Windows and Linux, for the reason below.
+
+## Telling you about new versions
+
+Off unless you ask for it. The first time you open the window, the credit line under the wordmark offers to turn the check on, once. Nothing reaches the network unless you take that offer, ignoring it costs nothing, and it is not asked again. The setting lives under Settings from then on.
+
+With it on, the plugin fetches one small file from this site in the background and compares the version in it against the build you are running. If there is something newer, the credit line says so, and clicking it opens the release page. It is a plain request for a static file: no identifier, no telemetry, nothing about your machine. The [security policy](https://github.com/benjamindehli/overtonium/blob/main/SECURITY.md) spells out exactly what is sent.
+
+There is no dialog, on purpose. A plugin cannot tell someone opening it from a host scanning its plugin folder at startup, and a modal in the second case stops the scan.
+
+## What it costs to run
+
+Polyphony is the multiplier that matters, since eight voices of 32 partials is 256 sine oscillators. Measured on one core at 48 kHz with everything running at once: both modulators on every channel, drift, velocity, aftertouch, the meters and the noise channel.
+
+| Voices | Oscillators | One core |
+|---|---|---|
+| 1 | 32 | about 1% |
+| 8, the default | 256 | about 7% |
+| 16 | 512 | 14 to 15% |
+
+The effects on the bar are on top of whatever that comes to and cost the same at any polyphony, since they work on the sum rather than once per voice. Most of them are far below the voices: the room and the plate are around half a percent each and the echoes less. The spring is the exception at about two and a half, since its dispersion is a chain of filters per spring and there are three springs. One machine's figures rather than a promise about yours, but the shape of them holds: the voices are the cost and nothing else comes close.
+
+**The render rate is the control to reach for** if you need it cheaper. Turning it down is a genuine cut rather than a filter laid over the top, because the whole voice pool renders slower: at 8 kHz it costs a fifth as much. It is also audible, which is the point of having it on the panel rather than in a preferences dialog. Dropping the polyphony works too, and proportionally.
+
+What keeps it affordable at all is that the engine stays a plain bank of oscillators. A 4096-point interpolated sine table rather than a sine call per sample, modulators and envelope coefficients updating once per 32-sample block while only the oscillator and the envelope run at sample rate, and a partial that is muted, faded out or sitting at zero skipping the oscillator entirely.
+
+## What has actually been tried
+
+All three platforms are built and run through the test suite on every push, and the VST3 is put through pluginval at strictness 8 on each of them. macOS is the only platform where the plugin has been loaded into a real host, where the Audio Unit and the VST3 also pass `auval`. Nobody has run the Windows or Linux builds in a DAW yet, so treat those as untried.
+
+## Building from source
+
+You need CMake 3.22 or newer and a C++17 compiler. JUCE is downloaded at configure time, so there is nothing else to install on macOS or Windows.
+
+```
+git clone https://github.com/benjamindehli/overtonium.git
+cd overtonium
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+```
+
+The plugins are copied into your user plugin folders as part of the build. Pass `-DOVERTONIUM_INSTALL_AFTER_BUILD=OFF` to skip that. Linux needs a handful of development packages first, which the [readme](https://github.com/benjamindehli/overtonium#linux) lists.
+
+Overtonium is free software under the AGPLv3, which follows from JUCE. The whole source, including the tests and the packaging, is in the [repository](https://github.com/benjamindehli/overtonium).
+
+---
+
+Page: Overtonium releases: what changed in each version
+URL: https://benjamindehli.github.io/overtonium/releases/
+Last changed: 2026-10-07
+
+# Releases
+
+What changed in each version, newest first. Each one links to its full notes, which say more and carry the installing and upgrading detail as well.
+
+## 1.11.0, 7 October 2026
+
+**Eight macros, so a relationship across the series can be automated.** A LINK drag moves 32 parameters and a host catches only the last one touched, so a relationship you can edit by hand could not be recorded at all. A macro names a row, a scope and a curve, and gives that relationship one control and the host one lane. It offsets rather than writes, so the patch underneath is untouched, which is why the knobs do not move when a macro does. A driven control says both things at once instead: the ring of ticks lights to where the macro has taken the value in the macro's colour, and the pointer stays at what the patch holds. A fader says it in the gutters either side of its track. Eight is a pool rather than a count, since a plugin declares its parameters once and cannot add one later.
+
+**MIDI Learn.** Right-click a control, choose MIDI Learn, move something on the controller. One parameter per controller number, saved with the session rather than with a patch, because which controller moves which knob describes the desk rather than the sound. Eleven numbers are refused rather than bound, the mod wheel and the MPE slide among them, so arming a knob and then reaching for the slide to steady a note leaves the note steadied and the knob still waiting.
+
+**CLIP is five machines instead of a switch.** *Soft* is the curve that was already there and came through bit for bit. *Hard* is a wall at unity. *Asymmetric* lets one half of the wave lean over first, the way a single-ended stage runs out of supply in one direction, which gives even harmonics where the others give odd. *Limiter* does not bend the wave at all, it moves the level. *Fold* turns the wave back on itself and sings where the rest crunch. All five are bounded by full scale, tested at drives up to 400 times at three sample rates. The limiter looks ahead two milliseconds, which is what took the reported latency from 12 samples to 108 at 48 kHz, and Settings can refuse it.
+
+**The parameters scroll.** The rows are small on a 1080p screen and zooming in to read them made the window taller than such a screen has room for. A channel is three bands now: the channel number at the top and the fader at the foot are pinned, and everything between them scrolls behind an opening, so neither of the two things you find your place by is ever what has scrolled away.
+
+**The panel was rebuilt.** Every switch is a lit plastic cap in a moulded well, with a fixed near-black legend printed on the plastic so a word does not change colour under its own lamp. The knobs are discs with an eight-slot collar, and the notches are cut out of it rather than painted on. The preset name is spelled on a fourteen-bar display. The OUTPUT rule carries two lamps, VELOCITY on the left and AFTERTOUCH on the right, so all five rules say something. LINK and DRAW became one tool button rather than two switches that could not both be on, and choosing a scope now lights the channel number of every strip a drag would reach.
+
+**A thirty-third preset, and an accessibility statement.** *6581 Triangle* is the triangle of a MOS 6581, the SID in a Commodore 64, which is not quite a triangle: the chip draws its ramp as a staircase of 2048 steps, so it carries even harmonics a triangle should not have. `ACCESSIBILITY.md` says what is checked rather than intended, and says plainly that the plugin's own window is not keyboard operable and that nobody who relies on assistive technology has evaluated any of it.
+
+**Fixed.** A partial silenced by a negative AFTERTOUCH amount took every lamp on its channel dark with it, which had been wrong for the envelope and tremolo lamps since those lamps existed. And a note played while the channel was already under pressure thumped or faded in, because the pressure smoother started from nothing at every note-on instead of from where the channel was holding it.
+
+**Before upgrading.** The plugin reports 108 samples of latency at 48 kHz where it reported 12, which is the limiter's window, and Settings can take it back. Loading a preset now moves the master fader and the clipper, since both left the settings a preset cannot reach. *6581 Triangle* sorts third, so a MIDI program change will name the preset above the one it used to, while a saved session carries the name as well as the number and is unaffected. Fifty parameters were added, 836 in all, all of them on the end, so every automation lane written before this release still points at the control it was pointing at.
+
+[The full notes for 1.11.0](https://github.com/benjamindehli/overtonium/releases/tag/v1.11.0)
+
+## 1.10.1, 30 September 2026
+
+**Removing the plugin could hang the host.** In a host that unloads the plugin binary once no instances are left, taking the last one out could lock the host up, with no way out but to end the process. Reported in FL Studio and in Reaper, while hosts that keep the binary loaded were never affected.
+
+The texture the panels are drawn with is an image, built the first time a window opens and shared by every window after it, and it was being kept for the life of the process. Under Windows that image lives on the graphics card, so letting go of it hands resources back to the driver, and keeping it in a static meant that happened while the host was unloading the binary. Windows holds a lock for the whole of an unload and the driver work cannot run until that lock is free, so neither finishes. The texture now belongs to the windows that use it and goes when the last one closes. Nothing else changed, and nothing about the sound has.
+
+## 1.10.0, 30 September 2026
+
+**The echo is three machines, and so is the reverb.** Both were a switch that turned one thing on, and both are now a button that says which machine is running. *Tape* is the loop that was already there. *BBD* is a line of buckets, which gets darker the longer you set it to, because a longer delay can only be had by clocking the buckets more slowly and the filter has to come down with the clock. *Digital* does not pretend to be anything and is the only ping-pong of the three, crossing every repeat to the other side where the other two never cross at all. AGE is the same knob on all three and asks each for the thing that machine gets worse at: tape wear, a slowing clock and a breathing compander, or falling bits and sample rate.
+
+*Room* is the reverb that was already there. *Modulated plate* is a sheet of steel with no geometry to hear, so a hit spreads across all of it at once and the tail is dense from its first instant rather than arriving in stages. It is called modulated because it is: its allpasses wander six times as far as the shape they come from gives them, and without that a long decay repeats its own pattern instead of washing. *Spring* is a tray of three helical springs, and a helix carries the top of the band faster than the bottom, so a hit comes back as a chirp that starts high and falls and every bounce adds another. DECAY, DAMP and PRE mean the same thing on all three, and the wet levels are matched, so switching machines changes the character of a tail rather than its length or its loudness.
+
+**The character now says how hard the mix is driven.** The thirty-three channels are summed onto a bus that drives, by an amount belonging to the oscillator character. It answers to level rather than to a setting, which is what a table baked into one partial's waveform cannot do: play quietly and it is barely there, lean on the keyboard and it arrives. Bulb asks for the most and Diode the least, Pure sums cleanly and does nothing, and there is no knob, because how hard a summing amplifier is driven is part of what choosing a character means.
+
+**How fast you let a key go sets the level its tail starts from.** On a keyboard that senses a release, the hardest lift doubles the key-off level and the softest halves it. There is no knob and no parameter: it is a property of the gesture the way velocity is, and a keyboard that cannot sense a release changes nothing.
+
+**The master volume is a glass fader lying across the output meter**, over the lamps it sets the level of, instead of a knob in a group of its own. A LINK drag that spreads a move uniformly now spreads it in decibels as well: on the fader row it was uniform in travel, which put six or seven decibels on the loudest channel and thirty on the quietest.
+
+**A thirty-second factory preset, and four others that reach for the new machines.** *60s Organ* is a combo organ that has not been serviced: the partials are pulled off each other rather than tuned, so the stack beats against itself instead of fusing, and the noise channel is a few milliseconds of key click on every note. It runs into a bucket brigade driven hard enough that the repeats grow rather than fade, and falls into a spring still ringing when the next chord arrives. It is also the first patch to ask for Diode. *Shimmer* and *Tape Choir* now ask for the plate rather than the room, and *Cathedral* and *Struck Bell* stay on the room. Because the list is alphabetical and 60s Organ sorts second, a MIDI program change now names the preset above the one it used to; a saved session is unaffected, since it carries the name as well as the number.
+
+**LINK came back switched off.** Its scope and its curve were remembered with the session and the switch that decides whether either applies was not, so reopening a window gave you exactly the drag you had set up, turned off. All three are saved together now.
+
+**Unfolding a section made the faders swell.** On a window shrunk until the faders were squeezed, unfolding gave back twice the height it had taken, all of it to the faders. Applying the window's new size limits is itself a resize, so the height was measured after it had already moved and the same rows counted twice.
+
+**Draw the faders.** A drag across the fader area sets every channel it passes over from the pointer's height, so a spectrum goes in with one stroke instead of thirty-two drags. Hold shift for it, or latch it on with the new DRAW switch under the LEVEL caption. Armed, every fader lights in the same accent the switch does, so what a drag would reach is visible before you touch anything. It is not LINK under another name: LINK shares one relative move out across the channels by a rule, and this sets absolute values freehand. Columns crossed between one moment and the next are filled in, the whole stroke is one undo, and the noise channel draws with the rest. While it is armed the pointer becomes a pencil and LINK reads as off, without being off.
+
+**A section folds from any strip, not just from the gutter.** Every section draws a rule across all thirty-three columns, lined up with its heading in the caption gutter on the far left, and clicking one of those rules now folds that section. Reaching the gutter meant leaving the partial you were working on, crossing the mixer and finding your way back, by which time you had lost which column you were in. The pointer shows the same hand over a rule as over a heading.
+
+**The bar says what each group is.** A small caption under the button at the head of the character, echo and reverb groups, because those buttons show a value and nothing said what OP-AMP, TAPE or ROOM was a choice of. With the caption doing that, the button reads OFF when the effect is off, where it used to read ECHO or REVERB so the group could still be found, and the ring of lit ticks around that effect's four knobs goes dark with it. The knobs keep their positions, so a setting can be dialled in before the thing is switched on. The clipper also has a switch on the bar now, CLIP, under the output meter beside the two converter readouts, which are a little larger themselves. It is still in the Settings menu too.
+
+**Fixed.** Right-clicking the gap between two sections opened two LINK menus stacked on each other, and picking an item on the front one left the one behind it unchanged, so the setting looked to have been refused when it had already taken. A scroll over a knob also dragged the mixer sideways whenever the window was narrow enough for the series to need scrolling, since each strip watches everything inside it and passed the wheel on after the knob had taken it. A scroll on a strip's background still moves the series. The plugin would not tell you which version it was: not in the Settings menu, not on the panel, not anywhere, while the bug report template refused a report without one and said to read it off that menu. It is the menu's first heading now. The first repeat of an echo came back clean while every repeat after it was worn, on both the tape and the bucket brigade. Both echoes compressed everything they were handed, because the tape's backstop was set for a bus running near one where a full patch runs closer to two. The digital delay had a tail that never went away at any feedback from a half upwards, which is what a quantiser inside a feedback loop does. And the zoom menu ticked 100% whatever the zoom was.
+
+**Before upgrading.** Presets on a character sound fuller, because the bus they are summed onto now drives, and that is the intended sound of them. The echoes are cleaner and their first repeat is coloured, so a patch leaning on the tape echo's compression will not find it. *Sparkle Pad* is louder and otherwise unchanged, since it was mixed low on purpose to keep that compression down. Your own patches get the tape and the room, which is what every patch written before this had. Two parameters were added, 786 in all, both on the end, so every automation lane written before this release still points at the control it was pointing at.
+
+[The full notes for 1.10.0](https://github.com/benjamindehli/overtonium/releases/tag/v1.10.0)
+
+## 1.9.0, 23 September 2026
+
+**Which oscillator the partials are.** A new control at the head of the series group, offering six of them. All six are sine oscillators, and what differs is the way each circuit fails to make one. *Pure* is the sine every partial already was. *Bulb* is a Wien bridge whose lamp lags, so the level sags behind every move of the pitch and recovers over about half a second. *Rail* grows into its own supply, *Diode* is bent into shape by two of them that do not match, and *Valve* is a triode with an octave on top of every partial. *Op-amp* is an amplifier that cannot keep up, so the top of the series hardens as it climbs while the bottom stays where it was. Each one is also a rack of thirty-two rather than one oscillator used thirty-two times: a fixed spread of a couple of cents and a fraction of a decibel, the same every time you load the patch. It is part of the patch, so a preset carries it, and twenty-five of the thirty-one factory presets now ask for one: eleven on Bulb, eight on Op-amp, four on Valve and two on Rail. Loading one of those gives what it ships as rather than what it was in 1.8.0, and setting the character back to Pure gives the older sound, except on *Synth Ensemble*, which was reworked further: its velocity amounts now take more of the series, so a soft chord arrives with less above the first few partials, and its reverb sits a third in rather than a quarter. A session is unaffected either way, since it carries the values rather than the preset's name.
+
+**A MIDI program change loads a factory preset**, by its position in the alphabetical Factory list counting from zero, so a keyboard, a foot controller or a clip can change the sound without anyone touching the menu. A number past the last preset is ignored rather than wrapping.
+
+**The converter readouts say what they are counting**, reading `48.0 kHz` and `8 bit` where they used to have room for the figure alone. LINK moved to the top of the caption column on the left to make that room, over the rows it gangs, and with it gone the bar fits on one row at the width the window opens at. Every switch on the panel now lights its word rather than its face, every screen and lamp is set into it with the lip of the opening it sits in, the standalone wears the instrument's own title bar instead of the grey-green one every unstyled JUCE application gets, and Settings has an entry that puts a window dragged narrow back to the width that shows all 32 channels.
+
+**A modulator can be one circuit the whole keyboard hears.** Both belong to the note by default, so a chord struck a note at a time gives you three tremolos breathing out of step. The new entry at the foot of a shape button's menu, one for each modulator, hands the phase to the channel instead, so a note arriving late joins what is already running and a chord breathes as one thing. *Wurli* ships sharing its tremolo and *StyloPoly* its vibrato.
+
+**Undo took a step several times a second while you were still turning a knob**, which was most obvious with a scroll wheel. A gesture is one step now, however many values it moved and however long it went on, and a gesture that ends where it began is not a step at all. A host playing an automation lane used to fill the history as well, and no longer leaves any: the history holds what a person did.
+
+**Before upgrading.** Nothing you have made moves: a session opens sounding as it did, and your own presets get Pure and a modulator per note, which is what every patch written before this had. Twenty-five of the factory presets do sound different, since they now ask for a character, and two of those share a modulator across the keyboard as well. Three parameters were added, 784 in all, all three on the end, so every automation lane written before this release still points at the control it was pointing at.
+
+[The full notes for 1.9.0](https://github.com/benjamindehli/overtonium/releases/tag/v1.9.0)
+
+## 1.8.0, 19 September 2026
+
+**Three more factory presets, thirty-one in all.** All three lean on STRIKE, which arrived in 1.7.0 and is what lets one patch play two ways depending on how it is struck. *Glockenspiel* is a struck bar whose tone sits in the fourth and eleventh partials rather than the fundamental, with nothing sustaining and every partial ringing down for its own length. *Dream Phase* is a strike that becomes a pad, the short partials the transient and the long ones arriving behind them. *Sparkle Pad* splits the series in two: the bottom three sustain and arrive slowly, everything above attacks at once and is gone inside half a second.
+
+**A session could open with the wrong preset showing as selected.** Presets sort alphabetically, so adding one moved every preset after it and an index saved last year named a different sound. The sound was never in doubt, since a session stores its values, but a host's program menu would highlight a patch the session was not playing. The saved name decides now, so reordering presets can no longer move a session onto a different one.
+
+**Built on JUCE 9.0.2**, up from 8.0.15, with nothing in Overtonium needing to change for it. Every audio example on this site renders to the same samples before and after. Building from source on Linux now also needs `libxi-dev` and `libegl-dev`.
+
+**Before upgrading.** The factory presets are renumbered, since the three new ones sort into alphabetical place. The sound is stored with the session either way, and with the fix above the name you saved is what the menu goes by. No parameter was added or removed, so automation is unaffected.
+
+[The full notes for 1.8.0](https://github.com/benjamindehli/overtonium/releases/tag/v1.8.0)
+
+## 1.7.0, 12 September 2026
+
+**STRIKE aims key velocity at the front of the envelope.** It sits at the head of the ENVELOPE group on every one of the thirty-three channels, above DELAY and ATTACK, because it is about the blow rather than about the shape. A hard note starts sooner and arrives faster, a soft one waits and then opens slowly. Each knob below it stays the limit of its own row: velocity only ever lengthens the attack and only ever pulls the delay in, so ATTACK goes on meaning the fastest that partial gets and DELAY the latest it ever arrives. The range is wide because the attacks worth stretching are short, so 2 ms under a hard blow is half a second under the softest. *Synth Ensemble* is rebuilt around it.
+
+**MPE slide no longer lurches** on a controller whose slide axis rests at one end rather than at the centre. It is read as movement now: the first value a note is given becomes that note's nought, and what reaches the sound is how far the axis has travelled from it since. A Seaboard behaves as it always did. An Expressive E Osmose, which spends the first part of the key travel on pressure and only then starts sending slide, no longer jumps darker the instant the axis engages.
+
+**Before upgrading.** LIFT is gone. It aimed release velocity at the key-off level and was the one control here that most keyboards cannot play, so a patch that used it loses those values and an automation lane pointed at one finds nothing. The parameter count is unchanged at 781 and everything else is untouched: every factory preset but *Synth Ensemble* renders to a byte-identical file before and after. A finger landing forward on a pad no longer starts the note bright, which is what reading slide as movement costs.
+
+[The full notes for 1.7.0](https://github.com/benjamindehli/overtonium/releases/tag/v1.7.0)
+
+## 1.6.1, 11 September 2026
+
+One fix, and nothing else. The waveform selectors added in 1.6.0 kept listening to their parameter fractionally longer than they should have, into the moment they were being taken apart, so a value arriving at exactly that instant landed on a control that was already half gone. Closing a plugin window while automation plays is the everyday version of that, which is why it was worth a release of its own rather than waiting.
+
+[The full notes for 1.6.1](https://github.com/benjamindehli/overtonium/releases/tag/v1.6.1)
+
+## 1.6.0, 10 September 2026
+
+**Both modulators pick a waveform.** Eight shapes on pitch and seven on amplitude, on every one of the thirty-three channels, so the fifth partial can be gated while the fourth breathes. The pitch depth reaches an octave now, which is what the shapes that step rather than sweep are worth having: a square on the pitch is a trill and sample and hold is a run of random notes. The tuning digits and the shape glyph are lit, so a strip has two displays rather than a screen and a label.
+
+Two more factory presets, *Stepped* and *StyloPoly*, twenty-eight in all. Loading a preset used to tell the host about a thousand parameter changes, most of which were not changes, and now tells it only what moved.
+
+**Before upgrading.** The factory presets are renumbered, since the two new ones sort into alphabetical place rather than onto the end, so a session that stored a preset by number opens on a different one. The sound is stored with the session either way. Automation is unaffected: the 65 new parameters are inserted among the existing ones, and both formats identify a parameter by name rather than by position.
+
+[The full notes for 1.6.0](https://github.com/benjamindehli/overtonium/releases/tag/v1.6.0)
+
+## 1.5.0, 5 September 2026
+
+Seven more factory presets, twenty-six in all, six of them the same electric piano seen from different angles, because that is what a stack of sine waves is good at. The preset menu became two submenus rather than one long list, and folders in your preset folder became groups in the menu.
+
+**Nothing in the Settings menu travels with a preset any more.** Saving one used to write your polyphony, temperament, bend range and MPE into the file, so recalling a sound reached over and changed how the instrument was set up. The factory presets already knew better, and both kinds follow the same rule now.
+
+Four fixes, the audible one being a note held by the sustain pedal clicking when you played it again. Its envelope restarted from silence while the note was still ringing at its sustain level.
+
+[The full notes for 1.5.0](https://github.com/benjamindehli/overtonium/releases/tag/v1.5.0)
+
+## 1.4.0, 30 August 2026
+
+Three more factory presets, nineteen in all. **Legato** arrived at the head of the polyphony list, where pressing a key while another is held moves the note rather than starting it again. **One voice per key** became a switch, so a bell struck over and over can be made to build up rather than take over its own voice. Right-clicking a mute or a solo clears every one of them across the mixer, which beats hunting for a stray solo among sixty-six buttons four pixels apart.
+
+**Before upgrading.** Both lists gained an entry at the top, so polyphony indices shifted by one and a session saved on 8 voices opens on 6. The factory presets are renumbered for the same reason.
+
+[The full notes for 1.4.0](https://github.com/benjamindehli/overtonium/releases/tag/v1.4.0)
+
+## 1.3.0, 28 August 2026
+
+**The per-channel outputs are gone again**, and the release is mostly that removal. Logic offers a fixed menu of multi-output arrangements and cannot complete the larger ones, which arrangements work varies with the version and the processor underneath it, and the one shape that would actually suit a 32-partial mixer, 32 mono outputs, was never on the menu at all. A convenience that half worked in the one host it had been tried in is not part of the instrument.
+
+Also fixed: parameters hold the values they are given. Two conversions between a knob position and a value were done in single precision, and 66 defaults fell where that round trip loses a bit.
+
+[The full notes for 1.3.0](https://github.com/benjamindehli/overtonium/releases/tag/v1.3.0)
+
+## 1.2.0, 26 August 2026
+
+An output per channel, 33 of them alongside the stereo mix, which 1.3.0 then removed. MPE slide gained a destination, off, brightness or tuning. The two LINK tilts became one **taper from wherever you grab**, which can peak under your hand in the middle of the series rather than only at an end. The level readout counts down to -99.9 dB rather than giving up at -66, which was two thirds of the fader's usable bottom end. Every control got a name a screen reader can read, all 635 of them.
+
+**Before upgrading.** Automation written against the old level fader plays back at different levels, because the fader's travel is spaced by decibels now rather than by gain.
+
+[The full notes for 1.2.0](https://github.com/benjamindehli/overtonium/releases/tag/v1.2.0)
+
+## 1.1.0, 24 August 2026
+
+**Folding the mixer down.** Click a section heading in the caption gutter and that group of rows folds away across every channel at once, taking the window's height with it. All five groups is 480 pixels shorter.
+
+The factory presets appeared in Logic's own preset menu, the panel gained its grain, its grooves and its bloom, and the [update check](https://benjamindehli.github.io/overtonium/install/) arrived, off unless you ask for it. Nothing about the sound changed, and a patch saved in 1.0.0 loads identically.
+
+[The full notes for 1.1.0](https://github.com/benjamindehli/overtonium/releases/tag/v1.1.0)
+
+## 1.0.0, 23 August 2026
+
+The first release. 32 sine partials and a noise channel, each with its own fader, tuning, envelope, tremolo, pitch modulation and pan. [TUNE](https://benjamindehli.github.io/overtonium/tuning/), six keyboard temperaments, inharmonic stretch, keyboard tracking, drift and wobble. MPE alongside ordinary MIDI, a tape echo, a feedback delay network reverb, a lo-fi converter, channel ganging, and 16 factory presets.
+
+[The full notes for 1.0.0](https://github.com/benjamindehli/overtonium/releases/tag/v1.0.0)
+
+## Being told about a new one
+
+The plugin can check for itself, and does not unless you ask it to. The [install page](https://benjamindehli.github.io/overtonium/install/) says what that costs, which is one request for a static file and nothing about you. Every release is also on the [releases page](https://github.com/benjamindehli/overtonium/releases), which GitHub publishes as [a feed](https://github.com/benjamindehli/overtonium/releases.atom) for anyone who would rather subscribe than be asked.

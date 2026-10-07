@@ -704,7 +704,11 @@ jobs:
           files = sorted(Path(".").glob("*.md"))
           files += sorted(p for p in Path("docs").rglob("*.html")
                           if "releases" not in p.parts)
-          files += sorted(Path("docs").glob("*.txt"))
+          # llms-full.txt is left out for the reason the releases page is: it
+          # carries that page's text, every count in it true of its release.
+          # The rest of it is the other pages, which are checked above.
+          files += sorted(p for p in Path("docs").glob("*.txt")
+                          if p.name != "llms-full.txt")
 
           failed = []
 

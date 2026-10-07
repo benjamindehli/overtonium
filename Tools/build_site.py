@@ -13,6 +13,18 @@ page. Each of those is a whole element in the page, found by its tag or its
 class and replaced outright, so an edit made inside one by hand is undone by
 the next build and caught by --check in CI before that.
 
+It also writes three files whole: sitemap.xml, llms.txt, and llms-full.txt,
+which is every page's content as Markdown for a language model to read in one
+request rather than seven.
+
+Each page's last-modified day lives in Tools/site_dates.json beside a hash of
+the words in its <main>. When the words change the day becomes today, in UTC,
+and the sitemap and the page's structured data both carry it. A change to the
+head, the rail or the footer is not a change to what the page says and leaves
+the day alone. Reading this from git would need the whole history, which a CI
+checkout does not have, and would date a page by its last commit whatever that
+commit touched.
+
 What it reads, besides Tools/site_data.py: the version from CMakeLists.txt, the
 preset count from kNames in Source/Presets.cpp, the parameter count from the
 expected total in Tests/plugin_runtime_test.cpp, and each page's own headings
@@ -22,15 +34,20 @@ afterwards, so what is written is exactly what the format job expects.
 Standard library only, and Python 3.9, which is what a Mac has without asking.
 """
 
+import datetime
+import hashlib
 import html
 import json
 import re
 import subprocess
 import sys
+from html.parser import HTMLParser
 from pathlib import Path
+from urllib.parse import urljoin
 
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
+DATES = Path(__file__).resolve().parent / "site_dates.json"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import site_data as data  # noqa: E402
@@ -54,11 +71,11 @@ def version():
     return found.group(1)
 
 
-def preset_count():
+def preset_names():
     table = re.search(r"const char \*const kNames\[\] = \{(.*?)\n\};", (ROOT / "Source/Presets.cpp").read_text(), re.S)
     if table is None:
         sys.exit("cannot find kNames in Source/Presets.cpp")
-    return len(re.findall(r'^    "[^"]+",$', table.group(1), re.M))
+    return re.findall(r'^    "([^"]+)",$', table.group(1), re.M)
 
 
 def parameter_count():
@@ -92,7 +109,25 @@ def esc(text):
 
 def plain(markup):
     """The words of a piece of HTML, for a copy that cannot carry markup."""
+    markup = re.sub(r"<!--.*?-->", "", markup, flags=re.S)
     return " ".join(html.unescape(re.sub(r"<[^>]+>", "", markup)).split())
+
+
+# --- When each page last said something new ----------------------------------
+
+MODIFIED = {}
+
+
+def dated(page, main, dates, changed):
+    """The day this page's words last changed, moved to today if they just did."""
+    words = hashlib.sha256(plain(main).encode()).hexdigest()[:16]
+    known = dates.get(page["path"])
+    if known and known["words"] == words:
+        return known["modified"]
+    today = datetime.datetime.now(datetime.timezone.utc).date().isoformat()
+    dates[page["path"]] = {"words": words, "modified": today}
+    changed.append(page["path"] or "the front page")
+    return today
 
 
 def jsonld(block):
@@ -160,6 +195,7 @@ def webpage(page):
         "isPartOf": {"@id": data.BASE + "#website"},
         "about": {"@id": data.PRODUCT["@id"]},
         "primaryImageOfPage": {"@type": "ImageObject", "url": data.BASE + page["image"], "width": 1200, "height": 630},
+        "dateModified": MODIFIED[page["path"]],
     }
     if page["path"]:
         block["breadcrumb"] = {"@id": url + "#breadcrumb"}
@@ -446,14 +482,15 @@ def replace(text, opening, closing, new, path, required=True):
     return text[:start] + new + text[end:]
 
 
-def build(page, text, path):
-    main = text[text.index("<main"):text.index("</main>")]
+def main_of(text):
+    return text[text.index("<main"):text.index("</main>")]
+
+
+def build(page, text, path, dates, changed):
     not_found = page is data.NOT_FOUND
 
     text = replace(text, r"<html\b", ">", f'<html lang="{data.LANGUAGE}">', path)
-
-    text = replace(text, r"<head>", "</head>", head_not_found() if not_found else head(page), path)
-    text = replace(text, r"<header\b", "</header>", header(page, main), path)
+    text = replace(text, r"<header\b", "</header>", header(page, main_of(text)), path)
     text = replace(text, r"<footer>", "</footer>", footer(page), path)
 
     if not not_found and page["path"]:
@@ -465,7 +502,263 @@ def build(page, text, path):
     elif page["path"] == "":
         text = replace(text, r'<ul class="cards">', "</ul>", cards(page, "card"), path)
         text = replace(text, r'<dl class="qa">', "</dl>", questions(), path)
-    return text
+
+    # Last, because the head carries the day the words in <main> last changed,
+    # and the parts above can change those words.
+    if not not_found:
+        MODIFIED[page["path"]] = dated(page, main_of(text), dates, changed)
+    return replace(text, r"<head>", "</head>", head_not_found() if not_found else head(page), path)
+
+
+# --- The files written whole -------------------------------------------------
+
+
+def sitemap():
+    lines = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    for page in data.PAGES:
+        lines += [
+            "  <url>",
+            f"    <loc>{data.BASE + page['path']}</loc>",
+            f"    <lastmod>{MODIFIED[page['path']]}</lastmod>",
+            "    <changefreq>monthly</changefreq>",
+            f"    <priority>{page['priority']}</priority>",
+            "  </url>",
+        ]
+    lines.append("</urlset>")
+    return "\n".join(lines) + "\n"
+
+
+def llms():
+    lines = ["# Overtonium", "", f"> {fill(data.LLMS_SUMMARY)}", ""]
+    for paragraph in data.LLMS_INTRO:
+        lines += [fill(paragraph), ""]
+    lines += ["## Documentation", ""]
+    lines += [f"- [{page['nav']}]({data.BASE + page['path']}): {fill(page['llms'])}" for page in data.PAGES]
+    lines += ["", "## Source", ""]
+    lines += [f"- [{name}]({url}): {fill(text)}" for name, url, text in data.LLMS_SOURCE]
+    lines += ["", "## Facts", ""]
+    lines += [f"- {name}: {fill(text)}" for name, text in data.LLMS_FACTS]
+    lines += ["", "## Optional", ""]
+    lines += [f"- [{name}]({url}): {fill(text)}" for name, url, text in data.LLMS_OPTIONAL]
+    return "\n".join(lines) + "\n"
+
+
+class Markdown(HTMLParser):
+    """The prose of a page as Markdown, for llms-full.txt.
+
+    Only what a reader would take in: headings, paragraphs, lists, tables,
+    questions and answers, captions and the words a diagram is labelled with.
+    The trail and the onward links are navigation, and an audio player or a
+    video poster has nothing to say as text beyond its name."""
+
+    SKIP = {"audio", "script", "style", "button", "video", "iframe"}
+    VOID = {"br", "img", "source", "hr", "input", "meta", "link", "wbr"}
+
+    def __init__(self, url):
+        super().__init__(convert_charrefs=True)
+        self.url = url
+        self.blocks = []
+        self.buffers = [[]]
+        self.prefix = ""
+        self.skipping = 0
+        self.depth = 0
+        self.links = []
+        self.pre = None
+        self.table = None
+        self.diagram = None
+        self.svg_depth = 0
+        self.video = None
+
+    def text(self, value):
+        self.buffers[-1].append(value)
+
+    # Inline markup collects its own words, so the markers can sit against
+    # them: "**Just Saw**" rather than "** Just Saw **", which Markdown does
+    # not read as bold at all. Space just inside the element moves outside it.
+    def open_inline(self):
+        self.buffers.append([])
+
+    def close_inline(self, left, right=None):
+        inner = "".join(self.buffers.pop())
+        words = " ".join(inner.split())
+        before = " " if inner[:1].isspace() else ""
+        after = " " if inner[-1:].isspace() else ""
+        self.text(before + (left + words + (left if right is None else right) if words else "") + after)
+
+    def flush(self):
+        words = " ".join("".join(self.buffers[-1]).split())
+        self.buffers[-1] = []
+        if words:
+            self.blocks.append(self.prefix + words)
+        self.prefix = ""
+
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        if self.skipping:
+            if tag not in self.VOID:
+                self.skipping += 1
+            return
+        if self.diagram is not None:
+            if tag in ("title", "desc"):
+                self.diagram.append([])
+            self.svg_depth += 1
+            return
+
+        classes = (a.get("class") or "").split()
+
+        # A video is a poster and a player until somebody presses it, which
+        # as text is a link to where it can be watched.
+        if tag == "figure" and "video" in classes:
+            self.flush()
+            self.video = a.get("data-title") or "Video"
+            return
+        if tag == "a" and "poster" in classes:
+            self.blocks.append(f"[Video: {self.video}]({urljoin(self.url, a['href'])})")
+            self.skipping = 1
+            return
+        if tag == "figcaption" and self.video:
+            self.skipping = 1
+            return
+
+        hidden = a.get("aria-hidden") == "true" or "crumbs" in classes or "onward" in classes
+        if tag in self.SKIP or hidden or (tag == "svg" and a.get("role") != "img"):
+            if tag not in self.VOID:
+                self.skipping = 1
+            return
+        if tag == "svg":
+            self.flush()
+            self.diagram = []
+            self.svg_depth = 0
+        elif tag in ("h1", "h2", "h3", "h4"):
+            self.flush()
+            self.prefix = "#" * int(tag[1]) + " "
+        elif tag in ("p", "figcaption", "dd", "blockquote"):
+            self.flush()
+        elif tag == "dt":
+            self.flush()
+            self.open_inline()
+        elif tag in ("ul", "ol"):
+            self.flush()
+            self.depth += 1
+        elif tag == "li":
+            self.flush()
+            self.prefix = "  " * (self.depth - 1) + "- "
+        elif tag == "pre":
+            self.flush()
+            self.pre = []
+        elif tag == "table":
+            self.flush()
+            self.table = []
+        elif tag == "tr" and self.table is not None:
+            self.table.append([])
+        elif tag in ("td", "th") and self.table is not None:
+            self.buffers.append([])
+        elif tag in ("code", "strong", "b", "em", "i") and self.pre is None:
+            self.open_inline()
+        elif tag == "a":
+            self.links.append(urljoin(self.url, a["href"]) if a.get("href") else None)
+            self.open_inline()
+        elif tag == "br":
+            self.text(" ")
+        elif tag == "img" and a.get("alt"):
+            self.text(f"[Image: {a['alt']}]")
+
+    def handle_startendtag(self, tag, attrs):
+        # A self-closed element opens and closes at once, so it moves no depth.
+        if self.diagram is not None or self.skipping:
+            return
+        if tag in self.VOID:
+            self.handle_starttag(tag, attrs)
+
+    def handle_endtag(self, tag):
+        if self.skipping:
+            self.skipping -= 1
+            return
+        if self.diagram is not None:
+            if self.svg_depth == 0:
+                said = [" ".join("".join(part).split()) for part in self.diagram]
+                self.blocks.append("[Diagram: " + " ".join(s.rstrip(".") + "." for s in said if s) + "]")
+                self.diagram = None
+            else:
+                self.svg_depth -= 1
+            return
+
+        if tag in ("h1", "h2", "h3", "h4", "p", "figcaption", "dd", "li", "blockquote"):
+            self.flush()
+        elif tag == "dt":
+            self.close_inline("**")
+            self.flush()
+        elif tag in ("ul", "ol"):
+            self.flush()
+            self.depth -= 1
+        elif tag == "figure" and self.video:
+            self.video = None
+        elif tag == "pre" and self.pre is not None:
+            self.blocks.append("```\n" + "".join(self.pre).strip("\n") + "\n```")
+            self.pre = None
+        elif tag in ("td", "th") and self.table is not None:
+            cell = " ".join("".join(self.buffers.pop()).split()).replace("|", "\\|")
+            self.table[-1].append(cell)
+        elif tag == "table" and self.table is not None:
+            rows = [row for row in self.table if row]
+            if rows:
+                width = max(len(row) for row in rows)
+                rows = [row + [""] * (width - len(row)) for row in rows]
+                lines = ["| " + " | ".join(rows[0]) + " |", "|" + "---|" * width]
+                lines += ["| " + " | ".join(row) + " |" for row in rows[1:]]
+                self.blocks.append("\n".join(lines))
+            self.table = None
+        elif tag == "code" and self.pre is None:
+            self.close_inline("`")
+        elif tag in ("strong", "b") and self.pre is None:
+            self.close_inline("**")
+        elif tag in ("em", "i") and self.pre is None:
+            self.close_inline("*")
+        elif tag == "a" and self.links:
+            target = self.links.pop()
+            self.close_inline("[", f"]({target})") if target else self.close_inline("")
+
+    def handle_data(self, value):
+        if self.skipping:
+            return
+        if self.diagram is not None:
+            if self.diagram:
+                self.diagram[-1].append(value)
+            return
+        if self.pre is not None:
+            self.pre.append(value)
+        else:
+            self.text(value)
+
+    def markdown(self):
+        """The blocks, a blank line apart, except that a list is kept tight."""
+        self.flush()
+        out = []
+        for block in self.blocks:
+            item = block.lstrip().startswith("- ")
+            if out and item and out[-1][1]:
+                out.append(("\n", item))
+            elif out:
+                out.append(("\n\n", item))
+            out.append((block, item))
+        return "".join(text for text, _ in out)
+
+
+def llms_full(pages):
+    lines = [
+        "# Overtonium, the whole site",
+        "",
+        f"> {fill(data.LLMS_SUMMARY)}",
+        "",
+        f"Every page of {data.BASE} as Markdown, in the order the site lists them, so the whole of it can be read in one request. "
+        f"The short version, with links into each page, is {data.BASE}llms.txt.",
+    ]
+    for page, text in pages:
+        reader = Markdown(data.BASE + page["path"])
+        reader.feed(main_of(text))
+        lines += ["", "---", "", f"Page: {fill(page['title'])}", f"URL: {data.BASE + page['path']}", f"Last changed: {MODIFIED[page['path']]}", ""]
+        lines.append(reader.markdown())
+    return "\n".join(lines) + "\n"
 
 
 def prettier(path, text):
@@ -480,16 +773,30 @@ def prettier(path, text):
 def main():
     check = "--check" in sys.argv[1:]
 
-    COUNTS["presets"] = spelt(preset_count())
+    names = preset_names()
+    COUNTS["presets"] = spelt(len(names))
+    COUNTS["preset_names"] = ", ".join(names)
     COUNTS["parameters"] = parameter_count()
+
+    dates = json.loads(DATES.read_text(encoding="utf-8")) if DATES.exists() else {}
+    changed = []
 
     pages = [(page, DOCS / page["path"] / "index.html") for page in data.PAGES]
     pages.append((data.NOT_FOUND, DOCS / data.NOT_FOUND["file"]))
 
-    stale = []
+    written = {}
     for page, path in pages:
-        before = path.read_text(encoding="utf-8")
-        after = prettier(path, build(page, before, path))
+        written[path] = prettier(path, build(page, path.read_text(encoding="utf-8"), path, dates, changed))
+
+    built = [(page, written[path]) for page, path in pages if page is not data.NOT_FOUND]
+    written[DOCS / "sitemap.xml"] = sitemap()
+    written[DOCS / "llms.txt"] = llms()
+    written[DOCS / "llms-full.txt"] = llms_full(built)
+    written[DATES] = prettier(DATES, json.dumps(dates, indent=4) + "\n")
+
+    stale = []
+    for path, after in written.items():
+        before = path.read_text(encoding="utf-8") if path.exists() else None
         if after != before:
             stale.append(path.relative_to(ROOT))
             if not check:
@@ -498,10 +805,14 @@ def main():
     if check and stale:
         for path in stale:
             print(f"::error file={path}::{path} is not what Tools/build_site.py writes. Run it and commit the result.")
+        if changed:
+            print(f"::error::the words changed on {', '.join(changed)}, so the day each was last modified has to move with them")
         sys.exit(1)
 
     verb = "would change" if check else "rewrote"
-    print(f"{verb} {len(stale)} of {len(pages)} pages" if stale else f"all {len(pages)} pages are current")
+    print(f"{verb} {len(stale)} of {len(written)} files" if stale else f"all {len(written)} files are current")
+    if changed and not check:
+        print(f"dated today: {', '.join(changed)}")
 
 
 if __name__ == "__main__":

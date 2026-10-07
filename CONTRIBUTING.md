@@ -181,13 +181,12 @@ It also has to have a section on `docs/releases/index.html`, headed with the ver
 
 **What the release writes back.** Publishing and updating the site are the same act, so the workflow commits to `main` after the release lands:
 
-| What                                                      | Why it cannot wait                                                 |
-| --------------------------------------------------------- | ------------------------------------------------------------------ |
-| `docs/latest.json`                                        | the plugin's update check reads it and would report the old one    |
-| the five download links on the install page               | the buttons would hand out the previous build                      |
-| the version and date printed under them                   | the page would name a release nobody can download                  |
-| `RELEASED` in `Tools/site_data.py`, then the site rebuilt | a crawler would carry the old release date into search results     |
-| `lastmod` for the three pages a release changes           | a sitemap that misdates a page is worse than one that says nothing |
+| What                                                      | Why it cannot wait                                              |
+| --------------------------------------------------------- | --------------------------------------------------------------- |
+| `docs/latest.json`                                        | the plugin's update check reads it and would report the old one |
+| the five download links on the install page               | the buttons would hand out the previous build                   |
+| the version and date printed under them                   | the page would name a release nobody can download               |
+| `RELEASED` in `Tools/site_data.py`, then the site rebuilt | a crawler would carry the old release date into search results  |
 
 Every one of those is counted before and after it is rewritten, and the job fails if a substitution matched a different number of times than expected. A `sed` that silently matches nothing is the one way this goes wrong with nothing to show for it. The download links are visible the moment somebody clicks them, but a `softwareVersion` a release behind is visible to nothing but a crawler, which is why it is checked rather than trusted. The version itself is read from `CMakeLists.txt` by the site generator, so bumping it there and rebuilding is all a version needs.
 
@@ -224,10 +223,15 @@ The Windows installer is not signed, so SmartScreen tells the user the publisher
 | the cards on the front page and on `404.html`                 | `card` and `card_404` per page                              |
 | the questions on the front page and their `FAQPage` copy      | `QUESTIONS`, so the visible and structured answers match    |
 | the version, the release day, the preset and parameter counts | `CMakeLists.txt`, `RELEASED`, `kNames` and the runtime test |
+| `sitemap.xml`, with each page's last-modified day             | `priority` per page, and `Tools/site_dates.json`            |
+| `llms.txt`                                                    | `llms` per page and the `LLMS_` lists                       |
+| `llms-full.txt`, every page's content as Markdown             | each page's `<main>`                                        |
 
 Everything between those parts is ordinary HTML and is edited where it is. An edit inside a generated part is overwritten by the next build, so change the data file instead. The contents rail lists every `<section id>` that opens with an `<h2>`, with every `<h3 id>` inside it as a sub-entry, so a new section reaches the rail by being given an id. The generator runs the pinned Prettier over each page, which means `npm ci` first, and the format job runs it with `--check` and fails if the result differs from what is committed.
 
-`llms.txt` is a summary of the project for language models, in the shape [llmstxt.org](https://llmstxt.org/) describes: what the instrument is, then links to each page with a line saying what is on it. It duplicates facts that live elsewhere, so it goes stale the same way the shared header does. Worth a glance when a release changes what the plugin can do, and `robots.txt` names it since no crawler is obliged to look for it.
+**A page's last-modified day moves when its words do.** `Tools/site_dates.json` holds a hash of the text in each page's `<main>` and the day it last changed. When the text changes the build dates the page today, in UTC, and the sitemap and the page's `dateModified` both carry it. A change to the head, the rail, the footer or the markup around the words leaves the day alone, since it is not a change to what the page says. The hash is checked too, so a page edited without rebuilding fails CI rather than keeping an old date. The day comes from this file rather than from git because a CI checkout has no history to read it from.
+
+`llms.txt` is a summary of the project for language models, in the shape [llmstxt.org](https://llmstxt.org/) describes: what the instrument is, then links to each page with a line saying what is on it, then the facts worth having in one place. `llms-full.txt` is the whole site as Markdown in one file, for a model that would rather read everything than follow links. `robots.txt` names both, since no crawler is obliged to look for them. The facts in `llms.txt` are prose in the data file and are worth a glance when a release changes what the plugin can do. The counts and the preset list in them are filled in from the source.
 
 The screenshots are rendered rather than captured. The plugin has no dependency on a display, so `Tools/render_docs_images.cpp` builds the editor, plays a chord into it, hands the strips the levels the engine measured, and writes the window out with `createComponentSnapshot`. That means the pictures can be regenerated after a layout change instead of going stale, and it works on a machine with no window server.
 
