@@ -50,6 +50,45 @@
     border-radius: 2px;
 }
 
+/* The first thing a keyboard reaches on every page, and the only way past the
+   six section links without tabbing through all of them. The pages that most
+   need it are the long ones, where the nav is a sixth of the tab stops before
+   a word of the page.
+
+   Off-canvas rather than hidden, because display:none and visibility:hidden
+   both take an element out of the tab order, which is the one thing this must
+   stay in. It is drawn only when focus is actually on it, so a pointer never
+   meets it.
+
+   The target is `main` itself, which carries tabindex="-1" so that focus
+   really lands there. Without that, several browsers scroll the page and
+   leave focus behind at the top, so the next Tab goes back into the nav and
+   the link has done nothing. */
+.skip {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    padding: 12px 18px;
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: 15px;
+    text-decoration: none;
+}
+.skip:focus {
+    left: 24px;
+    top: 12px;
+    z-index: 10;
+}
+
+/* main takes focus from the skip link and is not a control, so the ring it
+   would otherwise draw around the whole page says nothing useful. The link
+   has already shown where focus went. */
+main:focus {
+    outline: none;
+}
+
 body {
     margin: 0;
     padding: 0 24px 96px;

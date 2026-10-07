@@ -18,6 +18,8 @@ These are things that are checked rather than intended. Where a number appears i
 
 **Text on the lit caps holds its contrast in both states.** The legend is a fixed near-black printed on the plastic rather than part of what lights, so a word does not change colour under its own lamp. It measures 4.1 to 1 against the unlit cap and between 4.9 and 11.4 to 1 against the lit ones.
 
+**The site's navigation can be stepped over.** Every page opens with a skip link, which is the first thing a keyboard reaches and the only way past the six section links without tabbing through all of them. It moves focus to the content rather than only scrolling to it, which is the half of that a link without `tabindex` gets wrong. Every section and subsection also carries a name, so a page can be linked at the part that answers the question rather than at the top, and the longest page lists its own contents.
+
 **Pictures on the site declare their size.** Every image carries a width and a height so the page does not jump as it loads, and a check compares the declared numbers against the files. All twelve have alternative text.
 
 ## Known limitations
@@ -44,7 +46,7 @@ For the plugin there is no equivalent standard that fits, since WCAG is written 
 
 **For the plugin.** A new control needs a name before it needs anything else. `Component::setTitle` is what JUCE reads, and the suite will fail if a slider has no title or shares one with another. If a control draws its value rather than writing it, as the segment displays do, it needs a spoken name and value of its own.
 
-**For the site.** Keep the heading order unbroken, give links text that says where they go, put alternative text on images, and declare each image's width and height. Do not let colour be the only thing carrying a meaning.
+**For the site.** Keep the heading order unbroken, give links text that says where they go, put alternative text on images, and declare each image's width and height. Do not let colour be the only thing carrying a meaning. A new section wants an id, since something will want to link to it, and a new page wants the skip link the others have.
 
 **What runs on every commit.** The accessible-names check over the whole mixer, and the image-dimensions check over the site. Neither covers much. Passing them is the floor rather than the bar.
 
