@@ -642,7 +642,10 @@
                 <section id="lineage">
                     <h2>Where it came from</h2>
 
-                    <p>Overtonium is the third instrument in a line, and the first that generates its sound rather than playing it back.</p>
+                    <p>
+                        Overtonium is the fourth instrument in a line, and the first that computes its sound rather than playing it back. The two
+                        ideas it is built on both arrived at the same place, sitting at a drawbar organ, and neither of them is really about organs.
+                    </p>
 
                     <p>
                         The first was the
@@ -654,16 +657,31 @@
                     </p>
 
                     <p>
-                        The second was <a href="https://github.com/benjamindehli/EDB-Orgel">EDB-Orgel</a>, in 2024, which kept the drawbar workflow
-                        and put four digital synthesis types under it instead of an organ.
+                        <a href="https://github.com/benjamindehli/Strykebrett">Strykebrett</a> came in October of the same year, a sampled Logan
+                        String Melody II. Six faders rather than nine drawbars, each setting the level of one octave or one of the voices across a
+                        bass and a treble section, and four of them carrying their own envelope and their own LFO. It is not an organ, which is the
+                        useful thing about it: the workflow survived being moved onto something else.
                     </p>
 
                     <p>
-                        Both gave every drawbar its own envelope and LFO, and that is the idea this one is built out of. A drawbar is a partial. Nine
-                        of them shaped separately already sounds unlike an organ, so thirty-two of them, each with a full channel of controls, is the
-                        same idea taken as far as it goes. Computing them rather than playing them back is what makes TUNE possible at all: a sampled
-                        partial is stuck at the pitch it was recorded at, and a computed one can be swept between equal temperament and its exact
-                        whole-number ratio.
+                        <a href="https://github.com/benjamindehli/EDB-Orgel">EDB-Orgel</a> followed in 2024, keeping the drawbar workflow and putting
+                        four digital synthesis types under it instead of an organ.
+                    </p>
+
+                    <p>
+                        All three gave a drawbar its own envelope and LFO, which is the first of the two ideas. A drawbar is a partial, and an organ
+                        moves them by hand while the note sounds. Nine of them shaped separately already sounds unlike an organ, so thirty-two, each
+                        with a full channel of controls, is that idea taken as far as it goes.
+                    </p>
+
+                    <p>
+                        The second idea is about where the drawbars are tuned. A drawbar is a harmonic, but an organ has only the twelve notes of the
+                        keyboard to build one out of, so each drawbar is put on the nearest one. The second, fifth and eighth are all fifths an octave
+                        apart, which means holding a C puts three G's into the sound. A harmonic series does not work like that. The real intervals
+                        are whole-number ratios, 2:1, 3:2, 4:3, and apart from the octaves none of them lands on a key.
+                        <a href="tuning/">TUNE</a> is that difference turned into a control, and computing the partials is what makes it possible: a
+                        sampled one is stuck at the pitch it was recorded at, while a computed one can sit where the organ would put it, at its exact
+                        ratio, or anywhere between.
                     </p>
 
                     <p>
@@ -674,8 +692,8 @@
                     </p>
 
                     <p>
-                        Both earlier instruments are sample libraries, sold at <a href="https://store.dehlimusikk.no/">Dehli Musikk</a>. This one is
-                        free software.
+                        All three earlier instruments are sample libraries with a plugin wrapper, sold at
+                        <a href="https://store.dehlimusikk.no/">Dehli Musikk</a>. This one is free software, and none of their code is in it.
                     </p>
                 </section>
             </main>

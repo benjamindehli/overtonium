@@ -1055,6 +1055,13 @@ footer a:hover {
     padding: 0;
     list-style: none;
 }
+/* The line under a card list, on the front page and the page-not-found page,
+   which would otherwise sit flush against the last row: the list has a top
+   margin and no bottom one, and a paragraph has a bottom margin and no top. */
+.cards + p {
+    margin-top: 24px;
+}
+
 .cards li {
     border: 1px solid var(--outline);
     border-radius: 4px;

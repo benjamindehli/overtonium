@@ -210,7 +210,7 @@ PAGES = [
         "onward": [],
         "card": None,
         "card_404": "What Overtonium is, what it sounds like, and where it came from.",
-        "llms": 'what the instrument is, what TUNE does, a video of [eleven of the {presets} factory presets played on a keyboard](https://www.youtube.com/watch?v=L1oYdPxGlGA), common questions, and the two sample instruments it descends from.',
+        "llms": 'what the instrument is, what TUNE does, a video of [eleven of the {presets} factory presets played on a keyboard](https://www.youtube.com/watch?v=L1oYdPxGlGA), common questions, and the three sample instruments it descends from.',
         "priority": "1.0",
     },
     {

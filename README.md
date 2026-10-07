@@ -35,7 +35,7 @@ The second idea is about where the drawbars are tuned. A drawbar is a harmonic, 
 
 The ancestry is visible in the details rather than only in the shape. DRIFT is the cassette's random warble, one per partial. WOBBLE is the same thing under the whole instrument. The tape echo's two paths, each with its own motor speed and its own random stream, are the double tracking, and `TapeEcho::kMinAge` exists for the same reason the two tape passes never agreed: a transport that held speed exactly would put the repeat back in mono, and there is no such transport.
 
-Both earlier instruments are sample libraries with a plugin wrapper, sold at [Dehli Musikk](https://store.dehlimusikk.no/). This one is free software, and none of their code is in it.
+All three earlier instruments are sample libraries with a plugin wrapper, sold at [Dehli Musikk](https://store.dehlimusikk.no/). This one is free software, and none of their code is in it.
 
 ## What is in it
 

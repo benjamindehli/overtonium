@@ -10,7 +10,7 @@ Written in C++ with JUCE 9 by Benjamin Dehli for Dehli Musikk. Hosts list it und
 
 ## Documentation
 
-- [Overview](https://benjamindehli.github.io/overtonium/): what the instrument is, what TUNE does, a video of [eleven of the thirty-three factory presets played on a keyboard](https://www.youtube.com/watch?v=L1oYdPxGlGA), common questions, and the two sample instruments it descends from.
+- [Overview](https://benjamindehli.github.io/overtonium/): what the instrument is, what TUNE does, a video of [eleven of the thirty-three factory presets played on a keyboard](https://www.youtube.com/watch?v=L1oYdPxGlGA), common questions, and the three sample instruments it descends from.
 - [Tuning](https://benjamindehli.github.io/overtonium/tuning/): TUNE from equal to just, inharmonic stretch, six historical temperaments on any root, at a reference pitch from a list running 415 to 466 Hz, keyboard tracking, and per-partial drift. Carries audio of each of those and a diagram of where every partial falls against the semitone it snaps to.
 - [Controls](https://benjamindehli.github.io/overtonium/controls/): every knob on a channel strip, the two-part envelope, per-partial velocity and pressure, LINK for ganging the 32 channels, the lamps and meters, the gestures the panel answers to, and the noise channel.
 - [Effects](https://benjamindehli.github.io/overtonium/effects/): the bar across the top: the six oscillator characters, wobble, bus drive, the echo and the reverb with their three machines each, the converter, the five CLIP shapes on the output and the lookahead limiter, the output meter, and a diagram of the order the signal passes through.

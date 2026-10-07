@@ -106,17 +106,21 @@ Eight voices of 32 partials each, with every modulator running, costs about 7% o
 
 ## Where it came from
 
-Overtonium is the third instrument in a line, and the first that generates its sound rather than playing it back.
+Overtonium is the fourth instrument in a line, and the first that computes its sound rather than playing it back. The two ideas it is built on both arrived at the same place, sitting at a drawbar organ, and neither of them is really about organs.
 
 The first was the [Voltage Controlled Cassette Organ](https://github.com/benjamindehli/VoltageControlledCassetteOrgan), in 2023. A Korg CX-3 sampled through cassette tape, every note of every drawbar recorded as its own file. The tape was the point of it: wow, flutter and random warbles gave the organ a movement like a chorus or a rotary speaker, but without the fixed rate a modulation effect has. It was recorded to tape twice, which doubled it, and because no tape deck plays back the same way twice the two passes never quite agreed with each other.
 
-The second was [EDB-Orgel](https://github.com/benjamindehli/EDB-Orgel), in 2024, which kept the drawbar workflow and put four digital synthesis types under it instead of an organ.
+[Strykebrett](https://github.com/benjamindehli/Strykebrett) came in October of the same year, a sampled Logan String Melody II. Six faders rather than nine drawbars, each setting the level of one octave or one of the voices across a bass and a treble section, and four of them carrying their own envelope and their own LFO. It is not an organ, which is the useful thing about it: the workflow survived being moved onto something else.
 
-Both gave every drawbar its own envelope and LFO, and that is the idea this one is built out of. A drawbar is a partial. Nine of them shaped separately already sounds unlike an organ, so thirty-two of them, each with a full channel of controls, is the same idea taken as far as it goes. Computing them rather than playing them back is what makes TUNE possible at all: a sampled partial is stuck at the pitch it was recorded at, and a computed one can be swept between equal temperament and its exact whole-number ratio.
+[EDB-Orgel](https://github.com/benjamindehli/EDB-Orgel) followed in 2024, keeping the drawbar workflow and putting four digital synthesis types under it instead of an organ.
+
+All three gave a drawbar its own envelope and LFO, which is the first of the two ideas. A drawbar is a partial, and an organ moves them by hand while the note sounds. Nine of them shaped separately already sounds unlike an organ, so thirty-two, each with a full channel of controls, is that idea taken as far as it goes.
+
+The second idea is about where the drawbars are tuned. A drawbar is a harmonic, but an organ has only the twelve notes of the keyboard to build one out of, so each drawbar is put on the nearest one. The second, fifth and eighth are all fifths an octave apart, which means holding a C puts three G's into the sound. A harmonic series does not work like that. The real intervals are whole-number ratios, 2:1, 3:2, 4:3, and apart from the octaves none of them lands on a key. [TUNE](https://benjamindehli.github.io/overtonium/tuning/) is that difference turned into a control, and computing the partials is what makes it possible: a sampled one is stuck at the pitch it was recorded at, while a computed one can sit where the organ would put it, at its exact ratio, or anywhere between.
 
 The ancestry shows up in the details. DRIFT is the cassette's random warble, per partial. WOBBLE is the same thing under the whole instrument. The tape echo's two paths, each with its own motor speed and its own random stream, are the double tracking, and its AGE control never quite reaches zero for the same reason the two tape passes never agreed: a transport that held speed exactly would put the repeat back in mono, and there is no such transport.
 
-Both earlier instruments are sample libraries, sold at [Dehli Musikk](https://store.dehlimusikk.no/). This one is free software.
+All three earlier instruments are sample libraries with a plugin wrapper, sold at [Dehli Musikk](https://store.dehlimusikk.no/). This one is free software, and none of their code is in it.
 
 ---
 
