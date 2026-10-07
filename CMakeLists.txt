@@ -337,7 +337,10 @@ if(OVERTONIUM_BUILD_TESTS)
         JUCE_USE_WEBP=0
         JUCE_STANDALONE_APPLICATION=1
         OVERTONIUM_PRESET_AUTHORING=0
-        OVERTONIUM_VERSION="${PROJECT_VERSION}")
+        OVERTONIUM_VERSION="${PROJECT_VERSION}"
+        # Where docs/parameters.json is, which the test holds to the layout
+        # and --write-parameters regenerates.
+        OVERTONIUM_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 
     target_link_libraries(overtonium_runtime_test
         PRIVATE

@@ -26,9 +26,11 @@ checkout does not have, and would date a page by its last commit whatever that
 commit touched.
 
 What it reads, besides Tools/site_data.py: the version from CMakeLists.txt, the
-preset count from kNames in Source/Presets.cpp, the parameter count from the
-expected total in Tests/plugin_runtime_test.cpp, and each page's own headings
-for its rail. Every page is passed through the repository's pinned prettier
+presets from kNames in Source/Presets.cpp, every parameter from
+docs/parameters.json, and each page's own headings for its rail. The parameter
+file is written by the plugin itself, overtonium_runtime_test
+--write-parameters, and that test fails whenever the file and the layout
+disagree, so the list on the controls page is the real one. Every page is passed through the repository's pinned prettier
 afterwards, so what is written is exactly what the format job expects.
 
 Standard library only, and Python 3.9, which is what a Mac has without asking.
@@ -78,21 +80,8 @@ def preset_names():
     return re.findall(r'^    "([^"]+)",$', table.group(1), re.M)
 
 
-def parameter_count():
-    """The total the runtime test holds the real layout to, read as text."""
-    sums = re.search(r"const int expected =\s*(.*?);", (ROOT / "Tests/plugin_runtime_test.cpp").read_text(), re.S)
-    if sums is None:
-        sys.exit("cannot find the expected parameter count in Tests/plugin_runtime_test.cpp")
-
-    constants = {}
-    for header in (ROOT / "Source").rglob("*.h"):
-        for name, value in re.findall(r"inline constexpr int (\w+) = (\d+);", header.read_text()):
-            constants[name] = value
-
-    arithmetic = re.sub(r"(?:\w+::)*(k\w+)", lambda m: constants[m.group(1)], sums.group(1))
-    if not re.fullmatch(r"[\d\s+*()]+", arithmetic):
-        sys.exit(f'cannot read the parameter count from "{sums.group(1)}"')
-    return eval(arithmetic)
+def parameters():
+    return json.loads((DOCS / "parameters.json").read_text(encoding="utf-8"))
 
 
 COUNTS = {}
@@ -438,6 +427,112 @@ def cards(page, field):
     return "\n".join(lines)
 
 
+# --- The parameter list ------------------------------------------------------
+
+
+def folded(params):
+    """The parameters as the reader thinks of them: one row for a control that
+    every partial has, one for a control that every macro has, and one each
+    for the rest. Returned in four groups, in the order the host lists them."""
+    groups = {"global": {}, "partial": {}, "noise": {}, "macro": {}}
+    for param in params:
+        for group, pattern in (("partial", r"h(\d+)_(\w+)"), ("macro", r"macro(\d+)_(\w+)"), ("noise", r"noise_()(\w+)")):
+            found = re.fullmatch(pattern, param["id"])
+            if found:
+                groups[group].setdefault(found.group(2), []).append(param)
+                break
+        else:
+            groups["global"][param["id"]] = [param]
+    return groups
+
+
+def span(first, last):
+    return first if first == last else f"{first} to {last}"
+
+
+def tidy(text):
+    """A number the way a person would write it. Four parameters have no text
+    of their own, and JUCE prints those to seven places, 4.0000005 for 4."""
+    if re.fullmatch(r"-?\d+\.\d{5,}", text):
+        return f"{float(text):.3f}".rstrip("0").rstrip(".")
+    return text
+
+
+def described(members, each):
+    """Range and default for a row. The range is the same for every member,
+    which the build insists on, and the default can differ: the partial
+    faders start on a falling series and each macro wears its own colour."""
+    one = members[0]
+    unit = f" {one['unit']}" if one.get("unit") else ""
+
+    if one["type"] == "choice":
+        travel = ", ".join(one["choices"])
+    elif one["type"] == "switch":
+        travel = "Off or on"
+    else:
+        travel = f"{tidy(one['min'])} to {tidy(one['max'])}{unit}"
+
+    shape = {k: v for k, v in one.items() if k not in ("id", "name", "default")}
+    for other in members[1:]:
+        if {k: v for k, v in other.items() if k not in ("id", "name", "default")} != shape:
+            sys.exit(f"{other['id']} has a different range from {one['id']}, so one row cannot describe both")
+
+    first, last = tidy(members[0]["default"]), tidy(members[-1]["default"])
+    if all(m["default"] == one["default"] for m in members):
+        return travel, first + unit
+    def owner(member):
+        return re.match(r"H\d+|Macro \d+", member["name"]).group(0)
+
+    return travel, f"Differs by {each}, {first}{unit} on {owner(members[0])} to {last}{unit} on {owner(members[-1])}"
+
+
+def parameter_list(page):
+    params = parameters()
+    groups = folded(params)
+    own = link(page, "parameters.json")
+
+    copies = {group: len(next(iter(rows.values()))) for group, rows in groups.items() if rows}
+    heads = {
+        "global": ("Global", f"{spelt(len(groups['global']))} of them"),
+        "partial": ("On every partial", f"{spelt(len(groups['partial']))} controls, each one on all {copies['partial']} partials"),
+        "noise": ("On the noise channel", f"{spelt(len(groups['noise']))} of them"),
+        "macro": ("On every macro", f"{spelt(len(groups['macro']))} controls, each one on all {spelt(copies['macro'])} macros"),
+    }
+
+    lines = [
+        '<section class="parameter-list">',
+        '<h3 id="every-parameter">Every parameter</h3>',
+        "<p>",
+        f"All {len(params)} as the host lists them, with a control that every partial or every macro carries given one row for all of "
+        "them. The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is "
+        f'<a href="{own}">parameters.json</a>, written by the plugin rather than by hand.',
+        "</p>",
+    ]
+
+    for group, rows in groups.items():
+        title, count = heads[group]
+        lines += [f"<p><strong>{title}</strong>, {count}.</p>"]
+        lines += ['<div class="scroll">', "<table>", "<thead>", "<tr>"]
+        lines += [f"<th>{h}</th>" for h in ("What the host calls it", "Id", "Range", "Default")]
+        lines += ["</tr>", "</thead>", "<tbody>"]
+        for members in rows.values():
+            travel, default = described(members, {"partial": "channel", "macro": "macro"}.get(group, ""))
+            name = span(members[0]["name"], members[-1]["name"])
+            ident = span(members[0]["id"], members[-1]["id"])
+            lines += [
+                "<tr>",
+                f"<td><code>{html.escape(name)}</code></td>",
+                f"<td><code>{html.escape(ident)}</code></td>",
+                f"<td>{html.escape(travel)}</td>",
+                f"<td>{html.escape(default)}</td>",
+                "</tr>",
+            ]
+        lines += ["</tbody>", "</table>", "</div>"]
+
+    lines.append("</section>")
+    return "\n".join(lines)
+
+
 def questions():
     lines = ['<dl class="qa">']
     for q, a in data.QUESTIONS:
@@ -502,6 +597,7 @@ def build(page, text, path, dates, changed):
     elif page["path"] == "":
         text = replace(text, r'<ul class="cards">', "</ul>", cards(page, "card"), path)
         text = replace(text, r'<dl class="qa">', "</dl>", questions(), path)
+    text = replace(text, r'<section class="parameter-list">', "</section>", "" if not_found else parameter_list(page), path, required=False)
 
     # Last, because the head carries the day the words in <main> last changed,
     # and the parts above can change those words.
@@ -776,7 +872,7 @@ def main():
     names = preset_names()
     COUNTS["presets"] = spelt(len(names))
     COUNTS["preset_names"] = ", ".join(names)
-    COUNTS["parameters"] = parameter_count()
+    COUNTS["parameters"] = len(parameters())
 
     dates = json.loads(DATES.read_text(encoding="utf-8")) if DATES.exists() else {}
     changed = []

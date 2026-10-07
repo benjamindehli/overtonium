@@ -322,6 +322,7 @@ LLMS_SOURCE = [
 
 LLMS_OPTIONAL = [
     ("The whole site", BASE + "llms-full.txt", "every page above as Markdown in one file, for reading all of it in one request."),
+    ("Every parameter", BASE + "parameters.json", "all {parameters} host parameters as JSON, one per line: the id automation is stored against, the name a host shows, the range and the default. Written by the plugin rather than by hand."),
     ('Update feed', 'https://benjamindehli.github.io/overtonium/latest.json', "the version the plugin's opt-in check reads."),
     ('Security policy', 'https://github.com/benjamindehli/overtonium/blob/main/SECURITY.md', 'what the update check sends, and how to report a vulnerability.'),
     ('KVR Audio listing', 'https://www.kvraudio.com/product/overtonium-by-dehli-musikk', 'the same instrument in the plugin database people search, where it can be rated and compared against the rest of the field.'),

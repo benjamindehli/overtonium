@@ -127,7 +127,12 @@
                                     <li><a href="#mpe">MPE</a></li>
                                     <li><a href="#legato">Legato</a></li>
                                     <li><a href="#settings">The Settings menu</a></li>
-                                    <li><a href="#automation">Automating it from the host</a></li>
+                                    <li>
+                                        <a href="#automation">Automating it from the host</a>
+                                        <ul>
+                                            <li><a href="#every-parameter">Every parameter</a></li>
+                                        </ul>
+                                    </li>
                                     <li><a href="#macros">Macros</a></li>
                                     <li><a href="#midi-learn">Playing it from a controller</a></li>
                                     <li>
@@ -996,6 +1001,570 @@
                         every channel it reaches, writes each one, and closes them together, so what a host records is what actually moved: thirty-two
                         lanes if the drag moved thirty-two channels.
                     </p>
+
+                    <section class="parameter-list">
+                        <h3 id="every-parameter">Every parameter</h3>
+                        <p>
+                            All 836 as the host lists them, with a control that every partial or every macro carries given one row for all of them.
+                            The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is
+                            <a href="../parameters.json">parameters.json</a>, written by the plugin rather than by hand.
+                        </p>
+                        <p><strong>Global</strong>, thirty-four of them.</p>
+                        <div class="scroll">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>What the host calls it</th>
+                                        <th>Id</th>
+                                        <th>Range</th>
+                                        <th>Default</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><code>Master</code></td>
+                                        <td><code>masterGain</code></td>
+                                        <td>-60.0 to 12.0 dB</td>
+                                        <td>-12.0 dB</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Polyphony</code></td>
+                                        <td><code>polyphony</code></td>
+                                        <td>Legato, 1 voice, 2 voices, 4 voices, 6 voices, 8 voices, 12 voices, 16 voices</td>
+                                        <td>8 voices</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>One Voice Per Key</code></td>
+                                        <td><code>oneVoicePerKey</code></td>
+                                        <td>Off or on</td>
+                                        <td>On</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Pitch Bend Range</code></td>
+                                        <td><code>bendRange</code></td>
+                                        <td>0 to 24</td>
+                                        <td>2</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Phase Reset</code></td>
+                                        <td><code>phaseReset</code></td>
+                                        <td>Off or on</td>
+                                        <td>On</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Safety Clip</code></td>
+                                        <td><code>safetyClip</code></td>
+                                        <td>Off or on</td>
+                                        <td>On</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Lookahead</code></td>
+                                        <td><code>lookahead</code></td>
+                                        <td>Off or on</td>
+                                        <td>On</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>MPE</code></td>
+                                        <td><code>mpe</code></td>
+                                        <td>Off or on</td>
+                                        <td>Off</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Stretch</code></td>
+                                        <td><code>stretch</code></td>
+                                        <td>-1200 ct to +1200 ct</td>
+                                        <td>Harmonic</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Tracking</code></td>
+                                        <td><code>track</code></td>
+                                        <td>Off to 12.0 dB/oct</td>
+                                        <td>Off</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Character</code></td>
+                                        <td><code>character</code></td>
+                                        <td>Pure, Bulb, Rail, Diode, Valve, Op-amp</td>
+                                        <td>Pure</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Wobble</code></td>
+                                        <td><code>wobble</code></td>
+                                        <td>0 % to 100 %</td>
+                                        <td>0 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Temperament</code></td>
+                                        <td><code>temperament</code></td>
+                                        <td>Equal, Just (major), Pythagorean, Quarter-comma meantone, Werckmeister III, Young</td>
+                                        <td>Equal</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Tuning Root</code></td>
+                                        <td><code>tuningRoot</code></td>
+                                        <td>C, C#, D, D#, E, F, F#, G, G#, A, A#, B</td>
+                                        <td>C</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Reference Pitch</code></td>
+                                        <td><code>referenceHz</code></td>
+                                        <td>
+                                            A = 415 Hz, A = 430 Hz, A = 432 Hz, A = 435 Hz, A = 438 Hz, A = 440 Hz, A = 442 Hz, A = 443 Hz, A = 444
+                                            Hz, A = 446 Hz, A = 466 Hz
+                                        </td>
+                                        <td>A = 440 Hz</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Aftertouch From</code></td>
+                                        <td><code>atSource</code></td>
+                                        <td>Channel pressure, Mod wheel, Either</td>
+                                        <td>Either</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Slide To</code></td>
+                                        <td><code>slideDest</code></td>
+                                        <td>Off, Brightness, Tuning</td>
+                                        <td>Brightness</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Sample Rate</code></td>
+                                        <td><code>lofiRate</code></td>
+                                        <td>Host, 32 kHz, 22.050 kHz, 16 kHz, 11.025 kHz, 8 kHz, 6 kHz, 4 kHz</td>
+                                        <td>Host</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Bit Depth</code></td>
+                                        <td><code>lofiBits</code></td>
+                                        <td>Host, 16 bit, 12 bit, 10 bit, 8 bit, 6 bit, 4 bit, 3 bit, 2 bit</td>
+                                        <td>Host</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Echo</code></td>
+                                        <td><code>echoOn</code></td>
+                                        <td>Off or on</td>
+                                        <td>Off</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Echo Mix</code></td>
+                                        <td><code>echoMix</code></td>
+                                        <td>0 % to 100 %</td>
+                                        <td>25 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Echo Time</code></td>
+                                        <td><code>echoTime</code></td>
+                                        <td>20.0 ms to 2.00 s</td>
+                                        <td>350 ms</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Echo Feedback</code></td>
+                                        <td><code>echoFeedback</code></td>
+                                        <td>0 % to 95 %</td>
+                                        <td>35 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Echo Age</code></td>
+                                        <td><code>echoAge</code></td>
+                                        <td>0 % to 100 %</td>
+                                        <td>29 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Reverb</code></td>
+                                        <td><code>reverbOn</code></td>
+                                        <td>Off or on</td>
+                                        <td>Off</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Reverb Mix</code></td>
+                                        <td><code>reverbMix</code></td>
+                                        <td>0 % to 100 %</td>
+                                        <td>25 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Reverb Decay</code></td>
+                                        <td><code>reverbDecay</code></td>
+                                        <td>200 ms to 20.00 s</td>
+                                        <td>2.00 s</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Reverb Damping</code></td>
+                                        <td><code>reverbDamp</code></td>
+                                        <td>0 % to 100 %</td>
+                                        <td>50 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Reverb Pre-delay</code></td>
+                                        <td><code>reverbPreDelay</code></td>
+                                        <td>0.0 ms to 250 ms</td>
+                                        <td>0.0 ms</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Pitch Mod In Phase</code></td>
+                                        <td><code>pmInPhase</code></td>
+                                        <td>Off or on</td>
+                                        <td>Off</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Amp Mod In Phase</code></td>
+                                        <td><code>amInPhase</code></td>
+                                        <td>Off or on</td>
+                                        <td>Off</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Echo Type</code></td>
+                                        <td><code>echoType</code></td>
+                                        <td>Tape, Bucket brigade, Digital</td>
+                                        <td>Tape</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Clip Type</code></td>
+                                        <td><code>clipType</code></td>
+                                        <td>Soft, Hard, Asymmetric, Limiter, Fold</td>
+                                        <td>Soft</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Reverb Type</code></td>
+                                        <td><code>reverbType</code></td>
+                                        <td>Room, Modulated Plate, Spring</td>
+                                        <td>Room</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p><strong>On every partial</strong>, twenty-three controls, each one on all 32 partials.</p>
+                        <div class="scroll">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>What the host calls it</th>
+                                        <th>Id</th>
+                                        <th>Range</th>
+                                        <th>Default</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><code>H1 Tune to H32 Tune</code></td>
+                                        <td><code>h01_tune to h32_tune</code></td>
+                                        <td>Equal temp. to Just</td>
+                                        <td>Just</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Pitch Mod Rate to H32 Pitch Mod Rate</code></td>
+                                        <td><code>h01_pmRate to h32_pmRate</code></td>
+                                        <td>0.01 to 30 Hz</td>
+                                        <td>4 Hz</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Pitch Mod Depth to H32 Pitch Mod Depth</code></td>
+                                        <td><code>h01_pmDepth to h32_pmDepth</code></td>
+                                        <td>0 to 1200 ct</td>
+                                        <td>0 ct</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Pitch Mod Shape to H32 Pitch Mod Shape</code></td>
+                                        <td><code>h01_pmShape to h32_pmShape</code></td>
+                                        <td>Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Square (up), Sample &amp; Hold, Random</td>
+                                        <td>Sine</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Start Phase to H32 Start Phase</code></td>
+                                        <td><code>h01_phase to h32_phase</code></td>
+                                        <td>0° to 360°</td>
+                                        <td>0°</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Drift to H32 Drift</code></td>
+                                        <td><code>h01_drift to h32_drift</code></td>
+                                        <td>0 to 25 ct</td>
+                                        <td>0 ct</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Strike Velocity to H32 Strike Velocity</code></td>
+                                        <td><code>h01_strike to h32_strike</code></td>
+                                        <td>-100 % to +100 %</td>
+                                        <td>0 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Delay to H32 Delay</code></td>
+                                        <td><code>h01_delay to h32_delay</code></td>
+                                        <td>0.0 ms to 5.00 s</td>
+                                        <td>0.0 ms</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Attack to H32 Attack</code></td>
+                                        <td><code>h01_attack to h32_attack</code></td>
+                                        <td>0.2 ms to 5.00 s</td>
+                                        <td>5.0 ms</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Decay to H32 Decay</code></td>
+                                        <td><code>h01_decay to h32_decay</code></td>
+                                        <td>1.0 ms to 20.00 s</td>
+                                        <td>600 ms</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Sustain to H32 Sustain</code></td>
+                                        <td><code>h01_sustain to h32_sustain</code></td>
+                                        <td>0 % to 100 %</td>
+                                        <td>100 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Key-off Swell to H32 Key-off Swell</code></td>
+                                        <td><code>h01_swell to h32_swell</code></td>
+                                        <td>0.0 ms to 5.00 s</td>
+                                        <td>5.0 ms</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Key-off Level to H32 Key-off Level</code></td>
+                                        <td><code>h01_offLevel to h32_offLevel</code></td>
+                                        <td>0 % to 100 %</td>
+                                        <td>0 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Release to H32 Release</code></td>
+                                        <td><code>h01_release to h32_release</code></td>
+                                        <td>1.0 ms to 20.00 s</td>
+                                        <td>400 ms</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Amp Mod Rate to H32 Amp Mod Rate</code></td>
+                                        <td><code>h01_amRate to h32_amRate</code></td>
+                                        <td>0.01 to 30 Hz</td>
+                                        <td>4 Hz</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Amp Mod Depth to H32 Amp Mod Depth</code></td>
+                                        <td><code>h01_amDepth to h32_amDepth</code></td>
+                                        <td>0 % to 100 %</td>
+                                        <td>0 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Amp Mod Shape to H32 Amp Mod Shape</code></td>
+                                        <td><code>h01_amShape to h32_amShape</code></td>
+                                        <td>Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Sample &amp; Hold, Random</td>
+                                        <td>Sine</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Velocity to H32 Velocity</code></td>
+                                        <td><code>h01_vel to h32_vel</code></td>
+                                        <td>-100 % to +100 %</td>
+                                        <td>+70 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Aftertouch to H32 Aftertouch</code></td>
+                                        <td><code>h01_aftertouch to h32_aftertouch</code></td>
+                                        <td>-100 % to +100 %</td>
+                                        <td>0 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Mute to H32 Mute</code></td>
+                                        <td><code>h01_mute to h32_mute</code></td>
+                                        <td>Off or on</td>
+                                        <td>Off</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Solo to H32 Solo</code></td>
+                                        <td><code>h01_solo to h32_solo</code></td>
+                                        <td>Off or on</td>
+                                        <td>Off</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Pan to H32 Pan</code></td>
+                                        <td><code>h01_pan to h32_pan</code></td>
+                                        <td>L100 to R100</td>
+                                        <td>Centre</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Level to H32 Level</code></td>
+                                        <td><code>h01_volume to h32_volume</code></td>
+                                        <td>-inf dB to 0.0 dB</td>
+                                        <td>Differs by channel, 0.0 dB on H1 to -inf dB on H32</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p><strong>On the noise channel</strong>, eighteen of them.</p>
+                        <div class="scroll">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>What the host calls it</th>
+                                        <th>Id</th>
+                                        <th>Range</th>
+                                        <th>Default</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><code>Noise Colour</code></td>
+                                        <td><code>noise_colour</code></td>
+                                        <td>0 % to 100 %</td>
+                                        <td>50 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Strike Velocity</code></td>
+                                        <td><code>noise_strike</code></td>
+                                        <td>-100 % to +100 %</td>
+                                        <td>0 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Delay</code></td>
+                                        <td><code>noise_delay</code></td>
+                                        <td>0.0 ms to 5.00 s</td>
+                                        <td>0.0 ms</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Attack</code></td>
+                                        <td><code>noise_attack</code></td>
+                                        <td>0.2 ms to 5.00 s</td>
+                                        <td>5.0 ms</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Decay</code></td>
+                                        <td><code>noise_decay</code></td>
+                                        <td>1.0 ms to 20.00 s</td>
+                                        <td>600 ms</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Sustain</code></td>
+                                        <td><code>noise_sustain</code></td>
+                                        <td>0 % to 100 %</td>
+                                        <td>100 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Key-off Swell</code></td>
+                                        <td><code>noise_swell</code></td>
+                                        <td>0.0 ms to 5.00 s</td>
+                                        <td>5.0 ms</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Key-off Level</code></td>
+                                        <td><code>noise_offLevel</code></td>
+                                        <td>0 % to 100 %</td>
+                                        <td>0 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Release</code></td>
+                                        <td><code>noise_release</code></td>
+                                        <td>1.0 ms to 20.00 s</td>
+                                        <td>400 ms</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Amp Mod Rate</code></td>
+                                        <td><code>noise_amRate</code></td>
+                                        <td>0.01 to 30 Hz</td>
+                                        <td>4 Hz</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Amp Mod Depth</code></td>
+                                        <td><code>noise_amDepth</code></td>
+                                        <td>0 % to 100 %</td>
+                                        <td>0 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Amp Mod Shape</code></td>
+                                        <td><code>noise_amShape</code></td>
+                                        <td>Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Sample &amp; Hold, Random</td>
+                                        <td>Sine</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Velocity</code></td>
+                                        <td><code>noise_vel</code></td>
+                                        <td>-100 % to +100 %</td>
+                                        <td>+70 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Aftertouch</code></td>
+                                        <td><code>noise_aftertouch</code></td>
+                                        <td>-100 % to +100 %</td>
+                                        <td>0 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Mute</code></td>
+                                        <td><code>noise_mute</code></td>
+                                        <td>Off or on</td>
+                                        <td>Off</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Solo</code></td>
+                                        <td><code>noise_solo</code></td>
+                                        <td>Off or on</td>
+                                        <td>Off</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Pan</code></td>
+                                        <td><code>noise_pan</code></td>
+                                        <td>L100 to R100</td>
+                                        <td>Centre</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Level</code></td>
+                                        <td><code>noise_volume</code></td>
+                                        <td>-inf dB to 0.0 dB</td>
+                                        <td>-inf dB</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p><strong>On every macro</strong>, six controls, each one on all eight macros.</p>
+                        <div class="scroll">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>What the host calls it</th>
+                                        <th>Id</th>
+                                        <th>Range</th>
+                                        <th>Default</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><code>Macro 1 to Macro 8</code></td>
+                                        <td><code>macro1_amount to macro8_amount</code></td>
+                                        <td>-1.0000 to 1.0000</td>
+                                        <td>0.0000</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Macro 1 Row to Macro 8 Row</code></td>
+                                        <td><code>macro1_row to macro8_row</code></td>
+                                        <td>
+                                            None, Tune, Phase, Pitch mod rate, Pitch mod depth, Drift, Strike, Delay, Attack, Decay, Sustain, Key-off
+                                            swell, Key-off level, Release, Amp mod rate, Amp mod depth, Velocity, Aftertouch, Pan, Level
+                                        </td>
+                                        <td>None</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Macro 1 Scope to Macro 8 Scope</code></td>
+                                        <td><code>macro1_scope to macro8_scope</code></td>
+                                        <td>
+                                            All, Odd, Even, Prime/octave, Minor second, Major second, Minor third, Major third, Fourth, Tritone,
+                                            Fifth, Minor sixth, Major sixth, Minor seventh, Major seventh
+                                        </td>
+                                        <td>All</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Macro 1 Curve to Macro 8 Curve</code></td>
+                                        <td><code>macro1_curve to macro8_curve</code></td>
+                                        <td>Uniform, Taper</td>
+                                        <td>Uniform</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Macro 1 Anchor to Macro 8 Anchor</code></td>
+                                        <td><code>macro1_anchor to macro8_anchor</code></td>
+                                        <td>1 to 32</td>
+                                        <td>1</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Macro 1 Colour to Macro 8 Colour</code></td>
+                                        <td><code>macro1_colour to macro8_colour</code></td>
+                                        <td>None, Red, Orange, Yellow, Green, Cyan, Blue, Violet, Magenta</td>
+                                        <td>Differs by macro, Red on Macro 1 to Magenta on Macro 8</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
                 </section>
 
                 <section id="macros">

@@ -229,6 +229,84 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
         "the two modulators deliberately do not offer the same list");
 }
 
+/// Every parameter the host sees, one JSON object per line, in the order the
+/// host lists them. docs/parameters.json is this, and the parameter list on
+/// the controls page is built from that file by Tools/build_site.py, so the
+/// site cannot describe a parameter that does not exist or miss one that
+/// does.
+///
+/// The range and the default are the text the plugin itself shows for them,
+/// rather than raw numbers, because that is what somebody reading the list
+/// will see on the knob or in the host.
+juce::String parameterReference(OvertoniumProcessor &p) {
+  const auto quoted = [](const juce::String &text) {
+    return juce::JSON::toString(juce::var(text));
+  };
+
+  juce::StringArray lines;
+
+  for (auto *base : p.getParameters()) {
+    auto *param = dynamic_cast<juce::RangedAudioParameter *>(base);
+
+    if (param == nullptr)
+      continue;
+
+    juce::String line = "{\"id\": " + quoted(param->getParameterID()) +
+                        ", \"name\": " + quoted(param->getName(100));
+    const auto shown = [param](float normalised) {
+      return param->getText(normalised, 100);
+    };
+
+    if (auto *choice = dynamic_cast<juce::AudioParameterChoice *>(param)) {
+      juce::StringArray each;
+
+      for (const auto &entry : choice->choices)
+        each.add(quoted(entry));
+
+      line += ", \"type\": \"choice\", \"choices\": [" +
+              each.joinIntoString(", ") + "]";
+    } else if (dynamic_cast<juce::AudioParameterBool *>(param) != nullptr) {
+      line += ", \"type\": \"switch\"";
+    } else {
+      const bool whole =
+          dynamic_cast<juce::AudioParameterInt *>(param) != nullptr;
+      line += juce::String(", \"type\": \"") +
+              (whole ? "whole" : "continuous") +
+              "\", \"min\": " + quoted(shown(0.0f)) +
+              ", \"max\": " + quoted(shown(1.0f));
+    }
+
+    line += ", \"default\": " + quoted(shown(param->getDefaultValue()));
+
+    if (param->getLabel().isNotEmpty())
+      line += ", \"unit\": " + quoted(param->getLabel());
+
+    lines.add("    " + line + "}");
+  }
+
+  return "[\n" + lines.joinIntoString(",\n") + "\n]\n";
+}
+
+juce::File parameterReferenceFile() {
+  return juce::File(juce::String(OVERTONIUM_SOURCE_DIR))
+      .getChildFile("docs/parameters.json");
+}
+
+/// The published list against the real layout. Carriage returns are dropped
+/// first because Git checks the file out with them on Windows.
+void testTheParameterListIsCurrent(OvertoniumProcessor &p) {
+  section("The published parameter list");
+
+  const auto file = parameterReferenceFile();
+  const auto published = file.loadFileAsString().removeCharacters("\r");
+
+  check(file.existsAsFile(), "docs/parameters.json exists");
+  check(published == parameterReference(p),
+        "docs/parameters.json is the layout. Regenerate it with "
+        "overtonium_runtime_test --write-parameters, then run "
+        "Tools/build_site.py");
+}
+
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
@@ -9501,7 +9579,7 @@ void testSoloAndMute(OvertoniumProcessor &p) {
 
 } // namespace
 
-int main() {
+int main(int argc, char **argv) {
   // See the same line in dsp_test: unbuffered, so a crash keeps whatever it
   // printed before it, and not _IOLBF, which the Windows CRT ignores.
   std::setvbuf(stdout, nullptr, _IONBF, 0);
@@ -9510,7 +9588,19 @@ int main() {
 
   OvertoniumProcessor processor;
 
+  // Writes docs/parameters.json from the layout and stops, rather than
+  // testing. The check further down then holds the file to it.
+  if (argc == 2 && std::strcmp(argv[1], "--write-parameters") == 0) {
+    const auto file = parameterReferenceFile();
+    const bool written =
+        file.replaceWithText(parameterReference(processor), false, false, "\n");
+    std::printf("%s %s\n", written ? "wrote" : "could not write",
+                file.getFullPathName().toRawUTF8());
+    return written ? 0 : 1;
+  }
+
   testParameterWiring(processor);
+  testTheParameterListIsCurrent(processor);
   testChoiceParameterCounts(processor);
   testRendering(processor);
   testReleaseVelocity(processor);

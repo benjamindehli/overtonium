@@ -13,3 +13,7 @@ package-lock.json
 # Written by hand to a shape search engines read rather than a shape prettier
 # would choose.
 docs/sitemap.xml
+
+# Written by the plugin, overtonium_runtime_test --write-parameters, one
+# parameter to a line, and compared byte for byte by that test.
+docs/parameters.json
