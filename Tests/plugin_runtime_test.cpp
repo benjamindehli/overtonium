@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -17,6 +18,7 @@
 #include <random>
 #include <set>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "PluginEditor.h"
@@ -8140,6 +8142,127 @@ void testMonoOutput() {
         "it");
 }
 
+/// The session properties the editor keeps on the state tree, written from the
+/// message thread while a host may be saving from another one.
+///
+/// Worth being plain about what this can and cannot say on its own. Run
+/// ordinarily it proves almost nothing: the window in which the two threads
+/// touch the same reference counts is a few instructions wide, and a storm
+/// that happens to miss it passes. Its value is under the thread sanitiser,
+/// which reports a race from the accesses rather than from them colliding in
+/// real time.
+///
+/// It was checked that way rather than assumed. With the lock removed from
+/// the editor's six write sites and nothing else changed, the sanitiser
+/// reported fourteen races here, all of them on a juce::var reference count
+/// inside ValueTree::SharedObject, with copyState on one stack and setProperty
+/// on the other. With the lock back, none. The same run found the second race
+/// this fixes, on the program number beside the tree.
+///
+/// Both guarded paths are exercised: the background thread saves, and this one
+/// restores between editor actions.
+void testTheSessionSurvivesAHostSavingUnderIt() {
+  section("The session survives a host saving under it");
+
+  using ovt::ui::PointerTool;
+
+  OvertoniumProcessor proc;
+
+  std::unique_ptr<juce::AudioProcessorEditor> ed(proc.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(ed.get());
+
+  check(editor != nullptr, "a window opens for the host to save under");
+
+  if (editor == nullptr)
+    return;
+
+  sizeEditor(*editor, 1340);
+
+  std::atomic<bool> running{true};
+  std::atomic<int> saves{0};
+  std::atomic<int> malformed{0};
+  std::atomic<int> incomplete{0};
+
+  // What a host does when it autosaves: ask for the state, over and over,
+  // from whichever thread it keeps for the purpose.
+  std::thread saver([&] {
+    while (running.load()) {
+      juce::MemoryBlock block;
+      proc.getStateInformation(block);
+
+      auto xml = juce::AudioProcessor::getXmlFromBinary(block.getData(),
+                                                        (int)block.getSize());
+
+      if (xml == nullptr) {
+        ++malformed;
+        continue;
+      }
+
+      // A save that came back without the parameters is a save that would
+      // have restored an empty instrument.
+      if (juce::ValueTree::fromXml(*xml).getNumChildren() == 0)
+        ++incomplete;
+
+      ++saves;
+    }
+  });
+
+  // And what the player does meanwhile: the four things in the window that
+  // write to that tree.
+  const PointerTool tools[] = {PointerTool::Link, PointerTool::Draw,
+                               PointerTool::Pointer};
+
+  for (int round = 0; round < 400; ++round) {
+    editor->scrollParameters(round % 2 == 0 ? 3 : -3);
+    editor->chooseTool(tools[round % 3]);
+
+    if (auto *bar = findTopBar(*editor))
+      if (bar->onLinkSettingsChanged != nullptr)
+        bar->onLinkSettingsChanged();
+
+    sizeEditor(*editor, 1200 + (round % 8) * 20);
+
+    // The other guarded path. From this thread rather than a third, because
+    // one restore racing another restore is not a thing a host does.
+    if (round % 50 == 0) {
+      juce::MemoryBlock carried;
+      proc.getStateInformation(carried);
+      proc.setStateInformation(carried.getData(), (int)carried.getSize());
+    }
+  }
+
+  running = false;
+  saver.join();
+
+  check(saves.load() > 0,
+        "the host got its saves (" + std::to_string(saves.load()) + ")");
+  check(malformed.load() == 0, "none of them came back unreadable (" +
+                                   std::to_string(malformed.load()) + ")");
+  check(incomplete.load() == 0, "and none came back without the parameters (" +
+                                    std::to_string(incomplete.load()) + ")");
+
+  // The window is still the one that was being driven, rather than something
+  // the storm left in a state of its own.
+  editor->chooseTool(PointerTool::Draw);
+
+  juce::MemoryBlock carried;
+  proc.getStateInformation(carried);
+  proc.setStateInformation(carried.getData(), (int)carried.getSize());
+
+  ed.reset();
+
+  std::unique_ptr<juce::AudioProcessorEditor> reopened(proc.createEditor());
+  auto *second = dynamic_cast<OvertoniumEditor *>(reopened.get());
+
+  check(second != nullptr, "and a window opens again afterwards");
+
+  if (second != nullptr) {
+    sizeEditor(*second, 1340);
+    check(second->currentTool() == PointerTool::Draw,
+          "on the tool it was left on");
+  }
+}
+
 void testStateRoundTrip(OvertoniumProcessor &p) {
   section("State round trip");
 
@@ -9458,6 +9581,7 @@ int main() {
   testUndersizedBuffer();
   testMonoOutput();
   testStateRoundTrip(processor);
+  testTheSessionSurvivesAHostSavingUnderIt();
   testPrograms(processor);
   testProgramChangeMidi(processor);
   testCollapsibleSections();

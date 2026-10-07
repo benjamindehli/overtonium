@@ -668,7 +668,15 @@ void OvertoniumProcessor::applyFactoryPreset(int index) {
 
   currentProgram = index;
   programApplied = true;
-  loadedPresetName = ovt::presets::names()[index];
+
+  {
+    // Scoped tightly: the preset load below walks every parameter and takes
+    // the value tree's own lock on the way, and holding this across that
+    // would be holding it for the whole load. See stateLock.
+    const juce::ScopedLock sl(sessionLock);
+    loadedPresetName = ovt::presets::names()[index];
+  }
+
   ovt::presets::apply(apvts, index);
 
   // So a host showing the preset name updates when the change came from the
@@ -678,7 +686,10 @@ void OvertoniumProcessor::applyFactoryPreset(int index) {
 }
 
 void OvertoniumProcessor::setLoadedPresetName(const juce::String &name) {
-  loadedPresetName = name;
+  {
+    const juce::ScopedLock sl(sessionLock);
+    loadedPresetName = name;
+  }
 
   // A preset of your own is not one of the factory programs, so the host's
   // program index no longer describes what is loaded. Saying so stops a
@@ -698,9 +709,22 @@ static const juce::Identifier kCurrentProgramProperty{"overtoniumProgram"};
 static const juce::Identifier kPresetNameProperty{"overtoniumPresetName"};
 
 void OvertoniumProcessor::getStateInformation(juce::MemoryBlock &destData) {
-  auto state = apvts.copyState();
-  state.setProperty(kCurrentProgramProperty, currentProgram, nullptr);
-  state.setProperty(kPresetNameProperty, loadedPresetName, nullptr);
+  // Held across the copy and the two session properties, and no further. The
+  // editor writes its own things onto this tree from the message thread and a
+  // host may call this from any thread, so without it the copy walks a graph
+  // somebody else is editing. The preset name is in here for the same reason
+  // rather than because the tree needs it: it is read here and written by
+  // setStateInformation, which is the other thread. See stateLock.
+  //
+  // Everything after this is the copy, which is this method's own.
+  auto state = [this] {
+    const juce::ScopedLock sl(sessionLock);
+
+    auto copy = apvts.copyState();
+    copy.setProperty(kCurrentProgramProperty, currentProgram.load(), nullptr);
+    copy.setProperty(kPresetNameProperty, loadedPresetName, nullptr);
+    return copy;
+  }();
 
   // Saved with the session rather than with a patch, like the fold mask and
   // the zoom: which controller moves which knob describes the desk this is
@@ -725,36 +749,49 @@ void OvertoniumProcessor::setStateInformation(const void *data,
       // which is the same answer the old build gave.
       const int saved = tree.getProperty(kCurrentProgramProperty, 0);
 
-      loadedPresetName = tree.getProperty(kPresetNameProperty, juce::String());
+      {
+        // Everything this method changes about the session, under the lock
+        // that getStateInformation reads it all under: the preset name, the
+        // program, and the tree itself. Replacing the tree while the editor
+        // is writing a property onto it is the same race as copying it while
+        // that happens. See stateLock.
+        //
+        // Released before the MIDI bindings and the parameter sweep below,
+        // which are this method's own work and nothing else reads.
+        const juce::ScopedLock sl(sessionLock);
 
-      // The name decides which program this is, and the index is only the
-      // fallback. Factory presets sort alphabetically, so adding one moves
-      // every preset after it, and a session written before that move carries
-      // an index that now names a different sound. The sound itself is never
-      // in doubt, since the state holds the parameter values and nothing here
-      // reloads a preset over them, but the index is what a host shows as
-      // selected in its own menu, and it would be pointing at a patch the
-      // session is not playing.
-      //
-      // A name that is not a factory preset is one of the user's own, or a
-      // patch edited since it was loaded, and neither has a program to be.
-      // Those keep the saved index, which is the answer this always gave.
-      const auto known = ovt::presets::names().indexOf(loadedPresetName);
+        loadedPresetName =
+            tree.getProperty(kPresetNameProperty, juce::String());
 
-      currentProgram =
-          known >= 0 ? known
-          : juce::isPositiveAndBelow(saved, ovt::presets::names().size())
-              ? saved
-              : 0;
+        // The name decides which program this is, and the index is only the
+        // fallback. Factory presets sort alphabetically, so adding one moves
+        // every preset after it, and a session written before that move
+        // carries an index that now names a different sound. The sound itself
+        // is never in doubt, since the state holds the parameter values and
+        // nothing here reloads a preset over them, but the index is what a
+        // host shows as selected in its own menu, and it would be pointing at
+        // a patch the session is not playing.
+        //
+        // A name that is not a factory preset is one of the user's own, or a
+        // patch edited since it was loaded, and neither has a program to be.
+        // Those keep the saved index, which is the answer this always gave.
+        const auto known = ovt::presets::names().indexOf(loadedPresetName);
 
-      // Whatever the state said, it is a state, so a program change from the
-      // host asking for the index just restored has nothing left to do. Set
-      // even when the properties were absent, since a session written before
-      // they existed still restored a sound that must not be overwritten by
-      // the preset its index happens to name.
-      programApplied = true;
+        currentProgram =
+            known >= 0 ? known
+            : juce::isPositiveAndBelow(saved, ovt::presets::names().size())
+                ? saved
+                : 0;
 
-      apvts.replaceState(tree);
+        // Whatever the state said, it is a state, so a program change from
+        // the host asking for the index just restored has nothing left to do.
+        // Set even when the properties were absent, since a session written
+        // before they existed still restored a sound that must not be
+        // overwritten by the preset its index happens to name.
+        programApplied = true;
+
+        apvts.replaceState(tree);
+      }
 
       // After replaceState, since a binding names a parameter and the lookup
       // wants the parameters this session is actually going to use. A session

@@ -67,7 +67,7 @@ public:
   // to rename a factory preset is offering something this plugin does not do,
   // and quietly ignoring it beats storing a name nothing will ever read back.
   int getNumPrograms() override;
-  int getCurrentProgram() override { return currentProgram; }
+  int getCurrentProgram() override { return currentProgram.load(); }
   void setCurrentProgram(int index) override;
   const juce::String getProgramName(int index) override;
   void changeProgramName(int, const juce::String &) override {}
@@ -192,10 +192,33 @@ public:
   /// window is closed and reopened far more often than a preset is chosen, and
   /// the button read as empty every time until this existed. Empty means
   /// nothing has been loaded, which is what a new instance is.
-  const juce::String &presetName() const noexcept { return loadedPresetName; }
+  juce::String presetName() const {
+    // By value, under the lock, because a host thread restoring a session
+    // writes this while the window is reading it. A reference would hand the
+    // caller the member itself and the lock would be protecting nothing. See
+    // stateLock.
+    const juce::ScopedLock sl(sessionLock);
+    return loadedPresetName;
+  }
 
   /// For a preset of your own, which has no program index to be found by.
   void setLoadedPresetName(const juce::String &name);
+
+  /// What every direct write to apvts.state has to hold, and what the host's
+  /// own state calls hold while they read or replace it.
+  ///
+  /// The editor keeps nine things on that tree that are not parameters: the
+  /// window size and zoom, the scroll, the fold mask, and which tool is
+  /// selected with its scope and curve. It writes them straight onto the tree
+  /// from the message thread, and a host may call getStateInformation from
+  /// any thread it likes. juce::ValueTree is not thread safe, and the lock
+  /// inside AudioProcessorValueTreeState does not help: copyState takes it,
+  /// but a setProperty from outside does not, so the two walk the same
+  /// reference counted graph at once. What that corrupts is a refcount, which
+  /// is to say it corrupts the heap, somewhere else, later.
+  ///
+  /// Not the audio thread's concern. Nothing here is read while rendering.
+  juce::CriticalSection &stateLock() noexcept { return sessionLock; }
 
   /// The same cached atomics the audio thread reads. The editor polls mute and
   /// solo several times a second, and going through the parameter map for that
@@ -327,7 +350,12 @@ private:
   /// that restoring a session does not look like a program change, which a
   /// host would answer by loading that preset over the top of everything the
   /// session just restored.
-  int currentProgram = 0;
+  ///
+  /// Atomic because a host may ask for the state on one thread while it
+  /// restores one on another, and this number is written by the second and
+  /// read by the first. The thread sanitiser found that one; see stateLock
+  /// for the race beside it.
+  std::atomic<int> currentProgram{0};
 
   /// The factory preset a MIDI program change has asked for and nobody has
   /// loaded yet, or -1 for none.
@@ -351,10 +379,20 @@ private:
   /// defaults rather than like the first preset. Without this, a host's menu
   /// showed that preset selected and picking it was a no-op. See
   /// setCurrentProgram.
-  bool programApplied = false;
+  ///
+  /// Atomic for the same reason as currentProgram, which it qualifies.
+  std::atomic<bool> programApplied{false};
 
   /// The name shown on the preset button. See presetName().
+  ///
+  /// A juce::String cannot be made atomic, so every touch of it holds
+  /// stateLock instead.
   juce::String loadedPresetName;
+
+  /// See stateLock, which hands this out.
+  ///
+  /// Mutable so that presetName can take it, which is a read.
+  mutable juce::CriticalSection sessionLock;
 
   /// Last, so that it is the first thing destroyed. Its destructor joins a
   /// network thread, and doing that before the rest of the instance goes means

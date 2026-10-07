@@ -450,7 +450,15 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   setWantsKeyboardFocus(true);
 
   // ---- restore the last window size -----------------------------------------
-  const auto &state = plugin().apvts.state;
+  //
+  // A copy, taken once, rather than ten reads off the live tree spread through
+  // the rest of this constructor. A host may be in setStateInformation on
+  // another thread while the window opens, and the tree it is replacing is the
+  // one being read here. See OvertoniumProcessor::stateLock.
+  const auto state = [this] {
+    const juce::ScopedLock sl(plugin().stateLock());
+    return plugin().apvts.state.createCopy();
+  }();
 
   zoom = (float)(double)state.getProperty(kEditorZoom, 1.0);
   zoom = juce::jlimit(0.5f, 2.0f, zoom);
@@ -469,13 +477,19 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
                          (int)state.getProperty(kLinkCurve, -1)));
 
   topBar.onLinkSettingsChanged = [this] {
-    auto &tree = plugin().apvts.state;
-
     rememberTool();
 
-    tree.setProperty(kLinkScope, (int)topBar.getLinkScope(), nullptr);
-    tree.setProperty(kLinkCurveId, linkCurveId(topBar.getLinkCurve()), nullptr);
-    tree.removeProperty(kLinkCurve, nullptr);
+    {
+      // Every direct write to this tree holds the lock, this one included.
+      // See OvertoniumProcessor::stateLock.
+      const juce::ScopedLock sl(plugin().stateLock());
+      auto &tree = plugin().apvts.state;
+
+      tree.setProperty(kLinkScope, (int)topBar.getLinkScope(), nullptr);
+      tree.setProperty(kLinkCurveId, linkCurveId(topBar.getLinkCurve()),
+                       nullptr);
+      tree.removeProperty(kLinkCurve, nullptr);
+    }
 
     syncLinkUi();
   };
@@ -802,6 +816,11 @@ void OvertoniumEditor::resized() {
   // Only write when something actually moved: a live resize drag fires this
   // constantly, and every property set notifies the APVTS listener on the state
   // tree.
+  //
+  // Held across the comparisons as well as the writes: reading a property off
+  // a tree the host is replacing is the same race as writing one. See
+  // OvertoniumProcessor::stateLock.
+  const juce::ScopedLock sl(plugin().stateLock());
   auto &state = plugin().apvts.state;
 
   if ((int)state.getProperty(kEditorWidth, -1) != logicalWidth)
@@ -946,7 +965,11 @@ bool OvertoniumEditor::scrollParameters(int delta) {
   if (!barIsDriving)
     syncScrollBar();
 
-  plugin().apvts.state.setProperty(kScroll, scrollY, nullptr);
+  {
+    // See OvertoniumProcessor::stateLock.
+    const juce::ScopedLock sl(plugin().stateLock());
+    plugin().apvts.state.setProperty(kScroll, scrollY, nullptr);
+  }
 
   return true;
 }
@@ -987,8 +1010,12 @@ void OvertoniumEditor::toggleSection(Section section) {
   collapsedSections ^= sectionBit(section);
 
   publishCollapsedSections();
-  plugin().apvts.state.setProperty(kCollapsedSections, (int)collapsedSections,
-                                   nullptr);
+  {
+    // See OvertoniumProcessor::stateLock.
+    const juce::ScopedLock sl(plugin().stateLock());
+    plugin().apvts.state.setProperty(kCollapsedSections, (int)collapsedSections,
+                                     nullptr);
+  }
 
   // The window does not move any more.
   //
@@ -1198,6 +1225,8 @@ void OvertoniumEditor::refreshDrawArmed() {
 }
 
 void OvertoniumEditor::rememberTool() {
+  // See OvertoniumProcessor::stateLock.
+  const juce::ScopedLock sl(plugin().stateLock());
   auto &tree = plugin().apvts.state;
 
   tree.setProperty(kLinkOn, topBar.isLinkEnabled(), nullptr);
