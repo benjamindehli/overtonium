@@ -181,17 +181,17 @@ It also has to have a section on `docs/releases/index.html`, headed with the ver
 
 **What the release writes back.** Publishing and updating the site are the same act, so the workflow commits to `main` after the release lands:
 
-| What                                                         | Why it cannot wait                                                 |
-| ------------------------------------------------------------ | ------------------------------------------------------------------ |
-| `docs/latest.json`                                           | the plugin's update check reads it and would report the old one    |
-| the five download links on the install page                  | the buttons would hand out the previous build                      |
-| the version and date printed under them                      | the page would name a release nobody can download                  |
-| `softwareVersion` and `datePublished` in both JSON-LD blocks | a crawler would carry the old version into search results          |
-| `lastmod` for the three pages a release changes              | a sitemap that misdates a page is worse than one that says nothing |
+| What                                                      | Why it cannot wait                                                 |
+| --------------------------------------------------------- | ------------------------------------------------------------------ |
+| `docs/latest.json`                                        | the plugin's update check reads it and would report the old one    |
+| the five download links on the install page               | the buttons would hand out the previous build                      |
+| the version and date printed under them                   | the page would name a release nobody can download                  |
+| `RELEASED` in `Tools/site_data.py`, then the site rebuilt | a crawler would carry the old release date into search results     |
+| `lastmod` for the three pages a release changes           | a sitemap that misdates a page is worse than one that says nothing |
 
-Every one of those is counted before and after it is rewritten, and the job fails if a substitution matched a different number of times than expected. A `sed` that silently matches nothing is the one way this goes wrong with nothing to show for it. The download links are visible the moment somebody clicks them, but a `softwareVersion` a release behind is visible to nothing but a crawler, which is why it is checked rather than trusted: it was hand-edited until 1.6.1 and was already a day out.
+Every one of those is counted before and after it is rewritten, and the job fails if a substitution matched a different number of times than expected. A `sed` that silently matches nothing is the one way this goes wrong with nothing to show for it. The download links are visible the moment somebody clicks them, but a `softwareVersion` a release behind is visible to nothing but a crawler, which is why it is checked rather than trusted. The version itself is read from `CMakeLists.txt` by the site generator, so bumping it there and rebuilding is all a version needs.
 
-The step reformats the pages it touched with Prettier before committing, because a longer version number can push a line past the width Prettier wraps at, and the format job checks `main` on every push including this one.
+The step rebuilds the site and reformats the install page and the feed with Prettier before committing, because a longer version number can push a line past the width Prettier wraps at, and the format job checks `main` on every push including this one.
 
 **Signing.** The macOS side signs and notarises when the repository has the secrets for it, and falls back to an ad-hoc signature when it does not, so the workflow can be rehearsed before any of them exist. Ad-hoc is what lets a bundle load at all on Apple Silicon, where an unsigned one is refused outright, but it is not notarisation and a download still has to be opened past Gatekeeper.
 
@@ -211,11 +211,23 @@ The Windows installer is not signed, so SmartScreen tells the user the publisher
 
 ### The project page
 
-`docs/` is served by GitHub Pages from the `main` branch, one folder per URL so the site has addresses like `/tuning/` rather than `/tuning.html`. There is no generator and no build step: what is in the repository is what gets served. `.nojekyll` stops GitHub running Jekyll over it.
+`docs/` is served by GitHub Pages from the `main` branch, one folder per URL so the site has addresses like `/tuning/` rather than `/tuning.html`. What is in the repository is what gets served, with no build on GitHub's side, and `.nojekyll` stops GitHub running Jekyll over it.
+
+**The parts every page shares are generated.** `python3 Tools/build_site.py` rewrites them in place, from `Tools/site_data.py` and from what the source already knows:
+
+| Generated                                                     | From                                                        |
+| ------------------------------------------------------------- | ----------------------------------------------------------- |
+| each page's `<head>`: title, descriptions, cards, JSON-LD     | `PAGES`, `PRODUCT`, `VIDEO` and `QUESTIONS` in the data     |
+| the header, the section list and the page's contents rail     | the page list, and the page's own `<h2>` and `<h3>` ids     |
+| the trail above the title and the links at the foot           | `nav` and `onward` per page                                 |
+| the footer                                                    | `FOOTER_LINKS`                                              |
+| the cards on the front page and on `404.html`                 | `card` and `card_404` per page                              |
+| the questions on the front page and their `FAQPage` copy      | `QUESTIONS`, so the visible and structured answers match    |
+| the version, the release day, the preset and parameter counts | `CMakeLists.txt`, `RELEASED`, `kNames` and the runtime test |
+
+Everything between those parts is ordinary HTML and is edited where it is. An edit inside a generated part is overwritten by the next build, so change the data file instead. The contents rail lists every `<section id>` that opens with an `<h2>`, with every `<h3 id>` inside it as a sub-entry, so a new section reaches the rail by being given an id. The generator runs the pinned Prettier over each page, which means `npm ci` first, and the format job runs it with `--check` and fails if the result differs from what is committed.
 
 `llms.txt` is a summary of the project for language models, in the shape [llmstxt.org](https://llmstxt.org/) describes: what the instrument is, then links to each page with a line saying what is on it. It duplicates facts that live elsewhere, so it goes stale the same way the shared header does. Worth a glance when a release changes what the plugin can do, and `robots.txt` names it since no crawler is obliged to look for it.
-
-The shared header, nav and footer are repeated in each page and have to be kept in step by hand. That is the price of having no build step, and it was the deliberate choice over a generator whose output would have to be committed anyway.
 
 The screenshots are rendered rather than captured. The plugin has no dependency on a display, so `Tools/render_docs_images.cpp` builds the editor, plays a chord into it, hands the strips the levels the engine measured, and writes the window out with `createComponentSnapshot`. That means the pictures can be regenerated after a layout change instead of going stale, and it works on a machine with no window server.
 

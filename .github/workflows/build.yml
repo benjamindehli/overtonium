@@ -321,6 +321,14 @@ jobs:
 
       - run: npm run format:check
 
+      # Every page's head, header, rail, footer and the other parts the pages
+      # share are written by Tools/build_site.py from Tools/site_data.py and
+      # the source, then passed through the same prettier as above. A page
+      # edited by hand in one of those parts, or a data file changed without
+      # rebuilding, fails here rather than drifting.
+      - name: The docs are what Tools/build_site.py writes
+        run: python3 Tools/build_site.py --check
+
       # Pinned for the reason above, and from pip rather than apt because the
       # runner's apt version follows the image and would change under us
       # without anything in this repository saying so. CONTRIBUTING names the

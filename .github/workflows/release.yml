@@ -560,14 +560,12 @@ jobs:
             sed -i -E "s|$pattern|$replacement|g" "$file"
           }
 
-          front=docs/index.html
-
-          for marked in "$front" "$page"; do
-            stamp "$marked" '"softwareVersion": "[0-9][0-9.]*"' \
-                            "\"softwareVersion\": \"$version\"" 1
-            stamp "$marked" '"datePublished": "[0-9]{4}-[0-9]{2}-[0-9]{2}"' \
-                            "\"datePublished\": \"$day\"" 1
-          done
+          # The structured data on every page that carries it is written by
+          # Tools/build_site.py, which reads the version from CMakeLists and the
+          # day from this one line. The generator runs further down, once npm
+          # has installed the prettier it formats with.
+          stamp Tools/site_data.py '^RELEASED = "[0-9]{4}-[0-9]{2}-[0-9]{2}"$' \
+                                   "RELEASED = \"$day\"" 1
 
           # The line under the download table, which is the only place on the
           # site that says in words which version these files are.
@@ -620,13 +618,14 @@ jobs:
           # to wrap at. Cheaper to reformat here than to land a commit on main
           # that fails its own format job.
           npm ci --silent
-          npx prettier --write "$front" "$page" docs/latest.json
+          npx prettier --write "$page" docs/latest.json
+          python3 Tools/build_site.py
 
           if git diff --quiet -- docs/; then
             echo "the site already names $version"
             exit 0
           fi
 
-          git add docs/
+          git add docs/ Tools/site_data.py
           git commit -m "Point the site at $GITHUB_REF_NAME"
           git push origin main
