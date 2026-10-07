@@ -300,11 +300,33 @@ void testTheParameterListIsCurrent(OvertoniumProcessor &p) {
   const auto file = parameterReferenceFile();
   const auto published = file.loadFileAsString().removeCharacters("\r");
 
+  const auto live = parameterReference(p);
+
   check(file.existsAsFile(), "docs/parameters.json exists");
-  check(published == parameterReference(p),
+  check(published == live,
         "docs/parameters.json is the layout. Regenerate it with "
         "overtonium_runtime_test --write-parameters, then run "
         "Tools/build_site.py");
+
+  // Which line, and both versions of it. A difference that shows on one
+  // platform and not another cannot be found by regenerating the file on the
+  // machine that wrote it, so the log has to carry the answer itself. It has
+  // happened once: the macOS maths library put a different seventh decimal on
+  // a value that had been through an exponential range and back.
+  if (published != live) {
+    const auto was = juce::StringArray::fromLines(published);
+    const auto is = juce::StringArray::fromLines(live);
+
+    for (int i = 0; i < juce::jmax(was.size(), is.size()); ++i) {
+      if (was[i] != is[i]) {
+        std::printf("  line %d of docs/parameters.json\n"
+                    "    published: %s\n"
+                    "    this build: %s\n",
+                    i + 1, was[i].toRawUTF8(), is[i].toRawUTF8());
+        break;
+      }
+    }
+  }
 }
 
 /// What a host's automation lane, the panel's value popup and a screen reader
