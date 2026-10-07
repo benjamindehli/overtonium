@@ -90,6 +90,79 @@
                 </p>
 
                 <section>
+                    <h2>1.11.0, 7 October 2026</h2>
+
+                    <p>
+                        <strong>Eight macros, so a relationship across the series can be automated.</strong> A LINK drag moves 32 parameters and a
+                        host catches only the last one touched, so a relationship you can edit by hand could not be recorded at all. A macro names a
+                        row, a scope and a curve, and gives that relationship one control and the host one lane. It offsets rather than writes, so the
+                        patch underneath is untouched, which is why the knobs do not move when a macro does. A driven control says both things at once
+                        instead: the ring of ticks lights to where the macro has taken the value in the macro's colour, and the pointer stays at what
+                        the patch holds. A fader says it in the gutters either side of its track. Eight is a pool rather than a count, since a plugin
+                        declares its parameters once and cannot add one later.
+                    </p>
+
+                    <p>
+                        <strong>MIDI Learn.</strong> Right-click a control, choose MIDI Learn, move something on the controller. One parameter per
+                        controller number, saved with the session rather than with a patch, because which controller moves which knob describes the
+                        desk rather than the sound. Eleven numbers are refused rather than bound, the mod wheel and the MPE slide among them, so
+                        arming a knob and then reaching for the slide to steady a note leaves the note steadied and the knob still waiting.
+                    </p>
+
+                    <p>
+                        <strong>CLIP is five machines instead of a switch.</strong> <em>Soft</em> is the curve that was already there and came through
+                        bit for bit. <em>Hard</em> is a wall at unity. <em>Asymmetric</em> lets one half of the wave lean over first, the way a
+                        single-ended stage runs out of supply in one direction, which gives even harmonics where the others give odd.
+                        <em>Limiter</em> does not bend the wave at all, it moves the level. <em>Fold</em> turns the wave back on itself and sings
+                        where the rest crunch. All five are bounded by full scale, tested at drives up to 400 times at three sample rates. The limiter
+                        looks ahead two milliseconds, which is what took the reported latency from 12 samples to 108 at 48 kHz, and Settings can
+                        refuse it.
+                    </p>
+
+                    <p>
+                        <strong>The parameters scroll.</strong> The rows are small on a 1080p screen and zooming in to read them made the window
+                        taller than such a screen has room for. A channel is three bands now: the channel number at the top and the fader at the foot
+                        are pinned, and everything between them scrolls behind an opening, so neither of the two things you find your place by is ever
+                        what has scrolled away.
+                    </p>
+
+                    <p>
+                        <strong>The panel was rebuilt.</strong> Every switch is a lit plastic cap in a moulded well, with a fixed near-black legend
+                        printed on the plastic so a word does not change colour under its own lamp. The knobs are discs with an eight-slot collar, and
+                        the notches are cut out of it rather than painted on. The preset name is spelled on a fourteen-bar display. The OUTPUT rule
+                        carries two lamps, VELOCITY on the left and AFTERTOUCH on the right, so all five rules say something. LINK and DRAW became one
+                        tool button rather than two switches that could not both be on, and choosing a scope now lights the channel number of every
+                        strip a drag would reach.
+                    </p>
+
+                    <p>
+                        <strong>A thirty-third preset, and an accessibility statement.</strong> <em>6581 Triangle</em> is the triangle of a MOS 6581,
+                        the SID in a Commodore 64, which is not quite a triangle: the chip draws its ramp as a staircase of 2048 steps, so it carries
+                        even harmonics a triangle should not have. <code>ACCESSIBILITY.md</code> says what is checked rather than intended, and says
+                        plainly that the plugin's own window is not keyboard operable and that nobody who relies on assistive technology has evaluated
+                        any of it.
+                    </p>
+
+                    <p>
+                        <strong>Fixed.</strong> A partial silenced by a negative AFTERTOUCH amount took every lamp on its channel dark with it, which
+                        had been wrong for the envelope and tremolo lamps since those lamps existed. And a note played while the channel was already
+                        under pressure thumped or faded in, because the pressure smoother started from nothing at every note-on instead of from where
+                        the channel was holding it.
+                    </p>
+
+                    <p>
+                        <strong>Before upgrading.</strong> The plugin reports 108 samples of latency at 48 kHz where it reported 12, which is the
+                        limiter's window, and Settings can take it back. Loading a preset now moves the master fader and the clipper, since both left
+                        the settings a preset cannot reach. <em>6581 Triangle</em> sorts third, so a MIDI program change will name the preset above
+                        the one it used to, while a saved session carries the name as well as the number and is unaffected. Fifty parameters were
+                        added, 836 in all, all of them on the end, so every automation lane written before this release still points at the control it
+                        was pointing at.
+                    </p>
+
+                    <p class="more"><a href="https://github.com/benjamindehli/overtonium/releases/tag/v1.11.0">The full notes for 1.11.0</a></p>
+                </section>
+
+                <section>
                     <h2>1.10.1, 30 September 2026</h2>
 
                     <p>
