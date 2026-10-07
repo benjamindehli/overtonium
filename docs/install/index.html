@@ -218,7 +218,7 @@
                     </p>
                 </section>
 
-                <section>
+                <section id="platforms">
                     <h2>What each platform gets</h2>
 
                     <div class="scroll">
@@ -250,28 +250,28 @@
                         </table>
                     </div>
 
-                    <h3>macOS</h3>
+                    <h3 id="macos">macOS</h3>
                     <p>
                         The package asks which of the three formats you want and installs only those. It is a universal binary, so one download covers
                         Apple Silicon and Intel, and it is signed and notarised, so it opens without a warning. The minimum is macOS 10.13 on Intel
                         and 11.0 on Apple Silicon, which is the floor the toolchain sets for that architecture.
                     </p>
 
-                    <h3>Windows</h3>
+                    <h3 id="windows">Windows</h3>
                     <p>
                         The installer is not signed, so SmartScreen says the publisher is unknown. Choose "More info" and then "Run anyway". If you
                         would rather not, build from source instead, which takes one command. The VST3 goes to the shared plugin folder, so the
                         installer asks for administrator rights.
                     </p>
 
-                    <h3>Linux</h3>
+                    <h3 id="linux">Linux</h3>
                     <p>
                         No installer, since there is no install location a distribution would agree on. The zip holds VST3, LV2 and standalone, and
                         the two plugin folders go in <code>~/.vst3</code> and <code>~/.lv2</code>.
                     </p>
                 </section>
 
-                <section>
+                <section id="troubleshooting">
                     <h2>When a host does not see it</h2>
 
                     <div class="scroll">
@@ -322,7 +322,7 @@
                     </p>
                 </section>
 
-                <section>
+                <section id="update-check">
                     <h2>Telling you about new versions</h2>
 
                     <p>
@@ -406,7 +406,7 @@
                     </p>
                 </section>
 
-                <section>
+                <section id="tested">
                     <h2>What has actually been tried</h2>
 
                     <p>
@@ -417,7 +417,7 @@
                     </p>
                 </section>
 
-                <section>
+                <section id="building">
                     <h2>Building from source</h2>
 
                     <p>

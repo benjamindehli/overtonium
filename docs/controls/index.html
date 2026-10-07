@@ -87,7 +87,7 @@
                     having to move them one at a time.
                 </p>
 
-                <section>
+                <section id="channel-strip">
                     <h2>A channel strip</h2>
 
                     <figure class="narrow">
@@ -184,7 +184,7 @@
                     </div>
                 </section>
 
-                <section>
+                <section id="modulators">
                     <h2>What the modulators trace</h2>
 
                     <p>
@@ -274,7 +274,7 @@
                     </p>
                 </section>
 
-                <section>
+                <section id="velocity-and-pressure">
                     <h2>Velocity and pressure, per partial</h2>
 
                     <p>
@@ -304,7 +304,7 @@
                     </p>
                 </section>
 
-                <section>
+                <section id="envelope">
                     <h2>The two-part envelope</h2>
 
                     <p>
@@ -369,7 +369,7 @@
                     </p>
                 </section>
 
-                <section>
+                <section id="link">
                     <h2>Ganging the channels</h2>
 
                     <p>
@@ -496,7 +496,7 @@
                     <p>LINK gangs the 32 partials only. The noise channel has no tuning, pitch modulation or drift to gang.</p>
                 </section>
 
-                <section>
+                <section id="panel">
                     <h2>Working the panel</h2>
 
                     <p>
@@ -526,10 +526,10 @@
                     </p>
                 </section>
 
-                <section>
+                <section id="reading-the-mixer">
                     <h2>Reading the mixer</h2>
 
-                    <h3>The two readouts</h3>
+                    <h3 id="readouts">The two readouts</h3>
                     <p>
                         Each channel carries two figures, the cents its tuning knob is worth and the level its fader is at, both drawn as
                         seven-segment displays rather than as text: a number the instrument is reporting back should look different from a number you
@@ -538,7 +538,7 @@
                         octaves read a dimmed <strong>0.0</strong>, since their just interval is the note itself.
                     </p>
 
-                    <h3>Lamps on the rules</h3>
+                    <h3 id="lamps">Lamps on the rules</h3>
                     <p>
                         The rules dividing a strip into groups carry a lamp each, showing what the group under them is doing to this partial right
                         now.
@@ -597,7 +597,7 @@
                         all.
                     </p>
 
-                    <h3>Meters</h3>
+                    <h3 id="meters">Meters</h3>
                     <p>
                         Each channel meters what that partial is actually putting out, on a decibel scale floored at -48 dB, so the envelope, tremolo,
                         velocity, aftertouch and mute or solo all show at once and the spectrum can be watched evolving as a note decays. The meter
@@ -606,7 +606,7 @@
                         of the patch instead of pinning itself the moment you play a chord.
                     </p>
 
-                    <h3>Colour and hover</h3>
+                    <h3 id="colour-and-hover">Colour and hover</h3>
                     <p>
                         Channels are coloured by interval class, in chromatic order along a narrow band from blue at the octave, through magenta and
                         red, to yellow at the major seventh, so octaves, fifths and thirds stay visible while you scroll. The band is deliberately
@@ -615,7 +615,7 @@
                         the two cross is the control a drag would move.
                     </p>
 
-                    <h3>Folding the mixer down</h3>
+                    <h3 id="folding">Folding the mixer down</h3>
                     <p>
                         Clicking a section heading in the caption gutter folds that group of rows away across every channel at once, and so does
                         clicking the rule that section draws across any strip, which saves crossing to the gutter and finding your way back to the
@@ -627,7 +627,7 @@
                     </p>
                 </section>
 
-                <section>
+                <section id="noise">
                     <h2>The noise channel</h2>
 
                     <p>
@@ -643,7 +643,7 @@
                     </p>
                 </section>
 
-                <section>
+                <section id="mpe">
                     <h2>MPE</h2>
 
                     <p>
@@ -683,7 +683,7 @@
                     </p>
                 </section>
 
-                <section>
+                <section id="legato">
                     <h2>Legato</h2>
 
                     <p>
@@ -698,7 +698,7 @@
                     </p>
                 </section>
 
-                <section>
+                <section id="settings">
                     <h2>The Settings menu</h2>
 
                     <p>
@@ -848,7 +848,7 @@
                     </p>
                 </section>
 
-                <section>
+                <section id="automation">
                     <h2>Automating it from the host</h2>
 
                     <p>
@@ -921,7 +921,7 @@
                     </p>
                 </section>
 
-                <section>
+                <section id="macros">
                     <h2>Macros</h2>
 
                     <p>
@@ -982,7 +982,7 @@
                     </p>
                 </section>
 
-                <section>
+                <section id="midi-learn">
                     <h2>Playing it from a controller</h2>
 
                     <p>
@@ -1026,7 +1026,7 @@
                     </p>
                 </section>
 
-                <section>
+                <section id="global">
                     <h2>Across the whole instrument</h2>
 
                     <figure class="diagram">
@@ -1116,7 +1116,7 @@
                         />
                     </figure>
 
-                    <h3>Character</h3>
+                    <h3 id="character">Character</h3>
                     <p>
                         Which oscillator every partial is, at the head of the group that says what the series is. All six are sine oscillators, and
                         what differs is the way each circuit fails to make one. <strong>Pure</strong> is the sine nothing built out of parts produces,
@@ -1169,7 +1169,7 @@
                         on the plain sine.
                     </p>
 
-                    <h3>Wobble</h3>
+                    <h3 id="wobble">Wobble</h3>
                     <p>
                         A warped record under the whole instrument. Pitch is bent by reading the output back through a delay line whose length keeps
                         moving, which is what happens when a platter runs eccentric or a capstan slips. A slow warp near once round a 33 rpm disc, a
@@ -1178,7 +1178,7 @@
                         sits ahead of the echo, so the repeats inherit what it did rather than wobbling on their own.
                     </p>
 
-                    <h3>Bus drive</h3>
+                    <h3 id="bus-drive">Bus drive</h3>
                     <p>
                         The thirty-three channels are not simply added together. They are summed onto a bus that drives, by an amount and in a way
                         that belongs to the oscillator character, so a patch gets louder into the same saturation a mixing desk would give it. It
@@ -1187,7 +1187,7 @@
                         means.
                     </p>
 
-                    <h3>Echo</h3>
+                    <h3 id="echo">Echo</h3>
                     <p>
                         Three machines behind one button, and the button says which one is running. <strong>Tape</strong> is a loop with two motors:
                         moving the time knob winds the tape rather than cutting to the new setting, so the repeats slide in pitch on the way, and the
@@ -1204,7 +1204,7 @@
                         such transport.
                     </p>
 
-                    <h3>Reverb</h3>
+                    <h3 id="reverb">Reverb</h3>
                     <p>
                         Three machines again, on the same kind of button. <strong>Room</strong> is a feedback delay network whose room is sized from
                         its decay time, since a long tail in a small room is a spring rather than a place. <strong>Modulated plate</strong> is a sheet
@@ -1221,14 +1221,14 @@
                         every crossing of the tray.
                     </p>
 
-                    <h3>The converter</h3>
+                    <h3 id="converter">The converter</h3>
                     <p>
                         Shown as two seven-segment readouts under the output meter. Turning the sample rate down is a genuine cut rather than a filter
                         over the top: the whole voice pool renders slower, which costs a fifth as much at 8 kHz, and the partials above the new
                         ceiling fold back down instead of disappearing.
                     </p>
 
-                    <h3>CLIP</h3>
+                    <h3 id="clip">CLIP</h3>
                     <p>
                         Five machines behind one button, across the finished output and after the master fader, which is therefore the drive into
                         them. The fader and the choice both travel with the preset, so how hard a patch leans on this stage is part of the patch.
@@ -1266,7 +1266,7 @@
                         rather than during one.
                     </p>
 
-                    <h3>The output meter</h3>
+                    <h3 id="output-meter">The output meter</h3>
                     <p>
                         Horizontal, split into left and right, because the two channels are identical until something is panned off centre and a
                         summed meter would hide precisely that. It reads the finished output after master gain and the clipper. Lamps run from teal
