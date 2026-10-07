@@ -300,11 +300,133 @@ void testTheParameterListIsCurrent(OvertoniumProcessor &p) {
   const auto file = parameterReferenceFile();
   const auto published = file.loadFileAsString().removeCharacters("\r");
 
+  const auto live = parameterReference(p);
+
   check(file.existsAsFile(), "docs/parameters.json exists");
-  check(published == parameterReference(p),
+  check(published == live,
         "docs/parameters.json is the layout. Regenerate it with "
         "overtonium_runtime_test --write-parameters, then run "
         "Tools/build_site.py");
+
+  // Which line, and both versions of it. A difference that shows on one
+  // platform and not another cannot be found by regenerating the file on the
+  // machine that wrote it, so the log has to carry the answer itself. It has
+  // happened once: the macOS maths library put a different seventh decimal on
+  // a value that had been through an exponential range and back.
+  if (published != live) {
+    const auto was = juce::StringArray::fromLines(published);
+    const auto is = juce::StringArray::fromLines(live);
+
+    for (int i = 0; i < juce::jmax(was.size(), is.size()); ++i) {
+      if (was[i] != is[i]) {
+        std::printf("  line %d of docs/parameters.json\n"
+                    "    published: %s\n"
+                    "    this build: %s\n",
+                    i + 1, was[i].toRawUTF8(), is[i].toRawUTF8());
+        break;
+      }
+    }
+  }
+}
+
+/// What a host's automation lane, the panel's value popup and a screen reader
+/// all show for a parameter, which is the same text in all three. A float
+/// parameter with no text of its own prints seven decimal places, 4.0000005
+/// for 4, and four of them did until they were given one.
+void testReadoutsAreWrittenAsAPersonWould(OvertoniumProcessor &p) {
+  section("Readouts a person would write");
+
+  const auto shown = [&p](const juce::String &id, float value) {
+    auto *param = p.apvts.getParameter(id);
+    return param == nullptr ? juce::String("(missing)")
+                            : param->getText(param->convertTo0to1(value), 100);
+  };
+
+  struct Case {
+    const char *id;
+    float value;
+    const char *expected;
+  };
+
+  const Case cases[] = {
+      {"h01_pmRate", 4.0f, "4.00 Hz"},
+      {"h01_pmRate", 0.01f, "0.01 Hz"},
+      {"h01_pmRate", 30.0f, "30.0 Hz"},
+      {"h17_amRate", 0.25f, "0.25 Hz"},
+      {"noise_amRate", 12.5f, "12.5 Hz"},
+      {"h01_pmDepth", 0.0f, "0 ct"},
+      {"h01_pmDepth", 2.5f, "2.5 ct"},
+      {"h01_pmDepth", 1200.0f, "1200 ct"},
+      {"h32_drift", 25.0f, "25 ct"},
+      {"h32_drift", 6.04f, "6.0 ct"},
+      {"macro1_amount", 0.0f, "0.0 %"},
+      {"macro1_amount", 1.0f, "+100.0 %"},
+      {"macro8_amount", -1.0f, "-100.0 %"},
+      {"macro4_amount", 0.123f, "+12.3 %"},
+  };
+
+  for (const auto &c : cases)
+    check(shown(c.id, c.value) == c.expected,
+          std::string(c.id) + " at " + std::to_string(c.value) + " reads \"" +
+              shown(c.id, c.value).toStdString() + "\", expected \"" +
+              c.expected + "\"");
+
+  // The centre a hair low, which is where macOS puts it once the range has
+  // snapped the value to its step. It printed as -0.0000 there and 0.0000
+  // here, which is how a file written on Linux failed on a Mac.
+  if (auto *amount = p.apvts.getParameter("macro1_amount"))
+    check(amount->getText(0.4999999f, 100) == "0.0 %",
+          "a macro amount a hair below its centre reads 0.0 %, and reads " +
+              amount->getText(0.4999999f, 100).toStdString());
+
+  // And none of the rest, at either end, the middle or the default, prints
+  // more places than anyone would read: five digits after a point is the
+  // signature of a parameter that has no text function.
+  int long_ = 0, negativeZero = 0;
+  juce::String first, firstZero;
+
+  for (auto *base : p.getParameters()) {
+    auto *param = dynamic_cast<juce::RangedAudioParameter *>(base);
+
+    if (param == nullptr)
+      continue;
+
+    for (float at : {0.0f, 0.5f, 1.0f, param->getDefaultValue()}) {
+      const auto text = param->getText(at, 100);
+      const auto point = text.indexOfChar('.');
+      int digits = 0;
+
+      for (int i = point + 1; point >= 0 && i < text.length() &&
+                              juce::CharacterFunctions::isDigit(text[i]);
+           ++i)
+        ++digits;
+
+      if (digits >= 5) {
+        ++long_;
+        if (first.isEmpty())
+          first = param->getParameterID() + " reads " + text;
+      }
+
+      // A minus sign in front of nothing but noughts is a value a hair below
+      // zero printed without rounding first, and whether it is below zero
+      // depends on the platform's float arithmetic.
+      if (text.startsWithChar('-') &&
+          text.retainCharacters("0123456789").containsOnly("0") &&
+          text.containsAnyOf("0123456789")) {
+        ++negativeZero;
+        if (firstZero.isEmpty())
+          firstZero = param->getParameterID() + " reads " + text;
+      }
+    }
+  }
+
+  check(negativeZero == 0, "no parameter reads as a negative zero (" +
+                               std::to_string(negativeZero) + " do, first " +
+                               firstZero.toStdString() + ")");
+
+  check(long_ == 0, "no parameter reads to five or more places (" +
+                        std::to_string(long_) + " do, first " +
+                        first.toStdString() + ")");
 }
 
 void testParameterWiring(OvertoniumProcessor &p) {
@@ -9601,6 +9723,7 @@ int main(int argc, char **argv) {
 
   testParameterWiring(processor);
   testTheParameterListIsCurrent(processor);
+  testReadoutsAreWrittenAsAPersonWould(processor);
   testChoiceParameterCounts(processor);
   testRendering(processor);
   testReleaseVelocity(processor);

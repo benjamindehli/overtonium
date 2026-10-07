@@ -462,14 +462,6 @@ def span(first, last):
     return first if first == last else f"{first} to {last}"
 
 
-def tidy(text):
-    """A number the way a person would write it. Four parameters have no text
-    of their own, and JUCE prints those to seven places, 4.0000005 for 4."""
-    if re.fullmatch(r"-?\d+\.\d{5,}", text):
-        return f"{float(text):.3f}".rstrip("0").rstrip(".")
-    return text
-
-
 def described(members, each):
     """Range and default for a row. The range is the same for every member,
     which the build insists on, and the default can differ: the partial
@@ -482,14 +474,14 @@ def described(members, each):
     elif one["type"] == "switch":
         travel = "Off or on"
     else:
-        travel = f"{tidy(one['min'])} to {tidy(one['max'])}{unit}"
+        travel = f"{one['min']} to {one['max']}{unit}"
 
     shape = {k: v for k, v in one.items() if k not in ("id", "name", "default")}
     for other in members[1:]:
         if {k: v for k, v in other.items() if k not in ("id", "name", "default")} != shape:
             sys.exit(f"{other['id']} has a different range from {one['id']}, so one row cannot describe both")
 
-    first, last = tidy(members[0]["default"]), tidy(members[-1]["default"])
+    first, last = members[0]["default"], members[-1]["default"]
     if all(m["default"] == one["default"] for m in members):
         return travel, first + unit
     def owner(member):

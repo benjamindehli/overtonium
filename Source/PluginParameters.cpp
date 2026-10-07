@@ -126,6 +126,43 @@ juce::String timeText(float seconds, int) {
   return juce::String(seconds, 2) + " s";
 }
 
+/// A modulator's rate, to the precision the knob can actually be set to by
+/// hand: hundredths below 10 Hz, where a slow sweep lives, and tenths above.
+juce::String rateText(float hz, int) {
+  return juce::String(hz, hz < 10.0f ? 2 : 1) + " Hz";
+}
+
+/// A depth or a drift in cents. Tenths are audible below 10 cents and noise
+/// above them, and nought is nought rather than a tenth of nothing.
+juce::String centsText(float cents, int) {
+  if (cents < 0.05f)
+    return "0 ct";
+
+  return juce::String(cents, cents < 10.0f ? 1 : 0) + " ct";
+}
+
+/// A macro's amount as the panel's reading shows it, a signed percentage to a
+/// tenth. Rounded to whole tenths before the sign is chosen, so a value a hair
+/// either side of zero reads 0.0 % on every platform: the range snaps to its
+/// step in float arithmetic, and on macOS that leaves the centre a few
+/// ten-millionths below zero, which printed as -0.0000.
+juce::String macroAmountText(float v, int) {
+  const auto tenths = juce::roundToInt(v * 1000.0f);
+
+  if (tenths == 0)
+    return "0.0 %";
+
+  const auto size = std::abs(tenths);
+  return (tenths > 0 ? "+" : "-") + juce::String(size / 10) + "." +
+         juce::String(size % 10) + " %";
+}
+
+/// The other way, so a host that lets you type a value reads "50" as half way
+/// rather than as fifty times the range.
+float macroAmountValue(const juce::String &text) {
+  return juce::jlimit(-1.0f, 1.0f, text.getFloatValue() / 100.0f);
+}
+
 juce::String percentText(float v, int) {
   return juce::String(juce::roundToInt(v * 100.0f)) + " %";
 }
@@ -577,7 +614,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     // need the patch dialled at an extreme to be useful in the other.
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{macroAmountId(m), 1}, name,
-        juce::NormalisableRange<float>(-1.0f, 1.0f, 0.0001f), 0.0f));
+        juce::NormalisableRange<float>(-1.0f, 1.0f, 0.0001f), 0.0f,
+        FAttr()
+            .withStringFromValueFunction(macroAmountText)
+            .withValueFromStringFunction(macroAmountValue)));
 
     // None first, which is what an unmade macro points at. Every one of the
     // eight starts there, so a fresh instrument has a pool and no macros.
@@ -758,12 +798,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(pmRateSuffix, i), 1}, p + "Pitch Mod Rate",
-        logRange(0.01f, 30.0f), 4.0f, FAttr().withLabel("Hz")));
+        logRange(0.01f, 30.0f), 4.0f,
+        FAttr().withStringFromValueFunction(rateText)));
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(pmDepthSuffix, i), 1},
         p + "Pitch Mod Depth", expRange(0.0f, kMaxPitchModCents, 25.0f), 0.0f,
-        FAttr().withLabel("ct")));
+        FAttr().withStringFromValueFunction(centsText)));
 
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID{oscParamId(pmShapeSuffix, i), 1},
@@ -776,7 +817,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(driftSuffix, i), 1}, p + "Drift",
-        expRange(0.0f, kMaxDriftCents, 6.0f), 0.0f, FAttr().withLabel("ct")));
+        expRange(0.0f, kMaxDriftCents, 6.0f), 0.0f,
+        FAttr().withStringFromValueFunction(centsText)));
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(strikeSuffix, i), 1},
@@ -820,7 +862,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(amRateSuffix, i), 1}, p + "Amp Mod Rate",
-        logRange(0.01f, 30.0f), 4.0f, FAttr().withLabel("Hz")));
+        logRange(0.01f, 30.0f), 4.0f,
+        FAttr().withStringFromValueFunction(rateText)));
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(amDepthSuffix, i), 1}, p + "Amp Mod Depth",
@@ -908,7 +951,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{noiseParamId(amRateSuffix), 1}, "Noise Amp Mod Rate",
-      logRange(0.01f, 30.0f), 4.0f, FAttr().withLabel("Hz")));
+      logRange(0.01f, 30.0f), 4.0f,
+      FAttr().withStringFromValueFunction(rateText)));
 
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{noiseParamId(amDepthSuffix), 1}, "Noise Amp Mod Depth",
