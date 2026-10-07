@@ -695,6 +695,18 @@ jobs:
           python3 .github/scripts/image_dimensions.py --self-test
           python3 .github/scripts/image_dimensions.py docs
 
+      # The third of the same idea, and the one with the shortest history. A
+      # media query adds no specificity, so a rule inside one and a rule for
+      # the same selector further down the file are the same weight and the
+      # later one wins at every width. The query reads as doing something and
+      # does nothing. It cost a sidebar that was broken on every page at wide
+      # widths while the stylesheet said otherwise, and nothing here or in a
+      # formatter could see it.
+      - name: No media query is overruled by a later rule
+        run: |
+          python3 .github/scripts/css_cascade.py --self-test
+          python3 .github/scripts/css_cascade.py docs
+
       - name: The version in CMakeLists has its notes and its section
         run: |
           version=$(sed -n 's/^project(Overtonium VERSION \([0-9.]*\).*/\1/p' \
