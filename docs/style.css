@@ -24,8 +24,8 @@
 
     /* The contents rail, on windows wide enough to hold one beside the page
        rather than instead of part of it. See the .contents rules. */
-    --rail: 196px;
-    --rail-gap: 36px;
+    --rail: 224px;
+    --rail-gap: 32px;
 
     /* The one thing on this page the browser draws rather than the stylesheet
        is the audio player, and without this it arrives in light chrome on a
@@ -1243,9 +1243,10 @@ main h1 {
    scroll sideways when that is not enough, so taking 230px off them is a cost
    paid on every one. Opening the page out instead costs nothing but window.
 
-   1240px is where that becomes possible at all: 196 for the rail, 36 between,
-   48 of body padding, and a content column still wider than the measure. From
-   about 1470 the content is back to its full 1180 and the rail is free.
+   1240px is where that becomes possible at all: 224 for the rail, 32 between,
+   48 of body padding, and a content column of 936, still wider than the 77ch
+   measure. From about 1490 the content is back to its full 1180 and the rail
+   costs nothing at all.
 
    The grid is on .page rather than on main, because the masthead and the
    content are siblings there and the rail is the masthead. */
@@ -1276,13 +1277,19 @@ main h1 {
         padding: 20px 0 0;
 
         /* The controls page lists twenty-eight headings under its own entry,
-           which is taller than a short laptop window, so the rail scrolls on
-           its own rather than running off the bottom of it. */
+           which with the six page names above them is taller than a laptop
+           window, so the rail scrolls on its own rather than running off the
+           bottom of it. It is the only page that does. */
         max-height: calc(100vh - 40px);
         overflow-y: auto;
         overscroll-behavior: contain;
-        scrollbar-width: thin;
-        scrollbar-color: var(--outline) transparent;
+
+        /* No scrollbar-color here, deliberately. Naming one opts the browser
+           out of the overlay scrollbars macOS draws over the content and into
+           a classic one that reserves a column of its own, which on a rail
+           this narrow is width taken off every entry and more of them wrapping
+           for it. The gutter below is for the overlay to sit in. */
+        padding-right: 10px;
     }
 
     .brand img {
@@ -1353,6 +1360,28 @@ main h1 {
         font-size: 13px;
         font-weight: 500;
         color: var(--text-dim);
+    }
+
+    /* A section's parts show while you are in it and fold away while you are
+       not. The controls page lists twenty-eight headings, which is more rail
+       than a laptop window has, and all but a handful of them describe a part
+       of the page you are nowhere near.
+
+       Hung on data-folds, which contents.js sets once it is running, so a
+       blocked script leaves the whole list showing rather than a list with
+       most of it permanently hidden and nothing able to open it. */
+    .contents[data-folds] > ul > li > ul {
+        display: none;
+    }
+
+    .contents[data-folds] > ul > li[data-open] > ul {
+        display: block;
+    }
+
+    /* The section you are in, while the entry actually being read is one of
+       its parts rather than the section itself. */
+    .contents > ul > li[data-open] > a {
+        color: var(--text);
     }
 
     .contents ul ul {

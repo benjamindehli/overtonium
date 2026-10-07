@@ -25,17 +25,37 @@
 
     if (!nav) return;
 
+    var outer = nav.querySelector("ul");
     var links = [].slice.call(nav.querySelectorAll('a[href^="#"]'));
     var targets = [];
     var current = null;
+    var open = null;
+
+    /* The entry at the top of the tree that this one belongs to, which is the
+       list item whose own parent is the outer list. A top-level entry is its
+       own. */
+    function top(link) {
+        var li = link.parentNode;
+
+        while (li && li.parentNode !== outer) {
+            li = li.parentNode;
+        }
+
+        return li;
+    }
 
     links.forEach(function (link) {
         var el = document.getElementById(link.getAttribute("href").slice(1));
 
-        if (el) targets.push({ el: el, link: link });
+        if (el) targets.push({ el: el, link: link, top: top(link) });
     });
 
     if (!targets.length) return;
+
+    /* Says that the folding below is running, so the stylesheet only hides a
+       section's sub-entries when there is something here to unhide them
+       again. With this file blocked the list stays whole. */
+    nav.setAttribute("data-folds", "");
 
     function mark(entry) {
         if (entry === current) return;
@@ -47,6 +67,19 @@
         if (entry) entry.link.setAttribute("aria-current", "location");
 
         current = entry;
+
+        /* And the section it belongs to is the one whose parts are worth
+           showing. The controls page lists twenty-eight headings, which is
+           more rail than a laptop window has, and all but a handful of them
+           are about a part of the page you are nowhere near. */
+        var wanted = entry ? entry.top : null;
+
+        if (wanted !== open) {
+            if (open) open.removeAttribute("data-open");
+            if (wanted) wanted.setAttribute("data-open", "");
+
+            open = wanted;
+        }
     }
 
     function update() {
