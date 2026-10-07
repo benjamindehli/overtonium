@@ -24,7 +24,7 @@
 
     /* The contents rail, on windows wide enough to hold one beside the page
        rather than instead of part of it. See the .contents rules. */
-    --rail: 224px;
+    --rail: 236px;
     --rail-gap: 32px;
 
     /* The one thing on this page the browser draws rather than the stylesheet
@@ -1243,10 +1243,14 @@ main h1 {
    scroll sideways when that is not enough, so taking 230px off them is a cost
    paid on every one. Opening the page out instead costs nothing but window.
 
-   1240px is where that becomes possible at all: 224 for the rail, 32 between,
-   48 of body padding, and a content column of 936, still wider than the 77ch
-   measure. From about 1490 the content is back to its full 1180 and the rail
+   1240px is where that becomes possible at all: 236 for the rail, 32 between,
+   48 of body padding, and a content column of 924, still wider than the 77ch
+   measure. From about 1500 the content is back to its full 1180 and the rail
    costs nothing at all.
+
+   The rail is twelve pixels wider than the entries need, so that the overlay
+   scrollbar on the one page long enough to summon one lands in slack rather
+   than across the words.
 
    The grid is on .page rather than on main, because the masthead and the
    content are siblings there and the rail is the masthead. */
@@ -1288,8 +1292,9 @@ main h1 {
            out of the overlay scrollbars macOS draws over the content and into
            a classic one that reserves a column of its own, which on a rail
            this narrow is width taken off every entry and more of them wrapping
-           for it. The gutter below is for the overlay to sit in. */
-        padding-right: 10px;
+           for it. The gutter is for the overlay to sit in, and the rail is
+           wide enough that it sits beside the words rather than over them. */
+        padding-right: 14px;
     }
 
     .brand img {
