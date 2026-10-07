@@ -23,6 +23,15 @@ nobody moves them back.
 
 Only properties set in both places are reported. Two rules for the same
 selector are perfectly normal when they say different things.
+
+What this does not catch: the same fault committed with a *different* selector
+rather than a later one. `header.nav-only .sections { margin-top: 0 }` beats
+`.sections { margin-top: 30px }` inside a media query on specificity alone,
+wherever either is written, and that is indistinguishable from the ordinary
+case of a more specific rule meaning to win. It bit on the same day as the
+fault above, on the same stylesheet. The only defence there is reading, and
+knowing that a rule written for a narrow masthead may have been written before
+there was a wide one.
 """
 
 import io

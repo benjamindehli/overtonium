@@ -877,14 +877,18 @@ footer a:hover {
     margin: 0 0 10px;
 }
 
-/* Matching the headings they point at, which are uppercase in the accent, so
-   the link and the thing it lands on read as the same word. */
+/* Set as they are written rather than as the headings they point at are drawn.
+   The headings are uppercase in the accent, and copying that here was wrong
+   twice over: "Velocity and pressure, per partial" in capitals with letter
+   spacing takes three lines in a 196px rail where it takes one and a half as
+   written, and a list of fifteen of them in the accent shouted louder than the
+   six page names above it, so the deeper level read as the more important one.
+   Weight and colour carry the level instead, which is what the sub-entries
+   under them were already doing. */
 .contents > ul > li > a {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--accent);
+    color: var(--text);
 }
 .contents ul ul {
     margin: 6px 0 0 1px;
@@ -1287,9 +1291,14 @@ main h1 {
 
     /* A column of links rather than a row, and no rule under it: at this width
        the rail's own left edge is what separates one thing from the next. */
-    .sections {
+    /* header.nav-only .sections sets margin-top to 0 further up, for a front
+       page whose masthead had no wordmark over it. It has one in the rail, so
+       the selector here has to be at least as specific or the front page's
+       links sit jammed under it. */
+    .sections,
+    header.nav-only .sections {
         display: block;
-        margin-top: 26px;
+        margin-top: 30px;
         border-bottom: 0;
         border-left: 1px solid var(--outline);
     }
@@ -1341,7 +1350,9 @@ main h1 {
     }
 
     .contents > ul > li > a {
-        font-size: 12px;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-dim);
     }
 
     .contents ul ul {
@@ -1356,6 +1367,8 @@ main h1 {
 
     .contents ul ul a {
         font-size: 13px;
+        color: var(--text-dim);
+        opacity: 0.82;
     }
 
     .contents a:hover {
