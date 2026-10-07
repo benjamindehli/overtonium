@@ -663,6 +663,13 @@ jobs:
           for path in files:
               text = path.read_text(encoding="utf-8")
 
+              # Tags out first, so a count and its noun that have a link
+              # between them still read as neighbours. "the thirty-one
+              # <a href="presets/">factory presets</a>" was two releases stale
+              # on the front page and on the controls page, and this check
+              # walked past it twice, because \s+ cannot cross an anchor.
+              text = re.sub(r"<[^>]+>", " ", text)
+
               for pattern, expected in checks:
                   want = spelt(expected)
 
