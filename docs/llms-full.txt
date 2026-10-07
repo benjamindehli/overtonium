@@ -615,11 +615,11 @@ All 836 as the host lists them, with a control that every partial or every macro
 | What the host calls it | Id | Range | Default |
 |---|---|---|---|
 | `H1 Tune to H32 Tune` | `h01_tune to h32_tune` | Equal temp. to Just | Just |
-| `H1 Pitch Mod Rate to H32 Pitch Mod Rate` | `h01_pmRate to h32_pmRate` | 0.01 to 30 Hz | 4 Hz |
-| `H1 Pitch Mod Depth to H32 Pitch Mod Depth` | `h01_pmDepth to h32_pmDepth` | 0 to 1200 ct | 0 ct |
+| `H1 Pitch Mod Rate to H32 Pitch Mod Rate` | `h01_pmRate to h32_pmRate` | 0.01 Hz to 30.0 Hz | 4.00 Hz |
+| `H1 Pitch Mod Depth to H32 Pitch Mod Depth` | `h01_pmDepth to h32_pmDepth` | 0 ct to 1200 ct | 0 ct |
 | `H1 Pitch Mod Shape to H32 Pitch Mod Shape` | `h01_pmShape to h32_pmShape` | Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Square (up), Sample & Hold, Random | Sine |
 | `H1 Start Phase to H32 Start Phase` | `h01_phase to h32_phase` | 0° to 360° | 0° |
-| `H1 Drift to H32 Drift` | `h01_drift to h32_drift` | 0 to 25 ct | 0 ct |
+| `H1 Drift to H32 Drift` | `h01_drift to h32_drift` | 0 ct to 25 ct | 0 ct |
 | `H1 Strike Velocity to H32 Strike Velocity` | `h01_strike to h32_strike` | -100 % to +100 % | 0 % |
 | `H1 Delay to H32 Delay` | `h01_delay to h32_delay` | 0.0 ms to 5.00 s | 0.0 ms |
 | `H1 Attack to H32 Attack` | `h01_attack to h32_attack` | 0.2 ms to 5.00 s | 5.0 ms |
@@ -628,7 +628,7 @@ All 836 as the host lists them, with a control that every partial or every macro
 | `H1 Key-off Swell to H32 Key-off Swell` | `h01_swell to h32_swell` | 0.0 ms to 5.00 s | 5.0 ms |
 | `H1 Key-off Level to H32 Key-off Level` | `h01_offLevel to h32_offLevel` | 0 % to 100 % | 0 % |
 | `H1 Release to H32 Release` | `h01_release to h32_release` | 1.0 ms to 20.00 s | 400 ms |
-| `H1 Amp Mod Rate to H32 Amp Mod Rate` | `h01_amRate to h32_amRate` | 0.01 to 30 Hz | 4 Hz |
+| `H1 Amp Mod Rate to H32 Amp Mod Rate` | `h01_amRate to h32_amRate` | 0.01 Hz to 30.0 Hz | 4.00 Hz |
 | `H1 Amp Mod Depth to H32 Amp Mod Depth` | `h01_amDepth to h32_amDepth` | 0 % to 100 % | 0 % |
 | `H1 Amp Mod Shape to H32 Amp Mod Shape` | `h01_amShape to h32_amShape` | Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Sample & Hold, Random | Sine |
 | `H1 Velocity to H32 Velocity` | `h01_vel to h32_vel` | -100 % to +100 % | +70 % |
@@ -651,7 +651,7 @@ All 836 as the host lists them, with a control that every partial or every macro
 | `Noise Key-off Swell` | `noise_swell` | 0.0 ms to 5.00 s | 5.0 ms |
 | `Noise Key-off Level` | `noise_offLevel` | 0 % to 100 % | 0 % |
 | `Noise Release` | `noise_release` | 1.0 ms to 20.00 s | 400 ms |
-| `Noise Amp Mod Rate` | `noise_amRate` | 0.01 to 30 Hz | 4 Hz |
+| `Noise Amp Mod Rate` | `noise_amRate` | 0.01 Hz to 30.0 Hz | 4.00 Hz |
 | `Noise Amp Mod Depth` | `noise_amDepth` | 0 % to 100 % | 0 % |
 | `Noise Amp Mod Shape` | `noise_amShape` | Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Sample & Hold, Random | Sine |
 | `Noise Velocity` | `noise_vel` | -100 % to +100 % | +70 % |
