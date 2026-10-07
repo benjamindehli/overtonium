@@ -124,6 +124,7 @@
                             <a href="../releases/" aria-current="page">Releases</a>
                             <nav class="contents" aria-label="On this page">
                                 <ul>
+                                    <li><a href="#v1-11-1">1.11.1</a></li>
                                     <li><a href="#v1-11-0">1.11.0</a></li>
                                     <li><a href="#v1-10-1">1.10.1</a></li>
                                     <li><a href="#v1-10-0">1.10.0</a></li>
@@ -155,6 +156,20 @@
                     What changed in each version, newest first. Each one links to its full notes, which say more and carry the installing and
                     upgrading detail as well.
                 </p>
+
+                <section id="v1-11-1">
+                    <h2>1.11.1, 7 October 2026</h2>
+
+                    <p>
+                        <strong>Four controls read to seven decimal places.</strong> The pitch modulator's rate and depth, the drift and the amplitude
+                        modulator's rate had no text of their own, so a host's automation lane, the panel's value popup and a screen reader all said
+                        <code>4.0000005 Hz</code> for four. They now read as the other controls do, <code>4.00 Hz</code>, <code>30.0 Hz</code> and
+                        <code>0 ct</code>. Only the text changed: ranges, defaults and stored values are as they were, so sessions, presets and
+                        automation play back exactly as before.
+                    </p>
+
+                    <p class="more"><a href="https://github.com/benjamindehli/overtonium/releases/tag/v1.11.1">The full notes for 1.11.1</a></p>
+                </section>
 
                 <section id="v1-11-0">
                     <h2>1.11.0, 7 October 2026</h2>

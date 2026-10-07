@@ -1023,6 +1023,12 @@ Last changed: 2026-10-07
 
 What changed in each version, newest first. Each one links to its full notes, which say more and carry the installing and upgrading detail as well.
 
+## 1.11.1, 7 October 2026
+
+**Four controls read to seven decimal places.** The pitch modulator's rate and depth, the drift and the amplitude modulator's rate had no text of their own, so a host's automation lane, the panel's value popup and a screen reader all said `4.0000005 Hz` for four. They now read as the other controls do, `4.00 Hz`, `30.0 Hz` and `0 ct`. Only the text changed: ranges, defaults and stored values are as they were, so sessions, presets and automation play back exactly as before.
+
+[The full notes for 1.11.1](https://github.com/benjamindehli/overtonium/releases/tag/v1.11.1)
+
 ## 1.11.0, 7 October 2026
 
 **Eight macros, so a relationship across the series can be automated.** A LINK drag moves 32 parameters and a host catches only the last one touched, so a relationship you can edit by hand could not be recorded at all. A macro names a row, a scope and a curve, and gives that relationship one control and the host one lane. It offsets rather than writes, so the patch underneath is untouched, which is why the knobs do not move when a macro does. A driven control says both things at once instead: the ring of ticks lights to where the macro has taken the value in the macro's colour, and the pointer stays at what the patch holds. A fader says it in the gutters either side of its track. Eight is a pool rather than a count, since a plugin declares its parameters once and cannot add one later.
