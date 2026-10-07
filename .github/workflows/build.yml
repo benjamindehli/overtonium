@@ -684,6 +684,17 @@ jobs:
           print(f"every counted noun agrees, across {len(files)} files")
           PY
 
+      # The other half of the same idea. Every <img> carries a width and a
+      # height so the browser can reserve the space before the bytes arrive,
+      # and a wrong one is the layout shift those attributes exist to
+      # prevent, silently: the page looks right to anyone testing it on a
+      # fast connection. The scrollbar made the window ten pixels wider and
+      # the pages went on declaring the old width for two releases.
+      - name: The pages say what the pictures are
+        run: |
+          python3 .github/scripts/image_dimensions.py --self-test
+          python3 .github/scripts/image_dimensions.py docs
+
       - name: The version in CMakeLists has its notes and its section
         run: |
           version=$(sed -n 's/^project(Overtonium VERSION \([0-9.]*\).*/\1/p' \

@@ -255,8 +255,37 @@ public:
     return partialPitches;
   }
 
+  /// What the VELOCITY row has left of each partial, 0 to 1.
+  ///
+  /// The row's own gain, which is what it does to the fader and nothing
+  /// else, so the lamp over it reads the way the knob does. The row can only
+  /// take level away, so full is a partial the blow has not touched and dark
+  /// is one it has taken entirely. A row set to the centre leaves every
+  /// partial alone at every velocity and reads full throughout.
+  ///
+  /// Latched at the note-on along with the gain itself, so this is a read
+  /// rather than any work.
+  const std::array<float, kNumHarmonics> &
+  getPartialVelocities() const noexcept {
+    return partialVelocities;
+  }
+
+  /// What the AFTERTOUCH row is putting into each partial, 0 to 1.
+  ///
+  /// The row's amount against the pressure on the key, so it rests dark and
+  /// brightens as the player leans in. Unsigned, since a row set to push a
+  /// partial down is doing as much as one set to lift it.
+  const std::array<float, kNumHarmonics> &getPartialPressures() const noexcept {
+    return partialPressures;
+  }
+
   float getNoiseEnvelope() const noexcept { return noiseEnvelope; }
   float getNoiseTremolo() const noexcept { return noiseTremolo; }
+
+  /// The same two for the noise channel, which has a velocity and an
+  /// aftertouch amount of its own.
+  float getNoiseVelocity() const noexcept { return noiseVelocity; }
+  float getNoisePressure() const noexcept { return noisePressure; }
 
   /// Roughly how loud this voice was during the last render, for deciding
   /// which one it costs least to take away.
@@ -335,17 +364,21 @@ private:
   std::array<Partial, kNumHarmonics> partials{};
   std::array<float, kNumHarmonics> partialPeaks{};
 
-  /// Read by the strip lamps rather than by anything that makes sound. All
-  /// three are values the render loop has already worked out for its own
+  /// Read by the strip lamps rather than by anything that makes sound. Every
+  /// one is a value the render loop has already worked out for its own
   /// purposes, so capturing them is a store and nothing else.
   std::array<float, kNumHarmonics> partialEnvelopes{};
   std::array<float, kNumHarmonics> partialTremolos{};
   std::array<float, kNumHarmonics> partialPitches{};
+  std::array<float, kNumHarmonics> partialVelocities{};
+  std::array<float, kNumHarmonics> partialPressures{};
 
   Noise noise;
   float noisePeak = 0.0f;
   float noiseEnvelope = 0.0f;
   float noiseTremolo = 0.0f;
+  float noiseVelocity = 0.0f;
+  float noisePressure = 0.0f;
   float lowpassCoef = 0.1f;
 
   double sampleRate = 44100.0;

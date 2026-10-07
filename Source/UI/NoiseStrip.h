@@ -36,6 +36,14 @@ public:
   /// mixer's rows, so it folds with everything else.
   void setCollapsedSections(SectionMask);
 
+  /// How far the parameters are scrolled, shared by every column.
+  ///
+  /// The gutter, the 32 strips and the noise channel are handed the same
+  /// number by the editor, which is what keeps a caption pointing at the knob
+  /// beside it. Snapped to a row boundary inside layoutRows, so a row is never
+  /// half over the header.
+  void setScroll(int);
+
   /// Asked for when a click lands on one of the rules between sections, which
   /// line up with the gutter's headings and do the same thing.
   std::function<void(Section)> onSectionToggled;
@@ -51,6 +59,10 @@ public:
   void setDrawGlow(bool);
 
   void mouseDown(const juce::MouseEvent &) override;
+
+  /// As TopBar::onLearnRequested. The noise channel is one strip rather than
+  /// a series, so LINK has nothing to say about it either.
+  std::function<void(const juce::String &)> onLearnRequested;
   void mouseEnter(const juce::MouseEvent &) override;
   void mouseMove(const juce::MouseEvent &) override;
   void mouseExit(const juce::MouseEvent &) override;
@@ -82,7 +94,7 @@ public:
   /// any other channel, so it gets those two. It has no pitch, so the pitch
   /// rule stays a plain rule, which is the same thing the "no pitch" label
   /// above it is saying. See ChannelStrip::setActivity.
-  void setActivity(float envelope, float tremolo,
+  void setActivity(float envelope, float tremolo, float velGain, float pressure,
                    juce::Array<juce::Rectangle<int>> &into);
 
   /// Whether the pointer is on this channel, which is what lights the column.
@@ -124,7 +136,7 @@ private:
   juce::Label colourReadout;
   SegmentDisplay levelReadout{{}};
   LevelMeter meter;
-  ActivityLamp envLamp, keyOffLamp, tremoloLamp;
+  ActivityLamp envLamp, keyOffLamp, tremoloLamp, velocityLamp, pressureLamp;
 
   std::vector<std::unique_ptr<SliderAttachment>> sliderAttachments;
   std::unique_ptr<ButtonAttachment> muteAttachment, soloAttachment;
@@ -134,6 +146,12 @@ private:
 
   /// Folded groups, set by the editor. See ChannelStrip.
   SectionMask collapsed = 0;
+  int scroll = 0;
+
+  /// Hides a row that has scrolled under the pinned header. See HeaderCap.
+  HeaderCap headerCap;
+
+  void paintHeaderBand(juce::Graphics &);
   bool hovered = false;
 
   /// Set when a menu takes the pointer away, and cleared when the pointer

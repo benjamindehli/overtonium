@@ -8,7 +8,7 @@ Three layers, and the boundary between the first two is the one that matters.
 
 **A DSP core with no JUCE in it.** Everything under `Source/dsp/` compiles from a bare compiler with no framework and no third-party headers. That is checked rather than asserted: a CI job builds it with `c++ -std=c++17 -Wall -Wextra -Werror` and runs its tests, so an accidental `#include <juce_core/...>` fails the build. The benefit is that the part with the arithmetic in it can be tested without a plugin host, a display or a build system.
 
-**A JUCE layer** that owns parameters, MIDI, state and the editor. `PluginProcessor` handles notes and rendering, `PluginParameters` declares the 784 parameters and flattens them into a plain snapshot the audio thread can read, and `Presets` holds the thirty-two factory patches.
+**A JUCE layer** that owns parameters, MIDI, state and the editor. `PluginProcessor` handles notes and rendering, `PluginParameters` declares the 784 parameters and flattens them into a plain snapshot the audio thread can read, and `Presets` holds the thirty-three factory patches.
 
 **A UI layer** under `Source/UI/`, which draws the mixer and knows nothing about how sound is made.
 
@@ -52,11 +52,13 @@ Source/
     PlateReverb.*   the same as a modulated plate
     SpringReverb.*  the same as a tray of springs
     SynthEngine.*   voice pool, allocation, stealing, effects, master stage
-  PluginParameters.*  APVTS layout, 786 parameters, and the audio-thread snapshot
+  PluginParameters.*  APVTS layout, 836 parameters, and the audio-thread snapshot
   Presets.*           factory presets
+  MidiLearn.*         which controller moves which control
   PluginProcessor.*   MIDI handling, sample-accurate rendering, state
   PluginEditor.*      window, zoom, LINK, gutter
-  UI/                 theme, look and feel, channel and noise strips, top bar
+  UI/                 theme, look and feel, channel and noise strips, top bar,
+                      macro panel
 Tests/
   dsp_test.cpp            standalone DSP tests and CPU benchmark
   plugin_runtime_test.cpp headless plugin integration tests
@@ -91,4 +93,4 @@ The factory presets are generated C++ rather than data files, converted from pat
 
 ## Formats
 
-`juce_add_plugin` builds VST3 and standalone everywhere, an Audio Unit on macOS and LV2 on Linux. Most of the plugin does not know which it is inside, with one deliberate exception: `getNumPrograms` reports the thirty-two factory presets to the Audio Unit alone, because Logic reads its preset menu from there, while a program count above one makes the VST3 wrapper publish an automatable parameter that would rewrite every other parameter when it moves.
+`juce_add_plugin` builds VST3 and standalone everywhere, an Audio Unit on macOS and LV2 on Linux. Most of the plugin does not know which it is inside, with one deliberate exception: `getNumPrograms` reports the thirty-three factory presets to the Audio Unit alone, because Logic reads its preset menu from there, while a program count above one makes the VST3 wrapper publish an automatable parameter that would rewrite every other parameter when it moves.

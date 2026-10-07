@@ -1,5 +1,7 @@
 #pragma once
 
+#include "OutputStage.h"
+
 #include <array>
 
 #include "Character.h"
@@ -152,8 +154,19 @@ struct GlobalParams {
   /// that a test measuring one part of the instrument can put the rest of it
   /// out of the way, which is what the whole DSP suite does.
   float busDrive = 0.0f;
-  /// Soft-clip the sum; 32 faders make it very easy to overshoot.
+  /// Shape the sum on its way out. 32 faders make it very easy to overshoot,
+  /// which is what this began as, and it is five machines now, so it is part
+  /// of the sound as well as a guard. The master fader sits in front of it, so
+  /// how hard it is driven is a thing a patch decides. See OutputStage.
   bool safetyClip = true;
+
+  /// Whether the output stage may look ahead. Off trades the limiter's
+  /// smoothness for the two milliseconds it costs everything else.
+  bool lookahead = true;
+
+  /// Which of the five, when it is on. Soft is what every patch had before
+  /// there was a choice.
+  ClipType clipType = ClipType::Soft;
   /// Whether striking a key that is already sounding takes over the voice it
   /// is already using, rather than starting a second one beside it. See
   /// SynthEngine::noteOnImpl.

@@ -3,10 +3,10 @@
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Overtonium presets: the thirty-two that ship, and saving your own</title>
+        <title>Overtonium presets: the thirty-three that ship, and saving your own</title>
         <meta
             name="description"
-            content="The thirty-two factory presets in Overtonium, each one playable on the page, what a preset carries and deliberately does not, how a MIDI program change picks one, and where your own presets are stored on macOS, Windows and Linux."
+            content="The thirty-three factory presets in Overtonium, each one playable on the page, what a preset carries and deliberately does not, how a MIDI program change picks one, and where your own presets are stored on macOS, Windows and Linux."
         />
         <link rel="canonical" href="https://benjamindehli.github.io/overtonium/presets/" />
         <meta name="theme-color" content="#0b0d10" />
@@ -14,10 +14,10 @@
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="Overtonium" />
         <meta property="og:url" content="https://benjamindehli.github.io/overtonium/presets/" />
-        <meta property="og:title" content="Overtonium presets: the thirty-two that ship, and saving your own" />
+        <meta property="og:title" content="Overtonium presets: the thirty-three that ship, and saving your own" />
         <meta
             property="og:description"
-            content="The thirty-two factory presets in Overtonium, each one playable on the page, what a preset carries and deliberately does not, how a MIDI program change picks one, and where your own presets are stored on macOS, Windows and Linux."
+            content="The thirty-three factory presets in Overtonium, each one playable on the page, what a preset carries and deliberately does not, how a MIDI program change picks one, and where your own presets are stored on macOS, Windows and Linux."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-presets.jpg" />
         <meta property="og:image:width" content="1200" />
@@ -25,10 +25,10 @@
         <meta property="og:image:alt" content="The Overtonium wordmark over the plugin window, captioned Presets." />
 
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Overtonium presets: the thirty-two that ship, and saving your own" />
+        <meta name="twitter:title" content="Overtonium presets: the thirty-three that ship, and saving your own" />
         <meta
             name="twitter:description"
-            content="The thirty-two factory presets in Overtonium, each one playable on the page, what a preset carries and deliberately does not, how a MIDI program change picks one, and where your own presets are stored on macOS, Windows and Linux."
+            content="The thirty-three factory presets in Overtonium, each one playable on the page, what a preset carries and deliberately does not, how a MIDI program change picks one, and where your own presets are stored on macOS, Windows and Linux."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-presets.jpg" />
 
@@ -62,7 +62,7 @@
                 "@context": "https://schema.org",
                 "@type": "VideoObject",
                 "name": "Overtonium - Sound Examples",
-                "description": "Eleven of the thirty-two factory presets in Overtonium, played on an Expressive E Osmose with nothing on the output but the plugin's own effects.",
+                "description": "Eleven of the thirty-three factory presets in Overtonium, played on an Expressive E Osmose with nothing on the output but the plugin's own effects.",
                 "thumbnailUrl": "https://benjamindehli.github.io/overtonium/overtonium-video.webp",
                 "uploadDate": "2026-09-26",
                 "duration": "PT11M14S",
@@ -332,6 +332,23 @@
                                 A combo organ that has not been serviced, with a few milliseconds of key click on every note. It runs into a bucket
                                 brigade driven hard enough that the repeats grow rather than fade, and falls into a spring long enough to still be
                                 ringing when the next chord arrives
+                            </dd>
+                        </div>
+                        <div>
+                            <dt>
+                                6581 Triangle
+                                <audio controls preload="none" aria-label="6581 Triangle">
+                                    <source src="../audio/preset-6581-triangle.ogg" type="audio/ogg" />
+                                    <source src="../audio/preset-6581-triangle.flac" type="audio/flac" />
+                                    Your browser cannot play this. The file is
+                                    <a href="../audio/preset-6581-triangle.flac">preset-6581-triangle.flac</a>.
+                                </audio>
+                            </dt>
+                            <dd>
+                                The triangle of a MOS 6581, the SID in a Commodore 64. A triangle is odd harmonics falling as the square of their
+                                number, and this is not quite that: the chip folds the top bit of its accumulator and drops the lowest one, so what it
+                                draws is a staircase rather than a line. The even harmonics that leaves, and the floor underneath them, are most of
+                                why a SID sounds like a SID
                             </dd>
                         </div>
                         <div>
@@ -812,6 +829,13 @@
                     <p>
                         Saving writes one small file per preset, and the menu reads that folder every time it opens, so a preset added from outside
                         the plugin shows up without a restart. The folder is created on demand.
+                    </p>
+
+                    <p>
+                        <strong>What is loaded is named on the bar, on a display of nine cells.</strong> A name longer than that is fitted rather than
+                        simply cut: the spaces go first, then the vowels from the right, and only then is what is left trimmed. So
+                        <em>Tape Choir</em> keeps every letter as TAPECHOIR and <em>Glass Armonica</em> comes out as GLASSRMNC. The menu, the file on
+                        disk and what your host is told all carry the name in full. Nothing about the name is changed by saving it.
                     </p>
 
                     <div class="scroll">

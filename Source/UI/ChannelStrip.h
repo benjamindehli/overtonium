@@ -165,13 +165,60 @@ private:
 class SegmentDisplay : public juce::Component,
                        public juce::SettableTooltipClient {
 public:
-  /// @param unit  drawn small beside the digits, or empty for none.
-  explicit SegmentDisplay(juce::String unit);
+  /// How many bars a cell has, which decides what it can say.
+  ///
+  /// Seven manages the digits and about five letters, which is everything a
+  /// readout on this panel has to report. Fourteen carries the alphabet, for
+  /// the one display that has to spell: a preset is called Glockenspiel.
+  enum class Bars { Seven, Fourteen };
+
+  /// @param unit   drawn small beside the digits, or empty for none.
+  /// @param cells  how many characters the display has, or 0 to size itself
+  ///               to whatever it is given. A fixed count keeps the cells the
+  ///               same width whatever the reading is, and fills the ones a
+  ///               short reading does not reach, which is what a display with
+  ///               a real number of digits in it does.
+  explicit SegmentDisplay(juce::String unit, Bars bars = Bars::Seven,
+                          int cells = 0);
 
   /// @param digits  0 to 9, a decimal point, a leading + or -, and the
-  ///                 letters in segmentsFor. Anything else is drawn blank.
+  ///                 letters in segmentsFor. A fourteen-bar display takes the
+  ///                 whole alphabet as well, upper-casing as it goes, which is
+  ///                 what a display with no lower case does. Anything else is
+  ///                 drawn blank.
   /// @param active  false dims it, meaning nothing is being changed.
   void setReading(const juce::String &digits, bool active);
+
+  /// How many bars its cells have, which says what it is for: a seven-bar one
+  /// reports a number and a fourteen-bar one spells a name. Read back by the
+  /// tests, which hold each display's reading against what its own cells can
+  /// draw rather than against a single alphabet.
+  Bars howManyBars() const noexcept { return bars; }
+
+  /// Fits a name to a fixed number of cells.
+  ///
+  /// Upper case, then the spaces go from the right, then the vowels, then
+  /// what is left is cut. Never the first character, whatever it is: a name
+  /// that starts with a vowel still has to start with it.
+  ///
+  /// Spaces before vowels, because a space is a cell saying nothing and a
+  /// vowel is a cell saying something. It runs the words together, which is
+  /// the price: Tape Choir keeps every letter as TAPECHOIR where cutting
+  /// would have given TAPE CHOI. Y is not a vowel here, which is what keeps
+  /// SYNTH and NYLON and STYLOPOLY readable.
+  ///
+  /// Shorter than @p cells comes back padded, so the caller always has
+  /// exactly that many characters.
+  static juce::String squeeze(const juce::String &, int cells);
+
+  /// How many of the reading's characters the last paint had room for.
+  ///
+  /// A name wider than the display is cut rather than squeezed, and a cell
+  /// count that is one short of the characters is what a dropped letter looks
+  /// like from here. Nothing else can see it: the cells are drawn, so the
+  /// only other way to ask is to count marks in a render, and a K has a wider
+  /// gap down its own middle than there is between one cell and the next.
+  int cellsDrawn() const noexcept { return drawn; }
 
   /// What it is showing, and whether it is showing it lit. Read back by the
   /// tests, which is the only way to check a component that is otherwise
@@ -189,7 +236,7 @@ public:
   /// Whether this character has a form to draw, either as a glyph or as one
   /// of the narrow cells. Anything else comes out as an unlit digit, so the
   /// tests hold every reading the panel can produce against this.
-  static bool canDraw(char);
+  static bool canDraw(char, Bars = Bars::Seven);
 
   std::function<void()> onClick;
 
@@ -212,6 +259,16 @@ private:
   /// Draws one character in the classic seven-bar arrangement.
   void paintGlyph(juce::Graphics &, juce::Rectangle<float>, char,
                   juce::Colour on, juce::Colour off) const;
+
+  /// The same, in fourteen.
+  void paintStarburst(juce::Graphics &, juce::Rectangle<float>, char,
+                      juce::Colour on, juce::Colour off) const;
+
+  const Bars bars;
+  const int fixedCells;
+
+  /// Set by paint, read by cellsDrawn.
+  mutable int drawn = 0;
 
   juce::String reading, unitText;
   bool active = false;
@@ -321,6 +378,16 @@ public:
 
   void setBackdrop(juce::Colour);
 
+  /// The margin the slot leaves itself inside the component, each side.
+  ///
+  /// The lip of a recess is drawn around the opening rather than inside it,
+  /// so an opening taken out to the component's own edge has nowhere to put
+  /// its side walls and loses its rounded ends with them. One pixel is what
+  /// the lip needs and is all this has to give. The travel is measured off
+  /// the same number, so the needle still reaches both ends of the slot and
+  /// no further.
+  static constexpr int kSlotInset = 1;
+
   /// @param position  -1 to 1, flat to sharp, already scaled by the caller.
   /// @returns true when the needle moved a pixel and needs repainting.
   bool push(float position);
@@ -362,6 +429,14 @@ public:
   /// once, since the rows are shared across the whole mixer.
   void setCollapsedSections(SectionMask);
 
+  /// How far the parameters are scrolled, shared by every column.
+  ///
+  /// The gutter, the 32 strips and the noise channel are handed the same
+  /// number by the editor, which is what keeps a caption pointing at the knob
+  /// beside it. Snapped to a row boundary inside layoutRows, so a row is never
+  /// half over the header.
+  void setScroll(int);
+
   /// Asked for when a click lands on one of the rules between sections, which
   /// line up with the gutter's headings and do the same thing.
   std::function<void(Section)> onSectionToggled;
@@ -396,6 +471,9 @@ public:
   ///
   /// Only a wheel that actually landed on the strip is passed on, which leaves
   /// the background scrolling the series and a control keeping its own.
+  /// Asks the editor to scroll, and says whether it had anywhere to go.
+  bool scrollParametersBy(const juce::MouseWheelDetails &);
+
   void mouseWheelMove(const juce::MouseEvent &,
                       const juce::MouseWheelDetails &) override;
 
@@ -433,8 +511,8 @@ public:
   /// They merge well, too. Every strip's lamps sit at the same height, so the
   /// union of a row of them is a thin wide band with no wasted area in it,
   /// which is the opposite of what the meter bands do.
-  void setActivity(float envelope, float tremolo, float pitch,
-                   juce::Array<juce::Rectangle<int>> &into);
+  void setActivity(float envelope, float tremolo, float pitch, float velGain,
+                   float pressure, juce::Array<juce::Rectangle<int>> &into);
 
   /// Where a displacement sits on the needle's travel, -1 to 1.
   ///
@@ -456,6 +534,29 @@ public:
   ///                of the drag it takes relative to the strip that takes most.
   void setLinkGlow(Role, float amount, bool accent = false);
 
+  /// How much of a LINK drag this channel would take, 0 to 1, for the number
+  /// at the head of the strip.
+  ///
+  /// The knobs already glow by the same number, and this is the same answer
+  /// read at a glance rather than a second one: a glow on a 26 px knob is
+  /// easy to miss across thirty-two columns, and the number is the biggest,
+  /// highest contrast thing a channel owns. It is also already the channel's
+  /// name, which is exactly the question a scope raises.
+  void setLinkReach(float amount);
+
+  /// Which macro drives this row, as its colour, or transparent for none.
+  ///
+  /// Carried beside the control's own colour rather than replacing it. The
+  /// pointer on a knob stays the channel's colour, which is what says which
+  /// partial you are looking at, and the ring beyond it goes to the macro's,
+  /// which is what says where the macro has taken the value.
+  ///
+  /// @param result  where the row ends up once the macro has had its say, as
+  ///                a proportion of the control's travel. The same as the
+  ///                control's own position when no macro is driving it, which
+  ///                is what makes a macro at rest look like no macro at all.
+  void setMacroTint(Role, juce::Colour, float result);
+
 private:
   using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
   using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
@@ -463,11 +564,6 @@ private:
   void setUpKnob(LinkableSlider &, Role, juce::Colour fill);
   void setUpFader(LinkableSlider &, Role, juce::Colour fill);
   void wireUp(LinkableSlider &, Role);
-
-  /// What this channel stands on: the shared grey, or a shade up for an
-  /// octave. See NoiseStrip, which stands at the same shade for the same
-  /// reason, that it is worth telling apart from the run of the series.
-  juce::Colour backdropBase() const;
 
   void updateTuneReadout();
   void updateLevelReadout();
@@ -481,6 +577,17 @@ private:
   void clearHover();
 
   LinkableSlider *sliderForRole(Role);
+
+  /// The colour each control wears when no macro has it, kept so that one
+  /// letting go puts the channel's own back rather than an approximation.
+  std::array<juce::Colour, (size_t)kNumRoles> baseColour{};
+
+  /// Which macro colour each row is wearing now, so a repaint only happens
+  /// when one actually changes.
+  std::array<juce::Colour, (size_t)kNumRoles> macroTint{};
+
+  /// And where the macro has taken that row, for the same reason.
+  std::array<float, (size_t)kNumRoles> macroResult{};
 
   juce::AudioProcessorValueTreeState &apvts;
   LinkTarget &link;
@@ -505,7 +612,7 @@ private:
   LevelMeter meter;
 
   ActivityNeedle pitchLamp;
-  ActivityLamp envLamp, keyOffLamp, tremoloLamp;
+  ActivityLamp envLamp, keyOffLamp, tremoloLamp, velocityLamp, pressureLamp;
 
   std::vector<std::unique_ptr<SliderAttachment>> sliderAttachments;
   std::unique_ptr<ButtonAttachment> muteAttachment, soloAttachment;
@@ -517,6 +624,12 @@ private:
   /// Folded groups. Nothing here decides it, the editor does, but every
   /// layout and hit test in this strip has to agree with it.
   SectionMask collapsed = 0;
+  int scroll = 0;
+
+  /// What hides a row that has scrolled under the pinned header. See HeaderCap.
+  HeaderCap headerCap;
+
+  void paintHeaderBand(juce::Graphics &);
   bool hovered = false;
 
   /// Set when a menu takes the pointer away, and cleared when the pointer
@@ -530,6 +643,10 @@ private:
   void foldSectionUnder(const juce::MouseEvent &, bool echo);
   Role glowRole = Role::Tune;
   float glowAmount = 0.0f;
+
+  /// See setLinkReach. Quantised before it is acted on, so a curve sliding
+  /// under the pointer does not repaint thirty-two headers every frame.
+  float linkReach = 0.0f;
 
   /// Whether the glow is lit in the accent rather than in the channel's own
   /// colour. LINK's preview is per channel, since it is saying how much each

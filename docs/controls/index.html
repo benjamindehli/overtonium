@@ -6,7 +6,7 @@
         <title>Overtonium controls: every knob on a channel and on the bar</title>
         <meta
             name="description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 786 parameters are named for a host, and the bus drive, wobble, echo, reverb and converter on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, MIDI Learn, macros, how the 836 parameters are named for a host, and the bus drive, wobble, echo, reverb, converter and output stage on the bar."
         />
         <link rel="canonical" href="https://benjamindehli.github.io/overtonium/controls/" />
         <meta name="theme-color" content="#0b0d10" />
@@ -17,7 +17,7 @@
         <meta property="og:title" content="Overtonium controls: every knob on a channel and on the bar" />
         <meta
             property="og:description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 786 parameters are named for a host, and the bus drive, wobble, echo, reverb and converter on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, MIDI Learn, macros, how the 836 parameters are named for a host, and the bus drive, wobble, echo, reverb, converter and output stage on the bar."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-controls.jpg" />
         <meta property="og:image:width" content="1200" />
@@ -28,7 +28,7 @@
         <meta name="twitter:title" content="Overtonium controls: every knob on a channel and on the bar" />
         <meta
             name="twitter:description"
-            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, how the 786 parameters are named for a host, and the bus drive, wobble, echo, reverb and converter on the bar."
+            content="A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, MIDI Learn, macros, how the 836 parameters are named for a host, and the bus drive, wobble, echo, reverb, converter and output stage on the bar."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-controls.jpg" />
 
@@ -93,7 +93,7 @@
                     <figure class="narrow">
                         <img
                             src="../overtonium-strips.webp"
-                            alt="A close view of the first six channels, showing the row captions in the gutter with the LINK and DRAW switches, and the interval colour of each channel."
+                            alt="A close view of the first six channels, showing the row captions in the gutter with the pointer tool button above them, and the interval colour of each channel."
                             width="306"
                             height="944"
                         />
@@ -373,35 +373,47 @@
                     <h2>Ganging the channels</h2>
 
                     <p>
-                        <strong>LINK</strong> stands at the top of the caption column on the left, over the names it gangs, and is the one control
-                        that is not on the top bar. It gangs the strips: dragging any knob moves the same knob on the others. It works relatively,
-                        applying an offset to wherever each strip already sits rather than dragging everything to one shared value, so a spectrum you
-                        have shaped by hand keeps its shape. The offset is always measured from the values captured when the drag started, so
-                        returning the knob to where you began restores the strips exactly, even if some of them hit an end stop along the way.
+                        <strong>One button at the top of the caption column on the left</strong> chooses what a drag in the mixer does, and it is the
+                        one control that is not on the top bar. It wears the pointer you are about to be holding rather than a word: a plain arrow, an
+                        arrow with two chain links, or an arrow with a drawn contour. Clicking it names the three, and a right-click anywhere in the
+                        mixer opens the same menu, which is where you are when you want it.
                     </p>
 
                     <p>
-                        The button opens a menu rather than toggling, and the same menu is on a right-click anywhere in the mixer, which is where you
-                        are when you want it. With LINK engaged, pointing at a knob arms every knob a drag from it would move, before you touch
+                        <strong>Link</strong> gangs the strips: dragging any knob moves the same knob on the others. It works relatively, applying an
+                        offset to wherever each strip already sits rather than dragging everything to one shared value, so a spectrum you have shaped
+                        by hand keeps its shape. The offset is always measured from the values captured when the drag started, so returning the knob
+                        to where you began restores the strips exactly, even if some of them hit an end stop along the way.
+                    </p>
+
+                    <p>
+                        Which channels a drag reaches and how it is shared out are set in the same menu, under the three tools, so the tool and its
+                        settings are one click apart. With Link chosen, pointing at a knob arms every knob a drag from it would move, before you touch
                         anything, and how brightly each one lights follows the curve.
                     </p>
 
                     <p>
-                        <strong>DRAW</strong> sits under the LEVEL caption, below LINK. With it on, a drag across the faders sets each channel it
-                        passes over from the pointer's height, so a spectrum can be drawn in one stroke rather than one fader at a time. Holding shift
-                        does the same for as long as it is held, and the button lights either way, so the panel says what a drag would do however it
-                        came to be that way.
+                        <strong>Draw</strong> is the third. A drag across the faders sets each channel it passes over from the pointer's height, so a
+                        spectrum can be drawn in one stroke rather than one fader at a time. Holding shift does the same for as long as it is held,
+                        whatever tool is chosen, and the button shows the contour for as long as the key is down, so the panel says what a drag would
+                        do however it came to be that way.
                     </p>
 
                     <p>
-                        It is not LINK under another name: LINK shares one relative move out across the channels by a rule, and drawing sets absolute
+                        They are one choice rather than three switches because a drag cannot be two of them at once. When they were two separate
+                        switches, LINK had to be shown as off while drawing was armed without actually being off, which is a lie the mouse-up would
+                        have exposed.
+                    </p>
+
+                    <p>
+                        It is not Link under another name: Link shares one relative move out across the channels by a rule, and drawing sets absolute
                         values freehand, so neither can do the other's job. Columns the pointer crosses between one moment and the next are filled in,
                         so a fast hand leaves no gaps, and the whole stroke is a single undo. It works on the faders alone, because a fader's value is
                         where it stands and a pointer's height means nothing to a knob.
                     </p>
 
                     <p>
-                        While it is armed every fader lights, in the same accent the switch is lit in, so what the next drag would reach is visible
+                        While it is armed every fader lights, in the same accent the button is lit in, so what the next drag would reach is visible
                         before you touch anything. That is the same preview LINK uses, since both answer the one question. The pointer becomes a
                         pencil and LINK reads as off, without being off: only one of the two can be what the next drag does, and letting go gives LINK
                         back.
@@ -561,17 +573,28 @@
                                         how far the tremolo has pulled the level down, so it pulses at the rate and swings further at greater depth
                                     </td>
                                 </tr>
+                                <tr>
+                                    <td>OUTPUT</td>
+                                    <td>
+                                        two lamps side by side, one for each row beneath it: the left is what the blow has left of the partial, the
+                                        right is what the pressure on the key is adding
+                                    </td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
 
                     <p>
                         They read from the voice pool rather than from the knobs, so they describe a note rather than a setting and nothing pulses
-                        over silence, and they follow the loudest voice on that partial, which is the one the meter follows. The needle's scale is
-                        fixed and the same on every strip, so two channels can be compared by eye. Full deflection is 225 cents, which is a vibrato
-                        and a drift at full stretch rather than the widest the depth knob now reaches. A square set to jump an octave pegs it, which
-                        is the honest thing for a needle to do when it is off the end of its scale: scaled to the octave instead, an ordinary vibrato
-                        would not move it at all.
+                        over silence, and they follow the loudest voice on that partial, which is the one the meter follows. The output rule carries
+                        two of them, one for each row beneath it, and each is the shape of the knob above it. VELOCITY can only take level away, so
+                        its lamp shows what the row has left: full when the blow has cost the partial nothing, dark when the row has taken all of it,
+                        and full at every velocity when the knob sits at the centre. AFTERTOUCH adds instead, so its lamp rests dark and comes up as
+                        you lean on the key, and it does not matter which way that row is set to push. The needle's scale is fixed and the same on
+                        every strip, so two channels can be compared by eye. Full deflection is 225 cents, which is a vibrato and a drift at full
+                        stretch rather than the widest the depth knob now reaches. A square set to jump an octave pegs it, which is the honest thing
+                        for a needle to do when it is off the end of its scale: scaled to the octave instead, an ordinary vibrato would not move it at
+                        all.
                     </p>
 
                     <h3>Meters</h3>
@@ -776,7 +799,19 @@
                                 <tr>
                                     <td>Safety clip</td>
                                     <td>on by default</td>
-                                    <td>The clipper at the end of the chain, worth leaving on when you push 32 faders up</td>
+                                    <td>
+                                        Whether the output stage at the end of the chain is running, worth leaving on when you push 32 faders up.
+                                        Which of its five shapes is running is chosen on the bar, under the meter
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Limiter lookahead</td>
+                                    <td>on by default</td>
+                                    <td>
+                                        Whether the Limiter may see what is coming. Off gives back the two milliseconds of latency it costs, which
+                                        only that one shape uses, at the price of a rougher limiter. The only setting here that changes what the
+                                        plugin reports to your host
+                                    </td>
                                 </tr>
                                 <tr>
                                     <td>Zoom</td>
@@ -800,10 +835,16 @@
                     </div>
 
                     <p>
-                        None of it travels with a <a href="../presets/">preset</a>, and that is the rule rather than a list that might fall behind
-                        one. How you play the instrument, how loud it is and what it is tuned to are properties of the session rather than of any one
-                        sound in it. The master fader is in the same position for the same reason, and so are the zoom, the window size and which
-                        groups of rows you have folded away.
+                        Almost none of it travels with a <a href="../presets/">preset</a>, and that is a rule rather than a list that might fall
+                        behind one: how you play the instrument and what it is tuned to are properties of the session rather than of any one sound in
+                        it. The zoom, the window size and which groups of rows you have folded away are in the same position for the same reason.
+                    </p>
+                    <p>
+                        The safety clip is the exception in this table, and the master fader is the exception outside it. Both used to sit with the
+                        rest on the grounds that how loud the instrument is belongs to the session, and both moved when the clipper became five shapes
+                        you choose between: the fader is the drive into that stage, so how hard a patch leans on it is part of the patch rather than
+                        part of the desk. The cost is worth knowing before you go looking for it:
+                        <strong>loading a preset now moves your output level</strong>.
                     </p>
                 </section>
 
@@ -811,9 +852,9 @@
                     <h2>Automating it from the host</h2>
 
                     <p>
-                        Seven hundred and eighty-six parameters reach the host: thirty-two global ones, twenty-three on each of the 32 partials, and
-                        eighteen on the noise channel. They are listed in the order the panel reads, the globals first and then channel by channel
-                        with the noise channel last.
+                        Eight hundred and thirty-six parameters reach the host: thirty-four global ones, twenty-three on each of the 32 partials,
+                        eighteen on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals
+                        first and then channel by channel with the noise channel last.
                     </p>
 
                     <p>
@@ -877,6 +918,111 @@
                         LINK is not a parameter, since it is a tool for the mouse rather than part of the sound. A drag under it opens a gesture on
                         every channel it reaches, writes each one, and closes them together, so what a host records is what actually moved: thirty-two
                         lanes if the drag moved thirty-two channels.
+                    </p>
+                </section>
+
+                <section>
+                    <h2>Macros</h2>
+
+                    <p>
+                        <strong>A macro is one parameter that moves a whole row</strong>, and the reason it exists is automation. A Link drag across
+                        the tuning knobs moves 32 parameters, and a host catches only the last one you touched, so a relationship you can edit by hand
+                        cannot be recorded at all. A macro gives that relationship a single control a host can draw.
+                    </p>
+
+                    <p>
+                        The icon of three faders on the top bar, beside the settings cog, opens them over the mixer. Each macro is one line: a colour,
+                        the row it drives, which channels of that row it reaches, how it is shared out across them, and the amount. Add a macro takes
+                        one of eight, and the cross at the end puts it back.
+                    </p>
+
+                    <p>
+                        <strong>Eight is a pool rather than a limit you are meant to feel.</strong> A plugin declares its parameters once when it is
+                        created and neither VST3 nor AU can add one later, so making a macro takes one of eight that already exist and removing it
+                        puts it back. The panel shows the ones you have made, and your host's parameter list shows all eight whether or not you use
+                        them.
+                    </p>
+
+                    <p>
+                        <strong>Scope</strong> is All, Odd, Even, or any one interval: choosing fifths reaches harmonics 3, 6, 12 and 24.
+                        <strong>Curve</strong> is Uniform or Taper, and a taper leans hardest on a channel you pick and fades with distance either
+                        side of it. Link's third curve, Spread, is not offered and could not be: it scatters each strip along the direction your drag
+                        gave it relative to the strip under the mouse, and a macro has neither a direction nor a strip under the mouse.
+                    </p>
+
+                    <p>
+                        <strong>A macro offsets what the patch says rather than writing it.</strong> Nothing in your sound is overwritten, the host
+                        has one lane to draw instead of thirty-two to catch, and the knobs do not move when a macro does. That last part is normal for
+                        anything that works this way and is surprising the first time, so the controls say both at once: the ring around a knob lights
+                        to where the macro has taken the value, in the macro's colour, while the pointer on the cap stays at what the patch holds, in
+                        the channel's. The gap between them is the macro. A fader, which has no ring to spare, says it in the gutters either side of
+                        its track: two narrow columns of segments appear there, cut from the same cloth as the meter behind the fader, and light from
+                        the foot of the track up to the level it has been taken to. The glass of the cap takes a wash of the same colour.
+                    </p>
+
+                    <p>With a macro at rest the two coincide, so a macro you have assigned but not moved looks like no macro at all.</p>
+
+                    <p>
+                        The amount runs from -1 to +1 whatever it drives, so a macro can always push a control either way from where the patch left
+                        it, and it moves a proportion of each control's own travel rather than a number of its units. That matters most on a row like
+                        decay, which runs from a thousandth of a second to twenty: the same number of seconds added would be a twentyfold change at
+                        one end and a rounding error at the other.
+                    </p>
+
+                    <p>
+                        A full sweep reaches the ends of the range, which means a patch already sitting near one end has a stretch of fader that does
+                        nothing in that direction. That is deliberate. One macro reaches up to 32 controls that may be set anywhere, so there is no
+                        smaller fraction of the range that would be right for all of them.
+                    </p>
+
+                    <p>
+                        <strong>Right-click a macro's amount to bind a controller to it</strong>, the same MIDI Learn the mixer's controls use. Only
+                        the amount: the row, the scope and the curve say what a macro is rather than what it is doing. The macros icon lights whenever
+                        any are made, since a macro's work is otherwise invisible until you look at a ring.
+                    </p>
+                </section>
+
+                <section>
+                    <h2>Playing it from a controller</h2>
+
+                    <p>
+                        <strong>Right-click any control and choose MIDI Learn</strong>, then move something on your controller. A violet ring marks
+                        the control while it waits, so you can see what is listening without opening the menu again, and only ever one control carries
+                        it. Right-click the same control afterwards and the menu says which controller moves it, with the way to forget it or to bind
+                        a different one. In the mixer these items sit under the LINK settings that right-click already opens. On the bar and the noise
+                        channel they are a menu of their own, since neither is part of the series LINK gangs.
+                    </p>
+
+                    <p>
+                        Your host almost certainly offers the same thing. What this does that a host cannot is let you make the map by right-clicking
+                        the knob itself rather than finding <code>H17 AM Rate</code> in a list of 836, and behave the same way wherever you open it.
+                    </p>
+
+                    <p>
+                        <strong>Eleven controllers are refused</strong>, because something is already listening for them and losing it would be felt
+                        while playing rather than noticed afterwards. Controller 1 is the mod wheel, which can feed aftertouch. 64 is the sustain
+                        pedal. 74 is the slide axis, the one most easily bound by accident since it moves whenever a finger does on an MPE keyboard.
+                        120 and 123 stop notes. Controllers 6, 38, 98, 99, 100 and 101 are how a keyboard tells the instrument what it is. Arming a
+                        knob and then reaching for the slide to steady a note leaves the note steadied and the knob still waiting.
+                    </p>
+
+                    <p>
+                        <strong>It works the same with MPE switched on</strong>, which is not free: with MPE on, nearly every message belongs to the
+                        part of the instrument that reads your keyboard's layout, so a binding is looked for before that rather than after it.
+                        Otherwise it would be dead on exactly the controllers this is usually played from.
+                    </p>
+
+                    <p>
+                        The map is saved with your project, beside the window size and the folded sections, and
+                        <strong>a preset never touches it</strong>. Which controller moves which knob describes the desk you are plugged into rather
+                        than the sound, and a patch that rearranged it would be rearranging your hardware. A binding records the parameter by name, so
+                        a later version adding controls cannot silently repoint it at something else.
+                    </p>
+
+                    <p>
+                        Two things to expect. A control jumps to wherever the controller is standing rather than waiting to be picked up, so a knob
+                        turned to the top will take the parameter there the moment you touch it. And a controller moving a control is not something
+                        undo reverses, for the same reason automation is not.
                     </p>
                 </section>
 
@@ -964,8 +1110,8 @@
                         <img
                             loading="lazy"
                             src="../overtonium-bar.webp"
-                            alt="The top bar: preset and settings buttons, the oscillator character, the stretch, track and wobble controls, the echo, the reverb, and the output meter with the master fader lying across it and two seven-segment converter readouts reading kilohertz and bits."
-                            width="1348"
+                            alt="The top bar: the loaded preset on a fourteen-segment display beside icons for settings and macros, the oscillator character, the stretch, track and wobble controls, the echo, the reverb, and the output meter with the master fader lying across it, two seven-segment converter readouts reading kilohertz and bits, and the output stage reading Soft."
+                            width="1350"
                             height="66"
                         />
                     </figure>
@@ -1084,10 +1230,40 @@
 
                     <h3>CLIP</h3>
                     <p>
-                        A soft clipper across the finished output, after the master fader, switched on by default. On is a limit you can hear yourself
-                        reach rather than one that arrives silently; off lets the output go past full scale and reach the host as it is, which is what
-                        you want when something downstream is doing the catching. It stands under the meter with the converter readouts because those
-                        three are the whole of what happens to the signal on its way out, and it is also in the Settings menu.
+                        Five machines behind one button, across the finished output and after the master fader, which is therefore the drive into
+                        them. The fader and the choice both travel with the preset, so how hard a patch leans on this stage is part of the patch.
+                        <strong>Soft</strong> runs straight to seven tenths and then bends, gradually and symmetrically, and is what every preset was
+                        dialled against. <strong>Hard</strong> is a wall at full scale: nothing happens until it does, which is the sound of a
+                        converter with no headroom left. <strong>Asymmetric</strong> lets one half of the wave lean over before the other, the way a
+                        single-ended stage does, and that lopsidedness is the whole of it: where Soft and Hard treat both halves alike and give odd
+                        harmonics, this gives even ones, which is a different kind of loud rather than more of it. <strong>Limiter</strong> does not
+                        bend the wave at all, it turns the level down as the signal approaches the ceiling and lets it back up afterwards.
+                        <strong>Fold</strong> turns the wave back on itself instead of flattening it, which makes far more harmonics than the others
+                        and moves them with the level, so it sings where the rest crunch.
+                    </p>
+                    <p>
+                        Off lets the output go past full scale and reach the host as it is, which is what you want when something downstream is doing
+                        the catching. None of the five will: being bounded by full scale is the point of the stage rather than a property of the
+                        shapes chosen, and each is held to it however hard it is driven. The button abbreviates Asymmetric to ASYM and Limiter to
+                        LIMIT, for room, while the menu and your host's automation lane spell them out. It stands under the meter with the converter
+                        readouts because those three are the whole of what happens to the signal on its way out, and the switch is also in the
+                        Settings menu.
+                    </p>
+                    <p>
+                        The Limiter looks two milliseconds ahead, so the gain is already in place when the peak arrives rather than chasing it
+                        afterwards, which is the difference between a limiter and a clipper wearing the name. That costs latency, and because a plugin
+                        whose latency moved when you chose a preset would have the host re-plan its graph every time, it is paid by all five shapes
+                        and by the stage switched off alike. Overtonium reports 108 samples at 48 kHz, a little over two milliseconds, which your host
+                        compensates for on playback.
+                    </p>
+                    <p>
+                        <strong>Limiter lookahead</strong> in the Settings menu gives those two milliseconds back. Only the Limiter uses the window,
+                        so if you never reach for it you are paying for nothing, and this is the way to stop. Turning it off does not break the
+                        limiter: the detector sees a single sample instead of a window, so the gain is exact and immediate and the ceiling still
+                        holds, but the smoothing goes with it and a gain that steps is itself a distortion, about fifteen times as much of it. It is
+                        in Settings rather than on the bar because nothing a preset can reach is allowed to change what the plugin tells your host.
+                        Most hosts take the new figure while running, some only on playback stop or on reload, so it is worth choosing before a take
+                        rather than during one.
                     </p>
 
                     <h3>The output meter</h3>

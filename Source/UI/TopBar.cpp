@@ -1,4 +1,5 @@
 #include "TopBar.h"
+#include "LearnMenu.h"
 
 #include "../PluginParameters.h"
 #include "../Presets.h"
@@ -24,7 +25,18 @@ constexpr int kGroupPad = 6;
 
 /// Minimum width of each group, in the order they are laid out. Only the
 /// output group grows, because the meter is the one thing worth more room.
-constexpr int kGroupMinWidth[] = {144, 90, 218, 232, 228, 172};
+///
+/// The second holds the two buttons that open something, SETTINGS and
+/// MACROS, and is sized against what the bar can spare rather than against
+/// what would be comfortable. Measured in the font a 24 px button picks,
+/// SETTINGS is 61 px of text and MACROS is 54.
+///
+/// Both wear an icon instead, which is what makes 84 enough: the words want
+/// 62 and 54 px and the bar could spare 58 each, and every pixel taken here
+/// is half a pixel off each converter readout, which stop naming their units
+/// below 53. A gear and a rack of faders say the same thing in a third of
+/// the room, and the words are still what a screen reader is given.
+constexpr int kGroupMinWidth[] = {144, 84, 218, 232, 228, 172};
 constexpr int kOutputGroupIndex = 5;
 constexpr int kGroupCount = 6;
 
@@ -240,6 +252,7 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
 
   masterAttachment = std::make_unique<SliderAttachment>(
       apvts, params::masterGainId, masterFader);
+  learn::tag(masterFader, params::masterGainId);
 
   stretch.slider.setPopupDisplayEnabled(true, true, &popupParent);
   stretch.slider.setTooltip(
@@ -252,6 +265,7 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
 
   stretchAttachment = std::make_unique<SliderAttachment>(
       apvts, params::stretchId, stretch.slider);
+  learn::tag(stretch, params::stretchId);
 
   track.slider.setPopupDisplayEnabled(true, true, &popupParent);
   track.slider.setTooltip(
@@ -263,6 +277,7 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
 
   trackAttachment =
       std::make_unique<SliderAttachment>(apvts, params::trackId, track.slider);
+  learn::tag(track, params::trackId);
 
   wobble.slider.setPopupDisplayEnabled(true, true, &popupParent);
   wobble.slider.setTooltip(
@@ -274,6 +289,7 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
 
   wobbleAttachment = std::make_unique<SliderAttachment>(apvts, params::wobbleId,
                                                         wobble.slider);
+  learn::tag(wobble, params::wobbleId);
 
   // Two bars beside the master fader, at the end of the signal path, need no
   // caption to say what they are.
@@ -326,17 +342,49 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   addAndMakeVisible(characterButton);
 
   // ---- presets --------------------------------------------------------------
-  presetButton.setButtonText(kNoPreset);
-  presetButton.setTooltip("Factory and saved presets, and somewhere to put "
-                          "the one you are working on");
-  presetButton.onClick = [this] { showPresetMenu(); };
-  addAndMakeVisible(presetButton);
+  presetDisplay.setReading(kNoPreset, false);
+  presetDisplay.setTooltip("Factory and saved presets, and somewhere to put "
+                           "the one you are working on");
+  presetDisplay.onClick = [this] { showPresetMenu(); };
+  addAndMakeVisible(presetDisplay);
 
   // ---- settings -------------------------------------------------------------
   // Everything that is set once and then left: polyphony, bend range, and the
   // two switches that used to sit on the panel taking up room they had not
   // earned.
+  macroButton.setButtonText("MACROS");
+  macroButton.setTooltip(
+      "One parameter that moves a whole row, and that a host can automate. "
+      "A LINK drag moves 32 parameters and a host catches only the last one "
+      "touched, which is what these are for.");
+  macroButton.setTitle("Macros");
+  macroButton.setColour(juce::TextButton::textColourOnId, colours::accent);
+  macroButton.onClick = [this] {
+    if (onMacrosClicked != nullptr)
+      onMacrosClicked();
+  };
+  macroButton.onIcon = [](juce::Graphics &g, juce::Rectangle<float> area,
+                          juce::Colour colour) {
+    drawMacroIcon(g, area, colour);
+  };
+
+  addAndMakeVisible(macroButton);
+
   settingsButton.setButtonText("SETTINGS");
+
+  // The same plastic as the button beside it. The cap takes its colour from
+  // the one a button lights in, and a button that never lights names none, so
+  // this one was being moulded in the scheme's grey while MACROS was moulded
+  // in the accent. Side by side that read as two different parts.
+  settingsButton.setColour(juce::TextButton::textColourOnId, colours::accent);
+
+  // A gear rather than the word, which wants 62 px of the 58 the bar can
+  // spare it. The word is still what a screen reader is given and what the
+  // tooltip says. See kGroupMinWidth.
+  settingsButton.onIcon = [](juce::Graphics &g, juce::Rectangle<float> area,
+                             juce::Colour colour) {
+    drawGearIcon(g, area, colour);
+  };
   // The sections it opens, in the order it opens them.
   settingsButton.setTooltip("Polyphony, pitch bend range, expression, tuning, "
                             "output and zoom");
@@ -381,21 +429,32 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   echoButton.setColour(juce::TextButton::textColourOnId, colours::accent);
   reverbButton.setColour(juce::TextButton::textColourOnId, colours::accent);
 
-  // The clipper stands with the converter rather than with the effects, since
-  // what it does is the last thing that happens to the signal and the readouts
-  // beside it are the other two facts about the output stage. It keeps its
-  // entry in the settings menu as well: a switch that is set once and left is
-  // a settings-menu thing, and a switch this close to the meter is worth
-  // reaching for while listening.
+  // The output stage stands with the converter rather than with the effects,
+  // since what it does is the last thing that happens to the signal and the
+  // readouts beside it are the other two facts about the output. It is a
+  // machine button like the echo and the reverb now rather than a switch,
+  // because it chooses between five shapes rather than turning one on, and it
+  // has left the settings menu for the same reason: it is part of the sound.
   styleToggle(clipButton, kClipName,
-              "A soft clipper across the finished output, after the master "
-              "fader. On is a limit you can hear yourself reach; off lets the "
-              "output go past full scale and out to the host as it is.");
+              "What the finished output runs into, after the master fader, "
+              "which is therefore the drive into it. Soft bends, Hard stops "
+              "dead, Asymmetric leans one half of the wave over before the "
+              "other, "
+              "Limiter turns the level down instead of bending anything, and "
+              "Fold turns the wave back on itself. None of them lets the "
+              "output past full scale; off does.");
+
+  clipButton.onClick = [this] {
+    auto m = buildClipMenu();
+    m.setLookAndFeel(&getLookAndFeel());
+
+    m.showMenuAsync(juce::PopupMenu::Options()
+                        .withTargetComponent(&clipButton)
+                        .withStandardItemHeight(22),
+                    [this](int result) { chooseClip(result); });
+  };
 
   clipButton.setColour(juce::TextButton::textColourOnId, colours::accent);
-
-  clipAttachment = std::make_unique<ButtonAttachment>(
-      apvts, params::safetyClipId, clipButton);
 
   addKnob(echoControls, "Echo", "MIX", params::echoMixId,
           "How much of the output is repeats", popupParent);
@@ -458,6 +517,7 @@ void TopBar::addKnob(std::vector<Control> &into, const juce::String &group,
 
   c.attachment =
       std::make_unique<SliderAttachment>(apvts, paramId, c.knob->slider);
+  learn::tag(*c.knob, paramId);
 
   into.push_back(std::move(c));
 }
@@ -472,10 +532,53 @@ void TopBar::setLinkCurve(LinkCurve c) {
   curve = (LinkCurve)juce::jlimit(0, (int)LinkCurve::NumCurves - 1, (int)c);
 }
 
-void TopBar::showLinkMenu(juce::Component *anchor) {
+void TopBar::mouseDown(const juce::MouseEvent &e) {
+  if (!e.mods.isPopupMenu() || onLearnRequested == nullptr)
+    return;
+
+  const auto id = learn::parameterIdAt(e.originalComponent);
+
+  if (id.isNotEmpty())
+    onLearnRequested(id);
+}
+
+void TopBar::setMacrosOn(bool on) {
+  // The panel being up does not change whether any macros are made, and the
+  // lit state says the latter, so opening it is shown by the panel itself.
+  juce::ignoreUnused(on);
+}
+
+void TopBar::setMacroCount(int made) {
+  if (made == macrosMade)
+    return;
+
+  macrosMade = made;
+
+  // Lit when any are made, rather than counted. A macro's work is invisible
+  // until you look at a ring, so the bar should say that something is
+  // modulating, and a count would want twelve pixels the converter readouts
+  // need more: see kGroupMinWidth. The number itself is in the name a screen
+  // reader gets and in the panel, which has room for it.
+  macroButton.setToggleState(made > 0, juce::dontSendNotification);
+  macroButton.setTitle(made > 0 ? "Macros, " + juce::String(made) + " made"
+                                : juce::String("Macros"));
+}
+
+void TopBar::showLinkMenu(juce::Component *anchor,
+                          const juce::String &parameterId, MidiLearn *map,
+                          PointerTool tool) {
   const LinkSettings settings{linkOn, scope, curve};
 
-  auto m = buildLinkMenu(settings);
+  auto m = buildToolMenu(tool, settings);
+
+  // Grown onto the end of the LINK menu rather than given a gesture of its
+  // own. A right-click on a control already opens this, and a second menu
+  // would mean teaching somebody a second way to ask.
+  auto *parameter = dynamic_cast<juce::RangedAudioParameter *>(
+      parameterId.isEmpty() ? nullptr : apvts.getParameter(parameterId));
+
+  if (map != nullptr)
+    learn::appendItems(m, *map, parameter);
   m.setLookAndFeel(&getLookAndFeel());
 
   auto options = juce::PopupMenu::Options().withStandardItemHeight(22);
@@ -492,7 +595,19 @@ void TopBar::showLinkMenu(juce::Component *anchor) {
     options = options.withTargetScreenArea({p.x, p.y, 1, 1});
   }
 
-  m.showMenuAsync(options, [this, settings](int result) {
+  m.showMenuAsync(options, [this, settings, map, parameter](int result) {
+    if (map != nullptr && learn::applyChoice(result, *map, parameter))
+      return;
+
+    auto picked = PointerTool::Pointer;
+
+    if (applyToolMenuChoice(result, picked)) {
+      if (onToolChosen != nullptr)
+        onToolChosen(picked);
+
+      return;
+    }
+
     auto chosen = settings;
 
     if (!applyLinkMenuChoice(result, chosen))
@@ -508,17 +623,65 @@ void TopBar::showLinkMenu(juce::Component *anchor) {
 }
 
 void TopBar::setPresetName(const juce::String &name) {
-  presetButton.setButtonText(name.isEmpty() ? kNoPreset : name);
+  presetName = name;
+
+  // Lit when something is loaded and dim when nothing is, which is the rule
+  // the converter readouts beside it follow: a display says whether what it
+  // shows is a setting or a statement of fact.
+  presetDisplay.setReading(name.isEmpty() ? kNoPreset : name,
+                           name.isNotEmpty());
 
   // The same as the character button: the text on it is a value, so the name
-  // has to supply what the value is of.
-  presetButton.setTitle(name.isEmpty() ? "Preset: none loaded"
-                                       : "Preset: " + name);
+  // has to supply what the value is of. It matters more here than anywhere,
+  // the cells being drawn rather than written and unreadable any other way.
+  presetDisplay.setTitle(name.isEmpty() ? "Preset: none loaded"
+                                        : "Preset: " + name);
 }
 
-juce::String TopBar::getPresetName() const {
-  const auto shown = presetButton.getButtonText();
-  return shown == kNoPreset ? juce::String() : shown;
+juce::String TopBar::getPresetName() const { return presetName; }
+
+juce::PopupMenu TopBar::buildClipMenu() {
+  juce::PopupMenu m;
+
+  auto *on = apvts.getParameter(params::safetyClipId);
+  auto *type = apvts.getParameter(params::clipTypeId);
+
+  const bool running = on != nullptr && on->getValue() > 0.5f;
+  const auto which =
+      type == nullptr
+          ? 0
+          : juce::roundToInt(type->convertFrom0to1(type->getValue()));
+
+  m.addItem(1, "Off", true, !running);
+  m.addSeparator();
+
+  for (int i = 0; i < (int)ClipType::NumTypes; ++i)
+    m.addItem(i + 2, clipTypeName((ClipType)i), true, running && i == which);
+
+  return m;
+}
+
+void TopBar::chooseClip(int id) {
+  if (id <= 0)
+    return;
+
+  auto *on = apvts.getParameter(params::safetyClipId);
+  auto *type = apvts.getParameter(params::clipTypeId);
+
+  if (on == nullptr)
+    return;
+
+  // Off writes the switch alone, as the echo does, so coming back on returns
+  // to the shape that was chosen rather than to the first in the list.
+  if (id == 1) {
+    on->setValueNotifyingHost(0.0f);
+    return;
+  }
+
+  if (type != nullptr)
+    type->setValueNotifyingHost(type->convertTo0to1((float)(id - 2)));
+
+  on->setValueNotifyingHost(1.0f);
 }
 
 juce::PopupMenu TopBar::buildEchoMenu() {
@@ -735,7 +898,7 @@ void TopBar::showPresetMenu() {
   auto m = buildPresetMenu();
 
   m.showMenuAsync(juce::PopupMenu::Options()
-                      .withTargetComponent(&presetButton)
+                      .withTargetComponent(&presetDisplay)
                       .withStandardItemHeight(22),
                   [this](int result) {
                     if (result == 0)
@@ -806,6 +969,7 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
   auto *bendRange = apvts.getParameter(params::bendRangeId);
   auto *phase = apvts.getParameter(params::phaseResetId);
   auto *clip = apvts.getParameter(params::safetyClipId);
+  auto *ahead = apvts.getParameter(params::lookaheadId);
   auto *onePerKey = apvts.getParameter(params::oneVoicePerKeyId);
   auto *mpe = apvts.getParameter(params::mpeId);
 
@@ -963,6 +1127,12 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
   m.addItem(301, "Safety clip", true,
             clip != nullptr && clip->getValue() > 0.5f);
 
+  // Under the clipper, because what it does is to that stage's limiter. It is
+  // the one setting here that changes what the plugin tells the host, so it
+  // says what it costs rather than leaving that to be found.
+  m.addItem(304, "Limiter lookahead (2 ms latency)", true,
+            ahead != nullptr && ahead->getValue() > 0.5f);
+
   // Last, and on its own. Everything above it is the instrument: how many
   // voices, what the controller sends, how the keyboard is tuned, what leaves
   // the outputs. How big the window is on your screen is not, and grouping it
@@ -1002,6 +1172,9 @@ void TopBar::showSettingsMenu() {
 
         if (result == 302)
           return flip(params::mpeId);
+
+        if (result == 304)
+          return flip(params::lookaheadId);
 
         if (result == 303)
           return flip(params::oneVoicePerKeyId);
@@ -1195,6 +1368,32 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
     setRingsLive(reverbControls, running);
   }
 
+  // ---- and which output stage, by the same rule ----------------------------
+  {
+    auto *on = apvts.getParameter(params::safetyClipId);
+    auto *type = apvts.getParameter(params::clipTypeId);
+
+    const bool running = on != nullptr && on->getValue() > 0.5f;
+    const auto which = type == nullptr
+                           ? ClipType::Soft
+                           : (ClipType)juce::roundToInt(
+                                 type->convertFrom0to1(type->getValue()));
+
+    const juce::String name = clipTypeName(which);
+
+    // The short form, because Asymmetric does not fit across 46 px of label
+    // and the pixels it would need belong to the readouts beside it. See
+    // clipTypeShortName.
+    clipButton.setButtonText(
+        running ? juce::String(clipTypeShortName(which)).toUpperCase()
+                : juce::String("OFF"));
+
+    // "Clip" rather than the parameter's own word, because what it is called
+    // on the bar is what someone is looking for when they hear it.
+    clipButton.setTitle(running ? "Clip: " + name : juce::String("Clip: off"));
+    clipButton.setToggleState(running, juce::dontSendNotification);
+  }
+
   // In capitals, like every other word on the bar. The menu it comes from
   // keeps the names as they are written, since a list of words is a list of
   // words rather than a row of switches.
@@ -1302,7 +1501,7 @@ int TopBar::minimumWidth() {
 }
 
 void TopBar::parkControls() {
-  juce::Component *all[] = {&masterFader,    &meter,          &presetButton,
+  juce::Component *all[] = {&masterFader,    &meter,          &presetDisplay,
                             &settingsButton, &echoButton,     &reverbButton,
                             &stretch,        &track,          &rateDisplay,
                             &bitsDisplay,    &characterButton};
@@ -1351,12 +1550,23 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
 
   switch (group) {
   case PresetGroup:
-    button(presetButton, r);
+    // Not a button. It is a display that opens a menu, the way the converter
+    // readouts are, so it is placed as a component rather than through the
+    // button helper.
+    alignedWithDials(presetDisplay, r);
     break;
 
-  case VoiceGroup:
-    button(settingsButton, r);
+  case VoiceGroup: {
+    // The two things on the bar that open something, side by side. The
+    // preset button is the third and stands on its own because it carries
+    // the name of what is loaded rather than a word.
+    const auto half = (r.getWidth() - kFxToggleGap) / 2;
+
+    button(settingsButton, r.removeFromLeft(half));
+    r.removeFromLeft(kFxToggleGap);
+    button(macroButton, r);
     break;
+  }
 
   case SeriesGroup: {
     // What the partials are comes before what is done to them, so the
@@ -1425,7 +1635,34 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
     trio.removeFromLeft(kFxToggleGap);
     bitsDisplay.setBounds(trio.removeFromLeft(each));
     trio.removeFromLeft(kFxToggleGap);
-    clipButton.setBounds(trio);
+    // The switch is a lamp in a moulding and the two beside it are plain
+    // recessed panels, so the same bounds leave its lit cap shorter than they
+    // are by the width of its own bezel, and the three read as two sizes. It
+    // takes that width back out of the slack above and below, which is there
+    // because the readouts are held off the group's border.
+    //
+    // Measured off the look and feel rather than written down here, so a
+    // moulding that changes width does not quietly put this back out of step.
+    const auto bezel = juce::roundToInt(
+        (trio.toFloat().getHeight() -
+         OvertoniumLookAndFeel::lampCapBounds(
+             trio.toFloat(), OvertoniumLookAndFeel::LampGang::Alone)
+             .getHeight()) *
+        0.5f);
+
+    // Upwards only, into the gap under the meter. Grown both ways it reached
+    // the group's own border, and a switch sitting on the line round its
+    // group reads as having fallen through it. The readouts are held off that
+    // border deliberately and this keeps the same footing.
+    //
+    // Clamped to the meter above, since that is the meter's own rectangle
+    // rather than spare bar. The runtime suite holds all three of these to
+    // sitting under the meter and inside the bar, which is what caught an
+    // earlier version of this taking its height from the wrong side.
+    auto lit = trio;
+    lit.setTop(juce::jmax(trio.getY() - bezel, meter.getBottom()));
+
+    clipButton.setBounds(lit);
     break;
   }
 

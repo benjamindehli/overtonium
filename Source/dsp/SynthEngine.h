@@ -10,6 +10,7 @@
 #include "BucketEcho.h"
 #include "BusDrive.h"
 #include "DigitalEcho.h"
+#include "OutputStage.h"
 #include "PlateReverb.h"
 #include "Reverb.h"
 #include "SpringReverb.h"
@@ -52,6 +53,10 @@ public:
 
   void prepare(double sampleRate) noexcept;
   void reset() noexcept;
+
+  /// What the output stage's lookahead costs, in samples, for the host to be
+  /// told along with the bus stage's. Valid once prepare has run.
+  int outputLatency() const noexcept { return outputStage.latency(); }
 
   void setPolyphony(int n) noexcept;
 
@@ -136,12 +141,32 @@ public:
     return partialPitches[(size_t)index0].load(std::memory_order_relaxed);
   }
 
+  /// How far velocity and aftertouch have moved this partial from its fader,
+  /// See Voice::getPartialVelocities.
+  float getPartialVelocity(int index0) const noexcept {
+    return partialVelocities[(size_t)index0].load(std::memory_order_relaxed);
+  }
+
+  /// See Voice::getPartialPressures.
+  float getPartialPressure(int index0) const noexcept {
+    return partialPressures[(size_t)index0].load(std::memory_order_relaxed);
+  }
+
   float getNoiseEnvelope() const noexcept {
     return noiseEnvelope.load(std::memory_order_relaxed);
   }
 
   float getNoiseTremolo() const noexcept {
     return noiseTremolo.load(std::memory_order_relaxed);
+  }
+
+  /// The noise channel's own two.
+  float getNoiseVelocity() const noexcept {
+    return noiseVelocity.load(std::memory_order_relaxed);
+  }
+
+  float getNoisePressure() const noexcept {
+    return noisePressure.load(std::memory_order_relaxed);
   }
 
   /// Peak of the finished output per channel, after master gain and the
@@ -200,10 +225,27 @@ private:
     std::array<float, kNumHarmonics> envelopes{};
     std::array<float, kNumHarmonics> tremolos{};
     std::array<float, kNumHarmonics> pitches{};
+    std::array<float, kNumHarmonics> velocities{};
+    std::array<float, kNumHarmonics> pressures{};
+
+    /// Whether any voice has reported this partial yet in this pass.
+    ///
+    /// Peak-wins decides between voices. It is not a threshold for reporting
+    /// at all, and read as one it loses the whole strip exactly when the
+    /// strip has something to say: a partial can be sounding at a peak of
+    /// zero, because a negative AFTERTOUCH amount has taken its level to the
+    /// bottom of the clamp, or because the fader is down or the partial is
+    /// above Nyquist. Without this the first test is "is it louder than
+    /// nothing", which zero is not, so every lamp on that channel reads the
+    /// nothing the gathering started from.
+    std::array<bool, kNumHarmonics> claimed{};
+    bool noiseClaimed = false;
 
     float noisePeak = 0.0f;
     float noiseEnvelope = 0.0f;
     float noiseTremolo = 0.0f;
+    float noiseVelocity = 0.0f;
+    float noisePressure = 0.0f;
   };
 
   /// Sums every sounding voice into the buffers and takes the meter peaks.
@@ -318,9 +360,13 @@ private:
   std::array<std::atomic<float>, kNumHarmonics> partialEnvelopes{};
   std::array<std::atomic<float>, kNumHarmonics> partialTremolos{};
   std::array<std::atomic<float>, kNumHarmonics> partialPitches{};
+  std::array<std::atomic<float>, kNumHarmonics> partialVelocities{};
+  std::array<std::atomic<float>, kNumHarmonics> partialPressures{};
   std::atomic<float> noiseLevel{0.0f};
   std::atomic<float> noiseEnvelope{0.0f};
   std::atomic<float> noiseTremolo{0.0f};
+  std::atomic<float> noiseVelocity{0.0f};
+  std::atomic<float> noisePressure{0.0f};
   std::atomic<float> outputLevelL{0.0f};
   std::atomic<float> outputLevelR{0.0f};
 
@@ -336,6 +382,10 @@ private:
   // recording of one.
   Wobble wobble;
   BusDrive busDrive;
+
+  /// What the mix runs into on its way out, which is five machines rather
+  /// than the one soft clipper it began as. See OutputStage.
+  OutputStage outputStage;
   TapeEcho echo;
   BucketEcho bucket;
   DigitalEcho digital;

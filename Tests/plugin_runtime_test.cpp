@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -17,6 +18,7 @@
 #include <random>
 #include <set>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "PluginEditor.h"
@@ -24,6 +26,7 @@
 #include "PluginProcessor.h"
 #include "Presets.h"
 #include "UI/ChannelStrip.h"
+#include "UI/LearnMenu.h"
 #include "UI/LookAndFeel.h"
 #include "UI/NoiseStrip.h"
 #include "UI/ShapeButton.h"
@@ -31,6 +34,7 @@
 #include "UI/TopBar.h"
 #include "UpdateCheck.h"
 #include "dsp/Exact.h"
+#include "dsp/OutputStage.h"
 #include "dsp/TapeEcho.h"
 
 namespace {
@@ -237,11 +241,23 @@ void testParameterWiring(OvertoniumProcessor &p) {
   // than controls of their own: whether each of the two is one circuit the
   // keyboard shares. See GlobalParams::ampModInPhase.
   //
-  // The trailing one is the echo's type, which arrived beside the switch that
-  // turns it on rather than replacing it: a boolean every saved patch stores
-  // and every lane points at cannot become a four-position choice without
-  // taking both with it. See params::echoTypeId.
-  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 2;
+  // Three of the trailing four are the echo's type, the reverb's and the
+  // output stage's, each of which arrived beside the switch that turns its
+  // thing on rather than replacing it: a boolean every saved patch stores and
+  // every lane points at cannot become a choice without taking both with it.
+  // See params::echoTypeId and params::clipTypeId.
+  //
+  // The fourth is whether the output stage may look ahead, which is a session
+  // setting rather than part of a patch and is the only parameter here that
+  // changes what the plugin reports to the host. See params::lookaheadId.
+  //
+  // And six each for the macros, which are a pool rather than a count: an
+  // amount, which is the one a host draws, the row it reaches, the channels
+  // of it, how it is shared out, which channel a taper leans on, and the
+  // colour it wears. A macro nobody has made points its row at None. See
+  // params::kNumMacros.
+  const int expected =
+      ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + ovt::params::kNumMacros * 6;
 
   // The behaviour that was there before it became a choice. Asked of the
   // parameter rather than of the tree, so the answer does not depend on what
@@ -512,14 +528,59 @@ void testBusStageFollowsTheCharacter(OvertoniumProcessor &p) {
             std::to_string(differs(valve, bulb)) + ")");
 
   // Every character, including the one that has none, costs the same few
-  // samples, so a preset cannot make a host re-plan its graph.
-  check(idle == ovt::BusDrive::kLatency, "the stage's latency is reported (" +
-                                             std::to_string(idle) +
-                                             " samples)");
+  // samples, so a preset cannot make a host re-plan its graph. The output
+  // stage's lookahead is in the figure too and is just as fixed: it is paid
+  // on every clip type and with the clipper switched off.
+  const auto expected =
+      ovt::BusDrive::kLatency + ovt::OutputStage::lookaheadSamples(48000.0);
+
+  check(idle == expected, "both stages' latency is reported (" +
+                              std::to_string(idle) + " samples, expected " +
+                              std::to_string(expected) + ")");
 
   check(p.getLatencySamples() == idle,
         "and does not move when the character does (" +
             std::to_string(p.getLatencySamples()) + ")");
+
+  // The other half of the same rule. The lookahead belongs to one of the five
+  // types and is paid by all of them, so switching the stage off entirely has
+  // to leave the figure alone.
+  auto *clip = p.apvts.getParameter(ovt::params::safetyClipId);
+  clip->setValueNotifyingHost(0.0f);
+  p.prepareToPlay(48000.0, 512);
+
+  check(p.getLatencySamples() == idle,
+        "nor when the output stage is switched off (" +
+            std::to_string(p.getLatencySamples()) + ")");
+
+  clip->setValueNotifyingHost(1.0f);
+  p.prepareToPlay(48000.0, 512);
+
+  // The one thing that is allowed to move it, and the reason it is allowed:
+  // it sits in Settings, so no preset and nothing on the bar can reach it.
+  // Giving the window up gives the whole of the output stage's share back.
+  auto *ahead = p.apvts.getParameter(ovt::params::lookaheadId);
+
+  check(ahead != nullptr, "the lookahead has a switch");
+
+  if (ahead != nullptr) {
+    check(ovt::params::isSessionParam(ovt::params::lookaheadId),
+          "which is a session setting, so no preset can move the latency");
+
+    ahead->setValueNotifyingHost(0.0f);
+    p.prepareToPlay(48000.0, 512);
+
+    check(p.getLatencySamples() == ovt::BusDrive::kLatency,
+          "refusing it leaves only the bus stage (" +
+              std::to_string(p.getLatencySamples()) + " samples)");
+
+    ahead->setValueNotifyingHost(1.0f);
+    p.prepareToPlay(48000.0, 512);
+
+    check(p.getLatencySamples() == idle,
+          "and asking for it again restores it (" +
+              std::to_string(p.getLatencySamples()) + ")");
+  }
 
   p.applyFactoryPreset(presetIndex("Init"));
 }
@@ -567,6 +628,690 @@ void testRendering(OvertoniumProcessor &p) {
 
   p.reset();
   renderBlocks(p, 400, 512);
+}
+
+/// That a controller can be bound to a control, that binding one does not
+/// cost the instrument something it was already using, and that the map
+/// survives the session being saved and opened again.
+///
+/// The map is reached directly rather than through the menus, since what a
+/// menu does is call these. The menu itself is checked by the item it offers.
+void testMidiLearnBindsControllers(OvertoniumProcessor &p) {
+  section("MIDI learn");
+
+  p.midiLearn.clear();
+  p.applyFactoryPreset(presetIndex("Init"));
+  p.prepareToPlay(48000.0, 256);
+
+  auto *target = dynamic_cast<juce::RangedAudioParameter *>(
+      p.apvts.getParameter(ovt::params::wobbleId));
+
+  check(target != nullptr, "there is a control to bind");
+  if (target == nullptr)
+    return;
+
+  const auto send = [&p](int controller, int value) {
+    juce::MidiBuffer midi;
+    midi.addEvent(juce::MidiMessage::controllerEvent(1, controller, value), 0);
+    renderBlocks(p, 2, 256, midi);
+  };
+
+  check(p.midiLearn.controllerFor(target) < 0, "and nothing is bound to start");
+
+  // ---- the reserved ones are refused -------------------------------------
+  //
+  // Armed and then handed the slide axis, which is the one most likely to be
+  // touched by accident on an MPE controller, since it moves whenever a
+  // finger does.
+  p.midiLearn.arm(target);
+  send(74, 100);
+
+  check(p.midiLearn.armed() == target,
+        "the slide axis does not get taken by a knob that is waiting");
+  check(p.midiLearn.controllerFor(target) < 0, "and binds nothing");
+
+  send(1, 100);
+  check(p.midiLearn.armed() == target, "nor does the mod wheel");
+
+  // ---- an ordinary one is taken ------------------------------------------
+  send(20, 64);
+
+  check(p.midiLearn.armed() == nullptr, "an ordinary controller is learned");
+  check(p.midiLearn.controllerFor(target) == 20,
+        "and is what moves that control now (" +
+            std::to_string(p.midiLearn.controllerFor(target)) + ")");
+
+  // The message that bound it does not also move the control, which would be
+  // a jump at the moment somebody is looking at it.
+  const auto afterBinding = target->getValue();
+
+  send(20, 127);
+  check(target->getValue() > afterBinding + 0.1f,
+        "the next message moves it (" + std::to_string(target->getValue()) +
+            ")");
+
+  send(20, 0);
+  check(target->getValue() < 0.01f, "and all the way back down (" +
+                                        std::to_string(target->getValue()) +
+                                        ")");
+
+  // ---- it survives the session -------------------------------------------
+  juce::MemoryBlock saved;
+  p.getStateInformation(saved);
+
+  p.midiLearn.clear();
+  check(p.midiLearn.controllerFor(target) < 0, "forgetting works");
+
+  p.setStateInformation(saved.getData(), (int)saved.getSize());
+
+  auto *afterLoad = dynamic_cast<juce::RangedAudioParameter *>(
+      p.apvts.getParameter(ovt::params::wobbleId));
+
+  check(p.midiLearn.controllerFor(afterLoad) == 20,
+        "and the binding comes back with the session (" +
+            std::to_string(p.midiLearn.controllerFor(afterLoad)) + ")");
+
+  // ---- and a preset cannot touch it --------------------------------------
+  //
+  // The map describes the desk rather than the sound, so loading a patch over
+  // it would be rearranging somebody's hardware.
+  p.applyFactoryPreset(presetIndex("Big Saw"));
+
+  check(p.midiLearn.controllerFor(afterLoad) == 20,
+        "which a preset does not disturb");
+
+  // ---- and it works where it would be easiest to break ------------------
+  //
+  // With MPE on, the parser is handed every message and only the mod wheel, a
+  // program change and all-sound-off fall through to the ordinary handler. A
+  // binding checked after that would be dead on exactly the controller this
+  // instrument is usually played from. Everything above this point passes
+  // whether the check runs before the parser or after it, because MPE is off
+  // by default, which is what makes this case worth its own lines.
+  if (auto *mpe = p.apvts.getParameter(ovt::params::mpeId)) {
+    mpe->setValueNotifyingHost(1.0f);
+    p.prepareToPlay(48000.0, 256);
+
+    // Let go of the one it already has first. Two controllers may point at
+    // one control, and controllerFor answers with the lowest of them, so
+    // leaving CC 20 bound would have this reading 20 whatever CC 21 did.
+    p.midiLearn.forget(afterLoad);
+    p.midiLearn.arm(afterLoad);
+    send(21, 64);
+
+    check(p.midiLearn.controllerFor(afterLoad) == 21,
+          "a controller is still learned with MPE on (" +
+              std::to_string(p.midiLearn.controllerFor(afterLoad)) + ")");
+
+    send(21, 127);
+    const auto high = afterLoad->getValue();
+
+    send(21, 0);
+
+    check(high > afterLoad->getValue() + 0.1f,
+          "and still moves the control it was bound to (" +
+              std::to_string(high) + " then " +
+              std::to_string(afterLoad->getValue()) + ")");
+
+    mpe->setValueNotifyingHost(0.0f);
+    p.prepareToPlay(48000.0, 256);
+  }
+
+  // ---- the menu says so, and the controls answer to it -------------------
+  //
+  // The map above is reached directly, which proves nothing about whether a
+  // right-click can get at it. Two things have to hold: a control has to know
+  // which parameter it moves, and the menu has to offer the item.
+  {
+    std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+    auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+    check(editor != nullptr, "the editor opens");
+
+    if (editor != nullptr) {
+      std::function<const juce::Component *(const juce::Component &,
+                                            const juce::String &)>
+          findTagged =
+              [&findTagged](
+                  const juce::Component &c,
+                  const juce::String &wanted) -> const juce::Component * {
+        for (auto *child : c.getChildren()) {
+          if (ovt::ui::learn::parameterIdAt(child) == wanted)
+            return child;
+
+          if (auto *found = findTagged(*child, wanted))
+            return found;
+        }
+
+        return nullptr;
+      };
+
+      // A fader on the first channel, which is tagged where its attachment is
+      // made, and the master fader on the bar, which is tagged somewhere else
+      // entirely. One of each, so a tag added in only one of the two places
+      // fails here.
+      const auto fader = ovt::params::oscParamId(ovt::params::volumeSuffix, 0);
+
+      check(findTagged(*editor, fader) != nullptr,
+            "a channel fader knows which parameter it moves");
+      check(findTagged(*editor, ovt::params::masterGainId) != nullptr,
+            "and so does the master fader on the bar");
+
+      // ---- and a waiting control says so -------------------------------
+      //
+      // Arming happens through the map, the marker is hung by the window on
+      // its timer, and the look and feel is what draws it. This checks the
+      // middle of those three: that the window finds the right control and
+      // marks it, and takes the mark off again when the wait ends.
+      auto *wobble = dynamic_cast<juce::RangedAudioParameter *>(
+          p.apvts.getParameter(ovt::params::wobbleId));
+
+      const auto markOn = [&](const juce::String &id) {
+        auto *c = ovt::ui::learn::controlFor(*editor, id);
+        return c != nullptr &&
+               (bool)c->getProperties().getWithDefault("learnArmed", false);
+      };
+
+      check(!markOn(ovt::params::wobbleId), "nothing is marked to start");
+
+      p.midiLearn.arm(wobble);
+      editor->followArmedControl();
+
+      check(markOn(ovt::params::wobbleId),
+            "the control a controller is being waited for is marked");
+
+      // Moving the wait to another control takes the mark with it, which is
+      // what right-clicking a second control does.
+      p.midiLearn.arm(dynamic_cast<juce::RangedAudioParameter *>(
+          p.apvts.getParameter(ovt::params::stretchId)));
+      editor->followArmedControl();
+
+      check(!markOn(ovt::params::wobbleId) && markOn(ovt::params::stretchId),
+            "and only one is ever marked at a time");
+
+      p.midiLearn.arm(nullptr);
+      editor->followArmedControl();
+
+      check(!markOn(ovt::params::stretchId),
+            "and the mark goes when the wait ends");
+    }
+  }
+
+  {
+    auto *target2 = dynamic_cast<juce::RangedAudioParameter *>(
+        p.apvts.getParameter(ovt::params::stretchId));
+
+    const auto itemsIn = [](juce::PopupMenu &menu) {
+      std::string found;
+
+      for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+        found += it.getItem().text.toStdString() + "|";
+
+      return found;
+    };
+
+    p.midiLearn.forget(target2);
+
+    juce::PopupMenu fresh;
+    ovt::ui::learn::appendItems(fresh, p.midiLearn, target2);
+
+    check(itemsIn(fresh).find("MIDI Learn") != std::string::npos,
+          "an unbound control is offered MIDI Learn (" + itemsIn(fresh) + ")");
+
+    p.midiLearn.bind(22, target2);
+
+    juce::PopupMenu bound;
+    ovt::ui::learn::appendItems(bound, p.midiLearn, target2);
+
+    check(itemsIn(bound).find("Forget CC 22") != std::string::npos,
+          "a bound one is offered the way back (" + itemsIn(bound) + ")");
+
+    p.midiLearn.arm(target2);
+
+    juce::PopupMenu waiting;
+    ovt::ui::learn::appendItems(waiting, p.midiLearn, target2);
+
+    check(itemsIn(waiting).find("Stop waiting") != std::string::npos,
+          "and one that is waiting can be told to stop (" + itemsIn(waiting) +
+              ")");
+
+    p.midiLearn.arm(nullptr);
+  }
+
+  // ---- including the macro amounts ---------------------------------------
+  //
+  // The amount is what a host automates, so it is the one worth binding to a
+  // controller. It lives on the macro panel rather than on a strip, which
+  // means it is reachable at all only if that panel is in the window and its
+  // fader carries the same tag every other control does.
+  {
+    std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+    auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+    if (editor != nullptr) {
+      auto *amount =
+          ovt::ui::learn::controlFor(*editor, ovt::params::macroAmountId(0));
+
+      check(amount != nullptr,
+            "a macro's amount can be found by the parameter it moves");
+
+      auto *q = dynamic_cast<juce::RangedAudioParameter *>(
+          p.apvts.getParameter(ovt::params::macroAmountId(0)));
+
+      if (amount != nullptr && q != nullptr) {
+        p.midiLearn.forget(q);
+        p.midiLearn.arm(q);
+
+        juce::MidiBuffer midi;
+        midi.addEvent(juce::MidiMessage::controllerEvent(1, 23, 64), 0);
+        renderBlocks(p, 2, 256, midi);
+
+        check(p.midiLearn.controllerFor(q) == 23,
+              "and a controller binds to it (" +
+                  std::to_string(p.midiLearn.controllerFor(q)) + ")");
+
+        midi.clear();
+        midi.addEvent(juce::MidiMessage::controllerEvent(1, 23, 127), 0);
+        renderBlocks(p, 2, 256, midi);
+
+        check(q->getValue() > 0.9f,
+              "and moves it (" + std::to_string(q->getValue()) + ")");
+
+        p.midiLearn.forget(q);
+        q->setValueNotifyingHost(q->convertTo0to1(0.0f));
+      }
+    }
+  }
+
+  p.midiLearn.clear();
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
+/// That one automatable parameter moves a whole row, which is what issue #24
+/// asked for: a LINK drag across TUNE moves 32 parameters and a host catches
+/// only the last touched, so a relationship you can edit cannot be automated.
+///
+/// Read off the snapshot rather than off the sound, because what a macro does
+/// is offset what the patch says on the way to the engine. The sound follows
+/// from that and is a much blunter instrument for telling 32 channels apart.
+void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
+  section("Macros");
+
+  p.applyFactoryPreset(presetIndex("Init"));
+  p.prepareToPlay(48000.0, 256);
+
+  const auto set = [&p](const juce::String &id, float plain) {
+    if (auto *q = p.apvts.getParameter(id))
+      q->setValueNotifyingHost(q->convertTo0to1(plain));
+  };
+
+  const auto snapshot = [&p] {
+    ovt::SynthParams out;
+    p.parameters().snapshot(out, 0.0f);
+    return out;
+  };
+
+  // The row the issue names, and the one a macro is most wanted on. One
+  // rather than zero: the list opens with None, which is an unmade macro.
+  const int tuneRow = 1;
+
+  const auto resting = snapshot();
+
+  // What the parameters say before anything is asked of them, so that
+  // "the macro wrote nothing" is measured against the patch rather than
+  // against zero.
+  std::vector<float> before;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    before.push_back(
+        p.apvts
+            .getParameter(ovt::params::oscParamId(ovt::params::tuneSuffix, i))
+            ->getValue());
+
+  set(ovt::params::macroRowId(0), (float)tuneRow);
+  set(ovt::params::macroScopeId(0), 0.0f);
+  set(ovt::params::macroCurveId(0), 0.0f);
+
+  // Downward, because Init leaves TUNE at the top of its range: pushing up
+  // would clamp on every channel and the test would read "nothing moved"
+  // while the macro was working perfectly.
+  set(ovt::params::macroAmountId(0), -0.25f);
+
+  const auto moved = snapshot();
+
+  int shifted = 0;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    if (std::abs(moved.osc[(size_t)i].tuneBlend -
+                 resting.osc[(size_t)i].tuneBlend) > 1.0e-5f)
+      ++shifted;
+
+  check(shifted == ovt::kNumHarmonics, "one macro moves the whole row (" +
+                                           std::to_string(shifted) +
+                                           " of 32 channels)");
+
+  // The thing that makes it a macro rather than a drag: the parameters it
+  // offsets have not moved, so the patch is exactly where it was and the host
+  // has one lane rather than thirty-two.
+  int written = 0;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i) {
+    auto *q = p.apvts.getParameter(
+        ovt::params::oscParamId(ovt::params::tuneSuffix, i));
+
+    if (q != nullptr && std::abs(q->getValue() - before[(size_t)i]) > 1.0e-6f)
+      ++written;
+  }
+
+  check(written == 0, "and writes none of the parameters it moves (" +
+                          std::to_string(written) + " written)");
+
+  // ---- the scope decides who it reaches ----------------------------------
+  set(ovt::params::macroScopeId(0), (float)(int)ovt::params::MacroScope::Odd);
+
+  const auto odd = snapshot();
+
+  int oddMoved = 0, evenMoved = 0;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i) {
+    const bool differs = std::abs(odd.osc[(size_t)i].tuneBlend -
+                                  resting.osc[(size_t)i].tuneBlend) > 1.0e-5f;
+
+    if (differs)
+      (((i + 1) % 2) == 1 ? oddMoved : evenMoved)++;
+  }
+
+  check(oddMoved == 16 && evenMoved == 0,
+        "the scope decides which channels it reaches (" +
+            std::to_string(oddMoved) + " odd, " + std::to_string(evenMoved) +
+            " even)");
+
+  // ---- and the curve decides how much each one takes ---------------------
+  set(ovt::params::macroScopeId(0), 0.0f);
+  set(ovt::params::macroCurveId(0), (float)(int)ovt::params::MacroCurve::Taper);
+
+  const auto tapered = snapshot();
+
+  const auto shiftAt = [&](const ovt::SynthParams &s, int i) {
+    return s.osc[(size_t)i].tuneBlend - resting.osc[(size_t)i].tuneBlend;
+  };
+
+  check(std::abs(shiftAt(tapered, 0)) > std::abs(shiftAt(tapered, 16)) &&
+            std::abs(shiftAt(tapered, 16)) > std::abs(shiftAt(tapered, 31)),
+        "a tapered macro moves the fundamental most and the top least");
+
+  // Held to the curve LINK draws, so the two cannot drift into meaning
+  // different things by the same name. A macro anchors at the fundamental,
+  // which is what the 0 is.
+  int disagreed = 0;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i) {
+    const auto theirs =
+        ovt::ui::linkCurveWeight(ovt::ui::LinkCurve::Taper, i, 0);
+    const auto mine = shiftAt(tapered, i) / shiftAt(tapered, 0);
+
+    if (std::abs(theirs - mine) > 1.0e-4f)
+      ++disagreed;
+  }
+
+  check(disagreed == 0, "and takes the same share LINK would give it (" +
+                            std::to_string(disagreed) + " channels differ)");
+
+  // ---- a macro at rest is not in the way ---------------------------------
+  set(ovt::params::macroAmountId(0), 0.0f);
+
+  const auto back = snapshot();
+
+  int stillMoved = 0;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    if (std::abs(back.osc[(size_t)i].tuneBlend -
+                 resting.osc[(size_t)i].tuneBlend) > 1.0e-9f)
+      ++stillMoved;
+
+  check(stillMoved == 0, "and leaves nothing behind when it returns to zero");
+
+  // ---- a macro nobody has made does nothing ------------------------------
+  //
+  // Which is how one is removed: the row goes back to None and the amount is
+  // left wherever the fader was. A macro that went on working after being
+  // taken away would be the worst of both.
+  set(ovt::params::macroAmountId(0), -0.25f);
+  set(ovt::params::macroRowId(0), 0.0f);
+
+  const auto unmade = snapshot();
+
+  int byUnmade = 0;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    if (std::abs(unmade.osc[(size_t)i].tuneBlend -
+                 resting.osc[(size_t)i].tuneBlend) > 1.0e-9f)
+      ++byUnmade;
+
+  check(byUnmade == 0,
+        "a macro with no row does nothing, whatever its amount says (" +
+            std::to_string(byUnmade) + " channels moved)");
+
+  // ---- and an interval scope reaches that interval -----------------------
+  //
+  // The fifth, which is harmonics 3, 6, 12 and 24. Counted against the table
+  // rather than against a list written here, so this cannot drift from what
+  // the mixer calls those channels.
+  set(ovt::params::macroRowId(0), (float)tuneRow);
+  set(ovt::params::macroScopeId(0),
+      (float)((int)ovt::params::MacroScope::Interval + 7));
+
+  const auto fifths = snapshot();
+
+  int reached = 0, strayed = 0;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i) {
+    const bool took = std::abs(fifths.osc[(size_t)i].tuneBlend -
+                               resting.osc[(size_t)i].tuneBlend) > 1.0e-5f;
+    const bool isFifth = ovt::harmonicTable()[(size_t)i].pitchClass == 7;
+
+    if (took && isFifth)
+      ++reached;
+    if (took != isFifth)
+      ++strayed;
+  }
+
+  check(reached == 4 && strayed == 0,
+        "an interval scope reaches exactly that interval (" +
+            std::to_string(reached) + " fifths, " + std::to_string(strayed) +
+            " wrong)");
+
+  // ---- and a driven control wears the macro's colour ---------------------
+  //
+  // Which control belongs to which macro is a fact about all eight of them,
+  // so the window works it out and the strips are told. Read off the control
+  // itself, since what the look and feel draws is whatever colour it has been
+  // given: a macro taking a control over is the control being told it is a
+  // different colour.
+  {
+    std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+    auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+    check(editor != nullptr, "the editor opens");
+
+    if (editor != nullptr) {
+      // Read off the control, which is where the look and feel reads it: the
+      // macro's colour is carried beside the control's own rather than
+      // replacing it, so the pointer can stay the channel's.
+      const auto colourOf = [&](int channel) {
+        auto *c = ovt::ui::learn::controlFor(
+            *editor, ovt::params::oscParamId(ovt::params::tuneSuffix, channel));
+
+        if (c == nullptr)
+          return juce::Colours::transparentBlack;
+
+        const auto said = c->getProperties().getWithDefault("macroColour", {});
+
+        return said.isVoid() ? juce::Colours::transparentBlack
+                             : juce::Colour((juce::uint32)(int)said);
+      };
+
+      const auto own = colourOf(2);
+
+      set(ovt::params::macroRowId(0), (float)tuneRow);
+      set(ovt::params::macroScopeId(0),
+          (float)((int)ovt::params::MacroScope::Interval + 7));
+      set(ovt::params::macroColourId(0), 1.0f);
+      editor->followMacroTints();
+
+      const auto wanted = ovt::params::macroColour(1);
+
+      // Harmonic 3 is a fifth and harmonic 2 is not, so one takes the colour
+      // and the other keeps its own.
+      check(colourOf(2) == wanted,
+            "a control a macro drives carries the macro's colour");
+      check(colourOf(1) != wanted, "and one it does not reach carries none");
+
+      set(ovt::params::macroRowId(0), 0.0f);
+      editor->followMacroTints();
+
+      check(colourOf(2) == own,
+            "and letting go takes the macro's colour off again");
+
+      // ---- and the bar follows the macros, not the tool ------------------
+      //
+      // The count sat in syncLinkUi, which runs when the tool or LINK
+      // changes, so making a macro lit the button only once you went near
+      // the tool menu. Read off the button's own name, which carries the
+      // count for a screen reader.
+      {
+        juce::TextButton *bar = nullptr;
+
+        std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+          for (auto *child : c.getChildren()) {
+            if (auto *b = dynamic_cast<juce::TextButton *>(child))
+              if (b->getTitle().startsWith("Macros"))
+                bar = b;
+
+            look(*child);
+          }
+        };
+        look(*editor);
+
+        check(bar != nullptr, "the bar carries a macros button");
+
+        if (bar != nullptr) {
+          set(ovt::params::macroRowId(0), 0.0f);
+          editor->followMacroTints();
+
+          check(!bar->getToggleState(), "which is dark with no macros made (" +
+                                            bar->getTitle().toStdString() +
+                                            ")");
+
+          // The macro alone, with nothing touching the tool.
+          set(ovt::params::macroRowId(0), (float)tuneRow);
+          editor->followMacroTints();
+
+          check(bar->getToggleState(),
+                "and lights as soon as one is made, without the tool being "
+                "touched (" +
+                    bar->getTitle().toStdString() + ")");
+
+          set(ovt::params::macroRowId(0), 0.0f);
+          editor->followMacroTints();
+
+          check(!bar->getToggleState(), "and goes out when the last one goes");
+        }
+      }
+
+      // ---- and the ring shows what the engine is playing ----------------
+      //
+      // The ring is worked out by the window and the offset by the snapshot,
+      // from the same shared arithmetic. If those two ever disagreed the
+      // knob would be showing a value nothing is playing, which is worse
+      // than showing nothing: it would be a lie told confidently.
+      // The decay row rather than tune, because decay is built by logRange
+      // and tune is linear. A macro that moved a proportion of the units
+      // instead of a proportion of the travel passes on a linear row and is
+      // wrong by orders of magnitude on this one, which is exactly the fault
+      // this guards: the cached range was being rebuilt from its two ends,
+      // which throws away the curve logRange keeps in its conversion
+      // functions and leaves a range that looks right and is linear.
+      const int decayRow = 9;
+
+      set(ovt::params::macroRowId(0), (float)decayRow);
+      set(ovt::params::macroScopeId(0), 0.0f);
+      set(ovt::params::macroCurveId(0),
+          (float)(int)ovt::params::MacroCurve::Taper);
+      set(ovt::params::macroAmountId(0), -0.4f);
+      editor->followMacroTints();
+
+      ovt::SynthParams played;
+      p.parameters().snapshot(played, 0.0f);
+
+      int mismatched = 0;
+      for (int i = 0; i < ovt::kNumHarmonics; ++i) {
+        auto *c = ovt::ui::learn::controlFor(
+            *editor, ovt::params::oscParamId(ovt::params::decaySuffix, i));
+
+        if (c == nullptr)
+          continue;
+
+        const auto shown = (float)(double)c->getProperties().getWithDefault(
+            "macroResult", -1.0);
+
+        auto *q =
+            dynamic_cast<juce::RangedAudioParameter *>(p.apvts.getParameter(
+                ovt::params::oscParamId(ovt::params::decaySuffix, i)));
+
+        if (q == nullptr)
+          continue;
+
+        // Both as a proportion of the control's travel, which is what the
+        // ring is drawn from.
+        const auto engine = q->convertTo0to1(played.osc[(size_t)i].decay);
+
+        if (std::abs(shown - engine) > 1.0e-3f)
+          ++mismatched;
+      }
+
+      check(mismatched == 0,
+            "the ring shows the value the engine is playing (" +
+                std::to_string(mismatched) + " channels differ)");
+
+      // ---- and follows the control, not only the macro ------------------
+      //
+      // The result is the patch's value plus the macro's offset, so turning
+      // a knob moves it while every macro stands still. There was a
+      // signature here that skipped the pass when no macro had moved, and
+      // the ring sat where it had been left until a macro was touched.
+      {
+        auto *first =
+            dynamic_cast<juce::RangedAudioParameter *>(p.apvts.getParameter(
+                ovt::params::oscParamId(ovt::params::decaySuffix, 0)));
+
+        auto *control = ovt::ui::learn::controlFor(
+            *editor, ovt::params::oscParamId(ovt::params::decaySuffix, 0));
+
+        if (first != nullptr && control != nullptr) {
+          const auto ringAt = [control] {
+            return (float)(double)control->getProperties().getWithDefault(
+                "macroResult", -1.0);
+          };
+
+          const auto was = ringAt();
+
+          // The control alone, with the macro left exactly where it is.
+          first->setValueNotifyingHost(first->getValue() > 0.5f ? 0.1f : 0.9f);
+          editor->followMacroTints();
+
+          check(std::abs(ringAt() - was) > 0.05f,
+                "the ring follows the control being turned, not only the "
+                "macro (" +
+                    std::to_string(was) + " to " + std::to_string(ringAt()) +
+                    ")");
+        }
+      }
+
+      set(ovt::params::macroAmountId(0), 0.0f);
+      set(ovt::params::macroRowId(0), 0.0f);
+      set(ovt::params::macroCurveId(0), 0.0f);
+    }
+  }
+
+  set(ovt::params::macroRowId(0), 0.0f);
+  set(ovt::params::macroAmountId(0), 0.0f);
+  set(ovt::params::macroScopeId(0), 0.0f);
+  set(ovt::params::macroCurveId(0), 0.0f);
+
+  p.applyFactoryPreset(presetIndex("Init"));
 }
 
 void testPresets(OvertoniumProcessor &p) {
@@ -1205,11 +1950,11 @@ void testActivityLamps(OvertoniumProcessor &p) {
     juce::Array<juce::Rectangle<int>> bands;
 
     // First call has everything to say, since the lamps start dark.
-    strip.setActivity(0.5f, 0.5f, 0.0f, bands);
+    strip.setActivity(0.5f, 0.5f, 0.0f, 0.0f, 0.0f, bands);
     const auto first = bands.size();
 
     bands.clearQuick();
-    strip.setActivity(0.5f, 0.5f, 0.0f, bands);
+    strip.setActivity(0.5f, 0.5f, 0.0f, 0.0f, 0.0f, bands);
 
     check(first > 0, "a lamp that lights asks to be repainted");
     check(bands.isEmpty(), "and the same values again ask for nothing (" +
@@ -1218,32 +1963,84 @@ void testActivityLamps(OvertoniumProcessor &p) {
     // A move too small to cross a step is a move nobody can see.
     bands.clearQuick();
     strip.setActivity(0.5f + 1.0f / (4.0f * ActivityLamp::kSteps), 0.5f, 0.0f,
-                      bands);
+                      0.0f, 0.0f, bands);
 
     check(bands.isEmpty(), "nor does a change smaller than one step");
 
     // A move of a whole step does.
     bands.clearQuick();
     strip.setActivity(0.5f + 1.5f / (float)ActivityLamp::kSteps, 0.5f, 0.0f,
-                      bands);
+                      0.0f, 0.0f, bands);
 
     check(!bands.isEmpty(), "a change of a whole step does");
 
     // ---- the two envelope lamps never both light --------------------------
     bands.clearQuick();
-    strip.setActivity(-0.8f, 0.0f, 0.0f, bands);
-    strip.setActivity(-0.8f, 0.0f, 0.0f, bands);
+    strip.setActivity(-0.8f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
+    strip.setActivity(-0.8f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
 
     // Reading the lamps back is not possible from here, so this is checked by
     // the shape of the request instead: flipping the sign has to move both
     // lamps, one out and one in, and nothing else.
     bands.clearQuick();
-    strip.setActivity(0.8f, 0.0f, 0.0f, bands);
+    strip.setActivity(0.8f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
 
     check(bands.size() == 2,
           "flipping to the key-off half moves exactly two lamps, one out and "
           "one in (" +
               std::to_string(bands.size()) + ")");
+
+    // ---- the two output lamps are gated on the note like the rest --------
+    //
+    // The velocity half is the one that has to be gated, and it is the one a
+    // reader would expect not to need it: it reads full when the row is
+    // taking nothing, so fed straight through it would sit lit on every
+    // channel of a silent mixer.
+    bands.clearQuick();
+    strip.setActivity(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
+
+    bands.clearQuick();
+    strip.setActivity(0.0f, 0.0f, 0.0f, 1.0f, 1.0f, bands);
+
+    check(bands.isEmpty(),
+          "a strip with nothing sounding keeps both output lamps dark, the "
+          "velocity one included (" +
+              std::to_string(bands.size()) + " bands)");
+
+    // With a note under it each row moves its own lamp and only its own.
+    bands.clearQuick();
+    strip.setActivity(0.8f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
+
+    bands.clearQuick();
+    strip.setActivity(0.8f, 0.0f, 0.0f, 1.0f, 0.0f, bands);
+
+    check(bands.size() == 1,
+          "with a note under it the velocity row moves exactly one lamp (" +
+              std::to_string(bands.size()) + ")");
+
+    // Which one, not just how many. The velocity lamp is the left half of
+    // the rule and the pressure lamp the right, and nothing else here can
+    // tell the two apart: swapping what they are fed moves one lamp either
+    // way and every count still comes out right.
+    const auto velocityBand = bands.getFirst();
+
+    bands.clearQuick();
+    strip.setActivity(0.8f, 0.0f, 0.0f, 1.0f, 1.0f, bands);
+
+    check(bands.size() == 1,
+          "and the pressure row moves exactly the other one (" +
+              std::to_string(bands.size()) + ")");
+
+    const auto pressureBand = bands.getFirst();
+    const auto middle = strip.getWidth() / 2;
+
+    check(velocityBand.getCentreX() < middle &&
+              pressureBand.getCentreX() > middle,
+          "with velocity on the left of the rule and aftertouch on the right "
+          "(" +
+              std::to_string(velocityBand.getCentreX()) + " and " +
+              std::to_string(pressureBand.getCentreX()) + " about " +
+              std::to_string(middle) + ")");
   }
 }
 
@@ -1366,18 +2163,25 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   };
   collect(*editor);
 
-  // Two on the bar and two on each of the thirty-two channels, plus the level
-  // on the noise strip, which never had a reading at all before.
-  check(displays.size() == 2 + 2 * ovt::kNumHarmonics + 1,
+  // Three on the bar, the two converter readouts and the preset name, two on
+  // each of the thirty-two channels, the level on the noise strip, and one
+  // per macro in the panel. The panel's eight are built whether or not the
+  // macro has been made, so they are all here whatever the patch says.
+  check(displays.size() ==
+            3 + 2 * ovt::kNumHarmonics + 1 + ovt::params::kNumMacros,
         "every readout is a segment display now (" +
             std::to_string(displays.size()) + ")");
 
   bool allDrawable = true;
   std::string firstBad;
 
+  // Against its own cells. The preset name is on a fourteen-bar display and
+  // spells words a seven-bar one has no forms for, which is the whole reason
+  // it is a different display.
   for (auto *d : displays)
     for (int i = 0; i < d->getReading().length(); ++i)
-      if (!SegmentDisplay::canDraw((char)d->getReading()[i])) {
+      if (!SegmentDisplay::canDraw((char)d->getReading()[i],
+                                   d->howManyBars())) {
         allDrawable = false;
         if (firstBad.empty())
           firstBad = d->getReading().toStdString();
@@ -1575,9 +2379,99 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
         "when sharp (" +
             readingFor(2, 1.0f).toStdString() + ")");
 
-  check(!readingFor(2, 1.0f).containsChar('+') &&
-            !ovt::ui::SegmentDisplay::canDraw('+'),
-        "and the display has no plus to draw in the first place");
+  check(!readingFor(2, 1.0f).containsChar('+'),
+        "and the display is never asked for one");
+
+  // ---- a sign sharing the leading digit's cell -----------------------------
+  //
+  // A reading that runs to three digits and can be negative has a hundreds
+  // place that is only ever a one or nothing, so the sign lives in that cell
+  // beside it rather than taking a cell of its own. The macro panel's amount
+  // is the only reading that does this.
+  //
+  // Held by rendering the same number signed and unsigned and comparing the
+  // pictures: everything but that first cell has to be identical, or the
+  // digits are shifting along to make room for the sign, which is the thing
+  // this exists to stop. Counting lit pixels will not do it, since the ground
+  // these are drawn on is lit too.
+  const auto renderOf = [](const juce::String &reading) {
+    ovt::ui::SegmentDisplay d({});
+    d.setBounds(0, 0, 92, 30);
+    d.setReading(reading, true);
+
+    return d.createComponentSnapshot(d.getLocalBounds());
+  };
+
+  const auto signed_ = renderOf("~42.0");
+  const auto unsigned_ = renderOf(" 42.0");
+
+  int differing = 0;
+  int to = -1;
+
+  for (int y = 0; y < signed_.getHeight(); ++y)
+    for (int x = 0; x < signed_.getWidth(); ++x)
+      if (signed_.getPixelAt(x, y) != unsigned_.getPixelAt(x, y)) {
+        ++differing;
+        to = juce::jmax(to, x);
+      }
+
+  check(differing > 0, "a sign is drawn in the leading cell (" +
+                           std::to_string(differing) + " pixels differ)");
+
+  // And it sits in the middle of that cell when nothing shares it, which is
+  // how the reading spends nearly all of its life. Measured against a lit
+  // eight standing in the same cell, which marks the cell's own extent.
+  const auto centreOf = [](const juce::Image &im) {
+    int first = -1, last = -1;
+
+    // The leading cell only, and inside the recess, whose own lit edge runs
+    // round the perimeter and would otherwise be the extent of everything.
+    for (int x = 0; x < im.getWidth() / 4; ++x) {
+      bool any = false;
+
+      for (int y = 4; y < im.getHeight() - 4 && !any; ++y)
+        any = im.getPixelAt(x, y).getBlue() > 120;
+
+      if (any) {
+        if (first < 0)
+          first = x;
+
+        last = x;
+      }
+    }
+
+    return first < 0 ? 0.0 : (first + last) / 2.0;
+  };
+
+  const auto cellCentre = centreOf(renderOf("830.0"));
+  const auto signCentre = centreOf(signed_);
+
+  check(std::abs(cellCentre - signCentre) < 1.0,
+        "and sits in the middle of it (cell at " + std::to_string(cellCentre) +
+            ", sign at " + std::to_string(signCentre) + ")");
+
+  // Nothing past that cell, which is the first of four in a centred run, so
+  // half the box is well clear of it and well short of the second digit.
+  check(differing > 0 && to < signed_.getWidth() / 2,
+        "and nothing beyond it moves to make room (last at " +
+            std::to_string(to) + " of " + std::to_string(signed_.getWidth()) +
+            ")");
+
+  // And the cell still shows the hundreds digit when there is one, which is
+  // the other half of what it is for. Nothing is drawn specially for either:
+  // the sign is the middle bar and the one is the pair of uprights, both lit
+  // the way any segment is.
+  const auto hundred = renderOf("!00.0");
+  const auto none = renderOf("~00.0");
+
+  int gained = 0;
+
+  for (int y = 0; y < hundred.getHeight(); ++y)
+    for (int x = 0; x < hundred.getWidth(); ++x)
+      gained += hundred.getPixelAt(x, y) != none.getPixelAt(x, y) ? 1 : 0;
+
+  check(gained > 0, "and the one appears beside it at a hundred (" +
+                        std::to_string(gained) + " pixels differ)");
 
   check(readingFor(6, 1.0f) == "-31.2",
         "the seventh harmonic being the one that goes the other way (" +
@@ -1592,6 +2486,441 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
 ///
 /// Each strip works it out from where the pointer is rather than being told by
 /// the editor, so what is checked here is that the answer follows the pointer
+/// That the preset display can spell.
+///
+/// Seven bars manage five letters, which is all a readout on a channel has to
+/// say, and a preset is called Glockenspiel. The display that carries the
+/// name has fourteen, and three faults in it came out of looking at a render
+/// rather than out of reasoning: a hyphen counted as a sign rather than as a
+/// letter, so Lo-fi lost its last character. The five had two bars wrong, and
+/// the diagonals were trimmed along the wrong axis, so X was four marks
+/// around a hole. The first and the third are what this holds.
+void testThePresetDisplaySpells(OvertoniumProcessor &) {
+  section("The preset display spells");
+
+  using namespace ovt::ui;
+
+  // Every name the instrument ships, which is where an unspellable character
+  // would show up first.
+  const auto names = ovt::presets::names();
+
+  int unspellable = 0;
+  juce::String firstBad;
+
+  for (const auto &name : names)
+    for (int i = 0; i < name.length(); ++i)
+      if (!SegmentDisplay::canDraw((char)name[i],
+                                   SegmentDisplay::Bars::Fourteen)) {
+        ++unspellable;
+        if (firstBad.isEmpty())
+          firstBad = name;
+      }
+
+  check(unspellable == 0,
+        "every factory name has a form for all of its characters (" +
+            std::to_string(unspellable) + ", first in " +
+            firstBad.toStdString() + ")");
+
+  // ---- and fits every one of them to its nine cells ------------------------
+  //
+  // Spaces from the right, then vowels, then a cut, and never the first
+  // character. Held against the names the instrument ships rather than
+  // against invented ones, because those are what anyone will see.
+  struct Fitted {
+    const char *name;
+    const char *shown;
+  };
+
+  const Fitted fitted[] = {
+      // Shorter than the display, so it stands as it is with the rest of the
+      // cells left unlit.
+      {"Big Saw", "BIG SAW  "},
+      {"Lo-fi", "LO-FI    "},
+      {"Init", "INIT     "},
+
+      // Exactly nine, which is the case that must not be touched.
+      {"Cathedral", "CATHEDRAL"},
+      {"Equal Saw", "EQUAL SAW"},
+
+      // The space goes and nothing else has to.
+      {"Tape Choir", "TAPECHOIR"},
+      {"Vibraphone", "VIBRAPHON"},
+
+      // The space, then vowels from the right.
+      {"Glockenspiel", "GLOCKNSPL"},
+      {"Glass Armonica", "GLASSRMNC"},
+      {"Metallic Piano", "METALLCPN"},
+      {"Odd Harmonics", "ODDHRMNCS"},
+      {"Struck Bell", "STRUCKBLL"},
+
+      // And a cut on top of both, which is the longest name there is.
+      {"2-bit Fuzz Organ", "2-BTFZZRG"},
+      {"Synth Ensemble", "SYNTHNSMB"},
+  };
+
+  int wrong = 0;
+  juce::String firstWrong;
+
+  for (const auto &f : fitted) {
+    const auto got = SegmentDisplay::squeeze(f.name, 9);
+
+    if (got != f.shown) {
+      ++wrong;
+      if (firstWrong.isEmpty())
+        firstWrong = juce::String(f.name) + " -> " + got;
+    }
+  }
+
+  check(wrong == 0, "every name is fitted to its cells as it should be (" +
+                        std::to_string(wrong) + " wrong, " +
+                        firstWrong.toStdString() + ")");
+
+  // Every name comes out at exactly the cell count, long or short, which is
+  // what keeps the letters the same size whatever is loaded.
+  int misfits = 0;
+
+  for (const auto &name : names)
+    misfits += SegmentDisplay::squeeze(name, 9).length() == 9 ? 0 : 1;
+
+  check(misfits == 0, "and every factory name comes out at nine cells (" +
+                          std::to_string(misfits) + " did not)");
+
+  // What the squeeze leaves has to be spellable too. Dropping a vowel cannot
+  // introduce a character, but a cut landing mid-name could expose one that
+  // the whole name test above happened not to reach.
+  int unshowable = 0;
+
+  for (const auto &name : names) {
+    const auto shown = SegmentDisplay::squeeze(name, 9);
+
+    for (int i = 0; i < shown.length(); ++i)
+      unshowable += SegmentDisplay::canDraw((char)shown[i],
+                                            SegmentDisplay::Bars::Fourteen)
+                        ? 0
+                        : 1;
+  }
+
+  check(unshowable == 0, "and what is left of it is still spellable (" +
+                             std::to_string(unshowable) + ")");
+
+  // The display draws all of its cells, the unlit ones included: a nine-cell
+  // display showing INIT is four letters and five cells standing dark, not a
+  // four-cell display.
+  const auto cellsShown = [](const juce::String &reading) {
+    SegmentDisplay d({}, SegmentDisplay::Bars::Fourteen, 9);
+
+    // The size the bar actually gives it. See TopBar::placeGroup.
+    d.setBounds(0, 0, 132, 24);
+    d.setReading(reading, true);
+    d.createComponentSnapshot(d.getLocalBounds());
+
+    return d.cellsDrawn();
+  };
+
+  check(cellsShown("Init") == 9 && cellsShown("Glockenspiel") == 9,
+        "and a short name leaves the rest of the cells standing (" +
+            std::to_string(cellsShown("Init")) + ")");
+
+  // ---- every character is its own shape ------------------------------------
+  //
+  // A table of fourteen flags per character is a page of copy and paste, and
+  // the way it goes wrong is two characters ending up with the same bars. A
+  // render tells them apart whatever the table says.
+  // A bar that is on, as against the ground or one that is off. The cells are
+  // drawn whether they are lit or not, which is what makes them read as a
+  // display, so anything that merely differs from the ground is no use: the
+  // accent comes through at around 206 against the 25 of the ground and the
+  // 35 to 59 of an unlit bar.
+  const auto isLit = [](juce::Colour px) { return px.getBlue() > 120; };
+
+  const auto fingerprint = [&isLit](char c) {
+    SegmentDisplay d({}, SegmentDisplay::Bars::Fourteen);
+    d.setBounds(0, 0, 40, 40);
+    d.setReading(juce::String::charToString((juce::juce_wchar)c), true);
+
+    const auto shot = d.createComponentSnapshot(d.getLocalBounds());
+    juce::String bits;
+
+    for (int y = 0; y < shot.getHeight(); ++y)
+      for (int x = 0; x < shot.getWidth(); ++x)
+        bits += isLit(shot.getPixelAt(x, y)) ? '1' : '0';
+
+    return bits;
+  };
+
+  const juce::String alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+  std::map<juce::String, char> seen;
+  int collisions = 0;
+  juce::String pair;
+
+  for (int i = 0; i < alphabet.length(); ++i) {
+    const auto c = (char)alphabet[i];
+    const auto print = fingerprint(c);
+
+    if (const auto found = seen.find(print); found != seen.end()) {
+      // S and 5 are the same shape, on this display and on every seven-bar
+      // one ever built. Writing them apart would mean inventing a five that
+      // no hardware has, so the pair is allowed by name rather than the rule
+      // being loosened for everything.
+      const auto both =
+          juce::String::charToString((juce::juce_wchar)found->second) +
+          juce::String::charToString((juce::juce_wchar)c);
+
+      if (both == "S5" || both == "5S")
+        continue;
+
+      ++collisions;
+      if (pair.isEmpty())
+        pair = juce::String::charToString((juce::juce_wchar)found->second) +
+               " and " + juce::String::charToString((juce::juce_wchar)c);
+    } else {
+      seen[print] = c;
+    }
+  }
+
+  check(collisions == 0, "and no two of the thirty-six draw the same (" +
+                             std::to_string(collisions) + ", " +
+                             pair.toStdString() + ")");
+}
+
+/// That a silenced channel loses the light out of its controls and not the
+/// light out of its mute.
+///
+/// The strip used to go to four tenths alpha as a whole, which took the pair
+/// down with it, and the mute is the one thing on a silenced channel that has
+/// to stay readable because it is usually what silenced it. Nothing else
+/// checks this: a wash and a drain both look dim from a distance and neither
+/// changes a parameter.
+void testSilencedChannel(OvertoniumProcessor &p) {
+  section("A silenced channel");
+
+  using namespace ovt::ui;
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  sizeEditor(*editor, 1348, 160);
+
+  ChannelStrip *strip = nullptr;
+
+  std::function<void(juce::Component &)> findStrip = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (strip == nullptr)
+        if (auto *s = dynamic_cast<ChannelStrip *>(child))
+          strip = s;
+
+      findStrip(*child);
+    }
+  };
+
+  findStrip(*editor);
+
+  check(strip != nullptr, "and has channel strips in it");
+  if (strip == nullptr)
+    return;
+
+  // Counts the two kinds apart, because the whole point is that they answer
+  // differently.
+  const auto survey = [](juce::Component &c) {
+    struct Count {
+      int controlsUnlit = 0, controlsLit = 0, pairUnlit = 0;
+    } n;
+
+    std::function<void(juce::Component &)> walk = [&](juce::Component &in) {
+      for (auto *child : in.getChildren()) {
+        const bool unlit =
+            (bool)child->getProperties().getWithDefault("unlit", false);
+
+        if (dynamic_cast<MuteSoloButton *>(child) != nullptr) {
+          n.pairUnlit += unlit ? 1 : 0;
+        } else if (dynamic_cast<juce::Slider *>(child) != nullptr ||
+                   dynamic_cast<ShapeButton *>(child) != nullptr) {
+          (unlit ? n.controlsUnlit : n.controlsLit) += 1;
+        }
+
+        walk(*child);
+      }
+    };
+
+    walk(c);
+    return n;
+  };
+
+  const auto heard = survey(*strip);
+
+  check(heard.controlsLit > 20 && heard.controlsUnlit == 0,
+        "an audible channel has every control lit (" +
+            std::to_string(heard.controlsLit) + " lit, " +
+            std::to_string(heard.controlsUnlit) + " not)");
+
+  strip->setSilencedByOthers(true);
+
+  const auto cut = survey(*strip);
+
+  check(cut.controlsUnlit == heard.controlsLit && cut.controlsLit == 0,
+        "a silenced one has the light out of all of them (" +
+            std::to_string(cut.controlsUnlit) + " of " +
+            std::to_string(heard.controlsLit) + ")");
+
+  check(cut.pairUnlit == 0, "and its mute and solo keep theirs");
+
+  // The wash this replaced. A strip that dims itself dims the pair with it
+  // however carefully the controls are handled.
+  check(std::abs(strip->getAlpha() - 1.0f) < 0.001f,
+        "with nothing washed over the strip as a whole (" +
+            std::to_string(strip->getAlpha()) + ")");
+
+  strip->setSilencedByOthers(false);
+
+  const auto back = survey(*strip);
+
+  check(back.controlsLit == heard.controlsLit && back.controlsUnlit == 0,
+        "and it all comes back when the channel is audible again");
+
+  // ---- and a macro does not relight it --------------------------------------
+  //
+  // Read off a render rather than off a property, because this one lives in
+  // the drawing: a macro's colour is carried beside the control's own and the
+  // ring is painted in whichever of the two applies, so the control is told
+  // the channel is silenced and still came out lit.
+  const auto set = [&p](const juce::String &id, float v) {
+    if (auto *q = dynamic_cast<juce::RangedAudioParameter *>(
+            p.apvts.getParameter(id)))
+      q->setValueNotifyingHost(q->convertTo0to1(v));
+  };
+
+  // Green, which is nowhere on the channel ramp: that runs blue to yellow and
+  // never enters green or cyan, so any green pixel in a strip is the macro's.
+  constexpr int green = 4;
+
+  set(ovt::params::macroRowId(0), 1.0f);
+  set(ovt::params::macroScopeId(0), (float)(int)ovt::params::MacroScope::All);
+  set(ovt::params::macroColourId(0), (float)green);
+  set(ovt::params::macroAmountId(0), 0.8f);
+  editor->followMacroTints();
+
+  const auto wanted = ovt::params::macroColour(green);
+
+  const auto macroPixels = [&wanted](juce::Component &c) {
+    const auto shot = c.createComponentSnapshot(c.getLocalBounds());
+    int n = 0;
+
+    for (int y = 0; y < shot.getHeight(); ++y)
+      for (int x = 0; x < shot.getWidth(); ++x) {
+        const auto px = shot.getPixelAt(x, y);
+
+        if (std::abs(px.getRed() - wanted.getRed()) < 30 &&
+            std::abs(px.getGreen() - wanted.getGreen()) < 30 &&
+            std::abs(px.getBlue() - wanted.getBlue()) < 30)
+          ++n;
+      }
+
+    return n;
+  };
+
+  const auto driven = macroPixels(*strip);
+
+  check(driven > 0, "a macro paints its colour onto an audible channel (" +
+                        std::to_string(driven) + " pixels)");
+
+  strip->setSilencedByOthers(true);
+
+  const auto drivenAndCut = macroPixels(*strip);
+
+  check(drivenAndCut == 0, "and none of it onto a silenced one (" +
+                               std::to_string(drivenAndCut) + " pixels)");
+
+  strip->setSilencedByOthers(false);
+  set(ovt::params::macroRowId(0), 0.0f);
+  editor->followMacroTints();
+}
+
+/// That the mute and the solo share one moulding.
+///
+/// Two things have to hold together or the pair draws as a block with a seam
+/// down it or as two blocks pretending to be one: the components have to
+/// touch, and each has to know which half of the gang it is. Neither shows up
+/// in any other test, because a wrong answer still lays out, still clicks and
+/// still lights.
+void testMuteSoloGang(OvertoniumProcessor &p) {
+  section("The mute and solo gang");
+
+  using namespace ovt::ui;
+  using LAF = OvertoniumLookAndFeel;
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  sizeEditor(*editor, 1348, 160);
+
+  // Every pair in the window, the noise channel's included: it lays its own
+  // out and has been missed by a change to the channel strip before.
+  std::vector<std::pair<MuteSoloButton *, MuteSoloButton *>> pairs;
+
+  std::function<void(juce::Component &)> gather = [&](juce::Component &c) {
+    MuteSoloButton *first = nullptr;
+
+    for (auto *child : c.getChildren()) {
+      if (auto *b = dynamic_cast<MuteSoloButton *>(child)) {
+        if (first == nullptr)
+          first = b;
+        else
+          pairs.emplace_back(first, b);
+      }
+
+      gather(*child);
+    }
+  };
+
+  gather(*editor);
+
+  check(pairs.size() >= 33,
+        "every channel has a pair (" + std::to_string(pairs.size()) + ")");
+
+  int apart = 0;
+  int unganged = 0;
+  int overlapping = 0;
+
+  for (const auto &[mute, solo] : pairs) {
+    if (mute->getBounds().getRight() != solo->getBounds().getX())
+      ++apart;
+
+    if (LAF::lampGangOf(*mute) != LAF::LampGang::Left ||
+        LAF::lampGangOf(*solo) != LAF::LampGang::Right)
+      ++unganged;
+
+    // The caps themselves, which is where the half wall each gives up has to
+    // come out as one divider rather than as an overlap or a gap of nothing.
+    const auto left =
+        LAF::lampCapBounds(mute->getBounds().toFloat(), LAF::LampGang::Left);
+    const auto right =
+        LAF::lampCapBounds(solo->getBounds().toFloat(), LAF::LampGang::Right);
+
+    const auto divider = right.getX() - left.getRight();
+    const auto wall = left.getY() - (float)mute->getBounds().getY();
+
+    if (divider < wall - 0.01f || divider > wall + 0.01f)
+      ++overlapping;
+  }
+
+  check(apart == 0, "the two halves touch, so one moulding covers both (" +
+                        std::to_string(apart) + " apart)");
+  check(unganged == 0, "and each knows which half it is (" +
+                           std::to_string(unganged) + " wrong)");
+  check(overlapping == 0,
+        "leaving a divider the width of the moulding around them (" +
+            std::to_string(overlapping) + " wrong)");
+}
+
 /// and that exactly one channel ever claims it.
 void testChannelHover(OvertoniumProcessor &p) {
   section("Channel hover");
@@ -2379,9 +3708,10 @@ void testRowHover() {
   // actually asks for. Taking that from preferredStripHeight rather than
   // writing a number here means adding a row cannot quietly push the last one
   // off the bottom of the test without the test noticing.
-  const auto rows = layoutRows(
-      juce::Rectangle<int>(0, 0, kStripWidth, preferredStripHeight() + 8)
-          .reduced(kStripPadX, kStripPadY));
+  const auto rows =
+      layoutRows(juce::Rectangle<int>(0, 0, kStripWidth,
+                                      preferredStripHeight() + 2 * kStripPadY)
+                     .reduced(kStripPadX, kStripPadY));
 
   const auto rowAtCentre = [&rows](Row r) {
     const auto band = rows[(size_t)r];
@@ -3107,6 +4437,110 @@ void testFirstProgramIsReachable() {
         "and asking for it a second time leaves an edit alone");
 }
 
+/// That the tool a window was left on is the one the next window opens with.
+///
+/// The tool is derived from two flags rather than stored: LINK's own switch
+/// and whether drawing is latched. That is the right model, since the
+/// modifier can arm drawing without choosing it, but it means remembering
+/// the tool is remembering both of them, and only one of them was being
+/// written. Picking LINK once wrote its flag through the settings callback
+/// and picking anything afterwards wrote nothing, so every window after that
+/// opened on LINK whatever it had been left on.
+void testTheToolOutlivesTheWindow(OvertoniumProcessor &) {
+  section("The tool outlives the window");
+
+  using ovt::ui::PointerTool;
+
+  OvertoniumProcessor proc;
+
+  // What a window left on this tool reports when the next one opens, with the
+  // session carried between them the way a host carries it.
+  const auto reopenedOn = [&proc](PointerTool chosen) {
+    {
+      std::unique_ptr<juce::AudioProcessorEditor> ed(proc.createEditor());
+      auto *editor = dynamic_cast<OvertoniumEditor *>(ed.get());
+
+      if (editor == nullptr)
+        return PointerTool::NumTools;
+
+      sizeEditor(*editor, 1340);
+      editor->chooseTool(chosen);
+    }
+
+    juce::MemoryBlock carried;
+    proc.getStateInformation(carried);
+    proc.setStateInformation(carried.getData(), (int)carried.getSize());
+
+    std::unique_ptr<juce::AudioProcessorEditor> ed(proc.createEditor());
+    auto *editor = dynamic_cast<OvertoniumEditor *>(ed.get());
+
+    if (editor == nullptr)
+      return PointerTool::NumTools;
+
+    sizeEditor(*editor, 1340);
+    return editor->currentTool();
+  };
+
+  const auto name = [](PointerTool t) {
+    return t == PointerTool::NumTools
+               ? juce::String("(no window)")
+               : juce::String(ovt::ui::pointerToolName(t));
+  };
+
+  // Every one of the three, and in an order that leaves LINK in the session
+  // before the other two are asked for: that is the case the fault needed.
+  for (auto chosen : {PointerTool::Link, PointerTool::Pointer,
+                      PointerTool::Draw, PointerTool::Pointer}) {
+    const auto got = reopenedOn(chosen);
+
+    check(got == chosen, "a window left on " + name(chosen).toStdString() +
+                             " opens on it again (" + name(got).toStdString() +
+                             ")");
+  }
+
+  // ---- and after LINK's own settings have been touched ---------------------
+  //
+  // The way it was actually met. Changing LINK's scope or curve writes its
+  // switch through the settings callback, so the session says LINK until
+  // something writes it again, and choosing another tool did not. A window
+  // opened after that came up on LINK whatever it had been left on.
+  {
+    {
+      std::unique_ptr<juce::AudioProcessorEditor> ed(proc.createEditor());
+      auto *editor = dynamic_cast<OvertoniumEditor *>(ed.get());
+
+      check(editor != nullptr, "a window opens to leave LINK's mark in");
+
+      if (editor != nullptr) {
+        sizeEditor(*editor, 1340);
+        editor->chooseTool(PointerTool::Link);
+
+        if (auto *bar = findTopBar(*editor))
+          if (bar->onLinkSettingsChanged != nullptr)
+            bar->onLinkSettingsChanged();
+
+        editor->chooseTool(PointerTool::Pointer);
+      }
+    }
+
+    juce::MemoryBlock carried;
+    proc.getStateInformation(carried);
+    proc.setStateInformation(carried.getData(), (int)carried.getSize());
+
+    std::unique_ptr<juce::AudioProcessorEditor> ed(proc.createEditor());
+    auto *editor = dynamic_cast<OvertoniumEditor *>(ed.get());
+
+    if (editor != nullptr) {
+      sizeEditor(*editor, 1340);
+
+      check(editor->currentTool() == PointerTool::Pointer,
+            "and choosing another tool afterwards is what the next one opens "
+            "on (" +
+                name(editor->currentTool()).toStdString() + ")");
+    }
+  }
+}
+
 /// The preset button survives the window being shut.
 ///
 /// A window is opened and closed far more often than a preset is chosen, and a
@@ -3531,7 +4965,10 @@ void testFitAllChannels(OvertoniumProcessor &p) {
   if (editor == nullptr)
     return;
 
-  const auto wanted = ovt::ui::kGutterWidth + ovt::ui::kStripWidth + 8 +
+  // The 8 is the gap before the noise channel and the 10 is the parameter
+  // scrollbar beyond it, both private to the editor, both written here the
+  // same way the gap already was.
+  const auto wanted = ovt::ui::kGutterWidth + ovt::ui::kStripWidth + 8 + 10 +
                       ovt::kNumHarmonics * ovt::ui::kStripWidth;
 
   // The size to come back to, taken from the editor rather than worked out
@@ -3558,14 +4995,18 @@ void testFitAllChannels(OvertoniumProcessor &p) {
                                        std::to_string(editor->getWidth()) +
                                        ")");
 
-  // Short, but not as short as it was asked for. The bar's second row costs
-  // the mixer the room it needed, so the window comes to rest on the floor for
-  // this width instead of going under it, which is where the strips would
-  // start running out through the bottom. This check used to read the asked-for
-  // height back unchanged, because nothing was watching the reflow.
-  check(editor->getHeight() == editor->getConstrainer()->getMinimumHeight(),
-        "and its height comes to rest on the floor for that width (" +
+  // Short, and now allowed to be: the rows scroll, so the floor is far below
+  // this and the height asked for is simply taken. It used to come to rest on
+  // the floor here, because the floor was the height of every row at once and
+  // the bar's second row had pushed it above what was asked for.
+  check(editor->getHeight() == fitted.getHeight() - 120,
+        "and as short as it was asked for (" +
             std::to_string(editor->getHeight()) + ")");
+
+  // Not checked here that a shorter request stops at the floor, because
+  // setSize does not consult the constrainer at all, which is the whole reason
+  // Fit all 32 channels could land under it. The floor itself is asserted in
+  // testFittingLandsWhereADragCanReturn, through the constrainer.
 
   editor->fitAllChannels();
 
@@ -3650,6 +5091,96 @@ void testMachineMenusFollowTheirParameters(OvertoniumProcessor &p) {
     check(tickedIn(stillDigital) == "Off",
           "and goes back to Off without forgetting which machine it was (" +
               tickedIn(stillDigital) + ")");
+  }
+
+  // ---- and the output stage, which became one of these ---------------------
+  {
+    write(ovt::params::safetyClipId, 0.0f);
+
+    auto off = bar->buildClipMenu();
+    check(tickedIn(off) == "Off",
+          "the clipper says Off when its switch is off (" + tickedIn(off) +
+              ")");
+
+    write(ovt::params::safetyClipId, 1.0f);
+
+    for (int i = 0; i < (int)ovt::ClipType::NumTypes; ++i) {
+      write(ovt::params::clipTypeId, (float)i);
+
+      auto menu = bar->buildClipMenu();
+      const std::string wanted = ovt::clipTypeName((ovt::ClipType)i);
+
+      check(tickedIn(menu) == wanted, "and names " + wanted +
+                                          " when that is the shape running (" +
+                                          tickedIn(menu) + ")");
+    }
+
+    write(ovt::params::safetyClipId, 0.0f);
+
+    auto stillFold = bar->buildClipMenu();
+    check(tickedIn(stillFold) == "Off",
+          "and goes back to Off without forgetting which shape it was (" +
+              tickedIn(stillFold) + ")");
+  }
+
+  // ---- and the button they came from can say them ------------------------
+  //
+  // The menu above has room for whatever a shape is called. The button does
+  // not: it is 62 px with a label area of 46, and the ten pixels it would
+  // take to fit ASYMMETRIC belong to the converter's readouts beside it,
+  // which are already at the width they need to name their units. So the
+  // button carries short forms, and this is what says they are short enough.
+  //
+  // Measured rather than eyed, because a label that overflows is not a
+  // failure a rendered window announces: JUCE shaves the ends and the word
+  // goes on looking like a word.
+  {
+    std::function<juce::TextButton *(juce::Component &)> findClip =
+        [&findClip](juce::Component &c) -> juce::TextButton * {
+      for (auto *child : c.getChildren()) {
+        if (auto *b = dynamic_cast<juce::TextButton *>(child))
+          if (b->getTitle().startsWith("Clip"))
+            return b;
+
+        if (auto *found = findClip(*child))
+          return found;
+      }
+
+      return nullptr;
+    };
+
+    editor->setSize(editor->getWidth(), editor->getHeight());
+
+    auto *clip = findClip(*editor);
+
+    check(clip != nullptr, "the bar carries a clip button");
+
+    if (clip != nullptr && clip->getWidth() > 0) {
+      const auto font =
+          clip->getLookAndFeel().getTextButtonFont(*clip, clip->getHeight());
+
+      // The margin JUCE's own text button keeps either side of a label.
+      const int margin = juce::jmin(clip->getWidth() / 4, 8);
+      const auto room = (float)(clip->getWidth() - margin * 2);
+
+      int tooWide = 0;
+      for (int i = 0; i < (int)ovt::ClipType::NumTypes; ++i) {
+        const juce::String label =
+            juce::String(ovt::clipTypeShortName((ovt::ClipType)i))
+                .toUpperCase();
+
+        const auto width = juce::GlyphArrangement::getStringWidth(font, label);
+
+        if (width > room) {
+          ++tooWide;
+          std::printf("  %s is %.1f px against %.1f\n", label.toRawUTF8(),
+                      (double)width, (double)room);
+        }
+      }
+
+      check(tooWide == 0, "and every shape's name fits across it (" +
+                              std::to_string(tooWide) + " do not)");
+    }
   }
 
   // ---- and the reverb, which works the same way ----------------------------
@@ -3888,17 +5419,22 @@ void testWheelOverAKnobStaysOnTheKnob(OvertoniumProcessor &p) {
         "and leaves the mixer where it was (" + std::to_string(before) +
             " to " + std::to_string(viewport->getViewPositionX()) + ")");
 
-  // ---- but the strip itself still scrolls it ------------------------------
+  // ---- and shift on the strip still scrolls it sideways -------------------
   //
   // The other half of what was asked for, and the thing a careless fix would
   // break: swallowing every wheel the strip is handed would stop the series
   // scrolling at all, which is worse than what was reported.
+  //
+  // It is the shifted wheel now rather than the plain one. The plain one moves
+  // the parameters, and shift is free because a wheel over a fader belongs to
+  // the fader and never reaches here.
   if (strip != nullptr) {
     const auto held = viewport->getViewPositionX();
 
     const juce::MouseEvent onStrip(
         juce::Desktop::getInstance().getMainMouseSource(),
-        strip->getLocalBounds().getCentre().toFloat(), juce::ModifierKeys(),
+        strip->getLocalBounds().getCentre().toFloat(),
+        juce::ModifierKeys(juce::ModifierKeys::shiftModifier),
         juce::MouseInputSource::defaultPressure,
         juce::MouseInputSource::defaultOrientation,
         juce::MouseInputSource::defaultRotation,
@@ -3915,7 +5451,8 @@ void testWheelOverAKnobStaysOnTheKnob(OvertoniumProcessor &p) {
         viewport->getViewPositionX());
 
     check(viewport->getViewPositionX() != held,
-          "a wheel on the strip's own background still scrolls the series");
+          "a shifted wheel on the strip's background still scrolls the "
+          "series");
   }
 }
 
@@ -3946,7 +5483,9 @@ void testOneRightClickOpensOneMenu(OvertoniumProcessor &p) {
     void linkDragStarted(ovt::ui::Role, int) override {}
     void linkValueChanged(ovt::ui::Role, int, float) override {}
     void linkDragEnded(ovt::ui::Role, int) override {}
-    void showLinkMenu() override { ++opened; }
+    void showLinkMenu(const juce::String &) override { ++opened; }
+    // Nowhere to scroll, so the wheel would fall through as it used to.
+    bool scrollParameters(int) override { return false; }
 
     bool drawStarted(juce::Point<int>) override { return false; }
     void drawMovedTo(juce::Point<int>) override {}
@@ -4038,7 +5577,8 @@ void testTheRulesFoldTheirSections(OvertoniumProcessor &p) {
     void linkDragStarted(ovt::ui::Role, int) override {}
     void linkValueChanged(ovt::ui::Role, int, float) override {}
     void linkDragEnded(ovt::ui::Role, int) override {}
-    void showLinkMenu() override { ++menus; }
+    void showLinkMenu(const juce::String &) override { ++menus; }
+    bool scrollParameters(int) override { return false; }
 
     bool drawStarted(juce::Point<int>) override { return false; }
     void drawMovedTo(juce::Point<int>) override {}
@@ -4228,6 +5768,434 @@ std::vector<float> renderTone(OvertoniumProcessor &p, double sampleRate,
   }
 
   return out;
+}
+
+/// A wheel over a strip moves the parameters, and shift still moves the mixer.
+///
+/// The end of the chain the bands are for: a window too short to show every
+/// row has to be scrollable, and scrolling has to move every column together
+/// or the gutter's captions end up beside the wrong knobs.
+void testTheWheelScrollsTheParameters(OvertoniumProcessor &p) {
+  section("The wheel scrolls the parameters");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  // Short enough that not every row fits, which is the whole case, and well
+  // above the floor so nothing is being tested at a limit. Set outright rather
+  // than through sizeEditor, whose second argument is height above the
+  // minimum: that minimum is now low enough that the usual slack put this
+  // window taller than the mixer needs, where nothing scrolls at all.
+  editor->setSize(1348, 700);
+
+  ovt::ui::ChannelStrip *strip = nullptr;
+  std::function<void(juce::Component &)> findStrip = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (auto *s = dynamic_cast<ovt::ui::ChannelStrip *>(child))
+        strip = (strip == nullptr) ? s : strip;
+      findStrip(*child);
+    }
+  };
+  findStrip(*editor);
+
+  check(strip != nullptr, "and carries strips to scroll");
+  if (strip == nullptr)
+    return;
+
+  // One named control as the marker, rather than whichever happens to be at
+  // the top. The top of the band is always at the same height, so "the first
+  // visible slider" never moves however far it is scrolled: what changes is
+  // which slider that is, which is how the first version of this test passed
+  // nothing while appearing to measure something.
+  juce::Slider *marker = nullptr;
+  for (auto *child : strip->getChildren())
+    if (auto *s = dynamic_cast<juce::Slider *>(child))
+      if (marker == nullptr)
+        marker = s;
+
+  check(marker != nullptr, "with a control to follow");
+  if (marker == nullptr)
+    return;
+
+  const int before = marker->getY();
+  check(marker->isVisible(), "visible before anything is scrolled");
+
+  const juce::MouseEvent onStrip(
+      juce::Desktop::getInstance().getMainMouseSource(),
+      strip->getLocalBounds().getCentre().toFloat(), juce::ModifierKeys(),
+      juce::MouseInputSource::defaultPressure,
+      juce::MouseInputSource::defaultOrientation,
+      juce::MouseInputSource::defaultRotation,
+      juce::MouseInputSource::defaultTiltX,
+      juce::MouseInputSource::defaultTiltY, strip, strip,
+      juce::Time::getCurrentTime(),
+      strip->getLocalBounds().getCentre().toFloat(),
+      juce::Time::getCurrentTime(), 1, false);
+
+  juce::MouseWheelDetails down{};
+  down.deltaY = -1.0f;
+
+  strip->mouseWheelMove(onStrip, down);
+
+  std::printf("  the marker went from y %d visible, to y %d %s\n", before,
+              marker->getY(), marker->isVisible() ? "visible" : "hidden");
+
+  // It is one of the topmost rows, so scrolling down takes it off the top.
+  // Either answer counts as movement: gone, or still there and higher up.
+  check(!marker->isVisible() || marker->getY() < before,
+        "a wheel on a strip moves the parameters");
+
+  // And every column with it, or a caption names the wrong knob. The gutter
+  // and the noise channel lay out the same rows from the same scroll, so the
+  // check is that they agree about where a row starts.
+  ovt::ui::NoiseStrip *noise = nullptr;
+  std::function<void(juce::Component &)> findNoise = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (auto *n = dynamic_cast<ovt::ui::NoiseStrip *>(child))
+        noise = n;
+      findNoise(*child);
+    }
+  };
+  findNoise(*editor);
+
+  check(noise != nullptr, "the noise channel is there");
+
+  if (noise != nullptr) {
+    // The two lay out the same rows from the same scroll, so the topmost
+    // visible control in each has to sit at the same height. That is the
+    // property the gutter's captions depend on.
+    const auto topOf = [](juce::Component &c) {
+      int y = -1;
+      for (auto *child : c.getChildren())
+        if (auto *s = dynamic_cast<juce::Slider *>(child))
+          if (s->isVisible() && !s->getBounds().isEmpty() && y < 0)
+            y = s->getY();
+      return y;
+    };
+
+    check(topOf(*noise) == topOf(*strip),
+          "and the noise channel is scrolled to the same place (" +
+              std::to_string(topOf(*strip)) + " against " +
+              std::to_string(topOf(*noise)) + ")");
+  }
+
+  // Back up again, and the top row returns. Scrolling past either end is the
+  // clamp's job and has to be a no-op rather than a drift.
+  juce::MouseWheelDetails up{};
+  up.deltaY = 1.0f;
+
+  for (int i = 0; i < 20; ++i)
+    strip->mouseWheelMove(onStrip, up);
+
+  check(marker->isVisible() && marker->getY() == before,
+        "and winds back to where it started (" +
+            std::to_string(marker->getY()) + ")");
+}
+
+/// A sideways gesture moves the mixer, not the parameters.
+///
+/// A trackpad sends one as deltaX with deltaY near zero. The vertical handler
+/// worked its distance out from deltaY alone, came to nothing, and still
+/// reported the wheel as taken, so the event was swallowed and a two-finger
+/// swipe moved nothing at all. On a screen too narrow for 32 channels that is
+/// the only way across.
+void testASidewaysWheelMovesTheMixer(OvertoniumProcessor &p) {
+  section("A sideways wheel moves the mixer");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  // Narrow enough to have somewhere to go sideways, short enough to have
+  // somewhere to go down, so neither axis is tested where it cannot move.
+  editor->setSize(900, 700);
+
+  juce::Viewport *viewport = nullptr;
+  std::function<void(juce::Component &)> findViewport =
+      [&](juce::Component &c) {
+        for (auto *child : c.getChildren()) {
+          if (auto *v = dynamic_cast<juce::Viewport *>(child))
+            viewport = v;
+          findViewport(*child);
+        }
+      };
+  findViewport(*editor);
+
+  ovt::ui::ChannelStrip *strip = nullptr;
+  std::function<void(juce::Component &)> findStrip = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (auto *s = dynamic_cast<ovt::ui::ChannelStrip *>(child))
+        if (strip == nullptr)
+          strip = s;
+      findStrip(*child);
+    }
+  };
+  findStrip(*editor);
+
+  check(viewport != nullptr && strip != nullptr,
+        "with a viewport and strips in it");
+  if (viewport == nullptr || strip == nullptr)
+    return;
+
+  viewport->setViewPosition(120, 0);
+
+  const auto centre = strip->getLocalBounds().getCentre().toFloat();
+  const juce::MouseEvent onStrip(
+      juce::Desktop::getInstance().getMainMouseSource(), centre,
+      juce::ModifierKeys(), juce::MouseInputSource::defaultPressure,
+      juce::MouseInputSource::defaultOrientation,
+      juce::MouseInputSource::defaultRotation,
+      juce::MouseInputSource::defaultTiltX,
+      juce::MouseInputSource::defaultTiltY, strip, strip,
+      juce::Time::getCurrentTime(), centre, juce::Time::getCurrentTime(), 1,
+      false);
+
+  // What a trackpad sends for a swipe: sideways only.
+  juce::MouseWheelDetails swipe{};
+  swipe.deltaX = 0.6f;
+  swipe.deltaY = 0.0f;
+
+  const int before = viewport->getViewPositionX();
+  strip->mouseWheelMove(onStrip, swipe);
+
+  check(viewport->getViewPositionX() != before,
+        "a sideways swipe over a strip moves the mixer (" +
+            std::to_string(before) + " to " +
+            std::to_string(viewport->getViewPositionX()) + ")");
+
+  // And it must not have scrolled the parameters while it was at it.
+  juce::Slider *marker = nullptr;
+  for (auto *child : strip->getChildren())
+    if (auto *s = dynamic_cast<juce::Slider *>(child))
+      if (marker == nullptr)
+        marker = s;
+
+  if (marker != nullptr) {
+    const int y = marker->getY();
+    strip->mouseWheelMove(onStrip, swipe);
+
+    check(marker->getY() == y, "and leaves the parameters where they were");
+  }
+}
+
+/// The border between the gutter and the channels is one line, all the way.
+///
+/// Each column covers its pinned header with an opaque cap so a row can scroll
+/// under it. A cap repeats what the column paints, and the gutter paints one
+/// thing its cap did not: a divider down its right edge, drawn for the full
+/// height after the background. The cap covered the top of it and the border
+/// changed colour at the header.
+///
+/// Read off a render rather than argued about, because the fault is a colour
+/// in one band of pixels and nothing short of looking at them would see it.
+void testTheGutterBorderIsOneLine(OvertoniumProcessor &p) {
+  section("The gutter border is one line");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  // Short enough that the parameters scroll, which is when the caps matter.
+  editor->setSize(1350, 700);
+
+  const auto shot = editor->createComponentSnapshot(editor->getLocalBounds());
+  const int x = ovt::ui::kGutterWidth - 1;
+
+  // Below the top bar, down to the foot of the window.
+  const int from = ovt::ui::TopBar::heightForWidth(1350) + 4;
+  const int to = shot.getHeight() - 4;
+
+  check(to > from + 200, "and is tall enough to read a border down");
+
+  const auto first = shot.getPixelAt(x, from);
+  int different = 0;
+
+  for (int y = from; y < to; ++y)
+    if (shot.getPixelAt(x, y) != first)
+      ++different;
+
+  check(different == 0,
+        "the gutter's right edge is one colour for its whole height (" +
+            std::to_string(different) + " of " + std::to_string(to - from) +
+            " rows differ)");
+}
+
+/// The three bands have to lay a column out exactly as one column used to.
+///
+/// Scrolling the parameters is a change to what a short window does, and must
+/// be no change at all to a window with room in it. At or above the preferred
+/// height everything fits, so nothing scrolls, the rows run from the top of
+/// the strip to the bottom without a gap or an overlap, and the fader takes
+/// the slack the way it always has. That is the whole of the old behaviour,
+/// asserted here rather than left to be noticed.
+///
+/// Below the preferred height the two part company on purpose: the old layout
+/// squeezed the fader to its floor to keep every row on screen, and this keeps
+/// the fader and scrolls the rows, because a fader pushed off the bottom is
+/// what the request was about.
+void testTheBandsLayOutAColumn() {
+  section("The bands lay out a column");
+
+  using namespace ovt::ui;
+
+  // Every fold state, since the bands are worked out from the fold mask and a
+  // section folded away is the case where the arithmetic is easiest to get
+  // wrong.
+  int states = 0, scrolling = 0;
+
+  for (SectionMask mask = 0; mask < (1 << kNumSections); ++mask) {
+    const int preferred = preferredStripHeight(mask);
+
+    for (int height : {preferred, preferred + 1, preferred + 200}) {
+      const juce::Rectangle<int> area(0, 0, kStripWidth, height);
+      const auto bands = layoutBands(area, mask);
+      const auto rows = layoutRows(area, mask, 0);
+
+      check(bands.maxScroll == 0,
+            "at or above the preferred height nothing scrolls");
+
+      // Contiguous from the top of the area to the bottom, which is what
+      // makes a caption in the gutter point at the knob beside it.
+      int y = area.getY();
+      bool contiguous = true;
+
+      for (int i = 0; i < kNumRows; ++i) {
+        const auto &r = rows[(size_t)i];
+        if (r.getHeight() == 0)
+          continue;
+        contiguous &= (r.getY() == y);
+        y = r.getBottom();
+      }
+
+      contiguous &= (y == area.getBottom());
+
+      if (!contiguous) {
+        check(false, "mask " + std::to_string(mask) + " at " +
+                         std::to_string(height) +
+                         " lays out without a gap or an overlap");
+        return;
+      }
+
+      ++states;
+    }
+
+    // One pixel under, and the rows have to start scrolling rather than the
+    // fader giving way.
+    const juce::Rectangle<int> tight(0, 0, kStripWidth, preferred - 1);
+    const auto bands = layoutBands(tight, mask);
+
+    if (bands.maxScroll > 0)
+      ++scrolling;
+  }
+
+  check(states == (1 << kNumSections) * 3,
+        "every fold state lays out at three heights (" +
+            std::to_string(states) + ")");
+  check(scrolling == (1 << kNumSections),
+        "and every one of them scrolls a pixel under its preferred height (" +
+            std::to_string(scrolling) + ")");
+
+  // The shortest window the bands allow, which is what the resize limits will
+  // be built from. Far shorter than the old floor, which is the point: the old
+  // one had to fit every row at once.
+  const int shortest = minimumStripHeight(0);
+  const auto squeezed = layoutBands({0, 0, kStripWidth, shortest}, 0);
+
+  check(squeezed.middle.getHeight() >= 120,
+        "the band keeps its four rows at the shortest window (" +
+            std::to_string(squeezed.middle.getHeight()) + ")");
+  check(squeezed.maxScroll > 0, "and scrolls there");
+
+  // ---- what scrolling looks like from the outside -------------------------
+  //
+  // Two properties that were both wrong at first and that no height or total
+  // would have caught.
+  {
+    const juce::Rectangle<int> area(0, 0, kStripWidth, 600);
+    const auto bands = layoutBands(area, 0);
+
+    check(bands.maxScroll > 0, "a 600px column has somewhere to scroll");
+
+    int runs = 0, gaps = 0, overhang = 0;
+
+    for (int scroll = 0; scroll <= bands.maxScroll; scroll += 17) {
+      const auto rows = layoutRows(area, 0, scroll);
+
+      // The rows on screen have to be one unbroken run in layout order. They
+      // were not: a row too tall to fit was skipped and a shorter one behind
+      // it took the space, so controls came and went out of order.
+      bool started = false, ended = false, broken = false;
+      int lastBottom = -1;
+
+      for (int i = 0; i < kNumRows; ++i) {
+        const auto &r = rows[(size_t)i];
+
+        if ((Row)i == Row::Header || rowIsCollapsed((Row)i, 0))
+          continue;
+
+        if (r.getHeight() > 0) {
+          if (ended)
+            broken = true;
+          started = true;
+          lastBottom = r.getBottom();
+        } else if (started) {
+          ended = true;
+        }
+      }
+
+      if (broken)
+        ++runs;
+
+      // And the run has to reach the foot of the band. It used to stop short
+      // whenever the next row was too tall for what was left, leaving a strip
+      // of nothing that read as the end of the list.
+      if (lastBottom < bands.middle.getBottom())
+        ++gaps;
+
+      if (lastBottom > bands.middle.getBottom())
+        ++overhang;
+    }
+
+    check(runs == 0, "the visible rows are one unbroken run at every scroll (" +
+                         std::to_string(runs) + " broken)");
+    check(gaps == 0, "and always reach the foot of the band (" +
+                         std::to_string(gaps) + " short)");
+    // Dragging the bar is now a plain pixel offset, so there is no snapping
+    // left to be non-monotonic. What has to hold instead is that a row can sit
+    // part way over the top of the band, since that is what smooth means and
+    // what the column's header cap exists to cover.
+    int clippedAtTop = 0;
+
+    for (int scroll = 1; scroll <= bands.maxScroll; scroll += 13) {
+      const auto rows = layoutRows(area, 0, scroll);
+
+      for (int i = 0; i < kNumRows; ++i) {
+        const auto &r = rows[(size_t)i];
+
+        if (r.getHeight() > 0 && r.getY() < bands.middle.getY())
+          ++clippedAtTop;
+      }
+    }
+
+    check(clippedAtTop > 0,
+          "a row can sit part way over the top of the band (" +
+              std::to_string(clippedAtTop) + " of them)");
+
+    check(overhang > 0,
+          "with the last one cut off by it, which is what shows there is more "
+          "below (" +
+              std::to_string(overhang) + " of them)");
+  }
 }
 
 /// The grain tile must not outlive the windows that use it.
@@ -4463,6 +6431,30 @@ void testTheSafetyClipHoldsUnity() {
     set(ovt::params::masterGainId, 1.0f);
     set(ovt::params::safetyClipId, 1.0f);
 
+    // Every one of the five, because the bound is the stage's promise rather
+    // than a property of whichever shape happens to be selected. The limiter
+    // is the one that does not keep it by its shape: it keeps it by seeing
+    // the peak coming, with a hard clip behind it for whatever its window is
+    // too short to have seen, and this is what says so.
+    for (int type = 0; type < (int)ovt::ClipType::NumTypes; ++type) {
+      set(ovt::params::clipTypeId,
+          (float)type / (float)((int)ovt::ClipType::NumTypes - 1));
+
+      juce::MidiBuffer chord;
+      for (int note : {36, 43, 48, 52, 55, 59, 60, 64, 67, 72})
+        chord.addEvent(juce::MidiMessage::noteOn(1, note, 1.0f), 0);
+
+      const auto each =
+          renderBlocks(fresh, (int)(1.0 * rate / 256.0) + 1, 256, chord);
+
+      check(each.finite && each.peak <= 1.0f,
+            std::string(ovt::clipTypeName((ovt::ClipType)type)) +
+                " stays inside unity at " + std::to_string((int)rate) +
+                " Hz (" + std::to_string(each.peak) + ")");
+    }
+
+    set(ovt::params::clipTypeId, 0.0f);
+
     juce::MidiBuffer midi;
     for (int note : {36, 43, 48, 52, 55, 59, 60, 64, 67, 72})
       midi.addEvent(juce::MidiMessage::noteOn(1, note, 1.0f), 0);
@@ -4536,15 +6528,13 @@ void testFittingLandsWhereADragCanReturn(OvertoniumProcessor &p) {
           std::to_string(wideFloor) + " to " + std::to_string(narrowFloor) +
           ")");
 
-  // The fit has to be using that room rather than merely being allowed it.
-  // Landing at or above the narrow window's floor would mean the wide window
-  // was still being held to the narrow one's chrome, which is the fault this
-  // is about, and it would read as legal because the floor had moved up to
-  // meet it.
-  check(fitted < narrowFloor,
-        "and the fitted window is shorter than a narrow one could ever be (" +
-            std::to_string(fitted) + " against " + std::to_string(narrowFloor) +
-            ")");
+  // There used to be a third check here, that the fitted window came out
+  // shorter than a narrow one's floor. It caught the wide window being held to
+  // the narrow one's chrome, and it worked because the floor was the height of
+  // every row at once and left no slack. Now that the rows scroll, the floor
+  // is far below both and the comparison cannot fail whether the fault is
+  // there or not. The check above it still catches the fault, by asking
+  // whether the floor moves with the width at all.
 
   // The window has to have been taken with it, or the bar gains a row into
   // space the mixer is still using and the strips run off the bottom.
@@ -4635,9 +6625,13 @@ void testFoldingAndUnfoldingIsSymmetric(OvertoniumProcessor &p) {
   std::printf("  squeezed to %d, folded to %d, unfolded back to %d\n", squeezed,
               folded, back);
 
-  check(folded < squeezed, "folding takes the window down (" +
-                               std::to_string(squeezed) + " to " +
-                               std::to_string(folded) + ")");
+  // Folding used to take the window down by exactly the rows it hid, because
+  // every row had to be on screen. Now they scroll, so folding is about seeing
+  // more at once and the window is left alone, which is the half of issue #5
+  // about collapsing a section shifting the mixer out of view.
+  check(folded == squeezed, "folding leaves the window where it is (" +
+                                std::to_string(squeezed) + " to " +
+                                std::to_string(folded) + ")");
 
   check(back == squeezed, "and unfolding puts it back, not past it (" +
                               std::to_string(squeezed) + " to " +
@@ -4645,10 +6639,10 @@ void testFoldingAndUnfoldingIsSymmetric(OvertoniumProcessor &p) {
 
   // ---- and from a window with room to spare ------------------------------
   //
-  // The case the ordering in toggleSection was written for, and the one that
-  // went on working while the squeezed one did not: here the floor is below
-  // the window either way, so nothing is constrained and only the arithmetic
-  // moves it.
+  // This used to be the case the ordering in toggleSection was written for,
+  // back when folding moved the window and the order of the arithmetic against
+  // the limits decided whether it moved by the right amount. There is no
+  // arithmetic left to get wrong: the window holds still at both heights.
   {
     editor->setSize(editor->getWidth(), limits->getMinimumHeight() + 240);
 
@@ -4662,8 +6656,8 @@ void testFoldingAndUnfoldingIsSymmetric(OvertoniumProcessor &p) {
     std::printf("  with room to spare: %d, folded to %d, back to %d\n", roomy,
                 shorter, editor->getHeight());
 
-    check(shorter < roomy && editor->getHeight() == roomy,
-          "a window with room folds and comes back to where it was (" +
+    check(shorter == roomy && editor->getHeight() == roomy,
+          "a window with room holds still through a fold and an unfold (" +
               std::to_string(roomy) + " to " +
               std::to_string(editor->getHeight()) + ")");
   }
@@ -4826,14 +6820,84 @@ void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
     return found;
   };
 
-  auto *drawSwitch = switchNamed("DRAW");
-  auto *linkSwitch = switchNamed("LINK");
+  // One button for the three tools, wearing the cursor rather than a word,
+  // so it is found by what it is called rather than by what it says.
+  auto *toolSwitch = switchNamed("");
 
-  check(drawSwitch != nullptr && linkSwitch != nullptr,
-        "the gutter carries a DRAW switch beside LINK");
+  check(toolSwitch != nullptr, "the gutter carries the tool button");
 
-  if (drawSwitch == nullptr || linkSwitch == nullptr)
+  if (toolSwitch == nullptr)
     return;
+
+  // Chosen through the editor rather than through the menu the button opens:
+  // a PopupMenu needs a real window and a headless run has none.
+  const auto choose = [editor](ovt::ui::PointerTool which) {
+    editor->chooseTool(which);
+  };
+
+  check(editor->currentTool() == ovt::ui::PointerTool::Pointer ||
+            editor->currentTool() == ovt::ui::PointerTool::Link,
+        "and starts on a tool that is not drawing");
+
+  // ---- the menu knows which tool is current -------------------------------
+  //
+  // It took the tool as a defaulted argument and both callers left it out, so
+  // it built itself as though the plain pointer were always chosen: a tick
+  // that never moved and LINK's two lists greyed out for good. Read as data,
+  // which is the only way to read a menu that needs a window to open in.
+  {
+    // Only the three tools. The scope and the curve carry ticks of their
+    // own, which are theirs to carry and say nothing about the tool.
+    const auto toolTickedIn = [](juce::PopupMenu &menu) {
+      std::string found;
+
+      for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+        for (int i = 0; i < (int)ovt::ui::PointerTool::NumTools; ++i)
+          if (it.getItem().isTicked &&
+              it.getItem().text ==
+                  ovt::ui::pointerToolName((ovt::ui::PointerTool)i))
+            found += it.getItem().text.toStdString() + " ";
+
+      return found;
+    };
+
+    // Asked for by the name the menu gives it rather than by a word guessed
+    // at here: the item reads "Odd harmonics", and a test looking for "Odd"
+    // found nothing and called it disabled.
+    const auto scopeEnabled = [](juce::PopupMenu &menu) {
+      const auto wanted =
+          juce::String(ovt::ui::linkScopeName(ovt::ui::LinkScope::Odd));
+
+      for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+        if (it.getItem().text == wanted)
+          return it.getItem().isEnabled;
+
+      return false;
+    };
+
+    for (auto which :
+         {ovt::ui::PointerTool::Pointer, ovt::ui::PointerTool::Link,
+          ovt::ui::PointerTool::Draw}) {
+      editor->chooseTool(which);
+
+      auto menu = ovt::ui::buildToolMenu(editor->currentTool(),
+                                         {which == ovt::ui::PointerTool::Link,
+                                          ovt::ui::LinkScope::All,
+                                          ovt::ui::LinkCurve::Uniform});
+
+      const auto wanted = std::string(ovt::ui::pointerToolName(which)) + " ";
+
+      check(toolTickedIn(menu) == wanted,
+            std::string("the menu ticks ") + ovt::ui::pointerToolName(which) +
+                " when it is the tool (" + toolTickedIn(menu) + ")");
+
+      check(scopeEnabled(menu) == (which == ovt::ui::PointerTool::Link),
+            std::string("and LINK's lists are live only for Link (") +
+                ovt::ui::pointerToolName(which) + ")");
+    }
+
+    editor->chooseTool(ovt::ui::PointerTool::Pointer);
+  }
 
   // ---- without the modifier, nothing is taken -----------------------------
   //
@@ -4849,10 +6913,10 @@ void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
 
   // ---- held, a line across four columns sets all four ----------------------
   {
-    if (drawSwitch->onClick)
-      drawSwitch->onClick();
+    choose(ovt::ui::PointerTool::Draw);
 
-    check(drawSwitch->getToggleState(), "the switch lights when it is latched");
+    check(editor->currentTool() == ovt::ui::PointerTool::Draw,
+          "choosing Draw is what latches it");
 
     // ---- and the faders light to say where the drawing reaches ------------
     //
@@ -4938,13 +7002,13 @@ void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
   // tool is let go. A switch left lit for a gesture that has been taken away
   // from it is a lie the mouse-up would expose.
   {
-    check(!linkSwitch->getToggleState(),
+    check(editor->currentTool() != ovt::ui::PointerTool::Link,
           "LINK reads as off while drawing has the drag");
 
-    if (drawSwitch->onClick)
-      drawSwitch->onClick();
+    choose(ovt::ui::PointerTool::Pointer);
 
-    check(!drawSwitch->getToggleState(), "and the switch goes out again");
+    check(editor->currentTool() == ovt::ui::PointerTool::Pointer,
+          "and choosing the plain pointer gives the drag back");
 
     // Nothing is left lit once the tool is let go, which is the half a
     // highlight most easily gets wrong.
@@ -5151,17 +7215,21 @@ void testBarComesOntoOneRow(OvertoniumProcessor &) {
       break;
     }
 
-  std::printf("  the bar comes onto one row at %d px, and the window opens at "
-              "1340, so there are %d px of slack\n",
-              onOneRow, 1340 - onOneRow);
+  const auto opensAt = ovt::ui::kGutterWidth + ovt::ui::kStripWidth + 8 +
+                       ovt::kNumHarmonics * ovt::ui::kStripWidth +
+                       ovt::ui::kScrollBarThickness;
 
-  check(onOneRow > 0 && onOneRow <= 1340,
+  std::printf("  the bar comes onto one row at %d px, and the window opens at "
+              "%d, so there are %d px of slack\n",
+              onOneRow, opensAt, opensAt - onOneRow);
+
+  check(onOneRow > 0 && onOneRow <= opensAt,
         "the bar is on one row at the width the window opens at (" +
             std::to_string(onOneRow) + ")");
 
   // The figure the design notes quote. It moves whenever a control on the bar
   // changes width, and when it moves the notes move with it.
-  check(onOneRow == 1258, "and comes onto it at the width written down (" +
+  check(onOneRow == 1252, "and comes onto it at the width written down (" +
                               std::to_string(onOneRow) + ")");
 }
 
@@ -5289,8 +7357,12 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
       if (dynamic_cast<StereoOutputMeter *>(child) != nullptr)
         meterBounds = child->getBounds();
 
-      if (dynamic_cast<SegmentDisplay *>(child) != nullptr)
-        under.add(child->getBounds());
+      // The converter readouts, which count. The preset name is a display on
+      // this bar too and does not sit under the meter, and it is told apart
+      // by having the cells to spell with.
+      if (auto *d = dynamic_cast<SegmentDisplay *>(child))
+        if (d->howManyBars() == SegmentDisplay::Bars::Seven)
+          under.add(child->getBounds());
 
       if (auto *button = dynamic_cast<juce::TextButton *>(child))
         if (button->getButtonText() == TopBar::kClipName)
@@ -5327,8 +7399,12 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
   // group was squeezed forty pixels at this width and both readouts came out
   // at 38, which draws the figure and nothing else.
   {
+    // The width the window opens at, scrollbar included. Leaving that out
+    // put this ten pixels short of the real thing, which is the margin the
+    // converter readouts live on.
     const int width = ovt::ui::kGutterWidth + ovt::ui::kStripWidth + 8 +
-                      ovt::kNumHarmonics * ovt::ui::kStripWidth;
+                      ovt::kNumHarmonics * ovt::ui::kStripWidth +
+                      ovt::ui::kScrollBarThickness;
 
     bar.setSize(width, TopBar::heightForWidth(width));
 
@@ -5340,9 +7416,12 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
 
     int named = 0;
 
+    // The two that have a unit to name. The preset display is the third on
+    // this bar and has none: a name is not measured in anything.
     for (auto *child : bar.getChildren())
-      if (dynamic_cast<SegmentDisplay *>(child) != nullptr)
-        named += SegmentDisplay::hasRoomForUnit(child->getWidth()) ? 1 : 0;
+      if (auto *d = dynamic_cast<SegmentDisplay *>(child))
+        if (d->howManyBars() == SegmentDisplay::Bars::Seven)
+          named += SegmentDisplay::hasRoomForUnit(child->getWidth()) ? 1 : 0;
 
     check(named == 2, "and both converter readouts can name their unit there");
   }
@@ -5360,10 +7439,11 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
 void testPresetsAreReproducible(OvertoniumProcessor &p) {
   section("Presets start from a known state");
 
-  // What a preset deliberately leaves alone: how you play it and how loud, as
-  // opposed to what it sounds like. Asked of the one list rather than copied
-  // into a second one here, which is the whole reason that list is shared. The
-  // copy this replaced had already fallen three settings behind it.
+  // What a preset deliberately leaves alone: how you play it, as opposed to
+  // what it sounds like, which takes in how loud it is. Asked of the one list
+  // rather than copied into a second one here, which is the whole reason that
+  // list is shared. The copy this replaced had already fallen three settings
+  // behind it.
 
   const auto snapshot = [&p] {
     std::vector<std::pair<juce::String, float>> out;
@@ -5500,7 +7580,11 @@ void testKnobSizes(OvertoniumProcessor &p) {
   if (editor == nullptr)
     return;
 
-  sizeEditor(*editor, 1348, 160);
+  // Tall enough that nothing scrolls, because this is about the sizes a knob
+  // is drawn at and a knob scrolled out of the band is not drawn at all. It
+  // used to pass at 160, back when every row had to be on screen whatever the
+  // height and the fader simply gave way.
+  sizeEditor(*editor, 1348, 1010);
 
   // The diameter the look and feel will draw, which is what the eye sees,
   // rather than the bounds, which nobody sees.
@@ -6058,6 +8142,127 @@ void testMonoOutput() {
         "it");
 }
 
+/// The session properties the editor keeps on the state tree, written from the
+/// message thread while a host may be saving from another one.
+///
+/// Worth being plain about what this can and cannot say on its own. Run
+/// ordinarily it proves almost nothing: the window in which the two threads
+/// touch the same reference counts is a few instructions wide, and a storm
+/// that happens to miss it passes. Its value is under the thread sanitiser,
+/// which reports a race from the accesses rather than from them colliding in
+/// real time.
+///
+/// It was checked that way rather than assumed. With the lock removed from
+/// the editor's six write sites and nothing else changed, the sanitiser
+/// reported fourteen races here, all of them on a juce::var reference count
+/// inside ValueTree::SharedObject, with copyState on one stack and setProperty
+/// on the other. With the lock back, none. The same run found the second race
+/// this fixes, on the program number beside the tree.
+///
+/// Both guarded paths are exercised: the background thread saves, and this one
+/// restores between editor actions.
+void testTheSessionSurvivesAHostSavingUnderIt() {
+  section("The session survives a host saving under it");
+
+  using ovt::ui::PointerTool;
+
+  OvertoniumProcessor proc;
+
+  std::unique_ptr<juce::AudioProcessorEditor> ed(proc.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(ed.get());
+
+  check(editor != nullptr, "a window opens for the host to save under");
+
+  if (editor == nullptr)
+    return;
+
+  sizeEditor(*editor, 1340);
+
+  std::atomic<bool> running{true};
+  std::atomic<int> saves{0};
+  std::atomic<int> malformed{0};
+  std::atomic<int> incomplete{0};
+
+  // What a host does when it autosaves: ask for the state, over and over,
+  // from whichever thread it keeps for the purpose.
+  std::thread saver([&] {
+    while (running.load()) {
+      juce::MemoryBlock block;
+      proc.getStateInformation(block);
+
+      auto xml = juce::AudioProcessor::getXmlFromBinary(block.getData(),
+                                                        (int)block.getSize());
+
+      if (xml == nullptr) {
+        ++malformed;
+        continue;
+      }
+
+      // A save that came back without the parameters is a save that would
+      // have restored an empty instrument.
+      if (juce::ValueTree::fromXml(*xml).getNumChildren() == 0)
+        ++incomplete;
+
+      ++saves;
+    }
+  });
+
+  // And what the player does meanwhile: the four things in the window that
+  // write to that tree.
+  const PointerTool tools[] = {PointerTool::Link, PointerTool::Draw,
+                               PointerTool::Pointer};
+
+  for (int round = 0; round < 400; ++round) {
+    editor->scrollParameters(round % 2 == 0 ? 3 : -3);
+    editor->chooseTool(tools[round % 3]);
+
+    if (auto *bar = findTopBar(*editor))
+      if (bar->onLinkSettingsChanged != nullptr)
+        bar->onLinkSettingsChanged();
+
+    sizeEditor(*editor, 1200 + (round % 8) * 20);
+
+    // The other guarded path. From this thread rather than a third, because
+    // one restore racing another restore is not a thing a host does.
+    if (round % 50 == 0) {
+      juce::MemoryBlock carried;
+      proc.getStateInformation(carried);
+      proc.setStateInformation(carried.getData(), (int)carried.getSize());
+    }
+  }
+
+  running = false;
+  saver.join();
+
+  check(saves.load() > 0,
+        "the host got its saves (" + std::to_string(saves.load()) + ")");
+  check(malformed.load() == 0, "none of them came back unreadable (" +
+                                   std::to_string(malformed.load()) + ")");
+  check(incomplete.load() == 0, "and none came back without the parameters (" +
+                                    std::to_string(incomplete.load()) + ")");
+
+  // The window is still the one that was being driven, rather than something
+  // the storm left in a state of its own.
+  editor->chooseTool(PointerTool::Draw);
+
+  juce::MemoryBlock carried;
+  proc.getStateInformation(carried);
+  proc.setStateInformation(carried.getData(), (int)carried.getSize());
+
+  ed.reset();
+
+  std::unique_ptr<juce::AudioProcessorEditor> reopened(proc.createEditor());
+  auto *second = dynamic_cast<OvertoniumEditor *>(reopened.get());
+
+  check(second != nullptr, "and a window opens again afterwards");
+
+  if (second != nullptr) {
+    sizeEditor(*second, 1340);
+    check(second->currentTool() == PointerTool::Draw,
+          "on the tool it was left on");
+  }
+}
+
 void testStateRoundTrip(OvertoniumProcessor &p) {
   section("State round trip");
 
@@ -6148,9 +8353,10 @@ void testPrograms(OvertoniumProcessor &p) {
 
   p.applyFactoryPreset(chosen);
 
-  // A parameter the presets actually set. Master gain is a session parameter
-  // and presets leave it alone, so an edit to it survives everything here and
-  // would make every check below pass without proving anything.
+  // A parameter the presets actually set, so the value read below is one the
+  // preset put there rather than whatever happened to be lying about. Anything
+  // a preset left alone would survive the reload and make every check pass
+  // without proving a thing.
   auto *volume = p.apvts.getParameter(
       ovt::params::oscParamId(ovt::params::volumeSuffix, 0));
 
@@ -6674,9 +8880,12 @@ void testCollapsibleSections() {
   check(preferredStripHeight(envMask) ==
             preferredStripHeight() - collapsedRowsHeight(envMask),
         "the strip wants exactly that much less room");
-  check(minimumStripHeight(envMask) ==
-            minimumStripHeight() - collapsedRowsHeight(envMask),
-        "and will go exactly that much shorter");
+  // And the shortest it will go is no longer anything to do with folding.
+  // It used to be the height of every unfolded row at once, so folding was the
+  // only way to get the window down. Now what does not fit scrolls, so the
+  // floor is the pinned header and the band's own minimum whatever is folded.
+  check(minimumStripHeight(envMask) == minimumStripHeight(),
+        "and the shortest window no longer depends on what is folded");
 
   // The rows below close up rather than leaving a hole, and the fader keeps
   // the height it had rather than stretching into it.
@@ -7314,6 +9523,9 @@ int main() {
   testStrikeReadout();
   testSegmentReadouts(processor);
   testChannelHover(processor);
+  testMuteSoloGang(processor);
+  testSilencedChannel(processor);
+  testThePresetDisplaySpells(processor);
   testFactoryCodeGenerator(processor);
   testBothPresetKindsCarryTheSame();
   testOversizedBlocks(processor);
@@ -7336,10 +9548,16 @@ int main() {
   testTheRulesFoldTheirSections(processor);
   testOneRightClickOpensOneMenu(processor);
   testWheelOverAKnobStaysOnTheKnob(processor);
+  testASidewaysWheelMovesTheMixer(processor);
+  testTheGutterBorderIsOneLine(processor);
+  testTheBandsLayOutAColumn();
+  testTheWheelScrollsTheParameters(processor);
   testTheGrainTileDoesNotOutliveTheWindows();
   testACorruptStateCannotPoisonTheOutput();
   testEveryHostRateStaysFinite();
   testTheSafetyClipHoldsUnity();
+  testMidiLearnBindsControllers(processor);
+  testMacrosMoveAWholeRow(processor);
   testSettingsNamesTheVersion(processor);
   testMachineMenusFollowTheirParameters(processor);
   testPresetMenuGroups(processor);
@@ -7347,6 +9565,7 @@ int main() {
   testShapeButtonFollowsTheParameter(processor);
   testFirstProgramIsReachable();
   testPresetNameOutlivesTheWindow();
+  testTheToolOutlivesTheWindow(processor);
   testBarButtonsFitTheirWords(processor);
   testBarComesOntoOneRow(processor);
   testTopBarAlignment(processor);
@@ -7362,6 +9581,7 @@ int main() {
   testUndersizedBuffer();
   testMonoOutput();
   testStateRoundTrip(processor);
+  testTheSessionSurvivesAHostSavingUnderIt();
   testPrograms(processor);
   testProgramChangeMidi(processor);
   testCollapsibleSections();

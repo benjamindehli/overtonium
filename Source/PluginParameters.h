@@ -3,6 +3,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include <array>
+#include <utility>
 
 #include "dsp/Params.h"
 
@@ -25,6 +26,27 @@ inline constexpr const char *temperamentId = "temperament";
 inline constexpr const char *tuningRootId = "tuningRoot";
 inline constexpr const char *referenceHzId = "referenceHz";
 inline constexpr const char *safetyClipId = "safetyClip";
+
+/// Which of the five shapes the output stage uses, when it is on.
+///
+/// Beside the switch rather than replacing it, for the reason echoTypeId is:
+/// a boolean every saved patch stores and every lane points at cannot become a
+/// five-position choice without taking both with it.
+inline constexpr const char *clipTypeId = "clipType";
+
+/// Whether the output stage is allowed its lookahead.
+///
+/// A session parameter rather than part of a patch, which is what makes it
+/// safe: the whole reason the lookahead is paid by every shape is that a
+/// latency depending on the patch would have the host re-plan its graph each
+/// time a preset loaded. Nothing a preset can reach may move it, so this sits
+/// in Settings with the temperament and the polyphony and is listed in
+/// kSessionParamIds with them.
+///
+/// On by default. Off is worth having because only one of the five shapes
+/// uses the window at all, so anyone who never reaches for the Limiter is
+/// paying two milliseconds for nothing.
+inline constexpr const char *lookaheadId = "lookahead";
 inline constexpr const char *mpeId = "mpe";
 inline constexpr const char *lofiRateId = "lofiRate";
 inline constexpr const char *lofiBitsId = "lofiBits";
@@ -84,6 +106,111 @@ inline constexpr const char *muteSuffix = "mute";
 inline constexpr const char *soloSuffix = "solo";
 inline constexpr const char *volumeSuffix = "volume";
 inline constexpr const char *panSuffix = "pan";
+
+// ---- macros -----------------------------------------------------------------
+
+/// How many rows can be automated as one.
+///
+/// Issue #24, which asked for it in the one place the instrument most needs
+/// it: a LINK drag across the TUNE row moves 32 parameters and the host
+/// catches only the last one touched, so a relationship you can edit by hand
+/// cannot be automated at all.
+///
+/// Eight, which is a pool rather than a count: a plugin declares its
+/// parameters once and neither VST3 nor AU can add one later, so "make a
+/// macro" means taking one of these and "remove it" means putting it back.
+/// The panel shows the ones in use and the host sees all eight.
+///
+/// Raising this later disturbs nothing, since parameters added on the end
+/// leave every lane already written pointing where it pointed. Lowering it
+/// would strand automation, so it is the one direction to be sure about.
+inline constexpr int kNumMacros = 8;
+
+/// The rows a macro can drive, in the order the panel reads them.
+///
+/// Exactly the rows LINK can gang, which is the same restriction for the same
+/// reason: a row of shapes or of mute buttons has no value to offset. The UI
+/// names these again as ui::Role, in this order, and a test holds the two
+/// together rather than trusting them to stay in step.
+inline constexpr const char *kMacroRows[] = {
+    tuneSuffix,   phaseSuffix,    pmRateSuffix,  pmDepthSuffix, driftSuffix,
+    strikeSuffix, delaySuffix,    attackSuffix,  decaySuffix,   sustainSuffix,
+    swellSuffix,  offLevelSuffix, releaseSuffix, amRateSuffix,  amDepthSuffix,
+    velSuffix,    atSuffix,       panSuffix,     volumeSuffix};
+
+inline constexpr int kNumMacroRows =
+    (int)(sizeof(kMacroRows) / sizeof(kMacroRows[0]));
+
+/// Which channels a macro reaches.
+///
+/// Three that need no argument and then one per interval, rather than a
+/// "same interval" that needs a second menu to say which. Everything from
+/// Interval onwards is a pitch class, so the entry at Interval + 7 is every
+/// channel a fifth above the fundamental: harmonics 3, 6, 12 and 24.
+///
+/// All twelve occur among 32 harmonics, though four of them reach a single
+/// channel, which makes those a way of naming one harmonic rather than a
+/// family. Listed anyway, since a list of intervals with gaps in it is
+/// stranger to read than a few narrow entries.
+enum class MacroScope { All = 0, Odd, Even, Interval };
+
+inline constexpr int kNumMacroScopes = (int)MacroScope::Interval + 12;
+
+/// How a macro is shared out across the channels it reaches.
+///
+/// LINK's third curve, Spread, is not here and cannot be: it scatters each
+/// strip along the direction the drag gave it, relative to the strip under
+/// the mouse, and a macro has neither a direction nor a strip under the
+/// mouse. Taper is measured from the fundamental for the same reason, that
+/// being the one channel a macro can anchor to.
+enum class MacroCurve { Uniform = 0, Taper, NumCurves };
+
+/// The colours a macro can wear, so a control it drives can say which one
+/// has it. The first is no colour at all, for anyone who would rather the
+/// mixer stayed the colour the series makes it.
+inline constexpr int kNumMacroColours = 9;
+
+const char *macroScopeName(int scope);
+
+/// Whether a macro with this scope reaches this channel.
+///
+/// Shared rather than written twice: the snapshot asks it to decide what to
+/// offset, and the window asks it to decide what to tint, and those two
+/// disagreeing would colour a control that is not being driven.
+bool macroReaches(int scope, int index0);
+
+/// This channel's share of a macro, from the fundamental outwards.
+///
+/// Shared for the same reason: the snapshot multiplies by it to work out the
+/// offset, and the window multiplies by it to work out where to light the
+/// ring, and a knob showing a result the engine is not playing would be worse
+/// than showing nothing.
+/// @param anchor  the channel a taper leans on hardest, 0-based. Uniform
+///                ignores it.
+float macroWeight(MacroCurve curve, int index0, int anchor);
+
+/// The range of a row a macro can drive, which is what an amount of 1 spans
+/// and whose skew a macro's own fader borrows, so that pushing the macro
+/// feels like turning the thing it drives. Row 1 is the first real one, since
+/// the list opens with None.
+juce::NormalisableRange<float>
+macroRowRange(const juce::AudioProcessorValueTreeState &, int row);
+const char *macroCurveName(MacroCurve);
+const char *macroRowName(int row);
+const char *macroColourName(int colour);
+
+/// What a macro's tint actually is, or a fully transparent colour for the
+/// first entry. Defined in Theme.cpp beside the rest of the palette.
+juce::Colour macroColour(int colour);
+
+/// A macro's parameter ids. The amount is the one a host draws, and the row
+/// is what says whether the macro has been made at all: row 0 is None.
+juce::String macroAmountId(int macro);
+juce::String macroRowId(int macro);
+juce::String macroScopeId(int macro);
+juce::String macroCurveId(int macro);
+juce::String macroColourId(int macro);
+juce::String macroAnchorId(int macro);
 
 /// What each modulation destination offers, in the order its parameter stores.
 ///
@@ -216,6 +343,23 @@ struct Cache {
 
   NoiseChannel noise{};
 
+  /// A macro and what it reaches, plus the span of the row it drives so the
+  /// offset can be worked out without asking the parameters again on the
+  /// audio thread.
+  struct Macro {
+    std::atomic<float> *amount = nullptr;
+    std::atomic<float> *row = nullptr;
+    std::atomic<float> *scope = nullptr;
+    std::atomic<float> *curve = nullptr;
+    std::atomic<float> *anchor = nullptr;
+  };
+
+  std::array<Macro, (size_t)kNumMacros> macro{};
+
+  /// The low and high end of every row a macro can drive, read once. Every
+  /// channel's copy of a row shares one range, so one pair answers for all 32.
+  std::array<juce::NormalisableRange<float>, (size_t)kNumMacroRows> rowRange{};
+
   std::atomic<float> *masterGain = nullptr;
   std::atomic<float> *polyphony = nullptr;
   std::atomic<float> *oneVoicePerKey = nullptr;
@@ -231,6 +375,8 @@ struct Cache {
   std::atomic<float> *tuningRoot = nullptr;
   std::atomic<float> *referenceHz = nullptr;
   std::atomic<float> *safetyClip = nullptr;
+  std::atomic<float> *lookahead = nullptr;
+  std::atomic<float> *clipType = nullptr;
   std::atomic<float> *mpe = nullptr;
   std::atomic<float> *lofiRate = nullptr;
   std::atomic<float> *lofiBits = nullptr;
@@ -288,23 +434,29 @@ juce::String polyphonyName(int index);
 
 /// What a preset leaves alone.
 ///
-/// How you play the instrument, how loud it is, and what it is tuned to. A
-/// patch describes a sound, and none of these are part of one: a temperament
-/// and a reference pitch belong to the music you are playing, polyphony and
-/// bend range to the keyboard you are playing it on, and the master fader and
-/// the clipper to the desk. Loading a sound should move none of them.
+/// How you play the instrument and what it is tuned to. A patch describes a
+/// sound, and none of these are part of one: a temperament and a reference
+/// pitch belong to the music you are playing, and polyphony and bend range to
+/// the keyboard you are playing it on. Loading a sound should move none of
+/// them.
 ///
-/// This is everything the settings menu offers, plus the master fader. That is
-/// the rule rather than a coincidence: the menu is where the instrument is set
-/// up and the panel is where the sound is made, so anything that appears in
-/// the menu belongs here. Adding a setting means adding it here too.
+/// This is everything the settings menu offers. That is the rule rather than a
+/// coincidence: the menu is where the instrument is set up and the panel is
+/// where the sound is made, so anything that appears in the menu belongs here.
+/// Adding a setting means adding it here too.
+///
+/// The master fader and the clipper were here and are not any more. The output
+/// stage became five machines rather than a guard with a switch, which makes
+/// it part of the sound, and the master sits in front of it, so how hard a
+/// patch drives it is something the patch has to be able to say. The cost is
+/// honest: loading a preset now moves the output level.
 ///
 /// Named here rather than in Presets.cpp so the code that honours the rule and
 /// the test that checks it cannot come to disagree about what the rule is.
-inline const std::array<const char *, 12> kSessionParamIds{
-    masterGainId, polyphonyId,   bendRangeId,      atSourceId,
-    safetyClipId, referenceHzId, temperamentId,    tuningRootId,
-    mpeId,        slideDestId,   oneVoicePerKeyId, phaseResetId};
+inline const std::array<const char *, 11> kSessionParamIds{
+    polyphonyId,      bendRangeId,  atSourceId, referenceHzId,
+    temperamentId,    tuningRootId, mpeId,      slideDestId,
+    oneVoicePerKeyId, phaseResetId, lookaheadId};
 
 /// Whether `id` is one of those, for the several places that have to ask.
 inline bool isSessionParam(juce::StringRef id) {

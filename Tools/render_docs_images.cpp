@@ -13,11 +13,17 @@
 // drawn at four times the size. Use it for artwork that needs the window
 // larger than the page shows it.
 //
-// Two things it cannot do. It writes PNG, because JUCE has no WebP encoder,
-// so turning the results into what the pages actually load is a separate step
-// that CONTRIBUTING.md spells out. And DRIFT is random per voice, so the
-// meters and the lamps land somewhere slightly different every run. Everything
-// that is a setting rather than a measurement comes out identical.
+// Two things it cannot do. It writes PNG, and turning the results into what
+// the pages actually load is a separate step that CONTRIBUTING.md spells out.
+// JUCE gained a WebP encoder in 9.0.3 and this still does not use it, for two
+// reasons that have nothing to do with what JUCE can encode: the PNGs are
+// themselves shipped, being what the inner pages and the social cards point
+// at, and the step that makes the WebP also re-encodes those PNGs smaller than
+// JUCE writes them. The plugin is built with JUCE_USE_WEBP=0 besides, since
+// nothing it loads is a WebP and carrying the codec cost 717 KB. And DRIFT is
+// random per voice, so the meters and the lamps land somewhere slightly
+// different every run. Everything that is a setting rather than a measurement
+// comes out identical.
 
 #include <cmath>
 #include <cstdio>
@@ -37,9 +43,22 @@
 namespace {
 
 /// The editor takes its size from the saved state and the zoom, so a picture
-/// has to ask for a size rather than accept whatever a session left behind.
-constexpr int kWindowWidth = 1348;
-constexpr int kWindowHeight = 1010;
+/// has to ask for one rather than accept whatever a session left behind.
+///
+/// Asked of the editor rather than written down here. The numbers used to be
+/// a pair of literals, 1348 by 1010, and the scrollbar that arrived with the
+/// scrolling parameters made the window ten pixels wider without making them
+/// wrong enough to notice: the pictures went on rendering at a size the
+/// window no longer has. fitAllChannels is the same call the Settings menu
+/// makes, and what it means is what these pictures are of.
+///
+/// The height is still a number, because it is a choice rather than a fact.
+/// What fitAllChannels gives is the shortest window that shows every row,
+/// which leaves the faders at their fixed 92 and reads as cramped: the travel
+/// is what a mixer looks like. Anything above the natural height goes to the
+/// faders, so this asks for enough to show them at the length the pages have
+/// always shown them at.
+constexpr int kPictureHeight = 1010;
 
 /// What the pages show. Big Saw puts a 1/n spectrum on the faders and its own
 /// table on the tuning knobs, so the mixer shows a shape rather than a row of
@@ -147,7 +166,13 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  editor->setSize(kWindowWidth, kWindowHeight);
+  // The width that shows all 32 channels, whatever that is today, and a
+  // height chosen for the picture. See kPictureHeight.
+  editor->fitAllChannels();
+  editor->setSize(editor->getWidth(),
+                  juce::jmax(editor->getHeight(), kPictureHeight));
+
+  std::printf("window %d x %d\n", editor->getWidth(), editor->getHeight());
 
   auto strips = descendantsOf<ovt::ui::ChannelStrip>(*editor);
   auto noise = descendantsOf<ovt::ui::NoiseStrip>(*editor);
@@ -182,13 +207,15 @@ int main(int argc, char **argv) {
 
     strip.setMeterLevel(plugin.getPartialLevel(i));
     strip.setActivity(plugin.getPartialEnvelope(i), plugin.getPartialTremolo(i),
-                      plugin.getPartialPitch(i), lamps);
+                      plugin.getPartialPitch(i), plugin.getPartialVelocity(i),
+                      plugin.getPartialPressure(i), lamps);
     lamps.clearQuick();
   }
 
   noise.front()->setMeterLevel(plugin.getNoiseLevel());
-  noise.front()->setActivity(plugin.getNoiseEnvelope(),
-                             plugin.getNoiseTremolo(), lamps);
+  noise.front()->setActivity(
+      plugin.getNoiseEnvelope(), plugin.getNoiseTremolo(),
+      plugin.getNoiseVelocity(), plugin.getNoisePressure(), lamps);
 
   bars.front()->setOutputLevels(plugin.getOutputLevelLeft(),
                                 plugin.getOutputLevelRight());
@@ -196,7 +223,10 @@ int main(int argc, char **argv) {
 
   // Measured rather than assumed, so a taller bar or a wider strip moves these
   // with it instead of slicing the next picture through the middle of a row.
-  const int barHeight = ovt::ui::TopBar::heightForWidth(kWindowWidth);
+  const int windowWidth = editor->getWidth();
+  const int windowHeight = editor->getHeight();
+
+  const int barHeight = ovt::ui::TopBar::heightForWidth(windowWidth);
   const int detailWidth =
       ovt::ui::kGutterWidth + kDetailChannels * ovt::ui::kStripWidth;
 
@@ -221,11 +251,11 @@ int main(int argc, char **argv) {
   };
 
   const bool ok =
-      writePng(*editor, {0, 0, kWindowWidth, kWindowHeight}, scale,
+      writePng(*editor, {0, 0, windowWidth, windowHeight}, scale,
                png("overtonium")) &&
-      writePng(*editor, {0, barHeight, detailWidth, kWindowHeight - barHeight},
+      writePng(*editor, {0, barHeight, detailWidth, windowHeight - barHeight},
                scale, png("overtonium-strips")) &&
-      writePng(*editor, {0, 0, kWindowWidth, barHeight}, scale,
+      writePng(*editor, {0, 0, windowWidth, barHeight}, scale,
                png("overtonium-bar"));
 
   return ok ? 0 : 1;

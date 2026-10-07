@@ -1,4 +1,5 @@
 #include "ChannelStrip.h"
+#include "LearnMenu.h"
 
 #include <cmath>
 
@@ -6,6 +7,24 @@
 #include "LookAndFeel.h"
 
 namespace ovt::ui {
+
+namespace {
+/// A wheel notch in pixels, by the same arithmetic a Viewport uses on itself.
+///
+/// Taken from JUCE rather than chosen so that scrolling the parameters and
+/// scrolling the mixer sideways move by the same amount for the same gesture,
+/// which they would not if this were a number somebody liked the feel of.
+int wheelDistance(const juce::MouseWheelDetails &wheel) {
+  constexpr float kViewportSingleStep = 16.0f;
+
+  // deltaY as the platform gives it, with no account taken of isReversed. The
+  // platform has already turned the wheel the way the person asked for, so
+  // natural scrolling arrives here pointing the right way and undoing it is
+  // what made it scroll backwards on a Mac set up that way. A Viewport reads
+  // it the same, which is why the sideways scroll was always right.
+  return -juce::roundToInt(wheel.deltaY * 14.0f * kViewportSingleStep);
+}
+} // namespace
 
 namespace {
 inline size_t rowIndex(Row r) { return (size_t)r; }
@@ -110,12 +129,6 @@ void LabelledKnob::resized() { slider.setBounds(dialBounds(getLocalBounds())); }
 
 // =============================================================================
 
-namespace {
-/// How many lamps fit. Aiming at sixteen, but a short window gets fewer rather
-/// than a column of slivers, and a tall one gets more rather than bars.
-int segmentsFor(int height) { return juce::jlimit(6, 24, height / 15); }
-} // namespace
-
 // =============================================================================
 
 namespace {
@@ -167,6 +180,28 @@ uint8_t segmentsFor(char c) {
   case 'i':
     return kSegC;
 
+  // ---- a sign sharing the hundreds digit's cell ---------------------------
+  //
+  // A reading that runs to three digits and can be negative has a hundreds
+  // place that is only ever a one or nothing, and a sign that is only ever a
+  // minus or nothing. The bar a minus needs and the two uprights a one needs
+  // are different segments, so one cell carries both and the reading saves
+  // the whole width of a separate sign.
+  //
+  // Which is worth having twice over: the digits get the room, and the sign
+  // stops being a narrow cell that the digits have to be padded around to
+  // keep them from shifting when a value crosses zero.
+  //
+  // Only the macro panel's amount asks for these. Nothing on a channel
+  // changes sign.
+  // The sign is the middle bar, lit like any other segment, and the one
+  // beside it is the pair of uprights. Nothing is drawn specially for either:
+  // a cell shows the bars it has and these are two of them.
+  case '~':
+    return kSegG;
+  case '!':
+    return kSegG | kSegB | kSegC;
+
   default:
     return 0;
   }
@@ -183,19 +218,247 @@ uint8_t segmentsFor(char c) {
 /// asks for one, and a character with no form here comes out blank rather
 /// than as the speck a plus would be.
 bool isNarrow(char c) { return c == '.' || c == '-'; }
+
+/// One segment, as an elongated hexagon with mitred ends.
+///
+/// This is the shape a real one is, and it is most of what makes a drawn
+/// display look drawn: a rounded rectangle has the same footprint but reads
+/// as a lozenge laid on a panel, where a mitred bar reads as one of a set cut
+/// from a single mask. The ends slope so that neighbouring segments point at
+/// each other across the small gap between them, which is what turns seven
+/// separate bars into a figure.
+juce::Path segmentShape(juce::Rectangle<float> r) {
+  const bool flat = r.getWidth() >= r.getHeight();
+  const auto thick = flat ? r.getHeight() : r.getWidth();
+  const auto along = flat ? r.getWidth() : r.getHeight();
+
+  // Never more than the bar can give. A half-middle on a narrow cell is
+  // barely longer than it is thick, and a full mitre on that leaves two
+  // triangles meeting at a point.
+  const auto nose = juce::jmin(thick * 0.5f, along * 0.42f);
+
+  juce::Path p;
+
+  if (flat) {
+    p.startNewSubPath(r.getX(), r.getCentreY());
+    p.lineTo(r.getX() + nose, r.getY());
+    p.lineTo(r.getRight() - nose, r.getY());
+    p.lineTo(r.getRight(), r.getCentreY());
+    p.lineTo(r.getRight() - nose, r.getBottom());
+    p.lineTo(r.getX() + nose, r.getBottom());
+  } else {
+    p.startNewSubPath(r.getCentreX(), r.getY());
+    p.lineTo(r.getRight(), r.getY() + nose);
+    p.lineTo(r.getRight(), r.getBottom() - nose);
+    p.lineTo(r.getCentreX(), r.getBottom());
+    p.lineTo(r.getX(), r.getBottom() - nose);
+    p.lineTo(r.getX(), r.getY() + nose);
+  }
+
+  p.closeSubPath();
+  return p;
+}
+
+// ---- fourteen bars, for the displays that have to spell ---------------------
+//
+//      aaaaaaa
+//     f  h i j  b
+//     f   hij   b
+//      ggg   GGG
+//     e   mlk   c
+//     e  m l k  c
+//      ddddddd
+//
+// Seven bars cannot write a name. They manage digits and about five letters,
+// which is all the readouts on a channel ever have to say, but a preset is
+// called Glockenspiel or Wurli and there is no seven-bar W at all. Fourteen
+// is what the hardware that had to show words used, and it carries the whole
+// alphabet: the middle bar splits in two and four diagonals and two uprights
+// fill the cell.
+constexpr uint16_t kStA = 1 << 0, kStB = 1 << 1, kStC = 1 << 2, kStD = 1 << 3,
+                   kStE = 1 << 4, kStF = 1 << 5, kStG1 = 1 << 6, kStG2 = 1 << 7,
+                   kStH = 1 << 8, kStI = 1 << 9, kStJ = 1 << 10, kStK = 1 << 11,
+                   kStL = 1 << 12, kStM = 1 << 13;
+
+constexpr uint16_t kStG = kStG1 | kStG2;
+
+uint16_t starburstFor(char c) {
+  switch (c) {
+  case '0':
+    return kStA | kStB | kStC | kStD | kStE | kStF | kStJ | kStM;
+  case '1':
+    return kStB | kStC | kStJ;
+  case '2':
+    return kStA | kStB | kStG | kStE | kStD;
+  case '3':
+    return kStA | kStB | kStC | kStD | kStG2;
+  case '4':
+    return kStF | kStG | kStB | kStC;
+  case '5':
+    return kStA | kStF | kStG | kStC | kStD;
+  case '6':
+    return kStA | kStF | kStE | kStD | kStC | kStG;
+  case '7':
+    return kStA | kStB | kStC;
+  case '8':
+    return kStA | kStB | kStC | kStD | kStE | kStF | kStG;
+  case '9':
+    return kStA | kStB | kStC | kStD | kStF | kStG;
+
+  case 'A':
+    return kStA | kStB | kStC | kStE | kStF | kStG;
+  case 'B':
+    return kStA | kStB | kStC | kStD | kStG2 | kStI | kStL;
+  case 'C':
+    return kStA | kStD | kStE | kStF;
+  case 'D':
+    return kStA | kStB | kStC | kStD | kStI | kStL;
+  case 'E':
+    return kStA | kStD | kStE | kStF | kStG1;
+  case 'F':
+    return kStA | kStE | kStF | kStG1;
+  case 'G':
+    return kStA | kStC | kStD | kStE | kStF | kStG2;
+  case 'H':
+    return kStB | kStC | kStE | kStF | kStG;
+  case 'I':
+    return kStA | kStD | kStI | kStL;
+  case 'J':
+    return kStB | kStC | kStD | kStE;
+  case 'K':
+    return kStE | kStF | kStG1 | kStJ | kStK;
+  case 'L':
+    return kStD | kStE | kStF;
+  case 'M':
+    return kStB | kStC | kStE | kStF | kStH | kStJ;
+  case 'N':
+    return kStB | kStC | kStE | kStF | kStH | kStK;
+  case 'O':
+    return kStA | kStB | kStC | kStD | kStE | kStF;
+  case 'P':
+    return kStA | kStB | kStE | kStF | kStG;
+  case 'Q':
+    return kStA | kStB | kStC | kStD | kStE | kStF | kStK;
+  case 'R':
+    return kStA | kStB | kStE | kStF | kStG | kStK;
+  case 'S':
+    return kStA | kStC | kStD | kStF | kStG;
+  case 'T':
+    return kStA | kStI | kStL;
+  case 'U':
+    return kStB | kStC | kStD | kStE | kStF;
+  case 'V':
+    return kStE | kStF | kStJ | kStM;
+  case 'W':
+    return kStB | kStC | kStE | kStF | kStK | kStM;
+  case 'X':
+    return kStH | kStJ | kStK | kStM;
+  case 'Y':
+    return kStH | kStJ | kStL;
+  case 'Z':
+    return kStA | kStD | kStJ | kStM;
+
+  // The punctuation a preset name can carry. A saved name keeps everything a
+  // filename can hold, which is nearly everything, so these are the ones
+  // worth having rather than all of them: the hyphen alone is in three of the
+  // factory names and without it Lo-fi reads as LO FI.
+  case '-':
+    return kStG;
+  case '_':
+    return kStD;
+  case '=':
+    return kStG | kStD;
+  case '+':
+    return kStG | kStI | kStL;
+  case '\'':
+    return kStI;
+  case '(':
+    return kStJ | kStK;
+  case ')':
+    return kStH | kStM;
+  case '!':
+    return kStI | kStL;
+
+  // A space is a cell with nothing lit, which is a word break rather than a
+  // character that failed to draw. Both come out the same and that is right:
+  // a cell on a real display either has bars on or it does not, and a name
+  // with something unspellable in it shows a gap where a real one would.
+  case ' ':
+    return 0;
+
+  default:
+    return 0;
+  }
+}
 } // namespace
 
-bool SegmentDisplay::canDraw(char c) {
+bool SegmentDisplay::canDraw(char c, Bars bars) {
+  if (bars == Bars::Fourteen)
+    // A space has no bars lit and is still a character it can show, so the
+    // table's zero cannot be the answer on its own here.
+    return isNarrow(c) || c == ' ' ||
+           starburstFor((char)juce::CharacterFunctions::toUpperCase(c)) != 0;
+
   return isNarrow(c) || segmentsFor(c) != 0;
 }
 
-SegmentDisplay::SegmentDisplay(juce::String unit) : unitText(std::move(unit)) {}
+SegmentDisplay::SegmentDisplay(juce::String unit, Bars howMany, int cells)
+    : bars(howMany), fixedCells(cells), unitText(std::move(unit)) {}
+
+juce::String SegmentDisplay::squeeze(const juce::String &name, int cells) {
+  const auto upper = name.toUpperCase();
+
+  if (cells <= 0)
+    return upper;
+
+  if (upper.length() <= cells)
+    return upper.paddedRight(' ', cells);
+
+  std::vector<juce::juce_wchar> kept;
+  kept.reserve((size_t)upper.length());
+
+  for (int i = 0; i < upper.length(); ++i)
+    kept.push_back(upper[i]);
+
+  const auto drop = [&kept, cells](bool (*wanted)(juce::juce_wchar)) {
+    // From the right, so what goes is the end of the name rather than the
+    // start of it, which is the half you recognise.
+    //
+    // Stopping at index one is belt and braces rather than a rule doing any
+    // work. Reaching index zero would mean everything after it had already
+    // gone and one character were still too many, and there is no cell count
+    // below one, so the loop stops on its own first. It is written down
+    // because a name has to keep its first character whatever else changes
+    // here, and nothing else in this function would say so.
+    for (auto i = (int)kept.size() - 1; i > 0 && (int)kept.size() > cells; --i)
+      if (wanted(kept[(size_t)i]))
+        kept.erase(kept.begin() + i);
+  };
+
+  drop([](juce::juce_wchar c) { return c == ' '; });
+  drop([](juce::juce_wchar c) {
+    return c == 'A' || c == 'E' || c == 'I' || c == 'O' || c == 'U';
+  });
+
+  juce::String out;
+
+  for (auto c : kept)
+    out += juce::String::charToString(c);
+
+  return out.substring(0, cells).paddedRight(' ', cells);
+}
 
 void SegmentDisplay::setReading(const juce::String &digits, bool isActive) {
-  if (digits == reading && isActive == active)
+  // Upper case, and fitted to the cells there are. Done here rather than at
+  // every caller so that what getReading hands back is what the cells are
+  // actually showing.
+  const auto shown =
+      bars == Bars::Fourteen ? squeeze(digits, fixedCells) : digits;
+
+  if (shown == reading && isActive == active)
     return;
 
-  reading = digits;
+  reading = shown;
   active = isActive;
   repaint();
 }
@@ -229,7 +492,14 @@ void SegmentDisplay::paintGlyph(juce::Graphics &g, juce::Rectangle<float> area,
   // Every bar is drawn whether it is on or not, which is what makes it read as
   // a display with something switched off rather than as floating shapes.
   const auto t = juce::jmax(1.0f, area.getHeight() * 0.16f);
-  const auto gap = t * 0.35f;
+
+  // What separates one segment from the next. Tight, because the gap is what
+  // the eye reads as the join between two bars and a wide one reads as seven
+  // marks that happen to be near each other. It cannot go to nothing: the
+  // mitred ends point at each other, so the gap at a corner is already about
+  // seven tenths of this, and below about a fifth of a bar's thickness the
+  // corners close up and a figure becomes a blob.
+  const auto gap = t * 0.24f;
   const auto w = area.getWidth();
   const auto h = area.getHeight();
   const auto mid = (h - t) * 0.5f;
@@ -239,7 +509,7 @@ void SegmentDisplay::paintGlyph(juce::Graphics &g, juce::Rectangle<float> area,
     juce::Rectangle<float> r;
   };
 
-  const Bar bars[] = {
+  const Bar straight[] = {
       {kSegA, {t * 0.5f + gap, 0.0f, w - t - gap * 2.0f, t}},
       {kSegB, {w - t, t * 0.5f + gap, t, mid - gap * 1.5f}},
       {kSegC, {w - t, mid + t * 0.5f + gap * 0.5f, t, mid - gap * 1.5f}},
@@ -249,10 +519,128 @@ void SegmentDisplay::paintGlyph(juce::Graphics &g, juce::Rectangle<float> area,
       {kSegG, {t * 0.5f + gap, mid, w - t - gap * 2.0f, t}},
   };
 
-  for (const auto &bar : bars) {
-    g.setColour((lit & bar.flag) != 0 ? on : off);
-    g.fillRoundedRectangle(bar.r.translated(area.getX(), area.getY()),
-                           t * 0.35f);
+  for (const auto &bar : straight) {
+    const bool isLit = (lit & bar.flag) != 0;
+    const auto shape = segmentShape(bar.r.translated(area.getX(), area.getY()));
+
+    // No bloom around a lit segment, though a real one has it. A bar here is
+    // about three pixels thick, so any spill worth seeing is wider than the
+    // bar it comes from: what it reads as is blur, and a blurred figure is
+    // further from a real display than a crisp one is.
+    g.setColour(isLit ? on : off);
+    g.fillPath(shape);
+  }
+}
+
+void SegmentDisplay::paintStarburst(juce::Graphics &g,
+                                    juce::Rectangle<float> area, char c,
+                                    juce::Colour on, juce::Colour off) const {
+  const auto lit = starburstFor(c);
+
+  // Thinner than a seven-bar cell's. Fourteen bars in the same box means four
+  // diagonals crossing the middle, and at the seven-bar weight they meet in a
+  // blot with no cell showing through.
+  const auto t = juce::jmax(1.0f, area.getHeight() * 0.095f);
+  // Tighter than it was, for the reason the seven-bar one is. A little wider
+  // than that one in proportion, because fourteen bars in the same box means
+  // four diagonals crossing the middle as well, and those have ends of their
+  // own to stay clear of.
+  const auto gap = t * 0.32f;
+  const auto w = area.getWidth();
+  const auto h = area.getHeight();
+  const auto mid = (h - t) * 0.5f;
+  const auto half = (w - t) * 0.5f;
+
+  // The uprights and the two halves of the middle, drawn as rectangles the
+  // way the seven-bar ones are.
+  struct Bar {
+    uint16_t flag;
+    juce::Rectangle<float> r;
+  };
+
+  const Bar straight[] = {
+      {kStA, {t * 0.5f + gap, 0.0f, w - t - gap * 2.0f, t}},
+      {kStB, {w - t, t * 0.5f + gap, t, mid - gap * 1.5f}},
+      {kStC, {w - t, mid + t * 0.5f + gap * 0.5f, t, mid - gap * 1.5f}},
+      {kStD, {t * 0.5f + gap, h - t, w - t - gap * 2.0f, t}},
+      {kStE, {0.0f, mid + t * 0.5f + gap * 0.5f, t, mid - gap * 1.5f}},
+      {kStF, {0.0f, t * 0.5f + gap, t, mid - gap * 1.5f}},
+      // The two halves of the middle, each running from its own end of the
+      // cell to the upright that stands in the centre of it.
+      //
+      // Mirror images, which they were not: the right one used to start half
+      // a bar past the centre instead of a whole one past it, so it reached
+      // a bar's width too far left and the middle of every cell sat off to
+      // that side.
+      //
+      // And longer than they were. A half-middle is squeezed between the
+      // outer upright and the centre one, and at the inset the other bars
+      // use it came out three pixels: a dot rather than a bar, so a hyphen
+      // read as two specks.
+      {kStG1, {t * 0.5f, mid, half - t * 0.5f - gap, t}},
+      {kStG2, {half + t + gap, mid, w - t * 1.5f - half - gap, t}},
+      {kStI, {half, t * 0.5f + gap, t, mid - gap * 1.5f}},
+      {kStL, {half, mid + t * 0.5f + gap * 0.5f, t, mid - gap * 1.5f}},
+  };
+
+  for (const auto &bar : straight) {
+    const bool isLit = (lit & bar.flag) != 0;
+    const auto shape = segmentShape(bar.r.translated(area.getX(), area.getY()));
+
+    // No bloom around a lit segment, though a real one has it. A bar here is
+    // about three pixels thick, so any spill worth seeing is wider than the
+    // bar it comes from: what it reads as is blur, and a blurred figure is
+    // further from a real display than a crisp one is.
+    g.setColour(isLit ? on : off);
+    g.fillPath(shape);
+  }
+
+  // The four diagonals, which are strokes rather than rectangles. Each runs
+  // from a corner of the cell to the middle of it.
+  //
+  // Trimmed along its own direction rather than by the same amount in x and
+  // in y. A cell is half as wide as it is tall, so these are nowhere near
+  // forty-five degrees, and pulling both ends in by an equal step on each
+  // axis stopped them a third of the way short: X came out as four marks
+  // around a hole and V and W did not close at the bottom.
+  const auto cx = w * 0.5f;
+  const auto cy = h * 0.5f;
+  const auto corner = t * 0.9f;
+
+  const auto spoke = [&](juce::Point<float> from) {
+    const auto to = juce::Point<float>(cx, cy);
+    const auto along = to - from;
+    const auto len = std::sqrt(along.x * along.x + along.y * along.y);
+
+    if (len < 1.0e-3f)
+      return juce::Line<float>(from, to);
+
+    const auto step = along / len;
+
+    // Clear of the frame at the outer end and of the centre bars at the
+    // inner one, both measured in bar widths so they hold at any size.
+    return juce::Line<float>(from + step * (t * 0.3f), to - step * (t * 0.85f));
+  };
+
+  struct Slash {
+    uint16_t flag;
+    juce::Line<float> line;
+  };
+
+  const Slash slashes[] = {
+      {kStH, spoke({corner, corner})},
+      {kStJ, spoke({w - corner, corner})},
+      {kStK, spoke({w - corner, h - corner})},
+      {kStM, spoke({corner, h - corner})},
+  };
+
+  for (const auto &slash : slashes) {
+    const bool isLit = (lit & slash.flag) != 0;
+    const juce::Line<float> at{slash.line.getStart() + area.getPosition(),
+                               slash.line.getEnd() + area.getPosition()};
+
+    g.setColour(isLit ? on : off);
+    g.drawLine(at, t * 0.9f);
   }
 }
 
@@ -289,7 +677,12 @@ void SegmentDisplay::paint(juce::Graphics &g) {
   auto area = getLocalBounds().toFloat().reduced(1.0f);
 
   const auto on = active ? colours::accent : colours::textDim;
-  const auto off = on.withAlpha(hovered ? 0.20f : 0.12f);
+
+  // Fainter where there are fourteen bars to a cell. Twice the bars means
+  // twice the unlit ones, and at the seven-bar weight the dead segments add
+  // up to a grid the lit ones have to be picked out of.
+  const auto rest = bars == Bars::Fourteen ? 0.55f : 1.0f;
+  const auto off = on.withAlpha((hovered ? 0.20f : 0.12f) * rest);
   const auto lit = on.withAlpha(active ? 0.95f : 0.75f);
 
   // Set into the panel rather than laid on it. The margin this uses is the one
@@ -309,6 +702,8 @@ void SegmentDisplay::paint(juce::Graphics &g) {
 
   area = area.reduced(3.0f, 2.0f);
 
+  drawn = 0;
+
   if (reading.isEmpty())
     return;
 
@@ -319,18 +714,74 @@ void SegmentDisplay::paint(juce::Graphics &g) {
   for (auto c : reading)
     (isNarrow((char)c) ? points : cells) += 1;
 
+  // Every character takes a whole cell where there are fourteen bars. A sign
+  // riding on a narrow stripe is a thing a number does, and this one spells,
+  // so a hyphen is a letter's worth of room like anything else. Counting it
+  // as a stripe left the cells one short of the characters and dropped the
+  // last one: Lo-fi came out as LO-F.
+  if (bars == Bars::Fourteen) {
+    cells += points;
+    points = 0;
+  }
+
+  // A name longer than the display can spell legibly is cut rather than
+  // squeezed. Below about five pixels a fourteen-bar cell is four diagonals
+  // in a smudge, and a reading nobody can make out is worse than a short one.
+  if (bars == Bars::Fourteen) {
+    constexpr float kNarrowestCell = 5.0f;
+
+    const auto room = (int)(area.getWidth() / kNarrowestCell);
+
+    if (cells > room) {
+      cells = juce::jmax(1, room);
+      points = 0;
+    }
+  }
+
   if (cells < 1)
     return;
 
-  // The unit only earns its place once the digits have what they need.
-  const auto unitW =
-      unitText.isNotEmpty() && hasRoomForUnit(getWidth()) ? kUnitWidth : 0.0f;
+  // The unit only earns its place once the digits have what they need, and it
+  // takes the room the words actually need rather than the budget set aside
+  // for them.
+  //
+  // kUnitWidth is a reserve wide enough for the longest of them. Centring the
+  // block on the reserve rather than on the text puts whatever is left over
+  // inside the block, so a short unit pushes the digits left and the reading
+  // sits against the inside of the screen looking cropped. "kHz" is three
+  // characters in a reserve sized for more.
+  const auto unitFont = makeFont(7.5f, true);
+
+  auto unitW = 0.0f;
+
+  if (unitText.isNotEmpty() && hasRoomForUnit(getWidth())) {
+    juce::GlyphArrangement measure;
+    measure.addLineOfText(unitFont, unitText, 0.0f, 0.0f);
+
+    unitW = juce::jmin(kUnitWidth,
+                       measure.getBoundingBox(0, -1, true).getWidth() + 2.0f);
+  }
 
   // A point costs about a third of a digit, which is what the extra term in
   // the denominator is buying.
+  // Wider than a seven-bar cell for its height, because there is more to fit
+  // across it: the two middle uprights and the four diagonals all live in the
+  // width, and at the narrower ratio they met in the middle as a blot.
+  const auto widest =
+      area.getHeight() * (bars == Bars::Fourteen ? 0.74f : 0.72f);
+
+  // No margin is taken out of this.
+  //
+  // Two pixels were, to stop the leading segment landing against the inside
+  // of the screen. It was not landing there, and taking them changed what the
+  // line below chooses: with less room, a reading that had been sized off its
+  // own height came to be sized off the width instead, so the figures grew
+  // and shrank with how many characters were in them. A readout whose digits
+  // change size as the number changes is worse than one sitting a pixel
+  // nearer its edge than it might.
   const auto cellW = juce::jmin((area.getWidth() - unitW) /
                                     ((float)cells + 0.32f * (float)points),
-                                area.getHeight() * 0.72f);
+                                widest);
 
   const auto glyphW = cellW * 0.82f;
   const auto pointW = cellW * 0.32f;
@@ -344,14 +795,29 @@ void SegmentDisplay::paint(juce::Graphics &g) {
 
   if (unitW > 0.0f) {
     g.setColour(colours::textDim.withAlpha(0.8f));
-    g.setFont(makeFont(7.5f, true));
+    g.setFont(unitFont);
     g.drawText(unitText,
                area.withX(digitArea.getRight() + 2.0f).withWidth(unitW - 2.0f),
                juce::Justification::centredLeft, false);
   }
 
+  drawn = 0;
+
   for (int i = 0; i < reading.length(); ++i) {
     const auto c = (char)reading[i];
+
+    if (bars == Bars::Fourteen && drawn >= cells)
+      break;
+
+    if (bars == Bars::Fourteen) {
+      // Everything takes a whole cell here. A sign riding on a narrow stripe
+      // is a thing a number does, and this one is spelling.
+      paintStarburst(g, {x, digitArea.getY(), glyphW, digitArea.getHeight()}, c,
+                     lit, off);
+      x += cellW;
+      ++drawn;
+      continue;
+    }
 
     if (isNarrow(c)) {
       // Same weight as a segment. The point sits on the baseline the segments
@@ -368,12 +834,14 @@ void SegmentDisplay::paint(juce::Graphics &g) {
         g.fillRoundedRectangle(x, midY, pointW, t, t * 0.35f);
 
       x += pointW;
+      ++drawn;
       continue;
     }
 
     paintGlyph(g, {x, digitArea.getY(), glyphW, digitArea.getHeight()}, c, lit,
                off);
     x += cellW;
+    ++drawn;
   }
 }
 
@@ -476,10 +944,11 @@ bool ActivityNeedle::push(float position) {
     return true;
   }
 
-  const auto usable = juce::jmax(1, getWidth() - 3);
+  const auto usable = juce::jmax(1, getWidth() - 2 * kSlotInset - 3);
   const auto at =
-      1 + (int)std::lround(0.5 * (1.0 + juce::jlimit(-1.0f, 1.0f, position)) *
-                           (double)usable);
+      kSlotInset + 1 +
+      (int)std::lround(0.5 * (1.0 + juce::jlimit(-1.0f, 1.0f, position)) *
+                       (double)usable);
 
   if (at == column)
     return false;
@@ -503,12 +972,16 @@ void ActivityNeedle::paint(juce::Graphics &g) {
   // same bargain the unlit lamps make: a track that is dark rather than absent
   // says the needle has somewhere to go, and doubles as the rule dividing the
   // groups, so no separate line is drawn here.
-  const auto track = juce::Rectangle<float>(bounds.getWidth(), height)
+  const auto track = juce::Rectangle<float>(
+                         bounds.getWidth() - 2.0f * (float)kSlotInset, height)
                          .withCentre({bounds.getCentreX(), midY + 0.5f});
 
-  // A slot milled across the strip rather than a line drawn on it. It runs to
-  // both edges, so only the top and bottom walls of the cut are in the
-  // picture, which is the pair that carries the depth anyway.
+  // A slot milled across the strip rather than a line drawn on it, and the
+  // inset above is what lets it read as one. Run out to both edges the slot
+  // loses its rounded ends and the two side walls of the cut along with
+  // them, because the lip is drawn around the opening and the component stops
+  // where the opening does. What is left is a bar that looks sheared off
+  // rather than milled, which is visible the moment anybody looks closely.
   paintRecess(g, track, height * 0.35f);
 
   // Blended against the backdrop rather than washed over it, for the same
@@ -542,7 +1015,7 @@ void LevelMeter::setBackdrop(juce::Colour top, juce::Colour bottom) {
   repaint();
 }
 
-int LevelMeter::segments() const { return segmentsFor(getHeight()); }
+int LevelMeter::segments() const { return meterSegments(getHeight()); }
 
 namespace {
 /// How far the bloom around a lit meter run reaches beyond it, in pixels.
@@ -710,14 +1183,15 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
               params::ampShapeNames()),
       muteButton(state, "M"), soloButton(state, "S"), meter(colour),
       pitchLamp(colour), envLamp(colour), keyOffLamp(colour),
-      tremoloLamp(colour) {
+      tremoloLamp(colour), velocityLamp(colour), pressureLamp(colour) {
   // Deep listener, so a pointer resting on a knob is reported by the strip that
   // owns it rather than being swallowed by the control.
   addMouseListener(this, true);
 
   for (juce::Component *lamp :
        {(juce::Component *)&pitchLamp, (juce::Component *)&envLamp,
-        (juce::Component *)&keyOffLamp, (juce::Component *)&tremoloLamp})
+        (juce::Component *)&keyOffLamp, (juce::Component *)&tremoloLamp,
+        (juce::Component *)&velocityLamp, (juce::Component *)&pressureLamp})
     addAndMakeVisible(*lamp);
 
   // The strip decides the pointer for everything on it, which is how the LINK
@@ -785,6 +1259,9 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   soloButton.setTooltip("Solo harmonic " + juce::String(info.harmonic));
   muteButton.setTitle("Harmonic " + juce::String(info.harmonic) + " mute");
   soloButton.setTitle("Harmonic " + juce::String(info.harmonic) + " solo");
+  // One moulding around the pair, each half lighting on its own.
+  OvertoniumLookAndFeel::gangLamps(muteButton, soloButton);
+
   addAndMakeVisible(muteButton);
   addAndMakeVisible(soloButton);
 
@@ -792,6 +1269,9 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
       apvts, params::oscParamId(params::muteSuffix, index), muteButton);
   soloAttachment = std::make_unique<ButtonAttachment>(
       apvts, params::oscParamId(params::soloSuffix, index), soloButton);
+
+  learn::tag(muteButton, params::oscParamId(params::muteSuffix, index));
+  learn::tag(soloButton, params::oscParamId(params::soloSuffix, index));
 
   // Readouts rather than controls, so they take no clicks of their own and
   // the strip underneath goes on reporting which row the pointer is over.
@@ -801,6 +1281,9 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   }
 
   addAndMakeVisible(meter);
+
+  headerCap.onPaint = [this](juce::Graphics &g) { paintHeaderBand(g); };
+  addAndMakeVisible(headerCap);
   meter.toBack(); // the fader cap has to draw over it
 
   updateTuneReadout();
@@ -844,6 +1327,7 @@ void ChannelStrip::setUpKnob(LinkableSlider &s, Role role, juce::Colour fill) {
   s.setSliderStyle(juce::Slider::RotaryVerticalDrag);
   s.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
   s.setColour(juce::Slider::rotarySliderFillColourId, fill);
+  baseColour[(size_t)role] = fill;
   s.setPopupDisplayEnabled(true, true, &popupHost);
   addAndMakeVisible(s);
 
@@ -857,6 +1341,7 @@ void ChannelStrip::setUpFader(LinkableSlider &s, Role role, juce::Colour fill) {
   s.setSliderStyle(juce::Slider::LinearVertical);
   s.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
   s.setColour(juce::Slider::trackColourId, fill);
+  baseColour[(size_t)role] = fill;
   s.getProperties().set("meteredGroove", true);
   s.setPopupDisplayEnabled(true, true, &popupHost);
   addAndMakeVisible(s);
@@ -871,6 +1356,8 @@ void ChannelStrip::wireUp(LinkableSlider &s, Role role) {
   // reads a slider whose range has not been set up yet.
   sliderAttachments.push_back(
       std::make_unique<SliderAttachment>(apvts, paramId, s));
+
+  learn::tag(s, paramId);
 
   // Double-click restores the parameter's own default rather than the range
   // minimum.
@@ -955,7 +1442,7 @@ void ChannelStrip::updateTuneReadout() {
         std::abs(cents) < 0.05 ? juce::String("0.0") : juce::String(cents, 1);
   }
 
-  tuneReadout.setReading(text, active);
+  tuneReadout.setReading(text, active && !silenced);
 }
 
 void ChannelStrip::updateLevelReadout() {
@@ -971,7 +1458,7 @@ void ChannelStrip::updateLevelReadout() {
   const auto db = params::levelDecibels(v);
 
   levelReadout.setReading(
-      (db >= 0.0f ? "" : "-") + juce::String(std::abs(db), 1), true);
+      (db >= 0.0f ? "" : "-") + juce::String(std::abs(db), 1), !silenced);
 }
 
 void ChannelStrip::setSilencedByOthers(bool shouldDim) {
@@ -979,7 +1466,38 @@ void ChannelStrip::setSilencedByOthers(bool shouldDim) {
     return;
 
   silenced = shouldDim;
-  setAlpha(silenced ? 0.4f : 1.0f);
+
+  // The light out of the controls rather than a wash over the whole strip.
+  // The wash dimmed the mute along with everything else, and on a silenced
+  // channel the mute is the one thing that has to stay readable, since it is
+  // usually what silenced it. Greying the controls instead is what the echo
+  // and reverb knobs already do when their machine is off, and what the
+  // converter readouts do when they are following the host: the value stays
+  // where it was set and the light comes out of it.
+  std::function<void(juce::Component &)> drain = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      // Not the pair. They are the answer to the question the dimming asks.
+      if (dynamic_cast<MuteSoloButton *>(child) != nullptr)
+        continue;
+
+      // Sliders and the waveform displays, which are the two things on a
+      // strip that carry colour of their own. The meters and the activity
+      // lamps need no telling: a silenced channel gives them nothing to show.
+      if (dynamic_cast<juce::Slider *>(child) != nullptr ||
+          dynamic_cast<ShapeButton *>(child) != nullptr) {
+        child->getProperties().set("unlit", silenced);
+        child->repaint();
+      }
+
+      drain(*child);
+    }
+  };
+
+  drain(*this);
+
+  updateTuneReadout();
+  updateLevelReadout();
+  repaint();
 }
 
 void ChannelStrip::mouseDown(const juce::MouseEvent &e) {
@@ -1027,7 +1545,7 @@ void ChannelStrip::mouseDown(const juce::MouseEvent &e) {
   if (echoOfTheSameClick)
     return;
 
-  link.showLinkMenu();
+  link.showLinkMenu(learn::parameterIdAt(e.originalComponent));
 }
 
 /// Folds the section whose rule the click landed on, if it landed on one.
@@ -1043,8 +1561,8 @@ void ChannelStrip::foldSectionUnder(const juce::MouseEvent &e, bool echo) {
   if (e.originalComponent != this || echo || onSectionToggled == nullptr)
     return;
 
-  const auto rows =
-      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
+                               collapsed, scroll);
   const auto section = headingSectionAt(rows, e.getPosition());
 
   if (section != Section::NumSections)
@@ -1086,8 +1604,8 @@ void ChannelStrip::mouseMove(const juce::MouseEvent &e) {
   // that LINK and the drawing tool can set one across the whole mixer at once,
   // and an arrow set here would mask it for everything below this strip.
   if (e.originalComponent == this) {
-    const auto rows =
-        layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+    const auto rows = layoutRows(
+        getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed, scroll);
 
     setMouseCursor(headingSectionAt(rows, e.getPosition()) !=
                            Section::NumSections
@@ -1107,8 +1625,8 @@ Row ChannelStrip::rowUnder(const RowBounds &rows, juce::Point<int> p) {
 
 void ChannelStrip::reportHover(const juce::MouseEvent &e) {
   const auto p = e.getEventRelativeTo(this).getPosition();
-  const auto rows =
-      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
+                               collapsed, scroll);
   const auto inside = getLocalBounds().contains(p) && !hoverSuppressed;
 
   // Leaving one knob for the next fires the exit before the enter, so the
@@ -1139,8 +1657,8 @@ void ChannelStrip::paintOverChildren(juce::Graphics &g) {
   // underneath is covered by it and only the output heading, which has no
   // lamp, appeared to highlight at all.
   if (rowShowsHighlight(highlighted) && isHeadingRow(highlighted)) {
-    const auto rows =
-        layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+    const auto rows = layoutRows(
+        getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed, scroll);
 
     paintRowHighlight(g, rows[rowIndex(highlighted)]);
   }
@@ -1153,8 +1671,8 @@ void ChannelStrip::setHighlightedRow(Row row) {
   if (row == highlighted)
     return;
 
-  const auto rows =
-      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
+                               collapsed, scroll);
 
   // Only the two bands that changed are repainted. With 33 strips answering
   // every time the pointer crosses a row, repainting whole channels would
@@ -1175,6 +1693,15 @@ void ChannelStrip::setCollapsedSections(SectionMask mask) {
   if (rowIsCollapsed(highlighted, collapsed))
     highlighted = kNoRow;
 
+  resized();
+  repaint();
+}
+
+void ChannelStrip::setScroll(int s) {
+  if (s == scroll)
+    return;
+
+  scroll = s;
   resized();
   repaint();
 }
@@ -1227,6 +1754,39 @@ LinkableSlider *ChannelStrip::sliderForRole(Role role) {
   }
 }
 
+void ChannelStrip::setMacroTint(Role role, juce::Colour tint, float result) {
+  const auto at = (size_t)role;
+
+  if (at >= macroTint.size())
+    return;
+
+  auto *slider = sliderForRole(role);
+
+  if (slider == nullptr)
+    return;
+
+  const bool sameColour = macroTint[at] == tint;
+  const bool sameResult = std::abs(macroResult[at] - result) < 1.0e-4f;
+
+  if (sameColour && sameResult)
+    return;
+
+  macroTint[at] = tint;
+  macroResult[at] = result;
+
+  // Both read by the look and feel, which keeps the control's own colour for
+  // the pointer and uses these for the ring. See drawRotarySlider.
+  if (tint.isTransparent()) {
+    slider->getProperties().remove("macroColour");
+    slider->getProperties().remove("macroResult");
+  } else {
+    slider->getProperties().set("macroColour", (int)tint.getARGB());
+    slider->getProperties().set("macroResult", (double)result);
+  }
+
+  slider->repaint();
+}
+
 void ChannelStrip::setLinkGlow(Role role, float amount, bool accent) {
   amount = juce::jlimit(0.0f, 1.0f, amount);
 
@@ -1253,26 +1813,32 @@ void ChannelStrip::setLinkGlow(Role role, float amount, bool accent) {
   }
 }
 
-juce::Colour ChannelStrip::backdropBase() const {
-  // Octaves stand a shade brighter, which is the same shade the noise channel
-  // stands at. It used to be a wash of the channel's own blue, and that was
-  // one more colour in a mixer that has plenty: the point of marking the
-  // octaves is where they are, not what they are, and a change of level says
-  // that without adding a hue.
-  return info.pitchClass == 0 ? colours::channel.brighter(0.03f)
-                              : colours::channel;
-}
-
 void ChannelStrip::paint(juce::Graphics &g) {
   auto bounds = getLocalBounds();
 
-  paintChannelBackground(g, bounds, backdropBase());
+  paintChannelBackground(g, bounds, colours::channel);
 
   const auto rows =
-      layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed);
+      layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed, scroll);
 
   if (rowShowsHighlight(highlighted) && !isHeadingRow(highlighted))
     paintRowHighlight(g, rows[rowIndex(highlighted)]);
+
+  // Section rules, aligned with the gutter headings. All five carry a lamp
+  // now, and a lamp draws the rule either side of itself, so the strip has
+  // none of them left to draw. See ActivityLamp::paint.
+}
+
+void ChannelStrip::paintHeaderBand(juce::Graphics &g) {
+  // The column's own background first, so the cap is opaque and the gradient
+  // under the header is the same one the rest of the strip has. Drawn for the
+  // whole strip and clipped to the cap, rather than worked out again for a
+  // smaller rectangle, so the two cannot come adrift.
+  const auto bounds = getLocalBounds();
+  paintChannelBackground(g, bounds, colours::channel);
+
+  const auto rows =
+      layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed, scroll);
 
   auto header = rows[rowIndex(Row::Header)];
 
@@ -1284,38 +1850,54 @@ void ChannelStrip::paint(juce::Graphics &g) {
   // Accent when the pointer is on this channel, which is exactly what the
   // gutter does to the caption of the row it is on. The number is the name of
   // the channel, so lighting it is the same gesture.
+  //
+  // And the same gesture again for a LINK drag, which asks the same question
+  // of the whole mixer at once: these are the channels it would reach. Mixed
+  // towards the accent by how much each one takes rather than switched on, so
+  // the curve reads across the row of numbers the way it reads across the
+  // knobs, and the channel under the pointer is the brightest because it is
+  // the one taking the most.
+  //
   // Centred in what is left of the header rather than pinned to the top of
   // it. The number is the only thing standing here.
-  g.setColour(hovered ? colours::accent : colours::text);
+  g.setColour(hovered
+                  ? colours::accent
+                  : colours::text.interpolatedWith(colours::accent, linkReach));
   g.setFont(makeFont(14.0f, true));
   g.drawText(juce::String(info.harmonic), header, juce::Justification::centred,
              false);
+}
 
-  // Section rules, aligned with the gutter headings. Four of the five carry a
-  // lamp, and those draw their own rule around it, so only the output divider
-  // is left for the strip to draw.
-  for (auto r : {Row::OutputHeading}) {
-    const auto row = rows[rowIndex(r)];
-    const auto y = row.getY() + row.getHeight() / 2;
+void ChannelStrip::setLinkReach(float amount) {
+  // Quantised to eight steps. The weights slide continuously as the pointer
+  // moves along a tilted curve, and a header that repainted on every change
+  // would be thirty-two repaints a frame for a difference nobody can see.
+  const auto step = std::round(juce::jlimit(0.0f, 1.0f, amount) * 8.0f) / 8.0f;
 
-    // Scored, like the rules the lamps sit on. See ActivityLamp::paint.
-    g.setColour(colours::outline.withAlpha(0.7f));
-    g.fillRect(row.getX(), y, row.getWidth(), 1);
+  if (std::abs(step - linkReach) < 0.001f)
+    return;
 
-    g.setColour(juce::Colours::white.withAlpha(0.055f));
-    g.fillRect(row.getX(), y + 1, row.getWidth(), 1);
-  }
+  linkReach = step;
+
+  // The header only. The number is all that changes, and it is drawn by the
+  // cap that pins the top of the strip rather than by the strip itself.
+  headerCap.repaint();
 }
 
 void ChannelStrip::resized() {
-  const auto rows =
-      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
+                               collapsed, scroll);
 
   // Hidden rather than left at zero height. A knob with no height still takes
   // the mouse and still answers a hover, so a folded section would go on
   // lighting gutter captions and opening LINK menus for knobs nobody can see.
   const auto placeRow = [&](juce::Component &c, Row r, int shrink) {
-    if (rowIsCollapsed(r, collapsed)) {
+    // Hidden rather than left at zero height, and asked of the rectangle
+    // rather than of the fold mask, because a row now comes back empty for
+    // two reasons: folded away, or scrolled out of the band. Both want the
+    // same answer, and a knob with no height still takes the mouse and still
+    // answers a hover.
+    if (rows[rowIndex(r)].isEmpty()) {
       c.setVisible(false);
       return;
     }
@@ -1351,10 +1933,9 @@ void ChannelStrip::resized() {
   meter.setBounds(faderRow.reduced(2, 1));
 
   // The strip's background is a gradient down the whole channel, so the meter
-  // is told the two colours at its own edges. Both take their base from
-  // backdropBase, so an octave's shade cannot come adrift from the rest of it.
+  // is told the two colours at its own edges.
   {
-    const auto base = backdropBase();
+    const auto base = colours::channel;
     const auto top = base.brighter(0.10f);
     const auto bottom = base.darker(0.06f);
 
@@ -1371,15 +1952,28 @@ void ChannelStrip::resized() {
   volume.setBounds(faderRow.reduced(2, 1));
   levelReadout.setBounds(rows[rowIndex(Row::FaderText)]);
 
-  auto ms = rows[rowIndex(Row::MuteSolo)];
-  muteButton.setBounds(ms.removeFromLeft(ms.getWidth() / 2).reduced(1));
-  soloButton.setBounds(ms.reduced(1));
+  // Over the header and over anything that has scrolled under it. Brought to
+  // the front because controls are added after it and would otherwise be in
+  // front of the thing meant to hide them.
+  // Down to the foot of the header and no further. The row's own rectangle
+  // already carries the column's top padding, so adding it again put the cap
+  // nine pixels into the band and clipped the tops of the tuning knobs.
+  headerCap.setBounds(0, 0, getWidth(),
+                      juce::jmax(0, rows[rowIndex(Row::Header)].getBottom()));
+  headerCap.toFront(false);
+
+  // Touching, because the two are one moulded block and the moulding between
+  // them is drawn by the pair rather than left as a gap. Inset once around
+  // the outside instead of once around each.
+  auto ms = rows[rowIndex(Row::MuteSolo)].reduced(1);
+  muteButton.setBounds(ms.removeFromLeft(ms.getWidth() / 2));
+  soloButton.setBounds(ms);
 
   // The lamps stand on the rules that divide the strip into groups, each one
   // at the head of the group it reports on. No row grew to make space for
   // them: the rule was already occupying that height to draw a single line.
   {
-    const auto base = backdropBase();
+    const auto base = colours::channel;
     const auto top = base.brighter(0.10f);
     const auto bottom = base.darker(0.06f);
 
@@ -1401,6 +1995,19 @@ void ChannelStrip::resized() {
     envLamp.setBackdrop(place(envLamp, Row::EnvHeading));
     keyOffLamp.setBackdrop(place(keyOffLamp, Row::KeyOffHeading));
     tremoloLamp.setBackdrop(place(tremoloLamp, Row::AmpModHeading));
+    // Two lamps on the one rule, one for each of the rows beneath it. Each
+    // takes half the row and draws the rule either side of itself, so the
+    // divider still runs the width of the strip with two lamps mounted on it.
+    {
+      auto row = rows[rowIndex(Row::OutputHeading)];
+      const auto half = row.removeFromLeft(row.getWidth() / 2);
+
+      velocityLamp.setBounds(half);
+      velocityLamp.setBackdrop(at(half.getCentreY()));
+
+      pressureLamp.setBounds(row);
+      pressureLamp.setBackdrop(at(row.getCentreY()));
+    }
   }
 }
 
@@ -1425,6 +2032,7 @@ float ChannelStrip::needlePosition(float cents) {
 }
 
 void ChannelStrip::setActivity(float envelope, float tremolo, float pitch,
+                               float velGain, float pressure,
                                juce::Array<juce::Rectangle<int>> &into) {
   const auto refresh = [&into](juce::Component &lamp, bool moved) {
     if (moved)
@@ -1452,12 +2060,52 @@ void ChannelStrip::setActivity(float envelope, float tremolo, float pitch,
 
   refresh(pitchLamp,
           pitchLamp.push(level <= 0.0f ? kParked : needlePosition(pitch)));
+
+  // One lamp for each of the two rows under this heading, each reading its own
+  // row the way that row's knob reads.
+  //
+  // The velocity lamp shows the level the row has left, so it is full when the
+  // blow has cost the partial nothing and dark when the row has taken all of
+  // it. Full at rest is the right way round for a row that can only subtract:
+  // the knob at its centre leaves every note alone, and a lamp that lit as the
+  // row did more would be showing the gap rather than the thing.
+  //
+  // The pressure lamp is the other way because its row is: aftertouch adds
+  // nothing until the key is leaned on, so it rests dark and comes up with the
+  // hand.
+  //
+  // Both gated on the envelope like the tremolo, so neither sits lit over a
+  // partial that has finished sounding.
+  refresh(velocityLamp, velocityLamp.push(level > 0.0f ? velGain : 0.0f));
+  refresh(pressureLamp, pressureLamp.push(level > 0.0f ? pressure : 0.0f));
 }
 
 void ChannelStrip::mouseWheelMove(const juce::MouseEvent &e,
                                   const juce::MouseWheelDetails &wheel) {
-  if (e.originalComponent == this)
-    juce::Component::mouseWheelMove(e, wheel);
+  // Only a wheel that began on the strip itself. One over a knob belongs to
+  // the knob, and this is a deep listener so it hears both.
+  if (e.originalComponent != this)
+    return;
+
+  // A sideways gesture belongs to the mixer rather than to the parameters. A
+  // trackpad sends one as deltaX with deltaY near zero, and the vertical
+  // distance worked out from deltaY alone came to nothing while the handler
+  // still reported the wheel as taken, so the event was swallowed and a
+  // two-finger swipe moved nothing at all.
+  //
+  // Shift goes the same way, which is how a mouse with one wheel asks for it.
+  // Both fall through to the viewport, which reads deltaX and shift as a
+  // sideways scroll of its own accord.
+  const bool sideways = std::abs(wheel.deltaX) > std::abs(wheel.deltaY);
+
+  if (!sideways && !e.mods.isShiftDown() && scrollParametersBy(wheel))
+    return;
+
+  juce::Component::mouseWheelMove(e, wheel);
+}
+
+bool ChannelStrip::scrollParametersBy(const juce::MouseWheelDetails &wheel) {
+  return link.scrollParameters(wheelDistance(wheel));
 }
 
 } // namespace ovt::ui

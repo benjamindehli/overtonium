@@ -10,6 +10,7 @@
 #include "PluginProcessor.h"
 #include "UI/ChannelStrip.h"
 #include "UI/LookAndFeel.h"
+#include "UI/MacroPanel.h"
 #include "UI/NoiseStrip.h"
 #include "UI/TopBar.h"
 #include "dsp/Drift.h"
@@ -30,6 +31,14 @@ public:
   /// Which sections are folded, so the captions of folded rows are not drawn
   /// and the headings can show which way they point.
   void setCollapsedSections(ovt::ui::SectionMask);
+
+  /// How far the parameters are scrolled, shared by every column.
+  ///
+  /// The gutter, the 32 strips and the noise channel are handed the same
+  /// number by the editor, which is what keeps a caption pointing at the knob
+  /// beside it. Snapped to a row boundary inside layoutRows, so a row is never
+  /// half over the header.
+  void setScroll(int);
 
   /// Which of the two modulators are one circuit the whole keyboard hears.
   ///
@@ -58,7 +67,6 @@ public:
   std::function<void(juce::Component *)> onLinkClicked;
 
   /// Lights the button while LINK is on.
-  void setLinkOn(bool);
 
   /// Fired when the DRAW button is clicked, which latches the tool on rather
   /// than needing the modifier held.
@@ -66,7 +74,8 @@ public:
 
   /// Lights the button while a drag across the faders would draw them, whether
   /// that is because the modifier is held or because it is latched.
-  void setDrawOn(bool);
+  /// Which tool the button wears, and the cursor to wear for it.
+  void setTool(ovt::ui::PointerTool, ovt::ui::LinkCurve);
 
   void resized() override;
   void mouseDown(const juce::MouseEvent &) override;
@@ -76,6 +85,13 @@ public:
 private:
   ovt::ui::Row highlighted = ovt::ui::kNoRow;
   ovt::ui::SectionMask collapsed = 0;
+  int scroll = 0;
+
+  /// Hides a row that has scrolled under the pinned header. See HeaderCap. The
+  /// LINK button lives in the header too and is kept in front of it.
+  ovt::ui::HeaderCap headerCap;
+
+  void paintHeaderBand(juce::Graphics &);
   bool sharedPitchMod = false, sharedAmpMod = false;
 
   /// LINK stands in the empty band above the captions, where the strips beside
@@ -84,7 +100,12 @@ private:
   /// Here rather than in the bar because this is the column the tool belongs
   /// to: it gangs the rows the captions name. What it leaves behind on the bar
   /// is the room the converter readouts needed to say what their numbers mean.
-  ovt::ui::GlowButton linkButton, drawButton;
+  /// One button for the three tools, wearing the cursor rather than a word.
+  /// See ui::PointerTool.
+  ovt::ui::GlowButton toolButton;
+
+  ovt::ui::PointerTool tool = ovt::ui::PointerTool::Pointer;
+  juce::Image toolIcon;
 
   /// The maker's badge, in the empty foot of the gutter.
   std::unique_ptr<juce::Drawable> makersMark{ovt::ui::logoMakersMark()};
@@ -92,6 +113,7 @@ private:
 
 class OvertoniumEditor : public juce::AudioProcessorEditor,
                          public ovt::ui::LinkTarget,
+                         public juce::ScrollBar::Listener,
                          public ovt::ui::HoverTarget,
                          private juce::Timer,
                          private juce::ComponentListener {
@@ -126,6 +148,14 @@ public:
   void refreshDrawArmed();
   void toggleDrawLatch();
 
+  /// Writes which tool is selected into the session.
+  ///
+  /// Both halves of it, because the tool is derived from two flags and
+  /// remembering it means remembering both. Everything that moves either of
+  /// them goes through here rather than writing its own, which is what the
+  /// fault was: one path wrote one flag and the others wrote neither.
+  void rememberTool();
+
   /// Whether a drawn drag is under way, as opposed to merely possible.
   bool drawingNow = false;
 
@@ -144,7 +174,39 @@ public:
                         float plainValue) override;
   void linkDragEnded(ovt::ui::Role, int sourceIndex) override;
 
-  void showLinkMenu() override;
+  void showLinkMenu(const juce::String &parameterId) override;
+
+  /// The learn items on their own, for the controls that are not part of the
+  /// series LINK gangs: everything on the bar, and the noise channel.
+  void showLearnMenu(const juce::String &parameterId);
+
+  /// Keeps the waiting marker on whichever control the map is listening for.
+  ///
+  /// Polled rather than pushed, because the thing that ends the wait is a
+  /// controller message arriving on the audio thread, which is no place to be
+  /// repainting from. See ovt::MidiLearn.
+  void followArmedControl();
+
+  /// Lends every control a macro drives that macro's colour.
+  ///
+  /// Worked out here rather than by the strips, because which macro owns a
+  /// control is a fact about all eight of them and no strip can see more than
+  /// its own column. Pushed the way the LINK glow already is.
+  void followMacroTints();
+
+  /// What carries the marker now, so it can be taken off again without
+  /// searching the window for anything that might have one.
+  juce::String armedParameter;
+  bool scrollParameters(int delta) override;
+
+  /// A wheel that reached the editor, which is one over the gutter or the
+  /// noise channel. Those two sit outside the mixer's viewport, so their
+  /// wheels arrive here by bubbling rather than being routed, and they have to
+  /// scroll the parameters like everything else.
+  void mouseWheelMove(const juce::MouseEvent &,
+                      const juce::MouseWheelDetails &) override;
+
+  void scrollBarMoved(juce::ScrollBar *, double newStart) override;
 
   // ---- ovt::ui::HoverTarget ----
   void hoverChanged(int stripIndex, ovt::ui::Row) override;
@@ -160,6 +222,20 @@ public:
   /// Public so a test can ask for it. The menu that offers it needs a window
   /// to open in, which a test has no way of giving it.
   void fitAllChannels();
+
+  /// Which of the three tools a drag would use right now.
+  ///
+  /// Derived rather than stored, from LINK's own switch and whether drawing
+  /// is armed, so there is no fourth place for the three to disagree. Drawing
+  /// wins, including when it is armed by holding the modifier rather than
+  /// chosen.
+  ovt::ui::PointerTool currentTool() const;
+
+  /// Moves whichever of those two a chosen tool means.
+  ///
+  /// Public for the same reason fitAllChannels is: what offers it is a menu,
+  /// and a menu needs a window a test has no way of giving it.
+  void chooseTool(ovt::ui::PointerTool);
 
   /// Puts this editor's look and feel and its panel colour on a window.
   ///
@@ -301,6 +377,9 @@ private:
   RowGutter gutter;
   ovt::ui::NoiseStrip noiseStrip;
 
+  /// Over the mixer when it is up, and not in the way when it is not.
+  ovt::ui::MacroPanel macroPanel;
+
   // stripsHolder is declared before the viewport that displays it, so on
   // teardown the viewport is destroyed first and never sees a dangling viewed
   // component.
@@ -314,6 +393,38 @@ private:
   /// Which groups of rows are folded away. Restored from the saved state and
   /// written back when it changes, alongside the window size and the zoom.
   ovt::ui::SectionMask collapsedSections = 0;
+
+  /// How far the parameters are scrolled, and how far they can be.
+  ///
+  /// One number for the whole mixer rather than one per column, because the
+  /// gutter's captions name the knobs beside them and two columns that
+  /// disagreed by a row would be captions pointing at the wrong controls. The
+  /// range falls to zero in a window with room for everything, which is every
+  /// window at 100% zoom, so scrolling is a thing that only appears when it is
+  /// needed.
+  int scrollY = 0;
+  int scrollRange = 0;
+
+  /// What scrollParameters needs and cannot work out for itself: the rectangle
+  /// a column lays its rows in, and how tall the band is. Both are recorded by
+  /// resized(), which is the only place the geometry is known.
+  juce::Rectangle<int> stripLayoutArea;
+  int scrollBandHeight = 0;
+
+  /// Whether the scroll is being driven by a drag on the bar itself, in which
+  /// case the bar is left where the pointer has it rather than moved to where
+  /// the rows settled.
+  bool barIsDriving = false;
+
+  void syncScrollBar();
+
+  /// The one thing on screen that says the parameters can move.
+  ///
+  /// Vertical, at the far right beyond the noise channel, which is where a
+  /// scrollbar goes and cost the window ten pixels of width to put there.
+  /// Shown only when there is something to scroll, so a window at 100% zoom
+  /// with room for every row never sees it.
+  juce::ScrollBar parameterBar{true};
 
   /// The bar height the limits in force were worked out for.
   ///

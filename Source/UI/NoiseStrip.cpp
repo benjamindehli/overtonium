@@ -1,4 +1,5 @@
 #include "NoiseStrip.h"
+#include "LearnMenu.h"
 
 #include <cmath>
 
@@ -24,8 +25,10 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
               params::ampShapeNames()),
       muteButton(state, "M"), soloButton(state, "S"), meter(kNoiseColour),
       envLamp(kNoiseColour), keyOffLamp(kNoiseColour),
-      tremoloLamp(kNoiseColour) {
-  for (auto *lamp : {&envLamp, &keyOffLamp, &tremoloLamp})
+      tremoloLamp(kNoiseColour), velocityLamp(kNoiseColour),
+      pressureLamp(kNoiseColour) {
+  for (auto *lamp :
+       {&envLamp, &keyOffLamp, &tremoloLamp, &velocityLamp, &pressureLamp})
     addAndMakeVisible(*lamp);
 
   addMouseListener(this, true);
@@ -79,6 +82,7 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
   addAndMakeVisible(volume);
   sliderAttachments.push_back(std::make_unique<SliderAttachment>(
       apvts, params::noiseParamId(params::volumeSuffix), volume));
+  learn::tag(volume, params::noiseParamId(params::volumeSuffix));
 
   addAndMakeVisible(meter);
   meter.toBack(); // the fader cap has to draw over it
@@ -90,6 +94,9 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
   soloButton.setTooltip("Solo the noise channel");
   muteButton.setTitle("Noise mute");
   soloButton.setTitle("Noise solo");
+  // One moulding around the pair, each half lighting on its own.
+  OvertoniumLookAndFeel::gangLamps(muteButton, soloButton);
+
   addAndMakeVisible(muteButton);
   addAndMakeVisible(soloButton);
 
@@ -97,6 +104,9 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
       apvts, params::noiseParamId(params::muteSuffix), muteButton);
   soloAttachment = std::make_unique<ButtonAttachment>(
       apvts, params::noiseParamId(params::soloSuffix), soloButton);
+
+  learn::tag(muteButton, params::noiseParamId(params::muteSuffix));
+  learn::tag(soloButton, params::noiseParamId(params::soloSuffix));
 
   colourReadout.setJustificationType(juce::Justification::centred);
   colourReadout.setFont(makeFont(10.0f));
@@ -137,8 +147,12 @@ void NoiseStrip::setUpKnob(juce::Slider &s, const char *suffix,
   s.setDescription(tooltip);
   addAndMakeVisible(s);
 
+  headerCap.onPaint = [this](juce::Graphics &g) { paintHeaderBand(g); };
+  addAndMakeVisible(headerCap);
+
   const auto id = params::noiseParamId(suffix);
   sliderAttachments.push_back(std::make_unique<SliderAttachment>(apvts, id, s));
+  learn::tag(s, id);
 
   if (auto *p = apvts.getParameter(id))
     s.setDoubleClickReturnValue(
@@ -158,12 +172,50 @@ void NoiseStrip::setCollapsedSections(SectionMask mask) {
   repaint();
 }
 
+void NoiseStrip::setScroll(int s) {
+  if (s == scroll)
+    return;
+
+  scroll = s;
+  resized();
+  repaint();
+}
+
 void NoiseStrip::setSilencedByOthers(bool shouldDim) {
   if (silenced == shouldDim)
     return;
 
   silenced = shouldDim;
-  setAlpha(silenced ? 0.4f : 1.0f);
+
+  // The light out of the controls rather than a wash over the whole strip.
+  // The wash dimmed the mute along with everything else, and on a silenced
+  // channel the mute is the one thing that has to stay readable, since it is
+  // usually what silenced it. Greying the controls instead is what the echo
+  // and reverb knobs already do when their machine is off, and what the
+  // converter readouts do when they are following the host: the value stays
+  // where it was set and the light comes out of it.
+  std::function<void(juce::Component &)> drain = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      // Not the pair. They are the answer to the question the dimming asks.
+      if (dynamic_cast<MuteSoloButton *>(child) != nullptr)
+        continue;
+
+      // Sliders and the waveform displays, which are the two things on a
+      // strip that carry colour of their own. The meters and the activity
+      // lamps need no telling: a silenced channel gives them nothing to show.
+      if (dynamic_cast<juce::Slider *>(child) != nullptr ||
+          dynamic_cast<ShapeButton *>(child) != nullptr) {
+        child->getProperties().set("unlit", silenced);
+        child->repaint();
+      }
+
+      drain(*child);
+    }
+  };
+
+  drain(*this);
+
+  repaint();
 }
 
 void NoiseStrip::setDrawGlow(bool on) {
@@ -191,11 +243,20 @@ void NoiseStrip::drawFaderAt(int y) {
 }
 
 void NoiseStrip::mouseDown(const juce::MouseEvent &e) {
-  // The noise channel opens no menu of its own, but its mute and solo buttons
-  // do, and the same modal-menu problem applies: without this the column stays
-  // lit once the pointer has moved on. See ChannelStrip::mouseDown.
+  // Its mute and solo buttons carry a menu of their own, and the same
+  // modal-menu problem applies: without this the column stays lit once the
+  // pointer has moved on. See ChannelStrip::mouseDown.
   if (e.mods.isPopupMenu()) {
     clearHover();
+
+    // A right-click on a control here asks for the learn menu, exactly as it
+    // does on the other thirty-two columns. What it does not get is the LINK
+    // settings, since this channel is not part of the series they gang.
+    const auto id = learn::parameterIdAt(e.originalComponent);
+
+    if (id.isNotEmpty() && onLearnRequested != nullptr)
+      onLearnRequested(id);
+
     return;
   }
 
@@ -214,8 +275,8 @@ void NoiseStrip::mouseDown(const juce::MouseEvent &e) {
       onSectionToggled == nullptr)
     return;
 
-  const auto rows =
-      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
+                               collapsed, scroll);
   const auto section = headingSectionAt(rows, e.getPosition());
 
   if (section != Section::NumSections)
@@ -250,8 +311,8 @@ void NoiseStrip::mouseMove(const juce::MouseEvent &e) {
 
   // The hand the gutter's headings show, so a rule that folds looks like one.
   if (e.originalComponent == this) {
-    const auto rows =
-        layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+    const auto rows = layoutRows(
+        getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed, scroll);
 
     setMouseCursor(headingSectionAt(rows, e.getPosition()) !=
                            Section::NumSections
@@ -263,8 +324,8 @@ void NoiseStrip::mouseExit(const juce::MouseEvent &e) { reportHover(e); }
 
 void NoiseStrip::reportHover(const juce::MouseEvent &e) {
   const auto p = e.getEventRelativeTo(this).getPosition();
-  const auto rows =
-      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
+                               collapsed, scroll);
   const auto inside = getLocalBounds().contains(p) && !hoverSuppressed;
 
   // -1 says the pointer is off the harmonic series, which is what stops a
@@ -284,8 +345,8 @@ void NoiseStrip::paintOverChildren(juce::Graphics &g) {
   // underneath is covered by it and only the output heading, which has no
   // lamp, appeared to highlight at all.
   if (rowShowsHighlight(highlighted) && isHeadingRow(highlighted)) {
-    const auto rows =
-        layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+    const auto rows = layoutRows(
+        getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed, scroll);
 
     paintRowHighlight(g, rows[rowIndex(highlighted)]);
   }
@@ -298,8 +359,8 @@ void NoiseStrip::setHighlightedRow(Row row) {
   if (row == highlighted)
     return;
 
-  const auto rows =
-      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
+                               collapsed, scroll);
 
   repaintRowHighlight(*this, rows, highlighted);
   highlighted = row;
@@ -309,13 +370,14 @@ void NoiseStrip::setHighlightedRow(Row row) {
 void NoiseStrip::paint(juce::Graphics &g) {
   auto bounds = getLocalBounds();
 
-  // A shade off the numbered channels, which is the one background difference
-  // left in the mixer and the one that means something: this channel is not
-  // part of the series.
-  paintChannelBackground(g, bounds, colours::channel.brighter(0.03f));
+  // The same ground every other channel stands on. What tells this one apart
+  // is that it is the only strip with no interval colour anywhere on it, and
+  // the only one headed with a name rather than a number, which it says
+  // without a second wash that the hover highlight has to be told from.
+  paintChannelBackground(g, bounds, colours::channel);
 
   const auto rows =
-      layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed);
+      layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed, scroll);
 
   // The same band the numbered channels light. This strip tracked the hovered
   // row and repainted for it but never drew it, so the mixer highlighted
@@ -323,26 +385,10 @@ void NoiseStrip::paint(juce::Graphics &g) {
   if (rowShowsHighlight(highlighted) && !isHeadingRow(highlighted))
     paintRowHighlight(g, rows[rowIndex(highlighted)]);
 
-  auto header = rows[rowIndex(Row::Header)];
-
-  g.setColour(colour);
-  g.fillRect(header.removeFromTop(3).reduced(1, 0));
-
-  header.removeFromTop(1);
-
-  // Accent when hovered, the same as a numbered channel. See ChannelStrip.
-  g.setColour(hovered ? colours::accent : colours::text);
-  g.setFont(makeFont(11.0f, true));
-  g.drawText("NZ", header.removeFromTop(14), juce::Justification::centred,
-             false);
-
-  g.setColour(colour.withAlpha(0.85f));
-  g.setFont(makeFont(9.0f));
-  g.drawText("noise", header, juce::Justification::centred, false);
-
-  // The envelope, key-off and tremolo rules carry lamps and draw themselves.
+  // Every other section rule carries a lamp and draws itself. This strip has
+  // no pitch to modulate, so that one heading is left plain.
   g.setColour(colours::outline.withAlpha(0.7f));
-  for (auto r : {Row::PitchModHeading, Row::OutputHeading}) {
+  for (auto r : {Row::PitchModHeading}) {
     const auto row = rows[rowIndex(r)];
     g.fillRect(row.getX(), row.getY() + row.getHeight() / 2, row.getWidth(), 1);
   }
@@ -370,7 +416,8 @@ void NoiseStrip::updateLevelReadout() {
       (db >= 0.0f ? "" : "-") + juce::String(std::abs(db), 1), true);
 }
 
-void NoiseStrip::setActivity(float envelope, float tremolo,
+void NoiseStrip::setActivity(float envelope, float tremolo, float velGain,
+                             float pressure,
                              juce::Array<juce::Rectangle<int>> &into) {
   const auto refresh = [&into](juce::Component &lamp, bool moved) {
     if (moved)
@@ -383,11 +430,43 @@ void NoiseStrip::setActivity(float envelope, float tremolo,
   refresh(envLamp, envLamp.push(afterKeyOff ? 0.0f : level));
   refresh(keyOffLamp, keyOffLamp.push(afterKeyOff ? level : 0.0f));
   refresh(tremoloLamp, tremoloLamp.push(level > 0.0f ? tremolo : 0.0f));
+
+  // One for each row, the same as a numbered channel. See
+  // ChannelStrip::setActivity for which way round each of them goes.
+  refresh(velocityLamp, velocityLamp.push(level > 0.0f ? velGain : 0.0f));
+  refresh(pressureLamp, pressureLamp.push(level > 0.0f ? pressure : 0.0f));
+}
+
+void NoiseStrip::paintHeaderBand(juce::Graphics &g) {
+  // See ChannelStrip::paintHeaderBand. The background is drawn for the whole
+  // column and clipped to the cap, so the two cannot come adrift.
+  const auto bounds = getLocalBounds();
+  paintChannelBackground(g, bounds, colours::channel);
+
+  const auto rows =
+      layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed, scroll);
+
+  auto header = rows[rowIndex(Row::Header)];
+
+  g.setColour(colour);
+  g.fillRect(header.removeFromTop(3).reduced(1, 0));
+
+  header.removeFromTop(1);
+
+  // Accent when hovered, the same as a numbered channel. See ChannelStrip.
+  g.setColour(hovered ? colours::accent : colours::text);
+  g.setFont(makeFont(11.0f, true));
+  g.drawText("NZ", header.removeFromTop(14), juce::Justification::centred,
+             false);
+
+  g.setColour(colour.withAlpha(0.85f));
+  g.setFont(makeFont(9.0f));
+  g.drawText("noise", header, juce::Justification::centred, false);
 }
 
 void NoiseStrip::resized() {
-  const auto rows =
-      layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed);
+  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
+                               collapsed, scroll);
 
   // Colour takes the tuning row, which is the one thing noise has that a
   // partial does not.
@@ -396,7 +475,12 @@ void NoiseStrip::resized() {
   // See ChannelStrip::resized: a folded row's control is hidden, not merely
   // flattened, so it stops taking the mouse.
   const auto placeRow = [&](juce::Component &c, Row r, int shrink) {
-    if (rowIsCollapsed(r, collapsed)) {
+    // Hidden rather than left at zero height, and asked of the rectangle
+    // rather than of the fold mask, because a row now comes back empty for
+    // two reasons: folded away, or scrolled out of the band. Both want the
+    // same answer, and a knob with no height still takes the mouse and still
+    // answers a hover.
+    if (rows[rowIndex(r)].isEmpty()) {
       c.setVisible(false);
       return;
     }
@@ -423,11 +507,18 @@ void NoiseStrip::resized() {
   placeRow(aftertouch, Row::Aftertouch, 1);
   placeRow(pan, Row::Pan, 1);
 
+  // Down to the foot of the header and no further. The row's own rectangle
+  // already carries the column's top padding, so adding it again put the cap
+  // nine pixels into the band and clipped the tops of the tuning knobs.
+  headerCap.setBounds(0, 0, getWidth(),
+                      juce::jmax(0, rows[rowIndex(Row::Header)].getBottom()));
+  headerCap.toFront(false);
+
   const auto faderRow = rows[rowIndex(Row::Fader)];
   meter.setBounds(faderRow.reduced(2, 1));
 
   {
-    const auto base = colours::channel.brighter(0.03f);
+    const auto base = colours::channel;
     const auto top = base.brighter(0.10f);
     const auto bottom = base.darker(0.06f);
 
@@ -448,13 +539,25 @@ void NoiseStrip::resized() {
     place(envLamp, Row::EnvHeading);
     place(keyOffLamp, Row::KeyOffHeading);
     place(tremoloLamp, Row::AmpModHeading);
+    // Two on the one rule, the same as a numbered channel. See ChannelStrip.
+    {
+      auto row = rows[rowIndex(Row::OutputHeading)];
+      const auto half = row.removeFromLeft(row.getWidth() / 2);
+
+      velocityLamp.setBounds(half);
+      velocityLamp.setBackdrop(at(half.getCentreY()));
+
+      pressureLamp.setBounds(row);
+      pressureLamp.setBackdrop(at(row.getCentreY()));
+    }
   }
   volume.setBounds(faderRow.reduced(2, 1));
   levelReadout.setBounds(rows[rowIndex(Row::FaderText)]);
 
-  auto ms = rows[rowIndex(Row::MuteSolo)];
-  muteButton.setBounds(ms.removeFromLeft(ms.getWidth() / 2).reduced(1));
-  soloButton.setBounds(ms.reduced(1));
+  // Touching, because the two are one moulded block. See ChannelStrip.
+  auto ms = rows[rowIndex(Row::MuteSolo)].reduced(1);
+  muteButton.setBounds(ms.removeFromLeft(ms.getWidth() / 2));
+  soloButton.setBounds(ms);
 }
 
 void NoiseStrip::mouseWheelMove(const juce::MouseEvent &e,

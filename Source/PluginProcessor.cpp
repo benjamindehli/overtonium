@@ -181,14 +181,22 @@ void OvertoniumProcessor::prepareToPlay(double sampleRate,
                                         int maximumExpectedSamplesPerBlock) {
   engine.prepare(sampleRate);
 
-  // The bus stage runs at twice whatever rate this is, so everything leaving
-  // here has been through a half-band filter twice and is a fixed few samples
-  // behind. Told to the host rather than left for it to find, and told
-  // whatever the patch says: a stage that reported one latency on Pure and
-  // another on Valve would have the host re-plan its graph every time a preset
-  // was chosen, and a bypassed stage delays by the same amount through a plain
-  // delay so that it does not have to. See BusDrive::kLatency.
-  setLatencySamples(ovt::BusDrive::kLatency);
+  // Two stages are late. The bus stage runs at twice whatever rate this is,
+  // so everything leaving it has been through a half-band filter twice and is
+  // a fixed few samples behind, and the output stage holds two milliseconds
+  // back so its limiter can see what is coming.
+  //
+  // Told to the host rather than left for it to find, and told whatever the
+  // patch says: a stage that reported one latency on Pure and another on
+  // Valve, or one with the clipper on and another with it off, would have the
+  // host re-plan its graph every time a preset was chosen. Both stages delay
+  // by the same amount when they are doing nothing so that they do not have
+  // to. See BusDrive::kLatency and OutputStage::kLookaheadSeconds.
+  //
+  // The one thing that does move it is the Settings switch, which no preset
+  // can reach. See params::lookaheadId and reportLatency.
+  hostRate = sampleRate;
+  setLatencySamples(latencyAtThisRate());
 
   // A floor under whatever the host asks for, so a host that promises a very
   // small block and then hands over a large one is not cut into a great many
@@ -358,6 +366,15 @@ void OvertoniumProcessor::updateAftertouch() {
 }
 
 void OvertoniumProcessor::handleMidiMessage(const juce::MidiMessage &m) {
+  // Before the MPE parser rather than after it. With MPE on that parser is
+  // handed every message and only the mod wheel, a program change and
+  // all-sound-off fall through, so a controller bound to a knob would never
+  // arrive at all. MidiLearn refuses the numbers the parser needs, which is
+  // what makes taking first pass at them safe. See MidiLearn::isReserved.
+  if (m.isController() &&
+      midiLearn.handle(m.getControllerNumber(), m.getControllerValue()))
+    return;
+
   if (mpeWasOn) {
     // Notes, bend, pressure, the pedal and the layout messages are all the
     // parser's, on every channel it has been given. That includes the master
@@ -434,7 +451,35 @@ void OvertoniumProcessor::handleOrdinaryMidiMessage(
   }
 }
 
-void OvertoniumProcessor::timerCallback() { applyPendingProgramChange(); }
+void OvertoniumProcessor::timerCallback() {
+  applyPendingProgramChange();
+  reportLatency();
+}
+
+int OvertoniumProcessor::latencyAtThisRate() const {
+  const auto *ahead = apvts.getRawParameterValue(ovt::params::lookaheadId);
+
+  return ovt::BusDrive::kLatency +
+         (ahead == nullptr || ahead->load() > 0.5f
+              ? ovt::OutputStage::lookaheadSamples(hostRate)
+              : 0);
+}
+
+void OvertoniumProcessor::reportLatency() {
+  // Polled on the timer rather than pushed from a parameter listener, because
+  // a listener fires on whichever thread moved the parameter and a host
+  // automating this one would move it from the audio thread. Telling a host
+  // its graph has changed from there is how a plugin deadlocks a transport.
+  // Twenty times a second is faster than anyone can notice on a setting they
+  // reach for once.
+  //
+  // setLatencySamples says nothing to the host unless the figure actually
+  // changed, so this costs an atomic read and a comparison.
+  const auto wanted = latencyAtThisRate();
+
+  if (wanted != getLatencySamples())
+    setLatencySamples(wanted);
+}
 
 void OvertoniumProcessor::applyPendingProgramChange() {
   const int index = pendingProgram.exchange(-1, std::memory_order_relaxed);
@@ -623,7 +668,15 @@ void OvertoniumProcessor::applyFactoryPreset(int index) {
 
   currentProgram = index;
   programApplied = true;
-  loadedPresetName = ovt::presets::names()[index];
+
+  {
+    // Scoped tightly: the preset load below walks every parameter and takes
+    // the value tree's own lock on the way, and holding this across that
+    // would be holding it for the whole load. See stateLock.
+    const juce::ScopedLock sl(sessionLock);
+    loadedPresetName = ovt::presets::names()[index];
+  }
+
   ovt::presets::apply(apvts, index);
 
   // So a host showing the preset name updates when the change came from the
@@ -633,7 +686,10 @@ void OvertoniumProcessor::applyFactoryPreset(int index) {
 }
 
 void OvertoniumProcessor::setLoadedPresetName(const juce::String &name) {
-  loadedPresetName = name;
+  {
+    const juce::ScopedLock sl(sessionLock);
+    loadedPresetName = name;
+  }
 
   // A preset of your own is not one of the factory programs, so the host's
   // program index no longer describes what is loaded. Saying so stops a
@@ -653,9 +709,29 @@ static const juce::Identifier kCurrentProgramProperty{"overtoniumProgram"};
 static const juce::Identifier kPresetNameProperty{"overtoniumPresetName"};
 
 void OvertoniumProcessor::getStateInformation(juce::MemoryBlock &destData) {
-  auto state = apvts.copyState();
-  state.setProperty(kCurrentProgramProperty, currentProgram, nullptr);
-  state.setProperty(kPresetNameProperty, loadedPresetName, nullptr);
+  // Held across the copy and the two session properties, and no further. The
+  // editor writes its own things onto this tree from the message thread and a
+  // host may call this from any thread, so without it the copy walks a graph
+  // somebody else is editing. The preset name is in here for the same reason
+  // rather than because the tree needs it: it is read here and written by
+  // setStateInformation, which is the other thread. See stateLock.
+  //
+  // Everything after this is the copy, which is this method's own.
+  auto state = [this] {
+    const juce::ScopedLock sl(sessionLock);
+
+    auto copy = apvts.copyState();
+    copy.setProperty(kCurrentProgramProperty, currentProgram.load(), nullptr);
+    copy.setProperty(kPresetNameProperty, loadedPresetName, nullptr);
+    return copy;
+  }();
+
+  // Saved with the session rather than with a patch, like the fold mask and
+  // the zoom: which controller moves which knob describes the desk this is
+  // plugged into, and a preset that rearranged it would be rearranging
+  // somebody's hardware.
+  state.removeChild(state.getChildWithName(ovt::MidiLearn::kTreeType), nullptr);
+  state.appendChild(midiLearn.toTree(), nullptr);
 
   if (auto xml = state.createXml())
     copyXmlToBinary(*xml, destData);
@@ -673,36 +749,56 @@ void OvertoniumProcessor::setStateInformation(const void *data,
       // which is the same answer the old build gave.
       const int saved = tree.getProperty(kCurrentProgramProperty, 0);
 
-      loadedPresetName = tree.getProperty(kPresetNameProperty, juce::String());
+      {
+        // Everything this method changes about the session, under the lock
+        // that getStateInformation reads it all under: the preset name, the
+        // program, and the tree itself. Replacing the tree while the editor
+        // is writing a property onto it is the same race as copying it while
+        // that happens. See stateLock.
+        //
+        // Released before the MIDI bindings and the parameter sweep below,
+        // which are this method's own work and nothing else reads.
+        const juce::ScopedLock sl(sessionLock);
 
-      // The name decides which program this is, and the index is only the
-      // fallback. Factory presets sort alphabetically, so adding one moves
-      // every preset after it, and a session written before that move carries
-      // an index that now names a different sound. The sound itself is never
-      // in doubt, since the state holds the parameter values and nothing here
-      // reloads a preset over them, but the index is what a host shows as
-      // selected in its own menu, and it would be pointing at a patch the
-      // session is not playing.
-      //
-      // A name that is not a factory preset is one of the user's own, or a
-      // patch edited since it was loaded, and neither has a program to be.
-      // Those keep the saved index, which is the answer this always gave.
-      const auto known = ovt::presets::names().indexOf(loadedPresetName);
+        loadedPresetName =
+            tree.getProperty(kPresetNameProperty, juce::String());
 
-      currentProgram =
-          known >= 0 ? known
-          : juce::isPositiveAndBelow(saved, ovt::presets::names().size())
-              ? saved
-              : 0;
+        // The name decides which program this is, and the index is only the
+        // fallback. Factory presets sort alphabetically, so adding one moves
+        // every preset after it, and a session written before that move
+        // carries an index that now names a different sound. The sound itself
+        // is never in doubt, since the state holds the parameter values and
+        // nothing here reloads a preset over them, but the index is what a
+        // host shows as selected in its own menu, and it would be pointing at
+        // a patch the session is not playing.
+        //
+        // A name that is not a factory preset is one of the user's own, or a
+        // patch edited since it was loaded, and neither has a program to be.
+        // Those keep the saved index, which is the answer this always gave.
+        const auto known = ovt::presets::names().indexOf(loadedPresetName);
 
-      // Whatever the state said, it is a state, so a program change from the
-      // host asking for the index just restored has nothing left to do. Set
-      // even when the properties were absent, since a session written before
-      // they existed still restored a sound that must not be overwritten by
-      // the preset its index happens to name.
-      programApplied = true;
+        currentProgram =
+            known >= 0 ? known
+            : juce::isPositiveAndBelow(saved, ovt::presets::names().size())
+                ? saved
+                : 0;
 
-      apvts.replaceState(tree);
+        // Whatever the state said, it is a state, so a program change from
+        // the host asking for the index just restored has nothing left to do.
+        // Set even when the properties were absent, since a session written
+        // before they existed still restored a sound that must not be
+        // overwritten by the preset its index happens to name.
+        programApplied = true;
+
+        apvts.replaceState(tree);
+      }
+
+      // After replaceState, since a binding names a parameter and the lookup
+      // wants the parameters this session is actually going to use. A session
+      // written before this existed has no such child and comes back with
+      // nothing bound, which is what it had.
+      midiLearn.fromTree(tree.getChildWithName(ovt::MidiLearn::kTreeType),
+                         *this);
 
       // A value that is not a real number, put back to the default.
       //
@@ -717,7 +813,7 @@ void OvertoniumProcessor::setStateInformation(const void *data,
       //
       // It has to be caught here because there is nowhere later that is
       // cheap. The parameters are read into a snapshot every block, and
-      // testing 786 of them for being a number on the audio thread is a cost
+      // testing 787 of them for being a number on the audio thread is a cost
       // paid forever against a file that is already broken.
       for (auto *parameter : getParameters())
         if (!std::isfinite(parameter->getValue()))

@@ -165,6 +165,33 @@ struct Applier {
     set(params::lofiRateId, 0.0f);
     set(params::lofiBitsId, 0.0f);
 
+    // The output stage, which a preset decides because it is part of the sound
+    // rather than part of the desk: five machines rather than a guard with a
+    // switch, and the master in front of them setting how hard they are
+    // driven. Both were things a preset left alone until that was true.
+    //
+    // Twelve down is the panel default and what every patch was dialled at, so
+    // a preset that says nothing about its level sounds as it always did.
+    set(params::masterGainId, -12.0f);
+    set(params::safetyClipId, 1.0f);
+    set(params::clipTypeId, (float)(int)ClipType::Soft);
+
+    // Every macro at rest, pointing at the first row. A preset made before
+    // macros existed had no macro doing anything, and that is what loading
+    // one still has to mean.
+    for (int m = 0; m < params::kNumMacros; ++m) {
+      set(params::macroAmountId(m), 0.0f);
+      set(params::macroRowId(m), 0.0f);
+      set(params::macroScopeId(m), 0.0f);
+      set(params::macroCurveId(m), 0.0f);
+      set(params::macroAnchorId(m), 1.0f);
+
+      // Each one a different colour, matching the default, so a patch that
+      // makes four macros gets four colours without anybody choosing them.
+      set(params::macroColourId(m),
+          (float)(1 + m % (params::kNumMacroColours - 1)));
+    }
+
     // The master effects are off unless a preset switches them on, and their
     // settings go back to the panel defaults either way, so loading a preset
     // never leaves the last one's tail behind.
@@ -268,6 +295,7 @@ struct Applier {
 const char *const kNames[] = {
     "2-bit Fuzz Organ",
     "60s Organ",
+    "6581 Triangle",
     "Big Saw",
     "Cathedral",
     "DigiLog",
@@ -684,6 +712,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h03_pan", -0.7971f);
     ap.set("h03_sustain", 0.5084f);
     ap.set("h03_vel", 0.0021f);
+    ap.set("clipType", 4.0f); // Fold
     ap.set("echoAge", 0.3247f);
     ap.set("echoFeedback", 0.057f);
     ap.set("echoMix", 0.1557f);
@@ -812,6 +841,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h16_vel", -0.0004f);
     ap.set("h16_volume", 0.2081f);
     ap.character(Character::Diode);
+    ap.set("clipType", 2.0f); // Asymmetric
     ap.set("noise_amDepth", 0.7546f);
     ap.set("noise_amRate", 1.0769f);
     ap.set("noise_amShape", 6.0f);
@@ -833,7 +863,46 @@ void apply(APVTS &apvts, int index) {
     ap.reverb(0.1981f, 5.4535f, 0.1714f, ReverbType::Spring);
     break;
   }
-  case 2: // Big Saw
+  case 2: // 6581 Triangle
+  {
+    ap.neutralBase();
+
+    // The triangle of a MOS 6581, the SID in a Commodore 64.
+    //
+    // A triangle is odd harmonics falling as the square of their number, and
+    // this is not quite that: the chip builds its waveform by folding the top
+    // bit of an eight bit accumulator and dropping the lowest bit, so the
+    // ramp it draws is a staircase of 2048 steps rather than a line. What
+    // that leaves is a triangle with even harmonics in it that a triangle
+    // should not have and a noise floor a mathematical one does not have, and
+    // those are most of why a SID sounds like a SID rather than like a
+    // synthesiser.
+    //
+    // The level sits low and the clipper is on because the chip's own output
+    // stage distorts, which is the other half of the sound.
+    ap.allOsc(params::attackSuffix, [](int) { return 0.003; });
+    ap.allOsc(params::decaySuffix, [](int) { return 0.0539; });
+    ap.allOsc(params::sustainSuffix, [](int) { return 0.8222; });
+    ap.allOsc(params::releaseSuffix, [](int) { return 0.003; });
+    ap.allOsc(params::velSuffix, [](int) { return -0.0011; });
+    ap.oscTable(params::volumeSuffix,
+                {1.0f, 0.089f, 0.1351f, 0.0254f, 0.0361f, 0.0095f, 0.0247f,
+                 0.0059f, 0.012f, 0.0043f, 0.0125f, 0.0032f, 0.0055f, 0.0025f,
+                 0.0079f, 0.0016f, 0.0021f, 0.0016f, 0.0046f, 0.0016f, 0.0015f,
+                 0.001f, 0.0031f, 0.0014f, 0.0015f, 0.0012f, 0.0023f, 0.0007f,
+                 0.001f, 0.0005f, 0.0032f, 0.0005f});
+    ap.set("clipType", 4.0f);
+    ap.set("lofiBits", 4.0f);
+    ap.set("masterGain", -10.0f);
+    ap.set("noise_attack", 0.003f);
+    ap.set("noise_colour", 0.1509f);
+    ap.set("noise_release", 0.003f);
+    ap.set("noise_vel", 0.0002f);
+    ap.set("noise_volume", 0.0087f);
+    ap.set("reverbType", 1.0f);
+    break;
+  }
+  case 3: // Big Saw
   {
     ap.neutralBase();
 
@@ -907,7 +976,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.0337f);
     break;
   }
-  case 3: // Cathedral
+  case 4: // Cathedral
   {
     ap.neutralBase();
 
@@ -941,9 +1010,10 @@ void apply(APVTS &apvts, int index) {
     ap.character(Character::Rail);
 
     ap.reverb(0.5f, 9.0f, 0.35f);
+    ap.set("clipType", 3.0f); // Limiter
     break;
   }
-  case 4: // DigiLog
+  case 5: // DigiLog
   {
     ap.neutralBase();
 
@@ -1060,6 +1130,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("echoTime", 0.1882f);
     ap.set("lofiBits", 4.0f);
     ap.set("lofiRate", 3.0f);
+    ap.set("masterGain", -16.0f);
     ap.set("noise_amDepth", 1.0f);
     ap.set("noise_amRate", 11.6296f);
     ap.set("noise_attack", 2.5622f);
@@ -1081,7 +1152,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1476f);
     break;
   }
-  case 5: // Dire Dire EP
+  case 6: // Dire Dire EP
   {
     ap.neutralBase();
 
@@ -1210,6 +1281,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("echoOn", 1.0f);
     ap.set("echoTime", 0.0882f);
     ap.set("lofiBits", 1.0f);
+    ap.set("masterGain", -4.0f);
     ap.set("noise_attack", 0.0088f);
     ap.set("noise_colour", 0.0f);
     ap.set("noise_decay", 1.6672f);
@@ -1227,7 +1299,7 @@ void apply(APVTS &apvts, int index) {
     ap.character(Character::Valve);
     break;
   }
-  case 6: // Drawbar Organ
+  case 7: // Drawbar Organ
   {
     ap.neutralBase();
 
@@ -1283,6 +1355,7 @@ void apply(APVTS &apvts, int index) {
                  0.2271f, 0.0f, 0.0892f, 0.0f, 0.0492f, 0.0f, 0.0f, 0.0f,
                  0.109f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                  0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
+    ap.set("clipType", 2.0f); // Asymmetric
     ap.set("stretch", -0.2168f);
     ap.set("track", 3.2f);
     ap.character(Character::Bulb);
@@ -1306,7 +1379,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.5171f);
     break;
   }
-  case 7: // Dream Phase
+  case 8: // Dream Phase
   {
     ap.neutralBase();
 
@@ -1656,6 +1729,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("echoTime", 0.2584f);
     ap.set("lofiBits", 5.0f);
     ap.set("lofiRate", 2.0f);
+    ap.set("masterGain", -10.0f);
     ap.set("noise_amDepth", 0.9768f);
     ap.set("noise_amRate", 2.5121f);
     ap.set("noise_amShape", 6.0f);
@@ -1675,7 +1749,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1488f);
     break;
   }
-  case 8: // EP Chimes
+  case 9: // EP Chimes
   {
     ap.neutralBase();
 
@@ -1860,7 +1934,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1275f);
     break;
   }
-  case 9: // Equal Saw
+  case 10: // Equal Saw
   {
     ap.neutralBase();
 
@@ -1872,11 +1946,12 @@ void apply(APVTS &apvts, int index) {
     ap.allOsc(params::releaseSuffix, [](int) { return 0.001; });
     ap.allOsc(params::velSuffix, [](int) { return 0.0009; });
     ap.allOsc(params::volumeSuffix, [](int n) { return 1.0 / n; });
+    ap.set("masterGain", -16.0f);
     ap.set("stretch", -0.0515f);
     ap.set("track", 1.0f);
     break;
   }
-  case 10: // FM Piano
+  case 11: // FM Piano
   {
     ap.neutralBase();
 
@@ -1960,6 +2035,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("echoOn", 1.0f);
     ap.set("echoTime", 0.1318f);
     ap.set("lofiBits", 2.0f);
+    ap.set("masterGain", -10.0f);
     ap.set("noise_attack", 0.0009f);
     ap.set("noise_colour", 0.0311f);
     ap.set("noise_decay", 0.0348f);
@@ -1977,7 +2053,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.0823f);
     break;
   }
-  case 11: // Glass Armonica
+  case 12: // Glass Armonica
   {
     ap.neutralBase();
 
@@ -2011,6 +2087,7 @@ void apply(APVTS &apvts, int index) {
                  0.5692f, 0.6148f, -0.6148f, -0.6573f, 0.6573f, 0.6971f,
                  -0.6971f, -0.7348f, 0.7348f, 0.7707f, -0.7707f, -0.805f,
                  0.805f, 0.8379f, -0.8379f, -0.8695f, 0.8695f, 0.9f, -0.9f});
+    ap.set("masterGain", -10.0f);
     ap.set("stretch", 180.0f);
     ap.set("track", 4.0f);
     ap.character(Character::Bulb);
@@ -2023,7 +2100,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbDamp", 0.25f);
     break;
   }
-  case 12: // Glockenspiel
+  case 13: // Glockenspiel
   {
     ap.neutralBase();
 
@@ -2156,6 +2233,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("echoMix", 0.0989f);
     ap.set("echoOn", 1.0f);
     ap.set("echoTime", 0.0726f);
+    ap.set("masterGain", -6.0f);
     ap.set("noise_amShape", 6.0f);
     ap.set("noise_attack", 0.0002f);
     ap.set("noise_colour", 0.2254f);
@@ -2176,7 +2254,7 @@ void apply(APVTS &apvts, int index) {
     ap.character(Character::Bulb);
     break;
   }
-  case 13: // Init
+  case 14: // Init
   {
     ap.neutralBase();
 
@@ -2190,7 +2268,7 @@ void apply(APVTS &apvts, int index) {
                  0.0f, 0.0f, 0.0f});
     break;
   }
-  case 14: // Just Saw
+  case 15: // Just Saw
   {
     ap.neutralBase();
 
@@ -2201,11 +2279,12 @@ void apply(APVTS &apvts, int index) {
     ap.allOsc(params::releaseSuffix, [](int) { return 0.001; });
     ap.allOsc(params::velSuffix, [](int) { return 0.0009; });
     ap.allOsc(params::volumeSuffix, [](int n) { return 1.0 / n; });
+    ap.set("masterGain", -16.0f);
     ap.set("stretch", -0.0515f);
     ap.set("track", 1.0f);
     break;
   }
-  case 15: // Lo-fi
+  case 16: // Lo-fi
   {
     ap.neutralBase();
 
@@ -2270,6 +2349,8 @@ void apply(APVTS &apvts, int index) {
                  1.0f, -1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f,
                  -1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f, -1.0f,
                  1.0f, -1.0f, 1.0f, -1.0f, 1.0f, 0.0f});
+    ap.set("clipType", 2.0f); // Asymmetric
+    ap.set("masterGain", -8.0f);
     ap.set("track", 4.0f);
     ap.character(Character::Opamp);
     ap.set("wobble", 0.286f);
@@ -2293,7 +2374,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.0635f);
     break;
   }
-  case 16: // Metallic Piano
+  case 17: // Metallic Piano
   {
     ap.neutralBase();
 
@@ -2372,6 +2453,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h30_delay", 0.0039f);
     ap.set("h31_delay", 0.006f);
     ap.set("h32_delay", 0.0063f);
+    ap.set("clipType", 2.0f); // Asymmetric
     ap.set("echoAge", 0.595f);
     ap.set("echoFeedback", 0.2911f);
     ap.set("echoMix", 0.1588f);
@@ -2395,7 +2477,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 9.0f);
     break;
   }
-  case 17: // Music Box
+  case 18: // Music Box
   {
     ap.neutralBase();
 
@@ -2484,6 +2566,7 @@ void apply(APVTS &apvts, int index) {
                  0.1875f, -0.71f, 0.1436f, -0.3988f, 0.4998f, -1.0f, 1.0f,
                  0.85f, -0.5015f, -1.0f, -0.2024f, 1.0f, 0.493f, -1.0f, 1.0f,
                  -0.5536f, 0.0f});
+    ap.set("masterGain", -6.0f);
     ap.set("stretch", -22.6682f);
     ap.set("track", 1.5f);
     ap.character(Character::Bulb);
@@ -2508,7 +2591,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.0992f);
     break;
   }
-  case 18: // Nylon EP
+  case 19: // Nylon EP
   {
     ap.neutralBase();
 
@@ -2641,6 +2724,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("echoMix", 0.1569f);
     ap.set("echoOn", 1.0f);
     ap.set("echoTime", 0.0528f);
+    ap.set("masterGain", -6.0f);
     ap.set("noise_aftertouch", 0.0f);
     ap.set("noise_amRate", 0.3122f);
     ap.set("noise_attack", 0.0005f);
@@ -2662,7 +2746,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1946f);
     break;
   }
-  case 19: // Odd Harmonics
+  case 20: // Odd Harmonics
   {
     ap.neutralBase();
 
@@ -2685,9 +2769,10 @@ void apply(APVTS &apvts, int index) {
     // halves of the wave alike. Anything else here would fill in the gaps this
     // patch is made of.
     ap.character(Character::Rail);
+    ap.set("masterGain", -10.0f);
     break;
   }
-  case 20: // Omni-84
+  case 21: // Omni-84
   {
     ap.neutralBase();
 
@@ -2728,6 +2813,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("echoMix", 0.1338f);
     ap.set("echoOn", 1.0f);
     ap.set("echoTime", 0.0934f);
+    ap.set("masterGain", -10.0f);
     ap.set("noise_amDepth", 0.5819f);
     ap.set("noise_attack", 0.0002f);
     ap.set("noise_colour", 0.0012f);
@@ -2744,7 +2830,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 7.0f);
     break;
   }
-  case 21: // Shimmer
+  case 22: // Shimmer
   {
     ap.neutralBase();
 
@@ -2769,9 +2855,10 @@ void apply(APVTS &apvts, int index) {
 
     ap.reverb(0.45f, 8.0f, 0.4f, ReverbType::Plate);
     ap.echo(0.28f, 0.66f, 0.55f, 0.6f);
+    ap.set("masterGain", -9.0f);
     break;
   }
-  case 22: // Slow Pad
+  case 23: // Slow Pad
   {
     ap.neutralBase();
 
@@ -2816,6 +2903,7 @@ void apply(APVTS &apvts, int index) {
                  0.4427f, 0.4782f, -0.4782f, -0.5112f, 0.5112f, 0.5422f,
                  -0.5422f, -0.5715f, 0.5715f, 0.5994f, -0.5994f, -0.6261f,
                  0.6261f, 0.6517f, -0.6517f, -0.6763f, 0.6763f, 0.7f, -0.7f});
+    ap.set("masterGain", -9.0f);
     ap.set("track", 2.5f);
     ap.character(Character::Bulb);
     ap.set("wobble", 0.1463f);
@@ -2836,7 +2924,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.015f);
     break;
   }
-  case 23: // Space Flute
+  case 24: // Space Flute
   {
     ap.neutralBase();
 
@@ -2938,12 +3026,14 @@ void apply(APVTS &apvts, int index) {
     ap.set("h31_pan", 1.0f);
     ap.set("h32_decay", 0.0926f);
     ap.set("h32_pan", -1.0f);
+    ap.set("clipType", 2.0f); // Asymmetric
     ap.set("echoAge", 0.4097f);
     ap.set("echoFeedback", 0.7189f);
     ap.set("echoMix", 0.2533f);
     ap.set("echoOn", 1.0f);
     ap.set("echoTime", 0.3583f);
     ap.set("lofiBits", 4.0f);
+    ap.set("masterGain", -6.0f);
     ap.set("noise_attack", 0.0645f);
     ap.set("noise_colour", 0.1192f);
     ap.set("noise_decay", 0.1374f);
@@ -2961,7 +3051,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.2795f);
     break;
   }
-  case 24: // Sparkle Pad
+  case 25: // Sparkle Pad
   {
     ap.neutralBase();
 
@@ -3149,12 +3239,14 @@ void apply(APVTS &apvts, int index) {
     ap.set("h32_amShape", 6.0f);
     ap.set("h32_delay", 0.0009f);
     ap.set("h32_sustain", 0.0f);
+    ap.set("clipType", 2.0f); // Asymmetric
     ap.set("echoAge", 0.5285f);
     ap.set("echoFeedback", 0.9475f);
     ap.set("echoMix", 0.2298f);
     ap.set("echoOn", 1.0f);
     ap.set("echoTime", 0.213f);
     ap.set("lofiBits", 3.0f);
+    ap.set("masterGain", -10.0f);
     ap.set("noise_aftertouch", 0.7961f);
     ap.set("noise_amDepth", 0.5977f);
     ap.set("noise_amRate", 4.6261f);
@@ -3179,7 +3271,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1346f);
     break;
   }
-  case 25: // Stepped
+  case 26: // Stepped
   {
     ap.neutralBase();
 
@@ -3355,6 +3447,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("echoMix", 0.3064f);
     ap.set("echoOn", 1.0f);
     ap.set("echoTime", 0.236f);
+    ap.set("masterGain", -6.0f);
     ap.set("noise_amDepth", 1.0f);
     ap.set("noise_amRate", 0.2139f);
     ap.set("noise_colour", 0.0172f);
@@ -3370,7 +3463,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1661f);
     break;
   }
-  case 26: // Struck Bell
+  case 27: // Struck Bell
   {
     ap.neutralBase();
 
@@ -3396,9 +3489,10 @@ void apply(APVTS &apvts, int index) {
 
     // A small, quick room. Struck things are heard somewhere.
     ap.reverb(0.22f, 1.8f, 0.5f);
+    ap.set("clipType", 1.0f); // Hard
     break;
   }
-  case 27: // StyloPoly
+  case 28: // StyloPoly
   {
     ap.neutralBase();
 
@@ -3446,11 +3540,13 @@ void apply(APVTS &apvts, int index) {
                  0.0443f, 0.1287f, 0.0653f, 0.0906f, 0.0541f, 0.1366f, 0.1482f,
                  0.0762f, 0.0833f, 0.0991f, 0.0809f, 0.0906f, 0.1218f, 0.1214f,
                  0.0997f, 0.1145f, 0.1916f, 0.4775f});
+    ap.set("clipType", 1.0f); // Hard
     ap.set("echoAge", 0.728f);
     ap.set("echoFeedback", 0.1156f);
     ap.set("echoMix", 0.1424f);
     ap.set("echoOn", 1.0f);
     ap.set("echoTime", 0.0632f);
+    ap.set("masterGain", -10.0f);
     ap.set("noise_amShape", 6.0f);
     ap.set("noise_attack", 0.0002f);
     ap.set("noise_colour", 0.1722f);
@@ -3475,7 +3571,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("pmInPhase", 1.0f);
     break;
   }
-  case 28: // Synth Ensemble
+  case 29: // Synth Ensemble
   {
     ap.neutralBase();
 
@@ -3686,7 +3782,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1011f);
     break;
   }
-  case 29: // Tape Choir
+  case 30: // Tape Choir
   {
     ap.neutralBase();
 
@@ -3717,9 +3813,10 @@ void apply(APVTS &apvts, int index) {
     // An old machine: dark, unsteady repeats a beat and a half behind.
     ap.echo(0.33f, 0.5f, 0.55f, 0.8f);
     ap.reverb(0.4f, 4.5f, 0.5f, ReverbType::Plate);
+    ap.set("masterGain", -13.0f);
     break;
   }
-  case 30: // Vibraphone
+  case 31: // Vibraphone
   {
     ap.neutralBase();
 
@@ -3767,6 +3864,7 @@ void apply(APVTS &apvts, int index) {
                  -0.357f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                  0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                  0.0f, 0.0f, 0.0f});
+    ap.set("masterGain", -6.0f);
     ap.set("track", 3.0f);
     ap.character(Character::Opamp);
     ap.set("echoOn", 1.0f);
@@ -3786,7 +3884,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.1882f);
     break;
   }
-  case 31: // Wurli
+  case 32: // Wurli
   {
     ap.neutralBase();
 
@@ -3843,6 +3941,8 @@ void apply(APVTS &apvts, int index) {
                  0.0845f, 0.0222f, 0.067f, 0.0149f, 0.0393f, 0.0231f, 0.0452f,
                  0.0231f, 0.0294f, 0.0175f, 0.0246f, 0.0085f, 0.0115f, 0.0101f,
                  0.0052f, 0.0059f, 0.0071f, 0.005f});
+    ap.set("clipType", 2.0f); // Asymmetric
+    ap.set("masterGain", -7.0f);
     ap.set("stretch", 0.1305f);
     ap.set("track", 3.1f);
     ap.character(Character::Bulb);

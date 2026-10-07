@@ -9,6 +9,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include "../MidiLearn.h"
 #include "ChannelStrip.h"
 #include "LookAndFeel.h"
 #include "Theme.h"
@@ -80,6 +81,29 @@ public:
 
   void paint(juce::Graphics &) override;
   void resized() override;
+
+  /// A right-click on one of the bar's own controls, carrying the parameter
+  /// it moves. The bar puts up no menu itself: what it offers is the editor's
+  /// to decide, the same way the gutter hands back the LINK button's anchor.
+  ///
+  /// Learn items only, with none of the LINK settings the mixer's menu
+  /// carries, since what LINK does is gang channel strips and none of these
+  /// is one.
+  std::function<void(const juce::String &)> onLearnRequested;
+
+  /// Fired when MACROS is clicked, which puts the macro panel up over the
+  /// mixer. On the bar rather than in the gutter because it opens something,
+  /// which is what the two buttons beside it do. See ui::MacroPanel.
+  std::function<void()> onMacrosClicked;
+
+  /// Fired when one of the three tools is chosen from the tool menu.
+  std::function<void(PointerTool)> onToolChosen;
+
+  /// Lights MACROS while its panel is up, and says how many are made.
+  void setMacrosOn(bool);
+  void setMacroCount(int);
+
+  void mouseDown(const juce::MouseEvent &) override;
 
   /// Puts a newer release in the credit line under the wordmark, where the
   /// tagline usually sits, and makes it clickable. Called with an empty
@@ -160,9 +184,18 @@ public:
   /// Shared by the button in the bar and by a right-click anywhere on a strip,
   /// so there is one list rather than two that can drift apart.
   ///
-  /// @param anchor  what to hang the menu off, or nullptr to put it under the
-  ///                pointer.
-  void showLinkMenu(juce::Component *anchor);
+  /// @param anchor       what to hang the menu off, or nullptr to put it
+  ///                      under the pointer.
+  /// @param parameterId   what a right-click landed on, empty when the menu
+  ///                      came from the LINK button instead.
+  /// @param map           where a learned binding goes. Passed in rather than
+  ///                      reached for, since the bar is given its state tree
+  ///                      and not the processor behind it.
+  /// No default for the tool. It had one, and both callers left it out, so
+  /// the menu built itself as though the plain pointer were always chosen:
+  /// a permanent tick on Pointer and LINK's two lists greyed out for good.
+  void showLinkMenu(juce::Component *anchor, const juce::String &parameterId,
+                    MidiLearn *map, PointerTool tool);
 
   /// The bar reflows onto further rows when the groups no longer fit across
   /// one, so nothing has to be dropped on a narrow window. Static because the
@@ -232,6 +265,9 @@ public:
   ///
   /// Built as data for the same reason the settings menu is: a menu that can
   /// only be reached by clicking is a menu that never gets tested.
+  juce::PopupMenu buildClipMenu();
+  void chooseClip(int id);
+
   juce::PopupMenu buildEchoMenu();
 
   /// The same, for the reverb, and for the same two reasons: its on switch
@@ -265,7 +301,14 @@ public:
   ///
   /// Sized for the one word it ever says, at the font a button this short
   /// picks for itself, which is the same 9 px the captions around it use.
-  static constexpr int kClipWidth = 34;
+  /// Wide enough for the longest shape's name rather than for the word CLIP,
+  /// since the button says which machine is running the way the echo's and
+  /// the reverb's do.
+  /// 50 rather than the 62 it had, which was sized for the word LIMITER
+  /// before the button started shortening to LIMIT and ASYM. The widest
+  /// label is now 33 px of text, and the twelve given back go to the
+  /// converter readouts beside it, which need 53 each to name their units.
+  static constexpr int kClipWidth = 50;
 
   /// The one word it ever says. Shared with the tests, which have to pick this
   /// button out of the bar's children: it is the only one that stands in the
@@ -395,7 +438,28 @@ private:
   /// image down to 150 on every repaint would be both slow and soft.
   juce::Image logo, logoScaled;
 
-  juce::TextButton presetButton, settingsButton;
+  /// Fourteen bars, because it has to spell: Glockenspiel and Wurli are not
+  /// things seven can say. The one display on the panel that carries a name
+  /// rather than a number.
+  /// Nine cells, always. Sizing itself to the reading meant the letters grew
+  /// and shrank as presets were loaded, so the same display was a different
+  /// instrument depending on what was in it, and nine is where it looks best:
+  /// wide enough for most of the names whole and narrow enough that the cells
+  /// stay the size they want to be. Longer names are fitted by
+  /// SegmentDisplay::squeeze and shorter ones leave the rest of the cells
+  /// standing unlit, which is what a display with a real number of digits in
+  /// it does.
+  SegmentDisplay presetDisplay{{}, SegmentDisplay::Bars::Fourteen, 9};
+
+  /// The name as it was given, which the display cannot hand back: its cells
+  /// have no lower case and it upper-cases what it is told. Saving a preset
+  /// reads this, and so does the check that decides whether the bar has
+  /// drifted from what is loaded.
+  juce::String presetName;
+
+  /// Icons rather than words, for the reason kGroupMinWidth gives.
+  GlowButton settingsButton, macroButton;
+  int macrosMade = 0;
 
   /// Whether LINK is on. The switch itself is a button in the gutter, since
   /// that is the column the tool belongs to, but what it switches lives here
@@ -418,7 +482,6 @@ private:
   /// attachment's destructor asks the button to stop listening to it. The
   /// sanitizers catch that as a call on an object that is no longer a Button,
   /// and nothing else does: the memory is still there and still looks right.
-  std::unique_ptr<ButtonAttachment> clipAttachment;
 
   /// Likewise. Zoom is set once to suit the screen and then left, and giving
   /// its box back to the bar is what lets the output group keep its readouts

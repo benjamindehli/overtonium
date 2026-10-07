@@ -18,11 +18,88 @@ public:
                         float sliderPos, float minSliderPos, float maxSliderPos,
                         juce::Slider::SliderStyle, juce::Slider &) override;
 
-  /// The face a button stands on, drawn engaged or not.
+  /// Where a cap sits in a block of two sharing one moulding.
   ///
-  /// Split out of drawButtonBackground, which reads the state off the button,
-  /// so that a button whose text carries its state can ask for the unengaged
-  /// face while being engaged. See GlowButton.
+  /// The mute and the solo are a two-gang block, the way a console's are. At
+  /// the size they are drawn, two bezels facing each other across a two pixel
+  /// gap spend most of the pair's width on moulding, and the wall is already
+  /// at its floor, so the only pixels to recover are those two. They stay two
+  /// components, each lighting on its own, and the well is drawn as the whole
+  /// block by both of them: what each one shows of it is its own half,
+  /// because a component clips to itself.
+  enum class LampGang { Alone, Left, Right };
+
+  /// Which half of a gang a button is, from the "lampGang" property it
+  /// carries. Read here rather than passed, so that a button's bounds and its
+  /// moulding cannot be told different things.
+  static LampGang lampGangOf(const juce::Component &);
+
+  /// Puts a pair into one moulding. Order is left to right.
+  static void gangLamps(juce::Component &left, juce::Component &right);
+
+  /// The cap's own rectangle inside a button's bounds, which is what anything
+  /// drawn on the button has to fit: the bezel is part of the component, so a
+  /// word or an icon given the whole bounds runs under the moulding.
+  ///
+  /// A ganged cap gives up only half a wall on the side it joins, the other
+  /// half coming from its neighbour, so the divider between two caps is the
+  /// same width as the moulding around them.
+  static juce::Rectangle<float> lampCapBounds(juce::Rectangle<float> bounds,
+                                              LampGang gang);
+
+  /// The plastic itself, at the middle of the cap where the lamp is behind
+  /// it.
+  ///
+  /// The cap is a white translucent, the same one for every lamp, and what
+  /// a lamp does is shine through it. Unlit, every cap on the panel is
+  /// therefore the same grey, that being what white plastic looks like in an
+  /// unlit room, and the only colour anywhere is what is switched on.
+  static juce::Colour lampFace(juce::Colour lamp, bool on);
+
+  /// What a word or an icon on a cap is drawn in, lit or not.
+  ///
+  /// Always the same near-black, so a legend never changes colour under its
+  /// own lamp. It is printed on the plastic rather than being part of what
+  /// lights, which is what the machines do and what lets the eye read the
+  /// state off the colour of the cap alone.
+  /// A rectangle on whole pixels.
+  ///
+  /// A filled shape wants its edges on the grid: landed between two pixels it
+  /// gets a row of partial coverage all the way round, which comes out darker
+  /// than its face by whatever is behind it and reads as a border nobody drew.
+  /// A stroked edge wants the opposite, which is why the bounds these come
+  /// from are inset by half a pixel in the first place.
+  static juce::Rectangle<float> snapToPixels(juce::Rectangle<float>);
+
+  static juce::Colour lampLegend();
+
+  /// The legend as it actually prints on a lit cap: thinnest over the middle,
+  /// where the lamp is and where most light gets through it, and closing up
+  /// towards the ends. Unlit it is very nearly ink, there being nothing
+  /// behind it to pass.
+  static juce::ColourGradient legendInk(juce::Colour ink,
+                                        juce::Rectangle<float> cap, bool on);
+
+  /// A square plastic cap of the kind a tape machine or a desk has, standing
+  /// in a moulded well and lit from behind when its thing is on.
+  ///
+  /// The cap does not move when the lamp comes on. These are indicator lamps
+  /// rather than latching switches, and a cap that sinks while its thing is
+  /// on says that pressing it is what turns the thing off, which is the wrong
+  /// way round for ECHO or for a mute. @p down is a finger on it and nothing
+  /// else, so the press lasts as long as the press does.
+  ///
+  /// The cap keeps its colour lit or not and only its brightness moves, which
+  /// is what the real ones do: the lamp is behind a coloured plastic, so an
+  /// unlit amber button is brown and an unlit green one is a dark olive
+  /// rather than grey. That is also what makes the off state readable as a
+  /// lamp that could light rather than as a hole.
+  ///
+  /// @param lamp  the colour behind the plastic, lit or not.
+  static void drawLampCap(juce::Graphics &, juce::Rectangle<float> bounds,
+                          juce::Colour lamp, bool on, bool highlighted,
+                          bool down, LampGang gang);
+
   void drawButtonFace(juce::Graphics &, juce::Button &, bool engaged,
                       const juce::Colour &fill, bool highlighted, bool down);
 

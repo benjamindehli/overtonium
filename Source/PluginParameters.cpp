@@ -253,6 +253,178 @@ juce::String oscParamId(const char *suffix, int index0) {
   return "h" + juce::String(index0 + 1).paddedLeft('0', 2) + "_" + suffix;
 }
 
+juce::String macroAmountId(int macro) {
+  return "macro" + juce::String(macro + 1) + "_amount";
+}
+
+juce::String macroRowId(int macro) {
+  return "macro" + juce::String(macro + 1) + "_row";
+}
+
+juce::String macroScopeId(int macro) {
+  return "macro" + juce::String(macro + 1) + "_scope";
+}
+
+juce::String macroCurveId(int macro) {
+  return "macro" + juce::String(macro + 1) + "_curve";
+}
+
+juce::String macroColourId(int macro) {
+  return "macro" + juce::String(macro + 1) + "_colour";
+}
+
+juce::String macroAnchorId(int macro) {
+  return "macro" + juce::String(macro + 1) + "_anchor";
+}
+
+const char *macroScopeName(int scope) {
+  switch ((MacroScope)scope) {
+  case MacroScope::All:
+    return "All";
+  case MacroScope::Odd:
+    return "Odd";
+  case MacroScope::Even:
+    return "Even";
+
+  case MacroScope::Interval:
+    break;
+  }
+
+  // Everything past the three is an interval. Taken from the one table that
+  // names them rather than written again here, and capitalised to sit beside
+  // All, Odd and Even without looking like a different kind of thing. Built
+  // once and kept, since this hands back a pointer that has to outlive it.
+  if (scope >= (int)MacroScope::Interval && scope < kNumMacroScopes) {
+    static const auto capitalised = [] {
+      std::array<juce::String, 12> out;
+
+      for (int i = 0; i < 12; ++i) {
+        out[(size_t)i] = juce::String(intervalName(i));
+        out[(size_t)i] = out[(size_t)i].substring(0, 1).toUpperCase() +
+                         out[(size_t)i].substring(1);
+      }
+
+      return out;
+    }();
+
+    return capitalised[(size_t)(scope - (int)MacroScope::Interval)].toRawUTF8();
+  }
+
+  return "All";
+}
+
+/// Whether a macro reaches this channel.
+bool macroReaches(int scope, int index0) {
+  switch ((MacroScope)scope) {
+  case MacroScope::Odd:
+    return ((index0 + 1) % 2) == 1;
+  case MacroScope::Even:
+    return ((index0 + 1) % 2) == 0;
+
+  case MacroScope::All:
+    return true;
+
+  case MacroScope::Interval:
+    break;
+  }
+
+  // Everything past the three names an interval, and reaches every channel
+  // standing at it: the fifth is harmonics 3, 6, 12 and 24.
+  return harmonicTable()[(size_t)index0].pitchClass ==
+         scope - (int)MacroScope::Interval;
+}
+
+/// This channel's share, from the fundamental outwards.
+///
+/// Taper is measured against the full width of the mixer rather than against
+/// whichever end is nearer, which is what ui::linkCurveWeight does from the
+/// strip under the mouse. A test holds the two together.
+float macroWeight(MacroCurve curve, int index0, int anchor) {
+  if (curve != MacroCurve::Taper)
+    return 1.0f;
+
+  // Measured against the full width of the mixer rather than against
+  // whichever end is nearer, which is what ui::linkCurveWeight does from the
+  // strip under the mouse. A macro has no strip under the mouse, so it is
+  // told which channel to lean on.
+  const auto distance =
+      (float)std::abs(juce::jlimit(0, kNumHarmonics - 1, index0) -
+                      juce::jlimit(0, kNumHarmonics - 1, anchor)) /
+      (float)(kNumHarmonics - 1);
+
+  return 1.0f - distance;
+}
+
+juce::NormalisableRange<float>
+macroRowRange(const juce::AudioProcessorValueTreeState &state, int row) {
+  if (row >= 1 && row <= kNumMacroRows)
+    if (auto *p = dynamic_cast<juce::RangedAudioParameter *>(
+            state.getParameter(oscParamId(kMacroRows[(size_t)(row - 1)], 0))))
+      return p->getNormalisableRange();
+
+  return juce::NormalisableRange<float>(0.0f, 1.0f);
+}
+
+const char *macroColourName(int colour) {
+  static const char *const names[] = {"None",   "Red",    "Orange",
+                                      "Yellow", "Green",  "Cyan",
+                                      "Blue",   "Violet", "Magenta"};
+
+  static_assert((int)(sizeof(names) / sizeof(names[0])) == kNumMacroColours,
+                "every colour a macro can wear has to have a name");
+
+  return names[(size_t)juce::jlimit(0, kNumMacroColours - 1, colour)];
+}
+
+const char *macroCurveName(MacroCurve c) {
+  switch (c) {
+  case MacroCurve::Uniform:
+    return "Uniform";
+  case MacroCurve::Taper:
+    return "Taper";
+
+  case MacroCurve::NumCurves:
+    break;
+  }
+
+  return "Uniform";
+}
+
+/// What a row is called in a macro's own menu.
+///
+/// Spelt here rather than taken from the panel's row labels, which repeat: two
+/// rows are both called "rate" and three are called "depth", which reads fine
+/// under a heading and not at all in a flat list of nineteen.
+const char *macroRowName(int row) {
+  // None first, which is a macro nobody has made yet, so this is one longer
+  // than the list of rows.
+  static const char *const names[] = {"None",
+                                      "Tune",
+                                      "Phase",
+                                      "Pitch mod rate",
+                                      "Pitch mod depth",
+                                      "Drift",
+                                      "Strike",
+                                      "Delay",
+                                      "Attack",
+                                      "Decay",
+                                      "Sustain",
+                                      "Key-off swell",
+                                      "Key-off level",
+                                      "Release",
+                                      "Amp mod rate",
+                                      "Amp mod depth",
+                                      "Velocity",
+                                      "Aftertouch",
+                                      "Pan",
+                                      "Level"};
+
+  static_assert((int)(sizeof(names) / sizeof(names[0])) == kNumMacroRows + 1,
+                "every row a macro can drive has to have a name, and None too");
+
+  return names[(size_t)juce::jlimit(0, kNumMacroRows, row)];
+}
+
 juce::String polyphonyName(int index) {
   if (index == kLegatoIndex)
     return "Legato";
@@ -384,6 +556,72 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
   layout.add(std::make_unique<BoolP>(juce::ParameterID{safetyClipId, 1},
                                      "Safety Clip", true));
+
+  // On, because the limiter without it is a rougher limiter rather than a
+  // broken one and the two milliseconds are worth that to most people. See
+  // params::lookaheadId for why it is a session parameter and not a patch's.
+  layout.add(std::make_unique<BoolP>(juce::ParameterID{lookaheadId, 1},
+                                     "Lookahead", true));
+
+  // ---- the macros ---------------------------------------------------------
+  //
+  // Four parameters each, of which one is the point: the amount is what a
+  // host draws, and the other three say what it reaches. Those three are
+  // parameters rather than state so that they travel with a patch by the
+  // rule everything else follows, and so a preset can define what its macros
+  // do rather than inheriting whatever the last one set.
+  for (int m = 0; m < kNumMacros; ++m) {
+    const auto name = "Macro " + juce::String(m + 1);
+
+    // Bipolar and centred, because a macro that could only push one way would
+    // need the patch dialled at an extreme to be useful in the other.
+    layout.add(std::make_unique<FloatP>(
+        juce::ParameterID{macroAmountId(m), 1}, name,
+        juce::NormalisableRange<float>(-1.0f, 1.0f, 0.0001f), 0.0f));
+
+    // None first, which is what an unmade macro points at. Every one of the
+    // eight starts there, so a fresh instrument has a pool and no macros.
+    juce::StringArray rows;
+    for (int r = 0; r <= kNumMacroRows; ++r)
+      rows.add(macroRowName(r));
+
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{macroRowId(m), 1}, name + " Row", rows, 0));
+
+    juce::StringArray scopes;
+    for (int i = 0; i < kNumMacroScopes; ++i)
+      scopes.add(macroScopeName(i));
+
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{macroScopeId(m), 1}, name + " Scope", scopes, 0));
+
+    juce::StringArray curves;
+    for (int i = 0; i < (int)MacroCurve::NumCurves; ++i)
+      curves.add(macroCurveName((MacroCurve)i));
+
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{macroCurveId(m), 1}, name + " Curve", curves, 0));
+
+    // Visual only, and a parameter anyway, because a preset file carries
+    // parameters and nothing else: a patch that makes four macros has to be
+    // able to say what colour they are. See presets::capture.
+    juce::StringArray colours;
+    for (int i = 0; i < kNumMacroColours; ++i)
+      colours.add(macroColourName(i));
+
+    // Which channel a taper leans on hardest. Numbered as the mixer numbers
+    // its channels rather than from zero, since that is what the person
+    // choosing it is looking at.
+    layout.add(std::make_unique<juce::AudioParameterInt>(
+        juce::ParameterID{macroAnchorId(m), 1}, name + " Anchor", 1,
+        kNumHarmonics, 1));
+
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{macroColourId(m), 1}, name + " Colour", colours,
+        // Each macro starts wearing a different one, so making four in a row
+        // gives four colours without anyone choosing them.
+        1 + m % (kNumMacroColours - 1)));
+  }
 
   // Off by default, because it changes what an incoming channel number means
   // and most keyboards are not saying anything by it. See
@@ -735,6 +973,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::ParameterID{echoTypeId, 1}, "Echo Type", echoTypeChoices,
       (int)EchoType::Tape));
 
+  juce::StringArray clipTypeChoices;
+  for (int i = 0; i < (int)ClipType::NumTypes; ++i)
+    clipTypeChoices.add(clipTypeName((ClipType)i));
+
+  layout.add(std::make_unique<juce::AudioParameterChoice>(
+      juce::ParameterID{clipTypeId, 1}, "Clip Type", clipTypeChoices,
+      (int)ClipType::Soft));
+
   juce::StringArray reverbTypeChoices;
   for (int i = 0; i < (int)ReverbType::NumTypes; ++i)
     reverbTypeChoices.add(reverbTypeName((ReverbType)i));
@@ -764,11 +1010,40 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   tuningRoot = apvts.getRawParameterValue(tuningRootId);
   referenceHz = apvts.getRawParameterValue(referenceHzId);
   safetyClip = apvts.getRawParameterValue(safetyClipId);
+  lookahead = apvts.getRawParameterValue(lookaheadId);
+
+  for (int m = 0; m < kNumMacros; ++m) {
+    auto &cached = macro[(size_t)m];
+
+    cached.amount = apvts.getRawParameterValue(macroAmountId(m));
+    cached.row = apvts.getRawParameterValue(macroRowId(m));
+    cached.scope = apvts.getRawParameterValue(macroScopeId(m));
+    cached.curve = apvts.getRawParameterValue(macroCurveId(m));
+    cached.anchor = apvts.getRawParameterValue(macroAnchorId(m));
+  }
+
+  // Read once here rather than per block. A row's range is a property of the
+  // layout and cannot move while the plugin is running.
+  for (int r = 0; r < kNumMacroRows; ++r) {
+    auto &range = rowRange[(size_t)r];
+    range = juce::NormalisableRange<float>(0.0f, 1.0f);
+
+    // The whole range, not its two ends. Several of these rows are built by
+    // logRange, which carries its curve in conversion functions rather than
+    // in the skew, so a range rebuilt from start and end alone comes back
+    // linear and silently so. That is what made a quarter turn of a macro
+    // add five seconds to a decay: linear in seconds across a range that
+    // spans four orders of magnitude.
+    if (auto *p = dynamic_cast<juce::RangedAudioParameter *>(
+            apvts.getParameter(oscParamId(kMacroRows[(size_t)r], 0))))
+      range = p->getNormalisableRange();
+  }
   mpe = apvts.getRawParameterValue(mpeId);
   lofiRate = apvts.getRawParameterValue(lofiRateId);
   lofiBits = apvts.getRawParameterValue(lofiBitsId);
 
   echo.on = apvts.getRawParameterValue(echoOnId);
+  clipType = apvts.getRawParameterValue(clipTypeId);
   echo.type = apvts.getRawParameterValue(echoTypeId);
   echo.mix = apvts.getRawParameterValue(echoMixId);
   echo.time = apvts.getRawParameterValue(echoTimeId);
@@ -874,6 +1149,67 @@ bool Cache::legatoValue() const {
   return (int)polyphony->load() == kLegatoIndex;
 }
 
+namespace {
+
+/// The field a row writes into, so a macro can offset any of them without a
+/// switch at every call site.
+///
+/// Every row a macro can drive is a plain float with a range, which is the
+/// same restriction LINK works under and for the same reason: there is
+/// nothing to offset on a row of shapes or of mute buttons.
+float *macroField(OscParams &o, int row) {
+  // Shifted by the None the menu opens with, so case 1 is the first
+  // real row. A macro still pointing at None never reaches here.
+  switch (row) {
+  case 1:
+    return &o.tuneBlend;
+  case 2:
+    return &o.startPhase;
+  case 3:
+    return &o.pmRateHz;
+  case 4:
+    return &o.pmDepthCents;
+  case 5:
+    return &o.driftCents;
+  case 6:
+    return &o.strikeAmount;
+  case 7:
+    return &o.delay;
+  case 8:
+    return &o.attack;
+  case 9:
+    return &o.decay;
+  case 10:
+    return &o.sustain;
+  case 11:
+    return &o.swell;
+  case 12:
+    return &o.offLevel;
+  case 13:
+    return &o.release;
+  case 14:
+    return &o.amRateHz;
+  case 15:
+    return &o.amDepth;
+  case 16:
+    return &o.velAmount;
+  case 17:
+    return &o.atAmount;
+  case 18:
+    return &o.pan;
+  case 19:
+    return &o.volume;
+
+  default:
+    return nullptr;
+  }
+}
+
+static_assert(kNumMacroRows == 19,
+              "macroField has a case per row and has to grow with the list");
+
+} // namespace
+
 void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   // Solo spans the noise channel too, so soloing a partial silences the noise
   // and soloing the noise silences the series.
@@ -916,6 +1252,88 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
 
     // Mixer convention: solo isolates, but an explicit mute still wins.
     o.audible = muted ? false : (anySolo ? soloed : true);
+  }
+
+  // ---- the macros ---------------------------------------------------------
+  //
+  // Offsets laid over what the patch says rather than writes into it, which
+  // is the whole point of them: a host draws one lane, 32 channels move, and
+  // nothing in the patch changes. Writing instead would mean 32 parameter
+  // changes per move for the host to catch, which is the problem issue #24
+  // reported rather than a way out of it, and it would overwrite the sound
+  // the macro was supposed to be shaping.
+  //
+  // It also means the knobs do not move when a macro does. That is what a VCA
+  // does, and it is the one thing about these worth knowing in advance.
+  for (int m = 0; m < kNumMacros; ++m) {
+    const auto &cached = macro[(size_t)m];
+
+    if (cached.amount == nullptr)
+      continue;
+
+    const auto amount = cached.amount->load();
+
+    // The common case by far, and the one that has to be free.
+    if (std::abs(amount) < 1.0e-6f)
+      continue;
+
+    const int row =
+        juce::jlimit(0, kNumMacroRows, (int)std::lround(cached.row->load()));
+
+    // Pointing at None, which is what an unmade macro does. Its amount may
+    // well be somewhere other than zero: taking the row away is how a macro
+    // is removed, and the fader it was on keeps wherever it was left.
+    if (row == 0)
+      continue;
+
+    const auto scope = juce::jlimit(0, kNumMacroScopes - 1,
+                                    (int)std::lround(cached.scope->load()));
+    const auto curve =
+        (MacroCurve)juce::jlimit(0, (int)MacroCurve::NumCurves - 1,
+                                 (int)std::lround(cached.curve->load()));
+
+    // Numbered from one on the panel, counted from zero here.
+    const auto anchor = juce::jlimit(
+        0, kNumHarmonics - 1,
+        cached.anchor == nullptr ? 0
+                                 : (int)std::lround(cached.anchor->load()) - 1);
+
+    const auto &range = rowRange[(size_t)(row - 1)];
+
+    for (int i = 0; i < kNumHarmonics; ++i) {
+      if (!macroReaches(scope, i))
+        continue;
+
+      auto *field = macroField(out.osc[(size_t)i], row);
+
+      if (field == nullptr)
+        continue;
+
+      // Shifted across the control's own travel rather than across its units.
+      //
+      // A row's range is rarely linear: decay spans a thousandth of a second
+      // to ten, so adding the same number of seconds is a twentyfold change
+      // at one end of it and a rounding error at the other. Moving a
+      // proportion of the travel instead means a macro does the same thing
+      // to a control wherever that control is set, and it is what lets the
+      // macro's own fader be linear: equal travel there is equal travel
+      // here.
+      //
+      // Clamped to the ends, so a macro takes a control as far as it goes
+      // and no further. Two macros on one row add up and the clamp holds.
+      //
+      // That a patch sitting near an end of its range has a dead stretch of
+      // fader at that end is the price of the amount spanning the whole
+      // travel, and the whole travel is what it has to span: one macro
+      // reaches up to 32 controls which may be set anywhere, so there is no
+      // single sensible fraction of the range to offer instead. Scaling the
+      // amount down would buy resolution for a patch dialled mid-range by
+      // taking reach away from every other one.
+      const auto moved =
+          range.convertTo0to1(*field) + amount * macroWeight(curve, i, anchor);
+
+      *field = range.convertFrom0to1(juce::jlimit(0.0f, 1.0f, moved));
+    }
   }
 
   {
@@ -975,6 +1393,19 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   // it for that reason. See BusDrive::amountFor.
   out.global.busDrive = (float)ovt::BusDrive::amountFor(out.global.character);
   out.global.safetyClip = safetyClip->load() > 0.5f;
+
+  // Older states have no such parameter, so a null pointer means a build
+  // that predates the switch, which had the lookahead and no way to refuse
+  // it.
+  out.global.lookahead = lookahead == nullptr || lookahead->load() > 0.5f;
+
+  // A patch saved before there were types says nothing about one and reads
+  // back as zero, which is the soft clipper it was made on.
+  out.global.clipType =
+      clipType == nullptr
+          ? ClipType::Soft
+          : (ClipType)juce::jlimit(0, (int)ClipType::NumTypes - 1,
+                                   (int)std::lround(clipType->load()));
   out.global.oneVoicePerKey = oneVoicePerKey->load() > 0.5f;
   out.global.pitchModInPhase = pmInPhase->load() > 0.5f;
   out.global.ampModInPhase = amInPhase->load() > 0.5f;
