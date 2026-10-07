@@ -912,12 +912,13 @@ footer a:hover {
     }
 }
 
-/* ---- the same list again, as a rail ---------------------------------------
+/* ---- the masthead as a rail ------------------------------------------------
 
-   Above this width the contents stop being a box at the head of the page and
-   become a column standing beside it, which is what a page long enough to
-   want contents at all wants: somewhere to see where you are without going
-   back to the top.
+   Above this width the masthead stops sitting above the page and stands beside
+   it: the wordmark, the six section links, and under whichever of them is the
+   page you are on, that page's own contents. One list rather than two, so
+   where you are in the site and where you are in the page are the same answer
+   read down a single column.
 
    The page grows by the rail rather than the content shrinking into it. The
    prose is capped at 77ch and would not have noticed either way, but the
@@ -929,49 +930,83 @@ footer a:hover {
    48 of body padding, and a content column still wider than the measure. From
    about 1470 the content is back to its full 1180 and the rail is free.
 
-   :has is doing the work of asking "does this page have contents", and a
-   browser without it simply keeps the box, which is the same thing this
-   degrades to below the breakpoint. That is why the rail is written as the
-   exception rather than the box being written as the fallback. */
+   The grid is on .page rather than on main, because the masthead and the
+   content are siblings there and the rail is the masthead. */
 @media (min-width: 1240px) {
-    .page:has(.contents) {
+    .page {
         max-width: calc(var(--page) + var(--rail) + var(--rail-gap));
-    }
-
-    main:has(> .contents) {
         display: grid;
         grid-template-columns: var(--rail) minmax(0, var(--page));
         column-gap: var(--rail-gap);
         align-items: start;
     }
 
-    main:has(> .contents) > *:not(.contents) {
+    main,
+    footer {
         grid-column: 2;
         min-width: 0;
     }
 
     /* Spanning every row is what gives the sticky position something taller
-       than itself to travel inside. Without it the rail's grid area is one
-       row high and it never moves. */
-    .contents {
+       than itself to travel inside. Without it the rail's grid area is one row
+       high and it never moves. */
+    header,
+    header.nav-only {
         grid-column: 1;
         grid-row: 1 / -1;
         position: sticky;
-        top: 16px;
-        margin: 0;
-        padding: 0;
-        border: 0;
-        border-radius: 0;
-        background: none;
+        top: 20px;
+        padding: 20px 0 0;
 
-        /* The controls page lists twenty-eight headings, which is taller than
-           a short laptop window, so the rail scrolls on its own rather than
-           running off the bottom. */
-        max-height: calc(100vh - 32px);
+        /* The controls page lists twenty-eight headings under its own entry,
+           which is taller than a short laptop window, so the rail scrolls on
+           its own rather than running off the bottom of it. */
+        max-height: calc(100vh - 40px);
         overflow-y: auto;
         overscroll-behavior: contain;
         scrollbar-width: thin;
         scrollbar-color: var(--outline) transparent;
+    }
+
+    .brand img {
+        max-width: 148px;
+    }
+
+    /* A column of links rather than a row, and no rule under it: at this width
+       the rail's own left edge is what separates one thing from the next. */
+    .sections {
+        display: block;
+        margin-top: 26px;
+        border-bottom: 0;
+        border-left: 1px solid var(--outline);
+    }
+
+    .sections > li > a {
+        display: block;
+        padding: 6px 0 6px 14px;
+        margin-left: -1px;
+        border-left: 1px solid transparent;
+        font-size: 14px;
+    }
+
+    .sections > li > a:hover {
+        border-left-color: var(--text-dim);
+    }
+
+    .sections > li > a[aria-current="page"] {
+        color: var(--text);
+        border-left-color: var(--text-dim);
+    }
+
+    /* The contents of the page you are on, under its own entry and indented
+       past it, so the two levels read as one tree rather than as two lists
+       that happen to touch. */
+    .contents {
+        margin: 2px 0 10px;
+        padding: 0 0 0 14px;
+        border: 0;
+        border-radius: 0;
+        background: none;
     }
 
     .contents > ul {
@@ -985,13 +1020,17 @@ footer a:hover {
 
     .contents a {
         display: block;
-        padding: 5px 0 5px 14px;
+        padding: 4px 0 4px 12px;
         margin-left: -1px;
         border-left: 1px solid transparent;
     }
 
+    .contents > ul > li > a {
+        font-size: 12px;
+    }
+
     .contents ul ul {
-        margin: 0 0 0 14px;
+        margin: 0 0 0 12px;
         padding: 0;
         border-left: 0;
     }
@@ -1000,14 +1039,18 @@ footer a:hover {
         margin: 0;
     }
 
+    .contents ul ul a {
+        font-size: 13px;
+    }
+
     .contents a:hover {
         border-left-color: var(--text-dim);
         text-decoration: none;
     }
 
-    /* Where you are. The browser is told with aria-current rather than a
-       class, so the same attribute that draws the marker is the one a screen
-       reader reads, and there is no second thing to keep in step. */
+    /* Where you are in the page. The browser is told with aria-current rather
+       than a class, so the same attribute that draws the marker is the one a
+       screen reader reads, and there is no second thing to keep in step. */
     .contents a[aria-current="location"] {
         color: var(--text);
         border-left-color: var(--accent);
@@ -1015,6 +1058,57 @@ footer a:hover {
 
     .contents > ul > li > a[aria-current="location"] {
         color: var(--accent);
+    }
+}
+
+/* ---- and below that width, the masthead it always was ---------------------
+
+   The six links stay the row they have always been and the contents sit under
+   them as a block, which the nesting gives for free once the active entry
+   stops being a flex item in its own right: display:contents hands its two
+   children straight to the row, order sends the list to the end so the links
+   are not split in half by it, and a full basis puts it on a line of its own.
+
+   A browser without display:contents leaves the pair inside one cramped flex
+   item rather than breaking, which is worth the cheapness of the rest. */
+@media (max-width: 1239px) {
+    .sections > li:has(> .contents) {
+        display: contents;
+    }
+
+    .contents {
+        order: 1;
+        flex-basis: 100%;
+
+        /* The rule that used to underline the row of links moves here, because
+           the contents are inside that row now and a border on the row would
+           be drawn below them. Same line in the same place, hung on the thing
+           that follows it rather than the thing before it, which also means it
+           is absent on the one page with no contents to divide off. */
+        margin: 0;
+        padding: 18px 0 0;
+        border: 0;
+        border-top: 1px solid var(--outline);
+        border-radius: 0;
+        background: none;
+
+        /* Bounded, because the controls page lists twenty-eight headings and a
+           phone would otherwise meet every one of them before a word of the
+           page. Scrolling a contents list is cheaper than scrolling past it. */
+        max-height: 44vh;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+
+    .sections:has(.contents) {
+        border-bottom: 0;
+    }
+
+    /* The front page says its name inside the hero picture, so at this width
+       the wordmark above it would be the second of two. It is in the markup
+       for the rail, which is the one place the hero cannot speak for it. */
+    header.nav-only .brand {
+        display: none;
     }
 }
 
