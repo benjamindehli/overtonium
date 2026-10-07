@@ -22,6 +22,11 @@
     --measure: 77ch;
     --page: 1180px;
 
+    /* The contents rail, on windows wide enough to hold one beside the page
+       rather than instead of part of it. See the .contents rules. */
+    --rail: 196px;
+    --rail-gap: 36px;
+
     /* The one thing on this page the browser draws rather than the stylesheet
        is the audio player, and without this it arrives in light chrome on a
        #0b0d10 ground. Scrollbars and focus rings take their cue from it too. */
@@ -904,6 +909,112 @@ footer a:hover {
 @media (max-width: 620px) {
     .contents > ul {
         columns: 1;
+    }
+}
+
+/* ---- the same list again, as a rail ---------------------------------------
+
+   Above this width the contents stop being a box at the head of the page and
+   become a column standing beside it, which is what a page long enough to
+   want contents at all wants: somewhere to see where you are without going
+   back to the top.
+
+   The page grows by the rail rather than the content shrinking into it. The
+   prose is capped at 77ch and would not have noticed either way, but the
+   controls page carries seven tables that fill whatever they are given and
+   scroll sideways when that is not enough, so taking 230px off them is a cost
+   paid on every one. Opening the page out instead costs nothing but window.
+
+   1240px is where that becomes possible at all: 196 for the rail, 36 between,
+   48 of body padding, and a content column still wider than the measure. From
+   about 1470 the content is back to its full 1180 and the rail is free.
+
+   :has is doing the work of asking "does this page have contents", and a
+   browser without it simply keeps the box, which is the same thing this
+   degrades to below the breakpoint. That is why the rail is written as the
+   exception rather than the box being written as the fallback. */
+@media (min-width: 1240px) {
+    .page:has(.contents) {
+        max-width: calc(var(--page) + var(--rail) + var(--rail-gap));
+    }
+
+    main:has(> .contents) {
+        display: grid;
+        grid-template-columns: var(--rail) minmax(0, var(--page));
+        column-gap: var(--rail-gap);
+        align-items: start;
+    }
+
+    main:has(> .contents) > *:not(.contents) {
+        grid-column: 2;
+        min-width: 0;
+    }
+
+    /* Spanning every row is what gives the sticky position something taller
+       than itself to travel inside. Without it the rail's grid area is one
+       row high and it never moves. */
+    .contents {
+        grid-column: 1;
+        grid-row: 1 / -1;
+        position: sticky;
+        top: 16px;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: none;
+
+        /* The controls page lists twenty-eight headings, which is taller than
+           a short laptop window, so the rail scrolls on its own rather than
+           running off the bottom. */
+        max-height: calc(100vh - 32px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+        scrollbar-color: var(--outline) transparent;
+    }
+
+    .contents > ul {
+        columns: 1;
+        border-left: 1px solid var(--outline);
+    }
+
+    .contents > ul > li {
+        margin: 0;
+    }
+
+    .contents a {
+        display: block;
+        padding: 5px 0 5px 14px;
+        margin-left: -1px;
+        border-left: 1px solid transparent;
+    }
+
+    .contents ul ul {
+        margin: 0 0 0 14px;
+        padding: 0;
+        border-left: 0;
+    }
+
+    .contents ul ul li {
+        margin: 0;
+    }
+
+    .contents a:hover {
+        border-left-color: var(--text-dim);
+        text-decoration: none;
+    }
+
+    /* Where you are. The browser is told with aria-current rather than a
+       class, so the same attribute that draws the marker is the one a screen
+       reader reads, and there is no second thing to keep in step. */
+    .contents a[aria-current="location"] {
+        color: var(--text);
+        border-left-color: var(--accent);
+    }
+
+    .contents > ul > li > a[aria-current="location"] {
+        color: var(--accent);
     }
 }
 

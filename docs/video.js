@@ -1,6 +1,7 @@
-/* The only script on this site, and it exists to keep a promise the markup
-   makes on its own: nothing here reaches a third party until somebody asks it
-   to.
+/* One of the two scripts on this site, and the only one that has to be here:
+   it keeps a promise the markup makes on its own, that nothing reaches a
+   third party until somebody asks it to. The other, contents.js, only marks
+   where you are in a list that already works without it.
 
    A YouTube iframe contacts Google the moment the page carrying it opens,
    whether or not anybody presses play, and sets cookies on the way. So the
