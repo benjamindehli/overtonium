@@ -129,10 +129,50 @@ def faq():
     }
 
 
+def website():
+    return {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "@id": data.BASE + "#website",
+        "url": data.BASE,
+        "name": "Overtonium",
+        "inLanguage": data.LANGUAGE,
+        "publisher": data.PUBLISHER,
+    }
+
+
+def webpage(page):
+    """What this page is and how it hangs together with the rest.
+
+    Each block on its own says one thing. These references are what let a
+    search engine or an answer engine read the site as one connected
+    description: this page belongs to that site, is about that product, sits
+    at this place in the trail and is pictured by that card."""
+    url = data.BASE + page["path"]
+    block = {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        "@id": url + "#webpage",
+        "url": url,
+        "name": fill(page["title"]),
+        "description": fill(page["description"]),
+        "inLanguage": data.LANGUAGE,
+        "isPartOf": {"@id": data.BASE + "#website"},
+        "about": {"@id": data.PRODUCT["@id"]},
+        "primaryImageOfPage": {"@type": "ImageObject", "url": data.BASE + page["image"], "width": 1200, "height": 630},
+    }
+    if page["path"]:
+        block["breadcrumb"] = {"@id": url + "#breadcrumb"}
+    else:
+        block["mainEntity"] = {"@id": data.PRODUCT["@id"]}
+    return block
+
+
 def breadcrumbs(page):
     return {
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",
+        "@id": data.BASE + page["path"] + "#breadcrumb",
         "itemListElement": [
             {"@type": "ListItem", "position": 1, "name": "Overtonium", "item": data.BASE},
             {"@type": "ListItem", "position": 2, "name": page["nav"], "item": data.BASE + page["path"]},
@@ -150,6 +190,7 @@ def video():
     return {
         "@context": "https://schema.org",
         "@type": "VideoObject",
+        "@id": data.BASE + "#video",
         "name": v["name"],
         "description": fill(v["description"]),
         "thumbnailUrl": v["thumbnail"],
@@ -176,7 +217,15 @@ def head(page):
     image = data.BASE + page["image"]
     p = prefix(page)
 
-    blocks = {"product": product, "faq": faq, "breadcrumbs": lambda: breadcrumbs(page), "video": video}
+    blocks = {
+        "website": website,
+        "webpage": lambda: webpage(page),
+        "product": product,
+        "faq": faq,
+        "breadcrumbs": lambda: breadcrumbs(page),
+        "video": video,
+    }
+    names = [name for name in blocks if name == "webpage" or name in page["jsonld"]]
 
     return "\n".join(
         [
@@ -185,15 +234,22 @@ def head(page):
             '<meta name="viewport" content="width=device-width, initial-scale=1" />',
             f"<title>{title}</title>",
             f'<meta name="description" content="{description}" />',
+            f'<meta name="author" content="{esc(data.AUTHOR["name"])}" />',
+            # Lets a result show the card at full width, the whole of a
+            # description and a preview of the video, rather than whatever a
+            # crawler would pick by default.
+            '<meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1" />',
             f'<link rel="canonical" href="{url}" />',
             f'<meta name="theme-color" content="{data.THEME_COLOUR}" />',
             "",
             '<meta property="og:type" content="website" />',
             '<meta property="og:site_name" content="Overtonium" />',
+            f'<meta property="og:locale" content="{data.LANGUAGE.replace("-", "_")}" />',
             f'<meta property="og:url" content="{url}" />',
             f'<meta property="og:title" content="{title}" />',
             f'<meta property="og:description" content="{social}" />',
             f'<meta property="og:image" content="{image}" />',
+            '<meta property="og:image:type" content="image/jpeg" />',
             '<meta property="og:image:width" content="1200" />',
             '<meta property="og:image:height" content="630" />',
             f'<meta property="og:image:alt" content="{esc(page["image_alt"])}" />',
@@ -202,12 +258,13 @@ def head(page):
             f'<meta name="twitter:title" content="{title}" />',
             f'<meta name="twitter:description" content="{social}" />',
             f'<meta name="twitter:image" content="{image}" />',
+            f'<meta name="twitter:image:alt" content="{esc(page["image_alt"])}" />',
             "",
             f'<link rel="icon" href="{p}dehli-musikk.svg" />',
             f'<link rel="apple-touch-icon" href="{p}apple-touch-icon.png" />',
             f'<link rel="stylesheet" href="{p}style.css" />',
             *[f'<script src="{p}{script}" defer></script>' for script in page["scripts"]],
-            *[jsonld(blocks[name]()) for name in page["jsonld"]],
+            *[jsonld(blocks[name]()) for name in names],
             "</head>",
         ]
     )
@@ -392,6 +449,8 @@ def replace(text, opening, closing, new, path, required=True):
 def build(page, text, path):
     main = text[text.index("<main"):text.index("</main>")]
     not_found = page is data.NOT_FOUND
+
+    text = replace(text, r"<html\b", ">", f'<html lang="{data.LANGUAGE}">', path)
 
     text = replace(text, r"<head>", "</head>", head_not_found() if not_found else head(page), path)
     text = replace(text, r"<header\b", "</header>", header(page, main), path)

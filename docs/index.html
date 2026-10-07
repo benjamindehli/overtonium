@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-GB">
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -8,11 +8,14 @@
             name="description"
             content="A free additive synthesiser laid out like a 32-channel mixer, one sine partial per channel, with TUNE sweeping between equal and just. VST3, AU and LV2."
         />
+        <meta name="author" content="Benjamin Dehli" />
+        <meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
         <link rel="canonical" href="https://benjamindehli.github.io/overtonium/" />
         <meta name="theme-color" content="#0b0d10" />
 
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="Overtonium" />
+        <meta property="og:locale" content="en_GB" />
         <meta property="og:url" content="https://benjamindehli.github.io/overtonium/" />
         <meta property="og:title" content="Overtonium, a free 32-partial additive synthesiser plugin" />
         <meta
@@ -20,6 +23,7 @@
             content="A free additive synthesiser laid out like a 32-channel mixer. Every channel is one sine partial with its own tuning, envelope, modulation and pan, and TUNE sweeps the whole series between equal temperament and just intonation. VST3, AU and LV2 for macOS, Windows and Linux."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card.jpg" />
+        <meta property="og:image:type" content="image/jpeg" />
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
         <meta
@@ -34,12 +38,58 @@
             content="A free additive synthesiser laid out like a 32-channel mixer. Every channel is one sine partial with its own tuning, envelope, modulation and pan, and TUNE sweeps the whole series between equal temperament and just intonation. VST3, AU and LV2 for macOS, Windows and Linux."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card.jpg" />
+        <meta
+            name="twitter:image:alt"
+            content="The Overtonium wordmark over the plugin window: rows of per-partial knobs above 32 channel faders and lit meters."
+        />
 
         <link rel="icon" href="dehli-musikk.svg" />
         <link rel="apple-touch-icon" href="apple-touch-icon.png" />
         <link rel="stylesheet" href="style.css" />
         <script src="video.js" defer></script>
         <script src="contents.js" defer></script>
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@type": "WebSite",
+                "@id": "https://benjamindehli.github.io/overtonium/#website",
+                "url": "https://benjamindehli.github.io/overtonium/",
+                "name": "Overtonium",
+                "inLanguage": "en-GB",
+                "publisher": {
+                    "@type": "Organization",
+                    "@id": "https://www.dehlimusikk.no/",
+                    "name": "Dehli Musikk",
+                    "url": "https://www.dehlimusikk.no/"
+                }
+            }
+        </script>
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@type": "WebPage",
+                "@id": "https://benjamindehli.github.io/overtonium/#webpage",
+                "url": "https://benjamindehli.github.io/overtonium/",
+                "name": "Overtonium, a free 32-partial additive synthesiser plugin",
+                "description": "A free additive synthesiser laid out like a 32-channel mixer, one sine partial per channel, with TUNE sweeping between equal and just. VST3, AU and LV2.",
+                "inLanguage": "en-GB",
+                "isPartOf": {
+                    "@id": "https://benjamindehli.github.io/overtonium/#website"
+                },
+                "about": {
+                    "@id": "https://www.dehlimusikk.no/products/overtonium/#product"
+                },
+                "primaryImageOfPage": {
+                    "@type": "ImageObject",
+                    "url": "https://benjamindehli.github.io/overtonium/overtonium-card.jpg",
+                    "width": 1200,
+                    "height": 630
+                },
+                "mainEntity": {
+                    "@id": "https://www.dehlimusikk.no/products/overtonium/#product"
+                }
+            }
+        </script>
         <script type="application/ld+json">
             {
                 "@context": "https://schema.org",
@@ -64,6 +114,11 @@
                 "downloadUrl": "https://benjamindehli.github.io/overtonium/install/#downloads",
                 "installUrl": "https://benjamindehli.github.io/overtonium/install/#downloads",
                 "programmingLanguage": "C++",
+                "releaseNotes": "https://benjamindehli.github.io/overtonium/releases/",
+                "softwareHelp": {
+                    "@type": "CreativeWork",
+                    "url": "https://benjamindehli.github.io/overtonium/controls/"
+                },
                 "softwareVersion": "1.11.0",
                 "datePublished": "2026-10-07",
                 "offers": {
@@ -74,12 +129,14 @@
                 "author": {
                     "@type": "Person",
                     "@id": "https://musicbrainz.org/artist/56639e59-2bb5-40bd-9d5a-97d964298b6f",
-                    "name": "Benjamin Dehli"
+                    "name": "Benjamin Dehli",
+                    "url": "https://github.com/benjamindehli"
                 },
                 "publisher": {
                     "@type": "Organization",
                     "@id": "https://www.dehlimusikk.no/",
-                    "name": "Dehli Musikk"
+                    "name": "Dehli Musikk",
+                    "url": "https://www.dehlimusikk.no/"
                 },
                 "featureList": [
                     "32 sine partials plus a noise channel",
@@ -155,6 +212,105 @@
                             "@type": "Answer",
                             "text": "Eight voices of 32 partials each, with every modulator running, costs about 7% of one core, and sixteen voices about 14%. Turning the render rate down is a real saving: at 8 kHz the whole voice pool costs a fifth as much. The figures in full are on the install page."
                         }
+                    }
+                ]
+            }
+        </script>
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@type": "VideoObject",
+                "@id": "https://benjamindehli.github.io/overtonium/#video",
+                "name": "Overtonium - Sound Examples",
+                "description": "Eleven of the thirty-three factory presets in Overtonium, played on an Expressive E Osmose with nothing on the output but the plugin's own effects.",
+                "thumbnailUrl": "https://benjamindehli.github.io/overtonium/overtonium-video.webp",
+                "uploadDate": "2026-09-26",
+                "duration": "PT11M14S",
+                "contentUrl": "https://www.youtube.com/watch?v=L1oYdPxGlGA",
+                "embedUrl": "https://www.youtube.com/embed/L1oYdPxGlGA",
+                "author": {
+                    "@type": "Person",
+                    "@id": "https://musicbrainz.org/artist/56639e59-2bb5-40bd-9d5a-97d964298b6f",
+                    "name": "Benjamin Dehli",
+                    "url": "https://github.com/benjamindehli"
+                },
+                "hasPart": [
+                    {
+                        "@type": "Clip",
+                        "name": "Synth Ensemble",
+                        "startOffset": 0,
+                        "endOffset": 124,
+                        "url": "https://www.youtube.com/watch?v=L1oYdPxGlGA&t=0s"
+                    },
+                    {
+                        "@type": "Clip",
+                        "name": "Metallic Piano",
+                        "startOffset": 124,
+                        "endOffset": 175,
+                        "url": "https://www.youtube.com/watch?v=L1oYdPxGlGA&t=124s"
+                    },
+                    {
+                        "@type": "Clip",
+                        "name": "Dream Phase",
+                        "startOffset": 175,
+                        "endOffset": 244,
+                        "url": "https://www.youtube.com/watch?v=L1oYdPxGlGA&t=175s"
+                    },
+                    {
+                        "@type": "Clip",
+                        "name": "FM Piano",
+                        "startOffset": 244,
+                        "endOffset": 347,
+                        "url": "https://www.youtube.com/watch?v=L1oYdPxGlGA&t=244s"
+                    },
+                    {
+                        "@type": "Clip",
+                        "name": "Sparkle Pad",
+                        "startOffset": 347,
+                        "endOffset": 416,
+                        "url": "https://www.youtube.com/watch?v=L1oYdPxGlGA&t=347s"
+                    },
+                    {
+                        "@type": "Clip",
+                        "name": "Dire Dire EP",
+                        "startOffset": 416,
+                        "endOffset": 426,
+                        "url": "https://www.youtube.com/watch?v=L1oYdPxGlGA&t=416s"
+                    },
+                    {
+                        "@type": "Clip",
+                        "name": "Music Box",
+                        "startOffset": 426,
+                        "endOffset": 445,
+                        "url": "https://www.youtube.com/watch?v=L1oYdPxGlGA&t=426s"
+                    },
+                    {
+                        "@type": "Clip",
+                        "name": "Stepped",
+                        "startOffset": 445,
+                        "endOffset": 512,
+                        "url": "https://www.youtube.com/watch?v=L1oYdPxGlGA&t=445s"
+                    },
+                    {
+                        "@type": "Clip",
+                        "name": "Wurli",
+                        "startOffset": 512,
+                        "endOffset": 525,
+                        "url": "https://www.youtube.com/watch?v=L1oYdPxGlGA&t=512s"
+                    },
+                    {
+                        "@type": "Clip",
+                        "name": "Lo-fi",
+                        "startOffset": 525,
+                        "endOffset": 603,
+                        "url": "https://www.youtube.com/watch?v=L1oYdPxGlGA&t=525s"
+                    },
+                    {
+                        "@type": "Clip",
+                        "name": "Nylon EP",
+                        "startOffset": 603,
+                        "endOffset": 674,
+                        "url": "https://www.youtube.com/watch?v=L1oYdPxGlGA&t=603s"
                     }
                 ]
             }

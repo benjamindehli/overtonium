@@ -28,16 +28,22 @@ ROOT_PATH = "/overtonium/"
 
 THEME_COLOUR = "#0b0d10"
 
+# The prose is British English, which is what a screen reader should speak it
+# in and what a search engine should file it under.
+LANGUAGE = "en-GB"
+
 AUTHOR = {
     "@type": "Person",
     "@id": "https://musicbrainz.org/artist/56639e59-2bb5-40bd-9d5a-97d964298b6f",
     "name": "Benjamin Dehli",
+    "url": "https://github.com/benjamindehli",
 }
 
 PUBLISHER = {
     "@type": "Organization",
     "@id": "https://www.dehlimusikk.no/",
     "name": "Dehli Musikk",
+    "url": "https://www.dehlimusikk.no/",
 }
 
 # One description of the instrument, for every page that carries one. The
@@ -66,6 +72,8 @@ PRODUCT = {
     "downloadUrl": BASE + "install/#downloads",
     "installUrl": BASE + "install/#downloads",
     "programmingLanguage": "C++",
+    "releaseNotes": BASE + "releases/",
+    "softwareHelp": {"@type": "CreativeWork", "url": BASE + "controls/"},
     # Filled in by the generator: the version from CMakeLists, the day from
     # RELEASED.
     "softwareVersion": None,
@@ -176,8 +184,9 @@ FOOTER_LINKS = [
 #   image        the card a shared link carries, 1200 by 630
 #   image_alt    what that card shows
 #   scripts      deferred, in this order
-#   jsonld       the structured blocks, in this order: product, faq,
-#                breadcrumbs, video
+#   jsonld       the structured blocks besides the page's own, in this order:
+#                website, product, faq, breadcrumbs, video. Every page also
+#                gets a WebPage block tying it to the site and the product.
 #   onward       the links at the foot of the page, the first one primary
 #   card         its card under "Where to go next" on the front page
 #   card_404     its card on the page-not-found page, which lists them all
@@ -194,7 +203,7 @@ PAGES = [
         "image": "overtonium-card.jpg",
         "image_alt": "The Overtonium wordmark over the plugin window: rows of per-partial knobs above 32 channel faders and lit meters.",
         "scripts": ["video.js", "contents.js"],
-        "jsonld": ["product", "faq"],
+        "jsonld": ["website", "product", "faq", "video"],
         "onward": [],
         "card": None,
         "card_404": "What Overtonium is, what it sounds like, and where it came from.",
