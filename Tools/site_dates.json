@@ -1,6 +1,6 @@
 {
     "": {
-        "words": "25ac0683b31d5ef5",
+        "words": "bcd8b2585ef0fb89",
         "modified": "2026-10-07"
     },
     "tuning/": {
@@ -8,7 +8,7 @@
         "modified": "2026-09-11"
     },
     "controls/": {
-        "words": "8b065ff9a5fb19c8",
+        "words": "0a0e68b65f5a5005",
         "modified": "2026-10-07"
     },
     "presets/": {
@@ -21,6 +21,14 @@
     },
     "releases/": {
         "words": "a77b24d2897b474f",
+        "modified": "2026-10-07"
+    },
+    "effects/": {
+        "words": "5dca1d0016540fe3",
+        "modified": "2026-10-07"
+    },
+    "playing/": {
+        "words": "34b7025778386600",
         "modified": "2026-10-07"
     }
 }

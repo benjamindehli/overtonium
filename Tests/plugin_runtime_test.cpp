@@ -231,7 +231,7 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
 
 /// Every parameter the host sees, one JSON object per line, in the order the
 /// host lists them. docs/parameters.json is this, and the parameter list on
-/// the controls page is built from that file by Tools/build_site.py, so the
+/// the playing page is built from that file by Tools/build_site.py, so the
 /// site cannot describe a parameter that does not exist or miss one that
 /// does.
 ///

@@ -1,4 +1,4 @@
-"""Composes the five social cards from the layered artwork.
+"""Composes the seven social cards from the layered artwork.
 
 The cards are the `og:image` files, so nothing but a link preview ever loads
 them and nothing on the site would look wrong if they went stale. They have,
@@ -7,13 +7,16 @@ afternoon of measuring the old ones.
 
 It needs the masters, which are not in the repository: `background.png` and
 `text.png` are hand-composed artwork rather than anything a build can
-produce, and `caption-*.png` are the four captions, lifted off the cards as
-they stood in 1.8.0 because they were set in a face this machine has not got.
-All of them live beside each other outside the tree. Point ART at them.
+produce, and `caption-*.png` are the captions. Four were lifted off the cards
+as they stood in 1.8.0. The face is DejaVu Sans at 30 px, centred on 600 with
+its baseline at 430: rendered that way, all four come back within one level in
+255 of the lifted ones, so a new caption is rendered with Pillow to the same
+numbers and saved beside them, as Effects and Playing were. All of them live
+beside each other outside the tree. Point ART at them.
 
 Needs Pillow and NumPy. Run it from anywhere:
 
-    python3 Tools/compose_cards.py            # writes the five cards
+    python3 Tools/compose_cards.py            # writes the seven cards
     python3 Tools/compose_cards.py --check d  # against the set in d
 """
 
@@ -52,7 +55,7 @@ PAGE_MARK_Y = 197
 # The site's --text, which is what the captions were set in.
 CAPTION_COLOUR = np.array([217.0, 223.0, 231.0])
 
-PAGES = ["controls", "tuning", "presets", "install"]
+PAGES = ["controls", "effects", "playing", "tuning", "presets", "install"]
 
 
 def background(master):
@@ -94,7 +97,7 @@ def with_caption(bg, matte):
 
 
 def build(master):
-    """The five cards, by the name each one is written under."""
+    """The seven cards, by the name each one is written under."""
     bg = background(master)
 
     cards = {"overtonium-card.jpg": with_mark(bg, FRONT_MARK_W, FRONT_MARK_Y)}
@@ -112,8 +115,9 @@ def build(master):
 
 def save(arr, path):
     """Writes a card with the tables the card it replaces was written with, so
-    nothing about the encoding changes but the picture."""
-    old = Image.open(path)
+    nothing about the encoding changes but the picture. A new card takes the
+    controls card's, which is the same kind of picture."""
+    old = Image.open(path if os.path.exists(path) else os.path.join(REPO, "docs", "overtonium-card-controls.jpg"))
     old.load()
 
     Image.fromarray(np.clip(arr + 0.5, 0, 255).astype(np.uint8)).save(

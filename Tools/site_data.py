@@ -149,13 +149,13 @@ QUESTIONS = [
     ),
     (
         "Does Overtonium support MPE?",
-        'Yes. With <a href="controls/#mpe">MPE</a> switched on, pitch bend and pressure arrive per note, and pressure has its own amount on '
+        'Yes. With <a href="playing/#mpe">MPE</a> switched on, pitch bend and pressure arrive per note, and pressure has its own amount on '
         "every one of the 33 channels. An ordinary single-channel keyboard plays either way.",
     ),
     (
         "Can I play Overtonium from a MIDI controller?",
-        'Yes. Right-click any control, choose <a href="controls/#midi-learn">MIDI Learn</a> and move a knob or fader on the controller. The '
-        'map is saved with your project rather than with the preset. A <a href="controls/#macros">macro</a> moves a whole row from one '
+        'Yes. Right-click any control, choose <a href="playing/#midi-learn">MIDI Learn</a> and move a knob or fader on the controller. The '
+        'map is saved with your project rather than with the preset. A <a href="playing/#macros">macro</a> moves a whole row from one '
         "parameter, so one controller or one automation lane can reach up to 32 controls at once.",
     ),
     (
@@ -232,18 +232,50 @@ PAGES = [
     {
         "path": "controls/",
         "nav": "Controls",
-        "title": "Overtonium controls: every knob on a channel and on the bar",
-        "description": "A reference for every Overtonium control: the 32 channel strips, envelopes, LINK, MPE, macros, MIDI Learn, the Settings menu and the effects on the bar.",
-        "social": "A reference for every Overtonium control: the twenty-three on each of the 32 channel strips, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, MPE, everything in the Settings menu, MIDI Learn, macros, how the {parameters} parameters are named for a host, and the bus drive, wobble, echo, reverb, converter and output stage on the bar.",
+        "title": "Overtonium controls: every knob on a channel strip",
+        "description": "Every control on an Overtonium channel strip: tuning, the two-part envelope, modulation, velocity and pressure, LINK, the lamps and meters, and the noise channel.",
+        "social": "A reference for every control on an Overtonium channel strip: the twenty-three on each of the 32 channels, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, the gestures the panel answers to, and the noise channel.",
         "image": "overtonium-card-controls.jpg",
         "image_alt": "The Overtonium wordmark over the plugin window, captioned Controls.",
+        "scripts": ["contents.js", "moved.js"],
+        "jsonld": ["breadcrumbs"],
+        "onward": [("effects/", "Effects"), ("tuning/", "Tuning")],
+        "card": "Every knob on a channel strip, then the effects on the bar and how to play it from a keyboard, a host or a controller.",
+        "card_404": "Every knob on a channel strip.",
+        "llms": "every knob on a channel strip, the two-part envelope, per-partial velocity and pressure, LINK for ganging the 32 channels, the lamps and meters, the gestures the panel answers to, and the noise channel.",
+        "priority": "0.8",
+    },
+    {
+        "path": "effects/",
+        "nav": "Effects",
+        "title": "Overtonium effects: character, echo, reverb, converter and CLIP",
+        "description": "The Overtonium effects and global controls: six oscillator characters, wobble, bus drive, three echoes, three reverbs, a lo-fi converter and five clip shapes.",
+        "social": "The bar across the top of Overtonium: six oscillator characters that say which circuit every partial is, a wobble under the whole series, a bus drive that answers how hard you play, an echo and a reverb that are each one of three machines, a lo-fi converter, and an output stage of five clip shapes including a lookahead limiter.",
+        "image": "overtonium-card-effects.jpg",
+        "image_alt": "The Overtonium wordmark over the plugin window, captioned Effects.",
         "scripts": ["contents.js"],
         "jsonld": ["breadcrumbs"],
-        "onward": [("presets/", "Presets"), ("tuning/", "Tuning")],
-        "card": "Every knob on a channel and on the bar: which oscillator the partials are, envelopes, modulation, ganging, the lamps and meters, macros, MIDI Learn, and the master effects.",
-        "card_404": "Every knob on a channel and on the bar.",
-        "llms": 'every knob on a channel strip and on the global bar, the oscillator character, the two-part envelope, per-partial velocity and pressure, LINK for ganging the 32 channels, the lamps and meters, the noise channel and MPE, the gestures the panel answers to and every entry in the Settings menu with its default, macros, MIDI Learn, the five CLIP shapes on the output, how the {parameters} host parameters are named and why automation survives a release that adds more, and a diagram of the order the signal passes through.',
-        "priority": "0.8",
+        "onward": [("playing/", "Playing"), ("controls/", "Controls")],
+        "card": None,
+        "card_404": "The bar: character, wobble, echo, reverb, the converter and CLIP.",
+        "llms": "the bar across the top: the six oscillator characters, wobble, bus drive, the echo and the reverb with their three machines each, the converter, the five CLIP shapes on the output and the lookahead limiter, the output meter, and a diagram of the order the signal passes through.",
+        "priority": "0.7",
+    },
+    {
+        "path": "playing/",
+        "nav": "Playing",
+        "title": "Playing Overtonium: MPE, automation, macros and MIDI Learn",
+        "description": "Playing Overtonium: MPE, legato, the Settings menu, automation with all {parameters} host parameters listed, eight macros and MIDI Learn on every control.",
+        "social": "MPE with pitch bend and pressure per note, legato, every entry in the Settings menu, automating Overtonium from a host with all {parameters} parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control.",
+        "image": "overtonium-card-playing.jpg",
+        "image_alt": "The Overtonium wordmark over the plugin window, captioned Playing.",
+        "scripts": ["contents.js"],
+        "jsonld": ["breadcrumbs"],
+        "onward": [("presets/", "Presets"), ("effects/", "Effects")],
+        "card": None,
+        "card_404": "MPE, the Settings menu, automation, macros and MIDI Learn.",
+        "llms": "MPE, legato, every entry in the Settings menu with its default, how the {parameters} host parameters are named and why automation survives a release that adds more, every one of them listed with its id, range and default, macros, and MIDI Learn.",
+        "priority": "0.7",
     },
     {
         "path": "presets/",
@@ -348,6 +380,12 @@ LLMS_FACTS = [
     ('Audio examples', 'every section of the tuning page can be heard, and so can every factory preset. Just Saw against Equal Saw and the TUNE sweep between them, a STRETCH sweep from harmonic out past a piano, one chord in equal against Werckmeister III, a run up the keyboard with tracking off and on, a held chord with and without drift, and all {presets} presets playing the same spread C major. They are rendered by the plugin rather than recorded, so they cannot drift from what it does.'),
     ('Privacy', 'nothing reaches the network unless the update check is switched on, which is off by default and offered once.'),
 ]
+
+# Sections that have moved to another page. A link to one of them at its old
+# address, from a search result, a forum or an old release note, is sent on to
+# where it lives now by moved.js, which is written from this and from the ids
+# on each new page. Without the script it lands at the top of the old page.
+MOVED = {"controls/": ["effects/", "playing/"]}
 
 NOT_FOUND = {
     "file": "404.html",

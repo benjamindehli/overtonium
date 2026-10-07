@@ -1,0 +1,1121 @@
+<!doctype html>
+<html lang="en-GB">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Playing Overtonium: MPE, automation, macros and MIDI Learn</title>
+        <meta
+            name="description"
+            content="Playing Overtonium: MPE, legato, the Settings menu, automation with all 836 host parameters listed, eight macros and MIDI Learn on every control."
+        />
+        <meta name="author" content="Benjamin Dehli" />
+        <meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+        <link rel="canonical" href="https://benjamindehli.github.io/overtonium/playing/" />
+        <meta name="theme-color" content="#0b0d10" />
+
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Overtonium" />
+        <meta property="og:locale" content="en_GB" />
+        <meta property="og:url" content="https://benjamindehli.github.io/overtonium/playing/" />
+        <meta property="og:title" content="Playing Overtonium: MPE, automation, macros and MIDI Learn" />
+        <meta
+            property="og:description"
+            content="MPE with pitch bend and pressure per note, legato, every entry in the Settings menu, automating Overtonium from a host with all 836 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
+        />
+        <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-playing.jpg" />
+        <meta property="og:image:type" content="image/jpeg" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:alt" content="The Overtonium wordmark over the plugin window, captioned Playing." />
+
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Playing Overtonium: MPE, automation, macros and MIDI Learn" />
+        <meta
+            name="twitter:description"
+            content="MPE with pitch bend and pressure per note, legato, every entry in the Settings menu, automating Overtonium from a host with all 836 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
+        />
+        <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-playing.jpg" />
+        <meta name="twitter:image:alt" content="The Overtonium wordmark over the plugin window, captioned Playing." />
+
+        <link rel="icon" href="../dehli-musikk.svg" />
+        <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
+        <link rel="stylesheet" href="../style.css" />
+        <script src="../contents.js" defer></script>
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@type": "WebPage",
+                "@id": "https://benjamindehli.github.io/overtonium/playing/#webpage",
+                "url": "https://benjamindehli.github.io/overtonium/playing/",
+                "name": "Playing Overtonium: MPE, automation, macros and MIDI Learn",
+                "description": "Playing Overtonium: MPE, legato, the Settings menu, automation with all 836 host parameters listed, eight macros and MIDI Learn on every control.",
+                "inLanguage": "en-GB",
+                "isPartOf": {
+                    "@id": "https://benjamindehli.github.io/overtonium/#website"
+                },
+                "about": {
+                    "@id": "https://www.dehlimusikk.no/products/overtonium/#product"
+                },
+                "primaryImageOfPage": {
+                    "@type": "ImageObject",
+                    "url": "https://benjamindehli.github.io/overtonium/overtonium-card-playing.jpg",
+                    "width": 1200,
+                    "height": 630
+                },
+                "dateModified": "2026-10-07",
+                "breadcrumb": {
+                    "@id": "https://benjamindehli.github.io/overtonium/playing/#breadcrumb"
+                }
+            }
+        </script>
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@type": "BreadcrumbList",
+                "@id": "https://benjamindehli.github.io/overtonium/playing/#breadcrumb",
+                "itemListElement": [
+                    {
+                        "@type": "ListItem",
+                        "position": 1,
+                        "name": "Overtonium",
+                        "item": "https://benjamindehli.github.io/overtonium/"
+                    },
+                    {
+                        "@type": "ListItem",
+                        "position": 2,
+                        "name": "Playing",
+                        "item": "https://benjamindehli.github.io/overtonium/playing/"
+                    }
+                ]
+            }
+        </script>
+    </head>
+    <body>
+        <a class="skip" href="#main">Skip to the content</a>
+
+        <div class="page">
+            <header>
+                <p class="brand">
+                    <a href="../"><img class="wordmark" src="../overtonium-wordmark.webp" width="2464" height="448" alt="Overtonium" /></a>
+                </p>
+
+                <nav aria-label="Sections">
+                    <ul class="sections">
+                        <li><a href="../">Overview</a></li>
+                        <li><a href="../tuning/">Tuning</a></li>
+                        <li><a href="../controls/">Controls</a></li>
+                        <li><a href="../effects/">Effects</a></li>
+                        <li>
+                            <a href="../playing/" aria-current="page">Playing</a>
+                            <nav class="contents" aria-label="On this page">
+                                <ul>
+                                    <li><a href="#mpe">MPE</a></li>
+                                    <li><a href="#legato">Legato</a></li>
+                                    <li><a href="#settings">The Settings menu</a></li>
+                                    <li>
+                                        <a href="#automation">Automating it from the host</a>
+                                        <ul>
+                                            <li><a href="#every-parameter">Every parameter</a></li>
+                                        </ul>
+                                    </li>
+                                    <li><a href="#macros">Macros</a></li>
+                                    <li><a href="#midi-learn">Playing it from a controller</a></li>
+                                </ul>
+                            </nav>
+                        </li>
+                        <li><a href="../presets/">Presets</a></li>
+                        <li><a href="../install/">Install</a></li>
+                        <li><a href="../releases/">Releases</a></li>
+                    </ul>
+                </nav>
+            </header>
+
+            <main id="main" tabindex="-1">
+                <p class="crumbs"><a href="../">Overtonium</a> / Playing</p>
+
+                <h1>Playing</h1>
+
+                <p class="lead">
+                    How the instrument is played and driven from outside the window: MPE and legato, the Settings menu, automating it from a host with
+                    every parameter listed, macros that move a whole row from one control, and MIDI Learn for playing it from a controller.
+                </p>
+
+                <section id="mpe">
+                    <h2>MPE</h2>
+
+                    <p>
+                        Off by default, and under Settings. With it on, a controller that gives every note its own MIDI channel can bend and press
+                        each note separately, which on this instrument means each finger gets its own copy of all 33 aftertouch destinations. Press
+                        into one note in a chord and only that note's upper partials come in.
+                    </p>
+
+                    <p>
+                        Slide, the forward and back axis under a finger, has a destination of its own under Settings. By default it moves that note's
+                        brightness, thinning or opening the top of the series, which is what a player's hands expect from that axis. It can be aimed
+                        at the tuning instead, so that pushing one finger forward slides that note alone
+                        <a href="../tuning/">between equal temperament and just intonation</a>
+                        while the rest of the chord stays where it is. A keyboard with no slide axis sends nothing and changes nothing.
+                    </p>
+
+                    <p>
+                        It is read as movement rather than as a position: the first value a note is given becomes that note's nought, and what reaches
+                        the sound is how far the axis has travelled from it since. Controllers disagree about what the axis is, which is why. A
+                        Seaboard reports where the finger sits and rests at the centre, while an Expressive E Osmose spends the first part of the key
+                        travel on pressure and only then starts sending slide, from the bottom of its range upward. Read as a position that second
+                        kind lurches the moment the axis engages. Read as movement both start the note on the patch and follow the finger from there.
+                    </p>
+
+                    <p>
+                        The travel is scaled so that the longer of the two directions away from the rest is the whole of the slide, and both
+                        directions move at that one rate. A rest near the bottom of the axis leaves very little travel underneath it, and giving that
+                        sliver a scale of its own would make it a hair-trigger: pressing in would feel smooth while coming back out snapped to dark.
+                        The short side keeps the long side's sensitivity and simply reaches less far, which is honest, since there is less of it.
+                    </p>
+
+                    <p>
+                        It is a setting rather than something permanently on because it changes what a channel number means. With it off, a channel is
+                        ignored: a key-up on channel 7 releases a note that went down on channel 1, which is what a single-channel keyboard needs.
+                        With it on, the channel is part of who the note is, so the same key can be held twice on two channels, bent in two directions,
+                        as two voices rather than one retriggering the other.
+                    </p>
+                </section>
+
+                <section id="legato">
+                    <h2>Legato</h2>
+
+                    <p>
+                        The first entry in the polyphony list, above <strong>1 voice</strong>, and the one setting where the instrument is not
+                        polyphonic at all. One voice, and pressing a key while another is still held moves the note rather than starting it again: the
+                        envelopes carry on, so a run keeps the shape the first key gave it rather than restarting the attack under your fingers.
+                    </p>
+
+                    <p>
+                        Letting a key go while others are still down falls back to the most recent of them, which is what makes a trill work. Only the
+                        last key coming up releases the note.
+                    </p>
+                </section>
+
+                <section id="settings">
+                    <h2>The Settings menu</h2>
+
+                    <p>
+                        Everything set once and then left. The menu is where the instrument is set up and the panel is where the sound is made, and a
+                        control's place says which of the two it is.
+                    </p>
+
+                    <div class="scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Entry</th>
+                                    <th>Choices</th>
+                                    <th>What it decides</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Which version this is</td>
+                                    <td></td>
+                                    <td>
+                                        A heading at the top of the menu rather than an entry, since it is a fact about the build and not a choice. It
+                                        is the number a bug report asks for
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Check for new versions</td>
+                                    <td>off by default</td>
+                                    <td>
+                                        The one entry that reaches outside the machine. <a href="../install/">What it sends</a> is nothing but a
+                                        request for a file
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Undo, Redo</td>
+                                    <td></td>
+                                    <td>The same steps Cmd-Z reaches, for the hosts that keep that shortcut for themselves</td>
+                                </tr>
+                                <tr>
+                                    <td>Polyphony</td>
+                                    <td>Legato, then 1, 2, 4, 6, 8, 12 or 16 voices. 8 by default</td>
+                                    <td>
+                                        How many notes can sound at once. Legato heads the list because it is one voice too, differing only in what a
+                                        second key does
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>One voice per key</td>
+                                    <td>on by default</td>
+                                    <td>
+                                        Striking a key again takes over the note it is already sounding rather than laying a second copy beside it,
+                                        which is what a string or a bar does. Off, every strike gets a voice of its own and the tails sum, so a
+                                        repeatedly struck bell builds up
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Pitch bend range</td>
+                                    <td>0, 1, 2, 3, 4, 5, 7, 12 or 24 semitones. 2 by default</td>
+                                    <td>How far the wheel bends. The counts anyone actually uses rather than all twenty-five</td>
+                                </tr>
+                                <tr>
+                                    <td>MPE</td>
+                                    <td>off by default</td>
+                                    <td>
+                                        Whether a note's channel is part of who that note is, which is what lets pitch bend and pressure arrive per
+                                        note
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Aftertouch from</td>
+                                    <td>Channel pressure, Mod wheel, Either. Either by default</td>
+                                    <td>
+                                        What feeds the AT row on every strip. Polyphonic aftertouch is not on the list because it stays routed
+                                        whatever this says
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Slide to</td>
+                                    <td>Off, Brightness, Tuning. Brightness by default</td>
+                                    <td>Where the forward and back axis under an MPE finger goes</td>
+                                </tr>
+                                <tr>
+                                    <td>Temperament, Root, Reference pitch</td>
+                                    <td>Six temperaments, twelve roots, 415 to 466 Hz</td>
+                                    <td>
+                                        What the keyboard underneath is tuned to, which <a href="../tuning/">the tuning system</a> works through. Root
+                                        is greyed out for equal temperament, which has no centre to have
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Phase reset</td>
+                                    <td>on by default</td>
+                                    <td>
+                                        Restarts each partial's phase at note-on, which gives a coherent, percussive attack and is what makes the
+                                        PHASE knob mean anything
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Safety clip</td>
+                                    <td>on by default</td>
+                                    <td>
+                                        Whether the output stage at the end of the chain is running, worth leaving on when you push 32 faders up.
+                                        Which of its five shapes is running is chosen on the bar, under the meter
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Limiter lookahead</td>
+                                    <td>on by default</td>
+                                    <td>
+                                        Whether the Limiter may see what is coming. Off gives back the two milliseconds of latency it costs, which
+                                        only that one shape uses, at the price of a rougher limiter. The only setting here that changes what the
+                                        plugin reports to your host
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Zoom</td>
+                                    <td>75, 100, 125 or 150%</td>
+                                    <td>
+                                        How big the window is on your screen. Down here with the entry under it, since everything above the two is the
+                                        instrument and these are not
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Fit all 32 channels</td>
+                                    <td></td>
+                                    <td>
+                                        Puts the window back to the width that shows the whole mixer, and to whatever height the rows you have left
+                                        unfolded need. A window remembers what it was dragged to, so a narrow one opens narrow every session after
+                                        that, and this is the way back
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <p>
+                        Almost none of it travels with a <a href="../presets/">preset</a>, and that is a rule rather than a list that might fall
+                        behind one: how you play the instrument and what it is tuned to are properties of the session rather than of any one sound in
+                        it. The zoom, the window size and which groups of rows you have folded away are in the same position for the same reason.
+                    </p>
+                    <p>
+                        The safety clip is the exception in this table, and the master fader is the exception outside it. Both used to sit with the
+                        rest on the grounds that how loud the instrument is belongs to the session, and both moved when the clipper became five shapes
+                        you choose between: the fader is the drive into that stage, so how hard a patch leans on it is part of the patch rather than
+                        part of the desk. The cost is worth knowing before you go looking for it:
+                        <strong>loading a preset now moves your output level</strong>.
+                    </p>
+                </section>
+
+                <section id="automation">
+                    <h2>Automating it from the host</h2>
+
+                    <p>
+                        Eight hundred and thirty-six parameters reach the host: thirty-four global ones, twenty-three on each of the 32 partials,
+                        eighteen on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals
+                        first and then channel by channel with the noise channel last.
+                    </p>
+
+                    <p>
+                        Every per-channel name carries its channel, so a parameter list answers both ways of looking for something. Type
+                        <code>H7</code> and you have that partial, type <code>Tune</code> and you have that row across the whole mixer. The same names
+                        are what a screen reader reads, which is why they are words rather than numbers.
+                    </p>
+
+                    <div class="scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>What you are after</th>
+                                    <th>What the host calls it</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>The master fader</td>
+                                    <td><code>Master</code></td>
+                                </tr>
+                                <tr>
+                                    <td>The seventh partial's tuning</td>
+                                    <td><code>H7 Tune</code></td>
+                                </tr>
+                                <tr>
+                                    <td>The eleventh partial's fader</td>
+                                    <td><code>H11 Level</code></td>
+                                </tr>
+                                <tr>
+                                    <td>The noise channel's brightness</td>
+                                    <td><code>Noise Colour</code></td>
+                                </tr>
+                                <tr>
+                                    <td>How long the echo's repeats are</td>
+                                    <td><code>Echo Time</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <p>
+                        The noise channel has eighteen rather than twenty-three because it has no tuning, pitch modulation, drift or start phase, and
+                        gains COLOUR in their place.
+                    </p>
+
+                    <p>
+                        Everything in Settings is in the list too, even though no preset will ever move it. The temperament, the polyphony and the
+                        bend range are all automatable, so a piece that changes temperament partway through is something a host can do, whatever the
+                        panel thinks a setting is for.
+                    </p>
+
+                    <p>
+                        <strong>A parameter is identified by an id of its own rather than by its position</strong>, in the Audio Unit as in the VST3.
+                        That is what lets a release add controls without breaking what you have already written: 1.6.0 put 65 new parameters among the
+                        existing ones rather than after them, and every automation lane written before it still points at the control it was pointing
+                        at.
+                    </p>
+
+                    <p>
+                        LINK is not a parameter, since it is a tool for the mouse rather than part of the sound. A drag under it opens a gesture on
+                        every channel it reaches, writes each one, and closes them together, so what a host records is what actually moved: thirty-two
+                        lanes if the drag moved thirty-two channels.
+                    </p>
+
+                    <section class="parameter-list">
+                        <h3 id="every-parameter">Every parameter</h3>
+                        <p>
+                            All 836 as the host lists them, with a control that every partial or every macro carries given one row for all of them.
+                            The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is
+                            <a href="../parameters.json">parameters.json</a>, written by the plugin rather than by hand.
+                        </p>
+                        <p><strong>Global</strong>, thirty-four of them.</p>
+                        <div class="scroll">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>What the host calls it</th>
+                                        <th>Id</th>
+                                        <th>Range</th>
+                                        <th>Default</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><code>Master</code></td>
+                                        <td><code>masterGain</code></td>
+                                        <td>-60.0 to 12.0 dB</td>
+                                        <td>-12.0 dB</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Polyphony</code></td>
+                                        <td><code>polyphony</code></td>
+                                        <td>Legato, 1 voice, 2 voices, 4 voices, 6 voices, 8 voices, 12 voices, 16 voices</td>
+                                        <td>8 voices</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>One Voice Per Key</code></td>
+                                        <td><code>oneVoicePerKey</code></td>
+                                        <td>Off or on</td>
+                                        <td>On</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Pitch Bend Range</code></td>
+                                        <td><code>bendRange</code></td>
+                                        <td>0 to 24</td>
+                                        <td>2</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Phase Reset</code></td>
+                                        <td><code>phaseReset</code></td>
+                                        <td>Off or on</td>
+                                        <td>On</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Safety Clip</code></td>
+                                        <td><code>safetyClip</code></td>
+                                        <td>Off or on</td>
+                                        <td>On</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Lookahead</code></td>
+                                        <td><code>lookahead</code></td>
+                                        <td>Off or on</td>
+                                        <td>On</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>MPE</code></td>
+                                        <td><code>mpe</code></td>
+                                        <td>Off or on</td>
+                                        <td>Off</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Stretch</code></td>
+                                        <td><code>stretch</code></td>
+                                        <td>-1200 ct to +1200 ct</td>
+                                        <td>Harmonic</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Tracking</code></td>
+                                        <td><code>track</code></td>
+                                        <td>Off to 12.0 dB/oct</td>
+                                        <td>Off</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Character</code></td>
+                                        <td><code>character</code></td>
+                                        <td>Pure, Bulb, Rail, Diode, Valve, Op-amp</td>
+                                        <td>Pure</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Wobble</code></td>
+                                        <td><code>wobble</code></td>
+                                        <td>0 % to 100 %</td>
+                                        <td>0 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Temperament</code></td>
+                                        <td><code>temperament</code></td>
+                                        <td>Equal, Just (major), Pythagorean, Quarter-comma meantone, Werckmeister III, Young</td>
+                                        <td>Equal</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Tuning Root</code></td>
+                                        <td><code>tuningRoot</code></td>
+                                        <td>C, C#, D, D#, E, F, F#, G, G#, A, A#, B</td>
+                                        <td>C</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Reference Pitch</code></td>
+                                        <td><code>referenceHz</code></td>
+                                        <td>
+                                            A = 415 Hz, A = 430 Hz, A = 432 Hz, A = 435 Hz, A = 438 Hz, A = 440 Hz, A = 442 Hz, A = 443 Hz, A = 444
+                                            Hz, A = 446 Hz, A = 466 Hz
+                                        </td>
+                                        <td>A = 440 Hz</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Aftertouch From</code></td>
+                                        <td><code>atSource</code></td>
+                                        <td>Channel pressure, Mod wheel, Either</td>
+                                        <td>Either</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Slide To</code></td>
+                                        <td><code>slideDest</code></td>
+                                        <td>Off, Brightness, Tuning</td>
+                                        <td>Brightness</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Sample Rate</code></td>
+                                        <td><code>lofiRate</code></td>
+                                        <td>Host, 32 kHz, 22.050 kHz, 16 kHz, 11.025 kHz, 8 kHz, 6 kHz, 4 kHz</td>
+                                        <td>Host</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Bit Depth</code></td>
+                                        <td><code>lofiBits</code></td>
+                                        <td>Host, 16 bit, 12 bit, 10 bit, 8 bit, 6 bit, 4 bit, 3 bit, 2 bit</td>
+                                        <td>Host</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Echo</code></td>
+                                        <td><code>echoOn</code></td>
+                                        <td>Off or on</td>
+                                        <td>Off</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Echo Mix</code></td>
+                                        <td><code>echoMix</code></td>
+                                        <td>0 % to 100 %</td>
+                                        <td>25 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Echo Time</code></td>
+                                        <td><code>echoTime</code></td>
+                                        <td>20.0 ms to 2.00 s</td>
+                                        <td>350 ms</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Echo Feedback</code></td>
+                                        <td><code>echoFeedback</code></td>
+                                        <td>0 % to 95 %</td>
+                                        <td>35 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Echo Age</code></td>
+                                        <td><code>echoAge</code></td>
+                                        <td>0 % to 100 %</td>
+                                        <td>29 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Reverb</code></td>
+                                        <td><code>reverbOn</code></td>
+                                        <td>Off or on</td>
+                                        <td>Off</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Reverb Mix</code></td>
+                                        <td><code>reverbMix</code></td>
+                                        <td>0 % to 100 %</td>
+                                        <td>25 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Reverb Decay</code></td>
+                                        <td><code>reverbDecay</code></td>
+                                        <td>200 ms to 20.00 s</td>
+                                        <td>2.00 s</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Reverb Damping</code></td>
+                                        <td><code>reverbDamp</code></td>
+                                        <td>0 % to 100 %</td>
+                                        <td>50 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Reverb Pre-delay</code></td>
+                                        <td><code>reverbPreDelay</code></td>
+                                        <td>0.0 ms to 250 ms</td>
+                                        <td>0.0 ms</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Pitch Mod In Phase</code></td>
+                                        <td><code>pmInPhase</code></td>
+                                        <td>Off or on</td>
+                                        <td>Off</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Amp Mod In Phase</code></td>
+                                        <td><code>amInPhase</code></td>
+                                        <td>Off or on</td>
+                                        <td>Off</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Echo Type</code></td>
+                                        <td><code>echoType</code></td>
+                                        <td>Tape, Bucket brigade, Digital</td>
+                                        <td>Tape</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Clip Type</code></td>
+                                        <td><code>clipType</code></td>
+                                        <td>Soft, Hard, Asymmetric, Limiter, Fold</td>
+                                        <td>Soft</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Reverb Type</code></td>
+                                        <td><code>reverbType</code></td>
+                                        <td>Room, Modulated Plate, Spring</td>
+                                        <td>Room</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p><strong>On every partial</strong>, twenty-three controls, each one on all 32 partials.</p>
+                        <div class="scroll">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>What the host calls it</th>
+                                        <th>Id</th>
+                                        <th>Range</th>
+                                        <th>Default</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><code>H1 Tune to H32 Tune</code></td>
+                                        <td><code>h01_tune to h32_tune</code></td>
+                                        <td>Equal temp. to Just</td>
+                                        <td>Just</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Pitch Mod Rate to H32 Pitch Mod Rate</code></td>
+                                        <td><code>h01_pmRate to h32_pmRate</code></td>
+                                        <td>0.01 to 30 Hz</td>
+                                        <td>4 Hz</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Pitch Mod Depth to H32 Pitch Mod Depth</code></td>
+                                        <td><code>h01_pmDepth to h32_pmDepth</code></td>
+                                        <td>0 to 1200 ct</td>
+                                        <td>0 ct</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Pitch Mod Shape to H32 Pitch Mod Shape</code></td>
+                                        <td><code>h01_pmShape to h32_pmShape</code></td>
+                                        <td>Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Square (up), Sample &amp; Hold, Random</td>
+                                        <td>Sine</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Start Phase to H32 Start Phase</code></td>
+                                        <td><code>h01_phase to h32_phase</code></td>
+                                        <td>0° to 360°</td>
+                                        <td>0°</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Drift to H32 Drift</code></td>
+                                        <td><code>h01_drift to h32_drift</code></td>
+                                        <td>0 to 25 ct</td>
+                                        <td>0 ct</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Strike Velocity to H32 Strike Velocity</code></td>
+                                        <td><code>h01_strike to h32_strike</code></td>
+                                        <td>-100 % to +100 %</td>
+                                        <td>0 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Delay to H32 Delay</code></td>
+                                        <td><code>h01_delay to h32_delay</code></td>
+                                        <td>0.0 ms to 5.00 s</td>
+                                        <td>0.0 ms</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Attack to H32 Attack</code></td>
+                                        <td><code>h01_attack to h32_attack</code></td>
+                                        <td>0.2 ms to 5.00 s</td>
+                                        <td>5.0 ms</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Decay to H32 Decay</code></td>
+                                        <td><code>h01_decay to h32_decay</code></td>
+                                        <td>1.0 ms to 20.00 s</td>
+                                        <td>600 ms</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Sustain to H32 Sustain</code></td>
+                                        <td><code>h01_sustain to h32_sustain</code></td>
+                                        <td>0 % to 100 %</td>
+                                        <td>100 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Key-off Swell to H32 Key-off Swell</code></td>
+                                        <td><code>h01_swell to h32_swell</code></td>
+                                        <td>0.0 ms to 5.00 s</td>
+                                        <td>5.0 ms</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Key-off Level to H32 Key-off Level</code></td>
+                                        <td><code>h01_offLevel to h32_offLevel</code></td>
+                                        <td>0 % to 100 %</td>
+                                        <td>0 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Release to H32 Release</code></td>
+                                        <td><code>h01_release to h32_release</code></td>
+                                        <td>1.0 ms to 20.00 s</td>
+                                        <td>400 ms</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Amp Mod Rate to H32 Amp Mod Rate</code></td>
+                                        <td><code>h01_amRate to h32_amRate</code></td>
+                                        <td>0.01 to 30 Hz</td>
+                                        <td>4 Hz</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Amp Mod Depth to H32 Amp Mod Depth</code></td>
+                                        <td><code>h01_amDepth to h32_amDepth</code></td>
+                                        <td>0 % to 100 %</td>
+                                        <td>0 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Amp Mod Shape to H32 Amp Mod Shape</code></td>
+                                        <td><code>h01_amShape to h32_amShape</code></td>
+                                        <td>Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Sample &amp; Hold, Random</td>
+                                        <td>Sine</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Velocity to H32 Velocity</code></td>
+                                        <td><code>h01_vel to h32_vel</code></td>
+                                        <td>-100 % to +100 %</td>
+                                        <td>+70 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Aftertouch to H32 Aftertouch</code></td>
+                                        <td><code>h01_aftertouch to h32_aftertouch</code></td>
+                                        <td>-100 % to +100 %</td>
+                                        <td>0 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Mute to H32 Mute</code></td>
+                                        <td><code>h01_mute to h32_mute</code></td>
+                                        <td>Off or on</td>
+                                        <td>Off</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Solo to H32 Solo</code></td>
+                                        <td><code>h01_solo to h32_solo</code></td>
+                                        <td>Off or on</td>
+                                        <td>Off</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Pan to H32 Pan</code></td>
+                                        <td><code>h01_pan to h32_pan</code></td>
+                                        <td>L100 to R100</td>
+                                        <td>Centre</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>H1 Level to H32 Level</code></td>
+                                        <td><code>h01_volume to h32_volume</code></td>
+                                        <td>-inf dB to 0.0 dB</td>
+                                        <td>Differs by channel, 0.0 dB on H1 to -inf dB on H32</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p><strong>On the noise channel</strong>, eighteen of them.</p>
+                        <div class="scroll">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>What the host calls it</th>
+                                        <th>Id</th>
+                                        <th>Range</th>
+                                        <th>Default</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><code>Noise Colour</code></td>
+                                        <td><code>noise_colour</code></td>
+                                        <td>0 % to 100 %</td>
+                                        <td>50 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Strike Velocity</code></td>
+                                        <td><code>noise_strike</code></td>
+                                        <td>-100 % to +100 %</td>
+                                        <td>0 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Delay</code></td>
+                                        <td><code>noise_delay</code></td>
+                                        <td>0.0 ms to 5.00 s</td>
+                                        <td>0.0 ms</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Attack</code></td>
+                                        <td><code>noise_attack</code></td>
+                                        <td>0.2 ms to 5.00 s</td>
+                                        <td>5.0 ms</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Decay</code></td>
+                                        <td><code>noise_decay</code></td>
+                                        <td>1.0 ms to 20.00 s</td>
+                                        <td>600 ms</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Sustain</code></td>
+                                        <td><code>noise_sustain</code></td>
+                                        <td>0 % to 100 %</td>
+                                        <td>100 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Key-off Swell</code></td>
+                                        <td><code>noise_swell</code></td>
+                                        <td>0.0 ms to 5.00 s</td>
+                                        <td>5.0 ms</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Key-off Level</code></td>
+                                        <td><code>noise_offLevel</code></td>
+                                        <td>0 % to 100 %</td>
+                                        <td>0 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Release</code></td>
+                                        <td><code>noise_release</code></td>
+                                        <td>1.0 ms to 20.00 s</td>
+                                        <td>400 ms</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Amp Mod Rate</code></td>
+                                        <td><code>noise_amRate</code></td>
+                                        <td>0.01 to 30 Hz</td>
+                                        <td>4 Hz</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Amp Mod Depth</code></td>
+                                        <td><code>noise_amDepth</code></td>
+                                        <td>0 % to 100 %</td>
+                                        <td>0 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Amp Mod Shape</code></td>
+                                        <td><code>noise_amShape</code></td>
+                                        <td>Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Sample &amp; Hold, Random</td>
+                                        <td>Sine</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Velocity</code></td>
+                                        <td><code>noise_vel</code></td>
+                                        <td>-100 % to +100 %</td>
+                                        <td>+70 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Aftertouch</code></td>
+                                        <td><code>noise_aftertouch</code></td>
+                                        <td>-100 % to +100 %</td>
+                                        <td>0 %</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Mute</code></td>
+                                        <td><code>noise_mute</code></td>
+                                        <td>Off or on</td>
+                                        <td>Off</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Solo</code></td>
+                                        <td><code>noise_solo</code></td>
+                                        <td>Off or on</td>
+                                        <td>Off</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Pan</code></td>
+                                        <td><code>noise_pan</code></td>
+                                        <td>L100 to R100</td>
+                                        <td>Centre</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Noise Level</code></td>
+                                        <td><code>noise_volume</code></td>
+                                        <td>-inf dB to 0.0 dB</td>
+                                        <td>-inf dB</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p><strong>On every macro</strong>, six controls, each one on all eight macros.</p>
+                        <div class="scroll">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>What the host calls it</th>
+                                        <th>Id</th>
+                                        <th>Range</th>
+                                        <th>Default</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><code>Macro 1 to Macro 8</code></td>
+                                        <td><code>macro1_amount to macro8_amount</code></td>
+                                        <td>-1.0000 to 1.0000</td>
+                                        <td>0.0000</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Macro 1 Row to Macro 8 Row</code></td>
+                                        <td><code>macro1_row to macro8_row</code></td>
+                                        <td>
+                                            None, Tune, Phase, Pitch mod rate, Pitch mod depth, Drift, Strike, Delay, Attack, Decay, Sustain, Key-off
+                                            swell, Key-off level, Release, Amp mod rate, Amp mod depth, Velocity, Aftertouch, Pan, Level
+                                        </td>
+                                        <td>None</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Macro 1 Scope to Macro 8 Scope</code></td>
+                                        <td><code>macro1_scope to macro8_scope</code></td>
+                                        <td>
+                                            All, Odd, Even, Prime/octave, Minor second, Major second, Minor third, Major third, Fourth, Tritone,
+                                            Fifth, Minor sixth, Major sixth, Minor seventh, Major seventh
+                                        </td>
+                                        <td>All</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Macro 1 Curve to Macro 8 Curve</code></td>
+                                        <td><code>macro1_curve to macro8_curve</code></td>
+                                        <td>Uniform, Taper</td>
+                                        <td>Uniform</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Macro 1 Anchor to Macro 8 Anchor</code></td>
+                                        <td><code>macro1_anchor to macro8_anchor</code></td>
+                                        <td>1 to 32</td>
+                                        <td>1</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Macro 1 Colour to Macro 8 Colour</code></td>
+                                        <td><code>macro1_colour to macro8_colour</code></td>
+                                        <td>None, Red, Orange, Yellow, Green, Cyan, Blue, Violet, Magenta</td>
+                                        <td>Differs by macro, Red on Macro 1 to Magenta on Macro 8</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                </section>
+
+                <section id="macros">
+                    <h2>Macros</h2>
+
+                    <p>
+                        <strong>A macro is one parameter that moves a whole row</strong>, and the reason it exists is automation. A Link drag across
+                        the tuning knobs moves 32 parameters, and a host catches only the last one you touched, so a relationship you can edit by hand
+                        cannot be recorded at all. A macro gives that relationship a single control a host can draw.
+                    </p>
+
+                    <p>
+                        The icon of three faders on the top bar, beside the settings cog, opens them over the mixer. Each macro is one line: a colour,
+                        the row it drives, which channels of that row it reaches, how it is shared out across them, and the amount. Add a macro takes
+                        one of eight, and the cross at the end puts it back.
+                    </p>
+
+                    <p>
+                        <strong>Eight is a pool rather than a limit you are meant to feel.</strong> A plugin declares its parameters once when it is
+                        created and neither VST3 nor AU can add one later, so making a macro takes one of eight that already exist and removing it
+                        puts it back. The panel shows the ones you have made, and your host's parameter list shows all eight whether or not you use
+                        them.
+                    </p>
+
+                    <p>
+                        <strong>Scope</strong> is All, Odd, Even, or any one interval: choosing fifths reaches harmonics 3, 6, 12 and 24.
+                        <strong>Curve</strong> is Uniform or Taper, and a taper leans hardest on a channel you pick and fades with distance either
+                        side of it. Link's third curve, Spread, is not offered and could not be: it scatters each strip along the direction your drag
+                        gave it relative to the strip under the mouse, and a macro has neither a direction nor a strip under the mouse.
+                    </p>
+
+                    <p>
+                        <strong>A macro offsets what the patch says rather than writing it.</strong> Nothing in your sound is overwritten, the host
+                        has one lane to draw instead of thirty-two to catch, and the knobs do not move when a macro does. That last part is normal for
+                        anything that works this way and is surprising the first time, so the controls say both at once: the ring around a knob lights
+                        to where the macro has taken the value, in the macro's colour, while the pointer on the cap stays at what the patch holds, in
+                        the channel's. The gap between them is the macro. A fader, which has no ring to spare, says it in the gutters either side of
+                        its track: two narrow columns of segments appear there, cut from the same cloth as the meter behind the fader, and light from
+                        the foot of the track up to the level it has been taken to. The glass of the cap takes a wash of the same colour.
+                    </p>
+
+                    <p>With a macro at rest the two coincide, so a macro you have assigned but not moved looks like no macro at all.</p>
+
+                    <p>
+                        The amount runs from -1 to +1 whatever it drives, so a macro can always push a control either way from where the patch left
+                        it, and it moves a proportion of each control's own travel rather than a number of its units. That matters most on a row like
+                        decay, which runs from a thousandth of a second to twenty: the same number of seconds added would be a twentyfold change at
+                        one end and a rounding error at the other.
+                    </p>
+
+                    <p>
+                        A full sweep reaches the ends of the range, which means a patch already sitting near one end has a stretch of fader that does
+                        nothing in that direction. That is deliberate. One macro reaches up to 32 controls that may be set anywhere, so there is no
+                        smaller fraction of the range that would be right for all of them.
+                    </p>
+
+                    <p>
+                        <strong>Right-click a macro's amount to bind a controller to it</strong>, the same MIDI Learn the mixer's controls use. Only
+                        the amount: the row, the scope and the curve say what a macro is rather than what it is doing. The macros icon lights whenever
+                        any are made, since a macro's work is otherwise invisible until you look at a ring.
+                    </p>
+                </section>
+
+                <section id="midi-learn">
+                    <h2>Playing it from a controller</h2>
+
+                    <p>
+                        <strong>Right-click any control and choose MIDI Learn</strong>, then move something on your controller. A violet ring marks
+                        the control while it waits, so you can see what is listening without opening the menu again, and only ever one control carries
+                        it. Right-click the same control afterwards and the menu says which controller moves it, with the way to forget it or to bind
+                        a different one. In the mixer these items sit under the LINK settings that right-click already opens. On the bar and the noise
+                        channel they are a menu of their own, since neither is part of the series LINK gangs.
+                    </p>
+
+                    <p>
+                        Your host almost certainly offers the same thing. What this does that a host cannot is let you make the map by right-clicking
+                        the knob itself rather than finding <code>H17 AM Rate</code> in a list of 836, and behave the same way wherever you open it.
+                    </p>
+
+                    <p>
+                        <strong>Eleven controllers are refused</strong>, because something is already listening for them and losing it would be felt
+                        while playing rather than noticed afterwards. Controller 1 is the mod wheel, which can feed aftertouch. 64 is the sustain
+                        pedal. 74 is the slide axis, the one most easily bound by accident since it moves whenever a finger does on an MPE keyboard.
+                        120 and 123 stop notes. Controllers 6, 38, 98, 99, 100 and 101 are how a keyboard tells the instrument what it is. Arming a
+                        knob and then reaching for the slide to steady a note leaves the note steadied and the knob still waiting.
+                    </p>
+
+                    <p>
+                        <strong>It works the same with MPE switched on</strong>, which is not free: with MPE on, nearly every message belongs to the
+                        part of the instrument that reads your keyboard's layout, so a binding is looked for before that rather than after it.
+                        Otherwise it would be dead on exactly the controllers this is usually played from.
+                    </p>
+
+                    <p>
+                        The map is saved with your project, beside the window size and the folded sections, and
+                        <strong>a preset never touches it</strong>. Which controller moves which knob describes the desk you are plugged into rather
+                        than the sound, and a patch that rearranged it would be rearranging your hardware. A binding records the parameter by name, so
+                        a later version adding controls cannot silently repoint it at something else.
+                    </p>
+
+                    <p>
+                        Two things to expect. A control jumps to wherever the controller is standing rather than waiting to be picked up, so a knob
+                        turned to the top will take the parameter there the moment you touch it. And a controller moving a control is not something
+                        undo reverses, for the same reason automation is not.
+                    </p>
+                </section>
+
+                <div class="onward">
+                    <ul class="links">
+                        <li><a class="primary" href="../presets/">Presets</a></li>
+                        <li><a href="../effects/">Effects</a></li>
+                    </ul>
+                </div>
+            </main>
+
+            <footer>
+                <div class="maker">
+                    <img src="../dehli-musikk.svg" alt="" width="392" height="232" loading="lazy" />
+                    <div>By Benjamin Dehli for <a href="https://www.dehlimusikk.no/">Dehli Musikk</a>. Hosts list it under DehliMusikk.</div>
+                </div>
+
+                <ul class="elsewhere">
+                    <li><a href="https://github.com/benjamindehli/overtonium">Source</a></li>
+                    <li><a href="https://github.com/benjamindehli/overtonium/blob/main/DESIGN.md">Design notes</a></li>
+                    <li><a href="https://github.com/benjamindehli/overtonium/blob/main/ARCHITECTURE.md">Architecture</a></li>
+                    <li><a href="https://github.com/benjamindehli/overtonium/blob/main/ACCESSIBILITY.md">Accessibility</a></li>
+                    <li><a href="https://github.com/benjamindehli/overtonium/issues">Issue tracker</a></li>
+                    <li><a href="https://www.kvraudio.com/product/overtonium-by-dehli-musikk">KVR listing</a></li>
+                </ul>
+
+                <p>
+                    Released under the
+                    <a href="https://github.com/benjamindehli/overtonium/blob/main/LICENSE">GNU Affero General Public License v3</a>, which follows
+                    from JUCE. Built with <a href="https://juce.com/">JUCE 9</a>.
+                </p>
+            </footer>
+        </div>
+    </body>
+</html>

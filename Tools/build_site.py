@@ -30,8 +30,9 @@ presets from kNames in Source/Presets.cpp, every parameter from
 docs/parameters.json, and each page's own headings for its rail. The parameter
 file is written by the plugin itself, overtonium_runtime_test
 --write-parameters, and that test fails whenever the file and the layout
-disagree, so the list on the controls page is the real one. Every page is passed through the repository's pinned prettier
-afterwards, so what is written is exactly what the format job expects.
+disagree, so the list on the playing page is the real one. Every page is
+passed through the repository's pinned prettier afterwards, so what is
+written is exactly what the format job expects.
 
 Standard library only, and Python 3.9, which is what a Mac has without asking.
 """
@@ -609,6 +610,50 @@ def build(page, text, path, dates, changed):
 # --- The files written whole -------------------------------------------------
 
 
+def moved(written):
+    """moved.js, which sends a link to a section at its old address on to the
+    page it lives on now.
+
+    Written from the ids, so it cannot forward to a section that is not there
+    or miss one that moved. An id still on the old page is never forwarded,
+    and the script checks that again in the browser before it does anything,
+    so a section moved back is found where it is."""
+    if len(data.MOVED) != 1:
+        sys.exit("moved.js forwards from one page, and MOVED names more")
+    (old, news), = data.MOVED.items()
+    by_path = {page["path"]: page for page in data.PAGES}
+    ids = lambda path: re.findall(r'\bid="([^"]+)"', main_of(written[DOCS / path / "index.html"]))
+    staying = set(ids(old))
+    targets = {}
+    for new in news:
+        for ident in ids(new):
+            if ident not in staying:
+                targets[ident] = link(by_path[old], new)
+
+    return "\n".join(
+        [
+            "/* Sends a link to a section at its old address on to the page it lives on",
+            "   now. Written by Tools/build_site.py from the ids on each page, so edit",
+            "   MOVED in Tools/site_data.py rather than this.",
+            "",
+            "   The third script on this site, and like the other two it leaves nothing",
+            "   broken without it: a moved section's old address still opens the page it",
+            "   used to be on, at the top. */",
+            "(function () {",
+            '    "use strict";',
+            "",
+            f"    var MOVED = {json.dumps(targets, sort_keys=True)};",
+            "",
+            "    var id = decodeURIComponent(window.location.hash.slice(1));",
+            "",
+            "    if (Object.prototype.hasOwnProperty.call(MOVED, id) && !document.getElementById(id)) {",
+            '        window.location.replace(MOVED[id] + "#" + id);',
+            "    }",
+            "})();",
+        ]
+    ) + "\n"
+
+
 def sitemap():
     lines = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for page in data.PAGES:
@@ -885,6 +930,7 @@ def main():
         written[path] = prettier(path, build(page, path.read_text(encoding="utf-8"), path, dates, changed))
 
     built = [(page, written[path]) for page, path in pages if page is not data.NOT_FOUND]
+    written[DOCS / "moved.js"] = prettier(DOCS / "moved.js", moved(written))
     written[DOCS / "sitemap.xml"] = sitemap()
     written[DOCS / "llms.txt"] = llms()
     written[DOCS / "llms-full.txt"] = llms_full(built)

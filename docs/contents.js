@@ -69,9 +69,9 @@
         current = entry;
 
         /* And the section it belongs to is the one whose parts are worth
-           showing. The controls page lists twenty-eight headings, which is
-           more rail than a laptop window has, and all but a handful of them
-           are about a part of the page you are nowhere near. */
+           showing. A page with several sections of parts can list more
+           headings than a laptop window has room for, and all but a handful
+           of them are about a part of the page you are nowhere near. */
         var wanted = entry ? entry.top : null;
 
         if (wanted !== open) {
