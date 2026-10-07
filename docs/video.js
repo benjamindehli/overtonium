@@ -3,7 +3,7 @@
    third party until somebody asks it to. contents.js only marks where you are
    in a list that already works without it, moved.js only sends a link to a
    moved section on to its new page, and menu.js only folds the section list
-   into a button on a phone.
+   into a button wherever the rail does not fit.
 
    A YouTube iframe contacts Google the moment the page carrying it opens,
    whether or not anybody presses play, and sets cookies on the way. So the

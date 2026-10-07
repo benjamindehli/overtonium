@@ -1499,14 +1499,14 @@ main h1 {
     }
 }
 
-/* ---- and on a phone, a menu ---------------------------------------------
+/* ---- and below the rail, a menu -----------------------------------------
 
-   Below 860px the row of eight section links wraps three or four times and
-   the page's contents sit under it, so a reader meets a screen of navigation
-   before a word of the page. Here it folds into a bar: the wordmark, which is
-   the way home, and a button that opens the same list as a panel, with the
-   page's own contents under its entry and the section being read marked by
-   contents.js as it is in the rail.
+   Wherever the rail does not fit, which is below the 1240px it needs, the
+   list folds into a bar instead: the wordmark, which is the way home, and a
+   button that opens the same list as a panel, with the page's own contents
+   under its entry and the section being read marked by contents.js as it is
+   in the rail. One breakpoint for both, so there is no width at which the
+   list is a third thing, a row of links wrapping over the page.
 
    Everything hangs on html[data-menu], which menu.js sets before the page is
    drawn. Without the script none of this applies and the list stays open as
@@ -1519,10 +1519,13 @@ main h1 {
     display: none;
 }
 
-@media (max-width: 860px) {
-    /* A bar across the top that stays put, edge to edge across the body's
-       side padding, so the menu is a thumb away however far down the page
-       you are. */
+@media (max-width: 1239px) {
+    /* A bar across the top that stays put, so the menu is a thumb away however
+       far down the page you are. Its contents line up with the page column,
+       and its ground and the rule under it run to both edges of the window:
+       a border-image outset paints past the box without widening it, so the
+       page never gains a sideways scroll, which a negative margin or a 100vw
+       width would give it as soon as the window has a scrollbar. */
     html[data-menu] header,
     html[data-menu] header.nav-only {
         position: sticky;
@@ -1532,10 +1535,8 @@ main h1 {
         align-items: center;
         justify-content: space-between;
         gap: 16px;
-        margin: 0 -24px;
-        padding: calc(10px + env(safe-area-inset-top, 0px)) 24px 10px;
-        background: var(--background);
-        border-bottom: 1px solid var(--outline);
+        padding: calc(10px + env(safe-area-inset-top, 0px)) 0 11px;
+        border-image: linear-gradient(var(--background) calc(100% - 1px), var(--outline) 0) fill 0 / /0 100vmax;
     }
 
     /* The front page hides its wordmark at this width, since the hero says
@@ -1586,6 +1587,8 @@ main h1 {
         display: none;
     }
 
+    /* Edge to edge the same way, and the panel's entries on the same column
+       as the page's text. */
     html[data-menu] header[data-open] > nav {
         display: block;
         position: absolute;
@@ -1596,10 +1599,8 @@ main h1 {
         max-height: calc(100dvh - 100%);
         overflow-y: auto;
         overscroll-behavior: contain;
-        padding: 4px 24px 20px;
-        background: var(--panel);
-        border-bottom: 1px solid var(--outline);
-        box-shadow: 0 18px 30px rgba(0, 0, 0, 0.45);
+        padding: 4px 0 21px;
+        border-image: linear-gradient(var(--panel) calc(100% - 1px), var(--outline) 0) fill 0 / /0 100vmax;
     }
 
     /* One entry to a line, each a comfortable target for a thumb. */
