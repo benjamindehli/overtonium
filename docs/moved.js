@@ -2,9 +2,9 @@
    now. Written by Tools/build_site.py from the ids on each page, so edit
    MOVED in Tools/site_data.py rather than this.
 
-   The third script on this site, and like the other two it leaves nothing
-   broken without it: a moved section's old address still opens the page it
-   used to be on, at the top. */
+   Like every script on this site it leaves nothing broken without it: a
+   moved section's old address still opens the page it used to be on, at
+   the top. */
 (function () {
     "use strict";
 

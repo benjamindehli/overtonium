@@ -289,6 +289,8 @@ def head(page):
             f'<link rel="icon" href="{p}dehli-musikk.svg" />',
             f'<link rel="apple-touch-icon" href="{p}apple-touch-icon.png" />',
             f'<link rel="stylesheet" href="{p}style.css" />',
+            # Not deferred: see the head of menu.js for why it runs first.
+            f'<script src="{p}menu.js"></script>',
             *[f'<script src="{p}{script}" defer></script>' for script in page["scripts"]],
             *[jsonld(blocks[name]()) for name in names],
             "</head>",
@@ -328,6 +330,8 @@ def head_not_found():
             f'<link rel="icon" href="{p}dehli-musikk.svg" />',
             f'<link rel="apple-touch-icon" href="{p}apple-touch-icon.png" />',
             f'<link rel="stylesheet" href="{p}style.css" />',
+            # Not deferred: see the head of menu.js for why it runs first.
+            f'<script src="{p}menu.js"></script>',
             "</head>",
         ]
     )
@@ -374,7 +378,14 @@ def header(page, main):
         f'<a href="{link(page, "")}"><img class="wordmark" src="{prefix(page)}overtonium-wordmark.webp" width="2464" height="448" alt="Overtonium" /></a>',
         "</p>",
         "",
-        '<nav aria-label="Sections">',
+        # Shown only on a narrow screen, and only once menu.js is running, so
+        # a page without the script keeps the list open and loses nothing.
+        '<button class="menu" type="button" aria-expanded="false" aria-controls="sections">',
+        '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12" /></svg>',
+        "Menu",
+        "</button>",
+        "",
+        '<nav id="sections" aria-label="Sections">',
         '<ul class="sections">',
     ]
     for other in data.PAGES:
@@ -636,9 +647,9 @@ def moved(written):
             "   now. Written by Tools/build_site.py from the ids on each page, so edit",
             "   MOVED in Tools/site_data.py rather than this.",
             "",
-            "   The third script on this site, and like the other two it leaves nothing",
-            "   broken without it: a moved section's old address still opens the page it",
-            "   used to be on, at the top. */",
+            "   Like every script on this site it leaves nothing broken without it: a",
+            "   moved section's old address still opens the page it used to be on, at",
+            "   the top. */",
             "(function () {",
             '    "use strict";',
             "",

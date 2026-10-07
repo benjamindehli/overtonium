@@ -1246,7 +1246,8 @@ main h1 {
 
 /* ---- the masthead as a rail -----------------------------------------------
 
-   These two blocks are last in the file on purpose, and have to stay last.
+   These two blocks, and the phone menu after them, are last in the file on
+   purpose, and have to stay last.
 
    They restyle .sections, whose own rules live down in the footer section
    several hundred lines above this point, and a media query adds no
@@ -1495,5 +1496,183 @@ main h1 {
        for the rail, which is the one place the hero cannot speak for it. */
     header.nav-only .brand {
         display: none;
+    }
+}
+
+/* ---- and on a phone, a menu ---------------------------------------------
+
+   Below 860px the row of eight section links wraps three or four times and
+   the page's contents sit under it, so a reader meets a screen of navigation
+   before a word of the page. Here it folds into a bar: the wordmark, which is
+   the way home, and a button that opens the same list as a panel, with the
+   page's own contents under its entry and the section being read marked by
+   contents.js as it is in the rail.
+
+   Everything hangs on html[data-menu], which menu.js sets before the page is
+   drawn. Without the script none of this applies and the list stays open as
+   above, which is why the button itself is hidden until then.
+
+   After the rail blocks, because it restyles the same .sections and .contents
+   rules they do. Every selector here is also more specific than theirs, so the
+   order is a second guarantee rather than the only one. */
+.menu {
+    display: none;
+}
+
+@media (max-width: 860px) {
+    /* A bar across the top that stays put, edge to edge across the body's
+       side padding, so the menu is a thumb away however far down the page
+       you are. */
+    html[data-menu] header,
+    html[data-menu] header.nav-only {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin: 0 -24px;
+        padding: calc(10px + env(safe-area-inset-top, 0px)) 24px 10px;
+        background: var(--background);
+        border-bottom: 1px solid var(--outline);
+    }
+
+    /* The front page hides its wordmark at this width, since the hero says
+       the name. In the bar it is the link home, and it stays with you after
+       the hero has scrolled away. */
+    html[data-menu] header .brand {
+        display: block;
+        margin: 0;
+    }
+
+    html[data-menu] header .brand img {
+        max-width: 132px;
+    }
+
+    html[data-menu] header .menu {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 44px;
+        padding: 0 14px;
+        border: 1px solid var(--outline);
+        border-radius: 4px;
+        background: var(--panel-alt);
+        color: var(--text);
+        font: inherit;
+        font-size: 15px;
+        cursor: pointer;
+    }
+
+    html[data-menu] header .menu svg {
+        width: 16px;
+        height: 16px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.6;
+        stroke-linecap: round;
+    }
+
+    html[data-menu] header .menu[aria-expanded="true"] {
+        border-color: var(--accent);
+        color: var(--accent);
+    }
+
+    /* The list itself, shut until the button opens it, then a panel hung from
+       the bottom of the bar and scrolling on its own if it is taller than the
+       screen, which the controls page with its parts is. */
+    html[data-menu] header > nav {
+        display: none;
+    }
+
+    html[data-menu] header[data-open] > nav {
+        display: block;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        max-height: calc(100vh - 100%);
+        max-height: calc(100dvh - 100%);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: 4px 24px 20px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--outline);
+        box-shadow: 0 18px 30px rgba(0, 0, 0, 0.45);
+    }
+
+    /* One entry to a line, each a comfortable target for a thumb. */
+    html[data-menu] header .sections {
+        display: block;
+        margin: 0;
+        border: 0;
+    }
+
+    html[data-menu] header .sections > li:has(> .contents) {
+        display: block;
+    }
+
+    html[data-menu] header .sections > li > a {
+        display: block;
+        padding: 12px 0;
+        margin: 0;
+        border-bottom: 1px solid var(--outline);
+        font-size: 17px;
+    }
+
+    html[data-menu] header .sections > li:last-child > a {
+        border-bottom: 0;
+    }
+
+    html[data-menu] header .sections > li > a[aria-current="page"] {
+        color: var(--accent);
+        border-bottom-color: var(--outline);
+    }
+
+    /* The page's own contents, under its entry and indented past it as in the
+       rail. Whole rather than bounded: the panel already scrolls. */
+    html[data-menu] header .contents {
+        order: 0;
+        max-height: none;
+        overflow: visible;
+        margin: 0;
+        padding: 6px 0 10px 14px;
+        border: 0;
+        border-bottom: 1px solid var(--outline);
+        background: none;
+    }
+
+    html[data-menu] header .contents > ul {
+        columns: 1;
+        border-left: 1px solid var(--outline);
+    }
+
+    html[data-menu] header .contents a {
+        display: block;
+        padding: 8px 0 8px 12px;
+        margin-left: -1px;
+        border-left: 1px solid transparent;
+        font-size: 15px;
+        color: var(--text-dim);
+    }
+
+    html[data-menu] header .contents ul ul {
+        margin: 0 0 0 12px;
+        padding: 0;
+    }
+
+    html[data-menu] header .contents ul ul a {
+        font-size: 14px;
+    }
+
+    html[data-menu] header .contents a[aria-current="location"] {
+        color: var(--accent);
+        border-left-color: var(--accent);
+    }
+
+    /* An anchored jump lands below the bar rather than under it. */
+    html[data-menu] :is(section, h3)[id] {
+        scroll-margin-top: 80px;
     }
 }
