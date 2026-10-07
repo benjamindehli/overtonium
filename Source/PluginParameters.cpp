@@ -126,6 +126,21 @@ juce::String timeText(float seconds, int) {
   return juce::String(seconds, 2) + " s";
 }
 
+/// A modulator's rate, to the precision the knob can actually be set to by
+/// hand: hundredths below 10 Hz, where a slow sweep lives, and tenths above.
+juce::String rateText(float hz, int) {
+  return juce::String(hz, hz < 10.0f ? 2 : 1) + " Hz";
+}
+
+/// A depth or a drift in cents. Tenths are audible below 10 cents and noise
+/// above them, and nought is nought rather than a tenth of nothing.
+juce::String centsText(float cents, int) {
+  if (cents < 0.05f)
+    return "0 ct";
+
+  return juce::String(cents, cents < 10.0f ? 1 : 0) + " ct";
+}
+
 juce::String percentText(float v, int) {
   return juce::String(juce::roundToInt(v * 100.0f)) + " %";
 }
@@ -758,12 +773,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(pmRateSuffix, i), 1}, p + "Pitch Mod Rate",
-        logRange(0.01f, 30.0f), 4.0f, FAttr().withLabel("Hz")));
+        logRange(0.01f, 30.0f), 4.0f,
+        FAttr().withStringFromValueFunction(rateText)));
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(pmDepthSuffix, i), 1},
         p + "Pitch Mod Depth", expRange(0.0f, kMaxPitchModCents, 25.0f), 0.0f,
-        FAttr().withLabel("ct")));
+        FAttr().withStringFromValueFunction(centsText)));
 
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID{oscParamId(pmShapeSuffix, i), 1},
@@ -776,7 +792,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(driftSuffix, i), 1}, p + "Drift",
-        expRange(0.0f, kMaxDriftCents, 6.0f), 0.0f, FAttr().withLabel("ct")));
+        expRange(0.0f, kMaxDriftCents, 6.0f), 0.0f,
+        FAttr().withStringFromValueFunction(centsText)));
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(strikeSuffix, i), 1},
@@ -820,7 +837,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(amRateSuffix, i), 1}, p + "Amp Mod Rate",
-        logRange(0.01f, 30.0f), 4.0f, FAttr().withLabel("Hz")));
+        logRange(0.01f, 30.0f), 4.0f,
+        FAttr().withStringFromValueFunction(rateText)));
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(amDepthSuffix, i), 1}, p + "Amp Mod Depth",
@@ -908,7 +926,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{noiseParamId(amRateSuffix), 1}, "Noise Amp Mod Rate",
-      logRange(0.01f, 30.0f), 4.0f, FAttr().withLabel("Hz")));
+      logRange(0.01f, 30.0f), 4.0f,
+      FAttr().withStringFromValueFunction(rateText)));
 
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{noiseParamId(amDepthSuffix), 1}, "Noise Amp Mod Depth",

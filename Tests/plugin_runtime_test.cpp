@@ -307,6 +307,74 @@ void testTheParameterListIsCurrent(OvertoniumProcessor &p) {
         "Tools/build_site.py");
 }
 
+/// What a host's automation lane, the panel's value popup and a screen reader
+/// all show for a parameter, which is the same text in all three. A float
+/// parameter with no text of its own prints seven decimal places, 4.0000005
+/// for 4, and four of them did until they were given one.
+void testReadoutsAreWrittenAsAPersonWould(OvertoniumProcessor &p) {
+  section("Readouts a person would write");
+
+  const auto shown = [&p](const juce::String &id, float value) {
+    auto *param = p.apvts.getParameter(id);
+    return param == nullptr ? juce::String("(missing)")
+                            : param->getText(param->convertTo0to1(value), 100);
+  };
+
+  struct Case {
+    const char *id;
+    float value;
+    const char *expected;
+  };
+
+  const Case cases[] = {
+      {"h01_pmRate", 4.0f, "4.00 Hz"},    {"h01_pmRate", 0.01f, "0.01 Hz"},
+      {"h01_pmRate", 30.0f, "30.0 Hz"},   {"h17_amRate", 0.25f, "0.25 Hz"},
+      {"noise_amRate", 12.5f, "12.5 Hz"}, {"h01_pmDepth", 0.0f, "0 ct"},
+      {"h01_pmDepth", 2.5f, "2.5 ct"},    {"h01_pmDepth", 1200.0f, "1200 ct"},
+      {"h32_drift", 25.0f, "25 ct"},      {"h32_drift", 6.04f, "6.0 ct"},
+  };
+
+  for (const auto &c : cases)
+    check(shown(c.id, c.value) == c.expected,
+          std::string(c.id) + " at " + std::to_string(c.value) + " reads \"" +
+              shown(c.id, c.value).toStdString() + "\", expected \"" +
+              c.expected + "\"");
+
+  // And none of the rest, at either end, the middle or the default, prints
+  // more places than anyone would read: five digits after a point is the
+  // signature of a parameter that has no text function.
+  int long_ = 0;
+  juce::String first;
+
+  for (auto *base : p.getParameters()) {
+    auto *param = dynamic_cast<juce::RangedAudioParameter *>(base);
+
+    if (param == nullptr)
+      continue;
+
+    for (float at : {0.0f, 0.5f, 1.0f, param->getDefaultValue()}) {
+      const auto text = param->getText(at, 100);
+      const auto point = text.indexOfChar('.');
+      int digits = 0;
+
+      for (int i = point + 1; point >= 0 && i < text.length() &&
+                              juce::CharacterFunctions::isDigit(text[i]);
+           ++i)
+        ++digits;
+
+      if (digits >= 5) {
+        ++long_;
+        if (first.isEmpty())
+          first = param->getParameterID() + " reads " + text;
+      }
+    }
+  }
+
+  check(long_ == 0, "no parameter reads to five or more places (" +
+                        std::to_string(long_) + " do, first " +
+                        first.toStdString() + ")");
+}
+
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
@@ -9601,6 +9669,7 @@ int main(int argc, char **argv) {
 
   testParameterWiring(processor);
   testTheParameterListIsCurrent(processor);
+  testReadoutsAreWrittenAsAPersonWould(processor);
   testChoiceParameterCounts(processor);
   testRendering(processor);
   testReleaseVelocity(processor);
