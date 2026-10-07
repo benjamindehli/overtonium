@@ -795,6 +795,85 @@ footer a:hover {
 /* The rest of the project, which is not documentation and so has no place in
    the section nav at the top. It wraps rather than scrolls, since a footer that
    has to be dragged sideways is a footer nobody reads. */
+/* The contents list at the head of the longest page.
+   
+   Only Controls has one. It runs to fifteen sections and twenty-eight
+   headings, which is far enough that the page is reached more often by being
+   sent to a part of it than by being read from the top; the other pages are
+   five or six sections and a list would be longer than the scroll it saves.
+
+   Two levels, and only where the second earns it. A section's own name tells
+   you what is in it everywhere except the two that gather several things
+   under one roof, where "Across the whole instrument" gives no hint that the
+   echo and the reverb are inside, so those two list their parts and the rest
+   do not.
+
+   Set in two columns because a single column of twenty-eight is a page of its
+   own before the page starts. `break-inside` keeps a section and its parts
+   together rather than splitting a group across the gap, which would read as
+   two sections rather than one. */
+.contents {
+    margin: 34px 0 0;
+    padding: 18px 22px 22px;
+    border: 1px solid var(--outline);
+    border-radius: 4px;
+    background: var(--panel);
+}
+.contents ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.contents > ul {
+    columns: 2;
+    column-gap: 36px;
+}
+.contents > ul > li {
+    break-inside: avoid;
+    margin: 0 0 10px;
+}
+
+/* Matching the headings they point at, which are uppercase in the accent, so
+   the link and the thing it lands on read as the same word. */
+.contents > ul > li > a {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+}
+.contents ul ul {
+    margin: 6px 0 0 1px;
+    padding: 0 0 0 11px;
+    border-left: 1px solid var(--outline);
+}
+.contents ul ul li {
+    margin: 0 0 4px;
+}
+.contents ul ul a {
+    font-size: 15px;
+    color: var(--text-dim);
+}
+.contents a {
+    text-decoration: none;
+}
+.contents a:hover {
+    color: var(--text);
+    text-decoration: underline;
+}
+
+@media (max-width: 620px) {
+    .contents > ul {
+        columns: 1;
+    }
+}
+
+/* So an anchored jump does not leave the heading jammed against the top edge
+   with no sign of what it belongs to. */
+:is(section, h3)[id] {
+    scroll-margin-top: 18px;
+}
+
 .elsewhere {
     display: flex;
     flex-wrap: wrap;
