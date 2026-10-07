@@ -89,7 +89,10 @@
                     "Inharmonic stretch and keyboard tracking",
                     "Per-partial envelope, tremolo, pitch modulation and pan",
                     "MPE, with pitch bend and pressure per note",
-                    "An echo and a reverb that are each one of three machines, and a lo-fi converter"
+                    "An echo and a reverb that are each one of three machines, and a lo-fi converter",
+                    "Eight macros, each one host parameter that moves a whole row of channels",
+                    "MIDI Learn on every control",
+                    "An output stage with five clip shapes, including a lookahead limiter"
                 ]
             }
         </script>
@@ -136,6 +139,14 @@
                         "acceptedAnswer": {
                             "@type": "Answer",
                             "text": "Yes. With MPE switched on, pitch bend and pressure arrive per note, and pressure has its own amount on every one of the 33 channels. An ordinary single-channel keyboard plays either way."
+                        }
+                    },
+                    {
+                        "@type": "Question",
+                        "name": "Can I play Overtonium from a MIDI controller?",
+                        "acceptedAnswer": {
+                            "@type": "Answer",
+                            "text": "Yes. Right-click any control, choose MIDI Learn and move a knob or fader on the controller. The map is saved with your project rather than with the preset. A macro moves a whole row from one parameter, so one controller or one automation lane can reach up to 32 controls at once."
                         }
                     },
                     {
@@ -391,7 +402,7 @@
                                 ><strong>Controls</strong
                                 ><span
                                     >Every knob on a channel and on the bar: which oscillator the partials are, envelopes, modulation, ganging, the
-                                    lamps and meters, and the master effects.</span
+                                    lamps and meters, macros, MIDI Learn, and the master effects.</span
                                 ></a
                             >
                         </li>
@@ -443,6 +454,12 @@
                         <dd>
                             Yes. With <a href="controls/">MPE</a> switched on, pitch bend and pressure arrive per note, and pressure has its own
                             amount on every one of the 33 channels. An ordinary single-channel keyboard plays either way.
+                        </dd>
+                        <dt>Can I play Overtonium from a MIDI controller?</dt>
+                        <dd>
+                            Yes. Right-click any control, choose <a href="controls/#midi-learn">MIDI Learn</a> and move a knob or fader on the
+                            controller. The map is saved with your project rather than with the preset. A <a href="controls/#macros">macro</a> moves a
+                            whole row from one parameter, so one controller or one automation lane can reach up to 32 controls at once.
                         </dd>
                         <dt>How much CPU does Overtonium use?</dt>
                         <dd>
