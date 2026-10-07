@@ -214,10 +214,10 @@ header.nav-only .sections {
     transform: scale(1.26);
 }
 
-/* Held as light as the text will allow, so the mixer stays legible as a picture
-   rather than becoming a dark smear behind a paragraph. Measured against the
-   brightest patch under each line with the breath at its peak: the tagline
-   lands at 6.2:1 and the paragraph at 8.7:1, where the standard asks 4.5.
+/* Light at the middle and dark at the edges, so the mixer reads as a picture
+   round the mark. The copy gets its own darker pool, on .hero-body::before
+   below, rather than a heavier scrim here, which would dim the picture
+   everywhere to fix one place.
 
    The colour is --background, which a gradient cannot take from a custom
    property without losing the alpha. */
@@ -241,6 +241,26 @@ header.nav-only .sections {
     text-align: center;
 }
 
+/* A pool of shade under the tagline, the paragraph and the buttons. The panel
+   is full of thin bright rings and a row of sine waves, and a ring through a
+   letter is what makes a line hard to read, whatever the average behind it.
+   Measured against the brightest pixels under each line rather than a blurred
+   patch, through the whole range of the drift: without the pool the tagline
+   falls to 2.0:1 where the sine row crosses it, and with it every line holds
+   7:1 or better. The picture above the copy and at the sides keeps the
+   brightness it has without the pool.
+
+   Sized in percentages of this box, which grows with the copy, so the pool
+   follows the paragraph as it wraps at every width. */
+.hero-body::before {
+    content: "";
+    position: absolute;
+    inset: -40px -120px;
+    z-index: -1;
+    background: radial-gradient(ellipse 54% 52% at 50% 63%, rgba(11, 13, 16, 0.7) 0%, rgba(11, 13, 16, 0.56) 55%, rgba(11, 13, 16, 0) 100%);
+    pointer-events: none;
+}
+
 .hero-body h1 {
     margin: 0;
     width: 100%;
@@ -261,8 +281,7 @@ header.nav-only .sections {
 .hero .tagline {
     margin-top: 22px;
     color: var(--text);
-    opacity: 0.85;
-    text-shadow: 0 1px 10px rgba(11, 13, 16, 0.7);
+    text-shadow: 0 1px 10px rgba(11, 13, 16, 0.9);
 }
 
 /* Smaller than the 21px a lead runs at on the page. Centred over a picture it
@@ -288,8 +307,8 @@ header.nav-only .sections {
    moves as you scroll, which made the whole page stutter. The extra opacity
    does the same job for nothing. */
 .hero .links a {
-    background: rgba(20, 24, 29, 0.82);
-    border-color: rgba(217, 223, 231, 0.18);
+    background: rgba(20, 24, 29, 0.9);
+    border-color: rgba(217, 223, 231, 0.24);
 }
 
 .hero .links a:hover {
@@ -297,14 +316,19 @@ header.nav-only .sections {
     color: var(--accent);
 }
 
+/* Solid, because an outline in the accent over a picture this busy is one more
+   coloured line among the knobs. Dark on the accent is 8.9:1, and it is the
+   one filled shape in the frame, so it is found before it is read. */
 .hero .links a.primary {
     border-color: var(--accent);
-    background: rgba(98, 187, 217, 0.16);
-    color: var(--accent);
+    background: var(--accent);
+    color: var(--background);
+    font-weight: 600;
 }
 
 .hero .links a.primary:hover {
-    background: var(--accent);
+    border-color: var(--text);
+    background: var(--text);
     color: var(--background);
 }
 
