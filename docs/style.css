@@ -257,7 +257,7 @@ header.nav-only .sections {
     position: absolute;
     inset: -40px -120px;
     z-index: -1;
-    background: radial-gradient(ellipse 54% 52% at 50% 63%, rgba(11, 13, 16, 0.7) 0%, rgba(11, 13, 16, 0.56) 55%, rgba(11, 13, 16, 0) 100%);
+    background: radial-gradient(ellipse 54% 52% at 50% 63%, rgba(11, 13, 16, 0.72) 0%, rgba(11, 13, 16, 0.58) 55%, rgba(11, 13, 16, 0) 100%);
     pointer-events: none;
 }
 
