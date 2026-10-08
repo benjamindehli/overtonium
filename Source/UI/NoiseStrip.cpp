@@ -399,9 +399,24 @@ void NoiseStrip::paint(juce::Graphics &g) {
   auto absent =
       rows[rowIndex(Row::PmShape)].getUnion(rows[rowIndex(Row::Glide)]);
 
-  g.setColour(colours::textDim.withAlpha(0.5f));
-  g.setFont(makeFont(9.0f));
-  g.drawText("no pitch", absent, juce::Justification::centred, false);
+  // On a plate set into the panel, like a blanking plate in an empty rack
+  // slot. Bare text at half strength read as a faded caption, which is the
+  // drawing bug it was there to rule out.
+  const auto plate =
+      juce::Rectangle<float>((float)absent.getWidth() - 6.0f, 28.0f)
+          .withCentre(absent.toFloat().getCentre());
+
+  if (absent.getHeight() >= (int)plate.getHeight()) {
+    paintRecess(g, plate, 2.5f);
+    g.setColour(colours::channel.darker(0.35f));
+    g.fillRoundedRectangle(plate, 2.5f);
+
+    g.setColour(colours::textDim);
+    g.setFont(makeFont(10.0f));
+    // Two lines, since the strip is narrower than the words on one.
+    g.drawFittedText("no\npitch", plate.toNearestInt(),
+                     juce::Justification::centred, 2, 1.0f);
+  }
 }
 
 void NoiseStrip::updateLevelReadout() {
