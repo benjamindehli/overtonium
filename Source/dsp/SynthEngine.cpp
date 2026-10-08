@@ -1,7 +1,5 @@
 #include "SynthEngine.h"
 
-#include <limits>
-
 #include <algorithm>
 #include <cmath>
 
@@ -62,10 +60,6 @@ void SynthEngine::reset() noexcept {
   clock = 0;
   pressedAt.fill(0);
   pressedWithOthers.fill(false);
-  struck.fill({});
-  struckNext = 0;
-  pending.waiting = false;
-  release.waiting = false;
   forgetLine();
   smoothedMasterGain = -1.0f;
 
@@ -100,15 +94,30 @@ void SynthEngine::setLegato(bool on) noexcept {
     forgetLine();
 }
 
-void SynthEngine::remember(int note, uint64_t at, int voice) noexcept {
-  struck[struckNext] = {note, at, voice};
-  struckNext = (struckNext + 1) % struck.size();
+void SynthEngine::forgetLine() noexcept {
+  handedOff.fill(false);
+  takenFrom.fill(-1);
 }
 
-void SynthEngine::forgetLine() noexcept {
-  carriesLine.fill(false);
-  lineDepth = 0;
-  lineVoice = -1;
+void SynthEngine::letGo(size_t index, float lift) noexcept {
+  auto &v = voices[index];
+
+  // Under the top line, a note whose phrase a key above carried on, and the
+  // upper note of a trill whose lower key is still down, both go quickly: the
+  // phrase is somewhere else now, and a full release under it is a smear.
+  bool quiet = false;
+
+  if (topLine()) {
+    const auto from = takenFrom[index];
+
+    quiet = handedOff[index] || (from >= 0 && voices[(size_t)from].isActive() &&
+                                 !voices[(size_t)from].isReleasing());
+  }
+
+  if (quiet)
+    v.fade((float)kHandoffFadeSeconds);
+  else
+    v.noteOff(lift);
 }
 
 int SynthEngine::countSounding() const noexcept {
@@ -137,13 +146,20 @@ Voice *SynthEngine::findFreeVoice() noexcept {
   return nullptr;
 }
 
-Voice *SynthEngine::findOldestSounding() noexcept {
+Voice *SynthEngine::findOldestSounding(int spare) noexcept {
   Voice *oldest = nullptr;
 
-  for (auto &v : voices)
-    if (v.isActive() && !v.isReleasing())
+  for (size_t i = 0; i < voices.size(); ++i) {
+    auto &v = voices[i];
+
+    if (v.isActive() && !v.isReleasing() && (int)i != spare)
       if (oldest == nullptr || v.getAge() < oldest->getAge())
         oldest = &v;
+  }
+
+  // With nothing else to take, the spared one goes after all.
+  if (oldest == nullptr && spare >= 0 && voices[(size_t)spare].isActive())
+    oldest = &voices[(size_t)spare];
 
   return oldest;
 }
@@ -197,26 +213,8 @@ void SynthEngine::legatoRelease(int note) noexcept {
   }
 }
 
-void SynthEngine::startPendingFresh(const SynthParams &p) noexcept {
-  if (!pending.waiting)
-    return;
-
-  const auto k = pending;
-  pending.waiting = false;
-  noteOnImpl(k.channel, k.note, k.velocity, p, Take::Fresh);
-}
-
 void SynthEngine::noteOnImpl(int channel, int note, float velocity,
-                             const SynthParams &p, Take take) noexcept {
-  // A key still waiting when another arrives was part of a chord with it.
-  if (take == Take::Normal)
-    startPendingFresh(p);
-
-  // Struck again before its delayed release, the key is down once more and
-  // the release is no longer owed.
-  if (release.waiting && release.channel == channel && release.note == note)
-    release.waiting = false;
-
+                             const SynthParams &p) noexcept {
   glide = GlideSettings::of(p);
 
   // The tuning this note is under, which a note-off falling back to a held key
@@ -308,13 +306,14 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
 
   // ---- the top line ---------------------------------------------------------
   //
-  // Legato with more than one voice. The highest note held down carries on
-  // into a new key that lands above everything else held, so a melody played
-  // joined over a chord slides from note to note without starting again,
-  // while every other key plays as it always does. A key pressed under the
-  // line is a fresh note, and so is one pressed alongside others, which is
-  // what tells a chord from a line: a note becomes a line only if it went
-  // down alone. Once a line, it stays one for as long as a key holds it.
+  // Legato with more than one voice. A key landing above every held note but
+  // the highest carries the highest note's phrase on: it starts a voice of its
+  // own that takes over that note's envelopes where they stand and glides from
+  // its pitch, so a melody played joined over a chord slides from note to note
+  // without starting again. The note it carried on from is never moved, so a
+  // key that turns out to be part of the chord still sounds, and it fades once
+  // its key comes up rather than ringing out under the melody. Every other key
+  // plays as it always does.
   const auto now = clock;
   const auto window = (uint64_t)(kChordWindowSeconds * sampleRate);
   bool withOthers = false;
@@ -325,10 +324,17 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
       withOthers = true;
     }
 
-  if (topLine() && take != Take::Fresh) {
-    // The highest note a hand is holding, and the highest beneath it. The
-    // pedal does not count: it holds the sound, not the line.
-    int top = -1, beneath = -1;
+  // The voice whose phrase this key carries on, if it does, and the top line
+  // the steal below must leave alone.
+  int carryFrom = -1;
+  int spare = -1;
+
+  if (topLine()) {
+    // The highest note a hand is holding, and the highest beneath it, and the
+    // highest of the keys struck in the last moment, which are a chord being
+    // played or the melody landing on one. The pedal does not count: it holds
+    // the sound, not the line.
+    int top = -1, beneath = -1, struckTop = -1;
 
     for (size_t i = 0; i < voices.size(); ++i) {
       const auto &v = voices[i];
@@ -343,63 +349,42 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
       } else {
         beneath = std::max(beneath, v.getNote());
       }
+
+      if (now - pressedAt[i] < window)
+        struckTop = std::max(struckTop, v.getNote());
     }
 
-    // And the highest the accompaniment has reached lately, held or not, so a
-    // chord struck staccato under the line still counts as being there. The
-    // line's own notes are not accompaniment, and neither is the note that is
-    // about to become the line.
-    const auto memory = (uint64_t)(kAccompanimentSeconds * sampleRate);
-    int chordTop = -1;
-
-    for (const auto &k : struck)
-      if (k.note >= 0 && now - k.at < memory && k.voice != top &&
-          !(k.voice >= 0 && carriesLine[(size_t)k.voice]))
-        chordTop = std::max(chordTop, k.note);
+    spare = top;
 
     if (top >= 0) {
-      const auto t = (size_t)top;
-      auto &line = voices[t];
-      const bool eligible = carriesLine[t] || !pressedWithOthers[t];
+      const auto head = voices[(size_t)top].getNote();
 
-      // A key struck with others and landing under the line is a chord note,
-      // never the melody. Struck with others above it, it is the top of a new
-      // chord, and the melody goes on in it.
-      const bool inChord = withOthers && note < line.getNote();
+      // When a key goes down under the top note, the melody stepping down and
+      // a chord struck under a held melody look the same, and only what the
+      // old melody key does afterwards would tell them apart. So the rule
+      // leans on what is likely, and a wrong guess costs no more than an
+      // attack, since the note it carried on from goes on sounding.
+      bool carries = false;
 
-      if (eligible && !inChord && note > beneath && note > chordTop &&
-          note >= line.getNote() - kLineReachDown && note != line.getNote()) {
-        // Under the line, with nothing held beside it and nothing remembered:
-        // the one key that could be either. It waits. See
-        // kLineDecisionSeconds.
-        if (take == Take::Normal && note < line.getNote() && beneath < 0 &&
-            chordTop < 0) {
-          pending = {true, channel,
-                     note, velocity,
-                     now,  now + (uint64_t)(kLineDecisionSeconds * sampleRate)};
-          return;
+      if (note > head) {
+        // The melody going up, or the top of a new chord over it.
+        carries = true;
+      } else if (note < head && note > beneath) {
+        if (!withOthers && beneath >= 0) {
+          // Over a chord that is being held, with nothing else just struck:
+          // the melody stepping down, however far.
+          carries = true;
+        } else {
+          // Alone under a lone melody, or among keys struck together: the
+          // melody only if it is a step away and the highest of what was just
+          // struck, since a melody moves by seconds and thirds and the top of
+          // a chord sits further down.
+          carries = head - note <= kStepDown && note > struckTop;
         }
-
-        // The key it moves off is still down, so it is remembered for a trill
-        // to fall back to. A line that has changed hands starts its memory
-        // again, since the keys under the old one belong to nothing now.
-        if (lineVoice != top)
-          lineDepth = 0;
-
-        if (lineDepth < (int)lineHeld.size())
-          lineHeld[(size_t)lineDepth++] = {line.getChannel(), line.getNote()};
-
-        const auto own = line.notePitches();
-        line.noteOnLegato(channel, note, p);
-        line.startGlide(own, glide);
-        line.setAge(++ageCounter);
-
-        carriesLine[t] = true;
-        pressedAt[t] = now;
-        lineVoice = top;
-        lastNoteFrequency = line.getFrequency();
-        return;
       }
+
+      if (carries)
+        carryFrom = top;
     }
   }
 
@@ -445,7 +430,6 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
       heldBySustain[heldIndex] = false;
       pressedAt[heldIndex] = now;
       pressedWithOthers[heldIndex] = withOthers;
-      remember(note, now, (int)heldIndex);
       held->noteOn(channel, note, velocity, p);
 
       if (glides)
@@ -458,7 +442,7 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
   }
 
   if (countSounding() >= polyphony)
-    if (auto *victim = findOldestSounding())
+    if (auto *victim = findOldestSounding(spare))
       victim->steal();
 
   auto *target = findFreeVoice();
@@ -488,18 +472,31 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
   // has gone with it.
   pressedAt[index] = now;
   pressedWithOthers[index] = withOthers;
-  carriesLine[index] = false;
-  remember(note, now, (int)index);
+  handedOff[index] = false;
+  takenFrom[index] = -1;
 
-  if (lineVoice == (int)index) {
-    lineVoice = -1;
-    lineDepth = 0;
-  }
+  // Anything that remembered taking its phrase from whatever played on this
+  // voice before has nothing to remember now.
+  for (auto &source : takenFrom)
+    if (source == (int)index)
+      source = -1;
 
   target->noteOn(channel, note, velocity, p);
 
-  if (glides)
+  if (carryFrom >= 0 && carryFrom != (int)index &&
+      voices[(size_t)carryFrom].isActive()) {
+    // The phrase carried on: where the note below it has got to, envelopes,
+    // modulators and pitch, with a glide from that pitch. A key is held by
+    // definition here, so both triggers glide.
+    const auto &source = voices[(size_t)carryFrom];
+    target->takeOver(source);
+    target->startGlide(source.notePitches(), glide);
+
+    handedOff[(size_t)carryFrom] = true;
+    takenFrom[index] = carryFrom;
+  } else if (glides) {
     target->startGlide(from, glide);
+  }
 
   target->setAge(++ageCounter);
   lastNoteFrequency = target->getFrequency();
@@ -514,51 +511,6 @@ void SynthEngine::noteOffPerNote(int channel, int note, float lift) noexcept {
 }
 
 void SynthEngine::noteOffImpl(int channel, int note, float lift) noexcept {
-  // Let go before its wait was over: a short note of its own, so it starts and
-  // is released like one. The parameters are the last render's, being all a
-  // note-off has.
-  if (pending.waiting && pending.channel == channel && pending.note == note &&
-      haveParams) {
-    const auto held = clock - pending.pressed;
-    startPendingFresh(lastParams);
-    release = {true, channel, note, lift, clock + held};
-    return;
-  }
-
-  if (topLine()) {
-    // A key the line has already moved off: only remembered, so letting go of
-    // it is the end of remembering it.
-    for (int i = 0; i < lineDepth; ++i) {
-      if (lineHeld[(size_t)i].channel != channel ||
-          lineHeld[(size_t)i].note != note)
-        continue;
-
-      for (int j = i; j + 1 < lineDepth; ++j)
-        lineHeld[(size_t)j] = lineHeld[(size_t)j + 1];
-
-      --lineDepth;
-      return;
-    }
-
-    // The line's own key, with one it came from still down: back to that one,
-    // which is a trill.
-    if (lineVoice >= 0 && lineDepth > 0) {
-      auto &line = voices[(size_t)lineVoice];
-
-      if (matches(line, channel, note) && !line.isReleasing()) {
-        const auto back = lineHeld[(size_t)--lineDepth];
-        const auto own = line.notePitches();
-
-        line.retune(back.channel, back.note,
-                    noteFrequency(back.note, legatoTemperament, legatoRoot,
-                                  legatoReferenceHz));
-        line.startGlide(own, glide);
-        lastNoteFrequency = line.getFrequency();
-        return;
-      }
-    }
-  }
-
   if (legato && polyphony <= 1) {
     legatoRelease(note);
 
@@ -590,7 +542,7 @@ void SynthEngine::noteOffImpl(int channel, int note, float lift) noexcept {
         heldBySustain[i] = true;
         heldLift[i] = lift;
       } else {
-        v.noteOff(lift);
+        letGo(i, lift);
       }
     }
   }
@@ -604,7 +556,7 @@ void SynthEngine::setSustainPedal(bool down) noexcept {
 
   for (size_t i = 0; i < voices.size(); ++i) {
     if (heldBySustain[i]) {
-      voices[i].noteOff(heldLift[i]);
+      letGo(i, heldLift[i]);
       heldBySustain[i] = false;
       heldLift[i] = 1.0f;
     }
@@ -637,8 +589,6 @@ void SynthEngine::setNoteBend(int channel, int note, float semitones) noexcept {
 }
 
 void SynthEngine::allNotesOff() noexcept {
-  pending.waiting = false;
-  release.waiting = false;
 
   for (size_t i = 0; i < voices.size(); ++i) {
     voices[i].noteOff();
@@ -649,8 +599,6 @@ void SynthEngine::allNotesOff() noexcept {
 }
 
 void SynthEngine::allSoundOff() noexcept {
-  pending.waiting = false;
-  release.waiting = false;
 
   for (auto &v : voices)
     v.reset();
@@ -923,53 +871,8 @@ void SynthEngine::render(float *left, float *right, int numSamples,
     return;
 
   glide = GlideSettings::of(p);
-  lastParams = p;
-  haveParams = true;
-
-  // A key whose wait runs out, or whose delayed release falls due, inside
-  // this block is acted on at the sample it falls on, so the voices are
-  // rendered in pieces either side of each.
-  int done = 0;
-
-  for (;;) {
-    auto next = std::numeric_limits<uint64_t>::max();
-
-    if (pending.waiting)
-      next = pending.deadline;
-    if (release.waiting)
-      next = std::min(next, release.at);
-
-    const auto end = clock + (uint64_t)(numSamples - done);
-
-    if (next >= end)
-      break;
-
-    const auto upTo = (int)(next > clock ? next - clock : 0);
-
-    if (upTo > 0) {
-      renderVoices(left + done, right + done, upTo, p);
-      clock += (uint64_t)upTo;
-      done += upTo;
-    }
-
-    // Nothing arrived while it waited, so it was the melody stepping down.
-    if (pending.waiting && pending.deadline <= clock) {
-      const auto k = pending;
-      pending.waiting = false;
-      noteOnImpl(k.channel, k.note, k.velocity, p, Take::Decided);
-    }
-
-    if (release.waiting && release.at <= clock) {
-      const auto k = release;
-      release.waiting = false;
-      noteOffImpl(k.channel, k.note, k.lift);
-    }
-  }
-
-  if (numSamples > done) {
-    renderVoices(left + done, right + done, numSamples - done, p);
-    clock += (uint64_t)(numSamples - done);
-  }
+  renderVoices(left, right, numSamples, p);
+  clock += (uint64_t)numSamples;
 
   // ---- the bus the series is summed onto -----------------------------------
   // Before the effects, since this is the summing amplifier rather than

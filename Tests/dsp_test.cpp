@@ -2045,11 +2045,12 @@ void testGlide() {
   }
 }
 
-/// Legato with more than one voice: the highest note held carries on into a
-/// new key above everything else held, and every other key plays as it
-/// always does. Whether a key carried the line or started a note is read from
-/// the voice count, which a carried line leaves alone and a fresh note adds
-/// to, and pitch from single partials where only one voice is sounding.
+/// Legato with more than one voice: a key landing above everything held but
+/// the highest note carries that note's phrase on in a voice of its own, and
+/// every other key plays as it always does. Whether a key carried the phrase
+/// is read from its level once everything else has been let go: with a
+/// quarter-second attack, a carried note is at full level and a fresh one a
+/// few tens of milliseconds in is a fraction of it.
 void testTopLineLegato() {
   section("Top line legato");
 
@@ -2065,8 +2066,7 @@ void testTopLineLegato() {
   p.osc[0].sustain = 1.0f;
 
   // Every envelope short at the end, the silent partials and the noise
-  // included: a voice is active until all thirty-three have finished, so one
-  // long default release would keep a lifted key counting.
+  // included: a voice is active until all thirty-three have finished.
   for (auto &o : p.osc)
     o.release = 0.02f;
   p.noise.release = 0.02f;
@@ -2077,6 +2077,14 @@ void testTopLineLegato() {
     l.assign(n, 0.0f);
     r.assign(n, 0.0f);
     engine.render(l.data(), r.data(), (int)n, p);
+  };
+
+  const auto peakOfLast = [&](double seconds) {
+    double m = 0.0;
+    const auto from = l.size() - std::min(l.size(), (size_t)(seconds * sr));
+    for (size_t i = from; i < l.size(); ++i)
+      m = std::max(m, std::abs((double)l[i]));
+    return m;
   };
 
   const auto hz = [&](double t0, double t1) {
@@ -2103,166 +2111,180 @@ void testTopLineLegato() {
     return measured > 0.0 ? 12.0 * std::log2(measured / target) : 99.0;
   };
 
-  const auto start = [&]() {
+  const auto start = [&](int polyphony) {
     engine.prepare(sr);
-    engine.setPolyphony(8);
+    engine.setPolyphony(polyphony);
     engine.setLegato(true);
   };
 
   const auto voices = [&]() { return engine.getActiveVoiceCount(); };
 
-  // ---- a line over a chord --------------------------------------------------
-  start();
-  engine.noteOn(48, 1.0f, p); // a chord, all at once
-  engine.noteOn(52, 1.0f, p);
-  engine.noteOn(55, 1.0f, p);
-  render(0.2);
-
-  engine.noteOn(72, 1.0f, p); // a melody note above it, alone
-  render(0.2);
-
-  check(voices() == 4, "a note above a chord starts fresh, since a chord's top "
-                       "note cannot become a line (" +
-                           std::to_string(voices()) + " voices)");
-
-  engine.noteOn(74, 1.0f, p); // the next melody note, joined
-  render(0.02);
-
-  check(voices() == 4, "the next key above carries the line on rather than "
-                       "taking a voice (" +
-                           std::to_string(voices()) + ")");
-
-  engine.noteOff(72); // the key the line moved off
-  render(0.1);
-
-  check(voices() == 4, "and letting go of the key it moved off ends nothing (" +
-                           std::to_string(voices()) + ")");
-
-  // ---- a staccato chord under the line --------------------------------------
-  engine.noteOff(48);
-  engine.noteOff(52);
-  engine.noteOff(55);
-  render(0.2); // the chord's tails are gone, the line is not
-
-  check(voices() == 1, "the chord lifted, the line still sounds (" +
-                           std::to_string(voices()) + ")");
-
-  engine.noteOn(53, 1.0f, p);
-  engine.noteOn(57, 1.0f, p);
-  render(0.02);
-
-  check(voices() == 3, "a chord struck under a held line is fresh notes (" +
-                           std::to_string(voices()) + ")");
-
-  // ---- the line steps down, and a remembered chord holds it up ------------
-  start();
-  engine.noteOn(76, 1.0f, p); // a line on its own, nothing under it
-  render(0.2);
-  engine.noteOn(72, 1.0f, p); // a step down, with no accompaniment yet
-  render(0.05);
-
-  check(voices() == 1, "with nothing under it the line steps down within its "
-                       "octave (" +
-                           std::to_string(voices()) + " voice)");
-
-  engine.noteOff(76);
-  engine.noteOn(60, 1.0f, p); // the first chord under it, nothing remembered
-  engine.noteOn(64, 1.0f, p);
-  engine.noteOn(67, 1.0f, p);
-  render(0.1);
-
-  check(voices() == 4, "the first chord struck within the line's octave, with "
-                       "nothing remembered, is fresh notes and not the line "
-                       "stepping down (" +
-                           std::to_string(voices()) + " voices)");
-  engine.noteOff(60);
-  engine.noteOff(64);
-  engine.noteOff(67);
-  render(0.2); // only the line is held now
-
-  engine.noteOn(64, 1.0f, p); // the same chord again, close under the line
-  engine.noteOn(67, 1.0f, p);
-  render(0.02);
-
-  check(voices() == 3, "a chord struck again within the line's octave is "
-                       "fresh notes, since it does not clear the chord played "
-                       "a moment ago (" +
-                           std::to_string(voices()) + ")");
-
-  // ---- the one key that waits ----------------------------------------------
-  start();
+  // A held note at full level, for the rest to be measured against.
+  start(16);
   engine.noteOn(72, 1.0f, p);
-  render(0.2);
-  engine.noteOn(69, 1.0f, p); // under a lone line, nothing remembered
-  render(0.01);               // inside its wait
-
-  check(voices() == 1 && std::abs(semisOff(hz(0.002, 0.01), 72.0)) < 0.05,
-        "a key under a lone line waits, the line still on its own note");
-
-  render(0.1); // past the wait, with nothing else arriving
-
-  check(voices() == 1 && std::abs(semisOff(hz(0.04, 0.1), 69.0)) < 0.02,
-        "and with nothing else arriving the line steps down to it");
-
-  engine.noteOn(67, 1.0f, p); // under again, waits
-  render(0.005);
-  engine.noteOff(67); // let go before the wait is over
-  render(0.005);
-
-  check(voices() == 2, "a key let go inside its wait still plays, as a note "
-                       "of its own in its release beside the line (" +
-                           std::to_string(voices()) + ")");
-
-  render(0.2);
-
-  check(voices() == 1, "a key let go inside its wait is a short note of its "
-                       "own, started and released (" +
-                           std::to_string(voices()) + " voice left)");
-
-  // ---- two keys together are a chord, not a line ----------------------------
-  start();
-  engine.noteOn(69, 1.0f, p);
-  engine.noteOn(71, 1.0f, p);
-  render(0.2);
-  engine.noteOn(72, 1.0f, p);
-  render(0.02);
-
-  check(voices() == 3, "a key above two pressed together starts fresh (" +
-                           std::to_string(voices()) + ")");
-
-  // ---- a trill falls back ---------------------------------------------------
-  start();
-  engine.noteOn(72, 1.0f, p);
-  render(0.2);
-  engine.noteOn(74, 1.0f, p); // carried
-  render(0.1);
-  engine.noteOff(74); // the line's own key, with 72 still down
-  render(0.2);
-
-  check(voices() == 1, "letting go of the line's key with the one before still "
-                       "held keeps the line sounding (" +
-                           std::to_string(voices()) + ")");
-  check(std::abs(semisOff(hz(0.05, 0.15), 72.0)) < 0.02,
-        "and it falls back to that key, as a trill does");
-
+  render(0.4);
+  const auto full = peakOfLast(0.05);
   engine.noteOff(72);
   render(0.2);
 
-  check(voices() == 0, "the last key up releases it");
+  // Whether `note` carried a phrase on, read once it is the only thing left:
+  // `others` are let go first, and their tails have gone by the reading.
+  const auto carried = [&](std::initializer_list<int> others) {
+    for (auto k : others)
+      engine.noteOff(k);
+    render(0.06);
+    return peakOfLast(0.01) / full;
+  };
 
-  // ---- MPE: a line carried onto a key of its own takes that key's bend ------
-  start();
+  // ---- the melody going up --------------------------------------------------
+  start(16);
+  engine.noteOn(72, 1.0f, p);
+  render(0.3);
+  engine.noteOn(74, 1.0f, p);
+
+  const auto up = carried({72});
+
+  check(up > 0.7, "a key above the melody carries it on without starting "
+                  "again (" +
+                      std::to_string(up) + " of full)");
+  check(std::abs(semisOff(hz(0.03, 0.06), 74.0)) < 0.02,
+        "and plays its own note");
+
+  // ---- over a held chord ----------------------------------------------------
+  start(16);
+  engine.noteOn(48, 1.0f, p);
+  engine.noteOn(52, 1.0f, p);
+  engine.noteOn(55, 1.0f, p);
+  render(0.3);
+  engine.noteOn(72, 1.0f, p);
+  render(0.3);
+  engine.noteOn(76, 1.0f, p);
+
+  const auto overChord = carried({48, 52, 55, 72});
+
+  check(overChord > 0.7,
+        "over a held chord the melody goes on from note to note (" +
+            std::to_string(overChord) + ")");
+
+  // ---- stepping down on the beat, with a chord ------------------------------
+  for (const bool melodyLast : {true, false}) {
+    start(16);
+    engine.noteOn(76, 1.0f, p);
+    render(0.3);
+
+    if (melodyLast) {
+      engine.noteOn(60, 1.0f, p);
+      engine.noteOn(64, 1.0f, p);
+      engine.noteOn(74, 1.0f, p);
+    } else {
+      engine.noteOn(74, 1.0f, p);
+      engine.noteOn(60, 1.0f, p);
+      engine.noteOn(64, 1.0f, p);
+    }
+
+    check(voices() == 4, "every key of the chord sounds (" +
+                             std::to_string(voices()) + " voices)");
+
+    const auto onBeat = carried({76, 60, 64});
+
+    check(onBeat > 0.7, std::string("a melody stepping down with a chord "
+                                    "carries on, struck ") +
+                            (melodyLast ? "after" : "before") + " the chord (" +
+                            std::to_string(onBeat) + ")");
+  }
+
+  // ---- a staccato chord under a held melody ---------------------------------
+  start(16);
+  engine.noteOn(76, 1.0f, p);
+  render(0.3);
+  engine.noteOn(52, 1.0f, p);
+  engine.noteOn(55, 1.0f, p);
+  engine.noteOn(59, 1.0f, p);
+
+  check(voices() == 4, "a chord struck under a held melody sounds, every "
+                       "note of it (" +
+                           std::to_string(voices()) + " voices)");
+
+  const auto chordTop = carried({76, 52, 55});
+
+  check(chordTop < 0.5, "and starts again rather than taking the melody's "
+                        "phrase (" +
+                            std::to_string(chordTop) + " of full)");
+
+  // ---- a chord under a lone melody, close to it -----------------------------
+  start(16);
+  engine.noteOn(72, 1.0f, p);
+  render(0.3);
+  engine.noteOn(60, 1.0f, p);
+  engine.noteOn(64, 1.0f, p);
+  engine.noteOn(69, 1.0f, p);
+  render(0.02);
+
+  check(voices() == 4, "a chord close under a lone melody sounds, every "
+                       "note of it (" +
+                           std::to_string(voices()) + " voices)");
+
+  // ---- a leap down over a held chord ----------------------------------------
+  start(16);
+  engine.noteOn(48, 1.0f, p);
+  engine.noteOn(52, 1.0f, p);
+  engine.noteOn(55, 1.0f, p);
+  render(0.3);
+  engine.noteOn(79, 1.0f, p);
+  render(0.3);
+  engine.noteOn(72, 1.0f, p); // a fifth down, still above the chord
+
+  const auto leap = carried({48, 52, 55, 79});
+
+  check(leap > 0.7, "a leap down over a held chord carries on, however far (" +
+                        std::to_string(leap) + ")");
+
+  // ---- a trill -------------------------------------------------------------
+  start(16);
+  engine.noteOn(72, 1.0f, p);
+  render(0.3);
+  engine.noteOn(74, 1.0f, p);
+  render(0.1);
+  engine.noteOff(74); // back onto the key still held
+  render(0.1);
+
+  check(voices() == 1 && std::abs(semisOff(hz(0.05, 0.1), 72.0)) < 0.02,
+        "lifting the upper note of a trill leaves the lower one sounding, "
+        "and the upper goes quickly");
+
+  engine.noteOff(72);
+  render(0.1);
+
+  check(voices() == 0, "and the last key up lets it go");
+
+  // ---- the melody is not the voice stolen ----------------------------------
+  start(2);
+  engine.noteOn(76, 1.0f, p);
+  render(0.3);
+  engine.noteOn(48, 1.0f, p);
+  render(0.1);
+  engine.noteOn(52, 1.0f, p); // a third key with two voices
+
+  const auto spared = carried({48, 52});
+
+  check(spared > 0.7, "with the voices full, the melody is not the one taken "
+                      "(" +
+                          std::to_string(spared) + " of full left)");
+
+  // ---- MPE: the new note brings its own bend -------------------------------
+  start(16);
   engine.noteOnPerNote(2, 72, 1.0f, p);
   engine.setNoteBend(2, 72, 2.0f);
-  render(0.2);
-  engine.noteOnPerNote(3, 74, 1.0f, p); // carried, on its own channel
-  render(0.2);
+  render(0.3);
+  engine.noteOnPerNote(3, 74, 1.0f, p); // carried on, on its own channel
+  engine.noteOffPerNote(2, 72);
+  render(0.1);
 
-  const auto mpeOff = semisOff(hz(0.1, 0.19), 74.0);
+  const auto mpeOff = semisOff(hz(0.04, 0.1), 74.0);
 
-  check(voices() == 1 && std::abs(mpeOff) < 0.02,
-        "a line moved to a key on another channel leaves the old note's bend "
-        "behind (" +
+  check(std::abs(mpeOff) < 0.02,
+        "a note carried on onto a key of its own channel is not bent by the "
+        "old one (" +
             std::to_string(mpeOff) + " st off D5)");
 }
 
