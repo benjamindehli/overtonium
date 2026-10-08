@@ -64,7 +64,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-10-07",
+                "dateModified": "2026-10-08",
                 "breadcrumb": {
                     "@id": "https://benjamindehli.github.io/overtonium/controls/#breadcrumb"
                 }
@@ -195,14 +195,6 @@
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td>PHASE</td>
-                                    <td>0 to 1 turn</td>
-                                    <td>
-                                        Where in its cycle the partial starts, when phase reset is on. With it off there is no reset for it to aim and
-                                        the knob does nothing
-                                    </td>
-                                </tr>
-                                <tr>
                                     <td>PITCH MOD shape, rate, depth</td>
                                     <td>Eight shapes, 0.01 to 30 Hz, 0 to 1200 cents</td>
                                     <td>Per-partial vibrato</td>
@@ -213,8 +205,17 @@
                                     <td>Smooth random pitch wander, its own stream per partial</td>
                                 </tr>
                                 <tr>
+                                    <td>GLIDE</td>
+                                    <td>Off to 5 s</td>
+                                    <td>
+                                        How long this partial takes to reach a new note, so the series can arrive a partial at a time. When it glides,
+                                        and whether the time is per note or per octave, is in the knob's right-click menu: see
+                                        <a href="../playing/#glide">Glide</a>
+                                    </td>
+                                </tr>
+                                <tr>
                                     <td>ENVELOPE strike, delay, A, D, S</td>
-                                    <td>-100 to +100%, 0 to 5 s, 0.2 ms to 5 s, 1 ms to 20 s, 0 to 100%</td>
+                                    <td>-100 to +100%, 0 to 5 s, 90&deg; then 0.2 ms to 5 s, 1 ms to 20 s, 0 to 100%</td>
                                     <td>Exponential decay. STRIKE starts the partial sooner and faster the harder the key is struck</td>
                                 </tr>
                                 <tr>
@@ -415,6 +416,23 @@
                     </p>
 
                     <p>
+                        <strong>ATTACK reaches below its shortest time.</strong> Turned past 0.2 ms it stops being a time and becomes where in its
+                        cycle the partial starts, from 0&deg;, a rising zero crossing, down to 90&deg; at the bottom of the knob, which starts the
+                        partial on its own peak with no attack at all. A zero crossing is the softest onset there is: a partial cannot reach its peak
+                        until a quarter of its period has gone by, and below about 500 Hz that is longer than the shortest attack, so on most of the
+                        keyboard the edge of a note is set by where its cycle starts rather than by the envelope. A millisecond into an A1, a partial
+                        starting from the crossing is a third of the way up, from 45&deg; nine tenths, and from the peak all of it.
+                    </p>
+
+                    <p>
+                        It is per channel like every row, so the edge can go on some partials and not others, and LINK spreads it across the series in
+                        one drag. Every partial on its peak at once is a spike: for 32 partials on a falling series the first sample is about four
+                        times the steady peak, and the output stage meets it. Staggering the start across the channels keeps the edge and loses the
+                        spike. With phase reset off in Settings a partial carries on from wherever its cycle was, and this stretch of the knob is the
+                        shortest attack.
+                    </p>
+
+                    <p>
                         <strong>STRIKE</strong> sits at the head of the section because it is about the blow rather than about the shape, and it aims
                         that blow at the two rows under it, the way the velocity row aims it at the fader. Zero ignores the gesture. Positive means a
                         hard note starts sooner and arrives faster, and a soft one waits and then opens slowly. Negative inverts it.
@@ -426,7 +444,9 @@
                         the latest it arrives. Both span eight octaves at full amount, a range of 256 to 1: a partial set to 2 ms attacks in 2 ms
                         under a hard blow and takes half a second under the softest, and a 400 ms delay stays 400 ms under the softest and comes in to
                         under two milliseconds under the hardest. The stretched attack stops at five seconds, which is as long as the ATTACK row
-                        itself goes.
+                        itself goes. It moves the whole of the row, the stretch below the shortest time included: a partial set to start on its peak
+                        starts there under a hard blow, nearer the zero crossing under a lighter one, and past it into a short attack under the
+                        softest. A quarter turn is worth two octaves of attack, so at full amount the softest note takes that peak to about 13 ms.
                     </p>
 
                     <p>

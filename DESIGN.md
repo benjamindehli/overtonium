@@ -75,7 +75,7 @@ It loads whether or not the preset is the one already showing, which is what the
 
 What tells the two apart is a gesture. Every control opens one before it writes and closes one after, which is how a host is told that a move has begun and ended, and automation does not: it sets values and says nothing. So the processor listens to itself for gesture begin and end, takes a baseline of every parameter when the first one opens, and when the last one closes puts whatever actually moved into the history as one step. A drag, a scroll wheel and a LINK drag across 32 channels are each one gesture and therefore each one step, however many values they moved and however long they took. A gesture that ends where it began is not a step at all.
 
-Only from the message thread. A host is allowed to open a gesture from the audio thread, and taking a baseline of 836 parameters there would allocate on it, so one that arrives from anywhere else is left alone. Nobody is turning a knob from the audio thread.
+Only from the message thread. A host is allowed to open a gesture from the audio thread, and taking a baseline of 838 parameters there would allocate on it, so one that arrives from anywhere else is left alone. Nobody is turning a knob from the audio thread.
 
 The things a person does that are not one gesture go through `recordEdit`, which takes the same baseline around whatever it is given: loading a preset writes hundreds of parameters and has to come back in one undo. The caller decides, and that is the point of it. Loading a preset from the menu is recorded and a clip firing a program change at the same `applyFactoryPreset` is not, because one of them is editing and the other is playing.
 
@@ -512,6 +512,18 @@ The first entry in the polyphony list, above one voice, and the one place where 
 Letting a key go while others are still down falls back to the most recent of them rather than stopping, which is what makes a trill work. Only the last key coming up releases the note. The keys that are down are kept in the order they went down, in a fixed array of the 128 there are, because this is worked out on the audio thread and nothing there may allocate.
 
 It is one voice, so it heads the polyphony list rather than sitting beside it as a switch. Legato and one voice are the same count and differ only in what a second key does.
+
+### Glide
+
+Every channel has a glide time, the last row under PITCH MOD, and a new note reaches each partial's pitch over that channel's time. Per channel rather than one knob because the series does not have to arrive together, and that is the thing glide on an additive instrument can do that portamento on any other cannot: short times above a long fundamental land the brightness first and let the pitch follow, the reverse lands the note and lets its colour catch up, and anything in between has the partials disagreeing about a fundamental while they move and agreeing on arrival.
+
+**A straight line in pitch, stepped per control block.** Each partial carries how far it still is from its note in semitones and how much of that it closes every 32 samples, which is the block every modulator is stepped on. A fraction of a semitone every two thirds of a millisecond is a slide to the ear, as it is for the vibrato. The offset goes into the same sum as the vibrato, the drift, the unit's own error and both bends, so everything downstream reads the pitch the partial has actually reached: the character's table is chosen by the room above it under Nyquist at that frequency, and the Bulb lamp chases a long slide and sags behind it. Measured on single partials, an octave in 0.4 s is within a tenth of a semitone of halfway at 0.2 s and exactly on the note at the end.
+
+**Where a glide starts is decided before anything is stolen.** The voice a glide comes from can be the one about to be taken, so the engine reads every partial's position first and only then steals or retriggers. Played polyphonically, a new note glides from the note played last, and from that note's bare frequency once its voice has finished. In Legato the one voice glides from wherever it is, partial by partial, so a key pressed mid-slide turns it round from where it had got to. A trill falling back to the key still held glides back, which needs the glide times at a note-off that carries no parameters, so the engine keeps its own copy of them, refreshed on every block and every note.
+
+**Two switches over every channel**, both carried by the patch. _When_ is Always, which glides from the last note even after its key has come up, as a portamento circuit with one voice does, or only while a key is held, so a phrase played detached lands on each note and played joined slides through them. A note held only by the sustain pedal does not count as held: the pedal holds the sound, not the hand. _What the time means_ is per octave, the default, so a wide leap takes longer than a narrow one, the way a finger sliding along a string at a steady pace does, or per note, so every slide takes the time however far it travels. They sit in the GLIDE knob's right-click menu rather than in Settings, because Settings holds what a preset never touches and a legato lead has to be able to say how it glides. The modulators' in-phase switches are in their shape button's menu for the same reason.
+
+Off is the default on every channel, so a patch written without glide plays as it did. Each channel's glide parameter is declared where the start phase it replaces was, so every other parameter keeps the index it had for a host that goes by position, and in the macro list Glide holds that same slot, so a macro stored against any other row still points at it.
 
 ### One voice per key
 
@@ -1068,7 +1080,7 @@ The second family cannot do as well and never will. A control that has to reach 
 
 ### Where a partial starts
 
-PHASE sets where in its own cycle each partial begins, from 0 to 360 degrees, when phase reset is on. It defaults to zero, which is a rising zero crossing, and zero is the softest onset a partial can possibly have: from there it cannot reach its own peak until a quarter of its period has gone by.
+With phase reset on, a partial starting from silence begins its cycle at a rising zero crossing, which is the softest onset a partial can possibly have: from there it cannot reach its own peak until a quarter of its period has gone by.
 
 That is longer than the shortest attack available for most of the keyboard:
 
@@ -1082,9 +1094,13 @@ That is longer than the shortest attack available for most of the keyboard:
 
 So below about 500 Hz, turning the attack down past a millisecond does nothing at all, and the note still arrives softly. Measured: at A1 with the shortest attack the sound is a third of the way up a millisecond in, which is just sin(20 degrees), the envelope having finished half a millisecond earlier.
 
-A quarter turn starts the partial at its own peak instead, and the same note is 99% there after that millisecond. The reason it is per channel rather than one global switch is the arithmetic of putting every partial at its peak at once: for a 1/n spectrum of eight that is a first sample 2.7 times the steady peak, for 32 partials it is 4.1, and for a flat 32 it is 32. Staggering the phase across the series gives the edge without the spike, and LINK will spread it across the channels in one drag.
+**So ATTACK reaches below its shortest time, into where the cycle starts.** The bottom of the row is a phase region, from a rising zero crossing at 0.2 ms down to the partial's own peak at the bottom of the knob, with no attack time at all, and the same note started on its peak is all there after that millisecond. It is the onset continued past the point where the envelope stops mattering, so it belongs on the row that already means how hard a note begins rather than on a row of its own. The value is seconds above zero and a fraction of the region below it, -1 being the peak, so every stored time is the same time.
 
-With phase reset switched off there is no reset for it to aim, and it does nothing.
+The knob is linear in one scale, octaves of attack above the shortest, with the phase region two octaves deep below it: a quarter turn of the cycle is worth quartering the attack. STRIKE moves the attack along octaves, so it moves along this scale too, and the whole of it. A partial set to its peak starts there under a hard blow and travels up through the zero crossing into a short attack under a soft one, about 13 ms at full amount. Within the times an octave of scale is a doubling of time, so the attack there behaves exactly as a time knob would. Where a position on the knob falls is different from a knob of times alone, since the travel has the phase region below the times, so automation drawn as positions against a times-only travel lands on different attacks. A stored value does not move.
+
+Per channel, because every partial at its peak at once is a spike: a first sample 2.7 times the steady peak for a 1/n spectrum of eight, 4.1 times for 32 partials and 32 times for a flat 32. A single switch would be a spike generator. Per channel, the edge goes where it is wanted and LINK staggers it across the series in one drag. Measured at A1 with phase reset on, a millisecond in: a third of the level from the zero crossing, nine tenths from 45 degrees, all of it from the peak.
+
+With phase reset switched off a partial carries on from wherever its cycle was, which keeps a note struck over a ringing tail from stepping.
 
 Partials fade out as they approach Nyquist. Without that, the 32nd harmonic of a high note would fold back down as aliasing, since it lands near 67 kHz for a C7. Measured alias images sit at -122 dB. Turning the converter down, below, deliberately switches that guard off.
 

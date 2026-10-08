@@ -180,12 +180,12 @@ enum class Row {
   Header = 0,
   TuneKnob,
   TuneText,
-  Phase,
   PitchModHeading,
   PmShape,
   PmRate,
   PmDepth,
   Drift,
+  Glide,
   EnvHeading,
   Strike,
   Delay,
@@ -409,7 +409,7 @@ const char *rowLabel(Row r);
 /// The per-strip controls that the LINK switch ganged across all 32 channels.
 enum class Role {
   Tune = 0,
-  Phase,
+  Glide,
   PmRate,
   PmDepth,
   Drift,

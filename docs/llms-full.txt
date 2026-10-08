@@ -8,7 +8,7 @@ Every page of https://benjamindehli.github.io/overtonium/ as Markdown, in the or
 
 Page: Overtonium, a free 32-partial additive synthesiser plugin
 URL: https://benjamindehli.github.io/overtonium/
-Last changed: 2026-10-07
+Last changed: 2026-10-08
 
 # Overtonium, a 32-partial additive overtone synthesiser
 
@@ -99,6 +99,10 @@ Yes. With [MPE](https://benjamindehli.github.io/overtonium/playing/#mpe) switche
 **Can I play Overtonium from a MIDI controller?**
 
 Yes. Right-click any control, choose [MIDI Learn](https://benjamindehli.github.io/overtonium/playing/#midi-learn) and move a knob or fader on the controller. The map is saved with your project rather than with the preset. A [macro](https://benjamindehli.github.io/overtonium/playing/#macros) moves a whole row from one parameter, so one controller or one automation lane can reach up to 32 controls at once.
+
+**Does Overtonium have portamento or glide?**
+
+Yes, on every channel separately. Each partial slides to a new note over its own GLIDE time, so the series can arrive a partial at a time. Two switches cover every channel: whether it glides always or only while a key is held, and whether the time is per octave or per note. [Glide](https://benjamindehli.github.io/overtonium/playing/#glide) on the Playing page has the rest.
 
 **How much CPU does Overtonium use?**
 
@@ -258,7 +262,7 @@ One held chord, twice. With drift off a partial sits exactly where it was put. W
 
 Page: Overtonium controls: every knob on a channel strip
 URL: https://benjamindehli.github.io/overtonium/controls/
-Last changed: 2026-10-07
+Last changed: 2026-10-08
 
 # Controls
 
@@ -275,10 +279,10 @@ Six channels and the caption gutter. Captions are named once on the left rather 
 | Control | Range | What it does |
 |---|---|---|
 | TUNE | equal to just | Where this partial sits between the tempered position and the exact ratio. The readout shows the resulting cent offset. On the six octave channels both tunings agree, so there is nothing for it to move and the strip says so |
-| PHASE | 0 to 1 turn | Where in its cycle the partial starts, when phase reset is on. With it off there is no reset for it to aim and the knob does nothing |
 | PITCH MOD shape, rate, depth | Eight shapes, 0.01 to 30 Hz, 0 to 1200 cents | Per-partial vibrato |
 | DRIFT | 0 to 25 cents | Smooth random pitch wander, its own stream per partial |
-| ENVELOPE strike, delay, A, D, S | -100 to +100%, 0 to 5 s, 0.2 ms to 5 s, 1 ms to 20 s, 0 to 100% | Exponential decay. STRIKE starts the partial sooner and faster the harder the key is struck |
+| GLIDE | Off to 5 s | How long this partial takes to reach a new note, so the series can arrive a partial at a time. When it glides, and whether the time is per note or per octave, is in the knob's right-click menu: see [Glide](https://benjamindehli.github.io/overtonium/playing/#glide) |
+| ENVELOPE strike, delay, A, D, S | -100 to +100%, 0 to 5 s, 90° then 0.2 ms to 5 s, 1 ms to 20 s, 0 to 100% | Exponential decay. STRIKE starts the partial sooner and faster the harder the key is struck |
 | KEY OFF swell, level, release | 0 to 5 s, 0 to 100%, 1 ms to 20 s | A second envelope for letting go |
 | AMP MOD shape, rate, depth | Seven shapes, 0.01 to 30 Hz, 0 to 100% | Per-partial tremolo |
 | VELOCITY | -100 to +100% | How much key velocity scales this partial. Negative inverts it |
@@ -334,9 +338,13 @@ Most keyboards cannot sense a release at all, and on those nothing changes. They
 
 The delay stage holds a partial silent before its attack begins. Staggering it across the series makes the spectrum unfold rather than arrive all at once, which is how *Slow Pad* and *Shimmer* open up. It is latched in samples at note-on, so moving the knob cannot retime a note already waiting.
 
+**ATTACK reaches below its shortest time.** Turned past 0.2 ms it stops being a time and becomes where in its cycle the partial starts, from 0°, a rising zero crossing, down to 90° at the bottom of the knob, which starts the partial on its own peak with no attack at all. A zero crossing is the softest onset there is: a partial cannot reach its peak until a quarter of its period has gone by, and below about 500 Hz that is longer than the shortest attack, so on most of the keyboard the edge of a note is set by where its cycle starts rather than by the envelope. A millisecond into an A1, a partial starting from the crossing is a third of the way up, from 45° nine tenths, and from the peak all of it.
+
+It is per channel like every row, so the edge can go on some partials and not others, and LINK spreads it across the series in one drag. Every partial on its peak at once is a spike: for 32 partials on a falling series the first sample is about four times the steady peak, and the output stage meets it. Staggering the start across the channels keeps the edge and loses the spike. With phase reset off in Settings a partial carries on from wherever its cycle was, and this stretch of the knob is the shortest attack.
+
 **STRIKE** sits at the head of the section because it is about the blow rather than about the shape, and it aims that blow at the two rows under it, the way the velocity row aims it at the fader. Zero ignores the gesture. Positive means a hard note starts sooner and arrives faster, and a soft one waits and then opens slowly. Negative inverts it.
 
-The two halves lean opposite ways on purpose, and each knob stays the limit of its own row. Velocity only ever lengthens the attack, so ATTACK goes on meaning the fastest the partial gets, and it only ever pulls the delay in, so DELAY goes on meaning the latest it arrives. Both span eight octaves at full amount, a range of 256 to 1: a partial set to 2 ms attacks in 2 ms under a hard blow and takes half a second under the softest, and a 400 ms delay stays 400 ms under the softest and comes in to under two milliseconds under the hardest. The stretched attack stops at five seconds, which is as long as the ATTACK row itself goes.
+The two halves lean opposite ways on purpose, and each knob stays the limit of its own row. Velocity only ever lengthens the attack, so ATTACK goes on meaning the fastest the partial gets, and it only ever pulls the delay in, so DELAY goes on meaning the latest it arrives. Both span eight octaves at full amount, a range of 256 to 1: a partial set to 2 ms attacks in 2 ms under a hard blow and takes half a second under the softest, and a 400 ms delay stays 400 ms under the softest and comes in to under two milliseconds under the hardest. The stretched attack stops at five seconds, which is as long as the ATTACK row itself goes. It moves the whole of the row, the stretch below the shortest time included: a partial set to start on its peak starts there under a hard blow, nearer the zero crossing under a lighter one, and past it into a short attack under the softest. A quarter turn is worth two octaves of attack, so at full amount the softest note takes that peak to about 13 ms.
 
 Setting it per partial is what separates it from a velocity curve over the whole instrument: give the upper partials a strike amount and leave the fundamental at zero, and a hard chord lands as one bright block while a soft one unfolds, the fundamental first and the series arriving behind it.
 
@@ -499,7 +507,7 @@ Horizontal, split into left and right, because the two channels are identical un
 
 Page: Playing Overtonium: MPE, automation, macros and MIDI Learn
 URL: https://benjamindehli.github.io/overtonium/playing/
-Last changed: 2026-10-07
+Last changed: 2026-10-08
 
 # Playing
 
@@ -523,6 +531,25 @@ The first entry in the polyphony list, above **1 voice**, and the one setting wh
 
 Letting a key go while others are still down falls back to the most recent of them, which is what makes a trill work. Only the last key coming up releases the note.
 
+Legato moves the note in a single step. With a [glide](https://benjamindehli.github.io/overtonium/playing/#glide) time on the channels, it slides there instead.
+
+## Glide
+
+**Every channel has its own glide**, the last knob under PITCH MOD. It is how long that partial takes to travel from the note before to the new one, from Off, where every channel starts, to five seconds. Because each partial travels on its own time, the series does not have to arrive together. Short times on the top and a long one on the fundamental land the brightness first and let the pitch follow. The other way round, the note arrives and its colour catches up. Somewhere between, the partials stop agreeing on a fundamental while they move and settle into one as they land, which no single portamento can do.
+
+A partial glides in a straight line in pitch, and everything that follows the pitch follows the glide: the oscillator character is chosen at the frequency the partial has reached, and the Bulb character's lamp sags behind a long slide as a real one would. Vibrato, drift and both kinds of bend ride on top of it.
+
+**Two switches govern every channel at once**, at the end of the menu a right-click on any GLIDE knob opens, under *Glide, on every channel*. They belong to the patch, so a preset saves them and a legato lead can say so.
+
+| Switch | Choices | What it decides |
+|---|---|---|
+| When | Always, the default, or only while a key is held | Always glides from the last note played, even when its key came up long ago. Only while a key is held glides when the new key goes down over another one still under a finger, so a phrase played detached lands on each note and the same phrase played joined slides through them. The sustain pedal holds the sound and not the hand, so a note it is holding does not count as held |
+| What the time means | Per octave, the default, or per note | Per octave makes the time the length of an octave's slide, so a fifth takes a little over half of it and two octaves take twice it, the way a finger sliding along a string at a steady pace does. Per note makes every slide take the time however far it goes, so a leap and a step land on the same beat |
+
+Played polyphonically, each new note glides from the one played last. In [Legato](https://benjamindehli.github.io/overtonium/playing/#legato) there is one voice, and it glides from wherever it is, so a key pressed halfway through a slide turns the slide round from where it had got to rather than jumping to either end. A trill falling back to a key still held glides back to it too.
+
+GLIDE is a row like any other, so [LINK](https://benjamindehli.github.io/overtonium/controls/#link) sets it across the series in one drag and a [macro](https://benjamindehli.github.io/overtonium/playing/#macros) can sweep every channel's glide time from one control.
+
 ## The Settings menu
 
 Everything set once and then left. The menu is where the instrument is set up and the panel is where the sound is made, and a control's place says which of the two it is.
@@ -539,7 +566,7 @@ Everything set once and then left. The menu is where the instrument is set up an
 | Aftertouch from | Channel pressure, Mod wheel, Either. Either by default | What feeds the AT row on every strip. Polyphonic aftertouch is not on the list because it stays routed whatever this says |
 | Slide to | Off, Brightness, Tuning. Brightness by default | Where the forward and back axis under an MPE finger goes |
 | Temperament, Root, Reference pitch | Six temperaments, twelve roots, 415 to 466 Hz | What the keyboard underneath is tuned to, which [the tuning system](https://benjamindehli.github.io/overtonium/tuning/) works through. Root is greyed out for equal temperament, which has no centre to have |
-| Phase reset | on by default | Restarts each partial's phase at note-on, which gives a coherent, percussive attack and is what makes the PHASE knob mean anything |
+| Phase reset | on by default | Starts each partial where its ATTACK says when a note begins from silence: a rising zero crossing, or nearer its peak when the attack is turned below its shortest time. Off, a partial carries on from wherever its cycle was |
 | Safety clip | on by default | Whether the output stage at the end of the chain is running, worth leaving on when you push 32 faders up. Which of its five shapes is running is chosen on the bar, under the meter |
 | Limiter lookahead | on by default | Whether the Limiter may see what is coming. Off gives back the two milliseconds of latency it costs, which only that one shape uses, at the price of a rougher limiter. The only setting here that changes what the plugin reports to your host |
 | Zoom | 75, 100, 125 or 150% | How big the window is on your screen. Down here with the entry under it, since everything above the two is the instrument and these are not |
@@ -551,7 +578,7 @@ The safety clip is the exception in this table, and the master fader is the exce
 
 ## Automating it from the host
 
-Eight hundred and thirty-six parameters reach the host: thirty-four global ones, twenty-three on each of the 32 partials, eighteen on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals first and then channel by channel with the noise channel last.
+Eight hundred and thirty-eight parameters reach the host: thirty-six global ones, twenty-three on each of the 32 partials, eighteen on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals first and then channel by channel with the noise channel last.
 
 Every per-channel name carries its channel, so a parameter list answers both ways of looking for something. Type `H7` and you have that partial, type `Tune` and you have that row across the whole mixer. The same names are what a screen reader reads, which is why they are words rather than numbers.
 
@@ -563,7 +590,7 @@ Every per-channel name carries its channel, so a parameter list answers both way
 | The noise channel's brightness | `Noise Colour` |
 | How long the echo's repeats are | `Echo Time` |
 
-The noise channel has eighteen rather than twenty-three because it has no tuning, pitch modulation, drift or start phase, and gains COLOUR in their place.
+The noise channel has eighteen rather than twenty-three because it has no tuning, pitch modulation, drift or glide, and gains COLOUR in their place.
 
 Everything in Settings is in the list too, even though no preset will ever move it. The temperament, the polyphony and the bend range are all automatable, so a piece that changes temperament partway through is something a host can do, whatever the panel thinks a setting is for.
 
@@ -573,9 +600,9 @@ LINK is not a parameter, since it is a tool for the mouse rather than part of th
 
 ### Every parameter
 
-All 836 as the host lists them, with a control that every partial or every macro carries given one row for all of them. The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is [parameters.json](https://benjamindehli.github.io/overtonium/parameters.json), written by the plugin rather than by hand.
+All 838 as the host lists them, with a control that every partial or every macro carries given one row for all of them. The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is [parameters.json](https://benjamindehli.github.io/overtonium/parameters.json), written by the plugin rather than by hand.
 
-**Global**, thirty-four of them.
+**Global**, thirty-six of them.
 
 | What the host calls it | Id | Range | Default |
 |---|---|---|---|
@@ -613,6 +640,8 @@ All 836 as the host lists them, with a control that every partial or every macro
 | `Echo Type` | `echoType` | Tape, Bucket brigade, Digital | Tape |
 | `Clip Type` | `clipType` | Soft, Hard, Asymmetric, Limiter, Fold | Soft |
 | `Reverb Type` | `reverbType` | Room, Modulated Plate, Spring | Room |
+| `Glide Trigger` | `glideTrigger` | Always, Legato | Always |
+| `Glide Mode` | `glideMode` | Rate, Time | Rate |
 
 **On every partial**, twenty-three controls, each one on all 32 partials.
 
@@ -622,11 +651,11 @@ All 836 as the host lists them, with a control that every partial or every macro
 | `H1 Pitch Mod Rate to H32 Pitch Mod Rate` | `h01_pmRate to h32_pmRate` | 0.01 Hz to 30.0 Hz | 4.00 Hz |
 | `H1 Pitch Mod Depth to H32 Pitch Mod Depth` | `h01_pmDepth to h32_pmDepth` | 0 ct to 1200 ct | 0 ct |
 | `H1 Pitch Mod Shape to H32 Pitch Mod Shape` | `h01_pmShape to h32_pmShape` | Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Square (up), Sample & Hold, Random | Sine |
-| `H1 Start Phase to H32 Start Phase` | `h01_phase to h32_phase` | 0° to 360° | 0° |
+| `H1 Glide to H32 Glide` | `h01_glide to h32_glide` | Off to 5.00 s | Off |
 | `H1 Drift to H32 Drift` | `h01_drift to h32_drift` | 0 ct to 25 ct | 0 ct |
 | `H1 Strike Velocity to H32 Strike Velocity` | `h01_strike to h32_strike` | -100 % to +100 % | 0 % |
 | `H1 Delay to H32 Delay` | `h01_delay to h32_delay` | 0.0 ms to 5.00 s | 0.0 ms |
-| `H1 Attack to H32 Attack` | `h01_attack to h32_attack` | 0.2 ms to 5.00 s | 5.0 ms |
+| `H1 Attack to H32 Attack` | `h01_attack to h32_attack` | 90° to 5.00 s | 5.0 ms |
 | `H1 Decay to H32 Decay` | `h01_decay to h32_decay` | 1.0 ms to 20.00 s | 600 ms |
 | `H1 Sustain to H32 Sustain` | `h01_sustain to h32_sustain` | 0 % to 100 % | 100 % |
 | `H1 Key-off Swell to H32 Key-off Swell` | `h01_swell to h32_swell` | 0.0 ms to 5.00 s | 5.0 ms |
@@ -670,7 +699,7 @@ All 836 as the host lists them, with a control that every partial or every macro
 | What the host calls it | Id | Range | Default |
 |---|---|---|---|
 | `Macro 1 to Macro 8` | `macro1_amount to macro8_amount` | -100.0 % to +100.0 % | 0.0 % |
-| `Macro 1 Row to Macro 8 Row` | `macro1_row to macro8_row` | None, Tune, Phase, Pitch mod rate, Pitch mod depth, Drift, Strike, Delay, Attack, Decay, Sustain, Key-off swell, Key-off level, Release, Amp mod rate, Amp mod depth, Velocity, Aftertouch, Pan, Level | None |
+| `Macro 1 Row to Macro 8 Row` | `macro1_row to macro8_row` | None, Tune, Glide, Pitch mod rate, Pitch mod depth, Drift, Strike, Delay, Attack, Decay, Sustain, Key-off swell, Key-off level, Release, Amp mod rate, Amp mod depth, Velocity, Aftertouch, Pan, Level | None |
 | `Macro 1 Scope to Macro 8 Scope` | `macro1_scope to macro8_scope` | All, Odd, Even, Prime/octave, Minor second, Major second, Minor third, Major third, Fourth, Tritone, Fifth, Minor sixth, Major sixth, Minor seventh, Major seventh | All |
 | `Macro 1 Curve to Macro 8 Curve` | `macro1_curve to macro8_curve` | Uniform, Taper | Uniform |
 | `Macro 1 Anchor to Macro 8 Anchor` | `macro1_anchor to macro8_anchor` | 1 to 32 | 1 |

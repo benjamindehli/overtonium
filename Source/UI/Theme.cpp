@@ -300,12 +300,12 @@ constexpr int kRowHeights[kNumRows] = {
     26, // Header
     38, // TuneKnob
     16, // TuneText
-    30, // Phase
     15, // PitchModHeading
     22, // PmShape
     30, // PmRate
     30, // PmDepth
     30, // Drift
+    30, // Glide
     15, // EnvHeading
     30, // Strike
     30, // Delay
@@ -389,6 +389,7 @@ Section sectionOf(Row r) {
   case Row::PmShape:
   case Row::PmDepth:
   case Row::Drift:
+  case Row::Glide:
     return Section::PitchMod;
 
   case Row::EnvHeading:
@@ -423,7 +424,6 @@ Section sectionOf(Row r) {
   case Row::Header:
   case Row::TuneKnob:
   case Row::TuneText:
-  case Row::Phase:
   case Row::MuteSolo:
   case Row::Fader:
   case Row::FaderText:
@@ -587,11 +587,11 @@ namespace {
 bool rowHasControl(Row r) {
   switch (r) {
   case Row::TuneKnob:
-  case Row::Phase:
   case Row::PmRate:
   case Row::PmShape:
   case Row::PmDepth:
   case Row::Drift:
+  case Row::Glide:
   case Row::Strike:
   case Row::Delay:
   case Row::Attack:
@@ -740,10 +740,10 @@ const char *rowLabel(Row r) {
     return "rate";
   case Row::PmDepth:
     return "depth";
-  case Row::Phase:
-    return "phase";
   case Row::Drift:
     return "drift";
+  case Row::Glide:
+    return "glide";
   case Row::EnvHeading:
     return "ENVELOPE";
   case Row::Strike:
@@ -1037,8 +1037,8 @@ const char *roleLabel(Role r) {
   switch (r) {
   case Role::Tune:
     return "tuning";
-  case Role::Phase:
-    return "start phase";
+  case Role::Glide:
+    return "glide";
   case Role::PmRate:
     return "pitch modulation rate";
   case Role::PmDepth:
@@ -1102,8 +1102,8 @@ const char *roleSuffix(Role r) {
     return params::pmRateSuffix;
   case Role::PmDepth:
     return params::pmDepthSuffix;
-  case Role::Phase:
-    return params::phaseSuffix;
+  case Role::Glide:
+    return params::glideSuffix;
   case Role::Drift:
     return params::driftSuffix;
   case Role::Strike:
@@ -1161,11 +1161,11 @@ bool roleForRow(Row r, Role &out) {
   case Row::PmDepth:
     out = Role::PmDepth;
     return true;
-  case Row::Phase:
-    out = Role::Phase;
-    return true;
   case Row::Drift:
     out = Role::Drift;
+    return true;
+  case Row::Glide:
+    out = Role::Glide;
     return true;
   case Row::Strike:
     out = Role::Strike;

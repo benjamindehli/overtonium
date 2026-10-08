@@ -352,6 +352,15 @@ private:
   /// Drops a key from the stack. Nothing happens if it was not in it, which a
   /// note-off arriving without its note-on will do.
   void legatoRelease(int note) noexcept;
+
+  /// The glide settings as of the last render or note, for the one change of
+  /// pitch that arrives without any: a legato phrase falling back to the key
+  /// still held when the sounding one comes up.
+  GlideSettings glide;
+
+  /// The last note started, for a glide whose voice has already finished and
+  /// left nothing to start from but where it was. Zero before the first note.
+  double lastNoteFrequency = 0.0;
   uint64_t ageCounter = 0;
   bool sustainDown = false;
 

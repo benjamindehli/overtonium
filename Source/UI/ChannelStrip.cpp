@@ -1217,8 +1217,8 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   setUpKnob(tune, Role::Tune, colour);
   setUpKnob(pmRate, Role::PmRate, colour);
   setUpKnob(pmDepth, Role::PmDepth, colour);
-  setUpKnob(phase, Role::Phase, colour);
   setUpKnob(drift, Role::Drift, colour);
+  setUpKnob(glide, Role::Glide, colour);
   setUpKnob(strike, Role::Strike, colour);
 
   // The one knob whose own value says nothing useful. Turning it reads as the
@@ -1714,10 +1714,10 @@ LinkableSlider *ChannelStrip::sliderForRole(Role role) {
     return &pmRate;
   case Role::PmDepth:
     return &pmDepth;
-  case Role::Phase:
-    return &phase;
   case Role::Drift:
     return &drift;
+  case Role::Glide:
+    return &glide;
   case Role::Strike:
     return &strike;
   case Role::Delay:
@@ -1911,8 +1911,8 @@ void ChannelStrip::resized() {
   placeRow(pmRate, Row::PmRate, 1);
   placeRow(pmShape, Row::PmShape, 0);
   placeRow(pmDepth, Row::PmDepth, 1);
-  placeRow(phase, Row::Phase, 1);
   placeRow(drift, Row::Drift, 1);
+  placeRow(glide, Row::Glide, 1);
   placeRow(strike, Row::Strike, 1);
   placeRow(delay, Row::Delay, 1);
   placeRow(attack, Row::Attack, 1);

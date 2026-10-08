@@ -1,4 +1,5 @@
 #include "TopBar.h"
+#include "GlideMenu.h"
 #include "LearnMenu.h"
 
 #include "../PluginParameters.h"
@@ -577,6 +578,10 @@ void TopBar::showLinkMenu(juce::Component *anchor,
   auto *parameter = dynamic_cast<juce::RangedAudioParameter *>(
       parameterId.isEmpty() ? nullptr : apvts.getParameter(parameterId));
 
+  // The glide switches first, on a glide knob only: they are about the knob,
+  // where the learn items are about whatever was clicked.
+  glide::appendItems(m, apvts, parameterId);
+
   if (map != nullptr)
     learn::appendItems(m, *map, parameter);
   m.setLookAndFeel(&getLookAndFeel());
@@ -597,6 +602,9 @@ void TopBar::showLinkMenu(juce::Component *anchor,
 
   m.showMenuAsync(options, [this, settings, map, parameter](int result) {
     if (map != nullptr && learn::applyChoice(result, *map, parameter))
+      return;
+
+    if (glide::applyChoice(result, apvts))
       return;
 
     auto picked = PointerTool::Pointer;

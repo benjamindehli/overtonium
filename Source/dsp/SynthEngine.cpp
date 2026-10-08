@@ -56,6 +56,7 @@ void SynthEngine::reset() noexcept {
   heldBySustain.fill(false);
   sustainDown = false;
   ageCounter = 0;
+  lastNoteFrequency = 0.0;
   smoothedMasterGain = -1.0f;
 
   // Past 1 so the first host sample of the next block draws a fresh frame
@@ -165,6 +166,50 @@ void SynthEngine::legatoRelease(int note) noexcept {
 
 void SynthEngine::noteOnImpl(int channel, int note, float velocity,
                              const SynthParams &p) noexcept {
+  glide = GlideSettings::of(p);
+
+  // ---- where a glide comes from ---------------------------------------------
+  //
+  // Worked out before anything below steals or retriggers a voice, since the
+  // one a glide starts from can be the one about to be taken.
+  //
+  // Always glides from the note played last, held or not, and from its bare
+  // frequency once its voice has finished. Legato glides only from a key that
+  // is still down. A key held by the pedal does not count: the pedal holds the
+  // sound, not the hand, and a phrase played detached over it is detached.
+  const Voice *latest = nullptr;
+  const Voice *latestHeld = nullptr;
+
+  for (size_t i = 0; i < voices.size(); ++i) {
+    const auto &v = voices[i];
+
+    if (!v.isActive())
+      continue;
+
+    if (latest == nullptr || v.getAge() > latest->getAge())
+      latest = &v;
+
+    if (!v.isReleasing() && !heldBySustain[i] &&
+        (latestHeld == nullptr || v.getAge() > latestHeld->getAge()))
+      latestHeld = &v;
+  }
+
+  bool glides = false;
+  Voice::Pitches from{};
+
+  if (p.global.glideTrigger == GlideTrigger::Legato) {
+    if (latestHeld != nullptr) {
+      from = latestHeld->notePitches();
+      glides = true;
+    }
+  } else if (latest != nullptr) {
+    from = latest->notePitches();
+    glides = true;
+  } else if (lastNoteFrequency > 0.0) {
+    from = Voice::uniformPitches(lastNoteFrequency);
+    glides = true;
+  }
+
   // ---- legato ---------------------------------------------------------------
   //
   // One voice, and a key going down while another is still held moves the note
@@ -186,8 +231,13 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
       if (!v.isActive() || v.isReleasing())
         continue;
 
+      // From wherever it is, which mid-glide is somewhere between two notes.
+      // A key is held by definition here, so both triggers glide.
+      const auto own = v.notePitches();
       v.noteOnLegato(channel, note, p);
+      v.startGlide(own, glide);
       v.setAge(++ageCounter);
+      lastNoteFrequency = v.getFrequency();
       return;
     }
 
@@ -240,7 +290,12 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
     if (held != nullptr) {
       heldBySustain[heldIndex] = false;
       held->noteOn(channel, note, velocity, p);
+
+      if (glides)
+        held->startGlide(from, glide);
+
       held->setAge(++ageCounter);
+      lastNoteFrequency = held->getFrequency();
       return;
     }
   }
@@ -273,7 +328,12 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
   heldBySustain[index] = false;
 
   target->noteOn(channel, note, velocity, p);
+
+  if (glides)
+    target->startGlide(from, glide);
+
   target->setAge(++ageCounter);
+  lastNoteFrequency = target->getFrequency();
 }
 
 void SynthEngine::noteOff(int note, float lift) noexcept {
@@ -294,10 +354,13 @@ void SynthEngine::noteOffImpl(int channel, int note, float lift) noexcept {
       for (auto &v : voices)
         if (v.isActive() && !v.isReleasing()) {
           const auto back = legatoHeld[(size_t)legatoDepth - 1];
+          const auto own = v.notePitches();
 
           v.retune(channel, back,
                    noteFrequency(back, legatoTemperament, legatoRoot,
                                  legatoReferenceHz));
+          v.startGlide(own, glide);
+          lastNoteFrequency = v.getFrequency();
           return;
         }
 
@@ -638,6 +701,8 @@ void SynthEngine::render(float *left, float *right, int numSamples,
                          const SynthParams &p) noexcept {
   if (numSamples <= 0)
     return;
+
+  glide = GlideSettings::of(p);
 
   renderVoices(left, right, numSamples, p);
 
