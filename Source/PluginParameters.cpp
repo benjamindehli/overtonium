@@ -128,6 +128,55 @@ juce::String timeText(float seconds, int) {
   return juce::String(seconds, 2) + " s";
 }
 
+/// A partial's ATTACK: where in its cycle it starts below the shortest time,
+/// in degrees, ninety being its peak, and the time above that.
+juce::String attackText(float value, int) {
+  if (value < 0.0f)
+    return juce::String(juce::roundToInt(-value * 90.0f)) +
+           juce::String::charToString(0xb0);
+
+  return timeText(value, 0);
+}
+
+/// The other way, for a host that lets you type a value: degrees for a start
+/// in the cycle, and a time in milliseconds unless it says seconds, since a
+/// bare number on an attack is nearly always meant as one.
+float attackValue(const juce::String &text) {
+  const auto n = text.getFloatValue();
+
+  if (text.containsChar(0xb0))
+    return -juce::jlimit(0.0f, 1.0f, n / 90.0f);
+
+  const auto t = text.trim().toLowerCase();
+  const bool seconds = t.endsWith("s") && !t.endsWith("ms");
+
+  return juce::jlimit(kShortestAttack, kMaxAttackSeconds,
+                      seconds ? n : n / 1000.0f);
+}
+
+/// The ATTACK row's range, linear in the onset scale rather than in seconds.
+///
+/// The knob's travel is octaves of attack from the bottom, the bottom stretch
+/// being the phase region, so a turn of the knob and a blow on the key move
+/// the onset by the same measure: STRIKE is an offset along exactly this
+/// scale. See onsetOctaves.
+juce::NormalisableRange<float> attackRange() {
+  const double span = kOnsetPhaseOctaves;
+  const double times = std::log2((double)kMaxAttackSeconds / kShortestAttack);
+
+  return {-1.0f, kMaxAttackSeconds,
+          [span, times](float, float, float n) {
+            const double octaves = (double)n * (span + times) - span;
+            return octaves < 0.0
+                       ? (float)(octaves / span)
+                       : (float)((double)kShortestAttack * std::exp2(octaves));
+          },
+          [span, times](float, float, float v) {
+            return (float)((onsetOctaves(v) + span) / (span + times));
+          },
+          [](float lo, float hi, float v) { return juce::jlimit(lo, hi, v); }};
+}
+
 /// A modulator's rate, to the precision the knob can actually be set to by
 /// hand: hundredths below 10 Hz, where a slow sweep lives, and tenths above.
 juce::String rateText(float hz, int) {
@@ -838,8 +887,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(attackSuffix, i), 1}, p + "Attack",
-        logRange(0.0002f, kMaxAttackSeconds), 0.005f,
-        FAttr().withStringFromValueFunction(timeText)));
+        attackRange(), 0.005f,
+        FAttr()
+            .withStringFromValueFunction(attackText)
+            .withValueFromStringFunction(attackValue)));
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(decaySuffix, i), 1}, p + "Decay",
@@ -1189,8 +1240,15 @@ juce::String strikeRangeText(float amount, float delay, float attack) {
 
   const auto range = strikeRange(amount, delay, attack);
 
-  return shown + "  " + timeText(range.quickest, 0) + " to " +
-         timeText(range.slowest, 0);
+  // An end with no wait to show says where the partial starts instead, which
+  // is what the knob reads there too.
+  const auto end = [](float seconds, float turns) {
+    return seconds <= 0.0f && turns > 0.0f ? attackText(-turns * 4.0f, 0)
+                                           : timeText(seconds, 0);
+  };
+
+  return shown + "  " + end(range.quickest, range.quickestTurns) + " to " +
+         end(range.slowest, range.slowestTurns);
 }
 
 juce::String lofiRateName(int hz) {

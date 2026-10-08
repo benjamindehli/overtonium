@@ -530,6 +530,72 @@ void testGlideControls(OvertoniumProcessor &p) {
   p.applyFactoryPreset(presetIndex("Init"));
 }
 
+/// The ATTACK row reaching below its shortest time into where a partial
+/// starts in its cycle. The sound is measured in the DSP suite. This holds the
+/// parameter to it: what it reads, what typing into it does, that the range
+/// converts both ways without drifting, and what the strike readout says.
+void testAttackReachesIntoThePhase(OvertoniumProcessor &p) {
+  section("Attack below its shortest time");
+
+  auto *attack = p.apvts.getParameter(
+      ovt::params::oscParamId(ovt::params::attackSuffix, 0));
+
+  if (attack == nullptr) {
+    check(false, "the first channel has an attack");
+    return;
+  }
+
+  const auto reads = [attack](float plain) {
+    return attack->getText(attack->convertTo0to1(plain), 100);
+  };
+
+  check(reads(-1.0f) == juce::String("90") + juce::String::charToString(0xb0) &&
+            reads(-0.5f) ==
+                juce::String("45") + juce::String::charToString(0xb0) &&
+            reads(0.0002f) == "0.2 ms" && reads(0.005f) == "5.0 ms",
+        "it reads in degrees below its shortest time and in time above it (" +
+            reads(-1.0f).toStdString() + ", " + reads(-0.5f).toStdString() +
+            ", " + reads(0.0002f).toStdString() + ", " +
+            reads(0.005f).toStdString() + ")");
+
+  check(attack->getText(0.0f, 100) ==
+            juce::String("90") + juce::String::charToString(0xb0),
+        "and the bottom of the knob is a partial starting on its peak");
+
+  // Both ways round, across the travel, so a stored position and a stored
+  // value describe the same onset.
+  double worst = 0.0;
+  for (int i = 0; i <= 100; ++i) {
+    const auto n = (float)i / 100.0f;
+    worst = std::max(
+        worst, (double)std::abs(
+                   attack->convertTo0to1(attack->convertFrom0to1(n)) - n));
+  }
+
+  check(worst < 1.0e-4, "the range converts both ways without drifting (" +
+                            std::to_string(worst) + ")");
+
+  const auto typed = [attack](const char *text) {
+    return attack->convertFrom0to1(attack->getValueForText(text));
+  };
+
+  check(std::abs(typed("45\xc2\xb0") + 0.5f) < 1.0e-3f &&
+            std::abs(typed("5 ms") - 0.005f) < 1.0e-4f &&
+            std::abs(typed("1.2 s") - 1.2f) < 1.0e-3f &&
+            std::abs(typed("12") - 0.012f) < 1.0e-4f,
+        "a typed value is degrees, milliseconds or seconds as it says");
+
+  // The readout under STRIKE, with the knob on the peak and a full amount: a
+  // hard blow starts on the peak and the lightest travels up into a time.
+  const auto readout = ovt::params::strikeRangeText(1.0f, 0.0f, -1.0f);
+
+  check(readout.contains(juce::String("90") + juce::String::charToString(0xb0) +
+                         " to ") &&
+            readout.endsWith("ms"),
+        "the strike readout names the phase at the hard end (" +
+            readout.toStdString() + ")");
+}
+
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
@@ -8075,12 +8141,25 @@ void testNoDeadTravel(OvertoniumProcessor &p) {
             std::to_string(inexact) + " do not" +
             (inexact ? ", such as " + worstDefault.toStdString() : "") + ")");
 
-  // And the shortest attack really is 0.2 ms, not a number that rounds to it.
+  // And the shortest attack time really is 0.2 ms, not a number that rounds
+  // to it. On a partial it is where the phase region below meets the times,
+  // so it has to convert there and back exactly. The noise channel has no
+  // cycle to start in, so its range simply begins there.
   const auto attackId = ovt::params::oscParamId(ovt::params::attackSuffix, 0);
 
-  if (auto *param = p.apvts.getParameter(attackId))
-    check(std::abs(param->getNormalisableRange().start - 0.0002f) < 1.0e-7f,
-          "the shortest attack is 0.2 ms");
+  if (auto *param = p.apvts.getParameter(attackId)) {
+    const auto &range = param->getNormalisableRange();
+    const auto there = range.convertFrom0to1(range.convertTo0to1(0.0002f));
+
+    check(std::abs(there - 0.0002f) < 1.0e-7f && range.start < 0.0f,
+          "a partial's shortest attack time is 0.2 ms, with the phase region "
+          "below it");
+  }
+
+  if (auto *noise = p.apvts.getParameter(
+          ovt::params::noiseParamId(ovt::params::attackSuffix)))
+    check(std::abs(noise->getNormalisableRange().start - 0.0002f) < 1.0e-7f,
+          "and the noise channel's attack starts at 0.2 ms");
 }
 
 /// The undo history, which holds what a person did and nothing else.
@@ -9829,6 +9908,7 @@ int main(int argc, char **argv) {
   testTheParameterListIsCurrent(processor);
   testReadoutsAreWrittenAsAPersonWould(processor);
   testGlideControls(processor);
+  testAttackReachesIntoThePhase(processor);
   testChoiceParameterCounts(processor);
   testRendering(processor);
   testReleaseVelocity(processor);

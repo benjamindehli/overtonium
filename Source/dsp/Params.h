@@ -75,7 +75,9 @@ struct OscParams {
   /// Held silent before the attack starts, in seconds. Staggering this across
   /// the series makes the spectrum unfold rather than arrive all at once.
   float delay = 0.0f;
-  float attack = 0.005f; ///< seconds
+  /// Seconds, or below zero where in its cycle the partial starts with no
+  /// attack at all, -1 being its peak. See onsetOctaves.
+  float attack = 0.005f;
   float decay = 0.400f;
   float sustain = 1.0f; ///< 0..1
   float release = 0.400f;

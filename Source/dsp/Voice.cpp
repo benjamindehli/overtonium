@@ -200,8 +200,11 @@ void Voice::noteOn(int channel, int note, float velocity,
     pt.delayScale = strikeDelayScale(op.strikeAmount, vel);
     pt.attackScale = strikeAttackScale(op.strikeAmount, vel);
 
-    pt.env.configure(op.delay * pt.delayScale,
-                     struckAttack(op.attack, pt.attackScale), op.decay,
+    // Where the partial starts and how fast it rises, the knob and the blow
+    // together. See struckOnset.
+    const auto onset = struckOnset(op.attack, pt.attackScale);
+
+    pt.env.configure(op.delay * pt.delayScale, onset.seconds, op.decay,
                      op.sustain, op.swell, op.offLevel, op.release);
 
     // Starting from silence is only free while the partial is silent.
@@ -236,7 +239,7 @@ void Voice::noteOn(int channel, int note, float velocity,
     pt.drift.restart(rng, rate, sampleRate / (double)kControlBlock);
 
     if (fresh && p.global.phaseReset) {
-      pt.phase = 0.0;
+      pt.phase = (double)onset.turns;
 
       // Fresh points per note per partial, so the random shapes wander
       // independently rather than all 32 tracing one contour, which is the
@@ -475,7 +478,7 @@ void Voice::render(float *left, float *right, int numSamples,
       // at note-on and only read again by the next one, so it is scaled here to
       // keep the two calls agreeing rather than because this one uses it.
       pt.env.configure(op.delay * pt.delayScale,
-                       struckAttack(op.attack, pt.attackScale), op.decay,
+                       struckOnset(op.attack, pt.attackScale).seconds, op.decay,
                        op.sustain, op.swell, op.offLevel, op.release);
 
       if (!pt.env.isActive())
