@@ -4,6 +4,7 @@
 #include <cmath>
 
 #include "../PluginParameters.h"
+#include "../dsp/Velocity.h"
 #include "LookAndFeel.h"
 
 namespace ovt::ui {
@@ -1364,6 +1365,18 @@ void ChannelStrip::wireUp(LinkableSlider &s, Role role) {
   if (auto *p = apvts.getParameter(paramId))
     s.setDoubleClickReturnValue(
         true, (double)p->convertFrom0to1(p->getDefaultValue()));
+
+  // Where the attack stops being a time and becomes where the partial starts
+  // in its cycle, as a share of the knob's travel, so the ring can draw the
+  // stretch below it differently. Read off the parameter's own range, which
+  // is what the knob turns through, so the mark cannot drift from the scale.
+  // See kShortestAttack.
+  if (role == Role::Attack)
+    if (auto *p = dynamic_cast<juce::RangedAudioParameter *>(
+            apvts.getParameter(paramId)))
+      s.getProperties().set(
+          "phaseSplit",
+          (double)p->getNormalisableRange().convertTo0to1(kShortestAttack));
 
   s.onUserDragStart = [this, role] { link.linkDragStarted(role, index); };
   s.onUserDragEnd = [this, role] { link.linkDragEnded(role, index); };

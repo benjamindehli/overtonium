@@ -531,6 +531,15 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   const auto lo = juce::jmin(anchor, ringAngle);
   const auto hi = juce::jmax(anchor, ringAngle);
 
+  // Where the travel changes kind, as a share of it: an attack below its
+  // shortest time is where the partial starts in its cycle rather than how
+  // long it takes. The ticks below drawn as dots rather than lines, lit and
+  // unlit as the rest are, so a knob in degrees and a knob in milliseconds
+  // can be told apart at a glance without a colour of their own. Nought on
+  // every knob that has no such stretch.
+  const auto split =
+      (float)(double)slider.getProperties().getWithDefault("phaseSplit", 0.0);
+
   for (int i = 0; i < ticks; ++i) {
     const auto t = (float)i / (float)(ticks - 1);
     const auto a = rotaryStartAngle + t * (rotaryEndAngle - rotaryStartAngle);
@@ -548,6 +557,19 @@ void OvertoniumLookAndFeel::drawRotarySlider(
 
     g.setColour(lit ? ringColour.withMultipliedAlpha(dim)
                     : unlit.withMultipliedAlpha(dim));
+
+    if (t < split - 1.0e-4f) {
+      // A dot where the tick would have been, as wide as the tick is thick,
+      // sitting at the middle of its length.
+      const auto mid = (inner + outer) * 0.5f;
+      const auto d = lit ? juce::jmax(2.4f, radius * 0.17f)
+                         : juce::jmax(1.6f, radius * 0.11f);
+
+      g.fillEllipse(juce::Rectangle<float>(d, d).withCentre(
+          {centre.x + mid * sinA, centre.y - mid * cosA}));
+      continue;
+    }
+
     g.drawLine({centre.x + inner * sinA, centre.y - inner * cosA,
                 centre.x + outer * sinA, centre.y - outer * cosA},
                lit ? juce::jmax(1.6f, radius * 0.11f)
