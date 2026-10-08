@@ -52,6 +52,8 @@ inline constexpr const char *lofiRateId = "lofiRate";
 inline constexpr const char *lofiBitsId = "lofiBits";
 inline constexpr const char *pmInPhaseId = "pmInPhase";
 inline constexpr const char *amInPhaseId = "amInPhase";
+inline constexpr const char *glideTriggerId = "glideTrigger";
+inline constexpr const char *glideModeId = "glideMode";
 
 // ---- master effects ---------------------------------------------------------
 inline constexpr const char *echoOnId = "echoOn";
@@ -87,7 +89,7 @@ inline constexpr const char *tuneSuffix = "tune";
 inline constexpr const char *pmRateSuffix = "pmRate";
 inline constexpr const char *pmDepthSuffix = "pmDepth";
 inline constexpr const char *pmShapeSuffix = "pmShape";
-inline constexpr const char *phaseSuffix = "phase";
+inline constexpr const char *glideSuffix = "glide";
 inline constexpr const char *driftSuffix = "drift";
 inline constexpr const char *delaySuffix = "delay";
 inline constexpr const char *attackSuffix = "attack";
@@ -133,7 +135,7 @@ inline constexpr int kNumMacros = 8;
 /// names these again as ui::Role, in this order, and a test holds the two
 /// together rather than trusting them to stay in step.
 inline constexpr const char *kMacroRows[] = {
-    tuneSuffix,   phaseSuffix,    pmRateSuffix,  pmDepthSuffix, driftSuffix,
+    tuneSuffix,   glideSuffix,    pmRateSuffix,  pmDepthSuffix, driftSuffix,
     strikeSuffix, delaySuffix,    attackSuffix,  decaySuffix,   sustainSuffix,
     swellSuffix,  offLevelSuffix, releaseSuffix, amRateSuffix,  amDepthSuffix,
     velSuffix,    atSuffix,       panSuffix,     volumeSuffix};
@@ -297,7 +299,7 @@ struct Cache {
     std::atomic<float> *pmRate = nullptr;
     std::atomic<float> *pmDepth = nullptr;
     std::atomic<float> *pmShape = nullptr;
-    std::atomic<float> *phase = nullptr;
+    std::atomic<float> *glide = nullptr;
     std::atomic<float> *drift = nullptr;
     std::atomic<float> *delay = nullptr;
     std::atomic<float> *attack = nullptr;
@@ -382,6 +384,8 @@ struct Cache {
   std::atomic<float> *lofiBits = nullptr;
   std::atomic<float> *pmInPhase = nullptr;
   std::atomic<float> *amInPhase = nullptr;
+  std::atomic<float> *glideTrigger = nullptr;
+  std::atomic<float> *glideMode = nullptr;
 
   struct Echo {
     std::atomic<float> *on = nullptr;
@@ -482,6 +486,11 @@ inline bool isSessionParam(juce::StringRef id) {
 /// sine that can sweep further than anyone needs.
 inline constexpr float kMaxPitchModCents = 1200.0f;
 inline constexpr float kMaxDriftCents = 25.0f;
+
+/// The longest glide a channel can be given, in seconds, or seconds per octave
+/// under GlideMode::Rate. Five is past anything a portamento is used for and
+/// short enough that the knob's travel is mostly spent where it is played.
+inline constexpr float kMaxGlideSeconds = 5.0f;
 
 /// Where the needle on the PITCH MOD lamp reads full scale, in cents.
 ///

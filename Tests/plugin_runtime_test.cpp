@@ -26,6 +26,7 @@
 #include "PluginProcessor.h"
 #include "Presets.h"
 #include "UI/ChannelStrip.h"
+#include "UI/GlideMenu.h"
 #include "UI/LearnMenu.h"
 #include "UI/LookAndFeel.h"
 #include "UI/NoiseStrip.h"
@@ -188,7 +189,8 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
       {ovt::params::referenceHzId, 11}, {ovt::params::atSourceId, 3},
       {ovt::params::slideDestId, 3},    {ovt::params::lofiRateId, 8},
       {ovt::params::lofiBitsId, 9},     {ovt::params::echoTypeId, 3},
-      {ovt::params::reverbTypeId, 3},
+      {ovt::params::reverbTypeId, 3},   {ovt::params::glideTriggerId, 2},
+      {ovt::params::glideModeId, 2},
   };
 
   for (const auto &list : globals)
@@ -429,11 +431,110 @@ void testReadoutsAreWrittenAsAPersonWould(OvertoniumProcessor &p) {
                         first.toStdString() + ")");
 }
 
+/// The glide knob on every channel, and the two switches over all of them in
+/// that knob's menu. The engine side is measured in the DSP suite. This holds
+/// the parameters, the menu and the macro slot to what the engine expects.
+void testGlideControls(OvertoniumProcessor &p) {
+  section("Glide controls");
+
+  p.applyFactoryPreset(presetIndex("Init"));
+
+  const auto set = [&p](const juce::String &id, float plain) {
+    if (auto *q = p.apvts.getParameter(id))
+      q->setValueNotifyingHost(q->convertTo0to1(plain));
+  };
+
+  const auto snapshot = [&p] {
+    ovt::SynthParams out;
+    p.parameters().snapshot(out, 0.0f);
+    return out;
+  };
+
+  int everywhere = 0;
+
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    if (auto *q = p.apvts.getParameter(
+            ovt::params::oscParamId(ovt::params::glideSuffix, i)))
+      everywhere += q->getText(q->getDefaultValue(), 100) == "Off";
+
+  check(everywhere == ovt::kNumHarmonics,
+        "every channel has a glide time, off by default (" +
+            std::to_string(everywhere) + " of 32)");
+
+  check(p.apvts.getParameter(ovt::params::oscParamId("phase", 0)) == nullptr,
+        "and the start phase it replaced is gone");
+
+  // Through to what the engine reads.
+  set(ovt::params::oscParamId(ovt::params::glideSuffix, 4), 0.3f);
+  set(ovt::params::glideTriggerId, 1.0f);
+  set(ovt::params::glideModeId, 1.0f);
+
+  const auto played = snapshot();
+
+  check(std::abs(played.osc[4].glideSeconds - 0.3f) < 0.01f,
+        "a channel's glide time reaches the engine");
+  check(played.global.glideTrigger == ovt::GlideTrigger::Legato &&
+            played.global.glideMode == ovt::GlideMode::Time,
+        "and so do the trigger and the mode");
+
+  // The menu, as data, since one cannot be shown here.
+  set(ovt::params::glideTriggerId, 0.0f);
+  set(ovt::params::glideModeId, 0.0f);
+
+  const auto glideId = ovt::params::oscParamId(ovt::params::glideSuffix, 4);
+
+  juce::PopupMenu onGlide, onDrift;
+  check(ovt::ui::glide::appendItems(onGlide, p.apvts, glideId),
+        "a glide knob's menu carries the switches");
+  check(!ovt::ui::glide::appendItems(
+            onDrift, p.apvts,
+            ovt::params::oscParamId(ovt::params::driftSuffix, 4)),
+        "and no other knob's does");
+
+  int ticked = 0, offered = 0;
+
+  for (juce::PopupMenu::MenuItemIterator it(onGlide); it.next();) {
+    const auto &item = it.getItem();
+
+    if (item.itemID >= ovt::ui::glide::kAlways &&
+        item.itemID <= ovt::ui::glide::kTime) {
+      ++offered;
+      ticked += item.isTicked;
+    }
+  }
+
+  check(offered == 4 && ticked == 2,
+        "four choices, one of each pair ticked (" + std::to_string(offered) +
+            " offered, " + std::to_string(ticked) + " ticked)");
+
+  check(ovt::ui::glide::applyChoice(ovt::ui::glide::kLegato, p.apvts) &&
+            ovt::ui::glide::applyChoice(ovt::ui::glide::kTime, p.apvts),
+        "both kinds of choice are taken");
+
+  const auto chosen = snapshot();
+
+  check(chosen.global.glideTrigger == ovt::GlideTrigger::Legato &&
+            chosen.global.glideMode == ovt::GlideMode::Time,
+        "and choosing them sets the switches");
+
+  check(!ovt::ui::glide::applyChoice(ovt::ui::learn::kLearn, p.apvts),
+        "a choice that is not one of these is left for the next handler");
+
+  // Glide sits in the macro list where start phase did, so a macro stored
+  // against any other row still points at the same one.
+  check(
+      juce::String(ovt::params::macroRowName(2)) == "Glide" &&
+          juce::String(ovt::params::macroRowName(3)) == "Pitch mod rate",
+      "Glide holds the macro slot start phase had, and nothing after it moved");
+
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
   // 23 per partial, 20 global, 18 for the noise channel, 10 for the two master
-  // effects. Start phase and the whole pitch modulator are not among the noise
+  // effects. Glide and the whole pitch modulator are not among the noise
   // channel's, since noise has no pitch: it takes the amp mod shape and not
   // the pitch one, which is why the two counts differ by more than one.
   //
@@ -456,8 +557,11 @@ void testParameterWiring(OvertoniumProcessor &p) {
   // of it, how it is shared out, which channel a taper leans on, and the
   // colour it wears. A macro nobody has made points its row at None. See
   // params::kNumMacros.
-  const int expected =
-      ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + ovt::params::kNumMacros * 6;
+  //
+  // And two for glide on the end: when a note glides, and whether the time on
+  // each channel is per octave or per note. See params::glideTriggerId.
+  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + 2 +
+                       ovt::params::kNumMacros * 6;
 
   // The behaviour that was there before it became a choice. Asked of the
   // parameter rather than of the tree, so the answer does not depend on what
@@ -490,7 +594,7 @@ void testParameterWiring(OvertoniumProcessor &p) {
           std::string("global param ") + id);
 
   const char *suffixes[] = {
-      ovt::params::tuneSuffix,    ovt::params::phaseSuffix,
+      ovt::params::tuneSuffix,    ovt::params::glideSuffix,
       ovt::params::pmRateSuffix,  ovt::params::pmDepthSuffix,
       ovt::params::driftSuffix,   ovt::params::strikeSuffix,
       ovt::params::delaySuffix,   ovt::params::attackSuffix,
@@ -3919,7 +4023,7 @@ void testRowHover() {
   };
 
   bool identity = true;
-  for (Row r : {Row::TuneKnob,   Row::Phase,   Row::PmRate,   Row::PmDepth,
+  for (Row r : {Row::TuneKnob,   Row::Glide,   Row::PmRate,   Row::PmDepth,
                 Row::Drift,      Row::Strike,  Row::Delay,    Row::Attack,
                 Row::Decay,      Row::Sustain, Row::Swell,    Row::OffLevel,
                 Row::Release,    Row::AmRate,  Row::AmDepth,  Row::Velocity,
@@ -7684,7 +7788,7 @@ void testPresetsAreReproducible(OvertoniumProcessor &p) {
     for (int i = 0; i < ovt::kNumHarmonics; ++i) {
       put(ovt::params::oscParamId(ovt::params::volumeSuffix, i), 0.9f);
       put(ovt::params::oscParamId(ovt::params::driftSuffix, i), 20.0f);
-      put(ovt::params::oscParamId(ovt::params::phaseSuffix, i), 0.25f);
+      put(ovt::params::oscParamId(ovt::params::glideSuffix, i), 1.5f);
       put(ovt::params::oscParamId(ovt::params::panSuffix, i), -0.8f);
     }
   };
@@ -9110,7 +9214,7 @@ void testCollapsibleSections() {
   }
 
   const auto allFolded = layoutRows(area, all);
-  for (auto r : {Row::TuneKnob, Row::Phase, Row::MuteSolo, Row::Fader})
+  for (auto r : {Row::TuneKnob, Row::MuteSolo, Row::Fader})
     check(allFolded[(size_t)r].getHeight() > 0,
           std::string(rowLabel(r) == nullptr ? "the fader" : rowLabel(r)) +
               " survives every section being folded");
@@ -9724,6 +9828,7 @@ int main(int argc, char **argv) {
   testParameterWiring(processor);
   testTheParameterListIsCurrent(processor);
   testReadoutsAreWrittenAsAPersonWould(processor);
+  testGlideControls(processor);
   testChoiceParameterCounts(processor);
   testRendering(processor);
   testReleaseVelocity(processor);

@@ -36,17 +36,19 @@ enum class GlideTrigger { Always = 0, Legato };
 /// interval takes, so every note lands on the beat however far it travelled.
 enum class GlideMode { Rate = 0, Time };
 
+inline const char *glideTriggerName(GlideTrigger t) {
+  return t == GlideTrigger::Legato ? "Legato" : "Always";
+}
+
+inline const char *glideModeName(GlideMode m) {
+  return m == GlideMode::Time ? "Time" : "Rate";
+}
+
 /// A per-block snapshot of one channel strip. Deliberately plain data: the DSP
 /// core never touches JUCE, which keeps it unit-testable and portable.
 struct OscParams {
   // Pitch
   float tuneBlend = 0.0f; ///< 0 = equal temperament, 1 = just intonation
-  /// Where in its own cycle this partial starts, 0 to 1 of a turn, when phase
-  /// reset is on. Zero is a rising zero crossing, which is the softest onset
-  /// available: the partial cannot reach its own peak until a quarter of its
-  /// period has passed, which below about 500 Hz is longer than any attack
-  /// setting. A quarter turn starts it at the peak instead.
-  float startPhase = 0.0f;
   float pmRateHz = 4.0f;
   LfoShape pmShape = LfoShape::Sine;
   float pmDepthCents = 0.0f;
@@ -145,7 +147,12 @@ struct GlobalParams {
 
   float bendSemitones = 0.0f; ///< current pitch-bend offset
   float aftertouch = 0.0f;    ///< current channel pressure, 0..1
-  bool phaseReset = true; ///< reset partial phase on note-on (coherent attack)
+  /// Whether a partial starting from silence starts its cycle at a rising zero
+  /// crossing. That is the softest onset there is, since a partial cannot
+  /// reach its own peak until a quarter of its period has passed, which below
+  /// about 500 Hz is longer than any attack. Off, it carries on from wherever
+  /// its phase was.
+  bool phaseReset = true;
   /// Inharmonicity, as cents of displacement on the 32nd partial. Zero is the
   /// plain harmonic series. See inharmonicCents.
   float stretchCents = 0.0f;

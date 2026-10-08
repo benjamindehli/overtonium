@@ -499,7 +499,7 @@ Horizontal, split into left and right, because the two channels are identical un
 
 Page: Playing Overtonium: MPE, automation, macros and MIDI Learn
 URL: https://benjamindehli.github.io/overtonium/playing/
-Last changed: 2026-10-07
+Last changed: 2026-10-08
 
 # Playing
 
@@ -551,7 +551,7 @@ The safety clip is the exception in this table, and the master fader is the exce
 
 ## Automating it from the host
 
-Eight hundred and thirty-six parameters reach the host: thirty-four global ones, twenty-three on each of the 32 partials, eighteen on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals first and then channel by channel with the noise channel last.
+Eight hundred and thirty-eight parameters reach the host: thirty-six global ones, twenty-three on each of the 32 partials, eighteen on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals first and then channel by channel with the noise channel last.
 
 Every per-channel name carries its channel, so a parameter list answers both ways of looking for something. Type `H7` and you have that partial, type `Tune` and you have that row across the whole mixer. The same names are what a screen reader reads, which is why they are words rather than numbers.
 
@@ -573,9 +573,9 @@ LINK is not a parameter, since it is a tool for the mouse rather than part of th
 
 ### Every parameter
 
-All 836 as the host lists them, with a control that every partial or every macro carries given one row for all of them. The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is [parameters.json](https://benjamindehli.github.io/overtonium/parameters.json), written by the plugin rather than by hand.
+All 838 as the host lists them, with a control that every partial or every macro carries given one row for all of them. The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is [parameters.json](https://benjamindehli.github.io/overtonium/parameters.json), written by the plugin rather than by hand.
 
-**Global**, thirty-four of them.
+**Global**, thirty-six of them.
 
 | What the host calls it | Id | Range | Default |
 |---|---|---|---|
@@ -613,6 +613,8 @@ All 836 as the host lists them, with a control that every partial or every macro
 | `Echo Type` | `echoType` | Tape, Bucket brigade, Digital | Tape |
 | `Clip Type` | `clipType` | Soft, Hard, Asymmetric, Limiter, Fold | Soft |
 | `Reverb Type` | `reverbType` | Room, Modulated Plate, Spring | Room |
+| `Glide Trigger` | `glideTrigger` | Always, Legato | Always |
+| `Glide Mode` | `glideMode` | Rate, Time | Rate |
 
 **On every partial**, twenty-three controls, each one on all 32 partials.
 
@@ -622,7 +624,7 @@ All 836 as the host lists them, with a control that every partial or every macro
 | `H1 Pitch Mod Rate to H32 Pitch Mod Rate` | `h01_pmRate to h32_pmRate` | 0.01 Hz to 30.0 Hz | 4.00 Hz |
 | `H1 Pitch Mod Depth to H32 Pitch Mod Depth` | `h01_pmDepth to h32_pmDepth` | 0 ct to 1200 ct | 0 ct |
 | `H1 Pitch Mod Shape to H32 Pitch Mod Shape` | `h01_pmShape to h32_pmShape` | Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Square (up), Sample & Hold, Random | Sine |
-| `H1 Start Phase to H32 Start Phase` | `h01_phase to h32_phase` | 0° to 360° | 0° |
+| `H1 Glide to H32 Glide` | `h01_glide to h32_glide` | Off to 5.00 s | Off |
 | `H1 Drift to H32 Drift` | `h01_drift to h32_drift` | 0 ct to 25 ct | 0 ct |
 | `H1 Strike Velocity to H32 Strike Velocity` | `h01_strike to h32_strike` | -100 % to +100 % | 0 % |
 | `H1 Delay to H32 Delay` | `h01_delay to h32_delay` | 0.0 ms to 5.00 s | 0.0 ms |
@@ -670,7 +672,7 @@ All 836 as the host lists them, with a control that every partial or every macro
 | What the host calls it | Id | Range | Default |
 |---|---|---|---|
 | `Macro 1 to Macro 8` | `macro1_amount to macro8_amount` | -100.0 % to +100.0 % | 0.0 % |
-| `Macro 1 Row to Macro 8 Row` | `macro1_row to macro8_row` | None, Tune, Phase, Pitch mod rate, Pitch mod depth, Drift, Strike, Delay, Attack, Decay, Sustain, Key-off swell, Key-off level, Release, Amp mod rate, Amp mod depth, Velocity, Aftertouch, Pan, Level | None |
+| `Macro 1 Row to Macro 8 Row` | `macro1_row to macro8_row` | None, Tune, Glide, Pitch mod rate, Pitch mod depth, Drift, Strike, Delay, Attack, Decay, Sustain, Key-off swell, Key-off level, Release, Amp mod rate, Amp mod depth, Velocity, Aftertouch, Pan, Level | None |
 | `Macro 1 Scope to Macro 8 Scope` | `macro1_scope to macro8_scope` | All, Odd, Even, Prime/octave, Minor second, Major second, Minor third, Major third, Fourth, Tritone, Fifth, Minor sixth, Major sixth, Minor seventh, Major seventh | All |
 | `Macro 1 Curve to Macro 8 Curve` | `macro1_curve to macro8_curve` | Uniform, Taper | Uniform |
 | `Macro 1 Anchor to Macro 8 Anchor` | `macro1_anchor to macro8_anchor` | 1 to 32 | 1 |

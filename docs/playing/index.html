@@ -6,7 +6,7 @@
         <title>Playing Overtonium: MPE, automation, macros and MIDI Learn</title>
         <meta
             name="description"
-            content="Playing Overtonium: MPE, legato, the Settings menu, automation with all 836 host parameters listed, eight macros and MIDI Learn on every control."
+            content="Playing Overtonium: MPE, legato, the Settings menu, automation with all 838 host parameters listed, eight macros and MIDI Learn on every control."
         />
         <meta name="author" content="Benjamin Dehli" />
         <meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -20,7 +20,7 @@
         <meta property="og:title" content="Playing Overtonium: MPE, automation, macros and MIDI Learn" />
         <meta
             property="og:description"
-            content="MPE with pitch bend and pressure per note, legato, every entry in the Settings menu, automating Overtonium from a host with all 836 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
+            content="MPE with pitch bend and pressure per note, legato, every entry in the Settings menu, automating Overtonium from a host with all 838 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-playing.jpg" />
         <meta property="og:image:type" content="image/jpeg" />
@@ -32,7 +32,7 @@
         <meta name="twitter:title" content="Playing Overtonium: MPE, automation, macros and MIDI Learn" />
         <meta
             name="twitter:description"
-            content="MPE with pitch bend and pressure per note, legato, every entry in the Settings menu, automating Overtonium from a host with all 836 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
+            content="MPE with pitch bend and pressure per note, legato, every entry in the Settings menu, automating Overtonium from a host with all 838 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-playing.jpg" />
         <meta name="twitter:image:alt" content="The Overtonium wordmark over the plugin window, captioned Playing." />
@@ -49,7 +49,7 @@
                 "@id": "https://benjamindehli.github.io/overtonium/playing/#webpage",
                 "url": "https://benjamindehli.github.io/overtonium/playing/",
                 "name": "Playing Overtonium: MPE, automation, macros and MIDI Learn",
-                "description": "Playing Overtonium: MPE, legato, the Settings menu, automation with all 836 host parameters listed, eight macros and MIDI Learn on every control.",
+                "description": "Playing Overtonium: MPE, legato, the Settings menu, automation with all 838 host parameters listed, eight macros and MIDI Learn on every control.",
                 "inLanguage": "en-GB",
                 "isPartOf": {
                     "@id": "https://benjamindehli.github.io/overtonium/#website"
@@ -63,7 +63,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-10-07",
+                "dateModified": "2026-10-08",
                 "breadcrumb": {
                     "@id": "https://benjamindehli.github.io/overtonium/playing/#breadcrumb"
                 }
@@ -355,7 +355,7 @@
                     <h2>Automating it from the host</h2>
 
                     <p>
-                        Eight hundred and thirty-six parameters reach the host: thirty-four global ones, twenty-three on each of the 32 partials,
+                        Eight hundred and thirty-eight parameters reach the host: thirty-six global ones, twenty-three on each of the 32 partials,
                         eighteen on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals
                         first and then channel by channel with the noise channel last.
                     </p>
@@ -426,11 +426,11 @@
                     <section class="parameter-list">
                         <h3 id="every-parameter">Every parameter</h3>
                         <p>
-                            All 836 as the host lists them, with a control that every partial or every macro carries given one row for all of them.
+                            All 838 as the host lists them, with a control that every partial or every macro carries given one row for all of them.
                             The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is
                             <a href="../parameters.json">parameters.json</a>, written by the plugin rather than by hand.
                         </p>
-                        <p><strong>Global</strong>, thirty-four of them.</p>
+                        <p><strong>Global</strong>, thirty-six of them.</p>
                         <div class="scroll">
                             <table>
                                 <thead>
@@ -649,6 +649,18 @@
                                         <td>Room, Modulated Plate, Spring</td>
                                         <td>Room</td>
                                     </tr>
+                                    <tr>
+                                        <td><code>Glide Trigger</code></td>
+                                        <td><code>glideTrigger</code></td>
+                                        <td>Always, Legato</td>
+                                        <td>Always</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Glide Mode</code></td>
+                                        <td><code>glideMode</code></td>
+                                        <td>Rate, Time</td>
+                                        <td>Rate</td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </div>
@@ -689,10 +701,10 @@
                                         <td>Sine</td>
                                     </tr>
                                     <tr>
-                                        <td><code>H1 Start Phase to H32 Start Phase</code></td>
-                                        <td><code>h01_phase to h32_phase</code></td>
-                                        <td>0° to 360°</td>
-                                        <td>0°</td>
+                                        <td><code>H1 Glide to H32 Glide</code></td>
+                                        <td><code>h01_glide to h32_glide</code></td>
+                                        <td>Off to 5.00 s</td>
+                                        <td>Off</td>
                                     </tr>
                                     <tr>
                                         <td><code>H1 Drift to H32 Drift</code></td>
@@ -950,7 +962,7 @@
                                         <td><code>Macro 1 Row to Macro 8 Row</code></td>
                                         <td><code>macro1_row to macro8_row</code></td>
                                         <td>
-                                            None, Tune, Phase, Pitch mod rate, Pitch mod depth, Drift, Strike, Delay, Attack, Decay, Sustain, Key-off
+                                            None, Tune, Glide, Pitch mod rate, Pitch mod depth, Drift, Strike, Delay, Attack, Decay, Sustain, Key-off
                                             swell, Key-off level, Release, Amp mod rate, Amp mod depth, Velocity, Aftertouch, Pan, Level
                                         </td>
                                         <td>None</td>

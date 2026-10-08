@@ -340,8 +340,9 @@ void testTracking() {
         "and the fundamental is left where it was at both pitches");
 }
 
-/// Start phase, which exists because zero is the softest onset a partial can
-/// have and the attack knob cannot do anything about it.
+/// Where a partial starts its cycle. With phase reset on it is a rising zero
+/// crossing, the softest onset there is: a partial cannot reach its own peak
+/// until a quarter of its period has passed, whatever the attack says.
 void testStartPhase() {
   section("Start phase");
 
@@ -351,102 +352,55 @@ void testStartPhase() {
   // A low note, where the period rather than the envelope sets the onset: the
   // fundamental of A1 needs 4.5 ms to reach its peak from a zero crossing, and
   // the shortest attack available is 0.5 ms.
-  const auto onsetOf = [&](float startPhase) {
-    const auto engineOwner = std::make_unique<SynthEngine>();
-    auto &engine = *engineOwner;
-    engine.prepare(sr);
-    engine.setPolyphony(1);
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
+  engine.prepare(sr);
+  engine.setPolyphony(1);
 
-    auto p = makeFlatParams(0.0f);
-    for (auto &o : p.osc) {
-      o.attack = 0.0005f;
-      o.sustain = 1.0f;
-      o.decay = 1.0f;
-      o.velAmount = 0.0f;
-    }
+  auto p = makeFlatParams(0.0f);
+  for (auto &o : p.osc) {
+    o.attack = 0.0005f;
+    o.sustain = 1.0f;
+    o.decay = 1.0f;
+    o.velAmount = 0.0f;
+  }
 
-    p.osc[0].volume = 0.8f;
-    p.osc[0].startPhase = startPhase;
-    p.global.phaseReset = true;
-    p.global.safetyClip = false;
+  p.osc[0].volume = 0.8f;
+  p.global.phaseReset = true;
+  p.global.safetyClip = false;
 
-    engine.noteOn(33, 1.0f, p); // A1, 55 Hz
+  engine.noteOn(33, 1.0f, p); // A1, 55 Hz
 
-    std::vector<float> l((size_t)N), r((size_t)N);
-    engine.render(l.data(), r.data(), N, p);
+  std::vector<float> l((size_t)N), r((size_t)N);
+  engine.render(l.data(), r.data(), N, p);
 
-    // How much has arrived one millisecond in, against everything it reaches,
-    // counted from where the sound starts rather than from the first sample.
-    // Two stages are late and everything passes through both: the bus stage
-    // runs at twice the rate, and the output stage holds its lookahead back.
-    // See BusDrive::kLatency and OutputStage::kLookaheadSeconds.
-    const int late = BusDrive::kLatency + engine.outputLatency();
+  // How much has arrived one millisecond in, against everything it reaches,
+  // counted from where the sound starts rather than from the first sample.
+  // Two stages are late and everything passes through both: the bus stage
+  // runs at twice the rate, and the output stage holds its lookahead back.
+  // See BusDrive::kLatency and OutputStage::kLookaheadSeconds.
+  const int late = BusDrive::kLatency + engine.outputLatency();
 
-    double early = 0.0, whole = 0.0;
-    for (int n = late; n < N; ++n) {
-      const auto s = std::abs((double)l[(size_t)n]);
-      whole = std::max(whole, s);
-      if (n - late < (int)(0.001 * sr))
-        early = std::max(early, s);
-    }
+  double early = 0.0, whole = 0.0;
+  for (int n = late; n < N; ++n) {
+    const auto v = std::abs((double)l[(size_t)n]);
+    whole = std::max(whole, v);
+    if (n - late < (int)(0.001 * sr))
+      early = std::max(early, v);
+  }
 
-    return whole > 0.0 ? early / whole : 0.0;
-  };
+  const auto atZero = whole > 0.0 ? early / whole : 0.0;
 
-  const auto atZero = onsetOf(0.0f);
-  const auto atPeak = onsetOf(0.25f);
+  std::printf("  A1, 0.5 ms attack: %.0f%% of the level is there after 1 ms\n",
+              100.0 * atZero);
 
-  std::printf("  A1, 0.5 ms attack: %.0f%% of the level is there after 1 ms "
-              "from a zero crossing, %.0f%% from the peak\n",
-              100.0 * atZero, 100.0 * atPeak);
-
-  // A millisecond at 55 Hz is 20 degrees of the cycle, and sin(20) is 0.34.
-  // That is the whole problem in one number: the envelope finished half a
-  // millisecond ago and a third of the sound has arrived.
+  // A millisecond at 55 Hz is 20 degrees of the cycle, and sin(20) is 0.34:
+  // the envelope finished half a millisecond ago and a third of the sound has
+  // arrived, which is the zero crossing doing its job.
   check(atZero > 0.28 && atZero < 0.40,
-        "from a zero crossing a low note is a third started after a "
-        "millisecond, whatever the attack says (" +
+        "a reset partial starts from a rising zero crossing, so a low note "
+        "is a third started after a millisecond (" +
             std::to_string(atZero) + ")");
-
-  check(atPeak > 0.9, "from the peak it is essentially all there (" +
-                          std::to_string(atPeak) + ")");
-
-  // Zero has to stay the default and stay exactly what it always did.
-  SynthParams fresh;
-  check(fresh.osc[0].startPhase == 0.0f,
-        "and zero is the default, so nothing already made changes");
-
-  // With phase reset off the setting cannot do anything, since there is no
-  // reset for it to aim.
-  const auto freeRunning = [&](float startPhase) {
-    const auto engineOwner = std::make_unique<SynthEngine>();
-    auto &engine = *engineOwner;
-    engine.prepare(sr);
-    engine.setPolyphony(1);
-
-    auto p = makeFlatParams(0.0f);
-    p.osc[0].volume = 0.8f;
-    p.osc[0].startPhase = startPhase;
-    p.osc[0].sustain = 1.0f;
-    p.global.phaseReset = false;
-    p.global.safetyClip = false;
-
-    engine.noteOn(69, 1.0f, p);
-
-    std::vector<float> l((size_t)N), r((size_t)N);
-    engine.render(l.data(), r.data(), N, p);
-    return l;
-  };
-
-  const auto a = freeRunning(0.0f);
-  const auto b = freeRunning(0.25f);
-
-  bool identical = true;
-  for (size_t n = 0; n < a.size(); ++n)
-    identical &= std::abs(a[n] - b[n]) < 1.0e-6f;
-
-  check(identical,
-        "with phase reset off it has nothing to aim and does nothing");
 }
 
 /// The keyboard's own tuning, as opposed to the partials above each note.

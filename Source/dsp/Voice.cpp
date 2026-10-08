@@ -5,6 +5,7 @@
 #include <algorithm>
 
 #include "Character.h"
+#include "Exact.h"
 #include "SineTable.h"
 
 namespace ovt {
@@ -235,7 +236,7 @@ void Voice::noteOn(int channel, int note, float velocity,
     pt.drift.restart(rng, rate, sampleRate / (double)kControlBlock);
 
     if (fresh && p.global.phaseReset) {
-      pt.phase = (double)std::clamp(op.startPhase, 0.0f, 1.0f);
+      pt.phase = 0.0;
 
       // Fresh points per note per partial, so the random shapes wander
       // independently rather than all 32 tracing one contour, which is the
@@ -517,9 +518,11 @@ void Voice::render(float *left, float *right, int numSamples,
 
       // Read at the start of the block and stepped for the next, as the
       // modulators are. A glide that is not running costs a compare.
-      if (pt.glideSemis != 0.0) {
-        const double left = std::abs(pt.glideSemis) - pt.glideStep;
-        pt.glideSemis = left > 0.0 ? std::copysign(left, pt.glideSemis) : 0.0;
+      // Nought is set exactly by the line below, so the compare is exact too.
+      if (!exactly(pt.glideSemis, 0.0)) {
+        const double remaining = std::abs(pt.glideSemis) - pt.glideStep;
+        pt.glideSemis =
+            remaining > 0.0 ? std::copysign(remaining, pt.glideSemis) : 0.0;
       }
 
       const double freq = baseFreq * std::exp2(semis / 12.0);

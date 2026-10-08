@@ -92,7 +92,7 @@ struct Applier {
   /// state.
   void neutralBase() const {
     allOsc(params::tuneSuffix, [](int) { return 1.0; });
-    allOsc(params::phaseSuffix, [](int) { return 0.0; });
+    allOsc(params::glideSuffix, [](int) { return 0.0; });
     allOsc(params::pmRateSuffix, [](int) { return 4.0; });
     allOsc(params::pmShapeSuffix, [](int) { return 0.0; });
     allOsc(params::pmDepthSuffix, [](int) { return 0.0; });
@@ -160,6 +160,8 @@ struct Applier {
     // what every patch written before there was a switch had.
     set(params::pmInPhaseId, 0.0f);
     set(params::amInPhaseId, 0.0f);
+    set(params::glideTriggerId, (float)(int)GlideTrigger::Always);
+    set(params::glideModeId, (float)(int)GlideMode::Rate);
 
     set(params::wobbleId, 0.0f);
     set(params::lofiRateId, 0.0f);
@@ -569,7 +571,7 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
 
   static const Row rows[] = {
       {params::tuneSuffix, "tuneSuffix"},
-      {params::phaseSuffix, "phaseSuffix"},
+      {params::glideSuffix, "glideSuffix"},
       {params::pmShapeSuffix, "pmShapeSuffix"},
       {params::pmRateSuffix, "pmRateSuffix"},
       {params::pmDepthSuffix, "pmDepthSuffix"},
@@ -2777,7 +2779,6 @@ void apply(APVTS &apvts, int index) {
     ap.neutralBase();
 
     // The SonicStrings Voice 2 from a Suzuki Omnichord OM-84 System Two.
-    ap.allOsc(params::phaseSuffix, [](int) { return 0.0114; });
     ap.allOsc(params::driftSuffix, [](int) { return 0.2417; });
     ap.oscTable(params::attackSuffix,
                 {0.0005f, 0.0004f, 0.0003f, 0.0002f, 0.0002f, 0.0002f, 0.0002f,
@@ -3506,12 +3507,6 @@ void apply(APVTS &apvts, int index) {
     // a little over a tenth of full depth. That is what keeps thirty-two sine
     // waves from sounding like thirty-two sine waves.
 
-    ap.oscTable(params::phaseSuffix,
-                {0.0271f, 0.527f, 0.4389f, 0.8953f, 0.9337f, 0.4876f, 0.7924f,
-                 0.3737f, 1.0f, 0.6035f, 0.3958f, 0.7714f, 0.7855f, 0.1659f,
-                 0.4698f, 0.9663f, 0.2894f, 0.5922f, 0.2256f, 0.0697f, 0.4588f,
-                 0.6127f, 0.5288f, 0.0226f, 0.6728f, 0.1714f, 0.7453f, 0.8897f,
-                 0.0381f, 0.3909f, 0.2162f, 0.2664f});
     ap.allOsc(params::pmRateSuffix, [](int) { return 6.002; });
     ap.allOsc(params::pmDepthSuffix, [](int) { return 30.1444; });
     ap.allOsc(params::driftSuffix, [](int) { return 2.1512; });

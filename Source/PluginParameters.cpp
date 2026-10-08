@@ -105,11 +105,13 @@ juce::String stretchText(float cents, int) {
          " ct";
 }
 
-/// Where in its own cycle a partial starts, as degrees rather than turns,
-/// which is the unit anybody discussing phase already uses.
-juce::String phaseText(float turns, int) {
-  return juce::String(juce::roundToInt(turns * 360.0f)) +
-         juce::String::charToString(0xb0);
+/// A glide time, which at nought is no glide rather than an instant one.
+juce::String glideText(float seconds, int) {
+  if (seconds < 0.0005f)
+    return "Off";
+
+  return seconds < 1.0f ? juce::String(seconds * 1000.0f, 0) + " ms"
+                        : juce::String(seconds, 2) + " s";
 }
 
 juce::String trackText(float dbPerOctave, int) {
@@ -437,7 +439,7 @@ const char *macroRowName(int row) {
   // than the list of rows.
   static const char *const names[] = {"None",
                                       "Tune",
-                                      "Phase",
+                                      "Glide",
                                       "Pitch mod rate",
                                       "Pitch mod depth",
                                       "Drift",
@@ -810,10 +812,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::ParameterID{oscParamId(pmShapeSuffix, i), 1},
         p + "Pitch Mod Shape", pitchShapeNames(), 0));
 
+    // How long this partial takes to reach a new note, or how long an octave
+    // takes under Rate. Off by default, so a patch written before glide
+    // existed sounds as it did. Declared where the start phase it replaces
+    // was, which keeps every other parameter at the index it has always had.
     layout.add(std::make_unique<FloatP>(
-        juce::ParameterID{oscParamId(phaseSuffix, i), 1}, p + "Start Phase",
-        juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f,
-        FAttr().withStringFromValueFunction(phaseText)));
+        juce::ParameterID{oscParamId(glideSuffix, i), 1}, p + "Glide",
+        expRange(0.0f, kMaxGlideSeconds, 0.4f), 0.0f,
+        FAttr().withStringFromValueFunction(glideText)));
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(driftSuffix, i), 1}, p + "Drift",
@@ -1033,6 +1039,22 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::ParameterID{reverbTypeId, 1}, "Reverb Type", reverbTypeChoices,
       (int)ReverbType::Room));
 
+  // When a note glides and what the channels' glide times mean. On the end
+  // for the reason everything after a release is. Both belong to the patch,
+  // so a preset can be a legato lead, and both are two entries long for good:
+  // the length of a choice is part of what a stored value means.
+  layout.add(std::make_unique<juce::AudioParameterChoice>(
+      juce::ParameterID{glideTriggerId, 1}, "Glide Trigger",
+      juce::StringArray{glideTriggerName(GlideTrigger::Always),
+                        glideTriggerName(GlideTrigger::Legato)},
+      (int)GlideTrigger::Always));
+
+  layout.add(std::make_unique<juce::AudioParameterChoice>(
+      juce::ParameterID{glideModeId, 1}, "Glide Mode",
+      juce::StringArray{glideModeName(GlideMode::Rate),
+                        glideModeName(GlideMode::Time)},
+      (int)GlideMode::Rate));
+
   return layout;
 }
 
@@ -1042,6 +1064,8 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   oneVoicePerKey = apvts.getRawParameterValue(oneVoicePerKeyId);
   pmInPhase = apvts.getRawParameterValue(pmInPhaseId);
   amInPhase = apvts.getRawParameterValue(amInPhaseId);
+  glideTrigger = apvts.getRawParameterValue(glideTriggerId);
+  glideMode = apvts.getRawParameterValue(glideModeId);
   bendRange = apvts.getRawParameterValue(bendRangeId);
   phaseReset = apvts.getRawParameterValue(phaseResetId);
   stretch = apvts.getRawParameterValue(stretchId);
@@ -1107,7 +1131,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
     auto &o = osc[(size_t)i];
 
     o.tune = apvts.getRawParameterValue(oscParamId(tuneSuffix, i));
-    o.phase = apvts.getRawParameterValue(oscParamId(phaseSuffix, i));
+    o.glide = apvts.getRawParameterValue(oscParamId(glideSuffix, i));
     o.pmRate = apvts.getRawParameterValue(oscParamId(pmRateSuffix, i));
     o.pmDepth = apvts.getRawParameterValue(oscParamId(pmDepthSuffix, i));
     o.pmShape = apvts.getRawParameterValue(oscParamId(pmShapeSuffix, i));
@@ -1208,7 +1232,7 @@ float *macroField(OscParams &o, int row) {
   case 1:
     return &o.tuneBlend;
   case 2:
-    return &o.startPhase;
+    return &o.glideSeconds;
   case 3:
     return &o.pmRateHz;
   case 4:
@@ -1273,7 +1297,7 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     o.pmRateHz = c.pmRate->load();
     o.pmShape = pitchShapeAt((int)c.pmShape->load());
     o.pmDepthCents = c.pmDepth->load();
-    o.startPhase = c.phase->load();
+    o.glideSeconds = c.glide->load();
     o.driftCents = c.drift->load();
     o.strikeAmount = c.strike->load();
     o.delay = c.delay->load();
@@ -1453,6 +1477,10 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   out.global.oneVoicePerKey = oneVoicePerKey->load() > 0.5f;
   out.global.pitchModInPhase = pmInPhase->load() > 0.5f;
   out.global.ampModInPhase = amInPhase->load() > 0.5f;
+  out.global.glideTrigger =
+      glideTrigger->load() > 0.5f ? GlideTrigger::Legato : GlideTrigger::Always;
+  out.global.glideMode =
+      glideMode->load() > 0.5f ? GlideMode::Time : GlideMode::Rate;
 
   {
     const auto r = juce::jlimit(0, (int)kLofiRateChoices.size() - 1,
