@@ -386,36 +386,12 @@ void NoiseStrip::paint(juce::Graphics &g) {
     paintRowHighlight(g, rows[rowIndex(highlighted)]);
 
   // Every other section rule carries a lamp and draws itself. This strip has
-  // no pitch to modulate, so that one heading is left plain.
+  // no pitch to modulate, so that one heading is left plain and the rows under
+  // it are left empty, which the unlit rule already explains.
   g.setColour(colours::outline.withAlpha(0.7f));
   for (auto r : {Row::PitchModHeading}) {
     const auto row = rows[rowIndex(r)];
     g.fillRect(row.getX(), row.getY() + row.getHeight() / 2, row.getWidth(), 1);
-  }
-
-  // The whole pitch modulation block, glide included, has nothing to show, so
-  // say so once rather than leaving a stretch of blank panel that looks like a
-  // drawing bug. Noise has no pitch to glide any more than one to modulate.
-  auto absent =
-      rows[rowIndex(Row::PmShape)].getUnion(rows[rowIndex(Row::Glide)]);
-
-  // On a plate set into the panel, like a blanking plate in an empty rack
-  // slot. Bare text at half strength read as a faded caption, which is the
-  // drawing bug it was there to rule out.
-  const auto plate =
-      juce::Rectangle<float>((float)absent.getWidth() - 6.0f, 28.0f)
-          .withCentre(absent.toFloat().getCentre());
-
-  if (absent.getHeight() >= (int)plate.getHeight()) {
-    paintRecess(g, plate, 2.5f);
-    g.setColour(colours::channel.darker(0.35f));
-    g.fillRoundedRectangle(plate, 2.5f);
-
-    g.setColour(colours::textDim);
-    g.setFont(makeFont(10.0f));
-    // Two lines, since the strip is narrower than the words on one.
-    g.drawFittedText("no\npitch", plate.toNearestInt(),
-                     juce::Justification::centred, 2, 1.0f);
   }
 }
 
