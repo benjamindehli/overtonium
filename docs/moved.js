@@ -18,6 +18,7 @@
         converter: "../effects/",
         echo: "../effects/",
         "every-parameter": "../playing/",
+        glide: "../playing/",
         global: "../effects/",
         legato: "../playing/",
         macros: "../playing/",

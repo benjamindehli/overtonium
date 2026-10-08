@@ -31,8 +31,8 @@ enum class SlideDestination { Off = 0, Brightness, Tuning };
 enum class GlideTrigger { Always = 0, Legato };
 
 /// What a channel's glide time means. Rate reads it as the time an octave
-/// takes, so a wide leap takes longer than a narrow one, which is how the
-/// circuit in an analogue keyboard behaves. Time reads it as the time any
+/// takes, so a wide leap takes longer than a narrow one, the way a finger
+/// sliding along a string at a steady pace does. Time reads it as the time any
 /// interval takes, so every note lands on the beat however far it travelled.
 enum class GlideMode { Rate = 0, Time };
 

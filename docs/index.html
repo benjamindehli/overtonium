@@ -86,7 +86,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-10-07",
+                "dateModified": "2026-10-08",
                 "mainEntity": {
                     "@id": "https://www.dehlimusikk.no/products/overtonium/#product"
                 }
@@ -150,7 +150,8 @@
                     "An echo and a reverb that are each one of three machines, and a lo-fi converter",
                     "Eight macros, each one host parameter that moves a whole row of channels",
                     "MIDI Learn on every control",
-                    "An output stage with five clip shapes, including a lookahead limiter"
+                    "An output stage with five clip shapes, including a lookahead limiter",
+                    "Glide on every channel, each partial travelling to a new note over its own time"
                 ]
             }
         </script>
@@ -205,6 +206,14 @@
                         "acceptedAnswer": {
                             "@type": "Answer",
                             "text": "Yes. Right-click any control, choose MIDI Learn and move a knob or fader on the controller. The map is saved with your project rather than with the preset. A macro moves a whole row from one parameter, so one controller or one automation lane can reach up to 32 controls at once."
+                        }
+                    },
+                    {
+                        "@type": "Question",
+                        "name": "Does Overtonium have portamento or glide?",
+                        "acceptedAnswer": {
+                            "@type": "Answer",
+                            "text": "Yes, on every channel separately. Each partial slides to a new note over its own GLIDE time, so the series can arrive a partial at a time. Two switches cover every channel: whether it glides always or only while a key is held, and whether the time is per octave or per note. Glide on the Playing page has the rest."
                         }
                     },
                     {
@@ -629,6 +638,12 @@
                             Yes. Right-click any control, choose <a href="playing/#midi-learn">MIDI Learn</a> and move a knob or fader on the
                             controller. The map is saved with your project rather than with the preset. A <a href="playing/#macros">macro</a> moves a
                             whole row from one parameter, so one controller or one automation lane can reach up to 32 controls at once.
+                        </dd>
+                        <dt>Does Overtonium have portamento or glide?</dt>
+                        <dd>
+                            Yes, on every channel separately. Each partial slides to a new note over its own GLIDE time, so the series can arrive a
+                            partial at a time. Two switches cover every channel: whether it glides always or only while a key is held, and whether the
+                            time is per octave or per note. <a href="playing/#glide">Glide</a> on the Playing page has the rest.
                         </dd>
                         <dt>How much CPU does Overtonium use?</dt>
                         <dd>
