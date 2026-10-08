@@ -142,6 +142,30 @@ RowGutter::RowGutter() {
 
   ovt::ui::OvertoniumLookAndFeel::gangLamps(glideHeld, glidePerNote);
 
+  // P for phase, one on each shape row. The same switch as the last item in
+  // every shape button's menu, here so the state is on the panel.
+  const auto setUpInPhase = [this](ovt::ui::GlowButton &b, const char *which,
+                                   const char *id,
+                                   std::function<void()> RowGutter::*callback) {
+    b.setButtonText("P");
+    b.setTooltip(juce::String("The ") + which +
+                 " in phase across the keyboard: one modulator every note "
+                 "hears together. Dark, each note starts its own.");
+    b.setTitle(juce::String(which) + " in phase across the keyboard");
+    b.setComponentID(id);
+    b.setColour(juce::TextButton::textColourOnId, colours::accent);
+    b.onClick = [this, callback] {
+      if (this->*callback != nullptr)
+        (this->*callback)();
+    };
+    addAndMakeVisible(b);
+  };
+
+  setUpInPhase(pitchInPhase, "pitch modulation", "pitchInPhase",
+               &RowGutter::onPitchInPhaseClicked);
+  setUpInPhase(ampInPhase, "amp modulation", "ampInPhase",
+               &RowGutter::onAmpInPhaseClicked);
+
   headerCap.onPaint = [this](juce::Graphics &g) { paintHeaderBand(g); };
   addAndMakeVisible(headerCap);
 }
@@ -174,29 +198,41 @@ void RowGutter::resized() {
   headerCap.setBounds(0, 0, getWidth(),
                       juce::jmax(0, rows[(size_t)Row::Header].getBottom()));
 
-  // The glide caps, beside their caption and gone with it when the section is
+  // The caps, beside their captions and gone with them when the section is
   // folded. Laid out before the cap is brought forward, so a row scrolled
   // under the header slides under it rather than over it.
-  const auto glideRow = rows[(size_t)Row::Glide];
-  const bool glideShown = glideRow.getHeight() > 0 &&
-                          !rowIsCollapsed(Row::Glide, collapsed) &&
-                          glideRow.getBottom() > headerCap.getBottom();
-
-  if (glideShown) {
-    constexpr int kCapW = 15, kCapH = 18;
-    const auto y = glideRow.getCentreY() - kCapH / 2;
-
-    glideHeld.setBounds(glideRow.getX() + 8, y, kCapW, kCapH);
-    glidePerNote.setBounds(glideHeld.getRight(), y, kCapW, kCapH);
-  }
-
-  glideHeld.setVisible(glideShown);
-  glidePerNote.setVisible(glideShown);
+  const auto headerBottom = headerCap.getBottom();
+  placeCaps(Row::PmShape, {&pitchInPhase}, rows, headerBottom);
+  placeCaps(Row::Glide, {&glideHeld, &glidePerNote}, rows, headerBottom);
+  placeCaps(Row::AmShape, {&ampInPhase}, rows, headerBottom);
 
   headerCap.toFront(false);
 
   toolButton.setBounds(rows[(size_t)Row::Header].reduced(7, 1));
   toolButton.toFront(false);
+}
+
+void RowGutter::placeCaps(Row row,
+                          std::initializer_list<juce::Component *> caps,
+                          const ovt::ui::RowBounds &rows, int headerBottom) {
+  // The face a channel's M and S show, which their 18 by 18 gives once the
+  // moulding is taken off.
+  constexpr int kCapSize = 18;
+
+  const auto area = rows[(size_t)row];
+  const bool shown = area.getHeight() > 0 && !rowIsCollapsed(row, collapsed) &&
+                     area.getBottom() > headerBottom;
+
+  auto x = area.getX() + 6;
+  const auto y = area.getCentreY() - kCapSize / 2;
+
+  for (auto *cap : caps) {
+    if (shown)
+      cap->setBounds(x, y, kCapSize, kCapSize);
+
+    cap->setVisible(shown);
+    x += kCapSize;
+  }
 }
 
 void RowGutter::setTool(ovt::ui::PointerTool which, ovt::ui::LinkCurve curve) {
@@ -244,6 +280,8 @@ void RowGutter::setSharedModulators(bool pitch, bool amp) {
 
   sharedPitchMod = pitch;
   sharedAmpMod = amp;
+  pitchInPhase.setToggleState(pitch, juce::dontSendNotification);
+  ampInPhase.setToggleState(amp, juce::dontSendNotification);
   repaint();
 }
 
@@ -639,6 +677,8 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
 
   gutter.onGlideHeldClicked = [flip] { flip(ovt::params::glideTriggerId); };
   gutter.onGlidePerNoteClicked = [flip] { flip(ovt::params::glideModeId); };
+  gutter.onPitchInPhaseClicked = [flip] { flip(ovt::params::pmInPhaseId); };
+  gutter.onAmpInPhaseClicked = [flip] { flip(ovt::params::amInPhaseId); };
 
   // Off the series, like the noise channel, so pointing at a caption cannot
   // arm a LINK preview on whichever channel happened to be hovered last.

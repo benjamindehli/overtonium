@@ -648,7 +648,7 @@ void testLegatoSwitch(OvertoniumProcessor &p) {
 /// switches, firing their own callbacks, and gone with the row when its
 /// section is folded.
 void testGlideCaps() {
-  section("The glide caps");
+  section("The gutter caps");
 
   using namespace ovt::ui;
 
@@ -700,6 +700,50 @@ void testGlideCaps() {
   gutter.setCollapsedSections(0);
   check(held->isVisible() && perNote->isVisible(),
         "and unfolding brings them back");
+
+  check(held->getWidth() == held->getHeight(),
+        "square, the shape of a channel's M and S");
+
+  auto *pitch =
+      dynamic_cast<juce::Button *>(gutter.findChildWithID("pitchInPhase"));
+  auto *amp =
+      dynamic_cast<juce::Button *>(gutter.findChildWithID("ampInPhase"));
+
+  if (pitch == nullptr || amp == nullptr) {
+    check(false, "the gutter has both in-phase caps");
+    return;
+  }
+
+  check(
+      pitch->isVisible() && amp->isVisible() &&
+          rows[(size_t)Row::PmShape].contains(pitch->getBounds().getCentre()) &&
+          rows[(size_t)Row::AmShape].contains(amp->getBounds().getCentre()),
+      "an in-phase cap stands in each shape row");
+  check(pitch->getX() == held->getX() && pitch->getWidth() == held->getWidth(),
+        "on the glide caps' left edge, at their size");
+
+  gutter.setSharedModulators(true, false);
+  check(pitch->getToggleState() && !amp->getToggleState(),
+        "and lights from its own modulator's switch");
+
+  gutter.setSharedModulators(false, true);
+  check(!pitch->getToggleState() && amp->getToggleState(), "either way round");
+
+  int pitchClicks = 0, ampClicks = 0;
+  gutter.onPitchInPhaseClicked = [&pitchClicks] { ++pitchClicks; };
+  gutter.onAmpInPhaseClicked = [&ampClicks] { ++ampClicks; };
+
+  pitch->onClick();
+  amp->onClick();
+  amp->onClick();
+
+  check(pitchClicks == 1 && ampClicks == 2,
+        "each in-phase cap fires its own callback");
+
+  gutter.setCollapsedSections(sectionBit(Section::AmpMod));
+  check(pitch->isVisible() && !amp->isVisible(),
+        "folding AMP MOD takes its cap and leaves the other");
+  gutter.setCollapsedSections(0);
 }
 
 void testParameterWiring(OvertoniumProcessor &p) {

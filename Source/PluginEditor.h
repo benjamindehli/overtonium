@@ -47,7 +47,16 @@ public:
   /// nothing on the panel would say so: a mode you cannot see is a mode you
   /// forget you are in. One mark per modulator rather than one on each of the
   /// thirty-three shape buttons, since the state is the same on all of them.
+  ///
+  /// Also lights the P cap beside each modulator's shape caption, which is the
+  /// same switch. The heading keeps its light for when the section is folded
+  /// and the cap is folded away with it.
   void setSharedModulators(bool pitch, bool amp);
+
+  /// Fired when one of the P caps is clicked. The editor owns the change, since
+  /// it is a parameter.
+  std::function<void()> onPitchInPhaseClicked;
+  std::function<void()> onAmpInPhaseClicked;
 
   /// The two glide switches, on the caps beside the GLIDE caption: whether a
   /// note glides only while a key is held, and whether the time is per note
@@ -118,6 +127,15 @@ private:
   /// The glide caps, a ganged pair the size of a channel's M and S, standing
   /// in the free space to the left of the GLIDE caption. Lit is on.
   ovt::ui::GlowButton glideHeld, glidePerNote;
+
+  /// The in-phase caps, one beside each shape caption, the same size and on
+  /// the same left edge as the glide caps. Lit is one modulator the whole
+  /// keyboard hears.
+  ovt::ui::GlowButton pitchInPhase, ampInPhase;
+
+  /// Puts a run of caps at the left of a row, or hides them with it.
+  void placeCaps(ovt::ui::Row, std::initializer_list<juce::Component *>,
+                 const ovt::ui::RowBounds &, int headerBottom);
 
   ovt::ui::PointerTool tool = ovt::ui::PointerTool::Pointer;
   juce::Image toolIcon;
