@@ -645,11 +645,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   layout.add(std::make_unique<BoolP>(juce::ParameterID{safetyClipId, 1},
                                      "Safety Clip", true));
 
-  // On, because the limiter without it is a rougher limiter rather than a
-  // broken one and the two milliseconds are worth that to most people. See
+  // Off, because only the Limiter shape uses the window, no factory preset
+  // reaches for it, and every other patch would be paying two milliseconds of
+  // latency for nothing. The Limiter without it is a rougher limiter rather
+  // than a broken one, and anyone who leans on it can switch it on. See
   // params::lookaheadId for why it is a session parameter and not a patch's.
   layout.add(std::make_unique<BoolP>(juce::ParameterID{lookaheadId, 1},
-                                     "Lookahead", true));
+                                     "Lookahead", false));
 
   // ---- the macros ---------------------------------------------------------
   //

@@ -924,6 +924,25 @@ void testBusStageFollowsTheCharacter(OvertoniumProcessor &p) {
     return out;
   };
 
+  // Off by default, which leaves the bus stage's few samples and nothing
+  // else.
+  auto *ahead = p.apvts.getParameter(ovt::params::lookaheadId);
+
+  check(ahead != nullptr && ahead->getDefaultValue() < 0.5f,
+        "the lookahead is off by default");
+  check(p.getLatencySamples() == ovt::BusDrive::kLatency,
+        "so the plugin reports only the bus stage (" +
+            std::to_string(p.getLatencySamples()) + " samples)");
+
+  if (ahead == nullptr)
+    return;
+
+  // The rest is about what happens with it on: the figure is fixed whatever
+  // the patch does, which is what lets a preset load without the host
+  // re-planning its graph.
+  ahead->setValueNotifyingHost(1.0f);
+  p.prepareToPlay(48000.0, 512);
+
   const auto idle = p.getLatencySamples();
 
   const auto pure = renderLoud(ovt::Character::Pure);
@@ -979,29 +998,27 @@ void testBusStageFollowsTheCharacter(OvertoniumProcessor &p) {
   // The one thing that is allowed to move it, and the reason it is allowed:
   // it sits in Settings, so no preset and nothing on the bar can reach it.
   // Giving the window up gives the whole of the output stage's share back.
-  auto *ahead = p.apvts.getParameter(ovt::params::lookaheadId);
+  check(ovt::params::isSessionParam(ovt::params::lookaheadId),
+        "the lookahead is a session setting, so no preset can move the "
+        "latency");
 
-  check(ahead != nullptr, "the lookahead has a switch");
+  ahead->setValueNotifyingHost(0.0f);
+  p.prepareToPlay(48000.0, 512);
 
-  if (ahead != nullptr) {
-    check(ovt::params::isSessionParam(ovt::params::lookaheadId),
-          "which is a session setting, so no preset can move the latency");
+  check(p.getLatencySamples() == ovt::BusDrive::kLatency,
+        "refusing it leaves only the bus stage (" +
+            std::to_string(p.getLatencySamples()) + " samples)");
 
-    ahead->setValueNotifyingHost(0.0f);
-    p.prepareToPlay(48000.0, 512);
+  ahead->setValueNotifyingHost(1.0f);
+  p.prepareToPlay(48000.0, 512);
 
-    check(p.getLatencySamples() == ovt::BusDrive::kLatency,
-          "refusing it leaves only the bus stage (" +
-              std::to_string(p.getLatencySamples()) + " samples)");
+  check(p.getLatencySamples() == idle,
+        "and asking for it again restores it (" +
+            std::to_string(p.getLatencySamples()) + ")");
 
-    ahead->setValueNotifyingHost(1.0f);
-    p.prepareToPlay(48000.0, 512);
-
-    check(p.getLatencySamples() == idle,
-          "and asking for it again restores it (" +
-              std::to_string(p.getLatencySamples()) + ")");
-  }
-
+  // Back to the default for whatever runs next.
+  ahead->setValueNotifyingHost(0.0f);
+  p.prepareToPlay(48000.0, 512);
   p.applyFactoryPreset(presetIndex("Init"));
 }
 

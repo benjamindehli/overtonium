@@ -5,7 +5,7 @@
     {"id": "bendRange", "name": "Pitch Bend Range", "type": "whole", "min": "0", "max": "24", "default": "2"},
     {"id": "phaseReset", "name": "Phase Reset", "type": "switch", "default": "On"},
     {"id": "safetyClip", "name": "Safety Clip", "type": "switch", "default": "On"},
-    {"id": "lookahead", "name": "Lookahead", "type": "switch", "default": "On"},
+    {"id": "lookahead", "name": "Lookahead", "type": "switch", "default": "Off"},
     {"id": "macro1_amount", "name": "Macro 1", "type": "continuous", "min": "-100.0 %", "max": "+100.0 %", "default": "0.0 %"},
     {"id": "macro1_row", "name": "Macro 1 Row", "type": "choice", "choices": ["None", "Tune", "Glide", "Pitch mod rate", "Pitch mod depth", "Drift", "Strike", "Delay", "Attack", "Decay", "Sustain", "Key-off swell", "Key-off level", "Release", "Amp mod rate", "Amp mod depth", "Velocity", "Aftertouch", "Pan", "Level"], "default": "None"},
     {"id": "macro1_scope", "name": "Macro 1 Scope", "type": "choice", "choices": ["All", "Odd", "Even", "Prime/octave", "Minor second", "Major second", "Minor third", "Major third", "Fourth", "Tritone", "Fifth", "Minor sixth", "Major sixth", "Minor seventh", "Major seventh"], "default": "All"},

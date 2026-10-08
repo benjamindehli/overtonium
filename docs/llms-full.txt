@@ -437,7 +437,7 @@ COLOUR takes the tuning row instead, tilting the noise from dark rumble at one e
 
 Page: Overtonium effects: character, echo, reverb, converter and CLIP
 URL: https://benjamindehli.github.io/overtonium/effects/
-Last changed: 2026-10-07
+Last changed: 2026-10-08
 
 # Effects
 
@@ -495,9 +495,9 @@ Five machines behind one button, across the finished output and after the master
 
 Off lets the output go past full scale and reach the host as it is, which is what you want when something downstream is doing the catching. None of the five will: being bounded by full scale is the point of the stage rather than a property of the shapes chosen, and each is held to it however hard it is driven. The button abbreviates Asymmetric to ASYM and Limiter to LIMIT, for room, while the menu and your host's automation lane spell them out. It stands under the meter with the converter readouts because those three are the whole of what happens to the signal on its way out, and the switch is also in the Settings menu.
 
-The Limiter looks two milliseconds ahead, so the gain is already in place when the peak arrives rather than chasing it afterwards, which is the difference between a limiter and a clipper wearing the name. That costs latency, and because a plugin whose latency moved when you chose a preset would have the host re-plan its graph every time, it is paid by all five shapes and by the stage switched off alike. Overtonium reports 108 samples at 48 kHz, a little over two milliseconds, which your host compensates for on playback.
+With **Limiter lookahead** switched on in the Settings menu, the Limiter looks two milliseconds ahead, so the gain is already in place when the peak arrives rather than chasing it afterwards, which is the difference between a limiter and a clipper wearing the name. That costs latency, and because a plugin whose latency moved when you chose a preset would have the host re-plan its graph every time, it is paid by all five shapes and by the stage switched off alike: Overtonium reports 108 samples at 48 kHz, a little over two milliseconds, which your host compensates for on playback.
 
-**Limiter lookahead** in the Settings menu gives those two milliseconds back. Only the Limiter uses the window, so if you never reach for it you are paying for nothing, and this is the way to stop. Turning it off does not break the limiter: the detector sees a single sample instead of a window, so the gain is exact and immediate and the ceiling still holds, but the smoothing goes with it and a gain that steps is itself a distortion, about fifteen times as much of it. It is in Settings rather than on the bar because nothing a preset can reach is allowed to change what the plugin tells your host. Most hosts take the new figure while running, some only on playback stop or on reload, so it is worth choosing before a take rather than during one.
+**It is off by default**, and the plugin then reports only the bus stage's 12 samples. Only the Limiter uses the window and no factory preset reaches for it, so with it on everyone else would be paying two milliseconds for nothing. Off does not break the limiter: the detector sees a single sample instead of a window, so the gain is exact and immediate and the ceiling still holds, but the smoothing goes with it and a gain that steps is itself a distortion, about fifteen times as much of it. It is in Settings rather than on the bar because nothing a preset can reach is allowed to change what the plugin tells your host. Anyone who leans on the Limiter and wants it smooth can switch it on. Most hosts take the new figure while running, some only on playback stop or on reload, so it is worth choosing before a take rather than during one.
 
 ## The output meter
 
@@ -575,7 +575,7 @@ Everything set once and then left. The menu is where the instrument is set up an
 | Temperament, Root, Reference pitch | Six temperaments, twelve roots, 415 to 466 Hz | What the keyboard underneath is tuned to, which [the tuning system](https://benjamindehli.github.io/overtonium/tuning/) works through. Root is greyed out for equal temperament, which has no centre to have |
 | Phase reset | on by default | Starts each partial where its ATTACK says when a note begins from silence: a rising zero crossing, or nearer its peak when the attack is turned below its shortest time. Off, a partial carries on from wherever its cycle was |
 | Safety clip | on by default | Whether the output stage at the end of the chain is running, worth leaving on when you push 32 faders up. Which of its five shapes is running is chosen on the bar, under the meter |
-| Limiter lookahead | on by default | Whether the Limiter may see what is coming. Off gives back the two milliseconds of latency it costs, which only that one shape uses, at the price of a rougher limiter. The only setting here that changes what the plugin reports to your host |
+| Limiter lookahead | off by default | Whether the Limiter may see what is coming. On makes it smooth at the cost of two milliseconds of latency on every shape, since only that one uses the window and the figure must not move with the patch. The only setting here that changes what the plugin reports to your host |
 | Zoom | 75, 100, 125 or 150% | How big the window is on your screen. Down here with the entry under it, since everything above the two is the instrument and these are not |
 | Fit all 32 channels |  | Puts the window back to the width that shows the whole mixer, and to whatever height the rows you have left unfolded need. A window remembers what it was dragged to, so a narrow one opens narrow every session after that, and this is the way back |
 
@@ -619,7 +619,7 @@ All 839 as the host lists them, with a control that every partial or every macro
 | `Pitch Bend Range` | `bendRange` | 0 to 24 | 2 |
 | `Phase Reset` | `phaseReset` | Off or on | On |
 | `Safety Clip` | `safetyClip` | Off or on | On |
-| `Lookahead` | `lookahead` | Off or on | On |
+| `Lookahead` | `lookahead` | Off or on | Off |
 | `MPE` | `mpe` | Off or on | Off |
 | `Stretch` | `stretch` | -1200 ct to +1200 ct | Harmonic |
 | `Tracking` | `track` | Off to 12.0 dB/oct | Off |

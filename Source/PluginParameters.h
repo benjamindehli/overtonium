@@ -43,9 +43,10 @@ inline constexpr const char *clipTypeId = "clipType";
 /// in Settings with the temperament and the polyphony and is listed in
 /// kSessionParamIds with them.
 ///
-/// On by default. Off is worth having because only one of the five shapes
-/// uses the window at all, so anyone who never reaches for the Limiter is
-/// paying two milliseconds for nothing.
+/// Off by default. Only one of the five shapes uses the window at all, so with
+/// it on everyone who never reaches for the Limiter pays two milliseconds for
+/// nothing, and no factory preset uses the Limiter. On is there for anyone who
+/// does and wants it smooth.
 inline constexpr const char *lookaheadId = "lookahead";
 inline constexpr const char *mpeId = "mpe";
 inline constexpr const char *lofiRateId = "lofiRate";

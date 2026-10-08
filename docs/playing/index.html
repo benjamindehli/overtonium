@@ -414,11 +414,11 @@
                                 </tr>
                                 <tr>
                                     <td>Limiter lookahead</td>
-                                    <td>on by default</td>
+                                    <td>off by default</td>
                                     <td>
-                                        Whether the Limiter may see what is coming. Off gives back the two milliseconds of latency it costs, which
-                                        only that one shape uses, at the price of a rougher limiter. The only setting here that changes what the
-                                        plugin reports to your host
+                                        Whether the Limiter may see what is coming. On makes it smooth at the cost of two milliseconds of latency on
+                                        every shape, since only that one uses the window and the figure must not move with the patch. The only setting
+                                        here that changes what the plugin reports to your host
                                     </td>
                                 </tr>
                                 <tr>
@@ -587,7 +587,7 @@
                                         <td><code>Lookahead</code></td>
                                         <td><code>lookahead</code></td>
                                         <td>Off or on</td>
-                                        <td>On</td>
+                                        <td>Off</td>
                                     </tr>
                                     <tr>
                                         <td><code>MPE</code></td>
