@@ -644,6 +644,64 @@ void testLegatoSwitch(OvertoniumProcessor &p) {
   legato->setValueNotifyingHost(0.0f);
 }
 
+/// The glide caps in the gutter, beside the GLIDE caption: lit by the two
+/// switches, firing their own callbacks, and gone with the row when its
+/// section is folded.
+void testGlideCaps() {
+  section("The glide caps");
+
+  using namespace ovt::ui;
+
+  RowGutter gutter;
+  gutter.setBounds(0, 0, kGutterWidth, preferredStripHeight());
+
+  auto *held =
+      dynamic_cast<juce::Button *>(gutter.findChildWithID("glideHeld"));
+  auto *perNote =
+      dynamic_cast<juce::Button *>(gutter.findChildWithID("glidePerNote"));
+
+  if (held == nullptr || perNote == nullptr) {
+    check(false, "the gutter has both glide caps");
+    return;
+  }
+
+  const auto rows = layoutRows(gutter.getLocalBounds().reduced(0, kStripPadY));
+  const auto glideRow = rows[(size_t)Row::Glide];
+
+  check(held->isVisible() && perNote->isVisible() &&
+            glideRow.contains(held->getBounds().getCentre()) &&
+            glideRow.contains(perNote->getBounds().getCentre()),
+        "both stand in the glide row");
+  check(perNote->getRight() < kGutterWidth / 2 + 4,
+        "on the left of it, clear of the caption");
+
+  gutter.setGlideSwitches(true, false);
+  check(held->getToggleState() && !perNote->getToggleState(),
+        "and light from the switches, one at a time");
+
+  gutter.setGlideSwitches(false, true);
+  check(!held->getToggleState() && perNote->getToggleState(),
+        "either way round");
+
+  int heldClicks = 0, noteClicks = 0;
+  gutter.onGlideHeldClicked = [&heldClicks] { ++heldClicks; };
+  gutter.onGlidePerNoteClicked = [&noteClicks] { ++noteClicks; };
+
+  held->onClick();
+  perNote->onClick();
+  perNote->onClick();
+
+  check(heldClicks == 1 && noteClicks == 2, "each cap fires its own callback");
+
+  gutter.setCollapsedSections(sectionBit(Section::PitchMod));
+  check(!held->isVisible() && !perNote->isVisible(),
+        "folding PITCH MOD takes them with the row");
+
+  gutter.setCollapsedSections(0);
+  check(held->isVisible() && perNote->isVisible(),
+        "and unfolding brings them back");
+}
+
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
@@ -9985,6 +10043,7 @@ int main(int argc, char **argv) {
   testGlideControls(processor);
   testAttackReachesIntoThePhase(processor);
   testLegatoSwitch(processor);
+  testGlideCaps();
   testChoiceParameterCounts(processor);
   testRendering(processor);
   testReleaseVelocity(processor);

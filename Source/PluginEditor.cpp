@@ -112,6 +112,36 @@ RowGutter::RowGutter() {
 
   addAndMakeVisible(toolButton);
 
+  // H and N, the way a channel says M and S: one character each, with the
+  // whole of it in the tooltip and the name a screen reader is given.
+  glideHeld.setButtonText("H");
+  glideHeld.setTooltip("Glide only while a key is held. Dark, every note "
+                       "glides from the last one, even after its key is up.");
+  glideHeld.setTitle("Glide only while a key is held");
+  glideHeld.setComponentID("glideHeld");
+  glideHeld.onClick = [this] {
+    if (onGlideHeldClicked != nullptr)
+      onGlideHeldClicked();
+  };
+
+  glidePerNote.setButtonText("N");
+  glidePerNote.setTooltip("Glide time per note, however far it goes. Dark, "
+                          "the time is per octave, so a wide leap takes "
+                          "longer than a step.");
+  glidePerNote.setTitle("Glide time per note");
+  glidePerNote.setComponentID("glidePerNote");
+  glidePerNote.onClick = [this] {
+    if (onGlidePerNoteClicked != nullptr)
+      onGlidePerNoteClicked();
+  };
+
+  for (auto *b : {&glideHeld, &glidePerNote}) {
+    b->setColour(juce::TextButton::textColourOnId, colours::accent);
+    addAndMakeVisible(*b);
+  }
+
+  ovt::ui::OvertoniumLookAndFeel::gangLamps(glideHeld, glidePerNote);
+
   headerCap.onPaint = [this](juce::Graphics &g) { paintHeaderBand(g); };
   addAndMakeVisible(headerCap);
 }
@@ -143,6 +173,26 @@ void RowGutter::resized() {
   // nine pixels into the band and clipped the tops of the tuning knobs.
   headerCap.setBounds(0, 0, getWidth(),
                       juce::jmax(0, rows[(size_t)Row::Header].getBottom()));
+
+  // The glide caps, beside their caption and gone with it when the section is
+  // folded. Laid out before the cap is brought forward, so a row scrolled
+  // under the header slides under it rather than over it.
+  const auto glideRow = rows[(size_t)Row::Glide];
+  const bool glideShown = glideRow.getHeight() > 0 &&
+                          !rowIsCollapsed(Row::Glide, collapsed) &&
+                          glideRow.getBottom() > headerCap.getBottom();
+
+  if (glideShown) {
+    constexpr int kCapW = 15, kCapH = 18;
+    const auto y = glideRow.getCentreY() - kCapH / 2;
+
+    glideHeld.setBounds(glideRow.getX() + 8, y, kCapW, kCapH);
+    glidePerNote.setBounds(glideHeld.getRight(), y, kCapW, kCapH);
+  }
+
+  glideHeld.setVisible(glideShown);
+  glidePerNote.setVisible(glideShown);
+
   headerCap.toFront(false);
 
   toolButton.setBounds(rows[(size_t)Row::Header].reduced(7, 1));
@@ -170,6 +220,7 @@ void RowGutter::setCollapsedSections(SectionMask mask) {
     return;
 
   collapsed = mask;
+  resized();
   repaint();
 }
 
@@ -180,6 +231,11 @@ void RowGutter::setScroll(int s) {
   scroll = s;
   resized();
   repaint();
+}
+
+void RowGutter::setGlideSwitches(bool held, bool perNote) {
+  glideHeld.setToggleState(held, juce::dontSendNotification);
+  glidePerNote.setToggleState(perNote, juce::dontSendNotification);
 }
 
 void RowGutter::setSharedModulators(bool pitch, bool amp) {
@@ -566,6 +622,23 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   parameterBar.setAutoHide(false);
 
   gutter.onSectionToggled = [this](Section s) { toggleSection(s); };
+
+  // A cap is a switch, so a click flips the parameter, one gesture so the host
+  // records it as one step. The cap lights from the parameter on the next
+  // tick rather than from the click, which is what keeps it honest when a
+  // preset or the glide knob's menu moves the same switch.
+  const auto flip = [this](const char *id) {
+    if (auto *param = plugin().apvts.getParameter(id)) {
+      param->beginChangeGesture();
+      param->setValueNotifyingHost(param->getValue() > 0.5f ? 0.0f : 1.0f);
+      param->endChangeGesture();
+    }
+
+    syncSharedModulators();
+  };
+
+  gutter.onGlideHeldClicked = [flip] { flip(ovt::params::glideTriggerId); };
+  gutter.onGlidePerNoteClicked = [flip] { flip(ovt::params::glideModeId); };
 
   // Off the series, like the noise channel, so pointing at a caption cannot
   // arm a LINK preview on whichever channel happened to be hovered last.
@@ -1732,6 +1805,7 @@ void OvertoniumEditor::syncSharedModulators() {
   };
 
   gutter.setSharedModulators(on(cache.pmInPhase), on(cache.amInPhase));
+  gutter.setGlideSwitches(on(cache.glideTrigger), on(cache.glideMode));
 }
 
 void OvertoniumEditor::timerCallback() {

@@ -49,6 +49,17 @@ public:
   /// thirty-three shape buttons, since the state is the same on all of them.
   void setSharedModulators(bool pitch, bool amp);
 
+  /// The two glide switches, on the caps beside the GLIDE caption: whether a
+  /// note glides only while a key is held, and whether the time is per note
+  /// rather than per octave. Both are part of the patch and live in the glide
+  /// knob's menu too, so a preset can throw them, and the caps say so.
+  void setGlideSwitches(bool held, bool perNote);
+
+  /// Fired when one of those caps is clicked. The editor owns the change,
+  /// since it is a parameter.
+  std::function<void()> onGlideHeldClicked;
+  std::function<void()> onGlidePerNoteClicked;
+
   /// Fired when a heading is clicked. The editor owns the decision, since the
   /// strips have to be told about it too.
   std::function<void(ovt::ui::Section)> onSectionToggled;
@@ -103,6 +114,10 @@ private:
   /// One button for the three tools, wearing the cursor rather than a word.
   /// See ui::PointerTool.
   ovt::ui::GlowButton toolButton;
+
+  /// The glide caps, a ganged pair the size of a channel's M and S, standing
+  /// in the free space to the left of the GLIDE caption. Lit is on.
+  ovt::ui::GlowButton glideHeld, glidePerNote;
 
   ovt::ui::PointerTool tool = ovt::ui::PointerTool::Pointer;
   juce::Image toolIcon;
