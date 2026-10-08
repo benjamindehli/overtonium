@@ -1,6 +1,6 @@
 # Accessibility
 
-Overtonium is a synthesiser with six hundred and forty-three knobs on it. That is a lot of small targets in a dark window, and it would be easy for the instrument to be usable only by people who can see it well and point accurately. This document says what the project does about that, what it does not do yet, and how to report one when you hit it.
+Overtonium is a synthesizer with six hundred and forty-three knobs on it. That is a lot of small targets in a dark window, and it would be easy for the instrument to be usable only by people who can see it well and point accurately. This document says what the project does about that, what it does not do yet, and how to report one when you hit it.
 
 There are two separate things here and they have different stories. The **plugin** is a window a host draws, and the **site** is static HTML. Most of what is written about accessibility in open source is about the second kind of thing. The first is where the harder problems are.
 

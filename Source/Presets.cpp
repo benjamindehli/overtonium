@@ -878,7 +878,7 @@ void apply(APVTS &apvts, int index) {
     // that leaves is a triangle with even harmonics in it that a triangle
     // should not have and a noise floor a mathematical one does not have, and
     // those are most of why a SID sounds like a SID rather than like a
-    // synthesiser.
+    // synthesizer.
     //
     // The level sits low and the clipper is on because the chip's own output
     // stage distorts, which is the other half of the sound.
@@ -1957,7 +1957,7 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // The electric piano an FM synthesiser makes rather than the instrument
+    // The electric piano an FM synthesizer makes rather than the instrument
     // it is imitating, in the manner of a DX7: a hard, metallic attack over a
     // body that is very nearly a sine, and none of the mechanical noise a
     // real one would bring with it.
@@ -2292,7 +2292,7 @@ void apply(APVTS &apvts, int index) {
 
     // 8 kHz and 8 bits, soft, with very short partials arriving at different
     // times. The territory of a Roland D-50, a Korg Wavestation or a granular
-    // synthesiser.
+    // synthesizer.
     ap.oscTable(params::pmRateSuffix,
                 {3.8834f, 21.2852f, 0.0972f, 4.9283f, 17.7814f, 2.8067f,
                  0.1676f, 0.9272f, 1.6633f, 3.7316f, 0.1116f, 14.545f, 6.5233f,

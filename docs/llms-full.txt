@@ -1,20 +1,20 @@
 # Overtonium, the whole site
 
-> A free, open source additive synthesiser plugin laid out like a 32-channel mixer. Every channel is one sine oscillator locked to a harmonic of the played note, and every channel has its own tuning, envelope, modulation and place in the stereo field. VST3, Audio Unit, LV2 and standalone, for macOS, Windows and Linux, under the AGPLv3.
+> A free, open source additive synthesizer plugin laid out like a 32-channel mixer. Every channel is one sine oscillator locked to a harmonic of the played note, and every channel has its own tuning, envelope, modulation and place in the stereo field. VST3, Audio Unit, LV2 and standalone, for macOS, Windows and Linux, under the AGPLv3.
 
 Every page of https://benjamindehli.github.io/overtonium/ as Markdown, in the order the site lists them, so the whole of it can be read in one request. The short version, with links into each page, is https://benjamindehli.github.io/overtonium/llms.txt.
 
 ---
 
-Page: Overtonium, a free 32-partial additive synthesiser plugin
+Page: Overtonium, a free 32-partial additive synthesizer plugin
 URL: https://benjamindehli.github.io/overtonium/
 Last changed: 2026-10-08
 
-# Overtonium, a 32-partial additive overtone synthesiser
+# Overtonium, a 32-partial additive overtone synthesizer
 
-32-partial overtone synthesiser
+32-partial overtone synthesizer
 
-An additive synthesiser laid out like a 32-channel mixer. Every channel is one sine oscillator locked to a harmonic of the played note, and every channel has its own tuning, envelope, modulation and place in the stereo field.
+An additive synthesizer laid out like a 32-channel mixer. Every channel is one sine oscillator locked to a harmonic of the played note, and every channel has its own tuning, envelope, modulation and place in the stereo field.
 
 - [Download](https://benjamindehli.github.io/overtonium/install/#downloads)
 - [Source on GitHub](https://github.com/benjamindehli/overtonium)
@@ -743,7 +743,7 @@ Two things to expect. A control jumps to wherever the controller is standing rat
 
 Page: Overtonium presets: the thirty-three that ship, and saving your own
 URL: https://benjamindehli.github.io/overtonium/presets/
-Last changed: 2026-10-07
+Last changed: 2026-10-08
 
 # Presets
 
@@ -825,7 +825,7 @@ Just Saw with every partial pulled back to equal temperament
 
 **FM Piano**
 
-The electric piano an FM synthesiser makes rather than the one it is imitating, in the manner of a DX7
+The electric piano an FM synthesizer makes rather than the one it is imitating, in the manner of a DX7
 
 **Glass Armonica**
 
@@ -845,7 +845,7 @@ The same sound as Equal Saw with every partial at its exact whole-number ratio
 
 **Lo-fi**
 
-8 kHz and 8 bits, soft, with very short partials arriving at different times. The territory of a Roland D-50, a Korg Wavestation or a granular synthesiser
+8 kHz and 8 bits, soft, with very short partials arriving at different times. The territory of a Roland D-50, a Korg Wavestation or a granular synthesizer
 
 **Metallic Piano**
 
@@ -951,7 +951,7 @@ They are small XML files holding parameter values, so they can be read, edited, 
 
 Page: Installing Overtonium on macOS, Windows and Linux
 URL: https://benjamindehli.github.io/overtonium/install/
-Last changed: 2026-10-07
+Last changed: 2026-10-08
 
 # Installing
 
@@ -999,7 +999,7 @@ No installer, since there is no install location a distribution would agree on. 
 | A host lists it but will not load it | Check you have the right format. Logic uses the Audio Unit, most others use the VST3, and installing only one of the two is easy to do by accident in the chooser |
 | Nothing appears after installing on macOS | Confirm where the files went with `pkgutil --files com.dehlimusikk.overtonium.vst3`. The plugins belong in `/Library/Audio/Plug-Ins` and the app in `/Applications` |
 | The plugin loads but is silent | Check the master fader and whether a channel is [soloed](https://benjamindehli.github.io/overtonium/controls/). Solo is per channel and mute wins over solo, so a strip can be muted inside a solo |
-| Held notes sound but nothing new does | Overtonium is a synthesiser and needs MIDI. Check the track's input rather than the plugin |
+| Held notes sound but nothing new does | Overtonium is a synthesizer and needs MIDI. Check the track's input rather than the plugin |
 
 Anything else is worth reporting on the [issue tracker](https://github.com/benjamindehli/overtonium/issues), particularly on Windows and Linux, for the reason below.
 

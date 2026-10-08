@@ -59,7 +59,7 @@ PRODUCT = {
     "applicationCategory": "MultimediaApplication",
     "applicationSubCategory": "Audio plugin",
     "operatingSystem": "macOS, Windows, Linux",
-    "description": "An additive synthesiser laid out like a 32-channel mixer. Every channel is one sine partial locked to a harmonic of the played note, with its own tuning, envelope, modulation and pan.",
+    "description": "An additive synthesizer laid out like a 32-channel mixer. Every channel is one sine partial locked to a harmonic of the played note, with its own tuning, envelope, modulation and pan.",
     "image": BASE + "overtonium.png",
     "screenshot": BASE + "overtonium.png",
     "isAccessibleForFree": True,
@@ -207,9 +207,9 @@ PAGES = [
     {
         "path": "",
         "nav": "Overview",
-        "title": "Overtonium, a free 32-partial additive synthesiser plugin",
-        "description": "A free additive synthesiser laid out like a 32-channel mixer, one sine partial per channel, with TUNE sweeping between equal and just. VST3, AU and LV2.",
-        "social": "A free additive synthesiser laid out like a 32-channel mixer. Every channel is one sine partial with its own tuning, envelope, modulation and pan, and TUNE sweeps the whole series between equal temperament and just intonation. VST3, AU and LV2 for macOS, Windows and Linux.",
+        "title": "Overtonium, a free 32-partial additive synthesizer plugin",
+        "description": "A free additive synthesizer laid out like a 32-channel mixer, one sine partial per channel, with TUNE sweeping between equal and just. VST3, AU and LV2.",
+        "social": "A free additive synthesizer laid out like a 32-channel mixer. Every channel is one sine partial with its own tuning, envelope, modulation and pan, and TUNE sweeps the whole series between equal temperament and just intonation. VST3, AU and LV2 for macOS, Windows and Linux.",
         "image": "overtonium-card.jpg",
         "image_alt": "The Overtonium wordmark over the plugin window: rows of per-partial knobs above 32 channel faders and lit meters.",
         "scripts": ["video.js", "contents.js"],
@@ -341,7 +341,7 @@ PAGES = [
 
 # then the rest. The page entries are each page's "llms" field above.
 
-LLMS_SUMMARY = 'A free, open source additive synthesiser plugin laid out like a 32-channel mixer. Every channel is one sine oscillator locked to a harmonic of the played note, and every channel has its own tuning, envelope, modulation and place in the stereo field. VST3, Audio Unit, LV2 and standalone, for macOS, Windows and Linux, under the AGPLv3.'
+LLMS_SUMMARY = 'A free, open source additive synthesizer plugin laid out like a 32-channel mixer. Every channel is one sine oscillator locked to a harmonic of the played note, and every channel has its own tuning, envelope, modulation and place in the stereo field. VST3, Audio Unit, LV2 and standalone, for macOS, Windows and Linux, under the AGPLv3.'
 
 LLMS_INTRO = [
     'The control worth reaching for first is TUNE. It sweeps each partial continuously between equal temperament and just intonation. At the just end a partial sits at an exact whole-number ratio with the fundamental and the stack fuses into one timbre. At the equal end each partial snaps to the nearest semitone and the same stack smears into a chord. The factory presets Just Saw and Equal Saw differ in that one control alone and sound nothing alike.',

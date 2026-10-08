@@ -3,7 +3,7 @@ title: Overtonium
 message: If you use this software, please cite it using these metadata.
 type: software
 abstract: >-
-  A 32-partial additive synthesiser laid out like a 32-channel mixer. Every
+  A 32-partial additive synthesizer laid out like a 32-channel mixer. Every
   channel is one sine oscillator locked to a harmonic of the played note, with
   its own tuning, envelope, modulation and pan. A continuous blend sweeps each
   partial between equal temperament and just intonation, and the keyboard
@@ -20,7 +20,7 @@ date-released: "2026-10-07"
 keywords:
   - additive synthesis
   - audio plugin
-  - synthesiser
+  - synthesizer
   - just intonation
   - microtonal
   - temperament

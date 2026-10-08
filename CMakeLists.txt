@@ -87,7 +87,7 @@ juce_add_plugin(Overtonium
     COPY_PLUGIN_AFTER_BUILD     ${OVERTONIUM_INSTALL_AFTER_BUILD}
     VST3_CATEGORIES             Instrument Synth
     AU_MAIN_TYPE                kAudioUnitType_MusicDevice
-    DESCRIPTION                 "32-partial overtone synthesiser"
+    DESCRIPTION                 "32-partial overtone synthesizer"
     # The program icon. JUCE builds the whole icon set from this one square, so
     # there is no smaller second file to keep in step, and it reaches every
     # format that is a bundle: the standalone in the Dock and the task bar, and

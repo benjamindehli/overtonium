@@ -78,7 +78,7 @@ constexpr int kTitleLead = 10;
 
 /// What it is, under the wordmark. It measures 128 px here against the 150 px
 /// the title block gives it, which leaves room for a wider font elsewhere.
-constexpr const char *kCredit = "32-partial overtone synthesiser";
+constexpr const char *kCredit = "32-partial overtone synthesizer";
 
 /// What the preset button says when nothing has been loaded yet.
 constexpr const char *kNoPreset = "Select...";

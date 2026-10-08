@@ -280,7 +280,7 @@ int main(int argc, char **argv) {
   // The two above give the ends. This gives the middle, which is the part the
   // page actually claims: that it sweeps rather than switches.
   //
-  // Equal first and just last, so it starts where every other synthesiser
+  // Equal first and just last, so it starts where every other synthesizer
   // starts and arrives at the thing this one can do, rather than the reverse.
   {
     OvertoniumProcessor p;
