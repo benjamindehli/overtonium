@@ -6,7 +6,7 @@
         <title>Playing Overtonium: MPE, automation, macros and MIDI Learn</title>
         <meta
             name="description"
-            content="Playing Overtonium: MPE, legato, glide on every channel, the Settings menu, automation with all 838 parameters, macros and MIDI Learn."
+            content="Playing Overtonium: MPE, legato, glide on every channel, the Settings menu, automation with all 839 parameters, macros and MIDI Learn."
         />
         <meta name="author" content="Benjamin Dehli" />
         <meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -20,7 +20,7 @@
         <meta property="og:title" content="Playing Overtonium: MPE, automation, macros and MIDI Learn" />
         <meta
             property="og:description"
-            content="MPE with pitch bend and pressure per note, legato, a glide on every channel with each partial on its own time, every entry in the Settings menu, automating Overtonium from a host with all 838 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
+            content="MPE with pitch bend and pressure per note, legato, a glide on every channel with each partial on its own time, every entry in the Settings menu, automating Overtonium from a host with all 839 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-playing.jpg" />
         <meta property="og:image:type" content="image/jpeg" />
@@ -32,7 +32,7 @@
         <meta name="twitter:title" content="Playing Overtonium: MPE, automation, macros and MIDI Learn" />
         <meta
             name="twitter:description"
-            content="MPE with pitch bend and pressure per note, legato, a glide on every channel with each partial on its own time, every entry in the Settings menu, automating Overtonium from a host with all 838 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
+            content="MPE with pitch bend and pressure per note, legato, a glide on every channel with each partial on its own time, every entry in the Settings menu, automating Overtonium from a host with all 839 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-playing.jpg" />
         <meta name="twitter:image:alt" content="The Overtonium wordmark over the plugin window, captioned Playing." />
@@ -49,7 +49,7 @@
                 "@id": "https://benjamindehli.github.io/overtonium/playing/#webpage",
                 "url": "https://benjamindehli.github.io/overtonium/playing/",
                 "name": "Playing Overtonium: MPE, automation, macros and MIDI Learn",
-                "description": "Playing Overtonium: MPE, legato, glide on every channel, the Settings menu, automation with all 838 parameters, macros and MIDI Learn.",
+                "description": "Playing Overtonium: MPE, legato, glide on every channel, the Settings menu, automation with all 839 parameters, macros and MIDI Learn.",
                 "inLanguage": "en-GB",
                 "isPartOf": {
                     "@id": "https://benjamindehli.github.io/overtonium/#website"
@@ -191,14 +191,35 @@
                     <h2>Legato</h2>
 
                     <p>
-                        The first entry in the polyphony list, above <strong>1 voice</strong>, and the one setting where the instrument is not
-                        polyphonic at all. One voice, and pressing a key while another is still held moves the note rather than starting it again: the
-                        envelopes carry on, so a run keeps the shape the first key gave it rather than restarting the attack under your fingers.
+                        A switch in Settings, beside the voice count, and what it does depends on that count. <strong>With one voice</strong> the
+                        instrument is not polyphonic at all: pressing a key while another is still held moves the note rather than starting it again,
+                        so the envelopes carry on and a run keeps the shape the first key gave it rather than restarting the attack under your
+                        fingers. Letting a key go while others are still down falls back to the most recent of them, which is what makes a trill work,
+                        and only the last key coming up releases the note.
                     </p>
 
                     <p>
-                        Letting a key go while others are still down falls back to the most recent of them, which is what makes a trill work. Only the
-                        last key coming up releases the note.
+                        <strong>With more than one voice it plays a top line.</strong> The highest note you are holding carries on into a new key that
+                        lands above everything else held, without starting again, while every other key plays as it always does. A legato melody over
+                        a staccato chord does what it sounds like: the chord retriggers each time its keys come up and go down again, and the melody
+                        slides from note to note over it. The melody can step down as well as up, as long as it stays above the accompaniment.
+                    </p>
+
+                    <p>
+                        What tells the line from the chord under it is how the keys went down. A note becomes the line only if it went down alone,
+                        with no other key within 40 ms of it, so holding a chord and playing above it does not carry the chord's top note off with the
+                        melody. A key under the line continues it only if it clears every note the accompaniment has played in the last two seconds,
+                        held or not, so a chord struck staccato while the melody is the only key down is still the chord it was a moment ago, and only
+                        if it is within an octave of the line. The one key none of that settles, a key just under a lone line with no accompaniment
+                        yet, waits 20 ms: another key arriving in that time makes it a chord, and nothing arriving makes it the melody stepping down.
+                        Every other key is decided the moment it arrives.
+                    </p>
+
+                    <p>
+                        Letting go of the line's key while the one before is still held falls back to it, as with one voice. The sustain pedal holds
+                        the sound, not the line, so a note only the pedal is keeping does not carry it on. With MPE on the line works the same, and
+                        when it moves to a new key it takes that key's channel with it, so its bend, pressure and slide come from the finger now
+                        playing it.
                     </p>
 
                     <p>Legato moves the note in a single step. With a <a href="#glide">glide</a> time on the channels, it slides there instead.</p>
@@ -261,9 +282,10 @@
                     </div>
 
                     <p>
-                        Played polyphonically, each new note glides from the one played last. In <a href="#legato">Legato</a> there is one voice, and
-                        it glides from wherever it is, so a key pressed halfway through a slide turns the slide round from where it had got to rather
-                        than jumping to either end. A trill falling back to a key still held glides back to it too.
+                        Played polyphonically, each new note glides from the one played last. In <a href="#legato">Legato</a> the voice carrying the
+                        phrase glides from wherever it is, the one voice with one voice set and the top line with more, so a key pressed halfway
+                        through a slide turns the slide round from where it had got to rather than jumping to either end. A trill falling back to a
+                        key still held glides back to it too.
                     </p>
 
                     <p>
@@ -313,11 +335,8 @@
                                 </tr>
                                 <tr>
                                     <td>Polyphony</td>
-                                    <td>Legato, then 1, 2, 4, 6, 8, 12 or 16 voices. 8 by default</td>
-                                    <td>
-                                        How many notes can sound at once. Legato heads the list because it is one voice too, differing only in what a
-                                        second key does
-                                    </td>
+                                    <td>1, 2, 4, 6, 8, 12 or 16 voices. 8 by default</td>
+                                    <td>How many notes can sound at once</td>
                                 </tr>
                                 <tr>
                                     <td>One voice per key</td>
@@ -326,6 +345,15 @@
                                         Striking a key again takes over the note it is already sounding rather than laying a second copy beside it,
                                         which is what a string or a bar does. Off, every strike gets a voice of its own and the tails sum, so a
                                         repeatedly struck bell builds up
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Legato</td>
+                                    <td>off by default</td>
+                                    <td>
+                                        With one voice, a key pressed while another is held moves the note without starting it again. With more, the
+                                        highest held note does that for a key above the rest, and everything under it plays as usual: see
+                                        <a href="#legato">Legato</a>
                                     </td>
                                 </tr>
                                 <tr>
@@ -427,7 +455,7 @@
                     <h2>Automating it from the host</h2>
 
                     <p>
-                        Eight hundred and thirty-eight parameters reach the host: thirty-six global ones, twenty-three on each of the 32 partials,
+                        Eight hundred and thirty-nine parameters reach the host: thirty-seven global ones, twenty-three on each of the 32 partials,
                         eighteen on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals
                         first and then channel by channel with the noise channel last.
                     </p>
@@ -498,11 +526,11 @@
                     <section class="parameter-list">
                         <h3 id="every-parameter">Every parameter</h3>
                         <p>
-                            All 838 as the host lists them, with a control that every partial or every macro carries given one row for all of them.
+                            All 839 as the host lists them, with a control that every partial or every macro carries given one row for all of them.
                             The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is
                             <a href="../parameters.json">parameters.json</a>, written by the plugin rather than by hand.
                         </p>
-                        <p><strong>Global</strong>, thirty-six of them.</p>
+                        <p><strong>Global</strong>, thirty-seven of them.</p>
                         <div class="scroll">
                             <table>
                                 <thead>
@@ -732,6 +760,12 @@
                                         <td><code>glideMode</code></td>
                                         <td>Rate, Time</td>
                                         <td>Rate</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Legato</code></td>
+                                        <td><code>legato</code></td>
+                                        <td>Off or on</td>
+                                        <td>Off</td>
                                     </tr>
                                 </tbody>
                             </table>

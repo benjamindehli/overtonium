@@ -596,6 +596,54 @@ void testAttackReachesIntoThePhase(OvertoniumProcessor &p) {
             readout.toStdString() + ")");
 }
 
+/// Legato as a switch beside the voice count. With one voice it is the
+/// monophonic legato the polyphony list's first entry always was, and with
+/// more the top line, measured in the DSP suite. This holds the parameter and
+/// the old entry to what the engine is told.
+void testLegatoSwitch(OvertoniumProcessor &p) {
+  section("The Legato switch");
+
+  auto *legato = p.apvts.getParameter(ovt::params::legatoId);
+  auto *count = p.apvts.getParameter(ovt::params::polyphonyId);
+
+  if (legato == nullptr || count == nullptr) {
+    check(false, "Legato and the voice count both exist");
+    return;
+  }
+
+  check(legato->getDefaultValue() < 0.5f, "Legato is off by default");
+  check(ovt::params::isSessionParam(ovt::params::legatoId),
+        "and is a session setting like the count, so a preset never moves it");
+
+  const auto setCount = [count](int index) {
+    count->setValueNotifyingHost(count->convertTo0to1((float)index));
+  };
+
+  const auto &cache = p.parameters();
+
+  legato->setValueNotifyingHost(0.0f);
+  setCount(5); // 8 voices
+  check(!cache.legatoValue() && cache.polyphonyValue() == 8,
+        "off, with eight voices, is eight voices");
+
+  legato->setValueNotifyingHost(1.0f);
+  check(cache.legatoValue() && cache.polyphonyValue() == 8,
+        "on, with eight, is the top line over eight");
+
+  setCount(1);
+  check(cache.legatoValue() && cache.polyphonyValue() == 1,
+        "on, with one, is monophonic legato");
+
+  // A session saved with the list's old first entry.
+  legato->setValueNotifyingHost(0.0f);
+  setCount(ovt::params::kLegatoIndex);
+  check(cache.legatoValue() && cache.polyphonyValue() == 1,
+        "the old Legato entry still plays as one voice with legato on");
+
+  setCount(5);
+  legato->setValueNotifyingHost(0.0f);
+}
+
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
@@ -625,8 +673,10 @@ void testParameterWiring(OvertoniumProcessor &p) {
   // params::kNumMacros.
   //
   // And two for glide on the end: when a note glides, and whether the time on
-  // each channel is per octave or per note. See params::glideTriggerId.
-  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + 2 +
+  // each channel is per octave or per note. See params::glideTriggerId. Then
+  // Legato as a switch of its own beside the voice count. See
+  // params::legatoId.
+  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + 2 + 1 +
                        ovt::params::kNumMacros * 6;
 
   // The behaviour that was there before it became a choice. Asked of the
@@ -5297,6 +5347,14 @@ void testSettingsMenu(OvertoniumProcessor &p) {
     return it == entries.end() ? -1 : (int)(it - entries.begin());
   };
 
+  // Legato is a tick beside the voice count, and the list's old first entry
+  // is no longer offered: a session that stored it reads as one voice with
+  // the tick on.
+  check(at("Legato") == at("One voice per key") + 1 && at("1 voice") >= 0,
+        "Legato sits beside One voice per key, under the voice counts");
+  check(std::count(entries.begin(), entries.end(), std::string("Legato")) == 1,
+        "and is there once, as the switch rather than as a voice count");
+
   // The three that answer "what does the controller in front of you send".
   check(at("MPE") >= 0 && at("Aftertouch from") == at("MPE") + 1 &&
             at("Slide to") == at("MPE") + 2,
@@ -9909,6 +9967,7 @@ int main(int argc, char **argv) {
   testReadoutsAreWrittenAsAPersonWould(processor);
   testGlideControls(processor);
   testAttackReachesIntoThePhase(processor);
+  testLegatoSwitch(processor);
   testChoiceParameterCounts(processor);
   testRendering(processor);
   testReleaseVelocity(processor);

@@ -55,6 +55,12 @@ inline constexpr const char *amInPhaseId = "amInPhase";
 inline constexpr const char *glideTriggerId = "glideTrigger";
 inline constexpr const char *glideModeId = "glideMode";
 
+/// Legato, beside the voice count rather than one entry in its list. With one
+/// voice it is the monophonic legato the list's first entry has always been,
+/// and with more the top line, where the highest held note carries on into a
+/// new key above the rest. See SynthEngine::setLegato.
+inline constexpr const char *legatoId = "legato";
+
 // ---- master effects ---------------------------------------------------------
 inline constexpr const char *echoOnId = "echoOn";
 
@@ -385,6 +391,7 @@ struct Cache {
   std::atomic<float> *pmInPhase = nullptr;
   std::atomic<float> *amInPhase = nullptr;
   std::atomic<float> *glideTrigger = nullptr;
+  std::atomic<float> *legato = nullptr;
   std::atomic<float> *glideMode = nullptr;
 
   struct Echo {
@@ -428,9 +435,11 @@ struct Cache {
 /// is still held. See kLegatoIndex.
 inline const std::array<int, 8> kPolyphonyChoices{1, 1, 2, 4, 6, 8, 12, 16};
 
-/// Monophonic, and the envelope carries on rather than starting again while
-/// any key is still down. The note follows the last key pressed, and falls
-/// back to whichever is still held when that one comes up.
+/// The list's first entry, monophonic legato. Legato is a switch of its own
+/// now, and the entry stays because a stored choice is a position in this
+/// list: taking it out would move every saved session and automation lane to
+/// the count above. The menu no longer offers it, and a session that stored
+/// it plays as the switch on with one voice, which is exactly what it was.
 inline constexpr int kLegatoIndex = 0;
 
 /// "Legato", "1 voice", "2 voices" and so on.
@@ -457,10 +466,10 @@ juce::String polyphonyName(int index);
 ///
 /// Named here rather than in Presets.cpp so the code that honours the rule and
 /// the test that checks it cannot come to disagree about what the rule is.
-inline const std::array<const char *, 11> kSessionParamIds{
-    polyphonyId,      bendRangeId,  atSourceId, referenceHzId,
-    temperamentId,    tuningRootId, mpeId,      slideDestId,
-    oneVoicePerKeyId, phaseResetId, lookaheadId};
+inline const std::array<const char *, 12> kSessionParamIds{
+    polyphonyId,      bendRangeId,  atSourceId,  referenceHzId,
+    temperamentId,    tuningRootId, mpeId,       slideDestId,
+    oneVoicePerKeyId, phaseResetId, lookaheadId, legatoId};
 
 /// Whether `id` is one of those, for the several places that have to ask.
 inline bool isSessionParam(juce::StringRef id) {
