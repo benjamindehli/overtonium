@@ -290,13 +290,24 @@ void Voice::noteOnLegato(int channel, int note, const SynthParams &p) noexcept {
 }
 
 void Voice::retune(int channel, int note, double frequency) noexcept {
+  // A key going down while the phrase is still sounding says nothing about
+  // bend or pressure, and on one channel the ones already in hand belong to
+  // the phrase rather than to the key that started it, so they are left
+  // alone. A key on a channel of its own is another matter: with MPE every
+  // note brings its own bend, pressure and slide, and a phrase carried onto
+  // that key takes the new finger's rather than keeping the last one's.
+  if (channel != midiChannel) {
+    noteBendSemitones = 0.0f;
+    polyPressure = 0.0f;
+    slide = 0.0f;
+    slideRest = 0.0f;
+    slideRested = false;
+  }
+
   midiNote = note;
   midiChannel = channel;
   baseFreq = frequency;
 
-  // A key going down while the phrase is still sounding says nothing about
-  // bend or pressure, and the ones already in hand belong to the phrase rather
-  // than to the key that started it. Left alone on purpose.
   released = false;
 }
 

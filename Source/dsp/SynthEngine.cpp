@@ -1,5 +1,7 @@
 #include "SynthEngine.h"
 
+#include <limits>
+
 #include <algorithm>
 #include <cmath>
 
@@ -57,6 +59,14 @@ void SynthEngine::reset() noexcept {
   sustainDown = false;
   ageCounter = 0;
   lastNoteFrequency = 0.0;
+  clock = 0;
+  pressedAt.fill(0);
+  pressedWithOthers.fill(false);
+  struck.fill({});
+  struckNext = 0;
+  pending.waiting = false;
+  release.waiting = false;
+  forgetLine();
   smoothedMasterGain = -1.0f;
 
   // Past 1 so the first host sample of the next block draws a fresh frame
@@ -75,7 +85,30 @@ void SynthEngine::reset() noexcept {
 }
 
 void SynthEngine::setPolyphony(int n) noexcept {
+  const auto was = topLine();
   polyphony = std::clamp(n, 1, kMaxPolyphony);
+
+  if (was != topLine())
+    forgetLine();
+}
+
+void SynthEngine::setLegato(bool on) noexcept {
+  const auto was = topLine();
+  legato = on;
+
+  if (was != topLine())
+    forgetLine();
+}
+
+void SynthEngine::remember(int note, uint64_t at, int voice) noexcept {
+  struck[struckNext] = {note, at, voice};
+  struckNext = (struckNext + 1) % struck.size();
+}
+
+void SynthEngine::forgetLine() noexcept {
+  carriesLine.fill(false);
+  lineDepth = 0;
+  lineVoice = -1;
 }
 
 int SynthEngine::countSounding() const noexcept {
@@ -164,9 +197,33 @@ void SynthEngine::legatoRelease(int note) noexcept {
   }
 }
 
+void SynthEngine::startPendingFresh(const SynthParams &p) noexcept {
+  if (!pending.waiting)
+    return;
+
+  const auto k = pending;
+  pending.waiting = false;
+  noteOnImpl(k.channel, k.note, k.velocity, p, Take::Fresh);
+}
+
 void SynthEngine::noteOnImpl(int channel, int note, float velocity,
-                             const SynthParams &p) noexcept {
+                             const SynthParams &p, Take take) noexcept {
+  // A key still waiting when another arrives was part of a chord with it.
+  if (take == Take::Normal)
+    startPendingFresh(p);
+
+  // Struck again before its delayed release, the key is down once more and
+  // the release is no longer owed.
+  if (release.waiting && release.channel == channel && release.note == note)
+    release.waiting = false;
+
   glide = GlideSettings::of(p);
+
+  // The tuning this note is under, which a note-off falling back to a held key
+  // needs and does not carry.
+  legatoTemperament = p.global.temperament;
+  legatoRoot = p.global.tuningRoot;
+  legatoReferenceHz = p.global.referenceHz;
 
   // ---- where a glide comes from ---------------------------------------------
   //
@@ -216,7 +273,7 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
   // rather than starting it again: the envelopes carry on and a run keeps the
   // shape the first key gave it. The phrase ends when the last key comes up,
   // which is the whole difference from one voice without it.
-  if (legato) {
+  if (legato && polyphony <= 1) {
     legatoRelease(note);
 
     if (legatoDepth < (int)legatoHeld.size())
@@ -247,6 +304,103 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
     for (auto &v : voices)
       if (v.isActive())
         v.steal();
+  }
+
+  // ---- the top line ---------------------------------------------------------
+  //
+  // Legato with more than one voice. The highest note held down carries on
+  // into a new key that lands above everything else held, so a melody played
+  // joined over a chord slides from note to note without starting again,
+  // while every other key plays as it always does. A key pressed under the
+  // line is a fresh note, and so is one pressed alongside others, which is
+  // what tells a chord from a line: a note becomes a line only if it went
+  // down alone. Once a line, it stays one for as long as a key holds it.
+  const auto now = clock;
+  const auto window = (uint64_t)(kChordWindowSeconds * sampleRate);
+  bool withOthers = false;
+
+  for (size_t i = 0; i < voices.size(); ++i)
+    if (voices[i].isActive() && now - pressedAt[i] < window) {
+      pressedWithOthers[i] = true;
+      withOthers = true;
+    }
+
+  if (topLine() && take != Take::Fresh) {
+    // The highest note a hand is holding, and the highest beneath it. The
+    // pedal does not count: it holds the sound, not the line.
+    int top = -1, beneath = -1;
+
+    for (size_t i = 0; i < voices.size(); ++i) {
+      const auto &v = voices[i];
+
+      if (!v.isActive() || v.isReleasing() || heldBySustain[i])
+        continue;
+
+      if (top < 0 || v.getNote() > voices[(size_t)top].getNote()) {
+        if (top >= 0)
+          beneath = std::max(beneath, voices[(size_t)top].getNote());
+        top = (int)i;
+      } else {
+        beneath = std::max(beneath, v.getNote());
+      }
+    }
+
+    // And the highest the accompaniment has reached lately, held or not, so a
+    // chord struck staccato under the line still counts as being there. The
+    // line's own notes are not accompaniment, and neither is the note that is
+    // about to become the line.
+    const auto memory = (uint64_t)(kAccompanimentSeconds * sampleRate);
+    int chordTop = -1;
+
+    for (const auto &k : struck)
+      if (k.note >= 0 && now - k.at < memory && k.voice != top &&
+          !(k.voice >= 0 && carriesLine[(size_t)k.voice]))
+        chordTop = std::max(chordTop, k.note);
+
+    if (top >= 0) {
+      const auto t = (size_t)top;
+      auto &line = voices[t];
+      const bool eligible = carriesLine[t] || !pressedWithOthers[t];
+
+      // A key struck with others and landing under the line is a chord note,
+      // never the melody. Struck with others above it, it is the top of a new
+      // chord, and the melody goes on in it.
+      const bool inChord = withOthers && note < line.getNote();
+
+      if (eligible && !inChord && note > beneath && note > chordTop &&
+          note >= line.getNote() - kLineReachDown && note != line.getNote()) {
+        // Under the line, with nothing held beside it and nothing remembered:
+        // the one key that could be either. It waits. See
+        // kLineDecisionSeconds.
+        if (take == Take::Normal && note < line.getNote() && beneath < 0 &&
+            chordTop < 0) {
+          pending = {true, channel,
+                     note, velocity,
+                     now,  now + (uint64_t)(kLineDecisionSeconds * sampleRate)};
+          return;
+        }
+
+        // The key it moves off is still down, so it is remembered for a trill
+        // to fall back to. A line that has changed hands starts its memory
+        // again, since the keys under the old one belong to nothing now.
+        if (lineVoice != top)
+          lineDepth = 0;
+
+        if (lineDepth < (int)lineHeld.size())
+          lineHeld[(size_t)lineDepth++] = {line.getChannel(), line.getNote()};
+
+        const auto own = line.notePitches();
+        line.noteOnLegato(channel, note, p);
+        line.startGlide(own, glide);
+        line.setAge(++ageCounter);
+
+        carriesLine[t] = true;
+        pressedAt[t] = now;
+        lineVoice = top;
+        lastNoteFrequency = line.getFrequency();
+        return;
+      }
+    }
   }
 
   // One key, one voice. The instrument is polyphonic across the keyboard and
@@ -289,6 +443,9 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
     // and re-striking a pedalled note takes it back off the pedal.
     if (held != nullptr) {
       heldBySustain[heldIndex] = false;
+      pressedAt[heldIndex] = now;
+      pressedWithOthers[heldIndex] = withOthers;
+      remember(note, now, (int)heldIndex);
       held->noteOn(channel, note, velocity, p);
 
       if (glides)
@@ -327,6 +484,18 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
   const auto index = (size_t)std::distance(voices.data(), target);
   heldBySustain[index] = false;
 
+  // A fresh note, so not a line yet, and if it was the line's voice the line
+  // has gone with it.
+  pressedAt[index] = now;
+  pressedWithOthers[index] = withOthers;
+  carriesLine[index] = false;
+  remember(note, now, (int)index);
+
+  if (lineVoice == (int)index) {
+    lineVoice = -1;
+    lineDepth = 0;
+  }
+
   target->noteOn(channel, note, velocity, p);
 
   if (glides)
@@ -345,7 +514,52 @@ void SynthEngine::noteOffPerNote(int channel, int note, float lift) noexcept {
 }
 
 void SynthEngine::noteOffImpl(int channel, int note, float lift) noexcept {
-  if (legato) {
+  // Let go before its wait was over: a short note of its own, so it starts and
+  // is released like one. The parameters are the last render's, being all a
+  // note-off has.
+  if (pending.waiting && pending.channel == channel && pending.note == note &&
+      haveParams) {
+    const auto held = clock - pending.pressed;
+    startPendingFresh(lastParams);
+    release = {true, channel, note, lift, clock + held};
+    return;
+  }
+
+  if (topLine()) {
+    // A key the line has already moved off: only remembered, so letting go of
+    // it is the end of remembering it.
+    for (int i = 0; i < lineDepth; ++i) {
+      if (lineHeld[(size_t)i].channel != channel ||
+          lineHeld[(size_t)i].note != note)
+        continue;
+
+      for (int j = i; j + 1 < lineDepth; ++j)
+        lineHeld[(size_t)j] = lineHeld[(size_t)j + 1];
+
+      --lineDepth;
+      return;
+    }
+
+    // The line's own key, with one it came from still down: back to that one,
+    // which is a trill.
+    if (lineVoice >= 0 && lineDepth > 0) {
+      auto &line = voices[(size_t)lineVoice];
+
+      if (matches(line, channel, note) && !line.isReleasing()) {
+        const auto back = lineHeld[(size_t)--lineDepth];
+        const auto own = line.notePitches();
+
+        line.retune(back.channel, back.note,
+                    noteFrequency(back.note, legatoTemperament, legatoRoot,
+                                  legatoReferenceHz));
+        line.startGlide(own, glide);
+        lastNoteFrequency = line.getFrequency();
+        return;
+      }
+    }
+  }
+
+  if (legato && polyphony <= 1) {
     legatoRelease(note);
 
     // Another key is still down, so the phrase moves to it rather than
@@ -423,6 +637,9 @@ void SynthEngine::setNoteBend(int channel, int note, float semitones) noexcept {
 }
 
 void SynthEngine::allNotesOff() noexcept {
+  pending.waiting = false;
+  release.waiting = false;
+
   for (size_t i = 0; i < voices.size(); ++i) {
     voices[i].noteOff();
     heldBySustain[i] = false;
@@ -432,6 +649,9 @@ void SynthEngine::allNotesOff() noexcept {
 }
 
 void SynthEngine::allSoundOff() noexcept {
+  pending.waiting = false;
+  release.waiting = false;
+
   for (auto &v : voices)
     v.reset();
 
@@ -703,8 +923,53 @@ void SynthEngine::render(float *left, float *right, int numSamples,
     return;
 
   glide = GlideSettings::of(p);
+  lastParams = p;
+  haveParams = true;
 
-  renderVoices(left, right, numSamples, p);
+  // A key whose wait runs out, or whose delayed release falls due, inside
+  // this block is acted on at the sample it falls on, so the voices are
+  // rendered in pieces either side of each.
+  int done = 0;
+
+  for (;;) {
+    auto next = std::numeric_limits<uint64_t>::max();
+
+    if (pending.waiting)
+      next = pending.deadline;
+    if (release.waiting)
+      next = std::min(next, release.at);
+
+    const auto end = clock + (uint64_t)(numSamples - done);
+
+    if (next >= end)
+      break;
+
+    const auto upTo = (int)(next > clock ? next - clock : 0);
+
+    if (upTo > 0) {
+      renderVoices(left + done, right + done, upTo, p);
+      clock += (uint64_t)upTo;
+      done += upTo;
+    }
+
+    // Nothing arrived while it waited, so it was the melody stepping down.
+    if (pending.waiting && pending.deadline <= clock) {
+      const auto k = pending;
+      pending.waiting = false;
+      noteOnImpl(k.channel, k.note, k.velocity, p, Take::Decided);
+    }
+
+    if (release.waiting && release.at <= clock) {
+      const auto k = release;
+      release.waiting = false;
+      noteOffImpl(k.channel, k.note, k.lift);
+    }
+  }
+
+  if (numSamples > done) {
+    renderVoices(left + done, right + done, numSamples - done, p);
+    clock += (uint64_t)(numSamples - done);
+  }
 
   // ---- the bus the series is summed onto -----------------------------------
   // Before the effects, since this is the summing amplifier rather than

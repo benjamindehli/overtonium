@@ -60,9 +60,42 @@ public:
 
   void setPolyphony(int n) noexcept;
 
-  /// Monophonic, and the envelope carries on rather than starting again while
-  /// any key is still down.
-  void setLegato(bool on) noexcept { legato = on; }
+  /// Legato. With one voice the instrument is monophonic and the envelope
+  /// carries on rather than starting again while any key is still down. With
+  /// more it plays a top line: the highest held note carries on into a new key
+  /// above everything else held, and the rest of the keyboard plays as it
+  /// always does. See noteOnImpl.
+  void setLegato(bool on) noexcept;
+
+  /// How far apart two key presses can be and still count as one chord, in
+  /// seconds. A note pressed alone, with nothing else inside this either side
+  /// of it, can become a top line, and a chord cannot, so holding a chord and
+  /// playing over it does not carry its top note off with the melody.
+  static constexpr double kChordWindowSeconds = 0.04;
+
+  /// How long the accompaniment is remembered once its keys are up, in
+  /// seconds. A key under the line continues it only if it lands above every
+  /// note the accompaniment played in this long, so a staccato chord, struck
+  /// while the line is the only key held, is still recognised as the chord it
+  /// was a moment ago rather than taken for the melody stepping down.
+  static constexpr double kAccompanimentSeconds = 2.0;
+
+  /// How far below itself the line will step, in semitones. Further than that
+  /// is a new note, which covers the first chord after a rest, when there is
+  /// no accompaniment yet to remember.
+  static constexpr int kLineReachDown = 12;
+
+  /// How long a key just under a lone line waits to see whether it is a chord,
+  /// in seconds.
+  ///
+  /// The one key nothing else decides: within the line's octave, with no other
+  /// key held and no accompaniment remembered, the melody stepping down and
+  /// the first note of a chord look the same when the key goes down. Another
+  /// key inside this makes it a chord, and every key starts fresh. Nothing
+  /// does, and the line steps down to it. Either way it is late by no more
+  /// than a hand landing on a chord already spreads its notes, and every
+  /// other key is decided the moment it arrives.
+  static constexpr double kLineDecisionSeconds = 0.02;
 
   void noteOn(int note, float velocity, const SynthParams &p) noexcept;
   void noteOff(int note, float lift = 1.0f) noexcept;
@@ -197,8 +230,14 @@ private:
   /// other. See the per-note entry points above.
   static bool matches(const Voice &v, int channel, int note) noexcept;
 
-  void noteOnImpl(int channel, int note, float velocity,
-                  const SynthParams &p) noexcept;
+  /// How a key is to be taken. Normal is every key as it arrives. Fresh
+  /// starts it as a note of its own whatever the line would say, for a key
+  /// that turned out to be part of a chord. Decided carries the line without
+  /// waiting, for a key whose wait is over. See kLineDecisionSeconds.
+  enum class Take { Normal, Fresh, Decided };
+
+  void noteOnImpl(int channel, int note, float velocity, const SynthParams &p,
+                  Take take = Take::Normal) noexcept;
   void noteOffImpl(int channel, int note, float lift) noexcept;
 
   Voice *findFreeVoice() noexcept;
@@ -281,6 +320,82 @@ private:
 
   std::array<Voice, kPoolSize> voices{};
   std::array<bool, kPoolSize> heldBySustain{};
+
+  // ---- the top line ---------------------------------------------------------
+  //
+  // When each voice's key went down, on the engine's own sample clock, whether
+  // another key went down within kChordWindowSeconds of it either side, and
+  // whether it is carrying the line. The middle one is marked from both ends:
+  // a press marks every voice pressed inside the window before it, and itself
+  // if there were any, so by the time the next key arrives the answer for the
+  // one before it is known.
+  std::array<uint64_t, kPoolSize> pressedAt{};
+  std::array<bool, kPoolSize> pressedWithOthers{};
+  std::array<bool, kPoolSize> carriesLine{};
+
+  /// Samples rendered since prepare, which is what a press is timed against.
+  uint64_t clock = 0;
+
+  /// The keys the line has moved off and that are still down, oldest first,
+  /// with the voice carrying it. A trill lets go of the line's own key while
+  /// the one before is still held, and the line falls back to it rather than
+  /// leaving a key down with nothing sounding.
+  struct HeldKey {
+    int channel = 0;
+    int note = -1;
+  };
+  std::array<HeldKey, 128> lineHeld{};
+  int lineDepth = 0;
+  int lineVoice = -1;
+
+  /// The last notes struck that were not the line, with when and on which
+  /// voice, for the floor a key has to clear to continue it. A ring, since it
+  /// is the audio thread's and only the last few seconds matter.
+  struct Struck {
+    int note = -1;
+    uint64_t at = 0;
+    int voice = -1;
+  };
+  std::array<Struck, 64> struck{};
+  size_t struckNext = 0;
+
+  /// The key waiting on that decision, if one is.
+  struct Pending {
+    bool waiting = false;
+    int channel = 0;
+    int note = -1;
+    float velocity = 0.0f;
+    uint64_t pressed = 0;
+    uint64_t deadline = 0;
+  };
+  Pending pending;
+
+  /// A key let go inside its wait starts then, and is released once it has
+  /// sounded for as long as it was held, which is what it would have done had
+  /// it not waited. Started and released on the same sample, it would never
+  /// get past the first instant of its attack and a quick touch would vanish.
+  struct Release {
+    bool waiting = false;
+    int channel = 0;
+    int note = -1;
+    float lift = 1.0f;
+    uint64_t at = 0;
+  };
+  Release release;
+
+  /// Starts the waiting key as a note of its own, which is what it was if
+  /// anything else happened before its wait was over.
+  void startPendingFresh(const SynthParams &p) noexcept;
+
+  /// The parameters the last render was given, for a note-off that has to
+  /// start a waiting key and carries none of its own. A copy rather than a
+  /// pointer, so it cannot outlive whatever the caller rendered with.
+  SynthParams lastParams{};
+  bool haveParams = false;
+  void remember(int note, uint64_t at, int voice) noexcept;
+
+  bool topLine() const noexcept { return legato && polyphony > 1; }
+  void forgetLine() noexcept;
 
   /// The lift each of those was let go at, kept until the pedal comes up.
   /// The key is long gone by then, so the speed it came up at has to be
