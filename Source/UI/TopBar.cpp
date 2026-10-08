@@ -980,6 +980,7 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
   auto *ahead = apvts.getParameter(params::lookaheadId);
   auto *onePerKey = apvts.getParameter(params::oneVoicePerKeyId);
   auto *mpe = apvts.getParameter(params::mpeId);
+  auto *legato = apvts.getParameter(params::legatoId);
 
   const auto polyIndex =
       polyphony != nullptr
@@ -1018,13 +1019,23 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
 
   m.addSectionHeader("Polyphony");
 
-  for (int i = 0; i < (int)params::kPolyphonyChoices.size(); ++i)
-    m.addItem(100 + i, params::polyphonyName(i), true, i == polyIndex);
+  // The voice counts, from one up. The list's first entry, monophonic legato,
+  // is the Legato switch below with one voice now, so a session that stored it
+  // reads as that: one voice, and Legato ticked.
+  const auto oldLegato = polyIndex == params::kLegatoIndex;
 
-  // Beside the voice count because it is the other half of the same question:
-  // how many voices there are, and how many one key may take.
+  for (int i = 1; i < (int)params::kPolyphonyChoices.size(); ++i)
+    m.addItem(100 + i, params::polyphonyName(i), true,
+              i == polyIndex || (oldLegato && i == 1));
+
+  // Beside the voice count because they are the other halves of the same
+  // question: how many voices there are, how many one key may take, and
+  // whether a key going down while another is held starts a note or carries
+  // one on.
   m.addItem(303, "One voice per key", true,
             onePerKey != nullptr && onePerKey->getValue() > 0.5f);
+  m.addItem(305, "Legato", true,
+            oldLegato || (legato != nullptr && legato->getValue() > 0.5f));
 
   const auto currentBend =
       bendRange != nullptr
@@ -1186,6 +1197,38 @@ void TopBar::showSettingsMenu() {
 
         if (result == 303)
           return flip(params::oneVoicePerKeyId);
+
+        // From the list's old legato entry, unticking moves to one voice with
+        // the switch off, and ticking is the switch. Either way the count
+        // stops pointing at an entry the menu no longer offers.
+        if (result == 305) {
+          auto *count = apvts.getParameter(params::polyphonyId);
+          auto *legatoSwitch = apvts.getParameter(params::legatoId);
+
+          const bool fromOld =
+              count != nullptr &&
+              juce::roundToInt(count->convertFrom0to1(count->getValue())) ==
+                  params::kLegatoIndex;
+          const bool on = fromOld || (legatoSwitch != nullptr &&
+                                      legatoSwitch->getValue() > 0.5f);
+
+          if (fromOld)
+            count->setValueNotifyingHost(count->convertTo0to1(1.0f));
+
+          if (legatoSwitch != nullptr)
+            legatoSwitch->setValueNotifyingHost(on ? 0.0f : 1.0f);
+
+          return;
+        }
+
+        // A voice count chosen from the old legato entry keeps legato, since
+        // that entry was legato as well as one voice.
+        if (result >= 100 && result < 200)
+          if (auto *count = apvts.getParameter(params::polyphonyId))
+            if (juce::roundToInt(count->convertFrom0to1(count->getValue())) ==
+                params::kLegatoIndex)
+              if (auto *legatoSwitch = apvts.getParameter(params::legatoId))
+                legatoSwitch->setValueNotifyingHost(1.0f);
 
         // The converter entries carry an index into their choice
         // list rather than a value, since the lists are not

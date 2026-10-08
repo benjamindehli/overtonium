@@ -201,6 +201,18 @@ public:
   void retune(int channel, int note, double frequency) noexcept;
   void steal() noexcept; ///< fast fade-out so the voice can be reused
 
+  /// The same fade over a time of the caller's choosing, for a note that has
+  /// handed its phrase on and should go quietly rather than ring out its
+  /// release under the note that took over.
+  void fade(float seconds) noexcept;
+
+  /// Carries on where another voice is: every envelope at the stage and level
+  /// it has reached, the modulators and the drift mid-cycle, and the velocity
+  /// the phrase began with. Called on a voice that has just been given a note,
+  /// so this note continues that one rather than starting again. The pitch is
+  /// left to startGlide, which knows where it came from.
+  void takeOver(const Voice &from) noexcept;
+
   /// Where every partial's note is sounding right now, glide included, so a
   /// note taking over from this one can start from exactly here. A partial
   /// halfway through a glide is halfway, rather than at either end of it.

@@ -527,9 +527,15 @@ It is a setting rather than something permanently on because it changes what a c
 
 ## Legato
 
-The first entry in the polyphony list, above **1 voice**, and the one setting where the instrument is not polyphonic at all. One voice, and pressing a key while another is still held moves the note rather than starting it again: the envelopes carry on, so a run keeps the shape the first key gave it rather than restarting the attack under your fingers.
+A switch in Settings, beside the voice count, and what it does depends on that count. **With one voice** the instrument is not polyphonic at all: pressing a key while another is still held moves the note rather than starting it again, so the envelopes carry on and a run keeps the shape the first key gave it rather than restarting the attack under your fingers. Letting a key go while others are still down falls back to the most recent of them, which is what makes a trill work, and only the last key coming up releases the note.
 
-Letting a key go while others are still down falls back to the most recent of them, which is what makes a trill work. Only the last key coming up releases the note.
+**With more than one voice it plays a top line.** A key that lands above everything you are holding, except the highest note, carries that note's phrase on: it starts a voice of its own that takes over the highest note's envelopes where they stand and glides from its pitch, so it does not start again. Every other key plays as it always does. A legato melody over a staccato chord does what it sounds like: the chord retriggers each time its keys come up and go down again, and the melody slides from note to note over it, up or down, as long as it stays above the chord.
+
+The note a melody carries on from is never taken away, so a key that turns out to be part of the chord always sounds. It goes on sounding while its key is down and fades quickly when the key comes up, rather than ringing out its release under the melody, and so does the upper note of a trill lifted back onto the key below.
+
+A key going down under the highest note could be the melody stepping down or a chord struck under a held melody, and only what the old melody key does afterwards would tell them apart, so the instrument goes by what is likely. Above the highest note, a key always carries on. Under it, with a chord held and no other key just struck, it carries on if it is above that chord, however far down it goes. Alone under a lone melody, or among keys struck together, it carries on only if it is within a major third and the highest of the keys struck with it, since a melody moves by seconds and thirds and the top of a chord usually sits further down. A wrong guess costs no more than an attack. No key ever waits.
+
+When the voices run out, the melody is the last thing taken. The sustain pedal holds the sound, not the line, so a note only the pedal is keeping does not carry anything on. With MPE on it works the same, and a note carried onto a key of its own channel brings that key's bend, pressure and slide with it.
 
 Legato moves the note in a single step. With a [glide](https://benjamindehli.github.io/overtonium/playing/#glide) time on the channels, it slides there instead.
 
@@ -546,7 +552,7 @@ A partial glides in a straight line in pitch, and everything that follows the pi
 | When | Always, the default, or only while a key is held | Always glides from the last note played, even when its key came up long ago. Only while a key is held glides when the new key goes down over another one still under a finger, so a phrase played detached lands on each note and the same phrase played joined slides through them. The sustain pedal holds the sound and not the hand, so a note it is holding does not count as held |
 | What the time means | Per octave, the default, or per note | Per octave makes the time the length of an octave's slide, so a fifth takes a little over half of it and two octaves take twice it, the way a finger sliding along a string at a steady pace does. Per note makes every slide take the time however far it goes, so a leap and a step land on the same beat |
 
-Played polyphonically, each new note glides from the one played last. In [Legato](https://benjamindehli.github.io/overtonium/playing/#legato) there is one voice, and it glides from wherever it is, so a key pressed halfway through a slide turns the slide round from where it had got to rather than jumping to either end. A trill falling back to a key still held glides back to it too.
+Played polyphonically, each new note glides from the one played last. In [Legato](https://benjamindehli.github.io/overtonium/playing/#legato) the voice carrying the phrase glides from wherever it is, the one voice with one voice set and the top line with more, so a key pressed halfway through a slide turns the slide round from where it had got to rather than jumping to either end. A trill falling back to a key still held glides back to it too.
 
 GLIDE is a row like any other, so [LINK](https://benjamindehli.github.io/overtonium/controls/#link) sets it across the series in one drag and a [macro](https://benjamindehli.github.io/overtonium/playing/#macros) can sweep every channel's glide time from one control.
 
@@ -559,8 +565,9 @@ Everything set once and then left. The menu is where the instrument is set up an
 | Which version this is |  | A heading at the top of the menu rather than an entry, since it is a fact about the build and not a choice. It is the number a bug report asks for |
 | Check for new versions | off by default | The one entry that reaches outside the machine. [What it sends](https://benjamindehli.github.io/overtonium/install/) is nothing but a request for a file |
 | Undo, Redo |  | The same steps Cmd-Z reaches, for the hosts that keep that shortcut for themselves |
-| Polyphony | Legato, then 1, 2, 4, 6, 8, 12 or 16 voices. 8 by default | How many notes can sound at once. Legato heads the list because it is one voice too, differing only in what a second key does |
+| Polyphony | 1, 2, 4, 6, 8, 12 or 16 voices. 8 by default | How many notes can sound at once |
 | One voice per key | on by default | Striking a key again takes over the note it is already sounding rather than laying a second copy beside it, which is what a string or a bar does. Off, every strike gets a voice of its own and the tails sum, so a repeatedly struck bell builds up |
+| Legato | off by default | With one voice, a key pressed while another is held moves the note without starting it again. With more, the highest held note does that for a key above the rest, and everything under it plays as usual: see [Legato](https://benjamindehli.github.io/overtonium/playing/#legato) |
 | Pitch bend range | 0, 1, 2, 3, 4, 5, 7, 12 or 24 semitones. 2 by default | How far the wheel bends. The counts anyone actually uses rather than all twenty-five |
 | MPE | off by default | Whether a note's channel is part of who that note is, which is what lets pitch bend and pressure arrive per note |
 | Aftertouch from | Channel pressure, Mod wheel, Either. Either by default | What feeds the AT row on every strip. Polyphonic aftertouch is not on the list because it stays routed whatever this says |
@@ -578,7 +585,7 @@ The safety clip is the exception in this table, and the master fader is the exce
 
 ## Automating it from the host
 
-Eight hundred and thirty-eight parameters reach the host: thirty-six global ones, twenty-three on each of the 32 partials, eighteen on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals first and then channel by channel with the noise channel last.
+Eight hundred and thirty-nine parameters reach the host: thirty-seven global ones, twenty-three on each of the 32 partials, eighteen on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals first and then channel by channel with the noise channel last.
 
 Every per-channel name carries its channel, so a parameter list answers both ways of looking for something. Type `H7` and you have that partial, type `Tune` and you have that row across the whole mixer. The same names are what a screen reader reads, which is why they are words rather than numbers.
 
@@ -600,9 +607,9 @@ LINK is not a parameter, since it is a tool for the mouse rather than part of th
 
 ### Every parameter
 
-All 838 as the host lists them, with a control that every partial or every macro carries given one row for all of them. The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is [parameters.json](https://benjamindehli.github.io/overtonium/parameters.json), written by the plugin rather than by hand.
+All 839 as the host lists them, with a control that every partial or every macro carries given one row for all of them. The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is [parameters.json](https://benjamindehli.github.io/overtonium/parameters.json), written by the plugin rather than by hand.
 
-**Global**, thirty-six of them.
+**Global**, thirty-seven of them.
 
 | What the host calls it | Id | Range | Default |
 |---|---|---|---|
@@ -642,6 +649,7 @@ All 838 as the host lists them, with a control that every partial or every macro
 | `Reverb Type` | `reverbType` | Room, Modulated Plate, Spring | Room |
 | `Glide Trigger` | `glideTrigger` | Always, Legato | Always |
 | `Glide Mode` | `glideMode` | Rate, Time | Rate |
+| `Legato` | `legato` | Off or on | Off |
 
 **On every partial**, twenty-three controls, each one on all 32 partials.
 

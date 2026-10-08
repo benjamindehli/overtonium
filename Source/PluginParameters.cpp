@@ -1106,6 +1106,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
                         glideModeName(GlideMode::Time)},
       (int)GlideMode::Rate));
 
+  // Legato as a switch beside the voice count, on the end with the rest.
+  // Off, so a session that never asked for it plays as it did. A session
+  // setting like the count it sits beside, so a preset never moves it.
+  layout.add(
+      std::make_unique<BoolP>(juce::ParameterID{legatoId, 1}, "Legato", false));
+
   return layout;
 }
 
@@ -1117,6 +1123,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   amInPhase = apvts.getRawParameterValue(amInPhaseId);
   glideTrigger = apvts.getRawParameterValue(glideTriggerId);
   glideMode = apvts.getRawParameterValue(glideModeId);
+  legato = apvts.getRawParameterValue(legatoId);
   bendRange = apvts.getRawParameterValue(bendRangeId);
   phaseReset = apvts.getRawParameterValue(phaseResetId);
   stretch = apvts.getRawParameterValue(stretchId);
@@ -1272,7 +1279,7 @@ int Cache::polyphonyValue() const {
 }
 
 bool Cache::legatoValue() const {
-  return (int)polyphony->load() == kLegatoIndex;
+  return (int)polyphony->load() == kLegatoIndex || legato->load() > 0.5f;
 }
 
 namespace {

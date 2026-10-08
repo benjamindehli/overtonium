@@ -290,13 +290,24 @@ void Voice::noteOnLegato(int channel, int note, const SynthParams &p) noexcept {
 }
 
 void Voice::retune(int channel, int note, double frequency) noexcept {
+  // A key going down while the phrase is still sounding says nothing about
+  // bend or pressure, and on one channel the ones already in hand belong to
+  // the phrase rather than to the key that started it, so they are left
+  // alone. A key on a channel of its own is another matter: with MPE every
+  // note brings its own bend, pressure and slide, and a phrase carried onto
+  // that key takes the new finger's rather than keeping the last one's.
+  if (channel != midiChannel) {
+    noteBendSemitones = 0.0f;
+    polyPressure = 0.0f;
+    slide = 0.0f;
+    slideRest = 0.0f;
+    slideRested = false;
+  }
+
   midiNote = note;
   midiChannel = channel;
   baseFreq = frequency;
 
-  // A key going down while the phrase is still sounding says nothing about
-  // bend or pressure, and the ones already in hand belong to the phrase rather
-  // than to the key that started it. Left alone on purpose.
   released = false;
 }
 
@@ -356,6 +367,52 @@ void Voice::noteOff(float lift) noexcept {
     pt.env.noteOff(lift);
 
   noise.env.noteOff(lift);
+}
+
+void Voice::fade(float seconds) noexcept {
+  if (!active)
+    return;
+
+  released = true;
+
+  for (auto &pt : partials)
+    pt.env.forceRelease(seconds);
+
+  noise.env.forceRelease(seconds);
+}
+
+void Voice::takeOver(const Voice &from) noexcept {
+  for (size_t i = 0; i < partials.size(); ++i) {
+    auto &pt = partials[i];
+    const auto &src = from.partials[i];
+
+    pt.env = src.env;
+    pt.pitchLfo = src.pitchLfo;
+    pt.ampLfo = src.ampLfo;
+    pt.drift = src.drift;
+    pt.velGain = src.velGain;
+    pt.delayScale = src.delayScale;
+    pt.attackScale = src.attackScale;
+    pt.bulbSettled = src.bulbSettled;
+    pt.semisPrimed = src.semisPrimed;
+
+    // Already sounding, so the gain ramp starts from where the other voice's
+    // was rather than priming itself afresh, and the oscillator starts its
+    // cycle on a crossing so the level it arrives at cannot step.
+    pt.lastGain = src.lastGain;
+    pt.gainPrimed = src.gainPrimed;
+    pt.phase = 0.0;
+  }
+
+  noise.env = from.noise.env;
+  noise.ampLfo = from.noise.ampLfo;
+  noise.velGain = from.noise.velGain;
+  noise.delayScale = from.noise.delayScale;
+  noise.attackScale = from.noise.attackScale;
+  noise.lastGain = from.noise.lastGain;
+  noise.gainPrimed = from.noise.gainPrimed;
+
+  pressureSmoothed = from.pressureSmoothed;
 }
 
 void Voice::steal() noexcept {

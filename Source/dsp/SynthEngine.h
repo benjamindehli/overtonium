@@ -60,9 +60,28 @@ public:
 
   void setPolyphony(int n) noexcept;
 
-  /// Monophonic, and the envelope carries on rather than starting again while
-  /// any key is still down.
-  void setLegato(bool on) noexcept { legato = on; }
+  /// Legato. With one voice the instrument is monophonic and the envelope
+  /// carries on rather than starting again while any key is still down. With
+  /// more it plays a top line: a key landing above everything held but the
+  /// highest note carries that note's phrase on, and the rest of the keyboard
+  /// plays as it always does. See noteOnImpl.
+  void setLegato(bool on) noexcept;
+
+  /// How far apart two key presses can be and still count as one chord, in
+  /// seconds. A key struck with others and landing under the top note is a
+  /// chord note, never the melody stepping down.
+  static constexpr double kChordWindowSeconds = 0.04;
+
+  /// How far below the top note a key can land and still be read as the
+  /// melody stepping down, when nothing held under it says otherwise, in
+  /// semitones. A major third: melodies move by seconds and thirds, and the
+  /// top of a chord struck under a held melody usually sits further down.
+  static constexpr int kStepDown = 4;
+
+  /// How quickly a note that has handed its phrase on goes once its key is up,
+  /// in seconds. Short enough that a legato melody does not smear into a pad,
+  /// long enough not to click.
+  static constexpr double kHandoffFadeSeconds = 0.02;
 
   void noteOn(int note, float velocity, const SynthParams &p) noexcept;
   void noteOff(int note, float lift = 1.0f) noexcept;
@@ -202,7 +221,10 @@ private:
   void noteOffImpl(int channel, int note, float lift) noexcept;
 
   Voice *findFreeVoice() noexcept;
-  Voice *findOldestSounding() noexcept;
+  /// The oldest sounding voice other than `spare`, which is the top line when
+  /// there is one: stealing the melody to make room for the chord under it is
+  /// the one theft that is always heard.
+  Voice *findOldestSounding(int spare = -1) noexcept;
 
   /// The voice it costs least to take outright, for when the pool has nothing
   /// free and the new note cannot wait for a fade.
@@ -281,6 +303,32 @@ private:
 
   std::array<Voice, kPoolSize> voices{};
   std::array<bool, kPoolSize> heldBySustain{};
+
+  // ---- the top line ---------------------------------------------------------
+  //
+  // When each voice's key went down, on the engine's own sample clock, and
+  // whether another key went down within kChordWindowSeconds of it either
+  // side, marked from both ends as presses arrive.
+  std::array<uint64_t, kPoolSize> pressedAt{};
+  std::array<bool, kPoolSize> pressedWithOthers{};
+
+  /// Whether a key above has taken this voice's phrase on, and which voice
+  /// this one took its phrase from. A note that handed on fades when its key
+  /// comes up rather than ringing out under the one carrying it, and so does
+  /// the upper note of a trill lifted back onto the key below.
+  std::array<bool, kPoolSize> handedOff{};
+  std::array<int, kPoolSize> takenFrom{};
+
+  /// Samples rendered since prepare, which is what a press is timed against.
+  uint64_t clock = 0;
+
+  /// Lets a voice go when its key comes up, the way the top line wants: a
+  /// short fade for a note that handed its phrase on, or for the upper note of
+  /// a trill whose lower key is still down, and its own release otherwise.
+  void letGo(size_t index, float lift) noexcept;
+
+  bool topLine() const noexcept { return legato && polyphony > 1; }
+  void forgetLine() noexcept;
 
   /// The lift each of those was let go at, kept until the pedal comes up.
   /// The key is long gone by then, so the speed it came up at has to be

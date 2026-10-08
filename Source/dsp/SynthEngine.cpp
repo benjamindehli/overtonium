@@ -57,6 +57,10 @@ void SynthEngine::reset() noexcept {
   sustainDown = false;
   ageCounter = 0;
   lastNoteFrequency = 0.0;
+  clock = 0;
+  pressedAt.fill(0);
+  pressedWithOthers.fill(false);
+  forgetLine();
   smoothedMasterGain = -1.0f;
 
   // Past 1 so the first host sample of the next block draws a fresh frame
@@ -75,7 +79,45 @@ void SynthEngine::reset() noexcept {
 }
 
 void SynthEngine::setPolyphony(int n) noexcept {
+  const auto was = topLine();
   polyphony = std::clamp(n, 1, kMaxPolyphony);
+
+  if (was != topLine())
+    forgetLine();
+}
+
+void SynthEngine::setLegato(bool on) noexcept {
+  const auto was = topLine();
+  legato = on;
+
+  if (was != topLine())
+    forgetLine();
+}
+
+void SynthEngine::forgetLine() noexcept {
+  handedOff.fill(false);
+  takenFrom.fill(-1);
+}
+
+void SynthEngine::letGo(size_t index, float lift) noexcept {
+  auto &v = voices[index];
+
+  // Under the top line, a note whose phrase a key above carried on, and the
+  // upper note of a trill whose lower key is still down, both go quickly: the
+  // phrase is somewhere else now, and a full release under it is a smear.
+  bool quiet = false;
+
+  if (topLine()) {
+    const auto from = takenFrom[index];
+
+    quiet = handedOff[index] || (from >= 0 && voices[(size_t)from].isActive() &&
+                                 !voices[(size_t)from].isReleasing());
+  }
+
+  if (quiet)
+    v.fade((float)kHandoffFadeSeconds);
+  else
+    v.noteOff(lift);
 }
 
 int SynthEngine::countSounding() const noexcept {
@@ -104,13 +146,20 @@ Voice *SynthEngine::findFreeVoice() noexcept {
   return nullptr;
 }
 
-Voice *SynthEngine::findOldestSounding() noexcept {
+Voice *SynthEngine::findOldestSounding(int spare) noexcept {
   Voice *oldest = nullptr;
 
-  for (auto &v : voices)
-    if (v.isActive() && !v.isReleasing())
+  for (size_t i = 0; i < voices.size(); ++i) {
+    auto &v = voices[i];
+
+    if (v.isActive() && !v.isReleasing() && (int)i != spare)
       if (oldest == nullptr || v.getAge() < oldest->getAge())
         oldest = &v;
+  }
+
+  // With nothing else to take, the spared one goes after all.
+  if (oldest == nullptr && spare >= 0 && voices[(size_t)spare].isActive())
+    oldest = &voices[(size_t)spare];
 
   return oldest;
 }
@@ -168,6 +217,12 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
                              const SynthParams &p) noexcept {
   glide = GlideSettings::of(p);
 
+  // The tuning this note is under, which a note-off falling back to a held key
+  // needs and does not carry.
+  legatoTemperament = p.global.temperament;
+  legatoRoot = p.global.tuningRoot;
+  legatoReferenceHz = p.global.referenceHz;
+
   // ---- where a glide comes from ---------------------------------------------
   //
   // Worked out before anything below steals or retriggers a voice, since the
@@ -216,7 +271,7 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
   // rather than starting it again: the envelopes carry on and a run keeps the
   // shape the first key gave it. The phrase ends when the last key comes up,
   // which is the whole difference from one voice without it.
-  if (legato) {
+  if (legato && polyphony <= 1) {
     legatoRelease(note);
 
     if (legatoDepth < (int)legatoHeld.size())
@@ -247,6 +302,90 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
     for (auto &v : voices)
       if (v.isActive())
         v.steal();
+  }
+
+  // ---- the top line ---------------------------------------------------------
+  //
+  // Legato with more than one voice. A key landing above every held note but
+  // the highest carries the highest note's phrase on: it starts a voice of its
+  // own that takes over that note's envelopes where they stand and glides from
+  // its pitch, so a melody played joined over a chord slides from note to note
+  // without starting again. The note it carried on from is never moved, so a
+  // key that turns out to be part of the chord still sounds, and it fades once
+  // its key comes up rather than ringing out under the melody. Every other key
+  // plays as it always does.
+  const auto now = clock;
+  const auto window = (uint64_t)(kChordWindowSeconds * sampleRate);
+  bool withOthers = false;
+
+  for (size_t i = 0; i < voices.size(); ++i)
+    if (voices[i].isActive() && now - pressedAt[i] < window) {
+      pressedWithOthers[i] = true;
+      withOthers = true;
+    }
+
+  // The voice whose phrase this key carries on, if it does, and the top line
+  // the steal below must leave alone.
+  int carryFrom = -1;
+  int spare = -1;
+
+  if (topLine()) {
+    // The highest note a hand is holding, and the highest beneath it, and the
+    // highest of the keys struck in the last moment, which are a chord being
+    // played or the melody landing on one. The pedal does not count: it holds
+    // the sound, not the line.
+    int top = -1, beneath = -1, struckTop = -1;
+
+    for (size_t i = 0; i < voices.size(); ++i) {
+      const auto &v = voices[i];
+
+      if (!v.isActive() || v.isReleasing() || heldBySustain[i])
+        continue;
+
+      if (top < 0 || v.getNote() > voices[(size_t)top].getNote()) {
+        if (top >= 0)
+          beneath = std::max(beneath, voices[(size_t)top].getNote());
+        top = (int)i;
+      } else {
+        beneath = std::max(beneath, v.getNote());
+      }
+
+      if (now - pressedAt[i] < window)
+        struckTop = std::max(struckTop, v.getNote());
+    }
+
+    spare = top;
+
+    if (top >= 0) {
+      const auto head = voices[(size_t)top].getNote();
+
+      // When a key goes down under the top note, the melody stepping down and
+      // a chord struck under a held melody look the same, and only what the
+      // old melody key does afterwards would tell them apart. So the rule
+      // leans on what is likely, and a wrong guess costs no more than an
+      // attack, since the note it carried on from goes on sounding.
+      bool carries = false;
+
+      if (note > head) {
+        // The melody going up, or the top of a new chord over it.
+        carries = true;
+      } else if (note < head && note > beneath) {
+        if (!withOthers && beneath >= 0) {
+          // Over a chord that is being held, with nothing else just struck:
+          // the melody stepping down, however far.
+          carries = true;
+        } else {
+          // Alone under a lone melody, or among keys struck together: the
+          // melody only if it is a step away and the highest of what was just
+          // struck, since a melody moves by seconds and thirds and the top of
+          // a chord sits further down.
+          carries = head - note <= kStepDown && note > struckTop;
+        }
+      }
+
+      if (carries)
+        carryFrom = top;
+    }
   }
 
   // One key, one voice. The instrument is polyphonic across the keyboard and
@@ -289,6 +428,8 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
     // and re-striking a pedalled note takes it back off the pedal.
     if (held != nullptr) {
       heldBySustain[heldIndex] = false;
+      pressedAt[heldIndex] = now;
+      pressedWithOthers[heldIndex] = withOthers;
       held->noteOn(channel, note, velocity, p);
 
       if (glides)
@@ -301,7 +442,7 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
   }
 
   if (countSounding() >= polyphony)
-    if (auto *victim = findOldestSounding())
+    if (auto *victim = findOldestSounding(spare))
       victim->steal();
 
   auto *target = findFreeVoice();
@@ -327,10 +468,35 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
   const auto index = (size_t)std::distance(voices.data(), target);
   heldBySustain[index] = false;
 
+  // A fresh note, so not a line yet, and if it was the line's voice the line
+  // has gone with it.
+  pressedAt[index] = now;
+  pressedWithOthers[index] = withOthers;
+  handedOff[index] = false;
+  takenFrom[index] = -1;
+
+  // Anything that remembered taking its phrase from whatever played on this
+  // voice before has nothing to remember now.
+  for (auto &source : takenFrom)
+    if (source == (int)index)
+      source = -1;
+
   target->noteOn(channel, note, velocity, p);
 
-  if (glides)
+  if (carryFrom >= 0 && carryFrom != (int)index &&
+      voices[(size_t)carryFrom].isActive()) {
+    // The phrase carried on: where the note below it has got to, envelopes,
+    // modulators and pitch, with a glide from that pitch. A key is held by
+    // definition here, so both triggers glide.
+    const auto &source = voices[(size_t)carryFrom];
+    target->takeOver(source);
+    target->startGlide(source.notePitches(), glide);
+
+    handedOff[(size_t)carryFrom] = true;
+    takenFrom[index] = carryFrom;
+  } else if (glides) {
     target->startGlide(from, glide);
+  }
 
   target->setAge(++ageCounter);
   lastNoteFrequency = target->getFrequency();
@@ -345,7 +511,7 @@ void SynthEngine::noteOffPerNote(int channel, int note, float lift) noexcept {
 }
 
 void SynthEngine::noteOffImpl(int channel, int note, float lift) noexcept {
-  if (legato) {
+  if (legato && polyphony <= 1) {
     legatoRelease(note);
 
     // Another key is still down, so the phrase moves to it rather than
@@ -376,7 +542,7 @@ void SynthEngine::noteOffImpl(int channel, int note, float lift) noexcept {
         heldBySustain[i] = true;
         heldLift[i] = lift;
       } else {
-        v.noteOff(lift);
+        letGo(i, lift);
       }
     }
   }
@@ -390,7 +556,7 @@ void SynthEngine::setSustainPedal(bool down) noexcept {
 
   for (size_t i = 0; i < voices.size(); ++i) {
     if (heldBySustain[i]) {
-      voices[i].noteOff(heldLift[i]);
+      letGo(i, heldLift[i]);
       heldBySustain[i] = false;
       heldLift[i] = 1.0f;
     }
@@ -423,6 +589,7 @@ void SynthEngine::setNoteBend(int channel, int note, float semitones) noexcept {
 }
 
 void SynthEngine::allNotesOff() noexcept {
+
   for (size_t i = 0; i < voices.size(); ++i) {
     voices[i].noteOff();
     heldBySustain[i] = false;
@@ -432,6 +599,7 @@ void SynthEngine::allNotesOff() noexcept {
 }
 
 void SynthEngine::allSoundOff() noexcept {
+
   for (auto &v : voices)
     v.reset();
 
@@ -703,8 +871,8 @@ void SynthEngine::render(float *left, float *right, int numSamples,
     return;
 
   glide = GlideSettings::of(p);
-
   renderVoices(left, right, numSamples, p);
+  clock += (uint64_t)numSamples;
 
   // ---- the bus the series is summed onto -----------------------------------
   // Before the effects, since this is the summing amplifier rather than

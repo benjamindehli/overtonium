@@ -75,7 +75,7 @@ It loads whether or not the preset is the one already showing, which is what the
 
 What tells the two apart is a gesture. Every control opens one before it writes and closes one after, which is how a host is told that a move has begun and ended, and automation does not: it sets values and says nothing. So the processor listens to itself for gesture begin and end, takes a baseline of every parameter when the first one opens, and when the last one closes puts whatever actually moved into the history as one step. A drag, a scroll wheel and a LINK drag across 32 channels are each one gesture and therefore each one step, however many values they moved and however long they took. A gesture that ends where it began is not a step at all.
 
-Only from the message thread. A host is allowed to open a gesture from the audio thread, and taking a baseline of 838 parameters there would allocate on it, so one that arrives from anywhere else is left alone. Nobody is turning a knob from the audio thread.
+Only from the message thread. A host is allowed to open a gesture from the audio thread, and taking a baseline of 839 parameters there would allocate on it, so one that arrives from anywhere else is left alone. Nobody is turning a knob from the audio thread.
 
 The things a person does that are not one gesture go through `recordEdit`, which takes the same baseline around whatever it is given: loading a preset writes hundreds of parameters and has to come back in one undo. The caller decides, and that is the point of it. Loading a preset from the menu is recorded and a clip firing a program change at the same `applyFactoryPreset` is not, because one of them is editing and the other is playing.
 
@@ -507,11 +507,25 @@ Which destination is chosen does not travel with a preset: it is a fact about th
 
 ### Legato
 
-The first entry in the polyphony list, above one voice, and the one place where the instrument stops being polyphonic at all. One voice, and a key going down while another is still held moves the note rather than starting it again: the envelopes, the phases and the drift all carry on, so a run keeps the shape the first key gave it. The velocity of the note that began the phrase is kept, since the key that would set a new one was never released and a run that changed timbre under the fingers is not a run.
+A switch beside the voice count, and what it does depends on the count. With one voice it is the one place where the instrument stops being polyphonic: a key going down while another is still held moves the note rather than starting it again, the envelopes, the phases and the drift all carrying on, so a run keeps the shape the first key gave it. Letting a key go while others are still down falls back to the most recent of them, which is what makes a trill work, and only the last key coming up releases the note. The keys that are down are kept in the order they went down, in a fixed array of the 128 there are, because this is the audio thread.
 
-Letting a key go while others are still down falls back to the most recent of them rather than stopping, which is what makes a trill work. Only the last key coming up releases the note. The keys that are down are kept in the order they went down, in a fixed array of the 128 there are, because this is worked out on the audio thread and nothing there may allocate.
+**With more voices it plays a top line.** A key landing above every held note but the highest carries the highest note's phrase on, and the rest of the keyboard plays as it always does, so a legato melody can run over a staccato chord that retriggers under it.
 
-It is one voice, so it heads the polyphony list rather than sitting beside it as a switch. Legato and one voice are the same count and differ only in what a second key does.
+**Carried on by handing over, not by moving.** The key starts a voice of its own that takes over the highest note's envelopes, modulators and drift where they stand, with the velocity the phrase began with, and glides from its pitch. The note it carried on from is never moved, which is the whole point: when the instrument mistakes a chord note for the melody, that key still sounds, and the only cost is an attack. That note goes on sounding while its key is down and fades over 20 ms when it comes up, rather than ringing out its release under the melody, and so does the upper note of a trill lifted back onto the key still held below it.
+
+Moving the voice instead, which is what one voice does, would make every wrong guess a silent key with the melody jumping onto it, and the rules it would need to keep that rare break the line whenever the melody lands with a chord.
+
+**When a key goes down under the highest note**, the melody stepping down and a chord struck under a held melody look the same, and only what the old melody key does afterwards would tell them apart. So the rule goes by what is likely:
+
+| Where the key lands                                                   | Carries on when                                                       | Why                                                                                                          |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Above the highest note                                                | Always                                                                | The melody going up, or the top of a new chord over it                                                       |
+| Under it, with a chord held and no other key just struck              | It is above that chord, however far down                              | Nothing else it could be                                                                                     |
+| Under it, alone under a lone melody or among keys struck within 40 ms | It is within a major third and the highest of the keys struck with it | Melodies move by seconds and thirds. The top of a chord struck under a held melody usually sits further down |
+
+No key waits, so nothing is ever late. When the voices run out the steal skips the highest held note, since the melody going missing to make room for the chord under it is the one theft that is always heard. The pedal holds the sound, not the line. With MPE on the line works the same, and a voice moved to a key on another channel takes that key's bend, pressure and slide, since with MPE every note brings its own: on one channel they belong to the phrase and are left alone, which is what one voice does.
+
+The polyphony list still opens with a Legato entry the menu does not offer, because a stored choice is a position in its list and taking the entry out would move every saved session and automation lane to the count above. A session that stored it plays as the switch on with one voice, which is what the entry means.
 
 ### Glide
 
