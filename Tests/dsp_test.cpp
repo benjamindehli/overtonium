@@ -1809,6 +1809,254 @@ void testLegato() {
             std::to_string(poly.getActiveVoiceCount()) + ")");
 }
 
+/// Glide: each partial travels to a new note's pitch over its own channel's
+/// time, from wherever the note before it was, under the two triggers and the
+/// two readings of the time. Pitch is read from single partials, so what is
+/// measured is one channel's journey rather than a blend of several.
+void testGlide() {
+  section("Glide");
+
+  constexpr double sr = 48000.0;
+
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
+
+  std::vector<float> l, r;
+
+  // Renders on from where the last call stopped, so a phrase can be played a
+  // piece at a time and measured between the pieces.
+  const auto render = [&](SynthParams &p, double seconds) {
+    const auto n = (size_t)(seconds * sr);
+    l.assign(n, 0.0f);
+    r.assign(n, 0.0f);
+    engine.render(l.data(), r.data(), (int)n, p);
+  };
+
+  // Pitch from interpolated rising zero crossings over part of the last
+  // render, which resolves a fraction of a hertz in a few cycles.
+  //
+  // A window measuring a note's first moments starts 10 ms in. The output
+  // stage looks 2 ms ahead whatever it is set to, so the head of every render
+  // is still the note before, and a stolen voice takes 4 ms to fade.
+  const auto hz = [&](double t0, double t1) {
+    const auto a = (size_t)(t0 * sr), b = std::min(l.size(), (size_t)(t1 * sr));
+    double first = -1.0, last = -1.0;
+    int crossings = 0;
+
+    for (size_t i = std::max<size_t>(a, 1); i < b; ++i) {
+      if (l[i - 1] < 0.0f && l[i] >= 0.0f) {
+        const double at =
+            (double)(i - 1) + (double)(-l[i - 1] / (l[i] - l[i - 1]));
+
+        if (first < 0.0)
+          first = at;
+        last = at;
+        ++crossings;
+      }
+    }
+
+    return crossings < 2 ? 0.0 : (double)(crossings - 1) * sr / (last - first);
+  };
+
+  const auto midiHz = [](double note) {
+    return 440.0 * std::pow(2.0, (note - 69.0) / 12.0);
+  };
+
+  // How many semitones a measured pitch is off a note, to compare in the unit
+  // a glide is defined in.
+  const auto semisOff = [&](double measured, double note) {
+    return measured > 0.0 ? 12.0 * std::log2(measured / midiHz(note)) : 99.0;
+  };
+
+  const auto base = [](int partial) {
+    auto p = makeFlatParams(0.0f);
+    p.osc[(size_t)partial].volume = 0.5f;
+    p.osc[(size_t)partial].sustain = 1.0f;
+    p.osc[(size_t)partial].release = 0.02f;
+    return p;
+  };
+
+  const auto start = [&](int voices, bool legato) {
+    engine.prepare(sr);
+    engine.setPolyphony(voices);
+    engine.setLegato(legato);
+  };
+
+  // ---- time: any interval takes the knob's time ----------------------------
+  {
+    auto p = base(0);
+    p.osc[0].glideSeconds = 0.4f;
+    p.global.glideMode = GlideMode::Time;
+
+    start(1, true);
+    engine.noteOn(48, 1.0f, p);
+    render(p, 0.2);
+    engine.noteOn(60, 1.0f, p); // held over the first, so a legato move
+    render(p, 0.6);
+
+    const auto atStart = semisOff(hz(0.0, 0.02), 48.0);
+    const auto halfway = semisOff(hz(0.19, 0.21), 54.0);
+    const auto arrived = semisOff(hz(0.45, 0.55), 60.0);
+
+    std::printf("  an octave in 0.4 s: %+.2f st off C3 at the start, %+.2f off "
+                "F#3 halfway, %+.2f off C4 after\n",
+                atStart, halfway, arrived);
+
+    check(std::abs(atStart) < 0.6, "a glide starts from the note before it");
+    check(std::abs(halfway) < 0.35, "is halfway at half its time");
+    check(std::abs(arrived) < 0.02, "and arrives at the end of it");
+  }
+
+  // ---- rate: the time is per octave, so two octaves take twice it ----------
+  {
+    auto p = base(0);
+    p.osc[0].glideSeconds = 0.3f;
+    p.global.glideMode = GlideMode::Rate;
+
+    start(1, true);
+    engine.noteOn(36, 1.0f, p);
+    render(p, 0.2);
+    engine.noteOn(60, 1.0f, p);
+    render(p, 0.8);
+
+    const auto oneOctave = semisOff(hz(0.29, 0.31), 48.0);
+    const auto arrived = semisOff(hz(0.65, 0.75), 60.0);
+
+    std::printf("  0.3 s an octave over two: %+.2f st off C2+12 at 0.3 s, "
+                "%+.2f off C4 at 0.7 s\n",
+                oneOctave, arrived);
+
+    check(std::abs(oneOctave) < 0.35,
+          "under Rate one octave of two is covered in one knob's time");
+    check(std::abs(arrived) < 0.02, "and both in two");
+  }
+
+  // ---- no time, no glide ----------------------------------------------------
+  {
+    auto p = base(0);
+    start(1, true);
+    engine.noteOn(48, 1.0f, p);
+    render(p, 0.2);
+    engine.noteOn(60, 1.0f, p);
+    render(p, 0.1);
+
+    check(std::abs(semisOff(hz(0.01, 0.04), 60.0)) < 0.02,
+          "a channel with no glide time lands on the note at once, as every "
+          "patch did before glide existed");
+  }
+
+  // ---- the two triggers, after the first key is up -------------------------
+  for (const auto trigger : {GlideTrigger::Always, GlideTrigger::Legato}) {
+    auto p = base(0);
+    p.osc[0].glideSeconds = 0.4f;
+    p.global.glideMode = GlideMode::Time;
+    p.global.glideTrigger = trigger;
+
+    start(8, false);
+    engine.noteOn(48, 1.0f, p);
+    render(p, 0.2);
+    engine.noteOff(48);
+    render(p, 0.3); // long past the release, so nothing is left of it
+    engine.noteOn(60, 1.0f, p);
+    render(p, 0.1);
+
+    const auto off = semisOff(hz(0.01, 0.04), 60.0);
+    const bool always = trigger == GlideTrigger::Always;
+
+    check(always ? off < -3.0 : std::abs(off) < 0.02,
+          always ? "Always glides from the last note even after its key is "
+                   "up and its sound gone (" +
+                       std::to_string(off) + " st)"
+                 : "Legato starts a detached note at its own pitch (" +
+                       std::to_string(off) + " st)");
+  }
+
+  // ---- legato, polyphonic: from the key still down -------------------------
+  {
+    auto p = base(0);
+    p.osc[0].glideSeconds = 0.4f;
+    p.global.glideMode = GlideMode::Time;
+    p.global.glideTrigger = GlideTrigger::Legato;
+
+    start(8, false);
+    engine.noteOn(48, 1.0f, p);
+    render(p, 0.2);
+
+    // Joined: the second key goes down while the first is held, which is all
+    // Legato asks. The first then lets go at once, and its 20 ms release
+    // leaves the new voice to be heard alone.
+    engine.noteOn(60, 1.0f, p);
+    engine.noteOff(48);
+    render(p, 0.1);
+
+    const auto off = semisOff(hz(0.05, 0.07), 60.0);
+
+    check(off < -6.0, "a joined phrase glides under Legato when polyphonic (" +
+                          std::to_string(off) + " st below C4 at 60 ms)");
+  }
+
+  // ---- the pedal holds the sound, not the hand -----------------------------
+  {
+    auto p = base(0);
+    p.osc[0].glideSeconds = 0.4f;
+    p.global.glideMode = GlideMode::Time;
+    p.global.glideTrigger = GlideTrigger::Legato;
+
+    start(1, false);
+    engine.setSustainPedal(true);
+    engine.noteOn(48, 1.0f, p);
+    render(p, 0.2);
+    engine.noteOff(48); // held by the pedal now
+    render(p, 0.1);
+    engine.noteOn(60, 1.0f, p);
+    render(p, 0.1);
+
+    check(std::abs(semisOff(hz(0.01, 0.04), 60.0)) < 0.02,
+          "Legato does not glide from a note only the pedal is holding");
+  }
+
+  // ---- each channel its own time -------------------------------------------
+  {
+    // The second partial heard alone, with no glide of its own, while the
+    // first is given a long one it is not there to hear.
+    auto p = base(1);
+    p.osc[0].glideSeconds = 0.5f;
+    p.osc[1].glideSeconds = 0.0f;
+    p.global.glideMode = GlideMode::Time;
+
+    start(1, true);
+    engine.noteOn(48, 1.0f, p);
+    render(p, 0.2);
+    engine.noteOn(60, 1.0f, p);
+    render(p, 0.1);
+
+    check(std::abs(semisOff(hz(0.01, 0.04) / 2.0, 60.0)) < 0.02,
+          "a channel without a glide lands at once even when its neighbour "
+          "is still travelling");
+  }
+
+  // ---- a new note mid-glide starts from where the glide had got to ---------
+  {
+    auto p = base(0);
+    p.osc[0].glideSeconds = 0.4f;
+    p.global.glideMode = GlideMode::Time;
+
+    start(1, true);
+    engine.noteOn(48, 1.0f, p);
+    render(p, 0.2);
+    engine.noteOn(60, 1.0f, p);
+    render(p, 0.2); // halfway, at about F#3
+    engine.noteOn(48, 1.0f, p);
+    render(p, 0.1);
+
+    const auto off = semisOff(hz(0.0, 0.02), 54.0);
+
+    std::printf("  turned back halfway: %+.2f st off F#3\n", off);
+    check(std::abs(off) < 0.6, "a note played mid-glide starts from where the "
+                               "glide had got to, not from either end of it");
+  }
+}
+
 void testOneVoicePerKey() {
   section("One voice per key");
 
@@ -8441,6 +8689,7 @@ int main() {
   testNoClickOnMute();
   testVoiceAllocation();
   testLegato();
+  testGlide();
   testOneVoicePerKey();
   testPerNoteChannels();
   testActivity();

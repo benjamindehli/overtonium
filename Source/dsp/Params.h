@@ -23,6 +23,19 @@ namespace ovt {
 /// voice branches on it and the DSP core is not allowed to include JUCE.
 enum class SlideDestination { Off = 0, Brightness, Tuning };
 
+/// When a new note glides from the one before it rather than starting at its
+/// own pitch. Always glides from the last note played even after its key has
+/// come up, which is how a portamento circuit with one voice behaves. Legato
+/// glides only while another key is still held down, so a phrase played
+/// detached lands on each note and a phrase played joined slides through them.
+enum class GlideTrigger { Always = 0, Legato };
+
+/// What a channel's glide time means. Rate reads it as the time an octave
+/// takes, so a wide leap takes longer than a narrow one, which is how the
+/// circuit in an analogue keyboard behaves. Time reads it as the time any
+/// interval takes, so every note lands on the beat however far it travelled.
+enum class GlideMode { Rate = 0, Time };
+
 /// A per-block snapshot of one channel strip. Deliberately plain data: the DSP
 /// core never touches JUCE, which keeps it unit-testable and portable.
 struct OscParams {
@@ -40,6 +53,14 @@ struct OscParams {
   /// Depth of the smooth random pitch wander, in cents. Each partial of each
   /// note gets its own rate, so nothing ever locks together.
   float driftCents = 0.0f;
+  /// How long this partial takes to reach a new note's pitch, in seconds, or
+  /// in seconds per octave under GlideMode::Rate. Zero is no glide at all.
+  ///
+  /// Per partial, because the series does not have to arrive together: a top
+  /// that lands before the fundamental, or one that trails behind it, smears
+  /// the spectrum in transit and resolves it on arrival, which no single
+  /// portamento can do. See Voice::startGlide.
+  float glideSeconds = 0.0f;
 
   // Amplitude
   /// How much the speed you strike the key at moves the front of the envelope,
@@ -185,6 +206,12 @@ struct GlobalParams {
   /// SynthEngine::advanceSharedModulators.
   bool pitchModInPhase = false;
   bool ampModInPhase = false;
+
+  /// When a note glides, and what the glide times on the channels mean. Both
+  /// belong to the patch, so a preset can be a legato lead. See GlideTrigger
+  /// and GlideMode.
+  GlideTrigger glideTrigger = GlideTrigger::Always;
+  GlideMode glideMode = GlideMode::Rate;
 };
 
 /// The tape echo, which sits across the whole instrument rather than on any one

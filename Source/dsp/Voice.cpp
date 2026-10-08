@@ -111,6 +111,8 @@ void Voice::reset() noexcept {
     pt.lastGain = 0.0f;
     pt.gainPrimed = false;
     pt.lastWave = nullptr;
+    pt.glideSemis = 0.0;
+    pt.glideStep = 0.0;
   }
 
   noise.env.reset();
@@ -179,6 +181,11 @@ void Voice::noteOn(int channel, int note, float velocity,
   for (int i = 0; i < kNumHarmonics; ++i) {
     auto &pt = partials[(size_t)i];
     const auto &op = p.osc[(size_t)i];
+
+    // A note starts at its own pitch. The engine sets it gliding afterwards
+    // when one is due, from wherever it decides the glide comes from.
+    pt.glideSemis = 0.0;
+    pt.glideStep = 0.0;
 
     // Each strip decides for itself how much of the key velocity it takes,
     // latched here so a velocity change cannot alter a note already sounding.
@@ -287,6 +294,49 @@ void Voice::retune(int channel, int note, double frequency) noexcept {
   // bend or pressure, and the ones already in hand belong to the phrase rather
   // than to the key that started it. Left alone on purpose.
   released = false;
+}
+
+Voice::Pitches Voice::notePitches() const noexcept {
+  Pitches out{};
+  const double at = 12.0 * std::log2(baseFreq);
+
+  for (int i = 0; i < kNumHarmonics; ++i)
+    out[(size_t)i] = at + partials[(size_t)i].glideSemis;
+
+  return out;
+}
+
+Voice::Pitches Voice::uniformPitches(double frequency) noexcept {
+  Pitches out{};
+  out.fill(12.0 * std::log2(std::max(frequency, 1.0e-3)));
+  return out;
+}
+
+void Voice::startGlide(const Pitches &from,
+                       const GlideSettings &glide) noexcept {
+  const double to = 12.0 * std::log2(baseFreq);
+  const double blocksPerSecond = sampleRate / (double)kControlBlock;
+
+  for (int i = 0; i < kNumHarmonics; ++i) {
+    auto &pt = partials[(size_t)i];
+    const double seconds = (double)glide.seconds[(size_t)i];
+    const double offset = from[(size_t)i] - to;
+
+    if (seconds <= 0.0 || std::abs(offset) < 1.0e-6) {
+      pt.glideSemis = 0.0;
+      pt.glideStep = 0.0;
+      continue;
+    }
+
+    // How long this one takes. Under Rate the time is per octave, so the step
+    // comes out the same whatever the distance and only the arrival moves.
+    const double span = glide.mode == GlideMode::Rate
+                            ? seconds * std::abs(offset) / 12.0
+                            : seconds;
+
+    pt.glideSemis = offset;
+    pt.glideStep = std::abs(offset) / std::max(1.0, span * blocksPerSecond);
+  }
 }
 
 void Voice::noteOff(float lift) noexcept {
@@ -463,7 +513,14 @@ void Voice::render(float *left, float *right, int numSamples,
           semitoneOffset(i, (double)blendOf(p, i),
                          (double)p.global.stretchCents) +
           (pmCents + driftCents + (double)unit.cents[(size_t)i]) * 0.01 +
-          (double)(p.global.bendSemitones + noteBendSemitones);
+          (double)(p.global.bendSemitones + noteBendSemitones) + pt.glideSemis;
+
+      // Read at the start of the block and stepped for the next, as the
+      // modulators are. A glide that is not running costs a compare.
+      if (pt.glideSemis != 0.0) {
+        const double left = std::abs(pt.glideSemis) - pt.glideStep;
+        pt.glideSemis = left > 0.0 ? std::copysign(left, pt.glideSemis) : 0.0;
+      }
 
       const double freq = baseFreq * std::exp2(semis / 12.0);
 
