@@ -26,7 +26,7 @@ int meterSegments(int height);
 namespace colours {
 inline const juce::Colour background{0xff0b0d10};
 inline const juce::Colour panel{0xff14181d};
-inline const juce::Colour panelAlt{0xff181d23};
+inline const juce::Colour panelAlt{0xff15191e};
 
 /// What every channel stands on, the noise channel included.
 ///
@@ -37,18 +37,18 @@ inline const juce::Colour panelAlt{0xff181d23};
 /// stripe running behind all of that is one more thing competing with it. The
 /// strips are still told apart by their own lit and shadowed edges, which is
 /// how a console does it.
-inline const juce::Colour channel{0xff12151a};
+inline const juce::Colour channel{0xff0f1115};
 inline const juce::Colour groove{0xff090b0e};
-inline const juce::Colour outline{0xff272e37};
+inline const juce::Colour outline{0xff222830};
 inline const juce::Colour text{0xffd9dfe7};
-inline const juce::Colour textDim{0xff6f7a86};
+inline const juce::Colour textDim{0xff77828d};
 /// Chrome, not content. Sits in the cyan the channel ramp never reaches, so
 /// the global controls never read as one of the channels.
 inline const juce::Colour accent{0xff62bbd9};
 /// Red rather than orange, because red is what a cut channel means. It is
 /// the lamp behind the cap rather than the plastic, which is white: an unlit
 /// mute shows none of this and a lit one shows all of it.
-inline const juce::Colour muteOn{0xffe04831};
+inline const juce::Colour muteOn{0xffee563f};
 inline const juce::Colour soloOn{0xffe8c34a};
 
 /// A control waiting to be told which controller moves it.

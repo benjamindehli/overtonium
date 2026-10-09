@@ -146,7 +146,7 @@ constexpr float kHoverEdge = 0.10f;
 /// rather than joining a band that is already marked. Hovering adds its own on
 /// top of this, and the strip's column wash adds a third, so the pointer still
 /// has somewhere to go from here.
-constexpr float kDisplayWash = 0.055f;
+constexpr float kDisplayWash = 0.07f;
 constexpr float kDisplayWashHover = 0.10f;
 } // namespace
 
@@ -1219,7 +1219,7 @@ juce::Colour OvertoniumLookAndFeel::lampFace(juce::Colour lamp, bool on) {
     // the binding one: the reds are the darkest lamps here and they are what
     // this has to stay under. Raising it is the lever if the caps want to be
     // whiter, and the margin on the mute is what it costs.
-    return juce::Colour(0xff6f757c);
+    return juce::Colour(0xff818079);
 
   // The lamp seen through that plastic. Bright, because the light is behind
   // the whole face rather than painted onto part of it, and milky, because it
@@ -1267,7 +1267,7 @@ juce::Colour OvertoniumLookAndFeel::lampLegend() {
   // button never changes the colour of its own word by lighting. Not quite
   // black, which against a lit gold reads as a hole in the cap rather than
   // as ink on it.
-  return juce::Colour(0xff0e1116);
+  return juce::Colour(0xff161718);
 }
 
 void OvertoniumLookAndFeel::drawLampCap(juce::Graphics &g,
