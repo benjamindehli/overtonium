@@ -177,11 +177,16 @@ void paintRecess(juce::Graphics &g, juce::Rectangle<float> opening,
   // against one of light below and to the right, which reads as every element
   // sitting off centre in its own hole, and the wider shadow also eats a pixel
   // its neighbour was using.
+  //
+  // Both take the lip's corner. The two meet at the top left, where they start
+  // from the same point, and a shadow on the opening's tighter corner curved
+  // out past the lip there onto bare panel, which put a near black sliver in
+  // that one corner and made it read as less round than the other three.
   g.setColour(juce::Colours::white.withAlpha(0.11f));
   g.fillRoundedRectangle(opening.expanded(depth), corner + depth);
 
   g.setColour(juce::Colours::black.withAlpha(0.6f));
-  g.fillRoundedRectangle(opening.translated(-depth, -depth), corner);
+  g.fillRoundedRectangle(opening.translated(-depth, -depth), corner + depth);
 }
 
 void strokeGlowing(juce::Graphics &g, const juce::Path &path,
