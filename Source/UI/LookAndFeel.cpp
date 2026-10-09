@@ -178,13 +178,22 @@ void paintRecess(juce::Graphics &g, juce::Rectangle<float> opening,
   // sitting off centre in its own hole, and the wider shadow also eats a pixel
   // its neighbour was using.
   //
-  // Both take the lip's corner. The two meet at the top left, where they start
-  // from the same point, and a shadow on the opening's tighter corner curved
-  // out past the lip there onto bare panel, which put a near black sliver in
-  // that one corner and made it read as less round than the other three.
-  g.setColour(juce::Colours::white.withAlpha(0.11f));
-  g.fillRoundedRectangle(opening.expanded(depth), corner + depth);
+  // The shadow is kept inside the lip. Moved up and to the left, it reaches
+  // past the lip at the top left corner and lands on bare panel, a near black
+  // sliver that makes that one corner read as less round than the other three.
+  // Giving it the lip's corner closes that on a rounded rectangle, and a round
+  // hole needs the clip as well: a circle moved diagonally by one pixel
+  // reaches 1.41 out along the diagonal where the lip reaches only one.
+  const auto lip = opening.expanded(depth);
 
+  g.setColour(juce::Colours::white.withAlpha(0.11f));
+  g.fillRoundedRectangle(lip, corner + depth);
+
+  juce::Path rim;
+  rim.addRoundedRectangle(lip, corner + depth);
+
+  juce::Graphics::ScopedSaveState keep(g);
+  g.reduceClipRegion(rim);
   g.setColour(juce::Colours::black.withAlpha(0.6f));
   g.fillRoundedRectangle(opening.translated(-depth, -depth), corner + depth);
 }
