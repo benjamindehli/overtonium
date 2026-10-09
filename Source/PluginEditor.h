@@ -124,16 +124,16 @@ private:
   /// See ui::PointerTool.
   ovt::ui::GlowButton toolButton;
 
-  /// The glide caps, a ganged pair the size of a channel's M and S, standing
-  /// in the free space to the left of the GLIDE caption. Lit is on.
-  ovt::ui::GlowButton glideHeld, glidePerNote;
+  /// The glide switches, a pair standing just left of the GLIDE caption. Lit
+  /// is on.
+  ovt::ui::ScreenSwitch glideHeld, glidePerNote;
 
-  /// The in-phase caps, one beside each shape caption, the same size and on
-  /// the same left edge as the glide caps. Lit is one modulator the whole
-  /// keyboard hears.
-  ovt::ui::GlowButton pitchInPhase, ampInPhase;
+  /// The in-phase switches, one just left of each shape caption. Lit is one
+  /// modulator the whole keyboard hears.
+  ovt::ui::ScreenSwitch pitchInPhase, ampInPhase;
 
-  /// Puts a run of caps at the left of a row, or hides them with it.
+  /// Puts a run of switches right up against a row's caption, or hides them
+  /// with it.
   void placeCaps(ovt::ui::Row, std::initializer_list<juce::Component *>,
                  const ovt::ui::RowBounds &, int headerBottom);
 

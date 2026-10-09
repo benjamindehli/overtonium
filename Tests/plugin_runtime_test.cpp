@@ -672,8 +672,18 @@ void testGlideCaps() {
             glideRow.contains(held->getBounds().getCentre()) &&
             glideRow.contains(perNote->getBounds().getCentre()),
         "both stand in the glide row");
-  check(perNote->getRight() < kGutterWidth / 2 + 4,
-        "on the left of it, clear of the caption");
+  // Where the caption starts: right-aligned eight pixels in, as the gutter
+  // paints it, in the weight it has when nothing is pointing at it.
+  const auto captionLeft = [&rows](Row row) {
+    return rows[(size_t)row].getRight() - 8 -
+           juce::GlyphArrangement::getStringWidthInt(makeFont(9.5f),
+                                                     rowLabel(row));
+  };
+
+  check(perNote->getRight() < captionLeft(Row::Glide) &&
+            perNote->getRight() > captionLeft(Row::Glide) - 8 &&
+            held->getRight() == perNote->getX(),
+        "side by side, right up against the caption and clear of it");
 
   gutter.setGlideSwitches(true, false);
   check(held->getToggleState() && !perNote->getToggleState(),
@@ -702,7 +712,7 @@ void testGlideCaps() {
         "and unfolding brings them back");
 
   check(held->getWidth() == held->getHeight(),
-        "square, the shape of a channel's M and S");
+        "square, the size of a channel's M and S");
 
   auto *pitch =
       dynamic_cast<juce::Button *>(gutter.findChildWithID("pitchInPhase"));
@@ -719,8 +729,11 @@ void testGlideCaps() {
           rows[(size_t)Row::PmShape].contains(pitch->getBounds().getCentre()) &&
           rows[(size_t)Row::AmShape].contains(amp->getBounds().getCentre()),
       "an in-phase cap stands in each shape row");
-  check(pitch->getX() == held->getX() && pitch->getWidth() == held->getWidth(),
-        "on the glide caps' left edge, at their size");
+  check(pitch->getRight() < captionLeft(Row::PmShape) &&
+            pitch->getRight() > captionLeft(Row::PmShape) - 8 &&
+            amp->getRight() == pitch->getRight() &&
+            pitch->getWidth() == held->getWidth(),
+        "right up against its caption, at the glide switches' size");
 
   gutter.setSharedModulators(true, false);
   check(pitch->getToggleState() && !amp->getToggleState(),

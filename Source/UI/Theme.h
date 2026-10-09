@@ -156,6 +156,24 @@ public:
   void paintButton(juce::Graphics &, bool highlighted, bool down) override;
 };
 
+/// A switch shown as a letter lit in a screen, for the gutter.
+///
+/// Set into the panel rather than standing on it, like the shape screens and
+/// the tuning digits in the strips beside it. The gutter is a column of
+/// captions, and a raised cap among them read as one more row of mute buttons
+/// and pulled the eye harder than the words it belongs to. On, the letter
+/// lights in its lamp colour, and off it is a faint print on the dark glass,
+/// so the two states differ by light rather than by shape.
+class ScreenSwitch : public juce::Button {
+public:
+  ScreenSwitch() : juce::Button({}) {}
+
+  /// What the letter lights in. Accent unless told otherwise.
+  juce::Colour lamp = colours::accent;
+
+  void paintButton(juce::Graphics &, bool highlighted, bool down) override;
+};
+
 enum class PointerTool : int;
 
 /// The three icons the bar and the gutter wear, drawn rather than loaded so

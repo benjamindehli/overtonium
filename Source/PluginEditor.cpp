@@ -135,16 +135,12 @@ RowGutter::RowGutter() {
       onGlidePerNoteClicked();
   };
 
-  for (auto *b : {&glideHeld, &glidePerNote}) {
-    b->setColour(juce::TextButton::textColourOnId, colours::accent);
+  for (auto *b : {&glideHeld, &glidePerNote})
     addAndMakeVisible(*b);
-  }
-
-  ovt::ui::OvertoniumLookAndFeel::gangLamps(glideHeld, glidePerNote);
 
   // P for phase, one on each shape row. The same switch as the last item in
   // every shape button's menu, here so the state is on the panel.
-  const auto setUpInPhase = [this](ovt::ui::GlowButton &b, const char *which,
+  const auto setUpInPhase = [this](ovt::ui::ScreenSwitch &b, const char *which,
                                    const char *id,
                                    std::function<void()> RowGutter::*callback) {
     b.setButtonText("P");
@@ -153,7 +149,6 @@ RowGutter::RowGutter() {
                  "hears together. Dark, each note starts its own.");
     b.setTitle(juce::String(which) + " in phase across the keyboard");
     b.setComponentID(id);
-    b.setColour(juce::TextButton::textColourOnId, colours::accent);
     b.onClick = [this, callback] {
       if (this->*callback != nullptr)
         (this->*callback)();
@@ -215,15 +210,22 @@ void RowGutter::resized() {
 void RowGutter::placeCaps(Row row,
                           std::initializer_list<juce::Component *> caps,
                           const ovt::ui::RowBounds &rows, int headerBottom) {
-  // The face a channel's M and S show, which their 18 by 18 gives once the
-  // moulding is taken off.
+  // The size of a channel's M and S, so the letters are the size theirs are.
   constexpr int kCapSize = 18;
+  constexpr int kGap = 4;
 
   const auto area = rows[(size_t)row];
   const bool shown = area.getHeight() > 0 && !rowIsCollapsed(row, collapsed) &&
                      area.getBottom() > headerBottom;
 
-  auto x = area.getX() + 6;
+  // Right up against the caption, so the switch and the word read as one
+  // thing. Captions are right-aligned eight pixels in, which is where paint
+  // puts them, and measured in the unlit weight, the one a caption has when
+  // nothing is pointing at it.
+  const auto caption =
+      juce::GlyphArrangement::getStringWidthInt(makeFont(9.5f), rowLabel(row));
+
+  auto x = area.getRight() - 8 - caption - kGap - (int)caps.size() * kCapSize;
   const auto y = area.getCentreY() - kCapSize / 2;
 
   for (auto *cap : caps) {

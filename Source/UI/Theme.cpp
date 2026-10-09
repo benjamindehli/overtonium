@@ -180,6 +180,31 @@ void drawToolIcon(juce::Graphics &g, juce::Rectangle<float> area,
                                              juce::PathStrokeType::rounded));
 }
 
+void ScreenSwitch::paintButton(juce::Graphics &g, bool highlighted, bool) {
+  // Two pixels in from the bounds, which is where the lip of the recess goes,
+  // so a run of them laid edge to edge leaves a margin of panel between each.
+  const auto area = getLocalBounds().toFloat().reduced(2.0f);
+
+  paintRecess(g, area, 2.5f);
+  paintDisplayGround(g, area, 2.5f, highlighted);
+
+  const bool on = getToggleState();
+  g.setFont(makeFont(10.0f, true));
+
+  // A half-pixel echo under the lit letter, the bloom a lit segment has on the
+  // readouts, which is most of what tells a lit letter from a bright one.
+  if (on) {
+    g.setColour(lamp.withAlpha(0.35f));
+    g.drawText(getButtonText(), area.translated(0.0f, 0.5f),
+               juce::Justification::centred, false);
+  }
+
+  // Unlit, faint enough that a lit one beside it is unmistakable, and still
+  // there to be read, since the letter is what says which switch this is.
+  g.setColour(on ? lamp : colours::textDim.withAlpha(0.55f));
+  g.drawText(getButtonText(), area, juce::Justification::centred, false);
+}
+
 void GlowButton::paintButton(juce::Graphics &g, bool highlighted, bool down) {
   // What the cap is moulded in, for the few buttons that ask for a particular
   // face. Everything else leaves it and the lamp decides.
