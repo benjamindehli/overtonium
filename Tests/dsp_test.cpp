@@ -442,6 +442,61 @@ void testStartPhase() {
             ")");
 }
 
+void testAttackFollowsTheKnob() {
+  section("ATTACK moved while a note sounds");
+
+  // The attack time is worked out once and kept, since turning the knob into
+  // a time takes logarithms. Moving the knob mid-note still has to land: a
+  // note started on a two-second attack and moved to five milliseconds a
+  // tenth of a second in should be all there shortly after, rather than
+  // creeping on at the slow rate it began with.
+  constexpr double sr = 48000.0;
+  constexpr int first = 4800, second = 2400;
+
+  const auto levelAfter = [&](float startAttack, float movedAttack) {
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+    engine.setPolyphony(1);
+
+    auto p = makeFlatParams(0.0f);
+    for (auto &o : p.osc) {
+      o.sustain = 1.0f;
+      o.decay = 1.0f;
+      o.velAmount = 0.0f;
+    }
+
+    p.osc[0].volume = 0.8f;
+    p.osc[0].attack = startAttack;
+    p.global.safetyClip = false;
+
+    engine.noteOn(57, 1.0f, p);
+
+    std::vector<float> l((size_t)first), r((size_t)first);
+    engine.render(l.data(), r.data(), first, p);
+
+    p.osc[0].attack = movedAttack;
+    l.assign((size_t)second, 0.0f);
+    r.assign((size_t)second, 0.0f);
+    engine.render(l.data(), r.data(), second, p);
+
+    // The last 20 ms, by which time a 5 ms attack is long finished.
+    double peak = 0.0;
+    for (int n = second - 960; n < second; ++n)
+      peak = std::max(peak, std::abs((double)l[(size_t)n]));
+    return peak;
+  };
+
+  const double full = levelAfter(0.005f, 0.005f);
+  const double moved = levelAfter(2.0f, 0.005f);
+  const double kept = levelAfter(2.0f, 2.0f);
+
+  check(full > 0.0 && moved > 0.9 * full,
+        "a slow attack moved to a fast one mid-note arrives at full level");
+  check(kept < 0.2 * full,
+        "and one left slow is still on its way, so the test can tell");
+}
+
 void testTemperaments() {
   section("Temperaments");
 
@@ -8909,6 +8964,7 @@ int main() {
   testBlendEndpoints();
   testStretch();
   testStartPhase();
+  testAttackFollowsTheKnob();
   testTracking();
   testSineTable();
   testCharacter();

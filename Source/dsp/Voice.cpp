@@ -199,6 +199,7 @@ void Voice::noteOn(int channel, int note, float velocity,
     // gets there.
     pt.delayScale = strikeDelayScale(op.strikeAmount, vel);
     pt.attackScale = strikeAttackScale(op.strikeAmount, vel);
+    pt.onsetStale = true;
 
     // Where the partial starts and how fast it rises, the knob and the blow
     // together. See struckOnset.
@@ -393,6 +394,7 @@ void Voice::takeOver(const Voice &from) noexcept {
     pt.velGain = src.velGain;
     pt.delayScale = src.delayScale;
     pt.attackScale = src.attackScale;
+    pt.onsetStale = true;
     pt.bulbSettled = src.bulbSettled;
     pt.semisPrimed = src.semisPrimed;
 
@@ -534,8 +536,13 @@ void Voice::render(float *left, float *right, int numSamples,
       // earned rather than throwing that away. The delay is latched in samples
       // at note-on and only read again by the next one, so it is scaled here to
       // keep the two calls agreeing rather than because this one uses it.
-      pt.env.configure(op.delay * pt.delayScale,
-                       struckOnset(op.attack, pt.attackScale).seconds, op.decay,
+      if (pt.onsetStale || !exactly(op.attack, pt.onsetFor)) {
+        pt.onsetFor = op.attack;
+        pt.onsetSeconds = struckOnset(op.attack, pt.attackScale).seconds;
+        pt.onsetStale = false;
+      }
+
+      pt.env.configure(op.delay * pt.delayScale, pt.onsetSeconds, op.decay,
                        op.sustain, op.swell, op.offLevel, op.release);
 
       if (!pt.env.isActive())

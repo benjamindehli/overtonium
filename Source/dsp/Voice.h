@@ -382,6 +382,13 @@ private:
     /// how hard it was.
     float delayScale = 1.0f;
     float attackScale = 1.0f;
+
+    /// The attack time the knob and that blow come to, and the knob value it
+    /// was worked out for. Two logarithms and a power a partial, so it is
+    /// worked out when the knob moves rather than every control block.
+    float onsetFor = 0.0f;
+    float onsetSeconds = 0.0f;
+    bool onsetStale = true;
     bool gainPrimed = false;
 
     /// The pitch the lamp has settled at, in semitones off the note, which is
