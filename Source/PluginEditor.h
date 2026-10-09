@@ -40,21 +40,18 @@ public:
   /// half over the header.
   void setScroll(int);
 
-  /// Which of the two modulators are one circuit the whole keyboard hears.
+  /// Which of the two modulators are shared by all notes.
   ///
-  /// Lights that group's heading. The switch is part of the patch and lives in
-  /// a menu, so without this a preset could arrive with a shared tremolo and
-  /// nothing on the panel would say so: a mode you cannot see is a mode you
-  /// forget you are in. One mark per modulator rather than one on each of the
-  /// thirty-three shape buttons, since the state is the same on all of them.
-  ///
-  /// Also lights the P cap beside each modulator's shape caption, which is the
-  /// same switch. The heading keeps its light for when the section is folded
-  /// and the cap is folded away with it.
+  /// Lights the switch beside each modulator's shape caption. The switch is
+  /// part of the patch, so without this a preset could arrive with a shared
+  /// tremolo and nothing on the panel would say so: a mode you cannot see is a
+  /// mode you forget you are in. One switch per modulator rather than a mark on
+  /// each of the thirty-three shape buttons, since the state is the same on
+  /// all of them.
   void setSharedModulators(bool pitch, bool amp);
 
-  /// Fired when one of the P caps is clicked. The editor owns the change, since
-  /// it is a parameter.
+  /// Fired when one of the shared switches is clicked. The editor owns the
+  /// change, since it is a parameter.
   std::function<void()> onPitchInPhaseClicked;
   std::function<void()> onAmpInPhaseClicked;
 
@@ -112,7 +109,6 @@ private:
   ovt::ui::HeaderCap headerCap;
 
   void paintHeaderBand(juce::Graphics &);
-  bool sharedPitchMod = false, sharedAmpMod = false;
 
   /// LINK stands in the empty band above the captions, where the strips beside
   /// it carry their channel numbers.
@@ -331,7 +327,7 @@ private:
   /// only way any of them find out about it.
   void publishCollapsedSections();
 
-  /// Lights the heading of a modulator group the whole keyboard shares. See
+  /// Lights the switch of a modulator shared by all notes. See
   /// RowGutter::setSharedModulators.
   void syncSharedModulators();
 

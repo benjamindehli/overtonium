@@ -280,14 +280,8 @@ void RowGutter::setGlideSwitches(bool legato, bool fixedTime) {
 }
 
 void RowGutter::setSharedModulators(bool pitch, bool amp) {
-  if (pitch == sharedPitchMod && amp == sharedAmpMod)
-    return;
-
-  sharedPitchMod = pitch;
-  sharedAmpMod = amp;
   pitchInPhase.setToggleState(pitch, juce::dontSendNotification);
   ampInPhase.setToggleState(amp, juce::dontSendNotification);
-  repaint();
 }
 
 void RowGutter::mouseDown(const juce::MouseEvent &e) {
@@ -364,16 +358,9 @@ void RowGutter::paint(juce::Graphics &g) {
     const bool heading = isHeadingRow(row);
     const bool lit = row == highlighted && rowShowsHighlight(row);
 
-    // A heading whose modulator the whole keyboard shares goes accent, the
-    // same light everything else that is switched on here comes up in. It
-    // reads as a property of the group, which is what it is: every channel in
-    // it answers to the one switch.
-    const bool shared = (row == Row::PitchModHeading && sharedPitchMod) ||
-                        (row == Row::AmpModHeading && sharedAmpMod);
-
     g.setFont(makeFont(heading ? 10.0f : 9.5f, heading || lit));
-    g.setColour(lit || shared ? colours::accent
-                              : (heading ? colours::text : colours::textDim));
+    g.setColour(lit ? colours::accent
+                    : (heading ? colours::text : colours::textDim));
     g.drawText(text, area, juce::Justification::centredRight, false);
 
     // The disclosure mark, at the far left of the heading so it clears the
