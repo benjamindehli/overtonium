@@ -171,6 +171,10 @@ public:
   /// What the letter lights in. Accent unless told otherwise.
   juce::Colour lamp = colours::accent;
 
+  /// Drawn in place of the letter, in the colour the letter would have had.
+  std::function<void(juce::Graphics &, juce::Rectangle<float>, juce::Colour)>
+      onIcon;
+
   void paintButton(juce::Graphics &, bool highlighted, bool down) override;
 };
 
@@ -180,6 +184,9 @@ enum class PointerTool : int;
 /// they take the colour they are given and stay sharp at any zoom.
 void drawGearIcon(juce::Graphics &, juce::Rectangle<float>, juce::Colour);
 void drawMacroIcon(juce::Graphics &, juce::Rectangle<float>, juce::Colour);
+/// Three strokes merging into one: several notes hearing one modulator. For
+/// the gutter switch that shares a modulator between all notes.
+void drawSharedIcon(juce::Graphics &, juce::Rectangle<float>, juce::Colour);
 /// The arrow, alone for the plain pointer and with a mark beside it for the
 /// other two.
 ///

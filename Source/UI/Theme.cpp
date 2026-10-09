@@ -76,6 +76,34 @@ void drawGearIcon(juce::Graphics &g, juce::Rectangle<float> area,
   g.fillPath(path);
 }
 
+void drawSharedIcon(juce::Graphics &g, juce::Rectangle<float> area,
+                    juce::Colour colour) {
+  // Three short strokes from the left that meet at one point and run on as a
+  // single line: every note feeding one modulator. Fractions of the side it is
+  // given, so it scales with the switch.
+  const auto s = juce::jmin(area.getWidth(), area.getHeight());
+  const auto c = area.getCentre();
+  const auto left = c.x - s * 0.40f;
+  const auto join = c.x + s * 0.05f;
+  const auto right = c.x + s * 0.40f;
+  const auto spread = s * 0.30f;
+
+  juce::Path p;
+
+  for (int i = -1; i <= 1; ++i) {
+    p.startNewSubPath(left, c.y + (float)i * spread);
+    p.lineTo(join, c.y);
+  }
+
+  p.startNewSubPath(join, c.y);
+  p.lineTo(right, c.y);
+
+  g.setColour(colour);
+  g.strokePath(p, juce::PathStrokeType(juce::jmax(1.2f, s * 0.11f),
+                                       juce::PathStrokeType::curved,
+                                       juce::PathStrokeType::rounded));
+}
+
 void drawMacroIcon(juce::Graphics &g, juce::Rectangle<float> area,
                    juce::Colour colour) {
   // Three faders with their caps at different places, which is what the
@@ -189,6 +217,19 @@ void ScreenSwitch::paintButton(juce::Graphics &g, bool highlighted, bool) {
   paintDisplayGround(g, area, 2.5f, highlighted);
 
   const bool on = getToggleState();
+  const auto ink = on ? lamp : colours::textDim.withAlpha(0.55f);
+
+  if (onIcon != nullptr) {
+    const auto glyph = area.reduced(2.5f);
+
+    // The same bloom the letters get, as a wider faint pass under the icon.
+    if (on)
+      onIcon(g, glyph.translated(0.0f, 0.5f), lamp.withAlpha(0.35f));
+
+    onIcon(g, glyph, ink);
+    return;
+  }
+
   g.setFont(makeFont(10.0f, true));
 
   // A half-pixel echo under the lit letter, the bloom a lit segment has on the
@@ -201,7 +242,7 @@ void ScreenSwitch::paintButton(juce::Graphics &g, bool highlighted, bool) {
 
   // Unlit, faint enough that a lit one beside it is unmistakable, and still
   // there to be read, since the letter is what says which switch this is.
-  g.setColour(on ? lamp : colours::textDim.withAlpha(0.55f));
+  g.setColour(ink);
   g.drawText(getButtonText(), area, juce::Justification::centred, false);
 }
 

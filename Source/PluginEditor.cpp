@@ -140,16 +140,17 @@ RowGutter::RowGutter() {
   for (auto *b : {&glideLegato, &glideFixedTime})
     addAndMakeVisible(*b);
 
-  // P for phase, one on each shape row. The same switch as the last item in
-  // every shape button's menu, here so the state is on the panel.
+  // Shared by all notes, one on each shape row, drawn as several strokes
+  // merging into one. The same switch as the last item in every shape
+  // button's menu, here so the state is on the panel.
   const auto setUpInPhase = [this](ovt::ui::ScreenSwitch &b, const char *which,
                                    const char *id,
                                    std::function<void()> RowGutter::*callback) {
-    b.setButtonText("P");
-    b.setTooltip(juce::String("The ") + which +
-                 " in phase across the keyboard: one modulator every note "
-                 "hears together. Dark, each note starts its own.");
-    b.setTitle(juce::String(which) + " in phase across the keyboard");
+    b.onIcon = ovt::ui::drawSharedIcon;
+    b.setTooltip(juce::String(which) +
+                 " shared by all notes: every note hears each channel's "
+                 "modulator in step. Dark, each note starts its own.");
+    b.setTitle(juce::String(which) + " shared by all notes");
     b.setComponentID(id);
     b.onClick = [this, callback] {
       if (this->*callback != nullptr)
@@ -158,9 +159,9 @@ RowGutter::RowGutter() {
     addAndMakeVisible(b);
   };
 
-  setUpInPhase(pitchInPhase, "pitch modulation", "pitchInPhase",
+  setUpInPhase(pitchInPhase, "Pitch modulation", "pitchInPhase",
                &RowGutter::onPitchInPhaseClicked);
-  setUpInPhase(ampInPhase, "amp modulation", "ampInPhase",
+  setUpInPhase(ampInPhase, "Amp modulation", "ampInPhase",
                &RowGutter::onAmpInPhaseClicked);
 
   headerCap.onPaint = [this](juce::Graphics &g) { paintHeaderBand(g); };

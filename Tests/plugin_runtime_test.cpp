@@ -5409,7 +5409,7 @@ void testModulatorsInPhase(OvertoniumProcessor &p) {
     auto menu = button.buildMenu();
 
     for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
-      if (it.getItem().text == "In phase across the keyboard")
+      if (it.getItem().text == "Shared by all notes")
         return it.getItem().isTicked ? 1 : 0;
 
     return -1;
