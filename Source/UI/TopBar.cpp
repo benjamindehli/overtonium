@@ -76,9 +76,11 @@ constexpr int kOutputMaxSqueeze = 40;
 /// The title only occupies the first row, so the second gets the full width.
 constexpr int kTitleLead = 10;
 
-/// What it is, under the wordmark. It measures 128 px here against the 150 px
-/// the title block gives it, which leaves room for a wider font elsewhere.
+/// What it is, under the wordmark. At kCreditSize it measures 142 px here
+/// against the 150 px the title block gives it, in DejaVu Sans, which is wider
+/// than the faces macOS and Windows set it in. A size larger runs it to 149.
 constexpr const char *kCredit = "32-partial overtone synthesizer";
+constexpr float kCreditSize = 10.5f;
 
 /// What the preset button says when nothing has been loaded yet.
 constexpr const char *kNoPreset = "Select...";
@@ -1935,7 +1937,7 @@ void TopBar::paintCreditLine(juce::Graphics &g, juce::Rectangle<int> area) {
   if (updateVersion.isEmpty() && !offeringUpdateCheck) {
     updateBounds = {};
     g.setColour(colours::textDim);
-    g.setFont(makeFont(9.5f));
+    g.setFont(makeFont(kCreditSize));
     g.drawText(kCredit, area, juce::Justification::centredLeft, false);
     return;
   }
@@ -1944,7 +1946,7 @@ void TopBar::paintCreditLine(juce::Graphics &g, juce::Rectangle<int> area) {
                         ? "Version " + updateVersion + " available"
                         : juce::String("Check for new versions?");
 
-  g.setFont(makeFont(9.5f, true));
+  g.setFont(makeFont(kCreditSize, true));
   g.setColour(colours::accent);
   g.drawText(text, area, juce::Justification::centredLeft, false);
 
