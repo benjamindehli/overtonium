@@ -1,14 +1,14 @@
 {
     "": {
-        "words": "63a204d5a5dd51bf",
-        "modified": "2026-10-08"
+        "words": "7acd8b4f01cf0796",
+        "modified": "2026-10-09"
     },
     "tuning/": {
         "words": "afcfc16a6813290d",
         "modified": "2026-09-11"
     },
     "controls/": {
-        "words": "6529f6dd461ee0f2",
+        "words": "dddd3dbaad0fda9d",
         "modified": "2026-10-09"
     },
     "presets/": {
@@ -28,7 +28,7 @@
         "modified": "2026-10-08"
     },
     "playing/": {
-        "words": "74b263478854b588",
+        "words": "e8457023cb2283ae",
         "modified": "2026-10-09"
     }
 }

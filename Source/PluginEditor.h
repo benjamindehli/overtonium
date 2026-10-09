@@ -58,16 +58,16 @@ public:
   std::function<void()> onPitchInPhaseClicked;
   std::function<void()> onAmpInPhaseClicked;
 
-  /// The two glide switches, on the caps beside the GLIDE caption: whether a
-  /// note glides only while a key is held, and whether the time is per note
-  /// rather than per octave. Both are part of the patch and live in the glide
+  /// The two glide switches, beside the GLIDE caption: whether a note glides
+  /// only legato, and whether every glide takes a fixed time rather than
+  /// moving at a fixed rate. Both are part of the patch and live in the glide
   /// knob's menu too, so a preset can throw them, and the caps say so.
-  void setGlideSwitches(bool held, bool perNote);
+  void setGlideSwitches(bool legato, bool fixedTime);
 
   /// Fired when one of those caps is clicked. The editor owns the change,
   /// since it is a parameter.
-  std::function<void()> onGlideHeldClicked;
-  std::function<void()> onGlidePerNoteClicked;
+  std::function<void()> onGlideLegatoClicked;
+  std::function<void()> onGlideFixedTimeClicked;
 
   /// Fired when a heading is clicked. The editor owns the decision, since the
   /// strips have to be told about it too.
@@ -126,7 +126,7 @@ private:
 
   /// The glide switches, a pair standing just left of the GLIDE caption. Lit
   /// is on.
-  ovt::ui::ScreenSwitch glideHeld, glidePerNote;
+  ovt::ui::ScreenSwitch glideLegato, glideFixedTime;
 
   /// The in-phase switches, one just left of each shape caption. Lit is one
   /// modulator the whole keyboard hears.

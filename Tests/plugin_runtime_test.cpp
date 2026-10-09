@@ -656,9 +656,9 @@ void testGlideCaps() {
   gutter.setBounds(0, 0, kGutterWidth, preferredStripHeight());
 
   auto *held =
-      dynamic_cast<juce::Button *>(gutter.findChildWithID("glideHeld"));
+      dynamic_cast<juce::Button *>(gutter.findChildWithID("glideLegato"));
   auto *perNote =
-      dynamic_cast<juce::Button *>(gutter.findChildWithID("glidePerNote"));
+      dynamic_cast<juce::Button *>(gutter.findChildWithID("glideFixedTime"));
 
   if (held == nullptr || perNote == nullptr) {
     check(false, "the gutter has both glide caps");
@@ -694,8 +694,8 @@ void testGlideCaps() {
         "either way round");
 
   int heldClicks = 0, noteClicks = 0;
-  gutter.onGlideHeldClicked = [&heldClicks] { ++heldClicks; };
-  gutter.onGlidePerNoteClicked = [&noteClicks] { ++noteClicks; };
+  gutter.onGlideLegatoClicked = [&heldClicks] { ++heldClicks; };
+  gutter.onGlideFixedTimeClicked = [&noteClicks] { ++noteClicks; };
 
   held->onClick();
   perNote->onClick();

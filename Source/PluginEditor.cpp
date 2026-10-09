@@ -112,30 +112,32 @@ RowGutter::RowGutter() {
 
   addAndMakeVisible(toolButton);
 
-  // H and N, the way a channel says M and S: one character each, with the
+  // L and T, the way a channel says M and S: one character each, with the
   // whole of it in the tooltip and the name a screen reader is given.
-  glideHeld.setButtonText("H");
-  glideHeld.setTooltip("Glide only while a key is held. Dark, every note "
-                       "glides from the last one, even after its key is up.");
-  glideHeld.setTitle("Glide only while a key is held");
-  glideHeld.setComponentID("glideHeld");
-  glideHeld.onClick = [this] {
-    if (onGlideHeldClicked != nullptr)
-      onGlideHeldClicked();
+  glideLegato.setButtonText("L");
+  glideLegato.setTooltip("Legato glide: only from a key still held down. "
+                         "Dark, every note glides from the last one, even "
+                         "after its key is up.");
+  glideLegato.setTitle("Legato glide");
+  glideLegato.setComponentID("glideLegato");
+  glideLegato.onClick = [this] {
+    if (onGlideLegatoClicked != nullptr)
+      onGlideLegatoClicked();
   };
 
-  glidePerNote.setButtonText("N");
-  glidePerNote.setTooltip("Glide time per note, however far it goes. Dark, "
-                          "the time is per octave, so a wide leap takes "
-                          "longer than a step.");
-  glidePerNote.setTitle("Glide time per note");
-  glidePerNote.setComponentID("glidePerNote");
-  glidePerNote.onClick = [this] {
-    if (onGlidePerNoteClicked != nullptr)
-      onGlidePerNoteClicked();
+  glideFixedTime.setButtonText("T");
+  glideFixedTime.setTooltip("Fixed time: every glide takes the knob's time, "
+                            "however far it goes. Dark, a fixed rate, the "
+                            "time per octave, so a wide leap takes "
+                            "longer than a step.");
+  glideFixedTime.setTitle("Fixed glide time");
+  glideFixedTime.setComponentID("glideFixedTime");
+  glideFixedTime.onClick = [this] {
+    if (onGlideFixedTimeClicked != nullptr)
+      onGlideFixedTimeClicked();
   };
 
-  for (auto *b : {&glideHeld, &glidePerNote})
+  for (auto *b : {&glideLegato, &glideFixedTime})
     addAndMakeVisible(*b);
 
   // P for phase, one on each shape row. The same switch as the last item in
@@ -198,7 +200,7 @@ void RowGutter::resized() {
   // under the header slides under it rather than over it.
   const auto headerBottom = headerCap.getBottom();
   placeCaps(Row::PmShape, {&pitchInPhase}, rows, headerBottom);
-  placeCaps(Row::Glide, {&glideHeld, &glidePerNote}, rows, headerBottom);
+  placeCaps(Row::Glide, {&glideLegato, &glideFixedTime}, rows, headerBottom);
   placeCaps(Row::AmShape, {&ampInPhase}, rows, headerBottom);
 
   headerCap.toFront(false);
@@ -271,9 +273,9 @@ void RowGutter::setScroll(int s) {
   repaint();
 }
 
-void RowGutter::setGlideSwitches(bool held, bool perNote) {
-  glideHeld.setToggleState(held, juce::dontSendNotification);
-  glidePerNote.setToggleState(perNote, juce::dontSendNotification);
+void RowGutter::setGlideSwitches(bool legato, bool fixedTime) {
+  glideLegato.setToggleState(legato, juce::dontSendNotification);
+  glideFixedTime.setToggleState(fixedTime, juce::dontSendNotification);
 }
 
 void RowGutter::setSharedModulators(bool pitch, bool amp) {
@@ -677,8 +679,8 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     syncSharedModulators();
   };
 
-  gutter.onGlideHeldClicked = [flip] { flip(ovt::params::glideTriggerId); };
-  gutter.onGlidePerNoteClicked = [flip] { flip(ovt::params::glideModeId); };
+  gutter.onGlideLegatoClicked = [flip] { flip(ovt::params::glideTriggerId); };
+  gutter.onGlideFixedTimeClicked = [flip] { flip(ovt::params::glideModeId); };
   gutter.onPitchInPhaseClicked = [flip] { flip(ovt::params::pmInPhaseId); };
   gutter.onAmpInPhaseClicked = [flip] { flip(ovt::params::amInPhaseId); };
 

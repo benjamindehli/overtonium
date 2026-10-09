@@ -41,12 +41,12 @@ inline bool appendItems(juce::PopupMenu &menu,
   const bool time = mode->getValue() > 0.5f;
 
   menu.addSeparator();
-  menu.addSectionHeader("Glide, on every channel");
-  menu.addItem(kAlways, "Always, from the last note", true, !legato);
-  menu.addItem(kLegato, "Only while a key is held", true, legato);
+  menu.addSectionHeader("Glide (every channel)");
+  menu.addItem(kAlways, "Always", true, !legato);
+  menu.addItem(kLegato, "Legato", true, legato);
   menu.addSeparator();
-  menu.addItem(kRate, "The time is per octave", true, !time);
-  menu.addItem(kTime, "The time is per note, however far", true, time);
+  menu.addItem(kRate, "Fixed rate", true, !time);
+  menu.addItem(kTime, "Fixed time", true, time);
 
   return true;
 }

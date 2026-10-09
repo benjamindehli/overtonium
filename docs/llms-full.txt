@@ -8,7 +8,7 @@ Every page of https://benjamindehli.github.io/overtonium/ as Markdown, in the or
 
 Page: Overtonium, a free 32-partial additive synthesizer plugin
 URL: https://benjamindehli.github.io/overtonium/
-Last changed: 2026-10-08
+Last changed: 2026-10-09
 
 # Overtonium, a 32-partial additive overtone synthesizer
 
@@ -102,7 +102,7 @@ Yes. Right-click any control, choose [MIDI Learn](https://benjamindehli.github.i
 
 **Does Overtonium have portamento or glide?**
 
-Yes, on every channel separately. Each partial slides to a new note over its own GLIDE time, so the series can arrive a partial at a time. Two switches cover every channel: whether it glides always or only while a key is held, and whether the time is per octave or per note. [Glide](https://benjamindehli.github.io/overtonium/playing/#glide) on the Playing page has the rest.
+Yes, on every channel separately. Each partial slides to a new note over its own GLIDE time, so the series can arrive a partial at a time. Two switches cover every channel: whether it glides always or only legato, and whether it moves at a fixed rate or takes a fixed time. [Glide](https://benjamindehli.github.io/overtonium/playing/#glide) on the Playing page has the rest.
 
 **How much CPU does Overtonium use?**
 
@@ -281,7 +281,7 @@ Six channels and the caption gutter. Captions are named once on the left rather 
 | TUNE | equal to just | Where this partial sits between the tempered position and the exact ratio. The readout shows the resulting cent offset. On the six octave channels both tunings agree, so there is nothing for it to move and the strip says so |
 | PITCH MOD shape, rate, depth | Eight shapes, 0.01 to 30 Hz, 0 to 1200 cents | Per-partial vibrato |
 | DRIFT | 0 to 25 cents | Smooth random pitch wander, its own stream per partial |
-| GLIDE | Off to 5 s | How long this partial takes to reach a new note, so the series can arrive a partial at a time. When it glides, and whether the time is per note or per octave, is on the H and N switches beside the caption and in the knob's right-click menu: see [Glide](https://benjamindehli.github.io/overtonium/playing/#glide) |
+| GLIDE | Off to 5 s | How long this partial takes to reach a new note, so the series can arrive a partial at a time. Whether it glides always or only legato, and at a fixed rate or in a fixed time, is on the L and T switches beside the caption and in the knob's right-click menu: see [Glide](https://benjamindehli.github.io/overtonium/playing/#glide) |
 | ENVELOPE strike, delay, A, D, S | -100 to +100%, 0 to 5 s, 90° then 0.2 ms to 5 s, 1 ms to 20 s, 0 to 100% | Exponential decay. STRIKE starts the partial sooner and faster the harder the key is struck |
 | KEY OFF swell, level, release | 0 to 5 s, 0 to 100%, 1 ms to 20 s | A second envelope for letting go |
 | AMP MOD shape, rate, depth | Seven shapes, 0.01 to 30 Hz, 0 to 100% | Per-partial tremolo |
@@ -545,12 +545,12 @@ Legato moves the note in a single step. With a [glide](https://benjamindehli.git
 
 A partial glides in a straight line in pitch, and everything that follows the pitch follows the glide: the oscillator character is chosen at the frequency the partial has reached, and the Bulb character's lamp sags behind a long slide as a real one would. Vibrato, drift and both kinds of bend ride on top of it.
 
-**Two switches govern every channel at once**, on the two lit letters beside the GLIDE caption on the left of the mixer, **H** and **N**, and again at the end of the menu a right-click on any GLIDE knob opens, under *Glide, on every channel*. A cap is lit when its switch is on. They belong to the patch, so a preset saves them and a legato lead can say so, and the letters show it the moment one loads.
+**Two switches govern every channel at once**, on the two lit letters beside the GLIDE caption on the left of the mixer, **L** and **T**, and again at the end of the menu a right-click on any GLIDE knob opens, under *Glide (every channel)*. A letter is lit when its switch is on. They belong to the patch, so a preset saves them and a legato lead can say so, and the letters show it the moment one loads.
 
 | Switch | Choices | What it decides |
 |---|---|---|
-| When, cap H | Always, the default, or only while a key is held (H lit) | Always glides from the last note played, even when its key came up long ago. Only while a key is held glides when the new key goes down over another one still under a finger, so a phrase played detached lands on each note and the same phrase played joined slides through them. The sustain pedal holds the sound and not the hand, so a note it is holding does not count as held |
-| What the time means, cap N | Per octave, the default, or per note (N lit) | Per octave makes the time the length of an octave's slide, so a fifth takes a little over half of it and two octaves take twice it, the way a finger sliding along a string at a steady pace does. Per note makes every slide take the time however far it goes, so a leap and a step land on the same beat |
+| When, L | Always, the default, or Legato (L lit) | Always glides from the last note played, even when its key came up long ago. Legato glides only when the new key goes down over another one still under a finger, so a phrase played detached lands on each note and the same phrase played joined slides through them. The sustain pedal holds the sound and not the hand, so a note it is holding does not count as held |
+| What the time means, T | Fixed rate, the default, or Fixed time (T lit) | Fixed rate makes the time the length of an octave's slide, so a fifth takes a little over half of it and two octaves take twice it, the way a finger sliding along a string at a steady pace does. Fixed time makes every slide take the time however far it goes, so a leap and a step land on the same beat |
 
 Played polyphonically, each new note glides from the one played last. In [Legato](https://benjamindehli.github.io/overtonium/playing/#legato) the voice carrying the phrase glides from wherever it is, the one voice with one voice set and the top line with more, so a key pressed halfway through a slide turns the slide round from where it had got to rather than jumping to either end. A trill falling back to a key still held glides back to it too.
 
@@ -648,7 +648,7 @@ All 839 as the host lists them, with a control that every partial or every macro
 | `Clip Type` | `clipType` | Soft, Hard, Asymmetric, Limiter, Fold | Soft |
 | `Reverb Type` | `reverbType` | Room, Modulated Plate, Spring | Room |
 | `Glide Trigger` | `glideTrigger` | Always, Legato | Always |
-| `Glide Mode` | `glideMode` | Rate, Time | Rate |
+| `Glide Mode` | `glideMode` | Fixed rate, Fixed time | Fixed rate |
 | `Legato` | `legato` | Off or on | Off |
 
 **On every partial**, twenty-three controls, each one on all 32 partials.

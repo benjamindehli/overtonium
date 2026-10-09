@@ -836,6 +836,6 @@
     {"id": "clipType", "name": "Clip Type", "type": "choice", "choices": ["Soft", "Hard", "Asymmetric", "Limiter", "Fold"], "default": "Soft"},
     {"id": "reverbType", "name": "Reverb Type", "type": "choice", "choices": ["Room", "Modulated Plate", "Spring"], "default": "Room"},
     {"id": "glideTrigger", "name": "Glide Trigger", "type": "choice", "choices": ["Always", "Legato"], "default": "Always"},
-    {"id": "glideMode", "name": "Glide Mode", "type": "choice", "choices": ["Rate", "Time"], "default": "Rate"},
+    {"id": "glideMode", "name": "Glide Mode", "type": "choice", "choices": ["Fixed rate", "Fixed time"], "default": "Fixed rate"},
     {"id": "legato", "name": "Legato", "type": "switch", "default": "Off"}
 ]

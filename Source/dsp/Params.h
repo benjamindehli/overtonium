@@ -41,7 +41,7 @@ inline const char *glideTriggerName(GlideTrigger t) {
 }
 
 inline const char *glideModeName(GlideMode m) {
-  return m == GlideMode::Time ? "Time" : "Rate";
+  return m == GlideMode::Time ? "Fixed time" : "Fixed rate";
 }
 
 /// A per-block snapshot of one channel strip. Deliberately plain data: the DSP
