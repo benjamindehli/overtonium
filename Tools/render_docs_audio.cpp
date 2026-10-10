@@ -138,11 +138,13 @@ juce::AudioBuffer<float> render(OvertoniumProcessor &p,
   return mono;
 }
 
-/// One note in a run: which, when it goes down, and how long it is held.
+/// One note in a run: which, when it goes down, how long it is held, and how
+/// hard it is struck.
 struct Step {
   int note;
   double at;
   double hold;
+  float velocity = 0.85f;
 };
 
 /// A run of notes rather than a chord, for the things that only show up as you
@@ -179,7 +181,7 @@ juce::AudioBuffer<float> renderRun(OvertoniumProcessor &p,
       const auto off = (int)((step.at + step.hold) * kRate);
 
       if (on >= done && on < done + n)
-        midi.addEvent(juce::MidiMessage::noteOn(1, step.note, 0.85f),
+        midi.addEvent(juce::MidiMessage::noteOn(1, step.note, step.velocity),
                       on - done);
 
       if (off >= done && off < done + n)
@@ -397,35 +399,48 @@ int main(int argc, char **argv) {
   // ---- legato, a melody over chords ----------------------------------------
   //
   // A line held from note to note, each key going down just before the last
-  // comes up, over chords struck short underneath it. With Legato off every
-  // note of the line breathes in again. With it on and eight voices the line
-  // carries on from note to note while the chords still strike each time. On
-  // Space Flute because its attack is long enough to hear arrive and short
-  // enough that a chord struck short still sounds short.
+  // comes up, over a chord struck once a bar and let go just before the next.
+  // On Synth Ensemble played softly, where STRIKE stretches the attack to
+  // about half a second, so every newly struck note swells in. With Legato off
+  // the line swells in again on every note. With it on and eight voices the
+  // line carries on at the level it reached while the chords still swell in
+  // underneath it.
   //
-  // Each melody note lands with a chord, as the highest key struck and within
-  // a major third of the note before, which is the case the top line reads as
-  // the melody. See SynthEngine::noteOnImpl.
+  // Two notes of the line to a bar. The first lands with the chord, as the
+  // highest key struck and no more than a major third under the note before,
+  // and the second goes down halfway through the bar over the chord still
+  // held, which are the two ways the top line reads a key as the melody. See
+  // SynthEngine::noteOnImpl.
   {
+    constexpr float kSoft = 0.3f;
+    constexpr double kBar = 1.2;
+    constexpr double kOverlap = 0.05;
+
     std::vector<Step> phrase;
-    const int line[] = {76, 74, 72, 74, 76};
+    const int line[][2] = {{76, 77}, {74, 76}, {72, 74}, {71, 72}};
     const std::vector<std::vector<int>> chords{
         {48, 55, 64}, {47, 55, 62}, {45, 52, 60}, {47, 55, 62}, {48, 55, 64}};
 
     for (int bar = 0; bar < 5; ++bar) {
-      const double at = bar * 1.0;
-      phrase.push_back({line[bar], at, bar == 4 ? 1.6 : 1.05});
+      const double at = bar * kBar;
+      const bool last = bar == 4;
 
-      for (const double strike : {0.0, 0.5})
-        for (const auto note : chords[(size_t)bar])
-          phrase.push_back({note, at + strike, 0.25});
+      if (last)
+        phrase.push_back({76, at, 1.6, kSoft});
+      else
+        for (int half = 0; half < 2; ++half)
+          phrase.push_back({line[bar][half], at + half * kBar / 2.0,
+                            kBar / 2.0 + kOverlap, kSoft});
+
+      for (const auto note : chords[(size_t)bar])
+        phrase.push_back({note, at, last ? 1.6 : kBar - 0.2, kSoft});
     }
 
     for (const auto legato : {false, true}) {
       OvertoniumProcessor p;
       save(legato ? "legato-on" : "legato-off",
            renderRun(
-               p, "Space Flute", phrase, 6.4, [legato](auto &proc, double) {
+               p, "Synth Ensemble", phrase, 7.4, [legato](auto &proc, double) {
                  setPlain(proc, ovt::params::legatoId, legato ? 1.0f : 0.0f);
                }));
     }

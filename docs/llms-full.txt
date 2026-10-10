@@ -533,7 +533,7 @@ A switch in Settings, beside the voice count, and what it does depends on that c
 
 **With more than one voice it plays a top line.** A key that lands above everything you are holding, except the highest note, carries that note's phrase on: it starts a voice of its own that takes over the highest note's envelopes where they stand and glides from its pitch, so it does not start again. Every other key plays as it always does. A legato melody over a staccato chord does what it sounds like: the chord retriggers each time its keys come up and go down again, and the melody slides from note to note over it, up or down, as long as it stays above the chord.
 
-A melody held from note to note over chords struck short underneath it, on Space Flute with eight voices. With Legato off every note of the melody breathes in again. With it on the melody carries on from note to note while the chords still strike each time.
+A melody held from note to note over chords struck under it, two notes to a bar, one landing with the chord and one in between, on Synth Ensemble played softly, where each newly struck note takes about half a second to swell in. With Legato off every note of the melody swells in again. With it on and eight voices the melody carries on from note to note, with the chord or without it, while the chords still swell in underneath.
 
 **Legato off**
 

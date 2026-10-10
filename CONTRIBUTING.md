@@ -272,7 +272,7 @@ Regenerating the same source on the same JUCE gives byte-identical files. DRIFT 
 
 The target is built by default so that it cannot quietly stop compiling, which is how the program that made the first set of pictures was lost. `-DOVERTONIUM_BUILD_TOOLS=OFF` skips it.
 
-**The audio examples.** The tuning page is about things you hear, so every section on it carries a clip or a pair: _Just Saw_ against _Equal Saw_ and the sweep between them, STRETCH taken from a harmonic series out past a piano, one chord in equal against the same chord in Werckmeister III, five notes up the keyboard with TRACK off and on, and a held chord with and without DRIFT. The playing page has two pairs of its own: a phrase on the Glide preset with every glide at zero and as the preset has them, and a melody over chords on Space Flute with Legato off and on. The front page carries the first two. They are rendered by the plugin rather than recorded, on the same switch and for the same reason:
+**The audio examples.** The tuning page is about things you hear, so every section on it carries a clip or a pair: _Just Saw_ against _Equal Saw_ and the sweep between them, STRETCH taken from a harmonic series out past a piano, one chord in equal against the same chord in Werckmeister III, five notes up the keyboard with TRACK off and on, and a held chord with and without DRIFT. The playing page has two pairs of its own: a phrase on the Glide preset with every glide at zero and as the preset has them, and a melody over slowly swelling chords on Synth Ensemble with Legato off and on. The front page carries the first two. They are rendered by the plugin rather than recorded, on the same switch and for the same reason:
 
 ```sh
 cmake --build build --target overtonium_render_docs_audio
