@@ -586,6 +586,10 @@ void Voice::render(float *left, float *right, int numSamples,
       // Read at the start of the block and stepped for the next, as the
       // modulators are. A glide that is not running costs a compare.
       // Nought is set exactly by the line below, so the compare is exact too.
+      // How far the glide still has to go, for the needle, taken before this
+      // block's step so it matches the pitch the block plays at.
+      const double glideCents = pt.glideSemis * 100.0;
+
       if (!exactly(pt.glideSemis, 0.0)) {
         const double remaining = std::abs(pt.glideSemis) - pt.glideStep;
         pt.glideSemis =
@@ -740,7 +744,10 @@ void Voice::render(float *left, float *right, int numSamples,
       // partial with no tremolo on it then reads zero instead of full, which
       // is a lamp that is dark rather than one that is on and never moves.
       partialTremolos[(size_t)i] = 1.0f - amEnd;
-      partialPitches[(size_t)i] = (float)(pmCents + driftCents);
+      // Where the partial is against its note: the modulator, the drift and
+      // whatever of a glide is still to travel. Pitch bend is left out, since
+      // it moves every partial alike and is already on the wheel.
+      partialPitches[(size_t)i] = (float)(pmCents + driftCents + glideCents);
 
       // One lamp for each of the two rows under the heading, each showing
       // what its own row is doing and nothing else. The velocity half is the

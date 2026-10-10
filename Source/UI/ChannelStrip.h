@@ -363,7 +363,8 @@ private:
   int step = 0;
 };
 
-/// A needle on a rule, showing where pitch modulation has this partial.
+/// A needle on a rule, showing where pitch modulation, drift and a glide still
+/// on its way have this partial.
 ///
 /// Reads like a tuner because that is the thing it is: centre is the note as
 /// written, right is sharp, left is flat, against a fixed scale that is the

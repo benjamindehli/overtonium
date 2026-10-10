@@ -506,13 +506,13 @@ inline constexpr float kMaxGlideSeconds = 5.0f;
 ///
 /// Deliberately not the knob's maximum, which is the one place in this
 /// instrument a readout and the control feeding it are allowed to disagree.
-/// The needle is for watching vibrato and drift, and those live in the first
-/// tens of cents: scaled to the octave a square can now jump, ordinary
-/// modulation would sit within a couple of percent of centre and the lamp
-/// would show nothing at all. Past this it pegs, which is honest about being
-/// off the end of a scale rather than pretending to a resolution it does not
-/// have. A test holds it against the drift range so it cannot quietly shrink
-/// below what the other wanderer alone can produce.
+/// The needle is for watching vibrato, drift and the end of a glide, and those
+/// live in the first tens of cents: scaled to the octave a square can now jump,
+/// ordinary modulation would sit within a couple of percent of centre and the
+/// lamp would show nothing at all. Past this it pegs, which is honest about
+/// being off the end of a scale rather than pretending to a resolution it does
+/// not have. A test holds it against the drift range so it cannot quietly
+/// shrink below what the other wanderer alone can produce.
 inline constexpr float kPitchNeedleFullScaleCents = 225.0f;
 
 /// The pitch classes a temperament can be built on, in parameter order.

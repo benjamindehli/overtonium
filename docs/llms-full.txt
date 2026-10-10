@@ -409,13 +409,13 @@ The rules dividing a strip into groups carry a lamp each, showing what the group
 
 | Rule | Shows |
 |---|---|
-| PITCH MOD | a needle on a track, flat to the left and sharp to the right, where modulation and drift have the partial now |
+| PITCH MOD | a needle on a track, flat to the left and sharp to the right, where modulation, drift and a glide still on its way have the partial now |
 | ENVELOPE | how far up its envelope the partial is, while the key is down |
 | KEY OFF | the same, once the key is up and the key-off stage has taken over |
 | AMP MOD | how far the tremolo has pulled the level down, so it pulses at the rate and swings further at greater depth |
 | OUTPUT | two lamps side by side, one for each row beneath it: the left is what the blow has left of the partial, the right is what the pressure on the key is adding |
 
-They read from the voice pool rather than from the knobs, so they describe a note rather than a setting and nothing pulses over silence, and they follow the loudest voice on that partial, which is the one the meter follows. The output rule carries two of them, one for each row beneath it, and each is the shape of the knob above it. VELOCITY can only take level away, so its lamp shows what the row has left: full when the blow has cost the partial nothing, dark when the row has taken all of it, and full at every velocity when the knob sits at the centre. AFTERTOUCH adds instead, so its lamp rests dark and comes up as you lean on the key, and it does not matter which way that row is set to push. The needle's scale is fixed and the same on every strip, so two channels can be compared by eye. Full deflection is 225 cents, which is a vibrato and a drift at full stretch rather than the widest the depth knob now reaches. A square set to jump an octave pegs it, which is the honest thing for a needle to do when it is off the end of its scale: scaled to the octave instead, an ordinary vibrato would not move it at all.
+They read from the voice pool rather than from the knobs, so they describe a note rather than a setting and nothing pulses over silence, and they follow the loudest voice on that partial, which is the one the meter follows. The output rule carries two of them, one for each row beneath it, and each is the shape of the knob above it. VELOCITY can only take level away, so its lamp shows what the row has left: full when the blow has cost the partial nothing, dark when the row has taken all of it, and full at every velocity when the knob sits at the centre. AFTERTOUCH adds instead, so its lamp rests dark and comes up as you lean on the key, and it does not matter which way that row is set to push. The needle's scale is fixed and the same on every strip, so two channels can be compared by eye. Full deflection is 225 cents, which is a vibrato and a drift at full stretch rather than the widest the depth knob now reaches. A square set to jump an octave pegs it, and so does a wide glide until it is within a couple of semitones of its note, which is the honest thing for a needle to do when it is off the end of its scale: scaled to the octave instead, an ordinary vibrato would not move it at all.
 
 ### Meters
 
@@ -509,7 +509,7 @@ Horizontal, split into left and right, because the two channels are identical un
 
 Page: Playing Overtonium: MPE, automation, macros and MIDI Learn
 URL: https://benjamindehli.github.io/overtonium/playing/
-Last changed: 2026-10-09
+Last changed: 2026-10-10
 
 # Playing
 
@@ -545,7 +545,7 @@ Legato moves the note in a single step. With a [glide](https://benjamindehli.git
 
 **Every channel has its own glide**, the last knob under PITCH MOD. It is how long that partial takes to travel from the note before to the new one, from Off, where every channel starts, to five seconds. Because each partial travels on its own time, the series does not have to arrive together. Short times on the top and a long one on the fundamental land the brightness first and let the pitch follow. The other way round, the note arrives and its colour catches up. Somewhere between, the partials stop agreeing on a fundamental while they move and settle into one as they land, which no single portamento can do.
 
-A partial glides in a straight line in pitch, and everything that follows the pitch follows the glide: the oscillator character is chosen at the frequency the partial has reached, and the Bulb character's lamp sags behind a long slide as a real one would. Vibrato, drift and both kinds of bend ride on top of it.
+A partial glides in a straight line in pitch, and everything that follows the pitch follows the glide: the oscillator character is chosen at the frequency the partial has reached, and the Bulb character's lamp sags behind a long slide as a real one would. Vibrato, drift and both kinds of bend ride on top of it. The needle on each partial's PITCH MOD rule follows the glide, swinging back to centre as the partial arrives, so a series given different glide times can be watched landing a partial at a time.
 
 **Two switches govern every channel at once**, on the two lit letters beside the GLIDE caption on the left of the mixer, **L** and **T**, and again at the end of the menu a right-click on any GLIDE knob opens, under *Glide (every channel)*. A letter is lit when its switch is on. They belong to the patch, so a preset saves them and a legato lead can say so, and the letters show it the moment one loads.
 

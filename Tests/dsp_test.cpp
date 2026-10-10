@@ -2098,6 +2098,47 @@ void testGlide() {
     check(std::abs(off) < 0.6, "a note played mid-glide starts from where the "
                                "glide had got to, not from either end of it");
   }
+
+  // ---- the needle: a partial still on its way reads off its note ----------
+  //
+  // The pitch a partial reports for the PITCH MOD needle carries its glide,
+  // so a needle swings back to centre as the partial arrives. The reading is
+  // the loudest voice's, which with one voice is this one, and it is taken
+  // from the loudest moment of a render, which on a steady note is its start,
+  // so each reading is a short render of its own, as a host block is.
+  {
+    auto p = base(0);
+    p.osc[1].volume = 0.5f;
+    p.osc[1].sustain = 1.0f;
+    p.osc[0].glideSeconds = 0.4f;
+    p.osc[1].glideSeconds = 0.0f;
+    p.global.glideMode = GlideMode::Time;
+
+    start(1, true);
+    engine.noteOn(48, 1.0f, p);
+    render(p, 0.2);
+    engine.noteOn(60, 1.0f, p);
+    render(p, 0.1);
+    render(p, 0.001);
+
+    const auto onTheWay = engine.getPartialPitch(0);
+    const auto noGlide = engine.getPartialPitch(1);
+
+    render(p, 0.5);
+    render(p, 0.001);
+    const auto arrived = engine.getPartialPitch(0);
+
+    std::printf("  needle a quarter of the way up an octave: %+.0f cents, with "
+                "no glide %+.0f, arrived %+.1f\n",
+                (double)onTheWay, (double)noGlide, (double)arrived);
+
+    check(onTheWay < -800.0f && onTheWay > -1000.0f,
+          "a partial gliding up reads flat by what it has still to travel");
+    check(std::abs(noGlide) < 1.0f,
+          "one with no glide reads on its note beside it");
+    check(std::abs(arrived) < 1.0f,
+          "and the glide reads nothing once it lands");
+  }
 }
 
 /// Legato with more than one voice: a key landing above everything held but

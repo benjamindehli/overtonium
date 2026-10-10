@@ -617,13 +617,13 @@ S and 5 are the same shape, here and on every seven-bar display ever built. The 
 
 The rules that divide a strip into groups carry a lamp each, showing what the group under them is doing to this partial right now. They cost no height, because the rule was already using that row to draw a line.
 
-| Rule      | Shows                                                                                                                             |
-| --------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| PITCH MOD | a needle on a track, flat to the left and sharp to the right, where modulation and drift have the partial now                     |
-| ENVELOPE  | how far up its envelope the partial is, while the key is down                                                                     |
-| KEY OFF   | the same, once the key is up and the key-off stage has taken over                                                                 |
-| AMP MOD   | how far the tremolo has pulled the level down, so it pulses at the rate and swings further at greater depth                       |
-| OUTPUT    | two lamps, one for each of the rows beneath it: what the blow has left of the partial, and what the pressure on the key is adding |
+| Rule      | Shows                                                                                                                                   |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| PITCH MOD | a needle on a track, flat to the left and sharp to the right, where modulation, drift and a glide still on its way have the partial now |
+| ENVELOPE  | how far up its envelope the partial is, while the key is down                                                                           |
+| KEY OFF   | the same, once the key is up and the key-off stage has taken over                                                                       |
+| AMP MOD   | how far the tremolo has pulled the level down, so it pulses at the rate and swings further at greater depth                             |
+| OUTPUT    | two lamps, one for each of the rows beneath it: what the blow has left of the partial, and what the pressure on the key is adding       |
 
 The two envelope lamps hand over rather than both being lit. The value they are fed is signed: positive while the key is down, negative once the swell and release have it, and a lamp reading zero is dark either way, so the one value that says nothing about the stage is also the one where nothing needs saying.
 
@@ -647,7 +647,7 @@ Both are gated on the envelope like the tremolo. The velocity half is the one th
 
 **The needle's scale.** Fixed, and the same on every strip, so two channels can be compared by eye. Full deflection is 225 cents, a vibrato and a drift at full stretch together.
 
-This is the one place in the instrument where a readout and the control feeding it are allowed to disagree, and it is deliberate. The depth knob reaches 1200 cents so that a square can trill at a real interval, but almost nothing anyone dials lives up there: scaled to the octave, an ordinary vibrato of five cents would sit inside a single pixel of centre and the lamp would show nothing at all. Past 225 the needle pegs, which is what a needle should do off the end of its scale. The scale is named once and a test holds it above the drift range, so it cannot quietly shrink below what the other wanderer alone produces.
+This is the one place in the instrument where a readout and the control feeding it are allowed to disagree, and it is deliberate. The depth knob reaches 1200 cents so that a square can trill at a real interval, but almost nothing anyone dials lives up there: scaled to the octave, an ordinary vibrato of five cents would sit inside a single pixel of centre and the lamp would show nothing at all. Past 225 the needle pegs, which is what a needle should do off the end of its scale, and a wide glide pegs it until the partial is within a couple of semitones of its note. The scale is named once and a test holds it above the drift range, so it cannot quietly shrink below what the other wanderer alone produces.
 
 It is compressed rather than linear, and that is deliberate. The travel is about fifteen pixels either side of centre. Spread linearly over 225 cents an ordinary vibrato of five cents moves the needle by a third of a pixel, so every subtle setting on the instrument would look the same as no setting at all. A square root keeps the ends where they belong and gives the shallow half of the range somewhere to be:
 
