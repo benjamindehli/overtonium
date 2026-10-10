@@ -76,6 +76,34 @@ void drawGearIcon(juce::Graphics &g, juce::Rectangle<float> area,
   g.fillPath(path);
 }
 
+void drawSharedIcon(juce::Graphics &g, juce::Rectangle<float> area,
+                    juce::Colour colour) {
+  // Three short strokes from the left that meet at one point and run on as a
+  // single line: every note feeding one modulator. Fractions of the side it is
+  // given, so it scales with the switch.
+  const auto s = juce::jmin(area.getWidth(), area.getHeight());
+  const auto c = area.getCentre();
+  const auto left = c.x - s * 0.40f;
+  const auto join = c.x + s * 0.05f;
+  const auto right = c.x + s * 0.40f;
+  const auto spread = s * 0.30f;
+
+  juce::Path p;
+
+  for (int i = -1; i <= 1; ++i) {
+    p.startNewSubPath(left, c.y + (float)i * spread);
+    p.lineTo(join, c.y);
+  }
+
+  p.startNewSubPath(join, c.y);
+  p.lineTo(right, c.y);
+
+  g.setColour(colour);
+  g.strokePath(p, juce::PathStrokeType(juce::jmax(1.2f, s * 0.11f),
+                                       juce::PathStrokeType::curved,
+                                       juce::PathStrokeType::rounded));
+}
+
 void drawMacroIcon(juce::Graphics &g, juce::Rectangle<float> area,
                    juce::Colour colour) {
   // Three faders with their caps at different places, which is what the
@@ -178,6 +206,44 @@ void drawToolIcon(juce::Graphics &g, juce::Rectangle<float> area,
 
   g.strokePath(contour, juce::PathStrokeType(1.5f, juce::PathStrokeType::curved,
                                              juce::PathStrokeType::rounded));
+}
+
+void ScreenSwitch::paintButton(juce::Graphics &g, bool highlighted, bool) {
+  // Two pixels in from the bounds, which is where the lip of the recess goes,
+  // so a run of them laid edge to edge leaves a margin of panel between each.
+  const auto area = getLocalBounds().toFloat().reduced(2.0f);
+
+  paintRecess(g, area, 2.5f);
+  paintDisplayGround(g, area, 2.5f, highlighted);
+
+  const bool on = getToggleState();
+  const auto ink = on ? lamp : colours::textDim.withAlpha(0.55f);
+
+  if (onIcon != nullptr) {
+    const auto glyph = area.reduced(2.5f);
+
+    // The same bloom the letters get, as a wider faint pass under the icon.
+    if (on)
+      onIcon(g, glyph.translated(0.0f, 0.5f), lamp.withAlpha(0.35f));
+
+    onIcon(g, glyph, ink);
+    return;
+  }
+
+  g.setFont(makeFont(10.0f, true));
+
+  // A half-pixel echo under the lit letter, the bloom a lit segment has on the
+  // readouts, which is most of what tells a lit letter from a bright one.
+  if (on) {
+    g.setColour(lamp.withAlpha(0.35f));
+    g.drawText(getButtonText(), area.translated(0.0f, 0.5f),
+               juce::Justification::centred, false);
+  }
+
+  // Unlit, faint enough that a lit one beside it is unmistakable, and still
+  // there to be read, since the letter is what says which switch this is.
+  g.setColour(ink);
+  g.drawText(getButtonText(), area, juce::Justification::centred, false);
 }
 
 void GlowButton::paintButton(juce::Graphics &g, bool highlighted, bool down) {
@@ -300,12 +366,12 @@ constexpr int kRowHeights[kNumRows] = {
     26, // Header
     38, // TuneKnob
     16, // TuneText
-    30, // Phase
     15, // PitchModHeading
     22, // PmShape
     30, // PmRate
     30, // PmDepth
     30, // Drift
+    30, // Glide
     15, // EnvHeading
     30, // Strike
     30, // Delay
@@ -389,6 +455,7 @@ Section sectionOf(Row r) {
   case Row::PmShape:
   case Row::PmDepth:
   case Row::Drift:
+  case Row::Glide:
     return Section::PitchMod;
 
   case Row::EnvHeading:
@@ -423,7 +490,6 @@ Section sectionOf(Row r) {
   case Row::Header:
   case Row::TuneKnob:
   case Row::TuneText:
-  case Row::Phase:
   case Row::MuteSolo:
   case Row::Fader:
   case Row::FaderText:
@@ -587,11 +653,11 @@ namespace {
 bool rowHasControl(Row r) {
   switch (r) {
   case Row::TuneKnob:
-  case Row::Phase:
   case Row::PmRate:
   case Row::PmShape:
   case Row::PmDepth:
   case Row::Drift:
+  case Row::Glide:
   case Row::Strike:
   case Row::Delay:
   case Row::Attack:
@@ -740,10 +806,10 @@ const char *rowLabel(Row r) {
     return "rate";
   case Row::PmDepth:
     return "depth";
-  case Row::Phase:
-    return "phase";
   case Row::Drift:
     return "drift";
+  case Row::Glide:
+    return "glide";
   case Row::EnvHeading:
     return "ENVELOPE";
   case Row::Strike:
@@ -1037,8 +1103,8 @@ const char *roleLabel(Role r) {
   switch (r) {
   case Role::Tune:
     return "tuning";
-  case Role::Phase:
-    return "start phase";
+  case Role::Glide:
+    return "glide";
   case Role::PmRate:
     return "pitch modulation rate";
   case Role::PmDepth:
@@ -1102,8 +1168,8 @@ const char *roleSuffix(Role r) {
     return params::pmRateSuffix;
   case Role::PmDepth:
     return params::pmDepthSuffix;
-  case Role::Phase:
-    return params::phaseSuffix;
+  case Role::Glide:
+    return params::glideSuffix;
   case Role::Drift:
     return params::driftSuffix;
   case Role::Strike:
@@ -1161,11 +1227,11 @@ bool roleForRow(Row r, Role &out) {
   case Row::PmDepth:
     out = Role::PmDepth;
     return true;
-  case Row::Phase:
-    out = Role::Phase;
-    return true;
   case Row::Drift:
     out = Role::Drift;
+    return true;
+  case Row::Glide:
+    out = Role::Glide;
     return true;
   case Row::Strike:
     out = Role::Strike;

@@ -1,20 +1,20 @@
 # Overtonium, the whole site
 
-> A free, open source additive synthesiser plugin laid out like a 32-channel mixer. Every channel is one sine oscillator locked to a harmonic of the played note, and every channel has its own tuning, envelope, modulation and place in the stereo field. VST3, Audio Unit, LV2 and standalone, for macOS, Windows and Linux, under the AGPLv3.
+> A free, open source additive synthesizer plugin laid out like a 32-channel mixer. Every channel is one sine oscillator locked to a harmonic of the played note, and every channel has its own tuning, envelope, modulation and place in the stereo field. VST3, Audio Unit, LV2 and standalone, for macOS, Windows and Linux, under the AGPLv3.
 
 Every page of https://benjamindehli.github.io/overtonium/ as Markdown, in the order the site lists them, so the whole of it can be read in one request. The short version, with links into each page, is https://benjamindehli.github.io/overtonium/llms.txt.
 
 ---
 
-Page: Overtonium, a free 32-partial additive synthesiser plugin
+Page: Overtonium, a free 32-partial additive synthesizer plugin
 URL: https://benjamindehli.github.io/overtonium/
-Last changed: 2026-10-07
+Last changed: 2026-10-10
 
-# Overtonium, a 32-partial additive overtone synthesiser
+# Overtonium, a 32-partial additive overtone synthesizer
 
-32-partial overtone synthesiser
+32-partial overtone synthesizer
 
-An additive synthesiser laid out like a 32-channel mixer. Every channel is one sine oscillator locked to a harmonic of the played note, and every channel has its own tuning, envelope, modulation and place in the stereo field.
+An additive synthesizer laid out like a 32-channel mixer. Every channel is one sine oscillator locked to a harmonic of the played note, and every channel has its own tuning, envelope, modulation and place in the stereo field.
 
 - [Download](https://benjamindehli.github.io/overtonium/install/#downloads)
 - [Source on GitHub](https://github.com/benjamindehli/overtonium)
@@ -45,11 +45,11 @@ The whole instrument. Thirty-two channels, a noise channel pinned on the right, 
 
 ## What it sounds like
 
-Eleven of the thirty-three [factory presets](https://benjamindehli.github.io/overtonium/presets/), played on an Expressive E Osmose, with nothing on the output but the plugin's own effects. Everything else on this site you can listen to is the plugin rendering a chord to a file, which is what keeps those clips honest and also what stops them showing what any of this does under hands. This is the one recording of it being played.
+Eleven of the thirty-four [factory presets](https://benjamindehli.github.io/overtonium/presets/), played on an Expressive E Osmose, with nothing on the output but the plugin's own effects. Everything else on this site you can listen to is the plugin rendering a chord to a file, which is what keeps those clips honest and also what stops them showing what any of this does under hands. This is the one recording of it being played.
 
 [Video: Overtonium sound examples](https://www.youtube.com/watch?v=L1oYdPxGlGA)
 
-[The presets page](https://benjamindehli.github.io/overtonium/presets/#video) has a chapter link for each of the eleven, and a clip of every one of the thirty-three presets.
+[The presets page](https://benjamindehli.github.io/overtonium/presets/#video) has a chapter link for each of the eleven, and a clip of every one of the thirty-four presets.
 
 ## The control worth reaching for first
 
@@ -69,7 +69,7 @@ Nothing about the tuning is hard-coded. For harmonic `n` the just interval is `1
 
 - [**Tuning**TUNE, inharmonic stretch, six historical temperaments on any root, and how the spectrum thins as you play up the keyboard.](https://benjamindehli.github.io/overtonium/tuning/)
 - [**Controls**Every knob on a channel strip, then the effects on the bar and how to play it from a keyboard, a host or a controller.](https://benjamindehli.github.io/overtonium/controls/)
-- [**Presets**The thirty-three that ship, what a preset carries, and where your own are kept on each platform.](https://benjamindehli.github.io/overtonium/presets/)
+- [**Presets**The thirty-four that ship, what a preset carries, and where your own are kept on each platform.](https://benjamindehli.github.io/overtonium/presets/)
 - [**Install**Installers for macOS and Windows, a zip for Linux, what to do when a host does not see it, and building from source.](https://benjamindehli.github.io/overtonium/install/)
 
 What changed in each version, newest first, and what to know before upgrading are on [the releases page](https://benjamindehli.github.io/overtonium/releases/).
@@ -100,6 +100,10 @@ Yes. With [MPE](https://benjamindehli.github.io/overtonium/playing/#mpe) switche
 
 Yes. Right-click any control, choose [MIDI Learn](https://benjamindehli.github.io/overtonium/playing/#midi-learn) and move a knob or fader on the controller. The map is saved with your project rather than with the preset. A [macro](https://benjamindehli.github.io/overtonium/playing/#macros) moves a whole row from one parameter, so one controller or one automation lane can reach up to 32 controls at once.
 
+**Does Overtonium have portamento or glide?**
+
+Yes, on every channel separately. Each partial slides to a new note over its own GLIDE time, so the series can arrive a partial at a time. Two switches cover every channel: whether it glides always or only legato, and whether it moves at a fixed rate or takes a fixed time. [Glide](https://benjamindehli.github.io/overtonium/playing/#glide) on the Playing page has the rest.
+
 **How much CPU does Overtonium use?**
 
 Eight voices of 32 partials each, with every modulator running, costs about 7% of one core, and sixteen voices about 14%. Turning the render rate down is a real saving: at 8 kHz the whole voice pool costs a fifth as much. [The figures in full](https://benjamindehli.github.io/overtonium/install/#cost) are on the install page.
@@ -126,7 +130,7 @@ All three earlier instruments are sample libraries with a plugin wrapper, sold a
 
 Page: The Overtonium tuning system: TUNE, stretch and six temperaments
 URL: https://benjamindehli.github.io/overtonium/tuning/
-Last changed: 2026-09-11
+Last changed: 2026-10-09
 
 # The tuning system
 
@@ -178,6 +182,8 @@ Sitting on the line has a consequence worth knowing at the panel: on channels 1,
 | 16 | 48 | 0 | prime/octave | 32 | 60 | 0 | prime/octave |
 
 The two big offsets are the ones worth knowing by ear. The seventh partial lands 31 cents flat of a minor seventh and the eleventh 49 cents flat of a tritone, which is to say halfway between two keys. Those are the partials that make a just-tuned stack sound unlike anything a keyboard can play.
+
+The eleventh has a name in Norway. Its pitch between the fourth and the tritone is the natural fourth of Norwegian folk music, which the willow flute plays because the harmonic series is all it can play. The composer Eivind Groven spent much of his life on it. From 1936 he built organs with up to three pitches behind every key, chosen automatically as the music moved, so an ordinary keyboard could play pure triads in every key and the eleventh partial came out exactly in tune. Here it is the eleventh row with TUNE at just, 551 cents above the octave below it.
 
 ## Stretch
 
@@ -258,7 +264,7 @@ One held chord, twice. With drift off a partial sits exactly where it was put. W
 
 Page: Overtonium controls: every knob on a channel strip
 URL: https://benjamindehli.github.io/overtonium/controls/
-Last changed: 2026-10-07
+Last changed: 2026-10-10
 
 # Controls
 
@@ -275,10 +281,10 @@ Six channels and the caption gutter. Captions are named once on the left rather 
 | Control | Range | What it does |
 |---|---|---|
 | TUNE | equal to just | Where this partial sits between the tempered position and the exact ratio. The readout shows the resulting cent offset. On the six octave channels both tunings agree, so there is nothing for it to move and the strip says so |
-| PHASE | 0 to 1 turn | Where in its cycle the partial starts, when phase reset is on. With it off there is no reset for it to aim and the knob does nothing |
 | PITCH MOD shape, rate, depth | Eight shapes, 0.01 to 30 Hz, 0 to 1200 cents | Per-partial vibrato |
 | DRIFT | 0 to 25 cents | Smooth random pitch wander, its own stream per partial |
-| ENVELOPE strike, delay, A, D, S | -100 to +100%, 0 to 5 s, 0.2 ms to 5 s, 1 ms to 20 s, 0 to 100% | Exponential decay. STRIKE starts the partial sooner and faster the harder the key is struck |
+| GLIDE | Off to 5 s | How long this partial takes to reach a new note, so the series can arrive a partial at a time. Whether it glides always or only legato, and at a fixed rate or in a fixed time, is on the L and T switches beside the caption and in the knob's right-click menu: see [Glide](https://benjamindehli.github.io/overtonium/playing/#glide) |
+| ENVELOPE strike, delay, A, D, S | -100 to +100%, 0 to 5 s, 90° then 0.2 ms to 5 s, 1 ms to 20 s, 0 to 100% | Exponential decay. STRIKE starts the partial sooner and faster the harder the key is struck |
 | KEY OFF swell, level, release | 0 to 5 s, 0 to 100%, 1 ms to 20 s | A second envelope for letting go |
 | AMP MOD shape, rate, depth | Seven shapes, 0.01 to 30 Hz, 0 to 100% | Per-partial tremolo |
 | VELOCITY | -100 to +100% | How much key velocity scales this partial. Negative inverts it |
@@ -306,11 +312,11 @@ The square and stepped shapes do not click. The gain a partial is given already 
 
 LINK does not reach these. It drags a value across the series along a weighted curve and there is no weighting a list of named shapes, so the shape menu offers to set every channel at once instead.
 
-**In phase across the keyboard** is the other entry in that menu, one for each of the two modulators. A modulator belongs to a note by default, so striking a chord a note at a time gives you three tremolos that each started where their own key did and breathe out of step. Ticked, the modulator belongs to the channel instead and a note arriving late joins whatever is already running, so a chord breathes as one thing however it was played. That is what an instrument with one tremolo circuit in it does, which is why [Wurli](https://benjamindehli.github.io/overtonium/presets/) ships with its tremolo shared and StyloPoly with its vibrato.
+**Shared by all notes** is the other entry in that menu, one for each of the two modulators, and it is also the switch beside each SHAPE caption on the left of the mixer, the one marked with three strokes merging into one. A modulator belongs to a note by default, so striking a chord a note at a time gives you three tremolos that each started where their own key did and breathe out of step. Ticked, the modulator belongs to the channel instead and a note arriving late joins whatever is already running, so a chord breathes as one thing however it was played. That is what an instrument with one tremolo circuit in it does, which is why [Wurli](https://benjamindehli.github.io/overtonium/presets/) ships with its tremolo shared and StyloPoly with its vibrato.
 
 Each channel keeps its own rate and shape either way. What is shared is one circuit per channel rather than one for the instrument, so a patch built on thirty-two rates that never line up still sounds like itself with the switch on. It is part of the patch, so a preset carries it, and both switches are off in anything that does not ask.
 
-The group's heading in the gutter lights when its modulator is shared, so the state is on the panel rather than only in the menu: **PITCH MOD** or **AMP MOD** comes up in the same accent everything else switched on here does. One mark per modulator, since all thirty-three channels answer to the one switch.
+The switch lights when its modulator is shared, so a preset that arrives with a shared tremolo says so on the panel rather than only in the menu. One switch per modulator, since all thirty-three channels answer to it.
 
 ## Velocity and pressure, per partial
 
@@ -334,9 +340,13 @@ Most keyboards cannot sense a release at all, and on those nothing changes. They
 
 The delay stage holds a partial silent before its attack begins. Staggering it across the series makes the spectrum unfold rather than arrive all at once, which is how *Slow Pad* and *Shimmer* open up. It is latched in samples at note-on, so moving the knob cannot retime a note already waiting.
 
+**ATTACK reaches below its shortest time.** Turned past 0.2 ms it stops being a time and becomes where in its cycle the partial starts, from 0°, a rising zero crossing, down to 90° at the bottom of the knob, which starts the partial on its own peak with no attack at all. A zero crossing is the softest onset there is: a partial cannot reach its peak until a quarter of its period has gone by, and below about 500 Hz that is longer than the shortest attack, so on most of the keyboard the edge of a note is set by where its cycle starts rather than by the envelope. A millisecond into an A1, a partial starting from the crossing is a third of the way up, from 45° nine tenths, and from the peak all of it. On the ring that stretch is drawn as dots rather than ticks, so a knob in degrees and a knob in milliseconds can be told apart at a glance.
+
+It is per channel like every row, so the edge can go on some partials and not others, and LINK spreads it across the series in one drag. Every partial on its peak at once is a spike: for 32 partials on a falling series the first sample is about four times the steady peak, and the output stage meets it. Staggering the start across the channels keeps the edge and loses the spike. With phase reset off in Settings a partial carries on from wherever its cycle was, and this stretch of the knob is the shortest attack.
+
 **STRIKE** sits at the head of the section because it is about the blow rather than about the shape, and it aims that blow at the two rows under it, the way the velocity row aims it at the fader. Zero ignores the gesture. Positive means a hard note starts sooner and arrives faster, and a soft one waits and then opens slowly. Negative inverts it.
 
-The two halves lean opposite ways on purpose, and each knob stays the limit of its own row. Velocity only ever lengthens the attack, so ATTACK goes on meaning the fastest the partial gets, and it only ever pulls the delay in, so DELAY goes on meaning the latest it arrives. Both span eight octaves at full amount, a range of 256 to 1: a partial set to 2 ms attacks in 2 ms under a hard blow and takes half a second under the softest, and a 400 ms delay stays 400 ms under the softest and comes in to under two milliseconds under the hardest. The stretched attack stops at five seconds, which is as long as the ATTACK row itself goes.
+The two halves lean opposite ways on purpose, and each knob stays the limit of its own row. Velocity only ever lengthens the attack, so ATTACK goes on meaning the fastest the partial gets, and it only ever pulls the delay in, so DELAY goes on meaning the latest it arrives. Both span eight octaves at full amount, a range of 256 to 1: a partial set to 2 ms attacks in 2 ms under a hard blow and takes half a second under the softest, and a 400 ms delay stays 400 ms under the softest and comes in to under two milliseconds under the hardest. The stretched attack stops at five seconds, which is as long as the ATTACK row itself goes. It moves the whole of the row, the stretch below the shortest time included: a partial set to start on its peak starts there under a hard blow, nearer the zero crossing under a lighter one, and past it into a short attack under the softest. A quarter turn is worth two octaves of attack, so at full amount the softest note takes that peak to about 13 ms.
 
 Setting it per partial is what separates it from a velocity curve over the whole instrument: give the upper partials a strike amount and leave the fundamental at zero, and a hard chord lands as one bright block while a soft one unfolds, the fundamental first and the series arriving behind it.
 
@@ -399,13 +409,13 @@ The rules dividing a strip into groups carry a lamp each, showing what the group
 
 | Rule | Shows |
 |---|---|
-| PITCH MOD | a needle on a track, flat to the left and sharp to the right, where modulation and drift have the partial now |
+| PITCH MOD | a needle on a track, flat to the left and sharp to the right, where modulation, drift and a glide still on its way have the partial now |
 | ENVELOPE | how far up its envelope the partial is, while the key is down |
 | KEY OFF | the same, once the key is up and the key-off stage has taken over |
 | AMP MOD | how far the tremolo has pulled the level down, so it pulses at the rate and swings further at greater depth |
 | OUTPUT | two lamps side by side, one for each row beneath it: the left is what the blow has left of the partial, the right is what the pressure on the key is adding |
 
-They read from the voice pool rather than from the knobs, so they describe a note rather than a setting and nothing pulses over silence, and they follow the loudest voice on that partial, which is the one the meter follows. The output rule carries two of them, one for each row beneath it, and each is the shape of the knob above it. VELOCITY can only take level away, so its lamp shows what the row has left: full when the blow has cost the partial nothing, dark when the row has taken all of it, and full at every velocity when the knob sits at the centre. AFTERTOUCH adds instead, so its lamp rests dark and comes up as you lean on the key, and it does not matter which way that row is set to push. The needle's scale is fixed and the same on every strip, so two channels can be compared by eye. Full deflection is 225 cents, which is a vibrato and a drift at full stretch rather than the widest the depth knob now reaches. A square set to jump an octave pegs it, which is the honest thing for a needle to do when it is off the end of its scale: scaled to the octave instead, an ordinary vibrato would not move it at all.
+They read from the voice pool rather than from the knobs, so they describe a note rather than a setting and nothing pulses over silence, and they follow the loudest voice on that partial, which is the one the meter follows. The output rule carries two of them, one for each row beneath it, and each is the shape of the knob above it. VELOCITY can only take level away, so its lamp shows what the row has left: full when the blow has cost the partial nothing, dark when the row has taken all of it, and full at every velocity when the knob sits at the centre. AFTERTOUCH adds instead, so its lamp rests dark and comes up as you lean on the key, and it does not matter which way that row is set to push. The needle's scale is fixed and the same on every strip, so two channels can be compared by eye. Full deflection is 225 cents, which is a vibrato and a drift at full stretch rather than the widest the depth knob now reaches. A square set to jump an octave pegs it, and so does a wide glide until it is within a couple of semitones of its note, which is the honest thing for a needle to do when it is off the end of its scale: scaled to the octave instead, an ordinary vibrato would not move it at all.
 
 ### Meters
 
@@ -429,7 +439,7 @@ COLOUR takes the tuning row instead, tilting the noise from dark rumble at one e
 
 Page: Overtonium effects: character, echo, reverb, converter and CLIP
 URL: https://benjamindehli.github.io/overtonium/effects/
-Last changed: 2026-10-07
+Last changed: 2026-10-10
 
 # Effects
 
@@ -455,7 +465,7 @@ Each character is also a rack of thirty-two rather than one oscillator used thir
 
 The button lights in the character's own colour, borrowed from the same band the channel strips take theirs from: yellow for Bulb, running down through the warm end to the red of channel 3 for Op-amp. Pure does not light, which is the honest thing for the one that adds nothing.
 
-It is part of the patch rather than part of the setup, so a preset can change it and saving one carries it. Twenty-six of the thirty-three [factory presets](https://benjamindehli.github.io/overtonium/presets/) ask for one, so most of what you load is already on a circuit rather than on the plain sine.
+It is part of the patch rather than part of the setup, so a preset can change it and saving one carries it. Twenty-seven of the thirty-four [factory presets](https://benjamindehli.github.io/overtonium/presets/) ask for one, so most of what you load is already on a circuit rather than on the plain sine.
 
 ## Wobble
 
@@ -487,9 +497,9 @@ Five machines behind one button, across the finished output and after the master
 
 Off lets the output go past full scale and reach the host as it is, which is what you want when something downstream is doing the catching. None of the five will: being bounded by full scale is the point of the stage rather than a property of the shapes chosen, and each is held to it however hard it is driven. The button abbreviates Asymmetric to ASYM and Limiter to LIMIT, for room, while the menu and your host's automation lane spell them out. It stands under the meter with the converter readouts because those three are the whole of what happens to the signal on its way out, and the switch is also in the Settings menu.
 
-The Limiter looks two milliseconds ahead, so the gain is already in place when the peak arrives rather than chasing it afterwards, which is the difference between a limiter and a clipper wearing the name. That costs latency, and because a plugin whose latency moved when you chose a preset would have the host re-plan its graph every time, it is paid by all five shapes and by the stage switched off alike. Overtonium reports 108 samples at 48 kHz, a little over two milliseconds, which your host compensates for on playback.
+With **Limiter lookahead** switched on in the Settings menu, the Limiter looks two milliseconds ahead, so the gain is already in place when the peak arrives rather than chasing it afterwards, which is the difference between a limiter and a clipper wearing the name. That costs latency, and because a plugin whose latency moved when you chose a preset would have the host re-plan its graph every time, it is paid by all five shapes and by the stage switched off alike: Overtonium reports 108 samples at 48 kHz, a little over two milliseconds, which your host compensates for on playback.
 
-**Limiter lookahead** in the Settings menu gives those two milliseconds back. Only the Limiter uses the window, so if you never reach for it you are paying for nothing, and this is the way to stop. Turning it off does not break the limiter: the detector sees a single sample instead of a window, so the gain is exact and immediate and the ceiling still holds, but the smoothing goes with it and a gain that steps is itself a distortion, about fifteen times as much of it. It is in Settings rather than on the bar because nothing a preset can reach is allowed to change what the plugin tells your host. Most hosts take the new figure while running, some only on playback stop or on reload, so it is worth choosing before a take rather than during one.
+**It is off by default**, and the plugin then reports only the bus stage's 12 samples. Only the Limiter uses the window and no factory preset reaches for it, so with it on everyone else would be paying two milliseconds for nothing. Off does not break the limiter: the detector sees a single sample instead of a window, so the gain is exact and immediate and the ceiling still holds, but the smoothing goes with it and a gain that steps is itself a distortion, about fifteen times as much of it. It is in Settings rather than on the bar because nothing a preset can reach is allowed to change what the plugin tells your host. Anyone who leans on the Limiter and wants it smooth can switch it on. Most hosts take the new figure while running, some only on playback stop or on reload, so it is worth choosing before a take rather than during one.
 
 ## The output meter
 
@@ -499,7 +509,7 @@ Horizontal, split into left and right, because the two channels are identical un
 
 Page: Playing Overtonium: MPE, automation, macros and MIDI Learn
 URL: https://benjamindehli.github.io/overtonium/playing/
-Last changed: 2026-10-07
+Last changed: 2026-10-10
 
 # Playing
 
@@ -519,9 +529,46 @@ It is a setting rather than something permanently on because it changes what a c
 
 ## Legato
 
-The first entry in the polyphony list, above **1 voice**, and the one setting where the instrument is not polyphonic at all. One voice, and pressing a key while another is still held moves the note rather than starting it again: the envelopes carry on, so a run keeps the shape the first key gave it rather than restarting the attack under your fingers.
+A switch in Settings, beside the voice count, and what it does depends on that count. **With one voice** the instrument is not polyphonic at all: pressing a key while another is still held moves the note rather than starting it again, so the envelopes carry on and a run keeps the shape the first key gave it rather than restarting the attack under your fingers. Letting a key go while others are still down falls back to the most recent of them, which is what makes a trill work, and only the last key coming up releases the note.
 
-Letting a key go while others are still down falls back to the most recent of them, which is what makes a trill work. Only the last key coming up releases the note.
+**With more than one voice it plays a top line.** A key that lands above everything you are holding, except the highest note, carries that note's phrase on: it starts a voice of its own that takes over the highest note's envelopes where they stand and glides from its pitch, so it does not start again. Every other key plays as it always does. A legato melody over a staccato chord does what it sounds like: the chord retriggers each time its keys come up and go down again, and the melody slides from note to note over it, up or down, as long as it stays above the chord.
+
+A melody held from note to note over chords struck under it, two notes to a bar, one landing with the chord and one in between, on Synth Ensemble played softly, where each newly struck note takes about half a second to swell in. With Legato off every note of the melody swells in again. With it on and eight voices the melody carries on from note to note, with the chord or without it, while the chords still swell in underneath.
+
+**Legato off**
+
+**Legato on**
+
+The note a melody carries on from is never taken away, so a key that turns out to be part of the chord always sounds. It goes on sounding while its key is down and fades quickly when the key comes up, rather than ringing out its release under the melody, and so does the upper note of a trill lifted back onto the key below.
+
+A key going down under the highest note could be the melody stepping down or a chord struck under a held melody, and only what the old melody key does afterwards would tell them apart, so the instrument goes by what is likely. Above the highest note, a key always carries on. Under it, with a chord held and no other key just struck, it carries on if it is above that chord, however far down it goes. Alone under a lone melody, or among keys struck together, it carries on only if it is within a major third and the highest of the keys struck with it, since a melody moves by seconds and thirds and the top of a chord usually sits further down. A wrong guess costs no more than an attack. No key ever waits.
+
+When the voices run out, the melody is the last thing taken. The sustain pedal holds the sound, not the line, so a note only the pedal is keeping does not carry anything on. With MPE on it works the same, and a note carried onto a key of its own channel brings that key's bend, pressure and slide with it.
+
+Legato moves the note in a single step. With a [glide](https://benjamindehli.github.io/overtonium/playing/#glide) time on the channels, it slides there instead.
+
+## Glide
+
+**Every channel has its own glide**, the last knob under PITCH MOD. It is how long that partial takes to travel from the note before to the new one, from Off, where every channel starts, to five seconds. Because each partial travels on its own time, the series does not have to arrive together. Short times on the top and a long one on the fundamental land the brightness first and let the pitch follow. The other way round, the note arrives and its colour catches up. Somewhere between, the partials stop agreeing on a fundamental while they move and settle into one as they land, which no single portamento can do.
+
+The same phrase twice on the [Glide](https://benjamindehli.github.io/overtonium/presets/) preset, up a fifth, up a fourth and down the octave. With every glide at zero each note simply arrives. As the preset has them, from nothing on the fundamental to two and a half seconds on the thirty-second, the pitch lands at once and the upper partials are heard still on their way.
+
+**Glide off**
+
+**Glide on**
+
+A partial glides in a straight line in pitch, and everything that follows the pitch follows the glide: the oscillator character is chosen at the frequency the partial has reached, and the Bulb character's lamp sags behind a long slide as a real one would. Vibrato, drift and both kinds of bend ride on top of it. The needle on each partial's PITCH MOD rule follows the glide, swinging back to centre as the partial arrives, so a series given different glide times can be watched landing a partial at a time.
+
+**Two switches govern every channel at once**, on the two lit letters beside the GLIDE caption on the left of the mixer, **L** and **T**, and again at the end of the menu a right-click on any GLIDE knob opens, under *Glide (every channel)*. A letter is lit when its switch is on. They belong to the patch, so a preset saves them and a legato lead can say so, and the letters show it the moment one loads.
+
+| Switch | Choices | What it decides |
+|---|---|---|
+| When, L | Always, the default, or Legato (L lit) | Always glides from the last note played, even when its key came up long ago. Legato glides only when the new key goes down over another one still under a finger, so a phrase played detached lands on each note and the same phrase played joined slides through them. The sustain pedal holds the sound and not the hand, so a note it is holding does not count as held |
+| What the time means, T | Fixed rate, the default, or Fixed time (T lit) | Fixed rate makes the time the length of an octave's slide, so a fifth takes a little over half of it and two octaves take twice it, the way a finger sliding along a string at a steady pace does. Fixed time makes every slide take the time however far it goes, so a leap and a step land on the same beat |
+
+Played polyphonically, each new note glides from the one played last. In [Legato](https://benjamindehli.github.io/overtonium/playing/#legato) the voice carrying the phrase glides from wherever it is, the one voice with one voice set and the top line with more, so a key pressed halfway through a slide turns the slide round from where it had got to rather than jumping to either end. A trill falling back to a key still held glides back to it too.
+
+GLIDE is a row like any other, so [LINK](https://benjamindehli.github.io/overtonium/controls/#link) sets it across the series in one drag and a [macro](https://benjamindehli.github.io/overtonium/playing/#macros) can sweep every channel's glide time from one control.
 
 ## The Settings menu
 
@@ -532,16 +579,17 @@ Everything set once and then left. The menu is where the instrument is set up an
 | Which version this is |  | A heading at the top of the menu rather than an entry, since it is a fact about the build and not a choice. It is the number a bug report asks for |
 | Check for new versions | off by default | The one entry that reaches outside the machine. [What it sends](https://benjamindehli.github.io/overtonium/install/) is nothing but a request for a file |
 | Undo, Redo |  | The same steps Cmd-Z reaches, for the hosts that keep that shortcut for themselves |
-| Polyphony | Legato, then 1, 2, 4, 6, 8, 12 or 16 voices. 8 by default | How many notes can sound at once. Legato heads the list because it is one voice too, differing only in what a second key does |
+| Polyphony | 1, 2, 4, 6, 8, 12 or 16 voices. 8 by default | How many notes can sound at once |
 | One voice per key | on by default | Striking a key again takes over the note it is already sounding rather than laying a second copy beside it, which is what a string or a bar does. Off, every strike gets a voice of its own and the tails sum, so a repeatedly struck bell builds up |
+| Legato | off by default | With one voice, a key pressed while another is held moves the note without starting it again. With more, the highest held note does that for a key above the rest, and everything under it plays as usual: see [Legato](https://benjamindehli.github.io/overtonium/playing/#legato) |
 | Pitch bend range | 0, 1, 2, 3, 4, 5, 7, 12 or 24 semitones. 2 by default | How far the wheel bends. The counts anyone actually uses rather than all twenty-five |
 | MPE | off by default | Whether a note's channel is part of who that note is, which is what lets pitch bend and pressure arrive per note |
 | Aftertouch from | Channel pressure, Mod wheel, Either. Either by default | What feeds the AT row on every strip. Polyphonic aftertouch is not on the list because it stays routed whatever this says |
 | Slide to | Off, Brightness, Tuning. Brightness by default | Where the forward and back axis under an MPE finger goes |
 | Temperament, Root, Reference pitch | Six temperaments, twelve roots, 415 to 466 Hz | What the keyboard underneath is tuned to, which [the tuning system](https://benjamindehli.github.io/overtonium/tuning/) works through. Root is greyed out for equal temperament, which has no centre to have |
-| Phase reset | on by default | Restarts each partial's phase at note-on, which gives a coherent, percussive attack and is what makes the PHASE knob mean anything |
+| Phase reset | on by default | Starts each partial where its ATTACK says when a note begins from silence: a rising zero crossing, or nearer its peak when the attack is turned below its shortest time. Off, a partial carries on from wherever its cycle was |
 | Safety clip | on by default | Whether the output stage at the end of the chain is running, worth leaving on when you push 32 faders up. Which of its five shapes is running is chosen on the bar, under the meter |
-| Limiter lookahead | on by default | Whether the Limiter may see what is coming. Off gives back the two milliseconds of latency it costs, which only that one shape uses, at the price of a rougher limiter. The only setting here that changes what the plugin reports to your host |
+| Limiter lookahead | off by default | Whether the Limiter may see what is coming. On makes it smooth at the cost of two milliseconds of latency on every shape, since only that one uses the window and the figure must not move with the patch. The only setting here that changes what the plugin reports to your host |
 | Zoom | 75, 100, 125 or 150% | How big the window is on your screen. Down here with the entry under it, since everything above the two is the instrument and these are not |
 | Fit all 32 channels |  | Puts the window back to the width that shows the whole mixer, and to whatever height the rows you have left unfolded need. A window remembers what it was dragged to, so a narrow one opens narrow every session after that, and this is the way back |
 
@@ -551,7 +599,7 @@ The safety clip is the exception in this table, and the master fader is the exce
 
 ## Automating it from the host
 
-Eight hundred and thirty-six parameters reach the host: thirty-four global ones, twenty-three on each of the 32 partials, eighteen on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals first and then channel by channel with the noise channel last.
+Eight hundred and thirty-nine parameters reach the host: thirty-seven global ones, twenty-three on each of the 32 partials, eighteen on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals first and then channel by channel with the noise channel last.
 
 Every per-channel name carries its channel, so a parameter list answers both ways of looking for something. Type `H7` and you have that partial, type `Tune` and you have that row across the whole mixer. The same names are what a screen reader reads, which is why they are words rather than numbers.
 
@@ -563,7 +611,7 @@ Every per-channel name carries its channel, so a parameter list answers both way
 | The noise channel's brightness | `Noise Colour` |
 | How long the echo's repeats are | `Echo Time` |
 
-The noise channel has eighteen rather than twenty-three because it has no tuning, pitch modulation, drift or start phase, and gains COLOUR in their place.
+The noise channel has eighteen rather than twenty-three because it has no tuning, pitch modulation, drift or glide, and gains COLOUR in their place.
 
 Everything in Settings is in the list too, even though no preset will ever move it. The temperament, the polyphony and the bend range are all automatable, so a piece that changes temperament partway through is something a host can do, whatever the panel thinks a setting is for.
 
@@ -573,9 +621,9 @@ LINK is not a parameter, since it is a tool for the mouse rather than part of th
 
 ### Every parameter
 
-All 836 as the host lists them, with a control that every partial or every macro carries given one row for all of them. The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is [parameters.json](https://benjamindehli.github.io/overtonium/parameters.json), written by the plugin rather than by hand.
+All 839 as the host lists them, with a control that every partial or every macro carries given one row for all of them. The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is [parameters.json](https://benjamindehli.github.io/overtonium/parameters.json), written by the plugin rather than by hand.
 
-**Global**, thirty-four of them.
+**Global**, thirty-seven of them.
 
 | What the host calls it | Id | Range | Default |
 |---|---|---|---|
@@ -585,7 +633,7 @@ All 836 as the host lists them, with a control that every partial or every macro
 | `Pitch Bend Range` | `bendRange` | 0 to 24 | 2 |
 | `Phase Reset` | `phaseReset` | Off or on | On |
 | `Safety Clip` | `safetyClip` | Off or on | On |
-| `Lookahead` | `lookahead` | Off or on | On |
+| `Lookahead` | `lookahead` | Off or on | Off |
 | `MPE` | `mpe` | Off or on | Off |
 | `Stretch` | `stretch` | -1200 ct to +1200 ct | Harmonic |
 | `Tracking` | `track` | Off to 12.0 dB/oct | Off |
@@ -613,6 +661,9 @@ All 836 as the host lists them, with a control that every partial or every macro
 | `Echo Type` | `echoType` | Tape, Bucket brigade, Digital | Tape |
 | `Clip Type` | `clipType` | Soft, Hard, Asymmetric, Limiter, Fold | Soft |
 | `Reverb Type` | `reverbType` | Room, Modulated Plate, Spring | Room |
+| `Glide Trigger` | `glideTrigger` | Always, Legato | Always |
+| `Glide Mode` | `glideMode` | Fixed rate, Fixed time | Fixed rate |
+| `Legato` | `legato` | Off or on | Off |
 
 **On every partial**, twenty-three controls, each one on all 32 partials.
 
@@ -622,11 +673,11 @@ All 836 as the host lists them, with a control that every partial or every macro
 | `H1 Pitch Mod Rate to H32 Pitch Mod Rate` | `h01_pmRate to h32_pmRate` | 0.01 Hz to 30.0 Hz | 4.00 Hz |
 | `H1 Pitch Mod Depth to H32 Pitch Mod Depth` | `h01_pmDepth to h32_pmDepth` | 0 ct to 1200 ct | 0 ct |
 | `H1 Pitch Mod Shape to H32 Pitch Mod Shape` | `h01_pmShape to h32_pmShape` | Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Square (up), Sample & Hold, Random | Sine |
-| `H1 Start Phase to H32 Start Phase` | `h01_phase to h32_phase` | 0° to 360° | 0° |
+| `H1 Glide to H32 Glide` | `h01_glide to h32_glide` | Off to 5.00 s | Off |
 | `H1 Drift to H32 Drift` | `h01_drift to h32_drift` | 0 ct to 25 ct | 0 ct |
 | `H1 Strike Velocity to H32 Strike Velocity` | `h01_strike to h32_strike` | -100 % to +100 % | 0 % |
 | `H1 Delay to H32 Delay` | `h01_delay to h32_delay` | 0.0 ms to 5.00 s | 0.0 ms |
-| `H1 Attack to H32 Attack` | `h01_attack to h32_attack` | 0.2 ms to 5.00 s | 5.0 ms |
+| `H1 Attack to H32 Attack` | `h01_attack to h32_attack` | 90° to 5.00 s | 5.0 ms |
 | `H1 Decay to H32 Decay` | `h01_decay to h32_decay` | 1.0 ms to 20.00 s | 600 ms |
 | `H1 Sustain to H32 Sustain` | `h01_sustain to h32_sustain` | 0 % to 100 % | 100 % |
 | `H1 Key-off Swell to H32 Key-off Swell` | `h01_swell to h32_swell` | 0.0 ms to 5.00 s | 5.0 ms |
@@ -670,7 +721,7 @@ All 836 as the host lists them, with a control that every partial or every macro
 | What the host calls it | Id | Range | Default |
 |---|---|---|---|
 | `Macro 1 to Macro 8` | `macro1_amount to macro8_amount` | -100.0 % to +100.0 % | 0.0 % |
-| `Macro 1 Row to Macro 8 Row` | `macro1_row to macro8_row` | None, Tune, Phase, Pitch mod rate, Pitch mod depth, Drift, Strike, Delay, Attack, Decay, Sustain, Key-off swell, Key-off level, Release, Amp mod rate, Amp mod depth, Velocity, Aftertouch, Pan, Level | None |
+| `Macro 1 Row to Macro 8 Row` | `macro1_row to macro8_row` | None, Tune, Glide, Pitch mod rate, Pitch mod depth, Drift, Strike, Delay, Attack, Decay, Sustain, Key-off swell, Key-off level, Release, Amp mod rate, Amp mod depth, Velocity, Aftertouch, Pan, Level | None |
 | `Macro 1 Scope to Macro 8 Scope` | `macro1_scope to macro8_scope` | All, Odd, Even, Prime/octave, Minor second, Major second, Minor third, Major third, Fourth, Tritone, Fifth, Minor sixth, Major sixth, Minor seventh, Major seventh | All |
 | `Macro 1 Curve to Macro 8 Curve` | `macro1_curve to macro8_curve` | Uniform, Taper | Uniform |
 | `Macro 1 Anchor to Macro 8 Anchor` | `macro1_anchor to macro8_anchor` | 1 to 32 | 1 |
@@ -712,13 +763,13 @@ Two things to expect. A control jumps to wherever the controller is standing rat
 
 ---
 
-Page: Overtonium presets: the thirty-three that ship, and saving your own
+Page: Overtonium presets: the thirty-four that ship, and saving your own
 URL: https://benjamindehli.github.io/overtonium/presets/
-Last changed: 2026-10-07
+Last changed: 2026-10-10
 
 # Presets
 
-Thirty-three presets ship with the plugin. All but a handful were dialled in on the panel and converted straight from the saved file, so what ships is what was played rather than something written afterwards to approximate it.
+Thirty-four presets ship with the plugin. All but a handful were dialled in on the panel and converted straight from the saved file, so what ships is what was played rather than something written afterwards to approximate it.
 
 ## Hear them played
 
@@ -744,7 +795,7 @@ Straight to one of them:
 
 ## What ships
 
-Thirty-three presets, and none of them are variations on one another. **Just Saw** and **Equal Saw** are the pair worth playing against each other first: identical patches except for [TUNE](https://benjamindehli.github.io/overtonium/tuning/), and they sound nothing alike.
+Thirty-four presets, and none of them are variations on one another. **Just Saw** and **Equal Saw** are the pair worth playing against each other first: identical patches except for [TUNE](https://benjamindehli.github.io/overtonium/tuning/), and they sound nothing alike.
 
 Each one plays the same thing, a spread C major arriving a note at a time and let go together, so they can be listened down rather than each showing itself off in its own way. The clips are rendered by the plugin rather than recorded, so they cannot drift from what it does, and the levels are where the presets put them rather than matched to each other. Nothing downloads until you press play.
 
@@ -796,11 +847,15 @@ Just Saw with every partial pulled back to equal temperament
 
 **FM Piano**
 
-The electric piano an FM synthesiser makes rather than the one it is imitating, in the manner of a DX7
+The electric piano an FM synthesizer makes rather than the one it is imitating, in the manner of a DX7
 
 **Glass Armonica**
 
 Wet fingers on glass. Each partial arrives later and vibrates faster than the one below it
+
+**Glide**
+
+A pad that arrives from the bottom up. The fundamental lands at once and every partial above it glides in a little later, round and slow played softly, bright and punchy played hard
 
 **Glockenspiel**
 
@@ -816,7 +871,7 @@ The same sound as Equal Saw with every partial at its exact whole-number ratio
 
 **Lo-fi**
 
-8 kHz and 8 bits, soft, with very short partials arriving at different times. The territory of a Roland D-50, a Korg Wavestation or a granular synthesiser
+8 kHz and 8 bits, soft, with very short partials arriving at different times. The territory of a Roland D-50, a Korg Wavestation or a granular synthesizer
 
 **Metallic Piano**
 
@@ -922,7 +977,7 @@ They are small XML files holding parameter values, so they can be read, edited, 
 
 Page: Installing Overtonium on macOS, Windows and Linux
 URL: https://benjamindehli.github.io/overtonium/install/
-Last changed: 2026-10-07
+Last changed: 2026-10-08
 
 # Installing
 
@@ -970,7 +1025,7 @@ No installer, since there is no install location a distribution would agree on. 
 | A host lists it but will not load it | Check you have the right format. Logic uses the Audio Unit, most others use the VST3, and installing only one of the two is easy to do by accident in the chooser |
 | Nothing appears after installing on macOS | Confirm where the files went with `pkgutil --files com.dehlimusikk.overtonium.vst3`. The plugins belong in `/Library/Audio/Plug-Ins` and the app in `/Applications` |
 | The plugin loads but is silent | Check the master fader and whether a channel is [soloed](https://benjamindehli.github.io/overtonium/controls/). Solo is per channel and mute wins over solo, so a strip can be muted inside a solo |
-| Held notes sound but nothing new does | Overtonium is a synthesiser and needs MIDI. Check the track's input rather than the plugin |
+| Held notes sound but nothing new does | Overtonium is a synthesizer and needs MIDI. Check the track's input rather than the plugin |
 
 Anything else is worth reporting on the [issue tracker](https://github.com/benjamindehli/overtonium/issues), particularly on Windows and Linux, for the reason below.
 
@@ -1021,11 +1076,25 @@ Overtonium is free software under the AGPLv3, which follows from JUCE. The whole
 
 Page: Overtonium releases: what changed in each version
 URL: https://benjamindehli.github.io/overtonium/releases/
-Last changed: 2026-10-07
+Last changed: 2026-10-10
 
 # Releases
 
 What changed in each version, newest first. Each one links to its full notes, which say more and carry the installing and upgrading detail as well.
+
+## 1.12.0, 10 October 2026
+
+**Glide on every channel.** Every channel has its own glide time, the last row under PITCH MOD, from Off to five seconds. Because each partial travels on its own time, the series does not have to arrive together: short times on the top land the brightness first and let the pitch follow, and the other way round the note arrives and its colour catches up. The needle on each partial's PITCH MOD rule follows the glide back to centre. Two switches govern every channel at once, as lit letters beside the GLIDE caption: **L** glides always or only legato, and **T** makes the time a fixed rate per octave or a fixed time however far a note goes.
+
+**ATTACK reaches into where a partial starts.** The PHASE knob is gone. Turned past its shortest time, ATTACK reads in degrees, from a rising zero crossing at 0° to the partial's own peak at 90°, and STRIKE moves along the whole knob, so a hard blow lands on the peak and a light one travels up into a short attack.
+
+**Legato is a switch, and with more than one voice it plays a top line.** With one voice it is the monophonic legato it always was. With more, a melody held from note to note carries on over chords that still retrigger each time their keys come up and go down, and the note a melody carries on from always sounds. A wrong guess about which key is the melody costs an attack and nothing more.
+
+**Shared by all notes, a thirty-fourth preset, and a quieter panel.** The in-phase switch is renamed for what it does and has a switch of its own beside each SHAPE caption. *Glide* is a pad whose partials glide in up the series, round played softly and bright played hard. The panel is a shade darker with lighter captions, which now clear the 4.5:1 contrast the accessibility standard asks for, and a dark sliver at the top left corner of every screen and lamp is gone.
+
+**Before upgrading.** The Limiter's lookahead is off by default, so new instances report 12 samples of latency at 48 kHz rather than 108, and a saved session keeps its setting. Start phase is gone, so a patch that set one starts each partial at the zero crossing, and an automation lane on it in a host that goes by position now moves glide. ATTACK automation drawn against the old travel lands on different times. *Glide* sorts after *Glass Armonica*, so a MIDI program change will name the preset above the one it used to, while a saved session carries the name and is unaffected. There are 839 parameters.
+
+[The full notes for 1.12.0](https://github.com/benjamindehli/overtonium/releases/tag/v1.12.0)
 
 ## 1.11.1, 7 October 2026
 

@@ -15,7 +15,7 @@ if(CMAKE_HOST_APPLE)
     set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Build architectures")
 endif()
 
-project(Overtonium VERSION 1.11.1 LANGUAGES C CXX)
+project(Overtonium VERSION 1.12.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -87,7 +87,7 @@ juce_add_plugin(Overtonium
     COPY_PLUGIN_AFTER_BUILD     ${OVERTONIUM_INSTALL_AFTER_BUILD}
     VST3_CATEGORIES             Instrument Synth
     AU_MAIN_TYPE                kAudioUnitType_MusicDevice
-    DESCRIPTION                 "32-partial overtone synthesiser"
+    DESCRIPTION                 "32-partial overtone synthesizer"
     # The program icon. JUCE builds the whole icon set from this one square, so
     # there is no smaller second file to keep in step, and it reaches every
     # format that is a bundle: the standalone in the Dock and the task bar, and

@@ -386,21 +386,13 @@ void NoiseStrip::paint(juce::Graphics &g) {
     paintRowHighlight(g, rows[rowIndex(highlighted)]);
 
   // Every other section rule carries a lamp and draws itself. This strip has
-  // no pitch to modulate, so that one heading is left plain.
+  // no pitch to modulate, so that one heading is left plain and the rows under
+  // it are left empty, which the unlit rule already explains.
   g.setColour(colours::outline.withAlpha(0.7f));
   for (auto r : {Row::PitchModHeading}) {
     const auto row = rows[rowIndex(r)];
     g.fillRect(row.getX(), row.getY() + row.getHeight() / 2, row.getWidth(), 1);
   }
-
-  // Start phase and the whole pitch modulation block have nothing to show, so
-  // say so once rather than leaving a stretch of blank panel that looks like a
-  // drawing bug. Noise has no phase to start at any more than it has a pitch.
-  auto absent = rows[rowIndex(Row::Phase)].getUnion(rows[rowIndex(Row::Drift)]);
-
-  g.setColour(colours::textDim.withAlpha(0.5f));
-  g.setFont(makeFont(9.0f));
-  g.drawText("no pitch", absent, juce::Justification::centred, false);
 }
 
 void NoiseStrip::updateLevelReadout() {

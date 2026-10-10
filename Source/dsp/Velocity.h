@@ -54,6 +54,53 @@ inline float velocityGain(float amount, float velocity) noexcept {
 /// could never have been set to. See struckAttack.
 inline constexpr float kMaxAttackSeconds = 5.0f;
 
+/// The shortest attack the ATTACK row offers as a time, in seconds.
+///
+/// Below it the row goes on, into where in its cycle the partial starts, with
+/// no attack time at all: from a rising zero crossing at this end, the softest
+/// onset there is, to the partial's own peak at the bottom of the knob, the
+/// hardest. Below about 500 Hz a quarter of a period is longer than this
+/// attack, so on most of the keyboard the onset is set by where the cycle
+/// starts rather than by the envelope, and that is what this end of the knob
+/// reaches. See onsetOctaves.
+inline constexpr float kShortestAttack = 0.0002f;
+
+/// How far below the shortest attack the row reaches, in octaves of attack
+/// time. Two, so starting a partial on its peak is worth the same stretch of
+/// knob, and the same stretch of STRIKE, as quartering an attack.
+inline constexpr double kOnsetPhaseOctaves = 2.0;
+
+/// How a partial begins: where in its cycle, in turns, and how long it then
+/// takes to reach full level, in seconds. One of the two is always nought.
+struct Onset {
+  float seconds;
+  float turns;
+};
+
+/// The ATTACK row as one scale, in octaves above the shortest attack.
+///
+/// A time is positive, and the phase region is negative down to
+/// -kOnsetPhaseOctaves at a partial starting on its peak. The row's own value
+/// is seconds above zero and a fraction of that region below it, -1 being the
+/// peak, so a preset or a session that stored a time stores the same time.
+inline double onsetOctaves(float attack) noexcept {
+  if (attack < 0.0f)
+    return (double)std::max(attack, -1.0f) * kOnsetPhaseOctaves;
+
+  return std::log2((double)std::max(attack, kShortestAttack) /
+                   (double)kShortestAttack);
+}
+
+/// The onset at a place on that scale.
+inline Onset onsetAt(double octaves) noexcept {
+  if (octaves < 0.0)
+    return {0.0f, (float)(0.25 * std::min(1.0, -octaves / kOnsetPhaseOctaves))};
+
+  return {std::min((float)((double)kShortestAttack * std::exp2(octaves)),
+                   kMaxAttackSeconds),
+          0.0f};
+}
+
 /// How far the strike amount can move a time, in octaves.
 ///
 /// Eight, which is a range of 256 to 1, and it has to be that wide because the
@@ -106,6 +153,18 @@ inline float struckAttack(float attack, float scale) noexcept {
   return std::min(attack * scale, kMaxAttackSeconds);
 }
 
+/// A partial's onset once the blow has been folded in.
+///
+/// STRIKE moves the onset up the same scale the knob does, so it reaches the
+/// whole of the row: a partial set to start on its peak can have a light touch
+/// start it nearer the zero crossing, or past it into a short attack. Within
+/// the times this is struckAttack exactly, since an octave of scale is a
+/// doubling of time, and it stops at the same ceiling.
+inline Onset struckOnset(float attack, float scale) noexcept {
+  return onsetAt(onsetOctaves(attack) +
+                 std::log2((double)std::max(scale, 1.0e-6f)));
+}
+
 /// What the same amount does to the delay before that attack.
 ///
 /// The other way round, and deliberately so. Velocity only ever pulls the
@@ -135,23 +194,42 @@ inline float strikeDelayScale(float amount, float velocity) noexcept {
 /// Folding the delay in rather than reporting it separately also means a strip
 /// with no delay, which is nearly all of them, reads as a plain attack range
 /// instead of carrying a second figure that is always nought.
+///
+/// An end with no wait at all can still differ in where the partial starts,
+/// so each end carries its phase as well, in turns, for a reading that says
+/// how hard the edge is when there is no time to give.
 struct StrikeRange {
   float quickest;
   float slowest;
+  float quickestTurns = 0.0f;
+  float slowestTurns = 0.0f;
 };
 
 inline StrikeRange strikeRange(float amount, float delay,
                                float attack) noexcept {
-  const auto onset = [&](float velocity) {
-    return std::max(0.0f, delay) * strikeDelayScale(amount, velocity) +
-           struckAttack(std::max(0.0f, attack),
-                        strikeAttackScale(amount, velocity));
+  struct End {
+    float seconds, turns;
   };
 
-  const auto hard = onset(1.0f);
-  const auto soft = onset(0.0f);
+  const auto end = [&](float velocity) {
+    const auto onset = struckOnset(attack, strikeAttackScale(amount, velocity));
+    return End{std::max(0.0f, delay) * strikeDelayScale(amount, velocity) +
+                   onset.seconds,
+               onset.turns};
+  };
 
-  return {std::min(hard, soft), std::max(hard, soft)};
+  const auto hard = end(1.0f);
+  const auto soft = end(0.0f);
+
+  // Quicker is less time, and with no time at all, more of a turn: a partial
+  // starting on its peak is all there sooner than one starting on a crossing.
+  const bool hardFirst =
+      hard.seconds < soft.seconds ||
+      (!(soft.seconds < hard.seconds) && hard.turns >= soft.turns);
+  const auto &q = hardFirst ? hard : soft;
+  const auto &s = hardFirst ? soft : hard;
+
+  return {q.seconds, s.seconds, q.turns, s.turns};
 }
 
 } // namespace ovt

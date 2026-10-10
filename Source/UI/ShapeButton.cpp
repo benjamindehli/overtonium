@@ -187,7 +187,7 @@ juce::PopupMenu ShapeButton::buildMenu() const {
   // for the same reason the entry above it is: this is the menu that belongs
   // to the modulator, and the modulator is what the switch is about.
   m.addSeparator();
-  m.addItem(kInPhase, "In phase across the keyboard", true, inPhase());
+  m.addItem(kInPhase, "Shared by all notes", true, inPhase());
 
   return m;
 }

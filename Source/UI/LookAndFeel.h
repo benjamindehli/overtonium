@@ -197,11 +197,11 @@ void paintDisplayGround(juce::Graphics &, juce::Rectangle<float> area,
 /// across, so a border taken out of the picture would leave no picture, and
 /// each already stands in a margin of its own that nothing else is using.
 ///
-/// Two fills and no stroking, which is what keeps it cheap enough for the
-/// lamps. The light comes from the top left, as it does everywhere else here,
-/// so the walls facing it are the bottom and the right, and those are the two
-/// that come up lit. Call it before drawing the face, which then covers
-/// everything but the lip.
+/// Two fills and a clip, no stroking, which is what keeps it cheap enough for
+/// the lamps. The clip keeps the shadow inside the lip. The light comes from
+/// the top left, as it does everywhere else here, so the walls facing it are
+/// the bottom and the right, and those are the two that come up lit. Call it
+/// before drawing the face, which then covers everything but the lip.
 ///
 /// @param opening  the face that will be drawn over it.
 /// @param corner  that face's own corner radius. Half the height gives a

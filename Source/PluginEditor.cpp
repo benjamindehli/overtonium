@@ -112,6 +112,58 @@ RowGutter::RowGutter() {
 
   addAndMakeVisible(toolButton);
 
+  // L and T, the way a channel says M and S: one character each, with the
+  // whole of it in the tooltip and the name a screen reader is given.
+  glideLegato.setButtonText("L");
+  glideLegato.setTooltip("Legato glide: only from a key still held down. "
+                         "Dark, every note glides from the last one, even "
+                         "after its key is up.");
+  glideLegato.setTitle("Legato glide");
+  glideLegato.setComponentID("glideLegato");
+  glideLegato.onClick = [this] {
+    if (onGlideLegatoClicked != nullptr)
+      onGlideLegatoClicked();
+  };
+
+  glideFixedTime.setButtonText("T");
+  glideFixedTime.setTooltip("Fixed time: every glide takes the knob's time, "
+                            "however far it goes. Dark, a fixed rate, the "
+                            "time per octave, so a wide leap takes "
+                            "longer than a step.");
+  glideFixedTime.setTitle("Fixed glide time");
+  glideFixedTime.setComponentID("glideFixedTime");
+  glideFixedTime.onClick = [this] {
+    if (onGlideFixedTimeClicked != nullptr)
+      onGlideFixedTimeClicked();
+  };
+
+  for (auto *b : {&glideLegato, &glideFixedTime})
+    addAndMakeVisible(*b);
+
+  // Shared by all notes, one on each shape row, drawn as several strokes
+  // merging into one. The same switch as the last item in every shape
+  // button's menu, here so the state is on the panel.
+  const auto setUpInPhase = [this](ovt::ui::ScreenSwitch &b, const char *which,
+                                   const char *id,
+                                   std::function<void()> RowGutter::*callback) {
+    b.onIcon = ovt::ui::drawSharedIcon;
+    b.setTooltip(juce::String(which) +
+                 " shared by all notes: every note hears each channel's "
+                 "modulator in step. Dark, each note starts its own.");
+    b.setTitle(juce::String(which) + " shared by all notes");
+    b.setComponentID(id);
+    b.onClick = [this, callback] {
+      if (this->*callback != nullptr)
+        (this->*callback)();
+    };
+    addAndMakeVisible(b);
+  };
+
+  setUpInPhase(pitchInPhase, "Pitch modulation", "pitchInPhase",
+               &RowGutter::onPitchInPhaseClicked);
+  setUpInPhase(ampInPhase, "Amp modulation", "ampInPhase",
+               &RowGutter::onAmpInPhaseClicked);
+
   headerCap.onPaint = [this](juce::Graphics &g) { paintHeaderBand(g); };
   addAndMakeVisible(headerCap);
 }
@@ -143,10 +195,49 @@ void RowGutter::resized() {
   // nine pixels into the band and clipped the tops of the tuning knobs.
   headerCap.setBounds(0, 0, getWidth(),
                       juce::jmax(0, rows[(size_t)Row::Header].getBottom()));
+
+  // The caps, beside their captions and gone with them when the section is
+  // folded. Laid out before the cap is brought forward, so a row scrolled
+  // under the header slides under it rather than over it.
+  const auto headerBottom = headerCap.getBottom();
+  placeCaps(Row::PmShape, {&pitchInPhase}, rows, headerBottom);
+  placeCaps(Row::Glide, {&glideLegato, &glideFixedTime}, rows, headerBottom);
+  placeCaps(Row::AmShape, {&ampInPhase}, rows, headerBottom);
+
   headerCap.toFront(false);
 
   toolButton.setBounds(rows[(size_t)Row::Header].reduced(7, 1));
   toolButton.toFront(false);
+}
+
+void RowGutter::placeCaps(Row row,
+                          std::initializer_list<juce::Component *> caps,
+                          const ovt::ui::RowBounds &rows, int headerBottom) {
+  // The size of a channel's M and S, so the letters are the size theirs are.
+  constexpr int kCapSize = 18;
+  constexpr int kGap = 4;
+
+  const auto area = rows[(size_t)row];
+  const bool shown = area.getHeight() > 0 && !rowIsCollapsed(row, collapsed) &&
+                     area.getBottom() > headerBottom;
+
+  // Right up against the caption, so the switch and the word read as one
+  // thing. Captions are right-aligned eight pixels in, which is where paint
+  // puts them, and measured in the unlit weight, the one a caption has when
+  // nothing is pointing at it.
+  const auto caption =
+      juce::GlyphArrangement::getStringWidthInt(makeFont(9.5f), rowLabel(row));
+
+  auto x = area.getRight() - 8 - caption - kGap - (int)caps.size() * kCapSize;
+  const auto y = area.getCentreY() - kCapSize / 2;
+
+  for (auto *cap : caps) {
+    if (shown)
+      cap->setBounds(x, y, kCapSize, kCapSize);
+
+    cap->setVisible(shown);
+    x += kCapSize;
+  }
 }
 
 void RowGutter::setTool(ovt::ui::PointerTool which, ovt::ui::LinkCurve curve) {
@@ -170,6 +261,7 @@ void RowGutter::setCollapsedSections(SectionMask mask) {
     return;
 
   collapsed = mask;
+  resized();
   repaint();
 }
 
@@ -182,13 +274,14 @@ void RowGutter::setScroll(int s) {
   repaint();
 }
 
-void RowGutter::setSharedModulators(bool pitch, bool amp) {
-  if (pitch == sharedPitchMod && amp == sharedAmpMod)
-    return;
+void RowGutter::setGlideSwitches(bool legato, bool fixedTime) {
+  glideLegato.setToggleState(legato, juce::dontSendNotification);
+  glideFixedTime.setToggleState(fixedTime, juce::dontSendNotification);
+}
 
-  sharedPitchMod = pitch;
-  sharedAmpMod = amp;
-  repaint();
+void RowGutter::setSharedModulators(bool pitch, bool amp) {
+  pitchInPhase.setToggleState(pitch, juce::dontSendNotification);
+  ampInPhase.setToggleState(amp, juce::dontSendNotification);
 }
 
 void RowGutter::mouseDown(const juce::MouseEvent &e) {
@@ -265,16 +358,9 @@ void RowGutter::paint(juce::Graphics &g) {
     const bool heading = isHeadingRow(row);
     const bool lit = row == highlighted && rowShowsHighlight(row);
 
-    // A heading whose modulator the whole keyboard shares goes accent, the
-    // same light everything else that is switched on here comes up in. It
-    // reads as a property of the group, which is what it is: every channel in
-    // it answers to the one switch.
-    const bool shared = (row == Row::PitchModHeading && sharedPitchMod) ||
-                        (row == Row::AmpModHeading && sharedAmpMod);
-
     g.setFont(makeFont(heading ? 10.0f : 9.5f, heading || lit));
-    g.setColour(lit || shared ? colours::accent
-                              : (heading ? colours::text : colours::textDim));
+    g.setColour(lit ? colours::accent
+                    : (heading ? colours::text : colours::textDim));
     g.drawText(text, area, juce::Justification::centredRight, false);
 
     // The disclosure mark, at the far left of the heading so it clears the
@@ -566,6 +652,25 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   parameterBar.setAutoHide(false);
 
   gutter.onSectionToggled = [this](Section s) { toggleSection(s); };
+
+  // A cap is a switch, so a click flips the parameter, one gesture so the host
+  // records it as one step. The cap lights from the parameter on the next
+  // tick rather than from the click, which is what keeps it honest when a
+  // preset or the glide knob's menu moves the same switch.
+  const auto flip = [this](const char *id) {
+    if (auto *param = plugin().apvts.getParameter(id)) {
+      param->beginChangeGesture();
+      param->setValueNotifyingHost(param->getValue() > 0.5f ? 0.0f : 1.0f);
+      param->endChangeGesture();
+    }
+
+    syncSharedModulators();
+  };
+
+  gutter.onGlideLegatoClicked = [flip] { flip(ovt::params::glideTriggerId); };
+  gutter.onGlideFixedTimeClicked = [flip] { flip(ovt::params::glideModeId); };
+  gutter.onPitchInPhaseClicked = [flip] { flip(ovt::params::pmInPhaseId); };
+  gutter.onAmpInPhaseClicked = [flip] { flip(ovt::params::amInPhaseId); };
 
   // Off the series, like the noise channel, so pointing at a caption cannot
   // arm a LINK preview on whichever channel happened to be hovered last.
@@ -1732,6 +1837,7 @@ void OvertoniumEditor::syncSharedModulators() {
   };
 
   gutter.setSharedModulators(on(cache.pmInPhase), on(cache.amInPhase));
+  gutter.setGlideSwitches(on(cache.glideTrigger), on(cache.glideMode));
 }
 
 void OvertoniumEditor::timerCallback() {

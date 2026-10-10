@@ -9,7 +9,7 @@ HTML and is edited there.
 Any string here can name a count the source knows, and the generator fills it
 in rather than trusting whoever last typed it:
 
-    {presets}       the factory presets in words, "thirty-three"
+    {presets}       the factory presets in words, "thirty-four"
     {parameters}    the host parameters in figures, "836"
     {preset_names}  every factory preset, in the order the menu lists them
 
@@ -59,7 +59,7 @@ PRODUCT = {
     "applicationCategory": "MultimediaApplication",
     "applicationSubCategory": "Audio plugin",
     "operatingSystem": "macOS, Windows, Linux",
-    "description": "An additive synthesiser laid out like a 32-channel mixer. Every channel is one sine partial locked to a harmonic of the played note, with its own tuning, envelope, modulation and pan.",
+    "description": "An additive synthesizer laid out like a 32-channel mixer. Every channel is one sine partial locked to a harmonic of the played note, with its own tuning, envelope, modulation and pan.",
     "image": BASE + "overtonium.png",
     "screenshot": BASE + "overtonium.png",
     "isAccessibleForFree": True,
@@ -93,6 +93,7 @@ PRODUCT = {
         "Eight macros, each one host parameter that moves a whole row of channels",
         "MIDI Learn on every control",
         "An output stage with five clip shapes, including a lookahead limiter",
+        "Glide on every channel, each partial travelling to a new note over its own time",
     ],
 }
 
@@ -159,6 +160,12 @@ QUESTIONS = [
         "parameter, so one controller or one automation lane can reach up to 32 controls at once.",
     ),
     (
+        "Does Overtonium have portamento or glide?",
+        'Yes, on every channel separately. Each partial slides to a new note over its own GLIDE time, so the series can arrive a partial at '
+        "a time. Two switches cover every channel: whether it glides always or only legato, and whether it moves at a fixed rate or "
+        'takes a fixed time. <a href="playing/#glide">Glide</a> on the Playing page has the rest.',
+    ),
+    (
         "How much CPU does Overtonium use?",
         "Eight voices of 32 partials each, with every modulator running, costs about 7% of one core, and sixteen voices about 14%. Turning "
         "the render rate down is a real saving: at 8 kHz the whole voice pool costs a fifth as much. "
@@ -200,9 +207,9 @@ PAGES = [
     {
         "path": "",
         "nav": "Overview",
-        "title": "Overtonium, a free 32-partial additive synthesiser plugin",
-        "description": "A free additive synthesiser laid out like a 32-channel mixer, one sine partial per channel, with TUNE sweeping between equal and just. VST3, AU and LV2.",
-        "social": "A free additive synthesiser laid out like a 32-channel mixer. Every channel is one sine partial with its own tuning, envelope, modulation and pan, and TUNE sweeps the whole series between equal temperament and just intonation. VST3, AU and LV2 for macOS, Windows and Linux.",
+        "title": "Overtonium, a free 32-partial additive synthesizer plugin",
+        "description": "A free additive synthesizer laid out like a 32-channel mixer, one sine partial per channel, with TUNE sweeping between equal and just. VST3, AU and LV2.",
+        "social": "A free additive synthesizer laid out like a 32-channel mixer. Every channel is one sine partial with its own tuning, envelope, modulation and pan, and TUNE sweeps the whole series between equal temperament and just intonation. VST3, AU and LV2 for macOS, Windows and Linux.",
         "image": "overtonium-card.jpg",
         "image_alt": "The Overtonium wordmark over the plugin window: rows of per-partial knobs above 32 channel faders and lit meters.",
         "scripts": ["video.js", "contents.js"],
@@ -265,16 +272,16 @@ PAGES = [
         "path": "playing/",
         "nav": "Playing",
         "title": "Playing Overtonium: MPE, automation, macros and MIDI Learn",
-        "description": "Playing Overtonium: MPE, legato, the Settings menu, automation with all {parameters} host parameters listed, eight macros and MIDI Learn on every control.",
-        "social": "MPE with pitch bend and pressure per note, legato, every entry in the Settings menu, automating Overtonium from a host with all {parameters} parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control.",
+        "description": "Playing Overtonium: MPE, legato, glide on every channel, the Settings menu, automation with all {parameters} parameters, macros and MIDI Learn.",
+        "social": "MPE with pitch bend and pressure per note, legato, a glide on every channel with each partial on its own time, every entry in the Settings menu, automating Overtonium from a host with all {parameters} parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control.",
         "image": "overtonium-card-playing.jpg",
         "image_alt": "The Overtonium wordmark over the plugin window, captioned Playing.",
         "scripts": ["contents.js"],
         "jsonld": ["breadcrumbs"],
         "onward": [("presets/", "Presets"), ("effects/", "Effects")],
         "card": None,
-        "card_404": "MPE, the Settings menu, automation, macros and MIDI Learn.",
-        "llms": "MPE, legato, every entry in the Settings menu with its default, how the {parameters} host parameters are named and why automation survives a release that adds more, every one of them listed with its id, range and default, macros, and MIDI Learn.",
+        "card_404": "MPE, legato and glide, the Settings menu, automation, macros and MIDI Learn.",
+        "llms": "MPE, legato with one voice or as a top line over a polyphonic accompaniment, glide with a time on every channel and the two switches that say when it glides and what the time means, every entry in the Settings menu with its default, how the {parameters} host parameters are named and why automation survives a release that adds more, every one of them listed with its id, range and default, macros, and MIDI Learn.",
         "priority": "0.7",
     },
     {
@@ -334,7 +341,7 @@ PAGES = [
 
 # then the rest. The page entries are each page's "llms" field above.
 
-LLMS_SUMMARY = 'A free, open source additive synthesiser plugin laid out like a 32-channel mixer. Every channel is one sine oscillator locked to a harmonic of the played note, and every channel has its own tuning, envelope, modulation and place in the stereo field. VST3, Audio Unit, LV2 and standalone, for macOS, Windows and Linux, under the AGPLv3.'
+LLMS_SUMMARY = 'A free, open source additive synthesizer plugin laid out like a 32-channel mixer. Every channel is one sine oscillator locked to a harmonic of the played note, and every channel has its own tuning, envelope, modulation and place in the stereo field. VST3, Audio Unit, LV2 and standalone, for macOS, Windows and Linux, under the AGPLv3.'
 
 LLMS_INTRO = [
     'The control worth reaching for first is TUNE. It sweeps each partial continuously between equal temperament and just intonation. At the just end a partial sits at an exact whole-number ratio with the fundamental and the stack fuses into one timbre. At the equal end each partial snaps to the nearest semitone and the same stack smears into a chord. The factory presets Just Saw and Equal Saw differ in that one control alone and sound nothing alike.',
@@ -366,18 +373,18 @@ LLMS_FACTS = [
     ('Platforms', 'macOS as a universal binary for Apple Silicon and Intel, Windows, Linux.'),
     ('Licence', 'GNU Affero General Public License v3, which follows from JUCE.'),
     ('Price', 'free, and free software rather than only free of charge.'),
-    ('Partials', "32 sine oscillators plus a noise channel, each with its own tuning, envelope, key-off envelope, tremolo, pitch modulation, drift, velocity and pressure amounts, pan, mute, solo and fader. Both modulators pick a waveform per channel: sine, triangle, sawtooth, reverse sawtooth, square, sample and hold, or a smooth random glide, with pitch also offering a unipolar square that only bends upward. Each modulator can also be switched from one per note to one circuit the whole keyboard shares, so a chord breathes as one thing rather than each key breathing where it started: two switches, one per modulator, in the shape button's menu, off by default and carried by the patch. Wurli shares its tremolo and StyloPoly its vibrato. On a keyboard that senses how fast a key is let go, that speed scales the level each partial's tail starts from, twice it at the hardest lift and half at the softest, with no knob and no parameter behind it. A keyboard that cannot sense a release changes nothing, including the two ways it says so: a note-off carrying zero and a note-on of velocity zero are both read as no information."),
+    ('Partials', "32 sine oscillators plus a noise channel, each with its own tuning, envelope, key-off envelope, tremolo, pitch modulation, drift, glide, velocity and pressure amounts, pan, mute, solo and fader. The noise channel has no pitch, so no pitch modulation, drift or glide. A glide time is how long that partial takes to reach a new note, so the series can arrive a partial at a time, and two switches cover every channel: whether it glides always or only legato, and whether it moves at a fixed rate or takes a fixed time. Both modulators pick a waveform per channel: sine, triangle, sawtooth, reverse sawtooth, square, sample and hold, or a smooth random glide, with pitch also offering a unipolar square that only bends upward. Each modulator can also be switched from one per note to one circuit the whole keyboard shares, so a chord breathes as one thing rather than each key breathing where it started: two switches, one per modulator, called Shared by all notes in the shape button's menu and shown beside each SHAPE caption, off by default and carried by the patch. Wurli shares its tremolo and StyloPoly its vibrato. On a keyboard that senses how fast a key is let go, that speed scales the level each partial's tail starts from, twice it at the hardest lift and half at the softest, with no knob and no parameter behind it. A keyboard that cannot sense a release changes nothing, including the two ways it says so: a note-off carrying zero and a note-on of velocity zero are both read as no information."),
     ('Tuning', 'a continuous blend from equal temperament to just intonation, inharmonic stretch, keyboard tracking, and six keyboard temperaments (equal, just, Pythagorean, quarter-comma meantone, Werckmeister III, Young).'),
     ('Oscillator character', 'one choice for all 32 partials, saying which circuit each of them is, each named for the part that makes it what it is. Pure is an exact sine. Bulb is a Wien bridge whose lamp lags, so the level sags behind every move of the pitch and recovers over about half a second. Rail is a phase-shift oscillator grown into its own supply rail, a third harmonic at -23 dB and no even ones. Diode is a triangle shaped by two of them that do not match, a second, third and fourth near -32 dB. Valve is a triode biased so one half of the wave leans over first, a second harmonic at -20 dB over a third at -23, the only one whose loudest addition is an octave rather than a twelfth. Op-amp is an amplifier that cannot move fast enough, which does nothing below a kilohertz and turns partials above it into triangles, so the top of the series hardens as it climbs. Built as band-limited tables rather than as waveshaping, so it costs nothing per sample and nothing folds back down. Every character but Pure is a rack of 32 units rather than one oscillator: a fixed spread, the same in every session and on every machine, puts each partial a couple of cents and a fraction of a dB off spec, from 1.5 ct and 0.1 dB for Bulb to 3 ct and 0.35 dB for Valve, with partial 1 left exact as the one the rest were tuned against. Not DRIFT, which wanders. Each unit is also built to one of three drives, 15% either side of nominal, so no two channels distort by the same amount: three rather than one per channel because the drive is baked into a band-limited table. The character also says how the bus the 33 channels are summed onto behaves, which is a separate thing from the tables and works on the mix rather than on any one partial: an amplitude-reactive drive that is barely there when you play quietly and arrives when you lean on the keyboard, strongest on Bulb and Rail, gentlest on Diode, and absent on Pure. There is no knob for it, because how hard a summing amplifier is driven is part of what choosing a character means.'),
     ('Effects', 'an echo that is one of three machines, a reverb that is one of three, a wobble across the whole series, and a converter that reduces render rate and bit depth. Five of the factory presets reach for them: 60s Organ on the bucket brigade and the spring, Shimmer and Tape Choir on the plate, Cathedral and Struck Bell on the room. The echo is a tape loop with two motors, a bucket brigade, or a digital delay that crosses every repeat to the other side, and AGE means something different on each: tape wear, a slowing clock and breathing companding, or falling bits and sample rate. The reverb is a feedback delay network sized from its decay, a modulated plate that is dense from its first instant, or a tray of springs whose dispersion turns every hit into a chirp that starts high and falls. Decay, damping and pre-delay mean the same thing on all three and the wet levels are matched, so switching machines changes the character of a tail rather than its length or its loudness.'),
     ('MPE', 'pitch bend and pressure per note, with the slide axis routable to brightness or tuning.'),
     ('Macros', 'up to eight, each one host parameter that moves a whole row, such as every tuning knob or every decay, across all channels, the odd or even ones, or one interval, either uniformly or tapering away from a chosen channel. A macro offsets what the patch holds rather than overwriting it, so the knobs stay put and a ring around each one shows where the macro has taken it. They exist so a relationship across 32 channels can be automated as one lane.'),
     ('MIDI Learn', 'right-click any control, choose MIDI Learn and move a controller. It works with MPE on, the map is saved with the project rather than the preset, and eleven controllers the instrument already listens to, such as the mod wheel, sustain and the MPE slide, are refused.'),
-    ('Output stage', 'the master fader drives a CLIP stage of five shapes, Soft, Hard, Asymmetric, Limiter and Fold, or Off. The Limiter looks 2 ms ahead, and the plugin reports 108 samples of latency at 48 kHz whichever shape is chosen, so a preset change never moves it. The lookahead can be given back in Settings.'),
-    ('Automation', '{parameters} parameters reach the host, 34 global, 23 on each of the 32 partials, 18 on the noise channel and 6 on each of the eight macros. A per-channel one carries its channel in its name, as "H7 Tune" or "Noise Level", and is identified by an id of its own rather than by its position, so a release that inserts parameters leaves existing automation pointed at the same controls.'),
+    ('Output stage', 'the master fader drives a CLIP stage of five shapes, Soft, Hard, Asymmetric, Limiter and Fold, or Off. With the Limiter lookahead switched on in Settings, the Limiter looks 2 ms ahead and the plugin reports 108 samples of latency at 48 kHz whichever shape is chosen, so a preset change never moves it. It is off by default, which reports only the 12 samples of the bus stage and leaves the Limiter rougher.'),
+    ('Automation', '{parameters} parameters reach the host, 37 global, 23 on each of the 32 partials, 18 on the noise channel and 6 on each of the eight macros. A per-channel one carries its channel in its name, as "H7 Tune" or "Noise Level", and is identified by an id of its own rather than by its position, so a release that inserts parameters leaves existing automation pointed at the same controls.'),
     ('Program change', 'a MIDI program change loads a factory preset by its position in the alphabetical Factory list, counting from zero, on any channel and with MPE on. Numbers past the last preset are ignored, and presets of your own are not reachable this way.'),
-    ('Factory presets', "{preset_names}. Twenty-six of them ask for an oscillator character, chosen by ear: eleven on Bulb, eight on Op-amp, four on Valve, two on Rail, one on Diode, and seven on Pure, four of those deliberately so (Init, Just Saw, Equal Saw, 6581 Triangle, whose dirt is the chip's arithmetic rather than anything analogue)."),
-    ('Audio examples', 'every section of the tuning page can be heard, and so can every factory preset. Just Saw against Equal Saw and the TUNE sweep between them, a STRETCH sweep from harmonic out past a piano, one chord in equal against Werckmeister III, a run up the keyboard with tracking off and on, a held chord with and without drift, and all {presets} presets playing the same spread C major. They are rendered by the plugin rather than recorded, so they cannot drift from what it does.'),
+    ('Factory presets', "{preset_names}. Twenty-six of them ask for an oscillator character, chosen by ear: eleven on Bulb, eight on Op-amp, five on Valve, two on Rail, one on Diode, and seven on Pure, four of those deliberately so (Init, Just Saw, Equal Saw, 6581 Triangle, whose dirt is the chip's arithmetic rather than anything analogue)."),
+    ('Audio examples', 'every section of the tuning page can be heard, and so can glide, legato and every factory preset. Just Saw against Equal Saw and the TUNE sweep between them, a STRETCH sweep from harmonic out past a piano, one chord in equal against Werckmeister III, a run up the keyboard with tracking off and on, a held chord with and without drift, a phrase with glide off and on, a melody over chords with Legato off and on, and all {presets} presets playing the same spread C major. They are rendered by the plugin rather than recorded, so they cannot drift from what it does.'),
     ('Privacy', 'nothing reaches the network unless the update check is switched on, which is off by default and offered once.'),
 ]
 

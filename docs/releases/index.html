@@ -69,7 +69,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-10-07",
+                "dateModified": "2026-10-10",
                 "breadcrumb": {
                     "@id": "https://benjamindehli.github.io/overtonium/releases/#breadcrumb"
                 }
@@ -124,6 +124,7 @@
                             <a href="../releases/" aria-current="page">Releases</a>
                             <nav class="contents" aria-label="On this page">
                                 <ul>
+                                    <li><a href="#v1-12-0">1.12.0</a></li>
                                     <li><a href="#v1-11-1">1.11.1</a></li>
                                     <li><a href="#v1-11-0">1.11.0</a></li>
                                     <li><a href="#v1-10-1">1.10.1</a></li>
@@ -156,6 +157,50 @@
                     What changed in each version, newest first. Each one links to its full notes, which say more and carry the installing and
                     upgrading detail as well.
                 </p>
+
+                <section id="v1-12-0">
+                    <h2>1.12.0, 10 October 2026</h2>
+
+                    <p>
+                        <strong>Glide on every channel.</strong> Every channel has its own glide time, the last row under PITCH MOD, from Off to five
+                        seconds. Because each partial travels on its own time, the series does not have to arrive together: short times on the top
+                        land the brightness first and let the pitch follow, and the other way round the note arrives and its colour catches up. The
+                        needle on each partial's PITCH MOD rule follows the glide back to centre. Two switches govern every channel at once, as lit
+                        letters beside the GLIDE caption: <strong>L</strong> glides always or only legato, and <strong>T</strong> makes the time a
+                        fixed rate per octave or a fixed time however far a note goes.
+                    </p>
+
+                    <p>
+                        <strong>ATTACK reaches into where a partial starts.</strong> The PHASE knob is gone. Turned past its shortest time, ATTACK
+                        reads in degrees, from a rising zero crossing at 0° to the partial's own peak at 90°, and STRIKE moves along the whole knob,
+                        so a hard blow lands on the peak and a light one travels up into a short attack.
+                    </p>
+
+                    <p>
+                        <strong>Legato is a switch, and with more than one voice it plays a top line.</strong> With one voice it is the monophonic
+                        legato it always was. With more, a melody held from note to note carries on over chords that still retrigger each time their
+                        keys come up and go down, and the note a melody carries on from always sounds. A wrong guess about which key is the melody
+                        costs an attack and nothing more.
+                    </p>
+
+                    <p>
+                        <strong>Shared by all notes, a thirty-fourth preset, and a quieter panel.</strong> The in-phase switch is renamed for what it
+                        does and has a switch of its own beside each SHAPE caption. <em>Glide</em> is a pad whose partials glide in up the series,
+                        round played softly and bright played hard. The panel is a shade darker with lighter captions, which now clear the 4.5:1
+                        contrast the accessibility standard asks for, and a dark sliver at the top left corner of every screen and lamp is gone.
+                    </p>
+
+                    <p>
+                        <strong>Before upgrading.</strong> The Limiter's lookahead is off by default, so new instances report 12 samples of latency at
+                        48 kHz rather than 108, and a saved session keeps its setting. Start phase is gone, so a patch that set one starts each
+                        partial at the zero crossing, and an automation lane on it in a host that goes by position now moves glide. ATTACK automation
+                        drawn against the old travel lands on different times. <em>Glide</em> sorts after <em>Glass Armonica</em>, so a MIDI program
+                        change will name the preset above the one it used to, while a saved session carries the name and is unaffected. There are 839
+                        parameters.
+                    </p>
+
+                    <p class="more"><a href="https://github.com/benjamindehli/overtonium/releases/tag/v1.12.0">The full notes for 1.12.0</a></p>
+                </section>
 
                 <section id="v1-11-1">
                     <h2>1.11.1, 7 October 2026</h2>

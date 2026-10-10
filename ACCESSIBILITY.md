@@ -1,6 +1,6 @@
 # Accessibility
 
-Overtonium is a synthesiser with six hundred and forty-three knobs on it. That is a lot of small targets in a dark window, and it would be easy for the instrument to be usable only by people who can see it well and point accurately. This document says what the project does about that, what it does not do yet, and how to report one when you hit it.
+Overtonium is a synthesizer with six hundred and forty-three knobs on it. That is a lot of small targets in a dark window, and it would be easy for the instrument to be usable only by people who can see it well and point accurately. This document says what the project does about that, what it does not do yet, and how to report one when you hit it.
 
 There are two separate things here and they have different stories. The **plugin** is a window a host draws, and the **site** is static HTML. Most of what is written about accessibility in open source is about the second kind of thing. The first is where the harder problems are.
 
@@ -32,7 +32,7 @@ Written as what you would run into rather than as standards codes.
 
 **The window does not scale with the operating system's text size.** It has its own zoom, in the Settings menu, which scales the whole window rather than the text alone.
 
-**The video on the front page relies on YouTube's captions**, which are automatic rather than written. The thirty-three preset clips have a written description beside each one, which is a description of the sound rather than a transcript.
+**The video on the front page relies on YouTube's captions**, which are automatic rather than written. The thirty-four preset clips have a written description beside each one, which is a description of the sound rather than a transcript.
 
 **None of this has been evaluated by anyone who relies on assistive technology.** Everything above is what the code does and what the tests check. It is not a conformance claim and no audit has been done. If you use a screen reader or a keyboard and try this, what you report will be worth more than anything in this file.
 

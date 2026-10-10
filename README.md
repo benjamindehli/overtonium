@@ -1,6 +1,6 @@
 # Overtonium
 
-A 32-partial additive synthesiser laid out like a 32-channel mixer. Every channel is one sine oscillator locked to a harmonic of the played note, and every channel has its own tuning, envelope and modulation.
+A 32-partial additive synthesizer laid out like a 32-channel mixer. Every channel is one sine oscillator locked to a harmonic of the played note, and every channel has its own tuning, envelope and modulation.
 
 The control worth reaching for first is TUNE. It sweeps each partial continuously between equal temperament and just intonation. At the just end the partial sits at an exact integer ratio with the fundamental and the whole stack fuses into a single timbre. At the equal end each partial snaps to the nearest 12-TET semitone and the same stack smears into a chord. The factory presets _Just Saw_ and _Equal Saw_ are identical except for that one control, and they sound nothing alike.
 
@@ -48,8 +48,8 @@ The [project page](https://benjamindehli.github.io/overtonium/) is the place to 
 - **[Tuning](https://benjamindehli.github.io/overtonium/tuning/)**: TUNE from equal to just, inharmonic stretch, six historical temperaments on any root, keyboard tracking and per-partial drift
 - **[Controls](https://benjamindehli.github.io/overtonium/controls/)**: every knob on a channel strip, the two-part envelope, LINK for ganging the series, the lamps and meters, and the noise channel
 - **[Effects](https://benjamindehli.github.io/overtonium/effects/)**: the bar above the mixer, from the oscillator character and the wobble through the echo, the reverb and the converter to the five CLIP shapes on the output
-- **[Playing](https://benjamindehli.github.io/overtonium/playing/)**: MPE, legato, the Settings menu, automation with every parameter listed, macros and MIDI Learn
-- **[Presets](https://benjamindehli.github.io/overtonium/presets/)**: the thirty-three that ship, what a preset carries and deliberately does not, switching them with a MIDI program change, and where your own are kept
+- **[Playing](https://benjamindehli.github.io/overtonium/playing/)**: MPE, legato and glide, the Settings menu, automation with every parameter listed, macros and MIDI Learn
+- **[Presets](https://benjamindehli.github.io/overtonium/presets/)**: the thirty-four that ship, what a preset carries and deliberately does not, switching them with a MIDI program change, and where your own are kept
 - **[Install](https://benjamindehli.github.io/overtonium/install/)**: which download to take, what to do when a host cannot see the plugin, and building from source
 
 [DESIGN.md](DESIGN.md) is the same ground at length, and keeps the reasoning: what each part does, what the alternatives cost, and the measurements behind the numbers.

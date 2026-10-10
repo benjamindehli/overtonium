@@ -138,11 +138,13 @@ juce::AudioBuffer<float> render(OvertoniumProcessor &p,
   return mono;
 }
 
-/// One note in a run: which, when it goes down, and how long it is held.
+/// One note in a run: which, when it goes down, how long it is held, and how
+/// hard it is struck.
 struct Step {
   int note;
   double at;
   double hold;
+  float velocity = 0.85f;
 };
 
 /// A run of notes rather than a chord, for the things that only show up as you
@@ -179,7 +181,7 @@ juce::AudioBuffer<float> renderRun(OvertoniumProcessor &p,
       const auto off = (int)((step.at + step.hold) * kRate);
 
       if (on >= done && on < done + n)
-        midi.addEvent(juce::MidiMessage::noteOn(1, step.note, 0.85f),
+        midi.addEvent(juce::MidiMessage::noteOn(1, step.note, step.velocity),
                       on - done);
 
       if (off >= done && off < done + n)
@@ -280,7 +282,7 @@ int main(int argc, char **argv) {
   // The two above give the ends. This gives the middle, which is the part the
   // page actually claims: that it sweeps rather than switches.
   //
-  // Equal first and just last, so it starts where every other synthesiser
+  // Equal first and just last, so it starts where every other synthesizer
   // starts and arrives at the thing this one can do, rather than the reverse.
   {
     OvertoniumProcessor p;
@@ -355,9 +357,9 @@ int main(int argc, char **argv) {
   // tracking, has its own clip on the tuning page already.
   //
   // Levels are left where the presets put them rather than matched to each
-  // other. Two clips meant to be compared have to be the same loudness, and
-  // twenty-eight meant to be browsed have to be honest about which patches are
-  // quiet ones.
+  // other. Two clips meant to be compared have to be the same loudness, and a
+  // set meant to be browsed has to be honest about which patches are quiet
+  // ones.
   {
     const std::vector<Step> chord{
         {48, 0.00, 3.0}, {55, 0.30, 2.7}, {60, 0.60, 2.4}, {64, 0.90, 2.1}};
@@ -365,6 +367,82 @@ int main(int argc, char **argv) {
     for (const auto &name : ovt::presets::names()) {
       OvertoniumProcessor p;
       save("preset-" + slugOf(name), renderRun(p, name, chord, 4.4));
+    }
+  }
+
+  // ---- glide, the series arriving a partial at a time ----------------------
+  //
+  // The Glide preset, whose times rise from nothing on the fundamental to two
+  // and a half seconds on the thirty-second, against the same phrase with
+  // every time at zero. Up a fifth, up a fourth and down the octave, held long
+  // enough that the upper partials can be heard still on their way when the
+  // pitch has long since landed.
+  {
+    const std::vector<Step> phrase{
+        {48, 0.0, 2.0}, {55, 2.2, 2.0}, {60, 4.4, 2.0}, {48, 6.6, 2.0}};
+
+    for (const auto glide : {false, true}) {
+      OvertoniumProcessor p;
+      save(glide ? "glide-on" : "glide-off",
+           renderRun(p, "Glide", phrase, 9.4, [glide](auto &proc, double t) {
+             if (glide || t > 0.0)
+               return;
+
+             for (int i = 0; i < ovt::kNumHarmonics; ++i)
+               setPlain(proc,
+                        ovt::params::oscParamId(ovt::params::glideSuffix, i),
+                        0.0f);
+           }));
+    }
+  }
+
+  // ---- legato, a melody over chords ----------------------------------------
+  //
+  // A line held from note to note, each key going down just before the last
+  // comes up, over a chord struck once a bar and let go just before the next.
+  // On Synth Ensemble played softly, where STRIKE stretches the attack to
+  // about half a second, so every newly struck note swells in. With Legato off
+  // the line swells in again on every note. With it on and eight voices the
+  // line carries on at the level it reached while the chords still swell in
+  // underneath it.
+  //
+  // Two notes of the line to a bar. The first lands with the chord, as the
+  // highest key struck and no more than a major third under the note before,
+  // and the second goes down halfway through the bar over the chord still
+  // held, which are the two ways the top line reads a key as the melody. See
+  // SynthEngine::noteOnImpl.
+  {
+    constexpr float kSoft = 0.3f;
+    constexpr double kBar = 1.2;
+    constexpr double kOverlap = 0.05;
+
+    std::vector<Step> phrase;
+    const int line[][2] = {{76, 77}, {74, 76}, {72, 74}, {71, 72}};
+    const std::vector<std::vector<int>> chords{
+        {48, 55, 64}, {47, 55, 62}, {45, 52, 60}, {47, 55, 62}, {48, 55, 64}};
+
+    for (int bar = 0; bar < 5; ++bar) {
+      const double at = bar * kBar;
+      const bool last = bar == 4;
+
+      if (last)
+        phrase.push_back({76, at, 1.6, kSoft});
+      else
+        for (int half = 0; half < 2; ++half)
+          phrase.push_back({line[bar][half], at + half * kBar / 2.0,
+                            kBar / 2.0 + kOverlap, kSoft});
+
+      for (const auto note : chords[(size_t)bar])
+        phrase.push_back({note, at, last ? 1.6 : kBar - 0.2, kSoft});
+    }
+
+    for (const auto legato : {false, true}) {
+      OvertoniumProcessor p;
+      save(legato ? "legato-on" : "legato-off",
+           renderRun(
+               p, "Synth Ensemble", phrase, 7.4, [legato](auto &proc, double) {
+                 setPlain(proc, ovt::params::legatoId, legato ? 1.0f : 0.0f);
+               }));
     }
   }
 

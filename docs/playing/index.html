@@ -6,7 +6,7 @@
         <title>Playing Overtonium: MPE, automation, macros and MIDI Learn</title>
         <meta
             name="description"
-            content="Playing Overtonium: MPE, legato, the Settings menu, automation with all 836 host parameters listed, eight macros and MIDI Learn on every control."
+            content="Playing Overtonium: MPE, legato, glide on every channel, the Settings menu, automation with all 839 parameters, macros and MIDI Learn."
         />
         <meta name="author" content="Benjamin Dehli" />
         <meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -20,7 +20,7 @@
         <meta property="og:title" content="Playing Overtonium: MPE, automation, macros and MIDI Learn" />
         <meta
             property="og:description"
-            content="MPE with pitch bend and pressure per note, legato, every entry in the Settings menu, automating Overtonium from a host with all 836 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
+            content="MPE with pitch bend and pressure per note, legato, a glide on every channel with each partial on its own time, every entry in the Settings menu, automating Overtonium from a host with all 839 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-playing.jpg" />
         <meta property="og:image:type" content="image/jpeg" />
@@ -32,7 +32,7 @@
         <meta name="twitter:title" content="Playing Overtonium: MPE, automation, macros and MIDI Learn" />
         <meta
             name="twitter:description"
-            content="MPE with pitch bend and pressure per note, legato, every entry in the Settings menu, automating Overtonium from a host with all 836 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
+            content="MPE with pitch bend and pressure per note, legato, a glide on every channel with each partial on its own time, every entry in the Settings menu, automating Overtonium from a host with all 839 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-playing.jpg" />
         <meta name="twitter:image:alt" content="The Overtonium wordmark over the plugin window, captioned Playing." />
@@ -49,7 +49,7 @@
                 "@id": "https://benjamindehli.github.io/overtonium/playing/#webpage",
                 "url": "https://benjamindehli.github.io/overtonium/playing/",
                 "name": "Playing Overtonium: MPE, automation, macros and MIDI Learn",
-                "description": "Playing Overtonium: MPE, legato, the Settings menu, automation with all 836 host parameters listed, eight macros and MIDI Learn on every control.",
+                "description": "Playing Overtonium: MPE, legato, glide on every channel, the Settings menu, automation with all 839 parameters, macros and MIDI Learn.",
                 "inLanguage": "en-GB",
                 "isPartOf": {
                     "@id": "https://benjamindehli.github.io/overtonium/#website"
@@ -63,7 +63,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-10-07",
+                "dateModified": "2026-10-10",
                 "breadcrumb": {
                     "@id": "https://benjamindehli.github.io/overtonium/playing/#breadcrumb"
                 }
@@ -117,6 +117,7 @@
                                 <ul>
                                     <li><a href="#mpe">MPE</a></li>
                                     <li><a href="#legato">Legato</a></li>
+                                    <li><a href="#glide">Glide</a></li>
                                     <li><a href="#settings">The Settings menu</a></li>
                                     <li>
                                         <a href="#automation">Automating it from the host</a>
@@ -190,14 +191,176 @@
                     <h2>Legato</h2>
 
                     <p>
-                        The first entry in the polyphony list, above <strong>1 voice</strong>, and the one setting where the instrument is not
-                        polyphonic at all. One voice, and pressing a key while another is still held moves the note rather than starting it again: the
-                        envelopes carry on, so a run keeps the shape the first key gave it rather than restarting the attack under your fingers.
+                        A switch in Settings, beside the voice count, and what it does depends on that count. <strong>With one voice</strong> the
+                        instrument is not polyphonic at all: pressing a key while another is still held moves the note rather than starting it again,
+                        so the envelopes carry on and a run keeps the shape the first key gave it rather than restarting the attack under your
+                        fingers. Letting a key go while others are still down falls back to the most recent of them, which is what makes a trill work,
+                        and only the last key coming up releases the note.
                     </p>
 
                     <p>
-                        Letting a key go while others are still down falls back to the most recent of them, which is what makes a trill work. Only the
-                        last key coming up releases the note.
+                        <strong>With more than one voice it plays a top line.</strong> A key that lands above everything you are holding, except the
+                        highest note, carries that note's phrase on: it starts a voice of its own that takes over the highest note's envelopes where
+                        they stand and glides from its pitch, so it does not start again. Every other key plays as it always does. A legato melody
+                        over a staccato chord does what it sounds like: the chord retriggers each time its keys come up and go down again, and the
+                        melody slides from note to note over it, up or down, as long as it stays above the chord.
+                    </p>
+
+                    <figure class="listen">
+                        <figcaption>
+                            A melody held from note to note over chords struck under it, two notes to a bar, one landing with the chord and one in
+                            between, on Synth Ensemble played softly, where each newly struck note takes about half a second to swell in. With Legato
+                            off every note of the melody swells in again. With it on and eight voices the melody carries on from note to note, with
+                            the chord or without it, while the chords still swell in underneath.
+                        </figcaption>
+
+                        <div class="players">
+                            <p>
+                                <strong>Legato off</strong><br />
+                                <audio controls preload="none" aria-label="The melody over chords with Legato off">
+                                    <source src="../audio/legato-off.ogg" type="audio/ogg" />
+                                    <source src="../audio/legato-off.flac" type="audio/flac" />
+                                    Your browser cannot play this. The file is
+                                    <a href="../audio/legato-off.flac">legato-off.flac</a>.
+                                </audio>
+                            </p>
+
+                            <p>
+                                <strong>Legato on</strong><br />
+                                <audio controls preload="none" aria-label="The same with Legato on, as a top line">
+                                    <source src="../audio/legato-on.ogg" type="audio/ogg" />
+                                    <source src="../audio/legato-on.flac" type="audio/flac" />
+                                    Your browser cannot play this. The file is
+                                    <a href="../audio/legato-on.flac">legato-on.flac</a>.
+                                </audio>
+                            </p>
+                        </div>
+                    </figure>
+
+                    <p>
+                        The note a melody carries on from is never taken away, so a key that turns out to be part of the chord always sounds. It goes
+                        on sounding while its key is down and fades quickly when the key comes up, rather than ringing out its release under the
+                        melody, and so does the upper note of a trill lifted back onto the key below.
+                    </p>
+
+                    <p>
+                        A key going down under the highest note could be the melody stepping down or a chord struck under a held melody, and only what
+                        the old melody key does afterwards would tell them apart, so the instrument goes by what is likely. Above the highest note, a
+                        key always carries on. Under it, with a chord held and no other key just struck, it carries on if it is above that chord,
+                        however far down it goes. Alone under a lone melody, or among keys struck together, it carries on only if it is within a major
+                        third and the highest of the keys struck with it, since a melody moves by seconds and thirds and the top of a chord usually
+                        sits further down. A wrong guess costs no more than an attack. No key ever waits.
+                    </p>
+
+                    <p>
+                        When the voices run out, the melody is the last thing taken. The sustain pedal holds the sound, not the line, so a note only
+                        the pedal is keeping does not carry anything on. With MPE on it works the same, and a note carried onto a key of its own
+                        channel brings that key's bend, pressure and slide with it.
+                    </p>
+
+                    <p>Legato moves the note in a single step. With a <a href="#glide">glide</a> time on the channels, it slides there instead.</p>
+                </section>
+
+                <section id="glide">
+                    <h2>Glide</h2>
+
+                    <p>
+                        <strong>Every channel has its own glide</strong>, the last knob under PITCH MOD. It is how long that partial takes to travel
+                        from the note before to the new one, from Off, where every channel starts, to five seconds. Because each partial travels on
+                        its own time, the series does not have to arrive together. Short times on the top and a long one on the fundamental land the
+                        brightness first and let the pitch follow. The other way round, the note arrives and its colour catches up. Somewhere between,
+                        the partials stop agreeing on a fundamental while they move and settle into one as they land, which no single portamento can
+                        do.
+                    </p>
+
+                    <figure class="listen">
+                        <figcaption>
+                            The same phrase twice on the <a href="../presets/">Glide</a> preset, up a fifth, up a fourth and down the octave. With
+                            every glide at zero each note simply arrives. As the preset has them, from nothing on the fundamental to two and a half
+                            seconds on the thirty-second, the pitch lands at once and the upper partials are heard still on their way.
+                        </figcaption>
+
+                        <div class="players">
+                            <p>
+                                <strong>Glide off</strong><br />
+                                <audio controls preload="none" aria-label="A phrase with every glide time at zero">
+                                    <source src="../audio/glide-off.ogg" type="audio/ogg" />
+                                    <source src="../audio/glide-off.flac" type="audio/flac" />
+                                    Your browser cannot play this. The file is
+                                    <a href="../audio/glide-off.flac">glide-off.flac</a>.
+                                </audio>
+                            </p>
+
+                            <p>
+                                <strong>Glide on</strong><br />
+                                <audio controls preload="none" aria-label="The same phrase with glide times rising up the series">
+                                    <source src="../audio/glide-on.ogg" type="audio/ogg" />
+                                    <source src="../audio/glide-on.flac" type="audio/flac" />
+                                    Your browser cannot play this. The file is
+                                    <a href="../audio/glide-on.flac">glide-on.flac</a>.
+                                </audio>
+                            </p>
+                        </div>
+                    </figure>
+
+                    <p>
+                        A partial glides in a straight line in pitch, and everything that follows the pitch follows the glide: the oscillator
+                        character is chosen at the frequency the partial has reached, and the Bulb character's lamp sags behind a long slide as a real
+                        one would. Vibrato, drift and both kinds of bend ride on top of it. The needle on each partial's PITCH MOD rule follows the
+                        glide, swinging back to centre as the partial arrives, so a series given different glide times can be watched landing a
+                        partial at a time.
+                    </p>
+
+                    <p>
+                        <strong>Two switches govern every channel at once</strong>, on the two lit letters beside the GLIDE caption on the left of the
+                        mixer, <strong>L</strong> and <strong>T</strong>, and again at the end of the menu a right-click on any GLIDE knob opens,
+                        under <em>Glide (every channel)</em>. A letter is lit when its switch is on. They belong to the patch, so a preset saves them
+                        and a legato lead can say so, and the letters show it the moment one loads.
+                    </p>
+
+                    <div class="scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Switch</th>
+                                    <th>Choices</th>
+                                    <th>What it decides</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>When, L</td>
+                                    <td>Always, the default, or Legato (L lit)</td>
+                                    <td>
+                                        Always glides from the last note played, even when its key came up long ago. Legato glides only when the new
+                                        key goes down over another one still under a finger, so a phrase played detached lands on each note and the
+                                        same phrase played joined slides through them. The sustain pedal holds the sound and not the hand, so a note
+                                        it is holding does not count as held
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>What the time means, T</td>
+                                    <td>Fixed rate, the default, or Fixed time (T lit)</td>
+                                    <td>
+                                        Fixed rate makes the time the length of an octave's slide, so a fifth takes a little over half of it and two
+                                        octaves take twice it, the way a finger sliding along a string at a steady pace does. Fixed time makes every
+                                        slide take the time however far it goes, so a leap and a step land on the same beat
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <p>
+                        Played polyphonically, each new note glides from the one played last. In <a href="#legato">Legato</a> the voice carrying the
+                        phrase glides from wherever it is, the one voice with one voice set and the top line with more, so a key pressed halfway
+                        through a slide turns the slide round from where it had got to rather than jumping to either end. A trill falling back to a
+                        key still held glides back to it too.
+                    </p>
+
+                    <p>
+                        GLIDE is a row like any other, so <a href="../controls/#link">LINK</a> sets it across the series in one drag and a
+                        <a href="#macros">macro</a> can sweep every channel's glide time from one control.
                     </p>
                 </section>
 
@@ -242,11 +405,8 @@
                                 </tr>
                                 <tr>
                                     <td>Polyphony</td>
-                                    <td>Legato, then 1, 2, 4, 6, 8, 12 or 16 voices. 8 by default</td>
-                                    <td>
-                                        How many notes can sound at once. Legato heads the list because it is one voice too, differing only in what a
-                                        second key does
-                                    </td>
+                                    <td>1, 2, 4, 6, 8, 12 or 16 voices. 8 by default</td>
+                                    <td>How many notes can sound at once</td>
                                 </tr>
                                 <tr>
                                     <td>One voice per key</td>
@@ -255,6 +415,15 @@
                                         Striking a key again takes over the note it is already sounding rather than laying a second copy beside it,
                                         which is what a string or a bar does. Off, every strike gets a voice of its own and the tails sum, so a
                                         repeatedly struck bell builds up
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Legato</td>
+                                    <td>off by default</td>
+                                    <td>
+                                        With one voice, a key pressed while another is held moves the note without starting it again. With more, the
+                                        highest held note does that for a key above the rest, and everything under it plays as usual: see
+                                        <a href="#legato">Legato</a>
                                     </td>
                                 </tr>
                                 <tr>
@@ -295,8 +464,9 @@
                                     <td>Phase reset</td>
                                     <td>on by default</td>
                                     <td>
-                                        Restarts each partial's phase at note-on, which gives a coherent, percussive attack and is what makes the
-                                        PHASE knob mean anything
+                                        Starts each partial where its ATTACK says when a note begins from silence: a rising zero crossing, or nearer
+                                        its peak when the attack is turned below its shortest time. Off, a partial carries on from wherever its cycle
+                                        was
                                     </td>
                                 </tr>
                                 <tr>
@@ -309,11 +479,11 @@
                                 </tr>
                                 <tr>
                                     <td>Limiter lookahead</td>
-                                    <td>on by default</td>
+                                    <td>off by default</td>
                                     <td>
-                                        Whether the Limiter may see what is coming. Off gives back the two milliseconds of latency it costs, which
-                                        only that one shape uses, at the price of a rougher limiter. The only setting here that changes what the
-                                        plugin reports to your host
+                                        Whether the Limiter may see what is coming. On makes it smooth at the cost of two milliseconds of latency on
+                                        every shape, since only that one uses the window and the figure must not move with the patch. The only setting
+                                        here that changes what the plugin reports to your host
                                     </td>
                                 </tr>
                                 <tr>
@@ -355,7 +525,7 @@
                     <h2>Automating it from the host</h2>
 
                     <p>
-                        Eight hundred and thirty-six parameters reach the host: thirty-four global ones, twenty-three on each of the 32 partials,
+                        Eight hundred and thirty-nine parameters reach the host: thirty-seven global ones, twenty-three on each of the 32 partials,
                         eighteen on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals
                         first and then channel by channel with the noise channel last.
                     </p>
@@ -400,8 +570,8 @@
                     </div>
 
                     <p>
-                        The noise channel has eighteen rather than twenty-three because it has no tuning, pitch modulation, drift or start phase, and
-                        gains COLOUR in their place.
+                        The noise channel has eighteen rather than twenty-three because it has no tuning, pitch modulation, drift or glide, and gains
+                        COLOUR in their place.
                     </p>
 
                     <p>
@@ -426,11 +596,11 @@
                     <section class="parameter-list">
                         <h3 id="every-parameter">Every parameter</h3>
                         <p>
-                            All 836 as the host lists them, with a control that every partial or every macro carries given one row for all of them.
+                            All 839 as the host lists them, with a control that every partial or every macro carries given one row for all of them.
                             The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is
                             <a href="../parameters.json">parameters.json</a>, written by the plugin rather than by hand.
                         </p>
-                        <p><strong>Global</strong>, thirty-four of them.</p>
+                        <p><strong>Global</strong>, thirty-seven of them.</p>
                         <div class="scroll">
                             <table>
                                 <thead>
@@ -482,7 +652,7 @@
                                         <td><code>Lookahead</code></td>
                                         <td><code>lookahead</code></td>
                                         <td>Off or on</td>
-                                        <td>On</td>
+                                        <td>Off</td>
                                     </tr>
                                     <tr>
                                         <td><code>MPE</code></td>
@@ -649,6 +819,24 @@
                                         <td>Room, Modulated Plate, Spring</td>
                                         <td>Room</td>
                                     </tr>
+                                    <tr>
+                                        <td><code>Glide Trigger</code></td>
+                                        <td><code>glideTrigger</code></td>
+                                        <td>Always, Legato</td>
+                                        <td>Always</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Glide Mode</code></td>
+                                        <td><code>glideMode</code></td>
+                                        <td>Fixed rate, Fixed time</td>
+                                        <td>Fixed rate</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Legato</code></td>
+                                        <td><code>legato</code></td>
+                                        <td>Off or on</td>
+                                        <td>Off</td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </div>
@@ -689,10 +877,10 @@
                                         <td>Sine</td>
                                     </tr>
                                     <tr>
-                                        <td><code>H1 Start Phase to H32 Start Phase</code></td>
-                                        <td><code>h01_phase to h32_phase</code></td>
-                                        <td>0° to 360°</td>
-                                        <td>0°</td>
+                                        <td><code>H1 Glide to H32 Glide</code></td>
+                                        <td><code>h01_glide to h32_glide</code></td>
+                                        <td>Off to 5.00 s</td>
+                                        <td>Off</td>
                                     </tr>
                                     <tr>
                                         <td><code>H1 Drift to H32 Drift</code></td>
@@ -715,7 +903,7 @@
                                     <tr>
                                         <td><code>H1 Attack to H32 Attack</code></td>
                                         <td><code>h01_attack to h32_attack</code></td>
-                                        <td>0.2 ms to 5.00 s</td>
+                                        <td>90° to 5.00 s</td>
                                         <td>5.0 ms</td>
                                     </tr>
                                     <tr>
@@ -950,7 +1138,7 @@
                                         <td><code>Macro 1 Row to Macro 8 Row</code></td>
                                         <td><code>macro1_row to macro8_row</code></td>
                                         <td>
-                                            None, Tune, Phase, Pitch mod rate, Pitch mod depth, Drift, Strike, Delay, Attack, Decay, Sustain, Key-off
+                                            None, Tune, Glide, Pitch mod rate, Pitch mod depth, Drift, Strike, Delay, Attack, Decay, Sustain, Key-off
                                             swell, Key-off level, Release, Amp mod rate, Amp mod depth, Velocity, Aftertouch, Pan, Level
                                         </td>
                                         <td>None</td>

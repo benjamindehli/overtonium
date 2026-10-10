@@ -4,6 +4,7 @@
 #include <cmath>
 
 #include "../PluginParameters.h"
+#include "../dsp/Velocity.h"
 #include "LookAndFeel.h"
 
 namespace ovt::ui {
@@ -1217,8 +1218,8 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   setUpKnob(tune, Role::Tune, colour);
   setUpKnob(pmRate, Role::PmRate, colour);
   setUpKnob(pmDepth, Role::PmDepth, colour);
-  setUpKnob(phase, Role::Phase, colour);
   setUpKnob(drift, Role::Drift, colour);
+  setUpKnob(glide, Role::Glide, colour);
   setUpKnob(strike, Role::Strike, colour);
 
   // The one knob whose own value says nothing useful. Turning it reads as the
@@ -1364,6 +1365,18 @@ void ChannelStrip::wireUp(LinkableSlider &s, Role role) {
   if (auto *p = apvts.getParameter(paramId))
     s.setDoubleClickReturnValue(
         true, (double)p->convertFrom0to1(p->getDefaultValue()));
+
+  // Where the attack stops being a time and becomes where the partial starts
+  // in its cycle, as a share of the knob's travel, so the ring can draw the
+  // stretch below it differently. Read off the parameter's own range, which
+  // is what the knob turns through, so the mark cannot drift from the scale.
+  // See kShortestAttack.
+  if (role == Role::Attack)
+    if (auto *p = dynamic_cast<juce::RangedAudioParameter *>(
+            apvts.getParameter(paramId)))
+      s.getProperties().set(
+          "phaseSplit",
+          (double)p->getNormalisableRange().convertTo0to1(kShortestAttack));
 
   s.onUserDragStart = [this, role] { link.linkDragStarted(role, index); };
   s.onUserDragEnd = [this, role] { link.linkDragEnded(role, index); };
@@ -1714,10 +1727,10 @@ LinkableSlider *ChannelStrip::sliderForRole(Role role) {
     return &pmRate;
   case Role::PmDepth:
     return &pmDepth;
-  case Role::Phase:
-    return &phase;
   case Role::Drift:
     return &drift;
+  case Role::Glide:
+    return &glide;
   case Role::Strike:
     return &strike;
   case Role::Delay:
@@ -1911,8 +1924,8 @@ void ChannelStrip::resized() {
   placeRow(pmRate, Row::PmRate, 1);
   placeRow(pmShape, Row::PmShape, 0);
   placeRow(pmDepth, Row::PmDepth, 1);
-  placeRow(phase, Row::Phase, 1);
   placeRow(drift, Row::Drift, 1);
+  placeRow(glide, Row::Glide, 1);
   placeRow(strike, Row::Strike, 1);
   placeRow(delay, Row::Delay, 1);
   placeRow(attack, Row::Attack, 1);

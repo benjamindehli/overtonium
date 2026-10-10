@@ -23,23 +23,46 @@ namespace ovt {
 /// voice branches on it and the DSP core is not allowed to include JUCE.
 enum class SlideDestination { Off = 0, Brightness, Tuning };
 
+/// When a new note glides from the one before it rather than starting at its
+/// own pitch. Always glides from the last note played even after its key has
+/// come up, which is how a portamento circuit with one voice behaves. Legato
+/// glides only while another key is still held down, so a phrase played
+/// detached lands on each note and a phrase played joined slides through them.
+enum class GlideTrigger { Always = 0, Legato };
+
+/// What a channel's glide time means. Rate reads it as the time an octave
+/// takes, so a wide leap takes longer than a narrow one, the way a finger
+/// sliding along a string at a steady pace does. Time reads it as the time any
+/// interval takes, so every note lands on the beat however far it travelled.
+enum class GlideMode { Rate = 0, Time };
+
+inline const char *glideTriggerName(GlideTrigger t) {
+  return t == GlideTrigger::Legato ? "Legato" : "Always";
+}
+
+inline const char *glideModeName(GlideMode m) {
+  return m == GlideMode::Time ? "Fixed time" : "Fixed rate";
+}
+
 /// A per-block snapshot of one channel strip. Deliberately plain data: the DSP
 /// core never touches JUCE, which keeps it unit-testable and portable.
 struct OscParams {
   // Pitch
   float tuneBlend = 0.0f; ///< 0 = equal temperament, 1 = just intonation
-  /// Where in its own cycle this partial starts, 0 to 1 of a turn, when phase
-  /// reset is on. Zero is a rising zero crossing, which is the softest onset
-  /// available: the partial cannot reach its own peak until a quarter of its
-  /// period has passed, which below about 500 Hz is longer than any attack
-  /// setting. A quarter turn starts it at the peak instead.
-  float startPhase = 0.0f;
   float pmRateHz = 4.0f;
   LfoShape pmShape = LfoShape::Sine;
   float pmDepthCents = 0.0f;
   /// Depth of the smooth random pitch wander, in cents. Each partial of each
   /// note gets its own rate, so nothing ever locks together.
   float driftCents = 0.0f;
+  /// How long this partial takes to reach a new note's pitch, in seconds, or
+  /// in seconds per octave under GlideMode::Rate. Zero is no glide at all.
+  ///
+  /// Per partial, because the series does not have to arrive together: a top
+  /// that lands before the fundamental, or one that trails behind it, smears
+  /// the spectrum in transit and resolves it on arrival, which no single
+  /// portamento can do. See Voice::startGlide.
+  float glideSeconds = 0.0f;
 
   // Amplitude
   /// How much the speed you strike the key at moves the front of the envelope,
@@ -52,7 +75,9 @@ struct OscParams {
   /// Held silent before the attack starts, in seconds. Staggering this across
   /// the series makes the spectrum unfold rather than arrive all at once.
   float delay = 0.0f;
-  float attack = 0.005f; ///< seconds
+  /// Seconds, or below zero where in its cycle the partial starts with no
+  /// attack at all, -1 being its peak. See onsetOctaves.
+  float attack = 0.005f;
   float decay = 0.400f;
   float sustain = 1.0f; ///< 0..1
   float release = 0.400f;
@@ -124,7 +149,12 @@ struct GlobalParams {
 
   float bendSemitones = 0.0f; ///< current pitch-bend offset
   float aftertouch = 0.0f;    ///< current channel pressure, 0..1
-  bool phaseReset = true; ///< reset partial phase on note-on (coherent attack)
+  /// Whether a partial starting from silence starts its cycle at a rising zero
+  /// crossing. That is the softest onset there is, since a partial cannot
+  /// reach its own peak until a quarter of its period has passed, which below
+  /// about 500 Hz is longer than any attack. Off, it carries on from wherever
+  /// its phase was.
+  bool phaseReset = true;
   /// Inharmonicity, as cents of displacement on the 32nd partial. Zero is the
   /// plain harmonic series. See inharmonicCents.
   float stretchCents = 0.0f;
@@ -160,9 +190,9 @@ struct GlobalParams {
   /// how hard it is driven is a thing a patch decides. See OutputStage.
   bool safetyClip = true;
 
-  /// Whether the output stage may look ahead. Off trades the limiter's
-  /// smoothness for the two milliseconds it costs everything else.
-  bool lookahead = true;
+  /// Whether the output stage may look ahead. Off, the default, saves the two
+  /// milliseconds it costs everything, at the price of a rougher Limiter.
+  bool lookahead = false;
 
   /// Which of the five, when it is on. Soft is what every patch had before
   /// there was a choice.
@@ -185,6 +215,12 @@ struct GlobalParams {
   /// SynthEngine::advanceSharedModulators.
   bool pitchModInPhase = false;
   bool ampModInPhase = false;
+
+  /// When a note glides, and what the glide times on the channels mean. Both
+  /// belong to the patch, so a preset can be a legato lead. See GlideTrigger
+  /// and GlideMode.
+  GlideTrigger glideTrigger = GlideTrigger::Always;
+  GlideMode glideMode = GlideMode::Rate;
 };
 
 /// The tape echo, which sits across the whole instrument rather than on any one

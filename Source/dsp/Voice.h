@@ -134,10 +134,32 @@ struct SharedModulation {
   int stride = 0;
 };
 
+/// What a voice needs to know to glide, which the engine keeps a copy of so a
+/// note-off can start one too. A note-off carries no parameters, and falling
+/// back to a held key in a legato phrase is a change of pitch like any other.
+struct GlideSettings {
+  std::array<float, kNumHarmonics> seconds{};
+  GlideMode mode = GlideMode::Rate;
+
+  static GlideSettings of(const SynthParams &p) noexcept {
+    GlideSettings g;
+
+    for (int i = 0; i < kNumHarmonics; ++i)
+      g.seconds[(size_t)i] = p.osc[(size_t)i].glideSeconds;
+
+    g.mode = p.global.glideMode;
+    return g;
+  }
+};
+
 /// One polyphonic voice: 32 independently tuned, enveloped and modulated sine
 /// partials.
 class Voice {
 public:
+  /// Where each partial's note sounds, in semitones above 1 Hz. Absolute
+  /// rather than against the note, so a glide can start from a voice playing
+  /// a different one.
+  using Pitches = std::array<double, kNumHarmonics>;
   /// LFOs, envelope-driven gain interpolation and the Nyquist guard update once
   /// per control block rather than once per sample. 32 frames is ~0.7 ms at
   /// 44.1 kHz.
@@ -178,6 +200,35 @@ public:
   /// whichever key is left holding it.
   void retune(int channel, int note, double frequency) noexcept;
   void steal() noexcept; ///< fast fade-out so the voice can be reused
+
+  /// The same fade over a time of the caller's choosing, for a note that has
+  /// handed its phrase on and should go quietly rather than ring out its
+  /// release under the note that took over.
+  void fade(float seconds) noexcept;
+
+  /// Carries on where another voice is: every envelope at the stage and level
+  /// it has reached, the modulators and the drift mid-cycle, and the velocity
+  /// the phrase began with. Called on a voice that has just been given a note,
+  /// so this note continues that one rather than starting again. The pitch is
+  /// left to startGlide, which knows where it came from.
+  void takeOver(const Voice &from) noexcept;
+
+  /// Where every partial's note is sounding right now, glide included, so a
+  /// note taking over from this one can start from exactly here. A partial
+  /// halfway through a glide is halfway, rather than at either end of it.
+  Pitches notePitches() const noexcept;
+
+  /// The same pitch for all of them, for a note gliding from one that has
+  /// finished and left nothing but its frequency behind.
+  static Pitches uniformPitches(double frequency) noexcept;
+
+  /// Sets every partial gliding from where it was to this voice's note, each
+  /// over its own channel's time. Called after the note has been set, so the
+  /// voice already knows where it is going. A channel with no glide time, or
+  /// one with nowhere to go, simply sounds at the note.
+  void startGlide(const Pitches &from, const GlideSettings &glide) noexcept;
+
+  double getFrequency() const noexcept { return baseFreq; }
 
   /// Polyphonic aftertouch for this voice. Channel pressure arrives separately
   /// through SynthParams, and whichever is higher wins.
@@ -331,6 +382,13 @@ private:
     /// how hard it was.
     float delayScale = 1.0f;
     float attackScale = 1.0f;
+
+    /// The attack time the knob and that blow come to, and the knob value it
+    /// was worked out for. Two logarithms and a power a partial, so it is
+    /// worked out when the knob moves rather than every control block.
+    float onsetFor = 0.0f;
+    float onsetSeconds = 0.0f;
+    bool onsetStale = true;
     bool gainPrimed = false;
 
     /// The pitch the lamp has settled at, in semitones off the note, which is
@@ -344,6 +402,14 @@ private:
     /// tables can be played as a cross-fade rather than as a step. Null until
     /// it has read one. See Voice::render.
     const Wave *lastWave = nullptr;
+
+    /// How far this partial still is from its note, in semitones, and how much
+    /// of that it closes each control block. Straight lines in pitch, which is
+    /// what both a rate and a time describe, and stepped per block like the
+    /// modulators: a fraction of a semitone every two thirds of a millisecond
+    /// is a slide to the ear.
+    double glideSemis = 0.0;
+    double glideStep = 0.0;
   };
 
   /// The noise channel runs alongside the partials with its own envelope and

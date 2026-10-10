@@ -92,8 +92,7 @@ public:
 
   /// The lamps on the section rules. Noise has an envelope and a tremolo like
   /// any other channel, so it gets those two. It has no pitch, so the pitch
-  /// rule stays a plain rule, which is the same thing the "no pitch" label
-  /// above it is saying. See ChannelStrip::setActivity.
+  /// rule stays a plain rule over empty rows. See ChannelStrip::setActivity.
   void setActivity(float envelope, float tremolo, float velGain, float pressure,
                    juce::Array<juce::Rectangle<int>> &into);
 

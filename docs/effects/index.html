@@ -63,7 +63,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-10-07",
+                "dateModified": "2026-10-10",
                 "breadcrumb": {
                     "@id": "https://benjamindehli.github.io/overtonium/effects/#breadcrumb"
                 }
@@ -285,8 +285,8 @@
                     </p>
 
                     <p>
-                        It is part of the patch rather than part of the setup, so a preset can change it and saving one carries it. Twenty-six of the
-                        thirty-three <a href="../presets/">factory presets</a> ask for one, so most of what you load is already on a circuit rather
+                        It is part of the patch rather than part of the setup, so a preset can change it and saving one carries it. Twenty-seven of
+                        the thirty-four <a href="../presets/">factory presets</a> ask for one, so most of what you load is already on a circuit rather
                         than on the plain sine.
                     </p>
                 </section>
@@ -383,20 +383,20 @@
                         Settings menu.
                     </p>
                     <p>
-                        The Limiter looks two milliseconds ahead, so the gain is already in place when the peak arrives rather than chasing it
-                        afterwards, which is the difference between a limiter and a clipper wearing the name. That costs latency, and because a plugin
-                        whose latency moved when you chose a preset would have the host re-plan its graph every time, it is paid by all five shapes
-                        and by the stage switched off alike. Overtonium reports 108 samples at 48 kHz, a little over two milliseconds, which your host
-                        compensates for on playback.
+                        With <strong>Limiter lookahead</strong> switched on in the Settings menu, the Limiter looks two milliseconds ahead, so the
+                        gain is already in place when the peak arrives rather than chasing it afterwards, which is the difference between a limiter
+                        and a clipper wearing the name. That costs latency, and because a plugin whose latency moved when you chose a preset would
+                        have the host re-plan its graph every time, it is paid by all five shapes and by the stage switched off alike: Overtonium
+                        reports 108 samples at 48 kHz, a little over two milliseconds, which your host compensates for on playback.
                     </p>
                     <p>
-                        <strong>Limiter lookahead</strong> in the Settings menu gives those two milliseconds back. Only the Limiter uses the window,
-                        so if you never reach for it you are paying for nothing, and this is the way to stop. Turning it off does not break the
-                        limiter: the detector sees a single sample instead of a window, so the gain is exact and immediate and the ceiling still
-                        holds, but the smoothing goes with it and a gain that steps is itself a distortion, about fifteen times as much of it. It is
-                        in Settings rather than on the bar because nothing a preset can reach is allowed to change what the plugin tells your host.
-                        Most hosts take the new figure while running, some only on playback stop or on reload, so it is worth choosing before a take
-                        rather than during one.
+                        <strong>It is off by default</strong>, and the plugin then reports only the bus stage's 12 samples. Only the Limiter uses the
+                        window and no factory preset reaches for it, so with it on everyone else would be paying two milliseconds for nothing. Off
+                        does not break the limiter: the detector sees a single sample instead of a window, so the gain is exact and immediate and the
+                        ceiling still holds, but the smoothing goes with it and a gain that steps is itself a distortion, about fifteen times as much
+                        of it. It is in Settings rather than on the bar because nothing a preset can reach is allowed to change what the plugin tells
+                        your host. Anyone who leans on the Limiter and wants it smooth can switch it on. Most hosts take the new figure while running,
+                        some only on playback stop or on reload, so it is worth choosing before a take rather than during one.
                     </p>
                 </section>
 

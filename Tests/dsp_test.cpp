@@ -340,18 +340,45 @@ void testTracking() {
         "and the fundamental is left where it was at both pitches");
 }
 
-/// Start phase, which exists because zero is the softest onset a partial can
-/// have and the attack knob cannot do anything about it.
+/// Where a partial starts its cycle. With phase reset on, the bottom of the
+/// ATTACK row chooses it: a rising zero crossing at the shortest attack, the
+/// softest onset there is, down to the partial's own peak, the hardest. A low
+/// note's onset is set by its period rather than by the envelope, which is
+/// what that stretch of the knob reaches.
 void testStartPhase() {
   section("Start phase");
 
   constexpr double sr = 48000.0;
   constexpr int N = 4800;
 
-  // A low note, where the period rather than the envelope sets the onset: the
-  // fundamental of A1 needs 4.5 ms to reach its peak from a zero crossing, and
-  // the shortest attack available is 0.5 ms.
-  const auto onsetOf = [&](float startPhase) {
+  // ---- the scale ----------------------------------------------------------
+  const auto close = [](double a, double b) { return std::abs(a - b) < 1e-4; };
+
+  check(close(struckOnset(0.005f, 1.0f).seconds, 0.005) &&
+            close(struckOnset(0.005f, 4.0f).seconds,
+                  struckAttack(0.005f, 4.0f)) &&
+            close(struckOnset(2.0f, 256.0f).seconds, kMaxAttackSeconds),
+        "within the times, the onset is the attack it always was, ceiling "
+        "and all");
+
+  check(close(struckOnset(-1.0f, 1.0f).turns, 0.25) &&
+            close(struckOnset(-0.5f, 1.0f).turns, 0.125) &&
+            struckOnset(-1.0f, 1.0f).seconds <= 0.0f,
+        "below them, the knob chooses where in its cycle a partial starts, "
+        "with no attack time");
+
+  // A light touch moves up the same scale: two octaves is the whole region.
+  check(close(struckOnset(-1.0f, 2.0f).turns, 0.125),
+        "an octave of STRIKE takes a peak start halfway to the crossing");
+  check(close(struckOnset(-1.0f, 256.0f).seconds,
+              kShortestAttack * std::pow(2.0, 6.0)),
+        "and eight carry it past the crossing into a short attack");
+
+  // ---- what that does to a low note ---------------------------------------
+  //
+  // A1, where the fundamental needs 4.5 ms to reach its peak from a zero
+  // crossing and the shortest attack is 0.2 ms.
+  const auto onsetOf = [&](float attack) {
     const auto engineOwner = std::make_unique<SynthEngine>();
     auto &engine = *engineOwner;
     engine.prepare(sr);
@@ -366,7 +393,7 @@ void testStartPhase() {
     }
 
     p.osc[0].volume = 0.8f;
-    p.osc[0].startPhase = startPhase;
+    p.osc[0].attack = attack;
     p.global.phaseReset = true;
     p.global.safetyClip = false;
 
@@ -384,76 +411,92 @@ void testStartPhase() {
 
     double early = 0.0, whole = 0.0;
     for (int n = late; n < N; ++n) {
-      const auto s = std::abs((double)l[(size_t)n]);
-      whole = std::max(whole, s);
+      const auto v = std::abs((double)l[(size_t)n]);
+      whole = std::max(whole, v);
       if (n - late < (int)(0.001 * sr))
-        early = std::max(early, s);
+        early = std::max(early, v);
     }
 
     return whole > 0.0 ? early / whole : 0.0;
   };
 
-  const auto atZero = onsetOf(0.0f);
-  const auto atPeak = onsetOf(0.25f);
+  const auto atZero = onsetOf(0.0005f);
+  const auto atHalf = onsetOf(-0.5f);
+  const auto atPeak = onsetOf(-1.0f);
 
-  std::printf("  A1, 0.5 ms attack: %.0f%% of the level is there after 1 ms "
-              "from a zero crossing, %.0f%% from the peak\n",
-              100.0 * atZero, 100.0 * atPeak);
+  std::printf("  A1 after 1 ms: %.0f%% from a zero crossing, %.0f%% from 45 "
+              "degrees, %.0f%% from the peak\n",
+              100.0 * atZero, 100.0 * atHalf, 100.0 * atPeak);
 
-  // A millisecond at 55 Hz is 20 degrees of the cycle, and sin(20) is 0.34.
-  // That is the whole problem in one number: the envelope finished half a
-  // millisecond ago and a third of the sound has arrived.
+  // A millisecond at 55 Hz is 20 degrees of the cycle, and sin(20) is 0.34:
+  // the envelope finished half a millisecond ago and a third of the sound has
+  // arrived, which is the zero crossing doing its job.
   check(atZero > 0.28 && atZero < 0.40,
         "from a zero crossing a low note is a third started after a "
         "millisecond, whatever the attack says (" +
             std::to_string(atZero) + ")");
-
   check(atPeak > 0.9, "from the peak it is essentially all there (" +
                           std::to_string(atPeak) + ")");
+  check(atHalf > atZero + 0.2 && atHalf < atPeak,
+        "and from 45 degrees it is in between (" + std::to_string(atHalf) +
+            ")");
+}
 
-  // Zero has to stay the default and stay exactly what it always did.
-  SynthParams fresh;
-  check(fresh.osc[0].startPhase == 0.0f,
-        "and zero is the default, so nothing already made changes");
+void testAttackFollowsTheKnob() {
+  section("ATTACK moved while a note sounds");
 
-  // With phase reset off the setting cannot do anything, since there is no
-  // reset for it to aim.
-  const auto freeRunning = [&](float startPhase) {
+  // The attack time is worked out once and kept, since turning the knob into
+  // a time takes logarithms. Moving the knob mid-note still has to land: a
+  // note started on a two-second attack and moved to five milliseconds a
+  // tenth of a second in should be all there shortly after, rather than
+  // creeping on at the slow rate it began with.
+  constexpr double sr = 48000.0;
+  constexpr int first = 4800, second = 2400;
+
+  const auto levelAfter = [&](float startAttack, float movedAttack) {
     const auto engineOwner = std::make_unique<SynthEngine>();
     auto &engine = *engineOwner;
     engine.prepare(sr);
     engine.setPolyphony(1);
 
     auto p = makeFlatParams(0.0f);
+    for (auto &o : p.osc) {
+      o.sustain = 1.0f;
+      o.decay = 1.0f;
+      o.velAmount = 0.0f;
+    }
+
     p.osc[0].volume = 0.8f;
-    p.osc[0].startPhase = startPhase;
-    p.osc[0].sustain = 1.0f;
-    p.global.phaseReset = false;
+    p.osc[0].attack = startAttack;
     p.global.safetyClip = false;
 
-    engine.noteOn(69, 1.0f, p);
+    engine.noteOn(57, 1.0f, p);
 
-    std::vector<float> l((size_t)N), r((size_t)N);
-    engine.render(l.data(), r.data(), N, p);
-    return l;
+    std::vector<float> l((size_t)first), r((size_t)first);
+    engine.render(l.data(), r.data(), first, p);
+
+    p.osc[0].attack = movedAttack;
+    l.assign((size_t)second, 0.0f);
+    r.assign((size_t)second, 0.0f);
+    engine.render(l.data(), r.data(), second, p);
+
+    // The last 20 ms, by which time a 5 ms attack is long finished.
+    double peak = 0.0;
+    for (int n = second - 960; n < second; ++n)
+      peak = std::max(peak, std::abs((double)l[(size_t)n]));
+    return peak;
   };
 
-  const auto a = freeRunning(0.0f);
-  const auto b = freeRunning(0.25f);
+  const double full = levelAfter(0.005f, 0.005f);
+  const double moved = levelAfter(2.0f, 0.005f);
+  const double kept = levelAfter(2.0f, 2.0f);
 
-  bool identical = true;
-  for (size_t n = 0; n < a.size(); ++n)
-    identical &= std::abs(a[n] - b[n]) < 1.0e-6f;
-
-  check(identical,
-        "with phase reset off it has nothing to aim and does nothing");
+  check(full > 0.0 && moved > 0.9 * full,
+        "a slow attack moved to a fast one mid-note arrives at full level");
+  check(kept < 0.2 * full,
+        "and one left slow is still on its way, so the test can tell");
 }
 
-/// The keyboard's own tuning, as opposed to the partials above each note.
-///
-/// The temperaments are derived from the circle of fifths rather than copied
-/// from a table of cents, so what is checked here is the property that defines
-/// each one, not the numbers that happen to fall out.
 void testTemperaments() {
   section("Temperaments");
 
@@ -1807,6 +1850,538 @@ void testLegato() {
   check(poly.getActiveVoiceCount() == 3,
         "and with legato off they are three again (" +
             std::to_string(poly.getActiveVoiceCount()) + ")");
+}
+
+/// Glide: each partial travels to a new note's pitch over its own channel's
+/// time, from wherever the note before it was, under the two triggers and the
+/// two readings of the time. Pitch is read from single partials, so what is
+/// measured is one channel's journey rather than a blend of several.
+void testGlide() {
+  section("Glide");
+
+  constexpr double sr = 48000.0;
+
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
+
+  std::vector<float> l, r;
+
+  // Renders on from where the last call stopped, so a phrase can be played a
+  // piece at a time and measured between the pieces.
+  const auto render = [&](SynthParams &p, double seconds) {
+    const auto n = (size_t)(seconds * sr);
+    l.assign(n, 0.0f);
+    r.assign(n, 0.0f);
+    engine.render(l.data(), r.data(), (int)n, p);
+  };
+
+  // Pitch from interpolated rising zero crossings over part of the last
+  // render, which resolves a fraction of a hertz in a few cycles.
+  //
+  // A window measuring a note's first moments starts 10 ms in. The output
+  // stage looks 2 ms ahead whatever it is set to, so the head of every render
+  // is still the note before, and a stolen voice takes 4 ms to fade.
+  const auto hz = [&](double t0, double t1) {
+    const auto a = (size_t)(t0 * sr), b = std::min(l.size(), (size_t)(t1 * sr));
+    double first = -1.0, last = -1.0;
+    int crossings = 0;
+
+    for (size_t i = std::max<size_t>(a, 1); i < b; ++i) {
+      if (l[i - 1] < 0.0f && l[i] >= 0.0f) {
+        const double at =
+            (double)(i - 1) + (double)(-l[i - 1] / (l[i] - l[i - 1]));
+
+        if (first < 0.0)
+          first = at;
+        last = at;
+        ++crossings;
+      }
+    }
+
+    return crossings < 2 ? 0.0 : (double)(crossings - 1) * sr / (last - first);
+  };
+
+  const auto midiHz = [](double note) {
+    return 440.0 * std::pow(2.0, (note - 69.0) / 12.0);
+  };
+
+  // How many semitones a measured pitch is off a note, to compare in the unit
+  // a glide is defined in.
+  const auto semisOff = [&](double measured, double note) {
+    return measured > 0.0 ? 12.0 * std::log2(measured / midiHz(note)) : 99.0;
+  };
+
+  const auto base = [](int partial) {
+    auto p = makeFlatParams(0.0f);
+    p.osc[(size_t)partial].volume = 0.5f;
+    p.osc[(size_t)partial].sustain = 1.0f;
+    p.osc[(size_t)partial].release = 0.02f;
+    return p;
+  };
+
+  const auto start = [&](int voices, bool legato) {
+    engine.prepare(sr);
+    engine.setPolyphony(voices);
+    engine.setLegato(legato);
+  };
+
+  // ---- time: any interval takes the knob's time ----------------------------
+  {
+    auto p = base(0);
+    p.osc[0].glideSeconds = 0.4f;
+    p.global.glideMode = GlideMode::Time;
+
+    start(1, true);
+    engine.noteOn(48, 1.0f, p);
+    render(p, 0.2);
+    engine.noteOn(60, 1.0f, p); // held over the first, so a legato move
+    render(p, 0.6);
+
+    const auto atStart = semisOff(hz(0.0, 0.02), 48.0);
+    const auto halfway = semisOff(hz(0.19, 0.21), 54.0);
+    const auto arrived = semisOff(hz(0.45, 0.55), 60.0);
+
+    std::printf("  an octave in 0.4 s: %+.2f st off C3 at the start, %+.2f off "
+                "F#3 halfway, %+.2f off C4 after\n",
+                atStart, halfway, arrived);
+
+    check(std::abs(atStart) < 0.6, "a glide starts from the note before it");
+    check(std::abs(halfway) < 0.35, "is halfway at half its time");
+    check(std::abs(arrived) < 0.02, "and arrives at the end of it");
+  }
+
+  // ---- rate: the time is per octave, so two octaves take twice it ----------
+  {
+    auto p = base(0);
+    p.osc[0].glideSeconds = 0.3f;
+    p.global.glideMode = GlideMode::Rate;
+
+    start(1, true);
+    engine.noteOn(36, 1.0f, p);
+    render(p, 0.2);
+    engine.noteOn(60, 1.0f, p);
+    render(p, 0.8);
+
+    const auto oneOctave = semisOff(hz(0.29, 0.31), 48.0);
+    const auto arrived = semisOff(hz(0.65, 0.75), 60.0);
+
+    std::printf("  0.3 s an octave over two: %+.2f st off C2+12 at 0.3 s, "
+                "%+.2f off C4 at 0.7 s\n",
+                oneOctave, arrived);
+
+    check(std::abs(oneOctave) < 0.35,
+          "under Rate one octave of two is covered in one knob's time");
+    check(std::abs(arrived) < 0.02, "and both in two");
+  }
+
+  // ---- no time, no glide ----------------------------------------------------
+  {
+    auto p = base(0);
+    start(1, true);
+    engine.noteOn(48, 1.0f, p);
+    render(p, 0.2);
+    engine.noteOn(60, 1.0f, p);
+    render(p, 0.1);
+
+    check(std::abs(semisOff(hz(0.01, 0.04), 60.0)) < 0.02,
+          "a channel with no glide time lands on the note at once, as every "
+          "patch did before glide existed");
+  }
+
+  // ---- the two triggers, after the first key is up -------------------------
+  for (const auto trigger : {GlideTrigger::Always, GlideTrigger::Legato}) {
+    auto p = base(0);
+    p.osc[0].glideSeconds = 0.4f;
+    p.global.glideMode = GlideMode::Time;
+    p.global.glideTrigger = trigger;
+
+    start(8, false);
+    engine.noteOn(48, 1.0f, p);
+    render(p, 0.2);
+    engine.noteOff(48);
+    render(p, 0.3); // long past the release, so nothing is left of it
+    engine.noteOn(60, 1.0f, p);
+    render(p, 0.1);
+
+    const auto off = semisOff(hz(0.01, 0.04), 60.0);
+    const bool always = trigger == GlideTrigger::Always;
+
+    check(always ? off < -3.0 : std::abs(off) < 0.02,
+          always ? "Always glides from the last note even after its key is "
+                   "up and its sound gone (" +
+                       std::to_string(off) + " st)"
+                 : "Legato starts a detached note at its own pitch (" +
+                       std::to_string(off) + " st)");
+  }
+
+  // ---- legato, polyphonic: from the key still down -------------------------
+  {
+    auto p = base(0);
+    p.osc[0].glideSeconds = 0.4f;
+    p.global.glideMode = GlideMode::Time;
+    p.global.glideTrigger = GlideTrigger::Legato;
+
+    start(8, false);
+    engine.noteOn(48, 1.0f, p);
+    render(p, 0.2);
+
+    // Joined: the second key goes down while the first is held, which is all
+    // Legato asks. The first then lets go at once, and its 20 ms release
+    // leaves the new voice to be heard alone.
+    engine.noteOn(60, 1.0f, p);
+    engine.noteOff(48);
+    render(p, 0.1);
+
+    const auto off = semisOff(hz(0.05, 0.07), 60.0);
+
+    check(off < -6.0, "a joined phrase glides under Legato when polyphonic (" +
+                          std::to_string(off) + " st below C4 at 60 ms)");
+  }
+
+  // ---- the pedal holds the sound, not the hand -----------------------------
+  {
+    auto p = base(0);
+    p.osc[0].glideSeconds = 0.4f;
+    p.global.glideMode = GlideMode::Time;
+    p.global.glideTrigger = GlideTrigger::Legato;
+
+    start(1, false);
+    engine.setSustainPedal(true);
+    engine.noteOn(48, 1.0f, p);
+    render(p, 0.2);
+    engine.noteOff(48); // held by the pedal now
+    render(p, 0.1);
+    engine.noteOn(60, 1.0f, p);
+    render(p, 0.1);
+
+    check(std::abs(semisOff(hz(0.01, 0.04), 60.0)) < 0.02,
+          "Legato does not glide from a note only the pedal is holding");
+  }
+
+  // ---- each channel its own time -------------------------------------------
+  {
+    // The second partial heard alone, with no glide of its own, while the
+    // first is given a long one it is not there to hear.
+    auto p = base(1);
+    p.osc[0].glideSeconds = 0.5f;
+    p.osc[1].glideSeconds = 0.0f;
+    p.global.glideMode = GlideMode::Time;
+
+    start(1, true);
+    engine.noteOn(48, 1.0f, p);
+    render(p, 0.2);
+    engine.noteOn(60, 1.0f, p);
+    render(p, 0.1);
+
+    check(std::abs(semisOff(hz(0.01, 0.04) / 2.0, 60.0)) < 0.02,
+          "a channel without a glide lands at once even when its neighbour "
+          "is still travelling");
+  }
+
+  // ---- a new note mid-glide starts from where the glide had got to ---------
+  {
+    auto p = base(0);
+    p.osc[0].glideSeconds = 0.4f;
+    p.global.glideMode = GlideMode::Time;
+
+    start(1, true);
+    engine.noteOn(48, 1.0f, p);
+    render(p, 0.2);
+    engine.noteOn(60, 1.0f, p);
+    render(p, 0.2); // halfway, at about F#3
+    engine.noteOn(48, 1.0f, p);
+    render(p, 0.1);
+
+    const auto off = semisOff(hz(0.0, 0.02), 54.0);
+
+    std::printf("  turned back halfway: %+.2f st off F#3\n", off);
+    check(std::abs(off) < 0.6, "a note played mid-glide starts from where the "
+                               "glide had got to, not from either end of it");
+  }
+
+  // ---- the needle: a partial still on its way reads off its note ----------
+  //
+  // The pitch a partial reports for the PITCH MOD needle carries its glide,
+  // so a needle swings back to centre as the partial arrives. The reading is
+  // the loudest voice's, which with one voice is this one, and it is taken
+  // from the loudest moment of a render, which on a steady note is its start,
+  // so each reading is a short render of its own, as a host block is.
+  {
+    auto p = base(0);
+    p.osc[1].volume = 0.5f;
+    p.osc[1].sustain = 1.0f;
+    p.osc[0].glideSeconds = 0.4f;
+    p.osc[1].glideSeconds = 0.0f;
+    p.global.glideMode = GlideMode::Time;
+
+    start(1, true);
+    engine.noteOn(48, 1.0f, p);
+    render(p, 0.2);
+    engine.noteOn(60, 1.0f, p);
+    render(p, 0.1);
+    render(p, 0.001);
+
+    const auto onTheWay = engine.getPartialPitch(0);
+    const auto noGlide = engine.getPartialPitch(1);
+
+    render(p, 0.5);
+    render(p, 0.001);
+    const auto arrived = engine.getPartialPitch(0);
+
+    std::printf("  needle a quarter of the way up an octave: %+.0f cents, with "
+                "no glide %+.0f, arrived %+.1f\n",
+                (double)onTheWay, (double)noGlide, (double)arrived);
+
+    check(onTheWay < -800.0f && onTheWay > -1000.0f,
+          "a partial gliding up reads flat by what it has still to travel");
+    check(std::abs(noGlide) < 1.0f,
+          "one with no glide reads on its note beside it");
+    check(std::abs(arrived) < 1.0f,
+          "and the glide reads nothing once it lands");
+  }
+}
+
+/// Legato with more than one voice: a key landing above everything held but
+/// the highest note carries that note's phrase on in a voice of its own, and
+/// every other key plays as it always does. Whether a key carried the phrase
+/// is read from its level once everything else has been let go: with a
+/// quarter-second attack, a carried note is at full level and a fresh one a
+/// few tens of milliseconds in is a fraction of it.
+void testTopLineLegato() {
+  section("Top line legato");
+
+  constexpr double sr = 48000.0;
+
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
+
+  auto p = makeFlatParams(0.0f);
+  p.osc[0].volume = 0.5f;
+  p.osc[0].attack = 0.25f;
+  p.osc[0].decay = 8.0f;
+  p.osc[0].sustain = 1.0f;
+
+  // Every envelope short at the end, the silent partials and the noise
+  // included: a voice is active until all thirty-three have finished.
+  for (auto &o : p.osc)
+    o.release = 0.02f;
+  p.noise.release = 0.02f;
+
+  std::vector<float> l, r;
+  const auto render = [&](double seconds) {
+    const auto n = (size_t)(seconds * sr);
+    l.assign(n, 0.0f);
+    r.assign(n, 0.0f);
+    engine.render(l.data(), r.data(), (int)n, p);
+  };
+
+  const auto peakOfLast = [&](double seconds) {
+    double m = 0.0;
+    const auto from = l.size() - std::min(l.size(), (size_t)(seconds * sr));
+    for (size_t i = from; i < l.size(); ++i)
+      m = std::max(m, std::abs((double)l[i]));
+    return m;
+  };
+
+  const auto hz = [&](double t0, double t1) {
+    const auto a = (size_t)(t0 * sr), b = std::min(l.size(), (size_t)(t1 * sr));
+    double first = -1.0, last = -1.0;
+    int crossings = 0;
+
+    for (size_t i = std::max<size_t>(a, 1); i < b; ++i) {
+      if (l[i - 1] < 0.0f && l[i] >= 0.0f) {
+        const double at =
+            (double)(i - 1) + (double)(-l[i - 1] / (l[i] - l[i - 1]));
+        if (first < 0.0)
+          first = at;
+        last = at;
+        ++crossings;
+      }
+    }
+
+    return crossings < 2 ? 0.0 : (double)(crossings - 1) * sr / (last - first);
+  };
+
+  const auto semisOff = [&](double measured, double note) {
+    const double target = 440.0 * std::pow(2.0, (note - 69.0) / 12.0);
+    return measured > 0.0 ? 12.0 * std::log2(measured / target) : 99.0;
+  };
+
+  const auto start = [&](int polyphony) {
+    engine.prepare(sr);
+    engine.setPolyphony(polyphony);
+    engine.setLegato(true);
+  };
+
+  const auto voices = [&]() { return engine.getActiveVoiceCount(); };
+
+  // A held note at full level, for the rest to be measured against.
+  start(16);
+  engine.noteOn(72, 1.0f, p);
+  render(0.4);
+  const auto full = peakOfLast(0.05);
+  engine.noteOff(72);
+  render(0.2);
+
+  // Whether `note` carried a phrase on, read once it is the only thing left:
+  // `others` are let go first, and their tails have gone by the reading.
+  const auto carried = [&](std::initializer_list<int> others) {
+    for (auto k : others)
+      engine.noteOff(k);
+    render(0.06);
+    return peakOfLast(0.01) / full;
+  };
+
+  // ---- the melody going up --------------------------------------------------
+  start(16);
+  engine.noteOn(72, 1.0f, p);
+  render(0.3);
+  engine.noteOn(74, 1.0f, p);
+
+  const auto up = carried({72});
+
+  check(up > 0.7, "a key above the melody carries it on without starting "
+                  "again (" +
+                      std::to_string(up) + " of full)");
+  check(std::abs(semisOff(hz(0.03, 0.06), 74.0)) < 0.02,
+        "and plays its own note");
+
+  // ---- over a held chord ----------------------------------------------------
+  start(16);
+  engine.noteOn(48, 1.0f, p);
+  engine.noteOn(52, 1.0f, p);
+  engine.noteOn(55, 1.0f, p);
+  render(0.3);
+  engine.noteOn(72, 1.0f, p);
+  render(0.3);
+  engine.noteOn(76, 1.0f, p);
+
+  const auto overChord = carried({48, 52, 55, 72});
+
+  check(overChord > 0.7,
+        "over a held chord the melody goes on from note to note (" +
+            std::to_string(overChord) + ")");
+
+  // ---- stepping down on the beat, with a chord ------------------------------
+  for (const bool melodyLast : {true, false}) {
+    start(16);
+    engine.noteOn(76, 1.0f, p);
+    render(0.3);
+
+    if (melodyLast) {
+      engine.noteOn(60, 1.0f, p);
+      engine.noteOn(64, 1.0f, p);
+      engine.noteOn(74, 1.0f, p);
+    } else {
+      engine.noteOn(74, 1.0f, p);
+      engine.noteOn(60, 1.0f, p);
+      engine.noteOn(64, 1.0f, p);
+    }
+
+    check(voices() == 4, "every key of the chord sounds (" +
+                             std::to_string(voices()) + " voices)");
+
+    const auto onBeat = carried({76, 60, 64});
+
+    check(onBeat > 0.7, std::string("a melody stepping down with a chord "
+                                    "carries on, struck ") +
+                            (melodyLast ? "after" : "before") + " the chord (" +
+                            std::to_string(onBeat) + ")");
+  }
+
+  // ---- a staccato chord under a held melody ---------------------------------
+  start(16);
+  engine.noteOn(76, 1.0f, p);
+  render(0.3);
+  engine.noteOn(52, 1.0f, p);
+  engine.noteOn(55, 1.0f, p);
+  engine.noteOn(59, 1.0f, p);
+
+  check(voices() == 4, "a chord struck under a held melody sounds, every "
+                       "note of it (" +
+                           std::to_string(voices()) + " voices)");
+
+  const auto chordTop = carried({76, 52, 55});
+
+  check(chordTop < 0.5, "and starts again rather than taking the melody's "
+                        "phrase (" +
+                            std::to_string(chordTop) + " of full)");
+
+  // ---- a chord under a lone melody, close to it -----------------------------
+  start(16);
+  engine.noteOn(72, 1.0f, p);
+  render(0.3);
+  engine.noteOn(60, 1.0f, p);
+  engine.noteOn(64, 1.0f, p);
+  engine.noteOn(69, 1.0f, p);
+  render(0.02);
+
+  check(voices() == 4, "a chord close under a lone melody sounds, every "
+                       "note of it (" +
+                           std::to_string(voices()) + " voices)");
+
+  // ---- a leap down over a held chord ----------------------------------------
+  start(16);
+  engine.noteOn(48, 1.0f, p);
+  engine.noteOn(52, 1.0f, p);
+  engine.noteOn(55, 1.0f, p);
+  render(0.3);
+  engine.noteOn(79, 1.0f, p);
+  render(0.3);
+  engine.noteOn(72, 1.0f, p); // a fifth down, still above the chord
+
+  const auto leap = carried({48, 52, 55, 79});
+
+  check(leap > 0.7, "a leap down over a held chord carries on, however far (" +
+                        std::to_string(leap) + ")");
+
+  // ---- a trill -------------------------------------------------------------
+  start(16);
+  engine.noteOn(72, 1.0f, p);
+  render(0.3);
+  engine.noteOn(74, 1.0f, p);
+  render(0.1);
+  engine.noteOff(74); // back onto the key still held
+  render(0.1);
+
+  check(voices() == 1 && std::abs(semisOff(hz(0.05, 0.1), 72.0)) < 0.02,
+        "lifting the upper note of a trill leaves the lower one sounding, "
+        "and the upper goes quickly");
+
+  engine.noteOff(72);
+  render(0.1);
+
+  check(voices() == 0, "and the last key up lets it go");
+
+  // ---- the melody is not the voice stolen ----------------------------------
+  start(2);
+  engine.noteOn(76, 1.0f, p);
+  render(0.3);
+  engine.noteOn(48, 1.0f, p);
+  render(0.1);
+  engine.noteOn(52, 1.0f, p); // a third key with two voices
+
+  const auto spared = carried({48, 52});
+
+  check(spared > 0.7, "with the voices full, the melody is not the one taken "
+                      "(" +
+                          std::to_string(spared) + " of full left)");
+
+  // ---- MPE: the new note brings its own bend -------------------------------
+  start(16);
+  engine.noteOnPerNote(2, 72, 1.0f, p);
+  engine.setNoteBend(2, 72, 2.0f);
+  render(0.3);
+  engine.noteOnPerNote(3, 74, 1.0f, p); // carried on, on its own channel
+  engine.noteOffPerNote(2, 72);
+  render(0.1);
+
+  const auto mpeOff = semisOff(hz(0.04, 0.1), 74.0);
+
+  check(std::abs(mpeOff) < 0.02,
+        "a note carried on onto a key of its own channel is not bent by the "
+        "old one (" +
+            std::to_string(mpeOff) + " st off D5)");
 }
 
 void testOneVoicePerKey() {
@@ -8430,6 +9005,7 @@ int main() {
   testBlendEndpoints();
   testStretch();
   testStartPhase();
+  testAttackFollowsTheKnob();
   testTracking();
   testSineTable();
   testCharacter();
@@ -8441,6 +9017,8 @@ int main() {
   testNoClickOnMute();
   testVoiceAllocation();
   testLegato();
+  testGlide();
+  testTopLineLegato();
   testOneVoicePerKey();
   testPerNoteChannels();
   testActivity();

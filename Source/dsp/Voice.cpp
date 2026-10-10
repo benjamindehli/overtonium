@@ -5,6 +5,7 @@
 #include <algorithm>
 
 #include "Character.h"
+#include "Exact.h"
 #include "SineTable.h"
 
 namespace ovt {
@@ -111,6 +112,8 @@ void Voice::reset() noexcept {
     pt.lastGain = 0.0f;
     pt.gainPrimed = false;
     pt.lastWave = nullptr;
+    pt.glideSemis = 0.0;
+    pt.glideStep = 0.0;
   }
 
   noise.env.reset();
@@ -180,6 +183,11 @@ void Voice::noteOn(int channel, int note, float velocity,
     auto &pt = partials[(size_t)i];
     const auto &op = p.osc[(size_t)i];
 
+    // A note starts at its own pitch. The engine sets it gliding afterwards
+    // when one is due, from wherever it decides the glide comes from.
+    pt.glideSemis = 0.0;
+    pt.glideStep = 0.0;
+
     // Each strip decides for itself how much of the key velocity it takes,
     // latched here so a velocity change cannot alter a note already sounding.
     // The same shape the two strike scales below are built on, which is what
@@ -191,9 +199,13 @@ void Voice::noteOn(int channel, int note, float velocity,
     // gets there.
     pt.delayScale = strikeDelayScale(op.strikeAmount, vel);
     pt.attackScale = strikeAttackScale(op.strikeAmount, vel);
+    pt.onsetStale = true;
 
-    pt.env.configure(op.delay * pt.delayScale,
-                     struckAttack(op.attack, pt.attackScale), op.decay,
+    // Where the partial starts and how fast it rises, the knob and the blow
+    // together. See struckOnset.
+    const auto onset = struckOnset(op.attack, pt.attackScale);
+
+    pt.env.configure(op.delay * pt.delayScale, onset.seconds, op.decay,
                      op.sustain, op.swell, op.offLevel, op.release);
 
     // Starting from silence is only free while the partial is silent.
@@ -228,7 +240,7 @@ void Voice::noteOn(int channel, int note, float velocity,
     pt.drift.restart(rng, rate, sampleRate / (double)kControlBlock);
 
     if (fresh && p.global.phaseReset) {
-      pt.phase = (double)std::clamp(op.startPhase, 0.0f, 1.0f);
+      pt.phase = (double)onset.turns;
 
       // Fresh points per note per partial, so the random shapes wander
       // independently rather than all 32 tracing one contour, which is the
@@ -279,14 +291,68 @@ void Voice::noteOnLegato(int channel, int note, const SynthParams &p) noexcept {
 }
 
 void Voice::retune(int channel, int note, double frequency) noexcept {
+  // A key going down while the phrase is still sounding says nothing about
+  // bend or pressure, and on one channel the ones already in hand belong to
+  // the phrase rather than to the key that started it, so they are left
+  // alone. A key on a channel of its own is another matter: with MPE every
+  // note brings its own bend, pressure and slide, and a phrase carried onto
+  // that key takes the new finger's rather than keeping the last one's.
+  if (channel != midiChannel) {
+    noteBendSemitones = 0.0f;
+    polyPressure = 0.0f;
+    slide = 0.0f;
+    slideRest = 0.0f;
+    slideRested = false;
+  }
+
   midiNote = note;
   midiChannel = channel;
   baseFreq = frequency;
 
-  // A key going down while the phrase is still sounding says nothing about
-  // bend or pressure, and the ones already in hand belong to the phrase rather
-  // than to the key that started it. Left alone on purpose.
   released = false;
+}
+
+Voice::Pitches Voice::notePitches() const noexcept {
+  Pitches out{};
+  const double at = 12.0 * std::log2(baseFreq);
+
+  for (int i = 0; i < kNumHarmonics; ++i)
+    out[(size_t)i] = at + partials[(size_t)i].glideSemis;
+
+  return out;
+}
+
+Voice::Pitches Voice::uniformPitches(double frequency) noexcept {
+  Pitches out{};
+  out.fill(12.0 * std::log2(std::max(frequency, 1.0e-3)));
+  return out;
+}
+
+void Voice::startGlide(const Pitches &from,
+                       const GlideSettings &glide) noexcept {
+  const double to = 12.0 * std::log2(baseFreq);
+  const double blocksPerSecond = sampleRate / (double)kControlBlock;
+
+  for (int i = 0; i < kNumHarmonics; ++i) {
+    auto &pt = partials[(size_t)i];
+    const double seconds = (double)glide.seconds[(size_t)i];
+    const double offset = from[(size_t)i] - to;
+
+    if (seconds <= 0.0 || std::abs(offset) < 1.0e-6) {
+      pt.glideSemis = 0.0;
+      pt.glideStep = 0.0;
+      continue;
+    }
+
+    // How long this one takes. Under Rate the time is per octave, so the step
+    // comes out the same whatever the distance and only the arrival moves.
+    const double span = glide.mode == GlideMode::Rate
+                            ? seconds * std::abs(offset) / 12.0
+                            : seconds;
+
+    pt.glideSemis = offset;
+    pt.glideStep = std::abs(offset) / std::max(1.0, span * blocksPerSecond);
+  }
 }
 
 void Voice::noteOff(float lift) noexcept {
@@ -302,6 +368,53 @@ void Voice::noteOff(float lift) noexcept {
     pt.env.noteOff(lift);
 
   noise.env.noteOff(lift);
+}
+
+void Voice::fade(float seconds) noexcept {
+  if (!active)
+    return;
+
+  released = true;
+
+  for (auto &pt : partials)
+    pt.env.forceRelease(seconds);
+
+  noise.env.forceRelease(seconds);
+}
+
+void Voice::takeOver(const Voice &from) noexcept {
+  for (size_t i = 0; i < partials.size(); ++i) {
+    auto &pt = partials[i];
+    const auto &src = from.partials[i];
+
+    pt.env = src.env;
+    pt.pitchLfo = src.pitchLfo;
+    pt.ampLfo = src.ampLfo;
+    pt.drift = src.drift;
+    pt.velGain = src.velGain;
+    pt.delayScale = src.delayScale;
+    pt.attackScale = src.attackScale;
+    pt.onsetStale = true;
+    pt.bulbSettled = src.bulbSettled;
+    pt.semisPrimed = src.semisPrimed;
+
+    // Already sounding, so the gain ramp starts from where the other voice's
+    // was rather than priming itself afresh, and the oscillator starts its
+    // cycle on a crossing so the level it arrives at cannot step.
+    pt.lastGain = src.lastGain;
+    pt.gainPrimed = src.gainPrimed;
+    pt.phase = 0.0;
+  }
+
+  noise.env = from.noise.env;
+  noise.ampLfo = from.noise.ampLfo;
+  noise.velGain = from.noise.velGain;
+  noise.delayScale = from.noise.delayScale;
+  noise.attackScale = from.noise.attackScale;
+  noise.lastGain = from.noise.lastGain;
+  noise.gainPrimed = from.noise.gainPrimed;
+
+  pressureSmoothed = from.pressureSmoothed;
 }
 
 void Voice::steal() noexcept {
@@ -423,8 +536,13 @@ void Voice::render(float *left, float *right, int numSamples,
       // earned rather than throwing that away. The delay is latched in samples
       // at note-on and only read again by the next one, so it is scaled here to
       // keep the two calls agreeing rather than because this one uses it.
-      pt.env.configure(op.delay * pt.delayScale,
-                       struckAttack(op.attack, pt.attackScale), op.decay,
+      if (pt.onsetStale || !exactly(op.attack, pt.onsetFor)) {
+        pt.onsetFor = op.attack;
+        pt.onsetSeconds = struckOnset(op.attack, pt.attackScale).seconds;
+        pt.onsetStale = false;
+      }
+
+      pt.env.configure(op.delay * pt.delayScale, pt.onsetSeconds, op.decay,
                        op.sustain, op.swell, op.offLevel, op.release);
 
       if (!pt.env.isActive())
@@ -463,7 +581,20 @@ void Voice::render(float *left, float *right, int numSamples,
           semitoneOffset(i, (double)blendOf(p, i),
                          (double)p.global.stretchCents) +
           (pmCents + driftCents + (double)unit.cents[(size_t)i]) * 0.01 +
-          (double)(p.global.bendSemitones + noteBendSemitones);
+          (double)(p.global.bendSemitones + noteBendSemitones) + pt.glideSemis;
+
+      // Read at the start of the block and stepped for the next, as the
+      // modulators are. A glide that is not running costs a compare.
+      // Nought is set exactly by the line below, so the compare is exact too.
+      // How far the glide still has to go, for the needle, taken before this
+      // block's step so it matches the pitch the block plays at.
+      const double glideCents = pt.glideSemis * 100.0;
+
+      if (!exactly(pt.glideSemis, 0.0)) {
+        const double remaining = std::abs(pt.glideSemis) - pt.glideStep;
+        pt.glideSemis =
+            remaining > 0.0 ? std::copysign(remaining, pt.glideSemis) : 0.0;
+      }
 
       const double freq = baseFreq * std::exp2(semis / 12.0);
 
@@ -613,7 +744,10 @@ void Voice::render(float *left, float *right, int numSamples,
       // partial with no tremolo on it then reads zero instead of full, which
       // is a lamp that is dark rather than one that is on and never moves.
       partialTremolos[(size_t)i] = 1.0f - amEnd;
-      partialPitches[(size_t)i] = (float)(pmCents + driftCents);
+      // Where the partial is against its note: the modulator, the drift and
+      // whatever of a glide is still to travel. Pitch bend is left out, since
+      // it moves every partial alike and is already on the wheel.
+      partialPitches[(size_t)i] = (float)(pmCents + driftCents + glideCents);
 
       // One lamp for each of the two rows under the heading, each showing
       // what its own row is doing and nothing else. The velocity half is the

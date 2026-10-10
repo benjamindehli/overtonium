@@ -40,14 +40,31 @@ public:
   /// half over the header.
   void setScroll(int);
 
-  /// Which of the two modulators are one circuit the whole keyboard hears.
+  /// Which of the two modulators are shared by all notes.
   ///
-  /// Lights that group's heading. The switch is part of the patch and lives in
-  /// a menu, so without this a preset could arrive with a shared tremolo and
-  /// nothing on the panel would say so: a mode you cannot see is a mode you
-  /// forget you are in. One mark per modulator rather than one on each of the
-  /// thirty-three shape buttons, since the state is the same on all of them.
+  /// Lights the switch beside each modulator's shape caption. The switch is
+  /// part of the patch, so without this a preset could arrive with a shared
+  /// tremolo and nothing on the panel would say so: a mode you cannot see is a
+  /// mode you forget you are in. One switch per modulator rather than a mark on
+  /// each of the thirty-three shape buttons, since the state is the same on
+  /// all of them.
   void setSharedModulators(bool pitch, bool amp);
+
+  /// Fired when one of the shared switches is clicked. The editor owns the
+  /// change, since it is a parameter.
+  std::function<void()> onPitchInPhaseClicked;
+  std::function<void()> onAmpInPhaseClicked;
+
+  /// The two glide switches, beside the GLIDE caption: whether a note glides
+  /// only legato, and whether every glide takes a fixed time rather than
+  /// moving at a fixed rate. Both are part of the patch and live in the glide
+  /// knob's menu too, so a preset can throw them, and the caps say so.
+  void setGlideSwitches(bool legato, bool fixedTime);
+
+  /// Fired when one of those caps is clicked. The editor owns the change,
+  /// since it is a parameter.
+  std::function<void()> onGlideLegatoClicked;
+  std::function<void()> onGlideFixedTimeClicked;
 
   /// Fired when a heading is clicked. The editor owns the decision, since the
   /// strips have to be told about it too.
@@ -92,7 +109,6 @@ private:
   ovt::ui::HeaderCap headerCap;
 
   void paintHeaderBand(juce::Graphics &);
-  bool sharedPitchMod = false, sharedAmpMod = false;
 
   /// LINK stands in the empty band above the captions, where the strips beside
   /// it carry their channel numbers.
@@ -103,6 +119,19 @@ private:
   /// One button for the three tools, wearing the cursor rather than a word.
   /// See ui::PointerTool.
   ovt::ui::GlowButton toolButton;
+
+  /// The glide switches, a pair standing just left of the GLIDE caption. Lit
+  /// is on.
+  ovt::ui::ScreenSwitch glideLegato, glideFixedTime;
+
+  /// The in-phase switches, one just left of each shape caption. Lit is one
+  /// modulator the whole keyboard hears.
+  ovt::ui::ScreenSwitch pitchInPhase, ampInPhase;
+
+  /// Puts a run of switches right up against a row's caption, or hides them
+  /// with it.
+  void placeCaps(ovt::ui::Row, std::initializer_list<juce::Component *>,
+                 const ovt::ui::RowBounds &, int headerBottom);
 
   ovt::ui::PointerTool tool = ovt::ui::PointerTool::Pointer;
   juce::Image toolIcon;
@@ -298,7 +327,7 @@ private:
   /// only way any of them find out about it.
   void publishCollapsedSections();
 
-  /// Lights the heading of a modulator group the whole keyboard shares. See
+  /// Lights the switch of a modulator shared by all notes. See
   /// RowGutter::setSharedModulators.
   void syncSharedModulators();
 

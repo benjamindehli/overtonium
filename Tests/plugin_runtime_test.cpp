@@ -26,6 +26,7 @@
 #include "PluginProcessor.h"
 #include "Presets.h"
 #include "UI/ChannelStrip.h"
+#include "UI/GlideMenu.h"
 #include "UI/LearnMenu.h"
 #include "UI/LookAndFeel.h"
 #include "UI/NoiseStrip.h"
@@ -188,7 +189,8 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
       {ovt::params::referenceHzId, 11}, {ovt::params::atSourceId, 3},
       {ovt::params::slideDestId, 3},    {ovt::params::lofiRateId, 8},
       {ovt::params::lofiBitsId, 9},     {ovt::params::echoTypeId, 3},
-      {ovt::params::reverbTypeId, 3},
+      {ovt::params::reverbTypeId, 3},   {ovt::params::glideTriggerId, 2},
+      {ovt::params::glideModeId, 2},
   };
 
   for (const auto &list : globals)
@@ -429,11 +431,339 @@ void testReadoutsAreWrittenAsAPersonWould(OvertoniumProcessor &p) {
                         first.toStdString() + ")");
 }
 
+/// The glide knob on every channel, and the two switches over all of them in
+/// that knob's menu. The engine side is measured in the DSP suite. This holds
+/// the parameters, the menu and the macro slot to what the engine expects.
+void testGlideControls(OvertoniumProcessor &p) {
+  section("Glide controls");
+
+  p.applyFactoryPreset(presetIndex("Init"));
+
+  const auto set = [&p](const juce::String &id, float plain) {
+    if (auto *q = p.apvts.getParameter(id))
+      q->setValueNotifyingHost(q->convertTo0to1(plain));
+  };
+
+  const auto snapshot = [&p] {
+    ovt::SynthParams out;
+    p.parameters().snapshot(out, 0.0f);
+    return out;
+  };
+
+  int everywhere = 0;
+
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    if (auto *q = p.apvts.getParameter(
+            ovt::params::oscParamId(ovt::params::glideSuffix, i)))
+      everywhere += q->getText(q->getDefaultValue(), 100) == "Off";
+
+  check(everywhere == ovt::kNumHarmonics,
+        "every channel has a glide time, off by default (" +
+            std::to_string(everywhere) + " of 32)");
+
+  check(p.apvts.getParameter(ovt::params::oscParamId("phase", 0)) == nullptr,
+        "and the start phase it replaced is gone");
+
+  // Through to what the engine reads.
+  set(ovt::params::oscParamId(ovt::params::glideSuffix, 4), 0.3f);
+  set(ovt::params::glideTriggerId, 1.0f);
+  set(ovt::params::glideModeId, 1.0f);
+
+  const auto played = snapshot();
+
+  check(std::abs(played.osc[4].glideSeconds - 0.3f) < 0.01f,
+        "a channel's glide time reaches the engine");
+  check(played.global.glideTrigger == ovt::GlideTrigger::Legato &&
+            played.global.glideMode == ovt::GlideMode::Time,
+        "and so do the trigger and the mode");
+
+  // The menu, as data, since one cannot be shown here.
+  set(ovt::params::glideTriggerId, 0.0f);
+  set(ovt::params::glideModeId, 0.0f);
+
+  const auto glideId = ovt::params::oscParamId(ovt::params::glideSuffix, 4);
+
+  juce::PopupMenu onGlide, onDrift;
+  check(ovt::ui::glide::appendItems(onGlide, p.apvts, glideId),
+        "a glide knob's menu carries the switches");
+  check(!ovt::ui::glide::appendItems(
+            onDrift, p.apvts,
+            ovt::params::oscParamId(ovt::params::driftSuffix, 4)),
+        "and no other knob's does");
+
+  int ticked = 0, offered = 0;
+
+  for (juce::PopupMenu::MenuItemIterator it(onGlide); it.next();) {
+    const auto &item = it.getItem();
+
+    if (item.itemID >= ovt::ui::glide::kAlways &&
+        item.itemID <= ovt::ui::glide::kTime) {
+      ++offered;
+      ticked += item.isTicked;
+    }
+  }
+
+  check(offered == 4 && ticked == 2,
+        "four choices, one of each pair ticked (" + std::to_string(offered) +
+            " offered, " + std::to_string(ticked) + " ticked)");
+
+  check(ovt::ui::glide::applyChoice(ovt::ui::glide::kLegato, p.apvts) &&
+            ovt::ui::glide::applyChoice(ovt::ui::glide::kTime, p.apvts),
+        "both kinds of choice are taken");
+
+  const auto chosen = snapshot();
+
+  check(chosen.global.glideTrigger == ovt::GlideTrigger::Legato &&
+            chosen.global.glideMode == ovt::GlideMode::Time,
+        "and choosing them sets the switches");
+
+  check(!ovt::ui::glide::applyChoice(ovt::ui::learn::kLearn, p.apvts),
+        "a choice that is not one of these is left for the next handler");
+
+  // Glide sits in the macro list where start phase did, so a macro stored
+  // against any other row still points at the same one.
+  check(
+      juce::String(ovt::params::macroRowName(2)) == "Glide" &&
+          juce::String(ovt::params::macroRowName(3)) == "Pitch mod rate",
+      "Glide holds the macro slot start phase had, and nothing after it moved");
+
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
+/// The ATTACK row reaching below its shortest time into where a partial
+/// starts in its cycle. The sound is measured in the DSP suite. This holds the
+/// parameter to it: what it reads, what typing into it does, that the range
+/// converts both ways without drifting, and what the strike readout says.
+void testAttackReachesIntoThePhase(OvertoniumProcessor &p) {
+  section("Attack below its shortest time");
+
+  auto *attack = p.apvts.getParameter(
+      ovt::params::oscParamId(ovt::params::attackSuffix, 0));
+
+  if (attack == nullptr) {
+    check(false, "the first channel has an attack");
+    return;
+  }
+
+  const auto reads = [attack](float plain) {
+    return attack->getText(attack->convertTo0to1(plain), 100);
+  };
+
+  check(reads(-1.0f) == juce::String("90") + juce::String::charToString(0xb0) &&
+            reads(-0.5f) ==
+                juce::String("45") + juce::String::charToString(0xb0) &&
+            reads(0.0002f) == "0.2 ms" && reads(0.005f) == "5.0 ms",
+        "it reads in degrees below its shortest time and in time above it (" +
+            reads(-1.0f).toStdString() + ", " + reads(-0.5f).toStdString() +
+            ", " + reads(0.0002f).toStdString() + ", " +
+            reads(0.005f).toStdString() + ")");
+
+  check(attack->getText(0.0f, 100) ==
+            juce::String("90") + juce::String::charToString(0xb0),
+        "and the bottom of the knob is a partial starting on its peak");
+
+  // Both ways round, across the travel, so a stored position and a stored
+  // value describe the same onset.
+  double worst = 0.0;
+  for (int i = 0; i <= 100; ++i) {
+    const auto n = (float)i / 100.0f;
+    worst = std::max(
+        worst, (double)std::abs(
+                   attack->convertTo0to1(attack->convertFrom0to1(n)) - n));
+  }
+
+  check(worst < 1.0e-4, "the range converts both ways without drifting (" +
+                            std::to_string(worst) + ")");
+
+  const auto typed = [attack](const char *text) {
+    return attack->convertFrom0to1(attack->getValueForText(text));
+  };
+
+  check(std::abs(typed("45\xc2\xb0") + 0.5f) < 1.0e-3f &&
+            std::abs(typed("5 ms") - 0.005f) < 1.0e-4f &&
+            std::abs(typed("1.2 s") - 1.2f) < 1.0e-3f &&
+            std::abs(typed("12") - 0.012f) < 1.0e-4f,
+        "a typed value is degrees, milliseconds or seconds as it says");
+
+  // The readout under STRIKE, with the knob on the peak and a full amount: a
+  // hard blow starts on the peak and the lightest travels up into a time.
+  const auto readout = ovt::params::strikeRangeText(1.0f, 0.0f, -1.0f);
+
+  check(readout.contains(juce::String("90") + juce::String::charToString(0xb0) +
+                         " to ") &&
+            readout.endsWith("ms"),
+        "the strike readout names the phase at the hard end (" +
+            readout.toStdString() + ")");
+}
+
+/// Legato as a switch beside the voice count. With one voice it is the
+/// monophonic legato the polyphony list's first entry always was, and with
+/// more the top line, measured in the DSP suite. This holds the parameter and
+/// the old entry to what the engine is told.
+void testLegatoSwitch(OvertoniumProcessor &p) {
+  section("The Legato switch");
+
+  auto *legato = p.apvts.getParameter(ovt::params::legatoId);
+  auto *count = p.apvts.getParameter(ovt::params::polyphonyId);
+
+  if (legato == nullptr || count == nullptr) {
+    check(false, "Legato and the voice count both exist");
+    return;
+  }
+
+  check(legato->getDefaultValue() < 0.5f, "Legato is off by default");
+  check(ovt::params::isSessionParam(ovt::params::legatoId),
+        "and is a session setting like the count, so a preset never moves it");
+
+  const auto setCount = [count](int index) {
+    count->setValueNotifyingHost(count->convertTo0to1((float)index));
+  };
+
+  const auto &cache = p.parameters();
+
+  legato->setValueNotifyingHost(0.0f);
+  setCount(5); // 8 voices
+  check(!cache.legatoValue() && cache.polyphonyValue() == 8,
+        "off, with eight voices, is eight voices");
+
+  legato->setValueNotifyingHost(1.0f);
+  check(cache.legatoValue() && cache.polyphonyValue() == 8,
+        "on, with eight, is the top line over eight");
+
+  setCount(1);
+  check(cache.legatoValue() && cache.polyphonyValue() == 1,
+        "on, with one, is monophonic legato");
+
+  // A session saved with the list's old first entry.
+  legato->setValueNotifyingHost(0.0f);
+  setCount(ovt::params::kLegatoIndex);
+  check(cache.legatoValue() && cache.polyphonyValue() == 1,
+        "the old Legato entry still plays as one voice with legato on");
+
+  setCount(5);
+  legato->setValueNotifyingHost(0.0f);
+}
+
+/// The glide caps in the gutter, beside the GLIDE caption: lit by the two
+/// switches, firing their own callbacks, and gone with the row when its
+/// section is folded.
+void testGlideCaps() {
+  section("The gutter caps");
+
+  using namespace ovt::ui;
+
+  RowGutter gutter;
+  gutter.setBounds(0, 0, kGutterWidth, preferredStripHeight());
+
+  auto *held =
+      dynamic_cast<juce::Button *>(gutter.findChildWithID("glideLegato"));
+  auto *perNote =
+      dynamic_cast<juce::Button *>(gutter.findChildWithID("glideFixedTime"));
+
+  if (held == nullptr || perNote == nullptr) {
+    check(false, "the gutter has both glide caps");
+    return;
+  }
+
+  const auto rows = layoutRows(gutter.getLocalBounds().reduced(0, kStripPadY));
+  const auto glideRow = rows[(size_t)Row::Glide];
+
+  check(held->isVisible() && perNote->isVisible() &&
+            glideRow.contains(held->getBounds().getCentre()) &&
+            glideRow.contains(perNote->getBounds().getCentre()),
+        "both stand in the glide row");
+  // Where the caption starts: right-aligned eight pixels in, as the gutter
+  // paints it, in the weight it has when nothing is pointing at it.
+  const auto captionLeft = [&rows](Row row) {
+    return rows[(size_t)row].getRight() - 8 -
+           juce::GlyphArrangement::getStringWidthInt(makeFont(9.5f),
+                                                     rowLabel(row));
+  };
+
+  check(perNote->getRight() < captionLeft(Row::Glide) &&
+            perNote->getRight() > captionLeft(Row::Glide) - 8 &&
+            held->getRight() == perNote->getX(),
+        "side by side, right up against the caption and clear of it");
+
+  gutter.setGlideSwitches(true, false);
+  check(held->getToggleState() && !perNote->getToggleState(),
+        "and light from the switches, one at a time");
+
+  gutter.setGlideSwitches(false, true);
+  check(!held->getToggleState() && perNote->getToggleState(),
+        "either way round");
+
+  int heldClicks = 0, noteClicks = 0;
+  gutter.onGlideLegatoClicked = [&heldClicks] { ++heldClicks; };
+  gutter.onGlideFixedTimeClicked = [&noteClicks] { ++noteClicks; };
+
+  held->onClick();
+  perNote->onClick();
+  perNote->onClick();
+
+  check(heldClicks == 1 && noteClicks == 2, "each cap fires its own callback");
+
+  gutter.setCollapsedSections(sectionBit(Section::PitchMod));
+  check(!held->isVisible() && !perNote->isVisible(),
+        "folding PITCH MOD takes them with the row");
+
+  gutter.setCollapsedSections(0);
+  check(held->isVisible() && perNote->isVisible(),
+        "and unfolding brings them back");
+
+  check(held->getWidth() == held->getHeight(),
+        "square, the size of a channel's M and S");
+
+  auto *pitch =
+      dynamic_cast<juce::Button *>(gutter.findChildWithID("pitchInPhase"));
+  auto *amp =
+      dynamic_cast<juce::Button *>(gutter.findChildWithID("ampInPhase"));
+
+  if (pitch == nullptr || amp == nullptr) {
+    check(false, "the gutter has both in-phase caps");
+    return;
+  }
+
+  check(
+      pitch->isVisible() && amp->isVisible() &&
+          rows[(size_t)Row::PmShape].contains(pitch->getBounds().getCentre()) &&
+          rows[(size_t)Row::AmShape].contains(amp->getBounds().getCentre()),
+      "an in-phase cap stands in each shape row");
+  check(pitch->getRight() < captionLeft(Row::PmShape) &&
+            pitch->getRight() > captionLeft(Row::PmShape) - 8 &&
+            amp->getRight() == pitch->getRight() &&
+            pitch->getWidth() == held->getWidth(),
+        "right up against its caption, at the glide switches' size");
+
+  gutter.setSharedModulators(true, false);
+  check(pitch->getToggleState() && !amp->getToggleState(),
+        "and lights from its own modulator's switch");
+
+  gutter.setSharedModulators(false, true);
+  check(!pitch->getToggleState() && amp->getToggleState(), "either way round");
+
+  int pitchClicks = 0, ampClicks = 0;
+  gutter.onPitchInPhaseClicked = [&pitchClicks] { ++pitchClicks; };
+  gutter.onAmpInPhaseClicked = [&ampClicks] { ++ampClicks; };
+
+  pitch->onClick();
+  amp->onClick();
+  amp->onClick();
+
+  check(pitchClicks == 1 && ampClicks == 2,
+        "each in-phase cap fires its own callback");
+
+  gutter.setCollapsedSections(sectionBit(Section::AmpMod));
+  check(pitch->isVisible() && !amp->isVisible(),
+        "folding AMP MOD takes its cap and leaves the other");
+  gutter.setCollapsedSections(0);
+}
+
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
   // 23 per partial, 20 global, 18 for the noise channel, 10 for the two master
-  // effects. Start phase and the whole pitch modulator are not among the noise
+  // effects. Glide and the whole pitch modulator are not among the noise
   // channel's, since noise has no pitch: it takes the amp mod shape and not
   // the pitch one, which is why the two counts differ by more than one.
   //
@@ -456,8 +786,13 @@ void testParameterWiring(OvertoniumProcessor &p) {
   // of it, how it is shared out, which channel a taper leans on, and the
   // colour it wears. A macro nobody has made points its row at None. See
   // params::kNumMacros.
-  const int expected =
-      ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + ovt::params::kNumMacros * 6;
+  //
+  // And two for glide on the end: when a note glides, and whether the time on
+  // each channel is per octave or per note. See params::glideTriggerId. Then
+  // Legato as a switch of its own beside the voice count. See
+  // params::legatoId.
+  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + 2 + 1 +
+                       ovt::params::kNumMacros * 6;
 
   // The behaviour that was there before it became a choice. Asked of the
   // parameter rather than of the tree, so the answer does not depend on what
@@ -490,7 +825,7 @@ void testParameterWiring(OvertoniumProcessor &p) {
           std::string("global param ") + id);
 
   const char *suffixes[] = {
-      ovt::params::tuneSuffix,    ovt::params::phaseSuffix,
+      ovt::params::tuneSuffix,    ovt::params::glideSuffix,
       ovt::params::pmRateSuffix,  ovt::params::pmDepthSuffix,
       ovt::params::driftSuffix,   ovt::params::strikeSuffix,
       ovt::params::delaySuffix,   ovt::params::attackSuffix,
@@ -704,6 +1039,25 @@ void testBusStageFollowsTheCharacter(OvertoniumProcessor &p) {
     return out;
   };
 
+  // Off by default, which leaves the bus stage's few samples and nothing
+  // else.
+  auto *ahead = p.apvts.getParameter(ovt::params::lookaheadId);
+
+  check(ahead != nullptr && ahead->getDefaultValue() < 0.5f,
+        "the lookahead is off by default");
+  check(p.getLatencySamples() == ovt::BusDrive::kLatency,
+        "so the plugin reports only the bus stage (" +
+            std::to_string(p.getLatencySamples()) + " samples)");
+
+  if (ahead == nullptr)
+    return;
+
+  // The rest is about what happens with it on: the figure is fixed whatever
+  // the patch does, which is what lets a preset load without the host
+  // re-planning its graph.
+  ahead->setValueNotifyingHost(1.0f);
+  p.prepareToPlay(48000.0, 512);
+
   const auto idle = p.getLatencySamples();
 
   const auto pure = renderLoud(ovt::Character::Pure);
@@ -759,29 +1113,27 @@ void testBusStageFollowsTheCharacter(OvertoniumProcessor &p) {
   // The one thing that is allowed to move it, and the reason it is allowed:
   // it sits in Settings, so no preset and nothing on the bar can reach it.
   // Giving the window up gives the whole of the output stage's share back.
-  auto *ahead = p.apvts.getParameter(ovt::params::lookaheadId);
+  check(ovt::params::isSessionParam(ovt::params::lookaheadId),
+        "the lookahead is a session setting, so no preset can move the "
+        "latency");
 
-  check(ahead != nullptr, "the lookahead has a switch");
+  ahead->setValueNotifyingHost(0.0f);
+  p.prepareToPlay(48000.0, 512);
 
-  if (ahead != nullptr) {
-    check(ovt::params::isSessionParam(ovt::params::lookaheadId),
-          "which is a session setting, so no preset can move the latency");
+  check(p.getLatencySamples() == ovt::BusDrive::kLatency,
+        "refusing it leaves only the bus stage (" +
+            std::to_string(p.getLatencySamples()) + " samples)");
 
-    ahead->setValueNotifyingHost(0.0f);
-    p.prepareToPlay(48000.0, 512);
+  ahead->setValueNotifyingHost(1.0f);
+  p.prepareToPlay(48000.0, 512);
 
-    check(p.getLatencySamples() == ovt::BusDrive::kLatency,
-          "refusing it leaves only the bus stage (" +
-              std::to_string(p.getLatencySamples()) + " samples)");
+  check(p.getLatencySamples() == idle,
+        "and asking for it again restores it (" +
+            std::to_string(p.getLatencySamples()) + ")");
 
-    ahead->setValueNotifyingHost(1.0f);
-    p.prepareToPlay(48000.0, 512);
-
-    check(p.getLatencySamples() == idle,
-          "and asking for it again restores it (" +
-              std::to_string(p.getLatencySamples()) + ")");
-  }
-
+  // Back to the default for whatever runs next.
+  ahead->setValueNotifyingHost(0.0f);
+  p.prepareToPlay(48000.0, 512);
   p.applyFactoryPreset(presetIndex("Init"));
 }
 
@@ -3919,7 +4271,7 @@ void testRowHover() {
   };
 
   bool identity = true;
-  for (Row r : {Row::TuneKnob,   Row::Phase,   Row::PmRate,   Row::PmDepth,
+  for (Row r : {Row::TuneKnob,   Row::Glide,   Row::PmRate,   Row::PmDepth,
                 Row::Drift,      Row::Strike,  Row::Delay,    Row::Attack,
                 Row::Decay,      Row::Sustain, Row::Swell,    Row::OffLevel,
                 Row::Release,    Row::AmRate,  Row::AmDepth,  Row::Velocity,
@@ -5057,7 +5409,7 @@ void testModulatorsInPhase(OvertoniumProcessor &p) {
     auto menu = button.buildMenu();
 
     for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
-      if (it.getItem().text == "In phase across the keyboard")
+      if (it.getItem().text == "Shared by all notes")
         return it.getItem().isTicked ? 1 : 0;
 
     return -1;
@@ -5126,6 +5478,14 @@ void testSettingsMenu(OvertoniumProcessor &p) {
     const auto it = std::find(entries.begin(), entries.end(), name);
     return it == entries.end() ? -1 : (int)(it - entries.begin());
   };
+
+  // Legato is a tick beside the voice count, and the list's old first entry
+  // is no longer offered: a session that stored it reads as one voice with
+  // the tick on.
+  check(at("Legato") == at("One voice per key") + 1 && at("1 voice") >= 0,
+        "Legato sits beside One voice per key, under the voice counts");
+  check(std::count(entries.begin(), entries.end(), std::string("Legato")) == 1,
+        "and is there once, as the switch rather than as a voice count");
 
   // The three that answer "what does the controller in front of you send".
   check(at("MPE") >= 0 && at("Aftertouch from") == at("MPE") + 1 &&
@@ -7684,7 +8044,7 @@ void testPresetsAreReproducible(OvertoniumProcessor &p) {
     for (int i = 0; i < ovt::kNumHarmonics; ++i) {
       put(ovt::params::oscParamId(ovt::params::volumeSuffix, i), 0.9f);
       put(ovt::params::oscParamId(ovt::params::driftSuffix, i), 20.0f);
-      put(ovt::params::oscParamId(ovt::params::phaseSuffix, i), 0.25f);
+      put(ovt::params::oscParamId(ovt::params::glideSuffix, i), 1.5f);
       put(ovt::params::oscParamId(ovt::params::panSuffix, i), -0.8f);
     }
   };
@@ -7971,12 +8331,25 @@ void testNoDeadTravel(OvertoniumProcessor &p) {
             std::to_string(inexact) + " do not" +
             (inexact ? ", such as " + worstDefault.toStdString() : "") + ")");
 
-  // And the shortest attack really is 0.2 ms, not a number that rounds to it.
+  // And the shortest attack time really is 0.2 ms, not a number that rounds
+  // to it. On a partial it is where the phase region below meets the times,
+  // so it has to convert there and back exactly. The noise channel has no
+  // cycle to start in, so its range simply begins there.
   const auto attackId = ovt::params::oscParamId(ovt::params::attackSuffix, 0);
 
-  if (auto *param = p.apvts.getParameter(attackId))
-    check(std::abs(param->getNormalisableRange().start - 0.0002f) < 1.0e-7f,
-          "the shortest attack is 0.2 ms");
+  if (auto *param = p.apvts.getParameter(attackId)) {
+    const auto &range = param->getNormalisableRange();
+    const auto there = range.convertFrom0to1(range.convertTo0to1(0.0002f));
+
+    check(std::abs(there - 0.0002f) < 1.0e-7f && range.start < 0.0f,
+          "a partial's shortest attack time is 0.2 ms, with the phase region "
+          "below it");
+  }
+
+  if (auto *noise = p.apvts.getParameter(
+          ovt::params::noiseParamId(ovt::params::attackSuffix)))
+    check(std::abs(noise->getNormalisableRange().start - 0.0002f) < 1.0e-7f,
+          "and the noise channel's attack starts at 0.2 ms");
 }
 
 /// The undo history, which holds what a person did and nothing else.
@@ -9110,7 +9483,7 @@ void testCollapsibleSections() {
   }
 
   const auto allFolded = layoutRows(area, all);
-  for (auto r : {Row::TuneKnob, Row::Phase, Row::MuteSolo, Row::Fader})
+  for (auto r : {Row::TuneKnob, Row::MuteSolo, Row::Fader})
     check(allFolded[(size_t)r].getHeight() > 0,
           std::string(rowLabel(r) == nullptr ? "the fader" : rowLabel(r)) +
               " survives every section being folded");
@@ -9724,6 +10097,10 @@ int main(int argc, char **argv) {
   testParameterWiring(processor);
   testTheParameterListIsCurrent(processor);
   testReadoutsAreWrittenAsAPersonWould(processor);
+  testGlideControls(processor);
+  testAttackReachesIntoThePhase(processor);
+  testLegatoSwitch(processor);
+  testGlideCaps();
   testChoiceParameterCounts(processor);
   testRendering(processor);
   testReleaseVelocity(processor);

@@ -146,7 +146,7 @@ constexpr float kHoverEdge = 0.10f;
 /// rather than joining a band that is already marked. Hovering adds its own on
 /// top of this, and the strip's column wash adds a third, so the pointer still
 /// has somewhere to go from here.
-constexpr float kDisplayWash = 0.055f;
+constexpr float kDisplayWash = 0.07f;
 constexpr float kDisplayWashHover = 0.10f;
 } // namespace
 
@@ -177,11 +177,25 @@ void paintRecess(juce::Graphics &g, juce::Rectangle<float> opening,
   // against one of light below and to the right, which reads as every element
   // sitting off centre in its own hole, and the wider shadow also eats a pixel
   // its neighbour was using.
-  g.setColour(juce::Colours::white.withAlpha(0.11f));
-  g.fillRoundedRectangle(opening.expanded(depth), corner + depth);
+  //
+  // The shadow is kept inside the lip. Moved up and to the left, it reaches
+  // past the lip at the top left corner and lands on bare panel, a near black
+  // sliver that makes that one corner read as less round than the other three.
+  // Giving it the lip's corner closes that on a rounded rectangle, and a round
+  // hole needs the clip as well: a circle moved diagonally by one pixel
+  // reaches 1.41 out along the diagonal where the lip reaches only one.
+  const auto lip = opening.expanded(depth);
 
+  g.setColour(juce::Colours::white.withAlpha(0.11f));
+  g.fillRoundedRectangle(lip, corner + depth);
+
+  juce::Path rim;
+  rim.addRoundedRectangle(lip, corner + depth);
+
+  juce::Graphics::ScopedSaveState keep(g);
+  g.reduceClipRegion(rim);
   g.setColour(juce::Colours::black.withAlpha(0.6f));
-  g.fillRoundedRectangle(opening.translated(-depth, -depth), corner);
+  g.fillRoundedRectangle(opening.translated(-depth, -depth), corner + depth);
 }
 
 void strokeGlowing(juce::Graphics &g, const juce::Path &path,
@@ -531,6 +545,15 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   const auto lo = juce::jmin(anchor, ringAngle);
   const auto hi = juce::jmax(anchor, ringAngle);
 
+  // Where the travel changes kind, as a share of it: an attack below its
+  // shortest time is where the partial starts in its cycle rather than how
+  // long it takes. The ticks below drawn as dots rather than lines, lit and
+  // unlit as the rest are, so a knob in degrees and a knob in milliseconds
+  // can be told apart at a glance without a colour of their own. Nought on
+  // every knob that has no such stretch.
+  const auto split =
+      (float)(double)slider.getProperties().getWithDefault("phaseSplit", 0.0);
+
   for (int i = 0; i < ticks; ++i) {
     const auto t = (float)i / (float)(ticks - 1);
     const auto a = rotaryStartAngle + t * (rotaryEndAngle - rotaryStartAngle);
@@ -548,6 +571,19 @@ void OvertoniumLookAndFeel::drawRotarySlider(
 
     g.setColour(lit ? ringColour.withMultipliedAlpha(dim)
                     : unlit.withMultipliedAlpha(dim));
+
+    if (t < split - 1.0e-4f) {
+      // A dot where the tick would have been, as wide as the tick is thick,
+      // sitting at the middle of its length.
+      const auto mid = (inner + outer) * 0.5f;
+      const auto d = lit ? juce::jmax(2.4f, radius * 0.17f)
+                         : juce::jmax(1.6f, radius * 0.11f);
+
+      g.fillEllipse(juce::Rectangle<float>(d, d).withCentre(
+          {centre.x + mid * sinA, centre.y - mid * cosA}));
+      continue;
+    }
+
     g.drawLine({centre.x + inner * sinA, centre.y - inner * cosA,
                 centre.x + outer * sinA, centre.y - outer * cosA},
                lit ? juce::jmax(1.6f, radius * 0.11f)
@@ -1197,7 +1233,7 @@ juce::Colour OvertoniumLookAndFeel::lampFace(juce::Colour lamp, bool on) {
     // the binding one: the reds are the darkest lamps here and they are what
     // this has to stay under. Raising it is the lever if the caps want to be
     // whiter, and the margin on the mute is what it costs.
-    return juce::Colour(0xff6f757c);
+    return juce::Colour(0xff818079);
 
   // The lamp seen through that plastic. Bright, because the light is behind
   // the whole face rather than painted onto part of it, and milky, because it
@@ -1245,7 +1281,7 @@ juce::Colour OvertoniumLookAndFeel::lampLegend() {
   // button never changes the colour of its own word by lighting. Not quite
   // black, which against a lit gold reads as a hole in the cap rather than
   // as ink on it.
-  return juce::Colour(0xff0e1116);
+  return juce::Colour(0xff161718);
 }
 
 void OvertoniumLookAndFeel::drawLampCap(juce::Graphics &g,

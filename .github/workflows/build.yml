@@ -667,7 +667,9 @@ jobs:
                     f"\"{sums.group(1)}\"")
               sys.exit(1)
 
-          parameters = eval(arithmetic)
+          # Joined onto one line first: clang-format wraps a long sum, and a
+          # newline in the middle of one is a syntax error to eval.
+          parameters = eval(" ".join(arithmetic.split()))
 
           print(f"the runtime test expects {parameters} parameters")
 

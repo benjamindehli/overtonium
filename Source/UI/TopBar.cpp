@@ -1,4 +1,5 @@
 #include "TopBar.h"
+#include "GlideMenu.h"
 #include "LearnMenu.h"
 
 #include "../PluginParameters.h"
@@ -75,9 +76,11 @@ constexpr int kOutputMaxSqueeze = 40;
 /// The title only occupies the first row, so the second gets the full width.
 constexpr int kTitleLead = 10;
 
-/// What it is, under the wordmark. It measures 128 px here against the 150 px
-/// the title block gives it, which leaves room for a wider font elsewhere.
-constexpr const char *kCredit = "32-partial overtone synthesiser";
+/// What it is, under the wordmark. At kCreditSize it measures 142 px here
+/// against the 150 px the title block gives it, in DejaVu Sans, which is wider
+/// than the faces macOS and Windows set it in. A size larger runs it to 149.
+constexpr const char *kCredit = "32-partial overtone synthesizer";
+constexpr float kCreditSize = 10.5f;
 
 /// What the preset button says when nothing has been loaded yet.
 constexpr const char *kNoPreset = "Select...";
@@ -577,6 +580,10 @@ void TopBar::showLinkMenu(juce::Component *anchor,
   auto *parameter = dynamic_cast<juce::RangedAudioParameter *>(
       parameterId.isEmpty() ? nullptr : apvts.getParameter(parameterId));
 
+  // The glide switches first, on a glide knob only: they are about the knob,
+  // where the learn items are about whatever was clicked.
+  glide::appendItems(m, apvts, parameterId);
+
   if (map != nullptr)
     learn::appendItems(m, *map, parameter);
   m.setLookAndFeel(&getLookAndFeel());
@@ -597,6 +604,9 @@ void TopBar::showLinkMenu(juce::Component *anchor,
 
   m.showMenuAsync(options, [this, settings, map, parameter](int result) {
     if (map != nullptr && learn::applyChoice(result, *map, parameter))
+      return;
+
+    if (glide::applyChoice(result, apvts))
       return;
 
     auto picked = PointerTool::Pointer;
@@ -972,6 +982,7 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
   auto *ahead = apvts.getParameter(params::lookaheadId);
   auto *onePerKey = apvts.getParameter(params::oneVoicePerKeyId);
   auto *mpe = apvts.getParameter(params::mpeId);
+  auto *legato = apvts.getParameter(params::legatoId);
 
   const auto polyIndex =
       polyphony != nullptr
@@ -1010,13 +1021,23 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
 
   m.addSectionHeader("Polyphony");
 
-  for (int i = 0; i < (int)params::kPolyphonyChoices.size(); ++i)
-    m.addItem(100 + i, params::polyphonyName(i), true, i == polyIndex);
+  // The voice counts, from one up. The list's first entry, monophonic legato,
+  // is the Legato switch below with one voice now, so a session that stored it
+  // reads as that: one voice, and Legato ticked.
+  const auto oldLegato = polyIndex == params::kLegatoIndex;
 
-  // Beside the voice count because it is the other half of the same question:
-  // how many voices there are, and how many one key may take.
+  for (int i = 1; i < (int)params::kPolyphonyChoices.size(); ++i)
+    m.addItem(100 + i, params::polyphonyName(i), true,
+              i == polyIndex || (oldLegato && i == 1));
+
+  // Beside the voice count because they are the other halves of the same
+  // question: how many voices there are, how many one key may take, and
+  // whether a key going down while another is held starts a note or carries
+  // one on.
   m.addItem(303, "One voice per key", true,
             onePerKey != nullptr && onePerKey->getValue() > 0.5f);
+  m.addItem(305, "Legato", true,
+            oldLegato || (legato != nullptr && legato->getValue() > 0.5f));
 
   const auto currentBend =
       bendRange != nullptr
@@ -1178,6 +1199,38 @@ void TopBar::showSettingsMenu() {
 
         if (result == 303)
           return flip(params::oneVoicePerKeyId);
+
+        // From the list's old legato entry, unticking moves to one voice with
+        // the switch off, and ticking is the switch. Either way the count
+        // stops pointing at an entry the menu no longer offers.
+        if (result == 305) {
+          auto *count = apvts.getParameter(params::polyphonyId);
+          auto *legatoSwitch = apvts.getParameter(params::legatoId);
+
+          const bool fromOld =
+              count != nullptr &&
+              juce::roundToInt(count->convertFrom0to1(count->getValue())) ==
+                  params::kLegatoIndex;
+          const bool on = fromOld || (legatoSwitch != nullptr &&
+                                      legatoSwitch->getValue() > 0.5f);
+
+          if (fromOld)
+            count->setValueNotifyingHost(count->convertTo0to1(1.0f));
+
+          if (legatoSwitch != nullptr)
+            legatoSwitch->setValueNotifyingHost(on ? 0.0f : 1.0f);
+
+          return;
+        }
+
+        // A voice count chosen from the old legato entry keeps legato, since
+        // that entry was legato as well as one voice.
+        if (result >= 100 && result < 200)
+          if (auto *count = apvts.getParameter(params::polyphonyId))
+            if (juce::roundToInt(count->convertFrom0to1(count->getValue())) ==
+                params::kLegatoIndex)
+              if (auto *legatoSwitch = apvts.getParameter(params::legatoId))
+                legatoSwitch->setValueNotifyingHost(1.0f);
 
         // The converter entries carry an index into their choice
         // list rather than a value, since the lists are not
@@ -1884,7 +1937,7 @@ void TopBar::paintCreditLine(juce::Graphics &g, juce::Rectangle<int> area) {
   if (updateVersion.isEmpty() && !offeringUpdateCheck) {
     updateBounds = {};
     g.setColour(colours::textDim);
-    g.setFont(makeFont(9.5f));
+    g.setFont(makeFont(kCreditSize));
     g.drawText(kCredit, area, juce::Justification::centredLeft, false);
     return;
   }
@@ -1893,7 +1946,7 @@ void TopBar::paintCreditLine(juce::Graphics &g, juce::Rectangle<int> area) {
                         ? "Version " + updateVersion + " available"
                         : juce::String("Check for new versions?");
 
-  g.setFont(makeFont(9.5f, true));
+  g.setFont(makeFont(kCreditSize, true));
   g.setColour(colours::accent);
   g.drawText(text, area, juce::Justification::centredLeft, false);
 

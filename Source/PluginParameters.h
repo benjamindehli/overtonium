@@ -43,15 +43,24 @@ inline constexpr const char *clipTypeId = "clipType";
 /// in Settings with the temperament and the polyphony and is listed in
 /// kSessionParamIds with them.
 ///
-/// On by default. Off is worth having because only one of the five shapes
-/// uses the window at all, so anyone who never reaches for the Limiter is
-/// paying two milliseconds for nothing.
+/// Off by default. Only one of the five shapes uses the window at all, so with
+/// it on everyone who never reaches for the Limiter pays two milliseconds for
+/// nothing, and no factory preset uses the Limiter. On is there for anyone who
+/// does and wants it smooth.
 inline constexpr const char *lookaheadId = "lookahead";
 inline constexpr const char *mpeId = "mpe";
 inline constexpr const char *lofiRateId = "lofiRate";
 inline constexpr const char *lofiBitsId = "lofiBits";
 inline constexpr const char *pmInPhaseId = "pmInPhase";
 inline constexpr const char *amInPhaseId = "amInPhase";
+inline constexpr const char *glideTriggerId = "glideTrigger";
+inline constexpr const char *glideModeId = "glideMode";
+
+/// Legato, beside the voice count rather than one entry in its list. With one
+/// voice it is the monophonic legato the list's first entry has always been,
+/// and with more the top line, where the highest held note carries on into a
+/// new key above the rest. See SynthEngine::setLegato.
+inline constexpr const char *legatoId = "legato";
 
 // ---- master effects ---------------------------------------------------------
 inline constexpr const char *echoOnId = "echoOn";
@@ -87,7 +96,7 @@ inline constexpr const char *tuneSuffix = "tune";
 inline constexpr const char *pmRateSuffix = "pmRate";
 inline constexpr const char *pmDepthSuffix = "pmDepth";
 inline constexpr const char *pmShapeSuffix = "pmShape";
-inline constexpr const char *phaseSuffix = "phase";
+inline constexpr const char *glideSuffix = "glide";
 inline constexpr const char *driftSuffix = "drift";
 inline constexpr const char *delaySuffix = "delay";
 inline constexpr const char *attackSuffix = "attack";
@@ -133,7 +142,7 @@ inline constexpr int kNumMacros = 8;
 /// names these again as ui::Role, in this order, and a test holds the two
 /// together rather than trusting them to stay in step.
 inline constexpr const char *kMacroRows[] = {
-    tuneSuffix,   phaseSuffix,    pmRateSuffix,  pmDepthSuffix, driftSuffix,
+    tuneSuffix,   glideSuffix,    pmRateSuffix,  pmDepthSuffix, driftSuffix,
     strikeSuffix, delaySuffix,    attackSuffix,  decaySuffix,   sustainSuffix,
     swellSuffix,  offLevelSuffix, releaseSuffix, amRateSuffix,  amDepthSuffix,
     velSuffix,    atSuffix,       panSuffix,     volumeSuffix};
@@ -297,7 +306,7 @@ struct Cache {
     std::atomic<float> *pmRate = nullptr;
     std::atomic<float> *pmDepth = nullptr;
     std::atomic<float> *pmShape = nullptr;
-    std::atomic<float> *phase = nullptr;
+    std::atomic<float> *glide = nullptr;
     std::atomic<float> *drift = nullptr;
     std::atomic<float> *delay = nullptr;
     std::atomic<float> *attack = nullptr;
@@ -382,6 +391,9 @@ struct Cache {
   std::atomic<float> *lofiBits = nullptr;
   std::atomic<float> *pmInPhase = nullptr;
   std::atomic<float> *amInPhase = nullptr;
+  std::atomic<float> *glideTrigger = nullptr;
+  std::atomic<float> *legato = nullptr;
+  std::atomic<float> *glideMode = nullptr;
 
   struct Echo {
     std::atomic<float> *on = nullptr;
@@ -424,9 +436,11 @@ struct Cache {
 /// is still held. See kLegatoIndex.
 inline const std::array<int, 8> kPolyphonyChoices{1, 1, 2, 4, 6, 8, 12, 16};
 
-/// Monophonic, and the envelope carries on rather than starting again while
-/// any key is still down. The note follows the last key pressed, and falls
-/// back to whichever is still held when that one comes up.
+/// The list's first entry, monophonic legato. Legato is a switch of its own
+/// now, and the entry stays because a stored choice is a position in this
+/// list: taking it out would move every saved session and automation lane to
+/// the count above. The menu no longer offers it, and a session that stored
+/// it plays as the switch on with one voice, which is exactly what it was.
 inline constexpr int kLegatoIndex = 0;
 
 /// "Legato", "1 voice", "2 voices" and so on.
@@ -453,10 +467,10 @@ juce::String polyphonyName(int index);
 ///
 /// Named here rather than in Presets.cpp so the code that honours the rule and
 /// the test that checks it cannot come to disagree about what the rule is.
-inline const std::array<const char *, 11> kSessionParamIds{
-    polyphonyId,      bendRangeId,  atSourceId, referenceHzId,
-    temperamentId,    tuningRootId, mpeId,      slideDestId,
-    oneVoicePerKeyId, phaseResetId, lookaheadId};
+inline const std::array<const char *, 12> kSessionParamIds{
+    polyphonyId,      bendRangeId,  atSourceId,  referenceHzId,
+    temperamentId,    tuningRootId, mpeId,       slideDestId,
+    oneVoicePerKeyId, phaseResetId, lookaheadId, legatoId};
 
 /// Whether `id` is one of those, for the several places that have to ask.
 inline bool isSessionParam(juce::StringRef id) {
@@ -483,17 +497,22 @@ inline bool isSessionParam(juce::StringRef id) {
 inline constexpr float kMaxPitchModCents = 1200.0f;
 inline constexpr float kMaxDriftCents = 25.0f;
 
+/// The longest glide a channel can be given, in seconds, or seconds per octave
+/// under GlideMode::Rate. Five is past anything a portamento is used for and
+/// short enough that the knob's travel is mostly spent where it is played.
+inline constexpr float kMaxGlideSeconds = 5.0f;
+
 /// Where the needle on the PITCH MOD lamp reads full scale, in cents.
 ///
 /// Deliberately not the knob's maximum, which is the one place in this
 /// instrument a readout and the control feeding it are allowed to disagree.
-/// The needle is for watching vibrato and drift, and those live in the first
-/// tens of cents: scaled to the octave a square can now jump, ordinary
-/// modulation would sit within a couple of percent of centre and the lamp
-/// would show nothing at all. Past this it pegs, which is honest about being
-/// off the end of a scale rather than pretending to a resolution it does not
-/// have. A test holds it against the drift range so it cannot quietly shrink
-/// below what the other wanderer alone can produce.
+/// The needle is for watching vibrato, drift and the end of a glide, and those
+/// live in the first tens of cents: scaled to the octave a square can now jump,
+/// ordinary modulation would sit within a couple of percent of centre and the
+/// lamp would show nothing at all. Past this it pegs, which is honest about
+/// being off the end of a scale rather than pretending to a resolution it does
+/// not have. A test holds it against the drift range so it cannot quietly
+/// shrink below what the other wanderer alone can produce.
 inline constexpr float kPitchNeedleFullScaleCents = 225.0f;
 
 /// The pitch classes a temperament can be built on, in parameter order.
