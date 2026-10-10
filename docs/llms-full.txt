@@ -8,7 +8,7 @@ Every page of https://benjamindehli.github.io/overtonium/ as Markdown, in the or
 
 Page: Overtonium, a free 32-partial additive synthesizer plugin
 URL: https://benjamindehli.github.io/overtonium/
-Last changed: 2026-10-09
+Last changed: 2026-10-10
 
 # Overtonium, a 32-partial additive overtone synthesizer
 
@@ -45,11 +45,11 @@ The whole instrument. Thirty-two channels, a noise channel pinned on the right, 
 
 ## What it sounds like
 
-Eleven of the thirty-three [factory presets](https://benjamindehli.github.io/overtonium/presets/), played on an Expressive E Osmose, with nothing on the output but the plugin's own effects. Everything else on this site you can listen to is the plugin rendering a chord to a file, which is what keeps those clips honest and also what stops them showing what any of this does under hands. This is the one recording of it being played.
+Eleven of the thirty-four [factory presets](https://benjamindehli.github.io/overtonium/presets/), played on an Expressive E Osmose, with nothing on the output but the plugin's own effects. Everything else on this site you can listen to is the plugin rendering a chord to a file, which is what keeps those clips honest and also what stops them showing what any of this does under hands. This is the one recording of it being played.
 
 [Video: Overtonium sound examples](https://www.youtube.com/watch?v=L1oYdPxGlGA)
 
-[The presets page](https://benjamindehli.github.io/overtonium/presets/#video) has a chapter link for each of the eleven, and a clip of every one of the thirty-three presets.
+[The presets page](https://benjamindehli.github.io/overtonium/presets/#video) has a chapter link for each of the eleven, and a clip of every one of the thirty-four presets.
 
 ## The control worth reaching for first
 
@@ -69,7 +69,7 @@ Nothing about the tuning is hard-coded. For harmonic `n` the just interval is `1
 
 - [**Tuning**TUNE, inharmonic stretch, six historical temperaments on any root, and how the spectrum thins as you play up the keyboard.](https://benjamindehli.github.io/overtonium/tuning/)
 - [**Controls**Every knob on a channel strip, then the effects on the bar and how to play it from a keyboard, a host or a controller.](https://benjamindehli.github.io/overtonium/controls/)
-- [**Presets**The thirty-three that ship, what a preset carries, and where your own are kept on each platform.](https://benjamindehli.github.io/overtonium/presets/)
+- [**Presets**The thirty-four that ship, what a preset carries, and where your own are kept on each platform.](https://benjamindehli.github.io/overtonium/presets/)
 - [**Install**Installers for macOS and Windows, a zip for Linux, what to do when a host does not see it, and building from source.](https://benjamindehli.github.io/overtonium/install/)
 
 What changed in each version, newest first, and what to know before upgrading are on [the releases page](https://benjamindehli.github.io/overtonium/releases/).
@@ -264,7 +264,7 @@ One held chord, twice. With drift off a partial sits exactly where it was put. W
 
 Page: Overtonium controls: every knob on a channel strip
 URL: https://benjamindehli.github.io/overtonium/controls/
-Last changed: 2026-10-09
+Last changed: 2026-10-10
 
 # Controls
 
@@ -316,7 +316,7 @@ LINK does not reach these. It drags a value across the series along a weighted c
 
 Each channel keeps its own rate and shape either way. What is shared is one circuit per channel rather than one for the instrument, so a patch built on thirty-two rates that never line up still sounds like itself with the switch on. It is part of the patch, so a preset carries it, and both switches are off in anything that does not ask.
 
-The group's heading in the gutter lights when its modulator is shared, so the state is on the panel rather than only in the menu: **PITCH MOD** or **AMP MOD** comes up in the same accent everything else switched on here does. One mark per modulator, since all thirty-three channels answer to the one switch.
+The switch lights when its modulator is shared, so a preset that arrives with a shared tremolo says so on the panel rather than only in the menu. One switch per modulator, since all thirty-three channels answer to it.
 
 ## Velocity and pressure, per partial
 
@@ -439,7 +439,7 @@ COLOUR takes the tuning row instead, tilting the noise from dark rumble at one e
 
 Page: Overtonium effects: character, echo, reverb, converter and CLIP
 URL: https://benjamindehli.github.io/overtonium/effects/
-Last changed: 2026-10-08
+Last changed: 2026-10-10
 
 # Effects
 
@@ -465,7 +465,7 @@ Each character is also a rack of thirty-two rather than one oscillator used thir
 
 The button lights in the character's own colour, borrowed from the same band the channel strips take theirs from: yellow for Bulb, running down through the warm end to the red of channel 3 for Op-amp. Pure does not light, which is the honest thing for the one that adds nothing.
 
-It is part of the patch rather than part of the setup, so a preset can change it and saving one carries it. Twenty-six of the thirty-three [factory presets](https://benjamindehli.github.io/overtonium/presets/) ask for one, so most of what you load is already on a circuit rather than on the plain sine.
+It is part of the patch rather than part of the setup, so a preset can change it and saving one carries it. Twenty-seven of the thirty-four [factory presets](https://benjamindehli.github.io/overtonium/presets/) ask for one, so most of what you load is already on a circuit rather than on the plain sine.
 
 ## Wobble
 
@@ -751,13 +751,13 @@ Two things to expect. A control jumps to wherever the controller is standing rat
 
 ---
 
-Page: Overtonium presets: the thirty-three that ship, and saving your own
+Page: Overtonium presets: the thirty-four that ship, and saving your own
 URL: https://benjamindehli.github.io/overtonium/presets/
-Last changed: 2026-10-08
+Last changed: 2026-10-10
 
 # Presets
 
-Thirty-three presets ship with the plugin. All but a handful were dialled in on the panel and converted straight from the saved file, so what ships is what was played rather than something written afterwards to approximate it.
+Thirty-four presets ship with the plugin. All but a handful were dialled in on the panel and converted straight from the saved file, so what ships is what was played rather than something written afterwards to approximate it.
 
 ## Hear them played
 
@@ -783,7 +783,7 @@ Straight to one of them:
 
 ## What ships
 
-Thirty-three presets, and none of them are variations on one another. **Just Saw** and **Equal Saw** are the pair worth playing against each other first: identical patches except for [TUNE](https://benjamindehli.github.io/overtonium/tuning/), and they sound nothing alike.
+Thirty-four presets, and none of them are variations on one another. **Just Saw** and **Equal Saw** are the pair worth playing against each other first: identical patches except for [TUNE](https://benjamindehli.github.io/overtonium/tuning/), and they sound nothing alike.
 
 Each one plays the same thing, a spread C major arriving a note at a time and let go together, so they can be listened down rather than each showing itself off in its own way. The clips are rendered by the plugin rather than recorded, so they cannot drift from what it does, and the levels are where the presets put them rather than matched to each other. Nothing downloads until you press play.
 
@@ -840,6 +840,10 @@ The electric piano an FM synthesizer makes rather than the one it is imitating, 
 **Glass Armonica**
 
 Wet fingers on glass. Each partial arrives later and vibrates faster than the one below it
+
+**Glide**
+
+A pad that arrives from the bottom up. The fundamental lands at once and every partial above it glides in a little later, round and slow played softly, bright and punchy played hard
 
 **Glockenspiel**
 

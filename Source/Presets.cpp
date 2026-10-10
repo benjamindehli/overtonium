@@ -308,6 +308,7 @@ const char *const kNames[] = {
     "Equal Saw",
     "FM Piano",
     "Glass Armonica",
+    "Glide",
     "Glockenspiel",
     "Init",
     "Just Saw",
@@ -2102,7 +2103,163 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbDamp", 0.25f);
     break;
   }
-  case 13: // Glockenspiel
+  case 13: // Glide
+  {
+    ap.neutralBase();
+
+    // A pad that arrives from the bottom up. Every note glides from the last
+    // one over a fixed time, and that time grows up the series from nothing on
+    // the fundamental to two and a half seconds on the thirty-second, so the
+    // pitch lands at once and the brightness slides in after it. Velocity
+    // reaches only the upper partials and STRIKE stretches a soft note's
+    // attack, so played gently it stays round and slow, and played hard the
+    // top and a burst of noise come in at once and it turns bright and
+    // punchy. A smooth random tremolo on every partial keeps it moving.
+
+    ap.oscTable(params::glideSuffix,
+                {0.0002f, 0.0055f, 0.0119f, 0.0191f, 0.0274f, 0.0369f, 0.0478f,
+                 0.0603f, 0.0746f, 0.0909f, 0.1096f, 0.1311f, 0.1556f, 0.1838f,
+                 0.216f, 0.2528f, 0.2951f, 0.3434f, 0.3988f, 0.4622f, 0.5348f,
+                 0.618f, 0.7132f, 0.8222f, 0.9471f, 1.0901f, 1.2538f, 1.4414f,
+                 1.6561f, 1.902f, 2.1835f, 2.506f});
+    ap.oscTable(params::pmRateSuffix,
+                {2.4934f, 2.6246f, 2.7658f, 2.9148f, 3.0716f, 3.237f, 3.4113f,
+                 3.595f, 3.7885f, 3.9925f, 4.2073f, 4.4338f, 4.6726f, 4.9241f,
+                 5.1892f, 5.4685f, 5.7631f, 6.0733f, 6.4002f, 6.7447f, 7.1079f,
+                 7.4905f, 7.8937f, 8.3187f, 8.7664f, 9.2384f, 9.7359f, 10.26f,
+                 10.8122f, 11.3944f, 12.0076f, 12.6481f});
+    ap.oscTable(params::pmDepthSuffix,
+                {0.0023f, 0.079f, 0.1695f, 0.2731f, 0.3918f, 0.5278f, 0.6835f,
+                 0.8619f, 1.0661f, 1.3001f, 1.5681f, 1.8751f, 2.2266f, 2.6293f,
+                 3.0905f, 3.6187f, 4.2237f, 4.9167f, 5.7104f, 6.6195f, 7.6607f,
+                 8.8533f, 10.2192f, 11.7837f, 13.5756f, 15.628f, 17.9789f,
+                 20.6712f, 23.755f, 27.2872f, 31.3326f, 35.9661f});
+    ap.oscTable(params::driftSuffix,
+                {0.6306f, 1.5412f, 1.612f, 1.684f, 1.7572f, 1.8316f, 1.9072f,
+                 1.984f, 2.0621f, 2.1415f, 2.2222f, 2.3042f, 2.3875f, 2.4723f,
+                 2.5584f, 2.6459f, 2.7349f, 2.8253f, 2.9172f, 3.0107f, 3.1056f,
+                 3.2021f, 3.3003f, 3.4f, 3.5013f, 3.6044f, 3.7091f, 3.8155f,
+                 3.9237f, 4.0337f, 4.1455f, 4.2591f});
+    ap.oscTable(params::strikeSuffix,
+                {0.862f, 0.866f, 0.6838f, 0.8743f, 0.6921f, 0.6962f, 0.7003f,
+                 0.8908f, 0.7085f, 0.7127f, 0.7168f, 0.7209f, 0.725f, 0.7291f,
+                 0.7333f, 0.9237f, 0.7415f, 0.7456f, 0.7498f, 0.7539f, 0.758f,
+                 0.7621f, 0.7662f, 0.7704f, 0.7745f, 0.7786f, 0.7827f, 0.7868f,
+                 0.791f, 0.7951f, 0.7992f, 0.9896f});
+    ap.oscTable(params::attackSuffix,
+                {0.0075f, 0.0067f, 0.006f, 0.0054f, 0.0048f, 0.0043f, 0.0039f,
+                 0.0034f, 0.0031f, 0.0028f, 0.0025f, 0.0022f, 0.002f, 0.0018f,
+                 0.0016f, 0.0014f, 0.0013f, 0.0011f, 0.001f, 0.0009f, 0.0008f,
+                 0.0007f, 0.0007f, 0.0006f, 0.0005f, 0.0005f, 0.0004f, 0.0004f,
+                 0.0003f, 0.0003f, 0.0003f, 0.0002f});
+    ap.oscTable(params::decaySuffix,
+                {5.7508f, 5.58f, 5.4145f, 5.2537f, 5.0978f, 4.9465f, 4.7995f,
+                 4.657f, 4.5188f, 4.3846f, 4.2545f, 4.1282f, 4.0056f, 3.8868f,
+                 3.7714f, 3.6595f, 3.5506f, 3.4453f, 3.343f, 3.2438f, 3.1475f,
+                 3.054f, 2.9634f, 2.8754f, 2.7901f, 2.7072f, 2.6268f, 2.5488f,
+                 2.4732f, 2.3997f, 2.3286f, 2.2615f});
+    ap.oscTable(params::sustainSuffix,
+                {0.948f, 0.6038f, 0.0997f, 0.1211f, 0.0f, 0.0142f, 0.0f,
+                 0.0228f, 0.0f, 0.0f, 0.0f, 0.0115f, 0.0f, 0.0f, 0.0f, 0.0178f,
+                 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.006f, 0.0f, 0.0f,
+                 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0133f});
+    ap.allOsc(params::amShapeSuffix, [](int) { return 6.0; });
+    ap.oscTable(params::amRateSuffix,
+                {2.7644f, 2.8991f, 3.0439f, 3.1959f, 3.3555f, 3.5231f, 3.699f,
+                 3.8837f, 4.0776f, 4.2812f, 4.495f, 4.7195f, 4.9552f, 5.2026f,
+                 5.4624f, 5.7351f, 6.0216f, 6.3222f, 6.6379f, 6.9693f, 7.3174f,
+                 7.6828f, 8.0664f, 8.4692f, 8.8921f, 9.3362f, 9.8024f, 10.2919f,
+                 10.8057f, 11.3454f, 11.9119f, 12.502f});
+    ap.oscTable(params::amDepthSuffix,
+                {0.4852f, 0.4984f, 0.5119f, 0.5253f, 0.5388f, 0.5523f, 0.5658f,
+                 0.5793f, 0.5928f, 0.6063f, 0.6198f, 0.6333f, 0.6468f, 0.6603f,
+                 0.6738f, 0.6873f, 0.7008f, 0.7143f, 0.7278f, 0.7413f, 0.7548f,
+                 0.7683f, 0.7818f, 0.7953f, 0.8088f, 0.8222f, 0.8357f, 0.8492f,
+                 0.8627f, 0.8762f, 0.8897f, 0.9032f});
+    ap.oscTable(params::velSuffix,
+                {0.0026f, 0.1881f, 0.322f, 0.456f, 0.5899f, 0.8416f, 0.9293f,
+                 0.9917f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+                 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+                 1.0f, 1.0f, 1.0f, 1.0f, 1.0f});
+    ap.oscTable(params::volumeSuffix,
+                {0.9998f, 0.9412f, 0.886f, 0.8339f, 0.7849f, 0.7388f, 0.6954f,
+                 0.6545f, 0.6161f, 0.5799f, 0.5458f, 0.5138f, 0.4836f, 0.4552f,
+                 0.4284f, 0.4033f, 0.3796f, 0.3573f, 0.3363f, 0.3165f, 0.2979f,
+                 0.2804f, 0.264f, 0.2484f, 0.2339f, 0.2201f, 0.2072f, 0.195f,
+                 0.1836f, 0.1728f, 0.1626f, 0.1533f});
+    ap.set("h01_aftertouch", -0.2624f);
+    ap.set("h02_aftertouch", 1.0f);
+    ap.set("h02_pan", 0.3006f);
+    ap.set("h03_aftertouch", 1.0f);
+    ap.set("h03_pan", -0.4002f);
+    ap.set("h04_aftertouch", 1.0f);
+    ap.set("h04_pan", -0.6029f);
+    ap.set("h05_pan", 1.0f);
+    ap.set("h06_aftertouch", 0.8013f);
+    ap.set("h06_pan", 1.0f);
+    ap.set("h07_pan", -1.0f);
+    ap.set("h08_aftertouch", 0.796f);
+    ap.set("h08_pan", -1.0f);
+    ap.set("h09_pan", 1.0f);
+    ap.set("h10_pan", 1.0f);
+    ap.set("h11_pan", -1.0f);
+    ap.set("h12_aftertouch", 0.5992f);
+    ap.set("h12_pan", 1.0f);
+    ap.set("h13_pan", -1.0f);
+    ap.set("h14_pan", 1.0f);
+    ap.set("h15_pan", -1.0f);
+    ap.set("h16_aftertouch", 0.599f);
+    ap.set("h16_pan", -1.0f);
+    ap.set("h17_pan", 1.0f);
+    ap.set("h18_pan", 1.0f);
+    ap.set("h19_pan", -1.0f);
+    ap.set("h20_pan", -1.0f);
+    ap.set("h21_pan", 1.0f);
+    ap.set("h22_pan", 1.0f);
+    ap.set("h23_pan", -1.0f);
+    ap.set("h24_aftertouch", 0.3951f);
+    ap.set("h24_pan", 1.0f);
+    ap.set("h25_pan", -1.0f);
+    ap.set("h26_pan", 1.0f);
+    ap.set("h27_pan", -1.0f);
+    ap.set("h28_pan", -1.0f);
+    ap.set("h29_pan", -1.0f);
+    ap.set("h30_pan", 1.0f);
+    ap.set("h31_pan", 1.0f);
+    ap.set("h32_aftertouch", 0.4034f);
+    ap.set("h32_pan", -0.5384f);
+    ap.set("character", 4.0f);
+    ap.set("clipType", 2.0f);
+    ap.set("echoAge", 0.1711f);
+    ap.set("echoFeedback", 0.95f);
+    ap.set("echoMix", 0.2179f);
+    ap.set("echoOn", 1.0f);
+    ap.set("echoTime", 0.0263f);
+    ap.set("echoType", 2.0f);
+    ap.set("glideMode", 1.0f);
+    ap.set("lofiBits", 4.0f);
+    ap.set("masterGain", -14.0f);
+    ap.set("noise_amDepth", 0.5151f);
+    ap.set("noise_amRate", 1.0407f);
+    ap.set("noise_amShape", 6.0f);
+    ap.set("noise_attack", 0.0013f);
+    ap.set("noise_colour", 1.0f);
+    ap.set("noise_decay", 2.0169f);
+    ap.set("noise_strike", 1.0f);
+    ap.set("noise_sustain", 0.0f);
+    ap.set("noise_vel", 0.9817f);
+    ap.set("noise_volume", 0.1951f);
+    ap.set("reverbDamp", 0.0f);
+    ap.set("reverbDecay", 4.4853f);
+    ap.set("reverbMix", 0.2034f);
+    ap.set("reverbOn", 1.0f);
+    ap.set("reverbPreDelay", 0.0172f);
+    ap.set("stretch", 0.1942f);
+    ap.set("track", 2.6f);
+    ap.set("wobble", 0.104f);
+    break;
+  }
+  case 14: // Glockenspiel
   {
     ap.neutralBase();
 
@@ -2256,7 +2413,7 @@ void apply(APVTS &apvts, int index) {
     ap.character(Character::Bulb);
     break;
   }
-  case 14: // Init
+  case 15: // Init
   {
     ap.neutralBase();
 
@@ -2270,7 +2427,7 @@ void apply(APVTS &apvts, int index) {
                  0.0f, 0.0f, 0.0f});
     break;
   }
-  case 15: // Just Saw
+  case 16: // Just Saw
   {
     ap.neutralBase();
 
@@ -2286,7 +2443,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 1.0f);
     break;
   }
-  case 16: // Lo-fi
+  case 17: // Lo-fi
   {
     ap.neutralBase();
 
@@ -2376,7 +2533,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.0635f);
     break;
   }
-  case 17: // Metallic Piano
+  case 18: // Metallic Piano
   {
     ap.neutralBase();
 
@@ -2479,7 +2636,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 9.0f);
     break;
   }
-  case 18: // Music Box
+  case 19: // Music Box
   {
     ap.neutralBase();
 
@@ -2593,7 +2750,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.0992f);
     break;
   }
-  case 19: // Nylon EP
+  case 20: // Nylon EP
   {
     ap.neutralBase();
 
@@ -2748,7 +2905,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1946f);
     break;
   }
-  case 20: // Odd Harmonics
+  case 21: // Odd Harmonics
   {
     ap.neutralBase();
 
@@ -2774,7 +2931,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("masterGain", -10.0f);
     break;
   }
-  case 21: // Omni-84
+  case 22: // Omni-84
   {
     ap.neutralBase();
 
@@ -2831,7 +2988,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 7.0f);
     break;
   }
-  case 22: // Shimmer
+  case 23: // Shimmer
   {
     ap.neutralBase();
 
@@ -2859,7 +3016,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("masterGain", -9.0f);
     break;
   }
-  case 23: // Slow Pad
+  case 24: // Slow Pad
   {
     ap.neutralBase();
 
@@ -2925,7 +3082,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.015f);
     break;
   }
-  case 24: // Space Flute
+  case 25: // Space Flute
   {
     ap.neutralBase();
 
@@ -3052,7 +3209,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.2795f);
     break;
   }
-  case 25: // Sparkle Pad
+  case 26: // Sparkle Pad
   {
     ap.neutralBase();
 
@@ -3272,7 +3429,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1346f);
     break;
   }
-  case 26: // Stepped
+  case 27: // Stepped
   {
     ap.neutralBase();
 
@@ -3464,7 +3621,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1661f);
     break;
   }
-  case 27: // Struck Bell
+  case 28: // Struck Bell
   {
     ap.neutralBase();
 
@@ -3493,7 +3650,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("clipType", 1.0f); // Hard
     break;
   }
-  case 28: // StyloPoly
+  case 29: // StyloPoly
   {
     ap.neutralBase();
 
@@ -3566,7 +3723,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("pmInPhase", 1.0f);
     break;
   }
-  case 29: // Synth Ensemble
+  case 30: // Synth Ensemble
   {
     ap.neutralBase();
 
@@ -3777,7 +3934,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1011f);
     break;
   }
-  case 30: // Tape Choir
+  case 31: // Tape Choir
   {
     ap.neutralBase();
 
@@ -3811,7 +3968,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("masterGain", -13.0f);
     break;
   }
-  case 31: // Vibraphone
+  case 32: // Vibraphone
   {
     ap.neutralBase();
 
@@ -3879,7 +4036,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.1882f);
     break;
   }
-  case 32: // Wurli
+  case 33: // Wurli
   {
     ap.neutralBase();
 

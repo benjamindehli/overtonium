@@ -9,7 +9,7 @@ HTML and is edited there.
 Any string here can name a count the source knows, and the generator fills it
 in rather than trusting whoever last typed it:
 
-    {presets}       the factory presets in words, "thirty-three"
+    {presets}       the factory presets in words, "thirty-four"
     {parameters}    the host parameters in figures, "836"
     {preset_names}  every factory preset, in the order the menu lists them
 
@@ -383,7 +383,7 @@ LLMS_FACTS = [
     ('Output stage', 'the master fader drives a CLIP stage of five shapes, Soft, Hard, Asymmetric, Limiter and Fold, or Off. With the Limiter lookahead switched on in Settings, the Limiter looks 2 ms ahead and the plugin reports 108 samples of latency at 48 kHz whichever shape is chosen, so a preset change never moves it. It is off by default, which reports only the 12 samples of the bus stage and leaves the Limiter rougher.'),
     ('Automation', '{parameters} parameters reach the host, 37 global, 23 on each of the 32 partials, 18 on the noise channel and 6 on each of the eight macros. A per-channel one carries its channel in its name, as "H7 Tune" or "Noise Level", and is identified by an id of its own rather than by its position, so a release that inserts parameters leaves existing automation pointed at the same controls.'),
     ('Program change', 'a MIDI program change loads a factory preset by its position in the alphabetical Factory list, counting from zero, on any channel and with MPE on. Numbers past the last preset are ignored, and presets of your own are not reachable this way.'),
-    ('Factory presets', "{preset_names}. Twenty-six of them ask for an oscillator character, chosen by ear: eleven on Bulb, eight on Op-amp, four on Valve, two on Rail, one on Diode, and seven on Pure, four of those deliberately so (Init, Just Saw, Equal Saw, 6581 Triangle, whose dirt is the chip's arithmetic rather than anything analogue)."),
+    ('Factory presets', "{preset_names}. Twenty-six of them ask for an oscillator character, chosen by ear: eleven on Bulb, eight on Op-amp, five on Valve, two on Rail, one on Diode, and seven on Pure, four of those deliberately so (Init, Just Saw, Equal Saw, 6581 Triangle, whose dirt is the chip's arithmetic rather than anything analogue)."),
     ('Audio examples', 'every section of the tuning page can be heard, and so can every factory preset. Just Saw against Equal Saw and the TUNE sweep between them, a STRETCH sweep from harmonic out past a piano, one chord in equal against Werckmeister III, a run up the keyboard with tracking off and on, a held chord with and without drift, and all {presets} presets playing the same spread C major. They are rendered by the plugin rather than recorded, so they cannot drift from what it does.'),
     ('Privacy', 'nothing reaches the network unless the update check is switched on, which is off by default and offered once.'),
 ]
