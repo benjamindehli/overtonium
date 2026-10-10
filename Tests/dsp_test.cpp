@@ -14,6 +14,7 @@
 #include <cmath>
 #include <cstdio>
 #include <memory>
+#include <random>
 #include <string>
 #include <utility>
 #include <vector>
@@ -613,11 +614,13 @@ void testAdaptiveTuning() {
   section("Adaptive tuning");
 
   // The seventh temperament retunes the keyboard as it is played: every pitch
-  // class has three versions a syntonic comma apart around its just-major
-  // place on the root, and a key takes whichever is purest against what is
-  // sounding. These play the cases the design was chosen on and measure the
-  // intervals the engine actually tuned, so the test holds the engine to the
-  // numbers the model produced rather than to its own arithmetic.
+  // class has three versions a comma apart around its just-major place on the
+  // root, on Groven's fifths, and a key takes whichever is purest against what
+  // is sounding. Those fifths are an eighth of a schisma narrow, so "pure"
+  // below means within a quarter of a cent. These play the cases the design was
+  // chosen on and measure the intervals the engine actually tuned, so the test
+  // holds the engine to the numbers the model produced rather than to its own
+  // arithmetic.
   constexpr double sr = 48000.0;
   const auto engineOwner = std::make_unique<SynthEngine>();
   auto &engine = *engineOwner;
@@ -646,19 +649,45 @@ void testAdaptiveTuning() {
     engine.setPolyphony(16);
   };
 
-  // How far an interval is from the nearest consonance it is meant to be.
-  // Seconds, sevenths and the tritone are not meant to be pure and are left
-  // out, as they are in the engine.
-  const auto offPure = [](double hzA, double hzB) {
-    auto cents = std::fmod(std::abs(1200.0 * std::log2(hzA / hzB)), 1200.0);
-    double best = 1.0e9;
-    for (const double target :
-         {0.0, 1200.0, tuning::kPureFifth, 1200.0 - tuning::kPureFifth,
-          tuning::kPureMajorThird, 1200.0 - tuning::kPureMajorThird,
-          tuning::kPureFifth - tuning::kPureMajorThird,
-          1200.0 - (tuning::kPureFifth - tuning::kPureMajorThird)})
-      best = std::min(best, std::abs(cents - target));
-    return best < 30.0 ? best : 0.0;
+  // The same, cheaply, for the loops that start over hundreds of times: reset
+  // clears the voices and what each pitch class used last, which is all a
+  // fresh start needs, without building every effect again.
+  const auto restart = [&]() {
+    engine.reset();
+    engine.setPolyphony(16);
+  };
+
+  // How far two keys are from pure, as the interval they spell: seven
+  // semitones is a fifth however it is tuned. Judging a pair by whichever
+  // consonance it lands near would pass a third tuned a comma wide as not a
+  // third at all, which is how a first version of this test passed chords
+  // the engine had got wrong. Seconds, sevenths and the tritone are not meant
+  // to be pure and count nothing, as in the engine.
+  const auto offPure = [](int keyA, double hzA, int keyB, double hzB) {
+    const auto span = std::abs(keyA - keyB);
+    const double fifth = tuning::kPureFifth - 700.0;
+    const double third = tuning::kPureMajorThird - 400.0;
+    const double minorThird =
+        tuning::kPureFifth - tuning::kPureMajorThird - 300.0;
+    const double pureOff[12] = {0.0,    1.0e9,       1.0e9, minorThird,
+                                third,  -fifth,      1.0e9, fifth,
+                                -third, -minorThird, 1.0e9, 1.0e9};
+    const auto off = pureOff[span % 12];
+    if (off > 1.0e8)
+      return 0.0;
+    const auto cents =
+        std::abs(1200.0 * std::log2(keyA >= keyB ? hzA / hzB : hzB / hzA));
+    return std::abs(cents - (100.0 * (double)span + off));
+  };
+
+  const auto worstOf = [&](const std::vector<int> &keys) {
+    double worst = 0.0;
+    for (size_t a = 0; a < keys.size(); ++a)
+      for (size_t b = a + 1; b < keys.size(); ++b)
+        worst =
+            std::max(worst, offPure(keys[a], engine.frequencyOfNote(keys[a]),
+                                    keys[b], engine.frequencyOfNote(keys[b])));
+    return worst;
   };
 
   // Strikes a chord, every key a moment after the last, measures its worst
@@ -669,11 +698,7 @@ void testAdaptiveTuning() {
       engine.noteOn(note, 0.8f, p);
     render(p, 0.05);
 
-    double worst = 0.0;
-    for (size_t a = 0; a < notes.size(); ++a)
-      for (size_t b = a + 1; b < notes.size(); ++b)
-        worst = std::max(worst, offPure(engine.frequencyOfNote(notes[a]),
-                                        engine.frequencyOfNote(notes[b])));
+    const auto worst = worstOf(notes);
 
     for (const auto note : notes)
       engine.noteOff(note);
@@ -704,7 +729,23 @@ void testAdaptiveTuning() {
                 fixed, adaptive);
 
     check(fixed > 20.0, "just major fixed on C has a chord a comma out in G");
-    check(adaptive < 0.01, "adaptive plays every chord of it pure");
+    check(adaptive < 0.3, "adaptive plays every chord of it pure");
+
+    // And in every key, F sharp included, six fifths from the root. The root
+    // places the middle versions and centres the bound on drift, and is not
+    // the key: a key far from it has to be as pure as one beside it.
+    double everyKey = 0.0;
+    for (int key = 0; key < 12; ++key) {
+      start();
+      const auto p = patch(Temperament::Adaptive, 0.02f);
+      for (const int degree : {0, 5, 7, 0}) {
+        const int root = 48 + (key + degree) % 12;
+        everyKey = std::max(
+            everyKey, chordWorst(p, {root - 12, root, root + 4, root + 7}));
+      }
+    }
+
+    check(everyKey < 0.3, "and I IV V I in all twelve keys on a root of C");
   }
 
   // ---- the comma pump, bounded ----------------------------------------------
@@ -733,8 +774,8 @@ void testAdaptiveTuning() {
                 "%+.2f cents from where it began\n",
                 worst, drift);
 
-    check(worst < 0.01, "the comma pump plays pure");
-    check(std::abs(drift) < tuning::kSyntonicComma + 0.01,
+    check(worst < 0.3, "the comma pump plays pure");
+    check(std::abs(drift) < tuning::kAdaptiveComma + 0.01,
           "and C never ends more than a comma from where it began");
   }
 
@@ -762,8 +803,8 @@ void testAdaptiveTuning() {
 
     check(exactly(aOverF, aOverD), "a held A does not move when the chord "
                                    "under it changes");
-    check(std::abs(fifth - tuning::kPureFifth) < 0.01,
-          "and the D struck under it takes the version a pure fifth below");
+    check(std::abs(fifth - tuning::kGrovenFifth) < 0.001,
+          "and the D struck under it takes the version a fifth below");
   }
 
   // ---- a lone note remembers ------------------------------------------------
@@ -771,8 +812,8 @@ void testAdaptiveTuning() {
     start();
     const auto p = patch(Temperament::Adaptive, 0.02f);
 
-    // D struck under a held F and A takes the version a pure fifth below the
-    // A, a comma under the middle one.
+    // D struck under a held F and A takes the version a fifth below the A, a
+    // comma under the middle one.
     for (const auto note : {53, 57, 60})
       engine.noteOn(note, 0.8f, p);
     render(p, 0.05);
@@ -790,10 +831,10 @@ void testAdaptiveTuning() {
     engine.noteOn(62, 0.8f, p);
     render(p, 0.01);
     const auto alone = engine.frequencyOfNote(62);
-    const auto middle = noteFrequency(62, Temperament::Just, 0, 440.0);
+    const auto middle = noteFrequency(62, Temperament::Adaptive, 0, 440.0);
 
     check(std::abs(1200.0 * std::log2(inChord / middle) +
-                   tuning::kSyntonicComma) < 0.01,
+                   tuning::kAdaptiveComma) < 0.01,
           "a D struck under a held F and A takes the version a comma low");
     check(exactly(alone, inChord),
           "and played alone afterwards takes that version again");
@@ -813,8 +854,9 @@ void testAdaptiveTuning() {
       render(p, wait);
       engine.noteOn(62, 0.8f, p);
       render(p, 0.01);
-      return 1200.0 * std::log2(engine.frequencyOfNote(62) /
-                                noteFrequency(62, Temperament::Just, 0, 440.0));
+      return 1200.0 *
+             std::log2(engine.frequencyOfNote(62) /
+                       noteFrequency(62, Temperament::Adaptive, 0, 440.0));
     };
 
     const auto ringing = dAfterF(0.01);
@@ -824,13 +866,203 @@ void testAdaptiveTuning() {
                 "the chord rings, %+.2f once it has died\n",
                 ringing, silent);
 
-    check(std::abs(ringing + tuning::kSyntonicComma) < 0.01,
+    check(std::abs(ringing + tuning::kAdaptiveComma) < 0.01,
           "a D struck into a ringing F major fits it, a comma low");
     check(std::abs(silent) < 0.01,
           "and one struck after it has died takes its own middle version");
   }
 
-  // Everything else about the temperaments is unchanged by its arrival.
+  // ---- random chords, with and without tails --------------------------------
+  //
+  // Seeded, so it plays the same every run. Triads and bare twelfths on random
+  // roots in a random order, each struck while the last may still be ringing,
+  // and after every chord every consonant pair of its keys has to be pure.
+  // This is what found two faults the cases above did not: a ringing tail
+  // outvoting the held key, which put a held fifth a comma out, and the
+  // schisma, two cents a chord far from the root could not escape with pure
+  // fifths, which memory then kept in place for every replay.
+  // Twice: struck as chords, a couple of milliseconds between keys, and as
+  // arpeggios, 60 to 120 between them, which is where three versions decided
+  // once at note-on left half of all arpeggiated progressions a comma out.
+  for (const double apart : {0.002, 0.06})
+    for (const float release : {0.01f, 1.0f}) {
+      std::mt19937 rng(7);
+      int failed = 0;
+      double worstSeen = 0.0;
+
+      for (int trial = 0; trial < 60; ++trial) {
+        restart();
+        const auto p = patch(Temperament::Adaptive, release);
+
+        for (int step = 0; step < 6; ++step) {
+          const int root = 48 + (int)(rng() % 12);
+          const auto kind = rng() % 3;
+          std::vector<int> chord =
+              kind == 0   ? std::vector<int>{root, root + 4, root + 7}
+              : kind == 1 ? std::vector<int>{root, root + 3, root + 7}
+                          : std::vector<int>{root, root + 19};
+          std::shuffle(chord.begin(), chord.end(), rng);
+
+          for (const auto note : chord) {
+            engine.noteOn(note, 0.8f, p);
+            render(p, apart * (1.0 + (double)(rng() % 100) / 100.0));
+          }
+          render(p, 0.02);
+
+          const auto worst = worstOf(chord);
+
+          worstSeen = std::max(worstSeen, worst);
+          failed += worst > 0.3 ? 1 : 0;
+
+          for (const auto note : chord)
+            engine.noteOff(note);
+          render(p, 0.05 + 0.1 * (double)(rng() % 100) / 100.0);
+        }
+      }
+
+      const auto how = apart < 0.01 ? "struck" : "arpeggiated";
+      std::printf("  360 random chords %s, release %.2f s: worst held "
+                  "consonance %.3f cents off pure\n",
+                  how, (double)release, worstSeen);
+      check(failed == 0, std::string("every chord of 360 random ones plays "
+                                     "pure, ") +
+                             how + ", release " +
+                             std::to_string(release).substr(0, 4) + " s");
+    }
+
+  // ---- a chord turning into the next a key at a time
+  // -------------------------
+  //
+  // Common notes held and the rest changing one key at a time, sometimes the
+  // new key before the old one comes up. A key decided once when it went down
+  // was tuned to whatever it went down against: a G sharp struck while an F
+  // was still held is an A flat, and the E major it ends up in is two commas
+  // out. Settling the whole held chord on every key, up as well as down, is
+  // what keeps it pure as it changes.
+  {
+    std::mt19937 rng(5);
+    int failed = 0;
+    double worstSeen = 0.0;
+
+    const auto voicing = [](int root, bool minor,
+                            const std::vector<int> &near) {
+      std::vector<int> out;
+      for (const int step : {0, minor ? 3 : 4, 7}) {
+        const int pc = (root + step) % 12;
+        int best = 0, bestDistance = 1000;
+        for (int key = 48 + pc; key < 76; key += 12) {
+          int distance = near.empty() ? std::abs(key - 60) : 1000;
+          for (const int held : near)
+            distance = std::min(distance, std::abs(key - held));
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            best = key;
+          }
+        }
+        out.push_back(best);
+      }
+      return out;
+    };
+
+    for (int trial = 0; trial < 60; ++trial) {
+      restart();
+      const auto p = patch(Temperament::Adaptive, 0.01f);
+      std::vector<int> held;
+      int root = (int)(rng() % 12);
+
+      for (int step = 0; step < 8; ++step) {
+        const int moves[] = {5, 7, 9, 3, 2, 10};
+        root = (root + moves[rng() % 6]) % 12;
+        const auto next = voicing(root, rng() % 2 == 1, held);
+
+        std::vector<int> leaving, arriving;
+        for (const int key : held)
+          if (std::find(next.begin(), next.end(), key) == next.end())
+            leaving.push_back(key);
+        for (const int key : next)
+          if (std::find(held.begin(), held.end(), key) == held.end())
+            arriving.push_back(key);
+
+        for (size_t k = 0; k < std::max(leaving.size(), arriving.size()); ++k) {
+          const bool newFirst = rng() % 2 == 1;
+          if (newFirst && k < arriving.size())
+            engine.noteOn(arriving[k], 0.8f, p);
+          if (k < leaving.size())
+            engine.noteOff(leaving[k]);
+          if (!newFirst && k < arriving.size())
+            engine.noteOn(arriving[k], 0.8f, p);
+          render(p, 0.03 + 0.12 * (double)(rng() % 100) / 100.0);
+        }
+
+        held = next;
+        const auto worst = worstOf(held);
+        worstSeen = std::max(worstSeen, worst);
+        failed += worst > 0.3 ? 1 : 0;
+      }
+    }
+
+    std::printf("  480 chords turning a key at a time: worst %.3f cents off "
+                "pure\n",
+                worstSeen);
+    check(failed == 0, "a chord turning into the next a key at a time stays "
+                       "pure all the way");
+  }
+
+  // ---- a held note moves when it has to
+  // --------------------------------------
+  //
+  // F sharp and E held, a second apart and so nothing to each other, then C
+  // sharp under both: a fourth below the F sharp and a minor third below the
+  // E, and the two cannot both be pure unless one of the held notes moves a
+  // comma. The fewest notes move, and they slide at the chosen speed.
+  {
+    start();
+    auto p = patch(Temperament::Adaptive, 0.01f);
+    engine.noteOn(66, 0.8f, p);
+    engine.noteOn(64, 0.8f, p);
+    render(p, 0.1); // older than the chord window
+    const auto eBefore = engine.frequencyOfNote(64);
+    const auto fSharpBefore = engine.frequencyOfNote(66);
+
+    engine.noteOn(61, 0.8f, p);
+    render(p, 0.01);
+
+    const auto moved =
+        1200.0 * std::log2(engine.frequencyOfNote(64) / eBefore) +
+        1200.0 * std::log2(engine.frequencyOfNote(66) / fSharpBefore);
+
+    check(worstOf({61, 64, 66}) < 0.3,
+          "C sharp under a held F sharp and E makes both intervals pure");
+    check(std::abs(std::abs(moved) - tuning::kAdaptiveComma) < 0.01,
+          "by moving one held note a single comma");
+  }
+
+  {
+    // How fast, on one voice: a fifth of a second into a Smooth retune most of
+    // the way is still to go, and a Fast one is done.
+    const auto remaining = [&](double seconds) {
+      Voice v;
+      v.prepare(sr, 1);
+      auto p = patch(Temperament::Equal, 0.1f);
+      v.noteOn(1, 64, 0.8f, p);
+      std::vector<float> vl(4800), vr(4800);
+      v.render(vl.data(), vr.data(), 480, p, SharedModulation{});
+      v.retuneTo(v.getFrequency() * std::exp2(tuning::kAdaptiveComma / 1200.0),
+                 seconds);
+      v.render(vl.data(), vr.data(), (int)(0.06 * sr), p, SharedModulation{});
+      return -v.getPartialPitches()[0];
+    };
+
+    const auto fast = remaining(0.03);
+    const auto smooth = remaining(0.3);
+    std::printf("  60 ms into a retune of a comma: %.2f cents still to go "
+                "Fast, %.2f Smooth\n",
+                fast, smooth);
+    check(std::abs(fast) < 0.01, "a Fast retune has arrived in 60 ms");
+    check(smooth > 14.0 && smooth < 18.0,
+          "a Smooth one is about a fifth of the way there");
+  }
+
   check(std::string(temperamentName(Temperament::Adaptive)) == "Adaptive",
         "it is called Adaptive");
 }

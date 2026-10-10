@@ -215,17 +215,19 @@ Everything above is about where a partial sits over the note you played. This is
 | Quarter-comma meantone | 386.31 | 696.58 | fifths narrowed a quarter comma, which makes the third pure |
 | Werckmeister III | 390.22 | 696.09 | four fifths narrowed, no wolf, every key playable |
 | Young | 392.18 | 698.04 | six narrowed by a sixth, gentler again |
-| [Adaptive](https://benjamindehli.github.io/overtonium/tuning/#adaptive) | 386.31 | 701.96 | pure in every key, chosen note by note as you play |
+| [Adaptive](https://benjamindehli.github.io/overtonium/tuning/#adaptive) | 386.31 | 701.71 | pure in every key, the held chord retuned as you play |
 
 They are derived from the circle of fifths rather than copied out as tables of cents. Almost every historical temperament is described by how much each of the twelve fifths is narrowed, so that is what the code says, and the pitch classes fall out of it. The two commas it is all built from come out at 23.460 and 21.506 cents, which are the published figures, and the tests assert the property that defines each temperament rather than the numbers that happen to result: meantone's third pure to a thousandth of a cent, Pythagorean's fifth likewise, Werckmeister at its characteristic 390.2.
 
 ### Adaptive
 
-Every fixed temperament is in tune somewhere and out of tune somewhere else. Just major is pure in the keys near its root and a comma out in a chord from anywhere further away, which is the oldest problem in tuning. Adaptive answers it the way Eivind Groven's organs did. Every pitch class has three versions, its place in just major on the root and a syntonic comma, 21.5 cents, either side of it, and each key takes whichever version is purest against what is sounding when it goes down. A key is chosen once and never moves while it sounds, so nothing in the music slides: it is simply in tune, in every key, on an ordinary keyboard.
+Every fixed temperament is in tune somewhere and out of tune somewhere else. Just major is pure in the keys near its root and a comma out in a chord from anywhere further away, which is the oldest problem in tuning. Adaptive answers it the way Eivind Groven's organs did, by giving every key more than one pitch and choosing between them as you play. Every pitch class has five versions, its place in just major on the root and one and two commas either side of it, and the chord you are holding is kept on whichever versions make it purest.
 
-What it tunes against is everything you can hear: the keys that are down, the ones the pedal is holding, and a chord still ringing after its keys came up, for as long as it is a fair part of what is sounding. A key struck into silence takes the version its pitch class used last, which is what stops a progression wandering away a comma at a time. Because each note only ever chooses among its three versions, the keyboard can never drift more than one comma from where it started, however long you play. A C major, A minor, D minor, G progression played four times over stays pure throughout and ends within that comma, where tuning every chord pure to the last one would leave it two and a half semitones sharp.
+The chord is settled again every time a key goes down or comes up, so a chord turning into the next one a note at a time stays in tune all the way, not only one struck fresh. Keys struck together are settled together. A held note that the new chord needs somewhere else slides there at the speed set under **Retune** in Settings: *Fast*, 30 ms, quick enough to pass for a note that was always there, or *Smooth*, 300 ms, slow enough to hear the chord settle. It moves as few notes as it can, so in most playing nothing slides at all: new notes take whichever version fits the ones already held.
 
-One thing to know: the same chord struck in a different order can settle on a different version, a comma higher or lower and just as pure, so a piece can end a comma from where it began. Groven's organs did the same, and every chord is still pure. Root decides where the middle versions sit, and Reference pitch where A's does.
+What it tunes against is everything you can hear: the keys that are down, the ones the pedal is holding, and a chord still ringing after its keys came up decides between versions the held keys leave open. A key struck into silence takes the version its pitch class used last, which keeps a progression from wandering away a comma at a time, and since no key can stray further than its outer versions, the keyboard never drifts more than two commas from where it started, however long you play. Tuning every chord pure to the last one, with nothing to hold it, would leave a C major, A minor, D minor, G progression played four times over two and a half semitones sharp.
+
+Like Groven's organs it tempers each fifth by an eighth of a schisma, a quarter of a cent, so eight fifths and a pure major third close up exactly. Without that, chords far from the root would be left two cents out, which on pure partials is slow but clearly audible beating. The major thirds are pure, and a quarter of a cent on a fifth beats about once every eighteen seconds on the third partial of a note in the middle of the keyboard. The same chord reached by a different route can settle a comma higher or lower, just as pure, so a piece can end a comma or two from where it began. Root decides where the middle versions sit, and Reference pitch where A's does.
 
 ### Root
 
@@ -596,6 +598,7 @@ Everything set once and then left. The menu is where the instrument is set up an
 | Aftertouch from | Channel pressure, Mod wheel, Either. Either by default | What feeds the AT row on every strip. Polyphonic aftertouch is not on the list because it stays routed whatever this says |
 | Slide to | Off, Brightness, Tuning. Brightness by default | Where the forward and back axis under an MPE finger goes |
 | Temperament, Root, Reference pitch | Seven temperaments, twelve roots, 415 to 466 Hz | What the keyboard underneath is tuned to, which [the tuning system](https://benjamindehli.github.io/overtonium/tuning/) works through. Root is greyed out for equal temperament, which has no centre to have |
+| Retune | Fast, the default, or Smooth | How fast a held note slides to a new version when the [Adaptive](https://benjamindehli.github.io/overtonium/tuning/#adaptive) temperament retunes the chord around it: 30 ms, or 300 ms to hear it settle. Greyed out under every other temperament |
 | Phase reset | on by default | Starts each partial where its ATTACK says when a note begins from silence: a rising zero crossing, or nearer its peak when the attack is turned below its shortest time. Off, a partial carries on from wherever its cycle was |
 | Safety clip | on by default | Whether the output stage at the end of the chain is running, worth leaving on when you push 32 faders up. Which of its five shapes is running is chosen on the bar, under the meter |
 | Limiter lookahead | off by default | Whether the Limiter may see what is coming. On makes it smooth at the cost of two milliseconds of latency on every shape, since only that one uses the window and the figure must not move with the patch. The only setting here that changes what the plugin reports to your host |
@@ -608,7 +611,7 @@ The safety clip is the exception in this table, and the master fader is the exce
 
 ## Automating it from the host
 
-Eight hundred and thirty-nine parameters reach the host: thirty-seven global ones, twenty-three on each of the 32 partials, eighteen on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals first and then channel by channel with the noise channel last.
+Eight hundred and forty parameters reach the host: thirty-eight global ones, twenty-three on each of the 32 partials, eighteen on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals first and then channel by channel with the noise channel last.
 
 Every per-channel name carries its channel, so a parameter list answers both ways of looking for something. Type `H7` and you have that partial, type `Tune` and you have that row across the whole mixer. The same names are what a screen reader reads, which is why they are words rather than numbers.
 
@@ -630,9 +633,9 @@ LINK is not a parameter, since it is a tool for the mouse rather than part of th
 
 ### Every parameter
 
-All 839 as the host lists them, with a control that every partial or every macro carries given one row for all of them. The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is [parameters.json](https://benjamindehli.github.io/overtonium/parameters.json), written by the plugin rather than by hand.
+All 840 as the host lists them, with a control that every partial or every macro carries given one row for all of them. The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is [parameters.json](https://benjamindehli.github.io/overtonium/parameters.json), written by the plugin rather than by hand.
 
-**Global**, thirty-seven of them.
+**Global**, thirty-eight of them.
 
 | What the host calls it | Id | Range | Default |
 |---|---|---|---|
@@ -673,6 +676,7 @@ All 839 as the host lists them, with a control that every partial or every macro
 | `Glide Trigger` | `glideTrigger` | Always, Legato | Always |
 | `Glide Mode` | `glideMode` | Fixed rate, Fixed time | Fixed rate |
 | `Legato` | `legato` | Off or on | Off |
+| `Adaptive Retune` | `adaptiveRetune` | Fast, Smooth | Fast |
 
 **On every partial**, twenty-three controls, each one on all 32 partials.
 

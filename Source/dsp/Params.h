@@ -146,6 +146,9 @@ struct GlobalParams {
   Temperament temperament = Temperament::Equal;
   int tuningRoot = 0;         ///< pitch class the temperament is built on
   double referenceHz = 440.0; ///< where A sits, whatever the temperament
+  /// How long a held note takes to slide to its new version when the adaptive
+  /// temperament retunes it. See SynthEngine::settleAdaptive.
+  double adaptiveRetuneSeconds = 0.03;
 
   float bendSemitones = 0.0f; ///< current pitch-bend offset
   float aftertouch = 0.0f;    ///< current channel pressure, 0..1

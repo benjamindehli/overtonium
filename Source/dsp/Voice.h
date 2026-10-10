@@ -200,6 +200,14 @@ public:
   /// under the fingers. The engine works out the frequency, since under the
   /// adaptive temperament it depends on what else is sounding.
   void retune(int channel, int note, double frequency) noexcept;
+
+  /// Moves a sounding note to another version of the same key, sliding there
+  /// over the time given, or at once for none. For the adaptive temperament,
+  /// which retunes a held chord when the keys around it change. The pitch is
+  /// continuous: the slide starts where the note is and the frequency the
+  /// engine reads back is the one it is sliding to. See
+  /// SynthEngine::settleAdaptive.
+  void retuneTo(double frequency, double seconds) noexcept;
   void steal() noexcept; ///< fast fade-out so the voice can be reused
 
   /// The same fade over a time of the caller's choosing, for a note that has
@@ -450,6 +458,12 @@ private:
 
   double sampleRate = 44100.0;
   double baseFreq = 440.0;
+
+  /// How far a retune by the adaptive temperament still has to slide, in
+  /// semitones, and how far it goes in a sample. The same for every partial,
+  /// since it moves the note rather than any one of them. See retuneTo.
+  double retuneSemis = 0.0;
+  double retuneStep = 0.0;
   int midiNote = -1;
   int midiChannel = 0;
 

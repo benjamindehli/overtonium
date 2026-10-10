@@ -670,8 +670,8 @@
                                 <tr>
                                     <td><a href="#adaptive">Adaptive</a></td>
                                     <td>386.31</td>
-                                    <td>701.96</td>
-                                    <td>pure in every key, chosen note by note as you play</td>
+                                    <td>701.71</td>
+                                    <td>pure in every key, the held chord retuned as you play</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -689,25 +689,35 @@
                     <p>
                         Every fixed temperament is in tune somewhere and out of tune somewhere else. Just major is pure in the keys near its root and
                         a comma out in a chord from anywhere further away, which is the oldest problem in tuning. Adaptive answers it the way Eivind
-                        Groven's organs did. Every pitch class has three versions, its place in just major on the root and a syntonic comma, 21.5
-                        cents, either side of it, and each key takes whichever version is purest against what is sounding when it goes down. A key is
-                        chosen once and never moves while it sounds, so nothing in the music slides: it is simply in tune, in every key, on an
-                        ordinary keyboard.
+                        Groven's organs did, by giving every key more than one pitch and choosing between them as you play. Every pitch class has five
+                        versions, its place in just major on the root and one and two commas either side of it, and the chord you are holding is kept
+                        on whichever versions make it purest.
+                    </p>
+
+                    <p>
+                        The chord is settled again every time a key goes down or comes up, so a chord turning into the next one a note at a time stays
+                        in tune all the way, not only one struck fresh. Keys struck together are settled together. A held note that the new chord
+                        needs somewhere else slides there at the speed set under <strong>Retune</strong> in Settings: <em>Fast</em>, 30 ms, quick
+                        enough to pass for a note that was always there, or <em>Smooth</em>, 300 ms, slow enough to hear the chord settle. It moves as
+                        few notes as it can, so in most playing nothing slides at all: new notes take whichever version fits the ones already held.
                     </p>
 
                     <p>
                         What it tunes against is everything you can hear: the keys that are down, the ones the pedal is holding, and a chord still
-                        ringing after its keys came up, for as long as it is a fair part of what is sounding. A key struck into silence takes the
-                        version its pitch class used last, which is what stops a progression wandering away a comma at a time. Because each note only
-                        ever chooses among its three versions, the keyboard can never drift more than one comma from where it started, however long
-                        you play. A C major, A minor, D minor, G progression played four times over stays pure throughout and ends within that comma,
-                        where tuning every chord pure to the last one would leave it two and a half semitones sharp.
+                        ringing after its keys came up decides between versions the held keys leave open. A key struck into silence takes the version
+                        its pitch class used last, which keeps a progression from wandering away a comma at a time, and since no key can stray further
+                        than its outer versions, the keyboard never drifts more than two commas from where it started, however long you play. Tuning
+                        every chord pure to the last one, with nothing to hold it, would leave a C major, A minor, D minor, G progression played four
+                        times over two and a half semitones sharp.
                     </p>
 
                     <p>
-                        One thing to know: the same chord struck in a different order can settle on a different version, a comma higher or lower and
-                        just as pure, so a piece can end a comma from where it began. Groven's organs did the same, and every chord is still pure.
-                        Root decides where the middle versions sit, and Reference pitch where A's does.
+                        Like Groven's organs it tempers each fifth by an eighth of a schisma, a quarter of a cent, so eight fifths and a pure major
+                        third close up exactly. Without that, chords far from the root would be left two cents out, which on pure partials is slow but
+                        clearly audible beating. The major thirds are pure, and a quarter of a cent on a fifth beats about once every eighteen seconds
+                        on the third partial of a note in the middle of the keyboard. The same chord reached by a different route can settle a comma
+                        higher or lower, just as pure, so a piece can end a comma or two from where it began. Root decides where the middle versions
+                        sit, and Reference pitch where A's does.
                     </p>
 
                     <h3 id="root">Root</h3>

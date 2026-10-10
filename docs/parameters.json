@@ -837,5 +837,6 @@
     {"id": "reverbType", "name": "Reverb Type", "type": "choice", "choices": ["Room", "Modulated Plate", "Spring"], "default": "Room"},
     {"id": "glideTrigger", "name": "Glide Trigger", "type": "choice", "choices": ["Always", "Legato"], "default": "Always"},
     {"id": "glideMode", "name": "Glide Mode", "type": "choice", "choices": ["Fixed rate", "Fixed time"], "default": "Fixed rate"},
-    {"id": "legato", "name": "Legato", "type": "switch", "default": "Off"}
+    {"id": "legato", "name": "Legato", "type": "switch", "default": "Off"},
+    {"id": "adaptiveRetune", "name": "Adaptive Retune", "type": "choice", "choices": ["Fast", "Smooth"], "default": "Fast"}
 ]

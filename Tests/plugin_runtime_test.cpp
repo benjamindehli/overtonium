@@ -190,7 +190,7 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
       {ovt::params::slideDestId, 3},    {ovt::params::lofiRateId, 8},
       {ovt::params::lofiBitsId, 9},     {ovt::params::echoTypeId, 3},
       {ovt::params::reverbTypeId, 3},   {ovt::params::glideTriggerId, 2},
-      {ovt::params::glideModeId, 2},
+      {ovt::params::glideModeId, 2},    {ovt::params::adaptiveRetuneId, 2},
   };
 
   for (const auto &list : globals)
@@ -790,8 +790,9 @@ void testParameterWiring(OvertoniumProcessor &p) {
   // And two for glide on the end: when a note glides, and whether the time on
   // each channel is per octave or per note. See params::glideTriggerId. Then
   // Legato as a switch of its own beside the voice count. See
-  // params::legatoId.
-  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + 2 + 1 +
+  // params::legatoId. Then how fast the adaptive temperament retunes a held
+  // note. See params::adaptiveRetuneId.
+  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + 2 + 1 + 1 +
                        ovt::params::kNumMacros * 6;
 
   // The behaviour that was there before it became a choice. Asked of the
@@ -5520,6 +5521,25 @@ void testSettingsMenu(OvertoniumProcessor &p) {
     }
 
     check(rootLive, "and with Adaptive chosen the Root menu stays live");
+
+    // Retune is about Adaptive and nothing else, so it is live only there.
+    const auto retuneLive = [&bar, &p](int temperament) {
+      auto *t = p.apvts.getParameter(ovt::params::temperamentId);
+      t->setValueNotifyingHost(t->convertTo0to1((float)temperament));
+      auto built = bar.buildSettingsMenu();
+      bool live = false, seen = false;
+      for (juce::PopupMenu::MenuItemIterator it(built); it.next();)
+        if (it.getItem().text == "Retune") {
+          seen = true;
+          live = it.getItem().isEnabled;
+        }
+      t->setValueNotifyingHost(t->convertTo0to1(0.0f));
+      return seen ? (live ? 1 : 0) : -1;
+    };
+
+    check(retuneLive((int)ovt::Temperament::Adaptive) == 1 &&
+              retuneLive((int)ovt::Temperament::Just) == 0,
+          "Retune is offered, and live only under Adaptive");
   }
 
   // The three that answer "what does the controller in front of you send".

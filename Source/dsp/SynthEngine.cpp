@@ -223,6 +223,8 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
   legatoTemperament = p.global.temperament;
   legatoRoot = p.global.tuningRoot;
   legatoReferenceHz = p.global.referenceHz;
+  adaptiveOn = p.global.temperament == Temperament::Adaptive;
+  adaptiveRetune = p.global.adaptiveRetuneSeconds;
 
   // ---- where a glide comes from ---------------------------------------------
   //
@@ -515,94 +517,264 @@ double SynthEngine::frequencyFor(int note, Temperament temperament, int root,
   if (temperament != Temperament::Adaptive)
     return noteFrequency(note, temperament, root, referenceHz);
 
-  // The intervals a chord means to be pure, folded into one octave, and how
-  // much each one counts. The octave and the fifth carry most, since a
-  // mistuned one is the first thing anyone hears. Seconds, sevenths and the
-  // tritone are left out: none of them has one pure size a chord is reaching
-  // for, and weighing them would pull a consonance off to flatter a
-  // dissonance.
-  struct Consonance {
-    double cents;
-    double weight;
+  return settleAdaptive(note, root, referenceHz, self);
+}
+
+double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
+                                   const Voice *self) noexcept {
+  // How each interval the keys spell is pure, as steps along the chain of
+  // tempered fifths from the lower key to the higher, and how much it counts.
+  // The octave and the fifth carry most, since a mistuned one is the first
+  // thing anyone hears. Seconds, sevenths and the tritone have no one pure
+  // size a chord is reaching for and are left out.
+  struct Pure {
+    int steps;
+    int weight;
   };
 
-  static constexpr double kFifth = tuning::kPureFifth;
-  static constexpr double kThird = tuning::kPureMajorThird;
-  static constexpr Consonance kPure[] = {
-      {0.0, 4.0},
-      {1200.0, 4.0},
-      {kFifth, 3.0},
-      {1200.0 - kFifth, 3.0},
-      {kThird, 2.0},
-      {1200.0 - kThird, 2.0},
-      {kFifth - kThird, 2.0},
-      {1200.0 - (kFifth - kThird), 2.0},
+  static constexpr Pure kByClass[12] = {
+      {0, 4},  // unison, octave
+      {0, 0},  // minor second
+      {0, 0},  // major second
+      {9, 2},  // minor third: a fifth up, a major third down
+      {-8, 2}, // major third
+      {-1, 3}, // fourth
+      {0, 0},  // tritone
+      {1, 3},  // fifth
+      {8, 2},  // minor sixth
+      {-9, 2}, // major sixth
+      {0, 0},  // minor seventh
+      {0, 0},  // major seventh
   };
 
-  // Further off than this and the pair was never meant to be that interval,
-  // so it says nothing about which version is right.
-  static constexpr double kNear = 30.0;
+  // Where each pitch class's middle version sits on that chain, as fifths and
+  // major thirds from the root, a third counting as eight fifths down. The
+  // same just-major places Temperament.h builds the middle versions from.
+  static constexpr int kMiddleStep[12] = {0,  7, 2, 9,  -8, -1,
+                                          -6, 1, 8, -9, 10, -7};
 
-  // A tail counts while it is still a fair part of what is sounding, a quarter
-  // of the loudest voice, so a chord struck into a ringing one agrees with it
-  // and one struck into a dying whisper is left to its own choice. And only
-  // while it can be heard at all: with nothing else sounding, the last faint
-  // remains of a chord are each a quarter of the loudest of themselves, and
-  // without a floor a key struck into silence would tune against them rather
-  // than take the version its pitch class used last.
+  // The same intervals as cents off their equal-tempered size, for weighing
+  // what is still ringing, which has a frequency rather than a place on the
+  // chain.
+  static constexpr double kFifthOff = tuning::kPureFifth - 700.0;
+  static constexpr double kThirdOff = tuning::kPureMajorThird - 400.0;
+  static constexpr double kMinorOff = kFifthOff - kThirdOff;
+  static constexpr double kOffEqual[12] = {
+      0.0, 0.0,       0.0,        kMinorOff,  kThirdOff, -kFifthOff,
+      0.0, kFifthOff, -kThirdOff, -kMinorOff, 0.0,       0.0};
+
+  // Two commas either side of the middle. A comma is twelve steps.
+  static constexpr int kReach = 2;
+
+  // A tail is heard while it is still a fair part of what is sounding and
+  // above -60 dB. See the tests for why the floor is there.
   static constexpr float kAudibleShare = 0.25f;
-  static constexpr float kInaudible = 0.001f; // -60 dB
+  static constexpr float kInaudible = 0.001f;
 
+  const auto classOf = [root](int key) {
+    return ((key - root) % 12 + 12) % 12;
+  };
+
+  const auto hzOf = [root, referenceHz](int key, int version) {
+    return noteFrequency(key, Temperament::Adaptive, root, referenceHz) *
+           std::exp2((double)version * tuning::kAdaptiveComma / 1200.0);
+  };
+
+  const auto versionOf = [&hzOf](const Voice &v) {
+    return (int)std::lround(1200.0 *
+                            std::log2(v.getFrequency() / hzOf(v.getNote(), 0)) /
+                            tuning::kAdaptiveComma);
+  };
+
+  // ---- who takes part
+  // --------------------------------------------------------
+  struct Node {
+    Voice *voice; // null for the key going down
+    int key;
+    int now;    // its version as it stands, unused for the key going down
+    bool young; // inside the chord window, so it moves at once and cheaply
+  };
+
+  std::array<Node, kPoolSize + 1> nodes{};
+  int count = 0;
+
+  const auto window = (uint64_t)(kChordWindowSeconds * sampleRate);
   float loudest = 0.0f;
-  for (const auto &v : voices)
-    if (v.isActive() && &v != self)
-      loudest = std::max(loudest, v.lastLevel());
 
-  const auto middle = noteFrequency(note, Temperament::Just, root, referenceHz);
-  const auto pitchClass = ((note - root) % 12 + 12) % 12;
+  for (size_t i = 0; i < voices.size(); ++i) {
+    auto &v = voices[i];
+    if (!v.isActive() || &v == self)
+      continue;
 
-  int best = adaptiveVersion[(size_t)pitchClass];
-  double bestCost = -1.0;
+    loudest = std::max(loudest, v.lastLevel());
 
-  // The version this pitch class used last is weighed first and the middle
-  // one second, so either wins a tie: a key with nothing to tune against, or
-  // one every version suits equally, keeps to where it was.
-  const int remembered = adaptiveVersion[(size_t)pitchClass];
-  const int order[3] = {remembered, remembered == 0 ? -1 : 0,
-                        remembered == 1 ? -1 : 1};
+    if (!v.isReleasing())
+      nodes[(size_t)count++] = {&v, v.getNote(), versionOf(v),
+                                clock - pressedAt[i] < window};
+  }
 
-  for (const auto version : order) {
-    const auto hz =
-        middle * std::exp2((double)version * tuning::kSyntonicComma / 1200.0);
-    double cost = 0.0;
+  if (note >= 0)
+    nodes[(size_t)count++] = {nullptr, note, 0, true};
 
-    for (const auto &v : voices) {
-      if (!v.isActive() || &v == self)
-        continue;
+  if (count == 0)
+    return 0.0;
 
-      if (v.isReleasing() && (v.lastLevel() < kAudibleShare * loudest ||
-                              v.lastLevel() < kInaudible))
-        continue;
+  // ---- the strongest intervals first, each kept if it agrees
+  // -----------------
+  //
+  // A union of groups, each node carrying how many commas it sits from its
+  // group's first node. Two nodes in one group already have a difference;
+  // an interval that wants another one is a contradiction the chord cannot
+  // be pure without, like the third an augmented triad has one too many of,
+  // and is left out.
+  std::array<int, kPoolSize + 1> group{}, offset{};
+  for (int i = 0; i < count; ++i) {
+    group[(size_t)i] = i;
+    offset[(size_t)i] = 0;
+  }
 
-      const auto cents = std::fmod(
-          std::abs(1200.0 * std::log2(hz / v.getFrequency())), 1200.0);
+  const auto find = [&group, &offset](int i) {
+    int total = 0;
+    while (group[(size_t)i] != i) {
+      total += offset[(size_t)i];
+      i = group[(size_t)i];
+    }
+    return std::pair<int, int>{i, total};
+  };
 
-      for (const auto &pure : kPure) {
-        const auto off = std::abs(cents - pure.cents);
-        if (off < kNear)
-          cost += pure.weight * off;
+  for (const int weight : {4, 3, 2})
+    for (int a = 0; a < count; ++a)
+      for (int b = a + 1; b < count; ++b) {
+        const auto &na = nodes[(size_t)a];
+        const auto &nb = nodes[(size_t)b];
+        const auto span = std::abs(na.key - nb.key);
+        const auto &pure = kByClass[(size_t)(span % 12)];
+        if (pure.weight != weight)
+          continue;
+
+        // In commas, how far above the lower key's version the higher key's
+        // has to be for the pair to be pure.
+        const auto &low = na.key <= nb.key ? na : nb;
+        const auto lowIndex = na.key <= nb.key ? a : b;
+        const auto highIndex = na.key <= nb.key ? b : a;
+        const auto &high = na.key <= nb.key ? nb : na;
+        const auto steps =
+            pure.steps - (kMiddleStep[(size_t)classOf(high.key)] -
+                          kMiddleStep[(size_t)classOf(low.key)]);
+        const auto commas = steps / 12; // always whole: see kMiddleStep
+
+        const auto [lowRoot, lowAt] = find(lowIndex);
+        const auto [highRoot, highAt] = find(highIndex);
+
+        if (lowRoot == highRoot)
+          continue; // agreed, or contradicted, by stronger ones already
+
+        // Hang the high key's group off the low key's.
+        group[(size_t)highRoot] = lowRoot;
+        offset[(size_t)highRoot] = lowAt + commas - highAt;
+      }
+
+  // ---- where each group sits ------------------------------------------------
+  std::array<int, kPoolSize + 1> chosen{};
+
+  for (int g = 0; g < count; ++g) {
+    if (find(g).first != g)
+      continue;
+
+    int lowest = 1 << 20, highest = -(1 << 20);
+    for (int i = 0; i < count; ++i) {
+      const auto [r, at] = find(i);
+      if (r == g) {
+        lowest = std::min(lowest, at);
+        highest = std::max(highest, at);
       }
     }
 
-    // Strictly better, so the order above settles a tie.
-    if (bestCost < 0.0 || cost < bestCost - 1.0e-9) {
-      bestCost = cost;
-      best = version;
+    // Every placement that keeps the whole group inside its reach, or failing
+    // that the one that overshoots least.
+    int from = -kReach - lowest, to = kReach - highest;
+    if (from > to)
+      from = to = (from + to) / 2;
+
+    double bestScore[3] = {1.0e18, 1.0e18, 1.0e18};
+    int bestPlace = from;
+
+    for (int place = from; place <= to; ++place) {
+      double moved = 0.0, ringing = 0.0, habit = 0.0;
+
+      for (int i = 0; i < count; ++i) {
+        const auto [r, at] = find(i);
+        if (r != g)
+          continue;
+
+        const auto version = std::clamp(place + at, -kReach, kReach);
+        const auto &node = nodes[(size_t)i];
+
+        if (node.voice != nullptr)
+          moved += (node.young ? 0.01 : 1.0) * std::abs(version - node.now);
+        else
+          habit += version == adaptiveVersion[(size_t)classOf(node.key)]
+                       ? 0.0
+                       : 1.0 + std::abs(version);
+
+        // What is still ringing after its key came up only settles a choice
+        // the held keys leave open.
+        for (const auto &v : voices) {
+          if (!v.isActive() || &v == self || !v.isReleasing() ||
+              v.lastLevel() < kAudibleShare * loudest ||
+              v.lastLevel() < kInaudible)
+            continue;
+
+          const auto span = std::abs(node.key - v.getNote());
+          const auto &pure = kByClass[(size_t)(span % 12)];
+          if (pure.weight == 0)
+            continue;
+
+          const auto high = node.key >= v.getNote();
+          const auto cents =
+              1200.0 *
+              std::log2(high ? hzOf(node.key, version) / v.getFrequency()
+                             : v.getFrequency() / hzOf(node.key, version));
+          ringing += (double)pure.weight *
+                     std::abs(cents - (100.0 * (double)span +
+                                       kOffEqual[(size_t)(span % 12)]));
+        }
+      }
+
+      const double score[3] = {moved, ringing, habit};
+      if (std::lexicographical_compare(score, score + 3, bestScore,
+                                       bestScore + 3)) {
+        std::copy(score, score + 3, bestScore);
+        bestPlace = place;
+      }
+    }
+
+    for (int i = 0; i < count; ++i) {
+      const auto [r, at] = find(i);
+      if (r == g)
+        chosen[(size_t)i] = std::clamp(bestPlace + at, -kReach, kReach);
     }
   }
 
-  adaptiveVersion[(size_t)pitchClass] = best;
-  return middle * std::exp2((double)best * tuning::kSyntonicComma / 1200.0);
+  // ---- move what has to move ------------------------------------------------
+  double result = 0.0;
+
+  for (int i = 0; i < count; ++i) {
+    const auto &node = nodes[(size_t)i];
+    const auto version = chosen[(size_t)i];
+    adaptiveVersion[(size_t)classOf(node.key)] = version;
+
+    if (node.voice == nullptr) {
+      result = hzOf(node.key, version);
+      continue;
+    }
+
+    if (version != node.now)
+      node.voice->retuneTo(hzOf(node.key, version),
+                           node.young ? 0.0 : adaptiveRetune);
+  }
+
+  return result;
 }
 
 double SynthEngine::frequencyOfNote(int note) const noexcept {
@@ -657,6 +829,12 @@ void SynthEngine::noteOffImpl(int channel, int note, float lift) noexcept {
       }
     }
   }
+
+  // What is left held may sit better now that this key has gone: a note
+  // tuned to fit a key that is no longer there can take the version the
+  // chord now wants.
+  if (adaptiveOn)
+    settleAdaptive(-1, legatoRoot, legatoReferenceHz, nullptr);
 }
 
 void SynthEngine::setSustainPedal(bool down) noexcept {
@@ -672,6 +850,9 @@ void SynthEngine::setSustainPedal(bool down) noexcept {
       heldLift[i] = 1.0f;
     }
   }
+
+  if (adaptiveOn)
+    settleAdaptive(-1, legatoRoot, legatoReferenceHz, nullptr);
 }
 
 void SynthEngine::setPolyPressure(int note, float pressure) noexcept {
