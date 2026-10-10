@@ -125,6 +125,11 @@ public:
 
   int getActiveVoiceCount() const noexcept;
 
+  /// Where a key that is down is sounding, before any bend or glide, or zero
+  /// if no voice is holding it. What the adaptive temperament chose is not
+  /// visible anywhere else, which is why this exists.
+  double frequencyOfNote(int note) const noexcept;
+
   /// Loudest instance of each partial across the sounding voices, 0..1.
   ///
   /// The loudest rather than the sum, so the display shows the shape of the
@@ -396,6 +401,23 @@ private:
   Temperament legatoTemperament = Temperament::Equal;
   int legatoRoot = 0;
   double legatoReferenceHz = 440.0;
+
+  /// Where a key is tuned. A fixed temperament is a table and answers the same
+  /// whatever is sounding. Adaptive weighs three versions of the key against
+  /// every voice that can be heard, other than the one being tuned, and keeps
+  /// the purest.
+  ///
+  /// @param self  the voice this key is going to, left out of what it is tuned
+  ///              against, since it may still be sounding its old note.
+  double frequencyFor(int note, Temperament temperament, int root,
+                      double referenceHz, const Voice *self) noexcept;
+
+  /// Which of its three versions each pitch class took last, -1, 0 or 1 commas
+  /// from its place in just major on the root. A key with nothing to tune
+  /// against takes the version its pitch class used last, which is what keeps
+  /// a progression from wandering off a comma at a time once the chords stop
+  /// overlapping. Cleared on reset.
+  std::array<int, 12> adaptiveVersion{};
 
   /// Drops a key from the stack. Nothing happens if it was not in it, which a
   /// note-off arriving without its note-on will do.

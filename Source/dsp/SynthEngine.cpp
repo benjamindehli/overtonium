@@ -57,6 +57,7 @@ void SynthEngine::reset() noexcept {
   sustainDown = false;
   ageCounter = 0;
   lastNoteFrequency = 0.0;
+  adaptiveVersion.fill(0);
   clock = 0;
   pressedAt.fill(0);
   pressedWithOthers.fill(false);
@@ -289,7 +290,9 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
       // From wherever it is, which mid-glide is somewhere between two notes.
       // A key is held by definition here, so both triggers glide.
       const auto own = v.notePitches();
-      v.noteOnLegato(channel, note, p);
+      v.retune(channel, note,
+               frequencyFor(note, p.global.temperament, p.global.tuningRoot,
+                            p.global.referenceHz, &v));
       v.startGlide(own, glide);
       v.setAge(++ageCounter);
       lastNoteFrequency = v.getFrequency();
@@ -430,7 +433,9 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
       heldBySustain[heldIndex] = false;
       pressedAt[heldIndex] = now;
       pressedWithOthers[heldIndex] = withOthers;
-      held->noteOn(channel, note, velocity, p);
+      held->noteOn(channel, note, velocity, p,
+                   frequencyFor(note, p.global.temperament, p.global.tuningRoot,
+                                p.global.referenceHz, held));
 
       if (glides)
         held->startGlide(from, glide);
@@ -481,7 +486,9 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
     if (source == (int)index)
       source = -1;
 
-  target->noteOn(channel, note, velocity, p);
+  target->noteOn(channel, note, velocity, p,
+                 frequencyFor(note, p.global.temperament, p.global.tuningRoot,
+                              p.global.referenceHz, target));
 
   if (carryFrom >= 0 && carryFrom != (int)index &&
       voices[(size_t)carryFrom].isActive()) {
@@ -500,6 +507,110 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
 
   target->setAge(++ageCounter);
   lastNoteFrequency = target->getFrequency();
+}
+
+double SynthEngine::frequencyFor(int note, Temperament temperament, int root,
+                                 double referenceHz,
+                                 const Voice *self) noexcept {
+  if (temperament != Temperament::Adaptive)
+    return noteFrequency(note, temperament, root, referenceHz);
+
+  // The intervals a chord means to be pure, folded into one octave, and how
+  // much each one counts. The octave and the fifth carry most, since a
+  // mistuned one is the first thing anyone hears. Seconds, sevenths and the
+  // tritone are left out: none of them has one pure size a chord is reaching
+  // for, and weighing them would pull a consonance off to flatter a
+  // dissonance.
+  struct Consonance {
+    double cents;
+    double weight;
+  };
+
+  static constexpr double kFifth = tuning::kPureFifth;
+  static constexpr double kThird = tuning::kPureMajorThird;
+  static constexpr Consonance kPure[] = {
+      {0.0, 4.0},
+      {1200.0, 4.0},
+      {kFifth, 3.0},
+      {1200.0 - kFifth, 3.0},
+      {kThird, 2.0},
+      {1200.0 - kThird, 2.0},
+      {kFifth - kThird, 2.0},
+      {1200.0 - (kFifth - kThird), 2.0},
+  };
+
+  // Further off than this and the pair was never meant to be that interval,
+  // so it says nothing about which version is right.
+  static constexpr double kNear = 30.0;
+
+  // A tail counts while it is still a fair part of what is sounding, a quarter
+  // of the loudest voice, so a chord struck into a ringing one agrees with it
+  // and one struck into a dying whisper is left to its own choice. And only
+  // while it can be heard at all: with nothing else sounding, the last faint
+  // remains of a chord are each a quarter of the loudest of themselves, and
+  // without a floor a key struck into silence would tune against them rather
+  // than take the version its pitch class used last.
+  static constexpr float kAudibleShare = 0.25f;
+  static constexpr float kInaudible = 0.001f; // -60 dB
+
+  float loudest = 0.0f;
+  for (const auto &v : voices)
+    if (v.isActive() && &v != self)
+      loudest = std::max(loudest, v.lastLevel());
+
+  const auto middle = noteFrequency(note, Temperament::Just, root, referenceHz);
+  const auto pitchClass = ((note - root) % 12 + 12) % 12;
+
+  int best = adaptiveVersion[(size_t)pitchClass];
+  double bestCost = -1.0;
+
+  // The version this pitch class used last is weighed first and the middle
+  // one second, so either wins a tie: a key with nothing to tune against, or
+  // one every version suits equally, keeps to where it was.
+  const int remembered = adaptiveVersion[(size_t)pitchClass];
+  const int order[3] = {remembered, remembered == 0 ? -1 : 0,
+                        remembered == 1 ? -1 : 1};
+
+  for (const auto version : order) {
+    const auto hz =
+        middle * std::exp2((double)version * tuning::kSyntonicComma / 1200.0);
+    double cost = 0.0;
+
+    for (const auto &v : voices) {
+      if (!v.isActive() || &v == self)
+        continue;
+
+      if (v.isReleasing() && (v.lastLevel() < kAudibleShare * loudest ||
+                              v.lastLevel() < kInaudible))
+        continue;
+
+      const auto cents = std::fmod(
+          std::abs(1200.0 * std::log2(hz / v.getFrequency())), 1200.0);
+
+      for (const auto &pure : kPure) {
+        const auto off = std::abs(cents - pure.cents);
+        if (off < kNear)
+          cost += pure.weight * off;
+      }
+    }
+
+    // Strictly better, so the order above settles a tie.
+    if (bestCost < 0.0 || cost < bestCost - 1.0e-9) {
+      bestCost = cost;
+      best = version;
+    }
+  }
+
+  adaptiveVersion[(size_t)pitchClass] = best;
+  return middle * std::exp2((double)best * tuning::kSyntonicComma / 1200.0);
+}
+
+double SynthEngine::frequencyOfNote(int note) const noexcept {
+  for (const auto &v : voices)
+    if (v.isActive() && !v.isReleasing() && v.getNote() == note)
+      return v.getFrequency();
+
+  return 0.0;
 }
 
 void SynthEngine::noteOff(int note, float lift) noexcept {
@@ -523,8 +634,8 @@ void SynthEngine::noteOffImpl(int channel, int note, float lift) noexcept {
           const auto own = v.notePitches();
 
           v.retune(channel, back,
-                   noteFrequency(back, legatoTemperament, legatoRoot,
-                                 legatoReferenceHz));
+                   frequencyFor(back, legatoTemperament, legatoRoot,
+                                legatoReferenceHz, &v));
           v.startGlide(own, glide);
           lastNoteFrequency = v.getFrequency();
           return;

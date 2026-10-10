@@ -19,6 +19,11 @@ enum class Temperament {
   QuarterComma,
   Werckmeister3,
   Young,
+  /// Retuned as it is played rather than fixed: every pitch class has three
+  /// versions a syntonic comma apart around its place in just major on the
+  /// root, and each key takes whichever is purest against what is sounding.
+  /// The table below is the middle versions. See SynthEngine::frequencyFor.
+  Adaptive,
   NumTemperaments
 };
 
@@ -34,6 +39,8 @@ inline const char *temperamentName(Temperament t) {
     return "Werckmeister III";
   case Temperament::Young:
     return "Young";
+  case Temperament::Adaptive:
+    return "Adaptive";
 
   // Listed rather than left to a default, so adding a temperament is a
   // compiler error here until it has been given a name.
@@ -166,7 +173,9 @@ temperamentOffsets(Temperament t) noexcept {
     return out;
   }();
 
-  const auto index = (int)t;
+  // Adaptive's middle versions are just major on the root, the place every
+  // pitch class starts from and comes back to.
+  const auto index = t == Temperament::Adaptive ? 1 : (int)t;
   return tables[(size_t)(index >= 0 && index < 6 ? index : 0)];
 }
 

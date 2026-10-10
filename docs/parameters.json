@@ -59,7 +59,7 @@
     {"id": "track", "name": "Tracking", "type": "continuous", "min": "Off", "max": "12.0 dB/oct", "default": "Off"},
     {"id": "character", "name": "Character", "type": "choice", "choices": ["Pure", "Bulb", "Rail", "Diode", "Valve", "Op-amp"], "default": "Pure"},
     {"id": "wobble", "name": "Wobble", "type": "continuous", "min": "0 %", "max": "100 %", "default": "0 %"},
-    {"id": "temperament", "name": "Temperament", "type": "choice", "choices": ["Equal", "Just (major)", "Pythagorean", "Quarter-comma meantone", "Werckmeister III", "Young"], "default": "Equal"},
+    {"id": "temperament", "name": "Temperament", "type": "choice", "choices": ["Equal", "Just (major)", "Pythagorean", "Quarter-comma meantone", "Werckmeister III", "Young", "Adaptive"], "default": "Equal"},
     {"id": "tuningRoot", "name": "Tuning Root", "type": "choice", "choices": ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"], "default": "C"},
     {"id": "referenceHz", "name": "Reference Pitch", "type": "choice", "choices": ["A = 415 Hz", "A = 430 Hz", "A = 432 Hz", "A = 435 Hz", "A = 438 Hz", "A = 440 Hz", "A = 442 Hz", "A = 443 Hz", "A = 444 Hz", "A = 446 Hz", "A = 466 Hz"], "default": "A = 440 Hz"},
     {"id": "atSource", "name": "Aftertouch From", "type": "choice", "choices": ["Channel pressure", "Mod wheel", "Either"], "default": "Either"},

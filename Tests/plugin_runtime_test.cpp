@@ -185,7 +185,7 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
   // from the same constant the parameter is built from would check nothing.
   const List globals[] = {
       {ovt::params::polyphonyId, 8},    {ovt::params::characterId, 6},
-      {ovt::params::temperamentId, 6},  {ovt::params::tuningRootId, 12},
+      {ovt::params::temperamentId, 7},  {ovt::params::tuningRootId, 12},
       {ovt::params::referenceHzId, 11}, {ovt::params::atSourceId, 3},
       {ovt::params::slideDestId, 3},    {ovt::params::lofiRateId, 8},
       {ovt::params::lofiBitsId, 9},     {ovt::params::echoTypeId, 3},
@@ -5486,6 +5486,41 @@ void testSettingsMenu(OvertoniumProcessor &p) {
         "Legato sits beside One voice per key, under the voice counts");
   check(std::count(entries.begin(), entries.end(), std::string("Legato")) == 1,
         "and is there once, as the switch rather than as a voice count");
+
+  // The adaptive temperament is offered with the six fixed ones, last, so a
+  // session's stored choice keeps the temperament it always named, and the
+  // root stays live for it, since its versions are placed around the root.
+  {
+    std::vector<std::string> temperaments;
+    bool rootLive = false;
+
+    for (juce::PopupMenu::MenuItemIterator it(menu); it.next();) {
+      const auto &item = it.getItem();
+      if (item.subMenu == nullptr)
+        continue;
+      if (item.text == "Temperament")
+        for (juce::PopupMenu::MenuItemIterator sub(*item.subMenu); sub.next();)
+          temperaments.push_back(sub.getItem().text.toStdString());
+      if (item.text == "Root")
+        rootLive = item.isEnabled;
+    }
+
+    check(temperaments.size() == 7 && temperaments.back() == "Adaptive",
+          "the Temperament menu ends with Adaptive (" + joined(temperaments) +
+              ")");
+
+    if (auto *t = p.apvts.getParameter(ovt::params::temperamentId)) {
+      t->setValueNotifyingHost(
+          t->convertTo0to1((float)(int)ovt::Temperament::Adaptive));
+      auto adaptiveMenu = bar.buildSettingsMenu();
+      for (juce::PopupMenu::MenuItemIterator it(adaptiveMenu); it.next();)
+        if (it.getItem().text == "Root")
+          rootLive = it.getItem().isEnabled;
+      t->setValueNotifyingHost(t->convertTo0to1(0.0f));
+    }
+
+    check(rootLive, "and with Adaptive chosen the Root menu stays live");
+  }
 
   // The three that answer "what does the controller in front of you send".
   check(at("MPE") >= 0 && at("Aftertouch from") == at("MPE") + 1 &&

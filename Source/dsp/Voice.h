@@ -181,8 +181,13 @@ public:
   /// @param channel  the MIDI channel the note arrived on. Carried so the
   ///                  engine can tell two voices apart when a controller is
   ///                  giving every note its own channel. Ignored otherwise.
-  void noteOn(int channel, int note, float velocity,
-              const SynthParams &p) noexcept;
+  ///
+  /// @param frequency  where the engine has tuned this key, or zero to tune it
+  ///                   from the temperament in the parameters, which is all a
+  ///                   fixed temperament needs. Adaptive decides from what
+  ///                   else is sounding, which only the engine can see.
+  void noteOn(int channel, int note, float velocity, const SynthParams &p,
+              double frequency = 0.0) noexcept;
   /// @param lift  see Envelope::noteOff.
   void noteOff(float lift = 1.0f) noexcept;
 
@@ -192,12 +197,8 @@ public:
   /// were, and only the pitch changes. The velocity of the note that began the
   /// phrase is kept, since the key that would set a new one was never
   /// released, and taking a fresh one would make a legato run change timbre
-  /// under the fingers.
-  void noteOnLegato(int channel, int note, const SynthParams &p) noexcept;
-
-  /// The same, for a caller that has worked out the frequency already. A
-  /// note-off has no parameters to hand and still has to move the phrase to
-  /// whichever key is left holding it.
+  /// under the fingers. The engine works out the frequency, since under the
+  /// adaptive temperament it depends on what else is sounding.
   void retune(int channel, int note, double frequency) noexcept;
   void steal() noexcept; ///< fast fade-out so the voice can be reused
 

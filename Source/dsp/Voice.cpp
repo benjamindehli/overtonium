@@ -139,12 +139,14 @@ void Voice::reset() noexcept {
   pressureSmoothed = 0.0f;
 }
 
-void Voice::noteOn(int channel, int note, float velocity,
-                   const SynthParams &p) noexcept {
+void Voice::noteOn(int channel, int note, float velocity, const SynthParams &p,
+                   double frequency) noexcept {
   midiNote = note;
   midiChannel = channel;
-  baseFreq = noteFrequency(note, p.global.temperament, p.global.tuningRoot,
-                           p.global.referenceHz);
+  baseFreq = frequency > 0.0
+                 ? frequency
+                 : noteFrequency(note, p.global.temperament,
+                                 p.global.tuningRoot, p.global.referenceHz);
 
   const float vel = std::clamp(velocity, 0.0f, 1.0f);
 
@@ -282,12 +284,6 @@ void Voice::noteOn(int channel, int note, float velocity,
     if (fresh)
       noise.gainPrimed = false;
   }
-}
-
-void Voice::noteOnLegato(int channel, int note, const SynthParams &p) noexcept {
-  retune(channel, note,
-         noteFrequency(note, p.global.temperament, p.global.tuningRoot,
-                       p.global.referenceHz));
 }
 
 void Voice::retune(int channel, int note, double frequency) noexcept {

@@ -609,6 +609,232 @@ void testTemperaments() {
   check(rotates, "meantone's pure third follows the root wherever it is put");
 }
 
+void testAdaptiveTuning() {
+  section("Adaptive tuning");
+
+  // The seventh temperament retunes the keyboard as it is played: every pitch
+  // class has three versions a syntonic comma apart around its just-major
+  // place on the root, and a key takes whichever is purest against what is
+  // sounding. These play the cases the design was chosen on and measure the
+  // intervals the engine actually tuned, so the test holds the engine to the
+  // numbers the model produced rather than to its own arithmetic.
+  constexpr double sr = 48000.0;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
+  std::vector<float> l, r;
+
+  const auto render = [&](const SynthParams &p, double seconds) {
+    const auto n = (size_t)(seconds * sr);
+    l.assign(n, 0.0f);
+    r.assign(n, 0.0f);
+    engine.render(l.data(), r.data(), (int)n, p);
+  };
+
+  const auto patch = [](Temperament t, float release) {
+    auto p = makeFlatParams(0.0f);
+    p.osc[0].volume = 0.5f;
+    for (auto &o : p.osc)
+      o.release = release;
+    p.global.temperament = t;
+    p.global.tuningRoot = 0;
+    p.global.referenceHz = 440.0;
+    return p;
+  };
+
+  const auto start = [&]() {
+    engine.prepare(sr);
+    engine.setPolyphony(16);
+  };
+
+  // How far an interval is from the nearest consonance it is meant to be.
+  // Seconds, sevenths and the tritone are not meant to be pure and are left
+  // out, as they are in the engine.
+  const auto offPure = [](double hzA, double hzB) {
+    auto cents = std::fmod(std::abs(1200.0 * std::log2(hzA / hzB)), 1200.0);
+    double best = 1.0e9;
+    for (const double target :
+         {0.0, 1200.0, tuning::kPureFifth, 1200.0 - tuning::kPureFifth,
+          tuning::kPureMajorThird, 1200.0 - tuning::kPureMajorThird,
+          tuning::kPureFifth - tuning::kPureMajorThird,
+          1200.0 - (tuning::kPureFifth - tuning::kPureMajorThird)})
+      best = std::min(best, std::abs(cents - target));
+    return best < 30.0 ? best : 0.0;
+  };
+
+  // Strikes a chord, every key a moment after the last, measures its worst
+  // consonance, and lets it go.
+  const auto chordWorst = [&](const SynthParams &p,
+                              const std::vector<int> &notes) {
+    for (const auto note : notes)
+      engine.noteOn(note, 0.8f, p);
+    render(p, 0.05);
+
+    double worst = 0.0;
+    for (size_t a = 0; a < notes.size(); ++a)
+      for (size_t b = a + 1; b < notes.size(); ++b)
+        worst = std::max(worst, offPure(engine.frequencyOfNote(notes[a]),
+                                        engine.frequencyOfNote(notes[b])));
+
+    for (const auto note : notes)
+      engine.noteOff(note);
+    render(p, 0.3); // the short release is over before the next chord
+    return worst;
+  };
+
+  const std::vector<int> cMaj{48, 60, 64, 67}, fMaj{41, 53, 57, 60},
+      gMaj{43, 55, 59, 62}, dMaj{50, 62, 66, 69}, aMin{45, 57, 60, 64},
+      dMin{50, 62, 65, 69};
+
+  // ---- every key, not only the root's ---------------------------------------
+  {
+    const auto inG = [&](Temperament t) {
+      start();
+      const auto p = patch(t, 0.02f);
+      double worst = 0.0;
+      for (const auto *c : {&gMaj, &cMaj, &dMaj, &gMaj})
+        worst = std::max(worst, chordWorst(p, *c));
+      return worst;
+    };
+
+    const auto fixed = inG(Temperament::Just);
+    const auto adaptive = inG(Temperament::Adaptive);
+
+    std::printf("  I IV V I in G on a root of C: worst %.2f cents off pure "
+                "fixed, %.4f adaptive\n",
+                fixed, adaptive);
+
+    check(fixed > 20.0, "just major fixed on C has a chord a comma out in G");
+    check(adaptive < 0.01, "adaptive plays every chord of it pure");
+  }
+
+  // ---- the comma pump, bounded ----------------------------------------------
+  {
+    start();
+    const auto p = patch(Temperament::Adaptive, 0.02f);
+    double worst = 0.0, firstC = 0.0, lastC = 0.0;
+
+    for (int round = 0; round < 4; ++round)
+      for (const auto *c : {&cMaj, &aMin, &dMin, &gMaj}) {
+        if (c == &cMaj) {
+          for (const auto note : *c)
+            engine.noteOn(note, 0.8f, p);
+          render(p, 0.05);
+          (round == 0 ? firstC : lastC) = engine.frequencyOfNote(60);
+          for (const auto note : *c)
+            engine.noteOff(note);
+          render(p, 0.3);
+          continue;
+        }
+        worst = std::max(worst, chordWorst(p, *c));
+      }
+
+    const auto drift = 1200.0 * std::log2(lastC / firstC);
+    std::printf("  C Am Dm G four times: worst %.4f cents off pure, C ends "
+                "%+.2f cents from where it began\n",
+                worst, drift);
+
+    check(worst < 0.01, "the comma pump plays pure");
+    check(std::abs(drift) < tuning::kSyntonicComma + 0.01,
+          "and C never ends more than a comma from where it began");
+  }
+
+  // ---- a held note does not move --------------------------------------------
+  {
+    start();
+    const auto p = patch(Temperament::Adaptive, 0.02f);
+
+    engine.noteOn(69, 0.8f, p); // A, held throughout
+    for (const auto note : {41, 53, 60})
+      engine.noteOn(note, 0.8f, p);
+    render(p, 0.05);
+    const auto aOverF = engine.frequencyOfNote(69);
+
+    for (const auto note : {41, 53, 60})
+      engine.noteOff(note);
+    render(p, 0.3);
+
+    for (const auto note : {50, 62, 65})
+      engine.noteOn(note, 0.8f, p);
+    render(p, 0.05);
+
+    const auto aOverD = engine.frequencyOfNote(69);
+    const auto fifth = 1200.0 * std::log2(aOverD / engine.frequencyOfNote(62));
+
+    check(exactly(aOverF, aOverD), "a held A does not move when the chord "
+                                   "under it changes");
+    check(std::abs(fifth - tuning::kPureFifth) < 0.01,
+          "and the D struck under it takes the version a pure fifth below");
+  }
+
+  // ---- a lone note remembers ------------------------------------------------
+  {
+    start();
+    const auto p = patch(Temperament::Adaptive, 0.02f);
+
+    // D struck under a held F and A takes the version a pure fifth below the
+    // A, a comma under the middle one.
+    for (const auto note : {53, 57, 60})
+      engine.noteOn(note, 0.8f, p);
+    render(p, 0.05);
+    engine.noteOff(60);
+    render(p, 0.05);
+    engine.noteOn(62, 0.8f, p);
+    render(p, 0.01);
+    const auto inChord = engine.frequencyOfNote(62);
+
+    for (const auto note : {53, 57, 62})
+      engine.noteOff(note);
+    render(p, 0.5);
+
+    // Then D alone, with nothing sounding to tune against.
+    engine.noteOn(62, 0.8f, p);
+    render(p, 0.01);
+    const auto alone = engine.frequencyOfNote(62);
+    const auto middle = noteFrequency(62, Temperament::Just, 0, 440.0);
+
+    check(std::abs(1200.0 * std::log2(inChord / middle) +
+                   tuning::kSyntonicComma) < 0.01,
+          "a D struck under a held F and A takes the version a comma low");
+    check(exactly(alone, inChord),
+          "and played alone afterwards takes that version again");
+    engine.noteOff(62);
+  }
+
+  // ---- an audible tail counts -----------------------------------------------
+  {
+    const auto dAfterF = [&](double wait) {
+      start();
+      const auto p = patch(Temperament::Adaptive, 1.5f);
+      for (const auto note : fMaj)
+        engine.noteOn(note, 0.8f, p);
+      render(p, 0.2);
+      for (const auto note : fMaj)
+        engine.noteOff(note);
+      render(p, wait);
+      engine.noteOn(62, 0.8f, p);
+      render(p, 0.01);
+      return 1200.0 * std::log2(engine.frequencyOfNote(62) /
+                                noteFrequency(62, Temperament::Just, 0, 440.0));
+    };
+
+    const auto ringing = dAfterF(0.01);
+    const auto silent = dAfterF(12.0);
+
+    std::printf("  D after F major: %+.2f cents from the middle version while "
+                "the chord rings, %+.2f once it has died\n",
+                ringing, silent);
+
+    check(std::abs(ringing + tuning::kSyntonicComma) < 0.01,
+          "a D struck into a ringing F major fits it, a comma low");
+    check(std::abs(silent) < 0.01,
+          "and one struck after it has died takes its own middle version");
+  }
+
+  // Everything else about the temperaments is unchanged by its arrival.
+  check(std::string(temperamentName(Temperament::Adaptive)) == "Adaptive",
+        "it is called Adaptive");
+}
+
 void testBlendEndpoints() {
   section("Tuning blend endpoints");
 
@@ -9002,6 +9228,7 @@ int main() {
 
   testTuningTable();
   testTemperaments();
+  testAdaptiveTuning();
   testBlendEndpoints();
   testStretch();
   testStartPhase();

@@ -125,7 +125,7 @@ What does move an octave partial is STRETCH, on its own curve, along with DRIFT,
 
 Everything above is about where a partial sits over the note you played. This is about where that note sits, which until now was always twelve-tone equal temperament, hard-wired as `440 * 2^((n - 69) / 12)`.
 
-For an instrument whose whole subject is tuning, that was a hole: you could put the partials in just intonation but not the keyboard they were played from. Settings now has a Temperament entry with six:
+For an instrument whose whole subject is tuning, that was a hole: you could put the partials in just intonation but not the keyboard they were played from. Settings has a Temperament entry with seven, six fixed and one that retunes as it is played:
 
 |                        | Major third | Fifth  |                                                             |
 | ---------------------- | ----------- | ------ | ----------------------------------------------------------- |
@@ -135,16 +135,35 @@ For an instrument whose whole subject is tuning, that was a hole: you could put 
 | Quarter-comma meantone | 386.31      | 696.58 | fifths narrowed a quarter comma, which makes the third pure |
 | Werckmeister III       | 390.22      | 696.09 | four fifths narrowed, no wolf, every key playable           |
 | Young                  | 392.18      | 698.04 | six narrowed by a sixth, gentler again                      |
+| Adaptive               | 386.31      | 701.96 | pure in every key, chosen note by note as you play          |
 
 They are derived from the circle of fifths rather than copied out as tables of cents. Almost every historical temperament is described by how much each of the twelve fifths is narrowed, so that is what the code says, and the pitch classes fall out of it. The two commas it is all built from come out at 23.460 and 21.506 cents, which are the published figures, and the tests assert the property that defines each temperament rather than the numbers that happen to result: meantone's third pure to a thousandth of a cent, Pythagorean's fifth likewise, Werckmeister at its characteristic 390.2.
 
 **Root** picks which pitch class the temperament is built on, since an unequal temperament is only in tune in the keys near its centre, and that is the point of it. It is greyed out for equal temperament, which has no centre to have.
 
-**Reference pitch** offers 415 through 466 Hz. A stays exactly there in every temperament, because the offsets are taken relative to A's own: a tuner tunes A first and works outwards. Only the other eleven notes move.
+**Reference pitch** offers 415 through 466 Hz. A stays exactly there in every fixed temperament, because the offsets are taken relative to A's own: a tuner tunes A first and works outwards. Only the other eleven notes move. Under Adaptive it is A's middle version that sits there.
 
 Equal temperament at 440 is bit for bit what it was before, which the tests check across all 128 notes.
 
 None of the three travels with a preset. A temperament is a property of the music you are playing rather than of any one sound in it: you set it once and work, and having a patch drag you back to equal in the middle of that would be no help. Init included, since Init is still a preset and clears the patch rather than the session.
+
+### Adaptive
+
+Every fixed temperament is in tune somewhere and out somewhere else: just major on C plays I–IV–V–I in G with a chord 21.51 cents out, a whole syntonic comma. Adaptive is Eivind Groven's answer, from the organs he built from 1936 on. Every pitch class has three versions, its place in just major on the root and a comma either side, and a key takes whichever is purest against what is sounding when it goes down. `SynthEngine::frequencyFor` does it, and every way a voice gets its pitch goes through that one function: a fresh note, a retrigger, a mono legato move and the fall-back to a held key.
+
+**It was chosen by modelling four strategies on real progressions before writing any of it**, each played with chords struck low first, high first and middle first, 4 ms apart. Fixed just major is a comma out in every key but its own. Retuning every note pure to whatever is sounding, with nothing to hold it, is pure everywhere and drifts: the I–vi–ii–V–I comma pump played four times ended 258 cents sharp, more than two semitones. Three versions per pitch class were pure everywhere bar one chord at 2 cents, and the drift can never exceed a comma, since no note can stray further than one version from home. Letting a note choose again in its first 20 ms fixed that one chord and nothing else, at the price of a note audibly moving a comma during its attack and a decision that is not final at note-on, so it was left out.
+
+**What a key weighs.** The octave and unison count 4, the fifth and fourth 3, the thirds and sixths 2, each by how many cents it is off pure, and only within 30 cents, since a pair further off was never meant to be that interval. Seconds, sevenths and the tritone count nothing: none has one pure size a chord reaches for. A tie goes to the version the pitch class used last and then to the middle one.
+
+**What it weighs against.** Every voice that can be heard other than its own: keys that are down, keys the pedal holds, and a released note while it is at least a quarter of the loudest voice sounding and above -60 dB. The floor matters. Without it, a key struck into silence weighed the last inaudible remains of the chord before, since with nothing else sounding they are each a quarter of the loudest of themselves, and so never reached its memory. The test for memory passed anyway until a sabotage that switched memory off passed too, which is how it was found.
+
+**Memory.** A key with nothing to tune against takes the version its pitch class used last. That is what keeps the comma pump bounded once the chords stop overlapping, and it is cleared on reset.
+
+**Held notes never move.** Retuning a held note to fit the next chord, the way some commercial systems do, was modelled on progressions with common tones held across the changes, a pedal under moving chords among them. With three versions to choose from, the new notes always found one that fitted the held ones, and letting the held notes move changed nothing. Systems that retune held notes need to because they start from one fixed tuning and correct it.
+
+**One audible consequence**: the same chord struck in a different order can settle a comma higher or lower, just as pure, so a piece can end a comma from where it began. Groven's organs did the same.
+
+The tests play the cases it was chosen on and measure the intervals the engine tuned: every chord of I–IV–V–I in G pure to a ten-thousandth of a cent where fixed just is 21.51 out, the comma pump pure four times over and C within a comma at the end, a held A unmoved by the chord under it changing, a lone D taking the version its pitch class used last, and a D struck into a ringing F major fitting it where the same D struck after it has died does not. Each mechanism was switched off in turn to show its test fails: no choosing fails five, no memory one, no tails one.
 
 ### The shape a modulator traces
 
