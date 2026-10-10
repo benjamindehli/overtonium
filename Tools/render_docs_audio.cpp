@@ -355,9 +355,9 @@ int main(int argc, char **argv) {
   // tracking, has its own clip on the tuning page already.
   //
   // Levels are left where the presets put them rather than matched to each
-  // other. Two clips meant to be compared have to be the same loudness, and
-  // twenty-eight meant to be browsed have to be honest about which patches are
-  // quiet ones.
+  // other. Two clips meant to be compared have to be the same loudness, and a
+  // set meant to be browsed has to be honest about which patches are quiet
+  // ones.
   {
     const std::vector<Step> chord{
         {48, 0.00, 3.0}, {55, 0.30, 2.7}, {60, 0.60, 2.4}, {64, 0.90, 2.1}};
@@ -365,6 +365,69 @@ int main(int argc, char **argv) {
     for (const auto &name : ovt::presets::names()) {
       OvertoniumProcessor p;
       save("preset-" + slugOf(name), renderRun(p, name, chord, 4.4));
+    }
+  }
+
+  // ---- glide, the series arriving a partial at a time ----------------------
+  //
+  // The Glide preset, whose times rise from nothing on the fundamental to two
+  // and a half seconds on the thirty-second, against the same phrase with
+  // every time at zero. Up a fifth, up a fourth and down the octave, held long
+  // enough that the upper partials can be heard still on their way when the
+  // pitch has long since landed.
+  {
+    const std::vector<Step> phrase{
+        {48, 0.0, 2.0}, {55, 2.2, 2.0}, {60, 4.4, 2.0}, {48, 6.6, 2.0}};
+
+    for (const auto glide : {false, true}) {
+      OvertoniumProcessor p;
+      save(glide ? "glide-on" : "glide-off",
+           renderRun(p, "Glide", phrase, 9.4, [glide](auto &proc, double t) {
+             if (glide || t > 0.0)
+               return;
+
+             for (int i = 0; i < ovt::kNumHarmonics; ++i)
+               setPlain(proc,
+                        ovt::params::oscParamId(ovt::params::glideSuffix, i),
+                        0.0f);
+           }));
+    }
+  }
+
+  // ---- legato, a melody over chords ----------------------------------------
+  //
+  // A line held from note to note, each key going down just before the last
+  // comes up, over chords struck short underneath it. With Legato off every
+  // note of the line breathes in again. With it on and eight voices the line
+  // carries on from note to note while the chords still strike each time. On
+  // Space Flute because its attack is long enough to hear arrive and short
+  // enough that a chord struck short still sounds short.
+  //
+  // Each melody note lands with a chord, as the highest key struck and within
+  // a major third of the note before, which is the case the top line reads as
+  // the melody. See SynthEngine::noteOnImpl.
+  {
+    std::vector<Step> phrase;
+    const int line[] = {76, 74, 72, 74, 76};
+    const std::vector<std::vector<int>> chords{
+        {48, 55, 64}, {47, 55, 62}, {45, 52, 60}, {47, 55, 62}, {48, 55, 64}};
+
+    for (int bar = 0; bar < 5; ++bar) {
+      const double at = bar * 1.0;
+      phrase.push_back({line[bar], at, bar == 4 ? 1.6 : 1.05});
+
+      for (const double strike : {0.0, 0.5})
+        for (const auto note : chords[(size_t)bar])
+          phrase.push_back({note, at + strike, 0.25});
+    }
+
+    for (const auto legato : {false, true}) {
+      OvertoniumProcessor p;
+      save(legato ? "legato-on" : "legato-off",
+           renderRun(
+               p, "Space Flute", phrase, 6.4, [legato](auto &proc, double) {
+                 setPlain(proc, ovt::params::legatoId, legato ? 1.0f : 0.0f);
+               }));
     }
   }
 
