@@ -656,8 +656,8 @@ All 839 as the host lists them, with a control that every partial or every macro
 | `Reverb Decay` | `reverbDecay` | 200 ms to 20.00 s | 2.00 s |
 | `Reverb Damping` | `reverbDamp` | 0 % to 100 % | 50 % |
 | `Reverb Pre-delay` | `reverbPreDelay` | 0.0 ms to 250 ms | 0.0 ms |
-| `Pitch Mod In Phase` | `pmInPhase` | Off or on | Off |
-| `Amp Mod In Phase` | `amInPhase` | Off or on | Off |
+| `Pitch Mod Shared` | `pmInPhase` | Off or on | Off |
+| `Amp Mod Shared` | `amInPhase` | Off or on | Off |
 | `Echo Type` | `echoType` | Tape, Bucket brigade, Digital | Tape |
 | `Clip Type` | `clipType` | Soft, Hard, Asymmetric, Limiter, Fold | Soft |
 | `Reverb Type` | `reverbType` | Room, Modulated Plate, Spring | Room |

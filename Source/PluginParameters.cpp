@@ -1055,13 +1055,16 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   // parameter added at the end is one that cannot move anything a lane was
   // written against on a host that goes by position.
   //
-  // Named "in phase" rather than "sync", which in this corner of the world
-  // means locked to the host's tempo. Nothing here is.
+  // Named as the panel names them, shared by all notes. Not "sync", which in
+  // this corner of the world means locked to the host's tempo, nor "key sync",
+  // which means restarting on every note, the opposite of what this does. The
+  // ids keep the old "in phase" wording, since an id is what a host and a
+  // saved session find a parameter by, and the names can change freely.
   layout.add(std::make_unique<BoolP>(juce::ParameterID{pmInPhaseId, 1},
-                                     "Pitch Mod In Phase", false));
+                                     "Pitch Mod Shared", false));
 
   layout.add(std::make_unique<BoolP>(juce::ParameterID{amInPhaseId, 1},
-                                     "Amp Mod In Phase", false));
+                                     "Amp Mod Shared", false));
 
   // On the end, like everything that arrives after a release, so nothing
   // already automated moves. Every type it will ever have is listed now
