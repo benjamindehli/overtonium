@@ -525,8 +525,11 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
   // How each interval the keys spell is pure, as steps along the chain of
   // tempered fifths from the lower key to the higher, and how much it counts.
   // The octave and the fifth carry most, since a mistuned one is the first
-  // thing anyone hears. Seconds, sevenths and the tritone have no one pure
-  // size a chord is reaching for and are left out.
+  // thing anyone hears. A seventh counts least, only deciding what nothing
+  // else does, so it comes out the same whether or not the fifth beneath it
+  // is held: 9:5 for a minor seventh, a fifth and a minor third, and 15:8 for
+  // a major, a fifth and a major third. Seconds and the tritone have no one
+  // pure size a chord is reaching for and are left out.
   struct Pure {
     int steps;
     int weight;
@@ -543,8 +546,8 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
       {1, 3},  // fifth
       {8, 2},  // minor sixth
       {-9, 2}, // major sixth
-      {0, 0},  // minor seventh
-      {0, 0},  // major seventh
+      {10, 1}, // minor seventh
+      {-7, 1}, // major seventh
   };
 
   // Where each pitch class's middle version sits on that chain, as fifths and
@@ -559,9 +562,11 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
   static constexpr double kFifthOff = tuning::kPureFifth - 700.0;
   static constexpr double kThirdOff = tuning::kPureMajorThird - 400.0;
   static constexpr double kMinorOff = kFifthOff - kThirdOff;
+  static constexpr double kSeventhOff = kFifthOff + kMinorOff;
+  static constexpr double kMajorSeventhOff = kFifthOff + kThirdOff;
   static constexpr double kOffEqual[12] = {
-      0.0, 0.0,       0.0,        kMinorOff,  kThirdOff, -kFifthOff,
-      0.0, kFifthOff, -kThirdOff, -kMinorOff, 0.0,       0.0};
+      0.0, 0.0,       0.0,        kMinorOff,  kThirdOff,   -kFifthOff,
+      0.0, kFifthOff, -kThirdOff, -kMinorOff, kSeventhOff, kMajorSeventhOff};
 
   // Two commas either side of the middle. A comma is twelve steps.
   static constexpr int kReach = 2;
@@ -591,8 +596,9 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
   struct Node {
     Voice *voice; // null for the key going down
     int key;
-    int now;    // its version as it stands, unused for the key going down
-    bool young; // inside the chord window, so it moves at once and cheaply
+    int now;       // its version as it stands, unused for the key going down
+    bool young;    // inside the chord window, so it moves at once and cheaply
+    bool harmonic; // the seventh of a dominant seventh, tuned 7:4 off the chain
   };
 
   std::array<Node, kPoolSize + 1> nodes{};
@@ -610,14 +616,45 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
 
     if (!v.isReleasing())
       nodes[(size_t)count++] = {&v, v.getNote(), versionOf(v),
-                                clock - pressedAt[i] < window};
+                                clock - pressedAt[i] < window, false};
   }
 
   if (note >= 0)
-    nodes[(size_t)count++] = {nullptr, note, 0, true};
+    nodes[(size_t)count++] = {nullptr, note, 0, true, false};
 
   if (count == 0)
     return 0.0;
+
+  // ---- a dominant seventh ---------------------------------------------------
+  //
+  // A root held with its major third and its minor seventh, the fifth or not:
+  // that seventh is tuned 7:4 above the root, the harmonic seventh, so the
+  // chord is 4:5:6:7, four harmonics of one note an octave below its root and
+  // the smoothest a seventh chord can be. It is the only pitch here off the
+  // chain of fifths, which has no 7 in it, so it is left out of what the
+  // chain solves and placed on the root afterwards. Where more than one root
+  // qualifies, the one lowest on the keyboard is the chord.
+  bool held[12] = {};
+  int lowestOf[12];
+  for (auto &l : lowestOf)
+    l = 1 << 20;
+  for (int i = 0; i < count; ++i) {
+    const auto pc = classOf(nodes[(size_t)i].key);
+    held[(size_t)pc] = true;
+    lowestOf[(size_t)pc] = std::min(lowestOf[(size_t)pc], nodes[(size_t)i].key);
+  }
+
+  int dominant = -1;
+  for (int pc = 0; pc < 12; ++pc)
+    if (held[(size_t)pc] && held[(size_t)((pc + 4) % 12)] &&
+        held[(size_t)((pc + 10) % 12)] &&
+        (dominant < 0 || lowestOf[(size_t)pc] < lowestOf[(size_t)dominant]))
+      dominant = pc;
+
+  if (dominant >= 0)
+    for (int i = 0; i < count; ++i)
+      nodes[(size_t)i].harmonic =
+          classOf(nodes[(size_t)i].key) == (dominant + 10) % 12;
 
   // ---- the strongest intervals first, each kept if it agrees
   // -----------------
@@ -642,11 +679,13 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
     return std::pair<int, int>{i, total};
   };
 
-  for (const int weight : {4, 3, 2})
+  for (const int weight : {4, 3, 2, 1})
     for (int a = 0; a < count; ++a)
       for (int b = a + 1; b < count; ++b) {
         const auto &na = nodes[(size_t)a];
         const auto &nb = nodes[(size_t)b];
+        if (na.harmonic || nb.harmonic)
+          continue;
         const auto span = std::abs(na.key - nb.key);
         const auto &pure = kByClass[(size_t)(span % 12)];
         if (pure.weight != weight)
@@ -759,8 +798,30 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
   // ---- move what has to move ------------------------------------------------
   double result = 0.0;
 
+  // The root the harmonic seventh is tuned on, where the chain put it.
+  int rootNode = -1;
+  if (dominant >= 0)
+    for (int i = 0; i < count; ++i)
+      if (nodes[(size_t)i].key == lowestOf[(size_t)dominant])
+        rootNode = i;
+
   for (int i = 0; i < count; ++i) {
     const auto &node = nodes[(size_t)i];
+
+    if (node.harmonic && rootNode >= 0) {
+      const auto &rootKey = nodes[(size_t)rootNode].key;
+      const auto octaves = (node.key - rootKey - 10) / 12;
+      const auto hz = hzOf(rootKey, chosen[(size_t)rootNode]) * 1.75 *
+                      std::exp2((double)octaves);
+
+      if (node.voice == nullptr)
+        result = hz;
+      else if (std::abs(1200.0 * std::log2(node.voice->getFrequency() / hz)) >
+               1.0e-3)
+        node.voice->retuneTo(hz, node.young ? 0.0 : adaptiveRetune);
+      continue;
+    }
+
     const auto version = chosen[(size_t)i];
     adaptiveVersion[(size_t)classOf(node.key)] = version;
 
@@ -769,9 +830,11 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
       continue;
     }
 
-    if (version != node.now)
-      node.voice->retuneTo(hzOf(node.key, version),
-                           node.young ? 0.0 : adaptiveRetune);
+    // Compared as frequencies rather than versions, so a note leaving a
+    // dominant seventh, which sat off the chain, is moved back onto it.
+    const auto hz = hzOf(node.key, version);
+    if (std::abs(1200.0 * std::log2(node.voice->getFrequency() / hz)) > 1.0e-3)
+      node.voice->retuneTo(hz, node.young ? 0.0 : adaptiveRetune);
   }
 
   return result;

@@ -229,6 +229,8 @@ What it tunes against is everything you can hear: the keys that are down, the on
 
 Like Groven's organs it tempers each fifth by an eighth of a schisma, a quarter of a cent, so eight fifths and a pure major third close up exactly. Without that, chords far from the root would be left two cents out, which on pure partials is slow but clearly audible beating. The major thirds are pure, and a quarter of a cent on a fifth beats about once every eighteen seconds on the third partial of a note in the middle of the keyboard. The same chord reached by a different route can settle a comma higher or lower, just as pure, so a piece can end a comma or two from where it began. Root decides where the middle versions sit, and Reference pitch where A's does.
 
+A dominant seventh is tuned on the harmonic seventh. Its seventh sits 7:4 above the root, 969 cents, so the chord is 4:5:6:7: four harmonics of one note an octave below its root, the same seventh every partial here already carries as its seventh harmonic, and the smoothest a seventh chord can be. It is noticeably lower than the equal-tempered seventh, which is most of why it sounds so settled. Other sevenths keep the sizes the rest of the chord gives them, 9:5 in a minor seventh chord and 15:8 in a major seventh, and a seventh comes out the same whether or not the fifth beneath it is held. A seventh that stops belonging to a dominant seventh while it is held slides back to the size its new chord gives it.
+
 ### Root
 
 Picks which pitch class the temperament is built on, since an unequal temperament is only in tune in the keys near its centre, and that is the point of it. For Adaptive it is where the middle versions are placed. It is greyed out for equal temperament, which has no centre to have.

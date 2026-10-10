@@ -1063,6 +1063,107 @@ void testAdaptiveTuning() {
           "a Smooth one is about a fifth of the way there");
   }
 
+  // ---- sevenths
+  // ----------------------------------------------------------------
+  //
+  // A dominant seventh's seventh is the harmonic one, 7:4 above the root, with
+  // the fifth or without it, and the rest of the chord stays pure. Judged on
+  // its own rather than by the interval it spells, since against the fifth it
+  // is meant to be the narrow 7:6 of a 4:5:6:7 chord and not a minor third.
+  {
+    const auto centsAbove = [&](int high, int low) {
+      return 1200.0 * std::log2(engine.frequencyOfNote(high) /
+                                engine.frequencyOfNote(low));
+    };
+
+    const auto harmonic = 1200.0 * std::log2(1.75);
+    double worstSeventh = 0.0, worstRest = 0.0;
+
+    for (const bool withFifth : {true, false})
+      for (int key = 0; key < 12; ++key) {
+        start();
+        const auto p = patch(Temperament::Adaptive, 0.01f);
+        const int root = 48 + key;
+        std::vector<int> chord{root, root + 4, root + 10};
+        if (withFifth)
+          chord.insert(chord.begin() + 2, root + 7);
+
+        for (const auto k : chord)
+          engine.noteOn(k, 0.8f, p);
+        render(p, 0.05);
+
+        worstSeventh = std::max(
+            worstSeventh, std::abs(centsAbove(root + 10, root) - harmonic));
+        std::vector<int> rest(chord.begin(), chord.end() - 1);
+        worstRest = std::max(worstRest, worstOf(rest));
+
+        for (const auto k : chord)
+          engine.noteOff(k);
+        render(p, 0.05);
+      }
+
+    std::printf("  dominant sevenths in all twelve keys: seventh %.4f cents "
+                "from 7:4, the rest %.3f from pure\n",
+                worstSeventh, worstRest);
+    check(worstSeventh < 0.01, "a dominant seventh's seventh is 7:4 in every "
+                               "key, with its fifth or without");
+    check(worstRest < 0.3, "and the rest of the chord stays pure");
+
+    // A minor seventh and a major seventh keep the sizes the chain gives
+    // them, a fifth and a minor third and a fifth and a major third.
+    const auto tempered = [](double third) {
+      return tuning::kGrovenFifth + third;
+    };
+
+    start();
+    auto p = patch(Temperament::Adaptive, 0.01f);
+    for (const auto k : {50, 62, 65, 69, 72}) // D minor seventh
+      engine.noteOn(k, 0.8f, p);
+    render(p, 0.05);
+    const auto minorSeventh = centsAbove(72, 62);
+    for (const auto k : {50, 62, 65, 69, 72})
+      engine.noteOff(k);
+    render(p, 0.05);
+
+    for (const auto k : {48, 60, 64, 67, 71}) // C major seventh
+      engine.noteOn(k, 0.8f, p);
+    render(p, 0.05);
+    const auto majorSeventh = centsAbove(71, 60);
+    for (const auto k : {48, 60, 64, 67, 71})
+      engine.noteOff(k);
+    render(p, 0.05);
+
+    check(std::abs(minorSeventh - tempered(tuning::kGrovenFifth -
+                                           tuning::kPureMajorThird)) < 0.01,
+          "a minor seventh chord keeps its seventh at 9:5");
+    check(std::abs(majorSeventh - tempered(tuning::kPureMajorThird)) < 0.01,
+          "and a major seventh chord at 15:8");
+
+    // The seventh joins a held triad, and leaves again: when G and B come up
+    // the F held under D is a minor third above it once more and slides back
+    // onto the chain.
+    start();
+    for (const auto k : {55, 59, 62})
+      engine.noteOn(k, 0.8f, p);
+    render(p, 0.1);
+    engine.noteOn(65, 0.8f, p);
+    render(p, 0.1);
+    const auto joined = centsAbove(65, 55); // G3 to F4, ten semitones
+
+    engine.noteOff(55);
+    engine.noteOff(59);
+    render(p, 0.1);
+    const auto left = centsAbove(65, 62);
+
+    check(std::abs(joined - harmonic) < 0.01,
+          "an F added to a held G major is the harmonic seventh");
+    check(std::abs(left - (tuning::kGrovenFifth - tuning::kPureMajorThird)) <
+              0.01,
+          "and goes back to a pure minor third over D when G and B let go");
+    engine.noteOff(62);
+    engine.noteOff(65);
+  }
+
   check(std::string(temperamentName(Temperament::Adaptive)) == "Adaptive",
         "it is called Adaptive");
 }
