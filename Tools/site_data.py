@@ -182,7 +182,9 @@ FOOTER_LINKS = [
     ("https://www.kvraudio.com/product/overtonium-by-dehli-musikk", "KVR listing"),
 ]
 
-# The pages, in the order the rail lists them. Per page:
+# The pages, in the order the rail lists them, which is also the order the
+# previous and next links at the foot of every inner page follow, so the site
+# reads front to back. Per page:
 #
 #   path         where it lives under docs/, "" for the front page
 #   nav          its name in the rail and in the trail above its title
@@ -195,7 +197,6 @@ FOOTER_LINKS = [
 #   jsonld       the structured blocks besides the page's own, in this order:
 #                website, product, faq, breadcrumbs, video. Every page also
 #                gets a WebPage block tying it to the site and the product.
-#   onward       the links at the foot of the page, the first one primary
 #   card         its card under "Where to go next" on the front page
 #   card_404     its card on the page-not-found page, which lists them all
 #   llms         its line in llms.txt, which may carry Markdown links
@@ -214,7 +215,6 @@ PAGES = [
         "image_alt": "The Overtonium wordmark over the plugin window: rows of per-partial knobs above 32 channel faders and lit meters.",
         "scripts": ["video.js", "contents.js"],
         "jsonld": ["website", "product", "faq", "video"],
-        "onward": [],
         "card": None,
         "card_404": "What Overtonium is, what it sounds like, and where it came from.",
         "llms": 'what the instrument is, what TUNE does, a video of [eleven of the {presets} factory presets played on a keyboard](https://www.youtube.com/watch?v=L1oYdPxGlGA), common questions, and the three sample instruments it descends from.',
@@ -230,7 +230,6 @@ PAGES = [
         "image_alt": "The Overtonium wordmark over the plugin window, captioned Tuning.",
         "scripts": ["contents.js"],
         "jsonld": ["breadcrumbs"],
-        "onward": [("controls/", "Controls"), ("presets/", "Presets")],
         "card": "TUNE, inharmonic stretch, six historical temperaments on any root, and how the spectrum thins as you play up the keyboard.",
         "card_404": "TUNE, inharmonic stretch, six temperaments and keyboard tracking.",
         "llms": 'TUNE from equal to just, inharmonic stretch, six historical temperaments on any root, at a reference pitch from a list running 415 to 466 Hz, keyboard tracking, and per-partial drift. Carries audio of each of those and a diagram of where every partial falls against the semitone it snaps to.',
@@ -246,7 +245,6 @@ PAGES = [
         "image_alt": "The Overtonium wordmark over the plugin window, captioned Controls.",
         "scripts": ["contents.js", "moved.js"],
         "jsonld": ["breadcrumbs"],
-        "onward": [("effects/", "Effects"), ("tuning/", "Tuning")],
         "card": "Every knob on a channel strip, then the effects on the bar and how to play it from a keyboard, a host or a controller.",
         "card_404": "Every knob on a channel strip.",
         "llms": "every knob on a channel strip, the two-part envelope, per-partial velocity and pressure, LINK for ganging the 32 channels, the lamps and meters, the gestures the panel answers to, and the noise channel.",
@@ -262,7 +260,6 @@ PAGES = [
         "image_alt": "The Overtonium wordmark over the plugin window, captioned Effects.",
         "scripts": ["contents.js"],
         "jsonld": ["breadcrumbs"],
-        "onward": [("playing/", "Playing"), ("controls/", "Controls")],
         "card": None,
         "card_404": "The bar: character, wobble, echo, reverb, the converter and CLIP.",
         "llms": "the bar across the top: the six oscillator characters, wobble, bus drive, the echo and the reverb with their three machines each, the converter, the five CLIP shapes on the output and the lookahead limiter, the output meter, and a diagram of the order the signal passes through.",
@@ -278,7 +275,6 @@ PAGES = [
         "image_alt": "The Overtonium wordmark over the plugin window, captioned Playing.",
         "scripts": ["contents.js"],
         "jsonld": ["breadcrumbs"],
-        "onward": [("presets/", "Presets"), ("effects/", "Effects")],
         "card": None,
         "card_404": "MPE, legato and glide, the Settings menu, automation, macros and MIDI Learn.",
         "llms": "MPE, legato with one voice or as a top line over a polyphonic accompaniment, glide with a time on every channel and the two switches that say when it glides and what the time means, every entry in the Settings menu with its default, how the {parameters} host parameters are named and why automation survives a release that adds more, every one of them listed with its id, range and default, macros, and MIDI Learn.",
@@ -294,7 +290,6 @@ PAGES = [
         "image_alt": "The Overtonium wordmark over the plugin window, captioned Presets.",
         "scripts": ["video.js", "contents.js"],
         "jsonld": ["breadcrumbs", "video"],
-        "onward": [("install/", "Install"), ("controls/", "Controls")],
         "card": "The {presets} that ship, what a preset carries, and where your own are kept on each platform.",
         "card_404": "The {presets} that ship, and where your own are kept.",
         "llms": 'the {presets} that ship, each one playable on the page, [eleven of them played on a keyboard](https://www.youtube.com/watch?v=L1oYdPxGlGA) with a chapter link into each, what a preset carries and deliberately does not, how a MIDI program change picks one, where user presets are kept on each platform, and how folders in that directory become groups in the menu.',
@@ -310,7 +305,6 @@ PAGES = [
         "image_alt": "The Overtonium wordmark over the plugin window, captioned Install.",
         "scripts": ["contents.js"],
         "jsonld": ["product", "breadcrumbs"],
-        "onward": [("install/#downloads", "Download"), ("controls/", "Controls")],
         "card": "Installers for macOS and Windows, a zip for Linux, what to do when a host does not see it, and building from source.",
         "card_404": "Downloads for macOS, Windows and Linux, and what to do when a host cannot see it.",
         "llms": 'which download to take on each platform, what to do when a host does not see the plugin, what it costs in CPU at one, eight and sixteen voices, the opt-in update check, and building from source.',
@@ -326,7 +320,6 @@ PAGES = [
         "image_alt": "The Overtonium wordmark over the plugin window: rows of per-partial knobs above 32 channel faders and lit meters.",
         "scripts": ["contents.js"],
         "jsonld": ["breadcrumbs"],
-        "onward": [("install/#downloads", "Download the current release"), ("controls/", "Controls")],
         "card": None,
         "card_404": "What changed in each version, newest first.",
         "llms": 'what changed in each version since 1.0.0, newest first, with what to know before upgrading and a link to the full notes for each.',

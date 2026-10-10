@@ -108,9 +108,18 @@ def plain(markup):
 MODIFIED = {}
 
 
+def said(main):
+    """What a page says, without the trail above its title or the previous and
+    next links at its foot, which are navigation the generator writes and would
+    otherwise date every page whenever the rail changed."""
+    main = re.sub(r'<p class="crumbs">.*?</p>', "", main, flags=re.S)
+    main = re.sub(r'<div class="onward">.*?</div>', "", main, flags=re.S)
+    return plain(main)
+
+
 def dated(page, main, dates, changed):
     """The day this page's words last changed, moved to today if they just did."""
-    words = hashlib.sha256(plain(main).encode()).hexdigest()[:16]
+    words = hashlib.sha256(said(main).encode()).hexdigest()[:16]
     known = dates.get(page["path"])
     if known and known["words"] == words:
         return known["modified"]
@@ -412,16 +421,23 @@ def crumbs(page):
 
 
 def onward(page):
-    lines = ['<div class="onward">', '<ul class="links">']
-    for i, (target, label) in enumerate(page["onward"]):
-        # A link to a part of this same page stays a fragment.
-        if target.startswith(page["path"] + "#") and page["path"]:
-            target = target[len(page["path"]):]
-        else:
-            target = link(page, target)
-        primary = ' class="primary"' if i == 0 else ""
-        lines.append(f'<li><a{primary} href="{target}">{esc(label)}</a></li>')
-    lines += ["</ul>", "</div>"]
+    """The previous and next pages, in the order the rail lists them.
+
+    Derived rather than chosen, so the foot of every page answers the same
+    question, where to go from here if reading the site through, and a page
+    added to the rail takes its place in the sequence without anyone deciding
+    what links to it."""
+    at = data.PAGES.index(page)
+    lines = ['<div class="onward">', '<nav aria-label="Previous and next page">']
+    for rel, other in (("prev", at - 1), ("next", at + 1)):
+        if 0 <= other < len(data.PAGES):
+            target = data.PAGES[other]
+            word = "Previous" if rel == "prev" else "Next"
+            lines.append(
+                f'<a class="{rel}" rel="{rel}" href="{link(page, target["path"])}">'
+                f'<span class="onward-label">{word}</span> <span class="onward-name">{esc(target["nav"])}</span></a>'
+            )
+    lines += ["</nav>", "</div>"]
     return "\n".join(lines)
 
 
@@ -594,7 +610,7 @@ def build(page, text, path, dates, changed):
 
     if not not_found and page["path"]:
         text = replace(text, r'<p class="crumbs">', "</p>", crumbs(page), path)
-    if not not_found and page["onward"]:
+    if not not_found:
         text = replace(text, r'<div class="onward">', "</div>", onward(page), path)
     if not_found:
         text = replace(text, r'<ul class="cards">', "</ul>", cards(page, "card_404"), path)
