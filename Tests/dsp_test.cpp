@@ -1011,28 +1011,29 @@ void testAdaptiveTuning() {
   // ---- a held note moves when it has to
   // --------------------------------------
   //
-  // F sharp and E held, a second apart and so nothing to each other, then C
-  // sharp under both: a fourth below the F sharp and a minor third below the
-  // E, and the two cannot both be pure unless one of the held notes moves a
-  // comma. The fewest notes move, and they slide at the chosen speed.
+  // C and F sharp held, a tritone apart and so nothing to each other, then A
+  // under both: a minor third below the C and a major sixth below the F
+  // sharp, and the two cannot both be pure unless one of the held notes moves
+  // a comma. No root here has its minor seventh held, so every note is on the
+  // chain. The fewest notes move, and they slide at the chosen speed.
   {
     start();
     auto p = patch(Temperament::Adaptive, 0.01f);
+    engine.noteOn(60, 0.8f, p);
     engine.noteOn(66, 0.8f, p);
-    engine.noteOn(64, 0.8f, p);
     render(p, 0.1); // older than the chord window
-    const auto eBefore = engine.frequencyOfNote(64);
+    const auto cBefore = engine.frequencyOfNote(60);
     const auto fSharpBefore = engine.frequencyOfNote(66);
 
-    engine.noteOn(61, 0.8f, p);
+    engine.noteOn(57, 0.8f, p);
     render(p, 0.01);
 
     const auto moved =
-        1200.0 * std::log2(engine.frequencyOfNote(64) / eBefore) +
+        1200.0 * std::log2(engine.frequencyOfNote(60) / cBefore) +
         1200.0 * std::log2(engine.frequencyOfNote(66) / fSharpBefore);
 
-    check(worstOf({61, 64, 66}) < 0.3,
-          "C sharp under a held F sharp and E makes both intervals pure");
+    check(worstOf({57, 60, 66}) < 0.3,
+          "A under a held C and F sharp makes both intervals pure");
     check(std::abs(std::abs(moved) - tuning::kAdaptiveComma) < 0.01,
           "by moving one held note a single comma");
   }
@@ -1066,10 +1067,11 @@ void testAdaptiveTuning() {
   // ---- sevenths
   // ----------------------------------------------------------------
   //
-  // A dominant seventh's seventh is the harmonic one, 7:4 above the root, with
-  // the fifth or without it, and the rest of the chord stays pure. Judged on
-  // its own rather than by the interval it spells, since against the fifth it
-  // is meant to be the narrow 7:6 of a 4:5:6:7 chord and not a minor third.
+  // A minor seventh is the harmonic one, 7:4 above its root, alone, over the
+  // fifth, over the major third, and in a dominant seventh, ninth or sharp
+  // ninth, and the rest of the chord stays pure. Judged on its own rather than
+  // by the interval it spells, since against the fifth it is meant to be the
+  // narrow 7:6 of a 4:5:6:7 chord and not a minor third.
   {
     const auto centsAbove = [&](int high, int low) {
       return 1200.0 * std::log2(engine.frequencyOfNote(high) /
@@ -1079,14 +1081,17 @@ void testAdaptiveTuning() {
     const auto harmonic = 1200.0 * std::log2(1.75);
     double worstSeventh = 0.0, worstRest = 0.0;
 
-    for (const bool withFifth : {true, false})
+    const std::vector<std::vector<int>> harmonicShapes{
+        {0, 10},       {0, 7, 10},        {0, 4, 10},
+        {0, 4, 7, 10}, {0, 4, 7, 10, 14}, {0, 4, 7, 10, 15}};
+    for (const auto &shape : harmonicShapes)
       for (int key = 0; key < 12; ++key) {
         start();
         const auto p = patch(Temperament::Adaptive, 0.01f);
         const int root = 48 + key;
-        std::vector<int> chord{root, root + 4, root + 10};
-        if (withFifth)
-          chord.insert(chord.begin() + 2, root + 7);
+        std::vector<int> chord;
+        for (const auto step : shape)
+          chord.push_back(root + step);
 
         for (const auto k : chord)
           engine.noteOn(k, 0.8f, p);
@@ -1094,7 +1099,10 @@ void testAdaptiveTuning() {
 
         worstSeventh = std::max(
             worstSeventh, std::abs(centsAbove(root + 10, root) - harmonic));
-        std::vector<int> rest(chord.begin(), chord.end() - 1);
+        std::vector<int> rest;
+        for (const auto k : chord)
+          if (k != root + 10)
+            rest.push_back(k);
         worstRest = std::max(worstRest, worstOf(rest));
 
         for (const auto k : chord)
@@ -1102,11 +1110,11 @@ void testAdaptiveTuning() {
         render(p, 0.05);
       }
 
-    std::printf("  dominant sevenths in all twelve keys: seventh %.4f cents "
+    std::printf("  harmonic sevenths in all twelve keys: seventh %.4f cents "
                 "from 7:4, the rest %.3f from pure\n",
                 worstSeventh, worstRest);
-    check(worstSeventh < 0.01, "a dominant seventh's seventh is 7:4 in every "
-                               "key, with its fifth or without");
+    check(worstSeventh < 0.01, "a minor seventh with no minor third or fourth "
+                               "under it is 7:4 in every key");
     check(worstRest < 0.3, "and the rest of the chord stays pure");
 
     // A minor seventh and a major seventh keep the sizes the chain gives
@@ -1139,6 +1147,29 @@ void testAdaptiveTuning() {
     check(std::abs(majorSeventh - tempered(tuning::kPureMajorThird)) < 0.01,
           "and a major seventh chord at 15:8");
 
+    // A minor third over the root keeps the seventh at 9:5 with the fifth
+    // held or not, and a fourth over it keeps it at 16:9, two fourths, so the
+    // fourth to the seventh stays pure.
+    const auto seventhOf = [&](std::initializer_list<int> keys) {
+      for (const auto k : keys)
+        engine.noteOn(k, 0.8f, p);
+      render(p, 0.05);
+      const auto cents = centsAbove(70, 60);
+      for (const auto k : keys)
+        engine.noteOff(k);
+      render(p, 0.05);
+      return cents;
+    };
+    const auto minorNine =
+        tempered(tuning::kGrovenFifth - tuning::kPureMajorThird);
+    const auto fourth = 1200.0 - tuning::kGrovenFifth;
+    check(std::abs(seventhOf({60, 63, 70}) - minorNine) < 0.01 &&
+              std::abs(seventhOf({60, 63, 67, 70}) - minorNine) < 0.01,
+          "a seventh over a minor third stays at 9:5, with the fifth or "
+          "without");
+    check(std::abs(seventhOf({60, 65, 67, 70}) - 2.0 * fourth) < 0.01,
+          "and over a fourth at two fourths, as in a suspended seventh");
+
     // The seventh joins a held triad, and leaves again: when G and B come up
     // the F held under D is a minor third above it once more and slides back
     // onto the chain.
@@ -1162,6 +1193,38 @@ void testAdaptiveTuning() {
           "and goes back to a pure minor third over D when G and B let go");
     engine.noteOff(62);
     engine.noteOff(65);
+
+    // In passing, a held note is not bent onto it. G minor turning into C: D
+    // lets go and C goes down, and the held B flat stays the minor third over
+    // G it was rather than sliding 48 cents to be a seventh over C.
+    start();
+    for (const auto k : {55, 58, 62})
+      engine.noteOn(k, 0.8f, p);
+    render(p, 0.1);
+    const auto bFlatBefore = engine.frequencyOfNote(58);
+    engine.noteOff(62);
+    engine.noteOn(48, 0.8f, p);
+    render(p, 0.1);
+    check(std::abs(1200.0 *
+                   std::log2(engine.frequencyOfNote(58) / bFlatBefore)) < 0.01,
+          "a held B flat is not bent onto a seventh over a C played under it");
+    for (const auto k : {48, 55, 58})
+      engine.noteOff(k);
+    render(p, 0.1);
+
+    // And a bare seventh played after its root stays on the chain, as G major
+    // turns into D minor and F arrives while G is still down, since G is on
+    // its way out. With the major third under it, it is G7 and 7:4, as above.
+    for (const auto k : {55, 62})
+      engine.noteOn(k, 0.8f, p);
+    render(p, 0.1);
+    engine.noteOn(65, 0.8f, p);
+    render(p, 0.1);
+    check(std::abs(centsAbove(65, 55) - (2.0 * tuning::kGrovenFifth -
+                                         tuning::kPureMajorThird)) < 0.01,
+          "an F after a held G and D, with no B, stays on the chain");
+    for (const auto k : {55, 62, 65})
+      engine.noteOff(k);
   }
 
   check(std::string(temperamentName(Temperament::Adaptive)) == "Adaptive",

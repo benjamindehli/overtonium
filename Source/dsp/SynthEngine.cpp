@@ -598,7 +598,7 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
     int key;
     int now;       // its version as it stands, unused for the key going down
     bool young;    // inside the chord window, so it moves at once and cheaply
-    bool harmonic; // the seventh of a dominant seventh, tuned 7:4 off the chain
+    bool harmonic; // a seventh tuned 7:4 above its root, off the chain
   };
 
   std::array<Node, kPoolSize + 1> nodes{};
@@ -625,15 +625,30 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
   if (count == 0)
     return 0.0;
 
-  // ---- a dominant seventh ---------------------------------------------------
+  // ---- the harmonic seventh -------------------------------------------------
   //
-  // A root held with its major third and its minor seventh, the fifth or not:
-  // that seventh is tuned 7:4 above the root, the harmonic seventh, so the
-  // chord is 4:5:6:7, four harmonics of one note an octave below its root and
-  // the smoothest a seventh chord can be. It is the only pitch here off the
-  // chain of fifths, which has no 7 in it, so it is left out of what the
-  // chain solves and placed on the root afterwards. Where more than one root
-  // qualifies, the one lowest on the keyboard is the chord.
+  // A root's minor seventh is tuned 7:4 above it, the harmonic seventh, where
+  // nothing in the chord is spoiled by that: so a dominant seventh is 4:5:6:7,
+  // four harmonics of one note an octave below its root, and the seventh
+  // agrees with the seventh harmonic every note here already carries. With the
+  // major third held it is a dominant chord, ninths and a sharp ninth
+  // included. Without one, a bare seventh or one over the fifth reads the same
+  // way. A minor third keeps the 9:5 the chain gives it, since 7:4 would leave
+  // the fifth from that third to the seventh 48 cents flat, and so does a
+  // fourth above the root, as in a suspended seventh, whose fourth to the
+  // seventh would be 30 cents off. It is the only pitch here off the chain of
+  // fifths, which has no 7 in it, so it is left out of what the chain solves
+  // and placed on the root afterwards. Where more than one root qualifies,
+  // the one lowest on the keyboard is the chord.
+  //
+  // A note already sounding on the chain is not bent onto it, since that is a
+  // slide of 48 cents on a held key, and it comes most often in passing, as G
+  // minor turns into C and the held B flat is for a moment a seventh over C
+  // and its fifth. A seventh struck after its root is 7:4 only over the major
+  // third, as when G major becomes G7. Without the third it has to be struck
+  // with its root, since as one chord turns into the next a seventh over a
+  // root on its way out is common, and would be 7:4 only to bend 48 cents
+  // back when the root lets go. One that is already 7:4 follows its root.
   bool held[12] = {};
   int lowestOf[12];
   for (auto &l : lowestOf)
@@ -646,15 +661,31 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
 
   int dominant = -1;
   for (int pc = 0; pc < 12; ++pc)
-    if (held[(size_t)pc] && held[(size_t)((pc + 4) % 12)] &&
-        held[(size_t)((pc + 10) % 12)] &&
+    if (held[(size_t)pc] && held[(size_t)((pc + 10) % 12)] &&
+        (held[(size_t)((pc + 4) % 12)] ||
+         (!held[(size_t)((pc + 3) % 12)] && !held[(size_t)((pc + 5) % 12)])) &&
         (dominant < 0 || lowestOf[(size_t)pc] < lowestOf[(size_t)dominant]))
       dominant = pc;
 
-  if (dominant >= 0)
+  const auto offChain = [&hzOf, &versionOf](const Voice &v) {
+    return std::abs(1200.0 * std::log2(v.getFrequency() /
+                                       hzOf(v.getNote(), versionOf(v)))) > 1.0;
+  };
+
+  if (dominant >= 0) {
+    bool rootYoung = false;
     for (int i = 0; i < count; ++i)
-      nodes[(size_t)i].harmonic =
-          classOf(nodes[(size_t)i].key) == (dominant + 10) % 12;
+      if (nodes[(size_t)i].key == lowestOf[(size_t)dominant])
+        rootYoung = nodes[(size_t)i].young;
+    const auto joins = held[(size_t)((dominant + 4) % 12)] || rootYoung;
+
+    for (int i = 0; i < count; ++i) {
+      auto &node = nodes[(size_t)i];
+      node.harmonic = classOf(node.key) == (dominant + 10) % 12 &&
+                      ((node.young && joins) ||
+                       (node.voice != nullptr && offChain(*node.voice)));
+    }
+  }
 
   // ---- the strongest intervals first, each kept if it agrees
   // -----------------
