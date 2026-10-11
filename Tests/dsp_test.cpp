@@ -1168,6 +1168,11 @@ void testAdaptiveTuning() {
           "without");
     check(std::abs(seventhOf({60, 65, 67, 70}) - 2.0 * fourth) < 0.01,
           "and over a fourth at two fourths, as in a suspended seventh");
+    // A sharp eleventh, a tritone above the root, is a major third below the
+    // seventh, which at 7:4 would be 7:5 to it and well off 5:4.
+    check(std::abs(seventhOf({60, 64, 66, 67, 70}) - minorNine) < 0.01 &&
+              worstOf({66, 70}) < 0.3,
+          "and over a sharp eleventh at 9:5, a pure major third above it");
 
     // The seventh joins a held triad, and leaves again: when G and B come up
     // the F held under D is a minor third above it once more and slides back
