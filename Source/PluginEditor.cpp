@@ -19,19 +19,6 @@ constexpr int kMasterGap = 8;
 constexpr int kPlayingBar = 1;
 constexpr int kTuningBar = 2;
 
-int barsOpen(int mask) {
-  return ((mask & kPlayingBar) != 0 ? 1 : 0) +
-         ((mask & kTuningBar) != 0 ? 1 : 0);
-}
-
-/// Everything above and below the strips. The top bar reflows onto a second
-/// row when narrow, so its height depends on the width it is given, and each
-/// bar open under it adds a row.
-int chromeHeight(int logicalWidth, int openBars) {
-  return ovt::ui::TopBar::heightForWidth(logicalWidth) +
-         barsOpen(openBars) * ovt::ui::OptionBar::kHeight + kScrollBarThickness;
-}
-
 /// The narrowest window, in logical pixels.
 ///
 /// Wide enough for a usable stretch of mixer, and never narrower than the top
@@ -664,6 +651,17 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   tuningBar.setVisible((openBars & kTuningBar) != 0);
   topBar.setBarsOpen(playingBar.isVisible(), tuningBar.isVisible());
   topBar.onPlayingClicked = [this] { toggleBar(kPlayingBar); };
+
+  // A bar that gains or loses a row, as the Tuning bar does when Adaptive
+  // brings its own groups, takes the mixer's height with it.
+  for (auto *bar : {static_cast<ovt::ui::OptionBar *>(&playingBar),
+                    static_cast<ovt::ui::OptionBar *>(&tuningBar)})
+    bar->onHeightMayChange = [this] {
+      if (getWidth() > 0) {
+        applyResizeLimits();
+        resized();
+      }
+    };
   topBar.onTuningClicked = [this] { toggleBar(kTuningBar); };
 
   // Restored but not trusted: resized() clamps it against a range it can only
@@ -867,8 +865,8 @@ void OvertoniumEditor::resized() {
   // one of those widths has to be followed. Only on a change, which is what
   // keeps this from recursing: applying limits constrains the bounds and so
   // comes back here, and the second pass finds the same bar height and stops.
-  if (ovt::ui::TopBar::heightForWidth(
-          juce::jmax(minimumLogicalWidth(), logicalWidth)) != limitsBarHeight)
+  if (chromeHeight(juce::jmax(minimumLogicalWidth(), logicalWidth)) !=
+      limitsChromeHeight)
     applyResizeLimits(logicalWidth);
 
   // Over the whole window rather than over the content, and untransformed:
@@ -888,7 +886,9 @@ void OvertoniumEditor::resized() {
   for (auto *bar : {static_cast<juce::Component *>(&playingBar),
                     static_cast<juce::Component *>(&tuningBar)})
     if (bar->isVisible())
-      bar->setBounds(area.removeFromTop(ovt::ui::OptionBar::kHeight));
+      bar->setBounds(area.removeFromTop(
+          static_cast<ovt::ui::OptionBar *>(bar)->heightForWidth(
+              logicalWidth)));
 
   // No inset here. The mixer runs to the window edges and the breathing room
   // it used to get from this border is now kStripPadY inside each column, so
@@ -977,8 +977,7 @@ juce::Rectangle<int> OvertoniumEditor::standardSize() const {
   const int width = kGutterWidth + kStripWidth + kMasterGap +
                     kNumHarmonics * kStripWidth + kScrollBarThickness;
 
-  return {width, chromeHeight(width, openBars) +
-                     preferredStripHeight(collapsedSections)};
+  return {width, chromeHeight(width) + preferredStripHeight(collapsedSections)};
 }
 
 void OvertoniumEditor::fitAllChannels() {
@@ -1020,11 +1019,10 @@ void OvertoniumEditor::applyResizeLimits(int forLogicalWidth) {
   // is what an unset size during construction looks like, still gets the
   // conservative answer rather than one for a width nothing can have.
   const int width = juce::jmax(minWidth, forLogicalWidth);
-  const int bar = ovt::ui::TopBar::heightForWidth(width);
-  const int minHeight =
-      chromeHeight(width, openBars) + minimumStripHeight(collapsedSections);
+  const int chrome = chromeHeight(width);
+  const int minHeight = chrome + minimumStripHeight(collapsedSections);
 
-  limitsBarHeight = bar;
+  limitsChromeHeight = chrome;
 
   setResizeLimits(juce::roundToInt((float)minWidth * zoom),
                   juce::roundToInt((float)minHeight * zoom),
@@ -1139,6 +1137,20 @@ void OvertoniumEditor::mouseWheelMove(const juce::MouseEvent &e,
   }
 
   juce::Component::mouseWheelMove(e, wheel);
+}
+
+int OvertoniumEditor::chromeHeight(int logicalWidth) const {
+  // The top bar reflows onto further rows when narrow, and so does each bar
+  // open under it, so all of it depends on the width.
+  auto height =
+      ovt::ui::TopBar::heightForWidth(logicalWidth) + kScrollBarThickness;
+
+  if ((openBars & kPlayingBar) != 0)
+    height += playingBar.heightForWidth(logicalWidth);
+  if ((openBars & kTuningBar) != 0)
+    height += tuningBar.heightForWidth(logicalWidth);
+
+  return height;
 }
 
 void OvertoniumEditor::toggleBar(int bar) {

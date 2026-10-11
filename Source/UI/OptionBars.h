@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -23,8 +24,18 @@ namespace ovt::ui {
 /// costs a channel.
 class OptionBar : public juce::Component {
 public:
-  /// One row of the top bar with the padding above and below it.
+  /// One row of the top bar with the padding above and below it, which is how
+  /// tall a bar is when everything in it fits across.
   static constexpr int kHeight = 66;
+
+  /// How tall the bar is at a width. Its groups wrap onto further rows when
+  /// they do not fit across, as the top bar's do, each row as tall as one of
+  /// the top bar's.
+  int heightForWidth(int width) const;
+
+  /// Told when something shown or hidden may have changed how many rows the
+  /// bar needs, so whatever lays it out can ask again.
+  std::function<void()> onHeightMayChange;
 
   explicit OptionBar(juce::String name);
 
@@ -46,6 +57,11 @@ protected:
     /// Fills its group's height rather than standing on the dial line, for
     /// something with more to say than one row of segments.
     bool fills = false;
+    /// Whether it is there at all. A group of nothing shown takes no room.
+    bool shown = true;
+    /// The line of its group it stands on, where its caption goes. Set by
+    /// resized.
+    juce::Rectangle<int> line{};
   };
 
   /// Adds a framed group, laid out left to right after the ones before it,
@@ -54,6 +70,10 @@ protected:
 
   /// Shows or hides a group, closing the gap it leaves.
   void setGroupShown(int group, bool shown);
+
+  /// Shows or hides one control within its group, the group closing up round
+  /// it.
+  void setItemShown(juce::Component &control, bool shown);
 
   /// Opens one of the shared Settings lists under a control and carries out
   /// what is chosen.
@@ -75,6 +95,22 @@ private:
 
   std::vector<Group> groups;
   std::vector<juce::Rectangle<int>> groupBounds;
+
+  /// How wide a group stands, counting only what is shown, or zero if
+  /// nothing in it is.
+  static int widthOf(const Group &);
+
+  /// How many of a group's shown controls stand on each line within a width:
+  /// all of them when they fit, and otherwise as few lines as they need with
+  /// the controls shared out evenly between them, so twelve in two lines are
+  /// six and six rather than eleven and one.
+  static int perLine(const Group &, int room);
+
+  /// Where each group goes at a width, row by row, wrapping as the top bar
+  /// does. The same answer for heightForWidth and resized, so the two cannot
+  /// disagree about how many rows there are.
+  std::vector<juce::Rectangle<int>> placeGroups(juce::Rectangle<int> area,
+                                                int *rows) const;
 };
 
 /// Voices, legato, one voice per key, pitch bend range and expression.

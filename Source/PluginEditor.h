@@ -329,6 +329,10 @@ private:
   /// as short as it can be, in which case it grows by the bar.
   void toggleBar(int bar);
 
+  /// Everything above and below the strips at a width: the top bar, the bars
+  /// open under it, and the scroll bar.
+  int chromeHeight(int logicalWidth) const;
+
   /// Hands the current fold state to the gutter and every strip, which is the
   /// only way any of them find out about it.
   void publishCollapsedSections();
@@ -477,7 +481,7 @@ private:
   /// call each other. This is what stops that: the limits are reapplied only
   /// when the bar has actually changed height, and once they have been, the
   /// resize that follows finds the same number and stops.
-  int limitsBarHeight = -1;
+  int limitsChromeHeight = -1;
 
   /// Counts timer callbacks, so the meters and the housekeeping can each run
   /// at their own fraction of it.

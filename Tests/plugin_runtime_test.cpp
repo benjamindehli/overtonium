@@ -7758,11 +7758,41 @@ void testPlayingBar(OvertoniumProcessor &p) {
         "and follows a change made somewhere else");
   st::apply(p.apvts, st::kMpe);
 
-  // ---- a narrow window keeps whole groups -------------------------------
-  sizeEditor(*editor, ovt::ui::TopBar::minimumWidth());
-  check(voices->isVisible() && !slide->isVisible() && !aftertouch->isVisible(),
-        "at the narrowest window the groups that do not fit are left out "
-        "whole, the voices still there");
+  // ---- a narrow window wraps, as the top bar does --------------------------
+  //
+  // Nothing is left out. The groups that do not fit across go onto another
+  // row, the bar grows by it, and the mixer gives up the height.
+  {
+    const auto oneRow = bar->getHeight();
+    sizeEditor(*editor, ovt::ui::TopBar::minimumWidth());
+
+    bool all = true;
+    for (auto *c : {static_cast<juce::Component *>(voices),
+                    static_cast<juce::Component *>(legato),
+                    static_cast<juce::Component *>(perKey),
+                    static_cast<juce::Component *>(bend),
+                    static_cast<juce::Component *>(mpe),
+                    static_cast<juce::Component *>(aftertouch),
+                    static_cast<juce::Component *>(slide)})
+      all &= c->isVisible() && bar->getLocalBounds().contains(c->getBounds());
+
+    check(all && bar->getHeight() > oneRow &&
+              bar->getHeight() == bar->heightForWidth(bar->getWidth()),
+          "at the narrowest window every control is still there, the bar "
+          "wrapping onto " +
+              std::to_string(bar->getHeight()) + " px from " +
+              std::to_string(oneRow));
+    check(slide->getY() > voices->getY(),
+          "with what does not fit across on a row below");
+
+    // And the floor counts the rows, so the narrowest legal window still has
+    // its mixer.
+    const auto *limits = editor->getConstrainer();
+    sizeEditor(*editor, ovt::ui::TopBar::minimumWidth());
+    check(limits != nullptr &&
+              editor->getHeight() >= limits->getMinimumHeight(),
+          "and the window's floor counts the bar's rows");
+  }
 
   opener->onClick();
   p.applyFactoryPreset(presetIndex("Init"));
@@ -7942,6 +7972,42 @@ void testTuningBar(OvertoniumProcessor &p) {
 
   pick(st::kTemperament + (int)ovt::Temperament::Equal);
   check(!retune->isVisible(), "and goes again when Adaptive does");
+
+  // ---- the rows follow what is shown
+  // -----------------------------------------
+  //
+  // In a narrow window Adaptive's groups need more rows than a fixed
+  // temperament's, and the bar is laid out again as they come and go, not
+  // only when the window moves.
+  {
+    sizeEditor(*editor, ovt::ui::TopBar::minimumWidth());
+    const auto fixedHeight = bar->getHeight();
+
+    pick(st::kTemperament + (int)ovt::Temperament::Adaptive);
+    const auto adaptiveHeight = bar->getHeight();
+    const auto fits = bar->getHeight() == bar->heightForWidth(bar->getWidth());
+
+    // The twelve are wider together than the narrowest window, so they wrap
+    // onto a second line inside their own frame rather than running off it.
+    bool twelve = true;
+    for (int pc = 0; pc < 12; ++pc) {
+      const auto &d = bar->scaleDisplay(pc);
+      twelve &= d.isVisible() && bar->getLocalBounds().contains(d.getBounds());
+    }
+    check(twelve && bar->scaleDisplay(11).getY() > bar->scaleDisplay(0).getY(),
+          "and all twelve cents displays stay in the bar, wrapping onto a "
+          "second line");
+
+    pick(st::kTemperament + (int)ovt::Temperament::Equal);
+    check(adaptiveHeight > fixedHeight && fits &&
+              bar->getHeight() == fixedHeight,
+          "a narrow Tuning bar takes more rows under Adaptive and gives them "
+          "back after (" +
+              std::to_string(fixedHeight) + " to " +
+              std::to_string(adaptiveHeight) + ")");
+
+    sizeEditor(*editor, 1348, 240);
+  }
 
   opener->onClick();
   restoreSessionSettings(p);

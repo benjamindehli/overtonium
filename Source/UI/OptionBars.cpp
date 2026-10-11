@@ -16,6 +16,10 @@ namespace {
 /// read as more of it.
 constexpr int kBarMargin = 12;
 constexpr int kBarPadY = 6;
+
+/// A row and the gap between rows, the top bar's own.
+constexpr int kRow = 54;
+constexpr int kRowGap = 4;
 constexpr int kGroupGap = 6;
 constexpr int kGroupPad = 6;
 constexpr int kControlGap = 6;
@@ -56,46 +60,170 @@ void OptionBar::setGroupShown(int group, bool shown) {
   groups[(size_t)group].shown = shown;
   resized();
   repaint();
+
+  if (onHeightMayChange)
+    onHeightMayChange();
 }
 
-void OptionBar::resized() {
-  groupBounds.clear();
+void OptionBar::setItemShown(juce::Component &control, bool shown) {
+  for (auto &group : groups)
+    for (auto &item : group.items)
+      if (item.control == &control && item.shown != shown) {
+        item.shown = shown;
+        resized();
+        repaint();
 
-  auto area = getLocalBounds().reduced(kBarMargin, kBarPadY);
+        if (onHeightMayChange)
+          onHeightMayChange();
+        return;
+      }
+}
 
-  for (auto &entry : groups) {
-    auto &group = entry.items;
+int OptionBar::widthOf(const Group &group) {
+  if (!group.shown)
+    return 0;
 
-    int width = 2 * kGroupPad;
-    for (size_t i = 0; i < group.size(); ++i)
-      width += group[i].width + (i > 0 ? kControlGap : 0);
+  int width = 0, shownItems = 0;
+  for (const auto &item : group.items)
+    if (item.shown) {
+      width += item.width + (shownItems > 0 ? kControlGap : 0);
+      ++shownItems;
+    }
 
-    // A group that does not fit is left out whole rather than cut, and so is
-    // everything after it. The Settings menu still has all of it.
-    const bool fits = entry.shown && width <= area.getWidth();
+  return shownItems > 0 ? width + 2 * kGroupPad : 0;
+}
 
-    if (!entry.shown) {
-      groupBounds.push_back({});
-      for (auto &item : group)
-        item.control->setVisible(false);
+int OptionBar::perLine(const Group &group, int room) {
+  int shown = 0, widest = 1;
+  for (const auto &item : group.items)
+    if (item.shown) {
+      ++shown;
+      widest = juce::jmax(widest, item.width);
+    }
+
+  if (shown == 0 || widthOf(group) - 2 * kGroupPad <= room)
+    return juce::jmax(1, shown);
+
+  // As many as fit across at the widest control's width, then shared out.
+  const auto fit = juce::jmax(1, (room + kControlGap) / (widest + kControlGap));
+  const auto lines = (shown + fit - 1) / fit;
+  return (shown + lines - 1) / lines;
+}
+
+std::vector<juce::Rectangle<int>>
+OptionBar::placeGroups(juce::Rectangle<int> area, int *rows) const {
+  std::vector<juce::Rectangle<int>> placed;
+  placed.reserve(groups.size());
+
+  // Left to right, and onto a new row when the next group does not fit in
+  // what is left of this one, the way the top bar packs its groups. A group
+  // wider than the whole bar, which the top bar never has, wraps its own
+  // controls onto as many lines as it needs inside its frame, one row each,
+  // and nothing stands beside it.
+  int row = 0, x = area.getX(), used = 0;
+
+  for (const auto &group : groups) {
+    auto width = widthOf(group);
+
+    if (width == 0) {
+      placed.push_back({});
       continue;
     }
 
-    auto bounds = fits ? area.removeFromLeft(width) : juce::Rectangle<int>();
-    groupBounds.push_back(bounds);
-    area.removeFromLeft(kGroupGap);
+    int lines = 1;
 
-    auto inner = bounds.reduced(kGroupPad, 0);
+    if (width > area.getWidth()) {
+      // Shared out the way resized lays them out, so the two agree.
+      const auto each = perLine(group, area.getWidth() - 2 * kGroupPad);
+      int shown = 0, line = 0, widest = 0;
 
-    for (size_t i = 0; i < group.size(); ++i) {
-      auto &item = group[i];
-      item.control->setVisible(fits);
+      for (const auto &item : group.items) {
+        if (!item.shown)
+          continue;
 
-      if (!fits)
+        if (shown > 0 && shown % each == 0) {
+          widest = juce::jmax(widest, line);
+          line = 0;
+          ++lines;
+        }
+
+        line += item.width + (line > 0 ? kControlGap : 0);
+        ++shown;
+      }
+
+      width = juce::jmax(widest, line) + 2 * kGroupPad;
+    }
+
+    if (used > 0 && (lines > 1 || x + width > area.getRight())) {
+      ++row;
+      x = area.getX();
+      used = 0;
+    }
+
+    placed.push_back({x, area.getY() + row * (kRow + kRowGap), width,
+                      lines * kRow + (lines - 1) * kRowGap});
+
+    if (lines > 1) {
+      row += lines;
+      x = area.getX();
+      used = 0;
+      continue;
+    }
+
+    x += width + kGroupGap;
+    ++used;
+  }
+
+  if (rows != nullptr)
+    *rows = juce::jmax(1, used > 0 ? row + 1 : row);
+
+  return placed;
+}
+
+int OptionBar::heightForWidth(int width) const {
+  int rows = 1;
+  placeGroups(
+      {kBarMargin, kBarPadY, juce::jmax(1, width - 2 * kBarMargin), kRow},
+      &rows);
+  return rows * kRow + (rows - 1) * kRowGap + 2 * kBarPadY;
+}
+
+void OptionBar::resized() {
+  groupBounds =
+      placeGroups(getLocalBounds().reduced(kBarMargin, kBarPadY), nullptr);
+
+  for (size_t g = 0; g < groups.size(); ++g) {
+    const auto &bounds = groupBounds[g];
+
+    // The line the controls go along, one row tall, moving down a row when the
+    // next control does not fit in what is left of it, which only a group
+    // wider than the bar ever needs.
+    auto line = bounds.withHeight(kRow);
+    auto inner = line.reduced(kGroupPad, 0);
+    bool first = true;
+    int placedHere = 0;
+    const auto each = perLine(
+        groups[g], getLocalBounds().reduced(kBarMargin, kBarPadY).getWidth() -
+                       2 * kGroupPad);
+
+    for (auto &item : groups[g].items) {
+      const bool shown = !bounds.isEmpty() && item.shown;
+      item.control->setVisible(shown);
+
+      if (!shown)
         continue;
 
-      if (i > 0)
+      if (placedHere > 0 && placedHere % each == 0) {
+        line = line.translated(0, kRow + kRowGap);
+        inner = line.reduced(kGroupPad, 0);
+        first = true;
+      }
+
+      if (!first)
         inner.removeFromLeft(kControlGap);
+      first = false;
+      ++placedHere;
+      item.line = line;
 
       // Centred on the line the top bar's dials stand on, with the caption in
       // the band its knobs put theirs in.
@@ -108,16 +236,13 @@ void OptionBar::resized() {
         item.control->setBounds(column);
       else if (item.fills)
         item.control->setBounds(
-            column.withY(bounds.getY() + kReadoutInset)
-                .withHeight(bounds.getHeight() - 2 * kReadoutInset));
+            column.withY(line.getY() + kReadoutInset)
+                .withHeight(line.getHeight() - 2 * kReadoutInset));
       else
         item.control->setBounds(column.getX(),
                                 dial.getCentreY() - kControlHeight / 2,
                                 column.getWidth(), kControlHeight);
     }
-
-    if (!fits)
-      area = {};
   }
 }
 
@@ -146,9 +271,9 @@ void OptionBar::paint(juce::Graphics &g) {
     // Centred under each control, a little wider than it so a caption longer
     // than a narrow display still fits.
     for (const auto &item : groups[i].items)
-      if (item.caption.isNotEmpty())
+      if (item.caption.isNotEmpty() && item.shown)
         g.drawText(item.caption,
-                   LabelledKnob::captionBounds(bounds)
+                   LabelledKnob::captionBounds(item.line)
                        .withX(item.control->getX() - kControlGap)
                        .withWidth(item.control->getWidth() + 2 * kControlGap),
                    juce::Justification::centred, false);
