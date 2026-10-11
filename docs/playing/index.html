@@ -63,7 +63,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-10-10",
+                "dateModified": "2026-10-11",
                 "breadcrumb": {
                     "@id": "https://benjamindehli.github.io/overtonium/playing/#breadcrumb"
                 }
@@ -118,6 +118,7 @@
                                     <li><a href="#mpe">MPE</a></li>
                                     <li><a href="#legato">Legato</a></li>
                                     <li><a href="#glide">Glide</a></li>
+                                    <li><a href="#bars">The Playing and Tuning bars</a></li>
                                     <li><a href="#settings">The Settings menu</a></li>
                                     <li>
                                         <a href="#automation">Automating it from the host</a>
@@ -151,15 +152,15 @@
                     <h2>MPE</h2>
 
                     <p>
-                        Off by default, and under Settings. With it on, a controller that gives every note its own MIDI channel can bend and press
-                        each note separately, which on this instrument means each finger gets its own copy of all 33 aftertouch destinations. Press
-                        into one note in a chord and only that note's upper partials come in.
+                        Off by default, and under Settings and in the Playing bar. With it on, a controller that gives every note its own MIDI channel
+                        can bend and press each note separately, which on this instrument means each finger gets its own copy of all 33 aftertouch
+                        destinations. Press into one note in a chord and only that note's upper partials come in.
                     </p>
 
                     <p>
-                        Slide, the forward and back axis under a finger, has a destination of its own under Settings. By default it moves that note's
-                        brightness, thinning or opening the top of the series, which is what a player's hands expect from that axis. It can be aimed
-                        at the tuning instead, so that pushing one finger forward slides that note alone
+                        Slide, the forward and back axis under a finger, has a destination of its own under Settings and in the Playing bar. By
+                        default it moves that note's brightness, thinning or opening the top of the series, which is what a player's hands expect from
+                        that axis. It can be aimed at the tuning instead, so that pushing one finger forward slides that note alone
                         <a href="../tuning/">between equal temperament and just intonation</a>
                         while the rest of the chord stays where it is. A keyboard with no slide axis sends nothing and changes nothing.
                     </p>
@@ -191,11 +192,11 @@
                     <h2>Legato</h2>
 
                     <p>
-                        A switch in Settings, beside the voice count, and what it does depends on that count. <strong>With one voice</strong> the
-                        instrument is not polyphonic at all: pressing a key while another is still held moves the note rather than starting it again,
-                        so the envelopes carry on and a run keeps the shape the first key gave it rather than restarting the attack under your
-                        fingers. Letting a key go while others are still down falls back to the most recent of them, which is what makes a trill work,
-                        and only the last key coming up releases the note.
+                        A switch in Settings and in the Playing bar, beside the voice count, and what it does depends on that count.
+                        <strong>With one voice</strong> the instrument is not polyphonic at all: pressing a key while another is still held moves the
+                        note rather than starting it again, so the envelopes carry on and a run keeps the shape the first key gave it rather than
+                        restarting the attack under your fingers. Letting a key go while others are still down falls back to the most recent of them,
+                        which is what makes a trill work, and only the last key coming up releases the note.
                     </p>
 
                     <p>
@@ -364,12 +365,33 @@
                     </p>
                 </section>
 
+                <section id="bars">
+                    <h2>The Playing and Tuning bars</h2>
+
+                    <p>
+                        The two lower buttons beside the preset name, a keyboard and a tuning fork, each open a bar between the top bar and the mixer,
+                        for the settings that get changed while playing rather than set once. Both are closed until you open them, and each instance
+                        remembers which are open. A bar takes its height from the mixer, which scrolls, so the window keeps its size, unless it is
+                        already as short as it goes, in which case it grows by the bar.
+                    </p>
+
+                    <p>
+                        <strong>Playing</strong> holds the voice count with Legato and One voice per key beside it, the pitch bend range, and MPE with
+                        Aftertouch from and Slide to. <strong>Tuning</strong> holds the temperament, root and reference pitch, and under Adaptive the
+                        Retune speed and <a href="../tuning/#adaptive">what Adaptive is doing</a> to the chord you hold. Each display opens the same
+                        list as its entry in Settings and each switch lights while it is on, so a bar is another way to reach the same settings rather
+                        than a second copy of them. In a window too narrow for a whole bar, a group that does not fit is left out whole, and Settings
+                        still has all of it.
+                    </p>
+                </section>
+
                 <section id="settings">
                     <h2>The Settings menu</h2>
 
                     <p>
                         Everything set once and then left. The menu is where the instrument is set up and the panel is where the sound is made, and a
-                        control's place says which of the two it is.
+                        control's place says which of the two it is. The ones changed while playing are in
+                        <a href="#bars">the Playing and Tuning bars</a> as well.
                     </p>
 
                     <div class="scroll">

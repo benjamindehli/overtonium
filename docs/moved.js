@@ -10,6 +10,7 @@
 
     var MOVED = {
         automation: "../playing/",
+        bars: "../playing/",
         "bus-drive": "../effects/",
         chainDesc: "../effects/",
         chainTitle: "../effects/",

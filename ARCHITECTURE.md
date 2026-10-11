@@ -18,7 +18,7 @@ Two threads, and the rule is that neither waits for the other.
 
 The audio thread reads a snapshot of the parameters rather than the `AudioProcessorValueTreeState` itself. It allocates nothing. A host may hand over a bigger block than the one it promised in `prepareToPlay`, and growing a buffer to fit would take the allocator's lock on the audio thread, where whatever the message thread is doing can make it wait, so the block is cut into pieces the existing scratch already holds. A test renders the same passage through both paths and compares them sample by sample.
 
-The message thread owns the editor and the state tree. Values the editor displays, meters, lamps and voice counts, are published as atomics by the render loop and polled, rather than pushed.
+The message thread owns the editor and the state tree. Values the editor displays, meters, lamps and voice counts, are published as atomics by the render loop and polled, rather than pushed. What Adaptive settled the held chord on is too big for an atomic, so the engine publishes it through a `TripleBuffer` in `dsp/AdaptiveSnapshot.h`: three copies swapped with one atomic exchange each way, so the audio thread never waits and the editor always reads a whole copy.
 
 Work that arrives over MIDI but belongs to the message thread goes the same way round. A program change is a preset load, which moves hundreds of parameters and reports each one to the host, so the audio thread stores the number in an atomic and a 20 Hz timer on the processor picks it up. Nothing is posted from the audio thread, which would take the message queue's lock.
 
@@ -87,7 +87,7 @@ The meters and lamps are the only things that move on their own, so they set the
 
 Parameters are declared once in `PluginParameters.cpp` and reached by string id, built from a suffix and a channel index by `oscParamId`. Adding a control means adding it there, giving it a `Row`, and placing that row in a section.
 
-The saved state is the `AudioProcessorValueTreeState` tree plus a few properties written alongside it for things that belong to the session rather than the patch: window size, zoom, LINK settings, which sections are folded, and the current program. Presets deliberately carry less than the state does, so loading a sound never moves your window or your temperament.
+The saved state is the `AudioProcessorValueTreeState` tree plus a few properties written alongside it for things that belong to the session rather than the patch: window size, zoom, LINK settings, which sections are folded, which of the Playing and Tuning bars are open, and the current program. Presets deliberately carry less than the state does, so loading a sound never moves your window or your temperament.
 
 The factory presets are generated C++ rather than data files, converted from patches saved on the panel. `factoryCode` in `Presets.cpp` writes that code, diffing against `neutralBase` so a preset only spells out what it changes.
 
