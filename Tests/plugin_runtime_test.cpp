@@ -7547,7 +7547,8 @@ void testSharedSettingsChoices(OvertoniumProcessor &p) {
       return retune->convertFrom0to1(retune->getValue());
     };
     const auto ticked = [&apvts](int id) {
-      for (juce::PopupMenu::MenuItemIterator it(st::retune(apvts)); it.next();)
+      const auto list = st::retune(apvts);
+      for (juce::PopupMenu::MenuItemIterator it(list); it.next();)
         if (it.getItem().itemID == id)
           return it.getItem().isTicked;
       return false;
