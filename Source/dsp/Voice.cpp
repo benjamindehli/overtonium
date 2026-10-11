@@ -103,6 +103,9 @@ void Voice::prepare(double newSampleRate, uint32_t seed) noexcept {
 }
 
 void Voice::reset() noexcept {
+  retuneSemis = 0.0;
+  retuneStep = 0.0;
+
   for (auto &pt : partials) {
     pt.env.reset();
     pt.drift.reset();
@@ -139,12 +142,16 @@ void Voice::reset() noexcept {
   pressureSmoothed = 0.0f;
 }
 
-void Voice::noteOn(int channel, int note, float velocity,
-                   const SynthParams &p) noexcept {
+void Voice::noteOn(int channel, int note, float velocity, const SynthParams &p,
+                   double frequency) noexcept {
   midiNote = note;
   midiChannel = channel;
-  baseFreq = noteFrequency(note, p.global.temperament, p.global.tuningRoot,
-                           p.global.referenceHz);
+  retuneSemis = 0.0;
+  retuneStep = 0.0;
+  baseFreq = frequency > 0.0
+                 ? frequency
+                 : noteFrequency(note, p.global.temperament,
+                                 p.global.tuningRoot, p.global.referenceHz);
 
   const float vel = std::clamp(velocity, 0.0f, 1.0f);
 
@@ -284,12 +291,6 @@ void Voice::noteOn(int channel, int note, float velocity,
   }
 }
 
-void Voice::noteOnLegato(int channel, int note, const SynthParams &p) noexcept {
-  retune(channel, note,
-         noteFrequency(note, p.global.temperament, p.global.tuningRoot,
-                       p.global.referenceHz));
-}
-
 void Voice::retune(int channel, int note, double frequency) noexcept {
   // A key going down while the phrase is still sounding says nothing about
   // bend or pressure, and on one channel the ones already in hand belong to
@@ -308,8 +309,20 @@ void Voice::retune(int channel, int note, double frequency) noexcept {
   midiNote = note;
   midiChannel = channel;
   baseFreq = frequency;
+  retuneSemis = 0.0;
+  retuneStep = 0.0;
 
   released = false;
+}
+
+void Voice::retuneTo(double frequency, double seconds) noexcept {
+  if (frequency <= 0.0 || baseFreq <= 0.0)
+    return;
+
+  retuneSemis += 12.0 * std::log2(baseFreq / frequency);
+  baseFreq = frequency;
+  retuneStep = seconds > 0.0 ? std::abs(retuneSemis) / (seconds * sampleRate)
+                             : std::abs(retuneSemis);
 }
 
 Voice::Pitches Voice::notePitches() const noexcept {
@@ -581,14 +594,15 @@ void Voice::render(float *left, float *right, int numSamples,
           semitoneOffset(i, (double)blendOf(p, i),
                          (double)p.global.stretchCents) +
           (pmCents + driftCents + (double)unit.cents[(size_t)i]) * 0.01 +
-          (double)(p.global.bendSemitones + noteBendSemitones) + pt.glideSemis;
+          (double)(p.global.bendSemitones + noteBendSemitones) + pt.glideSemis +
+          retuneSemis;
 
       // Read at the start of the block and stepped for the next, as the
       // modulators are. A glide that is not running costs a compare.
       // Nought is set exactly by the line below, so the compare is exact too.
       // How far the glide still has to go, for the needle, taken before this
       // block's step so it matches the pitch the block plays at.
-      const double glideCents = pt.glideSemis * 100.0;
+      const double glideCents = (pt.glideSemis + retuneSemis) * 100.0;
 
       if (!exactly(pt.glideSemis, 0.0)) {
         const double remaining = std::abs(pt.glideSemis) - pt.glideStep;
@@ -835,6 +849,14 @@ void Voice::render(float *left, float *right, int numSamples,
     }
 
     renderNoise(left + start, right + start, len, p, pressure, shared, block);
+
+    // The adaptive retune moves the whole note, so it steps once a block
+    // rather than once a partial.
+    if (!exactly(retuneSemis, 0.0)) {
+      const double remaining = std::abs(retuneSemis) - retuneStep * (double)len;
+      retuneSemis =
+          remaining > 0.0 ? std::copysign(remaining, retuneSemis) : 0.0;
+    }
   }
 
   active = noise.env.isActive() ||

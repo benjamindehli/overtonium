@@ -1141,6 +1141,19 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
 
   m.addSubMenu("Reference pitch", references);
 
+  // How fast the adaptive temperament moves a held note, which means nothing
+  // under any other.
+  {
+    juce::PopupMenu speeds;
+    for (int i = 0; i < (int)params::kAdaptiveRetuneNames.size(); ++i)
+      speeds.addItem(1300 + i, params::kAdaptiveRetuneNames[(size_t)i], true,
+                     i == pickedIndex(params::adaptiveRetuneId));
+
+    m.addSubMenu("Retune", speeds,
+                 pickedIndex(params::temperamentId) ==
+                     (int)Temperament::Adaptive);
+  }
+
   m.addSeparator();
   m.addSectionHeader("Output");
   m.addItem(300, "Phase reset", true,
@@ -1241,6 +1254,9 @@ void TopBar::showSettingsMenu() {
           if (p != nullptr)
             p->setValueNotifyingHost(p->convertTo0to1((float)index));
         };
+
+        if (result >= 1300)
+          return choose(params::adaptiveRetuneId, result - 1300);
 
         if (result >= 1200)
           return choose(params::slideDestId, result - 1200);

@@ -1117,6 +1117,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   layout.add(
       std::make_unique<BoolP>(juce::ParameterID{legatoId, 1}, "Legato", false));
 
+  // How fast the adaptive temperament moves a held note, on the end like
+  // everything since the last release. A session setting beside the
+  // temperament it serves.
+  layout.add(std::make_unique<juce::AudioParameterChoice>(
+      juce::ParameterID{adaptiveRetuneId, 1}, "Adaptive Retune",
+      juce::StringArray{kAdaptiveRetuneNames[0], kAdaptiveRetuneNames[1]}, 0));
+
   return layout;
 }
 
@@ -1129,6 +1136,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   glideTrigger = apvts.getRawParameterValue(glideTriggerId);
   glideMode = apvts.getRawParameterValue(glideModeId);
   legato = apvts.getRawParameterValue(legatoId);
+  adaptiveRetune = apvts.getRawParameterValue(adaptiveRetuneId);
   bendRange = apvts.getRawParameterValue(bendRangeId);
   phaseReset = apvts.getRawParameterValue(phaseResetId);
   stretch = apvts.getRawParameterValue(stretchId);
@@ -1522,6 +1530,9 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
 
     out.global.referenceHz = (double)kReferenceHzChoices[(size_t)pick(
         referenceHz, (int)kReferenceHzChoices.size())];
+
+    out.global.adaptiveRetuneSeconds = kAdaptiveRetuneSeconds[(size_t)pick(
+        adaptiveRetune, (int)kAdaptiveRetuneSeconds.size())];
 
     out.global.character =
         (Character)pick(character, (int)Character::NumCharacters);

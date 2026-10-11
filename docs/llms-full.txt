@@ -63,11 +63,11 @@ Two of the [factory presets](https://benjamindehli.github.io/overtonium/presets/
 
 One note each, the same patch, the same level. Only TUNE differs.
 
-Nothing about the tuning is hard-coded. For harmonic `n` the just interval is `1200 * log2(n)` cents, the equal position is that rounded to the nearest semitone, and TUNE dials in the remainder. [The tuning system](https://benjamindehli.github.io/overtonium/tuning/) works through it, along with stretch, the six keyboard temperaments and keyboard tracking.
+Nothing about the tuning is hard-coded. For harmonic `n` the just interval is `1200 * log2(n)` cents, the equal position is that rounded to the nearest semitone, and TUNE dials in the remainder. [The tuning system](https://benjamindehli.github.io/overtonium/tuning/) works through it, along with stretch, the seven keyboard temperaments and keyboard tracking.
 
 ## Where to go next
 
-- [**Tuning**TUNE, inharmonic stretch, six historical temperaments on any root, and how the spectrum thins as you play up the keyboard.](https://benjamindehli.github.io/overtonium/tuning/)
+- [**Tuning**TUNE, inharmonic stretch, six historical temperaments and an adaptive one on any root, and how the spectrum thins as you play up the keyboard.](https://benjamindehli.github.io/overtonium/tuning/)
 - [**Controls**Every knob on a channel strip, then the effects on the bar and how to play it from a keyboard, a host or a controller.](https://benjamindehli.github.io/overtonium/controls/)
 - [**Presets**The thirty-four that ship, what a preset carries, and where your own are kept on each platform.](https://benjamindehli.github.io/overtonium/presets/)
 - [**Install**Installers for macOS and Windows, a zip for Linux, what to do when a host does not see it, and building from source.](https://benjamindehli.github.io/overtonium/install/)
@@ -128,9 +128,9 @@ All three earlier instruments are sample libraries with a plugin wrapper, sold a
 
 ---
 
-Page: The Overtonium tuning system: TUNE, stretch and six temperaments
+Page: The Overtonium tuning system: TUNE, stretch and seven temperaments
 URL: https://benjamindehli.github.io/overtonium/tuning/
-Last changed: 2026-10-09
+Last changed: 2026-10-11
 
 # The tuning system
 
@@ -183,7 +183,7 @@ Sitting on the line has a consequence worth knowing at the panel: on channels 1,
 
 The two big offsets are the ones worth knowing by ear. The seventh partial lands 31 cents flat of a minor seventh and the eleventh 49 cents flat of a tritone, which is to say halfway between two keys. Those are the partials that make a just-tuned stack sound unlike anything a keyboard can play.
 
-The eleventh has a name in Norway. Its pitch between the fourth and the tritone is the natural fourth of Norwegian folk music, which the willow flute plays because the harmonic series is all it can play. The composer Eivind Groven spent much of his life on it. From 1936 he built organs with up to three pitches behind every key, chosen automatically as the music moved, so an ordinary keyboard could play pure triads in every key and the eleventh partial came out exactly in tune. Here it is the eleventh row with TUNE at just, 551 cents above the octave below it.
+The eleventh has a name in Norway. Its pitch between the fourth and the tritone is the natural fourth of Norwegian folk music, which the willow flute plays because the harmonic series is all it can play. The composer Eivind Groven spent much of his life on it. From 1936 he built organs with up to three pitches behind every key, chosen automatically as the music moved, so an ordinary keyboard could play pure triads in every key and the eleventh partial came out exactly in tune. Here it is the eleventh row with TUNE at just, 551 cents above the octave below it, and his way of keeping every chord pure on an ordinary keyboard is the [Adaptive](https://benjamindehli.github.io/overtonium/tuning/#adaptive) temperament further down.
 
 ## Stretch
 
@@ -205,7 +205,7 @@ One note while STRETCH is taken from a harmonic series out past a piano. The bot
 
 ## Tuning the keyboard
 
-Everything above is about where a partial sits over the note you played. This is about where that note sits. Settings carries six temperaments.
+Everything above is about where a partial sits over the note you played. This is about where that note sits. Settings carries seven temperaments: six fixed ones, and one that retunes as you play.
 
 | Temperament | Major third | Fifth | What it is |
 |---|---|---|---|
@@ -215,16 +215,31 @@ Everything above is about where a partial sits over the note you played. This is
 | Quarter-comma meantone | 386.31 | 696.58 | fifths narrowed a quarter comma, which makes the third pure |
 | Werckmeister III | 390.22 | 696.09 | four fifths narrowed, no wolf, every key playable |
 | Young | 392.18 | 698.04 | six narrowed by a sixth, gentler again |
+| [Adaptive](https://benjamindehli.github.io/overtonium/tuning/#adaptive) | 386.31 | 701.71 | pure in every key, the held chord retuned as you play |
 
 They are derived from the circle of fifths rather than copied out as tables of cents. Almost every historical temperament is described by how much each of the twelve fifths is narrowed, so that is what the code says, and the pitch classes fall out of it. The two commas it is all built from come out at 23.460 and 21.506 cents, which are the published figures, and the tests assert the property that defines each temperament rather than the numbers that happen to result: meantone's third pure to a thousandth of a cent, Pythagorean's fifth likewise, Werckmeister at its characteristic 390.2.
 
+### Adaptive
+
+Every fixed temperament is in tune somewhere and out of tune somewhere else. Just major is pure in the keys near its root and a comma out in a chord from anywhere further away, which is the oldest problem in tuning. Adaptive answers it the way Eivind Groven's organs did, by giving every key more than one pitch and choosing between them as you play. Every pitch class has five versions, its place in just major on the root and one and two commas either side of it, and the chord you are holding is kept on whichever versions make it purest.
+
+The chord is settled again every time a key goes down or comes up, so a chord turning into the next one a note at a time stays in tune all the way, not only one struck fresh. Keys struck together are settled together. A held note that the new chord needs somewhere else slides there at the speed set under **Retune** in Settings: *Fast*, 30 ms, quick enough to pass for a note that was always there, or *Smooth*, 300 ms, slow enough to hear the chord settle. It moves as few notes as it can, and new notes take whichever version fits the ones already held. The keys you hold decide how the chord is tuned, not the order they went down in, so a chord struck at once, played a key at a time or reached from another chord comes out the same, interval for interval.
+
+What it tunes against is everything you can hear: the keys that are down, the ones the pedal is holding, and a chord still ringing after its keys came up decides between versions the held keys leave open. A key struck into silence takes the version its pitch class used last, which keeps a progression from wandering away a comma at a time, and since no key can stray further than its outer versions, the keyboard never drifts more than two commas from where it started, however long you play. Tuning every chord pure to the last one, with nothing to hold it, would leave a C major, A minor, D minor, G progression played four times over two and a half semitones sharp.
+
+Like Groven's organs it tempers each fifth by an eighth of a schisma, a quarter of a cent, so eight fifths and a pure major third close up exactly. Without that, chords far from the root would be left two cents out, which on pure partials is slow but clearly audible beating. The major thirds are pure, and a quarter of a cent on a fifth beats about once every eighteen seconds on the third partial of a note in the middle of the keyboard. The same chord reached by a different route can settle a comma higher or lower, with every interval in it the same, so a piece can end a comma or two from where it began. Root decides where the middle versions sit, and Reference pitch where A's does.
+
+Some chords cannot be pure all the way through, because pure fifths and pure thirds never quite meet: in C11 the fifth from G to D and the minor third from D to F cannot both be. Adaptive then gives up as little as it can, counting a fifth or a fourth above a third or a sixth and those above a seventh, so C6 with an added ninth keeps its thirds and sixths and lets the fourth from A to D go a comma wide, rather than keeping that fourth and losing three thirds.
+
+A minor seventh is tuned on the harmonic seventh, 7:4 above its root, 969 cents, unless another held note would then be out of tune with it. A dominant seventh becomes 4:5:6:7: four harmonics of one note an octave below its root, the same seventh every partial here already carries as its seventh harmonic, and the smoothest a seventh chord can be. It is noticeably lower than the equal-tempered seventh, which is most of why it sounds so settled. A ninth adds the ninth harmonic, and a seventh over its root alone or over its fifth is 7:4 as well. A minor third above the root keeps the seventh at 9:5, since 7:4 would put it 48 cents flat of a pure fifth above that third, and a sharp ninth does the same for the same reason. A suspended seventh keeps 16:9, two pure fourths, a minor second or a tritone above the root keeps the size the chain gives it too, and a major seventh is 15:8. Like everything else here it depends only on the keys held, so C and B flat are 7:4 however they were played, and a held note slides to the harmonic seventh or away from it when the chord around it changes what it is.
+
 ### Root
 
-Picks which pitch class the temperament is built on, since an unequal temperament is only in tune in the keys near its centre, and that is the point of it. It is greyed out for equal temperament, which has no centre to have.
+Picks which pitch class the temperament is built on, since an unequal temperament is only in tune in the keys near its centre, and that is the point of it. For Adaptive it is where the middle versions are placed. It is greyed out for equal temperament, which has no centre to have.
 
 ### Reference pitch
 
-415 through 466 Hz. A stays exactly there in every temperament, because the offsets are taken relative to A's own: a tuner tunes A first and works outwards. Only the other eleven notes move.
+415 through 466 Hz. A stays exactly there in every fixed temperament, because the offsets are taken relative to A's own: a tuner tunes A first and works outwards. Only the other eleven notes move. Under Adaptive it is A's middle version that sits on the reference, and an A in a chord that needs it takes the version a comma either side.
 
 None of the three travels with a [preset](https://benjamindehli.github.io/overtonium/presets/). A temperament is a property of the music you are playing rather than of any one sound in it: you set it once and work, and having a patch drag you back to equal in the middle of that would be no help. That includes Init, which clears the patch rather than the session.
 
@@ -586,7 +601,8 @@ Everything set once and then left. The menu is where the instrument is set up an
 | MPE | off by default | Whether a note's channel is part of who that note is, which is what lets pitch bend and pressure arrive per note |
 | Aftertouch from | Channel pressure, Mod wheel, Either. Either by default | What feeds the AT row on every strip. Polyphonic aftertouch is not on the list because it stays routed whatever this says |
 | Slide to | Off, Brightness, Tuning. Brightness by default | Where the forward and back axis under an MPE finger goes |
-| Temperament, Root, Reference pitch | Six temperaments, twelve roots, 415 to 466 Hz | What the keyboard underneath is tuned to, which [the tuning system](https://benjamindehli.github.io/overtonium/tuning/) works through. Root is greyed out for equal temperament, which has no centre to have |
+| Temperament, Root, Reference pitch | Seven temperaments, twelve roots, 415 to 466 Hz | What the keyboard underneath is tuned to, which [the tuning system](https://benjamindehli.github.io/overtonium/tuning/) works through. Root is greyed out for equal temperament, which has no centre to have |
+| Retune | Fast, the default, or Smooth | How fast a held note slides to a new version when the [Adaptive](https://benjamindehli.github.io/overtonium/tuning/#adaptive) temperament retunes the chord around it: 30 ms, or 300 ms to hear it settle. Greyed out under every other temperament |
 | Phase reset | on by default | Starts each partial where its ATTACK says when a note begins from silence: a rising zero crossing, or nearer its peak when the attack is turned below its shortest time. Off, a partial carries on from wherever its cycle was |
 | Safety clip | on by default | Whether the output stage at the end of the chain is running, worth leaving on when you push 32 faders up. Which of its five shapes is running is chosen on the bar, under the meter |
 | Limiter lookahead | off by default | Whether the Limiter may see what is coming. On makes it smooth at the cost of two milliseconds of latency on every shape, since only that one uses the window and the figure must not move with the patch. The only setting here that changes what the plugin reports to your host |
@@ -599,7 +615,7 @@ The safety clip is the exception in this table, and the master fader is the exce
 
 ## Automating it from the host
 
-Eight hundred and thirty-nine parameters reach the host: thirty-seven global ones, twenty-three on each of the 32 partials, eighteen on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals first and then channel by channel with the noise channel last.
+Eight hundred and forty parameters reach the host: thirty-eight global ones, twenty-three on each of the 32 partials, eighteen on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals first and then channel by channel with the noise channel last.
 
 Every per-channel name carries its channel, so a parameter list answers both ways of looking for something. Type `H7` and you have that partial, type `Tune` and you have that row across the whole mixer. The same names are what a screen reader reads, which is why they are words rather than numbers.
 
@@ -621,9 +637,9 @@ LINK is not a parameter, since it is a tool for the mouse rather than part of th
 
 ### Every parameter
 
-All 839 as the host lists them, with a control that every partial or every macro carries given one row for all of them. The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is [parameters.json](https://benjamindehli.github.io/overtonium/parameters.json), written by the plugin rather than by hand.
+All 840 as the host lists them, with a control that every partial or every macro carries given one row for all of them. The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is [parameters.json](https://benjamindehli.github.io/overtonium/parameters.json), written by the plugin rather than by hand.
 
-**Global**, thirty-seven of them.
+**Global**, thirty-eight of them.
 
 | What the host calls it | Id | Range | Default |
 |---|---|---|---|
@@ -639,7 +655,7 @@ All 839 as the host lists them, with a control that every partial or every macro
 | `Tracking` | `track` | Off to 12.0 dB/oct | Off |
 | `Character` | `character` | Pure, Bulb, Rail, Diode, Valve, Op-amp | Pure |
 | `Wobble` | `wobble` | 0 % to 100 % | 0 % |
-| `Temperament` | `temperament` | Equal, Just (major), Pythagorean, Quarter-comma meantone, Werckmeister III, Young | Equal |
+| `Temperament` | `temperament` | Equal, Just (major), Pythagorean, Quarter-comma meantone, Werckmeister III, Young, Adaptive | Equal |
 | `Tuning Root` | `tuningRoot` | C, C#, D, D#, E, F, F#, G, G#, A, A#, B | C |
 | `Reference Pitch` | `referenceHz` | A = 415 Hz, A = 430 Hz, A = 432 Hz, A = 435 Hz, A = 438 Hz, A = 440 Hz, A = 442 Hz, A = 443 Hz, A = 444 Hz, A = 446 Hz, A = 466 Hz | A = 440 Hz |
 | `Aftertouch From` | `atSource` | Channel pressure, Mod wheel, Either | Either |
@@ -664,6 +680,7 @@ All 839 as the host lists them, with a control that every partial or every macro
 | `Glide Trigger` | `glideTrigger` | Always, Legato | Always |
 | `Glide Mode` | `glideMode` | Fixed rate, Fixed time | Fixed rate |
 | `Legato` | `legato` | Off or on | Off |
+| `Adaptive Retune` | `adaptiveRetune` | Fast, Smooth | Fast |
 
 **On every partial**, twenty-three controls, each one on all 32 partials.
 
