@@ -1068,8 +1068,8 @@ void testAdaptiveTuning() {
   // ----------------------------------------------------------------
   //
   // A minor seventh is the harmonic one, 7:4 above its root, alone, over the
-  // fifth, over the major third, and in a dominant seventh, ninth or sharp
-  // ninth, and the rest of the chord stays pure. Judged on its own rather than
+  // fifth, over the major third, and in a dominant seventh or ninth, and the
+  // rest of the chord stays pure. Judged on its own rather than
   // by the interval it spells, since against the fifth it is meant to be the
   // narrow 7:6 of a 4:5:6:7 chord and not a minor third.
   {
@@ -1082,8 +1082,7 @@ void testAdaptiveTuning() {
     double worstSeventh = 0.0, worstRest = 0.0;
 
     const std::vector<std::vector<int>> harmonicShapes{
-        {0, 10},       {0, 7, 10},        {0, 4, 10},
-        {0, 4, 7, 10}, {0, 4, 7, 10, 14}, {0, 4, 7, 10, 15}};
+        {0, 10}, {0, 7, 10}, {0, 4, 10}, {0, 4, 7, 10}, {0, 4, 7, 10, 14}};
     for (const auto &shape : harmonicShapes)
       for (int key = 0; key < 12; ++key) {
         start();
@@ -1113,8 +1112,8 @@ void testAdaptiveTuning() {
     std::printf("  harmonic sevenths in all twelve keys: seventh %.4f cents "
                 "from 7:4, the rest %.3f from pure\n",
                 worstSeventh, worstRest);
-    check(worstSeventh < 0.01, "a minor seventh with no minor third or fourth "
-                               "under it is 7:4 in every key");
+    check(worstSeventh < 0.01, "a minor seventh over its root, third, fifth "
+                               "and ninth is 7:4 in every key");
     check(worstRest < 0.3, "and the rest of the chord stays pure");
 
     // A minor seventh and a major seventh keep the sizes the chain gives
@@ -1194,36 +1193,134 @@ void testAdaptiveTuning() {
     engine.noteOff(62);
     engine.noteOff(65);
 
-    // In passing, a held note is not bent onto it. G minor turning into C: D
-    // lets go and C goes down, and the held B flat stays the minor third over
-    // G it was rather than sliding 48 cents to be a seventh over C.
+    // A sharp ninth keeps the seventh on the chain, since at 7:4 the fifth
+    // from the sharp ninth up to it would be 49 cents flat.
     start();
+    for (const auto k : {48, 52, 55, 58, 63})
+      engine.noteOn(k, 0.8f, p);
+    render(p, 0.05);
+    check(std::abs(centsAbove(58, 48) - minorNine) < 0.01 &&
+              worstOf({48, 52, 55, 58, 63}) < 0.3,
+          "a seventh chord with a sharp ninth keeps its seventh at 9:5 and "
+          "every interval pure");
+    for (const auto k : {48, 52, 55, 58, 63})
+      engine.noteOff(k);
+    render(p, 0.1);
+  }
+
+  // ---- the same keys, the same tuning
+  // ----------------------------------------
+  //
+  // However a chord is played, all at once, a key at a time in any order, or
+  // turned into from another chord, the keys held decide how it is tuned.
+  // Only where the whole chord sits can differ, by whole commas, so it does
+  // not drift. Each chord here once came out differently depending on order:
+  // a seventh decided by which keys had arrived, a second with nothing else
+  // to hold it, and chords that cannot all be pure leaving out a different
+  // interval each time.
+  {
+    const auto shape = [&](const std::vector<int> &keys) {
+      std::vector<double> out;
+      for (const auto k : keys)
+        out.push_back(1200.0 * std::log2(engine.frequencyOfNote(k) /
+                                         engine.frequencyOfNote(keys[0])));
+      return out;
+    };
+
+    const std::vector<std::vector<int>> chords{
+        {60, 70},     {48, 55, 58},     {60, 62, 64},
+        {60, 64, 68}, {60, 63, 66, 69}, {60, 63, 67, 71},
+        {60, 66},     {60, 62, 63},     {48, 52, 55, 57, 62}};
+
+    std::mt19937 rng(23);
+    double worst = 0.0;
+    for (const auto &chord : chords) {
+      std::vector<double> first;
+      for (int way = 0; way < 6; ++way) {
+        start();
+        const auto p = patch(Temperament::Adaptive, 0.01f);
+        // Something played before it, so memory has a say if it can.
+        for (const auto k : {50, 57, 66})
+          engine.noteOn(k + way % 3, 0.8f, p);
+        render(p, 0.1);
+        for (const auto k : {50, 57, 66})
+          engine.noteOff(k + way % 3);
+        render(p, 0.05);
+
+        auto order = chord;
+        std::shuffle(order.begin(), order.end(), rng);
+        for (const auto k : order) {
+          engine.noteOn(k, 0.8f, p);
+          render(p, way < 2 ? 0.0 : 0.1);
+        }
+        render(p, 0.05);
+
+        const auto now = shape(chord);
+        if (first.empty())
+          first = now;
+        for (size_t i = 0; i < now.size(); ++i)
+          worst = std::max(worst, std::abs(now[i] - first[i]));
+        for (const auto k : chord)
+          engine.noteOff(k);
+        render(p, 0.1);
+      }
+    }
+
+    // And turned into rather than struck: G minor becoming C, so the held B
+    // flat is a seventh over C and its fifth, as when they are struck.
+    start();
+    auto p = patch(Temperament::Adaptive, 0.01f);
     for (const auto k : {55, 58, 62})
       engine.noteOn(k, 0.8f, p);
     render(p, 0.1);
-    const auto bFlatBefore = engine.frequencyOfNote(58);
     engine.noteOff(62);
     engine.noteOn(48, 0.8f, p);
-    render(p, 0.1);
-    check(std::abs(1200.0 *
-                   std::log2(engine.frequencyOfNote(58) / bFlatBefore)) < 0.01,
-          "a held B flat is not bent onto a seventh over a C played under it");
+    render(p, 0.5);
+    const auto turned = shape({48, 55, 58});
     for (const auto k : {48, 55, 58})
       engine.noteOff(k);
     render(p, 0.1);
-
-    // And a bare seventh played after its root stays on the chain, as G major
-    // turns into D minor and F arrives while G is still down, since G is on
-    // its way out. With the major third under it, it is G7 and 7:4, as above.
-    for (const auto k : {55, 62})
+    for (const auto k : {48, 55, 58})
       engine.noteOn(k, 0.8f, p);
+    render(p, 0.05);
+    const auto struck = shape({48, 55, 58});
+    for (size_t i = 0; i < struck.size(); ++i)
+      worst = std::max(worst, std::abs(turned[i] - struck[i]));
+    for (const auto k : {48, 55, 58})
+      engine.noteOff(k);
+
+    std::printf("  nine chords struck six ways and one turned into: %.4f "
+                "cents apart at most\n",
+                worst);
+    check(worst < 0.01, "the same keys are tuned the same however they are "
+                        "played");
+  }
+
+  // ---- as little out of tune as it can be
+  // ------------------------------------
+  //
+  // Where a chord cannot all be pure, it gives up as little as it can. C E G
+  // A D keeps its thirds and sixths and gives up the fourth from A to D,
+  // rather than keeping that fourth and giving up three. And C E flat D keeps
+  // its minor third, the D being a ninth and not a root with C its seventh.
+  {
+    start();
+    const auto p = patch(Temperament::Adaptive, 0.01f);
+    for (const auto k : {48, 52, 55, 57, 62})
+      engine.noteOn(k, 0.8f, p);
+    render(p, 0.05);
+    check(worstOf({48, 52, 55, 57}) < 0.3,
+          "C6 with an added ninth keeps C, E, G and A pure");
+    for (const auto k : {48, 52, 55, 57, 62})
+      engine.noteOff(k);
     render(p, 0.1);
-    engine.noteOn(65, 0.8f, p);
-    render(p, 0.1);
-    check(std::abs(centsAbove(65, 55) - (2.0 * tuning::kGrovenFifth -
-                                         tuning::kPureMajorThird)) < 0.01,
-          "an F after a held G and D, with no B, stays on the chain");
-    for (const auto k : {55, 62, 65})
+
+    for (const auto k : {48, 51, 62})
+      engine.noteOn(k, 0.8f, p);
+    render(p, 0.05);
+    check(worstOf({48, 51}) < 0.3,
+          "C minor with an added ninth keeps its minor third pure");
+    for (const auto k : {48, 51, 62})
       engine.noteOff(k);
   }
 

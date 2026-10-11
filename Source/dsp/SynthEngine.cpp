@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <tuple>
 
 namespace ovt {
 
@@ -529,7 +530,10 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
   // else does, so it comes out the same whether or not the fifth beneath it
   // is held: 9:5 for a minor seventh, a fifth and a minor third, and 15:8 for
   // a major, a fifth and a major third. Seconds and the tritone have no one
-  // pure size a chord is reaching for and are left out.
+  // pure size a chord is reaching for, so they come last of all, at the sizes
+  // the just major scale gives them, 16:15, 9:8 and 45:32. They only tie
+  // together notes nothing stronger does, so every held key is in one group
+  // and the chord comes out the same however it was played.
   struct Pure {
     int steps;
     int weight;
@@ -537,12 +541,12 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
 
   static constexpr Pure kByClass[12] = {
       {0, 4},  // unison, octave
-      {0, 0},  // minor second
-      {0, 0},  // major second
+      {7, 0},  // minor second: a fourth up, a major third down
+      {2, 0},  // major second: two fifths
       {9, 2},  // minor third: a fifth up, a major third down
       {-8, 2}, // major third
       {-1, 3}, // fourth
-      {0, 0},  // tritone
+      {-6, 0}, // tritone: two fifths and a major third
       {1, 3},  // fifth
       {8, 2},  // minor sixth
       {-9, 2}, // major sixth
@@ -625,30 +629,26 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
   if (count == 0)
     return 0.0;
 
+  // Lowest key first, so where a chord cannot all be pure the interval left
+  // out is the same whatever order the keys went down in.
+  std::sort(nodes.begin(), nodes.begin() + count,
+            [](const Node &a, const Node &b) { return a.key < b.key; });
+
   // ---- the harmonic seventh -------------------------------------------------
   //
-  // A root's minor seventh is tuned 7:4 above it, the harmonic seventh, where
-  // nothing in the chord is spoiled by that: so a dominant seventh is 4:5:6:7,
-  // four harmonics of one note an octave below its root, and the seventh
-  // agrees with the seventh harmonic every note here already carries. With the
-  // major third held it is a dominant chord, ninths and a sharp ninth
-  // included. Without one, a bare seventh or one over the fifth reads the same
-  // way. A minor third keeps the 9:5 the chain gives it, since 7:4 would leave
-  // the fifth from that third to the seventh 48 cents flat, and so does a
-  // fourth above the root, as in a suspended seventh, whose fourth to the
-  // seventh would be 30 cents off. It is the only pitch here off the chain of
-  // fifths, which has no 7 in it, so it is left out of what the chain solves
-  // and placed on the root afterwards. Where more than one root qualifies,
-  // the one lowest on the keyboard is the chord.
-  //
-  // A note already sounding on the chain is not bent onto it, since that is a
-  // slide of 48 cents on a held key, and it comes most often in passing, as G
-  // minor turns into C and the held B flat is for a moment a seventh over C
-  // and its fifth. A seventh struck after its root is 7:4 only over the major
-  // third, as when G major becomes G7. Without the third it has to be struck
-  // with its root, since as one chord turns into the next a seventh over a
-  // root on its way out is common, and would be 7:4 only to bend 48 cents
-  // back when the root lets go. One that is already 7:4 follows its root.
+  // A root's minor seventh is tuned 7:4 above it, the harmonic seventh, unless
+  // another held note would then sit out of tune with it. Over the root, its
+  // major third, its fifth and its ninth, the seventh makes a chord whose
+  // notes are harmonics 4, 5, 6, 7 and 9 of one note two octaves below the
+  // root, so every partial of every note lands on another and nothing beats,
+  // where the chain would leave the seventh 9:5 against the seventh harmonic
+  // of the root. A note a minor third, a fourth, a minor second or a tritone
+  // above the root would meet the seventh at a fifth, a fourth or a third
+  // well off pure, which beats much harder, so with one of those held the
+  // seventh keeps the size the chain gives it. It is the only pitch here off
+  // the chain of fifths, which has no 7 in it, so it is left out of what the
+  // chain solves and placed on the root afterwards. Where more than one root
+  // qualifies, the one lowest on the keyboard is the chord.
   bool held[12] = {};
   int lowestOf[12];
   for (auto &l : lowestOf)
@@ -662,30 +662,15 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
   int dominant = -1;
   for (int pc = 0; pc < 12; ++pc)
     if (held[(size_t)pc] && held[(size_t)((pc + 10) % 12)] &&
-        (held[(size_t)((pc + 4) % 12)] ||
-         (!held[(size_t)((pc + 3) % 12)] && !held[(size_t)((pc + 5) % 12)])) &&
+        !held[(size_t)((pc + 1) % 12)] && !held[(size_t)((pc + 3) % 12)] &&
+        !held[(size_t)((pc + 5) % 12)] && !held[(size_t)((pc + 6) % 12)] &&
         (dominant < 0 || lowestOf[(size_t)pc] < lowestOf[(size_t)dominant]))
       dominant = pc;
 
-  const auto offChain = [&hzOf, &versionOf](const Voice &v) {
-    return std::abs(1200.0 * std::log2(v.getFrequency() /
-                                       hzOf(v.getNote(), versionOf(v)))) > 1.0;
-  };
-
-  if (dominant >= 0) {
-    bool rootYoung = false;
+  if (dominant >= 0)
     for (int i = 0; i < count; ++i)
-      if (nodes[(size_t)i].key == lowestOf[(size_t)dominant])
-        rootYoung = nodes[(size_t)i].young;
-    const auto joins = held[(size_t)((dominant + 4) % 12)] || rootYoung;
-
-    for (int i = 0; i < count; ++i) {
-      auto &node = nodes[(size_t)i];
-      node.harmonic = classOf(node.key) == (dominant + 10) % 12 &&
-                      ((node.young && joins) ||
-                       (node.voice != nullptr && offChain(*node.voice)));
-    }
-  }
+      nodes[(size_t)i].harmonic =
+          classOf(nodes[(size_t)i].key) == (dominant + 10) % 12;
 
   // ---- the strongest intervals first, each kept if it agrees
   // -----------------
@@ -710,28 +695,31 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
     return std::pair<int, int>{i, total};
   };
 
-  for (const int weight : {4, 3, 2, 1})
-    for (int a = 0; a < count; ++a)
-      for (int b = a + 1; b < count; ++b) {
-        const auto &na = nodes[(size_t)a];
-        const auto &nb = nodes[(size_t)b];
-        if (na.harmonic || nb.harmonic)
-          continue;
-        const auto span = std::abs(na.key - nb.key);
-        const auto &pure = kByClass[(size_t)(span % 12)];
-        if (pure.weight != weight)
-          continue;
+  // In commas, how far above the lower key's version the higher key's has to
+  // be for the pair to be pure. The keys are sorted, so a is the lower.
+  const auto wanted = [&nodes, &classOf](int a, int b) {
+    const auto &low = nodes[(size_t)a];
+    const auto &high = nodes[(size_t)b];
+    const auto &pure = kByClass[(size_t)((high.key - low.key) % 12)];
+    const auto steps = pure.steps - (kMiddleStep[(size_t)classOf(high.key)] -
+                                     kMiddleStep[(size_t)classOf(low.key)]);
+    return steps / 12; // always whole: see kMiddleStep
+  };
 
-        // In commas, how far above the lower key's version the higher key's
-        // has to be for the pair to be pure.
-        const auto &low = na.key <= nb.key ? na : nb;
-        const auto lowIndex = na.key <= nb.key ? a : b;
-        const auto highIndex = na.key <= nb.key ? b : a;
-        const auto &high = na.key <= nb.key ? nb : na;
-        const auto steps =
-            pure.steps - (kMiddleStep[(size_t)classOf(high.key)] -
-                          kMiddleStep[(size_t)classOf(low.key)]);
-        const auto commas = steps / 12; // always whole: see kMiddleStep
+  const auto weightOf = [&nodes](int a, int b) {
+    if (nodes[(size_t)a].harmonic || nodes[(size_t)b].harmonic)
+      return -1;
+    return kByClass[(size_t)((nodes[(size_t)b].key - nodes[(size_t)a].key) %
+                             12)]
+        .weight;
+  };
+
+  for (const int weight : {4, 3, 2, 1, 0})
+    for (int lowIndex = 0; lowIndex < count; ++lowIndex)
+      for (int highIndex = lowIndex + 1; highIndex < count; ++highIndex) {
+        if (weightOf(lowIndex, highIndex) != weight)
+          continue;
+        const auto commas = wanted(lowIndex, highIndex);
 
         const auto [lowRoot, lowAt] = find(lowIndex);
         const auto [highRoot, highAt] = find(highIndex);
@@ -743,6 +731,83 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
         group[(size_t)highRoot] = lowRoot;
         offset[(size_t)highRoot] = lowAt + commas - highAt;
       }
+
+  // ---- then as little out of tune as it can be ------------------------------
+  //
+  // Strongest first can leave out more than it has to. In C E G A D the
+  // fourths E to A and A to D are taken before any third, and between them
+  // they put E and A a comma from where C wants them, three thirds and sixths
+  // given up to keep one fourth. So each key is then tried a comma either
+  // way, alone or with one other, and kept there if that leaves less out of
+  // tune, each interval weighed as above, until no move helps. It looks only at
+  // the keys, so the same keys always come out the same.
+  std::array<int, kPoolSize + 1> top{}, settled{};
+  for (int i = 0; i < count; ++i)
+    std::tie(top[(size_t)i], settled[(size_t)i]) = find(i);
+
+  // Every pair's weight and the difference it wants, worked out once.
+  std::array<std::array<int, kPoolSize + 1>, kPoolSize + 1> pairWeight{},
+      pairWants{};
+  for (int a = 0; a < count; ++a)
+    for (int b = a + 1; b < count; ++b) {
+      const auto weight = weightOf(a, b);
+      pairWeight[(size_t)a][(size_t)b] =
+          top[(size_t)a] == top[(size_t)b] && weight > 0 ? weight : 0;
+      pairWants[(size_t)a][(size_t)b] = wanted(a, b);
+    }
+
+  // How far out of tune the pair a, b is, a below b, at the versions given.
+  const auto strain = [&](int a, int b, int lowAt, int highAt) {
+    return pairWeight[(size_t)a][(size_t)b] *
+           std::abs(highAt - lowAt - pairWants[(size_t)a][(size_t)b]);
+  };
+
+  // What moving i, and j with it, by step does to the whole chord. The two
+  // move together, so the pair between them is left as it is.
+  const auto change = [&](int i, int j, int step) {
+    int sum = 0;
+    const int movers[2] = {i, j};
+    for (int m = 0; m < (j == i ? 1 : 2); ++m) {
+      const auto moving = movers[m];
+      for (int k = 0; k < count; ++k) {
+        if (k == i || k == j)
+          continue;
+        const auto low = std::min(moving, k), high = std::max(moving, k);
+        const auto lowAt = settled[(size_t)low];
+        const auto highAt = settled[(size_t)high];
+        const auto lowStep = low == moving ? step : 0;
+        const auto highStep = high == moving ? step : 0;
+        sum += strain(low, high, lowAt + lowStep, highAt + highStep) -
+               strain(low, high, lowAt, highAt);
+      }
+    }
+    return sum;
+  };
+
+  // One key a comma either way, or two a consonance apart together, since a
+  // third and the fifth above it can be out of tune with the rest only as a
+  // pair.
+  for (bool better = true; better;) {
+    better = false;
+    for (int i = 0; i < count; ++i)
+      for (int j = i; j < count; ++j) {
+        if (nodes[(size_t)i].harmonic || nodes[(size_t)j].harmonic ||
+            (j != i && pairWeight[(size_t)i][(size_t)j] == 0))
+          continue;
+        for (const int step : {-1, 1})
+          if (change(i, j, step) < 0) {
+            settled[(size_t)i] += step;
+            if (j != i)
+              settled[(size_t)j] += step;
+            better = true;
+          }
+      }
+  }
+
+  for (int i = 0; i < count; ++i) {
+    group[(size_t)i] = top[(size_t)i];
+    offset[(size_t)i] = settled[(size_t)i] - settled[(size_t)top[(size_t)i]];
+  }
 
   // ---- where each group sits ------------------------------------------------
   std::array<int, kPoolSize + 1> chosen{};

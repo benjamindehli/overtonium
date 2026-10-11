@@ -63,7 +63,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-10-10",
+                "dateModified": "2026-10-11",
                 "breadcrumb": {
                     "@id": "https://benjamindehli.github.io/overtonium/tuning/#breadcrumb"
                 }
@@ -699,7 +699,9 @@
                         in tune all the way, not only one struck fresh. Keys struck together are settled together. A held note that the new chord
                         needs somewhere else slides there at the speed set under <strong>Retune</strong> in Settings: <em>Fast</em>, 30 ms, quick
                         enough to pass for a note that was always there, or <em>Smooth</em>, 300 ms, slow enough to hear the chord settle. It moves as
-                        few notes as it can, so in most playing nothing slides at all: new notes take whichever version fits the ones already held.
+                        few notes as it can, and new notes take whichever version fits the ones already held. The keys you hold decide how the chord
+                        is tuned, not the order they went down in, so a chord struck at once, played a key at a time or reached from another chord
+                        comes out the same, interval for interval.
                     </p>
 
                     <p>
@@ -716,21 +718,27 @@
                         third close up exactly. Without that, chords far from the root would be left two cents out, which on pure partials is slow but
                         clearly audible beating. The major thirds are pure, and a quarter of a cent on a fifth beats about once every eighteen seconds
                         on the third partial of a note in the middle of the keyboard. The same chord reached by a different route can settle a comma
-                        higher or lower, just as pure, so a piece can end a comma or two from where it began. Root decides where the middle versions
-                        sit, and Reference pitch where A's does.
+                        higher or lower, with every interval in it the same, so a piece can end a comma or two from where it began. Root decides where
+                        the middle versions sit, and Reference pitch where A's does.
                     </p>
 
                     <p>
-                        A minor seventh is tuned on the harmonic seventh, 7:4 above its root, 969 cents, wherever nothing else in the chord is spoiled
-                        by it. A dominant seventh becomes 4:5:6:7: four harmonics of one note an octave below its root, the same seventh every partial
-                        here already carries as its seventh harmonic, and the smoothest a seventh chord can be. It is noticeably lower than the
-                        equal-tempered seventh, which is most of why it sounds so settled. The same goes for ninths, for a seventh over its root alone
-                        and for one over the fifth. A seventh over a minor third keeps 9:5, since 7:4 would put it 48 cents flat of a pure fifth above
-                        that third, a suspended seventh keeps 16:9, two pure fourths, and a major seventh is 15:8. The seventh is 7:4 when it is
-                        struck with its root, or when it joins a root already held with its major third, as G major becomes G7. A note already
-                        sounding is not bent onto it, and a seventh played over a root held without its third stays where the chain puts it, since
-                        both happen all the time in passing from one chord to the next and would each cost a slide of 48 cents. A seventh that stops
-                        being one while it is held slides back to the size its new chord gives it.
+                        Some chords cannot be pure all the way through, because pure fifths and pure thirds never quite meet: in C11 the fifth from G
+                        to D and the minor third from D to F cannot both be. Adaptive then gives up as little as it can, counting a fifth or a fourth
+                        above a third or a sixth and those above a seventh, so C6 with an added ninth keeps its thirds and sixths and lets the fourth
+                        from A to D go a comma wide, rather than keeping that fourth and losing three thirds.
+                    </p>
+
+                    <p>
+                        A minor seventh is tuned on the harmonic seventh, 7:4 above its root, 969 cents, unless another held note would then be out of
+                        tune with it. A dominant seventh becomes 4:5:6:7: four harmonics of one note an octave below its root, the same seventh every
+                        partial here already carries as its seventh harmonic, and the smoothest a seventh chord can be. It is noticeably lower than
+                        the equal-tempered seventh, which is most of why it sounds so settled. A ninth adds the ninth harmonic, and a seventh over its
+                        root alone or over its fifth is 7:4 as well. A minor third above the root keeps the seventh at 9:5, since 7:4 would put it 48
+                        cents flat of a pure fifth above that third, and a sharp ninth does the same for the same reason. A suspended seventh keeps
+                        16:9, two pure fourths, a minor second or a tritone above the root keeps the size the chain gives it too, and a major seventh
+                        is 15:8. Like everything else here it depends only on the keys held, so C and B flat are 7:4 however they were played, and a
+                        held note slides to the harmonic seventh or away from it when the chord around it changes what it is.
                     </p>
 
                     <h3 id="root">Root</h3>
