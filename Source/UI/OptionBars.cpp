@@ -525,8 +525,19 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
     refresh();
   };
 
+  styleSwitch(home, "HOME", "Stay home",
+              "Keeps the chord you hold as near home as Adaptive can, so the "
+              "keyboard does not drift. When a progression would carry it "
+              "off, a held note slides a comma instead. Off, the keyboard "
+              "goes where the music takes it, up to two commas either way.");
+  home.onClick = [this] {
+    settings::apply(apvts, settings::kAdaptiveHome);
+    refresh();
+  };
+
   chordGroup = addGroup({{&pure, 44, {}},
                          {&sevenths, 40, {}},
+                         {&home, 52, {}},
                          {&drift, juce::jmax(40, natural(drift)), "DRIFT"}});
 
   showChord(chord);
@@ -560,6 +571,8 @@ void TuningBar::refresh() {
   setGroupShown(retuneGroup, adaptive);
   sevenths.setToggleState(settings::isOn(apvts, params::adaptiveSeventhId),
                           juce::dontSendNotification);
+  home.setToggleState(settings::isOn(apvts, params::adaptiveHomeId),
+                      juce::dontSendNotification);
   setGroupShown(chordGroup, adaptive);
 
   showScale();

@@ -228,6 +228,7 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
   adaptiveOn = p.global.temperament == Temperament::Adaptive;
   adaptiveRetune = p.global.adaptiveRetuneSeconds;
   harmonicSevenths = p.global.harmonicSevenths;
+  adaptiveHome = p.global.adaptiveHome;
 
   // ---- where a glide comes from ---------------------------------------------
   //
@@ -841,11 +842,16 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
     if (from > to)
       from = to = (from + to) / 2;
 
-    double bestScore[3] = {1.0e18, 1.0e18, 1.0e18};
+    // With Home on, how near the chord sits to home comes before everything
+    // else, so a progression that would pump moves a held note a comma
+    // instead of taking the keyboard with it. Off, it counts for nothing and
+    // the chord stays wherever the music has taken it.
+    double bestScore[4] = {1.0e18, 1.0e18, 1.0e18, 1.0e18};
     int bestPlace = from;
 
     for (int place = from; place <= to; ++place) {
       double moved = 0.0, ringing = 0.0, habit = 0.0;
+      int fromHome = 0;
 
       for (int i = 0; i < count; ++i) {
         const auto [r, at] = find(i);
@@ -854,6 +860,7 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
 
         const auto version = std::clamp(place + at, -kReach, kReach);
         const auto &node = nodes[(size_t)i];
+        fromHome += version;
 
         if (node.voice != nullptr)
           moved += (node.young ? 0.01 : 1.0) * std::abs(version - node.now);
@@ -886,10 +893,11 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
         }
       }
 
-      const double score[3] = {moved, ringing, habit};
-      if (std::lexicographical_compare(score, score + 3, bestScore,
-                                       bestScore + 3)) {
-        std::copy(score, score + 3, bestScore);
+      const double home = adaptiveHome ? (double)std::abs(fromHome) : 0.0;
+      const double score[4] = {home, moved, ringing, habit};
+      if (std::lexicographical_compare(score, score + 4, bestScore,
+                                       bestScore + 4)) {
+        std::copy(score, score + 4, bestScore);
         bestPlace = place;
       }
     }

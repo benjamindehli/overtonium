@@ -181,6 +181,9 @@ bool apply(juce::AudioProcessorValueTreeState &apvts, int id) {
   case kHarmonicSevenths:
     flip(apvts, params::adaptiveSeventhId);
     return true;
+  case kAdaptiveHome:
+    flip(apvts, params::adaptiveHomeId);
+    return true;
 
   case kLegato: {
     // From the list's old legato entry, unticking moves to one voice with the

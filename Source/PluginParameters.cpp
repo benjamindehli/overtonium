@@ -1133,6 +1133,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   layout.add(std::make_unique<BoolP>(juce::ParameterID{adaptiveSeventhId, 1},
                                      "Adaptive Harmonic Seventh", true));
 
+  // Whether it stays home rather than drifting, off by default, after it.
+  layout.add(std::make_unique<BoolP>(juce::ParameterID{adaptiveHomeId, 1},
+                                     "Adaptive Home", false));
+
   return layout;
 }
 
@@ -1147,6 +1151,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   legato = apvts.getRawParameterValue(legatoId);
   adaptiveRetune = apvts.getRawParameterValue(adaptiveRetuneId);
   adaptiveSeventh = apvts.getRawParameterValue(adaptiveSeventhId);
+  adaptiveHome = apvts.getRawParameterValue(adaptiveHomeId);
   bendRange = apvts.getRawParameterValue(bendRangeId);
   phaseReset = apvts.getRawParameterValue(phaseResetId);
   stretch = apvts.getRawParameterValue(stretchId);
@@ -1544,6 +1549,7 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     out.global.adaptiveRetuneSeconds = (double)juce::jlimit(
         0.0f, kMaxAdaptiveRetuneSeconds, adaptiveRetune->load());
     out.global.harmonicSevenths = adaptiveSeventh->load() > 0.5f;
+    out.global.adaptiveHome = adaptiveHome->load() > 0.5f;
 
     out.global.character =
         (Character)pick(character, (int)Character::NumCharacters);

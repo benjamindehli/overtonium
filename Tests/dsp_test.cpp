@@ -782,6 +782,66 @@ void testAdaptiveTuning() {
           "and C never ends more than a comma from where it began");
   }
 
+  // ---- the pump played legato, with and without Home ------------------------
+  //
+  // Each chord keeps the notes it shares with the next held across the
+  // change, so nothing is ever struck into silence and there is nothing to
+  // pull it back: C to A minor keeps C and E, A minor to D minor keeps A, D
+  // minor to G keeps D, and G back to C keeps G. Every chord pure against the
+  // note it kept is a comma lower each time round. Left alone the keyboard
+  // goes with it, and with Home on a held note moves a comma instead and C
+  // comes back where it was.
+  for (const bool home : {false, true}) {
+    start();
+    auto p = patch(Temperament::Adaptive, 0.01f);
+    p.global.adaptiveHome = home;
+
+    const auto change = [&](std::initializer_list<int> off,
+                            std::initializer_list<int> on) {
+      for (const auto k : off)
+        engine.noteOff(k);
+      for (const auto k : on)
+        engine.noteOn(k, 0.8f, p);
+      render(p, 0.15);
+    };
+
+    change({}, {60, 64, 67});
+    const auto firstC = engine.frequencyOfNote(60);
+    double worst = 0.0;
+
+    for (int round = 0; round < 2; ++round) {
+      change({67}, {57});
+      worst = std::max(worst, worstOf({57, 60, 64}));
+      change({60, 64}, {62, 65});
+      worst = std::max(worst, worstOf({57, 62, 65}));
+      change({57, 65}, {55, 59});
+      worst = std::max(worst, worstOf({55, 59, 62}));
+      change({59, 62}, {60, 64});
+      worst = std::max(worst, worstOf({55, 60, 64}));
+      change({55}, {67});
+    }
+
+    const auto drift = 1200.0 * std::log2(engine.frequencyOfNote(60) / firstC);
+    std::printf("  the pump held legato twice round, Home %s: C ends %+.2f "
+                "cents from where it began, worst %.3f off pure\n",
+                home ? "on" : "off", drift, worst);
+
+    check(worst < 0.3, home ? "with Home on every chord is still pure"
+                            : "the pump held legato plays pure");
+    if (home)
+      check(std::abs(drift) < 0.01,
+            "and C comes back exactly where it began, a held note having "
+            "moved instead");
+    else
+      check(std::abs(drift) > tuning::kAdaptiveComma - 0.5,
+            "and C ends at least a comma from where it began, the keyboard "
+            "having gone with it");
+
+    for (const auto k : {60, 64, 67})
+      engine.noteOff(k);
+    render(p, 0.1);
+  }
+
   // ---- a held note does not move --------------------------------------------
   {
     start();

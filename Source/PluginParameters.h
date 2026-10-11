@@ -73,6 +73,11 @@ inline constexpr const char *adaptiveRetuneId = "adaptiveRetune";
 /// belongs to, so a preset never moves it.
 inline constexpr const char *adaptiveSeventhId = "adaptiveSeventh";
 
+/// Whether Adaptive keeps the held chord as near home as it can, moving a held
+/// note a comma when a progression would pump, rather than letting the
+/// keyboard drift. Off by default.
+inline constexpr const char *adaptiveHomeId = "adaptiveHome";
+
 /// The longest a retune can take, in seconds.
 inline constexpr float kMaxAdaptiveRetuneSeconds = 1.0f;
 
@@ -416,6 +421,7 @@ struct Cache {
   std::atomic<float> *legato = nullptr;
   std::atomic<float> *adaptiveRetune = nullptr;
   std::atomic<float> *adaptiveSeventh = nullptr;
+  std::atomic<float> *adaptiveHome = nullptr;
   std::atomic<float> *glideMode = nullptr;
 
   struct Echo {
@@ -490,11 +496,11 @@ juce::String polyphonyName(int index);
 ///
 /// Named here rather than in Presets.cpp so the code that honours the rule and
 /// the test that checks it cannot come to disagree about what the rule is.
-inline const std::array<const char *, 14> kSessionParamIds{
-    polyphonyId,      bendRangeId,      atSourceId,  referenceHzId,
-    temperamentId,    tuningRootId,     mpeId,       slideDestId,
-    oneVoicePerKeyId, phaseResetId,     lookaheadId, legatoId,
-    adaptiveRetuneId, adaptiveSeventhId};
+inline const std::array<const char *, 15> kSessionParamIds{
+    polyphonyId,      bendRangeId,       atSourceId,    referenceHzId,
+    temperamentId,    tuningRootId,      mpeId,         slideDestId,
+    oneVoicePerKeyId, phaseResetId,      lookaheadId,   legatoId,
+    adaptiveRetuneId, adaptiveSeventhId, adaptiveHomeId};
 
 /// Whether `id` is one of those, for the several places that have to ask.
 inline bool isSessionParam(juce::StringRef id) {

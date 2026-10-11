@@ -1113,6 +1113,11 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
             temperamentIndex == (int)Temperament::Adaptive,
             settings::isOn(apvts, params::adaptiveSeventhId));
 
+  // And whether it stays home rather than letting the keyboard drift.
+  m.addItem(settings::kAdaptiveHome, "Stay home, no drift",
+            temperamentIndex == (int)Temperament::Adaptive,
+            settings::isOn(apvts, params::adaptiveHomeId));
+
   juce::PopupMenu zooms;
 
   for (int i = 0; i < (int)std::size(kZoomChoices); ++i) {

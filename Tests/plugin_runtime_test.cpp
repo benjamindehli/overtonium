@@ -806,10 +806,11 @@ void testParameterWiring(OvertoniumProcessor &p) {
   // each channel is per octave or per note. See params::glideTriggerId. Then
   // Legato as a switch of its own beside the voice count. See
   // params::legatoId. Then how fast the adaptive temperament retunes a held
-  // note, and whether it uses the harmonic seventh. See
-  // params::adaptiveRetuneId and params::adaptiveSeventhId.
+  // note, whether it uses the harmonic seventh, and whether it stays home.
+  // See params::adaptiveRetuneId, params::adaptiveSeventhId and
+  // params::adaptiveHomeId.
   const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + 2 + 1 + 1 +
-                       1 + ovt::params::kNumMacros * 6;
+                       1 + 1 + ovt::params::kNumMacros * 6;
 
   // The behaviour that was there before it became a choice. Asked of the
   // parameter rather than of the tree, so the answer does not depend on what
@@ -5569,6 +5570,11 @@ void testSettingsMenu(OvertoniumProcessor &p) {
                   1 &&
               liveUnder("Harmonic sevenths", (int)ovt::Temperament::Just) == 0,
           "and so is Harmonic sevenths");
+    check(liveUnder("Stay home, no drift", (int)ovt::Temperament::Adaptive) ==
+                  1 &&
+              liveUnder("Stay home, no drift", (int)ovt::Temperament::Just) ==
+                  0,
+          "and Stay home");
   }
 
   // The three that answer "what does the controller in front of you send".
@@ -8102,6 +8108,29 @@ void testAdaptiveReadouts(OvertoniumProcessor &p) {
           "and a second click puts it back");
   }
 
+  // ---- Home
+  // ---------------------------------------------------------------------
+  {
+    auto &cap = lampBar.homeSwitch();
+    lampBar.refresh();
+    check(!cap.getToggleState(),
+          "HOME starts dark, the keyboard free to drift");
+
+    cap.onClick();
+    check(st::isOn(p.apvts, ovt::params::adaptiveHomeId) &&
+              cap.getToggleState(),
+          "a click turns it on and lights the cap");
+
+    ovt::SynthParams out{};
+    p.parameters().snapshot(out, 0.0f);
+    check(out.global.adaptiveHome, "and the engine is handed it");
+
+    cap.onClick();
+    check(!st::isOn(p.apvts, ovt::params::adaptiveHomeId) &&
+              !cap.getToggleState(),
+          "and a second click turns it off");
+  }
+
   // ---- only under Adaptive -------------------------------------------------
   {
     std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());
@@ -8127,6 +8156,7 @@ void testAdaptiveReadouts(OvertoniumProcessor &p) {
       opener->onClick();
       bar->refresh();
       check(bar->pureLamp().isVisible() && bar->seventhsSwitch().isVisible() &&
+                bar->homeSwitch().isVisible() &&
                 bar->driftDisplay().isVisible() &&
                 !bar->pureLamp().getWantsKeyboardFocus(),
             "PURE, 7:4 and DRIFT show under Adaptive, as indicators that "

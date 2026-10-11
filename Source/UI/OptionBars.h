@@ -143,6 +143,7 @@ public:
   const SegmentDisplay &driftDisplay() const { return drift; }
   const ScreenSwitch &pureLamp() const { return pure; }
   GlowButton &seventhsSwitch() { return sevenths; }
+  GlowButton &homeSwitch() { return home; }
 
   /// The word the temperament display shows for each temperament, in their
   /// order, sized for its nine cells.
@@ -175,6 +176,9 @@ private:
   /// Whether Adaptive puts a seventh on 7:4 at all, a cap that lights while
   /// it does, like LEGATO and MPE.
   GlowButton sevenths;
+
+  /// Whether Adaptive stays home rather than drifting, a cap beside DRIFT.
+  GlowButton home;
 
   /// How far the held chord sits from home, in whole commas.
   SegmentDisplay drift{{}, SegmentDisplay::Bars::Seven, 2};

@@ -21,6 +21,7 @@ enum Id : int {
   kLookahead = 304,
   kLegato = 305,
   kHarmonicSevenths = 306,
+  kAdaptiveHome = 307,
   kAftertouchFrom = 600,
   kTemperament = 900,
   kRoot = 1000,
