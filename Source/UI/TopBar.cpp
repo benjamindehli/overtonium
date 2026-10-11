@@ -347,7 +347,7 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   addAndMakeVisible(characterButton);
 
   // ---- presets --------------------------------------------------------------
-  presetDisplay.setReading(kNoPreset, false);
+  presetDisplay.setReading(kNoPreset, true);
   presetDisplay.setTooltip("Factory and saved presets, and somewhere to put "
                            "the one you are working on");
   presetDisplay.onClick = [this] { showPresetMenu(); };
@@ -676,11 +676,9 @@ void TopBar::showLinkMenu(juce::Component *anchor,
 void TopBar::setPresetName(const juce::String &name) {
   presetName = name;
 
-  // Lit when something is loaded and dim when nothing is, which is the rule
-  // the converter readouts beside it follow: a display says whether what it
-  // shows is a setting or a statement of fact.
-  presetDisplay.setReading(name.isEmpty() ? kNoPreset : name,
-                           name.isNotEmpty());
+  // Lit either way. A segment is lit or it is not, and SELECT is as much a
+  // reading as a name is.
+  presetDisplay.setReading(name.isEmpty() ? kNoPreset : name, true);
 
   // The same as the character button: the text on it is a value, so the name
   // has to supply what the value is of. It matters more here than anywhere,
@@ -1235,7 +1233,9 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
   const auto rateReading =
       shown > 0.0 ? juce::String(shown / 1000.0, 1) : juce::String();
 
-  rateDisplay.setReading(rateReading, cutting);
+  // Lit whether it is cutting or not, since the host's own rate is as true a
+  // reading as a reduced one.
+  rateDisplay.setReading(rateReading, true);
 
   // The name carries the reading as well as the label. A screen reader takes
   // a component's title for its name, so a title of "Sample rate" on its own
@@ -1250,7 +1250,7 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
       params::lofiBitsId, (int)params::kLofiBitChoices.size())];
 
   // Nothing being quantised means the 32-bit float everything else runs in.
-  bitsDisplay.setReading(juce::String(bits > 0 ? bits : 32), bits > 0);
+  bitsDisplay.setReading(juce::String(bits > 0 ? bits : 32), true);
   bitsDisplay.setTitle("Bit depth: " + juce::String(bits > 0 ? bits : 32) +
                        " bit");
 

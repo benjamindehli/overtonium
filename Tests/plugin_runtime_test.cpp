@@ -2811,9 +2811,9 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
             ")");
 
   setVolume(0, 0.0f);
-  check(level.getReading() == "-inF" && !level.isActive(),
-        "and all the way down it reads -inF, dimmed, since that is a statement "
-        "rather than a level (" +
+  check(level.getReading() == "-inF" && level.isActive(),
+        "and all the way down it reads -inF, lit, a segment being lit or not "
+        "rather than dimmer (" +
             level.getReading().toStdString() + ")");
 
   setVolume(0, 0.5f);
@@ -2840,8 +2840,8 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
                                      atDb(-99.9f).toStdString() + ")");
 
   // Below the floor there is no figure that fits, so it says so instead.
-  check(atDb(-100.5f) == "-inF" && !level.isActive(),
-        "quieter than the floor reads -inF, dimmed (" +
+  check(atDb(-100.5f) == "-inF" && level.isActive(),
+        "quieter than the floor reads -inF, lit (" +
             atDb(-100.5f).toStdString() + ")");
 
   // Whatever it shows has to fit the cells: a sign and four digits.
@@ -2914,8 +2914,8 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   // implying a choice.
   auto &cents = *onFirst.front();
 
-  check(cents.getReading() == "0.0" && !cents.isActive(),
-        "the fundamental has no cents to report, and is dimmed (" +
+  check(cents.getReading() == "0.0" && cents.isActive(),
+        "the fundamental has no cents to report, and says 0.0 (" +
             cents.getReading().toStdString() + ")");
 
   // A partial that does. Harmonic 3 sits just under two cents above equal
@@ -2998,7 +2998,10 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
 
     // The leading cell only, and inside the recess, whose own lit edge runs
     // round the perimeter and would otherwise be the extent of everything.
-    for (int x = 0; x < im.getWidth() / 4; ++x) {
+    // A cell is a quarter of the run and the run does not fill the box, so the
+    // first cell reaches a little past a quarter of it and stops short of
+    // three tenths, where the second begins.
+    for (int x = 0; x < im.getWidth() * 3 / 10; ++x) {
       bool any = false;
 
       for (int y = 4; y < im.getHeight() - 4 && !any; ++y)
@@ -7856,9 +7859,9 @@ void testTuningBar(OvertoniumProcessor &p) {
     for (int pc = 0; pc < 12; ++pc)
       allLit &= bar->scaleDisplay(pc).isActive();
 
-    check(read(9) == "0.0" && read(0) == "+15.6" && read(4) == "+2.0" &&
-              read(7) == "+17.6" && allLit,
-          "Just on C reads A 0.0, C +15.6, E +2.0 and G +17.6, all lit (" +
+    check(read(9) == "0.0" && read(0) == "15.6" && read(4) == "2.0" &&
+              read(7) == "17.6" && allLit,
+          "Just on C reads A 0.0, C 15.6, E 2.0 and G 17.6, all lit (" +
               read(9).toStdString() + ", " + read(0).toStdString() + ", " +
               read(4).toStdString() + ", " + read(7).toStdString() + ")");
 
@@ -7972,9 +7975,9 @@ void testAdaptiveReadouts(OvertoniumProcessor &p) {
                 bar.driftDisplay().getReading().trim().toStdString() + ")");
 
       bar.showChord({});
-      check(bar.driftDisplay().getReading().trim() == "-" &&
+      check(bar.driftDisplay().getReading().isEmpty() &&
                 !bar.driftDisplay().isActive(),
-            "and nothing held reads a dash, dimmed");
+            "and nothing held leaves its cells unlit");
       bar.showChord(lastChord);
       check(std::abs(at(0) - 15.6) < 0.3 &&
                 std::abs(at(4) - at(0) + 13.7) < 0.15 &&
@@ -8060,6 +8063,90 @@ void testAdaptiveReadouts(OvertoniumProcessor &p) {
 
   restoreSessionSettings(p);
   p.applyFactoryPreset(presetIndex("Init"));
+}
+
+/// A display has a fixed set of cells, each with its bars and a decimal
+/// point, and a reading only lights some of them, the way a real one does.
+void testSegmentCells() {
+  section("Segment displays have cells, and light them");
+
+  using ovt::ui::SegmentDisplay;
+
+  const auto render = [](const juce::String &reading, bool lit,
+                         SegmentDisplay::Bars bars =
+                             SegmentDisplay::Bars::Seven,
+                         int cells = 4) {
+    SegmentDisplay d({}, bars, cells);
+    d.setBounds(0, 0, 92, 30);
+    d.setReading(reading, lit);
+    return d.createComponentSnapshot(d.getLocalBounds());
+  };
+
+  const auto differ = [](const juce::Image &a, const juce::Image &b, int fromX,
+                         int toX) {
+    int n = 0;
+    for (int y = 0; y < a.getHeight(); ++y)
+      for (int x = fromX; x < toX; ++x)
+        n += a.getPixelAt(x, y) != b.getPixelAt(x, y) ? 1 : 0;
+    return n;
+  };
+
+  // ---- the figures keep their size and place --------------------------------
+  //
+  // A number stands to the right, so its last two cells are the same whether
+  // a tens digit stands in front of them or not.
+  {
+    const auto short_ = render("8.8", true), long_ = render("88.8", true);
+    const auto half = short_.getWidth() / 2;
+    check(differ(short_, long_, half, short_.getWidth()) == 0 &&
+              differ(short_, long_, 0, half) > 0,
+          "8.8 and 88.8 draw their last cells alike, the figures keeping "
+          "their size");
+  }
+
+  // ---- a point is a cell's own
+  // ------------------------------------------------
+  {
+    const auto pointed = render("88.8", true), plain = render("888", true);
+    check(differ(pointed, plain, 0, pointed.getWidth()) > 0,
+          "a point lights the point of the cell before it");
+
+    SegmentDisplay d({}, SegmentDisplay::Bars::Seven, 4);
+    d.setBounds(0, 0, 92, 30);
+    d.setReading("-12.5", true);
+    d.createComponentSnapshot(d.getLocalBounds());
+    check(d.cellsDrawn() == 5, "and -12.5 fits four cells, the point riding "
+                               "on the two (" +
+                                   std::to_string(d.cellsDrawn()) + ")");
+  }
+
+  // ---- off is unlit, not grey
+  // -------------------------------------------------
+  {
+    const auto off = render("88.8", false), empty = render({}, true);
+    check(differ(off, empty, 0, off.getWidth()) == 0,
+          "a display with nothing to say shows its unlit bars and nothing "
+          "else, whatever its reading");
+
+    const auto offName =
+                   render("ADAPTIVE", false, SegmentDisplay::Bars::Fourteen, 8),
+               emptyName = render({}, true, SegmentDisplay::Bars::Fourteen, 8);
+    check(differ(offName, emptyName, 0, offName.getWidth()) == 0,
+          "fourteen bars as well as seven");
+  }
+
+  // ---- over range
+  // -------------------------------------------------------------
+  {
+    SegmentDisplay d({}, SegmentDisplay::Bars::Seven, 4);
+    d.setBounds(0, 0, 92, 30);
+    d.setReading("12345", true);
+    const auto over = d.createComponentSnapshot(d.getLocalBounds());
+    const auto dashes = render("----", true);
+
+    check(d.cellsDrawn() == 0 && differ(over, dashes, 0, over.getWidth()) == 0,
+          "a reading longer than its cells shows a minus in every cell");
+  }
 }
 
 /// LINK comes back the way it was left.
@@ -10982,6 +11069,7 @@ int main(int argc, char **argv) {
   testZoomTickFollowsTheZoom(processor);
   testDrawingAcrossTheFaders(processor);
   testLinkSurvivesAReopen(processor);
+  testSegmentCells();
   testOptionBars(processor);
   testSharedSettingsChoices(processor);
   testPlayingBar(processor);

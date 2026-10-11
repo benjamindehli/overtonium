@@ -87,7 +87,8 @@ public:
 private:
   juce::AudioProcessorValueTreeState &apvts;
 
-  SegmentDisplay voices{{}}, bend{"st"};
+  SegmentDisplay voices{{}, SegmentDisplay::Bars::Seven, 2};
+  SegmentDisplay bend{"st", SegmentDisplay::Bars::Seven, 2};
   SegmentDisplay aftertouch{{}, SegmentDisplay::Bars::Fourteen, 8};
   SegmentDisplay slide{{}, SegmentDisplay::Bars::Fourteen, 6};
   GlowButton legato, onePerKey, mpe;
@@ -162,7 +163,7 @@ private:
 
   SegmentDisplay temperament{{}, SegmentDisplay::Bars::Fourteen, 9};
   SegmentDisplay root{{}, SegmentDisplay::Bars::Fourteen, 2};
-  SegmentDisplay reference{"Hz"};
+  SegmentDisplay reference{"Hz", SegmentDisplay::Bars::Seven, 3};
   LabelledKnob retune{"RETUNE"};
 
   /// One display a pitch class, C to B, saying how far it sits from equal
@@ -179,7 +180,7 @@ private:
   AdaptiveReadout readout;
 
   /// How far the held chord sits from home, in whole commas.
-  SegmentDisplay drift{{}};
+  SegmentDisplay drift{{}, SegmentDisplay::Bars::Seven, 2};
 
   int retuneGroup = -1, readoutGroup = -1;
 };

@@ -273,13 +273,15 @@ double centsBetween(double low, double high) {
   return 1200.0 * std::log2(high / low);
 }
 
-/// Cents as a display shows them: one decimal, a sign either side of zero,
-/// and a plain zero for anything that rounds to it.
+/// Cents as a display shows them: one decimal, a minus below zero, and a
+/// plain zero for anything that rounds to it.
 juce::String centsReading(double cents) {
+  // No plus, which seven bars cannot draw. A sharp note is the one with no
+  // sign, as on a channel's own readout and on a tuner.
   if (std::abs(cents) < 0.05)
     return "0.0";
 
-  return (cents > 0.0 ? "+" : "") + juce::String(cents, 1);
+  return juce::String(cents, 1);
 }
 
 /// Pure sizes for the intervals a chord reaches for, in cents within an
@@ -577,10 +579,10 @@ void TuningBar::showChord(const AdaptiveSnapshot &snapshot) {
   const auto reading = AdaptiveReading::of(snapshot);
   readout.show(reading);
 
-  // Nothing held has nowhere to sit, so it says nothing rather than zero.
+  // Nothing held has nowhere to sit, so its cells stay dark rather than say
+  // zero.
   const auto held = snapshot.count > 0;
-  drift.setReading(held ? juce::String(reading.drift) : juce::String("-"),
-                   held);
+  drift.setReading(held ? juce::String(reading.drift) : juce::String(), held);
   drift.setTitle(held
                      ? "Drift: " + juce::String(reading.drift) +
                            (std::abs(reading.drift) == 1 ? " comma" : " commas")

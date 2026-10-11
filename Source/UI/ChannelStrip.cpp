@@ -170,6 +170,11 @@ uint8_t segmentsFor(char c) {
   // two things these displays have to say that are not numbers. Lower case
   // where the upper case letter has no seven-bar form, which is what a real
   // display does rather than leaving the cell blank.
+  // The middle bar on its own, which is all a minus is on a real display. It
+  // takes a cell like any digit.
+  case '-':
+    return kSegG;
+
   case 'E':
     return kSegA | kSegD | kSegE | kSegF | kSegG;
   case 'F':
@@ -218,7 +223,9 @@ uint8_t segmentsFor(char c) {
 /// There is no plus. Seven bars cannot make one worth reading, so nothing
 /// asks for one, and a character with no form here comes out blank rather
 /// than as the speck a plus would be.
-bool isNarrow(char c) { return c == '.' || c == '-'; }
+/// The decimal point, which every cell has beside it rather than a cell of
+/// its own.
+bool isNarrow(char c) { return c == '.'; }
 
 /// One segment, as an elongated hexagon with mitred ends.
 ///
@@ -306,13 +313,13 @@ uint16_t starburstFor(char c) {
   case '9':
     return kStA | kStB | kStC | kStD | kStF | kStG;
 
-  // The sharp, for a root of C# or F# in the Tuning bar. None of the cell's
-  // own bars stand where a hash's lines do, a third of the way in from each
-  // side, and every pick of them read as a broken letter, so it is drawn as
-  // bars of its own over an unlit cell. See paintStarburst. This only has to
-  // say that it can be drawn.
+  // The sharp, for a root of C# or F# in the Tuning bar, in the form
+  // fourteen-bar displays write it: the middle crossed by the centre uprights,
+  // with the right uprights and the bottom bar. A cell has no bars a third of
+  // the way in from each side, where a printed hash has its lines, so this is
+  // as near as the hardware comes.
   case '#':
-    return kStG;
+    return kStB | kStC | kStD | kStG | kStI | kStL;
 
   case 'A':
     return kStA | kStB | kStC | kStE | kStF | kStG;
@@ -544,8 +551,7 @@ void SegmentDisplay::paintGlyph(juce::Graphics &g, juce::Rectangle<float> area,
 void SegmentDisplay::paintStarburst(juce::Graphics &g,
                                     juce::Rectangle<float> area, char c,
                                     juce::Colour on, juce::Colour off) const {
-  // The sharp lights none of the cell's own bars and lays its own over them.
-  const auto lit = c == '#' ? (uint16_t)0 : starburstFor(c);
+  const auto lit = starburstFor(c);
 
   // Thinner than a seven-bar cell's. Fourteen bars in the same box means four
   // diagonals crossing the middle, and at the seven-bar weight they meet in a
@@ -652,25 +658,6 @@ void SegmentDisplay::paintStarburst(juce::Graphics &g,
     g.setColour(isLit ? on : off);
     g.drawLine(at, t * 0.9f);
   }
-
-  // A hash: two uprights and two flat bars a third of the way in, the same
-  // weight and shape as the cell's own bars so it reads as lit on this glass
-  // rather than printed over it.
-  if (c == '#') {
-    g.setColour(on);
-
-    const auto upTop = h * 0.16f, upHeight = h * 0.68f;
-    const auto acrossLeft = w * 0.06f, acrossWidth = w * 0.88f;
-
-    for (const auto x : {w * 0.33f - t * 0.5f, w * 0.67f - t * 0.5f})
-      g.fillPath(segmentShape(juce::Rectangle<float>(x, upTop, t, upHeight)
-                                  .translated(area.getX(), area.getY())));
-
-    for (const auto y : {h * 0.37f - t * 0.5f, h * 0.63f - t * 0.5f})
-      g.fillPath(
-          segmentShape(juce::Rectangle<float>(acrossLeft, y, acrossWidth, t)
-                           .translated(area.getX(), area.getY())));
-  }
 }
 
 /// What the unit takes beside the digits, and what has to be left for them.
@@ -705,14 +692,16 @@ SegmentDisplay::createAccessibilityHandler() {
 void SegmentDisplay::paint(juce::Graphics &g) {
   auto area = getLocalBounds().toFloat().reduced(1.0f);
 
-  const auto on = active ? colours::accent : colours::textDim;
-
   // Fainter where there are fourteen bars to a cell. Twice the bars means
   // twice the unlit ones, and at the seven-bar weight the dead segments add
   // up to a grid the lit ones have to be picked out of.
   const auto rest = bars == Bars::Fourteen ? 0.55f : 1.0f;
-  const auto off = on.withAlpha((hovered ? 0.20f : 0.12f) * rest);
-  const auto lit = on.withAlpha(active ? 0.95f : 0.75f);
+  const auto off = colours::accent.withAlpha((hovered ? 0.20f : 0.12f) * rest);
+
+  // A display with nothing to say shows its unlit bars and nothing else. A
+  // reading drawn in a dimmer colour is a thing no real display can do: a
+  // segment is lit or it is not.
+  const auto lit = active ? colours::accent.withAlpha(0.95f) : off;
 
   // Set into the panel rather than laid on it. The margin this uses is the one
   // pixel the ground was already leaving, so the digits keep every pixel they
@@ -731,54 +720,19 @@ void SegmentDisplay::paint(juce::Graphics &g) {
 
   area = area.reduced(3.0f, 2.0f);
 
-  drawn = 0;
-
-  if (reading.isEmpty())
-    return;
-
-  // The point and the sign ride on narrow stripes of their own rather than
-  // taking a whole cell, the way they do on a real display.
-  int cells = 0, points = 0;
-
-  for (auto c : reading)
-    (isNarrow((char)c) ? points : cells) += 1;
-
-  // Every character takes a whole cell where there are fourteen bars. A sign
-  // riding on a narrow stripe is a thing a number does, and this one spells,
-  // so a hyphen is a letter's worth of room like anything else. Counting it
-  // as a stripe left the cells one short of the characters and dropped the
-  // last one: Lo-fi came out as LO-F.
-  if (bars == Bars::Fourteen) {
-    cells += points;
-    points = 0;
-  }
-
-  // A name longer than the display can spell legibly is cut rather than
-  // squeezed. Below about five pixels a fourteen-bar cell is four diagonals
-  // in a smudge, and a reading nobody can make out is worse than a short one.
-  if (bars == Bars::Fourteen) {
-    constexpr float kNarrowestCell = 5.0f;
-
-    const auto room = (int)(area.getWidth() / kNarrowestCell);
-
-    if (cells > room) {
-      cells = juce::jmax(1, room);
-      points = 0;
-    }
-  }
-
-  if (cells < 1)
-    return;
-
-  // The unit only earns its place once the digits have what they need, and it
-  // takes the room the words actually need rather than the budget set aside
-  // for them.
+  // ---- the cells
+  // -------------------------------------------------------------
   //
-  // kUnitWidth is a reserve wide enough for the longest of them. Centring the
-  // block on the reserve rather than on the text puts whatever is left over
-  // inside the block, so a short unit pushes the digits left and the reading
-  // sits against the inside of the screen looking cropped. "kHz" is three
-  // characters in a reserve sized for more.
+  // A fixed number of them, each with its bars and a decimal point beside it,
+  // all drawn whatever the reading is, and laid out from the display's size
+  // alone. A reading lights some of them. So the figures are the same size
+  // whatever they say, a point is the point of the cell before it rather than
+  // a sliver of its own, and a minus is a cell's middle bar.
+  const auto cells = juce::jlimit(1, kMaxCells, fixedCells);
+
+  // The unit is printed beside the cells, like a legend on the panel, and
+  // takes the room the words need rather than the whole reserve, so a short
+  // unit does not leave the cells sitting off to one side.
   const auto unitFont = makeFont(7.5f, true);
 
   auto unitW = 0.0f;
@@ -791,86 +745,90 @@ void SegmentDisplay::paint(juce::Graphics &g) {
                        measure.getBoundingBox(0, -1, true).getWidth() + 2.0f);
   }
 
-  // A point costs about a third of a digit, which is what the extra term in
-  // the denominator is buying.
   // Wider than a seven-bar cell for its height, because there is more to fit
   // across it: the two middle uprights and the four diagonals all live in the
   // width, and at the narrower ratio they met in the middle as a blot.
   const auto widest =
       area.getHeight() * (bars == Bars::Fourteen ? 0.74f : 0.72f);
+  const auto cellW =
+      juce::jmin((area.getWidth() - unitW) / (float)cells, widest);
 
-  // No margin is taken out of this.
-  //
-  // Two pixels were, to stop the leading segment landing against the inside
-  // of the screen. It was not landing there, and taking them changed what the
-  // line below chooses: with less room, a reading that had been sized off its
-  // own height came to be sized off the width instead, so the figures grew
-  // and shrank with how many characters were in them. A readout whose digits
-  // change size as the number changes is worse than one sitting a pixel
-  // nearer its edge than it might.
-  const auto cellW = juce::jmin((area.getWidth() - unitW) /
-                                    ((float)cells + 0.32f * (float)points),
-                                widest);
-
-  const auto glyphW = cellW * 0.82f;
-  const auto pointW = cellW * 0.32f;
-  const auto runW = cellW * (float)cells + pointW * (float)points;
-
-  // Centred as one block, so a three-character reading does not sit off to one
-  // side of a display sized for four.
-  auto x = area.getCentreX() - (runW + unitW) * 0.5f;
-
-  const auto digitArea = area.withX(x).withWidth(runW);
+  // The figure, and the point in the room to its right.
+  const auto glyphW = cellW * 0.78f;
+  const auto runW = cellW * (float)cells;
+  const auto left = area.getCentreX() - (runW + unitW) * 0.5f;
 
   if (unitW > 0.0f) {
     g.setColour(colours::textDim.withAlpha(0.8f));
     g.setFont(unitFont);
-    g.drawText(unitText,
-               area.withX(digitArea.getRight() + 2.0f).withWidth(unitW - 2.0f),
+    g.drawText(unitText, area.withX(left + runW + 2.0f).withWidth(unitW - 2.0f),
                juce::Justification::centredLeft, false);
   }
 
-  drawn = 0;
+  // What each cell shows. A point lights the point of the cell before it,
+  // and only starts a cell of its own at the front of a reading.
+  struct Cell {
+    char c = ' ';
+    bool point = false;
+  };
 
-  for (int i = 0; i < reading.length(); ++i) {
-    const auto c = (char)reading[i];
+  std::array<Cell, kMaxCells> laid{};
+  int used = 0;
+  bool over = false;
 
-    if (bars == Bars::Fourteen && drawn >= cells)
+  for (auto ch : reading) {
+    const auto c = (char)ch;
+
+    if (c == '.' && used > 0 && !laid[(size_t)(used - 1)].point) {
+      laid[(size_t)(used - 1)].point = true;
+      continue;
+    }
+
+    if (used == cells) {
+      over = true;
       break;
-
-    if (bars == Bars::Fourteen) {
-      // Everything takes a whole cell here. A sign riding on a narrow stripe
-      // is a thing a number does, and this one is spelling.
-      paintStarburst(g, {x, digitArea.getY(), glyphW, digitArea.getHeight()}, c,
-                     lit, off);
-      x += cellW;
-      ++drawn;
-      continue;
     }
 
-    if (isNarrow(c)) {
-      // Same weight as a segment. The point sits on the baseline the segments
-      // end on, the sign across the middle where the g bar runs.
-      const auto t = juce::jmax(1.0f, digitArea.getHeight() * 0.16f);
-      const auto midY = digitArea.getCentreY() - t * 0.5f;
+    laid[(size_t)used++] = c == '.' ? Cell{' ', true} : Cell{c, false};
+  }
 
-      g.setColour(lit);
+  // More than the cells can hold is shown as over range, a minus in every
+  // cell, the way a meter shows it, rather than as a reading with its front
+  // cut off.
+  if (over) {
+    for (int i = 0; i < cells; ++i)
+      laid[(size_t)i] = {'-', false};
+    used = cells;
+  }
 
-      if (c == '.')
-        g.fillRoundedRectangle(x + (pointW - t) * 0.5f,
-                               digitArea.getBottom() - t, t, t, t * 0.35f);
-      else
-        g.fillRoundedRectangle(x, midY, pointW, t, t * 0.35f);
+  drawn = over ? 0 : reading.length();
 
-      x += pointW;
-      ++drawn;
-      continue;
-    }
+  // A number stands to the right, the way a meter's does, so its units digit
+  // keeps its place as it grows. A name starts at the left.
+  const auto from = bars == Bars::Seven ? cells - used : 0;
 
-    paintGlyph(g, {x, digitArea.getY(), glyphW, digitArea.getHeight()}, c, lit,
-               off);
-    x += cellW;
-    ++drawn;
+  const auto t = bars == Bars::Fourteen
+                     ? juce::jmax(1.0f, area.getHeight() * 0.095f)
+                     : juce::jmax(1.0f, area.getHeight() * 0.16f);
+  const auto dot = juce::jmin(t * (bars == Bars::Fourteen ? 1.3f : 1.0f),
+                              (cellW - glyphW) * 0.9f);
+
+  for (int i = 0; i < cells; ++i) {
+    const auto at = i - from;
+    const auto cell =
+        at >= 0 && at < used ? laid[(size_t)at] : Cell{' ', false};
+    const auto x = left + cellW * (float)i;
+    const juce::Rectangle<float> glyph{x, area.getY(), glyphW,
+                                       area.getHeight()};
+
+    if (bars == Bars::Fourteen)
+      paintStarburst(g, glyph, cell.c, lit, off);
+    else
+      paintGlyph(g, glyph, cell.c, lit, off);
+
+    g.setColour(cell.point ? lit : off);
+    g.fillRoundedRectangle(x + glyphW + (cellW - glyphW - dot) * 0.5f,
+                           area.getBottom() - dot, dot, dot, dot * 0.35f);
   }
 }
 
@@ -1459,16 +1417,13 @@ void ChannelStrip::updateTuneReadout() {
   const auto cents = blend * info.jiCents;
 
   juce::String text;
-  auto active = true;
 
   if (std::abs(info.jiCents) < 0.05) {
     // The octaves land in the same place either way, so there is nothing for
-    // the knob to do and the display says so rather than implying a choice.
+    // the knob to do, and the display says so.
     text = "0.0";
-    active = false;
   } else if (blend <= 0.0005) {
     text = "Et";
-    active = false;
   } else {
     // Only the minus is shown. Seven bars can make a convincing minus but not
     // a plus: the upright has to be drawn into the same narrow cell, and what
@@ -1483,18 +1438,20 @@ void ChannelStrip::updateTuneReadout() {
         std::abs(cents) < 0.05 ? juce::String("0.0") : juce::String(cents, 1);
   }
 
-  tuneReadout.setReading(text, active && !silenced);
+  // A channel silenced by another's solo has nothing sounding to report, so
+  // its cells go dark.
+  tuneReadout.setReading(text, !silenced);
 }
 
 void ChannelStrip::updateLevelReadout() {
   const auto v = (float)volume.getValue();
 
   // A fader all the way down has no decibels to report, and saying so is more
-  // use than a floor figure that looks like a setting. Dimmed, since it is the
-  // one reading that is not a level. Everything above that counts down to
-  // params::kQuietestLevelDb, which is as far as the cells reach.
+  // use than a floor figure that looks like a setting. Everything above that
+  // counts down to params::kQuietestLevelDb, which is as far as the cells
+  // reach.
   if (params::isSilentGain(v))
-    return levelReadout.setReading("-inF", false);
+    return levelReadout.setReading("-inF", !silenced);
 
   const auto db = params::levelDecibels(v);
 

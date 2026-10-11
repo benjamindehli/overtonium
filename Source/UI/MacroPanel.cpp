@@ -273,9 +273,6 @@ void MacroPanel::showReading(int macro) {
   // a speck beside it. The tuning readouts write a sharp partial the same
   // way, with no sign at all, and a tuner does too.
   //
-  // Dim at nothing, the way a fader all the way down reads -inF dimmed: an
-  // amount of zero is a statement that the macro is doing nothing rather
-  // than a level it has been set to.
   const auto share = (float)strip.amount.getValue() * 100.0f;
 
   // Every element in the same place whatever the number is, which is what a
@@ -308,7 +305,7 @@ void MacroPanel::showReading(int macro) {
   shown += ".";
   shown += digit(tenths % 10);
 
-  strip.reading.setReading(shown, tenths > 0);
+  strip.reading.setReading(shown, true);
 
   // Said in words as well, because the cells are drawn rather than written
   // and there is no other way to read them. This was a Label before, whose

@@ -431,7 +431,8 @@ private:
   /// Under the meter, at the end of the chain, which is where a converter
   /// sits. On the panel rather than in a menu because they are part of a
   /// preset: loading one can change them, so they have to be visible.
-  SegmentDisplay rateDisplay{"kHz"}, bitsDisplay{"bit"};
+  SegmentDisplay rateDisplay{"kHz"},
+      bitsDisplay{"bit", SegmentDisplay::Bars::Seven, 2};
 
   /// Which oscillator the partials are, at the head of the group that says
   /// what the series is. A word rather than a readout, since none of these is

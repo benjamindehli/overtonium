@@ -172,21 +172,26 @@ public:
   /// the one display that has to spell: a preset is called Glockenspiel.
   enum class Bars { Seven, Fourteen };
 
-  /// @param unit   drawn small beside the digits, or empty for none.
-  /// @param cells  how many characters the display has, or 0 to size itself
-  ///               to whatever it is given. A fixed count keeps the cells the
-  ///               same width whatever the reading is, and fills the ones a
-  ///               short reading does not reach, which is what a display with
-  ///               a real number of digits in it does.
-  explicit SegmentDisplay(juce::String unit, Bars bars = Bars::Seven,
-                          int cells = 0);
+  /// The most cells a display can have.
+  static constexpr int kMaxCells = 16;
 
-  /// @param digits  0 to 9, a decimal point, a leading + or -, and the
+  /// @param unit   drawn small beside the digits, or empty for none.
+  /// @param cells  how many cells the display has, each with its bars and a
+  ///               decimal point. Fixed, as on a real display, so the figures
+  ///               are the same size whatever they say: a reading lights some
+  ///               of the cells and leaves the rest unlit.
+  explicit SegmentDisplay(juce::String unit, Bars bars = Bars::Seven,
+                          int cells = 4);
+
+  /// @param digits  0 to 9, a minus, which takes a cell, a decimal point,
+  ///                 which lights the point of the cell before it, and the
   ///                 letters in segmentsFor. A fourteen-bar display takes the
   ///                 whole alphabet as well, upper-casing as it goes, which is
   ///                 what a display with no lower case does. Anything else is
   ///                 drawn blank.
-  /// @param active  false dims it, meaning nothing is being changed.
+  /// @param active  false leaves every bar unlit, for a display with nothing
+  ///                 to say. A segment is lit or it is not, so there is no
+  ///                 dimmer reading in between.
   void setReading(const juce::String &digits, bool active);
 
   /// How many bars its cells have, which says what it is for: a seven-bar one
