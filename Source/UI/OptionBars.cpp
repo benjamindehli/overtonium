@@ -271,6 +271,13 @@ void OptionBar::paint(juce::Graphics &g) {
     // Centred under each control, a little wider than it so a caption longer
     // than a narrow display still fits.
     for (const auto &item : groups[i].items)
+      if (item.shown && item.control->isVisible())
+        paintItemGround(g, item);
+
+    // After the grounds, which leave their own colour behind.
+    g.setColour(colours::textDim);
+
+    for (const auto &item : groups[i].items)
       if (item.caption.isNotEmpty() && item.shown)
         g.drawText(item.caption,
                    LabelledKnob::captionBounds(item.line)
@@ -560,10 +567,10 @@ juce::String AdaptiveReading::spoken() const {
 // ---- Tuning -----------------------------------------------------------------
 
 namespace {
-/// In Temperament's order. Nine cells hold every one whole but Pythagorean
+/// In Temperament's order. Eight cells hold every one whole but Pythagorean
 /// and Werckmeister, which are cut where a reader still knows them.
 constexpr const char *kTemperamentWords[] = {
-    "EQUAL", "JUST", "PYTHAG", "MEANTONE", "WERCK III", "YOUNG", "ADAPTIVE"};
+    "EQUAL", "JUST", "PYTHAG", "MEANTONE", "WERCKIII", "YOUNG", "ADAPTIVE"};
 static_assert(std::size(kTemperamentWords) ==
                   (size_t)Temperament::NumTemperaments,
               "a word for every temperament");
@@ -613,11 +620,6 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
     return d.naturalWidth(kControlHeight);
   };
 
-  addGroup({{&temperament, natural(temperament), "TEMPERAMENT"},
-            {&root, juce::jmax(30, natural(root)), "ROOT"},
-            {&reference, natural(reference), "REFERENCE"}});
-  retuneGroup = addGroup({{&retune, 38, {}}});
-
   std::vector<Item> scaleItems;
   for (int pc = 0; pc < 12; ++pc) {
     scale[(size_t)pc] = std::make_unique<SegmentDisplay>(juce::String());
@@ -627,8 +629,6 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
     scaleItems.push_back({scale[(size_t)pc].get(), natural(*scale[(size_t)pc]),
                           params::kPitchClassNames[(size_t)pc]});
   }
-  addGroup(std::move(scaleItems));
-
   drift.setTooltip("How far the held chord sits from where just intonation on "
                    "the root would put it, in commas. It moves only as far as "
                    "the music takes it, and never more than two either way.");
@@ -650,7 +650,7 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
     refresh();
   };
 
-  styleSwitch(home, "HOME", "Stay home",
+  styleSwitch(home, "NO DRIFT", "No drift",
               "Keeps the chord you hold as near home as Adaptive can, so the "
               "keyboard does not drift. When a progression would carry it "
               "off, a held note slides a comma instead. Off, the keyboard "
@@ -660,10 +660,20 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
     refresh();
   };
 
-  chordGroup = addGroup({{&pure, 44, {}},
-                         {&sevenths, 40, {}},
-                         {&home, 52, {}},
-                         {&drift, juce::jmax(40, natural(drift)), "DRIFT"}});
+  // What the keyboard is tuned to, and under Adaptive how far it has drifted.
+  addGroup({{&temperament, natural(temperament), "TEMPERAMENT"},
+            {&root, juce::jmax(30, natural(root)), "ROOT"},
+            {&reference, natural(reference), "REFERENCE"},
+            {&drift, natural(drift), "DRIFT"}});
+
+  // How Adaptive behaves and what it is doing, only under Adaptive.
+  adaptiveGroup = addGroup({{&home, 70, {}},
+                            {&sevenths, 40, {}},
+                            {&pure, 40, {}},
+                            {&retune, 38, {}}});
+
+  // Where every note sits.
+  addGroup(std::move(scaleItems));
 
   showChord(chord);
   refresh();
@@ -691,14 +701,14 @@ void TuningBar::refresh() {
   reference.setReading(juce::String(hz), true);
   reference.setTitle("Reference pitch: " + juce::String(hz) + " Hz");
 
-  // Retune means nothing under any other temperament, and there is nothing to
-  // read out, so both are only there under Adaptive.
-  setGroupShown(retuneGroup, adaptive);
+  // The switches, PURE, Retune and the drift mean nothing under any other
+  // temperament, so they are only there under Adaptive.
+  setGroupShown(adaptiveGroup, adaptive);
+  setItemShown(drift, adaptive);
   sevenths.setToggleState(settings::isOn(apvts, params::adaptiveSeventhId),
                           juce::dontSendNotification);
   home.setToggleState(settings::isOn(apvts, params::adaptiveHomeId),
                       juce::dontSendNotification);
-  setGroupShown(chordGroup, adaptive);
 
   showScale();
 }
@@ -727,6 +737,28 @@ void TuningBar::showChord(const AdaptiveSnapshot &snapshot) {
                      : juce::String("Drift: no keys held"));
 
   showScale();
+}
+
+void TuningBar::paintItemGround(juce::Graphics &g, const Item &item) const {
+  static constexpr bool kWhite[12] = {true,  false, true,  false, true,  true,
+                                      false, true,  false, true,  false, true};
+
+  for (int pc = 0; pc < 12; ++pc)
+    if (item.control == scale[(size_t)pc].get()) {
+      if (!kWhite[pc])
+        return;
+
+      const auto ground = item.control->getBounds()
+                              .withY(item.line.getY())
+                              .withHeight(item.line.getHeight())
+                              .expanded(2, 0)
+                              .reduced(0, 3)
+                              .toFloat();
+
+      g.setColour(colours::text.withAlpha(0.13f));
+      g.fillRoundedRectangle(ground, 3.0f);
+      return;
+    }
 }
 
 void TuningBar::showScale() {

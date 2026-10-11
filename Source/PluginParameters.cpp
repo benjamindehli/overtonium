@@ -1135,7 +1135,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
   // Whether it stays home rather than drifting, off by default, after it.
   layout.add(std::make_unique<BoolP>(juce::ParameterID{adaptiveHomeId, 1},
-                                     "Adaptive Home", false));
+                                     "Adaptive No Drift", false));
 
   return layout;
 }

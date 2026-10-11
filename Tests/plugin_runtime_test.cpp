@@ -5570,11 +5570,9 @@ void testSettingsMenu(OvertoniumProcessor &p) {
                   1 &&
               liveUnder("Harmonic sevenths", (int)ovt::Temperament::Just) == 0,
           "and so is Harmonic sevenths");
-    check(liveUnder("Stay home, no drift", (int)ovt::Temperament::Adaptive) ==
-                  1 &&
-              liveUnder("Stay home, no drift", (int)ovt::Temperament::Just) ==
-                  0,
-          "and Stay home");
+    check(liveUnder("No drift", (int)ovt::Temperament::Adaptive) == 1 &&
+              liveUnder("No drift", (int)ovt::Temperament::Just) == 0,
+          "and No drift");
   }
 
   // The three that answer "what does the controller in front of you send".
@@ -7821,12 +7819,12 @@ void testTuningBar(OvertoniumProcessor &p) {
     bool fit = true;
     for (int i = 0; i < (int)ovt::Temperament::NumTemperaments; ++i) {
       const juce::String word = ovt::ui::TuningBar::temperamentWord(i);
-      fit &= word.length() <= 9;
+      fit &= word.length() <= 8;
       for (int c = 0; c < word.length(); ++c)
         fit &= SegmentDisplay::canDraw((char)word[c],
                                        SegmentDisplay::Bars::Fourteen);
     }
-    check(fit, "every temperament has a word that fits its nine cells");
+    check(fit, "every temperament has a word that fits its eight cells");
   }
 
   std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());
@@ -7972,6 +7970,44 @@ void testTuningBar(OvertoniumProcessor &p) {
 
   pick(st::kTemperament + (int)ovt::Temperament::Equal);
   check(!retune->isVisible(), "and goes again when Adaptive does");
+
+  // ---- the order, and the white keys
+  {
+    pick(st::kTemperament + (int)ovt::Temperament::Adaptive);
+    const auto &drift = bar->driftDisplay();
+    auto &noDrift = bar->homeSwitch();
+    const auto &c = bar->scaleDisplay(0);
+
+    check(drift.isVisible() && drift.getX() > reference->getRight() &&
+              drift.getY() == reference->getY() &&
+              noDrift.getX() > drift.getRight() &&
+              retune->getX() > noDrift.getRight() &&
+              c.getX() > retune->getRight(),
+          "under Adaptive the bar reads temperament, root, reference and "
+          "drift, then the switches, PURE and Retune, then the twelve");
+    check(noDrift.getButtonText() == "NO DRIFT" &&
+              noDrift.getTitle() == "No drift",
+          "with the drift switch called NO DRIFT");
+    check(bar->getHeight() == ovt::ui::OptionBar::kHeight,
+          "all on one row at 1348 px");
+
+    // The ground beside a white key's display is lighter than beside a black
+    // key's, measured just outside each display.
+    const auto shot = bar->createComponentSnapshot(bar->getLocalBounds());
+    const auto beside = [&shot](const SegmentDisplay &d) {
+      return shot.getPixelAt(d.getX() - 1, d.getBounds().getCentreY())
+          .getBrightness();
+    };
+    check(beside(bar->scaleDisplay(0)) > beside(bar->scaleDisplay(1)) + 0.03f &&
+              beside(bar->scaleDisplay(4)) >
+                  beside(bar->scaleDisplay(3)) + 0.03f,
+          "and the white keys stand on a lighter ground than the black");
+
+    pick(st::kTemperament + (int)ovt::Temperament::Just);
+    check(!drift.isVisible() && !noDrift.isVisible(),
+          "under a fixed temperament the drift and the Adaptive switches go");
+    pick(st::kTemperament + (int)ovt::Temperament::Equal);
+  }
 
   // ---- the rows follow what is shown
   // -----------------------------------------

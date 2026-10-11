@@ -75,6 +75,10 @@ protected:
   /// it.
   void setItemShown(juce::Component &control, bool shown);
 
+  /// Paints whatever stands behind one control and its caption, over the
+  /// group's pocket. Nothing, unless a bar has something to put there.
+  virtual void paintItemGround(juce::Graphics &, const Item &) const {}
+
   /// Opens one of the shared Settings lists under a control and carries out
   /// what is chosen.
   void showList(juce::Component &anchor, const juce::PopupMenu &list,
@@ -182,13 +186,13 @@ public:
   GlowButton &homeSwitch() { return home; }
 
   /// The word the temperament display shows for each temperament, in their
-  /// order, sized for its nine cells.
+  /// order, sized for its eight cells.
   static const char *temperamentWord(int index);
 
 private:
   juce::AudioProcessorValueTreeState &apvts;
 
-  SegmentDisplay temperament{{}, SegmentDisplay::Bars::Fourteen, 9};
+  SegmentDisplay temperament{{}, SegmentDisplay::Bars::Fourteen, 8};
   SegmentDisplay root{{}, SegmentDisplay::Bars::Fourteen, 1};
   SegmentDisplay reference{"Hz", SegmentDisplay::Bars::Seven, 3};
   LabelledKnob retune{"RETUNE"};
@@ -202,6 +206,10 @@ private:
   AdaptiveSnapshot chord;
 
   void showScale();
+
+  /// A light ground behind each white key's display and its name, like the
+  /// keys themselves, so which note is which reads at a glance.
+  void paintItemGround(juce::Graphics &, const Item &) const override;
   std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>
       retuneAttachment;
   /// What Adaptive did with the held chord: PURE, lit in a screen like the
@@ -213,13 +221,14 @@ private:
   /// it does, like LEGATO and MPE.
   GlowButton sevenths;
 
-  /// Whether Adaptive stays home rather than drifting, a cap beside DRIFT.
+  /// Whether Adaptive stays home rather than drifting, a cap captioned NO
+  /// DRIFT.
   GlowButton home;
 
   /// How far the held chord sits from home, in whole commas.
   SegmentDisplay drift{{}, SegmentDisplay::Bars::Seven, 2};
 
-  int retuneGroup = -1, chordGroup = -1;
+  int adaptiveGroup = -1;
 };
 
 } // namespace ovt::ui

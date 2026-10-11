@@ -1114,7 +1114,7 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
             settings::isOn(apvts, params::adaptiveSeventhId));
 
   // And whether it stays home rather than letting the keyboard drift.
-  m.addItem(settings::kAdaptiveHome, "Stay home, no drift",
+  m.addItem(settings::kAdaptiveHome, "No drift",
             temperamentIndex == (int)Temperament::Adaptive,
             settings::isOn(apvts, params::adaptiveHomeId));
 

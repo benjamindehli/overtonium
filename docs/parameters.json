@@ -840,5 +840,5 @@
     {"id": "legato", "name": "Legato", "type": "switch", "default": "Off"},
     {"id": "adaptiveRetune", "name": "Adaptive Retune", "type": "continuous", "min": "0.0 ms", "max": "1.00 s", "default": "30.0 ms"},
     {"id": "adaptiveSeventh", "name": "Adaptive Harmonic Seventh", "type": "switch", "default": "On"},
-    {"id": "adaptiveHome", "name": "Adaptive Home", "type": "switch", "default": "Off"}
+    {"id": "adaptiveHome", "name": "Adaptive No Drift", "type": "switch", "default": "Off"}
 ]

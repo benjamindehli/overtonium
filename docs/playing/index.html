@@ -377,12 +377,14 @@
 
                     <p>
                         <strong>Playing</strong> holds the voice count with Legato and One voice per key beside it, the pitch bend range, and MPE with
-                        Aftertouch from and Slide to. <strong>Tuning</strong> holds the temperament, root and reference pitch, one display for each of
-                        the twelve notes saying how far it sits from equal temperament in cents, and under Adaptive the Retune knob, a 7:4 switch for
-                        the harmonic seventh, a HOME switch that stops it drifting, and <a href="../tuning/#adaptive">what Adaptive is doing</a> to
-                        the chord you hold. Each display opens the same list as its entry in Settings and each switch lights while it is on, so a bar
-                        is another way to reach the same settings rather than a second copy of them. In a window too narrow for a whole bar, it wraps
-                        onto further rows the way the top bar does, and takes the extra height from the mixer.
+                        Aftertouch from and Slide to. <strong>Tuning</strong> holds the temperament, root and reference pitch, with the drift beside
+                        them under Adaptive. Under Adaptive it also has a NO DRIFT switch that keeps the keyboard home, a 7:4 switch for the harmonic
+                        seventh, a PURE lamp and the Retune knob, which between them say <a href="../tuning/#adaptive">what Adaptive is doing</a> to
+                        the chord you hold. Last come twelve displays, one for each note, saying how far it sits from equal temperament in cents, with
+                        the white keys on a lighter ground the way a keyboard has them. Each display opens the same list as its entry in Settings and
+                        each switch lights while it is on, so a bar is another way to reach the same settings rather than a second copy of them. In a
+                        window too narrow for a whole bar, it wraps onto further rows the way the top bar does, and takes the extra height from the
+                        mixer.
                     </p>
                 </section>
 
@@ -502,13 +504,13 @@
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td>Stay home, no drift</td>
+                                    <td>No drift</td>
                                     <td>off by default</td>
                                     <td>
                                         Whether Adaptive keeps the chord you hold as near home as it can. On, a progression that would carry the
                                         keyboard off a comma moves a held note a comma instead, and a key struck into silence goes home. Off, the
-                                        keyboard goes where the music takes it, up to two commas either way. Also the HOME switch in the Tuning bar.
-                                        Greyed out under every other temperament
+                                        keyboard goes where the music takes it, up to two commas either way. Also the NO DRIFT switch in the Tuning
+                                        bar. Greyed out under every other temperament
                                     </td>
                                 </tr>
                                 <tr>
@@ -901,7 +903,7 @@
                                         <td>On</td>
                                     </tr>
                                     <tr>
-                                        <td><code>Adaptive Home</code></td>
+                                        <td><code>Adaptive No Drift</code></td>
                                         <td><code>adaptiveHome</code></td>
                                         <td>Off or on</td>
                                         <td>Off</td>
