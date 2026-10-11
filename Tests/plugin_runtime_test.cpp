@@ -806,9 +806,10 @@ void testParameterWiring(OvertoniumProcessor &p) {
   // each channel is per octave or per note. See params::glideTriggerId. Then
   // Legato as a switch of its own beside the voice count. See
   // params::legatoId. Then how fast the adaptive temperament retunes a held
-  // note. See params::adaptiveRetuneId.
+  // note, and whether it uses the harmonic seventh. See
+  // params::adaptiveRetuneId and params::adaptiveSeventhId.
   const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + 2 + 1 + 1 +
-                       ovt::params::kNumMacros * 6;
+                       1 + ovt::params::kNumMacros * 6;
 
   // The behaviour that was there before it became a choice. Asked of the
   // parameter rather than of the tree, so the answer does not depend on what
@@ -5546,13 +5547,14 @@ void testSettingsMenu(OvertoniumProcessor &p) {
     check(rootLive, "and with Adaptive chosen the Root menu stays live");
 
     // Retune is about Adaptive and nothing else, so it is live only there.
-    const auto retuneLive = [&bar, &p](int temperament) {
+    const auto liveUnder = [&bar, &p](const juce::String &entry,
+                                      int temperament) {
       auto *t = p.apvts.getParameter(ovt::params::temperamentId);
       t->setValueNotifyingHost(t->convertTo0to1((float)temperament));
       auto built = bar.buildSettingsMenu();
       bool live = false, seen = false;
       for (juce::PopupMenu::MenuItemIterator it(built); it.next();)
-        if (it.getItem().text == "Retune") {
+        if (it.getItem().text == entry) {
           seen = true;
           live = it.getItem().isEnabled;
         }
@@ -5560,9 +5562,13 @@ void testSettingsMenu(OvertoniumProcessor &p) {
       return seen ? (live ? 1 : 0) : -1;
     };
 
-    check(retuneLive((int)ovt::Temperament::Adaptive) == 1 &&
-              retuneLive((int)ovt::Temperament::Just) == 0,
+    check(liveUnder("Retune", (int)ovt::Temperament::Adaptive) == 1 &&
+              liveUnder("Retune", (int)ovt::Temperament::Just) == 0,
           "Retune is offered, and live only under Adaptive");
+    check(liveUnder("Harmonic sevenths", (int)ovt::Temperament::Adaptive) ==
+                  1 &&
+              liveUnder("Harmonic sevenths", (int)ovt::Temperament::Just) == 0,
+          "and so is Harmonic sevenths");
   }
 
   // The three that answer "what does the controller in front of you send".
@@ -7952,10 +7958,9 @@ void testAdaptiveReadouts(OvertoniumProcessor &p) {
   // PURE and 7:4 as the Tuning bar lights them for the chord last played.
   juce::Component lampHost;
   ovt::ui::TuningBar lampBar(p.apvts, lampHost);
-  const auto lamps = [&] {
+  const auto pureLit = [&] {
     lampBar.showChord(lastChord);
-    return std::pair<bool, bool>{lampBar.pureLamp().getToggleState(),
-                                 lampBar.seventhLamp().getToggleState()};
+    return lampBar.pureLamp().getToggleState();
   };
   const auto play = [&](std::initializer_list<int> on,
                         std::initializer_list<int> off) {
@@ -7987,8 +7992,7 @@ void testAdaptiveReadouts(OvertoniumProcessor &p) {
               r.harmonics.toStdString() + ", " + r.seventhOn.toStdString() +
               ", " + r.verdict.toStdString() + ")");
 
-    check(lamps() == std::pair<bool, bool>{true, true},
-          "and lights both PURE and 7:4");
+    check(pureLit(), "and lights PURE");
 
     // The twelve displays light the four held and say where they sit, in
     // cents from equal temperament with A on the reference. Just major on C
@@ -8056,9 +8060,8 @@ void testAdaptiveReadouts(OvertoniumProcessor &p) {
               r.givenUp.toStdString() + ")");
     check(r.seventhOn.isEmpty(),
           "and has no harmonic seventh, the fourth above C ruling it out");
-    check(lamps() == std::pair<bool, bool>{false, false} &&
-              lampBar.pureLamp().getTitle().contains("given up"),
-          "so neither PURE nor 7:4 lights, and PURE says what was given up "
+    check(!pureLit() && lampBar.pureLamp().getTitle().contains("given up"),
+          "so PURE stays dark, and says what was given up "
           "to a screen reader (" +
               lampBar.pureLamp().getTitle().toStdString() + ")");
 
@@ -8070,11 +8073,33 @@ void testAdaptiveReadouts(OvertoniumProcessor &p) {
     const auto r = play({57, 60, 64}, {});
     check(r.harmonics == "10:12:15" && r.verdict == "NOTHING BEATS",
           "A minor reads as 10:12:15 (" + r.harmonics.toStdString() + ")");
-    check(lamps() == std::pair<bool, bool>{true, false},
-          "and lights PURE without 7:4");
+    check(pureLit(), "and lights PURE");
     const auto empty = play({}, {57, 60, 64});
     check(empty.harmonics.isEmpty() && empty.verdict == "NO KEYS HELD",
           "and letting go reads as nothing held");
+  }
+
+  // ---- the harmonic seventh switched off -----------------------------------
+  {
+    auto &cap = lampBar.seventhsSwitch();
+    lampBar.refresh();
+    check(cap.getToggleState(), "the 7:4 switch starts lit, the seventh on");
+
+    cap.onClick();
+    check(!st::isOn(p.apvts, ovt::params::adaptiveSeventhId) &&
+              !cap.getToggleState(),
+          "a click switches it off and darkens the cap");
+
+    const auto r = play({48, 52, 55, 58}, {});
+    check(r.seventhOn.isEmpty() && r.harmonics != "4:5:6:7",
+          "and C7 then has no harmonic seventh (" + r.harmonics.toStdString() +
+              ")");
+    play({}, {48, 52, 55, 58});
+
+    cap.onClick();
+    check(st::isOn(p.apvts, ovt::params::adaptiveSeventhId) &&
+              cap.getToggleState(),
+          "and a second click puts it back");
   }
 
   // ---- only under Adaptive -------------------------------------------------
@@ -8101,7 +8126,7 @@ void testAdaptiveReadouts(OvertoniumProcessor &p) {
     if (bar != nullptr && opener != nullptr) {
       opener->onClick();
       bar->refresh();
-      check(bar->pureLamp().isVisible() && bar->seventhLamp().isVisible() &&
+      check(bar->pureLamp().isVisible() && bar->seventhsSwitch().isVisible() &&
                 bar->driftDisplay().isVisible() &&
                 !bar->pureLamp().getWantsKeyboardFocus(),
             "PURE, 7:4 and DRIFT show under Adaptive, as indicators that "

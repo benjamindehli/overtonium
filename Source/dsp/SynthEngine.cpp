@@ -227,6 +227,7 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
   legatoReferenceHz = p.global.referenceHz;
   adaptiveOn = p.global.temperament == Temperament::Adaptive;
   adaptiveRetune = p.global.adaptiveRetuneSeconds;
+  harmonicSevenths = p.global.harmonicSevenths;
 
   // ---- where a glide comes from ---------------------------------------------
   //
@@ -666,8 +667,10 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
     lowestOf[(size_t)pc] = std::min(lowestOf[(size_t)pc], nodes[(size_t)i].key);
   }
 
+  // None at all when the harmonic seventh is switched off, and every seventh
+  // then takes the size the chain gives it.
   int dominant = -1;
-  for (int pc = 0; pc < 12; ++pc)
+  for (int pc = 0; pc < 12 && harmonicSevenths; ++pc)
     if (held[(size_t)pc] && held[(size_t)((pc + 10) % 12)] &&
         !held[(size_t)((pc + 1) % 12)] && !held[(size_t)((pc + 3) % 12)] &&
         !held[(size_t)((pc + 5) % 12)] && !held[(size_t)((pc + 6) % 12)] &&

@@ -6,7 +6,7 @@
         <title>Playing Overtonium: MPE, automation, macros and MIDI Learn</title>
         <meta
             name="description"
-            content="Playing Overtonium: MPE, legato, glide on every channel, the Settings menu, automation with all 840 parameters, macros and MIDI Learn."
+            content="Playing Overtonium: MPE, legato, glide on every channel, the Settings menu, automation with all 841 parameters, macros and MIDI Learn."
         />
         <meta name="author" content="Benjamin Dehli" />
         <meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -20,7 +20,7 @@
         <meta property="og:title" content="Playing Overtonium: MPE, automation, macros and MIDI Learn" />
         <meta
             property="og:description"
-            content="MPE with pitch bend and pressure per note, legato, a glide on every channel with each partial on its own time, every entry in the Settings menu, automating Overtonium from a host with all 840 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
+            content="MPE with pitch bend and pressure per note, legato, a glide on every channel with each partial on its own time, every entry in the Settings menu, automating Overtonium from a host with all 841 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-playing.jpg" />
         <meta property="og:image:type" content="image/jpeg" />
@@ -32,7 +32,7 @@
         <meta name="twitter:title" content="Playing Overtonium: MPE, automation, macros and MIDI Learn" />
         <meta
             name="twitter:description"
-            content="MPE with pitch bend and pressure per note, legato, a glide on every channel with each partial on its own time, every entry in the Settings menu, automating Overtonium from a host with all 840 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
+            content="MPE with pitch bend and pressure per note, legato, a glide on every channel with each partial on its own time, every entry in the Settings menu, automating Overtonium from a host with all 841 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-playing.jpg" />
         <meta name="twitter:image:alt" content="The Overtonium wordmark over the plugin window, captioned Playing." />
@@ -49,7 +49,7 @@
                 "@id": "https://benjamindehli.github.io/overtonium/playing/#webpage",
                 "url": "https://benjamindehli.github.io/overtonium/playing/",
                 "name": "Playing Overtonium: MPE, automation, macros and MIDI Learn",
-                "description": "Playing Overtonium: MPE, legato, glide on every channel, the Settings menu, automation with all 840 parameters, macros and MIDI Learn.",
+                "description": "Playing Overtonium: MPE, legato, glide on every channel, the Settings menu, automation with all 841 parameters, macros and MIDI Learn.",
                 "inLanguage": "en-GB",
                 "isPartOf": {
                     "@id": "https://benjamindehli.github.io/overtonium/#website"
@@ -378,11 +378,11 @@
                     <p>
                         <strong>Playing</strong> holds the voice count with Legato and One voice per key beside it, the pitch bend range, and MPE with
                         Aftertouch from and Slide to. <strong>Tuning</strong> holds the temperament, root and reference pitch, one display for each of
-                        the twelve notes saying how far it sits from equal temperament in cents, and under Adaptive the Retune knob and
-                        <a href="../tuning/#adaptive">what Adaptive is doing</a> to the chord you hold. Each display opens the same list as its entry
-                        in Settings and each switch lights while it is on, so a bar is another way to reach the same settings rather than a second
-                        copy of them. In a window too narrow for a whole bar, a group that does not fit is left out whole, and Settings still has all
-                        of it.
+                        the twelve notes saying how far it sits from equal temperament in cents, and under Adaptive the Retune knob, a 7:4 switch for
+                        the harmonic seventh, and <a href="../tuning/#adaptive">what Adaptive is doing</a> to the chord you hold. Each display opens
+                        the same list as its entry in Settings and each switch lights while it is on, so a bar is another way to reach the same
+                        settings rather than a second copy of them. In a window too narrow for a whole bar, a group that does not fit is left out
+                        whole, and Settings still has all of it.
                     </p>
                 </section>
 
@@ -493,6 +493,15 @@
                                     </td>
                                 </tr>
                                 <tr>
+                                    <td>Harmonic sevenths</td>
+                                    <td>on by default</td>
+                                    <td>
+                                        Whether Adaptive tunes a minor seventh 7:4 above its root, the harmonic seventh, where nothing else in the
+                                        chord would beat against it. Off, every seventh takes the size the chain of fifths gives it. Also the 7:4
+                                        switch in the Tuning bar. Greyed out under every other temperament
+                                    </td>
+                                </tr>
+                                <tr>
                                     <td>Phase reset</td>
                                     <td>on by default</td>
                                     <td>
@@ -557,9 +566,9 @@
                     <h2>Automating it from the host</h2>
 
                     <p>
-                        Eight hundred and forty parameters reach the host: thirty-eight global ones, twenty-three on each of the 32 partials, eighteen
-                        on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals first
-                        and then channel by channel with the noise channel last.
+                        Eight hundred and forty-one parameters reach the host: thirty-nine global ones, twenty-three on each of the 32 partials,
+                        eighteen on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals
+                        first and then channel by channel with the noise channel last.
                     </p>
 
                     <p>
@@ -628,11 +637,11 @@
                     <section class="parameter-list">
                         <h3 id="every-parameter">Every parameter</h3>
                         <p>
-                            All 840 as the host lists them, with a control that every partial or every macro carries given one row for all of them.
+                            All 841 as the host lists them, with a control that every partial or every macro carries given one row for all of them.
                             The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is
                             <a href="../parameters.json">parameters.json</a>, written by the plugin rather than by hand.
                         </p>
-                        <p><strong>Global</strong>, thirty-eight of them.</p>
+                        <p><strong>Global</strong>, thirty-nine of them.</p>
                         <div class="scroll">
                             <table>
                                 <thead>
@@ -874,6 +883,12 @@
                                         <td><code>adaptiveRetune</code></td>
                                         <td>0.0 ms to 1.00 s</td>
                                         <td>30.0 ms</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Adaptive Harmonic Seventh</code></td>
+                                        <td><code>adaptiveSeventh</code></td>
+                                        <td>Off or on</td>
+                                        <td>On</td>
                                     </tr>
                                 </tbody>
                             </table>

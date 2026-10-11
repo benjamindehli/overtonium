@@ -1119,6 +1119,23 @@ void testAdaptiveTuning() {
                                "and ninth is 7:4 in every key");
     check(worstRest < 0.3, "and the rest of the chord stays pure");
 
+    // Switched off, every seventh takes the chain's size, 9:5 over C.
+    {
+      start();
+      auto off = patch(Temperament::Adaptive, 0.01f);
+      off.global.harmonicSevenths = false;
+      for (const auto k : {48, 52, 55, 58})
+        engine.noteOn(k, 0.8f, off);
+      render(off, 0.05);
+      const auto ninefive = tuning::kGrovenFifth +
+                            (tuning::kGrovenFifth - tuning::kPureMajorThird);
+      check(std::abs(centsAbove(58, 48) - ninefive) < 0.01,
+            "with the harmonic seventh switched off, C7's seventh is 9:5");
+      for (const auto k : {48, 52, 55, 58})
+        engine.noteOff(k);
+      render(off, 0.05);
+    }
+
     // A minor seventh and a major seventh keep the sizes the chain gives
     // them, a fifth and a minor third and a fifth and a major third.
     const auto tempered = [](double third) {

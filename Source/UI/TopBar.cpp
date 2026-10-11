@@ -1107,6 +1107,12 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
   m.addSubMenu("Retune", settings::retune(apvts),
                temperamentIndex == (int)Temperament::Adaptive);
 
+  // Whether Adaptive puts a seventh on 7:4, which again means nothing under
+  // any other temperament.
+  m.addItem(settings::kHarmonicSevenths, "Harmonic sevenths",
+            temperamentIndex == (int)Temperament::Adaptive,
+            settings::isOn(apvts, params::adaptiveSeventhId));
+
   juce::PopupMenu zooms;
 
   for (int i = 0; i < (int)std::size(kZoomChoices); ++i) {

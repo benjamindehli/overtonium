@@ -838,5 +838,6 @@
     {"id": "glideTrigger", "name": "Glide Trigger", "type": "choice", "choices": ["Always", "Legato"], "default": "Always"},
     {"id": "glideMode", "name": "Glide Mode", "type": "choice", "choices": ["Fixed rate", "Fixed time"], "default": "Fixed rate"},
     {"id": "legato", "name": "Legato", "type": "switch", "default": "Off"},
-    {"id": "adaptiveRetune", "name": "Adaptive Retune", "type": "continuous", "min": "0.0 ms", "max": "1.00 s", "default": "30.0 ms"}
+    {"id": "adaptiveRetune", "name": "Adaptive Retune", "type": "continuous", "min": "0.0 ms", "max": "1.00 s", "default": "30.0 ms"},
+    {"id": "adaptiveSeventh", "name": "Adaptive Harmonic Seventh", "type": "switch", "default": "On"}
 ]

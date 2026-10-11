@@ -142,7 +142,7 @@ public:
   /// The drift display and the two lamps, for the tests.
   const SegmentDisplay &driftDisplay() const { return drift; }
   const ScreenSwitch &pureLamp() const { return pure; }
-  const ScreenSwitch &seventhLamp() const { return seventh; }
+  GlowButton &seventhsSwitch() { return sevenths; }
 
   /// The word the temperament display shows for each temperament, in their
   /// order, sized for its nine cells.
@@ -167,10 +167,14 @@ private:
   void showScale();
   std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>
       retuneAttachment;
-  /// What Adaptive did with the held chord, as two words lit in screens like
-  /// the gutter's switches: PURE while every interval in it is pure, and 7:4
-  /// while a seventh is tuned on the harmonic one. Indicators, not switches.
-  ScreenSwitch pure, seventh;
+  /// What Adaptive did with the held chord: PURE, lit in a screen like the
+  /// gutter's switches while every interval in it is pure. An indicator, not
+  /// a switch.
+  ScreenSwitch pure;
+
+  /// Whether Adaptive puts a seventh on 7:4 at all, a cap that lights while
+  /// it does, like LEGATO and MPE.
+  GlowButton sevenths;
 
   /// How far the held chord sits from home, in whole commas.
   SegmentDisplay drift{{}, SegmentDisplay::Bars::Seven, 2};

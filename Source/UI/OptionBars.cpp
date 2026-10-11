@@ -507,22 +507,26 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
   drift.setTooltip("How far the held chord sits from where just intonation on "
                    "the root would put it, in commas. It moves only as far as "
                    "the music takes it, and never more than two either way.");
-  for (auto *lamp : {&pure, &seventh}) {
-    // Lit by the chord, never by a click.
-    lamp->setInterceptsMouseClicks(false, false);
-    lamp->setWantsKeyboardFocus(false);
-  }
-
+  // Lit by the chord, never by a click.
+  pure.setInterceptsMouseClicks(false, false);
+  pure.setWantsKeyboardFocus(false);
   pure.setButtonText("PURE");
   pure.setTooltip("Lit while every interval in the chord you hold is pure. "
                   "Dark when the chord has had to give one up, which some "
                   "chords cannot avoid.");
-  seventh.setButtonText("7:4");
-  seventh.setTooltip("Lit while a seventh in the chord is tuned on the "
-                     "harmonic seventh, 7:4 above its root.");
+
+  styleSwitch(sevenths, "7:4", "Harmonic sevenths",
+              "Tunes a minor seventh 7:4 above its root, the harmonic "
+              "seventh, wherever nothing else in the chord would beat "
+              "against it. Off, every seventh takes the size the chain of "
+              "fifths gives it.");
+  sevenths.onClick = [this] {
+    settings::apply(apvts, settings::kHarmonicSevenths);
+    refresh();
+  };
 
   chordGroup = addGroup({{&pure, 44, {}},
-                         {&seventh, 40, {}},
+                         {&sevenths, 40, {}},
                          {&drift, juce::jmax(40, natural(drift)), "DRIFT"}});
 
   showChord(chord);
@@ -554,6 +558,8 @@ void TuningBar::refresh() {
   // Retune means nothing under any other temperament, and there is nothing to
   // read out, so both are only there under Adaptive.
   setGroupShown(retuneGroup, adaptive);
+  sevenths.setToggleState(settings::isOn(apvts, params::adaptiveSeventhId),
+                          juce::dontSendNotification);
   setGroupShown(chordGroup, adaptive);
 
   showScale();
@@ -572,11 +578,6 @@ void TuningBar::showChord(const AdaptiveSnapshot &snapshot) {
                     ? "Pure: dark, " + reading.givenUp.toLowerCase() +
                           " given up"
                     : juce::String("Pure: dark"));
-
-  const auto harmonic = reading.seventhOn.isNotEmpty();
-  seventh.setToggleState(harmonic, juce::dontSendNotification);
-  seventh.setTitle(harmonic ? "Harmonic seventh on " + reading.seventhOn
-                            : juce::String("Harmonic seventh: none"));
 
   // Nothing held has nowhere to sit, so its cells stay dark rather than say
   // zero.

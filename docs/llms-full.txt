@@ -231,7 +231,7 @@ Like Groven's organs it tempers each fifth by an eighth of a schisma, a quarter 
 
 Some chords cannot be pure all the way through, because pure fifths and pure thirds never quite meet: in C11 the fifth from G to D and the minor third from D to F cannot both be. Adaptive then gives up as little as it can, counting a fifth or a fourth above a third or a sixth and those above a seventh, so C6 with an added ninth keeps its thirds and sixths and lets the fourth from A to D go a comma wide, rather than keeping that fourth and losing three thirds.
 
-A minor seventh is tuned on the harmonic seventh, 7:4 above its root, 969 cents, unless another held note would then be out of tune with it. A dominant seventh becomes 4:5:6:7: four harmonics of one note an octave below its root, the same seventh every partial here already carries as its seventh harmonic, and the smoothest a seventh chord can be. It is noticeably lower than the equal-tempered seventh, which is most of why it sounds so settled. A ninth adds the ninth harmonic, and a seventh over its root alone or over its fifth is 7:4 as well. A minor third above the root keeps the seventh at 9:5, since 7:4 would put it 48 cents flat of a pure fifth above that third, and a sharp ninth does the same for the same reason. A suspended seventh keeps 16:9, two pure fourths, a minor second or a tritone above the root keeps the size the chain gives it too, and a major seventh is 15:8. Like everything else here it depends only on the keys held, so C and B flat are 7:4 however they were played, and a held note slides to the harmonic seventh or away from it when the chord around it changes what it is.
+A minor seventh is tuned on the harmonic seventh, 7:4 above its root, 969 cents, unless another held note would then be out of tune with it. A dominant seventh becomes 4:5:6:7: four harmonics of one note an octave below its root, the same seventh every partial here already carries as its seventh harmonic, and the smoothest a seventh chord can be. It is noticeably lower than the equal-tempered seventh, which is most of why it sounds so settled. A ninth adds the ninth harmonic, and a seventh over its root alone or over its fifth is 7:4 as well. A minor third above the root keeps the seventh at 9:5, since 7:4 would put it 48 cents flat of a pure fifth above that third, and a sharp ninth does the same for the same reason. A suspended seventh keeps 16:9, two pure fourths, a minor second or a tritone above the root keeps the size the chain gives it too, and a major seventh is 15:8. Like everything else here it depends only on the keys held, so C and B flat are 7:4 however they were played, and a held note slides to the harmonic seventh or away from it when the chord around it changes what it is. The **7:4** switch in the Tuning bar, and Harmonic sevenths in Settings, turn it off, and every seventh then takes the size the chain gives it.
 
 The [Tuning bar](https://benjamindehli.github.io/overtonium/playing/#bars) shows what it is doing to the chord you hold, following every key as it goes down and comes up. **PURE** lights while every interval in the chord is pure, and goes dark when a chord cannot be pure all the way through and has had to give one up. **7:4** lights while a seventh is tuned on the harmonic seventh, and **DRIFT** says how far the keyboard has drifted, in commas. Beside those, one display for each of the twelve notes says how far it sits from equal temperament in cents. The notes you hold are lit, and the rest stay unlit until you play them. Under every other temperament the same twelve displays chart the scale, all of them lit, so the Tuning bar shows what Werckmeister III or Just on D does to each note before you play it.
 
@@ -591,7 +591,7 @@ GLIDE is a row like any other, so [LINK](https://benjamindehli.github.io/overton
 
 The two lower buttons beside the preset name, a keyboard and a tuning fork, each open a bar between the top bar and the mixer, for the settings that get changed while playing rather than set once. Both are closed until you open them, and each instance remembers which are open. A bar takes its height from the mixer, which scrolls, so the window keeps its size, unless it is already as short as it goes, in which case it grows by the bar.
 
-**Playing** holds the voice count with Legato and One voice per key beside it, the pitch bend range, and MPE with Aftertouch from and Slide to. **Tuning** holds the temperament, root and reference pitch, one display for each of the twelve notes saying how far it sits from equal temperament in cents, and under Adaptive the Retune knob and [what Adaptive is doing](https://benjamindehli.github.io/overtonium/tuning/#adaptive) to the chord you hold. Each display opens the same list as its entry in Settings and each switch lights while it is on, so a bar is another way to reach the same settings rather than a second copy of them. In a window too narrow for a whole bar, a group that does not fit is left out whole, and Settings still has all of it.
+**Playing** holds the voice count with Legato and One voice per key beside it, the pitch bend range, and MPE with Aftertouch from and Slide to. **Tuning** holds the temperament, root and reference pitch, one display for each of the twelve notes saying how far it sits from equal temperament in cents, and under Adaptive the Retune knob, a 7:4 switch for the harmonic seventh, and [what Adaptive is doing](https://benjamindehli.github.io/overtonium/tuning/#adaptive) to the chord you hold. Each display opens the same list as its entry in Settings and each switch lights while it is on, so a bar is another way to reach the same settings rather than a second copy of them. In a window too narrow for a whole bar, a group that does not fit is left out whole, and Settings still has all of it.
 
 ## The Settings menu
 
@@ -611,6 +611,7 @@ Everything set once and then left. The menu is where the instrument is set up an
 | Slide to | Off, Brightness, Tuning. Brightness by default | Where the forward and back axis under an MPE finger goes |
 | Temperament, Root, Reference pitch | Seven temperaments, twelve roots, 415 to 466 Hz | What the keyboard underneath is tuned to, which [the tuning system](https://benjamindehli.github.io/overtonium/tuning/) works through. Root is greyed out for equal temperament, which has no centre to have |
 | Retune | Fast, 30 ms, the default, or Smooth, 300 ms | How long a held note takes to slide to a new version when the [Adaptive](https://benjamindehli.github.io/overtonium/tuning/#adaptive) temperament retunes the chord around it. Two quick settings of the Retune knob in the Tuning bar, which runs from a jump at zero to a second. Greyed out under every other temperament |
+| Harmonic sevenths | on by default | Whether Adaptive tunes a minor seventh 7:4 above its root, the harmonic seventh, where nothing else in the chord would beat against it. Off, every seventh takes the size the chain of fifths gives it. Also the 7:4 switch in the Tuning bar. Greyed out under every other temperament |
 | Phase reset | on by default | Starts each partial where its ATTACK says when a note begins from silence: a rising zero crossing, or nearer its peak when the attack is turned below its shortest time. Off, a partial carries on from wherever its cycle was |
 | Safety clip | on by default | Whether the output stage at the end of the chain is running, worth leaving on when you push 32 faders up. Which of its five shapes is running is chosen on the bar, under the meter |
 | Limiter lookahead | off by default | Whether the Limiter may see what is coming. On makes it smooth at the cost of two milliseconds of latency on every shape, since only that one uses the window and the figure must not move with the patch. The only setting here that changes what the plugin reports to your host |
@@ -623,7 +624,7 @@ The safety clip is the exception in this table, and the master fader is the exce
 
 ## Automating it from the host
 
-Eight hundred and forty parameters reach the host: thirty-eight global ones, twenty-three on each of the 32 partials, eighteen on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals first and then channel by channel with the noise channel last.
+Eight hundred and forty-one parameters reach the host: thirty-nine global ones, twenty-three on each of the 32 partials, eighteen on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals first and then channel by channel with the noise channel last.
 
 Every per-channel name carries its channel, so a parameter list answers both ways of looking for something. Type `H7` and you have that partial, type `Tune` and you have that row across the whole mixer. The same names are what a screen reader reads, which is why they are words rather than numbers.
 
@@ -645,9 +646,9 @@ LINK is not a parameter, since it is a tool for the mouse rather than part of th
 
 ### Every parameter
 
-All 840 as the host lists them, with a control that every partial or every macro carries given one row for all of them. The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is [parameters.json](https://benjamindehli.github.io/overtonium/parameters.json), written by the plugin rather than by hand.
+All 841 as the host lists them, with a control that every partial or every macro carries given one row for all of them. The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is [parameters.json](https://benjamindehli.github.io/overtonium/parameters.json), written by the plugin rather than by hand.
 
-**Global**, thirty-eight of them.
+**Global**, thirty-nine of them.
 
 | What the host calls it | Id | Range | Default |
 |---|---|---|---|
@@ -689,6 +690,7 @@ All 840 as the host lists them, with a control that every partial or every macro
 | `Glide Mode` | `glideMode` | Fixed rate, Fixed time | Fixed rate |
 | `Legato` | `legato` | Off or on | Off |
 | `Adaptive Retune` | `adaptiveRetune` | 0.0 ms to 1.00 s | 30.0 ms |
+| `Adaptive Harmonic Seventh` | `adaptiveSeventh` | Off or on | On |
 
 **On every partial**, twenty-three controls, each one on all 32 partials.
 

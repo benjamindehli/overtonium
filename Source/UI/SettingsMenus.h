@@ -20,6 +20,7 @@ enum Id : int {
   kOneVoicePerKey = 303,
   kLookahead = 304,
   kLegato = 305,
+  kHarmonicSevenths = 306,
   kAftertouchFrom = 600,
   kTemperament = 900,
   kRoot = 1000,

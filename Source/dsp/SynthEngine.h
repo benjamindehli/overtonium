@@ -462,6 +462,7 @@ private:
   /// kept for a key coming up, which carries no parameters.
   bool adaptiveOn = false;
   double adaptiveRetune = 0.03;
+  bool harmonicSevenths = true;
 
   /// Drops a key from the stack. Nothing happens if it was not in it, which a
   /// note-off arriving without its note-on will do.
