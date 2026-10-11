@@ -68,6 +68,10 @@ constexpr const char *kPreset = "Big Saw";
 /// Held while the picture is taken, so the meters have something to show.
 constexpr int kChord[] = {48, 55, 64};
 
+/// C7, for the picture of the Tuning bar under Adaptive: 4:5:6:7, with the
+/// seventh on the harmonic seventh.
+constexpr int kSeventh[] = {48, 52, 55, 58};
+
 /// Long enough at 48 kHz for the envelopes to reach sustain.
 constexpr int kBlocks = 220;
 
@@ -258,5 +262,72 @@ int main(int argc, char **argv) {
       writePng(*editor, {0, 0, windowWidth, barHeight}, scale,
                png("overtonium-bar"));
 
-  return ok ? 0 : 1;
+  // ---- the Playing and Tuning bars
+  // -------------------------------------------
+  //
+  // Opened only once everything above is written, so those pictures are the
+  // window as it first opens. The Tuning bar is shown under Adaptive with C7
+  // held in place of the chord above, the chord the Tuning page describes its
+  // readouts on, so the picture can be checked against what the page says.
+  juce::TextButton *playingButton = nullptr, *tuningButton = nullptr;
+  for (auto *b : descendantsOf<juce::TextButton>(*editor)) {
+    if (b->getTitle() == "Playing")
+      playingButton = b;
+    if (b->getTitle() == "Tuning")
+      tuningButton = b;
+  }
+
+  auto playing = descendantsOf<ovt::ui::PlayingBar>(*editor);
+  auto tuning = descendantsOf<ovt::ui::TuningBar>(*editor);
+
+  if (playingButton == nullptr || tuningButton == nullptr || playing.empty() ||
+      tuning.empty()) {
+    std::printf("the bars are not there\n");
+    return 1;
+  }
+
+  if (auto *temperament = plugin.apvts.getParameter("temperament"))
+    temperament->setValueNotifyingHost(
+        temperament->convertTo0to1((float)ovt::Temperament::Adaptive));
+
+  // The first chord let go and left to die away before C7, since Adaptive
+  // tunes a chord to agree with whatever is still ringing, and the tails of a
+  // chord played in equal temperament would pull C7 a comma off home.
+  for (int note : kChord)
+    midi.addEvent(juce::MidiMessage::noteOff(1, note), 0);
+
+  for (int pass = 0; pass < 2; ++pass) {
+    for (int block = 0; block < kBlocks; ++block) {
+      buffer.clear();
+      plugin.processBlock(buffer, midi);
+      midi.clear();
+    }
+
+    if (pass == 0)
+      for (int note : kSeventh)
+        midi.addEvent(juce::MidiMessage::noteOn(1, note, 0.9f), 0);
+  }
+
+  playingButton->onClick();
+  tuningButton->onClick();
+
+  // What the editor's timer would hand the bar. See the note above it.
+  ovt::AdaptiveSnapshot chord, latest;
+  while (plugin.readAdaptiveSnapshot(chord))
+    latest = chord;
+
+  playing.front()->refresh();
+  tuning.front()->refresh();
+  tuning.front()->showChord(latest);
+
+  const auto areaOf = [&editor](juce::Component &bar) {
+    return editor->getLocalArea(&bar, bar.getLocalBounds());
+  };
+
+  const bool barsOk = writePng(*editor, areaOf(*playing.front()), scale,
+                               png("overtonium-playing-bar")) &&
+                      writePng(*editor, areaOf(*tuning.front()), scale,
+                               png("overtonium-tuning-bar"));
+
+  return ok && barsOk ? 0 : 1;
 }
