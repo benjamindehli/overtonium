@@ -15,6 +15,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <functional>
 #include <memory>
 #include <random>
 #include <string>
@@ -39,6 +40,8 @@
 #include "dsp/Temperament.h"
 #include "dsp/Voice.h"
 #include "dsp/Wobble.h"
+
+#include "music_utils_chord_types.h"
 
 using namespace ovt;
 
@@ -1521,6 +1524,178 @@ void testAdaptiveTuning() {
 
   check(std::string(temperamentName(Temperament::Adaptive)) == "Adaptive",
         "it is called Adaptive");
+}
+
+/// Every chord type music-utils knows, in all twelve keys, held to the two
+/// things Adaptive promises: the same keys are tuned the same however they
+/// are played, and a chord that cannot all be pure gives up as little as it
+/// can. See music_utils_chord_types.h for where the list comes from.
+void testAdaptiveChordTypes() {
+  section("Adaptive against every chord type in music-utils");
+
+  constexpr double sr = 48000.0;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
+  engine.prepare(sr);
+  std::vector<float> l, r;
+
+  auto p = makeFlatParams(0.0f);
+  p.osc[0].volume = 0.5f;
+  p.global.temperament = Temperament::Adaptive;
+  p.global.tuningRoot = 0;
+  p.global.referenceHz = 440.0;
+
+  const auto render = [&](double seconds) {
+    const auto n = (size_t)(seconds * sr);
+    l.assign(n, 0.0f);
+    r.assign(n, 0.0f);
+    engine.render(l.data(), r.data(), (int)n, p);
+  };
+
+  // How the engine weighs an interval and the difference it wants, by the
+  // semitones the keys spell: the same tables settleAdaptive uses, copied so
+  // the test measures the engine rather than borrowing its arithmetic. A
+  // step is a tempered fifth, and twelve of them a comma.
+  static constexpr int kWeight[12] = {4, 0, 0, 2, 2, 3, 0, 3, 2, 2, 1, 1};
+  static constexpr int kStep[12] = {0, 7, 2, 9, -8, -1, -6, 1, 8, -9, 10, -7};
+
+  int orderFaults = 0, worseThanBest = 0;
+  std::string orderExample, worseNames;
+  double worstSpread = 0.0;
+
+  for (const auto &type : music_utils::kChordTypes)
+    for (int key = 0; key < 12; ++key) {
+      std::vector<int> keys;
+      for (const auto step : type.halfSteps)
+        keys.push_back(48 + key + step);
+      const auto n = keys.size();
+
+      // ---- the same keys, the same tuning ---------------------------------
+      //
+      // At once, then a key at a time from the top down and in a turned
+      // order, each key further from the last than the chord window.
+      std::vector<std::vector<int>> orders{
+          keys, {keys.rbegin(), keys.rend()}, keys};
+      std::rotate(orders[2].begin(),
+                  orders[2].begin() + (long)((size_t)key % n), orders[2].end());
+
+      std::vector<double> first;
+      std::vector<int> versions(n);
+      std::vector<bool> harmonic(n, false);
+
+      for (size_t way = 0; way < orders.size(); ++way) {
+        engine.reset();
+        engine.setPolyphony(16);
+
+        for (const auto k : orders[way]) {
+          engine.noteOn(k, 0.8f, p);
+          if (way > 0)
+            render(0.06);
+        }
+        render(0.05);
+
+        std::vector<double> shape;
+        for (const auto k : keys)
+          shape.push_back(1200.0 * std::log2(engine.frequencyOfNote(k) /
+                                             engine.frequencyOfNote(keys[0])));
+
+        if (way == 0) {
+          first = shape;
+
+          // Which version each key took, and which is off the chain.
+          for (size_t i = 0; i < n; ++i) {
+            const auto middle = noteFrequency(keys[i], Temperament::Adaptive, 0,
+                                              p.global.referenceHz);
+            const auto commas =
+                1200.0 * std::log2(engine.frequencyOfNote(keys[i]) / middle) /
+                tuning::kAdaptiveComma;
+            versions[i] = (int)std::lround(commas);
+            harmonic[i] = std::abs(commas - versions[i]) > 0.1;
+          }
+          continue;
+        }
+
+        for (size_t i = 0; i < n; ++i) {
+          const auto spread = std::abs(shape[i] - first[i]);
+          worstSpread = std::max(worstSpread, spread);
+          if (spread > 0.01) {
+            ++orderFaults;
+            if (orderExample.empty())
+              orderExample =
+                  std::string(type.name) + " on key " + std::to_string(key);
+            break;
+          }
+        }
+      }
+
+      // ---- as little out of tune as it can be -----------------------------
+      //
+      // Each consonant pair's distance from pure, in commas, weighed as the
+      // engine weighs it, summed for the engine's tuning and for the best of
+      // every assignment within three commas of the first key's.
+      const auto cost = [&](const std::vector<int> &at) {
+        int total = 0;
+        for (size_t a = 0; a < n; ++a)
+          for (size_t b = a + 1; b < n; ++b) {
+            if (harmonic[a] || harmonic[b])
+              continue;
+            const auto c = (keys[b] - keys[a]) % 12;
+            if (kWeight[c] == 0)
+              continue;
+            const auto want =
+                (kStep[c] - (kStep[keys[b] % 12] - kStep[keys[a] % 12])) / 12;
+            total += kWeight[c] * std::abs(at[b] - at[a] - want);
+          }
+        return total;
+      };
+
+      const auto engineCost = cost(versions);
+      int best = engineCost;
+      std::vector<int> at(n, 0);
+      std::function<void(size_t)> search = [&](size_t i) {
+        if (i == n) {
+          best = std::min(best, cost(at));
+          return;
+        }
+        if (i == 0 || harmonic[i]) {
+          at[i] = 0;
+          search(i + 1);
+          return;
+        }
+        for (int v = -3; v <= 3; ++v) {
+          at[i] = v;
+          search(i + 1);
+        }
+      };
+      search(0);
+
+      if (engineCost > best) {
+        ++worseThanBest;
+        if (worseNames.find(type.name) == std::string::npos)
+          worseNames +=
+              (worseNames.empty() ? "" : ", ") + std::string(type.name);
+      }
+    }
+
+  std::printf("  %zu chord types in twelve keys, struck three ways: %d came "
+              "out differently, at most %.4f cents; %d short of the best "
+              "tuning (%s)\n",
+              music_utils::kChordTypes.size(), orderFaults, worstSpread,
+              worseThanBest, worseNames.c_str());
+
+  check(music_utils::kChordTypes.size() >= 125,
+        "the whole of music-utils' list is here");
+  check(orderFaults == 0,
+        "every one comes out the same however it is struck" +
+            (orderExample.empty() ? std::string() : " (" + orderExample + ")"));
+
+  // The Petrushka chord, two major triads a tritone apart, is the one the
+  // search stops short on: it lands on 9 where 6 is possible, in every key.
+  // Anything else short of the best is a regression.
+  check(
+      worseNames.empty() || worseNames == "Petrushka chord",
+      "and every one is tuned as well as it can be but the Petrushka chord (" +
+          worseNames + ")");
 }
 
 void testBlendEndpoints() {
@@ -9917,6 +10092,7 @@ int main() {
   testTuningTable();
   testTemperaments();
   testAdaptiveTuning();
+  testAdaptiveChordTypes();
   testBlendEndpoints();
   testStretch();
   testStartPhase();
