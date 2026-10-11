@@ -120,6 +120,7 @@ set(OVERTONIUM_SOURCES
     Source/UI/MuteSoloButton.cpp
     Source/UI/NoiseStrip.cpp
     Source/UI/OptionBars.cpp
+    Source/UI/SettingsMenus.cpp
     Source/UI/ShapeButton.cpp
     Source/UI/Theme.cpp
     Source/UI/TopBar.cpp)

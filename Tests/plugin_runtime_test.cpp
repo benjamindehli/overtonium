@@ -30,6 +30,7 @@
 #include "UI/LearnMenu.h"
 #include "UI/LookAndFeel.h"
 #include "UI/NoiseStrip.h"
+#include "UI/SettingsMenus.h"
 #include "UI/ShapeButton.h"
 #include "UI/Theme.h"
 #include "UI/TopBar.h"
@@ -2719,9 +2720,11 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   // Three on the bar, the two converter readouts and the preset name, two on
   // each of the thirty-two channels, the level on the noise strip, and one
   // per macro in the panel. The panel's eight are built whether or not the
-  // macro has been made, so they are all here whatever the patch says.
+  // macro has been made, so they are all here whatever the patch says. Then
+  // four in the Playing bar, the voices, bend range, aftertouch and slide,
+  // built whether or not the bar is open.
   check(displays.size() ==
-            3 + 2 * ovt::kNumHarmonics + 1 + ovt::params::kNumMacros,
+            3 + 2 * ovt::kNumHarmonics + 1 + ovt::params::kNumMacros + 4,
         "every readout is a segment display now (" +
             std::to_string(displays.size()) + ")");
 
@@ -7445,6 +7448,229 @@ void testOptionBars(OvertoniumProcessor &p) {
         "and the floor comes back down when it closes");
 }
 
+/// Every choice the Settings menu and the bars share goes through one place,
+/// and lands on the parameter its list says it does.
+void testSharedSettingsChoices(OvertoniumProcessor &p) {
+  section("The choices the Settings menu and the bars share");
+
+  namespace st = ovt::ui::settings;
+  auto &apvts = p.apvts;
+
+  const auto index = [&apvts](const char *id) {
+    return st::choiceIndex(apvts, id);
+  };
+
+  // Each list's last entry, which is the one an off-by-one misses.
+  const struct {
+    int id;
+    const char *param;
+    int expect;
+  } lists[] = {
+      {st::kVoices + 7, ovt::params::polyphonyId, 7},
+      {st::kVoices + 2, ovt::params::polyphonyId, 2},
+      {st::kBendRange + 24, ovt::params::bendRangeId, 24},
+      {st::kBendRange + 7, ovt::params::bendRangeId, 7},
+      {st::kAftertouchFrom + 2, ovt::params::atSourceId, 2},
+      {st::kSlideTo + 2, ovt::params::slideDestId, 2},
+      {st::kTemperament + 6, ovt::params::temperamentId, 6},
+      {st::kRoot + 11, ovt::params::tuningRootId, 11},
+      {st::kReferencePitch + 3, ovt::params::referenceHzId, 3},
+      {st::kRetune + 1, ovt::params::adaptiveRetuneId, 1},
+  };
+
+  for (const auto &l : lists) {
+    const bool handled = st::apply(apvts, l.id);
+    check(handled && index(l.param) == l.expect,
+          "item " + std::to_string(l.id) + " sets " + l.param + " to choice " +
+              std::to_string(l.expect) + " (" + std::to_string(index(l.param)) +
+              ")");
+  }
+
+  // Every item in every shared list is one apply carries out, and points at
+  // what it ticks.
+  {
+    bool all = true;
+    for (const auto &list :
+         {st::voices(apvts), st::bendRange(apvts), st::aftertouchFrom(apvts),
+          st::slideTo(apvts), st::temperament(apvts), st::root(apvts),
+          st::referencePitch(apvts), st::retune(apvts)})
+      for (juce::PopupMenu::MenuItemIterator it(list); it.next();)
+        all &= st::apply(apvts, it.getItem().itemID);
+    check(all, "every item in every shared list is carried out");
+  }
+
+  // The switches flip, and nothing outside the lists is claimed, which is what
+  // lets the Settings menu hand everything to apply first.
+  for (const auto &sw :
+       {std::pair<int, const char *>{st::kMpe, ovt::params::mpeId},
+        {st::kOneVoicePerKey, ovt::params::oneVoicePerKeyId},
+        {st::kPhaseReset, ovt::params::phaseResetId},
+        {st::kSafetyClip, ovt::params::safetyClipId},
+        {st::kLookahead, ovt::params::lookaheadId}}) {
+    const bool before = st::isOn(apvts, sw.second);
+    st::apply(apvts, sw.first);
+    const bool after = st::isOn(apvts, sw.second);
+    st::apply(apvts, sw.first);
+    check(after != before && st::isOn(apvts, sw.second) == before,
+          std::string("item ") + std::to_string(sw.first) + " flips " +
+              sw.second + " and flips it back");
+  }
+
+  check(!st::apply(apvts, 700) && !st::apply(apvts, 800) &&
+            !st::apply(apvts, 820) && !st::apply(apvts, st::kTemperament + 7) &&
+            !st::apply(apvts, st::kVoices),
+        "undo, zoom, Fit all 32 channels and ids past a list are left to the "
+        "menu");
+
+  // Legato from the voice list's old entry: one voice and the switch, and
+  // unticking keeps the one voice and drops the switch.
+  if (auto *count = apvts.getParameter(ovt::params::polyphonyId)) {
+    count->setValueNotifyingHost(
+        count->convertTo0to1((float)ovt::params::kLegatoIndex));
+    if (auto *sw = apvts.getParameter(ovt::params::legatoId))
+      sw->setValueNotifyingHost(0.0f);
+
+    check(st::legatoOn(apvts) && st::voiceCount(apvts) == 1,
+          "the old legato entry reads as Legato with one voice");
+
+    st::apply(apvts, st::kLegato);
+    check(!st::legatoOn(apvts) && index(ovt::params::polyphonyId) == 1,
+          "and unticking Legato leaves one voice with the switch off");
+
+    st::apply(apvts, st::kLegato);
+    check(st::legatoOn(apvts), "and ticking it again is the switch");
+  }
+
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
+/// The Playing bar shows what the parameters say and changes them.
+void testPlayingBar(OvertoniumProcessor &p) {
+  section("The Playing bar");
+
+  p.applyFactoryPreset(presetIndex("Init"));
+  namespace st = ovt::ui::settings;
+
+  std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());
+  sizeEditor(*editor, 1348, 240);
+
+  ovt::ui::PlayingBar *bar = nullptr;
+  juce::TextButton *opener = nullptr;
+  std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (auto *b = dynamic_cast<ovt::ui::PlayingBar *>(child))
+        bar = b;
+      if (auto *b = dynamic_cast<juce::TextButton *>(child))
+        if (b->getTitle() == "Playing")
+          opener = b;
+      look(*child);
+    }
+  };
+  look(*editor);
+
+  check(bar != nullptr && opener != nullptr, "there is a Playing bar");
+  if (bar == nullptr || opener == nullptr)
+    return;
+
+  opener->onClick();
+
+  ovt::ui::SegmentDisplay *voices = nullptr, *bend = nullptr,
+                          *aftertouch = nullptr, *slide = nullptr;
+  juce::TextButton *legato = nullptr, *perKey = nullptr, *mpe = nullptr;
+
+  for (auto *child : bar->getChildren()) {
+    if (auto *d = dynamic_cast<ovt::ui::SegmentDisplay *>(child)) {
+      const auto t = d->getTitle();
+      if (t.startsWith("Voices"))
+        voices = d;
+      if (t.startsWith("Pitch bend"))
+        bend = d;
+      if (t.startsWith("Aftertouch"))
+        aftertouch = d;
+      if (t.startsWith("Slide"))
+        slide = d;
+    }
+    if (auto *b = dynamic_cast<juce::TextButton *>(child)) {
+      if (b->getTitle() == "Legato")
+        legato = b;
+      if (b->getTitle() == "One voice per key")
+        perKey = b;
+      if (b->getTitle() == "MPE")
+        mpe = b;
+    }
+  }
+
+  check(voices != nullptr && bend != nullptr && aftertouch != nullptr &&
+            slide != nullptr && legato != nullptr && perKey != nullptr &&
+            mpe != nullptr,
+        "it has voices, bend range, aftertouch and slide, and Legato, One "
+        "voice per key and MPE");
+  if (voices == nullptr || bend == nullptr || aftertouch == nullptr ||
+      slide == nullptr || legato == nullptr || perKey == nullptr ||
+      mpe == nullptr)
+    return;
+
+  check(voices->isVisible() && slide->isVisible() && mpe->isVisible(),
+        "all of it fits at 1348 px");
+
+  // ---- it reads the parameters ---------------------------------------------
+  st::apply(p.apvts, st::kVoices + 5);
+  st::apply(p.apvts, st::kBendRange + 12);
+  st::apply(p.apvts, st::kAftertouchFrom + 1);
+  st::apply(p.apvts, st::kSlideTo + 2);
+  bar->refresh();
+
+  check(voices->getReading().trim() == "8" &&
+            bend->getReading().trim() == "12" &&
+            aftertouch->getReading().trim() == "WHEEL" &&
+            slide->getReading().trim() == "TUNING",
+        "it shows 8 voices, 12 semitones, the wheel and tuning (" +
+            voices->getReading().toStdString() + ", " +
+            bend->getReading().toStdString() + ", " +
+            aftertouch->getReading().toStdString() + ", " +
+            slide->getReading().toStdString() + ")");
+
+  check(voices->onClick != nullptr && bend->onClick != nullptr &&
+            aftertouch->onClick != nullptr && slide->onClick != nullptr,
+        "and each display opens its list");
+
+  // ---- the switches change the parameters and light from them -----------
+  const auto pressAndRead = [&](juce::TextButton *b, const char *param) {
+    const bool before = st::isOn(p.apvts, param);
+    b->onClick();
+    return std::pair<bool, bool>{st::isOn(p.apvts, param) != before,
+                                 b->getToggleState() ==
+                                     st::isOn(p.apvts, param)};
+  };
+
+  for (const auto &sw : {std::pair<juce::TextButton *, const char *>{
+                             legato, ovt::params::legatoId},
+                         {perKey, ovt::params::oneVoicePerKeyId},
+                         {mpe, ovt::params::mpeId}}) {
+    const auto [flipped, lit] = pressAndRead(sw.first, sw.second);
+    check(flipped && lit, sw.first->getButtonText().toStdString() +
+                              " flips its parameter and lights from it");
+    sw.first->onClick();
+  }
+
+  // A preset, a host or the Settings menu moves one, and the bar follows on
+  // its next refresh.
+  st::apply(p.apvts, st::kMpe);
+  bar->refresh();
+  check(mpe->getToggleState() == st::isOn(p.apvts, ovt::params::mpeId),
+        "and follows a change made somewhere else");
+  st::apply(p.apvts, st::kMpe);
+
+  // ---- a narrow window keeps whole groups -------------------------------
+  sizeEditor(*editor, ovt::ui::TopBar::minimumWidth());
+  check(voices->isVisible() && !slide->isVisible() && !aftertouch->isVisible(),
+        "at the narrowest window the groups that do not fit are left out "
+        "whole, the voices still there");
+
+  opener->onClick();
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
 /// LINK comes back the way it was left.
 ///
 /// Reported as LINK not being retained when the plugin is closed and opened.
@@ -10366,6 +10592,8 @@ int main(int argc, char **argv) {
   testDrawingAcrossTheFaders(processor);
   testLinkSurvivesAReopen(processor);
   testOptionBars(processor);
+  testSharedSettingsChoices(processor);
+  testPlayingBar(processor);
   testFoldingAndUnfoldingIsSymmetric(processor);
   testFittingLandsWhereADragCanReturn(processor);
   testTheRulesFoldTheirSections(processor);

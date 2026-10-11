@@ -160,6 +160,41 @@ void paintDisplayGround(juce::Graphics &g, juce::Rectangle<float> area,
   g.fillRoundedRectangle(area, corner);
 }
 
+void paintGroupPocket(juce::Graphics &g, juce::Rectangle<int> r) {
+  const auto f = r.toFloat();
+
+  g.setColour(colours::panelAlt.withAlpha(0.75f));
+  g.fillRoundedRectangle(f, 4.0f);
+
+  // Read as a pocket milled into the bar rather than a box drawn on it.
+  // Light comes from above, so the inside of the top edge is in shadow and
+  // the inside of the bottom edge catches it.
+  //
+  // The whole outline is stroked each time and then clipped to the half it
+  // belongs in, which is what keeps both marks on the box's own rounded
+  // edge. An arc inscribed in the rectangle instead would sweep across the
+  // middle of the box, straight through the controls standing in it.
+  const auto inner = f.reduced(0.5f);
+  const auto middle = f.getCentreY();
+
+  {
+    juce::Graphics::ScopedSaveState clip(g);
+    g.reduceClipRegion(f.withBottom(middle).getSmallestIntegerContainer());
+    g.setColour(juce::Colours::black.withAlpha(0.34f));
+    g.drawRoundedRectangle(inner.translated(0.0f, 1.0f), 4.0f, 1.3f);
+  }
+
+  {
+    juce::Graphics::ScopedSaveState clip(g);
+    g.reduceClipRegion(f.withTop(middle).getSmallestIntegerContainer());
+    g.setColour(juce::Colours::white.withAlpha(0.06f));
+    g.drawRoundedRectangle(inner.translated(0.0f, -1.0f), 4.0f, 1.0f);
+  }
+
+  g.setColour(colours::outline.withAlpha(0.9f));
+  g.drawRoundedRectangle(f.reduced(0.5f), 4.0f, 1.0f);
+}
+
 void paintRecess(juce::Graphics &g, juce::Rectangle<float> opening,
                  float corner, float depth) {
   // The lit walls first, one depth out all the way round, and then the

@@ -191,6 +191,11 @@ void paintColumnHighlight(juce::Graphics &, juce::Rectangle<int> strip);
 void paintDisplayGround(juce::Graphics &, juce::Rectangle<float> area,
                         float corner, bool hovered);
 
+/// The box behind a group of controls on the top bar and the bars under it,
+/// which is what carries the "these belong together" reading. Drawn as a
+/// pocket milled into the panel rather than a box drawn on it.
+void paintGroupPocket(juce::Graphics &, juce::Rectangle<int> group);
+
 /// The lip of the opening a screen or a lamp is set into.
 ///
 /// Around the thing rather than inside it. Every one of them is a few pixels

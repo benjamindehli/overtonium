@@ -451,7 +451,8 @@ void RowGutter::paint(juce::Graphics &g) {
 
 OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     : juce::AudioProcessorEditor(&p), topBar(p.apvts, *this),
-      noiseStrip(p.apvts, *this, *this), macroPanel(p.apvts) {
+      playingBar(p.apvts), noiseStrip(p.apvts, *this, *this),
+      macroPanel(p.apvts) {
   setLookAndFeel(&lookAndFeel);
 
   // The background is filled edge to edge, so say so: an opaque top-level
@@ -1142,6 +1143,10 @@ void OvertoniumEditor::mouseWheelMove(const juce::MouseEvent &e,
 
 void OvertoniumEditor::toggleBar(int bar) {
   openBars ^= bar;
+
+  // Read before it shows, so it never opens on whatever it said last time.
+  playingBar.refresh();
+  tuningBar.refresh();
 
   playingBar.setVisible((openBars & kPlayingBar) != 0);
   tuningBar.setVisible((openBars & kTuningBar) != 0);
@@ -1978,6 +1983,12 @@ void OvertoniumEditor::timerCallback() {
   };
 
   topBar.updatePanelReadouts(plugin().getSampleRate());
+
+  // Only while open. A closed bar is read again as it opens.
+  for (auto *bar : {static_cast<ovt::ui::OptionBar *>(&playingBar),
+                    static_cast<ovt::ui::OptionBar *>(&tuningBar)})
+    if (bar->isVisible())
+      bar->refresh();
 
   syncSharedModulators();
 

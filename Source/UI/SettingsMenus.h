@@ -1,0 +1,64 @@
+#pragma once
+
+#include <juce_audio_processors/juce_audio_processors.h>
+#include <juce_gui_basics/juce_gui_basics.h>
+
+/// The choices the Settings menu offers that the bars under the top bar offer
+/// too, built in one place so a list cannot say one thing in the menu and
+/// another in a bar, and carried out in one place so choosing from either does
+/// the same thing.
+namespace ovt::ui::settings {
+
+/// Item ids, the same wherever the item appears. Each list counts up from its
+/// base, one id per choice, in the order the choices are listed.
+enum Id : int {
+  kVoices = 100,
+  kBendRange = 200,
+  kPhaseReset = 300,
+  kSafetyClip = 301,
+  kMpe = 302,
+  kOneVoicePerKey = 303,
+  kLookahead = 304,
+  kLegato = 305,
+  kAftertouchFrom = 600,
+  kTemperament = 900,
+  kRoot = 1000,
+  kReferencePitch = 1100,
+  kSlideTo = 1200,
+  kRetune = 1300,
+};
+
+/// The voice counts, from one up, with the one in use ticked.
+juce::PopupMenu voices(juce::AudioProcessorValueTreeState &);
+
+/// The bend ranges anyone actually uses, in semitones.
+juce::PopupMenu bendRange(juce::AudioProcessorValueTreeState &);
+
+juce::PopupMenu aftertouchFrom(juce::AudioProcessorValueTreeState &);
+juce::PopupMenu slideTo(juce::AudioProcessorValueTreeState &);
+
+juce::PopupMenu temperament(juce::AudioProcessorValueTreeState &);
+juce::PopupMenu root(juce::AudioProcessorValueTreeState &);
+juce::PopupMenu referencePitch(juce::AudioProcessorValueTreeState &);
+
+/// How fast Adaptive moves a held note.
+juce::PopupMenu retune(juce::AudioProcessorValueTreeState &);
+
+/// How many voices are in use, counting the voice list's old legato entry as
+/// the one voice it was.
+int voiceCount(juce::AudioProcessorValueTreeState &);
+
+/// Whether Legato is on, counting the old legato entry, which was.
+bool legatoOn(juce::AudioProcessorValueTreeState &);
+
+/// Whether a switch parameter is on.
+bool isOn(juce::AudioProcessorValueTreeState &, const char *id);
+
+/// The index of a choice parameter's current choice.
+int choiceIndex(juce::AudioProcessorValueTreeState &, const char *id);
+
+/// Carries out a choice from any of the lists above, or one of the switches.
+/// Returns false, and does nothing, for an id that is none of them.
+bool apply(juce::AudioProcessorValueTreeState &, int id);
+
+} // namespace ovt::ui::settings
