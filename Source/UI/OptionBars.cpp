@@ -21,9 +21,6 @@ constexpr int kGroupPad = 6;
 constexpr int kControlGap = 6;
 constexpr int kControlHeight = 24;
 
-/// Room for the bar's name, the way the wordmark has room in the top bar.
-constexpr int kNameWidth = 62;
-
 /// How far a screen that fills its group stands in from the group's edge.
 constexpr int kReadoutInset = 5;
 
@@ -65,7 +62,6 @@ void OptionBar::resized() {
   groupBounds.clear();
 
   auto area = getLocalBounds().reduced(kBarMargin, kBarPadY);
-  area.removeFromLeft(kNameWidth);
 
   for (auto &entry : groups) {
     auto &group = entry.items;
@@ -133,13 +129,6 @@ void OptionBar::paint(juce::Graphics &g) {
 
   g.setColour(colours::outline);
   g.fillRect(0, getHeight() - 1, getWidth(), 1);
-
-  g.setColour(colours::textDim);
-  g.setFont(makeFont(10.0f, true));
-  g.drawText(
-      name,
-      getLocalBounds().reduced(kBarMargin, kBarPadY).withWidth(kNameWidth),
-      juce::Justification::centredLeft, false);
 
   g.setFont(makeFont(9.0f, true));
 
@@ -226,10 +215,19 @@ PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state)
   };
   slide.onClick = [this] { showList(slide, settings::slideTo(apvts), apvts); };
 
-  addGroup({{&voices, 40, "VOICES"}, {&legato, 62, {}}, {&onePerKey, 74, {}}});
-  addGroup({{&bend, 40, "BEND"}});
-  addGroup(
-      {{&mpe, 44, {}}, {&aftertouch, 96, "AFTERTOUCH"}, {&slide, 84, "SLIDE"}});
+  // Every display as wide as its cells need, so a figure here is the same
+  // width as one anywhere else at this height.
+  const auto natural = [](const SegmentDisplay &d) {
+    return d.naturalWidth(kControlHeight);
+  };
+
+  addGroup({{&voices, juce::jmax(40, natural(voices)), "VOICES"},
+            {&legato, 62, {}},
+            {&onePerKey, 74, {}}});
+  addGroup({{&bend, juce::jmax(40, natural(bend)), "BEND"}});
+  addGroup({{&mpe, 44, {}},
+            {&aftertouch, natural(aftertouch), "AFTERTOUCH"},
+            {&slide, natural(slide), "SLIDE"}});
 
   refresh();
 }
@@ -485,9 +483,14 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
     showList(reference, settings::referencePitch(apvts), apvts);
   };
 
-  addGroup({{&temperament, 108, "TEMPERAMENT"},
-            {&root, 30, "ROOT"},
-            {&reference, 54, "REFERENCE"}});
+  // Every display as wide as its cells need. See PlayingBar.
+  const auto natural = [](const SegmentDisplay &d) {
+    return d.naturalWidth(kControlHeight);
+  };
+
+  addGroup({{&temperament, natural(temperament), "TEMPERAMENT"},
+            {&root, juce::jmax(30, natural(root)), "ROOT"},
+            {&reference, natural(reference), "REFERENCE"}});
   retuneGroup = addGroup({{&retune, 38, {}}});
 
   std::vector<Item> scaleItems;
@@ -496,8 +499,8 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
     scale[(size_t)pc]->setTooltip(
         "How far this note sits from equal temperament, in cents, with A on "
         "the reference pitch");
-    scaleItems.push_back(
-        {scale[(size_t)pc].get(), 46, params::kPitchClassNames[(size_t)pc]});
+    scaleItems.push_back({scale[(size_t)pc].get(), natural(*scale[(size_t)pc]),
+                          params::kPitchClassNames[(size_t)pc]});
   }
   addGroup(std::move(scaleItems));
 
@@ -518,8 +521,9 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
   seventh.setTooltip("Lit while a seventh in the chord is tuned on the "
                      "harmonic seventh, 7:4 above its root.");
 
-  chordGroup =
-      addGroup({{&pure, 44, {}}, {&seventh, 40, {}}, {&drift, 40, "DRIFT"}});
+  chordGroup = addGroup({{&pure, 44, {}},
+                         {&seventh, 40, {}},
+                         {&drift, juce::jmax(40, natural(drift)), "DRIFT"}});
 
   showChord(chord);
   refresh();

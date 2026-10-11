@@ -683,6 +683,18 @@ static constexpr float kUnitWidth = 21.0f;
 static constexpr int kUnitInsets = 8;
 static constexpr int kDigitsNeed = 44;
 
+int SegmentDisplay::naturalWidth(int height) const {
+  // The same insets paint takes: a pixel for the recess, then three across
+  // and two down for the screen's margin.
+  const auto inner = (float)height - 2.0f - 4.0f;
+  const auto cellW = inner * (bars == Bars::Fourteen ? 0.74f : 0.72f);
+  const auto sharpW = sharpSign ? inner * 0.5f : 0.0f;
+  const auto unitW = unitText.isNotEmpty() ? kUnitWidth : 0.0f;
+
+  return (int)std::ceil(cellW * (float)juce::jlimit(1, kMaxCells, fixedCells) +
+                        sharpW + unitW + 2.0f + 6.0f);
+}
+
 bool SegmentDisplay::hasRoomForUnit(int width) {
   return width - kUnitInsets > kDigitsNeed;
 }

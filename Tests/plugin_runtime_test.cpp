@@ -7691,6 +7691,12 @@ void testPlayingBar(OvertoniumProcessor &p) {
 
   check(voices->isVisible() && slide->isVisible() && mpe->isVisible(),
         "all of it fits at 1348 px");
+  {
+    bool natural = true;
+    for (auto *d : {voices, bend, aftertouch, slide})
+      natural &= d->getWidth() >= d->naturalWidth(d->getHeight());
+    check(natural, "with every display at the width its cells need");
+  }
 
   // ---- it reads the parameters ---------------------------------------------
   st::apply(p.apvts, st::kVoices + 5);
@@ -7891,6 +7897,36 @@ void testTuningBar(OvertoniumProcessor &p) {
             std::to_string(retune->slider.getValue()) + " s)");
   check(retune->getHeight() > ovt::ui::OptionBar::kHeight / 2,
         "standing the height of its column, as the top bar's knobs do");
+
+  // Every display at the width its cells need, so a figure in this bar is the
+  // same width as one in the Playing bar or on the preset name, and all of
+  // it fits across the window that shows all 32 channels.
+  {
+    bool natural = true, shown = true;
+    std::string narrow;
+    for (auto *barHere :
+         {static_cast<juce::Component *>(bar),
+          static_cast<juce::Component *>(bar->getParentComponent())}) {
+      for (auto *child : barHere->getChildren())
+        if (auto *other = dynamic_cast<ovt::ui::OptionBar *>(child);
+            other != nullptr && other->isVisible())
+          for (auto *c : other->getChildren())
+            if (auto *d = dynamic_cast<SegmentDisplay *>(c)) {
+              shown &= d->isVisible();
+              if (d->isVisible() &&
+                  d->getWidth() < d->naturalWidth(d->getHeight())) {
+                natural = false;
+                narrow = d->getTitle().toStdString() + ", " +
+                         std::to_string(d->getWidth()) + " of " +
+                         std::to_string(d->naturalWidth(d->getHeight())) +
+                         " at " + std::to_string(d->getHeight());
+              }
+            }
+    }
+    check(natural, "every display in the open bar stands at its natural width" +
+                       (narrow.empty() ? std::string() : " (" + narrow + ")"));
+    check(shown, "and under Adaptive the whole bar fits at 1348 px");
+  }
 
   pick(st::kTemperament + (int)ovt::Temperament::Equal);
   check(!retune->isVisible(), "and goes again when Adaptive does");

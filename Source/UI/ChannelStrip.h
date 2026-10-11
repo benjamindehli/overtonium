@@ -200,6 +200,12 @@ public:
   /// letter, and a note name needs one.
   void showSharpSign(bool shouldShow);
 
+  /// How wide this display has to be, at a given height, for every cell to
+  /// stand at its full width with room for the sharp sign and the unit if it
+  /// has them. A display given less squeezes its cells, so its figures come
+  /// out narrower than every other display's at the same height.
+  int naturalWidth(int height) const;
+
   /// How many bars its cells have, which says what it is for: a seven-bar one
   /// reports a number and a fourteen-bar one spells a name. Read back by the
   /// tests, which hold each display's reading against what its own cells can
