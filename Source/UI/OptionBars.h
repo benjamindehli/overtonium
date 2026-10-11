@@ -150,6 +150,9 @@ public:
     return *scale[(size_t)pitchClass];
   }
 
+  /// The drift display, for the tests.
+  const SegmentDisplay &driftDisplay() const { return drift; }
+
   /// The word the temperament display shows for each temperament, in their
   /// order, sized for its nine cells.
   static const char *temperamentWord(int index);
@@ -174,6 +177,9 @@ private:
   std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>
       retuneAttachment;
   AdaptiveReadout readout;
+
+  /// How far the held chord sits from home, in whole commas.
+  SegmentDisplay drift{{}};
 
   int retuneGroup = -1, readoutGroup = -1;
 };

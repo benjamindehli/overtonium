@@ -447,10 +447,9 @@ void AdaptiveReadout::paint(juce::Graphics &g) {
   const auto lit = colours::accent;
   const auto dim = lit.withAlpha(0.6f);
 
-  // DRIFT at the far end, and the chord as harmonics, or what it gave up,
-  // with a line under it, in the rest.
-  auto tail = area.removeFromRight(86);
-  auto head = area.withTrimmedRight(8);
+  // The chord as harmonics, or what it gave up, with a line under it. How far
+  // it has drifted has a display of its own beside this.
+  auto head = area;
   g.setColour(lit);
   g.setFont(makeFont(19.0f, true));
   const auto big = reading.harmonics.isNotEmpty() ? reading.harmonics
@@ -465,21 +464,6 @@ void AdaptiveReadout::paint(juce::Graphics &g) {
                         ? "7:4 ON " + reading.seventhOn + ", " + reading.verdict
                         : reading.verdict;
   g.drawFittedText(line, head, juce::Justification::topLeft, 2, 0.7f);
-
-  g.setColour(lit.withAlpha(0.25f));
-  g.fillRect(tail.getX(), tail.getY() + 3, 1, tail.getHeight() - 6);
-  tail.removeFromLeft(10);
-
-  g.setColour(dim);
-  g.setFont(makeFont(10.0f, true));
-  g.drawText("DRIFT", tail.removeFromTop(14), juce::Justification::centredLeft,
-             false);
-  g.setColour(lit);
-  g.setFont(makeFont(13.0f, true));
-  const auto d = reading.drift;
-  g.drawText((d > 0 ? "+" : "") + juce::String(d) +
-                 (std::abs(d) == 1 ? " COMMA" : " COMMAS"),
-             tail.removeFromTop(16), juce::Justification::centredLeft, false);
 }
 
 // ---- Tuning -----------------------------------------------------------------
@@ -548,8 +532,12 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
   }
   addGroup(std::move(scaleItems));
 
-  readoutGroup = addGroup({{&readout, 240, {}, true}});
+  drift.setTooltip("How far the held chord sits from where just intonation on "
+                   "the root would put it, in commas. It moves only as far as "
+                   "the music takes it, and never more than two either way.");
+  readoutGroup = addGroup({{&readout, 170, {}, true}, {&drift, 40, "DRIFT"}});
 
+  showChord(chord);
   refresh();
 }
 
@@ -585,7 +573,19 @@ void TuningBar::refresh() {
 
 void TuningBar::showChord(const AdaptiveSnapshot &snapshot) {
   chord = snapshot;
-  readout.show(AdaptiveReading::of(snapshot));
+
+  const auto reading = AdaptiveReading::of(snapshot);
+  readout.show(reading);
+
+  // Nothing held has nowhere to sit, so it says nothing rather than zero.
+  const auto held = snapshot.count > 0;
+  drift.setReading(held ? juce::String(reading.drift) : juce::String("-"),
+                   held);
+  drift.setTitle(held
+                     ? "Drift: " + juce::String(reading.drift) +
+                           (std::abs(reading.drift) == 1 ? " comma" : " commas")
+                     : juce::String("Drift: no keys held"));
+
   showScale();
 }
 

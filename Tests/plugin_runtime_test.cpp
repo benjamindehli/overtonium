@@ -2736,11 +2736,11 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   // per macro in the panel. The panel's eight are built whether or not the
   // macro has been made, so they are all here whatever the patch says. Then
   // four in the Playing bar, the voices, bend range, aftertouch and slide,
-  // and fifteen in the Tuning bar, the temperament, root and reference and
-  // one for each of the twelve pitch classes, all built whether or not the
-  // bars are open.
+  // and sixteen in the Tuning bar, the temperament, root and reference, one
+  // for each of the twelve pitch classes and the drift, all built whether or
+  // not the bars are open.
   check(displays.size() ==
-            3 + 2 * ovt::kNumHarmonics + 1 + ovt::params::kNumMacros + 4 + 15,
+            3 + 2 * ovt::kNumHarmonics + 1 + ovt::params::kNumMacros + 4 + 16,
         "every readout is a segment display now (" +
             std::to_string(displays.size()) + ")");
 
@@ -7957,6 +7957,25 @@ void testAdaptiveReadouts(OvertoniumProcessor &p) {
                (pc == 0 || pc == 4 || pc == 7 || pc == 10);
 
       check(lit, "the four held light and the other eight do not");
+      check(bar.driftDisplay().getReading().trim() == "0" &&
+                bar.driftDisplay().isActive(),
+            "and the drift reads 0, the chord sitting at home");
+
+      // A chord a comma below home, as a progression that pumps leaves one.
+      ovt::AdaptiveSnapshot low = lastChord;
+      for (int i = 0; i < low.count; ++i)
+        low.notes[(size_t)i].version = -1;
+      bar.showChord(low);
+      check(bar.driftDisplay().getReading().trim() == "-1" &&
+                bar.driftDisplay().getTitle() == "Drift: -1 comma",
+            "a chord a comma down reads -1 (" +
+                bar.driftDisplay().getReading().trim().toStdString() + ")");
+
+      bar.showChord({});
+      check(bar.driftDisplay().getReading().trim() == "-" &&
+                !bar.driftDisplay().isActive(),
+            "and nothing held reads a dash, dimmed");
+      bar.showChord(lastChord);
       check(std::abs(at(0) - 15.6) < 0.3 &&
                 std::abs(at(4) - at(0) + 13.7) < 0.15 &&
                 std::abs(at(10) - at(0) + 31.2) < 0.15,
