@@ -44,6 +44,10 @@ OptionBar::OptionBar(juce::String nameToShow) : name(std::move(nameToShow)) {
   setTitle(name.substring(0, 1) + name.substring(1).toLowerCase());
 }
 
+juce::Colour OptionBar::captionColour(const Item &) const {
+  return colours::textDim;
+}
+
 int OptionBar::addGroup(std::vector<Item> items) {
   for (auto &item : items)
     addAndMakeVisible(item.control);
@@ -263,27 +267,28 @@ void OptionBar::paint(juce::Graphics &g) {
     if (bounds.isEmpty())
       continue;
 
-    paintGroupPocket(g, bounds);
+    paintGroupPocketFill(g, bounds);
 
     // After the pocket, which leaves its own outline colour behind.
     g.setColour(colours::textDim);
 
     // Centred under each control, a little wider than it so a caption longer
     // than a narrow display still fits.
-    for (const auto &item : groups[i].items)
-      if (item.shown && item.control->isVisible())
-        paintItemGround(g, item);
+    paintGroupGround(g, (int)i, bounds);
 
-    // After the grounds, which leave their own colour behind.
-    g.setColour(colours::textDim);
+    // The pocket's shading again, over whatever the bar laid in it, so that
+    // sits down in the recess rather than on top of its edges.
+    paintGroupPocketShade(g, bounds);
 
     for (const auto &item : groups[i].items)
-      if (item.caption.isNotEmpty() && item.shown)
+      if (item.caption.isNotEmpty() && item.shown) {
+        g.setColour(captionColour(item));
         g.drawText(item.caption,
                    LabelledKnob::captionBounds(item.line)
                        .withX(item.control->getX() - kControlGap)
                        .withWidth(item.control->getWidth() + 2 * kControlGap),
                    juce::Justification::centred, false);
+      }
   }
 }
 
@@ -673,7 +678,7 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
                             {&retune, 38, {}}});
 
   // Where every note sits.
-  addGroup(std::move(scaleItems));
+  scaleGroup = addGroup(std::move(scaleItems));
 
   showChord(chord);
   refresh();
@@ -739,26 +744,76 @@ void TuningBar::showChord(const AdaptiveSnapshot &snapshot) {
   showScale();
 }
 
-void TuningBar::paintItemGround(juce::Graphics &g, const Item &item) const {
+bool TuningBar::isWhiteKey(const juce::Component *control) const {
   static constexpr bool kWhite[12] = {true,  false, true,  false, true,  true,
                                       false, true,  false, true,  false, true};
 
   for (int pc = 0; pc < 12; ++pc)
-    if (item.control == scale[(size_t)pc].get()) {
-      if (!kWhite[pc])
-        return;
+    if (control == scale[(size_t)pc].get())
+      return kWhite[pc];
 
-      const auto ground = item.control->getBounds()
-                              .withY(item.line.getY())
-                              .withHeight(item.line.getHeight())
-                              .expanded(2, 0)
-                              .reduced(0, 3)
-                              .toFloat();
+  return false;
+}
 
-      g.setColour(colours::text.withAlpha(0.13f));
-      g.fillRoundedRectangle(ground, 3.0f);
-      return;
-    }
+juce::Colour TuningBar::captionColour(const Item &item) const {
+  // The near-black a cap's legend is printed in, since the key under it is
+  // the same plastic.
+  if (isWhiteKey(item.control))
+    return OvertoniumLookAndFeel::lampLegend();
+
+  return OptionBar::captionColour(item);
+}
+
+void TuningBar::paintGroupGround(juce::Graphics &g, int group,
+                                 juce::Rectangle<int> bounds) const {
+  if (group != scaleGroup)
+    return;
+
+  // Inside the pocket's own rounded edge, so its lip still shows round the
+  // white keys at either end.
+  juce::Graphics::ScopedSaveState state(g);
+  juce::Path pocket;
+  pocket.addRoundedRectangle(bounds.toFloat().reduced(1.0f), 3.0f);
+  g.reduceClipRegion(pocket);
+
+  // The unlit plastic every cap on the panel is moulded in, so the white keys
+  // read as part of the same set of parts.
+  g.setColour(OvertoniumLookAndFeel::lampFace(colours::accent, false));
+
+  // Each white key runs halfway into the gap either side of it, so two white
+  // keys together, E and F or B and C, are one ground, and out to the pocket's
+  // edge where it is first or last in its line. Top to bottom it runs to the
+  // pocket's edge, or halfway into the gap between two lines.
+  const auto &items = itemsOf(group);
+  const auto rowGap = (float)kRowGap;
+
+  for (size_t i = 0; i < items.size(); ++i) {
+    const auto &item = items[i];
+    if (!item.shown || !item.control->isVisible() || !isWhiteKey(item.control))
+      continue;
+
+    const auto onLine = [&item](const Item &other) {
+      return other.shown && other.control->isVisible() &&
+             other.line.getY() == item.line.getY();
+    };
+
+    const auto x = (float)item.control->getX();
+    const auto r = (float)item.control->getRight();
+    const auto left = i > 0 && onLine(items[i - 1])
+                          ? ((float)items[i - 1].control->getRight() + x) * 0.5f
+                          : (float)bounds.getX();
+    const auto right = i + 1 < items.size() && onLine(items[i + 1])
+                           ? (r + (float)items[i + 1].control->getX()) * 0.5f
+                           : (float)bounds.getRight();
+    const auto top = item.line.getY() == bounds.getY()
+                         ? (float)bounds.getY()
+                         : (float)item.line.getY() - rowGap * 0.5f;
+    const auto bottom = item.line.getBottom() == bounds.getBottom()
+                            ? (float)bounds.getBottom()
+                            : (float)item.line.getBottom() + rowGap * 0.5f;
+
+    g.fillRect(juce::Rectangle<float>(left, top, right - left, bottom - top));
+  }
 }
 
 void TuningBar::showScale() {

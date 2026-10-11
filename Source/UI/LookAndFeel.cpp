@@ -160,11 +160,8 @@ void paintDisplayGround(juce::Graphics &g, juce::Rectangle<float> area,
   g.fillRoundedRectangle(area, corner);
 }
 
-void paintGroupPocket(juce::Graphics &g, juce::Rectangle<int> r) {
+void paintGroupPocketShade(juce::Graphics &g, juce::Rectangle<int> r) {
   const auto f = r.toFloat();
-
-  g.setColour(colours::panelAlt.withAlpha(0.75f));
-  g.fillRoundedRectangle(f, 4.0f);
 
   // Read as a pocket milled into the bar rather than a box drawn on it.
   // Light comes from above, so the inside of the top edge is in shadow and
@@ -193,6 +190,16 @@ void paintGroupPocket(juce::Graphics &g, juce::Rectangle<int> r) {
 
   g.setColour(colours::outline.withAlpha(0.9f));
   g.drawRoundedRectangle(f.reduced(0.5f), 4.0f, 1.0f);
+}
+
+void paintGroupPocketFill(juce::Graphics &g, juce::Rectangle<int> r) {
+  g.setColour(colours::panelAlt.withAlpha(0.75f));
+  g.fillRoundedRectangle(r.toFloat(), 4.0f);
+}
+
+void paintGroupPocket(juce::Graphics &g, juce::Rectangle<int> r) {
+  paintGroupPocketFill(g, r);
+  paintGroupPocketShade(g, r);
 }
 
 void paintRecess(juce::Graphics &g, juce::Rectangle<float> opening,

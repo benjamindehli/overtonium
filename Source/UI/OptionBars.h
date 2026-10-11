@@ -75,9 +75,18 @@ protected:
   /// it.
   void setItemShown(juce::Component &control, bool shown);
 
-  /// Paints whatever stands behind one control and its caption, over the
-  /// group's pocket. Nothing, unless a bar has something to put there.
-  virtual void paintItemGround(juce::Graphics &, const Item &) const {}
+  /// Paints whatever stands behind a group's controls and captions, over its
+  /// pocket. Nothing, unless a bar has something to put there.
+  virtual void paintGroupGround(juce::Graphics &, int /*group*/,
+                                juce::Rectangle<int> /*bounds*/) const {}
+
+  /// What a control's caption is drawn in.
+  virtual juce::Colour captionColour(const Item &) const;
+
+  /// A group's controls, for a bar painting behind them.
+  const std::vector<Item> &itemsOf(int group) const {
+    return groups[(size_t)group].items;
+  }
 
   /// Opens one of the shared Settings lists under a control and carries out
   /// what is chosen.
@@ -209,7 +218,14 @@ private:
 
   /// A light ground behind each white key's display and its name, like the
   /// keys themselves, so which note is which reads at a glance.
-  void paintItemGround(juce::Graphics &, const Item &) const override;
+  void paintGroupGround(juce::Graphics &, int group,
+                        juce::Rectangle<int> bounds) const override;
+  juce::Colour captionColour(const Item &) const override;
+
+  /// Whether a control is one of the seven white keys' displays.
+  bool isWhiteKey(const juce::Component *) const;
+
+  int scaleGroup = -1;
   std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>
       retuneAttachment;
   /// What Adaptive did with the held chord: PURE, lit in a screen like the
