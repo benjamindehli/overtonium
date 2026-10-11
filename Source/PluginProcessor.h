@@ -112,6 +112,14 @@ public:
     return engine.getPartialTremolo(index0);
   }
 
+  /// The held chord as the Adaptive temperament last settled it, for the
+  /// Tuning bar's readouts. Returns true and fills @p out when it has been
+  /// settled again since the last call. Handed over without a lock, so the
+  /// audio thread never waits for the window. From the message thread only.
+  bool readAdaptiveSnapshot(ovt::AdaptiveSnapshot &out) noexcept {
+    return engine.readAdaptiveSnapshot(out);
+  }
+
   float getPartialPitch(int index0) const noexcept {
     return engine.getPartialPitch(index0);
   }

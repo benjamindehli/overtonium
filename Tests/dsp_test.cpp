@@ -10,12 +10,15 @@
 // it noticed as a segfault carrying no output at all.
 
 #include <algorithm>
+#include <array>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <memory>
 #include <random>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -1327,6 +1330,109 @@ void testAdaptiveTuning() {
           "C minor with an added ninth keeps its minor third pure");
     for (const auto k : {48, 51, 62})
       engine.noteOff(k);
+  }
+
+  // ---- what it tells the screen
+  // ------------------------------------------------------
+  //
+  // After every settle the engine publishes the held chord: each key, where it
+  // is tuned, its version and whether it is the harmonic seventh. The Tuning
+  // bar reads it, so it has to say what the voices are actually playing.
+  {
+    start();
+    const auto p = patch(Temperament::Adaptive, 0.01f);
+
+    AdaptiveSnapshot seen;
+    engine.readAdaptiveSnapshot(seen); // whatever was left from before
+
+    for (const auto k : {58, 48, 55, 52}) // C7, struck out of order
+      engine.noteOn(k, 0.8f, p);
+    render(p, 0.05);
+
+    const bool fresh = engine.readAdaptiveSnapshot(seen);
+    const int keys[] = {48, 52, 55, 58};
+
+    bool inOrder = seen.count == 4;
+    double worstHz = 0.0;
+    for (int i = 0; inOrder && i < 4; ++i) {
+      inOrder &= seen.notes[(size_t)i].key == keys[i];
+      worstHz = std::max(
+          worstHz,
+          std::abs(1200.0 * std::log2(seen.notes[(size_t)i].hz /
+                                      engine.frequencyOfNote(keys[i]))));
+    }
+
+    check(fresh && inOrder, "C7 is published as its four keys, lowest first");
+    check(worstHz < 1.0e-6, "at the frequencies the voices are playing");
+    check(seen.notes[3].harmonic && !seen.notes[0].harmonic &&
+              !seen.notes[1].harmonic && !seen.notes[2].harmonic &&
+              seen.harmonicRoot == 48,
+          "with B flat as the harmonic seventh on C");
+
+    check(!engine.readAdaptiveSnapshot(seen),
+          "and nothing new is read until it is settled again");
+
+    for (const auto k : keys)
+      engine.noteOff(k);
+    render(p, 0.05);
+
+    check(engine.readAdaptiveSnapshot(seen) && seen.count == 0 &&
+              seen.harmonicRoot < 0,
+          "letting go of every key publishes an empty chord");
+  }
+
+  // The handover itself, with one thread publishing as fast as it can and
+  // another reading. Every copy read has to be one copy whole, never half of
+  // one and half of the next, and never older than the one before it. Run
+  // under the thread sanitizer too, which is what says the handover is sound
+  // rather than merely lucky here.
+  {
+    struct Stamp {
+      std::array<int, 64> value{};
+    };
+
+    TripleBuffer<Stamp> buffer;
+    constexpr int kCopies = 200000;
+    std::atomic<bool> done{false};
+
+    std::thread writer([&] {
+      Stamp s;
+      for (int n = 1; n <= kCopies; ++n) {
+        s.value.fill(n);
+        buffer.publish(s);
+      }
+      done = true;
+    });
+
+    int last = 0, reads = 0;
+    bool whole = true, forwards = true;
+    Stamp got;
+
+    // Done is read before trying, so a failed read after the writer has
+    // finished means there is nothing left to read.
+    for (;;) {
+      const bool finished = done.load();
+
+      if (buffer.read(got)) {
+        ++reads;
+        for (const auto v : got.value)
+          whole &= v == got.value[0];
+        forwards &= got.value[0] > last;
+        last = got.value[0];
+        continue;
+      }
+
+      if (finished)
+        break;
+    }
+
+    writer.join();
+
+    std::printf("  %d copies published, %d read, the last %d\n", kCopies, reads,
+                last);
+    check(whole, "every copy read is one copy whole");
+    check(forwards, "and each is newer than the one before");
+    check(last == kCopies, "and the last one read is the last one published");
   }
 
   check(std::string(temperamentName(Temperament::Adaptive)) == "Adaptive",

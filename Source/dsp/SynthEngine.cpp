@@ -59,6 +59,7 @@ void SynthEngine::reset() noexcept {
   ageCounter = 0;
   lastNoteFrequency = 0.0;
   adaptiveVersion.fill(0);
+  adaptiveSnapshots.publish(AdaptiveSnapshot{});
   clock = 0;
   pressedAt.fill(0);
   pressedWithOthers.fill(false);
@@ -626,8 +627,13 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
   if (note >= 0)
     nodes[(size_t)count++] = {nullptr, note, 0, true, false};
 
-  if (count == 0)
+  if (count == 0) {
+    // Nothing held, which the screen needs to know as much as anything else.
+    AdaptiveSnapshot none;
+    none.referenceHz = referenceHz;
+    adaptiveSnapshots.publish(none);
     return 0.0;
+  }
 
   // Lowest key first, so where a chord cannot all be pure the interval left
   // out is the same whatever order the keys went down in.
@@ -894,6 +900,11 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
   // ---- move what has to move ------------------------------------------------
   double result = 0.0;
 
+  // What it all came to, for the screen, filled in as each key is placed.
+  AdaptiveSnapshot outcome;
+  outcome.count = count;
+  outcome.referenceHz = referenceHz;
+
   // The root the harmonic seventh is tuned on, where the chain put it.
   int rootNode = -1;
   if (dominant >= 0)
@@ -910,6 +921,9 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
       const auto hz = hzOf(rootKey, chosen[(size_t)rootNode]) * 1.75 *
                       std::exp2((double)octaves);
 
+      outcome.notes[(size_t)i] = {node.key, hz, 0, true};
+      outcome.harmonicRoot = rootKey;
+
       if (node.voice == nullptr)
         result = hz;
       else if (std::abs(1200.0 * std::log2(node.voice->getFrequency() / hz)) >
@@ -920,6 +934,8 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
 
     const auto version = chosen[(size_t)i];
     adaptiveVersion[(size_t)classOf(node.key)] = version;
+    outcome.notes[(size_t)i] = {node.key, hzOf(node.key, version), version,
+                                false};
 
     if (node.voice == nullptr) {
       result = hzOf(node.key, version);
@@ -933,6 +949,7 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
       node.voice->retuneTo(hz, node.young ? 0.0 : adaptiveRetune);
   }
 
+  adaptiveSnapshots.publish(outcome);
   return result;
 }
 

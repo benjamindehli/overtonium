@@ -7449,6 +7449,17 @@ void testOptionBars(OvertoniumProcessor &p) {
         "and the floor comes back down when it closes");
 }
 
+/// Puts every session setting back where a fresh instance has it.
+///
+/// A preset leaves these alone, since they belong to the session rather than
+/// to the sound, so a test that moves the temperament or the root has to put
+/// them back itself, or every test after it runs on F# at 415 Hz.
+void restoreSessionSettings(OvertoniumProcessor &p) {
+  for (const auto *id : ovt::params::kSessionParamIds)
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->getDefaultValue());
+}
+
 /// Every choice the Settings menu and the bars share goes through one place,
 /// and lands on the parameter its list says it does.
 void testSharedSettingsChoices(OvertoniumProcessor &p) {
@@ -7542,6 +7553,7 @@ void testSharedSettingsChoices(OvertoniumProcessor &p) {
     check(st::legatoOn(apvts), "and ticking it again is the switch");
   }
 
+  restoreSessionSettings(p);
   p.applyFactoryPreset(presetIndex("Init"));
 }
 
@@ -7788,6 +7800,150 @@ void testTuningBar(OvertoniumProcessor &p) {
   check(!retune->isVisible(), "and goes again when Adaptive does");
 
   opener->onClick();
+  restoreSessionSettings(p);
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
+/// The Adaptive readouts say what the engine did, chord by chord.
+void testAdaptiveReadouts(OvertoniumProcessor &p) {
+  section("The Adaptive readouts");
+
+  namespace st = ovt::ui::settings;
+  p.applyFactoryPreset(presetIndex("Init"));
+  restoreSessionSettings(p);
+  p.prepareToPlay(48000.0, 256);
+  st::apply(p.apvts, st::kTemperament + (int)ovt::Temperament::Adaptive);
+
+  juce::AudioBuffer<float> buffer(2, 256);
+  const auto play = [&](std::initializer_list<int> on,
+                        std::initializer_list<int> off) {
+    juce::MidiBuffer midi;
+    for (const auto k : off)
+      midi.addEvent(juce::MidiMessage::noteOff(1, k), 0);
+    for (const auto k : on)
+      midi.addEvent(juce::MidiMessage::noteOn(1, k, 0.8f), 0);
+    for (int block = 0; block < 4; ++block) {
+      buffer.clear();
+      p.processBlock(buffer, midi);
+      midi.clear();
+    }
+
+    ovt::AdaptiveSnapshot chord;
+    ovt::AdaptiveSnapshot latest;
+    while (p.readAdaptiveSnapshot(chord))
+      latest = chord;
+    return ovt::ui::AdaptiveReading::of(latest);
+  };
+
+  // ---- a dominant seventh ---------------------------------------------------
+  {
+    const auto r = play({48, 52, 55, 58}, {});
+
+    check(r.harmonics == "4:5:6:7" && r.seventhOn == "C" &&
+              r.verdict == "NOTHING BEATS",
+          "C7 reads as harmonics 4:5:6:7 with the seventh on C, nothing "
+          "beating (" +
+              r.harmonics.toStdString() + ", " + r.seventhOn.toStdString() +
+              ", " + r.verdict.toStdString() + ")");
+
+    // Cents from equal temperament with A on the reference. Just major on C
+    // puts C itself a sixth below A, about 15.6 cents above equal, and the
+    // rest sit where the chord puts them from there: the third 13.7 below
+    // equal's third over C and the seventh 31.2 below.
+    const auto centsOf = [&r](size_t i) {
+      return r.notes[i].cents.getDoubleValue();
+    };
+    const bool columns =
+        r.notes.size() == 4 && r.notes[0].name == "C3" &&
+        r.notes[0].ratio == "1/1" && r.notes[1].ratio == "5/4" &&
+        r.notes[2].ratio == "3/2" && r.notes[3].ratio == "7/4" &&
+        std::abs(centsOf(0) - 15.6) < 0.3 &&
+        std::abs(centsOf(1) - centsOf(0) + 13.7) < 0.15 &&
+        std::abs(centsOf(3) - centsOf(0) + 31.2) < 0.15;
+    check(columns, "each note with its ratio to C and its cents from equal (" +
+                       (r.notes.size() > 3
+                            ? (r.notes[0].cents + ", " + r.notes[1].ratio +
+                               " " + r.notes[1].cents + ", " +
+                               r.notes[3].ratio + " " + r.notes[3].cents)
+                                  .toStdString()
+                            : std::string("too few")) +
+                       ")");
+    check(r.spoken().contains("harmonics 4:5:6:7") &&
+              r.spoken().contains("harmonic seventh on C"),
+          "and says so to a screen reader: " + r.spoken().toStdString());
+
+    play({}, {48, 52, 55, 58});
+  }
+
+  // ---- a chord that cannot be pure all through ---------------------------
+  //
+  // C11 cannot be pure all through: pure fifths and pure thirds never meet,
+  // and somewhere in it one interval has to give a comma. Which one is the
+  // solver's to decide, so what is checked is that it is named and a comma.
+  {
+    const auto r = play({48, 52, 55, 58, 62, 65}, {});
+
+    check(r.harmonics.isEmpty() && r.givenUp.isNotEmpty() &&
+              r.givenUp.contains(" 21") && r.verdict == r.givenUp,
+          "C11 names the interval it gives up, a comma off (" +
+              r.givenUp.toStdString() + ")");
+    check(r.seventhOn.isEmpty(),
+          "and has no harmonic seventh, the fourth above C ruling it out");
+
+    play({}, {48, 52, 55, 58, 62, 65});
+  }
+
+  // ---- a minor triad, which is a series too ------------------------------
+  {
+    const auto r = play({57, 60, 64}, {});
+    check(r.harmonics == "10:12:15" && r.verdict == "NOTHING BEATS",
+          "A minor reads as 10:12:15 (" + r.harmonics.toStdString() + ")");
+    const auto empty = play({}, {57, 60, 64});
+    check(empty.notes.empty() && empty.verdict == "NO KEYS HELD",
+          "and letting go reads as nothing held");
+  }
+
+  // ---- only under Adaptive -------------------------------------------------
+  {
+    std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());
+    sizeEditor(*editor, 1348, 240);
+
+    ovt::ui::TuningBar *bar = nullptr;
+    ovt::ui::AdaptiveReadout *readout = nullptr;
+    juce::TextButton *opener = nullptr;
+    std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+      for (auto *child : c.getChildren()) {
+        if (auto *b = dynamic_cast<ovt::ui::TuningBar *>(child))
+          bar = b;
+        if (auto *rd = dynamic_cast<ovt::ui::AdaptiveReadout *>(child))
+          readout = rd;
+        if (auto *b = dynamic_cast<juce::TextButton *>(child))
+          if (b->getTitle() == "Tuning")
+            opener = b;
+        look(*child);
+      }
+    };
+    look(*editor);
+
+    check(bar != nullptr && readout != nullptr && opener != nullptr,
+          "the Tuning bar has a readout");
+
+    if (bar != nullptr && readout != nullptr && opener != nullptr) {
+      opener->onClick();
+      bar->refresh();
+      check(readout->isVisible() &&
+                readout->getHeight() > ovt::ui::OptionBar::kHeight / 2,
+            "shown under Adaptive, filling its group's height");
+
+      st::apply(p.apvts, st::kTemperament + (int)ovt::Temperament::Just);
+      bar->refresh();
+      check(!readout->isVisible(), "and gone under a fixed temperament");
+
+      opener->onClick();
+    }
+  }
+
+  restoreSessionSettings(p);
   p.applyFactoryPreset(presetIndex("Init"));
 }
 
@@ -10715,6 +10871,7 @@ int main(int argc, char **argv) {
   testSharedSettingsChoices(processor);
   testPlayingBar(processor);
   testTuningBar(processor);
+  testAdaptiveReadouts(processor);
   testFoldingAndUnfoldingIsSymmetric(processor);
   testFittingLandsWhereADragCanReturn(processor);
   testTheRulesFoldTheirSections(processor);

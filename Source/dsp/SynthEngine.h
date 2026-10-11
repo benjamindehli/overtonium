@@ -7,6 +7,7 @@
 
 #include <atomic>
 
+#include "AdaptiveSnapshot.h"
 #include "BucketEcho.h"
 #include "BusDrive.h"
 #include "DigitalEcho.h"
@@ -53,6 +54,14 @@ public:
 
   void prepare(double sampleRate) noexcept;
   void reset() noexcept;
+
+  /// The held chord as Adaptive last settled it, for the Tuning bar. Copies it
+  /// into @p out and returns true if it has been settled again since the last
+  /// call, or returns false and leaves @p out alone. From one thread only, and
+  /// not the audio thread, which is the one writing it.
+  bool readAdaptiveSnapshot(AdaptiveSnapshot &out) noexcept {
+    return adaptiveSnapshots.read(out);
+  }
 
   /// What the output stage's lookahead costs, in samples, for the host to be
   /// told along with the bus stage's. Valid once prepare has run.
@@ -443,6 +452,11 @@ private:
   /// @return the frequency for the key going down, or zero for none.
   double settleAdaptive(int note, int root, double referenceHz,
                         const Voice *self) noexcept;
+
+  /// What the last settle came to, for the Tuning bar.
+  TripleBuffer<AdaptiveSnapshot> adaptiveSnapshots;
+  static_assert(AdaptiveSnapshot::kMaxNotes >= kPoolSize + 1,
+                "room for every voice and the key going down");
 
   /// The tuning the held chord was last settled under and how fast it moves,
   /// kept for a key coming up, which carries no parameters.

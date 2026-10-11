@@ -5,6 +5,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include "../dsp/AdaptiveSnapshot.h"
 #include "ChannelStrip.h"
 #include "Theme.h"
 
@@ -40,6 +41,9 @@ protected:
     juce::Component *control;
     int width;
     juce::String caption;
+    /// Fills its group's height rather than standing on the dial line, for
+    /// something with more to say than one row of segments.
+    bool fills = false;
   };
 
   /// Adds a framed group, laid out left to right after the ones before it,
@@ -87,6 +91,48 @@ private:
   GlowButton legato, onePerKey, mpe;
 };
 
+/// What Adaptive did to the held chord, worked out from what the engine
+/// published and laid out as the Tuning bar shows it.
+struct AdaptiveReading {
+  /// The chord as harmonics of one note, such as 4:5:6:7, or empty when it is
+  /// not one.
+  juce::String harmonics;
+
+  /// Nothing held, nothing beats, all pure, or the interval given up.
+  juce::String verdict;
+
+  /// The worst interval given up, such as G-D 21c WIDE, or empty.
+  juce::String givenUp;
+
+  /// The harmonic seventh's root, such as C, or empty for none.
+  juce::String seventhOn;
+
+  struct Note {
+    juce::String name, ratio, cents;
+  };
+  std::vector<Note> notes;
+
+  /// The chord's average version, in commas from the middle ones.
+  int drift = 0;
+
+  /// What a screen reader is told.
+  juce::String spoken() const;
+
+  static AdaptiveReading of(const AdaptiveSnapshot &);
+};
+
+/// The readouts, in a screen.
+class AdaptiveReadout : public juce::Component {
+public:
+  void show(const AdaptiveReading &);
+  const AdaptiveReading &shown() const noexcept { return reading; }
+
+  void paint(juce::Graphics &) override;
+
+private:
+  AdaptiveReading reading = AdaptiveReading::of({});
+};
+
 /// Temperament, root and reference pitch, and under Adaptive how fast it
 /// retunes and what it is doing to the chord being held.
 class TuningBar : public OptionBar {
@@ -94,6 +140,10 @@ public:
   explicit TuningBar(juce::AudioProcessorValueTreeState &);
 
   void refresh() override;
+
+  /// The held chord as the engine last settled it. Kept while the bar is
+  /// closed too, so it opens on the chord being held.
+  void showChord(const AdaptiveSnapshot &);
 
   /// The word the temperament display shows for each temperament, in their
   /// order, sized for its nine cells.
@@ -106,8 +156,9 @@ private:
   SegmentDisplay root{{}, SegmentDisplay::Bars::Fourteen, 2};
   SegmentDisplay reference{"Hz"};
   SegmentDisplay retune{{}, SegmentDisplay::Bars::Fourteen, 6};
+  AdaptiveReadout readout;
 
-  int retuneGroup = -1;
+  int retuneGroup = -1, readoutGroup = -1;
 };
 
 } // namespace ovt::ui

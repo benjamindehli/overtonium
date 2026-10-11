@@ -1969,6 +1969,15 @@ void OvertoniumEditor::timerCallback() {
   topBar.setOutputLevels(plugin().getOutputLevelLeft(),
                          plugin().getOutputLevelRight());
 
+  // What Adaptive did to the held chord, at the full rate so a chord reads out
+  // as it is played. Read whether or not the bar is open, so it opens on the
+  // chord being held rather than on the last one it saw.
+  {
+    ovt::AdaptiveSnapshot chord;
+    if (plugin().readAdaptiveSnapshot(chord))
+      tuningBar.showChord(chord);
+  }
+
   // The rest is housekeeping that nobody can see at 30 Hz, so it runs at a
   // fraction of the rate.
   if ((tick % 8) != 0)

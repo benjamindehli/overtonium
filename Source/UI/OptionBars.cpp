@@ -1,6 +1,8 @@
 #include "OptionBars.h"
 
+#include <cmath>
 #include <iterator>
+#include <vector>
 
 #include "../PluginParameters.h"
 #include "../dsp/Temperament.h"
@@ -21,6 +23,14 @@ constexpr int kControlHeight = 24;
 
 /// Room for the bar's name, the way the wordmark has room in the top bar.
 constexpr int kNameWidth = 62;
+
+/// How far a screen that fills its group stands in from the group's edge.
+constexpr int kReadoutInset = 5;
+
+/// How close to a whole number of cents an interval has to be to count as
+/// pure. A tempered fifth is a quarter of a cent narrow, which is pure to any
+/// ear and has to read as pure here.
+constexpr double kPureWithin = 1.0;
 
 /// Short enough for the cells the displays have.
 constexpr const char *kAftertouchWords[] = {"PRESSURE", "WHEEL", "EITHER"};
@@ -96,9 +106,14 @@ void OptionBar::resized() {
       const auto column = inner.removeFromLeft(item.width);
       const auto dial = LabelledKnob::dialBounds(column);
 
-      item.control->setBounds(column.getX(),
-                              dial.getCentreY() - kControlHeight / 2,
-                              column.getWidth(), kControlHeight);
+      if (item.fills)
+        item.control->setBounds(
+            column.withY(bounds.getY() + kReadoutInset)
+                .withHeight(bounds.getHeight() - 2 * kReadoutInset));
+      else
+        item.control->setBounds(column.getX(),
+                                dial.getCentreY() - kControlHeight / 2,
+                                column.getWidth(), kControlHeight);
     }
 
     if (!fits)
@@ -242,6 +257,266 @@ void PlayingBar::refresh() {
                      juce::dontSendNotification);
 }
 
+// ---- the Adaptive readouts
+// -----------------------------------------------------
+
+namespace {
+juce::String pitchName(int key) {
+  return params::kPitchClassNames[(size_t)(((key % 12) + 12) % 12)];
+}
+
+double centsBetween(double low, double high) {
+  return 1200.0 * std::log2(high / low);
+}
+
+/// The simplest fraction within a cent of a ratio between 1 and 2, as p/q, or
+/// empty if none with q up to 32 is.
+juce::String fractionFor(double ratio) {
+  for (int q = 1; q <= 32; ++q)
+    for (int p = q; p <= 2 * q; ++p)
+      if (std::abs(1200.0 * std::log2(ratio * q / p)) < kPureWithin)
+        return juce::String(p) + "/" + juce::String(q);
+
+  return {};
+}
+
+/// Pure sizes for the intervals a chord reaches for, in cents within an
+/// octave, by how many semitones the keys spell. A seventh is pure at 9:5,
+/// 16:9 or 7:4, all three of which Adaptive tunes. Seconds and the tritone
+/// have none.
+std::vector<double> pureSizes(int semitones) {
+  const auto c = [](double r) { return 1200.0 * std::log2(r); };
+
+  switch (semitones) {
+  case 0:
+    return {0.0};
+  case 3:
+    return {c(6.0 / 5.0)};
+  case 4:
+    return {c(5.0 / 4.0)};
+  case 5:
+    return {c(4.0 / 3.0)};
+  case 7:
+    return {c(3.0 / 2.0)};
+  case 8:
+    return {c(8.0 / 5.0)};
+  case 9:
+    return {c(5.0 / 3.0)};
+  case 10:
+    return {c(9.0 / 5.0), c(16.0 / 9.0), c(7.0 / 4.0)};
+  case 11:
+    return {c(15.0 / 8.0)};
+  default:
+    return {};
+  }
+}
+} // namespace
+
+AdaptiveReading AdaptiveReading::of(const AdaptiveSnapshot &snapshot) {
+  AdaptiveReading r;
+  const auto count =
+      juce::jlimit(0, AdaptiveSnapshot::kMaxNotes, snapshot.count);
+
+  if (count == 0) {
+    r.verdict = "NO KEYS HELD";
+    return r;
+  }
+
+  const auto &low = snapshot.notes[0];
+
+  // ---- each note -----------------------------------------------------------
+  int versions = 0, onChain = 0;
+
+  for (int i = 0; i < count; ++i) {
+    const auto &n = snapshot.notes[(size_t)i];
+    const auto equal =
+        snapshot.referenceHz * std::exp2((double)(n.key - 69) / 12.0);
+    const auto cents = centsBetween(equal, n.hz);
+    auto above = n.hz / low.hz;
+    while (above >= 2.0 - 1.0e-9)
+      above *= 0.5;
+
+    r.notes.push_back({pitchName(n.key) + juce::String(n.key / 12 - 1),
+                       i == 0 ? juce::String("1/1") : fractionFor(above),
+                       (cents >= 0.05 ? "+" : "") + juce::String(cents, 1)});
+
+    if (!n.harmonic) {
+      versions += n.version;
+      ++onChain;
+    }
+  }
+
+  r.drift = onChain > 0 ? juce::roundToInt((double)versions / onChain) : 0;
+
+  if (snapshot.harmonicRoot >= 0)
+    r.seventhOn = pitchName(snapshot.harmonicRoot);
+
+  if (count < 2) {
+    r.verdict = "ONE KEY";
+    return r;
+  }
+
+  // ---- the chord as one harmonic series
+  // --------------------------------------
+  //
+  // The lowest note as a harmonic of something below it, the lowest such
+  // something that every other note is also a harmonic of. A chord that is
+  // one series has every partial of every note landing on another, so
+  // nothing in it beats.
+  for (int below = 1; below <= 16 && r.harmonics.isEmpty(); ++below) {
+    const auto fundamental = low.hz / below;
+    juce::StringArray numbers;
+
+    for (int i = 0; i < count; ++i) {
+      const auto n = snapshot.notes[(size_t)i].hz / fundamental;
+      const auto whole = std::round(n);
+
+      if (whole > 64.0 ||
+          std::abs(1200.0 * std::log2(n / whole)) >= kPureWithin)
+        break;
+
+      numbers.add(juce::String((int)whole));
+    }
+
+    if (numbers.size() == count)
+      r.harmonics = numbers.joinIntoString(":");
+  }
+
+  // ---- what was given up --------------------------------------------------
+  double worst = 0.0, worstSigned = 0.0;
+  int worstLow = -1, worstHigh = -1;
+
+  for (int a = 0; a < count; ++a)
+    for (int b = a + 1; b < count; ++b) {
+      const auto &lo = snapshot.notes[(size_t)a];
+      const auto &hi = snapshot.notes[(size_t)b];
+      if (lo.harmonic || hi.harmonic)
+        continue;
+
+      const auto sizes = pureSizes((hi.key - lo.key) % 12);
+      if (sizes.empty())
+        continue;
+
+      const auto span = centsBetween(lo.hz, hi.hz);
+      const auto within = span - 1200.0 * std::floor((hi.key - lo.key) / 12);
+
+      double best = 1.0e9;
+      for (const auto pure : sizes)
+        if (std::abs(within - pure) < std::abs(best))
+          best = within - pure;
+
+      if (std::abs(best) > worst) {
+        worst = std::abs(best);
+        worstSigned = best;
+        worstLow = lo.key;
+        worstHigh = hi.key;
+      }
+    }
+
+  if (worst >= kPureWithin)
+    r.givenUp = pitchName(worstLow) + "-" + pitchName(worstHigh) + " " +
+                juce::String(juce::roundToInt(worst)) +
+                juce::String::fromUTF8("\xc2\xa2 ") +
+                (worstSigned > 0.0 ? "WIDE" : "NARROW");
+
+  r.verdict = r.harmonics.isNotEmpty() ? "NOTHING BEATS"
+              : r.givenUp.isNotEmpty() ? r.givenUp
+                                       : "ALL PURE";
+  return r;
+}
+
+juce::String AdaptiveReading::spoken() const {
+  if (notes.empty())
+    return "Adaptive: no keys held";
+
+  juce::String s = "Adaptive: ";
+  if (harmonics.isNotEmpty())
+    s << "the chord is harmonics " << harmonics << ", ";
+  s << verdict.toLowerCase();
+  if (seventhOn.isNotEmpty())
+    s << ", harmonic seventh on " << seventhOn;
+  s << ", drift " << drift << (std::abs(drift) == 1 ? " comma" : " commas");
+  return s;
+}
+
+void AdaptiveReadout::show(const AdaptiveReading &next) {
+  reading = next;
+  setTitle(reading.spoken());
+  repaint();
+}
+
+void AdaptiveReadout::paint(juce::Graphics &g) {
+  const auto r = getLocalBounds().toFloat();
+  paintRecess(g, r, 3.0f);
+  paintDisplayGround(g, r, 3.0f, false);
+
+  auto area = getLocalBounds().reduced(10, 4);
+  const auto lit = colours::accent;
+  const auto dim = lit.withAlpha(0.6f);
+
+  // The chord as harmonics, or what it gave up, and a line under it.
+  auto head = area.removeFromLeft(128);
+  g.setColour(lit);
+  g.setFont(makeFont(19.0f, true));
+  const auto big = reading.harmonics.isNotEmpty() ? reading.harmonics
+                   : reading.givenUp.isNotEmpty() ? reading.givenUp
+                                                  : juce::String("-");
+  g.drawFittedText(big, head.removeFromTop(26),
+                   juce::Justification::centredLeft, 1, 0.6f);
+
+  g.setColour(dim);
+  g.setFont(makeFont(10.0f, true));
+  const auto line = reading.seventhOn.isNotEmpty()
+                        ? "7:4 ON " + reading.seventhOn + ", " + reading.verdict
+                        : reading.verdict;
+  g.drawFittedText(line, head, juce::Justification::topLeft, 2, 0.7f);
+
+  // DRIFT at the far end, so the notes between take whatever is left.
+  auto tail = area.removeFromRight(86);
+  g.setColour(lit.withAlpha(0.25f));
+  g.fillRect(tail.getX(), tail.getY() + 3, 1, tail.getHeight() - 6);
+  tail.removeFromLeft(10);
+
+  g.setColour(dim);
+  g.setFont(makeFont(10.0f, true));
+  g.drawText("DRIFT", tail.removeFromTop(14), juce::Justification::centredLeft,
+             false);
+  g.setColour(lit);
+  g.setFont(makeFont(13.0f, true));
+  const auto d = reading.drift;
+  g.drawText((d > 0 ? "+" : "") + juce::String(d) +
+                 (std::abs(d) == 1 ? " COMMA" : " COMMAS"),
+             tail.removeFromTop(16), juce::Justification::centredLeft, false);
+
+  // One column a note: its name, its ratio to the lowest, its cents from
+  // equal temperament. Narrower when there are more of them.
+  area.removeFromLeft(8);
+  area.removeFromRight(6);
+
+  const auto n = (int)reading.notes.size();
+  if (n == 0)
+    return;
+
+  const auto width = juce::jmin(54, area.getWidth() / n);
+
+  for (const auto &note : reading.notes) {
+    auto col = area.removeFromLeft(width);
+    g.setColour(lit);
+    g.setFont(makeFont(12.0f, true));
+    g.drawFittedText(note.name, col.removeFromTop(15),
+                     juce::Justification::centred, 1, 0.6f);
+    g.setFont(makeFont(11.0f, false));
+    g.drawFittedText(note.ratio.isNotEmpty() ? note.ratio : juce::String("-"),
+                     col.removeFromTop(14), juce::Justification::centred, 1,
+                     0.6f);
+    g.setColour(dim);
+    g.setFont(makeFont(10.0f, false));
+    g.drawFittedText(note.cents + juce::String::fromUTF8("\xc2\xa2"),
+                     col.removeFromTop(13), juce::Justification::centred, 1,
+                     0.6f);
+  }
+}
+
 // ---- Tuning -----------------------------------------------------------------
 
 namespace {
@@ -288,6 +563,7 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state)
             {&root, 30, "ROOT"},
             {&reference, 54, "REFERENCE"}});
   retuneGroup = addGroup({{&retune, 72, "RETUNE"}});
+  readoutGroup = addGroup({{&readout, 560, {}, true}});
 
   refresh();
 }
@@ -323,9 +599,14 @@ void TuningBar::refresh() {
   retune.setTitle(juce::String("Retune: ") +
                   params::kAdaptiveRetuneNames[(size_t)speed]);
 
-  // Retune means nothing under any other temperament, so it is only there
-  // under Adaptive.
+  // Retune means nothing under any other temperament, and there is nothing to
+  // read out, so both are only there under Adaptive.
   setGroupShown(retuneGroup, adaptive);
+  setGroupShown(readoutGroup, adaptive);
+}
+
+void TuningBar::showChord(const AdaptiveSnapshot &snapshot) {
+  readout.show(AdaptiveReading::of(snapshot));
 }
 
 } // namespace ovt::ui
