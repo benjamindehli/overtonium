@@ -99,6 +99,14 @@ public:
   /// Fired when one of the three tools is chosen from the tool menu.
   std::function<void(PointerTool)> onToolChosen;
 
+  /// Fired when PLAYING or TUNING is clicked. The editor opens or closes the
+  /// bar and says so back through setBarsOpen, so a lamp follows its bar
+  /// rather than the click.
+  std::function<void()> onPlayingClicked, onTuningClicked;
+
+  /// Lights PLAYING and TUNING while their bars are open.
+  void setBarsOpen(bool playing, bool tuning);
+
   /// Lights MACROS while its panel is up, and says how many are made.
   void setMacrosOn(bool);
   void setMacroCount(int);
@@ -459,6 +467,10 @@ private:
 
   /// Icons rather than words, for the reason kGroupMinWidth gives.
   GlowButton settingsButton, macroButton;
+
+  /// Under those two, opening the bars between this one and the mixer. A
+  /// keyboard and a tuning fork, for the reason the two above wear icons.
+  GlowButton playingButton, tuningButton;
   int macrosMade = 0;
 
   /// Whether LINK is on. The switch itself is a button in the gutter, since

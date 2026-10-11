@@ -180,10 +180,14 @@ public:
 
 enum class PointerTool : int;
 
-/// The three icons the bar and the gutter wear, drawn rather than loaded so
+/// The icons the bar and the gutter wear, drawn rather than loaded so
 /// they take the colour they are given and stay sharp at any zoom.
 void drawGearIcon(juce::Graphics &, juce::Rectangle<float>, juce::Colour);
 void drawMacroIcon(juce::Graphics &, juce::Rectangle<float>, juce::Colour);
+/// A few keys of a keyboard and a tuning fork, for the two buttons that open
+/// the Playing and Tuning bars.
+void drawKeyboardIcon(juce::Graphics &, juce::Rectangle<float>, juce::Colour);
+void drawTuningForkIcon(juce::Graphics &, juce::Rectangle<float>, juce::Colour);
 /// Three strokes merging into one: several notes hearing one modulator. For
 /// the gutter switch that shares a modulator between all notes.
 void drawSharedIcon(juce::Graphics &, juce::Rectangle<float>, juce::Colour);

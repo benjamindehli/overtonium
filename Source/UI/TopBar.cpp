@@ -27,10 +27,11 @@ constexpr int kGroupPad = 6;
 /// Minimum width of each group, in the order they are laid out. Only the
 /// output group grows, because the meter is the one thing worth more room.
 ///
-/// The second holds the two buttons that open something, SETTINGS and
-/// MACROS, and is sized against what the bar can spare rather than against
-/// what would be comfortable. Measured in the font a 24 px button picks,
-/// SETTINGS is 61 px of text and MACROS is 54.
+/// The second holds the four buttons that open something, SETTINGS and
+/// MACROS over PLAYING and TUNING, two by two so they take no more of the
+/// row's width than the first two did alone. It is sized against what the
+/// bar can spare rather than against what would be comfortable. Measured in
+/// the font a 24 px button picks, SETTINGS is 61 px of text and MACROS is 54.
 ///
 /// Both wear an icon instead, which is what makes 84 enough: the words want
 /// 62 and 54 px and the bar could spare 58 each, and every pixel taken here
@@ -394,6 +395,40 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   settingsButton.onClick = [this] { showSettingsMenu(); };
   addAndMakeVisible(settingsButton);
 
+  // The same plastic as the two above, and lit by the editor while their bars
+  // are open rather than by their own clicks. See setBarsOpen.
+  const struct {
+    GlowButton &button;
+    const char *word, *title, *tooltip;
+    void (*icon)(juce::Graphics &, juce::Rectangle<float>, juce::Colour);
+    std::function<void()> TopBar::*callback;
+  } bars[] = {
+      {playingButton, "PLAYING", "Playing",
+       "Voices, legato, pitch bend range and expression, in a bar under this "
+       "one",
+       drawKeyboardIcon, &TopBar::onPlayingClicked},
+      {tuningButton, "TUNING", "Tuning",
+       "Temperament, root and reference pitch, and what Adaptive is doing, in "
+       "a bar under this one",
+       drawTuningForkIcon, &TopBar::onTuningClicked},
+  };
+
+  for (const auto &b : bars) {
+    b.button.setButtonText(b.word);
+    b.button.setTitle(b.title);
+    b.button.setTooltip(b.tooltip);
+    b.button.setColour(juce::TextButton::textColourOnId, colours::accent);
+    b.button.onIcon = b.icon;
+
+    const auto callback = b.callback;
+    b.button.onClick = [this, callback] {
+      if (this->*callback)
+        (this->*callback)();
+    };
+
+    addAndMakeVisible(b.button);
+  }
+
   // ---- the master effects
   // ----------------------------------------------------
   styleToggle(echoButton, "ECHO",
@@ -543,6 +578,11 @@ void TopBar::mouseDown(const juce::MouseEvent &e) {
 
   if (id.isNotEmpty())
     onLearnRequested(id);
+}
+
+void TopBar::setBarsOpen(bool playing, bool tuning) {
+  playingButton.setToggleState(playing, juce::dontSendNotification);
+  tuningButton.setToggleState(tuning, juce::dontSendNotification);
 }
 
 void TopBar::setMacrosOn(bool on) {
@@ -1570,10 +1610,11 @@ int TopBar::minimumWidth() {
 }
 
 void TopBar::parkControls() {
-  juce::Component *all[] = {&masterFader,    &meter,          &presetDisplay,
-                            &settingsButton, &echoButton,     &reverbButton,
-                            &stretch,        &track,          &rateDisplay,
-                            &bitsDisplay,    &characterButton};
+  juce::Component *all[] = {&masterFader,    &meter,         &presetDisplay,
+                            &settingsButton, &playingButton, &tuningButton,
+                            &echoButton,     &reverbButton,  &stretch,
+                            &track,          &rateDisplay,   &bitsDisplay,
+                            &characterButton};
 
   for (auto *c : all)
     c->setBounds({});
@@ -1626,14 +1667,27 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
     break;
 
   case VoiceGroup: {
-    // The two things on the bar that open something, side by side. The
-    // preset button is the third and stands on its own because it carries
-    // the name of what is loaded rather than a word.
+    // The four things on the bar that open something, two by two. The
+    // preset button is a fifth and stands on its own because it carries the
+    // name of what is loaded rather than a word.
+    //
+    // Two rows fill the row's height rather than lining up with the dials,
+    // which is the one place on the bar that does not: there is no room for
+    // a second row of buttons otherwise, and four in a line pushed the bar
+    // onto another row at the width that shows all 32 channels.
     const auto half = (r.getWidth() - kFxToggleGap) / 2;
+    const auto height = (r.getHeight() - kFxToggleGap) / 2;
 
-    button(settingsButton, r.removeFromLeft(half));
-    r.removeFromLeft(kFxToggleGap);
-    button(macroButton, r);
+    auto top = r.withHeight(height);
+    auto bottom = r.withTop(r.getBottom() - height);
+
+    settingsButton.setBounds(top.removeFromLeft(half));
+    top.removeFromLeft(kFxToggleGap);
+    macroButton.setBounds(top);
+
+    playingButton.setBounds(bottom.removeFromLeft(half));
+    bottom.removeFromLeft(kFxToggleGap);
+    tuningButton.setBounds(bottom);
     break;
   }
 

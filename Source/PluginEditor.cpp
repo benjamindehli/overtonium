@@ -15,10 +15,21 @@ using ovt::ui::kScrollBarThickness;
 /// Breathing room between the noise channel and the scrolling series.
 constexpr int kMasterGap = 8;
 
+/// The two bars under the top bar, as bits of OvertoniumEditor::openBars.
+constexpr int kPlayingBar = 1;
+constexpr int kTuningBar = 2;
+
+int barsOpen(int mask) {
+  return ((mask & kPlayingBar) != 0 ? 1 : 0) +
+         ((mask & kTuningBar) != 0 ? 1 : 0);
+}
+
 /// Everything above and below the strips. The top bar reflows onto a second
-/// row when narrow, so its height depends on the width it is given.
-int chromeHeight(int logicalWidth) {
-  return ovt::ui::TopBar::heightForWidth(logicalWidth) + kScrollBarThickness;
+/// row when narrow, so its height depends on the width it is given, and each
+/// bar open under it adds a row.
+int chromeHeight(int logicalWidth, int openBars) {
+  return ovt::ui::TopBar::heightForWidth(logicalWidth) +
+         barsOpen(openBars) * ovt::ui::OptionBar::kHeight + kScrollBarThickness;
 }
 
 /// The narrowest window, in logical pixels.
@@ -60,6 +71,10 @@ const juce::Identifier kLinkCurveId{"linkCurveId"};
 /// a state cannot carry two answers.
 const juce::Identifier kLinkCurve{"linkCurve"};
 const juce::Identifier kCollapsedSections{"collapsedSections"};
+
+/// Which bars are open under the top bar. Remembered for the reason the fold
+/// mask is: it is how you left the window, and nothing about the sound.
+const juce::Identifier kOpenBars{"openBars"};
 
 /// How far the parameters are scrolled, remembered with the session.
 ///
@@ -445,6 +460,8 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
 
   addAndMakeVisible(content);
   content.addAndMakeVisible(topBar);
+  content.addChildComponent(playingBar);
+  content.addChildComponent(tuningBar);
   content.addAndMakeVisible(gutter);
   content.addAndMakeVisible(noiseStrip);
   content.addAndMakeVisible(viewport);
@@ -639,6 +656,14 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
       (SectionMask)(int)state.getProperty(kCollapsedSections, 0) &
       ((1u << kNumSections) - 1u);
   publishCollapsedSections();
+
+  // Also before the heights, since an open bar takes a row of them.
+  openBars = (int)state.getProperty(kOpenBars, 0) & (kPlayingBar | kTuningBar);
+  playingBar.setVisible((openBars & kPlayingBar) != 0);
+  tuningBar.setVisible((openBars & kTuningBar) != 0);
+  topBar.setBarsOpen(playingBar.isVisible(), tuningBar.isVisible());
+  topBar.onPlayingClicked = [this] { toggleBar(kPlayingBar); };
+  topBar.onTuningClicked = [this] { toggleBar(kTuningBar); };
 
   // Restored but not trusted: resized() clamps it against a range it can only
   // know once the window has a size, and the window this opens into may be
@@ -858,6 +883,12 @@ void OvertoniumEditor::resized() {
   topBar.setBounds(
       area.removeFromTop(ovt::ui::TopBar::heightForWidth(logicalWidth)));
 
+  // Playing above Tuning, in the order their buttons stand in.
+  for (auto *bar : {static_cast<juce::Component *>(&playingBar),
+                    static_cast<juce::Component *>(&tuningBar)})
+    if (bar->isVisible())
+      bar->setBounds(area.removeFromTop(ovt::ui::OptionBar::kHeight));
+
   // No inset here. The mixer runs to the window edges and the breathing room
   // it used to get from this border is now kStripPadY inside each column, so
   // the space is above and below the controls rather than around the block.
@@ -945,7 +976,8 @@ juce::Rectangle<int> OvertoniumEditor::standardSize() const {
   const int width = kGutterWidth + kStripWidth + kMasterGap +
                     kNumHarmonics * kStripWidth + kScrollBarThickness;
 
-  return {width, chromeHeight(width) + preferredStripHeight(collapsedSections)};
+  return {width, chromeHeight(width, openBars) +
+                     preferredStripHeight(collapsedSections)};
 }
 
 void OvertoniumEditor::fitAllChannels() {
@@ -989,7 +1021,7 @@ void OvertoniumEditor::applyResizeLimits(int forLogicalWidth) {
   const int width = juce::jmax(minWidth, forLogicalWidth);
   const int bar = ovt::ui::TopBar::heightForWidth(width);
   const int minHeight =
-      chromeHeight(width) + minimumStripHeight(collapsedSections);
+      chromeHeight(width, openBars) + minimumStripHeight(collapsedSections);
 
   limitsBarHeight = bar;
 
@@ -1106,6 +1138,26 @@ void OvertoniumEditor::mouseWheelMove(const juce::MouseEvent &e,
   }
 
   juce::Component::mouseWheelMove(e, wheel);
+}
+
+void OvertoniumEditor::toggleBar(int bar) {
+  openBars ^= bar;
+
+  playingBar.setVisible((openBars & kPlayingBar) != 0);
+  tuningBar.setVisible((openBars & kTuningBar) != 0);
+  topBar.setBarsOpen(playingBar.isVisible(), tuningBar.isVisible());
+
+  {
+    // See OvertoniumProcessor::stateLock.
+    const juce::ScopedLock sl(plugin().stateLock());
+    plugin().apvts.state.setProperty(kOpenBars, openBars, nullptr);
+  }
+
+  // The floor moves by a row. Applying it grows a window that was already at
+  // the old floor, and leaves every other window the size it is, so the bar
+  // comes out of the mixer's height rather than the window's.
+  applyResizeLimits();
+  resized();
 }
 
 void OvertoniumEditor::toggleSection(Section section) {

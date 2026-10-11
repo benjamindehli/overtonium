@@ -7278,6 +7278,173 @@ void testFoldingAndUnfoldingIsSymmetric(OvertoniumProcessor &p) {
   }
 }
 
+/// The Playing and Tuning bars, opened from the top bar.
+///
+/// Both start closed, open and close from their buttons, light the button
+/// while open, come back open in a reopened window, and take their height from
+/// the mixer rather than from the window, unless the window is already as short
+/// as it can be.
+void testOptionBars(OvertoniumProcessor &p) {
+  section("The Playing and Tuning bars");
+
+  check(ovt::ui::OptionBar::kHeight == ovt::ui::TopBar::heightForWidth(2600),
+        "a bar is as tall as one row of the top bar (" +
+            std::to_string(ovt::ui::OptionBar::kHeight) + " and " +
+            std::to_string(ovt::ui::TopBar::heightForWidth(2600)) + ")");
+
+  const auto open = [&p] {
+    std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());
+    sizeEditor(*editor, 1348, 240);
+    return editor;
+  };
+
+  struct Parts {
+    juce::TextButton *settings = nullptr, *macros = nullptr, *playing = nullptr,
+                     *tuning = nullptr;
+    ovt::ui::PlayingBar *playingBar = nullptr;
+    ovt::ui::TuningBar *tuningBar = nullptr;
+    ovt::ui::ChannelStrip *strip = nullptr;
+    ovt::ui::TopBar *top = nullptr;
+  };
+
+  const auto partsOf = [](juce::Component &editor) {
+    Parts parts;
+    std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+      for (auto *child : c.getChildren()) {
+        if (auto *b = dynamic_cast<juce::TextButton *>(child)) {
+          if (b->getButtonText() == "SETTINGS")
+            parts.settings = b;
+          if (b->getTitle().startsWith("Macros"))
+            parts.macros = b;
+          if (b->getTitle() == "Playing")
+            parts.playing = b;
+          if (b->getTitle() == "Tuning")
+            parts.tuning = b;
+        }
+        if (auto *bar = dynamic_cast<ovt::ui::PlayingBar *>(child))
+          parts.playingBar = bar;
+        if (auto *bar = dynamic_cast<ovt::ui::TuningBar *>(child))
+          parts.tuningBar = bar;
+        if (auto *strip = dynamic_cast<ovt::ui::ChannelStrip *>(child))
+          if (parts.strip == nullptr)
+            parts.strip = strip;
+        if (auto *top = dynamic_cast<ovt::ui::TopBar *>(child))
+          parts.top = top;
+        look(*child);
+      }
+    };
+    look(editor);
+    return parts;
+  };
+
+  auto editor = open();
+  auto parts = partsOf(*editor);
+
+  check(parts.settings != nullptr && parts.macros != nullptr &&
+            parts.playing != nullptr && parts.tuning != nullptr &&
+            parts.playingBar != nullptr && parts.tuningBar != nullptr &&
+            parts.strip != nullptr && parts.top != nullptr,
+        "the top bar has PLAYING and TUNING buttons and the editor both bars");
+
+  if (parts.playing == nullptr || parts.tuning == nullptr ||
+      parts.playingBar == nullptr || parts.tuningBar == nullptr ||
+      parts.strip == nullptr || parts.top == nullptr ||
+      parts.settings == nullptr || parts.macros == nullptr)
+    return;
+
+  // ---- two by two, in the space the first two had ----------------------
+  {
+    const auto s = parts.settings->getBounds(), m = parts.macros->getBounds(),
+               pl = parts.playing->getBounds(), t = parts.tuning->getBounds();
+
+    check(s.getX() == pl.getX() && m.getX() == t.getX() &&
+              s.getY() == m.getY() && pl.getY() == t.getY() &&
+              pl.getY() > s.getBottom() && s.getRight() < m.getX(),
+          "SETTINGS and MACROS stand over PLAYING and TUNING");
+    check(s.getWidth() == pl.getWidth() && m.getWidth() == t.getWidth() &&
+              s.getHeight() == pl.getHeight() && s.getHeight() >= 22,
+          "all four the same size, " + std::to_string(s.getWidth()) + " by " +
+              std::to_string(s.getHeight()));
+    check(parts.top->getHeight() == ovt::ui::TopBar::heightForWidth(1348),
+          "and the top bar is no taller for them");
+  }
+
+  // ---- closed to begin with ----------------------------------------------
+  check(!parts.playingBar->isVisible() && !parts.tuningBar->isVisible() &&
+            !parts.playing->getToggleState() && !parts.tuning->getToggleState(),
+        "both bars start closed, with their buttons dark");
+
+  const auto size = editor->getBounds();
+  const auto stripHeight = parts.strip->getHeight();
+  const auto zoom = (float)editor->getWidth() / (float)parts.top->getWidth();
+  const auto barHeight = (float)ovt::ui::OptionBar::kHeight;
+
+  // ---- opening one, then the other -----------------------------------------
+  parts.playing->onClick();
+
+  check(parts.playingBar->isVisible() && parts.playing->getToggleState() &&
+            !parts.tuningBar->isVisible() && !parts.tuning->getToggleState(),
+        "PLAYING opens its bar and lights");
+  check(parts.playingBar->getY() == parts.top->getBottom() &&
+            parts.playingBar->getHeight() == ovt::ui::OptionBar::kHeight,
+        "straight under the top bar");
+  check(editor->getBounds() == size &&
+            parts.strip->getHeight() ==
+                stripHeight - ovt::ui::OptionBar::kHeight,
+        "and takes its height from the mixer, the window holding still (" +
+            std::to_string(stripHeight) + " to " +
+            std::to_string(parts.strip->getHeight()) + ")");
+
+  parts.tuning->onClick();
+
+  check(parts.tuningBar->isVisible() && parts.tuning->getToggleState() &&
+            parts.tuningBar->getY() == parts.playingBar->getBottom(),
+        "TUNING opens its bar under the Playing one");
+
+  // ---- a reopened window has them both ------------------------------------
+  editor.reset();
+  editor = open();
+  parts = partsOf(*editor);
+
+  check(parts.playingBar != nullptr && parts.tuningBar != nullptr &&
+            parts.playingBar->isVisible() && parts.tuningBar->isVisible() &&
+            parts.playing->getToggleState() && parts.tuning->getToggleState(),
+        "a reopened window comes back with both bars open and lit");
+
+  // ---- closing puts the mixer back ------------------------------------------
+  const auto withBoth = parts.strip->getHeight();
+  parts.playing->onClick();
+  parts.tuning->onClick();
+
+  check(!parts.playingBar->isVisible() && !parts.tuningBar->isVisible() &&
+            !parts.playing->getToggleState() &&
+            !parts.tuning->getToggleState() &&
+            parts.strip->getHeight() ==
+                withBoth + 2 * ovt::ui::OptionBar::kHeight,
+        "closing both gives the mixer its height back");
+
+  // ---- at the shortest a window can be, the window grows
+  // ---------------------
+  sizeEditor(*editor, 1348);
+  const auto shortest = editor->getHeight();
+  const auto floor = editor->getConstrainer()->getMinimumHeight();
+
+  parts.tuning->onClick();
+
+  const auto grown = editor->getHeight() - shortest;
+  const auto raised = editor->getConstrainer()->getMinimumHeight() - floor;
+
+  check(std::abs((float)raised - barHeight * zoom) <= 1.0f &&
+            std::abs((float)grown - barHeight * zoom) <= 1.0f,
+        "a window already at its shortest grows by the bar, and so does the "
+        "floor (" +
+            std::to_string(grown) + " and " + std::to_string(raised) + ")");
+
+  parts.tuning->onClick();
+  check(editor->getConstrainer()->getMinimumHeight() == floor,
+        "and the floor comes back down when it closes");
+}
+
 /// LINK comes back the way it was left.
 ///
 /// Reported as LINK not being retained when the plugin is closed and opened.
@@ -7886,6 +8053,16 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
       if (auto *button = dynamic_cast<juce::TextButton *>(child))
         if (button->getButtonText() == TopBar::kClipName)
           continue;
+
+      // Nor the four buttons that open something, which stand two by two and
+      // fill the row's height rather than lining up with the dials. Their own
+      // two lines are checked in testOptionBars.
+      if (auto *button = dynamic_cast<juce::TextButton *>(child)) {
+        const auto word = button->getButtonText();
+        if (word == "SETTINGS" || word == "MACROS" || word == "PLAYING" ||
+            word == "TUNING")
+          continue;
+      }
 
       // A knob's line is its dial, not the control, which reaches further down
       // to hold the caption.
@@ -10188,6 +10365,7 @@ int main(int argc, char **argv) {
   testZoomTickFollowsTheZoom(processor);
   testDrawingAcrossTheFaders(processor);
   testLinkSurvivesAReopen(processor);
+  testOptionBars(processor);
   testFoldingAndUnfoldingIsSymmetric(processor);
   testFittingLandsWhereADragCanReturn(processor);
   testTheRulesFoldTheirSections(processor);
