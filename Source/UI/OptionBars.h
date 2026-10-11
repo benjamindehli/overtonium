@@ -119,18 +119,6 @@ struct AdaptiveReading {
   static AdaptiveReading of(const AdaptiveSnapshot &);
 };
 
-/// The readouts, in a screen.
-class AdaptiveReadout : public juce::Component {
-public:
-  void show(const AdaptiveReading &);
-  const AdaptiveReading &shown() const noexcept { return reading; }
-
-  void paint(juce::Graphics &) override;
-
-private:
-  AdaptiveReading reading = AdaptiveReading::of({});
-};
-
 /// Temperament, root and reference pitch, and under Adaptive how fast it
 /// retunes and what it is doing to the chord being held.
 class TuningBar : public OptionBar {
@@ -151,8 +139,10 @@ public:
     return *scale[(size_t)pitchClass];
   }
 
-  /// The drift display, for the tests.
+  /// The drift display and the two lamps, for the tests.
   const SegmentDisplay &driftDisplay() const { return drift; }
+  const ScreenSwitch &pureLamp() const { return pure; }
+  const ScreenSwitch &seventhLamp() const { return seventh; }
 
   /// The word the temperament display shows for each temperament, in their
   /// order, sized for its nine cells.
@@ -162,7 +152,7 @@ private:
   juce::AudioProcessorValueTreeState &apvts;
 
   SegmentDisplay temperament{{}, SegmentDisplay::Bars::Fourteen, 9};
-  SegmentDisplay root{{}, SegmentDisplay::Bars::Fourteen, 2};
+  SegmentDisplay root{{}, SegmentDisplay::Bars::Fourteen, 1};
   SegmentDisplay reference{"Hz", SegmentDisplay::Bars::Seven, 3};
   LabelledKnob retune{"RETUNE"};
 
@@ -177,12 +167,15 @@ private:
   void showScale();
   std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>
       retuneAttachment;
-  AdaptiveReadout readout;
+  /// What Adaptive did with the held chord, as two words lit in screens like
+  /// the gutter's switches: PURE while every interval in it is pure, and 7:4
+  /// while a seventh is tuned on the harmonic one. Indicators, not switches.
+  ScreenSwitch pure, seventh;
 
   /// How far the held chord sits from home, in whole commas.
   SegmentDisplay drift{{}, SegmentDisplay::Bars::Seven, 2};
 
-  int retuneGroup = -1, readoutGroup = -1;
+  int retuneGroup = -1, chordGroup = -1;
 };
 
 } // namespace ovt::ui

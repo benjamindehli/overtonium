@@ -3209,7 +3209,8 @@ void testThePresetDisplaySpells(OvertoniumProcessor &) {
   const auto isLit = [](juce::Colour px) { return px.getBlue() > 120; };
 
   const auto fingerprint = [&isLit](char c) {
-    SegmentDisplay d({}, SegmentDisplay::Bars::Fourteen);
+    // One cell, so each glyph has the whole display to be told apart in.
+    SegmentDisplay d({}, SegmentDisplay::Bars::Fourteen, 1);
     d.setBounds(0, 0, 40, 40);
     d.setReading(juce::String::charToString((juce::juce_wchar)c), true);
 
@@ -7911,6 +7912,15 @@ void testAdaptiveReadouts(OvertoniumProcessor &p) {
 
   juce::AudioBuffer<float> buffer(2, 256);
   ovt::AdaptiveSnapshot lastChord;
+
+  // PURE and 7:4 as the Tuning bar lights them for the chord last played.
+  juce::Component lampHost;
+  ovt::ui::TuningBar lampBar(p.apvts, lampHost);
+  const auto lamps = [&] {
+    lampBar.showChord(lastChord);
+    return std::pair<bool, bool>{lampBar.pureLamp().getToggleState(),
+                                 lampBar.seventhLamp().getToggleState()};
+  };
   const auto play = [&](std::initializer_list<int> on,
                         std::initializer_list<int> off) {
     juce::MidiBuffer midi;
@@ -7940,6 +7950,9 @@ void testAdaptiveReadouts(OvertoniumProcessor &p) {
           "beating (" +
               r.harmonics.toStdString() + ", " + r.seventhOn.toStdString() +
               ", " + r.verdict.toStdString() + ")");
+
+    check(lamps() == std::pair<bool, bool>{true, true},
+          "and lights both PURE and 7:4");
 
     // The twelve displays light the four held and say where they sit, in
     // cents from equal temperament with A on the reference. Just major on C
@@ -8007,6 +8020,11 @@ void testAdaptiveReadouts(OvertoniumProcessor &p) {
               r.givenUp.toStdString() + ")");
     check(r.seventhOn.isEmpty(),
           "and has no harmonic seventh, the fourth above C ruling it out");
+    check(lamps() == std::pair<bool, bool>{false, false} &&
+              lampBar.pureLamp().getTitle().contains("given up"),
+          "so neither PURE nor 7:4 lights, and PURE says what was given up "
+          "to a screen reader (" +
+              lampBar.pureLamp().getTitle().toStdString() + ")");
 
     play({}, {48, 52, 55, 58, 62, 65});
   }
@@ -8016,6 +8034,8 @@ void testAdaptiveReadouts(OvertoniumProcessor &p) {
     const auto r = play({57, 60, 64}, {});
     check(r.harmonics == "10:12:15" && r.verdict == "NOTHING BEATS",
           "A minor reads as 10:12:15 (" + r.harmonics.toStdString() + ")");
+    check(lamps() == std::pair<bool, bool>{true, false},
+          "and lights PURE without 7:4");
     const auto empty = play({}, {57, 60, 64});
     check(empty.harmonics.isEmpty() && empty.verdict == "NO KEYS HELD",
           "and letting go reads as nothing held");
@@ -8027,14 +8047,11 @@ void testAdaptiveReadouts(OvertoniumProcessor &p) {
     sizeEditor(*editor, 1348, 240);
 
     ovt::ui::TuningBar *bar = nullptr;
-    ovt::ui::AdaptiveReadout *readout = nullptr;
     juce::TextButton *opener = nullptr;
     std::function<void(juce::Component &)> look = [&](juce::Component &c) {
       for (auto *child : c.getChildren()) {
         if (auto *b = dynamic_cast<ovt::ui::TuningBar *>(child))
           bar = b;
-        if (auto *rd = dynamic_cast<ovt::ui::AdaptiveReadout *>(child))
-          readout = rd;
         if (auto *b = dynamic_cast<juce::TextButton *>(child))
           if (b->getTitle() == "Tuning")
             opener = b;
@@ -8043,19 +8060,21 @@ void testAdaptiveReadouts(OvertoniumProcessor &p) {
     };
     look(*editor);
 
-    check(bar != nullptr && readout != nullptr && opener != nullptr,
-          "the Tuning bar has a readout");
+    check(bar != nullptr && opener != nullptr, "the Tuning bar is there");
 
-    if (bar != nullptr && readout != nullptr && opener != nullptr) {
+    if (bar != nullptr && opener != nullptr) {
       opener->onClick();
       bar->refresh();
-      check(readout->isVisible() &&
-                readout->getHeight() > ovt::ui::OptionBar::kHeight / 2,
-            "shown under Adaptive, filling its group's height");
+      check(bar->pureLamp().isVisible() && bar->seventhLamp().isVisible() &&
+                bar->driftDisplay().isVisible() &&
+                !bar->pureLamp().getWantsKeyboardFocus(),
+            "PURE, 7:4 and DRIFT show under Adaptive, as indicators that "
+            "take no focus");
 
       st::apply(p.apvts, st::kTemperament + (int)ovt::Temperament::Just);
       bar->refresh();
-      check(!readout->isVisible(), "and gone under a fixed temperament");
+      check(!bar->pureLamp().isVisible() && !bar->driftDisplay().isVisible(),
+            "and go under a fixed temperament");
 
       opener->onClick();
     }
@@ -8133,6 +8152,65 @@ void testSegmentCells() {
                emptyName = render({}, true, SegmentDisplay::Bars::Fourteen, 8);
     check(differ(offName, emptyName, 0, offName.getWidth()) == 0,
           "fourteen bars as well as seven");
+  }
+
+  // ---- the sharp is a sign, not a letter
+  // -------------------------------------
+  {
+    const auto withSign = [](const juce::String &reading) {
+      SegmentDisplay d({}, SegmentDisplay::Bars::Fourteen, 1);
+      d.showSharpSign(true);
+      d.setBounds(0, 0, 40, 30);
+      d.setReading(reading, true);
+      return std::pair<juce::String, juce::Image>{
+          d.getReading(), d.createComponentSnapshot(d.getLocalBounds())};
+    };
+
+    const auto [sharpReading, sharp] = withSign("F#");
+    const auto [plainReading, plain] = withSign("F");
+
+    // The letter's cell is the left half or so, the sign the right.
+    const auto signFrom = sharp.getWidth() / 2;
+    check(sharpReading == "F#" && plainReading == "F" &&
+              differ(sharp, plain, signFrom, sharp.getWidth()) > 0 &&
+              differ(sharp, plain, 0, signFrom - 4) == 0,
+          "F# lights the sharp sign beside an F, and the F is the same F");
+  }
+
+  // ---- a middle bar reads as a bar
+  //
+  // Each half runs to the centre of the cell. Stopping short of the centre
+  // upright left them a pixel or two each at the size the names are drawn, so
+  // the middle of an H read as two dots. Measured at that size, nine cells in
+  // a bar's height, against the bottom bar, which runs the whole width of a
+  // cell: the middle has to be lit nearly as much.
+  {
+    // How much light a reading adds over the same display with nothing on
+    // it, so the screen's own ground and rim count for nothing.
+    const auto shotOf = [](const juce::String &reading) {
+      SegmentDisplay d({}, SegmentDisplay::Bars::Fourteen, 9);
+      d.setBounds(0, 0, 108, 24);
+      d.setReading(reading, true);
+      return d.createComponentSnapshot(d.getLocalBounds());
+    };
+    const auto empty = shotOf({});
+    const auto litIn = [&](const juce::String &reading) {
+      const auto im = shotOf(reading);
+      int n = 0;
+      for (int y = 0; y < im.getHeight(); ++y)
+        for (int x = 0; x < im.getWidth(); ++x)
+          n += juce::jmax(0, (int)im.getPixelAt(x, y).getBlue() -
+                                 (int)empty.getPixelAt(x, y).getBlue());
+      return n;
+    };
+
+    const auto middle = litIn("---------"), bottom = litIn("_________");
+    std::printf("  middle bars add %d of light, bottom bars %d\n", middle,
+                bottom);
+    check(middle * 10 >= bottom * 6,
+          "a fourteen-bar middle is lit nearly as much as its bottom bar (" +
+              std::to_string(middle) + " against " + std::to_string(bottom) +
+              ")");
   }
 
   // ---- over range

@@ -235,7 +235,7 @@ bool isNarrow(char c) { return c == '.'; }
 /// from a single mask. The ends slope so that neighbouring segments point at
 /// each other across the small gap between them, which is what turns seven
 /// separate bars into a figure.
-juce::Path segmentShape(juce::Rectangle<float> r) {
+juce::Path segmentShape(juce::Rectangle<float> r, float noseScale = 1.0f) {
   const bool flat = r.getWidth() >= r.getHeight();
   const auto thick = flat ? r.getHeight() : r.getWidth();
   const auto along = flat ? r.getWidth() : r.getHeight();
@@ -243,7 +243,7 @@ juce::Path segmentShape(juce::Rectangle<float> r) {
   // Never more than the bar can give. A half-middle on a narrow cell is
   // barely longer than it is thick, and a full mitre on that leaves two
   // triangles meeting at a point.
-  const auto nose = juce::jmin(thick * 0.5f, along * 0.42f);
+  const auto nose = juce::jmin(thick * 0.5f, along * 0.42f) * noseScale;
 
   juce::Path p;
 
@@ -468,14 +468,24 @@ void SegmentDisplay::setReading(const juce::String &digits, bool isActive) {
   // Upper case, and fitted to the cells there are. Done here rather than at
   // every caller so that what getReading hands back is what the cells are
   // actually showing.
+  // A sharp goes to the sign rather than a cell, so the name is fitted
+  // without it and the reading still says it, for whatever reads it back.
+  const auto sharp = sharpSign && digits.containsChar('#');
+  const auto name = sharpSign ? digits.removeCharacters("#") : digits;
   const auto shown =
-      bars == Bars::Fourteen ? squeeze(digits, fixedCells) : digits;
+      (bars == Bars::Fourteen ? squeeze(name, fixedCells) : name) +
+      (sharp ? "#" : "");
 
   if (shown == reading && isActive == active)
     return;
 
   reading = shown;
   active = isActive;
+  repaint();
+}
+
+void SegmentDisplay::showSharpSign(bool shouldShow) {
+  sharpSign = shouldShow;
   repaint();
 }
 
@@ -582,32 +592,37 @@ void SegmentDisplay::paintStarburst(juce::Graphics &g,
       {kStE, {0.0f, mid + t * 0.5f + gap * 0.5f, t, mid - gap * 1.5f}},
       {kStF, {0.0f, t * 0.5f + gap, t, mid - gap * 1.5f}},
       // The two halves of the middle, each running from its own end of the
-      // cell to the upright that stands in the centre of it.
-      //
-      // Mirror images, which they were not: the right one used to start half
-      // a bar past the centre instead of a whole one past it, so it reached
-      // a bar's width too far left and the middle of every cell sat off to
-      // that side.
-      //
-      // And longer than they were. A half-middle is squeezed between the
-      // outer upright and the centre one, and at the inset the other bars
-      // use it came out three pixels: a dot rather than a bar, so a hyphen
-      // read as two specks.
-      {kStG1, {t * 0.5f, mid, half - t * 0.5f - gap, t}},
-      {kStG2, {half + t + gap, mid, w - t * 1.5f - half - gap, t}},
+      // cell to its centre, where they all but meet. Stopping them short of
+      // the centre upright, as they once did, left each half a pixel or two
+      // at these sizes, so the middle of an H or an F read as two dots. On a
+      // real display the middle reads as one bar with a hairline in it.
+      {kStG1,
+       {t * 0.5f + gap * 0.5f, mid, w * 0.5f - t * 0.5f - gap * 0.8f, t}},
+      {kStG2,
+       {w * 0.5f + gap * 0.3f, mid, w * 0.5f - t * 0.5f - gap * 0.8f, t}},
       {kStI, {half, t * 0.5f + gap, t, mid - gap * 1.5f}},
       {kStL, {half, mid + t * 0.5f + gap * 0.5f, t, mid - gap * 1.5f}},
   };
 
+  // The bars inside the frame, the centre uprights and the diagonals, are
+  // fainter unlit than the frame is. At full strength they fill every letter
+  // with a grid it has to be picked out of, and a C or an O reads as busy.
+  const auto inner = off.withMultipliedAlpha(0.55f);
+
   for (const auto &bar : straight) {
     const bool isLit = (lit & bar.flag) != 0;
-    const auto shape = segmentShape(bar.r.translated(area.getX(), area.getY()));
+    const bool inside = bar.flag == kStI || bar.flag == kStL;
+    // The two halves of the middle are short enough that a full mitre at
+    // each end leaves them a point, so they take a short bevel instead.
+    const bool middle = bar.flag == kStG1 || bar.flag == kStG2;
+    const auto shape = segmentShape(bar.r.translated(area.getX(), area.getY()),
+                                    middle ? 0.35f : 1.0f);
 
     // No bloom around a lit segment, though a real one has it. A bar here is
     // about three pixels thick, so any spill worth seeing is wider than the
     // bar it comes from: what it reads as is blur, and a blurred figure is
     // further from a real display than a crisp one is.
-    g.setColour(isLit ? on : off);
+    g.setColour(isLit ? on : inside ? inner : off);
     g.fillPath(shape);
   }
 
@@ -655,7 +670,7 @@ void SegmentDisplay::paintStarburst(juce::Graphics &g,
     const juce::Line<float> at{slash.line.getStart() + area.getPosition(),
                                slash.line.getEnd() + area.getPosition()};
 
-    g.setColour(isLit ? on : off);
+    g.setColour(isLit ? on : inner);
     g.drawLine(at, t * 0.9f);
   }
 }
@@ -750,19 +765,46 @@ void SegmentDisplay::paint(juce::Graphics &g) {
   // width, and at the narrower ratio they met in the middle as a blot.
   const auto widest =
       area.getHeight() * (bars == Bars::Fourteen ? 0.74f : 0.72f);
+  // The sharp sign stands after the cells, narrower than one.
+  const auto sharpW = sharpSign ? area.getHeight() * 0.5f : 0.0f;
+
   const auto cellW =
-      juce::jmin((area.getWidth() - unitW) / (float)cells, widest);
+      juce::jmin((area.getWidth() - unitW - sharpW) / (float)cells, widest);
 
   // The figure, and the point in the room to its right.
   const auto glyphW = cellW * 0.78f;
   const auto runW = cellW * (float)cells;
-  const auto left = area.getCentreX() - (runW + unitW) * 0.5f;
+  const auto left = area.getCentreX() - (runW + sharpW + unitW) * 0.5f;
 
   if (unitW > 0.0f) {
     g.setColour(colours::textDim.withAlpha(0.8f));
     g.setFont(unitFont);
-    g.drawText(unitText, area.withX(left + runW + 2.0f).withWidth(unitW - 2.0f),
+    g.drawText(unitText,
+               area.withX(left + runW + sharpW + 2.0f).withWidth(unitW - 2.0f),
                juce::Justification::centredLeft, false);
+  }
+
+  if (sharpSign) {
+    // Two uprights crossed by two bars that rise to the right, the shape a
+    // sharp is printed in, at the weight of a fourteen-bar cell's own bars.
+    const juce::Rectangle<float> slot{left + runW, area.getY(), sharpW,
+                                      area.getHeight()};
+    const auto w = slot.getWidth(), h = slot.getHeight();
+    const auto weight = juce::jmax(1.0f, h * 0.095f);
+
+    juce::Path sign;
+    for (const auto x : {0.36f, 0.64f})
+      sign.addLineSegment({slot.getX() + w * x, slot.getY() + h * 0.12f,
+                           slot.getX() + w * x, slot.getY() + h * 0.88f},
+                          weight);
+    for (const auto y : {0.40f, 0.68f})
+      sign.addLineSegment({slot.getX() + w * 0.1f, slot.getY() + h * y,
+                           slot.getX() + w * 0.9f,
+                           slot.getY() + h * (y - 0.1f)},
+                          weight * 1.3f);
+
+    g.setColour(active && reading.containsChar('#') ? lit : off);
+    g.fillPath(sign);
   }
 
   // What each cell shows. A point lights the point of the cell before it,
@@ -776,8 +818,13 @@ void SegmentDisplay::paint(juce::Graphics &g) {
   int used = 0;
   bool over = false;
 
-  for (auto ch : reading) {
+  // Off draws as if there were no reading at all, so nothing it would have
+  // lit shows in any shade.
+  for (auto ch : active ? reading : juce::String()) {
     const auto c = (char)ch;
+
+    if (sharpSign && c == '#')
+      continue;
 
     if (c == '.' && used > 0 && !laid[(size_t)(used - 1)].point) {
       laid[(size_t)(used - 1)].point = true;

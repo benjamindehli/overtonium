@@ -194,6 +194,12 @@ public:
   ///                 dimmer reading in between.
   void setReading(const juce::String &digits, bool active);
 
+  /// Gives the display a sharp sign beside its cells, the way a tuner's screen
+  /// has one printed into it: a fixed shape, lit when the reading has a # in
+  /// it and unlit otherwise. Fourteen bars can only draw a sharp as a broken
+  /// letter, and a note name needs one.
+  void showSharpSign(bool shouldShow);
+
   /// How many bars its cells have, which says what it is for: a seven-bar one
   /// reports a number and a fourteen-bar one spells a name. Read back by the
   /// tests, which hold each display's reading against what its own cells can
@@ -278,6 +284,7 @@ private:
   juce::String reading, unitText;
   bool active = false;
   bool hovered = false;
+  bool sharpSign = false;
 };
 
 /// A slim output meter for one partial.

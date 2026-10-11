@@ -434,40 +434,6 @@ juce::String AdaptiveReading::spoken() const {
   return s;
 }
 
-void AdaptiveReadout::show(const AdaptiveReading &next) {
-  reading = next;
-  setTitle(reading.spoken());
-  repaint();
-}
-
-void AdaptiveReadout::paint(juce::Graphics &g) {
-  const auto r = getLocalBounds().toFloat();
-  paintRecess(g, r, 3.0f);
-  paintDisplayGround(g, r, 3.0f, false);
-
-  auto area = getLocalBounds().reduced(10, 4);
-  const auto lit = colours::accent;
-  const auto dim = lit.withAlpha(0.6f);
-
-  // The chord as harmonics, or what it gave up, with a line under it. How far
-  // it has drifted has a display of its own beside this.
-  auto head = area;
-  g.setColour(lit);
-  g.setFont(makeFont(19.0f, true));
-  const auto big = reading.harmonics.isNotEmpty() ? reading.harmonics
-                   : reading.givenUp.isNotEmpty() ? reading.givenUp
-                                                  : juce::String("-");
-  g.drawFittedText(big, head.removeFromTop(26),
-                   juce::Justification::centredLeft, 1, 0.6f);
-
-  g.setColour(dim);
-  g.setFont(makeFont(10.0f, true));
-  const auto line = reading.seventhOn.isNotEmpty()
-                        ? "7:4 ON " + reading.seventhOn + ", " + reading.verdict
-                        : reading.verdict;
-  g.drawFittedText(line, head, juce::Justification::topLeft, 2, 0.7f);
-}
-
 // ---- Tuning -----------------------------------------------------------------
 
 namespace {
@@ -490,6 +456,7 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
     : OptionBar("TUNING"), apvts(state) {
   temperament.setTooltip("How the twelve keys of the octave are tuned");
   root.setTooltip("The key the temperament is built on");
+  root.showSharpSign(true);
   reference.setTooltip("The pitch A is tuned to");
   retune.slider.setTooltip("How long Adaptive takes to slide a held note to "
                            "where the chord around it needs it. At zero it "
@@ -537,7 +504,22 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
   drift.setTooltip("How far the held chord sits from where just intonation on "
                    "the root would put it, in commas. It moves only as far as "
                    "the music takes it, and never more than two either way.");
-  readoutGroup = addGroup({{&readout, 170, {}, true}, {&drift, 40, "DRIFT"}});
+  for (auto *lamp : {&pure, &seventh}) {
+    // Lit by the chord, never by a click.
+    lamp->setInterceptsMouseClicks(false, false);
+    lamp->setWantsKeyboardFocus(false);
+  }
+
+  pure.setButtonText("PURE");
+  pure.setTooltip("Lit while every interval in the chord you hold is pure. "
+                  "Dark when the chord has had to give one up, which some "
+                  "chords cannot avoid.");
+  seventh.setButtonText("7:4");
+  seventh.setTooltip("Lit while a seventh in the chord is tuned on the "
+                     "harmonic seventh, 7:4 above its root.");
+
+  chordGroup =
+      addGroup({{&pure, 44, {}}, {&seventh, 40, {}}, {&drift, 40, "DRIFT"}});
 
   showChord(chord);
   refresh();
@@ -568,7 +550,7 @@ void TuningBar::refresh() {
   // Retune means nothing under any other temperament, and there is nothing to
   // read out, so both are only there under Adaptive.
   setGroupShown(retuneGroup, adaptive);
-  setGroupShown(readoutGroup, adaptive);
+  setGroupShown(chordGroup, adaptive);
 
   showScale();
 }
@@ -577,7 +559,20 @@ void TuningBar::showChord(const AdaptiveSnapshot &snapshot) {
   chord = snapshot;
 
   const auto reading = AdaptiveReading::of(snapshot);
-  readout.show(reading);
+
+  // Pure needs at least two keys to be anything, and nothing given up.
+  const auto allPure = snapshot.count > 1 && reading.givenUp.isEmpty();
+  pure.setToggleState(allPure, juce::dontSendNotification);
+  pure.setTitle(allPure ? "Pure: every interval is pure"
+                : reading.givenUp.isNotEmpty()
+                    ? "Pure: dark, " + reading.givenUp.toLowerCase() +
+                          " given up"
+                    : juce::String("Pure: dark"));
+
+  const auto harmonic = reading.seventhOn.isNotEmpty();
+  seventh.setToggleState(harmonic, juce::dontSendNotification);
+  seventh.setTitle(harmonic ? "Harmonic seventh on " + reading.seventhOn
+                            : juce::String("Harmonic seventh: none"));
 
   // Nothing held has nowhere to sit, so its cells stay dark rather than say
   // zero.
