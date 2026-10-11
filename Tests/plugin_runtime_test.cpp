@@ -191,7 +191,7 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
       {ovt::params::slideDestId, 3},    {ovt::params::lofiRateId, 8},
       {ovt::params::lofiBitsId, 9},     {ovt::params::echoTypeId, 3},
       {ovt::params::reverbTypeId, 3},   {ovt::params::glideTriggerId, 2},
-      {ovt::params::glideModeId, 2},    {ovt::params::adaptiveRetuneId, 2},
+      {ovt::params::glideModeId, 2},
   };
 
   for (const auto &list : globals)
@@ -199,6 +199,20 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
           juce::String(list.id).toStdString() + " offers " +
               std::to_string(list.entries) + " and has " +
               std::to_string(entriesOf(list.id)));
+
+  // Retune was a choice of two and is a time now, from a jump to a second,
+  // starting at the one the old Fast was.
+  if (auto *retune = dynamic_cast<juce::RangedAudioParameter *>(
+          p.apvts.getParameter(ovt::params::adaptiveRetuneId));
+      retune != nullptr &&
+      dynamic_cast<juce::AudioParameterFloat *>(retune) != nullptr)
+    check(std::abs(retune->getNormalisableRange().start) < 1.0e-6f &&
+              std::abs(retune->getNormalisableRange().end - 1.0f) < 1.0e-6f &&
+              std::abs(retune->convertFrom0to1(retune->getDefaultValue()) -
+                       0.03f) < 1.0e-4f,
+          "Adaptive Retune is a time from 0 to 1 s, 30 ms to begin with");
+  else
+    check(false, "Adaptive Retune is a time");
 
   // And the per-channel ones on every channel, since they are declared in a
   // loop and a loop is where one of thirty-two goes quietly different.
@@ -2722,10 +2736,10 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   // per macro in the panel. The panel's eight are built whether or not the
   // macro has been made, so they are all here whatever the patch says. Then
   // four in the Playing bar, the voices, bend range, aftertouch and slide,
-  // and four in the Tuning bar, the temperament, root, reference and retune,
-  // all built whether or not the bars are open.
+  // and three in the Tuning bar, the temperament, root and reference, all
+  // built whether or not the bars are open.
   check(displays.size() ==
-            3 + 2 * ovt::kNumHarmonics + 1 + ovt::params::kNumMacros + 8,
+            3 + 2 * ovt::kNumHarmonics + 1 + ovt::params::kNumMacros + 7,
         "every readout is a segment display now (" +
             std::to_string(displays.size()) + ")");
 
@@ -7487,7 +7501,6 @@ void testSharedSettingsChoices(OvertoniumProcessor &p) {
       {st::kTemperament + 6, ovt::params::temperamentId, 6},
       {st::kRoot + 11, ovt::params::tuningRootId, 11},
       {st::kReferencePitch + 3, ovt::params::referenceHzId, 3},
-      {st::kRetune + 1, ovt::params::adaptiveRetuneId, 1},
   };
 
   for (const auto &l : lists) {
@@ -7509,6 +7522,54 @@ void testSharedSettingsChoices(OvertoniumProcessor &p) {
       for (juce::PopupMenu::MenuItemIterator it(list); it.next();)
         all &= st::apply(apvts, it.getItem().itemID);
     check(all, "every item in every shared list is carried out");
+  }
+
+  // Retune is a time, and its two named settings set it to theirs, each ticked
+  // only while the knob is on it.
+  {
+    auto *retune = apvts.getParameter(ovt::params::adaptiveRetuneId);
+    const auto seconds = [retune] {
+      return retune->convertFrom0to1(retune->getValue());
+    };
+    const auto ticked = [&apvts](int id) {
+      for (juce::PopupMenu::MenuItemIterator it(st::retune(apvts)); it.next();)
+        if (it.getItem().itemID == id)
+          return it.getItem().isTicked;
+      return false;
+    };
+
+    st::apply(apvts, st::kRetune + 1);
+    const auto smooth = seconds();
+    const bool smoothTicked = ticked(st::kRetune + 1) && !ticked(st::kRetune);
+    st::apply(apvts, st::kRetune);
+    const auto fast = seconds();
+    retune->setValueNotifyingHost(retune->convertTo0to1(0.1f));
+
+    check(std::abs(smooth - 0.3f) < 0.001f && std::abs(fast - 0.03f) < 0.001f,
+          "Smooth sets Retune to 300 ms and Fast to 30 ms (" +
+              std::to_string(smooth) + ", " + std::to_string(fast) + ")");
+    check(smoothTicked && !ticked(st::kRetune) && !ticked(st::kRetune + 1),
+          "and each is ticked only while the knob is on it");
+  }
+
+  // And what the knob says is what the engine is handed, across its range and
+  // at both ends, a jump at zero included.
+  {
+    auto *retune = apvts.getParameter(ovt::params::adaptiveRetuneId);
+    bool reaches = true;
+    std::string seen;
+
+    for (const auto seconds : {0.0f, 0.03f, 0.25f, 1.0f}) {
+      retune->setValueNotifyingHost(retune->convertTo0to1(seconds));
+      ovt::SynthParams out{};
+      p.parameters().snapshot(out, 0.0f);
+      reaches &= std::abs(out.global.adaptiveRetuneSeconds - seconds) < 1.0e-4;
+      seen += std::to_string(out.global.adaptiveRetuneSeconds) + " ";
+    }
+
+    check(reaches,
+          "the Retune time reaches the engine as set, from 0 to 1 s (" + seen +
+              ")");
   }
 
   // The switches flip, and nothing outside the lists is claimed, which is what
@@ -7738,9 +7799,9 @@ void testTuningBar(OvertoniumProcessor &p) {
 
   opener->onClick();
 
-  SegmentDisplay *temperament = nullptr, *root = nullptr, *reference = nullptr,
-                 *retune = nullptr;
-  for (auto *child : bar->getChildren())
+  SegmentDisplay *temperament = nullptr, *root = nullptr, *reference = nullptr;
+  ovt::ui::LabelledKnob *retune = nullptr;
+  for (auto *child : bar->getChildren()) {
     if (auto *d = dynamic_cast<SegmentDisplay *>(child)) {
       const auto t = d->getTitle();
       if (t.startsWith("Temperament"))
@@ -7749,9 +7810,11 @@ void testTuningBar(OvertoniumProcessor &p) {
         root = d;
       if (t.startsWith("Reference"))
         reference = d;
-      if (t.startsWith("Retune"))
-        retune = d;
     }
+    if (auto *k = dynamic_cast<ovt::ui::LabelledKnob *>(child))
+      if (k->slider.getTitle() == "Adaptive retune time")
+        retune = k;
+  }
 
   check(temperament != nullptr && root != nullptr && reference != nullptr &&
             retune != nullptr,
@@ -7791,10 +7854,13 @@ void testTuningBar(OvertoniumProcessor &p) {
   pick(st::kTemperament + (int)ovt::Temperament::Adaptive);
   pick(st::kRetune + 1);
 
-  check(retune->isVisible() && retune->getReading().trim() == "SMOOTH" &&
-            retune->getX() > reference->getRight(),
-        "under Adaptive Retune shows, after the reference pitch (" +
-            retune->getReading().trim().toStdString() + ")");
+  check(retune->isVisible() && retune->getX() > reference->getRight() &&
+            std::abs(retune->slider.getValue() - 0.3) < 0.001,
+        "under Adaptive the Retune knob shows, after the reference pitch, and "
+        "follows the parameter (" +
+            std::to_string(retune->slider.getValue()) + " s)");
+  check(retune->getHeight() > ovt::ui::OptionBar::kHeight / 2,
+        "standing the height of its column, as the top bar's knobs do");
 
   pick(st::kTemperament + (int)ovt::Temperament::Equal);
   check(!retune->isVisible(), "and goes again when Adaptive does");

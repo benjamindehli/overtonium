@@ -1117,12 +1117,16 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   layout.add(
       std::make_unique<BoolP>(juce::ParameterID{legatoId, 1}, "Legato", false));
 
-  // How fast the adaptive temperament moves a held note, on the end like
-  // everything since the last release. A session setting beside the
-  // temperament it serves.
-  layout.add(std::make_unique<juce::AudioParameterChoice>(
+  // How long the adaptive temperament takes to move a held note, on the end
+  // like everything since the last release. A session setting beside the
+  // temperament it serves. Curved like the glide, so the short times where a
+  // retune passes unheard have room on the knob, and from zero, where a note
+  // jumps.
+  layout.add(std::make_unique<FloatP>(
       juce::ParameterID{adaptiveRetuneId, 1}, "Adaptive Retune",
-      juce::StringArray{kAdaptiveRetuneNames[0], kAdaptiveRetuneNames[1]}, 0));
+      expRange(0.0f, kMaxAdaptiveRetuneSeconds, 0.12f),
+      (float)kAdaptiveRetuneSeconds[0],
+      FAttr().withStringFromValueFunction(timeText)));
 
   return layout;
 }
@@ -1531,8 +1535,8 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     out.global.referenceHz = (double)kReferenceHzChoices[(size_t)pick(
         referenceHz, (int)kReferenceHzChoices.size())];
 
-    out.global.adaptiveRetuneSeconds = kAdaptiveRetuneSeconds[(size_t)pick(
-        adaptiveRetune, (int)kAdaptiveRetuneSeconds.size())];
+    out.global.adaptiveRetuneSeconds = (double)juce::jlimit(
+        0.0f, kMaxAdaptiveRetuneSeconds, adaptiveRetune->load());
 
     out.global.character =
         (Character)pick(character, (int)Character::NumCharacters);

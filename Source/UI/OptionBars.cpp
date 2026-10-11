@@ -106,7 +106,11 @@ void OptionBar::resized() {
       const auto column = inner.removeFromLeft(item.width);
       const auto dial = LabelledKnob::dialBounds(column);
 
-      if (item.fills)
+      // A knob takes the whole column, as the top bar's do, since it draws its
+      // own caption under its dial.
+      if (dynamic_cast<LabelledKnob *>(item.control) != nullptr)
+        item.control->setBounds(column);
+      else if (item.fills)
         item.control->setBounds(
             column.withY(bounds.getY() + kReadoutInset)
                 .withHeight(bounds.getHeight() - 2 * kReadoutInset));
@@ -534,13 +538,22 @@ const char *TuningBar::temperamentWord(int index) {
       0, (int)std::size(kTemperamentWords) - 1, index)];
 }
 
-TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state)
+TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
+                     juce::Component &popupParent)
     : OptionBar("TUNING"), apvts(state) {
   temperament.setTooltip("How the twelve keys of the octave are tuned");
   root.setTooltip("The key the temperament is built on");
   reference.setTooltip("The pitch A is tuned to");
-  retune.setTooltip("How fast Adaptive slides a held note to where the chord "
-                    "around it needs it");
+  retune.slider.setTooltip("How long Adaptive takes to slide a held note to "
+                           "where the chord around it needs it. At zero it "
+                           "jumps.");
+  retune.slider.setTitle("Adaptive retune time");
+  retune.slider.setPopupDisplayEnabled(true, true, &popupParent);
+  retune.slider.setDoubleClickReturnValue(
+      true, (double)params::kAdaptiveRetuneSeconds[0]);
+  retuneAttachment =
+      std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+          apvts, params::adaptiveRetuneId, retune.slider);
 
   temperament.onClick = [this] {
     showList(temperament, settings::temperament(apvts), apvts);
@@ -557,12 +570,11 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state)
   reference.onClick = [this] {
     showList(reference, settings::referencePitch(apvts), apvts);
   };
-  retune.onClick = [this] { showList(retune, settings::retune(apvts), apvts); };
 
   addGroup({{&temperament, 108, "TEMPERAMENT"},
             {&root, 30, "ROOT"},
             {&reference, 54, "REFERENCE"}});
-  retuneGroup = addGroup({{&retune, 72, "RETUNE"}});
+  retuneGroup = addGroup({{&retune, 38, {}}});
   readoutGroup = addGroup({{&readout, 560, {}, true}});
 
   refresh();
@@ -589,15 +601,6 @@ void TuningBar::refresh() {
       settings::choiceIndex(apvts, params::referenceHzId))];
   reference.setReading(juce::String(hz), true);
   reference.setTitle("Reference pitch: " + juce::String(hz) + " Hz");
-
-  const auto speed =
-      juce::jlimit(0, (int)params::kAdaptiveRetuneNames.size() - 1,
-                   settings::choiceIndex(apvts, params::adaptiveRetuneId));
-  retune.setReading(
-      juce::String(params::kAdaptiveRetuneNames[(size_t)speed]).toUpperCase(),
-      true);
-  retune.setTitle(juce::String("Retune: ") +
-                  params::kAdaptiveRetuneNames[(size_t)speed]);
 
   // Retune means nothing under any other temperament, and there is nothing to
   // read out, so both are only there under Adaptive.

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <vector>
 
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -137,7 +138,9 @@ private:
 /// retunes and what it is doing to the chord being held.
 class TuningBar : public OptionBar {
 public:
-  explicit TuningBar(juce::AudioProcessorValueTreeState &);
+  /// @param popupParent  where the Retune knob shows its value while it is
+  ///                     turned, as the top bar's knobs do.
+  TuningBar(juce::AudioProcessorValueTreeState &, juce::Component &popupParent);
 
   void refresh() override;
 
@@ -155,7 +158,9 @@ private:
   SegmentDisplay temperament{{}, SegmentDisplay::Bars::Fourteen, 9};
   SegmentDisplay root{{}, SegmentDisplay::Bars::Fourteen, 2};
   SegmentDisplay reference{"Hz"};
-  SegmentDisplay retune{{}, SegmentDisplay::Bars::Fourteen, 6};
+  LabelledKnob retune{"RETUNE"};
+  std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>
+      retuneAttachment;
   AdaptiveReadout readout;
 
   int retuneGroup = -1, readoutGroup = -1;

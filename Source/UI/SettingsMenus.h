@@ -41,7 +41,8 @@ juce::PopupMenu temperament(juce::AudioProcessorValueTreeState &);
 juce::PopupMenu root(juce::AudioProcessorValueTreeState &);
 juce::PopupMenu referencePitch(juce::AudioProcessorValueTreeState &);
 
-/// How fast Adaptive moves a held note.
+/// Fast and Smooth, two quick settings of how long Adaptive takes to move a
+/// held note.
 juce::PopupMenu retune(juce::AudioProcessorValueTreeState &);
 
 /// How many voices are in use, counting the voice list's old legato entry as

@@ -1,5 +1,7 @@
 #include "SettingsMenus.h"
 
+#include <cmath>
+
 #include "../PluginParameters.h"
 #include "../dsp/Temperament.h"
 
@@ -140,13 +142,21 @@ juce::PopupMenu referencePitch(juce::AudioProcessorValueTreeState &apvts) {
 }
 
 juce::PopupMenu retune(juce::AudioProcessorValueTreeState &apvts) {
-  const auto current = choiceIndex(apvts, params::adaptiveRetuneId);
+  // Two quick settings of what is a time, ticked when the knob sits on one,
+  // within a millisecond, and neither ticked anywhere else.
+  auto *p = apvts.getParameter(params::adaptiveRetuneId);
+  const auto seconds =
+      p != nullptr ? (double)p->convertFrom0to1(p->getValue()) : 0.0;
 
   juce::PopupMenu m;
 
-  for (int i = 0; i < (int)params::kAdaptiveRetuneNames.size(); ++i)
-    m.addItem(kRetune + i, params::kAdaptiveRetuneNames[(size_t)i], true,
-              i == current);
+  for (int i = 0; i < (int)params::kAdaptiveRetuneNames.size(); ++i) {
+    const auto at = params::kAdaptiveRetuneSeconds[(size_t)i];
+    m.addItem(kRetune + i,
+              juce::String(params::kAdaptiveRetuneNames[(size_t)i]) + ", " +
+                  juce::String(juce::roundToInt(at * 1000.0)) + " ms",
+              true, std::abs(seconds - at) < 0.001);
+  }
 
   return m;
 }
@@ -223,8 +233,6 @@ bool apply(juce::AudioProcessorValueTreeState &apvts, int id) {
       {kReferencePitch, (int)params::kReferenceHzChoices.size(),
        params::referenceHzId},
       {kSlideTo, params::slideDestChoices.size(), params::slideDestId},
-      {kRetune, (int)params::kAdaptiveRetuneNames.size(),
-       params::adaptiveRetuneId},
   };
 
   for (const auto &list : lists)
@@ -232,6 +240,15 @@ bool apply(juce::AudioProcessorValueTreeState &apvts, int id) {
       choose(apvts, list.param, id - list.base);
       return true;
     }
+
+  // A time rather than a choice, so the quick settings set it to theirs.
+  if (id >= kRetune &&
+      id < kRetune + (int)params::kAdaptiveRetuneSeconds.size()) {
+    if (auto *p = apvts.getParameter(params::adaptiveRetuneId))
+      p->setValueNotifyingHost(p->convertTo0to1(
+          (float)params::kAdaptiveRetuneSeconds[(size_t)(id - kRetune)]));
+    return true;
+  }
 
   return false;
 }
