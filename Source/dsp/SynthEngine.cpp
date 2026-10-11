@@ -631,6 +631,7 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
     // Nothing held, which the screen needs to know as much as anything else.
     AdaptiveSnapshot none;
     none.referenceHz = referenceHz;
+    none.remembered = adaptiveVersion;
     adaptiveSnapshots.publish(none);
     return 0.0;
   }
@@ -949,6 +950,7 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
       node.voice->retuneTo(hz, node.young ? 0.0 : adaptiveRetune);
   }
 
+  outcome.remembered = adaptiveVersion;
   adaptiveSnapshots.publish(outcome);
   return result;
 }

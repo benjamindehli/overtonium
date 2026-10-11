@@ -1369,6 +1369,13 @@ void testAdaptiveTuning() {
               seen.harmonicRoot == 48,
           "with B flat as the harmonic seventh on C");
 
+    bool remembers = true;
+    for (int i = 0; i < 3; ++i)
+      remembers &= seen.remembered[(size_t)(keys[i] % 12)] ==
+                   seen.notes[(size_t)i].version;
+    check(remembers, "and each pitch class it holds is remembered at the "
+                     "version it is sounding, the root being C");
+
     check(!engine.readAdaptiveSnapshot(seen),
           "and nothing new is read until it is settled again");
 

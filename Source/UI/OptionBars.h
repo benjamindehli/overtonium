@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <memory>
 #include <vector>
 
@@ -108,11 +109,6 @@ struct AdaptiveReading {
   /// The harmonic seventh's root, such as C, or empty for none.
   juce::String seventhOn;
 
-  struct Note {
-    juce::String name, ratio, cents;
-  };
-  std::vector<Note> notes;
-
   /// The chord's average version, in commas from the middle ones.
   int drift = 0;
 
@@ -148,6 +144,12 @@ public:
   /// closed too, so it opens on the chord being held.
   void showChord(const AdaptiveSnapshot &);
 
+  /// The cents a pitch class sits from equal temperament, as its display
+  /// shows them, and whether it is lit. For the tests.
+  const SegmentDisplay &scaleDisplay(int pitchClass) const {
+    return *scale[(size_t)pitchClass];
+  }
+
   /// The word the temperament display shows for each temperament, in their
   /// order, sized for its nine cells.
   static const char *temperamentWord(int index);
@@ -159,6 +161,16 @@ private:
   SegmentDisplay root{{}, SegmentDisplay::Bars::Fourteen, 2};
   SegmentDisplay reference{"Hz"};
   LabelledKnob retune{"RETUNE"};
+
+  /// One display a pitch class, C to B, saying how far it sits from equal
+  /// temperament. Lit for every one under a fixed temperament, and under
+  /// Adaptive for the ones held, the rest showing where they would land.
+  std::array<std::unique_ptr<SegmentDisplay>, 12> scale;
+
+  /// What the engine last settled, which Adaptive's displays read.
+  AdaptiveSnapshot chord;
+
+  void showScale();
   std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>
       retuneAttachment;
   AdaptiveReadout readout;

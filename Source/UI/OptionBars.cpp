@@ -273,15 +273,13 @@ double centsBetween(double low, double high) {
   return 1200.0 * std::log2(high / low);
 }
 
-/// The simplest fraction within a cent of a ratio between 1 and 2, as p/q, or
-/// empty if none with q up to 32 is.
-juce::String fractionFor(double ratio) {
-  for (int q = 1; q <= 32; ++q)
-    for (int p = q; p <= 2 * q; ++p)
-      if (std::abs(1200.0 * std::log2(ratio * q / p)) < kPureWithin)
-        return juce::String(p) + "/" + juce::String(q);
+/// Cents as a display shows them: one decimal, a sign either side of zero,
+/// and a plain zero for anything that rounds to it.
+juce::String centsReading(double cents) {
+  if (std::abs(cents) < 0.05)
+    return "0.0";
 
-  return {};
+  return (cents > 0.0 ? "+" : "") + juce::String(cents, 1);
 }
 
 /// Pure sizes for the intervals a chord reaches for, in cents within an
@@ -328,21 +326,12 @@ AdaptiveReading AdaptiveReading::of(const AdaptiveSnapshot &snapshot) {
 
   const auto &low = snapshot.notes[0];
 
-  // ---- each note -----------------------------------------------------------
+  // ---- how far it has drifted
+  // -------------------------------------------------
   int versions = 0, onChain = 0;
 
   for (int i = 0; i < count; ++i) {
     const auto &n = snapshot.notes[(size_t)i];
-    const auto equal =
-        snapshot.referenceHz * std::exp2((double)(n.key - 69) / 12.0);
-    const auto cents = centsBetween(equal, n.hz);
-    auto above = n.hz / low.hz;
-    while (above >= 2.0 - 1.0e-9)
-      above *= 0.5;
-
-    r.notes.push_back({pitchName(n.key) + juce::String(n.key / 12 - 1),
-                       i == 0 ? juce::String("1/1") : fractionFor(above),
-                       (cents >= 0.05 ? "+" : "") + juce::String(cents, 1)});
 
     if (!n.harmonic) {
       versions += n.version;
@@ -430,7 +419,7 @@ AdaptiveReading AdaptiveReading::of(const AdaptiveSnapshot &snapshot) {
 }
 
 juce::String AdaptiveReading::spoken() const {
-  if (notes.empty())
+  if (verdict == "NO KEYS HELD")
     return "Adaptive: no keys held";
 
   juce::String s = "Adaptive: ";
@@ -458,8 +447,10 @@ void AdaptiveReadout::paint(juce::Graphics &g) {
   const auto lit = colours::accent;
   const auto dim = lit.withAlpha(0.6f);
 
-  // The chord as harmonics, or what it gave up, and a line under it.
-  auto head = area.removeFromLeft(128);
+  // DRIFT at the far end, and the chord as harmonics, or what it gave up,
+  // with a line under it, in the rest.
+  auto tail = area.removeFromRight(86);
+  auto head = area.withTrimmedRight(8);
   g.setColour(lit);
   g.setFont(makeFont(19.0f, true));
   const auto big = reading.harmonics.isNotEmpty() ? reading.harmonics
@@ -475,8 +466,6 @@ void AdaptiveReadout::paint(juce::Graphics &g) {
                         : reading.verdict;
   g.drawFittedText(line, head, juce::Justification::topLeft, 2, 0.7f);
 
-  // DRIFT at the far end, so the notes between take whatever is left.
-  auto tail = area.removeFromRight(86);
   g.setColour(lit.withAlpha(0.25f));
   g.fillRect(tail.getX(), tail.getY() + 3, 1, tail.getHeight() - 6);
   tail.removeFromLeft(10);
@@ -491,34 +480,6 @@ void AdaptiveReadout::paint(juce::Graphics &g) {
   g.drawText((d > 0 ? "+" : "") + juce::String(d) +
                  (std::abs(d) == 1 ? " COMMA" : " COMMAS"),
              tail.removeFromTop(16), juce::Justification::centredLeft, false);
-
-  // One column a note: its name, its ratio to the lowest, its cents from
-  // equal temperament. Narrower when there are more of them.
-  area.removeFromLeft(8);
-  area.removeFromRight(6);
-
-  const auto n = (int)reading.notes.size();
-  if (n == 0)
-    return;
-
-  const auto width = juce::jmin(54, area.getWidth() / n);
-
-  for (const auto &note : reading.notes) {
-    auto col = area.removeFromLeft(width);
-    g.setColour(lit);
-    g.setFont(makeFont(12.0f, true));
-    g.drawFittedText(note.name, col.removeFromTop(15),
-                     juce::Justification::centred, 1, 0.6f);
-    g.setFont(makeFont(11.0f, false));
-    g.drawFittedText(note.ratio.isNotEmpty() ? note.ratio : juce::String("-"),
-                     col.removeFromTop(14), juce::Justification::centred, 1,
-                     0.6f);
-    g.setColour(dim);
-    g.setFont(makeFont(10.0f, false));
-    g.drawFittedText(note.cents + juce::String::fromUTF8("\xc2\xa2"),
-                     col.removeFromTop(13), juce::Justification::centred, 1,
-                     0.6f);
-  }
 }
 
 // ---- Tuning -----------------------------------------------------------------
@@ -575,7 +536,19 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
             {&root, 30, "ROOT"},
             {&reference, 54, "REFERENCE"}});
   retuneGroup = addGroup({{&retune, 38, {}}});
-  readoutGroup = addGroup({{&readout, 560, {}, true}});
+
+  std::vector<Item> scaleItems;
+  for (int pc = 0; pc < 12; ++pc) {
+    scale[(size_t)pc] = std::make_unique<SegmentDisplay>(juce::String());
+    scale[(size_t)pc]->setTooltip(
+        "How far this note sits from equal temperament, in cents, with A on "
+        "the reference pitch");
+    scaleItems.push_back(
+        {scale[(size_t)pc].get(), 46, params::kPitchClassNames[(size_t)pc]});
+  }
+  addGroup(std::move(scaleItems));
+
+  readoutGroup = addGroup({{&readout, 240, {}, true}});
 
   refresh();
 }
@@ -606,10 +579,63 @@ void TuningBar::refresh() {
   // read out, so both are only there under Adaptive.
   setGroupShown(retuneGroup, adaptive);
   setGroupShown(readoutGroup, adaptive);
+
+  showScale();
 }
 
 void TuningBar::showChord(const AdaptiveSnapshot &snapshot) {
+  chord = snapshot;
   readout.show(AdaptiveReading::of(snapshot));
+  showScale();
+}
+
+void TuningBar::showScale() {
+  const auto picked = settings::choiceIndex(apvts, params::temperamentId);
+  const auto adaptive = picked == (int)Temperament::Adaptive;
+  const auto rootClass =
+      juce::jlimit(0, 11, settings::choiceIndex(apvts, params::tuningRootId));
+  const auto referenceHz = (double)params::kReferenceHzChoices[(
+      size_t)juce::jlimit(0, (int)params::kReferenceHzChoices.size() - 1,
+                          settings::choiceIndex(apvts, params::referenceHzId))];
+
+  const auto count = juce::jlimit(0, AdaptiveSnapshot::kMaxNotes, chord.count);
+
+  for (int pc = 0; pc < 12; ++pc) {
+    // Middle C's octave stands for every octave, since a pitch class sits the
+    // same distance from equal temperament in all of them.
+    const auto key = 60 + pc;
+    double hz = 0.0, equal = referenceHz * std::exp2((double)(key - 69) / 12.0);
+    bool sounding = !adaptive;
+
+    if (adaptive) {
+      for (int i = 0; i < count && !sounding; ++i) {
+        const auto &n = chord.notes[(size_t)i];
+        if (((n.key % 12) + 12) % 12 == pc) {
+          sounding = true;
+          hz = n.hz;
+          equal = chord.referenceHz * std::exp2((double)(n.key - 69) / 12.0);
+        }
+      }
+
+      // Not held, so where it would land if it were struck into silence: the
+      // version its pitch class used last.
+      if (!sounding) {
+        const auto version =
+            chord.remembered[(size_t)((pc - rootClass + 12) % 12)];
+        hz = noteFrequency(key, Temperament::Adaptive, rootClass, referenceHz) *
+             std::exp2((double)version * tuning::kAdaptiveComma / 1200.0);
+      }
+    } else {
+      hz = noteFrequency(key, (Temperament)picked, rootClass, referenceHz);
+    }
+
+    const auto text = centsReading(centsBetween(equal, hz));
+    auto &display = *scale[(size_t)pc];
+    display.setReading(text, sounding);
+    display.setTitle(juce::String(params::kPitchClassNames[(size_t)pc]) + ": " +
+                     text + " cents from equal" +
+                     (adaptive ? (sounding ? ", held" : ", not held") : ""));
+  }
 }
 
 } // namespace ovt::ui

@@ -33,6 +33,11 @@ struct AdaptiveSnapshot {
   /// The key the harmonic seventh is tuned on, or -1 for none.
   int harmonicRoot = -1;
 
+  /// The version each pitch class takes when struck into silence, the one it
+  /// used last, indexed by semitones above the root. Says where a key that is
+  /// not held would land.
+  std::array<int, 12> remembered{};
+
   /// Where A sits, for reading each key against equal temperament.
   double referenceHz = 440.0;
 };

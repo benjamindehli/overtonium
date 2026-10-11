@@ -2736,10 +2736,11 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   // per macro in the panel. The panel's eight are built whether or not the
   // macro has been made, so they are all here whatever the patch says. Then
   // four in the Playing bar, the voices, bend range, aftertouch and slide,
-  // and three in the Tuning bar, the temperament, root and reference, all
-  // built whether or not the bars are open.
+  // and fifteen in the Tuning bar, the temperament, root and reference and
+  // one for each of the twelve pitch classes, all built whether or not the
+  // bars are open.
   check(displays.size() ==
-            3 + 2 * ovt::kNumHarmonics + 1 + ovt::params::kNumMacros + 7,
+            3 + 2 * ovt::kNumHarmonics + 1 + ovt::params::kNumMacros + 4 + 15,
         "every readout is a segment display now (" +
             std::to_string(displays.size()) + ")");
 
@@ -7843,6 +7844,31 @@ void testTuningBar(OvertoniumProcessor &p) {
             root->getReading().trim().toStdString() + ", " +
             reference->getReading().trim().toStdString() + ")");
   check(root->isActive(), "with the root lit");
+
+  // ---- the twelve displays chart the scale
+  // -----------------------------------
+  pick(st::kRoot + 0);
+  {
+    const auto read = [bar](int pc) {
+      return bar->scaleDisplay(pc).getReading().trim();
+    };
+    bool allLit = true;
+    for (int pc = 0; pc < 12; ++pc)
+      allLit &= bar->scaleDisplay(pc).isActive();
+
+    check(read(9) == "0.0" && read(0) == "+15.6" && read(4) == "+2.0" &&
+              read(7) == "+17.6" && allLit,
+          "Just on C reads A 0.0, C +15.6, E +2.0 and G +17.6, all lit (" +
+              read(9).toStdString() + ", " + read(0).toStdString() + ", " +
+              read(4).toStdString() + ", " + read(7).toStdString() + ")");
+
+    pick(st::kTemperament + (int)ovt::Temperament::Equal);
+    bool allZero = true;
+    for (int pc = 0; pc < 12; ++pc)
+      allZero &= read(pc) == "0.0";
+    check(allZero, "and equal temperament reads 0.0 on every one");
+    pick(st::kTemperament + (int)ovt::Temperament::Just);
+  }
   check(!retune->isVisible(), "and no Retune, which only Adaptive has");
 
   // ---- under equal temperament, the root says nothing ---------------------
@@ -7881,6 +7907,7 @@ void testAdaptiveReadouts(OvertoniumProcessor &p) {
   st::apply(p.apvts, st::kTemperament + (int)ovt::Temperament::Adaptive);
 
   juce::AudioBuffer<float> buffer(2, 256);
+  ovt::AdaptiveSnapshot lastChord;
   const auto play = [&](std::initializer_list<int> on,
                         std::initializer_list<int> off) {
     juce::MidiBuffer midi;
@@ -7895,10 +7922,9 @@ void testAdaptiveReadouts(OvertoniumProcessor &p) {
     }
 
     ovt::AdaptiveSnapshot chord;
-    ovt::AdaptiveSnapshot latest;
     while (p.readAdaptiveSnapshot(chord))
-      latest = chord;
-    return ovt::ui::AdaptiveReading::of(latest);
+      lastChord = chord;
+    return ovt::ui::AdaptiveReading::of(lastChord);
   };
 
   // ---- a dominant seventh ---------------------------------------------------
@@ -7912,28 +7938,32 @@ void testAdaptiveReadouts(OvertoniumProcessor &p) {
               r.harmonics.toStdString() + ", " + r.seventhOn.toStdString() +
               ", " + r.verdict.toStdString() + ")");
 
-    // Cents from equal temperament with A on the reference. Just major on C
+    // The twelve displays light the four held and say where they sit, in
+    // cents from equal temperament with A on the reference. Just major on C
     // puts C itself a sixth below A, about 15.6 cents above equal, and the
     // rest sit where the chord puts them from there: the third 13.7 below
     // equal's third over C and the seventh 31.2 below.
-    const auto centsOf = [&r](size_t i) {
-      return r.notes[i].cents.getDoubleValue();
-    };
-    const bool columns =
-        r.notes.size() == 4 && r.notes[0].name == "C3" &&
-        r.notes[0].ratio == "1/1" && r.notes[1].ratio == "5/4" &&
-        r.notes[2].ratio == "3/2" && r.notes[3].ratio == "7/4" &&
-        std::abs(centsOf(0) - 15.6) < 0.3 &&
-        std::abs(centsOf(1) - centsOf(0) + 13.7) < 0.15 &&
-        std::abs(centsOf(3) - centsOf(0) + 31.2) < 0.15;
-    check(columns, "each note with its ratio to C and its cents from equal (" +
-                       (r.notes.size() > 3
-                            ? (r.notes[0].cents + ", " + r.notes[1].ratio +
-                               " " + r.notes[1].cents + ", " +
-                               r.notes[3].ratio + " " + r.notes[3].cents)
-                                  .toStdString()
-                            : std::string("too few")) +
-                       ")");
+    {
+      juce::Component popupHost;
+      ovt::ui::TuningBar bar(p.apvts, popupHost);
+      bar.showChord(lastChord);
+
+      const auto at = [&bar](int pc) {
+        return bar.scaleDisplay(pc).getReading().trim().getDoubleValue();
+      };
+      bool lit = true;
+      for (int pc = 0; pc < 12; ++pc)
+        lit &= bar.scaleDisplay(pc).isActive() ==
+               (pc == 0 || pc == 4 || pc == 7 || pc == 10);
+
+      check(lit, "the four held light and the other eight do not");
+      check(std::abs(at(0) - 15.6) < 0.3 &&
+                std::abs(at(4) - at(0) + 13.7) < 0.15 &&
+                std::abs(at(10) - at(0) + 31.2) < 0.15,
+            "and C, E and B flat read " + std::to_string(at(0)) + ", " +
+                std::to_string(at(4)) + " and " + std::to_string(at(10)) +
+                " cents from equal");
+    }
     check(r.spoken().contains("harmonics 4:5:6:7") &&
               r.spoken().contains("harmonic seventh on C"),
           "and says so to a screen reader: " + r.spoken().toStdString());
@@ -7965,7 +7995,7 @@ void testAdaptiveReadouts(OvertoniumProcessor &p) {
     check(r.harmonics == "10:12:15" && r.verdict == "NOTHING BEATS",
           "A minor reads as 10:12:15 (" + r.harmonics.toStdString() + ")");
     const auto empty = play({}, {57, 60, 64});
-    check(empty.notes.empty() && empty.verdict == "NO KEYS HELD",
+    check(empty.harmonics.isEmpty() && empty.verdict == "NO KEYS HELD",
           "and letting go reads as nothing held");
   }
 
