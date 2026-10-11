@@ -42,8 +42,12 @@ protected:
     juce::String caption;
   };
 
-  /// Adds a framed group, laid out left to right after the ones before it.
-  void addGroup(std::vector<Item>);
+  /// Adds a framed group, laid out left to right after the ones before it,
+  /// and returns its index for setGroupShown.
+  int addGroup(std::vector<Item>);
+
+  /// Shows or hides a group, closing the gap it leaves.
+  void setGroupShown(int group, bool shown);
 
   /// Opens one of the shared Settings lists under a control and carries out
   /// what is chosen.
@@ -58,7 +62,12 @@ protected:
 private:
   juce::String name;
 
-  std::vector<std::vector<Item>> groups;
+  struct Group {
+    std::vector<Item> items;
+    bool shown = true;
+  };
+
+  std::vector<Group> groups;
   std::vector<juce::Rectangle<int>> groupBounds;
 };
 
@@ -78,13 +87,27 @@ private:
   GlowButton legato, onePerKey, mpe;
 };
 
-/// Temperament, root and reference pitch, and under Adaptive what it is doing
-/// to the chord being held.
+/// Temperament, root and reference pitch, and under Adaptive how fast it
+/// retunes and what it is doing to the chord being held.
 class TuningBar : public OptionBar {
 public:
-  TuningBar();
+  explicit TuningBar(juce::AudioProcessorValueTreeState &);
 
-  void refresh() override {}
+  void refresh() override;
+
+  /// The word the temperament display shows for each temperament, in their
+  /// order, sized for its nine cells.
+  static const char *temperamentWord(int index);
+
+private:
+  juce::AudioProcessorValueTreeState &apvts;
+
+  SegmentDisplay temperament{{}, SegmentDisplay::Bars::Fourteen, 9};
+  SegmentDisplay root{{}, SegmentDisplay::Bars::Fourteen, 2};
+  SegmentDisplay reference{"Hz"};
+  SegmentDisplay retune{{}, SegmentDisplay::Bars::Fourteen, 6};
+
+  int retuneGroup = -1;
 };
 
 } // namespace ovt::ui

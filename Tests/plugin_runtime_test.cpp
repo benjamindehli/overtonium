@@ -2722,9 +2722,10 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   // per macro in the panel. The panel's eight are built whether or not the
   // macro has been made, so they are all here whatever the patch says. Then
   // four in the Playing bar, the voices, bend range, aftertouch and slide,
-  // built whether or not the bar is open.
+  // and four in the Tuning bar, the temperament, root, reference and retune,
+  // all built whether or not the bars are open.
   check(displays.size() ==
-            3 + 2 * ovt::kNumHarmonics + 1 + ovt::params::kNumMacros + 4,
+            3 + 2 * ovt::kNumHarmonics + 1 + ovt::params::kNumMacros + 8,
         "every readout is a segment display now (" +
             std::to_string(displays.size()) + ")");
 
@@ -7671,6 +7672,125 @@ void testPlayingBar(OvertoniumProcessor &p) {
   p.applyFactoryPreset(presetIndex("Init"));
 }
 
+/// The Tuning bar shows the temperament, root and reference pitch, and Retune
+/// only where it means something.
+void testTuningBar(OvertoniumProcessor &p) {
+  section("The Tuning bar");
+
+  p.applyFactoryPreset(presetIndex("Init"));
+  namespace st = ovt::ui::settings;
+  using ovt::ui::SegmentDisplay;
+
+  // ---- what it has to be able to say --------------------------------------
+  {
+    juce::String undrawable;
+    for (const auto *name : ovt::params::kPitchClassNames)
+      for (const auto *c = name; *c != 0; ++c)
+        if (!SegmentDisplay::canDraw(*c, SegmentDisplay::Bars::Fourteen))
+          undrawable += *c;
+    check(undrawable.isEmpty(),
+          "every root, sharps included, can be spelled in the root's cells (" +
+              undrawable.toStdString() + ")");
+
+    bool fit = true;
+    for (int i = 0; i < (int)ovt::Temperament::NumTemperaments; ++i) {
+      const juce::String word = ovt::ui::TuningBar::temperamentWord(i);
+      fit &= word.length() <= 9;
+      for (int c = 0; c < word.length(); ++c)
+        fit &= SegmentDisplay::canDraw((char)word[c],
+                                       SegmentDisplay::Bars::Fourteen);
+    }
+    check(fit, "every temperament has a word that fits its nine cells");
+  }
+
+  std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());
+  sizeEditor(*editor, 1348, 240);
+
+  ovt::ui::TuningBar *bar = nullptr;
+  juce::TextButton *opener = nullptr;
+  std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (auto *b = dynamic_cast<ovt::ui::TuningBar *>(child))
+        bar = b;
+      if (auto *b = dynamic_cast<juce::TextButton *>(child))
+        if (b->getTitle() == "Tuning")
+          opener = b;
+      look(*child);
+    }
+  };
+  look(*editor);
+
+  check(bar != nullptr && opener != nullptr, "there is a Tuning bar");
+  if (bar == nullptr || opener == nullptr)
+    return;
+
+  opener->onClick();
+
+  SegmentDisplay *temperament = nullptr, *root = nullptr, *reference = nullptr,
+                 *retune = nullptr;
+  for (auto *child : bar->getChildren())
+    if (auto *d = dynamic_cast<SegmentDisplay *>(child)) {
+      const auto t = d->getTitle();
+      if (t.startsWith("Temperament"))
+        temperament = d;
+      if (t.startsWith("Root"))
+        root = d;
+      if (t.startsWith("Reference"))
+        reference = d;
+      if (t.startsWith("Retune"))
+        retune = d;
+    }
+
+  check(temperament != nullptr && root != nullptr && reference != nullptr &&
+            retune != nullptr,
+        "it has temperament, root, reference pitch and retune");
+  if (temperament == nullptr || root == nullptr || reference == nullptr ||
+      retune == nullptr)
+    return;
+
+  const auto pick = [&](int id) {
+    st::apply(p.apvts, id);
+    bar->refresh();
+  };
+
+  // ---- under a fixed temperament ------------------------------------------
+  pick(st::kTemperament + (int)ovt::Temperament::Just);
+  pick(st::kRoot + 6);
+  pick(st::kReferencePitch + 0);
+
+  const auto hz = ovt::params::kReferenceHzChoices[0];
+
+  check(temperament->getReading().trim() == "JUST" &&
+            root->getReading().trim() == "F#" &&
+            reference->getReading().trim() == juce::String(hz),
+        "it shows Just on F# at " + std::to_string(hz) + " Hz (" +
+            temperament->getReading().trim().toStdString() + ", " +
+            root->getReading().trim().toStdString() + ", " +
+            reference->getReading().trim().toStdString() + ")");
+  check(root->isActive(), "with the root lit");
+  check(!retune->isVisible(), "and no Retune, which only Adaptive has");
+
+  // ---- under equal temperament, the root says nothing ---------------------
+  pick(st::kTemperament + (int)ovt::Temperament::Equal);
+  check(temperament->getReading().trim() == "EQUAL" && !root->isActive(),
+        "under Equal the root is dimmed, as its Settings entry is greyed out");
+
+  // ---- under Adaptive, Retune joins it -------------------------------------
+  pick(st::kTemperament + (int)ovt::Temperament::Adaptive);
+  pick(st::kRetune + 1);
+
+  check(retune->isVisible() && retune->getReading().trim() == "SMOOTH" &&
+            retune->getX() > reference->getRight(),
+        "under Adaptive Retune shows, after the reference pitch (" +
+            retune->getReading().trim().toStdString() + ")");
+
+  pick(st::kTemperament + (int)ovt::Temperament::Equal);
+  check(!retune->isVisible(), "and goes again when Adaptive does");
+
+  opener->onClick();
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
 /// LINK comes back the way it was left.
 ///
 /// Reported as LINK not being retained when the plugin is closed and opened.
@@ -10594,6 +10714,7 @@ int main(int argc, char **argv) {
   testOptionBars(processor);
   testSharedSettingsChoices(processor);
   testPlayingBar(processor);
+  testTuningBar(processor);
   testFoldingAndUnfoldingIsSymmetric(processor);
   testFittingLandsWhereADragCanReturn(processor);
   testTheRulesFoldTheirSections(processor);

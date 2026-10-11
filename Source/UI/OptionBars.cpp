@@ -1,6 +1,9 @@
 #include "OptionBars.h"
 
+#include <iterator>
+
 #include "../PluginParameters.h"
+#include "../dsp/Temperament.h"
 #include "LookAndFeel.h"
 #include "SettingsMenus.h"
 
@@ -30,11 +33,22 @@ OptionBar::OptionBar(juce::String nameToShow) : name(std::move(nameToShow)) {
   setTitle(name.substring(0, 1) + name.substring(1).toLowerCase());
 }
 
-void OptionBar::addGroup(std::vector<Item> items) {
+int OptionBar::addGroup(std::vector<Item> items) {
   for (auto &item : items)
     addAndMakeVisible(item.control);
 
-  groups.push_back(std::move(items));
+  groups.push_back({std::move(items), true});
+  return (int)groups.size() - 1;
+}
+
+void OptionBar::setGroupShown(int group, bool shown) {
+  if (group < 0 || group >= (int)groups.size() ||
+      groups[(size_t)group].shown == shown)
+    return;
+
+  groups[(size_t)group].shown = shown;
+  resized();
+  repaint();
 }
 
 void OptionBar::resized() {
@@ -43,14 +57,23 @@ void OptionBar::resized() {
   auto area = getLocalBounds().reduced(kBarMargin, kBarPadY);
   area.removeFromLeft(kNameWidth);
 
-  for (auto &group : groups) {
+  for (auto &entry : groups) {
+    auto &group = entry.items;
+
     int width = 2 * kGroupPad;
     for (size_t i = 0; i < group.size(); ++i)
       width += group[i].width + (i > 0 ? kControlGap : 0);
 
     // A group that does not fit is left out whole rather than cut, and so is
     // everything after it. The Settings menu still has all of it.
-    const bool fits = width <= area.getWidth();
+    const bool fits = entry.shown && width <= area.getWidth();
+
+    if (!entry.shown) {
+      groupBounds.push_back({});
+      for (auto &item : group)
+        item.control->setVisible(false);
+      continue;
+    }
 
     auto bounds = fits ? area.removeFromLeft(width) : juce::Rectangle<int>();
     groupBounds.push_back(bounds);
@@ -114,7 +137,7 @@ void OptionBar::paint(juce::Graphics &g) {
 
     // Centred under each control, a little wider than it so a caption longer
     // than a narrow display still fits.
-    for (const auto &item : groups[i])
+    for (const auto &item : groups[i].items)
       if (item.caption.isNotEmpty())
         g.drawText(item.caption,
                    LabelledKnob::captionBounds(bounds)
@@ -221,6 +244,88 @@ void PlayingBar::refresh() {
 
 // ---- Tuning -----------------------------------------------------------------
 
-TuningBar::TuningBar() : OptionBar("TUNING") {}
+namespace {
+/// In Temperament's order. Nine cells hold every one whole but Pythagorean
+/// and Werckmeister, which are cut where a reader still knows them.
+constexpr const char *kTemperamentWords[] = {
+    "EQUAL", "JUST", "PYTHAG", "MEANTONE", "WERCK III", "YOUNG", "ADAPTIVE"};
+static_assert(std::size(kTemperamentWords) ==
+                  (size_t)Temperament::NumTemperaments,
+              "a word for every temperament");
+} // namespace
+
+const char *TuningBar::temperamentWord(int index) {
+  return kTemperamentWords[juce::jlimit(
+      0, (int)std::size(kTemperamentWords) - 1, index)];
+}
+
+TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state)
+    : OptionBar("TUNING"), apvts(state) {
+  temperament.setTooltip("How the twelve keys of the octave are tuned");
+  root.setTooltip("The key the temperament is built on");
+  reference.setTooltip("The pitch A is tuned to");
+  retune.setTooltip("How fast Adaptive slides a held note to where the chord "
+                    "around it needs it");
+
+  temperament.onClick = [this] {
+    showList(temperament, settings::temperament(apvts), apvts);
+  };
+
+  // Equal temperament is the one that does not care, so the root says nothing
+  // under it and opens nothing, as its Settings entry is greyed out.
+  root.onClick = [this] {
+    if (settings::choiceIndex(apvts, params::temperamentId) !=
+        (int)Temperament::Equal)
+      showList(root, settings::root(apvts), apvts);
+  };
+
+  reference.onClick = [this] {
+    showList(reference, settings::referencePitch(apvts), apvts);
+  };
+  retune.onClick = [this] { showList(retune, settings::retune(apvts), apvts); };
+
+  addGroup({{&temperament, 108, "TEMPERAMENT"},
+            {&root, 30, "ROOT"},
+            {&reference, 54, "REFERENCE"}});
+  retuneGroup = addGroup({{&retune, 72, "RETUNE"}});
+
+  refresh();
+}
+
+void TuningBar::refresh() {
+  const auto picked = settings::choiceIndex(apvts, params::temperamentId);
+  const auto equal = picked == (int)Temperament::Equal;
+  const auto adaptive = picked == (int)Temperament::Adaptive;
+
+  temperament.setReading(temperamentWord(picked), true);
+  temperament.setTitle(juce::String("Temperament: ") +
+                       temperamentName((Temperament)picked));
+
+  const auto key =
+      juce::jlimit(0, (int)params::kPitchClassNames.size() - 1,
+                   settings::choiceIndex(apvts, params::tuningRootId));
+  root.setReading(params::kPitchClassNames[(size_t)key], !equal);
+  root.setTitle(juce::String("Root: ") + params::kPitchClassNames[(size_t)key] +
+                (equal ? ", not used by equal temperament" : ""));
+
+  const auto hz = params::kReferenceHzChoices[(size_t)juce::jlimit(
+      0, (int)params::kReferenceHzChoices.size() - 1,
+      settings::choiceIndex(apvts, params::referenceHzId))];
+  reference.setReading(juce::String(hz), true);
+  reference.setTitle("Reference pitch: " + juce::String(hz) + " Hz");
+
+  const auto speed =
+      juce::jlimit(0, (int)params::kAdaptiveRetuneNames.size() - 1,
+                   settings::choiceIndex(apvts, params::adaptiveRetuneId));
+  retune.setReading(
+      juce::String(params::kAdaptiveRetuneNames[(size_t)speed]).toUpperCase(),
+      true);
+  retune.setTitle(juce::String("Retune: ") +
+                  params::kAdaptiveRetuneNames[(size_t)speed]);
+
+  // Retune means nothing under any other temperament, so it is only there
+  // under Adaptive.
+  setGroupShown(retuneGroup, adaptive);
+}
 
 } // namespace ovt::ui

@@ -306,6 +306,14 @@ uint16_t starburstFor(char c) {
   case '9':
     return kStA | kStB | kStC | kStD | kStF | kStG;
 
+  // The sharp, for a root of C# or F# in the Tuning bar. None of the cell's
+  // own bars stand where a hash's lines do, a third of the way in from each
+  // side, and every pick of them read as a broken letter, so it is drawn as
+  // bars of its own over an unlit cell. See paintStarburst. This only has to
+  // say that it can be drawn.
+  case '#':
+    return kStG;
+
   case 'A':
     return kStA | kStB | kStC | kStE | kStF | kStG;
   case 'B':
@@ -536,7 +544,8 @@ void SegmentDisplay::paintGlyph(juce::Graphics &g, juce::Rectangle<float> area,
 void SegmentDisplay::paintStarburst(juce::Graphics &g,
                                     juce::Rectangle<float> area, char c,
                                     juce::Colour on, juce::Colour off) const {
-  const auto lit = starburstFor(c);
+  // The sharp lights none of the cell's own bars and lays its own over them.
+  const auto lit = c == '#' ? (uint16_t)0 : starburstFor(c);
 
   // Thinner than a seven-bar cell's. Fourteen bars in the same box means four
   // diagonals crossing the middle, and at the seven-bar weight they meet in a
@@ -642,6 +651,25 @@ void SegmentDisplay::paintStarburst(juce::Graphics &g,
 
     g.setColour(isLit ? on : off);
     g.drawLine(at, t * 0.9f);
+  }
+
+  // A hash: two uprights and two flat bars a third of the way in, the same
+  // weight and shape as the cell's own bars so it reads as lit on this glass
+  // rather than printed over it.
+  if (c == '#') {
+    g.setColour(on);
+
+    const auto upTop = h * 0.16f, upHeight = h * 0.68f;
+    const auto acrossLeft = w * 0.06f, acrossWidth = w * 0.88f;
+
+    for (const auto x : {w * 0.33f - t * 0.5f, w * 0.67f - t * 0.5f})
+      g.fillPath(segmentShape(juce::Rectangle<float>(x, upTop, t, upHeight)
+                                  .translated(area.getX(), area.getY())));
+
+    for (const auto y : {h * 0.37f - t * 0.5f, h * 0.63f - t * 0.5f})
+      g.fillPath(
+          segmentShape(juce::Rectangle<float>(acrossLeft, y, acrossWidth, t)
+                           .translated(area.getX(), area.getY())));
   }
 }
 
