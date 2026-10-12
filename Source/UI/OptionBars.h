@@ -132,6 +132,13 @@ struct PlayingActivity {
   /// Voices sounding, release tails included.
   int voicesInUse = 0;
   bool sustain = false;
+
+  /// -1 to 1 against the BEND range.
+  float bend = 0.0f;
+
+  /// 0 to 1.
+  float wheel = 0.0f;
+  float pressure = 0.0f;
 };
 
 /// Voices, legato, one voice per key, pitch bend range and expression, and
@@ -145,8 +152,13 @@ public:
   /// Repaints only what changed, so it can be handed every tick.
   void showActivity(const PlayingActivity &);
 
+  void resized() override;
+
   const SegmentDisplay &inUseDisplay() const { return inUse; }
   const ScreenSwitch &sustainLamp() const { return sustain; }
+  const ActivityNeedle &bendMeter() const { return bendNeedle; }
+  const ActivityNeedle &wheelMeter() const { return wheelNeedle; }
+  const ActivityNeedle &pressureMeter() const { return pressureNeedle; }
 
 private:
   juce::AudioProcessorValueTreeState &apvts;
@@ -159,6 +171,14 @@ private:
 
   SegmentDisplay inUse{{}, SegmentDisplay::Bars::Seven, 2};
   ScreenSwitch sustain;
+  ActivityNeedle bendNeedle{colours::accent}, wheelNeedle{colours::accent},
+      pressureNeedle{colours::accent};
+
+  /// What it was last handed, so a needle can be put back where it belongs
+  /// once the layout has given it a width to measure its travel on.
+  PlayingActivity shown;
+
+  void pushNeedles();
 };
 
 /// What Adaptive did to the held chord, worked out from what the engine

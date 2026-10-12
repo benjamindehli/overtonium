@@ -411,6 +411,15 @@ public:
   /// @returns true when the needle moved a pixel and needs repainting.
   bool push(float position);
 
+  /// Whether the travel is marked at its middle. On by default, for a reading
+  /// that rests there. Off for one that rests at the left end and only rises,
+  /// where a mark halfway would say nothing.
+  void showCentre(bool);
+
+  /// Where the needle sits, in pixels from the left edge, or -1 for parked.
+  /// Read back by the tests.
+  int getColumn() const noexcept { return column; }
+
   void paint(juce::Graphics &) override;
 
 private:
@@ -418,6 +427,7 @@ private:
   /// Quantised to the pixel because a needle that has not moved a whole pixel
   /// has not moved.
   int column = -1;
+  bool centreMark = true;
 
   juce::Colour colour, backdrop;
 };

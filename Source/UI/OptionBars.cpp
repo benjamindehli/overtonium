@@ -377,10 +377,38 @@ PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state)
   addGroup({{&mpe, 44, {}},
             {&aftertouch, natural(aftertouch), "AFTERTOUCH"},
             {&slide, natural(slide), "SLIDE"}});
-  addGroup({{&sustain, 70, {}}});
+  // The wheel and pressure rest at nought and only rise, so they start at the
+  // left end and have no middle to mark.
+  wheelNeedle.showCentre(false);
+  pressureNeedle.showCentre(false);
+
+  bendNeedle.setTitle("Pitch bend");
+  wheelNeedle.setTitle("Mod wheel");
+  pressureNeedle.setTitle("Pressure");
+
+  addGroup({{&sustain, 70, {}},
+            {&bendNeedle, 50, "PITCH"},
+            {&wheelNeedle, 50, "WHEEL"},
+            {&pressureNeedle, 50, "PRESSURE"}});
 
   refresh();
   showActivity({});
+}
+
+void PlayingBar::resized() {
+  OptionBar::resized();
+  pushNeedles();
+}
+
+void PlayingBar::pushNeedles() {
+  const auto push = [](ActivityNeedle &needle, float position) {
+    if (needle.push(position))
+      needle.repaint();
+  };
+
+  push(bendNeedle, shown.bend);
+  push(wheelNeedle, 2.0f * shown.wheel - 1.0f);
+  push(pressureNeedle, 2.0f * shown.pressure - 1.0f);
 }
 
 void PlayingBar::showActivity(const PlayingActivity &activity) {
@@ -394,6 +422,9 @@ void PlayingBar::showActivity(const PlayingActivity &activity) {
   }
 
   sustain.setToggleState(activity.sustain, juce::dontSendNotification);
+
+  shown = activity;
+  pushNeedles();
 }
 
 void PlayingBar::refresh() {

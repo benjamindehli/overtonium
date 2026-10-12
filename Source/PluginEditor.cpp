@@ -1983,8 +1983,10 @@ void OvertoniumEditor::timerCallback() {
 
   // How the instrument is being played, at the full rate so a pedal or a
   // chord shows as it happens.
-  playingBar.showActivity(
-      {plugin().getActiveVoiceCount(), plugin().isSustainDown()});
+  playingBar.showActivity({plugin().getActiveVoiceCount(),
+                           plugin().isSustainDown(), plugin().getBendPosition(),
+                           plugin().getWheelPosition(),
+                           plugin().getPressurePosition()});
 
   // What Adaptive did to the held chord, at the full rate so a chord reads out
   // as it is played. Read whether or not the bar is open, so it opens on the

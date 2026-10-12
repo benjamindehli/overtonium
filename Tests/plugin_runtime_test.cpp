@@ -7933,6 +7933,77 @@ void testPlayingBar(OvertoniumProcessor &p) {
                    inUse.getTitle().toStdString() + ")");
   check(none, "and reads a lit nought with SUSTAIN dark when nothing sounds");
 
+  // The meters, after SUSTAIN in its group, each across its whole travel.
+  const auto &pitchMeter = bar->bendMeter();
+  const auto &wheelMeter = bar->wheelMeter();
+  const auto &pressureMeter = bar->pressureMeter();
+
+  check(pitchMeter.isVisible() && wheelMeter.isVisible() &&
+            pressureMeter.isVisible() &&
+            sustain.getRight() < pitchMeter.getX() &&
+            pitchMeter.getRight() < wheelMeter.getX() &&
+            wheelMeter.getRight() < pressureMeter.getX() &&
+            pitchMeter.getBounds().getCentreY() ==
+                sustain.getBounds().getCentreY(),
+        "PITCH, WHEEL and PRESSURE stand after SUSTAIN, on its line");
+
+  {
+    // Where a needle's two ends and middle are, from its own width.
+    const auto left = ovt::ui::ActivityNeedle::kSlotInset + 1;
+    const auto right = [](const ovt::ui::ActivityNeedle &n) {
+      return n.getWidth() - ovt::ui::ActivityNeedle::kSlotInset - 2;
+    };
+    const auto middle = [&](const ovt::ui::ActivityNeedle &n) {
+      return (left + right(n)) / 2;
+    };
+    const auto near = [](int a, int b) { return std::abs(a - b) <= 1; };
+
+    bar->showActivity({0, false, -1.0f, 0.0f, 0.0f});
+    const bool atRest = pitchMeter.getColumn() == left &&
+                        wheelMeter.getColumn() == left &&
+                        pressureMeter.getColumn() == left;
+    bar->showActivity({0, false, 0.0f, 0.5f, 0.5f});
+    const bool halfway = near(pitchMeter.getColumn(), middle(pitchMeter)) &&
+                         near(wheelMeter.getColumn(), middle(wheelMeter)) &&
+                         near(pressureMeter.getColumn(), middle(pressureMeter));
+    bar->showActivity({0, false, 1.0f, 1.0f, 1.0f});
+    const bool atTheEnd = pitchMeter.getColumn() == right(pitchMeter) &&
+                          wheelMeter.getColumn() == right(wheelMeter) &&
+                          pressureMeter.getColumn() == right(pressureMeter);
+
+    check(atRest && halfway && atTheEnd,
+          "each needle reaches both ends of its travel and its middle (" +
+              std::to_string(pitchMeter.getColumn()) + " of " +
+              std::to_string(right(pitchMeter)) + ")");
+
+    // The pitch wheel rests in the middle and is marked there. The other two
+    // rest at the left and are not, which shows as the middle column of a
+    // needle at the far end matching the column beside it.
+    const auto markedAtMiddle = [](const ovt::ui::ActivityNeedle &n) {
+      auto &needle = const_cast<ovt::ui::ActivityNeedle &>(n);
+      const auto image =
+          needle.createComponentSnapshot(needle.getLocalBounds(), true, 1.0f);
+      const auto x = needle.getWidth() / 2;
+      const auto y = needle.getHeight() / 2;
+      return image.getPixelAt(x, y) != image.getPixelAt(x - 3, y);
+    };
+
+    check(markedAtMiddle(pitchMeter) && !markedAtMiddle(wheelMeter) &&
+              !markedAtMiddle(pressureMeter),
+          "PITCH is marked at its middle and WHEEL and PRESSURE are not");
+
+    bar->showActivity({});
+
+    // A bar is handed its first reading before it has a width, and has to put
+    // its needles where they belong once it is laid out.
+    ovt::ui::PlayingBar fresh(p.apvts);
+    fresh.setSize(1348, ovt::ui::OptionBar::kHeight);
+    check(near(fresh.bendMeter().getColumn(), middle(fresh.bendMeter())) &&
+              fresh.wheelMeter().getColumn() == left,
+          "and a new bar's needles start where they rest (" +
+              std::to_string(fresh.bendMeter().getColumn()) + ")");
+  }
+
   // ---- a narrow window wraps, as the top bar does --------------------------
   //
   // Nothing is left out. The groups that do not fit across go onto another
@@ -7950,7 +8021,10 @@ void testPlayingBar(OvertoniumProcessor &p) {
                     static_cast<const juce::Component *>(aftertouch),
                     static_cast<const juce::Component *>(slide),
                     static_cast<const juce::Component *>(&inUse),
-                    static_cast<const juce::Component *>(&sustain)})
+                    static_cast<const juce::Component *>(&sustain),
+                    static_cast<const juce::Component *>(&pitchMeter),
+                    static_cast<const juce::Component *>(&wheelMeter),
+                    static_cast<const juce::Component *>(&pressureMeter)})
       all &= c->isVisible() && bar->getLocalBounds().contains(c->getBounds());
 
     check(all && bar->getHeight() > oneRow &&
