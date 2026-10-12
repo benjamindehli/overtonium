@@ -59,6 +59,7 @@ void SynthEngine::reset() noexcept {
   ageCounter = 0;
   lastNoteFrequency = 0.0;
   adaptiveVersion.fill(0);
+  adaptiveSnapshots.publish(AdaptiveSnapshot{});
   clock = 0;
   pressedAt.fill(0);
   pressedWithOthers.fill(false);
@@ -226,6 +227,8 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
   legatoReferenceHz = p.global.referenceHz;
   adaptiveOn = p.global.temperament == Temperament::Adaptive;
   adaptiveRetune = p.global.adaptiveRetuneSeconds;
+  harmonicSevenths = p.global.harmonicSevenths;
+  adaptiveHome = p.global.adaptiveHome;
 
   // ---- where a glide comes from ---------------------------------------------
   //
@@ -626,8 +629,14 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
   if (note >= 0)
     nodes[(size_t)count++] = {nullptr, note, 0, true, false};
 
-  if (count == 0)
+  if (count == 0) {
+    // Nothing held, which the screen needs to know as much as anything else.
+    AdaptiveSnapshot none;
+    none.referenceHz = referenceHz;
+    none.remembered = adaptiveVersion;
+    adaptiveSnapshots.publish(none);
     return 0.0;
+  }
 
   // Lowest key first, so where a chord cannot all be pure the interval left
   // out is the same whatever order the keys went down in.
@@ -659,8 +668,10 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
     lowestOf[(size_t)pc] = std::min(lowestOf[(size_t)pc], nodes[(size_t)i].key);
   }
 
+  // None at all when the harmonic seventh is switched off, and every seventh
+  // then takes the size the chain gives it.
   int dominant = -1;
-  for (int pc = 0; pc < 12; ++pc)
+  for (int pc = 0; pc < 12 && harmonicSevenths; ++pc)
     if (held[(size_t)pc] && held[(size_t)((pc + 10) % 12)] &&
         !held[(size_t)((pc + 1) % 12)] && !held[(size_t)((pc + 3) % 12)] &&
         !held[(size_t)((pc + 5) % 12)] && !held[(size_t)((pc + 6) % 12)] &&
@@ -831,11 +842,16 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
     if (from > to)
       from = to = (from + to) / 2;
 
-    double bestScore[3] = {1.0e18, 1.0e18, 1.0e18};
+    // With Home on, how near the chord sits to home comes before everything
+    // else, so a progression that would pump moves a held note a comma
+    // instead of taking the keyboard with it. Off, it counts for nothing and
+    // the chord stays wherever the music has taken it.
+    double bestScore[4] = {1.0e18, 1.0e18, 1.0e18, 1.0e18};
     int bestPlace = from;
 
     for (int place = from; place <= to; ++place) {
       double moved = 0.0, ringing = 0.0, habit = 0.0;
+      int fromHome = 0;
 
       for (int i = 0; i < count; ++i) {
         const auto [r, at] = find(i);
@@ -844,6 +860,7 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
 
         const auto version = std::clamp(place + at, -kReach, kReach);
         const auto &node = nodes[(size_t)i];
+        fromHome += version;
 
         if (node.voice != nullptr)
           moved += (node.young ? 0.01 : 1.0) * std::abs(version - node.now);
@@ -876,10 +893,11 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
         }
       }
 
-      const double score[3] = {moved, ringing, habit};
-      if (std::lexicographical_compare(score, score + 3, bestScore,
-                                       bestScore + 3)) {
-        std::copy(score, score + 3, bestScore);
+      const double home = adaptiveHome ? (double)std::abs(fromHome) : 0.0;
+      const double score[4] = {home, moved, ringing, habit};
+      if (std::lexicographical_compare(score, score + 4, bestScore,
+                                       bestScore + 4)) {
+        std::copy(score, score + 4, bestScore);
         bestPlace = place;
       }
     }
@@ -893,6 +911,11 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
 
   // ---- move what has to move ------------------------------------------------
   double result = 0.0;
+
+  // What it all came to, for the screen, filled in as each key is placed.
+  AdaptiveSnapshot outcome;
+  outcome.count = count;
+  outcome.referenceHz = referenceHz;
 
   // The root the harmonic seventh is tuned on, where the chain put it.
   int rootNode = -1;
@@ -910,6 +933,9 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
       const auto hz = hzOf(rootKey, chosen[(size_t)rootNode]) * 1.75 *
                       std::exp2((double)octaves);
 
+      outcome.notes[(size_t)i] = {node.key, hz, 0, true};
+      outcome.harmonicRoot = rootKey;
+
       if (node.voice == nullptr)
         result = hz;
       else if (std::abs(1200.0 * std::log2(node.voice->getFrequency() / hz)) >
@@ -920,6 +946,8 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
 
     const auto version = chosen[(size_t)i];
     adaptiveVersion[(size_t)classOf(node.key)] = version;
+    outcome.notes[(size_t)i] = {node.key, hzOf(node.key, version), version,
+                                false};
 
     if (node.voice == nullptr) {
       result = hzOf(node.key, version);
@@ -933,6 +961,8 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
       node.voice->retuneTo(hz, node.young ? 0.0 : adaptiveRetune);
   }
 
+  outcome.remembered = adaptiveVersion;
+  adaptiveSnapshots.publish(outcome);
   return result;
 }
 

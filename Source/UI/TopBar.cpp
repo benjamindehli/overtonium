@@ -1,6 +1,7 @@
 #include "TopBar.h"
 #include "GlideMenu.h"
 #include "LearnMenu.h"
+#include "SettingsMenus.h"
 
 #include "../PluginParameters.h"
 #include "../Presets.h"
@@ -27,10 +28,11 @@ constexpr int kGroupPad = 6;
 /// Minimum width of each group, in the order they are laid out. Only the
 /// output group grows, because the meter is the one thing worth more room.
 ///
-/// The second holds the two buttons that open something, SETTINGS and
-/// MACROS, and is sized against what the bar can spare rather than against
-/// what would be comfortable. Measured in the font a 24 px button picks,
-/// SETTINGS is 61 px of text and MACROS is 54.
+/// The second holds the four buttons that open something, SETTINGS and
+/// MACROS over PLAYING and TUNING, two by two so they take no more of the
+/// row's width than the first two did alone. It is sized against what the
+/// bar can spare rather than against what would be comfortable. Measured in
+/// the font a 24 px button picks, SETTINGS is 61 px of text and MACROS is 54.
 ///
 /// Both wear an icon instead, which is what makes 84 enough: the words want
 /// 62 and 54 px and the bar could spare 58 each, and every pixel taken here
@@ -345,7 +347,7 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   addAndMakeVisible(characterButton);
 
   // ---- presets --------------------------------------------------------------
-  presetDisplay.setReading(kNoPreset, false);
+  presetDisplay.setReading(kNoPreset, true);
   presetDisplay.setTooltip("Factory and saved presets, and somewhere to put "
                            "the one you are working on");
   presetDisplay.onClick = [this] { showPresetMenu(); };
@@ -393,6 +395,40 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
                             "output and zoom");
   settingsButton.onClick = [this] { showSettingsMenu(); };
   addAndMakeVisible(settingsButton);
+
+  // The same plastic as the two above, and lit by the editor while their bars
+  // are open rather than by their own clicks. See setBarsOpen.
+  const struct {
+    GlowButton &button;
+    const char *word, *title, *tooltip;
+    void (*icon)(juce::Graphics &, juce::Rectangle<float>, juce::Colour);
+    std::function<void()> TopBar::*callback;
+  } bars[] = {
+      {playingButton, "PLAYING", "Playing",
+       "Voices, legato, pitch bend range and expression, in a bar under this "
+       "one",
+       drawKeyboardIcon, &TopBar::onPlayingClicked},
+      {tuningButton, "TUNING", "Tuning",
+       "Temperament, root and reference pitch, and what Adaptive is doing, in "
+       "a bar under this one",
+       drawTuningForkIcon, &TopBar::onTuningClicked},
+  };
+
+  for (const auto &b : bars) {
+    b.button.setButtonText(b.word);
+    b.button.setTitle(b.title);
+    b.button.setTooltip(b.tooltip);
+    b.button.setColour(juce::TextButton::textColourOnId, colours::accent);
+    b.button.onIcon = b.icon;
+
+    const auto callback = b.callback;
+    b.button.onClick = [this, callback] {
+      if (this->*callback)
+        (this->*callback)();
+    };
+
+    addAndMakeVisible(b.button);
+  }
 
   // ---- the master effects
   // ----------------------------------------------------
@@ -545,6 +581,11 @@ void TopBar::mouseDown(const juce::MouseEvent &e) {
     onLearnRequested(id);
 }
 
+void TopBar::setBarsOpen(bool playing, bool tuning) {
+  playingButton.setToggleState(playing, juce::dontSendNotification);
+  tuningButton.setToggleState(tuning, juce::dontSendNotification);
+}
+
 void TopBar::setMacrosOn(bool on) {
   // The panel being up does not change whether any macros are made, and the
   // lit state says the latter, so opening it is shown by the panel itself.
@@ -635,11 +676,9 @@ void TopBar::showLinkMenu(juce::Component *anchor,
 void TopBar::setPresetName(const juce::String &name) {
   presetName = name;
 
-  // Lit when something is loaded and dim when nothing is, which is the rule
-  // the converter readouts beside it follow: a display says whether what it
-  // shows is a setting or a statement of fact.
-  presetDisplay.setReading(name.isEmpty() ? kNoPreset : name,
-                           name.isNotEmpty());
+  // Lit either way. A segment is lit or it is not, and SELECT is as much a
+  // reading as a name is.
+  presetDisplay.setReading(name.isEmpty() ? kNoPreset : name, true);
 
   // The same as the character button: the text on it is a value, so the name
   // has to supply what the value is of. It matters more here than anywhere,
@@ -975,19 +1014,16 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
   juce::PopupMenu m;
   m.setLookAndFeel(&getLookAndFeel());
 
-  auto *polyphony = apvts.getParameter(params::polyphonyId);
-  auto *bendRange = apvts.getParameter(params::bendRangeId);
   auto *phase = apvts.getParameter(params::phaseResetId);
   auto *clip = apvts.getParameter(params::safetyClipId);
   auto *ahead = apvts.getParameter(params::lookaheadId);
-  auto *onePerKey = apvts.getParameter(params::oneVoicePerKeyId);
-  auto *mpe = apvts.getParameter(params::mpeId);
-  auto *legato = apvts.getParameter(params::legatoId);
 
-  const auto polyIndex =
-      polyphony != nullptr
-          ? juce::roundToInt(polyphony->convertFrom0to1(polyphony->getValue()))
-          : 0;
+  // A list the bars offer too, laid into this menu in place rather than a
+  // level down.
+  const auto addInPlace = [&m](const juce::PopupMenu &list) {
+    for (juce::PopupMenu::MenuItemIterator it(list); it.next();)
+      m.addItem(it.getItem());
+  };
 
   // Which build this is, above the thing that offers to find a newer one, and
   // both at the very top.
@@ -1021,67 +1057,19 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
 
   m.addSectionHeader("Polyphony");
 
-  // The voice counts, from one up. The list's first entry, monophonic legato,
-  // is the Legato switch below with one voice now, so a session that stored it
-  // reads as that: one voice, and Legato ticked.
-  const auto oldLegato = polyIndex == params::kLegatoIndex;
+  // The voice counts, from one up, then the other halves of the same
+  // question: how many voices one key may take, and whether a key going down
+  // while another is held starts a note or carries one on.
+  addInPlace(settings::voices(apvts));
 
-  for (int i = 1; i < (int)params::kPolyphonyChoices.size(); ++i)
-    m.addItem(100 + i, params::polyphonyName(i), true,
-              i == polyIndex || (oldLegato && i == 1));
-
-  // Beside the voice count because they are the other halves of the same
-  // question: how many voices there are, how many one key may take, and
-  // whether a key going down while another is held starts a note or carries
-  // one on.
-  m.addItem(303, "One voice per key", true,
-            onePerKey != nullptr && onePerKey->getValue() > 0.5f);
-  m.addItem(305, "Legato", true,
-            oldLegato || (legato != nullptr && legato->getValue() > 0.5f));
-
-  const auto currentBend =
-      bendRange != nullptr
-          ? juce::roundToInt(bendRange->convertFrom0to1(bendRange->getValue()))
-          : 2;
-
-  // The semitone counts anyone actually uses, rather than all 25 of them.
-  static const int kBendChoices[] = {0, 1, 2, 3, 4, 5, 7, 12, 24};
+  m.addItem(settings::kOneVoicePerKey, "One voice per key", true,
+            settings::isOn(apvts, params::oneVoicePerKeyId));
+  m.addItem(settings::kLegato, "Legato", true, settings::legatoOn(apvts));
 
   m.addSeparator();
   m.addSectionHeader("Pitch bend range");
 
-  for (auto semitones : kBendChoices)
-    m.addItem(200 + semitones,
-              juce::String(semitones) +
-                  (semitones == 1 ? " semitone" : " semitones"),
-              true, semitones == currentBend);
-
-  // Which channel-wide control the AT row on every strip listens to. Most
-  // keyboards have no aftertouch, so the wheel stands in for it, and by
-  // default either will do.
-  const auto sourceIndex = [this] {
-    auto *p = apvts.getParameter(params::atSourceId);
-    return p != nullptr ? juce::roundToInt(p->convertFrom0to1(p->getValue()))
-                        : 0;
-  }();
-
-  juce::PopupMenu sources;
-
-  for (int i = 0; i < (int)params::kAftertouchSourceNames.size(); ++i)
-    sources.addItem(600 + i, params::kAftertouchSourceNames[(size_t)i], true,
-                    i == sourceIndex);
-
-  juce::PopupMenu slideTargets;
-
-  {
-    auto *p = apvts.getParameter(params::slideDestId);
-    const auto current =
-        p != nullptr ? juce::roundToInt(p->convertFrom0to1(p->getValue())) : 0;
-
-    for (int i = 0; i < params::slideDestChoices.size(); ++i)
-      slideTargets.addItem(1200 + i, params::slideDestChoices[i], true,
-                           i == current);
-  }
+  addInPlace(settings::bendRange(apvts));
 
   // One subject, so one group. Each of the three says how something the
   // controller sends should reach the sound, none of them describes the sound
@@ -1094,32 +1082,41 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
   // ordinary keyboard plays either way.
   m.addSeparator();
   m.addSectionHeader("Expression");
-  m.addItem(302, "MPE", true, mpe != nullptr && mpe->getValue() > 0.5f);
-  m.addSubMenu("Aftertouch from", sources);
-  m.addSubMenu("Slide to", slideTargets);
+  m.addItem(settings::kMpe, "MPE", true, settings::isOn(apvts, params::mpeId));
+  m.addSubMenu("Aftertouch from", settings::aftertouchFrom(apvts));
+  m.addSubMenu("Slide to", settings::slideTo(apvts));
 
   // Tuning of the keyboard itself, which is a decision about the instrument
   // and gets set once, so it belongs here rather than on the panel.
-  const auto pickedIndex = [this](const char *id) {
-    auto *p = apvts.getParameter(id);
-    return p != nullptr ? juce::roundToInt(p->convertFrom0to1(p->getValue()))
-                        : 0;
-  };
+  const auto temperamentIndex =
+      settings::choiceIndex(apvts, params::temperamentId);
 
-  juce::PopupMenu temperaments, roots, references;
+  m.addSeparator();
+  m.addSectionHeader("Tuning");
+  m.addSubMenu("Temperament", settings::temperament(apvts));
 
-  for (int i = 0; i < (int)Temperament::NumTemperaments; ++i)
-    temperaments.addItem(900 + i, temperamentName((Temperament)i), true,
-                         i == pickedIndex(params::temperamentId));
+  // A temperament has to be built on something, and equal temperament is the
+  // one that does not care.
+  m.addSubMenu("Root", settings::root(apvts),
+               temperamentIndex != (int)Temperament::Equal);
 
-  for (int i = 0; i < (int)params::kPitchClassNames.size(); ++i)
-    roots.addItem(1000 + i, params::kPitchClassNames[(size_t)i], true,
-                  i == pickedIndex(params::tuningRootId));
+  m.addSubMenu("Reference pitch", settings::referencePitch(apvts));
 
-  for (int i = 0; i < (int)params::kReferenceHzChoices.size(); ++i)
-    references.addItem(
-        1100 + i, juce::String(params::kReferenceHzChoices[(size_t)i]) + " Hz",
-        true, i == pickedIndex(params::referenceHzId));
+  // How fast the adaptive temperament moves a held note, which means nothing
+  // under any other.
+  m.addSubMenu("Retune", settings::retune(apvts),
+               temperamentIndex == (int)Temperament::Adaptive);
+
+  // Whether Adaptive puts a seventh on 7:4, which again means nothing under
+  // any other temperament.
+  m.addItem(settings::kHarmonicSevenths, "Harmonic sevenths",
+            temperamentIndex == (int)Temperament::Adaptive,
+            settings::isOn(apvts, params::adaptiveSeventhId));
+
+  // And whether it stays home rather than letting the keyboard drift.
+  m.addItem(settings::kAdaptiveHome, "No drift",
+            temperamentIndex == (int)Temperament::Adaptive,
+            settings::isOn(apvts, params::adaptiveHomeId));
 
   juce::PopupMenu zooms;
 
@@ -1128,30 +1125,6 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
 
     zooms.addItem(800 + i, juce::String(percent) + "%", true,
                   std::abs(kZoomChoices[i] - zoom) < 0.01f);
-  }
-
-  m.addSeparator();
-  m.addSectionHeader("Tuning");
-  m.addSubMenu("Temperament", temperaments);
-
-  // A temperament has to be built on something, and equal temperament is the
-  // one that does not care.
-  m.addSubMenu("Root", roots,
-               pickedIndex(params::temperamentId) != (int)Temperament::Equal);
-
-  m.addSubMenu("Reference pitch", references);
-
-  // How fast the adaptive temperament moves a held note, which means nothing
-  // under any other.
-  {
-    juce::PopupMenu speeds;
-    for (int i = 0; i < (int)params::kAdaptiveRetuneNames.size(); ++i)
-      speeds.addItem(1300 + i, params::kAdaptiveRetuneNames[(size_t)i], true,
-                     i == pickedIndex(params::adaptiveRetuneId));
-
-    m.addSubMenu("Retune", speeds,
-                 pickedIndex(params::temperamentId) ==
-                     (int)Temperament::Adaptive);
   }
 
   m.addSeparator();
@@ -1185,129 +1158,46 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
 void TopBar::showSettingsMenu() {
   auto m = buildSettingsMenu();
 
-  m.showMenuAsync(
-      juce::PopupMenu::Options()
-          .withTargetComponent(&settingsButton)
-          .withStandardItemHeight(22),
-      [this](int result) {
-        if (result == 0)
-          return;
+  m.showMenuAsync(juce::PopupMenu::Options()
+                      .withTargetComponent(&settingsButton)
+                      .withStandardItemHeight(22),
+                  [this](int result) {
+                    if (result == 0)
+                      return;
 
-        const auto flip = [this](const char *id) {
-          if (auto *p = apvts.getParameter(id))
-            p->setValueNotifyingHost(p->getValue() > 0.5f ? 0.0f : 1.0f);
-        };
+                    // Everything the bars offer as well, carried out in the one
+                    // place both go through.
+                    if (settings::apply(apvts, result))
+                      return;
 
-        if (result == 300)
-          return flip(params::phaseResetId);
+                    if (result == 820)
+                      return onFitAllChannels ? onFitAllChannels() : void();
 
-        if (result == 301)
-          return flip(params::safetyClipId);
+                    if (result >= 800) {
+                      const auto index = result - 800;
 
-        if (result == 302)
-          return flip(params::mpeId);
+                      if (index < (int)std::size(kZoomChoices) && onZoomChanged)
+                        onZoomChanged(kZoomChoices[index]);
 
-        if (result == 304)
-          return flip(params::lookaheadId);
+                      return;
+                    }
 
-        if (result == 303)
-          return flip(params::oneVoicePerKeyId);
+                    if (result == 700)
+                      return onUndo ? onUndo() : void();
 
-        // From the list's old legato entry, unticking moves to one voice with
-        // the switch off, and ticking is the switch. Either way the count
-        // stops pointing at an entry the menu no longer offers.
-        if (result == 305) {
-          auto *count = apvts.getParameter(params::polyphonyId);
-          auto *legatoSwitch = apvts.getParameter(params::legatoId);
+                    if (result == 701)
+                      return onRedo ? onRedo() : void();
 
-          const bool fromOld =
-              count != nullptr &&
-              juce::roundToInt(count->convertFrom0to1(count->getValue())) ==
-                  params::kLegatoIndex;
-          const bool on = fromOld || (legatoSwitch != nullptr &&
-                                      legatoSwitch->getValue() > 0.5f);
+                    if (result == 702) {
+                      const bool now =
+                          isUpdateCheckAllowed && isUpdateCheckAllowed();
 
-          if (fromOld)
-            count->setValueNotifyingHost(count->convertTo0to1(1.0f));
+                      if (onUpdateCheckToggled)
+                        onUpdateCheckToggled(!now);
 
-          if (legatoSwitch != nullptr)
-            legatoSwitch->setValueNotifyingHost(on ? 0.0f : 1.0f);
-
-          return;
-        }
-
-        // A voice count chosen from the old legato entry keeps legato, since
-        // that entry was legato as well as one voice.
-        if (result >= 100 && result < 200)
-          if (auto *count = apvts.getParameter(params::polyphonyId))
-            if (juce::roundToInt(count->convertFrom0to1(count->getValue())) ==
-                params::kLegatoIndex)
-              if (auto *legatoSwitch = apvts.getParameter(params::legatoId))
-                legatoSwitch->setValueNotifyingHost(1.0f);
-
-        // The converter entries carry an index into their choice
-        // list rather than a value, since the lists are not
-        // contiguous runs of numbers.
-        const auto choose = [this](const char *id, int index) {
-          auto *p = apvts.getParameter(id);
-
-          if (p != nullptr)
-            p->setValueNotifyingHost(p->convertTo0to1((float)index));
-        };
-
-        if (result >= 1300)
-          return choose(params::adaptiveRetuneId, result - 1300);
-
-        if (result >= 1200)
-          return choose(params::slideDestId, result - 1200);
-
-        if (result >= 1100)
-          return choose(params::referenceHzId, result - 1100);
-
-        if (result >= 1000)
-          return choose(params::tuningRootId, result - 1000);
-
-        if (result >= 900)
-          return choose(params::temperamentId, result - 900);
-
-        if (result == 820)
-          return onFitAllChannels ? onFitAllChannels() : void();
-
-        if (result >= 800) {
-          const auto index = result - 800;
-
-          if (index < (int)std::size(kZoomChoices) && onZoomChanged)
-            onZoomChanged(kZoomChoices[index]);
-
-          return;
-        }
-
-        if (result == 700)
-          return onUndo ? onUndo() : void();
-
-        if (result == 701)
-          return onRedo ? onRedo() : void();
-
-        if (result == 702) {
-          const bool now = isUpdateCheckAllowed && isUpdateCheckAllowed();
-
-          if (onUpdateCheckToggled)
-            onUpdateCheckToggled(!now);
-
-          return;
-        }
-
-        if (result >= 600)
-          return choose(params::atSourceId, result - 600);
-
-        const auto id =
-            result >= 200 ? params::bendRangeId : params::polyphonyId;
-        const auto plain =
-            result >= 200 ? (float)(result - 200) : (float)(result - 100);
-
-        if (auto *p = apvts.getParameter(id))
-          p->setValueNotifyingHost(p->convertTo0to1(plain));
-      });
+                      return;
+                    }
+                  });
 }
 
 /// Lights or darkens the ring on every knob of an effect.
@@ -1354,7 +1244,9 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
   const auto rateReading =
       shown > 0.0 ? juce::String(shown / 1000.0, 1) : juce::String();
 
-  rateDisplay.setReading(rateReading, cutting);
+  // Lit whether it is cutting or not, since the host's own rate is as true a
+  // reading as a reduced one.
+  rateDisplay.setReading(rateReading, true);
 
   // The name carries the reading as well as the label. A screen reader takes
   // a component's title for its name, so a title of "Sample rate" on its own
@@ -1369,7 +1261,7 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
       params::lofiBitsId, (int)params::kLofiBitChoices.size())];
 
   // Nothing being quantised means the 32-bit float everything else runs in.
-  bitsDisplay.setReading(juce::String(bits > 0 ? bits : 32), bits > 0);
+  bitsDisplay.setReading(juce::String(bits > 0 ? bits : 32), true);
   bitsDisplay.setTitle("Bit depth: " + juce::String(bits > 0 ? bits : 32) +
                        " bit");
 
@@ -1570,10 +1462,11 @@ int TopBar::minimumWidth() {
 }
 
 void TopBar::parkControls() {
-  juce::Component *all[] = {&masterFader,    &meter,          &presetDisplay,
-                            &settingsButton, &echoButton,     &reverbButton,
-                            &stretch,        &track,          &rateDisplay,
-                            &bitsDisplay,    &characterButton};
+  juce::Component *all[] = {&masterFader,    &meter,         &presetDisplay,
+                            &settingsButton, &playingButton, &tuningButton,
+                            &echoButton,     &reverbButton,  &stretch,
+                            &track,          &rateDisplay,   &bitsDisplay,
+                            &characterButton};
 
   for (auto *c : all)
     c->setBounds({});
@@ -1626,14 +1519,27 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
     break;
 
   case VoiceGroup: {
-    // The two things on the bar that open something, side by side. The
-    // preset button is the third and stands on its own because it carries
-    // the name of what is loaded rather than a word.
+    // The four things on the bar that open something, two by two. The
+    // preset button is a fifth and stands on its own because it carries the
+    // name of what is loaded rather than a word.
+    //
+    // Two rows fill the row's height rather than lining up with the dials,
+    // which is the one place on the bar that does not: there is no room for
+    // a second row of buttons otherwise, and four in a line pushed the bar
+    // onto another row at the width that shows all 32 channels.
     const auto half = (r.getWidth() - kFxToggleGap) / 2;
+    const auto height = (r.getHeight() - kFxToggleGap) / 2;
 
-    button(settingsButton, r.removeFromLeft(half));
-    r.removeFromLeft(kFxToggleGap);
-    button(macroButton, r);
+    auto top = r.withHeight(height);
+    auto bottom = r.withTop(r.getBottom() - height);
+
+    settingsButton.setBounds(top.removeFromLeft(half));
+    top.removeFromLeft(kFxToggleGap);
+    macroButton.setBounds(top);
+
+    playingButton.setBounds(bottom.removeFromLeft(half));
+    bottom.removeFromLeft(kFxToggleGap);
+    tuningButton.setBounds(bottom);
     break;
   }
 
@@ -1838,38 +1744,7 @@ void TopBar::paint(juce::Graphics &g) {
     if (r.isEmpty() || !framed)
       continue;
 
-    const auto f = r.toFloat();
-
-    g.setColour(colours::panelAlt.withAlpha(0.75f));
-    g.fillRoundedRectangle(f, 4.0f);
-
-    // Read as a pocket milled into the bar rather than a box drawn on it.
-    // Light comes from above, so the inside of the top edge is in shadow and
-    // the inside of the bottom edge catches it.
-    //
-    // The whole outline is stroked each time and then clipped to the half it
-    // belongs in, which is what keeps both marks on the box's own rounded
-    // edge. An arc inscribed in the rectangle instead would sweep across the
-    // middle of the box, straight through the controls standing in it.
-    const auto inner = f.reduced(0.5f);
-    const auto middle = f.getCentreY();
-
-    {
-      juce::Graphics::ScopedSaveState clip(g);
-      g.reduceClipRegion(f.withBottom(middle).getSmallestIntegerContainer());
-      g.setColour(juce::Colours::black.withAlpha(0.34f));
-      g.drawRoundedRectangle(inner.translated(0.0f, 1.0f), 4.0f, 1.3f);
-    }
-
-    {
-      juce::Graphics::ScopedSaveState clip(g);
-      g.reduceClipRegion(f.withTop(middle).getSmallestIntegerContainer());
-      g.setColour(juce::Colours::white.withAlpha(0.06f));
-      g.drawRoundedRectangle(inner.translated(0.0f, -1.0f), 4.0f, 1.0f);
-    }
-
-    g.setColour(colours::outline.withAlpha(0.9f));
-    g.drawRoundedRectangle(f.reduced(0.5f), 4.0f, 1.0f);
+    paintGroupPocket(g, r);
   }
 
   // What the button at the head of each group is choosing, under it, in the

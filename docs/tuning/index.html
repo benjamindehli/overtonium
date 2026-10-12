@@ -616,8 +616,8 @@
                     <h2>Tuning the keyboard</h2>
 
                     <p>
-                        Everything above is about where a partial sits over the note you played. This is about where that note sits. Settings carries
-                        seven temperaments: six fixed ones, and one that retunes as you play.
+                        Everything above is about where a partial sits over the note you played. This is about where that note sits. Settings and the
+                        <a href="../playing/#bars">Tuning bar</a> carry seven temperaments: six fixed ones, and one that retunes as you play.
                     </p>
 
                     <div class="scroll">
@@ -697,11 +697,14 @@
                     <p>
                         The chord is settled again every time a key goes down or comes up, so a chord turning into the next one a note at a time stays
                         in tune all the way, not only one struck fresh. Keys struck together are settled together. A held note that the new chord
-                        needs somewhere else slides there at the speed set under <strong>Retune</strong> in Settings: <em>Fast</em>, 30 ms, quick
-                        enough to pass for a note that was always there, or <em>Smooth</em>, 300 ms, slow enough to hear the chord settle. It moves as
-                        few notes as it can, and new notes take whichever version fits the ones already held. The keys you hold decide how the chord
-                        is tuned, not the order they went down in, so a chord struck at once, played a key at a time or reached from another chord
-                        comes out the same, interval for interval.
+                        needs somewhere else slides there over the time set by the <strong>Retune</strong> knob in the Tuning bar, from a jump at zero
+                        to a second. The 30 ms it starts at is quick enough to pass for a note that was always there, and around 300 ms is slow enough
+                        to hear the chord settle. Settings offers those two as <em>Fast</em> and <em>Smooth</em>. It moves as few notes as it can, and
+                        new notes take whichever version fits the ones already held. The keys you hold decide how the chord is tuned, not the order
+                        they went down in, so a chord struck at once, played a key at a time or reached from another chord comes out the same,
+                        interval for interval. Every chord type in <a href="https://github.com/benjamindehli/music-utils">music-utils</a>, a library
+                        of mine for naming chords from the notes held, 125 of them from a bare third to an altered thirteenth, is played through it in
+                        all twelve keys on every build to hold it to that, and to tuning each one as purely as it can be tuned.
                     </p>
 
                     <p>
@@ -710,7 +713,9 @@
                         its pitch class used last, which keeps a progression from wandering away a comma at a time, and since no key can stray further
                         than its outer versions, the keyboard never drifts more than two commas from where it started, however long you play. Tuning
                         every chord pure to the last one, with nothing to hold it, would leave a C major, A minor, D minor, G progression played four
-                        times over two and a half semitones sharp.
+                        times over two and a half semitones sharp. If you would rather it did not drift at all, the <strong>NO DRIFT</strong> switch
+                        in the Tuning bar, and No drift in Settings, keeps the chord as near home as it can: when a progression would carry it off, a
+                        held note slides a comma instead, and a key struck into silence goes home.
                     </p>
 
                     <p>
@@ -738,8 +743,34 @@
                         cents flat of a pure fifth above that third, and a sharp ninth does the same for the same reason. A suspended seventh keeps
                         16:9, two pure fourths, a minor second or a tritone above the root keeps the size the chain gives it too, and a major seventh
                         is 15:8. Like everything else here it depends only on the keys held, so C and B flat are 7:4 however they were played, and a
-                        held note slides to the harmonic seventh or away from it when the chord around it changes what it is.
+                        held note slides to the harmonic seventh or away from it when the chord around it changes what it is. The
+                        <strong>7:4</strong> switch in the Tuning bar, and Harmonic sevenths in Settings, turn it off, and every seventh then takes
+                        the size the chain gives it.
                     </p>
+
+                    <p>
+                        The <a href="../playing/#bars">Tuning bar</a> shows what it is doing to the chord you hold, following every key as it goes
+                        down and comes up. <strong>PURE</strong> lights while every interval in the chord is pure, and goes dark when a chord cannot
+                        be pure all the way through and has had to give one up. <strong>7:4</strong> lights while a seventh is tuned on the harmonic
+                        seventh, and <strong>DRIFT</strong> says how far the keyboard has drifted, in commas. Beside those, one display for each of
+                        the twelve notes says how far it sits from equal temperament in cents. The notes you hold are lit, and the rest stay unlit
+                        until you play them. Under every other temperament the same twelve displays chart the scale, all of them lit, so the Tuning
+                        bar shows what Werckmeister III or Just on D does to each note before you play it.
+                    </p>
+
+                    <figure>
+                        <img
+                            loading="lazy"
+                            src="../overtonium-tuning-bar.webp"
+                            alt="The Tuning bar under Adaptive with C7 held: the temperament reading Adaptive on a root of C at 440 Hz with a drift of 0, NO DRIFT off, 7:4 lit, PURE lit and the Retune knob near its start, then twelve displays for the notes, C, E, G and B flat lit at 15.4, 1.7, 17.1 and minus 15.8 cents, the white keys on a light ground."
+                            width="1350"
+                            height="66"
+                        />
+                        <figcaption>
+                            C7 under Adaptive. C sits 15.4 cents above equal, where just major on C puts it with A on 440, E and G are a pure third
+                            and fifth above it, and B flat is the harmonic seventh, 31.2 cents below C's equal-tempered seventh.
+                        </figcaption>
+                    </figure>
 
                     <h3 id="root">Root</h3>
                     <p>

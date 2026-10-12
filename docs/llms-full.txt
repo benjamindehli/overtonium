@@ -205,7 +205,7 @@ One note while STRETCH is taken from a harmonic series out past a piano. The bot
 
 ## Tuning the keyboard
 
-Everything above is about where a partial sits over the note you played. This is about where that note sits. Settings carries seven temperaments: six fixed ones, and one that retunes as you play.
+Everything above is about where a partial sits over the note you played. This is about where that note sits. Settings and the [Tuning bar](https://benjamindehli.github.io/overtonium/playing/#bars) carry seven temperaments: six fixed ones, and one that retunes as you play.
 
 | Temperament | Major third | Fifth | What it is |
 |---|---|---|---|
@@ -223,15 +223,21 @@ They are derived from the circle of fifths rather than copied out as tables of c
 
 Every fixed temperament is in tune somewhere and out of tune somewhere else. Just major is pure in the keys near its root and a comma out in a chord from anywhere further away, which is the oldest problem in tuning. Adaptive answers it the way Eivind Groven's organs did, by giving every key more than one pitch and choosing between them as you play. Every pitch class has five versions, its place in just major on the root and one and two commas either side of it, and the chord you are holding is kept on whichever versions make it purest.
 
-The chord is settled again every time a key goes down or comes up, so a chord turning into the next one a note at a time stays in tune all the way, not only one struck fresh. Keys struck together are settled together. A held note that the new chord needs somewhere else slides there at the speed set under **Retune** in Settings: *Fast*, 30 ms, quick enough to pass for a note that was always there, or *Smooth*, 300 ms, slow enough to hear the chord settle. It moves as few notes as it can, and new notes take whichever version fits the ones already held. The keys you hold decide how the chord is tuned, not the order they went down in, so a chord struck at once, played a key at a time or reached from another chord comes out the same, interval for interval.
+The chord is settled again every time a key goes down or comes up, so a chord turning into the next one a note at a time stays in tune all the way, not only one struck fresh. Keys struck together are settled together. A held note that the new chord needs somewhere else slides there over the time set by the **Retune** knob in the Tuning bar, from a jump at zero to a second. The 30 ms it starts at is quick enough to pass for a note that was always there, and around 300 ms is slow enough to hear the chord settle. Settings offers those two as *Fast* and *Smooth*. It moves as few notes as it can, and new notes take whichever version fits the ones already held. The keys you hold decide how the chord is tuned, not the order they went down in, so a chord struck at once, played a key at a time or reached from another chord comes out the same, interval for interval. Every chord type in [music-utils](https://github.com/benjamindehli/music-utils), a library of mine for naming chords from the notes held, 125 of them from a bare third to an altered thirteenth, is played through it in all twelve keys on every build to hold it to that, and to tuning each one as purely as it can be tuned.
 
-What it tunes against is everything you can hear: the keys that are down, the ones the pedal is holding, and a chord still ringing after its keys came up decides between versions the held keys leave open. A key struck into silence takes the version its pitch class used last, which keeps a progression from wandering away a comma at a time, and since no key can stray further than its outer versions, the keyboard never drifts more than two commas from where it started, however long you play. Tuning every chord pure to the last one, with nothing to hold it, would leave a C major, A minor, D minor, G progression played four times over two and a half semitones sharp.
+What it tunes against is everything you can hear: the keys that are down, the ones the pedal is holding, and a chord still ringing after its keys came up decides between versions the held keys leave open. A key struck into silence takes the version its pitch class used last, which keeps a progression from wandering away a comma at a time, and since no key can stray further than its outer versions, the keyboard never drifts more than two commas from where it started, however long you play. Tuning every chord pure to the last one, with nothing to hold it, would leave a C major, A minor, D minor, G progression played four times over two and a half semitones sharp. If you would rather it did not drift at all, the **NO DRIFT** switch in the Tuning bar, and No drift in Settings, keeps the chord as near home as it can: when a progression would carry it off, a held note slides a comma instead, and a key struck into silence goes home.
 
 Like Groven's organs it tempers each fifth by an eighth of a schisma, a quarter of a cent, so eight fifths and a pure major third close up exactly. Without that, chords far from the root would be left two cents out, which on pure partials is slow but clearly audible beating. The major thirds are pure, and a quarter of a cent on a fifth beats about once every eighteen seconds on the third partial of a note in the middle of the keyboard. The same chord reached by a different route can settle a comma higher or lower, with every interval in it the same, so a piece can end a comma or two from where it began. Root decides where the middle versions sit, and Reference pitch where A's does.
 
 Some chords cannot be pure all the way through, because pure fifths and pure thirds never quite meet: in C11 the fifth from G to D and the minor third from D to F cannot both be. Adaptive then gives up as little as it can, counting a fifth or a fourth above a third or a sixth and those above a seventh, so C6 with an added ninth keeps its thirds and sixths and lets the fourth from A to D go a comma wide, rather than keeping that fourth and losing three thirds.
 
-A minor seventh is tuned on the harmonic seventh, 7:4 above its root, 969 cents, unless another held note would then be out of tune with it. A dominant seventh becomes 4:5:6:7: four harmonics of one note an octave below its root, the same seventh every partial here already carries as its seventh harmonic, and the smoothest a seventh chord can be. It is noticeably lower than the equal-tempered seventh, which is most of why it sounds so settled. A ninth adds the ninth harmonic, and a seventh over its root alone or over its fifth is 7:4 as well. A minor third above the root keeps the seventh at 9:5, since 7:4 would put it 48 cents flat of a pure fifth above that third, and a sharp ninth does the same for the same reason. A suspended seventh keeps 16:9, two pure fourths, a minor second or a tritone above the root keeps the size the chain gives it too, and a major seventh is 15:8. Like everything else here it depends only on the keys held, so C and B flat are 7:4 however they were played, and a held note slides to the harmonic seventh or away from it when the chord around it changes what it is.
+A minor seventh is tuned on the harmonic seventh, 7:4 above its root, 969 cents, unless another held note would then be out of tune with it. A dominant seventh becomes 4:5:6:7: four harmonics of one note an octave below its root, the same seventh every partial here already carries as its seventh harmonic, and the smoothest a seventh chord can be. It is noticeably lower than the equal-tempered seventh, which is most of why it sounds so settled. A ninth adds the ninth harmonic, and a seventh over its root alone or over its fifth is 7:4 as well. A minor third above the root keeps the seventh at 9:5, since 7:4 would put it 48 cents flat of a pure fifth above that third, and a sharp ninth does the same for the same reason. A suspended seventh keeps 16:9, two pure fourths, a minor second or a tritone above the root keeps the size the chain gives it too, and a major seventh is 15:8. Like everything else here it depends only on the keys held, so C and B flat are 7:4 however they were played, and a held note slides to the harmonic seventh or away from it when the chord around it changes what it is. The **7:4** switch in the Tuning bar, and Harmonic sevenths in Settings, turn it off, and every seventh then takes the size the chain gives it.
+
+The [Tuning bar](https://benjamindehli.github.io/overtonium/playing/#bars) shows what it is doing to the chord you hold, following every key as it goes down and comes up. **PURE** lights while every interval in the chord is pure, and goes dark when a chord cannot be pure all the way through and has had to give one up. **7:4** lights while a seventh is tuned on the harmonic seventh, and **DRIFT** says how far the keyboard has drifted, in commas. Beside those, one display for each of the twelve notes says how far it sits from equal temperament in cents. The notes you hold are lit, and the rest stay unlit until you play them. Under every other temperament the same twelve displays chart the scale, all of them lit, so the Tuning bar shows what Werckmeister III or Just on D does to each note before you play it.
+
+[Image: The Tuning bar under Adaptive with C7 held: the temperament reading Adaptive on a root of C at 440 Hz with a drift of 0, NO DRIFT off, 7:4 lit, PURE lit and the Retune knob near its start, then twelve displays for the notes, C, E, G and B flat lit at 15.4, 1.7, 17.1 and minus 15.8 cents, the white keys on a light ground.]
+
+C7 under Adaptive. C sits 15.4 cents above equal, where just major on C puts it with A on 440, E and G are a pure third and fifth above it, and B flat is the harmonic seventh, 31.2 cents below C's equal-tempered seventh.
 
 ### Root
 
@@ -279,7 +285,7 @@ One held chord, twice. With drift off a partial sits exactly where it was put. W
 
 Page: Overtonium controls: every knob on a channel strip
 URL: https://benjamindehli.github.io/overtonium/controls/
-Last changed: 2026-10-10
+Last changed: 2026-10-11
 
 # Controls
 
@@ -416,7 +422,7 @@ LINK gangs the 32 partials only. The noise channel has no tuning, pitch modulati
 
 ### The two readouts
 
-Each channel carries two figures, the cents its tuning knob is worth and the level its fader is at, both drawn as seven-segment displays rather than as text: a number the instrument is reporting back should look different from a number you typed. Two of the things they show are not numbers. A partial left in equal temperament reads **Et** and a fader all the way down reads **-inF**, both dimmed, because a statement of fact is not a level. The fundamental and the octaves read a dimmed **0.0**, since their just interval is the note itself.
+Each channel carries two figures, the cents its tuning knob is worth and the level its fader is at, both drawn as seven-segment displays rather than as text: a number the instrument is reporting back should look different from a number you typed. Two of the things they show are not numbers. A partial left in equal temperament reads **Et** and a fader all the way down reads **-inF**. The fundamental and the octaves read **0.0**, since their just interval is the note itself. Like a real display, each has a fixed row of cells whose segments are lit or unlit, so the figures are the same size whatever they say.
 
 ### Lamps on the rules
 
@@ -466,7 +472,7 @@ Everything on the bar along the top of the window works on the whole instrument 
 
 The order things happen in. Everything on a channel strip runs before the mix is made, and everything on the bar runs after it, which is why a channel meter and the output meter disagree while a tail is ringing.
 
-[Image: The top bar: the loaded preset on a fourteen-segment display beside icons for settings and macros, the oscillator character, the stretch, track and wobble controls, the echo, the reverb, and the output meter with the master fader lying across it, two seven-segment converter readouts reading kilohertz and bits, and the output stage reading Soft.]
+[Image: The top bar: the loaded preset on a fourteen-segment display beside four icons, for settings and macros over the Playing and Tuning bars, the oscillator character, the stretch, track and wobble controls, the echo, the reverb, and the output meter with the master fader lying across it, two seven-segment converter readouts reading kilohertz and bits, and the output stage reading Soft.]
 
 ## Character
 
@@ -524,7 +530,7 @@ Horizontal, split into left and right, because the two channels are identical un
 
 Page: Playing Overtonium: MPE, automation, macros and MIDI Learn
 URL: https://benjamindehli.github.io/overtonium/playing/
-Last changed: 2026-10-10
+Last changed: 2026-10-11
 
 # Playing
 
@@ -532,9 +538,9 @@ How the instrument is played and driven from outside the window: MPE and legato,
 
 ## MPE
 
-Off by default, and under Settings. With it on, a controller that gives every note its own MIDI channel can bend and press each note separately, which on this instrument means each finger gets its own copy of all 33 aftertouch destinations. Press into one note in a chord and only that note's upper partials come in.
+Off by default, and under Settings and in the Playing bar. With it on, a controller that gives every note its own MIDI channel can bend and press each note separately, which on this instrument means each finger gets its own copy of all 33 aftertouch destinations. Press into one note in a chord and only that note's upper partials come in.
 
-Slide, the forward and back axis under a finger, has a destination of its own under Settings. By default it moves that note's brightness, thinning or opening the top of the series, which is what a player's hands expect from that axis. It can be aimed at the tuning instead, so that pushing one finger forward slides that note alone [between equal temperament and just intonation](https://benjamindehli.github.io/overtonium/tuning/) while the rest of the chord stays where it is. A keyboard with no slide axis sends nothing and changes nothing.
+Slide, the forward and back axis under a finger, has a destination of its own under Settings and in the Playing bar. By default it moves that note's brightness, thinning or opening the top of the series, which is what a player's hands expect from that axis. It can be aimed at the tuning instead, so that pushing one finger forward slides that note alone [between equal temperament and just intonation](https://benjamindehli.github.io/overtonium/tuning/) while the rest of the chord stays where it is. A keyboard with no slide axis sends nothing and changes nothing.
 
 It is read as movement rather than as a position: the first value a note is given becomes that note's nought, and what reaches the sound is how far the axis has travelled from it since. Controllers disagree about what the axis is, which is why. A Seaboard reports where the finger sits and rests at the centre, while an Expressive E Osmose spends the first part of the key travel on pressure and only then starts sending slide, from the bottom of its range upward. Read as a position that second kind lurches the moment the axis engages. Read as movement both start the note on the patch and follow the finger from there.
 
@@ -544,7 +550,7 @@ It is a setting rather than something permanently on because it changes what a c
 
 ## Legato
 
-A switch in Settings, beside the voice count, and what it does depends on that count. **With one voice** the instrument is not polyphonic at all: pressing a key while another is still held moves the note rather than starting it again, so the envelopes carry on and a run keeps the shape the first key gave it rather than restarting the attack under your fingers. Letting a key go while others are still down falls back to the most recent of them, which is what makes a trill work, and only the last key coming up releases the note.
+A switch in Settings and in the Playing bar, beside the voice count, and what it does depends on that count. **With one voice** the instrument is not polyphonic at all: pressing a key while another is still held moves the note rather than starting it again, so the envelopes carry on and a run keeps the shape the first key gave it rather than restarting the attack under your fingers. Letting a key go while others are still down falls back to the most recent of them, which is what makes a trill work, and only the last key coming up releases the note.
 
 **With more than one voice it plays a top line.** A key that lands above everything you are holding, except the highest note, carries that note's phrase on: it starts a voice of its own that takes over the highest note's envelopes where they stand and glides from its pitch, so it does not start again. Every other key plays as it always does. A legato melody over a staccato chord does what it sounds like: the chord retriggers each time its keys come up and go down again, and the melody slides from note to note over it, up or down, as long as it stays above the chord.
 
@@ -585,9 +591,17 @@ Played polyphonically, each new note glides from the one played last. In [Legato
 
 GLIDE is a row like any other, so [LINK](https://benjamindehli.github.io/overtonium/controls/#link) sets it across the series in one drag and a [macro](https://benjamindehli.github.io/overtonium/playing/#macros) can sweep every channel's glide time from one control.
 
+## The Playing and Tuning bars
+
+The two lower buttons beside the preset name, a keyboard and a tuning fork, each open a bar between the top bar and the mixer, for the settings that get changed while playing rather than set once. Both are closed until you open them, and each instance remembers which are open. A bar takes its height from the mixer, which scrolls, so the window keeps its size, unless it is already as short as it goes, in which case it grows by the bar.
+
+**Playing** holds the voice count with Legato and One voice per key beside it, the pitch bend range, and MPE with Aftertouch from and Slide to. **Tuning** holds the temperament, root and reference pitch, with the drift beside them under Adaptive. Under Adaptive it also has a NO DRIFT switch that keeps the keyboard home, a 7:4 switch for the harmonic seventh, a PURE lamp and the Retune knob, which between them say [what Adaptive is doing](https://benjamindehli.github.io/overtonium/tuning/#adaptive) to the chord you hold. Last come twelve displays, one for each note, saying how far it sits from equal temperament in cents, with the white keys on a lighter ground the way a keyboard has them. Each display opens the same list as its entry in Settings and each switch lights while it is on, so a bar is another way to reach the same settings rather than a second copy of them. In a window too narrow for a whole bar, it wraps onto further rows the way the top bar does, and takes the extra height from the mixer.
+
+[Image: The Playing bar: eight voices with Legato off and One voice per key lit, a bend range of 2 semitones, and MPE off with aftertouch from Either and slide to Brightness.] [Image: The Tuning bar under Adaptive with C7 held: the temperament reading Adaptive on a root of C at 440 Hz with a drift of 0, NO DRIFT off, 7:4 lit, PURE lit and the Retune knob near its start, then twelve displays for the notes, C, E, G and B flat lit at 15.4, 1.7, 17.1 and minus 15.8 cents, the white keys on a light ground.]
+
 ## The Settings menu
 
-Everything set once and then left. The menu is where the instrument is set up and the panel is where the sound is made, and a control's place says which of the two it is.
+Everything set once and then left. The menu is where the instrument is set up and the panel is where the sound is made, and a control's place says which of the two it is. The ones changed while playing are in [the Playing and Tuning bars](https://benjamindehli.github.io/overtonium/playing/#bars) as well.
 
 | Entry | Choices | What it decides |
 |---|---|---|
@@ -602,7 +616,9 @@ Everything set once and then left. The menu is where the instrument is set up an
 | Aftertouch from | Channel pressure, Mod wheel, Either. Either by default | What feeds the AT row on every strip. Polyphonic aftertouch is not on the list because it stays routed whatever this says |
 | Slide to | Off, Brightness, Tuning. Brightness by default | Where the forward and back axis under an MPE finger goes |
 | Temperament, Root, Reference pitch | Seven temperaments, twelve roots, 415 to 466 Hz | What the keyboard underneath is tuned to, which [the tuning system](https://benjamindehli.github.io/overtonium/tuning/) works through. Root is greyed out for equal temperament, which has no centre to have |
-| Retune | Fast, the default, or Smooth | How fast a held note slides to a new version when the [Adaptive](https://benjamindehli.github.io/overtonium/tuning/#adaptive) temperament retunes the chord around it: 30 ms, or 300 ms to hear it settle. Greyed out under every other temperament |
+| Retune | Fast, 30 ms, the default, or Smooth, 300 ms | How long a held note takes to slide to a new version when the [Adaptive](https://benjamindehli.github.io/overtonium/tuning/#adaptive) temperament retunes the chord around it. Two quick settings of the Retune knob in the Tuning bar, which runs from a jump at zero to a second. Greyed out under every other temperament |
+| Harmonic sevenths | on by default | Whether Adaptive tunes a minor seventh 7:4 above its root, the harmonic seventh, where nothing else in the chord would beat against it. Off, every seventh takes the size the chain of fifths gives it. Also the 7:4 switch in the Tuning bar. Greyed out under every other temperament |
+| No drift | off by default | Whether Adaptive keeps the chord you hold as near home as it can. On, a progression that would carry the keyboard off a comma moves a held note a comma instead, and a key struck into silence goes home. Off, the keyboard goes where the music takes it, up to two commas either way. Also the NO DRIFT switch in the Tuning bar. Greyed out under every other temperament |
 | Phase reset | on by default | Starts each partial where its ATTACK says when a note begins from silence: a rising zero crossing, or nearer its peak when the attack is turned below its shortest time. Off, a partial carries on from wherever its cycle was |
 | Safety clip | on by default | Whether the output stage at the end of the chain is running, worth leaving on when you push 32 faders up. Which of its five shapes is running is chosen on the bar, under the meter |
 | Limiter lookahead | off by default | Whether the Limiter may see what is coming. On makes it smooth at the cost of two milliseconds of latency on every shape, since only that one uses the window and the figure must not move with the patch. The only setting here that changes what the plugin reports to your host |
@@ -615,7 +631,7 @@ The safety clip is the exception in this table, and the master fader is the exce
 
 ## Automating it from the host
 
-Eight hundred and forty parameters reach the host: thirty-eight global ones, twenty-three on each of the 32 partials, eighteen on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals first and then channel by channel with the noise channel last.
+Eight hundred and forty-two parameters reach the host: forty global ones, twenty-three on each of the 32 partials, eighteen on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals first and then channel by channel with the noise channel last.
 
 Every per-channel name carries its channel, so a parameter list answers both ways of looking for something. Type `H7` and you have that partial, type `Tune` and you have that row across the whole mixer. The same names are what a screen reader reads, which is why they are words rather than numbers.
 
@@ -637,9 +653,9 @@ LINK is not a parameter, since it is a tool for the mouse rather than part of th
 
 ### Every parameter
 
-All 840 as the host lists them, with a control that every partial or every macro carries given one row for all of them. The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is [parameters.json](https://benjamindehli.github.io/overtonium/parameters.json), written by the plugin rather than by hand.
+All 842 as the host lists them, with a control that every partial or every macro carries given one row for all of them. The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is [parameters.json](https://benjamindehli.github.io/overtonium/parameters.json), written by the plugin rather than by hand.
 
-**Global**, thirty-eight of them.
+**Global**, forty of them.
 
 | What the host calls it | Id | Range | Default |
 |---|---|---|---|
@@ -680,7 +696,9 @@ All 840 as the host lists them, with a control that every partial or every macro
 | `Glide Trigger` | `glideTrigger` | Always, Legato | Always |
 | `Glide Mode` | `glideMode` | Fixed rate, Fixed time | Fixed rate |
 | `Legato` | `legato` | Off or on | Off |
-| `Adaptive Retune` | `adaptiveRetune` | Fast, Smooth | Fast |
+| `Adaptive Retune` | `adaptiveRetune` | 0.0 ms to 1.00 s | 30.0 ms |
+| `Adaptive Harmonic Seventh` | `adaptiveSeventh` | Off or on | On |
+| `Adaptive No Drift` | `adaptiveHome` | Off or on | Off |
 
 **On every partial**, twenty-three controls, each one on all 32 partials.
 

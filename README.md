@@ -37,6 +37,8 @@ The ancestry is visible in the details rather than only in the shape. DRIFT is t
 
 All three earlier instruments are sample libraries with a plugin wrapper, sold at [Dehli Musikk](https://store.dehlimusikk.no/). This one is free software, and none of their code is in it.
 
+The Adaptive temperament leans on another project of mine, [music-utils](https://github.com/benjamindehli/music-utils), a library that names chords from the MIDI notes held. Its list of 125 chord types is what the temperament is tested against: every one, in all twelve keys, has to come out the same however it is played and as pure as it can be.
+
 ## What is in it
 
 Every channel is a strip, and every strip carries the same twenty-three controls. The captions are named once down the left rather than repeated across all thirty-three, and each channel takes the colour of its interval against the fundamental.

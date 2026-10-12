@@ -12,6 +12,7 @@
 #include "UI/LookAndFeel.h"
 #include "UI/MacroPanel.h"
 #include "UI/NoiseStrip.h"
+#include "UI/OptionBars.h"
 #include "UI/TopBar.h"
 #include "dsp/Drift.h"
 
@@ -323,6 +324,15 @@ private:
   /// window's height with it.
   void toggleSection(ovt::ui::Section);
 
+  /// Opens or closes one of the two bars under the top bar. The window keeps
+  /// its size and the mixer gives up the height, unless the window is already
+  /// as short as it can be, in which case it grows by the bar.
+  void toggleBar(int bar);
+
+  /// Everything above and below the strips at a width: the top bar, the bars
+  /// open under it, and the scroll bar.
+  int chromeHeight(int logicalWidth) const;
+
   /// Hands the current fold state to the gutter and every strip, which is the
   /// only way any of them find out about it.
   void publishCollapsedSections();
@@ -403,6 +413,11 @@ private:
   /// Single child holding the whole UI, so zoom is one AffineTransform.
   juce::Component content;
   ovt::ui::TopBar topBar;
+
+  /// Between the top bar and the mixer, each opened by its button in the top
+  /// bar. Both start closed.
+  ovt::ui::PlayingBar playingBar;
+  ovt::ui::TuningBar tuningBar;
   RowGutter gutter;
   ovt::ui::NoiseStrip noiseStrip;
 
@@ -422,6 +437,10 @@ private:
   /// Which groups of rows are folded away. Restored from the saved state and
   /// written back when it changes, alongside the window size and the zoom.
   ovt::ui::SectionMask collapsedSections = 0;
+
+  /// Which of the two bars are open, as kPlayingBar and kTuningBar bits.
+  /// Remembered with the session, like the fold mask.
+  int openBars = 0;
 
   /// How far the parameters are scrolled, and how far they can be.
   ///
@@ -462,7 +481,7 @@ private:
   /// call each other. This is what stops that: the limits are reapplied only
   /// when the bar has actually changed height, and once they have been, the
   /// resize that follows finds the same number and stops.
-  int limitsBarHeight = -1;
+  int limitsChromeHeight = -1;
 
   /// Counts timer callbacks, so the meters and the housekeeping can each run
   /// at their own fraction of it.

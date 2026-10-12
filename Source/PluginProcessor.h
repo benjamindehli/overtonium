@@ -112,6 +112,14 @@ public:
     return engine.getPartialTremolo(index0);
   }
 
+  /// The held chord as the Adaptive temperament last settled it, for the
+  /// Tuning bar's readouts. Returns true and fills @p out when it has been
+  /// settled again since the last call. Handed over without a lock, so the
+  /// audio thread never waits for the window. From the message thread only.
+  bool readAdaptiveSnapshot(ovt::AdaptiveSnapshot &out) noexcept {
+    return engine.readAdaptiveSnapshot(out);
+  }
+
   float getPartialPitch(int index0) const noexcept {
     return engine.getPartialPitch(index0);
   }
@@ -207,11 +215,11 @@ public:
   /// What every direct write to apvts.state has to hold, and what the host's
   /// own state calls hold while they read or replace it.
   ///
-  /// The editor keeps nine things on that tree that are not parameters: the
-  /// window size and zoom, the scroll, the fold mask, and which tool is
-  /// selected with its scope and curve. It writes them straight onto the tree
-  /// from the message thread, and a host may call getStateInformation from
-  /// any thread it likes. juce::ValueTree is not thread safe, and the lock
+  /// The editor keeps ten things on that tree that are not parameters: the
+  /// window size and zoom, the scroll, the fold mask, the open bars, and which
+  /// tool is selected with its scope and curve. It writes them straight onto
+  /// the tree from the message thread, and a host may call getStateInformation
+  /// from any thread it likes. juce::ValueTree is not thread safe, and the lock
   /// inside AudioProcessorValueTreeState does not help: copyState takes it,
   /// but a setProperty from outside does not, so the two walk the same
   /// reference counted graph at once. What that corrupts is a refcount, which

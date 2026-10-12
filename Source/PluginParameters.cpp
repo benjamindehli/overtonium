@@ -1117,12 +1117,25 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   layout.add(
       std::make_unique<BoolP>(juce::ParameterID{legatoId, 1}, "Legato", false));
 
-  // How fast the adaptive temperament moves a held note, on the end like
-  // everything since the last release. A session setting beside the
-  // temperament it serves.
-  layout.add(std::make_unique<juce::AudioParameterChoice>(
+  // How long the adaptive temperament takes to move a held note, on the end
+  // like everything since the last release. A session setting beside the
+  // temperament it serves. Curved like the glide, so the short times where a
+  // retune passes unheard have room on the knob, and from zero, where a note
+  // jumps.
+  layout.add(std::make_unique<FloatP>(
       juce::ParameterID{adaptiveRetuneId, 1}, "Adaptive Retune",
-      juce::StringArray{kAdaptiveRetuneNames[0], kAdaptiveRetuneNames[1]}, 0));
+      expRange(0.0f, kMaxAdaptiveRetuneSeconds, 0.12f),
+      (float)kAdaptiveRetuneSeconds[0],
+      FAttr().withStringFromValueFunction(timeText)));
+
+  // Whether Adaptive uses the harmonic seventh at all, on by default, on the
+  // end with the rest of what it brought.
+  layout.add(std::make_unique<BoolP>(juce::ParameterID{adaptiveSeventhId, 1},
+                                     "Adaptive Harmonic Seventh", true));
+
+  // Whether it stays home rather than drifting, off by default, after it.
+  layout.add(std::make_unique<BoolP>(juce::ParameterID{adaptiveHomeId, 1},
+                                     "Adaptive No Drift", false));
 
   return layout;
 }
@@ -1137,6 +1150,8 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   glideMode = apvts.getRawParameterValue(glideModeId);
   legato = apvts.getRawParameterValue(legatoId);
   adaptiveRetune = apvts.getRawParameterValue(adaptiveRetuneId);
+  adaptiveSeventh = apvts.getRawParameterValue(adaptiveSeventhId);
+  adaptiveHome = apvts.getRawParameterValue(adaptiveHomeId);
   bendRange = apvts.getRawParameterValue(bendRangeId);
   phaseReset = apvts.getRawParameterValue(phaseResetId);
   stretch = apvts.getRawParameterValue(stretchId);
@@ -1531,8 +1546,10 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     out.global.referenceHz = (double)kReferenceHzChoices[(size_t)pick(
         referenceHz, (int)kReferenceHzChoices.size())];
 
-    out.global.adaptiveRetuneSeconds = kAdaptiveRetuneSeconds[(size_t)pick(
-        adaptiveRetune, (int)kAdaptiveRetuneSeconds.size())];
+    out.global.adaptiveRetuneSeconds = (double)juce::jlimit(
+        0.0f, kMaxAdaptiveRetuneSeconds, adaptiveRetune->load());
+    out.global.harmonicSevenths = adaptiveSeventh->load() > 0.5f;
+    out.global.adaptiveHome = adaptiveHome->load() > 0.5f;
 
     out.global.character =
         (Character)pick(character, (int)Character::NumCharacters);

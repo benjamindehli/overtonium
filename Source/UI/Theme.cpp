@@ -141,6 +141,56 @@ void drawMacroIcon(juce::Graphics &g, juce::Rectangle<float> area,
   }
 }
 
+void drawKeyboardIcon(juce::Graphics &g, juce::Rectangle<float> area,
+                      juce::Colour colour) {
+  // Three white keys and the two black ones between them, which is the least
+  // of a keyboard that still reads as one.
+  //
+  // Fractions of the cap's height, as the faders beside it are, so the four
+  // icons in the block stay the same size as one another at any zoom.
+  const auto h = area.getHeight();
+  const auto outline = juce::jmax(1.0f, h * 0.07f);
+  const auto keys = area.withSizeKeepingCentre(h * 0.88f, h * 0.65f);
+  const auto white = keys.getWidth() / 3.0f;
+  const auto black = juce::jmax(2.0f, h * 0.24f);
+
+  g.setColour(colour);
+  g.drawRoundedRectangle(keys, outline, outline);
+
+  for (int i = 1; i < 3; ++i) {
+    const auto x = keys.getX() + white * (float)i;
+
+    g.fillRect(x - outline * 0.4f, keys.getY(), outline * 0.8f,
+               keys.getHeight());
+    g.fillRect(x - black * 0.5f, keys.getY(), black, keys.getHeight() * 0.58f);
+  }
+}
+
+void drawTuningForkIcon(juce::Graphics &g, juce::Rectangle<float> area,
+                        juce::Colour colour) {
+  // Two tines on a short stem, as tall as the keyboard beside it so the two
+  // stand in their caps with the same air above and below.
+  const auto h = area.getHeight();
+  const auto c = area.getCentre();
+  const auto top = c.y - h * 0.325f;
+  const auto bottom = c.y + h * 0.325f;
+  const auto half = h * 0.21f;
+  const auto bend = c.y + h * 0.12f;
+  const auto shoulder = bend - h * 0.15f;
+
+  juce::Path fork;
+  fork.startNewSubPath(c.x - half, top);
+  fork.lineTo(c.x - half, shoulder);
+  fork.quadraticTo(c.x - half, bend, c.x, bend);
+  fork.quadraticTo(c.x + half, bend, c.x + half, shoulder);
+  fork.lineTo(c.x + half, top);
+  fork.startNewSubPath(c.x, bend);
+  fork.lineTo(c.x, bottom);
+
+  g.setColour(colour);
+  g.strokePath(fork, juce::PathStrokeType(juce::jmax(1.0f, h * 0.082f)));
+}
+
 void drawToolIcon(juce::Graphics &g, juce::Rectangle<float> area,
                   juce::Colour colour, PointerTool tool) {
   // The arrow sits left of centre when something stands beside it, and in

@@ -62,14 +62,28 @@ inline constexpr const char *glideModeId = "glideMode";
 /// new key above the rest. See SynthEngine::setLegato.
 inline constexpr const char *legatoId = "legato";
 
-/// How fast a held note slides to its new version when the adaptive
-/// temperament retunes it, Fast or Smooth. A session setting with the
-/// temperament it belongs to, so a preset never moves it. See
+/// How long a held note takes to slide to its new version when the adaptive
+/// temperament retunes it, from at once to a second. A session setting with
+/// the temperament it belongs to, so a preset never moves it. See
 /// SynthEngine::settleAdaptive.
 inline constexpr const char *adaptiveRetuneId = "adaptiveRetune";
 
-/// The two speeds, in seconds and by name. Fast is quick enough to pass for a
-/// note that was always there, Smooth slow enough to hear the chord settle.
+/// Whether Adaptive tunes a minor seventh on the harmonic seventh, 7:4 above
+/// its root. On by default. A session setting beside the temperament it
+/// belongs to, so a preset never moves it.
+inline constexpr const char *adaptiveSeventhId = "adaptiveSeventh";
+
+/// Whether Adaptive keeps the held chord as near home as it can, moving a held
+/// note a comma when a progression would pump, rather than letting the
+/// keyboard drift. Off by default.
+inline constexpr const char *adaptiveHomeId = "adaptiveHome";
+
+/// The longest a retune can take, in seconds.
+inline constexpr float kMaxAdaptiveRetuneSeconds = 1.0f;
+
+/// Two settings worth naming, which the Settings menu offers as quick ways to
+/// set the knob. Fast is quick enough to pass for a note that was always
+/// there and is the default, Smooth slow enough to hear the chord settle.
 inline constexpr std::array<double, 2> kAdaptiveRetuneSeconds{0.03, 0.3};
 inline constexpr std::array<const char *, 2> kAdaptiveRetuneNames{"Fast",
                                                                   "Smooth"};
@@ -406,6 +420,8 @@ struct Cache {
   std::atomic<float> *glideTrigger = nullptr;
   std::atomic<float> *legato = nullptr;
   std::atomic<float> *adaptiveRetune = nullptr;
+  std::atomic<float> *adaptiveSeventh = nullptr;
+  std::atomic<float> *adaptiveHome = nullptr;
   std::atomic<float> *glideMode = nullptr;
 
   struct Echo {
@@ -480,10 +496,11 @@ juce::String polyphonyName(int index);
 ///
 /// Named here rather than in Presets.cpp so the code that honours the rule and
 /// the test that checks it cannot come to disagree about what the rule is.
-inline const std::array<const char *, 13> kSessionParamIds{
-    polyphonyId,  bendRangeId, atSourceId,      referenceHzId,    temperamentId,
-    tuningRootId, mpeId,       slideDestId,     oneVoicePerKeyId, phaseResetId,
-    lookaheadId,  legatoId,    adaptiveRetuneId};
+inline const std::array<const char *, 15> kSessionParamIds{
+    polyphonyId,      bendRangeId,       atSourceId,    referenceHzId,
+    temperamentId,    tuningRootId,      mpeId,         slideDestId,
+    oneVoicePerKeyId, phaseResetId,      lookaheadId,   legatoId,
+    adaptiveRetuneId, adaptiveSeventhId, adaptiveHomeId};
 
 /// Whether `id` is one of those, for the several places that have to ask.
 inline bool isSessionParam(juce::StringRef id) {

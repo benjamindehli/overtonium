@@ -149,6 +149,14 @@ struct GlobalParams {
   /// How long a held note takes to slide to its new version when the adaptive
   /// temperament retunes it. See SynthEngine::settleAdaptive.
   double adaptiveRetuneSeconds = 0.03;
+  /// Whether Adaptive tunes a minor seventh on the harmonic seventh, 7:4 above
+  /// its root, where nothing else in the chord is spoiled by it. Off, every
+  /// seventh takes the size the chain of fifths gives it.
+  bool harmonicSevenths = true;
+  /// Whether Adaptive keeps the held chord as near home as it can before
+  /// keeping held notes still, so the keyboard does not drift and a held note
+  /// moves a comma instead when a progression pumps.
+  bool adaptiveHome = false;
 
   float bendSemitones = 0.0f; ///< current pitch-bend offset
   float aftertouch = 0.0f;    ///< current channel pressure, 0..1
