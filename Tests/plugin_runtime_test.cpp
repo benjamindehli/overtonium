@@ -7781,6 +7781,37 @@ void testPlayingReadouts(OvertoniumProcessor &p) {
   check(mpeDown && !p.isSustainDown(), "and SUSTAIN follows the pedal");
 
   send({juce::MidiMessage::allSoundOff(1)});
+  setParam(ovt::params::mpeId, 0.0f);
+  send({});
+
+  // The editor reads all of this from the message thread while the audio
+  // thread writes it. Nothing here can see a race, but a run under the thread
+  // sanitizer can, and this is what gives it two threads to watch.
+  {
+    std::atomic<bool> playing{true};
+    std::thread audio([&] {
+      for (int b = 0; b < 200; ++b) {
+        const auto on = (b % 2) == 0;
+        send({juce::MidiMessage::controllerEvent(1, 64, on ? 127 : 0),
+              juce::MidiMessage::controllerEvent(1, 1, b % 128),
+              juce::MidiMessage::pitchWheel(1, (b * 80) % 16384),
+              on ? juce::MidiMessage::noteOn(1, 60 + b % 12, 0.8f)
+                 : juce::MidiMessage::noteOff(1, 60 + (b - 1) % 12)});
+      }
+      playing = false;
+    });
+
+    float seen = 0.0f;
+    while (playing)
+      seen += (float)p.getActiveVoiceCount() + (float)p.isSustainDown() +
+              p.getBendPosition() + p.getWheelPosition() +
+              p.getPressurePosition();
+
+    audio.join();
+    check(std::isfinite(seen), "and all of it can be read while it is played");
+  }
+
+  send({juce::MidiMessage::allSoundOff(1)});
   restoreSessionSettings(p);
   p.applyFactoryPreset(presetIndex("Init"));
 }
