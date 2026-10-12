@@ -128,6 +128,14 @@ juce::Rectangle<int> LabelledKnob::dialBounds(juce::Rectangle<int> bounds) {
 
 void LabelledKnob::resized() { slider.setBounds(dialBounds(getLocalBounds())); }
 
+void LabelledKnob::setCaption(const juce::String &text) {
+  if (text == caption)
+    return;
+
+  caption = text;
+  repaint(captionBounds(getLocalBounds()));
+}
+
 // =============================================================================
 
 // =============================================================================

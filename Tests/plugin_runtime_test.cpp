@@ -8075,6 +8075,34 @@ void testPlayingBar(OvertoniumProcessor &p) {
     check(!unmade.isEnabled() && (bool)unmade.getProperties()["blank"],
           "and one nobody has made is blank and does nothing");
 
+    // Captioned with its row once made, with its number until then.
+    check(bar->macroKnob(1).getCaption() == "TUNE" &&
+              bar->macroKnob(0).getCaption() == "1" &&
+              made.getTitle() == "Macro 2 amount, Tune, Playing bar" &&
+              unmade.getTitle() == "Macro 1 amount, Playing bar",
+          "a made macro is captioned and named after its row, an unmade one "
+          "by its number (" +
+              bar->macroKnob(1).getCaption().toStdString() + ", " +
+              made.getTitle().toStdString() + ")");
+
+    // Every row's caption fits under a knob, in the font it is drawn in.
+    {
+      const auto font = ovt::ui::makeFont(9.0f, true);
+      juce::String tooWide;
+      for (int row = 1; row <= pp::kNumMacroRows; ++row) {
+        const auto caption = ovt::ui::PlayingBar::macroCaption(row);
+        if (caption.isEmpty() ||
+            juce::GlyphArrangement::getStringWidth(font, caption) >
+                (float)bar->macroKnob(1).getWidth())
+          tooWide << caption << " (" << pp::macroRowName(row) << ") ";
+      }
+      check(tooWide.isEmpty() && bar->macroKnob(1).getWidth() ==
+                                     ovt::ui::PlayingBar::kMacroWidth,
+            "every row a macro can aim at has a caption that fits under its "
+            "knob (" +
+                tooWide.toStdString() + ")");
+    }
+
     // The knob and the parameter move together, both ways.
     auto *amount = p.apvts.getParameter(pp::macroAmountId(1));
     made.setValue(0.5, juce::sendNotificationSync);

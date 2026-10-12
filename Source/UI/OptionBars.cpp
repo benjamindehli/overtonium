@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <iterator>
+#include <utility>
 #include <vector>
 
 #include "../PluginParameters.h"
@@ -392,8 +393,8 @@ PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state,
             {&wheelNeedle, 50, "WHEEL"},
             {&pressureNeedle, 50, "PRESSURE"}});
 
-  // Numbered rather than named for their rows, which are too long to fit
-  // under a knob, so the colour says which is which as it does in the panel.
+  // Captioned with the row each is aimed at once it is made, and with its
+  // number until then, so an empty slot still says which macro it is.
   std::vector<Item> knobs;
 
   for (int m = 0; m < params::kNumMacros; ++m) {
@@ -412,13 +413,34 @@ PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state,
         std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
             apvts, params::macroAmountId(m), slider);
 
-    knobs.push_back({&knob, 38, {}});
+    knobs.push_back({&knob, kMacroWidth, {}});
   }
 
   addGroup(std::move(knobs));
 
   refresh();
   showActivity({});
+}
+
+juce::String PlayingBar::macroCaption(int row) {
+  if (row <= 0 || row > params::kNumMacroRows)
+    return {};
+
+  const juce::String name = params::macroRowName(row);
+
+  // The ones that would not fit, in the words the mixer and the tooltips
+  // already use for them.
+  static const std::pair<const char *, const char *> shorter[] = {
+      {"Pitch mod rate", "PM RATE"}, {"Pitch mod depth", "PM DEPTH"},
+      {"Amp mod rate", "AM RATE"},   {"Amp mod depth", "AM DEPTH"},
+      {"Key-off swell", "SWELL"},    {"Key-off level", "OFF LVL"},
+      {"Aftertouch", "AT"}};
+
+  for (const auto &[from, to] : shorter)
+    if (name == from)
+      return to;
+
+  return name.toUpperCase();
 }
 
 void PlayingBar::resized() {
@@ -489,6 +511,13 @@ void PlayingBar::refresh() {
     const auto tint = params::macroColour(
         settings::choiceIndex(apvts, params::macroColourId(m).toRawUTF8()));
     const auto fill = !made || tint.isTransparent() ? colours::accent : tint;
+
+    const auto number = juce::String(m + 1);
+    macros[(size_t)m]->setCaption(made ? macroCaption(row) : number);
+    slider.setTitle("Macro " + number + " amount, " +
+                    (made ? juce::String(params::macroRowName(row)) + ", "
+                          : juce::String()) +
+                    "Playing bar");
 
     const bool changed =
         (bool)slider.getProperties()["blank"] != !made ||

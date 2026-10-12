@@ -165,6 +165,14 @@ public:
   const ActivityNeedle &pressureMeter() const { return pressureNeedle; }
   LabelledKnob &macroKnob(int macro) { return *macros[(size_t)macro]; }
 
+  /// What a macro knob is captioned when it is aimed at this row: the row's
+  /// name, shortened in the mixer's own words where it would not fit under
+  /// the knob. Empty for no row.
+  static juce::String macroCaption(int row);
+
+  /// How wide each macro knob stands, room for an eight letter caption.
+  static constexpr int kMacroWidth = 50;
+
 private:
   juce::AudioProcessorValueTreeState &apvts;
 

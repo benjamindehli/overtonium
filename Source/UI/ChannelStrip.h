@@ -141,6 +141,11 @@ public:
   /// line however the band is sized.
   static juce::Rectangle<int> captionBounds(juce::Rectangle<int>);
 
+  /// For a knob whose name follows what it is aimed at. Leaves the spoken
+  /// name alone, which the owner keeps as it needs.
+  void setCaption(const juce::String &);
+  const juce::String &getCaption() const noexcept { return caption; }
+
   LinkableSlider slider;
 
 private:
