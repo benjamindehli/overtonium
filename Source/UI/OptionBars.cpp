@@ -358,15 +358,42 @@ PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state)
     return d.naturalWidth(kControlHeight);
   };
 
+  inUse.setTooltip("How many voices are sounding, release tails included. "
+                   "Once it reaches VOICES, a new note takes one over.");
+
+  // Lit by the pedal, never by a click.
+  sustain.setInterceptsMouseClicks(false, false);
+  sustain.setWantsKeyboardFocus(false);
+  sustain.setButtonText("SUSTAIN");
+  sustain.setTitle("Sustain pedal");
+  sustain.setTooltip("Lit while a sustain pedal is down. A key it holds still "
+                     "counts as held, for Legato and for Adaptive.");
+
   addGroup({{&voices, juce::jmax(40, natural(voices)), "VOICES"},
+            {&inUse, juce::jmax(40, natural(inUse)), "IN USE"},
             {&legato, 62, {}},
             {&onePerKey, 74, {}}});
   addGroup({{&bend, juce::jmax(40, natural(bend)), "BEND"}});
   addGroup({{&mpe, 44, {}},
             {&aftertouch, natural(aftertouch), "AFTERTOUCH"},
             {&slide, natural(slide), "SLIDE"}});
+  addGroup({{&sustain, 70, {}}});
 
   refresh();
+  showActivity({});
+}
+
+void PlayingBar::showActivity(const PlayingActivity &activity) {
+  const auto count = juce::String(activity.voicesInUse);
+
+  // Lit at nought too, since nought in use is a true reading.
+  if (inUse.getReading() != count || inUse.getTitle().isEmpty()) {
+    inUse.setReading(count, true);
+    inUse.setTitle("In use: " + count +
+                   (activity.voicesInUse == 1 ? " voice" : " voices"));
+  }
+
+  sustain.setToggleState(activity.sustain, juce::dontSendNotification);
 }
 
 void PlayingBar::refresh() {

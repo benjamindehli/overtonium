@@ -126,12 +126,27 @@ private:
                                                 int *rows) const;
 };
 
-/// Voices, legato, one voice per key, pitch bend range and expression.
+/// What the Playing bar shows of how the instrument is being played, read off
+/// the processor by the editor's timer.
+struct PlayingActivity {
+  /// Voices sounding, release tails included.
+  int voicesInUse = 0;
+  bool sustain = false;
+};
+
+/// Voices, legato, one voice per key, pitch bend range and expression, and
+/// how the instrument is being played.
 class PlayingBar : public OptionBar {
 public:
   explicit PlayingBar(juce::AudioProcessorValueTreeState &);
 
   void refresh() override;
+
+  /// Repaints only what changed, so it can be handed every tick.
+  void showActivity(const PlayingActivity &);
+
+  const SegmentDisplay &inUseDisplay() const { return inUse; }
+  const ScreenSwitch &sustainLamp() const { return sustain; }
 
 private:
   juce::AudioProcessorValueTreeState &apvts;
@@ -141,6 +156,9 @@ private:
   SegmentDisplay aftertouch{{}, SegmentDisplay::Bars::Fourteen, 8};
   SegmentDisplay slide{{}, SegmentDisplay::Bars::Fourteen, 6};
   GlowButton legato, onePerKey, mpe;
+
+  SegmentDisplay inUse{{}, SegmentDisplay::Bars::Seven, 2};
+  ScreenSwitch sustain;
 };
 
 /// What Adaptive did to the held chord, worked out from what the engine

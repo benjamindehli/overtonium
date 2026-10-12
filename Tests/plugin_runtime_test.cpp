@@ -2737,12 +2737,12 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   // each of the thirty-two channels, the level on the noise strip, and one
   // per macro in the panel. The panel's eight are built whether or not the
   // macro has been made, so they are all here whatever the patch says. Then
-  // four in the Playing bar, the voices, bend range, aftertouch and slide,
-  // and sixteen in the Tuning bar, the temperament, root and reference, one
-  // for each of the twelve pitch classes and the drift, all built whether or
-  // not the bars are open.
+  // five in the Playing bar, the voices, the voices in use, bend range,
+  // aftertouch and slide, and sixteen in the Tuning bar, the temperament, root
+  // and reference, one for each of the twelve pitch classes and the drift, all
+  // built whether or not the bars are open.
   check(displays.size() ==
-            3 + 2 * ovt::kNumHarmonics + 1 + ovt::params::kNumMacros + 4 + 16,
+            3 + 2 * ovt::kNumHarmonics + 1 + ovt::params::kNumMacros + 5 + 16,
         "every readout is a segment display now (" +
             std::to_string(displays.size()) + ")");
 
@@ -7908,6 +7908,31 @@ void testPlayingBar(OvertoniumProcessor &p) {
         "and follows a change made somewhere else");
   st::apply(p.apvts, st::kMpe);
 
+  // ---- how it is being played ----------------------------------------------
+  const auto &inUse = bar->inUseDisplay();
+  const auto &sustain = bar->sustainLamp();
+
+  check(inUse.isVisible() && sustain.isVisible() &&
+            inUse.getY() == voices->getY() &&
+            inUse.getX() > voices->getRight() &&
+            inUse.getRight() < legato->getX() &&
+            bar->getHeight() == ovt::ui::OptionBar::kHeight,
+        "IN USE stands between VOICES and LEGATO, SUSTAIN is there, and it "
+        "is all still one row");
+
+  bar->showActivity({3, true});
+  const bool three = inUse.getReading().trim() == "3" && inUse.isActive() &&
+                     inUse.getTitle() == "In use: 3 voices" &&
+                     sustain.getToggleState();
+  bar->showActivity({});
+  const bool none = inUse.getReading().trim() == "0" && inUse.isActive() &&
+                    !sustain.getToggleState();
+
+  check(three, "it shows the voices in use and lights SUSTAIN (" +
+                   inUse.getReading().toStdString() + ", " +
+                   inUse.getTitle().toStdString() + ")");
+  check(none, "and reads a lit nought with SUSTAIN dark when nothing sounds");
+
   // ---- a narrow window wraps, as the top bar does --------------------------
   //
   // Nothing is left out. The groups that do not fit across go onto another
@@ -7917,13 +7942,15 @@ void testPlayingBar(OvertoniumProcessor &p) {
     sizeEditor(*editor, ovt::ui::TopBar::minimumWidth());
 
     bool all = true;
-    for (auto *c : {static_cast<juce::Component *>(voices),
-                    static_cast<juce::Component *>(legato),
-                    static_cast<juce::Component *>(perKey),
-                    static_cast<juce::Component *>(bend),
-                    static_cast<juce::Component *>(mpe),
-                    static_cast<juce::Component *>(aftertouch),
-                    static_cast<juce::Component *>(slide)})
+    for (auto *c : {static_cast<const juce::Component *>(voices),
+                    static_cast<const juce::Component *>(legato),
+                    static_cast<const juce::Component *>(perKey),
+                    static_cast<const juce::Component *>(bend),
+                    static_cast<const juce::Component *>(mpe),
+                    static_cast<const juce::Component *>(aftertouch),
+                    static_cast<const juce::Component *>(slide),
+                    static_cast<const juce::Component *>(&inUse),
+                    static_cast<const juce::Component *>(&sustain)})
       all &= c->isVisible() && bar->getLocalBounds().contains(c->getBounds());
 
     check(all && bar->getHeight() > oneRow &&
