@@ -7634,6 +7634,157 @@ void testSharedSettingsChoices(OvertoniumProcessor &p) {
   p.applyFactoryPreset(presetIndex("Init"));
 }
 
+/// What the processor publishes for the Playing bar's readouts: the pedal,
+/// the bend, the wheel and the pressure, with MPE off and on.
+void testPlayingReadouts(OvertoniumProcessor &p) {
+  section("What the Playing bar is handed");
+
+  using ovt::params::AftertouchSource;
+
+  const auto setParam = [&p](const char *id, float plain) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1(plain));
+  };
+
+  const auto send = [&p](std::initializer_list<juce::MidiMessage> messages) {
+    juce::MidiBuffer midi;
+    for (const auto &m : messages)
+      midi.addEvent(m, 0);
+
+    juce::AudioBuffer<float> buffer(2, 512);
+    buffer.clear();
+    p.processBlock(buffer, midi);
+  };
+
+  const auto near = [](float a, float b) { return std::abs(a - b) < 0.01f; };
+
+  p.applyFactoryPreset(presetIndex("Init"));
+  setParam(ovt::params::bendRangeId, 2.0f);
+  setParam(ovt::params::atSourceId, (float)AftertouchSource::ChannelPressure);
+  send({juce::MidiMessage::allSoundOff(1),
+        juce::MidiMessage::controllerEvent(1, 1, 0),
+        juce::MidiMessage::pitchWheel(1, 8192)});
+
+  check(!p.isSustainDown() && near(p.getBendPosition(), 0.0f) &&
+            near(p.getWheelPosition(), 0.0f) &&
+            near(p.getPressurePosition(), 0.0f),
+        "everything rests with nothing touched");
+
+  // The pedal, one bit per channel, so letting go on one channel leaves it
+  // down on another, and a panic lets go of all of them.
+  send({juce::MidiMessage::controllerEvent(1, 64, 127)});
+  const bool downOnOne = p.isSustainDown();
+  send({juce::MidiMessage::controllerEvent(3, 64, 127),
+        juce::MidiMessage::controllerEvent(1, 64, 0)});
+  const bool stillDownOnThree = p.isSustainDown();
+  send({juce::MidiMessage::controllerEvent(3, 64, 0)});
+  const bool up = !p.isSustainDown();
+  send({juce::MidiMessage::controllerEvent(1, 64, 127),
+        juce::MidiMessage::allNotesOff(1)});
+  const bool panicLetsGo = !p.isSustainDown();
+
+  check(downOnOne && stillDownOnThree && up && panicLetsGo,
+        "SUSTAIN follows the pedal on every channel, and a panic lets it go");
+
+  // A note held only by the pedal still counts as sounding.
+  send({juce::MidiMessage::controllerEvent(1, 64, 127),
+        juce::MidiMessage::noteOn(1, 60, 0.8f)});
+  send({juce::MidiMessage::noteOff(1, 60)});
+  check(p.getActiveVoiceCount() == 1,
+        "a note the pedal holds is in use (" +
+            std::to_string(p.getActiveVoiceCount()) + ")");
+  send({juce::MidiMessage::controllerEvent(1, 64, 0),
+        juce::MidiMessage::allSoundOff(1)});
+
+  // The wheels, across their travel.
+  bool bendFollows = true;
+  const struct {
+    int value;
+    float position;
+  } wheel[] = {
+      {0, -1.0f}, {4096, -0.5f}, {8192, 0.0f}, {12288, 0.5f}, {16383, 1.0f}};
+  for (const auto &w : wheel) {
+    send({juce::MidiMessage::pitchWheel(1, w.value)});
+    bendFollows &= near(p.getBendPosition(), w.position);
+  }
+  check(bendFollows, "BEND follows the pitch wheel from one end to the other");
+
+  bool wheelFollows = true;
+  for (const auto value : {0, 32, 64, 127}) {
+    send({juce::MidiMessage::controllerEvent(1, 1, value)});
+    wheelFollows &= near(p.getWheelPosition(), (float)value / 127.0f);
+  }
+  check(wheelFollows, "WHEEL follows the mod wheel from one end to the other");
+
+  // Pressure is what Aftertouch from hands every channel.
+  send({juce::MidiMessage::pitchWheel(1, 8192),
+        juce::MidiMessage::controllerEvent(1, 1, 32),
+        juce::MidiMessage::channelPressureChange(1, 100)});
+  const auto fromPressure = p.getPressurePosition();
+  setParam(ovt::params::atSourceId, (float)AftertouchSource::ModWheel);
+  send({});
+  const auto fromWheel = p.getPressurePosition();
+  check(near(fromPressure, 100.0f / 127.0f) && near(fromWheel, 32.0f / 127.0f),
+        "PRESSURE is whatever Aftertouch from follows (" +
+            std::to_string(fromPressure) + ", " + std::to_string(fromWheel) +
+            ")");
+
+  // And polyphonic aftertouch on a held key, the strongest one.
+  setParam(ovt::params::atSourceId, (float)AftertouchSource::ChannelPressure);
+  send({juce::MidiMessage::channelPressureChange(1, 0),
+        juce::MidiMessage::controllerEvent(1, 1, 0),
+        juce::MidiMessage::noteOn(1, 60, 0.8f),
+        juce::MidiMessage::noteOn(1, 64, 0.8f)});
+  send({juce::MidiMessage::aftertouchChange(1, 60, 40),
+        juce::MidiMessage::aftertouchChange(1, 64, 90)});
+  const auto strongest = p.getPressurePosition();
+  send({juce::MidiMessage::noteOff(1, 64)});
+  const auto afterLetGo = p.getPressurePosition();
+  check(near(strongest, 90.0f / 127.0f) && near(afterLetGo, 40.0f / 127.0f),
+        "PRESSURE shows the strongest key held, and drops as it comes up (" +
+            std::to_string(strongest) + ", " + std::to_string(afterLetGo) +
+            ")");
+  send({juce::MidiMessage::allSoundOff(1)});
+
+  // Under MPE each key bends and presses on its own channel. The member
+  // channels bend over 48 semitones, so a bend of one semitone is 1/48 of
+  // the way, and against a BEND range of 2 it reads halfway.
+  setParam(ovt::params::mpeId, 1.0f);
+  send({});
+
+  const auto semitones = [](float st) {
+    return 8192 + (int)std::lround(st / 48.0f * 8192.0f);
+  };
+
+  send({juce::MidiMessage::noteOn(2, 60, 0.8f),
+        juce::MidiMessage::noteOn(3, 64, 0.8f)});
+  send({juce::MidiMessage::pitchWheel(2, semitones(-0.5f)),
+        juce::MidiMessage::pitchWheel(3, semitones(1.0f)),
+        juce::MidiMessage::channelPressureChange(2, 90),
+        juce::MidiMessage::channelPressureChange(3, 30)});
+  const auto widest = p.getBendPosition();
+  const auto pressed = p.getPressurePosition();
+  send({juce::MidiMessage::noteOff(3, 64)});
+  const auto left = p.getBendPosition();
+
+  check(near(widest, 0.5f) && near(left, -0.25f),
+        "under MPE, BEND shows the key bent furthest, either way (" +
+            std::to_string(widest) + ", " + std::to_string(left) + ")");
+  check(near(pressed, 90.0f / 127.0f),
+        "and PRESSURE the key pressed hardest (" + std::to_string(pressed) +
+            ")");
+
+  // The parser takes the pedal under MPE, and the lamp still sees it.
+  send({juce::MidiMessage::controllerEvent(1, 64, 127)});
+  const bool mpeDown = p.isSustainDown();
+  send({juce::MidiMessage::controllerEvent(1, 64, 0)});
+  check(mpeDown && !p.isSustainDown(), "and SUSTAIN follows the pedal");
+
+  send({juce::MidiMessage::allSoundOff(1)});
+  restoreSessionSettings(p);
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
 /// The Playing bar shows what the parameters say and changes them.
 void testPlayingBar(OvertoniumProcessor &p) {
   section("The Playing bar");
@@ -11344,6 +11495,7 @@ int main(int argc, char **argv) {
   testSegmentCells();
   testOptionBars(processor);
   testSharedSettingsChoices(processor);
+  testPlayingReadouts(processor);
   testPlayingBar(processor);
   testTuningBar(processor);
   testAdaptiveReadouts(processor);

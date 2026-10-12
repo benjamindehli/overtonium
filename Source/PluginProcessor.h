@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <cstdint>
 #include <functional>
 #include <vector>
 
@@ -92,6 +93,23 @@ public:
 
   /// Polled by the editor for the voice-count readout.
   int getActiveVoiceCount() const noexcept { return activeVoices.load(); }
+
+  /// Polled by the editor for the Playing bar. Each is published at the end of
+  /// every block.
+  ///
+  /// Whether a sustain pedal is down on any channel.
+  bool isSustainDown() const noexcept { return sustainShown.load(); }
+
+  /// The pitch wheel, or the widest bend on any key held under MPE, from -1 to
+  /// 1 against the BEND range.
+  float getBendPosition() const noexcept { return bendShown.load(); }
+
+  /// The mod wheel, 0 to 1.
+  float getWheelPosition() const noexcept { return wheelShown.load(); }
+
+  /// What Aftertouch from hands every channel, or the strongest pressure on
+  /// any key held, whichever is the higher, 0 to 1.
+  float getPressurePosition() const noexcept { return pressureShown.load(); }
 
   /// Polled by the editor to drive the per-channel meters.
   float getPartialLevel(int index0) const noexcept {
@@ -353,6 +371,17 @@ private:
   /// left the wheel in rather than an event.
   float modWheel = 0.0f;
   std::atomic<int> activeVoices{0};
+
+  /// One bit per MIDI channel whose sustain pedal is down. Kept here rather
+  /// than read from the engine because with MPE on the parser takes the pedal
+  /// and the engine never hears it.
+  uint32_t pedalChannels = 0;
+
+  void followPedal(const juce::MidiMessage &) noexcept;
+  void publishPlaying() noexcept;
+
+  std::atomic<bool> sustainShown{false};
+  std::atomic<float> bendShown{0.0f}, wheelShown{0.0f}, pressureShown{0.0f};
 
   /// The factory preset the host believes is loaded. Saved with the state so
   /// that restoring a session does not look like a program change, which a

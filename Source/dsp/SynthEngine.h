@@ -134,6 +134,19 @@ public:
 
   int getActiveVoiceCount() const noexcept;
 
+  /// The widest bend and the strongest pressure on any key still down, the
+  /// pedal's included, for the Playing bar's meters. A key let go is left out,
+  /// so a meter falls back as the key comes up rather than when its tail ends.
+  /// Only what belongs to each note: the wheel and channel pressure are the
+  /// processor's.
+  struct HeldExpression {
+    /// Signed, in semitones, whichever way the widest one goes.
+    float bendSemitones = 0.0f;
+    float pressure = 0.0f;
+  };
+
+  HeldExpression heldExpression() const noexcept;
+
   /// Where a key that is down is sounding, before any bend or glide, or zero
   /// if no voice is holding it. What the adaptive temperament chose is not
   /// visible anywhere else, which is why this exists.
