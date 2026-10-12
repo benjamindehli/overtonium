@@ -128,6 +128,14 @@ juce::Rectangle<int> LabelledKnob::dialBounds(juce::Rectangle<int> bounds) {
 
 void LabelledKnob::resized() { slider.setBounds(dialBounds(getLocalBounds())); }
 
+void LabelledKnob::setCaption(const juce::String &text) {
+  if (text == caption)
+    return;
+
+  caption = text;
+  repaint(captionBounds(getLocalBounds()));
+}
+
 // =============================================================================
 
 // =============================================================================
@@ -1003,6 +1011,14 @@ bool ActivityNeedle::push(float position) {
   return true;
 }
 
+void ActivityNeedle::showCentre(bool show) {
+  if (show == centreMark)
+    return;
+
+  centreMark = show;
+  repaint();
+}
+
 void ActivityNeedle::paint(juce::Graphics &g) {
   const auto bounds = getLocalBounds().toFloat();
 
@@ -1038,9 +1054,11 @@ void ActivityNeedle::paint(juce::Graphics &g) {
   g.fillRoundedRectangle(track, height * 0.35f);
 
   // Centre, so sharp and flat mean something when the needle is near it.
-  g.setColour(colour.withAlpha(0.34f));
-  g.fillRect(bounds.getCentreX() - 0.5f, track.getY() + 1.0f, 1.0f,
-             track.getHeight() - 2.0f);
+  if (centreMark) {
+    g.setColour(colour.withAlpha(0.34f));
+    g.fillRect(bounds.getCentreX() - 0.5f, track.getY() + 1.0f, 1.0f,
+               track.getHeight() - 2.0f);
+  }
 
   if (column < 0)
     return;

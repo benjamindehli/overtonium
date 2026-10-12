@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <iterator>
+#include <utility>
 #include <vector>
 
 #include "../PluginParameters.h"
@@ -42,6 +43,18 @@ OptionBar::OptionBar(juce::String nameToShow) : name(std::move(nameToShow)) {
   // Shouted on the panel like everything else, and said normally to a screen
   // reader.
   setTitle(name.substring(0, 1) + name.substring(1).toLowerCase());
+
+  addMouseListener(this, true);
+}
+
+void OptionBar::mouseDown(const juce::MouseEvent &e) {
+  if (!e.mods.isPopupMenu() || onLearnRequested == nullptr)
+    return;
+
+  const auto id = learn::parameterIdAt(e.originalComponent);
+
+  if (id.isNotEmpty())
+    onLearnRequested(id);
 }
 
 juce::Colour OptionBar::captionColour(const Item &) const {
@@ -320,12 +333,13 @@ void OptionBar::styleSwitch(GlowButton &button, const juce::String &word,
 
 // ---- Playing ----------------------------------------------------------------
 
-PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state)
-    : OptionBar("PLAYING"), apvts(state) {
+PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state,
+                       juce::Component &popupHost)
+    : OptionBar("PLAYING"), apvts(state), popupParent(popupHost) {
   styleSwitch(legato, "LEGATO", "Legato",
               "A key going down while another is held carries the note on "
               "rather than starting a new one");
-  styleSwitch(onePerKey, "1 PER KEY", "One voice per key",
+  styleSwitch(noStack, "NO STACK", "No stack",
               "A key played again takes over its own voice rather than "
               "starting another");
   styleSwitch(mpe, "MPE", "MPE",
@@ -337,7 +351,7 @@ PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state)
   };
 
   legato.onClick = [flip] { flip(settings::kLegato); };
-  onePerKey.onClick = [flip] { flip(settings::kOneVoicePerKey); };
+  noStack.onClick = [flip] { flip(settings::kOneVoicePerKey); };
   mpe.onClick = [flip] { flip(settings::kMpe); };
 
   voices.setTooltip("How many notes can sound at once");
@@ -358,15 +372,148 @@ PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state)
     return d.naturalWidth(kControlHeight);
   };
 
+  inUse.setTooltip("How many voices are sounding, release tails included. "
+                   "Once it reaches VOICES, a new note takes one over.");
+
+  // Lit by the pedal, never by a click.
+  sustain.setInterceptsMouseClicks(false, false);
+  sustain.setWantsKeyboardFocus(false);
+  sustain.setButtonText("SUSTAIN");
+  sustain.setTitle("Sustain pedal");
+  sustain.setTooltip("Lit while a sustain pedal is down. A key it holds still "
+                     "counts as held, for Legato and for Adaptive.");
+
   addGroup({{&voices, juce::jmax(40, natural(voices)), "VOICES"},
+            {&inUse, juce::jmax(40, natural(inUse)), "IN USE"},
             {&legato, 62, {}},
-            {&onePerKey, 74, {}}});
+            {&noStack, 74, {}}});
   addGroup({{&bend, juce::jmax(40, natural(bend)), "BEND"}});
   addGroup({{&mpe, 44, {}},
             {&aftertouch, natural(aftertouch), "AFTERTOUCH"},
             {&slide, natural(slide), "SLIDE"}});
+  // The wheel and pressure rest at nought and only rise, so they start at the
+  // left end and have no middle to mark.
+  wheelNeedle.showCentre(false);
+  pressureNeedle.showCentre(false);
+
+  bendNeedle.setTitle("Pitch bend");
+  wheelNeedle.setTitle("Mod wheel");
+  pressureNeedle.setTitle("Pressure");
+
+  addGroup({{&sustain, 70, {}},
+            {&bendNeedle, 50, "PITCH"},
+            {&wheelNeedle, 50, "WHEEL"},
+            {&pressureNeedle, 50, "PRESSURE"}});
+
+  // Captioned with the row each is aimed at once it is made, and with its
+  // number until then, so an empty slot still says which macro it is.
+  std::vector<Item> knobs;
+
+  for (int m = 0; m < params::kNumMacros; ++m) {
+    auto &knob = *(macros[(size_t)m] =
+                       std::make_unique<LabelledKnob>(juce::String(m + 1)));
+    auto &slider = knob.slider;
+
+    slider.getProperties().set("bipolar", true);
+    slider.setTitle("Macro " + juce::String(m + 1) + " amount, Playing bar");
+    slider.setDoubleClickReturnValue(true, 0.0);
+
+    macroAttachments[(size_t)m] =
+        std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+            apvts, params::macroAmountId(m), slider);
+
+    knobs.push_back({&knob, kMacroWidth, {}});
+  }
+
+  addGroup(std::move(knobs));
 
   refresh();
+  showActivity({});
+}
+
+juce::String PlayingBar::macroCaption(int row) {
+  if (row <= 0 || row > params::kNumMacroRows)
+    return {};
+
+  const juce::String name = params::macroRowName(row);
+
+  // The ones that would not fit, in the words the mixer and the tooltips
+  // already use for them.
+  static const std::pair<const char *, const char *> shorter[] = {
+      {"Pitch mod rate", "PM RATE"}, {"Pitch mod depth", "PM DEPTH"},
+      {"Amp mod rate", "AM RATE"},   {"Amp mod depth", "AM DEPTH"},
+      {"Key-off swell", "SWELL"},    {"Key-off level", "OFF LVL"},
+      {"Aftertouch", "AT"}};
+
+  for (const auto &[from, to] : shorter)
+    if (name == from)
+      return to;
+
+  return name.toUpperCase();
+}
+
+void PlayingBar::mouseDown(const juce::MouseEvent &e) {
+  if (e.mods.isPopupMenu() && onMacroMenuRequested != nullptr)
+    for (auto *c = e.originalComponent; c != nullptr && c != this;
+         c = c->getParentComponent())
+      for (int m = 0; m < params::kNumMacros; ++m)
+        if (c == macros[(size_t)m].get()) {
+          onMacroMenuRequested(m);
+          return;
+        }
+
+  OptionBar::mouseDown(e);
+}
+
+juce::PopupMenu PlayingBar::macroMenu(int macro, bool made,
+                                      const MidiLearn &learning,
+                                      juce::RangedAudioParameter *amount) {
+  const auto number = juce::String(macro + 1);
+
+  juce::PopupMenu m;
+  m.addSectionHeader("Macro " + number);
+
+  if (!made) {
+    m.addItem(kAssignMacro, "Assign macro " + number + "...");
+    return m;
+  }
+
+  learn::appendItems(m, learning, amount);
+  m.addSeparator();
+  m.addItem(kEditMacro, "Edit macro " + number + "...");
+  return m;
+}
+
+void PlayingBar::resized() {
+  OptionBar::resized();
+  pushNeedles();
+}
+
+void PlayingBar::pushNeedles() {
+  const auto push = [](ActivityNeedle &needle, float position) {
+    if (needle.push(position))
+      needle.repaint();
+  };
+
+  push(bendNeedle, shown.bend);
+  push(wheelNeedle, 2.0f * shown.wheel - 1.0f);
+  push(pressureNeedle, 2.0f * shown.pressure - 1.0f);
+}
+
+void PlayingBar::showActivity(const PlayingActivity &activity) {
+  const auto count = juce::String(activity.voicesInUse);
+
+  // Lit at nought too, since nought in use is a true reading.
+  if (inUse.getReading() != count || inUse.getTitle().isEmpty()) {
+    inUse.setReading(count, true);
+    inUse.setTitle("In use: " + count +
+                   (activity.voicesInUse == 1 ? " voice" : " voices"));
+  }
+
+  sustain.setToggleState(activity.sustain, juce::dontSendNotification);
+
+  shown = activity;
+  pushNeedles();
 }
 
 void PlayingBar::refresh() {
@@ -390,10 +537,52 @@ void PlayingBar::refresh() {
   slide.setTitle("Slide to: " + params::slideDestChoices[target]);
 
   legato.setToggleState(settings::legatoOn(apvts), juce::dontSendNotification);
-  onePerKey.setToggleState(settings::isOn(apvts, params::oneVoicePerKeyId),
-                           juce::dontSendNotification);
+  noStack.setToggleState(settings::isOn(apvts, params::oneVoicePerKeyId),
+                         juce::dontSendNotification);
   mpe.setToggleState(settings::isOn(apvts, params::mpeId),
                      juce::dontSendNotification);
+
+  for (int m = 0; m < params::kNumMacros; ++m) {
+    auto &slider = macros[(size_t)m]->slider;
+    const auto row =
+        settings::choiceIndex(apvts, params::macroRowId(m).toRawUTF8());
+    const bool made = row != 0;
+
+    // The first colour is none, which the panel draws in the accent too.
+    const auto tint = params::macroColour(
+        settings::choiceIndex(apvts, params::macroColourId(m).toRawUTF8()));
+    const auto fill = !made || tint.isTransparent() ? colours::accent : tint;
+
+    const auto number = juce::String(m + 1);
+    macros[(size_t)m]->setCaption(made ? macroCaption(row) : number);
+    slider.setTitle("Macro " + number + " amount, " +
+                    (made ? juce::String(params::macroRowName(row)) + ", "
+                          : juce::String()) +
+                    "Playing bar");
+
+    const bool changed =
+        (bool)slider.getProperties()["blank"] != !made ||
+        slider.findColour(juce::Slider::rotarySliderFillColourId) != fill;
+
+    slider.getProperties().set("blank", !made);
+    slider.setColour(juce::Slider::rotarySliderFillColourId, fill);
+    slider.setEnabled(made);
+    slider.setPopupDisplayEnabled(made, made, &popupParent);
+    slider.setTooltip(
+        made ? "How far macro " + number +
+                   " pushes its row. Right-click to bind a controller to it "
+                   "or to change it in MACROS."
+             : "Macro " + number +
+                   " is not assigned. Right-click to assign it to a row.");
+
+    // The row's own feel, as the panel's slider has it.
+    if (made)
+      slider.setSkewFactor((double)params::macroRowRange(apvts, row).skew,
+                           true);
+
+    if (changed)
+      slider.repaint();
+  }
 }
 
 // ---- the Adaptive readouts
@@ -597,6 +786,7 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
                            "where the chord around it needs it. At zero it "
                            "jumps.");
   retune.slider.setTitle("Adaptive retune time");
+  learn::tag(retune.slider, params::adaptiveRetuneId);
   retune.slider.setPopupDisplayEnabled(true, true, &popupParent);
   retune.slider.setDoubleClickReturnValue(
       true, (double)params::kAdaptiveRetuneSeconds[0]);

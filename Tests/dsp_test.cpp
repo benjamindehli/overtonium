@@ -4186,6 +4186,70 @@ void testActivity() {
   }
 }
 
+/// What the Playing bar's meters read off the engine: the widest bend and the
+/// strongest pressure on any key still down. A key the pedal holds is still
+/// down, and a key let go is not, however long its tail rings.
+void testHeldExpression() {
+  section("Held expression");
+
+  constexpr double sr = 48000.0;
+
+  auto p = makeFlatParams(0.0f);
+  p.osc[0].volume = 0.5f;
+  p.osc[0].decay = 8.0f;
+  p.osc[0].sustain = 1.0f;
+  p.osc[0].release = 2.0f;
+
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
+  engine.prepare(sr);
+  engine.setPolyphony(8);
+
+  std::vector<float> l(512), r(512);
+  const auto render = [&] { engine.render(l.data(), r.data(), 512, p); };
+
+  const auto resting = engine.heldExpression();
+  check(exactly(resting.bendSemitones, 0.0f) && exactly(resting.pressure, 0.0f),
+        "nothing held is nothing bent or pressed");
+
+  engine.noteOnPerNote(2, 60, 1.0f, p);
+  engine.noteOnPerNote(3, 64, 1.0f, p);
+  engine.noteOnPerNote(4, 67, 1.0f, p);
+  engine.setNoteBend(2, 60, 1.5f);
+  engine.setNoteBend(3, 64, -3.0f);
+  engine.setNotePressure(2, 60, 0.2f);
+  engine.setNotePressure(4, 67, 0.7f);
+  render();
+
+  const auto three = engine.heldExpression();
+  check(exactly(three.bendSemitones, -3.0f) && exactly(three.pressure, 0.7f),
+        "the widest bend, either way, and the strongest pressure (" +
+            std::to_string(three.bendSemitones) + ", " +
+            std::to_string(three.pressure) + ")");
+
+  // Let go with no pedal: gone from the reading while its tail still rings.
+  engine.noteOffPerNote(3, 64, 1.0f);
+  render();
+  const auto two = engine.heldExpression();
+  check(exactly(two.bendSemitones, 1.5f) && engine.getActiveVoiceCount() == 3,
+        "a key let go drops out while its tail still sounds (" +
+            std::to_string(two.bendSemitones) + ")");
+
+  // Let go under the pedal: still held.
+  engine.setSustainPedal(true);
+  engine.noteOffPerNote(4, 67, 1.0f);
+  render();
+  const auto pedalled = engine.heldExpression();
+  engine.setSustainPedal(false);
+  render();
+  const auto released = engine.heldExpression();
+
+  check(exactly(pedalled.pressure, 0.7f) && exactly(released.pressure, 0.2f),
+        "a key the pedal holds still counts, until the pedal comes up (" +
+            std::to_string(pedalled.pressure) + ", " +
+            std::to_string(released.pressure) + ")");
+}
+
 /// Notes that own a channel each, which is what an MPE controller sends.
 ///
 /// The rule for an ordinary keyboard is one voice per key. That rule is wrong
@@ -10112,6 +10176,7 @@ int main() {
   testTopLineLegato();
   testOneVoicePerKey();
   testPerNoteChannels();
+  testHeldExpression();
   testActivity();
   testPoolExhaustion();
   testLfoShapes();

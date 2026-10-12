@@ -634,7 +634,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   // is for anyone who wants the tails to sum, which is a sound rather than a
   // fault.
   layout.add(std::make_unique<BoolP>(juce::ParameterID{oneVoicePerKeyId, 1},
-                                     "One Voice Per Key", true));
+                                     "No Stack", true));
 
   layout.add(std::make_unique<juce::AudioParameterInt>(
       juce::ParameterID{bendRangeId, 1}, "Pitch Bend Range", 0, 24, 2));

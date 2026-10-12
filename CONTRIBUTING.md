@@ -243,7 +243,7 @@ cmake --build build --target overtonium_render_docs
 ./build/overtonium_render_docs_artefacts/overtonium_render_docs out
 ```
 
-That writes the window, the six-channel detail and the top bar, and then, with both bars opened and C7 held under Adaptive, the Playing and Tuning bars on their own. Where each crop falls comes from `kGutterWidth`, `kStripWidth` and `TopBar::heightForWidth` rather than from numbers typed in, so a taller bar or a wider strip moves the crops with it instead of slicing one through the middle of a row. A second argument scales the window, and it is a genuine redraw rather than an upscale, which is where artwork needing the window larger than the page shows it comes from.
+That writes the window, the six-channel detail and the top bar, and then, with both bars opened and C7 held under Adaptive, the Playing and Tuning bars on their own, the Playing bar with the pedal down, the mod wheel and pressure part way up and three macros made. Where each crop falls comes from `kGutterWidth`, `kStripWidth` and `TopBar::heightForWidth` rather than from numbers typed in, so a taller bar or a wider strip moves the crops with it instead of slicing one through the middle of a row. A second argument scales the window, and it is a genuine redraw rather than an upscale, which is where artwork needing the window larger than the page shows it comes from.
 
 It writes PNG, because JUCE has no WebP encoder, so producing what the pages actually load is a second step with a lossless encoder:
 

@@ -438,7 +438,7 @@ void RowGutter::paint(juce::Graphics &g) {
 
 OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     : juce::AudioProcessorEditor(&p), topBar(p.apvts, *this),
-      playingBar(p.apvts), tuningBar(p.apvts, *this),
+      playingBar(p.apvts, *this), tuningBar(p.apvts, *this),
       noiseStrip(p.apvts, *this, *this), macroPanel(p.apvts) {
   setLookAndFeel(&lookAndFeel);
 
@@ -619,16 +619,15 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     topBar.setMacrosOn(false);
   };
 
-  topBar.onMacrosClicked = [this] {
-    const bool opening = !macroPanel.isVisible();
+  topBar.onMacrosClicked = [this] { showMacroPanel(!macroPanel.isVisible()); };
 
-    if (opening)
-      macroPanel.refresh();
+  for (auto *bar : {static_cast<ovt::ui::OptionBar *>(&playingBar),
+                    static_cast<ovt::ui::OptionBar *>(&tuningBar)})
+    bar->onLearnRequested = [this](const juce::String &id) {
+      showLearnMenu(id);
+    };
 
-    macroPanel.setVisible(opening);
-    macroPanel.toFront(false);
-    topBar.setMacrosOn(opening);
-  };
+  playingBar.onMacroMenuRequested = [this](int macro) { showMacroMenu(macro); };
 
   noiseStrip.onLearnRequested = [this](const juce::String &id) {
     showLearnMenu(id);
@@ -866,8 +865,16 @@ void OvertoniumEditor::resized() {
   // keeps this from recursing: applying limits constrains the bounds and so
   // comes back here, and the second pass finds the same bar height and stops.
   if (chromeHeight(juce::jmax(minimumLogicalWidth(), logicalWidth)) !=
-      limitsChromeHeight)
+      limitsChromeHeight) {
+    const auto before = getBounds();
     applyResizeLimits(logicalWidth);
+
+    // A floor that rose can grow the window, and the pass that grew it has
+    // already laid everything out at the new size. Carrying on here would lay
+    // it out again at the old one, cutting off whatever the floor rose for.
+    if (getBounds() != before)
+      return;
+  }
 
   // Over the whole window rather than over the content, and untransformed:
   // the dim and the card are chrome for a thing you are doing instead of
@@ -1617,6 +1624,58 @@ void OvertoniumEditor::showLearnMenu(const juce::String &parameterId) {
                   });
 }
 
+void OvertoniumEditor::showMacroPanel(bool show) {
+  if (show)
+    macroPanel.refresh();
+
+  macroPanel.setVisible(show);
+  macroPanel.toFront(false);
+  topBar.setMacrosOn(show);
+}
+
+void OvertoniumEditor::showMacroMenu(int macro) {
+  using ovt::ui::PlayingBar;
+
+  auto *amount = dynamic_cast<juce::RangedAudioParameter *>(
+      plugin().apvts.getParameter(ovt::params::macroAmountId(macro)));
+  auto *row = dynamic_cast<juce::RangedAudioParameter *>(
+      plugin().apvts.getParameter(ovt::params::macroRowId(macro)));
+
+  if (amount == nullptr || row == nullptr)
+    return;
+
+  const bool made = std::lround(row->convertFrom0to1(row->getValue())) != 0;
+
+  auto m = PlayingBar::macroMenu(macro, made, plugin().midiLearn, amount);
+  m.setLookAndFeel(&getLookAndFeel());
+
+  const auto p = juce::Desktop::getInstance()
+                     .getMainMouseSource()
+                     .getScreenPosition()
+                     .roundToInt();
+
+  juce::Component::SafePointer<OvertoniumEditor> self(this);
+
+  m.showMenuAsync(juce::PopupMenu::Options()
+                      .withStandardItemHeight(22)
+                      .withTargetScreenArea({p.x, p.y, 1, 1}),
+                  [self, macro, amount](int result) {
+                    if (self == nullptr)
+                      return;
+
+                    if (result == PlayingBar::kAssignMacro) {
+                      self->macroPanel.make(macro);
+                      self->showMacroPanel(true);
+                      self->playingBar.refresh();
+                    } else if (result == PlayingBar::kEditMacro) {
+                      self->showMacroPanel(true);
+                    } else {
+                      ovt::ui::learn::applyChoice(
+                          result, self->plugin().midiLearn, amount);
+                    }
+                  });
+}
+
 void OvertoniumEditor::showLinkMenu(const juce::String &parameterId) {
   topBar.showLinkMenu(nullptr, parameterId, &plugin().midiLearn, currentTool());
 }
@@ -1980,6 +2039,13 @@ void OvertoniumEditor::timerCallback() {
   // Its own region, at the other end of the window from the mixer.
   topBar.setOutputLevels(plugin().getOutputLevelLeft(),
                          plugin().getOutputLevelRight());
+
+  // How the instrument is being played, at the full rate so a pedal or a
+  // chord shows as it happens.
+  playingBar.showActivity({plugin().getActiveVoiceCount(),
+                           plugin().isSustainDown(), plugin().getBendPosition(),
+                           plugin().getWheelPosition(),
+                           plugin().getPressurePosition()});
 
   // What Adaptive did to the held chord, at the full rate so a chord reads out
   // as it is played. Read whether or not the bar is open, so it opens on the

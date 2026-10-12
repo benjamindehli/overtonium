@@ -242,6 +242,7 @@ public:
   /// Polyphonic aftertouch for this voice. Channel pressure arrives separately
   /// through SynthParams, and whichever is higher wins.
   void setPolyPressure(float v) noexcept { polyPressure = v; }
+  float getPolyPressure() const noexcept { return polyPressure; }
 
   /// MPE slide for this note, as a displacement from where this note's slide
   /// began rather than as a position on the controller.
@@ -276,6 +277,7 @@ public:
   /// voice together, and a controller that bends each finger separately leaves
   /// the wheel at zero and moves this. Nothing has to know which is in use.
   void setNoteBend(float semitones) noexcept { noteBendSemitones = semitones; }
+  float getNoteBend() const noexcept { return noteBendSemitones; }
 
   bool isActive() const noexcept { return active; }
   bool isReleasing() const noexcept { return released; }

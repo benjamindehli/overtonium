@@ -29,6 +29,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <functional>
+#include <iterator>
 #include <memory>
 #include <vector>
 
@@ -269,6 +270,9 @@ int main(int argc, char **argv) {
   // window as it first opens. The Tuning bar is shown under Adaptive with C7
   // held in place of the chord above, the chord the Tuning page describes its
   // readouts on, so the picture can be checked against what the page says.
+  // The Playing bar shows C7 played with the pedal down, the mod wheel part
+  // way up and some pressure, and three macros made, so its readouts and
+  // knobs have something to show.
   juce::TextButton *playingButton = nullptr, *tuningButton = nullptr;
   for (auto *b : descendantsOf<juce::TextButton>(*editor)) {
     if (b->getTitle() == "Playing")
@@ -303,9 +307,35 @@ int main(int argc, char **argv) {
       midi.clear();
     }
 
-    if (pass == 0)
+    if (pass == 0) {
       for (int note : kSeventh)
         midi.addEvent(juce::MidiMessage::noteOn(1, note, 0.9f), 0);
+
+      // After the first chord's note-offs, so the pedal holds only C7.
+      midi.addEvent(juce::MidiMessage::controllerEvent(1, 64, 127), 0);
+      midi.addEvent(juce::MidiMessage::controllerEvent(1, 1, 52), 0);
+      midi.addEvent(juce::MidiMessage::channelPressureChange(1, 40), 0);
+    }
+  }
+
+  // Level, Pitch mod depth and Release, in red, green and blue, pushed by
+  // differing amounts either way.
+  {
+    const struct {
+      int row, colour;
+      float amount;
+    } made[] = {{19, 1, 0.45f}, {4, 4, -0.3f}, {13, 6, 0.7f}};
+
+    const auto set = [&plugin](const juce::String &id, float plain) {
+      if (auto *parameter = plugin.apvts.getParameter(id))
+        parameter->setValueNotifyingHost(parameter->convertTo0to1(plain));
+    };
+
+    for (int m = 0; m < (int)std::size(made); ++m) {
+      set(ovt::params::macroRowId(m), (float)made[m].row);
+      set(ovt::params::macroColourId(m), (float)made[m].colour);
+      set(ovt::params::macroAmountId(m), made[m].amount);
+    }
   }
 
   playingButton->onClick();
@@ -317,6 +347,10 @@ int main(int argc, char **argv) {
     latest = chord;
 
   playing.front()->refresh();
+  playing.front()->showActivity(
+      {plugin.getActiveVoiceCount(), plugin.isSustainDown(),
+       plugin.getBendPosition(), plugin.getWheelPosition(),
+       plugin.getPressurePosition()});
   tuning.front()->refresh();
   tuning.front()->showChord(latest);
 

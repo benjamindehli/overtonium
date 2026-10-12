@@ -242,6 +242,11 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
     : apvts(state) {
   logo = logoWordmark();
 
+  // So a right-click on a knob reaches mouseDown, which offers MIDI Learn. A
+  // click goes to the control under it and nowhere else unless an ancestor
+  // asks to hear it.
+  addMouseListener(this, true);
+
   masterFader.setPopupDisplayEnabled(true, true, &popupParent);
   masterFader.setTooltip("Output level, over the meter that reads it");
 
@@ -1062,7 +1067,7 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
   // while another is held starts a note or carries one on.
   addInPlace(settings::voices(apvts));
 
-  m.addItem(settings::kOneVoicePerKey, "One voice per key", true,
+  m.addItem(settings::kOneVoicePerKey, "No stack", true,
             settings::isOn(apvts, params::oneVoicePerKeyId));
   m.addItem(settings::kLegato, "Legato", true, settings::legatoOn(apvts));
 

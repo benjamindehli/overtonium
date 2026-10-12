@@ -8,8 +8,10 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include "../PluginParameters.h"
 #include "../dsp/AdaptiveSnapshot.h"
 #include "ChannelStrip.h"
+#include "LearnMenu.h"
 #include "Theme.h"
 
 namespace ovt::ui {
@@ -37,10 +39,18 @@ public:
   /// bar needs, so whatever lays it out can ask again.
   std::function<void()> onHeightMayChange;
 
+  /// A right-click on a knob in the bar, carrying its parameter's id. As
+  /// TopBar::onLearnRequested: what the menu offers is the editor's to say.
+  std::function<void(const juce::String &)> onLearnRequested;
+
   explicit OptionBar(juce::String name);
 
   void paint(juce::Graphics &) override;
   void resized() override;
+
+  /// Heard from every control in the bar as well as from the bar itself,
+  /// since a right-click on a knob goes to the knob and nowhere else.
+  void mouseDown(const juce::MouseEvent &) override;
 
   /// Reads every value off the parameters again. The editor calls it on its
   /// housekeeping tick while the bar is open, since a host, a preset or the
@@ -126,12 +136,65 @@ private:
                                                 int *rows) const;
 };
 
-/// Voices, legato, one voice per key, pitch bend range and expression.
+/// What the Playing bar shows of how the instrument is being played, read off
+/// the processor by the editor's timer.
+struct PlayingActivity {
+  /// Voices sounding, release tails included.
+  int voicesInUse = 0;
+  bool sustain = false;
+
+  /// -1 to 1 against the BEND range.
+  float bend = 0.0f;
+
+  /// 0 to 1.
+  float wheel = 0.0f;
+  float pressure = 0.0f;
+};
+
+/// Voices, legato, one voice per key, pitch bend range and expression, how
+/// the instrument is being played, and the macros.
 class PlayingBar : public OptionBar {
 public:
-  explicit PlayingBar(juce::AudioProcessorValueTreeState &);
+  /// @param popupParent  where a macro knob shows its value while it is
+  ///                     turned.
+  PlayingBar(juce::AudioProcessorValueTreeState &,
+             juce::Component &popupParent);
 
   void refresh() override;
+
+  /// Repaints only what changed, so it can be handed every tick.
+  void showActivity(const PlayingActivity &);
+
+  void resized() override;
+
+  const SegmentDisplay &inUseDisplay() const { return inUse; }
+  const ScreenSwitch &sustainLamp() const { return sustain; }
+  const ActivityNeedle &bendMeter() const { return bendNeedle; }
+  const ActivityNeedle &wheelMeter() const { return wheelNeedle; }
+  const ActivityNeedle &pressureMeter() const { return pressureNeedle; }
+  LabelledKnob &macroKnob(int macro) { return *macros[(size_t)macro]; }
+
+  /// A right-click on a macro knob, carrying which macro. The editor shows
+  /// macroMenu for it.
+  std::function<void(int macro)> onMacroMenuRequested;
+
+  void mouseDown(const juce::MouseEvent &) override;
+
+  /// What a right-click on a macro knob offers: for a macro that is made, MIDI
+  /// Learn for its amount and a way into MACROS to change it, and for one that
+  /// is not, only a way to make it, since a controller bound to a macro that
+  /// drives nothing would do nothing.
+  enum MacroMenuIds { kAssignMacro = 9101, kEditMacro = 9102 };
+  static juce::PopupMenu macroMenu(int macro, bool made, const MidiLearn &,
+                                   juce::RangedAudioParameter *amount);
+
+  /// What a macro knob is captioned when it is aimed at this row: the row's
+  /// name, shortened in the mixer's own words where it would not fit under
+  /// the knob. Empty for no row.
+  static juce::String macroCaption(int row);
+
+  /// How wide each macro knob stands, room for an eight letter caption.
+  static constexpr int kMacroWidth = 50;
 
 private:
   juce::AudioProcessorValueTreeState &apvts;
@@ -140,7 +203,30 @@ private:
   SegmentDisplay bend{"st", SegmentDisplay::Bars::Seven, 2};
   SegmentDisplay aftertouch{{}, SegmentDisplay::Bars::Fourteen, 8};
   SegmentDisplay slide{{}, SegmentDisplay::Bars::Fourteen, 6};
-  GlowButton legato, onePerKey, mpe;
+  GlowButton legato, noStack, mpe;
+
+  SegmentDisplay inUse{{}, SegmentDisplay::Bars::Seven, 2};
+  ScreenSwitch sustain;
+  ActivityNeedle bendNeedle{colours::accent}, wheelNeedle{colours::accent},
+      pressureNeedle{colours::accent};
+
+  /// What it was last handed, so a needle can be put back where it belongs
+  /// once the layout has given it a width to measure its travel on.
+  PlayingActivity shown;
+
+  void pushNeedles();
+
+  /// Each macro's amount, the same parameter the slider in the MACROS panel
+  /// drives, in the macro's colour.
+  std::array<std::unique_ptr<LabelledKnob>, params::kNumMacros> macros;
+  std::array<
+      std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>,
+      params::kNumMacros>
+      macroAttachments;
+
+  /// Where a made macro's knob shows its amount while it is turned. An
+  /// unmade one shows nothing, since its amount does nothing.
+  juce::Component &popupParent;
 };
 
 /// What Adaptive did to the held chord, worked out from what the engine

@@ -141,6 +141,22 @@ int SynthEngine::getActiveVoiceCount() const noexcept {
   return c;
 }
 
+SynthEngine::HeldExpression SynthEngine::heldExpression() const noexcept {
+  HeldExpression held;
+
+  for (const auto &v : voices) {
+    if (!v.isActive() || v.isReleasing())
+      continue;
+
+    if (std::abs(v.getNoteBend()) > std::abs(held.bendSemitones))
+      held.bendSemitones = v.getNoteBend();
+
+    held.pressure = std::max(held.pressure, v.getPolyPressure());
+  }
+
+  return held;
+}
+
 Voice *SynthEngine::findFreeVoice() noexcept {
   for (auto &v : voices)
     if (!v.isActive())

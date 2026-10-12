@@ -29,6 +29,7 @@
 #include "UI/GlideMenu.h"
 #include "UI/LearnMenu.h"
 #include "UI/LookAndFeel.h"
+#include "UI/MacroPanel.h"
 #include "UI/NoiseStrip.h"
 #include "UI/SettingsMenus.h"
 #include "UI/ShapeButton.h"
@@ -816,7 +817,7 @@ void testParameterWiring(OvertoniumProcessor &p) {
   // parameter rather than of the tree, so the answer does not depend on what
   // an earlier test left behind.
   if (auto *v = p.apvts.getParameter(ovt::params::oneVoicePerKeyId))
-    check(v->getDefaultValue() > 0.5f, "one voice per key defaults to on");
+    check(v->getDefaultValue() > 0.5f, "No stack defaults to on");
   check(p.getParameters().size() == expected,
         "parameter count is " + std::to_string(p.getParameters().size()) +
             ", expected " + std::to_string(expected));
@@ -2737,12 +2738,12 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   // each of the thirty-two channels, the level on the noise strip, and one
   // per macro in the panel. The panel's eight are built whether or not the
   // macro has been made, so they are all here whatever the patch says. Then
-  // four in the Playing bar, the voices, bend range, aftertouch and slide,
-  // and sixteen in the Tuning bar, the temperament, root and reference, one
-  // for each of the twelve pitch classes and the drift, all built whether or
-  // not the bars are open.
+  // five in the Playing bar, the voices, the voices in use, bend range,
+  // aftertouch and slide, and sixteen in the Tuning bar, the temperament, root
+  // and reference, one for each of the twelve pitch classes and the drift, all
+  // built whether or not the bars are open.
   check(displays.size() ==
-            3 + 2 * ovt::kNumHarmonics + 1 + ovt::params::kNumMacros + 4 + 16,
+            3 + 2 * ovt::kNumHarmonics + 1 + ovt::params::kNumMacros + 5 + 16,
         "every readout is a segment display now (" +
             std::to_string(displays.size()) + ")");
 
@@ -5508,8 +5509,8 @@ void testSettingsMenu(OvertoniumProcessor &p) {
   // Legato is a tick beside the voice count, and the list's old first entry
   // is no longer offered: a session that stored it reads as one voice with
   // the tick on.
-  check(at("Legato") == at("One voice per key") + 1 && at("1 voice") >= 0,
-        "Legato sits beside One voice per key, under the voice counts");
+  check(at("Legato") == at("No stack") + 1 && at("1 voice") >= 0,
+        "Legato sits beside No stack, under the voice counts");
   check(std::count(entries.begin(), entries.end(), std::string("Legato")) == 1,
         "and is there once, as the switch rather than as a voice count");
 
@@ -5596,10 +5597,9 @@ void testSettingsMenu(OvertoniumProcessor &p) {
   // voice counts rather than off among the output switches. Bounded by
   // entries rather than by the headers around them, since the headers are
   // collected separately above.
-  check(at("One voice per key") > at("16 voices") &&
-            at("One voice per key") < at("0 semitones"),
-        "one voice per key sits with the voice counts (" +
-            std::to_string(at("One voice per key")) + ")");
+  check(at("No stack") > at("16 voices") && at("No stack") < at("0 semitones"),
+        "No stack sits with the voice counts (" +
+            std::to_string(at("No stack")) + ")");
 }
 
 /// The way back from a window that was left narrow.
@@ -7634,6 +7634,192 @@ void testSharedSettingsChoices(OvertoniumProcessor &p) {
   p.applyFactoryPreset(presetIndex("Init"));
 }
 
+/// What the processor publishes for the Playing bar's readouts: the pedal,
+/// the bend, the wheel and the pressure, with MPE off and on.
+void testPlayingReadouts(OvertoniumProcessor &p) {
+  section("What the Playing bar is handed");
+
+  using ovt::params::AftertouchSource;
+
+  const auto setParam = [&p](const char *id, float plain) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1(plain));
+  };
+
+  const auto send = [&p](std::initializer_list<juce::MidiMessage> messages) {
+    juce::MidiBuffer midi;
+    for (const auto &m : messages)
+      midi.addEvent(m, 0);
+
+    juce::AudioBuffer<float> buffer(2, 512);
+    buffer.clear();
+    p.processBlock(buffer, midi);
+  };
+
+  const auto near = [](float a, float b) { return std::abs(a - b) < 0.01f; };
+
+  p.applyFactoryPreset(presetIndex("Init"));
+  setParam(ovt::params::bendRangeId, 2.0f);
+  setParam(ovt::params::atSourceId, (float)AftertouchSource::ChannelPressure);
+  send({juce::MidiMessage::allSoundOff(1),
+        juce::MidiMessage::controllerEvent(1, 1, 0),
+        juce::MidiMessage::pitchWheel(1, 8192)});
+
+  check(!p.isSustainDown() && near(p.getBendPosition(), 0.0f) &&
+            near(p.getWheelPosition(), 0.0f) &&
+            near(p.getPressurePosition(), 0.0f),
+        "everything rests with nothing touched");
+
+  // The pedal, one bit per channel, so letting go on one channel leaves it
+  // down on another, and a panic lets go of all of them.
+  send({juce::MidiMessage::controllerEvent(1, 64, 127)});
+  const bool downOnOne = p.isSustainDown();
+  send({juce::MidiMessage::controllerEvent(3, 64, 127),
+        juce::MidiMessage::controllerEvent(1, 64, 0)});
+  const bool stillDownOnThree = p.isSustainDown();
+  send({juce::MidiMessage::controllerEvent(3, 64, 0)});
+  const bool up = !p.isSustainDown();
+  send({juce::MidiMessage::controllerEvent(1, 64, 127),
+        juce::MidiMessage::allNotesOff(1)});
+  const bool panicLetsGo = !p.isSustainDown();
+
+  check(downOnOne && stillDownOnThree && up && panicLetsGo,
+        "SUSTAIN follows the pedal on every channel, and a panic lets it go");
+
+  // A note held only by the pedal still counts as sounding.
+  send({juce::MidiMessage::controllerEvent(1, 64, 127),
+        juce::MidiMessage::noteOn(1, 60, 0.8f)});
+  send({juce::MidiMessage::noteOff(1, 60)});
+  check(p.getActiveVoiceCount() == 1,
+        "a note the pedal holds is in use (" +
+            std::to_string(p.getActiveVoiceCount()) + ")");
+  send({juce::MidiMessage::controllerEvent(1, 64, 0),
+        juce::MidiMessage::allSoundOff(1)});
+
+  // The wheels, across their travel.
+  bool bendFollows = true;
+  const struct {
+    int value;
+    float position;
+  } wheel[] = {
+      {0, -1.0f}, {4096, -0.5f}, {8192, 0.0f}, {12288, 0.5f}, {16383, 1.0f}};
+  for (const auto &w : wheel) {
+    send({juce::MidiMessage::pitchWheel(1, w.value)});
+    bendFollows &= near(p.getBendPosition(), w.position);
+  }
+  check(bendFollows, "BEND follows the pitch wheel from one end to the other");
+
+  bool wheelFollows = true;
+  for (const auto value : {0, 32, 64, 127}) {
+    send({juce::MidiMessage::controllerEvent(1, 1, value)});
+    wheelFollows &= near(p.getWheelPosition(), (float)value / 127.0f);
+  }
+  check(wheelFollows, "WHEEL follows the mod wheel from one end to the other");
+
+  // Pressure is what the keyboard sends, whatever Aftertouch from passes on,
+  // so the wheel moves WHEEL and nothing else.
+  bool pressureAlone = true;
+  for (const auto source :
+       {AftertouchSource::ChannelPressure, AftertouchSource::ModWheel,
+        AftertouchSource::Either}) {
+    setParam(ovt::params::atSourceId, (float)source);
+    send({juce::MidiMessage::pitchWheel(1, 8192),
+          juce::MidiMessage::controllerEvent(1, 1, 120),
+          juce::MidiMessage::channelPressureChange(1, 30)});
+    pressureAlone &= near(p.getPressurePosition(), 30.0f / 127.0f);
+  }
+  check(pressureAlone,
+        "PRESSURE is the keyboard's pressure, not the wheel, whatever "
+        "Aftertouch from follows (" +
+            std::to_string(p.getPressurePosition()) + ")");
+
+  // And polyphonic aftertouch on a held key, the strongest one.
+  setParam(ovt::params::atSourceId, (float)AftertouchSource::ChannelPressure);
+  send({juce::MidiMessage::channelPressureChange(1, 0),
+        juce::MidiMessage::controllerEvent(1, 1, 0),
+        juce::MidiMessage::noteOn(1, 60, 0.8f),
+        juce::MidiMessage::noteOn(1, 64, 0.8f)});
+  send({juce::MidiMessage::aftertouchChange(1, 60, 40),
+        juce::MidiMessage::aftertouchChange(1, 64, 90)});
+  const auto strongest = p.getPressurePosition();
+  send({juce::MidiMessage::noteOff(1, 64)});
+  const auto afterLetGo = p.getPressurePosition();
+  check(near(strongest, 90.0f / 127.0f) && near(afterLetGo, 40.0f / 127.0f),
+        "PRESSURE shows the strongest key held, and drops as it comes up (" +
+            std::to_string(strongest) + ", " + std::to_string(afterLetGo) +
+            ")");
+  send({juce::MidiMessage::allSoundOff(1)});
+
+  // Under MPE each key bends and presses on its own channel. The member
+  // channels bend over 48 semitones, so a bend of one semitone is 1/48 of
+  // the way, and against a BEND range of 2 it reads halfway.
+  setParam(ovt::params::mpeId, 1.0f);
+  send({});
+
+  const auto semitones = [](float st) {
+    return 8192 + (int)std::lround(st / 48.0f * 8192.0f);
+  };
+
+  send({juce::MidiMessage::noteOn(2, 60, 0.8f),
+        juce::MidiMessage::noteOn(3, 64, 0.8f)});
+  send({juce::MidiMessage::pitchWheel(2, semitones(-0.5f)),
+        juce::MidiMessage::pitchWheel(3, semitones(1.0f)),
+        juce::MidiMessage::channelPressureChange(2, 90),
+        juce::MidiMessage::channelPressureChange(3, 30)});
+  const auto widest = p.getBendPosition();
+  const auto pressed = p.getPressurePosition();
+  send({juce::MidiMessage::noteOff(3, 64)});
+  const auto left = p.getBendPosition();
+
+  check(near(widest, 0.5f) && near(left, -0.25f),
+        "under MPE, BEND shows the key bent furthest, either way (" +
+            std::to_string(widest) + ", " + std::to_string(left) + ")");
+  check(near(pressed, 90.0f / 127.0f),
+        "and PRESSURE the key pressed hardest (" + std::to_string(pressed) +
+            ")");
+
+  // The parser takes the pedal under MPE, and the lamp still sees it.
+  send({juce::MidiMessage::controllerEvent(1, 64, 127)});
+  const bool mpeDown = p.isSustainDown();
+  send({juce::MidiMessage::controllerEvent(1, 64, 0)});
+  check(mpeDown && !p.isSustainDown(), "and SUSTAIN follows the pedal");
+
+  send({juce::MidiMessage::allSoundOff(1)});
+  setParam(ovt::params::mpeId, 0.0f);
+  send({});
+
+  // The editor reads all of this from the message thread while the audio
+  // thread writes it. Nothing here can see a race, but a run under the thread
+  // sanitizer can, and this is what gives it two threads to watch.
+  {
+    std::atomic<bool> playing{true};
+    std::thread audio([&] {
+      for (int b = 0; b < 200; ++b) {
+        const auto on = (b % 2) == 0;
+        send({juce::MidiMessage::controllerEvent(1, 64, on ? 127 : 0),
+              juce::MidiMessage::controllerEvent(1, 1, b % 128),
+              juce::MidiMessage::pitchWheel(1, (b * 80) % 16384),
+              on ? juce::MidiMessage::noteOn(1, 60 + b % 12, 0.8f)
+                 : juce::MidiMessage::noteOff(1, 60 + (b - 1) % 12)});
+      }
+      playing = false;
+    });
+
+    float seen = 0.0f;
+    while (playing)
+      seen += (float)p.getActiveVoiceCount() + (float)p.isSustainDown() +
+              p.getBendPosition() + p.getWheelPosition() +
+              p.getPressurePosition();
+
+    audio.join();
+    check(std::isfinite(seen), "and all of it can be read while it is played");
+  }
+
+  send({juce::MidiMessage::allSoundOff(1)});
+  restoreSessionSettings(p);
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
 /// The Playing bar shows what the parameters say and changes them.
 void testPlayingBar(OvertoniumProcessor &p) {
   section("The Playing bar");
@@ -7683,7 +7869,7 @@ void testPlayingBar(OvertoniumProcessor &p) {
     if (auto *b = dynamic_cast<juce::TextButton *>(child)) {
       if (b->getTitle() == "Legato")
         legato = b;
-      if (b->getTitle() == "One voice per key")
+      if (b->getTitle() == "No stack")
         perKey = b;
       if (b->getTitle() == "MPE")
         mpe = b;
@@ -7693,8 +7879,8 @@ void testPlayingBar(OvertoniumProcessor &p) {
   check(voices != nullptr && bend != nullptr && aftertouch != nullptr &&
             slide != nullptr && legato != nullptr && perKey != nullptr &&
             mpe != nullptr,
-        "it has voices, bend range, aftertouch and slide, and Legato, One "
-        "voice per key and MPE");
+        "it has voices, bend range, aftertouch and slide, and Legato, No "
+        "stack and MPE");
   if (voices == nullptr || bend == nullptr || aftertouch == nullptr ||
       slide == nullptr || legato == nullptr || perKey == nullptr ||
       mpe == nullptr)
@@ -7757,6 +7943,209 @@ void testPlayingBar(OvertoniumProcessor &p) {
         "and follows a change made somewhere else");
   st::apply(p.apvts, st::kMpe);
 
+  // ---- how it is being played ----------------------------------------------
+  const auto &inUse = bar->inUseDisplay();
+  const auto &sustain = bar->sustainLamp();
+
+  check(inUse.isVisible() && sustain.isVisible() &&
+            inUse.getY() == voices->getY() &&
+            inUse.getX() > voices->getRight() &&
+            inUse.getRight() < legato->getX() &&
+            bar->getHeight() == ovt::ui::OptionBar::kHeight,
+        "IN USE stands between VOICES and LEGATO, SUSTAIN is there, and it "
+        "is all still one row");
+
+  bar->showActivity({3, true});
+  const bool three = inUse.getReading().trim() == "3" && inUse.isActive() &&
+                     inUse.getTitle() == "In use: 3 voices" &&
+                     sustain.getToggleState();
+  bar->showActivity({});
+  const bool none = inUse.getReading().trim() == "0" && inUse.isActive() &&
+                    !sustain.getToggleState();
+
+  check(three, "it shows the voices in use and lights SUSTAIN (" +
+                   inUse.getReading().toStdString() + ", " +
+                   inUse.getTitle().toStdString() + ")");
+  check(none, "and reads a lit nought with SUSTAIN dark when nothing sounds");
+
+  // The meters, after SUSTAIN in its group, each across its whole travel.
+  const auto &pitchMeter = bar->bendMeter();
+  const auto &wheelMeter = bar->wheelMeter();
+  const auto &pressureMeter = bar->pressureMeter();
+
+  check(pitchMeter.isVisible() && wheelMeter.isVisible() &&
+            pressureMeter.isVisible() &&
+            sustain.getRight() < pitchMeter.getX() &&
+            pitchMeter.getRight() < wheelMeter.getX() &&
+            wheelMeter.getRight() < pressureMeter.getX() &&
+            pitchMeter.getBounds().getCentreY() ==
+                sustain.getBounds().getCentreY(),
+        "PITCH, WHEEL and PRESSURE stand after SUSTAIN, on its line");
+
+  {
+    // Where a needle's two ends and middle are, from its own width.
+    const auto left = ovt::ui::ActivityNeedle::kSlotInset + 1;
+    const auto right = [](const ovt::ui::ActivityNeedle &n) {
+      return n.getWidth() - ovt::ui::ActivityNeedle::kSlotInset - 2;
+    };
+    const auto middle = [&](const ovt::ui::ActivityNeedle &n) {
+      return (left + right(n)) / 2;
+    };
+    const auto near = [](int a, int b) { return std::abs(a - b) <= 1; };
+
+    bar->showActivity({0, false, -1.0f, 0.0f, 0.0f});
+    const bool atRest = pitchMeter.getColumn() == left &&
+                        wheelMeter.getColumn() == left &&
+                        pressureMeter.getColumn() == left;
+    bar->showActivity({0, false, 0.0f, 0.5f, 0.5f});
+    const bool halfway = near(pitchMeter.getColumn(), middle(pitchMeter)) &&
+                         near(wheelMeter.getColumn(), middle(wheelMeter)) &&
+                         near(pressureMeter.getColumn(), middle(pressureMeter));
+    bar->showActivity({0, false, 1.0f, 1.0f, 1.0f});
+    const bool atTheEnd = pitchMeter.getColumn() == right(pitchMeter) &&
+                          wheelMeter.getColumn() == right(wheelMeter) &&
+                          pressureMeter.getColumn() == right(pressureMeter);
+
+    check(atRest && halfway && atTheEnd,
+          "each needle reaches both ends of its travel and its middle (" +
+              std::to_string(pitchMeter.getColumn()) + " of " +
+              std::to_string(right(pitchMeter)) + ")");
+
+    // The pitch wheel rests in the middle and is marked there. The other two
+    // rest at the left and are not, which shows as the middle column of a
+    // needle at the far end matching the column beside it.
+    const auto markedAtMiddle = [](const ovt::ui::ActivityNeedle &n) {
+      auto &needle = const_cast<ovt::ui::ActivityNeedle &>(n);
+      const auto image =
+          needle.createComponentSnapshot(needle.getLocalBounds(), true, 1.0f);
+      const auto x = needle.getWidth() / 2;
+      const auto y = needle.getHeight() / 2;
+      return image.getPixelAt(x, y) != image.getPixelAt(x - 3, y);
+    };
+
+    check(markedAtMiddle(pitchMeter) && !markedAtMiddle(wheelMeter) &&
+              !markedAtMiddle(pressureMeter),
+          "PITCH is marked at its middle and WHEEL and PRESSURE are not");
+
+    bar->showActivity({});
+
+    // A bar is handed its first reading before it has a width, and has to put
+    // its needles where they belong once it is laid out.
+    juce::Component popupHost;
+    ovt::ui::PlayingBar fresh(p.apvts, popupHost);
+    fresh.setSize(1348, ovt::ui::OptionBar::kHeight);
+    check(near(fresh.bendMeter().getColumn(), middle(fresh.bendMeter())) &&
+              fresh.wheelMeter().getColumn() == left,
+          "and a new bar's needles start where they rest (" +
+              std::to_string(fresh.bendMeter().getColumn()) + ")");
+  }
+
+  // ---- the macros
+  // -------------------------------------------------------------
+  {
+    namespace pp = ovt::params;
+
+    bool inOrder = true;
+    for (int m = 0; m < pp::kNumMacros; ++m) {
+      const auto &knob = bar->macroKnob(m);
+      inOrder &= knob.isVisible() &&
+                 knob.getX() > (m == 0 ? pressureMeter.getRight()
+                                       : bar->macroKnob(m - 1).getRight() - 1);
+    }
+    check(inOrder && bar->getHeight() == ovt::ui::OptionBar::kHeight,
+          "the eight macro knobs stand after the meters, still on one row");
+
+    const auto setChoice = [&p](const juce::String &id, int index) {
+      if (auto *param = p.apvts.getParameter(id))
+        param->setValueNotifyingHost(param->convertTo0to1((float)index));
+    };
+
+    // Macro 2 made, aimed at the first row and given the third colour, and
+    // the rest left unmade.
+    setChoice(pp::macroRowId(1), 1);
+    setChoice(pp::macroColourId(1), 3);
+    bar->refresh();
+
+    auto &made = bar->macroKnob(1).slider;
+    auto &unmade = bar->macroKnob(0).slider;
+
+    check(made.isEnabled() && !(bool)made.getProperties()["blank"] &&
+              made.findColour(juce::Slider::rotarySliderFillColourId) ==
+                  pp::macroColour(3),
+          "a made macro's knob is live and wears its colour");
+    check(!unmade.isEnabled() && (bool)unmade.getProperties()["blank"],
+          "and one nobody has made is blank and does nothing");
+
+    // Captioned with its row once made, with its number until then.
+    check(bar->macroKnob(1).getCaption() == "TUNE" &&
+              bar->macroKnob(0).getCaption() == "1" &&
+              made.getTitle() == "Macro 2 amount, Tune, Playing bar" &&
+              unmade.getTitle() == "Macro 1 amount, Playing bar",
+          "a made macro is captioned and named after its row, an unmade one "
+          "by its number (" +
+              bar->macroKnob(1).getCaption().toStdString() + ", " +
+              made.getTitle().toStdString() + ")");
+
+    // Every row's caption fits under a knob, in the font it is drawn in.
+    {
+      const auto font = ovt::ui::makeFont(9.0f, true);
+      juce::String tooWide;
+      for (int row = 1; row <= pp::kNumMacroRows; ++row) {
+        const auto caption = ovt::ui::PlayingBar::macroCaption(row);
+        if (caption.isEmpty() ||
+            juce::GlyphArrangement::getStringWidth(font, caption) >
+                (float)bar->macroKnob(1).getWidth())
+          tooWide << caption << " (" << pp::macroRowName(row) << ") ";
+      }
+      check(tooWide.isEmpty() && bar->macroKnob(1).getWidth() ==
+                                     ovt::ui::PlayingBar::kMacroWidth,
+            "every row a macro can aim at has a caption that fits under its "
+            "knob (" +
+                tooWide.toStdString() + ")");
+    }
+
+    // The knob and the parameter move together, both ways.
+    auto *amount = p.apvts.getParameter(pp::macroAmountId(1));
+    made.setValue(0.5, juce::sendNotificationSync);
+    const auto fromKnob = amount->convertFrom0to1(amount->getValue());
+    amount->setValueNotifyingHost(amount->convertTo0to1(-0.25f));
+    const auto fromParameter = made.getValue();
+
+    check(std::abs(fromKnob - 0.5f) < 0.001f &&
+              std::abs(fromParameter + 0.25) < 0.001,
+          "the knob turns the macro's amount, and the amount turns the knob (" +
+              std::to_string(fromKnob) + ", " + std::to_string(fromParameter) +
+              ")");
+
+    // Blank means nothing on it to read: the same picture wherever the
+    // amount stands, where a made knob moves its pointer.
+    const auto picture = [](juce::Slider &slider, double value) {
+      slider.setValue(value, juce::dontSendNotification);
+      return slider.createComponentSnapshot(slider.getLocalBounds(), true,
+                                            1.0f);
+    };
+    const auto same = [](const juce::Image &a, const juce::Image &b) {
+      for (int y = 0; y < a.getHeight(); ++y)
+        for (int x = 0; x < a.getWidth(); ++x)
+          if (a.getPixelAt(x, y) != b.getPixelAt(x, y))
+            return false;
+      return true;
+    };
+
+    const bool blankStill = same(picture(unmade, -1.0), picture(unmade, 1.0)) &&
+                            same(picture(unmade, 0.0), picture(unmade, 1.0));
+    const bool madeMoves = !same(picture(made, -1.0), picture(made, 1.0));
+
+    check(blankStill && madeMoves,
+          "a blank knob shows no amount, where a made one does");
+
+    unmade.setValue(0.0, juce::dontSendNotification);
+    amount->setValueNotifyingHost(amount->getDefaultValue());
+    setChoice(pp::macroRowId(1), 0);
+    setChoice(pp::macroColourId(1), 0);
+    bar->refresh();
+  }
+
   // ---- a narrow window wraps, as the top bar does --------------------------
   //
   // Nothing is left out. The groups that do not fit across go onto another
@@ -7766,14 +8155,23 @@ void testPlayingBar(OvertoniumProcessor &p) {
     sizeEditor(*editor, ovt::ui::TopBar::minimumWidth());
 
     bool all = true;
-    for (auto *c : {static_cast<juce::Component *>(voices),
-                    static_cast<juce::Component *>(legato),
-                    static_cast<juce::Component *>(perKey),
-                    static_cast<juce::Component *>(bend),
-                    static_cast<juce::Component *>(mpe),
-                    static_cast<juce::Component *>(aftertouch),
-                    static_cast<juce::Component *>(slide)})
+    for (auto *c : {static_cast<const juce::Component *>(voices),
+                    static_cast<const juce::Component *>(legato),
+                    static_cast<const juce::Component *>(perKey),
+                    static_cast<const juce::Component *>(bend),
+                    static_cast<const juce::Component *>(mpe),
+                    static_cast<const juce::Component *>(aftertouch),
+                    static_cast<const juce::Component *>(slide),
+                    static_cast<const juce::Component *>(&inUse),
+                    static_cast<const juce::Component *>(&sustain),
+                    static_cast<const juce::Component *>(&pitchMeter),
+                    static_cast<const juce::Component *>(&wheelMeter),
+                    static_cast<const juce::Component *>(&pressureMeter)})
       all &= c->isVisible() && bar->getLocalBounds().contains(c->getBounds());
+
+    for (int m = 0; m < ovt::params::kNumMacros; ++m)
+      all &= bar->macroKnob(m).isVisible() &&
+             bar->getLocalBounds().contains(bar->macroKnob(m).getBounds());
 
     check(all && bar->getHeight() > oneRow &&
               bar->getHeight() == bar->heightForWidth(bar->getWidth()),
@@ -7794,6 +8192,155 @@ void testPlayingBar(OvertoniumProcessor &p) {
   }
 
   opener->onClick();
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
+/// A right-click on a knob in the bars: MIDI Learn on Retune, and on a macro
+/// knob a menu that offers to make the macro, or to bind a controller to it
+/// and change it in MACROS once it is made.
+void testBarRightClicks(OvertoniumProcessor &p) {
+  section("Right-clicks in the bars");
+
+  namespace pp = ovt::params;
+  using ovt::ui::PlayingBar;
+
+  p.applyFactoryPreset(presetIndex("Init"));
+
+  const auto setChoice = [&p](const juce::String &id, int index) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1((float)index));
+  };
+  const auto chosen = [&p](const juce::String &id) {
+    auto *param = p.apvts.getParameter(id);
+    return (int)std::lround(param->convertFrom0to1(param->getValue()));
+  };
+
+  // Delivered as JUCE delivers it to a listening ancestor: the control under
+  // the pointer as the original component, the bar as the one hearing it.
+  const auto click = [](juce::Component &landedOn, juce::Component &bar,
+                        bool right) {
+    const auto at = bar.getLocalBounds().getCentre().toFloat();
+    const auto now = juce::Time::getCurrentTime();
+    return juce::MouseEvent(
+        juce::Desktop::getInstance().getMainMouseSource(), at,
+        juce::ModifierKeys(right ? juce::ModifierKeys::rightButtonModifier
+                                 : juce::ModifierKeys::leftButtonModifier),
+        juce::MouseInputSource::defaultPressure,
+        juce::MouseInputSource::defaultOrientation,
+        juce::MouseInputSource::defaultRotation,
+        juce::MouseInputSource::defaultTiltX,
+        juce::MouseInputSource::defaultTiltY, &bar, &landedOn, now, at, now, 1,
+        false);
+  };
+
+  juce::Component popupHost;
+  PlayingBar bar(p.apvts, popupHost);
+  bar.setSize(1348, ovt::ui::OptionBar::kHeight);
+
+  setChoice(pp::macroRowId(1), 8);
+  bar.refresh();
+
+  int asked = -1;
+  juce::String learnFor;
+  bar.onMacroMenuRequested = [&asked](int m) { asked = m; };
+  bar.onLearnRequested = [&learnFor](const juce::String &id) { learnFor = id; };
+
+  bar.mouseDown(click(bar.macroKnob(1).slider, bar, true));
+  const auto onMade = asked;
+  asked = -1;
+  bar.mouseDown(click(bar.macroKnob(0).slider, bar, true));
+  const auto onUnmade = asked;
+  asked = -1;
+  bar.mouseDown(click(bar.macroKnob(1).slider, bar, false));
+  const auto onLeft = asked;
+  bar.mouseDown(
+      click(const_cast<ovt::ui::ScreenSwitch &>(bar.sustainLamp()), bar, true));
+
+  check(onMade == 1 && onUnmade == 0 && onLeft == -1 && asked == -1 &&
+            learnFor.isEmpty(),
+        "a right-click on a macro knob asks for that macro's menu, and "
+        "nothing else does (" +
+            std::to_string(onMade) + ", " + std::to_string(onUnmade) + ")");
+
+  // The menu itself, read as data since a menu cannot be shown here.
+  const auto ids = [](const juce::PopupMenu &menu) {
+    std::set<int> found;
+    for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+      if (it.getItem().itemID != 0)
+        found.insert(it.getItem().itemID);
+    return found;
+  };
+
+  auto *amount = dynamic_cast<juce::RangedAudioParameter *>(
+      p.apvts.getParameter(pp::macroAmountId(1)));
+
+  const auto unmadeMenu = PlayingBar::macroMenu(0, false, p.midiLearn, amount);
+  const auto madeMenu = PlayingBar::macroMenu(1, true, p.midiLearn, amount);
+  const auto unmadeIds = ids(unmadeMenu);
+  const auto madeIds = ids(madeMenu);
+
+  check(unmadeIds == std::set<int>{PlayingBar::kAssignMacro},
+        "an unmade macro's menu offers only to assign it");
+  check(madeIds.count(ovt::ui::learn::kLearn) == 1 &&
+            madeIds.count(PlayingBar::kEditMacro) == 1 &&
+            madeIds.count(PlayingBar::kAssignMacro) == 0,
+        "and a made one MIDI Learn and a way into MACROS");
+
+  p.midiLearn.arm(amount);
+  const auto waitingIds =
+      ids(PlayingBar::macroMenu(1, true, p.midiLearn, amount));
+  p.midiLearn.arm(nullptr);
+  check(waitingIds.count(ovt::ui::learn::kCancel) == 1,
+        "which says so while it waits for a controller");
+
+  check(bar.macroKnob(0).slider.getTooltip().contains("not assigned") &&
+            bar.macroKnob(0).slider.getTooltip().contains("Right-click") &&
+            bar.macroKnob(1).slider.getTooltip().contains("Right-click"),
+        "and the tooltips say what a right-click does");
+
+  // Assigning from the knob makes that macro, and only if nobody has.
+  {
+    ovt::ui::MacroPanel panel(p.apvts);
+    panel.make(4);
+    setChoice(pp::macroRowId(5), 7);
+    panel.make(5);
+
+    check(chosen(pp::macroRowId(4)) == 1 && chosen(pp::macroRowId(5)) == 7,
+          "assigning makes the macro on the first row, and leaves a made one "
+          "where it is aimed");
+  }
+
+  // Retune is the other knob in the bars, and offers MIDI Learn.
+  {
+    ovt::ui::TuningBar tuning(p.apvts, popupHost);
+    tuning.setSize(1348, ovt::ui::OptionBar::kHeight);
+
+    juce::Slider *retune = nullptr;
+    std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+      for (auto *child : c.getChildren()) {
+        if (auto *s = dynamic_cast<juce::Slider *>(child))
+          if (s->getTitle() == "Adaptive retune time")
+            retune = s;
+        look(*child);
+      }
+    };
+    look(tuning);
+
+    juce::String tuningLearn;
+    tuning.onLearnRequested = [&tuningLearn](const juce::String &id) {
+      tuningLearn = id;
+    };
+
+    if (retune != nullptr)
+      tuning.mouseDown(click(*retune, tuning, true));
+
+    check(retune != nullptr && tuningLearn == pp::adaptiveRetuneId,
+          "a right-click on Retune offers MIDI Learn for it (" +
+              tuningLearn.toStdString() + ")");
+  }
+
+  for (int m = 0; m < pp::kNumMacros; ++m)
+    setChoice(pp::macroRowId(m), 0);
   p.applyFactoryPreset(presetIndex("Init"));
 }
 
@@ -11344,7 +11891,9 @@ int main(int argc, char **argv) {
   testSegmentCells();
   testOptionBars(processor);
   testSharedSettingsChoices(processor);
+  testPlayingReadouts(processor);
   testPlayingBar(processor);
+  testBarRightClicks(processor);
   testTuningBar(processor);
   testAdaptiveReadouts(processor);
   testFoldingAndUnfoldingIsSymmetric(processor);

@@ -64,10 +64,7 @@ MacroPanel::MacroPanel(juce::AudioProcessorValueTreeState &state)
     if (free < 0)
       return;
 
-    // Pointed at the first real row, which is TUNE, since that is the one
-    // issue #24 asked for and the one a macro is most wanted on.
-    write(params::macroRowId(free), 1);
-    refresh();
+    make(free);
   };
 
   addAndMakeVisible(addButton);
@@ -205,6 +202,18 @@ void MacroPanel::write(const juce::String &parameterId, int value) {
   if (auto *p = dynamic_cast<juce::RangedAudioParameter *>(
           apvts.getParameter(parameterId)))
     p->setValueNotifyingHost(p->convertTo0to1((float)value));
+}
+
+void MacroPanel::make(int macro) {
+  if (macro < 0 || macro >= params::kNumMacros)
+    return;
+
+  // Pointed at the first real row, which is TUNE, since that is the one issue
+  // #24 asked for and the one a macro is most wanted on.
+  if (chosen(params::macroRowId(macro)) == 0)
+    write(params::macroRowId(macro), 1);
+
+  refresh();
 }
 
 int MacroPanel::firstFree() const {
