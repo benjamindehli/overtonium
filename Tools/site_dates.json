@@ -1,7 +1,7 @@
 {
     "": {
-        "words": "0c6ce5c17d8106ca",
-        "modified": "2026-10-10"
+        "words": "03862742849c629a",
+        "modified": "2026-10-12"
     },
     "tuning/": {
         "words": "85ea6a7ebcdfce02",
@@ -12,8 +12,8 @@
         "modified": "2026-10-11"
     },
     "presets/": {
-        "words": "3269452b9c319cca",
-        "modified": "2026-10-10"
+        "words": "975edc4a8b89f36c",
+        "modified": "2026-10-12"
     },
     "install/": {
         "words": "71aa64b76252a14f",
@@ -28,7 +28,7 @@
         "modified": "2026-10-10"
     },
     "playing/": {
-        "words": "b90045792b87977e",
+        "words": "44983f1e28608693",
         "modified": "2026-10-12"
     }
 }

@@ -10,7 +10,7 @@ Any string here can name a count the source knows, and the generator fills it
 in rather than trusting whoever last typed it:
 
     {presets}       the factory presets in words, "thirty-four"
-    {parameters}    the host parameters in figures, "836"
+    {parameters}    the host parameters in figures, "842"
     {preset_names}  every factory preset, in the order the menu lists them
 
 The version is read from CMakeLists.txt. RELEASED is the day that version went
@@ -146,7 +146,8 @@ QUESTIONS = [
         "Can Overtonium do microtonal tunings and just intonation?",
         "Both, and separately. TUNE sweeps each partial between its equal-tempered position and its exact whole-number ratio. The keyboard "
         "underneath is tuned on its own, to equal, just, Pythagorean, quarter-comma meantone, Werckmeister III or Young, on any root, at any "
-        "reference pitch from 415 to 466 Hz.",
+        'reference pitch from 415 to 466 Hz. Or to <a href="tuning/#adaptive">Adaptive</a>, which keeps whatever chord you hold in just '
+        "intonation as you play, moving a held note where the next chord needs it.",
     ),
     (
         "Does Overtonium support MPE?",

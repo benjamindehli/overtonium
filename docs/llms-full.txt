@@ -8,7 +8,7 @@ Every page of https://benjamindehli.github.io/overtonium/ as Markdown, in the or
 
 Page: Overtonium, a free 32-partial additive synthesizer plugin
 URL: https://benjamindehli.github.io/overtonium/
-Last changed: 2026-10-10
+Last changed: 2026-10-12
 
 # Overtonium, a 32-partial additive overtone synthesizer
 
@@ -90,7 +90,7 @@ Building a sound by adding sine waves together rather than by filtering a rich o
 
 **Can Overtonium do microtonal tunings and just intonation?**
 
-Both, and separately. TUNE sweeps each partial between its equal-tempered position and its exact whole-number ratio. The keyboard underneath is tuned on its own, to equal, just, Pythagorean, quarter-comma meantone, Werckmeister III or Young, on any root, at any reference pitch from 415 to 466 Hz.
+Both, and separately. TUNE sweeps each partial between its equal-tempered position and its exact whole-number ratio. The keyboard underneath is tuned on its own, to equal, just, Pythagorean, quarter-comma meantone, Werckmeister III or Young, on any root, at any reference pitch from 415 to 466 Hz. Or to [Adaptive](https://benjamindehli.github.io/overtonium/tuning/#adaptive), which keeps whatever chord you hold in just intonation as you play, moving a held note where the next chord needs it.
 
 **Does Overtonium support MPE?**
 
@@ -697,7 +697,7 @@ All 842 as the host lists them, with a control that every partial or every macro
 | `Glide Mode` | `glideMode` | Fixed rate, Fixed time | Fixed rate |
 | `Legato` | `legato` | Off or on | Off |
 | `Adaptive Retune` | `adaptiveRetune` | 0.0 ms to 1.00 s | 30.0 ms |
-| `Adaptive Harmonic Seventh` | `adaptiveSeventh` | Off or on | On |
+| `Adaptive Harmonic Sevenths` | `adaptiveSeventh` | Off or on | On |
 | `Adaptive No Drift` | `adaptiveHome` | Off or on | Off |
 
 **On every partial**, twenty-three controls, each one on all 32 partials.
@@ -800,7 +800,7 @@ Two things to expect. A control jumps to wherever the controller is standing rat
 
 Page: Overtonium presets: the thirty-four that ship, and saving your own
 URL: https://benjamindehli.github.io/overtonium/presets/
-Last changed: 2026-10-10
+Last changed: 2026-10-12
 
 # Presets
 
@@ -974,7 +974,7 @@ A Wurlitzer 200A electric piano, with one tremolo circuit across the whole keybo
 
 ## What a preset carries
 
-The patch and nothing else. Everything in the Settings menu stays where you put it, which is the rule rather than a list that might fall behind one: the menu is where the instrument is set up and the panel is where the sound is made. So loading a preset never changes your polyphony, your temperament, your reference pitch, your pitch bend range, your MPE or aftertouch routing, or what leaves the outputs. Nor your master fader, your window size or your [LINK](https://benjamindehli.github.io/overtonium/controls/#link) settings. Those are properties of the session you are working in rather than of any one sound in it, and having a patch drag you back to equal temperament in the middle of a piece would be no help.
+The patch and nothing else. Everything in the Settings menu stays where you put it, which is the rule rather than a list that might fall behind one: the menu is where the instrument is set up and the panel is where the sound is made. So loading a preset never changes your polyphony, your temperament, your reference pitch, your pitch bend range, your MPE or aftertouch routing, or Adaptive's Retune, harmonic sevenths and No drift. Nor your window size or your [LINK](https://benjamindehli.github.io/overtonium/controls/#link) settings. Those are properties of the session you are working in rather than of any one sound in it, and having a patch drag you back to equal temperament in the middle of a piece would be no help. The master fader and the output stage go the other way. They are on the panel and part of the sound, so a preset arrives at the level it was made at, through the clipper it was made with.
 
 Presets you save follow the same rule as the ones that ship, and carry exactly the same set of controls. A preset saved before this was true still loads, and the settings it recorded are ignored rather than applied.
 

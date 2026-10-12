@@ -37,11 +37,17 @@ Resources/
 Source/
   dsp/            JUCE-free DSP core, unit tested standalone
     Harmonics.h     tuning table and blend maths
+    Temperament.h   how the keyboard is tuned, the fixed temperaments and
+                    Adaptive's chain of fifths
     SineTable.h     interpolated wavetable lookup, and the plain sine
     Character.h     the oscillator characters, as band-limited tables
     Drift.h         seeded PRNG and the smooth random contour
+    Lfo.h           the shapes a modulator traces
     Envelope.h      per-partial delay, ADSR and the two-stage key-off
+    Velocity.h      what key velocity does to the fader, the attack and the
+                    delay
     Params.h        plain-data parameter snapshot
+    Exact.h         exact equality, for comparisons that mean it
     Voice.*         32 partials, one note
     Halfband.h      the half-band filter the drive oversamples through
     BusDrive.*      the drive each character puts on the summed mix
@@ -51,14 +57,19 @@ Source/
     Reverb.*        the master reverb as a feedback delay network
     PlateReverb.*   the same as a modulated plate
     SpringReverb.*  the same as a tray of springs
+    Wobble.*        a warped record under the whole instrument
+    OutputStage.*   the five clippers the mix runs into on its way out
     SynthEngine.*   voice pool, allocation, stealing, effects, master stage
+    AdaptiveSnapshot.h  what Adaptive settled the held chord on, and the
+                    triple buffer that hands it to the editor
   PluginParameters.*  APVTS layout, 842 parameters, and the audio-thread snapshot
   Presets.*           factory presets
   MidiLearn.*         which controller moves which control
   PluginProcessor.*   MIDI handling, sample-accurate rendering, state
   PluginEditor.*      window, zoom, LINK, gutter
   UI/                 theme, look and feel, channel and noise strips, top bar,
-                      macro panel
+                      the Playing and Tuning bars, the Settings lists both
+                      share, macro panel
 Tests/
   dsp_test.cpp            standalone DSP tests and CPU benchmark
   plugin_runtime_test.cpp headless plugin integration tests

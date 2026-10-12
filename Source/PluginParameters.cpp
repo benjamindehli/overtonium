@@ -1131,7 +1131,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   // Whether Adaptive uses the harmonic seventh at all, on by default, on the
   // end with the rest of what it brought.
   layout.add(std::make_unique<BoolP>(juce::ParameterID{adaptiveSeventhId, 1},
-                                     "Adaptive Harmonic Seventh", true));
+                                     "Adaptive Harmonic Sevenths", true));
 
   // Whether it stays home rather than drifting, off by default, after it.
   layout.add(std::make_unique<BoolP>(juce::ParameterID{adaptiveHomeId, 1},
