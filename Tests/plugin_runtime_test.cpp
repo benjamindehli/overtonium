@@ -816,7 +816,7 @@ void testParameterWiring(OvertoniumProcessor &p) {
   // parameter rather than of the tree, so the answer does not depend on what
   // an earlier test left behind.
   if (auto *v = p.apvts.getParameter(ovt::params::oneVoicePerKeyId))
-    check(v->getDefaultValue() > 0.5f, "one voice per key defaults to on");
+    check(v->getDefaultValue() > 0.5f, "No stack defaults to on");
   check(p.getParameters().size() == expected,
         "parameter count is " + std::to_string(p.getParameters().size()) +
             ", expected " + std::to_string(expected));
@@ -5508,8 +5508,8 @@ void testSettingsMenu(OvertoniumProcessor &p) {
   // Legato is a tick beside the voice count, and the list's old first entry
   // is no longer offered: a session that stored it reads as one voice with
   // the tick on.
-  check(at("Legato") == at("One voice per key") + 1 && at("1 voice") >= 0,
-        "Legato sits beside One voice per key, under the voice counts");
+  check(at("Legato") == at("No stack") + 1 && at("1 voice") >= 0,
+        "Legato sits beside No stack, under the voice counts");
   check(std::count(entries.begin(), entries.end(), std::string("Legato")) == 1,
         "and is there once, as the switch rather than as a voice count");
 
@@ -5596,10 +5596,9 @@ void testSettingsMenu(OvertoniumProcessor &p) {
   // voice counts rather than off among the output switches. Bounded by
   // entries rather than by the headers around them, since the headers are
   // collected separately above.
-  check(at("One voice per key") > at("16 voices") &&
-            at("One voice per key") < at("0 semitones"),
-        "one voice per key sits with the voice counts (" +
-            std::to_string(at("One voice per key")) + ")");
+  check(at("No stack") > at("16 voices") && at("No stack") < at("0 semitones"),
+        "No stack sits with the voice counts (" +
+            std::to_string(at("No stack")) + ")");
 }
 
 /// The way back from a window that was left narrow.
@@ -7869,7 +7868,7 @@ void testPlayingBar(OvertoniumProcessor &p) {
     if (auto *b = dynamic_cast<juce::TextButton *>(child)) {
       if (b->getTitle() == "Legato")
         legato = b;
-      if (b->getTitle() == "One voice per key")
+      if (b->getTitle() == "No stack")
         perKey = b;
       if (b->getTitle() == "MPE")
         mpe = b;
@@ -7879,8 +7878,8 @@ void testPlayingBar(OvertoniumProcessor &p) {
   check(voices != nullptr && bend != nullptr && aftertouch != nullptr &&
             slide != nullptr && legato != nullptr && perKey != nullptr &&
             mpe != nullptr,
-        "it has voices, bend range, aftertouch and slide, and Legato, One "
-        "voice per key and MPE");
+        "it has voices, bend range, aftertouch and slide, and Legato, No "
+        "stack and MPE");
   if (voices == nullptr || bend == nullptr || aftertouch == nullptr ||
       slide == nullptr || legato == nullptr || perKey == nullptr ||
       mpe == nullptr)

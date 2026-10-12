@@ -1,7 +1,7 @@
 [
     {"id": "masterGain", "name": "Master", "type": "continuous", "min": "-60.0", "max": "12.0", "default": "-12.0", "unit": "dB"},
     {"id": "polyphony", "name": "Polyphony", "type": "choice", "choices": ["Legato", "1 voice", "2 voices", "4 voices", "6 voices", "8 voices", "12 voices", "16 voices"], "default": "8 voices"},
-    {"id": "oneVoicePerKey", "name": "One Voice Per Key", "type": "switch", "default": "On"},
+    {"id": "oneVoicePerKey", "name": "No Stack", "type": "switch", "default": "On"},
     {"id": "bendRange", "name": "Pitch Bend Range", "type": "whole", "min": "0", "max": "24", "default": "2"},
     {"id": "phaseReset", "name": "Phase Reset", "type": "switch", "default": "On"},
     {"id": "safetyClip", "name": "Safety Clip", "type": "switch", "default": "On"},

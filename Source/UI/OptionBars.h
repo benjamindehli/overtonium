@@ -172,7 +172,7 @@ private:
   SegmentDisplay bend{"st", SegmentDisplay::Bars::Seven, 2};
   SegmentDisplay aftertouch{{}, SegmentDisplay::Bars::Fourteen, 8};
   SegmentDisplay slide{{}, SegmentDisplay::Bars::Fourteen, 6};
-  GlowButton legato, onePerKey, mpe;
+  GlowButton legato, noStack, mpe;
 
   SegmentDisplay inUse{{}, SegmentDisplay::Bars::Seven, 2};
   ScreenSwitch sustain;

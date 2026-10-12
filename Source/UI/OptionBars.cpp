@@ -326,7 +326,7 @@ PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state,
   styleSwitch(legato, "LEGATO", "Legato",
               "A key going down while another is held carries the note on "
               "rather than starting a new one");
-  styleSwitch(onePerKey, "1 PER KEY", "One voice per key",
+  styleSwitch(noStack, "NO STACK", "No stack",
               "A key played again takes over its own voice rather than "
               "starting another");
   styleSwitch(mpe, "MPE", "MPE",
@@ -338,7 +338,7 @@ PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state,
   };
 
   legato.onClick = [flip] { flip(settings::kLegato); };
-  onePerKey.onClick = [flip] { flip(settings::kOneVoicePerKey); };
+  noStack.onClick = [flip] { flip(settings::kOneVoicePerKey); };
   mpe.onClick = [flip] { flip(settings::kMpe); };
 
   voices.setTooltip("How many notes can sound at once");
@@ -373,7 +373,7 @@ PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state,
   addGroup({{&voices, juce::jmax(40, natural(voices)), "VOICES"},
             {&inUse, juce::jmax(40, natural(inUse)), "IN USE"},
             {&legato, 62, {}},
-            {&onePerKey, 74, {}}});
+            {&noStack, 74, {}}});
   addGroup({{&bend, juce::jmax(40, natural(bend)), "BEND"}});
   addGroup({{&mpe, 44, {}},
             {&aftertouch, natural(aftertouch), "AFTERTOUCH"},
@@ -474,8 +474,8 @@ void PlayingBar::refresh() {
   slide.setTitle("Slide to: " + params::slideDestChoices[target]);
 
   legato.setToggleState(settings::legatoOn(apvts), juce::dontSendNotification);
-  onePerKey.setToggleState(settings::isOn(apvts, params::oneVoicePerKeyId),
-                           juce::dontSendNotification);
+  noStack.setToggleState(settings::isOn(apvts, params::oneVoicePerKeyId),
+                         juce::dontSendNotification);
   mpe.setToggleState(settings::isOn(apvts, params::mpeId),
                      juce::dontSendNotification);
 

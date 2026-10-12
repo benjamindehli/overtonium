@@ -57,7 +57,7 @@ A preset holds parameter values and nothing else. Not the window size, the zoom 
 
 Factory presets start from a neutral base rather than from wherever you happened to be, so one always gives the instrument it describes. That covers the globals that are part of the sound: STRETCH, TRACK, the converter and phase reset all go back to neutral unless the preset asks for otherwise.
 
-What it will not touch is listed once, as `kSessionParamIds`, and holds for every preset including Init: polyphony, bend range, the aftertouch source, what the slide reaches, one voice per key, phase reset, the temperament, its root, the reference pitch and MPE. How you play the instrument and what it is tuned to are not part of a patch.
+What it will not touch is listed once, as `kSessionParamIds`, and holds for every preset including Init: polyphony, bend range, the aftertouch source, what the slide reaches, No stack, phase reset, the temperament, its root, the reference pitch and MPE. How you play the instrument and what it is tuned to are not part of a patch.
 
 How loud it is used to be on that list, and the master fader and the safety clipper sat there together on those grounds. They came off it when the clipper became five shapes rather than one with a switch. The fader is the drive into that stage, so a patch that wants to be heard leaning on the Asymmetric curve, or arriving under the Limiter's ceiling, has to be able to say how hard it pushes, and a preset that could choose the shape but not the level could not describe either. Loading a preset therefore moves the output level, which is a real cost and is written down here rather than discovered. Both halves are tested from that same list, so the code and the test cannot come to disagree about what the rule is: every preset is loaded twice, once clean and once after deliberately making a mess of everything, and required to come out identical, and then all thirty-four presets are loaded in turn against a session set to Werckmeister on F at 415 Hz, which has to survive.
 
@@ -422,7 +422,7 @@ Zoom lives in the Settings menu rather than on the bar, and that is worth eighty
 
 ### The Playing and Tuning bars
 
-The settings that get changed while playing, the voice count, Legato, one voice per key, bend range, MPE, aftertouch and slide, and the temperament, root, reference and retune, are hidden in a menu until it is opened and take two or three clicks to change. Two bars under the top bar show them at a glance and change them in one click. Each is one row of the top bar, drawn the same way, framed groups, segment displays and lit caps, so it reads as more of that panel rather than a window laid over it.
+The settings that get changed while playing, the voice count, Legato, No stack, bend range, MPE, aftertouch and slide, and the temperament, root, reference and retune, are hidden in a menu until it is opened and take two or three clicks to change. Two bars under the top bar show them at a glance and change them in one click. Each is one row of the top bar, drawn the same way, framed groups, segment displays and lit caps, so it reads as more of that panel rather than a window laid over it.
 
 **The buttons stand two by two.** SETTINGS and MACROS over PLAYING and TUNING, a keyboard and a tuning fork, in the room the first two had. Four in a line made the bar's second group 90 pixels wider and pushed the bar onto a second row at the width that shows all 32 channels, which costs the mixer 58 pixels whether a bar is open or not. The block fills the row's height rather than standing on the dial line, the one place on the bar that does not.
 
@@ -584,7 +584,7 @@ Every channel has a glide time, the last row under PITCH MOD, and a new note rea
 
 Off is the default on every channel, so a patch written without glide plays as it did. Each channel's glide parameter is declared where the start phase it replaces was, so every other parameter keeps the index it had for a host that goes by position, and in the macro list Glide holds that same slot, so a macro stored against any other row still points at it.
 
-### One voice per key
+### No stack
 
 The instrument is polyphonic across the keyboard and monophonic within a key. A string, a tine or a bar is one object, and striking it again takes over whatever it was already doing rather than starting a second copy beside the first, so playing the same key twice does the same here.
 
@@ -594,7 +594,7 @@ A tail being taken over gets the same four millisecond fade a stolen voice gets,
 
 A key that is still down, or held by the sustain pedal, is retriggered where it stands instead. That keeps two things a fade would lose: with phase reset off, a legato retrigger carries on from the level the envelope is at rather than restarting from silence, and re-striking a pedalled note takes it back off the pedal.
 
-All of that is a switch, in Settings beside the voice counts, because it answers the other half of the same question: how many voices there are, and how many one key may take. It is on by default. Turned off, every strike gets a voice of its own and nothing about the previous strike is disturbed, so the tails sum and a repeatedly struck bell builds up. That is a sound rather than a fault, which is why it is offered. It belongs to the session rather than to a patch, so loading a preset never changes it.
+All of that is a switch, No stack, in Settings and the Playing bar beside the voice counts, because it answers the other half of the same question: how many voices there are, and how many one key may take. It is on by default. Turned off, every strike gets a voice of its own and nothing about the previous strike is disturbed, so the tails sum and a repeatedly struck bell builds up. That is a sound rather than a fault, which is why it is offered. It belongs to the session rather than to a patch, so loading a preset never changes it.
 
 It also keeps tails out of the voice pool, which is the more expensive half of the problem. A tap that held one of the 24 voices for the whole of its release would let one repeatedly tapped key fill the pool by itself, and past that the allocator has nothing free and takes the oldest voice outright, with no fade and no regard for whether a key is still down on it, which is audible as notes being cut off mid-hold. Four keys held and a fifth tapped 25 times ends with five voices in use.
 

@@ -1062,7 +1062,7 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
   // while another is held starts a note or carries one on.
   addInPlace(settings::voices(apvts));
 
-  m.addItem(settings::kOneVoicePerKey, "One voice per key", true,
+  m.addItem(settings::kOneVoicePerKey, "No stack", true,
             settings::isOn(apvts, params::oneVoicePerKeyId));
   m.addItem(settings::kLegato, "Legato", true, settings::legatoOn(apvts));
 
