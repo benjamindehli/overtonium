@@ -619,16 +619,15 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     topBar.setMacrosOn(false);
   };
 
-  topBar.onMacrosClicked = [this] {
-    const bool opening = !macroPanel.isVisible();
+  topBar.onMacrosClicked = [this] { showMacroPanel(!macroPanel.isVisible()); };
 
-    if (opening)
-      macroPanel.refresh();
+  for (auto *bar : {static_cast<ovt::ui::OptionBar *>(&playingBar),
+                    static_cast<ovt::ui::OptionBar *>(&tuningBar)})
+    bar->onLearnRequested = [this](const juce::String &id) {
+      showLearnMenu(id);
+    };
 
-    macroPanel.setVisible(opening);
-    macroPanel.toFront(false);
-    topBar.setMacrosOn(opening);
-  };
+  playingBar.onMacroMenuRequested = [this](int macro) { showMacroMenu(macro); };
 
   noiseStrip.onLearnRequested = [this](const juce::String &id) {
     showLearnMenu(id);
@@ -1622,6 +1621,58 @@ void OvertoniumEditor::showLearnMenu(const juce::String &parameterId) {
                   [this, parameter](int result) {
                     ovt::ui::learn::applyChoice(result, plugin().midiLearn,
                                                 parameter);
+                  });
+}
+
+void OvertoniumEditor::showMacroPanel(bool show) {
+  if (show)
+    macroPanel.refresh();
+
+  macroPanel.setVisible(show);
+  macroPanel.toFront(false);
+  topBar.setMacrosOn(show);
+}
+
+void OvertoniumEditor::showMacroMenu(int macro) {
+  using ovt::ui::PlayingBar;
+
+  auto *amount = dynamic_cast<juce::RangedAudioParameter *>(
+      plugin().apvts.getParameter(ovt::params::macroAmountId(macro)));
+  auto *row = dynamic_cast<juce::RangedAudioParameter *>(
+      plugin().apvts.getParameter(ovt::params::macroRowId(macro)));
+
+  if (amount == nullptr || row == nullptr)
+    return;
+
+  const bool made = std::lround(row->convertFrom0to1(row->getValue())) != 0;
+
+  auto m = PlayingBar::macroMenu(macro, made, plugin().midiLearn, amount);
+  m.setLookAndFeel(&getLookAndFeel());
+
+  const auto p = juce::Desktop::getInstance()
+                     .getMainMouseSource()
+                     .getScreenPosition()
+                     .roundToInt();
+
+  juce::Component::SafePointer<OvertoniumEditor> self(this);
+
+  m.showMenuAsync(juce::PopupMenu::Options()
+                      .withStandardItemHeight(22)
+                      .withTargetScreenArea({p.x, p.y, 1, 1}),
+                  [self, macro, amount](int result) {
+                    if (self == nullptr)
+                      return;
+
+                    if (result == PlayingBar::kAssignMacro) {
+                      self->macroPanel.make(macro);
+                      self->showMacroPanel(true);
+                      self->playingBar.refresh();
+                    } else if (result == PlayingBar::kEditMacro) {
+                      self->showMacroPanel(true);
+                    } else {
+                      ovt::ui::learn::applyChoice(
+                          result, self->plugin().midiLearn, amount);
+                    }
                   });
 }
 

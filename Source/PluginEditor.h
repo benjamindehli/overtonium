@@ -282,6 +282,13 @@ public:
 private:
   void timerCallback() override;
 
+  /// Opens or closes MACROS, as its button in the top bar does.
+  void showMacroPanel(bool show);
+
+  /// What a right-click on a macro knob in the Playing bar offers. See
+  /// PlayingBar::macroMenu.
+  void showMacroMenu(int macro);
+
   /// Finds the standalone's window, if this is the standalone, and dresses it.
   ///
   /// Only ever the standalone. In a host the top level window belongs to the

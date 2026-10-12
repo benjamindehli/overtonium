@@ -29,6 +29,7 @@
 #include "UI/GlideMenu.h"
 #include "UI/LearnMenu.h"
 #include "UI/LookAndFeel.h"
+#include "UI/MacroPanel.h"
 #include "UI/NoiseStrip.h"
 #include "UI/SettingsMenus.h"
 #include "UI/ShapeButton.h"
@@ -8194,6 +8195,155 @@ void testPlayingBar(OvertoniumProcessor &p) {
   p.applyFactoryPreset(presetIndex("Init"));
 }
 
+/// A right-click on a knob in the bars: MIDI Learn on Retune, and on a macro
+/// knob a menu that offers to make the macro, or to bind a controller to it
+/// and change it in MACROS once it is made.
+void testBarRightClicks(OvertoniumProcessor &p) {
+  section("Right-clicks in the bars");
+
+  namespace pp = ovt::params;
+  using ovt::ui::PlayingBar;
+
+  p.applyFactoryPreset(presetIndex("Init"));
+
+  const auto setChoice = [&p](const juce::String &id, int index) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1((float)index));
+  };
+  const auto chosen = [&p](const juce::String &id) {
+    auto *param = p.apvts.getParameter(id);
+    return (int)std::lround(param->convertFrom0to1(param->getValue()));
+  };
+
+  // Delivered as JUCE delivers it to a listening ancestor: the control under
+  // the pointer as the original component, the bar as the one hearing it.
+  const auto click = [](juce::Component &landedOn, juce::Component &bar,
+                        bool right) {
+    const auto at = bar.getLocalBounds().getCentre().toFloat();
+    const auto now = juce::Time::getCurrentTime();
+    return juce::MouseEvent(
+        juce::Desktop::getInstance().getMainMouseSource(), at,
+        juce::ModifierKeys(right ? juce::ModifierKeys::rightButtonModifier
+                                 : juce::ModifierKeys::leftButtonModifier),
+        juce::MouseInputSource::defaultPressure,
+        juce::MouseInputSource::defaultOrientation,
+        juce::MouseInputSource::defaultRotation,
+        juce::MouseInputSource::defaultTiltX,
+        juce::MouseInputSource::defaultTiltY, &bar, &landedOn, now, at, now, 1,
+        false);
+  };
+
+  juce::Component popupHost;
+  PlayingBar bar(p.apvts, popupHost);
+  bar.setSize(1348, ovt::ui::OptionBar::kHeight);
+
+  setChoice(pp::macroRowId(1), 8);
+  bar.refresh();
+
+  int asked = -1;
+  juce::String learnFor;
+  bar.onMacroMenuRequested = [&asked](int m) { asked = m; };
+  bar.onLearnRequested = [&learnFor](const juce::String &id) { learnFor = id; };
+
+  bar.mouseDown(click(bar.macroKnob(1).slider, bar, true));
+  const auto onMade = asked;
+  asked = -1;
+  bar.mouseDown(click(bar.macroKnob(0).slider, bar, true));
+  const auto onUnmade = asked;
+  asked = -1;
+  bar.mouseDown(click(bar.macroKnob(1).slider, bar, false));
+  const auto onLeft = asked;
+  bar.mouseDown(
+      click(const_cast<ovt::ui::ScreenSwitch &>(bar.sustainLamp()), bar, true));
+
+  check(onMade == 1 && onUnmade == 0 && onLeft == -1 && asked == -1 &&
+            learnFor.isEmpty(),
+        "a right-click on a macro knob asks for that macro's menu, and "
+        "nothing else does (" +
+            std::to_string(onMade) + ", " + std::to_string(onUnmade) + ")");
+
+  // The menu itself, read as data since a menu cannot be shown here.
+  const auto ids = [](const juce::PopupMenu &menu) {
+    std::set<int> found;
+    for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+      if (it.getItem().itemID != 0)
+        found.insert(it.getItem().itemID);
+    return found;
+  };
+
+  auto *amount = dynamic_cast<juce::RangedAudioParameter *>(
+      p.apvts.getParameter(pp::macroAmountId(1)));
+
+  const auto unmadeMenu = PlayingBar::macroMenu(0, false, p.midiLearn, amount);
+  const auto madeMenu = PlayingBar::macroMenu(1, true, p.midiLearn, amount);
+  const auto unmadeIds = ids(unmadeMenu);
+  const auto madeIds = ids(madeMenu);
+
+  check(unmadeIds == std::set<int>{PlayingBar::kAssignMacro},
+        "an unmade macro's menu offers only to assign it");
+  check(madeIds.count(ovt::ui::learn::kLearn) == 1 &&
+            madeIds.count(PlayingBar::kEditMacro) == 1 &&
+            madeIds.count(PlayingBar::kAssignMacro) == 0,
+        "and a made one MIDI Learn and a way into MACROS");
+
+  p.midiLearn.arm(amount);
+  const auto waitingIds =
+      ids(PlayingBar::macroMenu(1, true, p.midiLearn, amount));
+  p.midiLearn.arm(nullptr);
+  check(waitingIds.count(ovt::ui::learn::kCancel) == 1,
+        "which says so while it waits for a controller");
+
+  check(bar.macroKnob(0).slider.getTooltip().contains("not assigned") &&
+            bar.macroKnob(0).slider.getTooltip().contains("Right-click") &&
+            bar.macroKnob(1).slider.getTooltip().contains("Right-click"),
+        "and the tooltips say what a right-click does");
+
+  // Assigning from the knob makes that macro, and only if nobody has.
+  {
+    ovt::ui::MacroPanel panel(p.apvts);
+    panel.make(4);
+    setChoice(pp::macroRowId(5), 7);
+    panel.make(5);
+
+    check(chosen(pp::macroRowId(4)) == 1 && chosen(pp::macroRowId(5)) == 7,
+          "assigning makes the macro on the first row, and leaves a made one "
+          "where it is aimed");
+  }
+
+  // Retune is the other knob in the bars, and offers MIDI Learn.
+  {
+    ovt::ui::TuningBar tuning(p.apvts, popupHost);
+    tuning.setSize(1348, ovt::ui::OptionBar::kHeight);
+
+    juce::Slider *retune = nullptr;
+    std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+      for (auto *child : c.getChildren()) {
+        if (auto *s = dynamic_cast<juce::Slider *>(child))
+          if (s->getTitle() == "Adaptive retune time")
+            retune = s;
+        look(*child);
+      }
+    };
+    look(tuning);
+
+    juce::String tuningLearn;
+    tuning.onLearnRequested = [&tuningLearn](const juce::String &id) {
+      tuningLearn = id;
+    };
+
+    if (retune != nullptr)
+      tuning.mouseDown(click(*retune, tuning, true));
+
+    check(retune != nullptr && tuningLearn == pp::adaptiveRetuneId,
+          "a right-click on Retune offers MIDI Learn for it (" +
+              tuningLearn.toStdString() + ")");
+  }
+
+  for (int m = 0; m < pp::kNumMacros; ++m)
+    setChoice(pp::macroRowId(m), 0);
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
 /// The Tuning bar shows the temperament, root and reference pitch, and Retune
 /// only where it means something.
 void testTuningBar(OvertoniumProcessor &p) {
@@ -11743,6 +11893,7 @@ int main(int argc, char **argv) {
   testSharedSettingsChoices(processor);
   testPlayingReadouts(processor);
   testPlayingBar(processor);
+  testBarRightClicks(processor);
   testTuningBar(processor);
   testAdaptiveReadouts(processor);
   testFoldingAndUnfoldingIsSymmetric(processor);

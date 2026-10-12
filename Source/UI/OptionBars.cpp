@@ -43,6 +43,18 @@ OptionBar::OptionBar(juce::String nameToShow) : name(std::move(nameToShow)) {
   // Shouted on the panel like everything else, and said normally to a screen
   // reader.
   setTitle(name.substring(0, 1) + name.substring(1).toLowerCase());
+
+  addMouseListener(this, true);
+}
+
+void OptionBar::mouseDown(const juce::MouseEvent &e) {
+  if (!e.mods.isPopupMenu() || onLearnRequested == nullptr)
+    return;
+
+  const auto id = learn::parameterIdAt(e.originalComponent);
+
+  if (id.isNotEmpty())
+    onLearnRequested(id);
 }
 
 juce::Colour OptionBar::captionColour(const Item &) const {
@@ -322,8 +334,8 @@ void OptionBar::styleSwitch(GlowButton &button, const juce::String &word,
 // ---- Playing ----------------------------------------------------------------
 
 PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state,
-                       juce::Component &popupParent)
-    : OptionBar("PLAYING"), apvts(state) {
+                       juce::Component &popupHost)
+    : OptionBar("PLAYING"), apvts(state), popupParent(popupHost) {
   styleSwitch(legato, "LEGATO", "Legato",
               "A key going down while another is held carries the note on "
               "rather than starting a new one");
@@ -404,9 +416,6 @@ PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state,
 
     slider.getProperties().set("bipolar", true);
     slider.setTitle("Macro " + juce::String(m + 1) + " amount, Playing bar");
-    slider.setTooltip("How far this macro pushes its row. Made, aimed and "
-                      "coloured in MACROS.");
-    slider.setPopupDisplayEnabled(true, true, &popupParent);
     slider.setDoubleClickReturnValue(true, 0.0);
 
     macroAttachments[(size_t)m] =
@@ -441,6 +450,38 @@ juce::String PlayingBar::macroCaption(int row) {
       return to;
 
   return name.toUpperCase();
+}
+
+void PlayingBar::mouseDown(const juce::MouseEvent &e) {
+  if (e.mods.isPopupMenu() && onMacroMenuRequested != nullptr)
+    for (auto *c = e.originalComponent; c != nullptr && c != this;
+         c = c->getParentComponent())
+      for (int m = 0; m < params::kNumMacros; ++m)
+        if (c == macros[(size_t)m].get()) {
+          onMacroMenuRequested(m);
+          return;
+        }
+
+  OptionBar::mouseDown(e);
+}
+
+juce::PopupMenu PlayingBar::macroMenu(int macro, bool made,
+                                      const MidiLearn &learning,
+                                      juce::RangedAudioParameter *amount) {
+  const auto number = juce::String(macro + 1);
+
+  juce::PopupMenu m;
+  m.addSectionHeader("Macro " + number);
+
+  if (!made) {
+    m.addItem(kAssignMacro, "Assign macro " + number + "...");
+    return m;
+  }
+
+  learn::appendItems(m, learning, amount);
+  m.addSeparator();
+  m.addItem(kEditMacro, "Edit macro " + number + "...");
+  return m;
 }
 
 void PlayingBar::resized() {
@@ -526,6 +567,13 @@ void PlayingBar::refresh() {
     slider.getProperties().set("blank", !made);
     slider.setColour(juce::Slider::rotarySliderFillColourId, fill);
     slider.setEnabled(made);
+    slider.setPopupDisplayEnabled(made, made, &popupParent);
+    slider.setTooltip(
+        made ? "How far macro " + number +
+                   " pushes its row. Right-click to bind a controller to it "
+                   "or to change it in MACROS."
+             : "Macro " + number +
+                   " is not assigned. Right-click to assign it to a row.");
 
     // The row's own feel, as the panel's slider has it.
     if (made)
@@ -738,6 +786,7 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
                            "where the chord around it needs it. At zero it "
                            "jumps.");
   retune.slider.setTitle("Adaptive retune time");
+  learn::tag(retune.slider, params::adaptiveRetuneId);
   retune.slider.setPopupDisplayEnabled(true, true, &popupParent);
   retune.slider.setDoubleClickReturnValue(
       true, (double)params::kAdaptiveRetuneSeconds[0]);
