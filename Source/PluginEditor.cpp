@@ -438,7 +438,7 @@ void RowGutter::paint(juce::Graphics &g) {
 
 OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     : juce::AudioProcessorEditor(&p), topBar(p.apvts, *this),
-      playingBar(p.apvts), tuningBar(p.apvts, *this),
+      playingBar(p.apvts, *this), tuningBar(p.apvts, *this),
       noiseStrip(p.apvts, *this, *this), macroPanel(p.apvts) {
   setLookAndFeel(&lookAndFeel);
 
@@ -866,8 +866,16 @@ void OvertoniumEditor::resized() {
   // keeps this from recursing: applying limits constrains the bounds and so
   // comes back here, and the second pass finds the same bar height and stops.
   if (chromeHeight(juce::jmax(minimumLogicalWidth(), logicalWidth)) !=
-      limitsChromeHeight)
+      limitsChromeHeight) {
+    const auto before = getBounds();
     applyResizeLimits(logicalWidth);
+
+    // A floor that rose can grow the window, and the pass that grew it has
+    // already laid everything out at the new size. Carrying on here would lay
+    // it out again at the old one, cutting off whatever the floor rose for.
+    if (getBounds() != before)
+      return;
+  }
 
   // Over the whole window rather than over the content, and untransformed:
   // the dim and the card are chrome for a thing you are doing instead of

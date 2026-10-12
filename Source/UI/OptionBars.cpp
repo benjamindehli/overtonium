@@ -320,7 +320,8 @@ void OptionBar::styleSwitch(GlowButton &button, const juce::String &word,
 
 // ---- Playing ----------------------------------------------------------------
 
-PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state)
+PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state,
+                       juce::Component &popupParent)
     : OptionBar("PLAYING"), apvts(state) {
   styleSwitch(legato, "LEGATO", "Legato",
               "A key going down while another is held carries the note on "
@@ -391,6 +392,31 @@ PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state)
             {&wheelNeedle, 50, "WHEEL"},
             {&pressureNeedle, 50, "PRESSURE"}});
 
+  // Numbered rather than named for their rows, which are too long to fit
+  // under a knob, so the colour says which is which as it does in the panel.
+  std::vector<Item> knobs;
+
+  for (int m = 0; m < params::kNumMacros; ++m) {
+    auto &knob = *(macros[(size_t)m] =
+                       std::make_unique<LabelledKnob>(juce::String(m + 1)));
+    auto &slider = knob.slider;
+
+    slider.getProperties().set("bipolar", true);
+    slider.setTitle("Macro " + juce::String(m + 1) + " amount, Playing bar");
+    slider.setTooltip("How far this macro pushes its row. Made, aimed and "
+                      "coloured in MACROS.");
+    slider.setPopupDisplayEnabled(true, true, &popupParent);
+    slider.setDoubleClickReturnValue(true, 0.0);
+
+    macroAttachments[(size_t)m] =
+        std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+            apvts, params::macroAmountId(m), slider);
+
+    knobs.push_back({&knob, 38, {}});
+  }
+
+  addGroup(std::move(knobs));
+
   refresh();
   showActivity({});
 }
@@ -452,6 +478,34 @@ void PlayingBar::refresh() {
                            juce::dontSendNotification);
   mpe.setToggleState(settings::isOn(apvts, params::mpeId),
                      juce::dontSendNotification);
+
+  for (int m = 0; m < params::kNumMacros; ++m) {
+    auto &slider = macros[(size_t)m]->slider;
+    const auto row =
+        settings::choiceIndex(apvts, params::macroRowId(m).toRawUTF8());
+    const bool made = row != 0;
+
+    // The first colour is none, which the panel draws in the accent too.
+    const auto tint = params::macroColour(
+        settings::choiceIndex(apvts, params::macroColourId(m).toRawUTF8()));
+    const auto fill = !made || tint.isTransparent() ? colours::accent : tint;
+
+    const bool changed =
+        (bool)slider.getProperties()["blank"] != !made ||
+        slider.findColour(juce::Slider::rotarySliderFillColourId) != fill;
+
+    slider.getProperties().set("blank", !made);
+    slider.setColour(juce::Slider::rotarySliderFillColourId, fill);
+    slider.setEnabled(made);
+
+    // The row's own feel, as the panel's slider has it.
+    if (made)
+      slider.setSkewFactor((double)params::macroRowRange(apvts, row).skew,
+                           true);
+
+    if (changed)
+      slider.repaint();
+  }
 }
 
 // ---- the Adaptive readouts

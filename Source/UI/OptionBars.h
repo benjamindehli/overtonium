@@ -8,6 +8,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include "../PluginParameters.h"
 #include "../dsp/AdaptiveSnapshot.h"
 #include "ChannelStrip.h"
 #include "Theme.h"
@@ -141,11 +142,14 @@ struct PlayingActivity {
   float pressure = 0.0f;
 };
 
-/// Voices, legato, one voice per key, pitch bend range and expression, and
-/// how the instrument is being played.
+/// Voices, legato, one voice per key, pitch bend range and expression, how
+/// the instrument is being played, and the macros.
 class PlayingBar : public OptionBar {
 public:
-  explicit PlayingBar(juce::AudioProcessorValueTreeState &);
+  /// @param popupParent  where a macro knob shows its value while it is
+  ///                     turned.
+  PlayingBar(juce::AudioProcessorValueTreeState &,
+             juce::Component &popupParent);
 
   void refresh() override;
 
@@ -159,6 +163,7 @@ public:
   const ActivityNeedle &bendMeter() const { return bendNeedle; }
   const ActivityNeedle &wheelMeter() const { return wheelNeedle; }
   const ActivityNeedle &pressureMeter() const { return pressureNeedle; }
+  LabelledKnob &macroKnob(int macro) { return *macros[(size_t)macro]; }
 
 private:
   juce::AudioProcessorValueTreeState &apvts;
@@ -179,6 +184,14 @@ private:
   PlayingActivity shown;
 
   void pushNeedles();
+
+  /// Each macro's amount, the same parameter the slider in the MACROS panel
+  /// drives, in the macro's colour.
+  std::array<std::unique_ptr<LabelledKnob>, params::kNumMacros> macros;
+  std::array<
+      std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>,
+      params::kNumMacros>
+      macroAttachments;
 };
 
 /// What Adaptive did to the held chord, worked out from what the engine

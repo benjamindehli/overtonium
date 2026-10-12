@@ -7996,12 +7996,91 @@ void testPlayingBar(OvertoniumProcessor &p) {
 
     // A bar is handed its first reading before it has a width, and has to put
     // its needles where they belong once it is laid out.
-    ovt::ui::PlayingBar fresh(p.apvts);
+    juce::Component popupHost;
+    ovt::ui::PlayingBar fresh(p.apvts, popupHost);
     fresh.setSize(1348, ovt::ui::OptionBar::kHeight);
     check(near(fresh.bendMeter().getColumn(), middle(fresh.bendMeter())) &&
               fresh.wheelMeter().getColumn() == left,
           "and a new bar's needles start where they rest (" +
               std::to_string(fresh.bendMeter().getColumn()) + ")");
+  }
+
+  // ---- the macros
+  // -------------------------------------------------------------
+  {
+    namespace pp = ovt::params;
+
+    bool inOrder = true;
+    for (int m = 0; m < pp::kNumMacros; ++m) {
+      const auto &knob = bar->macroKnob(m);
+      inOrder &= knob.isVisible() &&
+                 knob.getX() > (m == 0 ? pressureMeter.getRight()
+                                       : bar->macroKnob(m - 1).getRight() - 1);
+    }
+    check(inOrder && bar->getHeight() == ovt::ui::OptionBar::kHeight,
+          "the eight macro knobs stand after the meters, still on one row");
+
+    const auto setChoice = [&p](const juce::String &id, int index) {
+      if (auto *param = p.apvts.getParameter(id))
+        param->setValueNotifyingHost(param->convertTo0to1((float)index));
+    };
+
+    // Macro 2 made, aimed at the first row and given the third colour, and
+    // the rest left unmade.
+    setChoice(pp::macroRowId(1), 1);
+    setChoice(pp::macroColourId(1), 3);
+    bar->refresh();
+
+    auto &made = bar->macroKnob(1).slider;
+    auto &unmade = bar->macroKnob(0).slider;
+
+    check(made.isEnabled() && !(bool)made.getProperties()["blank"] &&
+              made.findColour(juce::Slider::rotarySliderFillColourId) ==
+                  pp::macroColour(3),
+          "a made macro's knob is live and wears its colour");
+    check(!unmade.isEnabled() && (bool)unmade.getProperties()["blank"],
+          "and one nobody has made is blank and does nothing");
+
+    // The knob and the parameter move together, both ways.
+    auto *amount = p.apvts.getParameter(pp::macroAmountId(1));
+    made.setValue(0.5, juce::sendNotificationSync);
+    const auto fromKnob = amount->convertFrom0to1(amount->getValue());
+    amount->setValueNotifyingHost(amount->convertTo0to1(-0.25f));
+    const auto fromParameter = made.getValue();
+
+    check(std::abs(fromKnob - 0.5f) < 0.001f &&
+              std::abs(fromParameter + 0.25) < 0.001,
+          "the knob turns the macro's amount, and the amount turns the knob (" +
+              std::to_string(fromKnob) + ", " + std::to_string(fromParameter) +
+              ")");
+
+    // Blank means nothing on it to read: the same picture wherever the
+    // amount stands, where a made knob moves its pointer.
+    const auto picture = [](juce::Slider &slider, double value) {
+      slider.setValue(value, juce::dontSendNotification);
+      return slider.createComponentSnapshot(slider.getLocalBounds(), true,
+                                            1.0f);
+    };
+    const auto same = [](const juce::Image &a, const juce::Image &b) {
+      for (int y = 0; y < a.getHeight(); ++y)
+        for (int x = 0; x < a.getWidth(); ++x)
+          if (a.getPixelAt(x, y) != b.getPixelAt(x, y))
+            return false;
+      return true;
+    };
+
+    const bool blankStill = same(picture(unmade, -1.0), picture(unmade, 1.0)) &&
+                            same(picture(unmade, 0.0), picture(unmade, 1.0));
+    const bool madeMoves = !same(picture(made, -1.0), picture(made, 1.0));
+
+    check(blankStill && madeMoves,
+          "a blank knob shows no amount, where a made one does");
+
+    unmade.setValue(0.0, juce::dontSendNotification);
+    amount->setValueNotifyingHost(amount->getDefaultValue());
+    setChoice(pp::macroRowId(1), 0);
+    setChoice(pp::macroColourId(1), 0);
+    bar->refresh();
   }
 
   // ---- a narrow window wraps, as the top bar does --------------------------
@@ -8026,6 +8105,10 @@ void testPlayingBar(OvertoniumProcessor &p) {
                     static_cast<const juce::Component *>(&wheelMeter),
                     static_cast<const juce::Component *>(&pressureMeter)})
       all &= c->isVisible() && bar->getLocalBounds().contains(c->getBounds());
+
+    for (int m = 0; m < ovt::params::kNumMacros; ++m)
+      all &= bar->macroKnob(m).isVisible() &&
+             bar->getLocalBounds().contains(bar->macroKnob(m).getBounds());
 
     check(all && bar->getHeight() > oneRow &&
               bar->getHeight() == bar->heightForWidth(bar->getWidth()),
