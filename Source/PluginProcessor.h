@@ -107,8 +107,9 @@ public:
   /// The mod wheel, 0 to 1.
   float getWheelPosition() const noexcept { return wheelShown.load(); }
 
-  /// What Aftertouch from hands every channel, or the strongest pressure on
-  /// any key held, whichever is the higher, 0 to 1.
+  /// Channel pressure, or the strongest pressure on any key held, whichever is
+  /// the higher, 0 to 1. What the keyboard sends rather than what Aftertouch
+  /// from passes on, which can be the mod wheel.
   float getPressurePosition() const noexcept { return pressureShown.load(); }
 
   /// Polled by the editor to drive the per-channel meters.

@@ -434,9 +434,10 @@ void OvertoniumProcessor::publishPlaying() noexcept {
   sustainShown.store(pedalChannels != 0, std::memory_order_relaxed);
   bendShown.store(juce::jlimit(-1.0f, 1.0f, bend), std::memory_order_relaxed);
   wheelShown.store(modWheel, std::memory_order_relaxed);
+  // What the keyboard sends, whatever Aftertouch from makes of it, so the wheel
+  // shows on WHEEL alone and this says whether the keys are sending pressure.
   pressureShown.store(
-      juce::jlimit(0.0f, 1.0f,
-                   juce::jmax(currentParams.global.aftertouch, held.pressure)),
+      juce::jlimit(0.0f, 1.0f, juce::jmax(channelPressure, held.pressure)),
       std::memory_order_relaxed);
 }
 

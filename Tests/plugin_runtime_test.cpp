@@ -7716,18 +7716,22 @@ void testPlayingReadouts(OvertoniumProcessor &p) {
   }
   check(wheelFollows, "WHEEL follows the mod wheel from one end to the other");
 
-  // Pressure is what Aftertouch from hands every channel.
-  send({juce::MidiMessage::pitchWheel(1, 8192),
-        juce::MidiMessage::controllerEvent(1, 1, 32),
-        juce::MidiMessage::channelPressureChange(1, 100)});
-  const auto fromPressure = p.getPressurePosition();
-  setParam(ovt::params::atSourceId, (float)AftertouchSource::ModWheel);
-  send({});
-  const auto fromWheel = p.getPressurePosition();
-  check(near(fromPressure, 100.0f / 127.0f) && near(fromWheel, 32.0f / 127.0f),
-        "PRESSURE is whatever Aftertouch from follows (" +
-            std::to_string(fromPressure) + ", " + std::to_string(fromWheel) +
-            ")");
+  // Pressure is what the keyboard sends, whatever Aftertouch from passes on,
+  // so the wheel moves WHEEL and nothing else.
+  bool pressureAlone = true;
+  for (const auto source :
+       {AftertouchSource::ChannelPressure, AftertouchSource::ModWheel,
+        AftertouchSource::Either}) {
+    setParam(ovt::params::atSourceId, (float)source);
+    send({juce::MidiMessage::pitchWheel(1, 8192),
+          juce::MidiMessage::controllerEvent(1, 1, 120),
+          juce::MidiMessage::channelPressureChange(1, 30)});
+    pressureAlone &= near(p.getPressurePosition(), 30.0f / 127.0f);
+  }
+  check(pressureAlone,
+        "PRESSURE is the keyboard's pressure, not the wheel, whatever "
+        "Aftertouch from follows (" +
+            std::to_string(p.getPressurePosition()) + ")");
 
   // And polyphonic aftertouch on a held key, the strongest one.
   setParam(ovt::params::atSourceId, (float)AftertouchSource::ChannelPressure);
