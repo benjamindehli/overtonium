@@ -844,5 +844,9 @@
     {"id": "noise_string", "name": "Noise String", "type": "continuous", "min": "0 %", "max": "100 %", "default": "0 %"},
     {"id": "noise_stringDecay", "name": "Noise String Decay", "type": "continuous", "min": "50.0 ms", "max": "10.00 s", "default": "1.50 s"},
     {"id": "noise_stringDamp", "name": "Noise String Damp", "type": "continuous", "min": "0 %", "max": "100 %", "default": "40 %"},
-    {"id": "noise_stringPick", "name": "Noise String Pick", "type": "continuous", "min": "0 %", "max": "100 %", "default": "25 %"}
+    {"id": "noise_stringPick", "name": "Noise String Pick", "type": "continuous", "min": "0 %", "max": "100 %", "default": "25 %"},
+    {"id": "stringsMode", "name": "Strings Mode", "type": "choice", "choices": ["Off", "Piano", "Octave", "Series"], "default": "Off"},
+    {"id": "stringsMix", "name": "Strings Mix", "type": "continuous", "min": "0 %", "max": "100 %", "default": "50 %"},
+    {"id": "stringsDecay", "name": "Strings Decay", "type": "continuous", "min": "200 ms", "max": "10.00 s", "default": "4.00 s"},
+    {"id": "stringsDamp", "name": "Strings Damp", "type": "continuous", "min": "0 %", "max": "100 %", "default": "40 %"}
 ]

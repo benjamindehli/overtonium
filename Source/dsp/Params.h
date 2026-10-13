@@ -383,6 +383,24 @@ enum class StringsMode {
   NumModes
 };
 
+inline const char *stringsModeName(StringsMode m) {
+  switch (m) {
+  case StringsMode::Off:
+    return "Off";
+  case StringsMode::Piano:
+    return "Piano";
+  case StringsMode::Octave:
+    return "Octave";
+  case StringsMode::Series:
+    return "Series";
+
+  case StringsMode::NumModes:
+    break;
+  }
+
+  return "Off";
+}
+
 /// The strings nobody plays, ringing along with what is.
 struct StringsParams {
   StringsMode mode = StringsMode::Off;

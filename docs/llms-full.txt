@@ -635,7 +635,7 @@ The safety clip is the exception in this table, and the master fader is the exce
 
 ## Automating it from the host
 
-Eight hundred and forty-six parameters reach the host: forty global ones, twenty-three on each of the 32 partials, twenty-two on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals first and then channel by channel with the noise channel last.
+Eight hundred and fifty parameters reach the host: forty-four global ones, twenty-three on each of the 32 partials, twenty-two on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals first and then channel by channel with the noise channel last.
 
 Every per-channel name carries its channel, so a parameter list answers both ways of looking for something. Type `H7` and you have that partial, type `Tune` and you have that row across the whole mixer. The same names are what a screen reader reads, which is why they are words rather than numbers.
 
@@ -657,9 +657,9 @@ LINK is not a parameter, since it is a tool for the mouse rather than part of th
 
 ### Every parameter
 
-All 846 as the host lists them, with a control that every partial or every macro carries given one row for all of them. The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is [parameters.json](https://benjamindehli.github.io/overtonium/parameters.json), written by the plugin rather than by hand.
+All 850 as the host lists them, with a control that every partial or every macro carries given one row for all of them. The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is [parameters.json](https://benjamindehli.github.io/overtonium/parameters.json), written by the plugin rather than by hand.
 
-**Global**, forty of them.
+**Global**, forty-four of them.
 
 | What the host calls it | Id | Range | Default |
 |---|---|---|---|
@@ -703,6 +703,10 @@ All 846 as the host lists them, with a control that every partial or every macro
 | `Adaptive Retune` | `adaptiveRetune` | 0.0 ms to 1.00 s | 30.0 ms |
 | `Adaptive Harmonic Sevenths` | `adaptiveSeventh` | Off or on | On |
 | `Adaptive No Drift` | `adaptiveHome` | Off or on | Off |
+| `Strings Mode` | `stringsMode` | Off, Piano, Octave, Series | Off |
+| `Strings Mix` | `stringsMix` | 0 % to 100 % | 50 % |
+| `Strings Decay` | `stringsDecay` | 200 ms to 10.00 s | 4.00 s |
+| `Strings Damp` | `stringsDamp` | 0 % to 100 % | 40 % |
 
 **On every partial**, twenty-three controls, each one on all 32 partials.
 
@@ -794,7 +798,7 @@ A full sweep reaches the ends of the range, which means a patch already sitting 
 
 **Right-click any control and choose MIDI Learn**, then move something on your controller. A violet ring marks the control while it waits, so you can see what is listening without opening the menu again, and only ever one control carries it. Right-click the same control afterwards and the menu says which controller moves it, with the way to forget it or to bind a different one. In the mixer these items sit under the LINK settings that right-click already opens. On the top bar, the Playing and Tuning bars and the noise channel they are a menu of their own, since none of them is part of the series LINK gangs.
 
-Your host almost certainly offers the same thing. What this does that a host cannot is let you make the map by right-clicking the knob itself rather than finding `H17 AM Rate` in a list of 846 parameters, and behave the same way wherever you open it.
+Your host almost certainly offers the same thing. What this does that a host cannot is let you make the map by right-clicking the knob itself rather than finding `H17 AM Rate` in a list of 850 parameters, and behave the same way wherever you open it.
 
 **Eleven controllers are refused**, because something is already listening for them and losing it would be felt while playing rather than noticed afterwards. Controller 1 is the mod wheel, which can feed aftertouch. 64 is the sustain pedal. 74 is the slide axis, the one most easily bound by accident since it moves whenever a finger does on an MPE keyboard. 120 and 123 stop notes. Controllers 6, 38, 98, 99, 100 and 101 are how a keyboard tells the instrument what it is. Arming a knob and then reaching for the slide to steady a note leaves the note steadied and the knob still waiting.
 

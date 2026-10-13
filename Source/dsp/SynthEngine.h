@@ -237,10 +237,13 @@ public:
     return outputLevelR.load(std::memory_order_relaxed);
   }
 
-  /// How long the master effects would take to fall silent under the settings
-  /// they are holding, so the host can pad an offline bounce correctly.
+  /// How long the sympathetic strings and the master effects would take to
+  /// fall silent under the settings they are holding, so the host can pad an
+  /// offline bounce correctly. The strings ring into the effects, so their
+  /// tails add.
   float effectsTailSeconds(const SynthParams &p) const noexcept {
-    return std::max({echo.tailSeconds(p.echo), bucket.tailSeconds(p.echo),
+    return SympatheticStrings::tailSeconds(p.strings) +
+           std::max({echo.tailSeconds(p.echo), bucket.tailSeconds(p.echo),
                      digital.tailSeconds(p.echo), reverb.tailSeconds(p.reverb),
                      plate.tailSeconds(p.reverb),
                      spring.tailSeconds(p.reverb)});

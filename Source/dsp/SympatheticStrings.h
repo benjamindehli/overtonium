@@ -52,6 +52,11 @@ public:
   void process(float *left, float *right, int numSamples, const StringsParams &,
                const Plan &) noexcept;
 
+  /// How long they ring on once nothing drives them, nought when they are off.
+  static float tailSeconds(const StringsParams &p) noexcept {
+    return p.mode == StringsMode::Off ? 0.0f : p.decaySeconds;
+  }
+
   /// How long a string rings once its damper comes down.
   static constexpr double kDamperSeconds = 0.12;
 
