@@ -29,7 +29,9 @@
 #include "UI/GlideMenu.h"
 #include "UI/LearnMenu.h"
 #include "UI/LookAndFeel.h"
+#include "UI/MacroPanel.h"
 #include "UI/NoiseStrip.h"
+#include "UI/SettingsMenus.h"
 #include "UI/ShapeButton.h"
 #include "UI/Theme.h"
 #include "UI/TopBar.h"
@@ -185,7 +187,7 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
   // from the same constant the parameter is built from would check nothing.
   const List globals[] = {
       {ovt::params::polyphonyId, 8},    {ovt::params::characterId, 6},
-      {ovt::params::temperamentId, 6},  {ovt::params::tuningRootId, 12},
+      {ovt::params::temperamentId, 7},  {ovt::params::tuningRootId, 12},
       {ovt::params::referenceHzId, 11}, {ovt::params::atSourceId, 3},
       {ovt::params::slideDestId, 3},    {ovt::params::lofiRateId, 8},
       {ovt::params::lofiBitsId, 9},     {ovt::params::echoTypeId, 3},
@@ -198,6 +200,20 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
           juce::String(list.id).toStdString() + " offers " +
               std::to_string(list.entries) + " and has " +
               std::to_string(entriesOf(list.id)));
+
+  // Retune was a choice of two and is a time now, from a jump to a second,
+  // starting at the one the old Fast was.
+  if (auto *retune = dynamic_cast<juce::RangedAudioParameter *>(
+          p.apvts.getParameter(ovt::params::adaptiveRetuneId));
+      retune != nullptr &&
+      dynamic_cast<juce::AudioParameterFloat *>(retune) != nullptr)
+    check(std::abs(retune->getNormalisableRange().start) < 1.0e-6f &&
+              std::abs(retune->getNormalisableRange().end - 1.0f) < 1.0e-6f &&
+              std::abs(retune->convertFrom0to1(retune->getDefaultValue()) -
+                       0.03f) < 1.0e-4f,
+          "Adaptive Retune is a time from 0 to 1 s, 30 ms to begin with");
+  else
+    check(false, "Adaptive Retune is a time");
 
   // And the per-channel ones on every channel, since they are declared in a
   // loop and a loop is where one of thirty-two goes quietly different.
@@ -790,15 +806,18 @@ void testParameterWiring(OvertoniumProcessor &p) {
   // And two for glide on the end: when a note glides, and whether the time on
   // each channel is per octave or per note. See params::glideTriggerId. Then
   // Legato as a switch of its own beside the voice count. See
-  // params::legatoId.
-  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + 2 + 1 +
-                       ovt::params::kNumMacros * 6;
+  // params::legatoId. Then how fast the adaptive temperament retunes a held
+  // note, whether it uses the harmonic seventh, and whether it stays home.
+  // See params::adaptiveRetuneId, params::adaptiveSeventhId and
+  // params::adaptiveHomeId.
+  const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + 2 + 1 + 1 +
+                       1 + 1 + ovt::params::kNumMacros * 6;
 
   // The behaviour that was there before it became a choice. Asked of the
   // parameter rather than of the tree, so the answer does not depend on what
   // an earlier test left behind.
   if (auto *v = p.apvts.getParameter(ovt::params::oneVoicePerKeyId))
-    check(v->getDefaultValue() > 0.5f, "one voice per key defaults to on");
+    check(v->getDefaultValue() > 0.5f, "No stack defaults to on");
   check(p.getParameters().size() == expected,
         "parameter count is " + std::to_string(p.getParameters().size()) +
             ", expected " + std::to_string(expected));
@@ -2718,9 +2737,13 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   // Three on the bar, the two converter readouts and the preset name, two on
   // each of the thirty-two channels, the level on the noise strip, and one
   // per macro in the panel. The panel's eight are built whether or not the
-  // macro has been made, so they are all here whatever the patch says.
+  // macro has been made, so they are all here whatever the patch says. Then
+  // five in the Playing bar, the voices, the voices in use, bend range,
+  // aftertouch and slide, and sixteen in the Tuning bar, the temperament, root
+  // and reference, one for each of the twelve pitch classes and the drift, all
+  // built whether or not the bars are open.
   check(displays.size() ==
-            3 + 2 * ovt::kNumHarmonics + 1 + ovt::params::kNumMacros,
+            3 + 2 * ovt::kNumHarmonics + 1 + ovt::params::kNumMacros + 5 + 16,
         "every readout is a segment display now (" +
             std::to_string(displays.size()) + ")");
 
@@ -2791,9 +2814,9 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
             ")");
 
   setVolume(0, 0.0f);
-  check(level.getReading() == "-inF" && !level.isActive(),
-        "and all the way down it reads -inF, dimmed, since that is a statement "
-        "rather than a level (" +
+  check(level.getReading() == "-inF" && level.isActive(),
+        "and all the way down it reads -inF, lit, a segment being lit or not "
+        "rather than dimmer (" +
             level.getReading().toStdString() + ")");
 
   setVolume(0, 0.5f);
@@ -2820,8 +2843,8 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
                                      atDb(-99.9f).toStdString() + ")");
 
   // Below the floor there is no figure that fits, so it says so instead.
-  check(atDb(-100.5f) == "-inF" && !level.isActive(),
-        "quieter than the floor reads -inF, dimmed (" +
+  check(atDb(-100.5f) == "-inF" && level.isActive(),
+        "quieter than the floor reads -inF, lit (" +
             atDb(-100.5f).toStdString() + ")");
 
   // Whatever it shows has to fit the cells: a sign and four digits.
@@ -2894,8 +2917,8 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   // implying a choice.
   auto &cents = *onFirst.front();
 
-  check(cents.getReading() == "0.0" && !cents.isActive(),
-        "the fundamental has no cents to report, and is dimmed (" +
+  check(cents.getReading() == "0.0" && cents.isActive(),
+        "the fundamental has no cents to report, and says 0.0 (" +
             cents.getReading().toStdString() + ")");
 
   // A partial that does. Harmonic 3 sits just under two cents above equal
@@ -2978,7 +3001,10 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
 
     // The leading cell only, and inside the recess, whose own lit edge runs
     // round the perimeter and would otherwise be the extent of everything.
-    for (int x = 0; x < im.getWidth() / 4; ++x) {
+    // A cell is a quarter of the run and the run does not fill the box, so the
+    // first cell reaches a little past a quarter of it and stops short of
+    // three tenths, where the second begins.
+    for (int x = 0; x < im.getWidth() * 3 / 10; ++x) {
       bool any = false;
 
       for (int y = 4; y < im.getHeight() - 4 && !any; ++y)
@@ -3186,7 +3212,8 @@ void testThePresetDisplaySpells(OvertoniumProcessor &) {
   const auto isLit = [](juce::Colour px) { return px.getBlue() > 120; };
 
   const auto fingerprint = [&isLit](char c) {
-    SegmentDisplay d({}, SegmentDisplay::Bars::Fourteen);
+    // One cell, so each glyph has the whole display to be told apart in.
+    SegmentDisplay d({}, SegmentDisplay::Bars::Fourteen, 1);
     d.setBounds(0, 0, 40, 40);
     d.setReading(juce::String::charToString((juce::juce_wchar)c), true);
 
@@ -5482,10 +5509,72 @@ void testSettingsMenu(OvertoniumProcessor &p) {
   // Legato is a tick beside the voice count, and the list's old first entry
   // is no longer offered: a session that stored it reads as one voice with
   // the tick on.
-  check(at("Legato") == at("One voice per key") + 1 && at("1 voice") >= 0,
-        "Legato sits beside One voice per key, under the voice counts");
+  check(at("Legato") == at("No stack") + 1 && at("1 voice") >= 0,
+        "Legato sits beside No stack, under the voice counts");
   check(std::count(entries.begin(), entries.end(), std::string("Legato")) == 1,
         "and is there once, as the switch rather than as a voice count");
+
+  // The adaptive temperament is offered with the six fixed ones, last, so a
+  // session's stored choice keeps the temperament it always named, and the
+  // root stays live for it, since its versions are placed around the root.
+  {
+    std::vector<std::string> temperaments;
+    bool rootLive = false;
+
+    for (juce::PopupMenu::MenuItemIterator it(menu); it.next();) {
+      const auto &item = it.getItem();
+      if (item.subMenu == nullptr)
+        continue;
+      if (item.text == "Temperament")
+        for (juce::PopupMenu::MenuItemIterator sub(*item.subMenu); sub.next();)
+          temperaments.push_back(sub.getItem().text.toStdString());
+      if (item.text == "Root")
+        rootLive = item.isEnabled;
+    }
+
+    check(temperaments.size() == 7 && temperaments.back() == "Adaptive",
+          "the Temperament menu ends with Adaptive (" + joined(temperaments) +
+              ")");
+
+    if (auto *t = p.apvts.getParameter(ovt::params::temperamentId)) {
+      t->setValueNotifyingHost(
+          t->convertTo0to1((float)(int)ovt::Temperament::Adaptive));
+      auto adaptiveMenu = bar.buildSettingsMenu();
+      for (juce::PopupMenu::MenuItemIterator it(adaptiveMenu); it.next();)
+        if (it.getItem().text == "Root")
+          rootLive = it.getItem().isEnabled;
+      t->setValueNotifyingHost(t->convertTo0to1(0.0f));
+    }
+
+    check(rootLive, "and with Adaptive chosen the Root menu stays live");
+
+    // Retune is about Adaptive and nothing else, so it is live only there.
+    const auto liveUnder = [&bar, &p](const juce::String &entry,
+                                      int temperament) {
+      auto *t = p.apvts.getParameter(ovt::params::temperamentId);
+      t->setValueNotifyingHost(t->convertTo0to1((float)temperament));
+      auto built = bar.buildSettingsMenu();
+      bool live = false, seen = false;
+      for (juce::PopupMenu::MenuItemIterator it(built); it.next();)
+        if (it.getItem().text == entry) {
+          seen = true;
+          live = it.getItem().isEnabled;
+        }
+      t->setValueNotifyingHost(t->convertTo0to1(0.0f));
+      return seen ? (live ? 1 : 0) : -1;
+    };
+
+    check(liveUnder("Retune", (int)ovt::Temperament::Adaptive) == 1 &&
+              liveUnder("Retune", (int)ovt::Temperament::Just) == 0,
+          "Retune is offered, and live only under Adaptive");
+    check(liveUnder("Harmonic sevenths", (int)ovt::Temperament::Adaptive) ==
+                  1 &&
+              liveUnder("Harmonic sevenths", (int)ovt::Temperament::Just) == 0,
+          "and so is Harmonic sevenths");
+    check(liveUnder("No drift", (int)ovt::Temperament::Adaptive) == 1 &&
+              liveUnder("No drift", (int)ovt::Temperament::Just) == 0,
+          "and No drift");
+  }
 
   // The three that answer "what does the controller in front of you send".
   check(at("MPE") >= 0 && at("Aftertouch from") == at("MPE") + 1 &&
@@ -5508,10 +5597,9 @@ void testSettingsMenu(OvertoniumProcessor &p) {
   // voice counts rather than off among the output switches. Bounded by
   // entries rather than by the headers around them, since the headers are
   // collected separately above.
-  check(at("One voice per key") > at("16 voices") &&
-            at("One voice per key") < at("0 semitones"),
-        "one voice per key sits with the voice counts (" +
-            std::to_string(at("One voice per key")) + ")");
+  check(at("No stack") > at("16 voices") && at("No stack") < at("0 semitones"),
+        "No stack sits with the voice counts (" +
+            std::to_string(at("No stack")) + ")");
 }
 
 /// The way back from a window that was left narrow.
@@ -7223,6 +7311,1663 @@ void testFoldingAndUnfoldingIsSymmetric(OvertoniumProcessor &p) {
   }
 }
 
+/// The Playing and Tuning bars, opened from the top bar.
+///
+/// Both start closed, open and close from their buttons, light the button
+/// while open, come back open in a reopened window, and take their height from
+/// the mixer rather than from the window, unless the window is already as short
+/// as it can be.
+void testOptionBars(OvertoniumProcessor &p) {
+  section("The Playing and Tuning bars");
+
+  check(ovt::ui::OptionBar::kHeight == ovt::ui::TopBar::heightForWidth(2600),
+        "a bar is as tall as one row of the top bar (" +
+            std::to_string(ovt::ui::OptionBar::kHeight) + " and " +
+            std::to_string(ovt::ui::TopBar::heightForWidth(2600)) + ")");
+
+  const auto open = [&p] {
+    std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());
+    sizeEditor(*editor, 1348, 240);
+    return editor;
+  };
+
+  struct Parts {
+    juce::TextButton *settings = nullptr, *macros = nullptr, *playing = nullptr,
+                     *tuning = nullptr;
+    ovt::ui::PlayingBar *playingBar = nullptr;
+    ovt::ui::TuningBar *tuningBar = nullptr;
+    ovt::ui::ChannelStrip *strip = nullptr;
+    ovt::ui::TopBar *top = nullptr;
+  };
+
+  const auto partsOf = [](juce::Component &editor) {
+    Parts parts;
+    std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+      for (auto *child : c.getChildren()) {
+        if (auto *b = dynamic_cast<juce::TextButton *>(child)) {
+          if (b->getButtonText() == "SETTINGS")
+            parts.settings = b;
+          if (b->getTitle().startsWith("Macros"))
+            parts.macros = b;
+          if (b->getTitle() == "Playing")
+            parts.playing = b;
+          if (b->getTitle() == "Tuning")
+            parts.tuning = b;
+        }
+        if (auto *bar = dynamic_cast<ovt::ui::PlayingBar *>(child))
+          parts.playingBar = bar;
+        if (auto *bar = dynamic_cast<ovt::ui::TuningBar *>(child))
+          parts.tuningBar = bar;
+        if (auto *strip = dynamic_cast<ovt::ui::ChannelStrip *>(child))
+          if (parts.strip == nullptr)
+            parts.strip = strip;
+        if (auto *top = dynamic_cast<ovt::ui::TopBar *>(child))
+          parts.top = top;
+        look(*child);
+      }
+    };
+    look(editor);
+    return parts;
+  };
+
+  auto editor = open();
+  auto parts = partsOf(*editor);
+
+  check(parts.settings != nullptr && parts.macros != nullptr &&
+            parts.playing != nullptr && parts.tuning != nullptr &&
+            parts.playingBar != nullptr && parts.tuningBar != nullptr &&
+            parts.strip != nullptr && parts.top != nullptr,
+        "the top bar has PLAYING and TUNING buttons and the editor both bars");
+
+  if (parts.playing == nullptr || parts.tuning == nullptr ||
+      parts.playingBar == nullptr || parts.tuningBar == nullptr ||
+      parts.strip == nullptr || parts.top == nullptr ||
+      parts.settings == nullptr || parts.macros == nullptr)
+    return;
+
+  // ---- two by two, in the space the first two had ----------------------
+  {
+    const auto s = parts.settings->getBounds(), m = parts.macros->getBounds(),
+               pl = parts.playing->getBounds(), t = parts.tuning->getBounds();
+
+    check(s.getX() == pl.getX() && m.getX() == t.getX() &&
+              s.getY() == m.getY() && pl.getY() == t.getY() &&
+              pl.getY() > s.getBottom() && s.getRight() < m.getX(),
+          "SETTINGS and MACROS stand over PLAYING and TUNING");
+    check(s.getWidth() == pl.getWidth() && m.getWidth() == t.getWidth() &&
+              s.getHeight() == pl.getHeight() && s.getHeight() >= 22,
+          "all four the same size, " + std::to_string(s.getWidth()) + " by " +
+              std::to_string(s.getHeight()));
+    check(parts.top->getHeight() == ovt::ui::TopBar::heightForWidth(1348),
+          "and the top bar is no taller for them");
+  }
+
+  // ---- closed to begin with ----------------------------------------------
+  check(!parts.playingBar->isVisible() && !parts.tuningBar->isVisible() &&
+            !parts.playing->getToggleState() && !parts.tuning->getToggleState(),
+        "both bars start closed, with their buttons dark");
+
+  const auto size = editor->getBounds();
+  const auto stripHeight = parts.strip->getHeight();
+  const auto zoom = (float)editor->getWidth() / (float)parts.top->getWidth();
+  const auto barHeight = (float)ovt::ui::OptionBar::kHeight;
+
+  // ---- opening one, then the other -----------------------------------------
+  parts.playing->onClick();
+
+  check(parts.playingBar->isVisible() && parts.playing->getToggleState() &&
+            !parts.tuningBar->isVisible() && !parts.tuning->getToggleState(),
+        "PLAYING opens its bar and lights");
+  check(parts.playingBar->getY() == parts.top->getBottom() &&
+            parts.playingBar->getHeight() == ovt::ui::OptionBar::kHeight,
+        "straight under the top bar");
+  check(editor->getBounds() == size &&
+            parts.strip->getHeight() ==
+                stripHeight - ovt::ui::OptionBar::kHeight,
+        "and takes its height from the mixer, the window holding still (" +
+            std::to_string(stripHeight) + " to " +
+            std::to_string(parts.strip->getHeight()) + ")");
+
+  parts.tuning->onClick();
+
+  check(parts.tuningBar->isVisible() && parts.tuning->getToggleState() &&
+            parts.tuningBar->getY() == parts.playingBar->getBottom(),
+        "TUNING opens its bar under the Playing one");
+
+  // ---- a reopened window has them both ------------------------------------
+  editor.reset();
+  editor = open();
+  parts = partsOf(*editor);
+
+  check(parts.playingBar != nullptr && parts.tuningBar != nullptr &&
+            parts.playingBar->isVisible() && parts.tuningBar->isVisible() &&
+            parts.playing->getToggleState() && parts.tuning->getToggleState(),
+        "a reopened window comes back with both bars open and lit");
+
+  // ---- closing puts the mixer back ------------------------------------------
+  const auto withBoth = parts.strip->getHeight();
+  parts.playing->onClick();
+  parts.tuning->onClick();
+
+  check(!parts.playingBar->isVisible() && !parts.tuningBar->isVisible() &&
+            !parts.playing->getToggleState() &&
+            !parts.tuning->getToggleState() &&
+            parts.strip->getHeight() ==
+                withBoth + 2 * ovt::ui::OptionBar::kHeight,
+        "closing both gives the mixer its height back");
+
+  // ---- at the shortest a window can be, the window grows
+  // ---------------------
+  sizeEditor(*editor, 1348);
+  const auto shortest = editor->getHeight();
+  const auto floor = editor->getConstrainer()->getMinimumHeight();
+
+  parts.tuning->onClick();
+
+  const auto grown = editor->getHeight() - shortest;
+  const auto raised = editor->getConstrainer()->getMinimumHeight() - floor;
+
+  check(std::abs((float)raised - barHeight * zoom) <= 1.0f &&
+            std::abs((float)grown - barHeight * zoom) <= 1.0f,
+        "a window already at its shortest grows by the bar, and so does the "
+        "floor (" +
+            std::to_string(grown) + " and " + std::to_string(raised) + ")");
+
+  parts.tuning->onClick();
+  check(editor->getConstrainer()->getMinimumHeight() == floor,
+        "and the floor comes back down when it closes");
+}
+
+/// Puts every session setting back where a fresh instance has it.
+///
+/// A preset leaves these alone, since they belong to the session rather than
+/// to the sound, so a test that moves the temperament or the root has to put
+/// them back itself, or every test after it runs on F# at 415 Hz.
+void restoreSessionSettings(OvertoniumProcessor &p) {
+  for (const auto *id : ovt::params::kSessionParamIds)
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->getDefaultValue());
+}
+
+/// Every choice the Settings menu and the bars share goes through one place,
+/// and lands on the parameter its list says it does.
+void testSharedSettingsChoices(OvertoniumProcessor &p) {
+  section("The choices the Settings menu and the bars share");
+
+  namespace st = ovt::ui::settings;
+  auto &apvts = p.apvts;
+
+  const auto index = [&apvts](const char *id) {
+    return st::choiceIndex(apvts, id);
+  };
+
+  // Each list's last entry, which is the one an off-by-one misses.
+  const struct {
+    int id;
+    const char *param;
+    int expect;
+  } lists[] = {
+      {st::kVoices + 7, ovt::params::polyphonyId, 7},
+      {st::kVoices + 2, ovt::params::polyphonyId, 2},
+      {st::kBendRange + 24, ovt::params::bendRangeId, 24},
+      {st::kBendRange + 7, ovt::params::bendRangeId, 7},
+      {st::kAftertouchFrom + 2, ovt::params::atSourceId, 2},
+      {st::kSlideTo + 2, ovt::params::slideDestId, 2},
+      {st::kTemperament + 6, ovt::params::temperamentId, 6},
+      {st::kRoot + 11, ovt::params::tuningRootId, 11},
+      {st::kReferencePitch + 3, ovt::params::referenceHzId, 3},
+  };
+
+  for (const auto &l : lists) {
+    const bool handled = st::apply(apvts, l.id);
+    check(handled && index(l.param) == l.expect,
+          "item " + std::to_string(l.id) + " sets " + l.param + " to choice " +
+              std::to_string(l.expect) + " (" + std::to_string(index(l.param)) +
+              ")");
+  }
+
+  // Every item in every shared list is one apply carries out, and points at
+  // what it ticks.
+  {
+    bool all = true;
+    for (const auto &list :
+         {st::voices(apvts), st::bendRange(apvts), st::aftertouchFrom(apvts),
+          st::slideTo(apvts), st::temperament(apvts), st::root(apvts),
+          st::referencePitch(apvts), st::retune(apvts)})
+      for (juce::PopupMenu::MenuItemIterator it(list); it.next();)
+        all &= st::apply(apvts, it.getItem().itemID);
+    check(all, "every item in every shared list is carried out");
+  }
+
+  // Retune is a time, and its two named settings set it to theirs, each ticked
+  // only while the knob is on it.
+  {
+    auto *retune = apvts.getParameter(ovt::params::adaptiveRetuneId);
+    const auto seconds = [retune] {
+      return retune->convertFrom0to1(retune->getValue());
+    };
+    const auto ticked = [&apvts](int id) {
+      const auto list = st::retune(apvts);
+      for (juce::PopupMenu::MenuItemIterator it(list); it.next();)
+        if (it.getItem().itemID == id)
+          return it.getItem().isTicked;
+      return false;
+    };
+
+    st::apply(apvts, st::kRetune + 1);
+    const auto smooth = seconds();
+    const bool smoothTicked = ticked(st::kRetune + 1) && !ticked(st::kRetune);
+    st::apply(apvts, st::kRetune);
+    const auto fast = seconds();
+    retune->setValueNotifyingHost(retune->convertTo0to1(0.1f));
+
+    check(std::abs(smooth - 0.3f) < 0.001f && std::abs(fast - 0.03f) < 0.001f,
+          "Smooth sets Retune to 300 ms and Fast to 30 ms (" +
+              std::to_string(smooth) + ", " + std::to_string(fast) + ")");
+    check(smoothTicked && !ticked(st::kRetune) && !ticked(st::kRetune + 1),
+          "and each is ticked only while the knob is on it");
+  }
+
+  // And what the knob says is what the engine is handed, across its range and
+  // at both ends, a jump at zero included.
+  {
+    auto *retune = apvts.getParameter(ovt::params::adaptiveRetuneId);
+    bool reaches = true;
+    std::string seen;
+
+    for (const auto seconds : {0.0f, 0.03f, 0.25f, 1.0f}) {
+      retune->setValueNotifyingHost(retune->convertTo0to1(seconds));
+      ovt::SynthParams out{};
+      p.parameters().snapshot(out, 0.0f);
+      reaches &= std::abs(out.global.adaptiveRetuneSeconds - seconds) < 1.0e-4;
+      seen += std::to_string(out.global.adaptiveRetuneSeconds) + " ";
+    }
+
+    check(reaches,
+          "the Retune time reaches the engine as set, from 0 to 1 s (" + seen +
+              ")");
+  }
+
+  // The switches flip, and nothing outside the lists is claimed, which is what
+  // lets the Settings menu hand everything to apply first.
+  for (const auto &sw :
+       {std::pair<int, const char *>{st::kMpe, ovt::params::mpeId},
+        {st::kOneVoicePerKey, ovt::params::oneVoicePerKeyId},
+        {st::kPhaseReset, ovt::params::phaseResetId},
+        {st::kSafetyClip, ovt::params::safetyClipId},
+        {st::kLookahead, ovt::params::lookaheadId}}) {
+    const bool before = st::isOn(apvts, sw.second);
+    st::apply(apvts, sw.first);
+    const bool after = st::isOn(apvts, sw.second);
+    st::apply(apvts, sw.first);
+    check(after != before && st::isOn(apvts, sw.second) == before,
+          std::string("item ") + std::to_string(sw.first) + " flips " +
+              sw.second + " and flips it back");
+  }
+
+  check(!st::apply(apvts, 700) && !st::apply(apvts, 800) &&
+            !st::apply(apvts, 820) && !st::apply(apvts, st::kTemperament + 7) &&
+            !st::apply(apvts, st::kVoices),
+        "undo, zoom, Fit all 32 channels and ids past a list are left to the "
+        "menu");
+
+  // Legato from the voice list's old entry: one voice and the switch, and
+  // unticking keeps the one voice and drops the switch.
+  if (auto *count = apvts.getParameter(ovt::params::polyphonyId)) {
+    count->setValueNotifyingHost(
+        count->convertTo0to1((float)ovt::params::kLegatoIndex));
+    if (auto *sw = apvts.getParameter(ovt::params::legatoId))
+      sw->setValueNotifyingHost(0.0f);
+
+    check(st::legatoOn(apvts) && st::voiceCount(apvts) == 1,
+          "the old legato entry reads as Legato with one voice");
+
+    st::apply(apvts, st::kLegato);
+    check(!st::legatoOn(apvts) && index(ovt::params::polyphonyId) == 1,
+          "and unticking Legato leaves one voice with the switch off");
+
+    st::apply(apvts, st::kLegato);
+    check(st::legatoOn(apvts), "and ticking it again is the switch");
+  }
+
+  restoreSessionSettings(p);
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
+/// What the processor publishes for the Playing bar's readouts: the pedal,
+/// the bend, the wheel and the pressure, with MPE off and on.
+void testPlayingReadouts(OvertoniumProcessor &p) {
+  section("What the Playing bar is handed");
+
+  using ovt::params::AftertouchSource;
+
+  const auto setParam = [&p](const char *id, float plain) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1(plain));
+  };
+
+  const auto send = [&p](std::initializer_list<juce::MidiMessage> messages) {
+    juce::MidiBuffer midi;
+    for (const auto &m : messages)
+      midi.addEvent(m, 0);
+
+    juce::AudioBuffer<float> buffer(2, 512);
+    buffer.clear();
+    p.processBlock(buffer, midi);
+  };
+
+  const auto near = [](float a, float b) { return std::abs(a - b) < 0.01f; };
+
+  p.applyFactoryPreset(presetIndex("Init"));
+  setParam(ovt::params::bendRangeId, 2.0f);
+  setParam(ovt::params::atSourceId, (float)AftertouchSource::ChannelPressure);
+  send({juce::MidiMessage::allSoundOff(1),
+        juce::MidiMessage::controllerEvent(1, 1, 0),
+        juce::MidiMessage::pitchWheel(1, 8192)});
+
+  check(!p.isSustainDown() && near(p.getBendPosition(), 0.0f) &&
+            near(p.getWheelPosition(), 0.0f) &&
+            near(p.getPressurePosition(), 0.0f),
+        "everything rests with nothing touched");
+
+  // The pedal, one bit per channel, so letting go on one channel leaves it
+  // down on another, and a panic lets go of all of them.
+  send({juce::MidiMessage::controllerEvent(1, 64, 127)});
+  const bool downOnOne = p.isSustainDown();
+  send({juce::MidiMessage::controllerEvent(3, 64, 127),
+        juce::MidiMessage::controllerEvent(1, 64, 0)});
+  const bool stillDownOnThree = p.isSustainDown();
+  send({juce::MidiMessage::controllerEvent(3, 64, 0)});
+  const bool up = !p.isSustainDown();
+  send({juce::MidiMessage::controllerEvent(1, 64, 127),
+        juce::MidiMessage::allNotesOff(1)});
+  const bool panicLetsGo = !p.isSustainDown();
+
+  check(downOnOne && stillDownOnThree && up && panicLetsGo,
+        "SUSTAIN follows the pedal on every channel, and a panic lets it go");
+
+  // A note held only by the pedal still counts as sounding.
+  send({juce::MidiMessage::controllerEvent(1, 64, 127),
+        juce::MidiMessage::noteOn(1, 60, 0.8f)});
+  send({juce::MidiMessage::noteOff(1, 60)});
+  check(p.getActiveVoiceCount() == 1,
+        "a note the pedal holds is in use (" +
+            std::to_string(p.getActiveVoiceCount()) + ")");
+  send({juce::MidiMessage::controllerEvent(1, 64, 0),
+        juce::MidiMessage::allSoundOff(1)});
+
+  // The wheels, across their travel.
+  bool bendFollows = true;
+  const struct {
+    int value;
+    float position;
+  } wheel[] = {
+      {0, -1.0f}, {4096, -0.5f}, {8192, 0.0f}, {12288, 0.5f}, {16383, 1.0f}};
+  for (const auto &w : wheel) {
+    send({juce::MidiMessage::pitchWheel(1, w.value)});
+    bendFollows &= near(p.getBendPosition(), w.position);
+  }
+  check(bendFollows, "BEND follows the pitch wheel from one end to the other");
+
+  bool wheelFollows = true;
+  for (const auto value : {0, 32, 64, 127}) {
+    send({juce::MidiMessage::controllerEvent(1, 1, value)});
+    wheelFollows &= near(p.getWheelPosition(), (float)value / 127.0f);
+  }
+  check(wheelFollows, "WHEEL follows the mod wheel from one end to the other");
+
+  // Pressure is what the keyboard sends, whatever Aftertouch from passes on,
+  // so the wheel moves WHEEL and nothing else.
+  bool pressureAlone = true;
+  for (const auto source :
+       {AftertouchSource::ChannelPressure, AftertouchSource::ModWheel,
+        AftertouchSource::Either}) {
+    setParam(ovt::params::atSourceId, (float)source);
+    send({juce::MidiMessage::pitchWheel(1, 8192),
+          juce::MidiMessage::controllerEvent(1, 1, 120),
+          juce::MidiMessage::channelPressureChange(1, 30)});
+    pressureAlone &= near(p.getPressurePosition(), 30.0f / 127.0f);
+  }
+  check(pressureAlone,
+        "PRESSURE is the keyboard's pressure, not the wheel, whatever "
+        "Aftertouch from follows (" +
+            std::to_string(p.getPressurePosition()) + ")");
+
+  // And polyphonic aftertouch on a held key, the strongest one.
+  setParam(ovt::params::atSourceId, (float)AftertouchSource::ChannelPressure);
+  send({juce::MidiMessage::channelPressureChange(1, 0),
+        juce::MidiMessage::controllerEvent(1, 1, 0),
+        juce::MidiMessage::noteOn(1, 60, 0.8f),
+        juce::MidiMessage::noteOn(1, 64, 0.8f)});
+  send({juce::MidiMessage::aftertouchChange(1, 60, 40),
+        juce::MidiMessage::aftertouchChange(1, 64, 90)});
+  const auto strongest = p.getPressurePosition();
+  send({juce::MidiMessage::noteOff(1, 64)});
+  const auto afterLetGo = p.getPressurePosition();
+  check(near(strongest, 90.0f / 127.0f) && near(afterLetGo, 40.0f / 127.0f),
+        "PRESSURE shows the strongest key held, and drops as it comes up (" +
+            std::to_string(strongest) + ", " + std::to_string(afterLetGo) +
+            ")");
+  send({juce::MidiMessage::allSoundOff(1)});
+
+  // Under MPE each key bends and presses on its own channel. The member
+  // channels bend over 48 semitones, so a bend of one semitone is 1/48 of
+  // the way, and against a BEND range of 2 it reads halfway.
+  setParam(ovt::params::mpeId, 1.0f);
+  send({});
+
+  const auto semitones = [](float st) {
+    return 8192 + (int)std::lround(st / 48.0f * 8192.0f);
+  };
+
+  send({juce::MidiMessage::noteOn(2, 60, 0.8f),
+        juce::MidiMessage::noteOn(3, 64, 0.8f)});
+  send({juce::MidiMessage::pitchWheel(2, semitones(-0.5f)),
+        juce::MidiMessage::pitchWheel(3, semitones(1.0f)),
+        juce::MidiMessage::channelPressureChange(2, 90),
+        juce::MidiMessage::channelPressureChange(3, 30)});
+  const auto widest = p.getBendPosition();
+  const auto pressed = p.getPressurePosition();
+  send({juce::MidiMessage::noteOff(3, 64)});
+  const auto left = p.getBendPosition();
+
+  check(near(widest, 0.5f) && near(left, -0.25f),
+        "under MPE, BEND shows the key bent furthest, either way (" +
+            std::to_string(widest) + ", " + std::to_string(left) + ")");
+  check(near(pressed, 90.0f / 127.0f),
+        "and PRESSURE the key pressed hardest (" + std::to_string(pressed) +
+            ")");
+
+  // The parser takes the pedal under MPE, and the lamp still sees it.
+  send({juce::MidiMessage::controllerEvent(1, 64, 127)});
+  const bool mpeDown = p.isSustainDown();
+  send({juce::MidiMessage::controllerEvent(1, 64, 0)});
+  check(mpeDown && !p.isSustainDown(), "and SUSTAIN follows the pedal");
+
+  send({juce::MidiMessage::allSoundOff(1)});
+  setParam(ovt::params::mpeId, 0.0f);
+  send({});
+
+  // The editor reads all of this from the message thread while the audio
+  // thread writes it. Nothing here can see a race, but a run under the thread
+  // sanitizer can, and this is what gives it two threads to watch.
+  {
+    std::atomic<bool> playing{true};
+    std::thread audio([&] {
+      for (int b = 0; b < 200; ++b) {
+        const auto on = (b % 2) == 0;
+        send({juce::MidiMessage::controllerEvent(1, 64, on ? 127 : 0),
+              juce::MidiMessage::controllerEvent(1, 1, b % 128),
+              juce::MidiMessage::pitchWheel(1, (b * 80) % 16384),
+              on ? juce::MidiMessage::noteOn(1, 60 + b % 12, 0.8f)
+                 : juce::MidiMessage::noteOff(1, 60 + (b - 1) % 12)});
+      }
+      playing = false;
+    });
+
+    float seen = 0.0f;
+    while (playing)
+      seen += (float)p.getActiveVoiceCount() + (float)p.isSustainDown() +
+              p.getBendPosition() + p.getWheelPosition() +
+              p.getPressurePosition();
+
+    audio.join();
+    check(std::isfinite(seen), "and all of it can be read while it is played");
+  }
+
+  send({juce::MidiMessage::allSoundOff(1)});
+  restoreSessionSettings(p);
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
+/// The Playing bar shows what the parameters say and changes them.
+void testPlayingBar(OvertoniumProcessor &p) {
+  section("The Playing bar");
+
+  p.applyFactoryPreset(presetIndex("Init"));
+  namespace st = ovt::ui::settings;
+
+  std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());
+  sizeEditor(*editor, 1348, 240);
+
+  ovt::ui::PlayingBar *bar = nullptr;
+  juce::TextButton *opener = nullptr;
+  std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (auto *b = dynamic_cast<ovt::ui::PlayingBar *>(child))
+        bar = b;
+      if (auto *b = dynamic_cast<juce::TextButton *>(child))
+        if (b->getTitle() == "Playing")
+          opener = b;
+      look(*child);
+    }
+  };
+  look(*editor);
+
+  check(bar != nullptr && opener != nullptr, "there is a Playing bar");
+  if (bar == nullptr || opener == nullptr)
+    return;
+
+  opener->onClick();
+
+  ovt::ui::SegmentDisplay *voices = nullptr, *bend = nullptr,
+                          *aftertouch = nullptr, *slide = nullptr;
+  juce::TextButton *legato = nullptr, *perKey = nullptr, *mpe = nullptr;
+
+  for (auto *child : bar->getChildren()) {
+    if (auto *d = dynamic_cast<ovt::ui::SegmentDisplay *>(child)) {
+      const auto t = d->getTitle();
+      if (t.startsWith("Voices"))
+        voices = d;
+      if (t.startsWith("Pitch bend"))
+        bend = d;
+      if (t.startsWith("Aftertouch"))
+        aftertouch = d;
+      if (t.startsWith("Slide"))
+        slide = d;
+    }
+    if (auto *b = dynamic_cast<juce::TextButton *>(child)) {
+      if (b->getTitle() == "Legato")
+        legato = b;
+      if (b->getTitle() == "No stack")
+        perKey = b;
+      if (b->getTitle() == "MPE")
+        mpe = b;
+    }
+  }
+
+  check(voices != nullptr && bend != nullptr && aftertouch != nullptr &&
+            slide != nullptr && legato != nullptr && perKey != nullptr &&
+            mpe != nullptr,
+        "it has voices, bend range, aftertouch and slide, and Legato, No "
+        "stack and MPE");
+  if (voices == nullptr || bend == nullptr || aftertouch == nullptr ||
+      slide == nullptr || legato == nullptr || perKey == nullptr ||
+      mpe == nullptr)
+    return;
+
+  check(voices->isVisible() && slide->isVisible() && mpe->isVisible(),
+        "all of it fits at 1348 px");
+  {
+    bool natural = true;
+    for (auto *d : {voices, bend, aftertouch, slide})
+      natural &= d->getWidth() >= d->naturalWidth(d->getHeight());
+    check(natural, "with every display at the width its cells need");
+  }
+
+  // ---- it reads the parameters ---------------------------------------------
+  st::apply(p.apvts, st::kVoices + 5);
+  st::apply(p.apvts, st::kBendRange + 12);
+  st::apply(p.apvts, st::kAftertouchFrom + 1);
+  st::apply(p.apvts, st::kSlideTo + 2);
+  bar->refresh();
+
+  check(voices->getReading().trim() == "8" &&
+            bend->getReading().trim() == "12" &&
+            aftertouch->getReading().trim() == "WHEEL" &&
+            slide->getReading().trim() == "TUNING",
+        "it shows 8 voices, 12 semitones, the wheel and tuning (" +
+            voices->getReading().toStdString() + ", " +
+            bend->getReading().toStdString() + ", " +
+            aftertouch->getReading().toStdString() + ", " +
+            slide->getReading().toStdString() + ")");
+
+  check(voices->onClick != nullptr && bend->onClick != nullptr &&
+            aftertouch->onClick != nullptr && slide->onClick != nullptr,
+        "and each display opens its list");
+
+  // ---- the switches change the parameters and light from them -----------
+  const auto pressAndRead = [&](juce::TextButton *b, const char *param) {
+    const bool before = st::isOn(p.apvts, param);
+    b->onClick();
+    return std::pair<bool, bool>{st::isOn(p.apvts, param) != before,
+                                 b->getToggleState() ==
+                                     st::isOn(p.apvts, param)};
+  };
+
+  for (const auto &sw : {std::pair<juce::TextButton *, const char *>{
+                             legato, ovt::params::legatoId},
+                         {perKey, ovt::params::oneVoicePerKeyId},
+                         {mpe, ovt::params::mpeId}}) {
+    const auto [flipped, lit] = pressAndRead(sw.first, sw.second);
+    check(flipped && lit, sw.first->getButtonText().toStdString() +
+                              " flips its parameter and lights from it");
+    sw.first->onClick();
+  }
+
+  // A preset, a host or the Settings menu moves one, and the bar follows on
+  // its next refresh.
+  st::apply(p.apvts, st::kMpe);
+  bar->refresh();
+  check(mpe->getToggleState() == st::isOn(p.apvts, ovt::params::mpeId),
+        "and follows a change made somewhere else");
+  st::apply(p.apvts, st::kMpe);
+
+  // ---- how it is being played ----------------------------------------------
+  const auto &inUse = bar->inUseDisplay();
+  const auto &sustain = bar->sustainLamp();
+
+  check(inUse.isVisible() && sustain.isVisible() &&
+            inUse.getY() == voices->getY() &&
+            inUse.getX() > voices->getRight() &&
+            inUse.getRight() < legato->getX() &&
+            bar->getHeight() == ovt::ui::OptionBar::kHeight,
+        "IN USE stands between VOICES and LEGATO, SUSTAIN is there, and it "
+        "is all still one row");
+
+  bar->showActivity({3, true});
+  const bool three = inUse.getReading().trim() == "3" && inUse.isActive() &&
+                     inUse.getTitle() == "In use: 3 voices" &&
+                     sustain.getToggleState();
+  bar->showActivity({});
+  const bool none = inUse.getReading().trim() == "0" && inUse.isActive() &&
+                    !sustain.getToggleState();
+
+  check(three, "it shows the voices in use and lights SUSTAIN (" +
+                   inUse.getReading().toStdString() + ", " +
+                   inUse.getTitle().toStdString() + ")");
+  check(none, "and reads a lit nought with SUSTAIN dark when nothing sounds");
+
+  // The meters, after SUSTAIN in its group, each across its whole travel.
+  const auto &pitchMeter = bar->bendMeter();
+  const auto &wheelMeter = bar->wheelMeter();
+  const auto &pressureMeter = bar->pressureMeter();
+
+  check(pitchMeter.isVisible() && wheelMeter.isVisible() &&
+            pressureMeter.isVisible() &&
+            sustain.getRight() < pitchMeter.getX() &&
+            pitchMeter.getRight() < wheelMeter.getX() &&
+            wheelMeter.getRight() < pressureMeter.getX() &&
+            pitchMeter.getBounds().getCentreY() ==
+                sustain.getBounds().getCentreY(),
+        "PITCH, WHEEL and PRESSURE stand after SUSTAIN, on its line");
+
+  {
+    // Where a needle's two ends and middle are, from its own width.
+    const auto left = ovt::ui::ActivityNeedle::kSlotInset + 1;
+    const auto right = [](const ovt::ui::ActivityNeedle &n) {
+      return n.getWidth() - ovt::ui::ActivityNeedle::kSlotInset - 2;
+    };
+    const auto middle = [&](const ovt::ui::ActivityNeedle &n) {
+      return (left + right(n)) / 2;
+    };
+    const auto near = [](int a, int b) { return std::abs(a - b) <= 1; };
+
+    bar->showActivity({0, false, -1.0f, 0.0f, 0.0f});
+    const bool atRest = pitchMeter.getColumn() == left &&
+                        wheelMeter.getColumn() == left &&
+                        pressureMeter.getColumn() == left;
+    bar->showActivity({0, false, 0.0f, 0.5f, 0.5f});
+    const bool halfway = near(pitchMeter.getColumn(), middle(pitchMeter)) &&
+                         near(wheelMeter.getColumn(), middle(wheelMeter)) &&
+                         near(pressureMeter.getColumn(), middle(pressureMeter));
+    bar->showActivity({0, false, 1.0f, 1.0f, 1.0f});
+    const bool atTheEnd = pitchMeter.getColumn() == right(pitchMeter) &&
+                          wheelMeter.getColumn() == right(wheelMeter) &&
+                          pressureMeter.getColumn() == right(pressureMeter);
+
+    check(atRest && halfway && atTheEnd,
+          "each needle reaches both ends of its travel and its middle (" +
+              std::to_string(pitchMeter.getColumn()) + " of " +
+              std::to_string(right(pitchMeter)) + ")");
+
+    // The pitch wheel rests in the middle and is marked there. The other two
+    // rest at the left and are not, which shows as the middle column of a
+    // needle at the far end matching the column beside it.
+    const auto markedAtMiddle = [](const ovt::ui::ActivityNeedle &n) {
+      auto &needle = const_cast<ovt::ui::ActivityNeedle &>(n);
+      const auto image =
+          needle.createComponentSnapshot(needle.getLocalBounds(), true, 1.0f);
+      const auto x = needle.getWidth() / 2;
+      const auto y = needle.getHeight() / 2;
+      return image.getPixelAt(x, y) != image.getPixelAt(x - 3, y);
+    };
+
+    check(markedAtMiddle(pitchMeter) && !markedAtMiddle(wheelMeter) &&
+              !markedAtMiddle(pressureMeter),
+          "PITCH is marked at its middle and WHEEL and PRESSURE are not");
+
+    bar->showActivity({});
+
+    // A bar is handed its first reading before it has a width, and has to put
+    // its needles where they belong once it is laid out.
+    juce::Component popupHost;
+    ovt::ui::PlayingBar fresh(p.apvts, popupHost);
+    fresh.setSize(1348, ovt::ui::OptionBar::kHeight);
+    check(near(fresh.bendMeter().getColumn(), middle(fresh.bendMeter())) &&
+              fresh.wheelMeter().getColumn() == left,
+          "and a new bar's needles start where they rest (" +
+              std::to_string(fresh.bendMeter().getColumn()) + ")");
+  }
+
+  // ---- the macros
+  // -------------------------------------------------------------
+  {
+    namespace pp = ovt::params;
+
+    bool inOrder = true;
+    for (int m = 0; m < pp::kNumMacros; ++m) {
+      const auto &knob = bar->macroKnob(m);
+      inOrder &= knob.isVisible() &&
+                 knob.getX() > (m == 0 ? pressureMeter.getRight()
+                                       : bar->macroKnob(m - 1).getRight() - 1);
+    }
+    check(inOrder && bar->getHeight() == ovt::ui::OptionBar::kHeight,
+          "the eight macro knobs stand after the meters, still on one row");
+
+    const auto setChoice = [&p](const juce::String &id, int index) {
+      if (auto *param = p.apvts.getParameter(id))
+        param->setValueNotifyingHost(param->convertTo0to1((float)index));
+    };
+
+    // Macro 2 made, aimed at the first row and given the third colour, and
+    // the rest left unmade.
+    setChoice(pp::macroRowId(1), 1);
+    setChoice(pp::macroColourId(1), 3);
+    bar->refresh();
+
+    auto &made = bar->macroKnob(1).slider;
+    auto &unmade = bar->macroKnob(0).slider;
+
+    check(made.isEnabled() && !(bool)made.getProperties()["blank"] &&
+              made.findColour(juce::Slider::rotarySliderFillColourId) ==
+                  pp::macroColour(3),
+          "a made macro's knob is live and wears its colour");
+    check(!unmade.isEnabled() && (bool)unmade.getProperties()["blank"],
+          "and one nobody has made is blank and does nothing");
+
+    // Captioned with its row once made, with its number until then.
+    check(bar->macroKnob(1).getCaption() == "TUNE" &&
+              bar->macroKnob(0).getCaption() == "1" &&
+              made.getTitle() == "Macro 2 amount, Tune, Playing bar" &&
+              unmade.getTitle() == "Macro 1 amount, Playing bar",
+          "a made macro is captioned and named after its row, an unmade one "
+          "by its number (" +
+              bar->macroKnob(1).getCaption().toStdString() + ", " +
+              made.getTitle().toStdString() + ")");
+
+    // Every row's caption fits under a knob, in the font it is drawn in.
+    {
+      const auto font = ovt::ui::makeFont(9.0f, true);
+      juce::String tooWide;
+      for (int row = 1; row <= pp::kNumMacroRows; ++row) {
+        const auto caption = ovt::ui::PlayingBar::macroCaption(row);
+        if (caption.isEmpty() ||
+            juce::GlyphArrangement::getStringWidth(font, caption) >
+                (float)bar->macroKnob(1).getWidth())
+          tooWide << caption << " (" << pp::macroRowName(row) << ") ";
+      }
+      check(tooWide.isEmpty() && bar->macroKnob(1).getWidth() ==
+                                     ovt::ui::PlayingBar::kMacroWidth,
+            "every row a macro can aim at has a caption that fits under its "
+            "knob (" +
+                tooWide.toStdString() + ")");
+    }
+
+    // The knob and the parameter move together, both ways.
+    auto *amount = p.apvts.getParameter(pp::macroAmountId(1));
+    made.setValue(0.5, juce::sendNotificationSync);
+    const auto fromKnob = amount->convertFrom0to1(amount->getValue());
+    amount->setValueNotifyingHost(amount->convertTo0to1(-0.25f));
+    const auto fromParameter = made.getValue();
+
+    check(std::abs(fromKnob - 0.5f) < 0.001f &&
+              std::abs(fromParameter + 0.25) < 0.001,
+          "the knob turns the macro's amount, and the amount turns the knob (" +
+              std::to_string(fromKnob) + ", " + std::to_string(fromParameter) +
+              ")");
+
+    // Blank means nothing on it to read: the same picture wherever the
+    // amount stands, where a made knob moves its pointer.
+    const auto picture = [](juce::Slider &slider, double value) {
+      slider.setValue(value, juce::dontSendNotification);
+      return slider.createComponentSnapshot(slider.getLocalBounds(), true,
+                                            1.0f);
+    };
+    const auto same = [](const juce::Image &a, const juce::Image &b) {
+      for (int y = 0; y < a.getHeight(); ++y)
+        for (int x = 0; x < a.getWidth(); ++x)
+          if (a.getPixelAt(x, y) != b.getPixelAt(x, y))
+            return false;
+      return true;
+    };
+
+    const bool blankStill = same(picture(unmade, -1.0), picture(unmade, 1.0)) &&
+                            same(picture(unmade, 0.0), picture(unmade, 1.0));
+    const bool madeMoves = !same(picture(made, -1.0), picture(made, 1.0));
+
+    check(blankStill && madeMoves,
+          "a blank knob shows no amount, where a made one does");
+
+    unmade.setValue(0.0, juce::dontSendNotification);
+    amount->setValueNotifyingHost(amount->getDefaultValue());
+    setChoice(pp::macroRowId(1), 0);
+    setChoice(pp::macroColourId(1), 0);
+    bar->refresh();
+  }
+
+  // ---- a narrow window wraps, as the top bar does --------------------------
+  //
+  // Nothing is left out. The groups that do not fit across go onto another
+  // row, the bar grows by it, and the mixer gives up the height.
+  {
+    const auto oneRow = bar->getHeight();
+    sizeEditor(*editor, ovt::ui::TopBar::minimumWidth());
+
+    bool all = true;
+    for (auto *c : {static_cast<const juce::Component *>(voices),
+                    static_cast<const juce::Component *>(legato),
+                    static_cast<const juce::Component *>(perKey),
+                    static_cast<const juce::Component *>(bend),
+                    static_cast<const juce::Component *>(mpe),
+                    static_cast<const juce::Component *>(aftertouch),
+                    static_cast<const juce::Component *>(slide),
+                    static_cast<const juce::Component *>(&inUse),
+                    static_cast<const juce::Component *>(&sustain),
+                    static_cast<const juce::Component *>(&pitchMeter),
+                    static_cast<const juce::Component *>(&wheelMeter),
+                    static_cast<const juce::Component *>(&pressureMeter)})
+      all &= c->isVisible() && bar->getLocalBounds().contains(c->getBounds());
+
+    for (int m = 0; m < ovt::params::kNumMacros; ++m)
+      all &= bar->macroKnob(m).isVisible() &&
+             bar->getLocalBounds().contains(bar->macroKnob(m).getBounds());
+
+    check(all && bar->getHeight() > oneRow &&
+              bar->getHeight() == bar->heightForWidth(bar->getWidth()),
+          "at the narrowest window every control is still there, the bar "
+          "wrapping onto " +
+              std::to_string(bar->getHeight()) + " px from " +
+              std::to_string(oneRow));
+    check(slide->getY() > voices->getY(),
+          "with what does not fit across on a row below");
+
+    // And the floor counts the rows, so the narrowest legal window still has
+    // its mixer.
+    const auto *limits = editor->getConstrainer();
+    sizeEditor(*editor, ovt::ui::TopBar::minimumWidth());
+    check(limits != nullptr &&
+              editor->getHeight() >= limits->getMinimumHeight(),
+          "and the window's floor counts the bar's rows");
+  }
+
+  opener->onClick();
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
+/// A right-click on a knob in the bars: MIDI Learn on Retune, and on a macro
+/// knob a menu that offers to make the macro, or to bind a controller to it
+/// and change it in MACROS once it is made.
+void testBarRightClicks(OvertoniumProcessor &p) {
+  section("Right-clicks in the bars");
+
+  namespace pp = ovt::params;
+  using ovt::ui::PlayingBar;
+
+  p.applyFactoryPreset(presetIndex("Init"));
+
+  const auto setChoice = [&p](const juce::String &id, int index) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1((float)index));
+  };
+  const auto chosen = [&p](const juce::String &id) {
+    auto *param = p.apvts.getParameter(id);
+    return (int)std::lround(param->convertFrom0to1(param->getValue()));
+  };
+
+  // Delivered as JUCE delivers it to a listening ancestor: the control under
+  // the pointer as the original component, the bar as the one hearing it.
+  const auto click = [](juce::Component &landedOn, juce::Component &bar,
+                        bool right) {
+    const auto at = bar.getLocalBounds().getCentre().toFloat();
+    const auto now = juce::Time::getCurrentTime();
+    return juce::MouseEvent(
+        juce::Desktop::getInstance().getMainMouseSource(), at,
+        juce::ModifierKeys(right ? juce::ModifierKeys::rightButtonModifier
+                                 : juce::ModifierKeys::leftButtonModifier),
+        juce::MouseInputSource::defaultPressure,
+        juce::MouseInputSource::defaultOrientation,
+        juce::MouseInputSource::defaultRotation,
+        juce::MouseInputSource::defaultTiltX,
+        juce::MouseInputSource::defaultTiltY, &bar, &landedOn, now, at, now, 1,
+        false);
+  };
+
+  juce::Component popupHost;
+  PlayingBar bar(p.apvts, popupHost);
+  bar.setSize(1348, ovt::ui::OptionBar::kHeight);
+
+  setChoice(pp::macroRowId(1), 8);
+  bar.refresh();
+
+  int asked = -1;
+  juce::String learnFor;
+  bar.onMacroMenuRequested = [&asked](int m) { asked = m; };
+  bar.onLearnRequested = [&learnFor](const juce::String &id) { learnFor = id; };
+
+  bar.mouseDown(click(bar.macroKnob(1).slider, bar, true));
+  const auto onMade = asked;
+  asked = -1;
+  bar.mouseDown(click(bar.macroKnob(0).slider, bar, true));
+  const auto onUnmade = asked;
+  asked = -1;
+  bar.mouseDown(click(bar.macroKnob(1).slider, bar, false));
+  const auto onLeft = asked;
+  bar.mouseDown(
+      click(const_cast<ovt::ui::ScreenSwitch &>(bar.sustainLamp()), bar, true));
+
+  check(onMade == 1 && onUnmade == 0 && onLeft == -1 && asked == -1 &&
+            learnFor.isEmpty(),
+        "a right-click on a macro knob asks for that macro's menu, and "
+        "nothing else does (" +
+            std::to_string(onMade) + ", " + std::to_string(onUnmade) + ")");
+
+  // The menu itself, read as data since a menu cannot be shown here.
+  const auto ids = [](const juce::PopupMenu &menu) {
+    std::set<int> found;
+    for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+      if (it.getItem().itemID != 0)
+        found.insert(it.getItem().itemID);
+    return found;
+  };
+
+  auto *amount = dynamic_cast<juce::RangedAudioParameter *>(
+      p.apvts.getParameter(pp::macroAmountId(1)));
+
+  const auto unmadeMenu = PlayingBar::macroMenu(0, false, p.midiLearn, amount);
+  const auto madeMenu = PlayingBar::macroMenu(1, true, p.midiLearn, amount);
+  const auto unmadeIds = ids(unmadeMenu);
+  const auto madeIds = ids(madeMenu);
+
+  check(unmadeIds == std::set<int>{PlayingBar::kAssignMacro},
+        "an unmade macro's menu offers only to assign it");
+  check(madeIds.count(ovt::ui::learn::kLearn) == 1 &&
+            madeIds.count(PlayingBar::kEditMacro) == 1 &&
+            madeIds.count(PlayingBar::kAssignMacro) == 0,
+        "and a made one MIDI Learn and a way into MACROS");
+
+  p.midiLearn.arm(amount);
+  const auto waitingIds =
+      ids(PlayingBar::macroMenu(1, true, p.midiLearn, amount));
+  p.midiLearn.arm(nullptr);
+  check(waitingIds.count(ovt::ui::learn::kCancel) == 1,
+        "which says so while it waits for a controller");
+
+  check(bar.macroKnob(0).slider.getTooltip().contains("not assigned") &&
+            bar.macroKnob(0).slider.getTooltip().contains("Right-click") &&
+            bar.macroKnob(1).slider.getTooltip().contains("Right-click"),
+        "and the tooltips say what a right-click does");
+
+  // Assigning from the knob makes that macro, and only if nobody has.
+  {
+    ovt::ui::MacroPanel panel(p.apvts);
+    panel.make(4);
+    setChoice(pp::macroRowId(5), 7);
+    panel.make(5);
+
+    check(chosen(pp::macroRowId(4)) == 1 && chosen(pp::macroRowId(5)) == 7,
+          "assigning makes the macro on the first row, and leaves a made one "
+          "where it is aimed");
+  }
+
+  // Retune is the other knob in the bars, and offers MIDI Learn.
+  {
+    ovt::ui::TuningBar tuning(p.apvts, popupHost);
+    tuning.setSize(1348, ovt::ui::OptionBar::kHeight);
+
+    juce::Slider *retune = nullptr;
+    std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+      for (auto *child : c.getChildren()) {
+        if (auto *s = dynamic_cast<juce::Slider *>(child))
+          if (s->getTitle() == "Adaptive retune time")
+            retune = s;
+        look(*child);
+      }
+    };
+    look(tuning);
+
+    juce::String tuningLearn;
+    tuning.onLearnRequested = [&tuningLearn](const juce::String &id) {
+      tuningLearn = id;
+    };
+
+    if (retune != nullptr)
+      tuning.mouseDown(click(*retune, tuning, true));
+
+    check(retune != nullptr && tuningLearn == pp::adaptiveRetuneId,
+          "a right-click on Retune offers MIDI Learn for it (" +
+              tuningLearn.toStdString() + ")");
+  }
+
+  for (int m = 0; m < pp::kNumMacros; ++m)
+    setChoice(pp::macroRowId(m), 0);
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
+/// The Tuning bar shows the temperament, root and reference pitch, and Retune
+/// only where it means something.
+void testTuningBar(OvertoniumProcessor &p) {
+  section("The Tuning bar");
+
+  p.applyFactoryPreset(presetIndex("Init"));
+  namespace st = ovt::ui::settings;
+  using ovt::ui::SegmentDisplay;
+
+  // ---- what it has to be able to say --------------------------------------
+  {
+    juce::String undrawable;
+    for (const auto *name : ovt::params::kPitchClassNames)
+      for (const auto *c = name; *c != 0; ++c)
+        if (!SegmentDisplay::canDraw(*c, SegmentDisplay::Bars::Fourteen))
+          undrawable += *c;
+    check(undrawable.isEmpty(),
+          "every root, sharps included, can be spelled in the root's cells (" +
+              undrawable.toStdString() + ")");
+
+    bool fit = true;
+    for (int i = 0; i < (int)ovt::Temperament::NumTemperaments; ++i) {
+      const juce::String word = ovt::ui::TuningBar::temperamentWord(i);
+      fit &= word.length() <= 8;
+      for (int c = 0; c < word.length(); ++c)
+        fit &= SegmentDisplay::canDraw((char)word[c],
+                                       SegmentDisplay::Bars::Fourteen);
+    }
+    check(fit, "every temperament has a word that fits its eight cells");
+  }
+
+  std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());
+  sizeEditor(*editor, 1348, 240);
+
+  ovt::ui::TuningBar *bar = nullptr;
+  juce::TextButton *opener = nullptr;
+  std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (auto *b = dynamic_cast<ovt::ui::TuningBar *>(child))
+        bar = b;
+      if (auto *b = dynamic_cast<juce::TextButton *>(child))
+        if (b->getTitle() == "Tuning")
+          opener = b;
+      look(*child);
+    }
+  };
+  look(*editor);
+
+  check(bar != nullptr && opener != nullptr, "there is a Tuning bar");
+  if (bar == nullptr || opener == nullptr)
+    return;
+
+  opener->onClick();
+
+  SegmentDisplay *temperament = nullptr, *root = nullptr, *reference = nullptr;
+  ovt::ui::LabelledKnob *retune = nullptr;
+  for (auto *child : bar->getChildren()) {
+    if (auto *d = dynamic_cast<SegmentDisplay *>(child)) {
+      const auto t = d->getTitle();
+      if (t.startsWith("Temperament"))
+        temperament = d;
+      if (t.startsWith("Root"))
+        root = d;
+      if (t.startsWith("Reference"))
+        reference = d;
+    }
+    if (auto *k = dynamic_cast<ovt::ui::LabelledKnob *>(child))
+      if (k->slider.getTitle() == "Adaptive retune time")
+        retune = k;
+  }
+
+  check(temperament != nullptr && root != nullptr && reference != nullptr &&
+            retune != nullptr,
+        "it has temperament, root, reference pitch and retune");
+  if (temperament == nullptr || root == nullptr || reference == nullptr ||
+      retune == nullptr)
+    return;
+
+  const auto pick = [&](int id) {
+    st::apply(p.apvts, id);
+    bar->refresh();
+  };
+
+  // ---- under a fixed temperament ------------------------------------------
+  pick(st::kTemperament + (int)ovt::Temperament::Just);
+  pick(st::kRoot + 6);
+  pick(st::kReferencePitch + 0);
+
+  const auto hz = ovt::params::kReferenceHzChoices[0];
+
+  check(temperament->getReading().trim() == "JUST" &&
+            root->getReading().trim() == "F#" &&
+            reference->getReading().trim() == juce::String(hz),
+        "it shows Just on F# at " + std::to_string(hz) + " Hz (" +
+            temperament->getReading().trim().toStdString() + ", " +
+            root->getReading().trim().toStdString() + ", " +
+            reference->getReading().trim().toStdString() + ")");
+  check(root->isActive(), "with the root lit");
+
+  // ---- the twelve displays chart the scale
+  // -----------------------------------
+  pick(st::kRoot + 0);
+  {
+    const auto read = [bar](int pc) {
+      return bar->scaleDisplay(pc).getReading().trim();
+    };
+    bool allLit = true;
+    for (int pc = 0; pc < 12; ++pc)
+      allLit &= bar->scaleDisplay(pc).isActive();
+
+    check(read(9) == "0.0" && read(0) == "15.6" && read(4) == "2.0" &&
+              read(7) == "17.6" && allLit,
+          "Just on C reads A 0.0, C 15.6, E 2.0 and G 17.6, all lit (" +
+              read(9).toStdString() + ", " + read(0).toStdString() + ", " +
+              read(4).toStdString() + ", " + read(7).toStdString() + ")");
+
+    pick(st::kTemperament + (int)ovt::Temperament::Equal);
+    bool allZero = true;
+    for (int pc = 0; pc < 12; ++pc)
+      allZero &= read(pc) == "0.0";
+    check(allZero, "and equal temperament reads 0.0 on every one");
+    pick(st::kTemperament + (int)ovt::Temperament::Just);
+  }
+  check(!retune->isVisible(), "and no Retune, which only Adaptive has");
+
+  // ---- under equal temperament, the root says nothing ---------------------
+  pick(st::kTemperament + (int)ovt::Temperament::Equal);
+  check(temperament->getReading().trim() == "EQUAL" && !root->isActive(),
+        "under Equal the root is dimmed, as its Settings entry is greyed out");
+
+  // ---- under Adaptive, Retune joins it -------------------------------------
+  pick(st::kTemperament + (int)ovt::Temperament::Adaptive);
+  pick(st::kRetune + 1);
+
+  check(retune->isVisible() && retune->getX() > reference->getRight() &&
+            std::abs(retune->slider.getValue() - 0.3) < 0.001,
+        "under Adaptive the Retune knob shows, after the reference pitch, and "
+        "follows the parameter (" +
+            std::to_string(retune->slider.getValue()) + " s)");
+  check(retune->getHeight() > ovt::ui::OptionBar::kHeight / 2,
+        "standing the height of its column, as the top bar's knobs do");
+
+  // Every display at the width its cells need, so a figure in this bar is the
+  // same width as one in the Playing bar or on the preset name, and all of
+  // it fits across the window that shows all 32 channels.
+  {
+    bool natural = true, shown = true;
+    std::string narrow;
+    for (auto *barHere :
+         {static_cast<juce::Component *>(bar),
+          static_cast<juce::Component *>(bar->getParentComponent())}) {
+      for (auto *child : barHere->getChildren())
+        if (auto *other = dynamic_cast<ovt::ui::OptionBar *>(child);
+            other != nullptr && other->isVisible())
+          for (auto *c : other->getChildren())
+            if (auto *d = dynamic_cast<SegmentDisplay *>(c)) {
+              shown &= d->isVisible();
+              if (d->isVisible() &&
+                  d->getWidth() < d->naturalWidth(d->getHeight())) {
+                natural = false;
+                narrow = d->getTitle().toStdString() + ", " +
+                         std::to_string(d->getWidth()) + " of " +
+                         std::to_string(d->naturalWidth(d->getHeight())) +
+                         " at " + std::to_string(d->getHeight());
+              }
+            }
+    }
+    check(natural, "every display in the open bar stands at its natural width" +
+                       (narrow.empty() ? std::string() : " (" + narrow + ")"));
+    check(shown, "and under Adaptive the whole bar fits at 1348 px");
+  }
+
+  pick(st::kTemperament + (int)ovt::Temperament::Equal);
+  check(!retune->isVisible(), "and goes again when Adaptive does");
+
+  // ---- the order, and the white keys
+  {
+    pick(st::kTemperament + (int)ovt::Temperament::Adaptive);
+    const auto &drift = bar->driftDisplay();
+    auto &noDrift = bar->homeSwitch();
+    const auto &c = bar->scaleDisplay(0);
+
+    check(drift.isVisible() && drift.getX() > reference->getRight() &&
+              drift.getY() == reference->getY() &&
+              noDrift.getX() > drift.getRight() &&
+              retune->getX() > noDrift.getRight() &&
+              c.getX() > retune->getRight(),
+          "under Adaptive the bar reads temperament, root, reference and "
+          "drift, then the switches, PURE and Retune, then the twelve");
+    check(noDrift.getButtonText() == "NO DRIFT" &&
+              noDrift.getTitle() == "No drift",
+          "with the drift switch called NO DRIFT");
+    check(bar->getHeight() == ovt::ui::OptionBar::kHeight,
+          "all on one row at 1348 px");
+
+    // The ground beside a white key's display is lighter than beside a black
+    // key's, measured just outside each display.
+    const auto shot = bar->createComponentSnapshot(bar->getLocalBounds());
+    const auto beside = [&shot](const SegmentDisplay &d) {
+      return shot.getPixelAt(d.getX() - 1, d.getBounds().getCentreY())
+          .getBrightness();
+    };
+    check(beside(bar->scaleDisplay(0)) > beside(bar->scaleDisplay(1)) + 0.03f &&
+              beside(bar->scaleDisplay(4)) >
+                  beside(bar->scaleDisplay(3)) + 0.03f,
+          "and the white keys stand on a lighter ground than the black");
+
+    pick(st::kTemperament + (int)ovt::Temperament::Just);
+    check(!drift.isVisible() && !noDrift.isVisible(),
+          "under a fixed temperament the drift and the Adaptive switches go");
+    pick(st::kTemperament + (int)ovt::Temperament::Equal);
+  }
+
+  // ---- the rows follow what is shown
+  // -----------------------------------------
+  //
+  // In a narrow window Adaptive's groups need more rows than a fixed
+  // temperament's, and the bar is laid out again as they come and go, not
+  // only when the window moves.
+  {
+    sizeEditor(*editor, ovt::ui::TopBar::minimumWidth());
+    const auto fixedHeight = bar->getHeight();
+
+    pick(st::kTemperament + (int)ovt::Temperament::Adaptive);
+    const auto adaptiveHeight = bar->getHeight();
+    const auto fits = bar->getHeight() == bar->heightForWidth(bar->getWidth());
+
+    // The twelve are wider together than the narrowest window, so they wrap
+    // onto a second line inside their own frame rather than running off it.
+    bool twelve = true;
+    for (int pc = 0; pc < 12; ++pc) {
+      const auto &d = bar->scaleDisplay(pc);
+      twelve &= d.isVisible() && bar->getLocalBounds().contains(d.getBounds());
+    }
+    check(twelve && bar->scaleDisplay(11).getY() > bar->scaleDisplay(0).getY(),
+          "and all twelve cents displays stay in the bar, wrapping onto a "
+          "second line");
+
+    pick(st::kTemperament + (int)ovt::Temperament::Equal);
+    check(adaptiveHeight > fixedHeight && fits &&
+              bar->getHeight() == fixedHeight,
+          "a narrow Tuning bar takes more rows under Adaptive and gives them "
+          "back after (" +
+              std::to_string(fixedHeight) + " to " +
+              std::to_string(adaptiveHeight) + ")");
+
+    sizeEditor(*editor, 1348, 240);
+  }
+
+  opener->onClick();
+  restoreSessionSettings(p);
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
+/// The Adaptive readouts say what the engine did, chord by chord.
+void testAdaptiveReadouts(OvertoniumProcessor &p) {
+  section("The Adaptive readouts");
+
+  namespace st = ovt::ui::settings;
+  p.applyFactoryPreset(presetIndex("Init"));
+  restoreSessionSettings(p);
+  p.prepareToPlay(48000.0, 256);
+  st::apply(p.apvts, st::kTemperament + (int)ovt::Temperament::Adaptive);
+
+  juce::AudioBuffer<float> buffer(2, 256);
+  ovt::AdaptiveSnapshot lastChord;
+
+  // PURE and 7:4 as the Tuning bar lights them for the chord last played.
+  juce::Component lampHost;
+  ovt::ui::TuningBar lampBar(p.apvts, lampHost);
+  const auto pureLit = [&] {
+    lampBar.showChord(lastChord);
+    return lampBar.pureLamp().getToggleState();
+  };
+  const auto play = [&](std::initializer_list<int> on,
+                        std::initializer_list<int> off) {
+    juce::MidiBuffer midi;
+    for (const auto k : off)
+      midi.addEvent(juce::MidiMessage::noteOff(1, k), 0);
+    for (const auto k : on)
+      midi.addEvent(juce::MidiMessage::noteOn(1, k, 0.8f), 0);
+    for (int block = 0; block < 4; ++block) {
+      buffer.clear();
+      p.processBlock(buffer, midi);
+      midi.clear();
+    }
+
+    ovt::AdaptiveSnapshot chord;
+    while (p.readAdaptiveSnapshot(chord))
+      lastChord = chord;
+    return ovt::ui::AdaptiveReading::of(lastChord);
+  };
+
+  // ---- a dominant seventh ---------------------------------------------------
+  {
+    const auto r = play({48, 52, 55, 58}, {});
+
+    check(r.harmonics == "4:5:6:7" && r.seventhOn == "C" &&
+              r.verdict == "NOTHING BEATS",
+          "C7 reads as harmonics 4:5:6:7 with the seventh on C, nothing "
+          "beating (" +
+              r.harmonics.toStdString() + ", " + r.seventhOn.toStdString() +
+              ", " + r.verdict.toStdString() + ")");
+
+    check(pureLit(), "and lights PURE");
+
+    // The twelve displays light the four held and say where they sit, in
+    // cents from equal temperament with A on the reference. Just major on C
+    // puts C itself a sixth below A, about 15.6 cents above equal, and the
+    // rest sit where the chord puts them from there: the third 13.7 below
+    // equal's third over C and the seventh 31.2 below.
+    {
+      juce::Component popupHost;
+      ovt::ui::TuningBar bar(p.apvts, popupHost);
+      bar.showChord(lastChord);
+
+      const auto at = [&bar](int pc) {
+        return bar.scaleDisplay(pc).getReading().trim().getDoubleValue();
+      };
+      bool lit = true;
+      for (int pc = 0; pc < 12; ++pc)
+        lit &= bar.scaleDisplay(pc).isActive() ==
+               (pc == 0 || pc == 4 || pc == 7 || pc == 10);
+
+      check(lit, "the four held light and the other eight do not");
+      check(bar.driftDisplay().getReading().trim() == "0" &&
+                bar.driftDisplay().isActive(),
+            "and the drift reads 0, the chord sitting at home");
+
+      // A chord a comma below home, as a progression that pumps leaves one.
+      ovt::AdaptiveSnapshot low = lastChord;
+      for (int i = 0; i < low.count; ++i)
+        low.notes[(size_t)i].version = -1;
+      bar.showChord(low);
+      check(bar.driftDisplay().getReading().trim() == "-1" &&
+                bar.driftDisplay().getTitle() == "Drift: -1 comma",
+            "a chord a comma down reads -1 (" +
+                bar.driftDisplay().getReading().trim().toStdString() + ")");
+
+      bar.showChord({});
+      check(bar.driftDisplay().getReading().isEmpty() &&
+                !bar.driftDisplay().isActive(),
+            "and nothing held leaves its cells unlit");
+      bar.showChord(lastChord);
+      check(std::abs(at(0) - 15.6) < 0.3 &&
+                std::abs(at(4) - at(0) + 13.7) < 0.15 &&
+                std::abs(at(10) - at(0) + 31.2) < 0.15,
+            "and C, E and B flat read " + std::to_string(at(0)) + ", " +
+                std::to_string(at(4)) + " and " + std::to_string(at(10)) +
+                " cents from equal");
+    }
+    check(r.spoken().contains("harmonics 4:5:6:7") &&
+              r.spoken().contains("harmonic seventh on C"),
+          "and says so to a screen reader: " + r.spoken().toStdString());
+
+    play({}, {48, 52, 55, 58});
+  }
+
+  // ---- a chord that cannot be pure all through ---------------------------
+  //
+  // C11 cannot be pure all through: pure fifths and pure thirds never meet,
+  // and somewhere in it one interval has to give a comma. Which one is the
+  // solver's to decide, so what is checked is that it is named and a comma.
+  {
+    const auto r = play({48, 52, 55, 58, 62, 65}, {});
+
+    check(r.harmonics.isEmpty() && r.givenUp.isNotEmpty() &&
+              r.givenUp.contains(" 21") && r.verdict == r.givenUp,
+          "C11 names the interval it gives up, a comma off (" +
+              r.givenUp.toStdString() + ")");
+    check(r.seventhOn.isEmpty(),
+          "and has no harmonic seventh, the fourth above C ruling it out");
+    check(!pureLit() && lampBar.pureLamp().getTitle().contains("given up"),
+          "so PURE stays dark, and says what was given up "
+          "to a screen reader (" +
+              lampBar.pureLamp().getTitle().toStdString() + ")");
+
+    play({}, {48, 52, 55, 58, 62, 65});
+  }
+
+  // ---- a minor triad, which is a series too ------------------------------
+  {
+    const auto r = play({57, 60, 64}, {});
+    check(r.harmonics == "10:12:15" && r.verdict == "NOTHING BEATS",
+          "A minor reads as 10:12:15 (" + r.harmonics.toStdString() + ")");
+    check(pureLit(), "and lights PURE");
+    const auto empty = play({}, {57, 60, 64});
+    check(empty.harmonics.isEmpty() && empty.verdict == "NO KEYS HELD",
+          "and letting go reads as nothing held");
+  }
+
+  // ---- the harmonic seventh switched off -----------------------------------
+  {
+    auto &cap = lampBar.seventhsSwitch();
+    lampBar.refresh();
+    check(cap.getToggleState(), "the 7:4 switch starts lit, the seventh on");
+
+    cap.onClick();
+    check(!st::isOn(p.apvts, ovt::params::adaptiveSeventhId) &&
+              !cap.getToggleState(),
+          "a click switches it off and darkens the cap");
+
+    const auto r = play({48, 52, 55, 58}, {});
+    check(r.seventhOn.isEmpty() && r.harmonics != "4:5:6:7",
+          "and C7 then has no harmonic seventh (" + r.harmonics.toStdString() +
+              ")");
+    play({}, {48, 52, 55, 58});
+
+    cap.onClick();
+    check(st::isOn(p.apvts, ovt::params::adaptiveSeventhId) &&
+              cap.getToggleState(),
+          "and a second click puts it back");
+  }
+
+  // ---- Home
+  // ---------------------------------------------------------------------
+  {
+    auto &cap = lampBar.homeSwitch();
+    lampBar.refresh();
+    check(!cap.getToggleState(),
+          "HOME starts dark, the keyboard free to drift");
+
+    cap.onClick();
+    check(st::isOn(p.apvts, ovt::params::adaptiveHomeId) &&
+              cap.getToggleState(),
+          "a click turns it on and lights the cap");
+
+    ovt::SynthParams out{};
+    p.parameters().snapshot(out, 0.0f);
+    check(out.global.adaptiveHome, "and the engine is handed it");
+
+    cap.onClick();
+    check(!st::isOn(p.apvts, ovt::params::adaptiveHomeId) &&
+              !cap.getToggleState(),
+          "and a second click turns it off");
+  }
+
+  // ---- only under Adaptive -------------------------------------------------
+  {
+    std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());
+    sizeEditor(*editor, 1348, 240);
+
+    ovt::ui::TuningBar *bar = nullptr;
+    juce::TextButton *opener = nullptr;
+    std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+      for (auto *child : c.getChildren()) {
+        if (auto *b = dynamic_cast<ovt::ui::TuningBar *>(child))
+          bar = b;
+        if (auto *b = dynamic_cast<juce::TextButton *>(child))
+          if (b->getTitle() == "Tuning")
+            opener = b;
+        look(*child);
+      }
+    };
+    look(*editor);
+
+    check(bar != nullptr && opener != nullptr, "the Tuning bar is there");
+
+    if (bar != nullptr && opener != nullptr) {
+      opener->onClick();
+      bar->refresh();
+      check(bar->pureLamp().isVisible() && bar->seventhsSwitch().isVisible() &&
+                bar->homeSwitch().isVisible() &&
+                bar->driftDisplay().isVisible() &&
+                !bar->pureLamp().getWantsKeyboardFocus(),
+            "PURE, 7:4 and DRIFT show under Adaptive, as indicators that "
+            "take no focus");
+
+      st::apply(p.apvts, st::kTemperament + (int)ovt::Temperament::Just);
+      bar->refresh();
+      check(!bar->pureLamp().isVisible() && !bar->driftDisplay().isVisible(),
+            "and go under a fixed temperament");
+
+      opener->onClick();
+    }
+  }
+
+  restoreSessionSettings(p);
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
+/// A display has a fixed set of cells, each with its bars and a decimal
+/// point, and a reading only lights some of them, the way a real one does.
+void testSegmentCells() {
+  section("Segment displays have cells, and light them");
+
+  using ovt::ui::SegmentDisplay;
+
+  const auto render = [](const juce::String &reading, bool lit,
+                         SegmentDisplay::Bars bars =
+                             SegmentDisplay::Bars::Seven,
+                         int cells = 4) {
+    SegmentDisplay d({}, bars, cells);
+    d.setBounds(0, 0, 92, 30);
+    d.setReading(reading, lit);
+    return d.createComponentSnapshot(d.getLocalBounds());
+  };
+
+  const auto differ = [](const juce::Image &a, const juce::Image &b, int fromX,
+                         int toX) {
+    int n = 0;
+    for (int y = 0; y < a.getHeight(); ++y)
+      for (int x = fromX; x < toX; ++x)
+        n += a.getPixelAt(x, y) != b.getPixelAt(x, y) ? 1 : 0;
+    return n;
+  };
+
+  // ---- the figures keep their size and place --------------------------------
+  //
+  // A number stands to the right, so its last two cells are the same whether
+  // a tens digit stands in front of them or not.
+  {
+    const auto short_ = render("8.8", true), long_ = render("88.8", true);
+    const auto half = short_.getWidth() / 2;
+    check(differ(short_, long_, half, short_.getWidth()) == 0 &&
+              differ(short_, long_, 0, half) > 0,
+          "8.8 and 88.8 draw their last cells alike, the figures keeping "
+          "their size");
+  }
+
+  // ---- a point is a cell's own
+  // ------------------------------------------------
+  {
+    const auto pointed = render("88.8", true), plain = render("888", true);
+    check(differ(pointed, plain, 0, pointed.getWidth()) > 0,
+          "a point lights the point of the cell before it");
+
+    SegmentDisplay d({}, SegmentDisplay::Bars::Seven, 4);
+    d.setBounds(0, 0, 92, 30);
+    d.setReading("-12.5", true);
+    d.createComponentSnapshot(d.getLocalBounds());
+    check(d.cellsDrawn() == 5, "and -12.5 fits four cells, the point riding "
+                               "on the two (" +
+                                   std::to_string(d.cellsDrawn()) + ")");
+  }
+
+  // ---- off is unlit, not grey
+  // -------------------------------------------------
+  {
+    const auto off = render("88.8", false), empty = render({}, true);
+    check(differ(off, empty, 0, off.getWidth()) == 0,
+          "a display with nothing to say shows its unlit bars and nothing "
+          "else, whatever its reading");
+
+    const auto offName =
+                   render("ADAPTIVE", false, SegmentDisplay::Bars::Fourteen, 8),
+               emptyName = render({}, true, SegmentDisplay::Bars::Fourteen, 8);
+    check(differ(offName, emptyName, 0, offName.getWidth()) == 0,
+          "fourteen bars as well as seven");
+  }
+
+  // ---- the sharp is a sign, not a letter
+  // -------------------------------------
+  {
+    const auto withSign = [](const juce::String &reading) {
+      SegmentDisplay d({}, SegmentDisplay::Bars::Fourteen, 1);
+      d.showSharpSign(true);
+      d.setBounds(0, 0, 40, 30);
+      d.setReading(reading, true);
+      return std::pair<juce::String, juce::Image>{
+          d.getReading(), d.createComponentSnapshot(d.getLocalBounds())};
+    };
+
+    const auto [sharpReading, sharp] = withSign("F#");
+    const auto [plainReading, plain] = withSign("F");
+
+    // The letter's cell is the left half or so, the sign the right.
+    const auto signFrom = sharp.getWidth() / 2;
+    check(sharpReading == "F#" && plainReading == "F" &&
+              differ(sharp, plain, signFrom, sharp.getWidth()) > 0 &&
+              differ(sharp, plain, 0, signFrom - 4) == 0,
+          "F# lights the sharp sign beside an F, and the F is the same F");
+  }
+
+  // ---- a middle bar reads as a bar
+  //
+  // Each half runs to the centre of the cell. Stopping short of the centre
+  // upright left them a pixel or two each at the size the names are drawn, so
+  // the middle of an H read as two dots. Measured at that size, nine cells in
+  // a bar's height, against the bottom bar, which runs the whole width of a
+  // cell: the middle has to be lit nearly as much.
+  {
+    // How much light a reading adds over the same display with nothing on
+    // it, so the screen's own ground and rim count for nothing.
+    const auto shotOf = [](const juce::String &reading) {
+      SegmentDisplay d({}, SegmentDisplay::Bars::Fourteen, 9);
+      d.setBounds(0, 0, 108, 24);
+      d.setReading(reading, true);
+      return d.createComponentSnapshot(d.getLocalBounds());
+    };
+    const auto empty = shotOf({});
+    const auto litIn = [&](const juce::String &reading) {
+      const auto im = shotOf(reading);
+      int n = 0;
+      for (int y = 0; y < im.getHeight(); ++y)
+        for (int x = 0; x < im.getWidth(); ++x)
+          n += juce::jmax(0, (int)im.getPixelAt(x, y).getBlue() -
+                                 (int)empty.getPixelAt(x, y).getBlue());
+      return n;
+    };
+
+    const auto middle = litIn("---------"), bottom = litIn("_________");
+    std::printf("  middle bars add %d of light, bottom bars %d\n", middle,
+                bottom);
+    check(middle * 10 >= bottom * 6,
+          "a fourteen-bar middle is lit nearly as much as its bottom bar (" +
+              std::to_string(middle) + " against " + std::to_string(bottom) +
+              ")");
+  }
+
+  // ---- over range
+  // -------------------------------------------------------------
+  {
+    SegmentDisplay d({}, SegmentDisplay::Bars::Seven, 4);
+    d.setBounds(0, 0, 92, 30);
+    d.setReading("12345", true);
+    const auto over = d.createComponentSnapshot(d.getLocalBounds());
+    const auto dashes = render("----", true);
+
+    check(d.cellsDrawn() == 0 && differ(over, dashes, 0, over.getWidth()) == 0,
+          "a reading longer than its cells shows a minus in every cell");
+  }
+}
+
 /// LINK comes back the way it was left.
 ///
 /// Reported as LINK not being retained when the plugin is closed and opened.
@@ -7831,6 +9576,16 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
       if (auto *button = dynamic_cast<juce::TextButton *>(child))
         if (button->getButtonText() == TopBar::kClipName)
           continue;
+
+      // Nor the four buttons that open something, which stand two by two and
+      // fill the row's height rather than lining up with the dials. Their own
+      // two lines are checked in testOptionBars.
+      if (auto *button = dynamic_cast<juce::TextButton *>(child)) {
+        const auto word = button->getButtonText();
+        if (word == "SETTINGS" || word == "MACROS" || word == "PLAYING" ||
+            word == "TUNING")
+          continue;
+      }
 
       // A knob's line is its dial, not the control, which reaches further down
       // to hold the caption.
@@ -10133,6 +11888,14 @@ int main(int argc, char **argv) {
   testZoomTickFollowsTheZoom(processor);
   testDrawingAcrossTheFaders(processor);
   testLinkSurvivesAReopen(processor);
+  testSegmentCells();
+  testOptionBars(processor);
+  testSharedSettingsChoices(processor);
+  testPlayingReadouts(processor);
+  testPlayingBar(processor);
+  testBarRightClicks(processor);
+  testTuningBar(processor);
+  testAdaptiveReadouts(processor);
   testFoldingAndUnfoldingIsSymmetric(processor);
   testFittingLandsWhereADragCanReturn(processor);
   testTheRulesFoldTheirSections(processor);

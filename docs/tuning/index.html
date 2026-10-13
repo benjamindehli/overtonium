@@ -3,10 +3,10 @@
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>The Overtonium tuning system: TUNE, stretch and six temperaments</title>
+        <title>The Overtonium tuning system: TUNE, stretch and seven temperaments</title>
         <meta
             name="description"
-            content="Hear TUNE blend every partial between equal temperament and just intonation, along with inharmonic stretch, six temperaments, keyboard tracking and drift."
+            content="Hear TUNE blend every partial between equal temperament and just intonation, plus inharmonic stretch, seven temperaments, keyboard tracking and drift."
         />
         <meta name="author" content="Benjamin Dehli" />
         <meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -17,7 +17,7 @@
         <meta property="og:site_name" content="Overtonium" />
         <meta property="og:locale" content="en_GB" />
         <meta property="og:url" content="https://benjamindehli.github.io/overtonium/tuning/" />
-        <meta property="og:title" content="The Overtonium tuning system: TUNE, stretch and six temperaments" />
+        <meta property="og:title" content="The Overtonium tuning system: TUNE, stretch and seven temperaments" />
         <meta
             property="og:description"
             content="Hear all of it: TUNE blending every partial between equal temperament and just intonation, STRETCH from harmonic out past a piano, a chord in equal against Werckmeister III, keyboard tracking thinning the series as you play up, and per-partial drift. With a diagram of where each partial falls against the semitone it snaps to."
@@ -29,7 +29,7 @@
         <meta property="og:image:alt" content="The Overtonium wordmark over the plugin window, captioned Tuning." />
 
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="The Overtonium tuning system: TUNE, stretch and six temperaments" />
+        <meta name="twitter:title" content="The Overtonium tuning system: TUNE, stretch and seven temperaments" />
         <meta
             name="twitter:description"
             content="Hear all of it: TUNE blending every partial between equal temperament and just intonation, STRETCH from harmonic out past a piano, a chord in equal against Werckmeister III, keyboard tracking thinning the series as you play up, and per-partial drift. With a diagram of where each partial falls against the semitone it snaps to."
@@ -48,8 +48,8 @@
                 "@type": "WebPage",
                 "@id": "https://benjamindehli.github.io/overtonium/tuning/#webpage",
                 "url": "https://benjamindehli.github.io/overtonium/tuning/",
-                "name": "The Overtonium tuning system: TUNE, stretch and six temperaments",
-                "description": "Hear TUNE blend every partial between equal temperament and just intonation, along with inharmonic stretch, six temperaments, keyboard tracking and drift.",
+                "name": "The Overtonium tuning system: TUNE, stretch and seven temperaments",
+                "description": "Hear TUNE blend every partial between equal temperament and just intonation, plus inharmonic stretch, seven temperaments, keyboard tracking and drift.",
                 "inLanguage": "en-GB",
                 "isPartOf": {
                     "@id": "https://benjamindehli.github.io/overtonium/#website"
@@ -63,7 +63,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-10-09",
+                "dateModified": "2026-10-11",
                 "breadcrumb": {
                     "@id": "https://benjamindehli.github.io/overtonium/tuning/#breadcrumb"
                 }
@@ -117,6 +117,7 @@
                                     <li>
                                         <a href="#keyboard">Tuning the keyboard</a>
                                         <ul>
+                                            <li><a href="#adaptive">Adaptive</a></li>
                                             <li><a href="#root">Root</a></li>
                                             <li><a href="#reference-pitch">Reference pitch</a></li>
                                         </ul>
@@ -537,7 +538,8 @@
                         which the willow flute plays because the harmonic series is all it can play. The composer Eivind Groven spent much of his life
                         on it. From 1936 he built organs with up to three pitches behind every key, chosen automatically as the music moved, so an
                         ordinary keyboard could play pure triads in every key and the eleventh partial came out exactly in tune. Here it is the
-                        eleventh row with TUNE at just, 551 cents above the octave below it.
+                        eleventh row with TUNE at just, 551 cents above the octave below it, and his way of keeping every chord pure on an ordinary
+                        keyboard is the <a href="#adaptive">Adaptive</a> temperament further down.
                     </p>
                 </section>
 
@@ -614,8 +616,8 @@
                     <h2>Tuning the keyboard</h2>
 
                     <p>
-                        Everything above is about where a partial sits over the note you played. This is about where that note sits. Settings carries
-                        six temperaments.
+                        Everything above is about where a partial sits over the note you played. This is about where that note sits. Settings and the
+                        <a href="../playing/#bars">Tuning bar</a> carry seven temperaments: six fixed ones, and one that retunes as you play.
                     </p>
 
                     <div class="scroll">
@@ -665,6 +667,12 @@
                                     <td>698.04</td>
                                     <td>six narrowed by a sixth, gentler again</td>
                                 </tr>
+                                <tr>
+                                    <td><a href="#adaptive">Adaptive</a></td>
+                                    <td>386.31</td>
+                                    <td>701.71</td>
+                                    <td>pure in every key, the held chord retuned as you play</td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
@@ -677,16 +685,105 @@
                         thousandth of a cent, Pythagorean's fifth likewise, Werckmeister at its characteristic 390.2.
                     </p>
 
+                    <h3 id="adaptive">Adaptive</h3>
+                    <p>
+                        Every fixed temperament is in tune somewhere and out of tune somewhere else. Just major is pure in the keys near its root and
+                        a comma out in a chord from anywhere further away, which is the oldest problem in tuning. Adaptive answers it the way Eivind
+                        Groven's organs did, by giving every key more than one pitch and choosing between them as you play. Every pitch class has five
+                        versions, its place in just major on the root and one and two commas either side of it, and the chord you are holding is kept
+                        on whichever versions make it purest.
+                    </p>
+
+                    <p>
+                        The chord is settled again every time a key goes down or comes up, so a chord turning into the next one a note at a time stays
+                        in tune all the way, not only one struck fresh. Keys struck together are settled together. A held note that the new chord
+                        needs somewhere else slides there over the time set by the <strong>Retune</strong> knob in the Tuning bar, from a jump at zero
+                        to a second. The 30 ms it starts at is quick enough to pass for a note that was always there, and around 300 ms is slow enough
+                        to hear the chord settle. Settings offers those two as <em>Fast</em> and <em>Smooth</em>. It moves as few notes as it can, and
+                        new notes take whichever version fits the ones already held. The keys you hold decide how the chord is tuned, not the order
+                        they went down in, so a chord struck at once, played a key at a time or reached from another chord comes out the same,
+                        interval for interval. Every chord type in <a href="https://github.com/benjamindehli/music-utils">music-utils</a>, a library
+                        of mine for naming chords from the notes held, 125 of them from a bare third to an altered thirteenth, is played through it in
+                        all twelve keys on every build to hold it to that, and to tuning each one as purely as it can be tuned.
+                    </p>
+
+                    <p>
+                        What it tunes against is everything you can hear: the keys that are down, the ones the pedal is holding, and a chord still
+                        ringing after its keys came up decides between versions the held keys leave open. A key struck into silence takes the version
+                        its pitch class used last, which keeps a progression from wandering away a comma at a time, and since no key can stray further
+                        than its outer versions, the keyboard never drifts more than two commas from where it started, however long you play. Tuning
+                        every chord pure to the last one, with nothing to hold it, would leave a C major, A minor, D minor, G progression played four
+                        times over two and a half semitones sharp. If you would rather it did not drift at all, the <strong>NO DRIFT</strong> switch
+                        in the Tuning bar, and No drift in Settings, keeps the chord as near home as it can: when a progression would carry it off, a
+                        held note slides a comma instead, and a key struck into silence goes home.
+                    </p>
+
+                    <p>
+                        Like Groven's organs it tempers each fifth by an eighth of a schisma, a quarter of a cent, so eight fifths and a pure major
+                        third close up exactly. Without that, chords far from the root would be left two cents out, which on pure partials is slow but
+                        clearly audible beating. The major thirds are pure, and a quarter of a cent on a fifth beats about once every eighteen seconds
+                        on the third partial of a note in the middle of the keyboard. The same chord reached by a different route can settle a comma
+                        higher or lower, with every interval in it the same, so a piece can end a comma or two from where it began. Root decides where
+                        the middle versions sit, and Reference pitch where A's does.
+                    </p>
+
+                    <p>
+                        Some chords cannot be pure all the way through, because pure fifths and pure thirds never quite meet: in C11 the fifth from G
+                        to D and the minor third from D to F cannot both be. Adaptive then gives up as little as it can, counting a fifth or a fourth
+                        above a third or a sixth and those above a seventh, so C6 with an added ninth keeps its thirds and sixths and lets the fourth
+                        from A to D go a comma wide, rather than keeping that fourth and losing three thirds.
+                    </p>
+
+                    <p>
+                        A minor seventh is tuned on the harmonic seventh, 7:4 above its root, 969 cents, unless another held note would then be out of
+                        tune with it. A dominant seventh becomes 4:5:6:7: four harmonics of one note an octave below its root, the same seventh every
+                        partial here already carries as its seventh harmonic, and the smoothest a seventh chord can be. It is noticeably lower than
+                        the equal-tempered seventh, which is most of why it sounds so settled. A ninth adds the ninth harmonic, and a seventh over its
+                        root alone or over its fifth is 7:4 as well. A minor third above the root keeps the seventh at 9:5, since 7:4 would put it 48
+                        cents flat of a pure fifth above that third, and a sharp ninth does the same for the same reason. A suspended seventh keeps
+                        16:9, two pure fourths, a minor second or a tritone above the root keeps the size the chain gives it too, and a major seventh
+                        is 15:8. Like everything else here it depends only on the keys held, so C and B flat are 7:4 however they were played, and a
+                        held note slides to the harmonic seventh or away from it when the chord around it changes what it is. The
+                        <strong>7:4</strong> switch in the Tuning bar, and Harmonic sevenths in Settings, turn it off, and every seventh then takes
+                        the size the chain gives it.
+                    </p>
+
+                    <p>
+                        The <a href="../playing/#bars">Tuning bar</a> shows what it is doing to the chord you hold, following every key as it goes
+                        down and comes up. <strong>PURE</strong> lights while every interval in the chord is pure, and goes dark when a chord cannot
+                        be pure all the way through and has had to give one up. <strong>7:4</strong> lights while a seventh is tuned on the harmonic
+                        seventh, and <strong>DRIFT</strong> says how far the keyboard has drifted, in commas. Beside those, one display for each of
+                        the twelve notes says how far it sits from equal temperament in cents. The notes you hold are lit, and the rest stay unlit
+                        until you play them. Under every other temperament the same twelve displays chart the scale, all of them lit, so the Tuning
+                        bar shows what Werckmeister III or Just on D does to each note before you play it.
+                    </p>
+
+                    <figure>
+                        <img
+                            loading="lazy"
+                            src="../overtonium-tuning-bar.webp"
+                            alt="The Tuning bar under Adaptive with C7 held: the temperament reading Adaptive on a root of C at 440 Hz with a drift of 0, NO DRIFT off, 7:4 lit, PURE lit and the Retune knob near its start, then twelve displays for the notes, C, E, G and B flat lit at 15.4, 1.7, 17.1 and minus 15.8 cents, the white keys on a light ground."
+                            width="1350"
+                            height="66"
+                        />
+                        <figcaption>
+                            C7 under Adaptive. C sits 15.4 cents above equal, where just major on C puts it with A on 440, E and G are a pure third
+                            and fifth above it, and B flat is the harmonic seventh, 31.2 cents below C's equal-tempered seventh.
+                        </figcaption>
+                    </figure>
+
                     <h3 id="root">Root</h3>
                     <p>
                         Picks which pitch class the temperament is built on, since an unequal temperament is only in tune in the keys near its centre,
-                        and that is the point of it. It is greyed out for equal temperament, which has no centre to have.
+                        and that is the point of it. For Adaptive it is where the middle versions are placed. It is greyed out for equal temperament,
+                        which has no centre to have.
                     </p>
 
                     <h3 id="reference-pitch">Reference pitch</h3>
                     <p>
-                        415 through 466 Hz. A stays exactly there in every temperament, because the offsets are taken relative to A's own: a tuner
-                        tunes A first and works outwards. Only the other eleven notes move.
+                        415 through 466 Hz. A stays exactly there in every fixed temperament, because the offsets are taken relative to A's own: a
+                        tuner tunes A first and works outwards. Only the other eleven notes move. Under Adaptive it is A's middle version that sits on
+                        the reference, and an A in a chord that needs it takes the version a comma either side.
                     </p>
 
                     <p>

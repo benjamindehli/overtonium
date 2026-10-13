@@ -181,8 +181,13 @@ public:
   /// @param channel  the MIDI channel the note arrived on. Carried so the
   ///                  engine can tell two voices apart when a controller is
   ///                  giving every note its own channel. Ignored otherwise.
-  void noteOn(int channel, int note, float velocity,
-              const SynthParams &p) noexcept;
+  ///
+  /// @param frequency  where the engine has tuned this key, or zero to tune it
+  ///                   from the temperament in the parameters, which is all a
+  ///                   fixed temperament needs. Adaptive decides from what
+  ///                   else is sounding, which only the engine can see.
+  void noteOn(int channel, int note, float velocity, const SynthParams &p,
+              double frequency = 0.0) noexcept;
   /// @param lift  see Envelope::noteOff.
   void noteOff(float lift = 1.0f) noexcept;
 
@@ -192,13 +197,17 @@ public:
   /// were, and only the pitch changes. The velocity of the note that began the
   /// phrase is kept, since the key that would set a new one was never
   /// released, and taking a fresh one would make a legato run change timbre
-  /// under the fingers.
-  void noteOnLegato(int channel, int note, const SynthParams &p) noexcept;
-
-  /// The same, for a caller that has worked out the frequency already. A
-  /// note-off has no parameters to hand and still has to move the phrase to
-  /// whichever key is left holding it.
+  /// under the fingers. The engine works out the frequency, since under the
+  /// adaptive temperament it depends on what else is sounding.
   void retune(int channel, int note, double frequency) noexcept;
+
+  /// Moves a sounding note to another version of the same key, sliding there
+  /// over the time given, or at once for none. For the adaptive temperament,
+  /// which retunes a held chord when the keys around it change. The pitch is
+  /// continuous: the slide starts where the note is and the frequency the
+  /// engine reads back is the one it is sliding to. See
+  /// SynthEngine::settleAdaptive.
+  void retuneTo(double frequency, double seconds) noexcept;
   void steal() noexcept; ///< fast fade-out so the voice can be reused
 
   /// The same fade over a time of the caller's choosing, for a note that has
@@ -233,6 +242,7 @@ public:
   /// Polyphonic aftertouch for this voice. Channel pressure arrives separately
   /// through SynthParams, and whichever is higher wins.
   void setPolyPressure(float v) noexcept { polyPressure = v; }
+  float getPolyPressure() const noexcept { return polyPressure; }
 
   /// MPE slide for this note, as a displacement from where this note's slide
   /// began rather than as a position on the controller.
@@ -267,6 +277,7 @@ public:
   /// voice together, and a controller that bends each finger separately leaves
   /// the wheel at zero and moves this. Nothing has to know which is in use.
   void setNoteBend(float semitones) noexcept { noteBendSemitones = semitones; }
+  float getNoteBend() const noexcept { return noteBendSemitones; }
 
   bool isActive() const noexcept { return active; }
   bool isReleasing() const noexcept { return released; }
@@ -449,6 +460,12 @@ private:
 
   double sampleRate = 44100.0;
   double baseFreq = 440.0;
+
+  /// How far a retune by the adaptive temperament still has to slide, in
+  /// semitones, and how far it goes in a sample. The same for every partial,
+  /// since it moves the note rather than any one of them. See retuneTo.
+  double retuneSemis = 0.0;
+  double retuneStep = 0.0;
   int midiNote = -1;
   int midiChannel = 0;
 

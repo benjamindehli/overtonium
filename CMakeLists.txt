@@ -15,7 +15,7 @@ if(CMAKE_HOST_APPLE)
     set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Build architectures")
 endif()
 
-project(Overtonium VERSION 1.12.0 LANGUAGES C CXX)
+project(Overtonium VERSION 1.13.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -119,6 +119,8 @@ set(OVERTONIUM_SOURCES
     Source/UI/LookAndFeel.cpp
     Source/UI/MuteSoloButton.cpp
     Source/UI/NoiseStrip.cpp
+    Source/UI/OptionBars.cpp
+    Source/UI/SettingsMenus.cpp
     Source/UI/ShapeButton.cpp
     Source/UI/Theme.cpp
     Source/UI/TopBar.cpp)

@@ -1,6 +1,6 @@
 # Accessibility
 
-Overtonium is a synthesizer with six hundred and forty-three knobs on it. That is a lot of small targets in a dark window, and it would be easy for the instrument to be usable only by people who can see it well and point accurately. This document says what the project does about that, what it does not do yet, and how to report one when you hit it.
+Overtonium is a synthesizer with six hundred and fifty-two knobs on it. That is a lot of small targets in a dark window, and it would be easy for the instrument to be usable only by people who can see it well and point accurately. This document says what the project does about that, what it does not do yet, and how to report one when you hit it.
 
 There are two separate things here and they have different stories. The **plugin** is a window a host draws, and the **site** is static HTML. Most of what is written about accessibility in open source is about the second kind of thing. The first is where the harder problems are.
 
@@ -8,11 +8,11 @@ There are two separate things here and they have different stories. The **plugin
 
 These are things that are checked rather than intended. Where a number appears it came from a measurement.
 
-**Every control says what it is.** All 643 sliders carry an accessible name, and no two share one, which the test suite checks on every commit. A screen reader hears "Harmonic 19 attack" or "Reverb mix" rather than "attack" six hundred times, and the noise channel names itself rather than borrowing a number. JUCE skips an element with neither a name nor a description entirely, so on a mixer this size that check is the difference between an instrument you can use without seeing it and one you cannot.
+**Every control says what it is.** All 652 sliders carry an accessible name, and no two share one, which the test suite checks on every commit. A screen reader hears "Harmonic 19 attack" or "Reverb mix" rather than "attack" six hundred times, and the noise channel names itself rather than borrowing a number. JUCE skips an element with neither a name nor a description entirely, so on a mixer this size that check is the difference between an instrument you can use without seeing it and one you cannot.
 
-**The readouts can be read by something other than an eye.** The tuning and level figures and the converter readouts are drawn as seven-segment shapes rather than written as text, so there is nothing in them for a screen reader to find. Each one carries a spoken name and value separately for that reason. This was a regression once: swapping a plain label for a segment display silently removed the name, and the suite now holds it.
+**The readouts can be read by something other than an eye.** The tuning and level figures, the converter readouts and the displays in the Playing and Tuning bars are drawn as segment shapes rather than written as text, so there is nothing in them for a screen reader to find. Each one carries a spoken name and value separately for that reason. This was a regression once: swapping a plain label for a segment display silently removed the name, and the suite now holds it.
 
-**Every control is a host parameter.** All 836 of them. That matters more than it sounds: a host's own generic editor is a plain list of named parameters with text fields, and it is keyboard operable and screen reader readable in a way the plugin's own window is not. If the mixer is unusable for you, the host's generic view is a complete alternative rather than a reduced one. Nothing is hidden from it.
+**Every control is a host parameter**, 842 parameters in all. That matters more than it sounds: a host's own generic editor is a plain list of named parameters with text fields, and it is keyboard operable and screen reader readable in a way the plugin's own window is not. If the mixer is unusable for you, the host's generic view is a complete alternative rather than a reduced one. Nothing is hidden from it.
 
 **Colour is never the only thing saying something important.** Each channel carries its harmonic's number at the head of the strip as well as its interval colour, and its tuning in cents as a figure. The one exception is noted below.
 
@@ -20,7 +20,7 @@ These are things that are checked rather than intended. Where a number appears i
 
 **The site's navigation can be stepped over.** Every page opens with a skip link, which is the first thing a keyboard reaches and the only way past the six section links without tabbing through all of them. It moves focus to the content rather than only scrolling to it, which is the half of that a link without `tabindex` gets wrong. Every section and subsection also carries a name, so a page can be linked at the part that answers the question rather than at the top, and every page lists its own contents under its own entry in the one site navigation, rather than in a second list somewhere else. On a window wide enough that navigation stands beside the page and marks both the page you are on and the section you are reading, which it says with `aria-current` rather than with colour alone. Beside the page it also folds a section's subsections away until you are in that section, which needs script, so with script blocked the whole list shows rather than most of it being hidden with nothing able to open it. It is an ordinary list of links either way: the marking is the only part that needs script, and without script the list still goes where it says.
 
-**Pictures on the site declare their size.** Every image carries a width and a height so the page does not jump as it loads, and a check compares the declared numbers against the files. All twelve have alternative text.
+**Pictures on the site declare their size.** Every image carries a width and a height so the page does not jump as it loads, and a check compares the declared numbers against the files. Every picture that shows something carries alternative text, and the ones that only decorate carry an empty one, so a screen reader passes over them.
 
 ## Known limitations
 
@@ -28,7 +28,9 @@ Written as what you would run into rather than as standards codes.
 
 **The plugin's own window is not keyboard operable.** Tab does not move between controls and there is no focus indicator, because nothing in the editor takes keyboard focus. The only key it handles is undo. Every control is reachable from the host's generic parameter view instead, and from MIDI Learn, but that is a route around the problem rather than a fix for it. This is the largest barrier in the project and it is not close to being solved.
 
-**Which macro is driving a knob is said only by colour.** A knob under a macro lights its ring in that macro's colour and there is no second cue. If you cannot tell the eight colours apart, the macro panel lists which rows and channels each macro reaches, but the knob itself will not tell you.
+**Which macro is driving a knob is said only by colour.** A knob under a macro lights its ring in that macro's colour and there is no second cue. If you cannot tell the eight colours apart, the macro panel lists which rows and channels each macro reaches, and the macro knobs in the Playing bar name the row each is aimed at, but a knob in the mixer will not tell you.
+
+**The Playing bar's three meters say what they are but not where they stand.** PITCH, WHEEL and PRESSURE carry a spoken name and no value, so a screen reader can find them and cannot read them. They show what a controller is doing rather than a setting, so there is no host parameter to read instead.
 
 **The window does not scale with the operating system's text size.** It has its own zoom, in the Settings menu, which scales the whole window rather than the text alone.
 

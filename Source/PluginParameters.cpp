@@ -634,7 +634,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   // is for anyone who wants the tails to sum, which is a sound rather than a
   // fault.
   layout.add(std::make_unique<BoolP>(juce::ParameterID{oneVoicePerKeyId, 1},
-                                     "One Voice Per Key", true));
+                                     "No Stack", true));
 
   layout.add(std::make_unique<juce::AudioParameterInt>(
       juce::ParameterID{bendRangeId, 1}, "Pitch Bend Range", 0, 24, 2));
@@ -1055,13 +1055,16 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   // parameter added at the end is one that cannot move anything a lane was
   // written against on a host that goes by position.
   //
-  // Named "in phase" rather than "sync", which in this corner of the world
-  // means locked to the host's tempo. Nothing here is.
+  // Named as the panel names them, shared by all notes. Not "sync", which in
+  // this corner of the world means locked to the host's tempo, nor "key sync",
+  // which means restarting on every note, the opposite of what this does. The
+  // ids keep the old "in phase" wording, since an id is what a host and a
+  // saved session find a parameter by, and the names can change freely.
   layout.add(std::make_unique<BoolP>(juce::ParameterID{pmInPhaseId, 1},
-                                     "Pitch Mod In Phase", false));
+                                     "Pitch Mod Shared", false));
 
   layout.add(std::make_unique<BoolP>(juce::ParameterID{amInPhaseId, 1},
-                                     "Amp Mod In Phase", false));
+                                     "Amp Mod Shared", false));
 
   // On the end, like everything that arrives after a release, so nothing
   // already automated moves. Every type it will ever have is listed now
@@ -1114,6 +1117,26 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   layout.add(
       std::make_unique<BoolP>(juce::ParameterID{legatoId, 1}, "Legato", false));
 
+  // How long the adaptive temperament takes to move a held note, on the end
+  // like everything since the last release. A session setting beside the
+  // temperament it serves. Curved like the glide, so the short times where a
+  // retune passes unheard have room on the knob, and from zero, where a note
+  // jumps.
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{adaptiveRetuneId, 1}, "Adaptive Retune",
+      expRange(0.0f, kMaxAdaptiveRetuneSeconds, 0.12f),
+      (float)kAdaptiveRetuneSeconds[0],
+      FAttr().withStringFromValueFunction(timeText)));
+
+  // Whether Adaptive uses the harmonic seventh at all, on by default, on the
+  // end with the rest of what it brought.
+  layout.add(std::make_unique<BoolP>(juce::ParameterID{adaptiveSeventhId, 1},
+                                     "Adaptive Harmonic Sevenths", true));
+
+  // Whether it stays home rather than drifting, off by default, after it.
+  layout.add(std::make_unique<BoolP>(juce::ParameterID{adaptiveHomeId, 1},
+                                     "Adaptive No Drift", false));
+
   return layout;
 }
 
@@ -1126,6 +1149,9 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   glideTrigger = apvts.getRawParameterValue(glideTriggerId);
   glideMode = apvts.getRawParameterValue(glideModeId);
   legato = apvts.getRawParameterValue(legatoId);
+  adaptiveRetune = apvts.getRawParameterValue(adaptiveRetuneId);
+  adaptiveSeventh = apvts.getRawParameterValue(adaptiveSeventhId);
+  adaptiveHome = apvts.getRawParameterValue(adaptiveHomeId);
   bendRange = apvts.getRawParameterValue(bendRangeId);
   phaseReset = apvts.getRawParameterValue(phaseResetId);
   stretch = apvts.getRawParameterValue(stretchId);
@@ -1519,6 +1545,11 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
 
     out.global.referenceHz = (double)kReferenceHzChoices[(size_t)pick(
         referenceHz, (int)kReferenceHzChoices.size())];
+
+    out.global.adaptiveRetuneSeconds = (double)juce::jlimit(
+        0.0f, kMaxAdaptiveRetuneSeconds, adaptiveRetune->load());
+    out.global.harmonicSevenths = adaptiveSeventh->load() > 0.5f;
+    out.global.adaptiveHome = adaptiveHome->load() > 0.5f;
 
     out.global.character =
         (Character)pick(character, (int)Character::NumCharacters);

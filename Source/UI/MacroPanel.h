@@ -35,6 +35,10 @@ public:
   /// host moving a macro's row is followed rather than ignored.
   void refresh();
 
+  /// Makes this macro if nobody has, pointed at the first row as Add a macro
+  /// does, and shows it. For the Playing bar's knob of a macro not yet made.
+  void make(int macro);
+
   /// Asked to close, either by the button or by a click on the dim.
   std::function<void()> onDismiss;
 

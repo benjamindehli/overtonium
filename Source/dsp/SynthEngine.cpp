@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <tuple>
 
 namespace ovt {
 
@@ -57,6 +58,8 @@ void SynthEngine::reset() noexcept {
   sustainDown = false;
   ageCounter = 0;
   lastNoteFrequency = 0.0;
+  adaptiveVersion.fill(0);
+  adaptiveSnapshots.publish(AdaptiveSnapshot{});
   clock = 0;
   pressedAt.fill(0);
   pressedWithOthers.fill(false);
@@ -136,6 +139,22 @@ int SynthEngine::getActiveVoiceCount() const noexcept {
       ++c;
 
   return c;
+}
+
+SynthEngine::HeldExpression SynthEngine::heldExpression() const noexcept {
+  HeldExpression held;
+
+  for (const auto &v : voices) {
+    if (!v.isActive() || v.isReleasing())
+      continue;
+
+    if (std::abs(v.getNoteBend()) > std::abs(held.bendSemitones))
+      held.bendSemitones = v.getNoteBend();
+
+    held.pressure = std::max(held.pressure, v.getPolyPressure());
+  }
+
+  return held;
 }
 
 Voice *SynthEngine::findFreeVoice() noexcept {
@@ -222,6 +241,10 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
   legatoTemperament = p.global.temperament;
   legatoRoot = p.global.tuningRoot;
   legatoReferenceHz = p.global.referenceHz;
+  adaptiveOn = p.global.temperament == Temperament::Adaptive;
+  adaptiveRetune = p.global.adaptiveRetuneSeconds;
+  harmonicSevenths = p.global.harmonicSevenths;
+  adaptiveHome = p.global.adaptiveHome;
 
   // ---- where a glide comes from ---------------------------------------------
   //
@@ -289,7 +312,9 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
       // From wherever it is, which mid-glide is somewhere between two notes.
       // A key is held by definition here, so both triggers glide.
       const auto own = v.notePitches();
-      v.noteOnLegato(channel, note, p);
+      v.retune(channel, note,
+               frequencyFor(note, p.global.temperament, p.global.tuningRoot,
+                            p.global.referenceHz, &v));
       v.startGlide(own, glide);
       v.setAge(++ageCounter);
       lastNoteFrequency = v.getFrequency();
@@ -430,7 +455,9 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
       heldBySustain[heldIndex] = false;
       pressedAt[heldIndex] = now;
       pressedWithOthers[heldIndex] = withOthers;
-      held->noteOn(channel, note, velocity, p);
+      held->noteOn(channel, note, velocity, p,
+                   frequencyFor(note, p.global.temperament, p.global.tuningRoot,
+                                p.global.referenceHz, held));
 
       if (glides)
         held->startGlide(from, glide);
@@ -481,7 +508,9 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
     if (source == (int)index)
       source = -1;
 
-  target->noteOn(channel, note, velocity, p);
+  target->noteOn(channel, note, velocity, p,
+                 frequencyFor(note, p.global.temperament, p.global.tuningRoot,
+                              p.global.referenceHz, target));
 
   if (carryFrom >= 0 && carryFrom != (int)index &&
       voices[(size_t)carryFrom].isActive()) {
@@ -500,6 +529,465 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
 
   target->setAge(++ageCounter);
   lastNoteFrequency = target->getFrequency();
+}
+
+double SynthEngine::frequencyFor(int note, Temperament temperament, int root,
+                                 double referenceHz,
+                                 const Voice *self) noexcept {
+  if (temperament != Temperament::Adaptive)
+    return noteFrequency(note, temperament, root, referenceHz);
+
+  return settleAdaptive(note, root, referenceHz, self);
+}
+
+double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
+                                   const Voice *self) noexcept {
+  // How each interval the keys spell is pure, as steps along the chain of
+  // tempered fifths from the lower key to the higher, and how much it counts.
+  // The octave and the fifth carry most, since a mistuned one is the first
+  // thing anyone hears. A seventh counts least, only deciding what nothing
+  // else does, so it comes out the same whether or not the fifth beneath it
+  // is held: 9:5 for a minor seventh, a fifth and a minor third, and 15:8 for
+  // a major, a fifth and a major third. Seconds and the tritone have no one
+  // pure size a chord is reaching for, so they come last of all, at the sizes
+  // the just major scale gives them, 16:15, 9:8 and 45:32. They only tie
+  // together notes nothing stronger does, so every held key is in one group
+  // and the chord comes out the same however it was played.
+  struct Pure {
+    int steps;
+    int weight;
+  };
+
+  static constexpr Pure kByClass[12] = {
+      {0, 4},  // unison, octave
+      {7, 0},  // minor second: a fourth up, a major third down
+      {2, 0},  // major second: two fifths
+      {9, 2},  // minor third: a fifth up, a major third down
+      {-8, 2}, // major third
+      {-1, 3}, // fourth
+      {-6, 0}, // tritone: two fifths and a major third
+      {1, 3},  // fifth
+      {8, 2},  // minor sixth
+      {-9, 2}, // major sixth
+      {10, 1}, // minor seventh
+      {-7, 1}, // major seventh
+  };
+
+  // Where each pitch class's middle version sits on that chain, as fifths and
+  // major thirds from the root, a third counting as eight fifths down. The
+  // same just-major places Temperament.h builds the middle versions from.
+  static constexpr int kMiddleStep[12] = {0,  7, 2, 9,  -8, -1,
+                                          -6, 1, 8, -9, 10, -7};
+
+  // The same intervals as cents off their equal-tempered size, for weighing
+  // what is still ringing, which has a frequency rather than a place on the
+  // chain.
+  static constexpr double kFifthOff = tuning::kPureFifth - 700.0;
+  static constexpr double kThirdOff = tuning::kPureMajorThird - 400.0;
+  static constexpr double kMinorOff = kFifthOff - kThirdOff;
+  static constexpr double kSeventhOff = kFifthOff + kMinorOff;
+  static constexpr double kMajorSeventhOff = kFifthOff + kThirdOff;
+  static constexpr double kOffEqual[12] = {
+      0.0, 0.0,       0.0,        kMinorOff,  kThirdOff,   -kFifthOff,
+      0.0, kFifthOff, -kThirdOff, -kMinorOff, kSeventhOff, kMajorSeventhOff};
+
+  // Two commas either side of the middle. A comma is twelve steps.
+  static constexpr int kReach = 2;
+
+  // A tail is heard while it is still a fair part of what is sounding and
+  // above -60 dB. See the tests for why the floor is there.
+  static constexpr float kAudibleShare = 0.25f;
+  static constexpr float kInaudible = 0.001f;
+
+  const auto classOf = [root](int key) {
+    return ((key - root) % 12 + 12) % 12;
+  };
+
+  const auto hzOf = [root, referenceHz](int key, int version) {
+    return noteFrequency(key, Temperament::Adaptive, root, referenceHz) *
+           std::exp2((double)version * tuning::kAdaptiveComma / 1200.0);
+  };
+
+  const auto versionOf = [&hzOf](const Voice &v) {
+    return (int)std::lround(1200.0 *
+                            std::log2(v.getFrequency() / hzOf(v.getNote(), 0)) /
+                            tuning::kAdaptiveComma);
+  };
+
+  // ---- who takes part
+  // --------------------------------------------------------
+  struct Node {
+    Voice *voice; // null for the key going down
+    int key;
+    int now;       // its version as it stands, unused for the key going down
+    bool young;    // inside the chord window, so it moves at once and cheaply
+    bool harmonic; // a seventh tuned 7:4 above its root, off the chain
+  };
+
+  std::array<Node, kPoolSize + 1> nodes{};
+  int count = 0;
+
+  const auto window = (uint64_t)(kChordWindowSeconds * sampleRate);
+  float loudest = 0.0f;
+
+  for (size_t i = 0; i < voices.size(); ++i) {
+    auto &v = voices[i];
+    if (!v.isActive() || &v == self)
+      continue;
+
+    loudest = std::max(loudest, v.lastLevel());
+
+    if (!v.isReleasing())
+      nodes[(size_t)count++] = {&v, v.getNote(), versionOf(v),
+                                clock - pressedAt[i] < window, false};
+  }
+
+  if (note >= 0)
+    nodes[(size_t)count++] = {nullptr, note, 0, true, false};
+
+  if (count == 0) {
+    // Nothing held, which the screen needs to know as much as anything else.
+    AdaptiveSnapshot none;
+    none.referenceHz = referenceHz;
+    none.remembered = adaptiveVersion;
+    adaptiveSnapshots.publish(none);
+    return 0.0;
+  }
+
+  // Lowest key first, so where a chord cannot all be pure the interval left
+  // out is the same whatever order the keys went down in.
+  std::sort(nodes.begin(), nodes.begin() + count,
+            [](const Node &a, const Node &b) { return a.key < b.key; });
+
+  // ---- the harmonic seventh -------------------------------------------------
+  //
+  // A root's minor seventh is tuned 7:4 above it, the harmonic seventh, unless
+  // another held note would then sit out of tune with it. Over the root, its
+  // major third, its fifth and its ninth, the seventh makes a chord whose
+  // notes are harmonics 4, 5, 6, 7 and 9 of one note two octaves below the
+  // root, so every partial of every note lands on another and nothing beats,
+  // where the chain would leave the seventh 9:5 against the seventh harmonic
+  // of the root. A note a minor third, a fourth, a minor second or a tritone
+  // above the root would meet the seventh at a fifth, a fourth or a third
+  // well off pure, which beats much harder, so with one of those held the
+  // seventh keeps the size the chain gives it. It is the only pitch here off
+  // the chain of fifths, which has no 7 in it, so it is left out of what the
+  // chain solves and placed on the root afterwards. Where more than one root
+  // qualifies, the one lowest on the keyboard is the chord.
+  bool held[12] = {};
+  int lowestOf[12];
+  for (auto &l : lowestOf)
+    l = 1 << 20;
+  for (int i = 0; i < count; ++i) {
+    const auto pc = classOf(nodes[(size_t)i].key);
+    held[(size_t)pc] = true;
+    lowestOf[(size_t)pc] = std::min(lowestOf[(size_t)pc], nodes[(size_t)i].key);
+  }
+
+  // None at all when the harmonic seventh is switched off, and every seventh
+  // then takes the size the chain gives it.
+  int dominant = -1;
+  for (int pc = 0; pc < 12 && harmonicSevenths; ++pc)
+    if (held[(size_t)pc] && held[(size_t)((pc + 10) % 12)] &&
+        !held[(size_t)((pc + 1) % 12)] && !held[(size_t)((pc + 3) % 12)] &&
+        !held[(size_t)((pc + 5) % 12)] && !held[(size_t)((pc + 6) % 12)] &&
+        (dominant < 0 || lowestOf[(size_t)pc] < lowestOf[(size_t)dominant]))
+      dominant = pc;
+
+  if (dominant >= 0)
+    for (int i = 0; i < count; ++i)
+      nodes[(size_t)i].harmonic =
+          classOf(nodes[(size_t)i].key) == (dominant + 10) % 12;
+
+  // ---- the strongest intervals first, each kept if it agrees
+  // -----------------
+  //
+  // A union of groups, each node carrying how many commas it sits from its
+  // group's first node. Two nodes in one group already have a difference;
+  // an interval that wants another one is a contradiction the chord cannot
+  // be pure without, like the third an augmented triad has one too many of,
+  // and is left out.
+  std::array<int, kPoolSize + 1> group{}, offset{};
+  for (int i = 0; i < count; ++i) {
+    group[(size_t)i] = i;
+    offset[(size_t)i] = 0;
+  }
+
+  const auto find = [&group, &offset](int i) {
+    int total = 0;
+    while (group[(size_t)i] != i) {
+      total += offset[(size_t)i];
+      i = group[(size_t)i];
+    }
+    return std::pair<int, int>{i, total};
+  };
+
+  // In commas, how far above the lower key's version the higher key's has to
+  // be for the pair to be pure. The keys are sorted, so a is the lower.
+  const auto wanted = [&nodes, &classOf](int a, int b) {
+    const auto &low = nodes[(size_t)a];
+    const auto &high = nodes[(size_t)b];
+    const auto &pure = kByClass[(size_t)((high.key - low.key) % 12)];
+    const auto steps = pure.steps - (kMiddleStep[(size_t)classOf(high.key)] -
+                                     kMiddleStep[(size_t)classOf(low.key)]);
+    return steps / 12; // always whole: see kMiddleStep
+  };
+
+  const auto weightOf = [&nodes](int a, int b) {
+    if (nodes[(size_t)a].harmonic || nodes[(size_t)b].harmonic)
+      return -1;
+    return kByClass[(size_t)((nodes[(size_t)b].key - nodes[(size_t)a].key) %
+                             12)]
+        .weight;
+  };
+
+  for (const int weight : {4, 3, 2, 1, 0})
+    for (int lowIndex = 0; lowIndex < count; ++lowIndex)
+      for (int highIndex = lowIndex + 1; highIndex < count; ++highIndex) {
+        if (weightOf(lowIndex, highIndex) != weight)
+          continue;
+        const auto commas = wanted(lowIndex, highIndex);
+
+        const auto [lowRoot, lowAt] = find(lowIndex);
+        const auto [highRoot, highAt] = find(highIndex);
+
+        if (lowRoot == highRoot)
+          continue; // agreed, or contradicted, by stronger ones already
+
+        // Hang the high key's group off the low key's.
+        group[(size_t)highRoot] = lowRoot;
+        offset[(size_t)highRoot] = lowAt + commas - highAt;
+      }
+
+  // ---- then as little out of tune as it can be ------------------------------
+  //
+  // Strongest first can leave out more than it has to. In C E G A D the
+  // fourths E to A and A to D are taken before any third, and between them
+  // they put E and A a comma from where C wants them, three thirds and sixths
+  // given up to keep one fourth. So each key is then tried a comma either
+  // way, alone or with one other, and kept there if that leaves less out of
+  // tune, each interval weighed as above, until no move helps. It looks only at
+  // the keys, so the same keys always come out the same.
+  std::array<int, kPoolSize + 1> top{}, settled{};
+  for (int i = 0; i < count; ++i)
+    std::tie(top[(size_t)i], settled[(size_t)i]) = find(i);
+
+  // Every pair's weight and the difference it wants, worked out once.
+  std::array<std::array<int, kPoolSize + 1>, kPoolSize + 1> pairWeight{},
+      pairWants{};
+  for (int a = 0; a < count; ++a)
+    for (int b = a + 1; b < count; ++b) {
+      const auto weight = weightOf(a, b);
+      pairWeight[(size_t)a][(size_t)b] =
+          top[(size_t)a] == top[(size_t)b] && weight > 0 ? weight : 0;
+      pairWants[(size_t)a][(size_t)b] = wanted(a, b);
+    }
+
+  // How far out of tune the pair a, b is, a below b, at the versions given.
+  const auto strain = [&](int a, int b, int lowAt, int highAt) {
+    return pairWeight[(size_t)a][(size_t)b] *
+           std::abs(highAt - lowAt - pairWants[(size_t)a][(size_t)b]);
+  };
+
+  // What moving i, and j with it, by step does to the whole chord. The two
+  // move together, so the pair between them is left as it is.
+  const auto change = [&](int i, int j, int step) {
+    int sum = 0;
+    const int movers[2] = {i, j};
+    for (int m = 0; m < (j == i ? 1 : 2); ++m) {
+      const auto moving = movers[m];
+      for (int k = 0; k < count; ++k) {
+        if (k == i || k == j)
+          continue;
+        const auto low = std::min(moving, k), high = std::max(moving, k);
+        const auto lowAt = settled[(size_t)low];
+        const auto highAt = settled[(size_t)high];
+        const auto lowStep = low == moving ? step : 0;
+        const auto highStep = high == moving ? step : 0;
+        sum += strain(low, high, lowAt + lowStep, highAt + highStep) -
+               strain(low, high, lowAt, highAt);
+      }
+    }
+    return sum;
+  };
+
+  // One key a comma either way, or two a consonance apart together, since a
+  // third and the fifth above it can be out of tune with the rest only as a
+  // pair.
+  for (bool better = true; better;) {
+    better = false;
+    for (int i = 0; i < count; ++i)
+      for (int j = i; j < count; ++j) {
+        if (nodes[(size_t)i].harmonic || nodes[(size_t)j].harmonic ||
+            (j != i && pairWeight[(size_t)i][(size_t)j] == 0))
+          continue;
+        for (const int step : {-1, 1})
+          if (change(i, j, step) < 0) {
+            settled[(size_t)i] += step;
+            if (j != i)
+              settled[(size_t)j] += step;
+            better = true;
+          }
+      }
+  }
+
+  for (int i = 0; i < count; ++i) {
+    group[(size_t)i] = top[(size_t)i];
+    offset[(size_t)i] = settled[(size_t)i] - settled[(size_t)top[(size_t)i]];
+  }
+
+  // ---- where each group sits ------------------------------------------------
+  std::array<int, kPoolSize + 1> chosen{};
+
+  for (int g = 0; g < count; ++g) {
+    if (find(g).first != g)
+      continue;
+
+    int lowest = 1 << 20, highest = -(1 << 20);
+    for (int i = 0; i < count; ++i) {
+      const auto [r, at] = find(i);
+      if (r == g) {
+        lowest = std::min(lowest, at);
+        highest = std::max(highest, at);
+      }
+    }
+
+    // Every placement that keeps the whole group inside its reach, or failing
+    // that the one that overshoots least.
+    int from = -kReach - lowest, to = kReach - highest;
+    if (from > to)
+      from = to = (from + to) / 2;
+
+    // With Home on, how near the chord sits to home comes before everything
+    // else, so a progression that would pump moves a held note a comma
+    // instead of taking the keyboard with it. Off, it counts for nothing and
+    // the chord stays wherever the music has taken it.
+    double bestScore[4] = {1.0e18, 1.0e18, 1.0e18, 1.0e18};
+    int bestPlace = from;
+
+    for (int place = from; place <= to; ++place) {
+      double moved = 0.0, ringing = 0.0, habit = 0.0;
+      int fromHome = 0;
+
+      for (int i = 0; i < count; ++i) {
+        const auto [r, at] = find(i);
+        if (r != g)
+          continue;
+
+        const auto version = std::clamp(place + at, -kReach, kReach);
+        const auto &node = nodes[(size_t)i];
+        fromHome += version;
+
+        if (node.voice != nullptr)
+          moved += (node.young ? 0.01 : 1.0) * std::abs(version - node.now);
+        else
+          habit += version == adaptiveVersion[(size_t)classOf(node.key)]
+                       ? 0.0
+                       : 1.0 + std::abs(version);
+
+        // What is still ringing after its key came up only settles a choice
+        // the held keys leave open.
+        for (const auto &v : voices) {
+          if (!v.isActive() || &v == self || !v.isReleasing() ||
+              v.lastLevel() < kAudibleShare * loudest ||
+              v.lastLevel() < kInaudible)
+            continue;
+
+          const auto span = std::abs(node.key - v.getNote());
+          const auto &pure = kByClass[(size_t)(span % 12)];
+          if (pure.weight == 0)
+            continue;
+
+          const auto high = node.key >= v.getNote();
+          const auto cents =
+              1200.0 *
+              std::log2(high ? hzOf(node.key, version) / v.getFrequency()
+                             : v.getFrequency() / hzOf(node.key, version));
+          ringing += (double)pure.weight *
+                     std::abs(cents - (100.0 * (double)span +
+                                       kOffEqual[(size_t)(span % 12)]));
+        }
+      }
+
+      const double home = adaptiveHome ? (double)std::abs(fromHome) : 0.0;
+      const double score[4] = {home, moved, ringing, habit};
+      if (std::lexicographical_compare(score, score + 4, bestScore,
+                                       bestScore + 4)) {
+        std::copy(score, score + 4, bestScore);
+        bestPlace = place;
+      }
+    }
+
+    for (int i = 0; i < count; ++i) {
+      const auto [r, at] = find(i);
+      if (r == g)
+        chosen[(size_t)i] = std::clamp(bestPlace + at, -kReach, kReach);
+    }
+  }
+
+  // ---- move what has to move ------------------------------------------------
+  double result = 0.0;
+
+  // What it all came to, for the screen, filled in as each key is placed.
+  AdaptiveSnapshot outcome;
+  outcome.count = count;
+  outcome.referenceHz = referenceHz;
+
+  // The root the harmonic seventh is tuned on, where the chain put it.
+  int rootNode = -1;
+  if (dominant >= 0)
+    for (int i = 0; i < count; ++i)
+      if (nodes[(size_t)i].key == lowestOf[(size_t)dominant])
+        rootNode = i;
+
+  for (int i = 0; i < count; ++i) {
+    const auto &node = nodes[(size_t)i];
+
+    if (node.harmonic && rootNode >= 0) {
+      const auto &rootKey = nodes[(size_t)rootNode].key;
+      const auto octaves = (node.key - rootKey - 10) / 12;
+      const auto hz = hzOf(rootKey, chosen[(size_t)rootNode]) * 1.75 *
+                      std::exp2((double)octaves);
+
+      outcome.notes[(size_t)i] = {node.key, hz, 0, true};
+      outcome.harmonicRoot = rootKey;
+
+      if (node.voice == nullptr)
+        result = hz;
+      else if (std::abs(1200.0 * std::log2(node.voice->getFrequency() / hz)) >
+               1.0e-3)
+        node.voice->retuneTo(hz, node.young ? 0.0 : adaptiveRetune);
+      continue;
+    }
+
+    const auto version = chosen[(size_t)i];
+    adaptiveVersion[(size_t)classOf(node.key)] = version;
+    outcome.notes[(size_t)i] = {node.key, hzOf(node.key, version), version,
+                                false};
+
+    if (node.voice == nullptr) {
+      result = hzOf(node.key, version);
+      continue;
+    }
+
+    // Compared as frequencies rather than versions, so a note leaving a
+    // dominant seventh, which sat off the chain, is moved back onto it.
+    const auto hz = hzOf(node.key, version);
+    if (std::abs(1200.0 * std::log2(node.voice->getFrequency() / hz)) > 1.0e-3)
+      node.voice->retuneTo(hz, node.young ? 0.0 : adaptiveRetune);
+  }
+
+  outcome.remembered = adaptiveVersion;
+  adaptiveSnapshots.publish(outcome);
+  return result;
+}
+
+double SynthEngine::frequencyOfNote(int note) const noexcept {
+  for (const auto &v : voices)
+    if (v.isActive() && !v.isReleasing() && v.getNote() == note)
+      return v.getFrequency();
+
+  return 0.0;
 }
 
 void SynthEngine::noteOff(int note, float lift) noexcept {
@@ -523,8 +1011,8 @@ void SynthEngine::noteOffImpl(int channel, int note, float lift) noexcept {
           const auto own = v.notePitches();
 
           v.retune(channel, back,
-                   noteFrequency(back, legatoTemperament, legatoRoot,
-                                 legatoReferenceHz));
+                   frequencyFor(back, legatoTemperament, legatoRoot,
+                                legatoReferenceHz, &v));
           v.startGlide(own, glide);
           lastNoteFrequency = v.getFrequency();
           return;
@@ -546,6 +1034,12 @@ void SynthEngine::noteOffImpl(int channel, int note, float lift) noexcept {
       }
     }
   }
+
+  // What is left held may sit better now that this key has gone: a note
+  // tuned to fit a key that is no longer there can take the version the
+  // chord now wants.
+  if (adaptiveOn)
+    settleAdaptive(-1, legatoRoot, legatoReferenceHz, nullptr);
 }
 
 void SynthEngine::setSustainPedal(bool down) noexcept {
@@ -561,6 +1055,9 @@ void SynthEngine::setSustainPedal(bool down) noexcept {
       heldLift[i] = 1.0f;
     }
   }
+
+  if (adaptiveOn)
+    settleAdaptive(-1, legatoRoot, legatoReferenceHz, nullptr);
 }
 
 void SynthEngine::setPolyPressure(int note, float pressure) noexcept {

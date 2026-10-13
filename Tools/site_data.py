@@ -10,7 +10,7 @@ Any string here can name a count the source knows, and the generator fills it
 in rather than trusting whoever last typed it:
 
     {presets}       the factory presets in words, "thirty-four"
-    {parameters}    the host parameters in figures, "836"
+    {parameters}    the host parameters in figures, "842"
     {preset_names}  every factory preset, in the order the menu lists them
 
 The version is read from CMakeLists.txt. RELEASED is the day that version went
@@ -85,7 +85,7 @@ PRODUCT = {
     "featureList": [
         "32 sine partials plus a noise channel",
         "Continuous blend between equal temperament and just intonation",
-        "Six keyboard temperaments on any root",
+        "Seven keyboard temperaments on any root, one of them adaptive",
         "Inharmonic stretch and keyboard tracking",
         "Per-partial envelope, tremolo, pitch modulation and pan",
         "MPE, with pitch bend and pressure per note",
@@ -146,7 +146,8 @@ QUESTIONS = [
         "Can Overtonium do microtonal tunings and just intonation?",
         "Both, and separately. TUNE sweeps each partial between its equal-tempered position and its exact whole-number ratio. The keyboard "
         "underneath is tuned on its own, to equal, just, Pythagorean, quarter-comma meantone, Werckmeister III or Young, on any root, at any "
-        "reference pitch from 415 to 466 Hz.",
+        'reference pitch from 415 to 466 Hz. Or to <a href="tuning/#adaptive">Adaptive</a>, which keeps whatever chord you hold in just '
+        "intonation as you play, moving a held note where the next chord needs it.",
     ),
     (
         "Does Overtonium support MPE?",
@@ -223,16 +224,16 @@ PAGES = [
     {
         "path": "tuning/",
         "nav": "Tuning",
-        "title": "The Overtonium tuning system: TUNE, stretch and six temperaments",
-        "description": "Hear TUNE blend every partial between equal temperament and just intonation, along with inharmonic stretch, six temperaments, keyboard tracking and drift.",
+        "title": "The Overtonium tuning system: TUNE, stretch and seven temperaments",
+        "description": "Hear TUNE blend every partial between equal temperament and just intonation, plus inharmonic stretch, seven temperaments, keyboard tracking and drift.",
         "social": "Hear all of it: TUNE blending every partial between equal temperament and just intonation, STRETCH from harmonic out past a piano, a chord in equal against Werckmeister III, keyboard tracking thinning the series as you play up, and per-partial drift. With a diagram of where each partial falls against the semitone it snaps to.",
         "image": "overtonium-card-tuning.jpg",
         "image_alt": "The Overtonium wordmark over the plugin window, captioned Tuning.",
         "scripts": ["contents.js"],
         "jsonld": ["breadcrumbs"],
-        "card": "TUNE, inharmonic stretch, six historical temperaments on any root, and how the spectrum thins as you play up the keyboard.",
-        "card_404": "TUNE, inharmonic stretch, six temperaments and keyboard tracking.",
-        "llms": 'TUNE from equal to just, inharmonic stretch, six historical temperaments on any root, at a reference pitch from a list running 415 to 466 Hz, keyboard tracking, and per-partial drift. Carries audio of each of those and a diagram of where every partial falls against the semitone it snaps to.',
+        "card": "TUNE, inharmonic stretch, six historical temperaments and an adaptive one on any root, and how the spectrum thins as you play up the keyboard.",
+        "card_404": "TUNE, inharmonic stretch, seven temperaments and keyboard tracking.",
+        "llms": 'TUNE from equal to just, inharmonic stretch, six historical temperaments and an adaptive one that retunes each key as it is played, on any root, at a reference pitch from a list running 415 to 466 Hz, keyboard tracking, and per-partial drift. Carries audio of each of those and a diagram of where every partial falls against the semitone it snaps to.',
         "priority": "0.8",
     },
     {
@@ -367,7 +368,7 @@ LLMS_FACTS = [
     ('Licence', 'GNU Affero General Public License v3, which follows from JUCE.'),
     ('Price', 'free, and free software rather than only free of charge.'),
     ('Partials', "32 sine oscillators plus a noise channel, each with its own tuning, envelope, key-off envelope, tremolo, pitch modulation, drift, glide, velocity and pressure amounts, pan, mute, solo and fader. The noise channel has no pitch, so no pitch modulation, drift or glide. A glide time is how long that partial takes to reach a new note, so the series can arrive a partial at a time, and two switches cover every channel: whether it glides always or only legato, and whether it moves at a fixed rate or takes a fixed time. Both modulators pick a waveform per channel: sine, triangle, sawtooth, reverse sawtooth, square, sample and hold, or a smooth random glide, with pitch also offering a unipolar square that only bends upward. Each modulator can also be switched from one per note to one circuit the whole keyboard shares, so a chord breathes as one thing rather than each key breathing where it started: two switches, one per modulator, called Shared by all notes in the shape button's menu and shown beside each SHAPE caption, off by default and carried by the patch. Wurli shares its tremolo and StyloPoly its vibrato. On a keyboard that senses how fast a key is let go, that speed scales the level each partial's tail starts from, twice it at the hardest lift and half at the softest, with no knob and no parameter behind it. A keyboard that cannot sense a release changes nothing, including the two ways it says so: a note-off carrying zero and a note-on of velocity zero are both read as no information."),
-    ('Tuning', 'a continuous blend from equal temperament to just intonation, inharmonic stretch, keyboard tracking, and six keyboard temperaments (equal, just, Pythagorean, quarter-comma meantone, Werckmeister III, Young).'),
+    ('Tuning', 'a continuous blend from equal temperament to just intonation, inharmonic stretch, keyboard tracking, and seven keyboard temperaments: equal, just, Pythagorean, quarter-comma meantone, Werckmeister III and Young, and Adaptive, which gives every pitch class five versions a comma apart and keeps the held chord on whichever make it purest, settling it again as each key goes down or comes up and sliding a held note to its new version over a Retune time from a jump to a second, so every chord is pure in every key, including one that turns into the next a note at a time, and the same keys are tuned the same however they were played, while the keyboard never drifts more than two commas. A chord that cannot be pure all through gives up as little as it can. A minor seventh is the harmonic one, 7:4 above its root, unless another held note would then be out of tune with it, so a dominant seventh is 4:5:6:7.'),
     ('Oscillator character', 'one choice for all 32 partials, saying which circuit each of them is, each named for the part that makes it what it is. Pure is an exact sine. Bulb is a Wien bridge whose lamp lags, so the level sags behind every move of the pitch and recovers over about half a second. Rail is a phase-shift oscillator grown into its own supply rail, a third harmonic at -23 dB and no even ones. Diode is a triangle shaped by two of them that do not match, a second, third and fourth near -32 dB. Valve is a triode biased so one half of the wave leans over first, a second harmonic at -20 dB over a third at -23, the only one whose loudest addition is an octave rather than a twelfth. Op-amp is an amplifier that cannot move fast enough, which does nothing below a kilohertz and turns partials above it into triangles, so the top of the series hardens as it climbs. Built as band-limited tables rather than as waveshaping, so it costs nothing per sample and nothing folds back down. Every character but Pure is a rack of 32 units rather than one oscillator: a fixed spread, the same in every session and on every machine, puts each partial a couple of cents and a fraction of a dB off spec, from 1.5 ct and 0.1 dB for Bulb to 3 ct and 0.35 dB for Valve, with partial 1 left exact as the one the rest were tuned against. Not DRIFT, which wanders. Each unit is also built to one of three drives, 15% either side of nominal, so no two channels distort by the same amount: three rather than one per channel because the drive is baked into a band-limited table. The character also says how the bus the 33 channels are summed onto behaves, which is a separate thing from the tables and works on the mix rather than on any one partial: an amplitude-reactive drive that is barely there when you play quietly and arrives when you lean on the keyboard, strongest on Bulb and Rail, gentlest on Diode, and absent on Pure. There is no knob for it, because how hard a summing amplifier is driven is part of what choosing a character means.'),
     ('Effects', 'an echo that is one of three machines, a reverb that is one of three, a wobble across the whole series, and a converter that reduces render rate and bit depth. Five of the factory presets reach for them: 60s Organ on the bucket brigade and the spring, Shimmer and Tape Choir on the plate, Cathedral and Struck Bell on the room. The echo is a tape loop with two motors, a bucket brigade, or a digital delay that crosses every repeat to the other side, and AGE means something different on each: tape wear, a slowing clock and breathing companding, or falling bits and sample rate. The reverb is a feedback delay network sized from its decay, a modulated plate that is dense from its first instant, or a tray of springs whose dispersion turns every hit into a chirp that starts high and falls. Decay, damping and pre-delay mean the same thing on all three and the wet levels are matched, so switching machines changes the character of a tail rather than its length or its loudness.'),
     ('MPE', 'pitch bend and pressure per note, with the slide axis routable to brightness or tuning.'),

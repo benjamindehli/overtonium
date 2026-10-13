@@ -37,6 +37,8 @@ The ancestry is visible in the details rather than only in the shape. DRIFT is t
 
 All three earlier instruments are sample libraries with a plugin wrapper, sold at [Dehli Musikk](https://store.dehlimusikk.no/). This one is free software, and none of their code is in it.
 
+The Adaptive temperament leans on another project of mine, [music-utils](https://github.com/benjamindehli/music-utils), a library that names chords from the MIDI notes held. Its list of 125 chord types is what the temperament is tested against: every one, in all twelve keys, has to come out the same however it is played and as pure as it can be.
+
 ## What is in it
 
 Every channel is a strip, and every strip carries the same twenty-three controls. The captions are named once down the left rather than repeated across all thirty-three, and each channel takes the colour of its interval against the fundamental.
@@ -45,7 +47,7 @@ Every channel is a strip, and every strip carries the same twenty-three controls
 
 The [project page](https://benjamindehli.github.io/overtonium/) is the place to start, and it has a page each for the parts worth reading about:
 
-- **[Tuning](https://benjamindehli.github.io/overtonium/tuning/)**: TUNE from equal to just, inharmonic stretch, six historical temperaments on any root, keyboard tracking and per-partial drift
+- **[Tuning](https://benjamindehli.github.io/overtonium/tuning/)**: TUNE from equal to just, inharmonic stretch, six historical temperaments and an adaptive one on any root, keyboard tracking and per-partial drift
 - **[Controls](https://benjamindehli.github.io/overtonium/controls/)**: every knob on a channel strip, the two-part envelope, LINK for ganging the series, the lamps and meters, and the noise channel
 - **[Effects](https://benjamindehli.github.io/overtonium/effects/)**: the bar above the mixer, from the oscillator character and the wobble through the echo, the reverb and the converter to the five CLIP shapes on the output
 - **[Playing](https://benjamindehli.github.io/overtonium/playing/)**: MPE, legato and glide, the Settings menu, automation with every parameter listed, macros and MIDI Learn

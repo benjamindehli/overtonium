@@ -400,7 +400,7 @@ void NoiseStrip::updateLevelReadout() {
 
   // See ChannelStrip::updateLevelReadout.
   if (params::isSilentGain(v))
-    return levelReadout.setReading("-inF", false);
+    return levelReadout.setReading("-inF", true);
 
   const auto db = params::levelDecibels(v);
 

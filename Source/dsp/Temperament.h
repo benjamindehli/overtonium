@@ -19,6 +19,12 @@ enum class Temperament {
   QuarterComma,
   Werckmeister3,
   Young,
+  /// Retuned as it is played rather than fixed: every pitch class has five
+  /// versions a comma apart around its place in just major on the root, and
+  /// each key takes whichever is purest against what is sounding. The table
+  /// below is the middle versions, on Groven's tempered fifths. See
+  /// SynthEngine::frequencyFor.
+  Adaptive,
   NumTemperaments
 };
 
@@ -34,6 +40,8 @@ inline const char *temperamentName(Temperament t) {
     return "Werckmeister III";
   case Temperament::Young:
     return "Young";
+  case Temperament::Adaptive:
+    return "Adaptive";
 
   // Listed rather than left to a default, so adding a temperament is a
   // compiler error here until it has been given a name.
@@ -59,6 +67,22 @@ inline constexpr double kPureMajorThird = 386.3137138648348;
 /// The syntonic comma, between four pure fifths and a pure major third.
 inline constexpr double kSyntonicComma =
     4.0 * kPureFifth - 2400.0 - kPureMajorThird;
+
+/// The schisma: what eight pure fifths and a pure major third miss five octaves
+/// by, about two cents.
+inline constexpr double kSchisma = 8.0 * kPureFifth + kPureMajorThird - 6000.0;
+
+/// The fifth Eivind Groven tuned his organs to: narrowed by an eighth of a
+/// schisma, so eight of them and a pure third close five octaves exactly. A
+/// quarter of a cent from pure, which on the third partial of a note in the
+/// middle of the keyboard beats about once every eighteen seconds.
+inline constexpr double kGrovenFifth = kPureFifth - kSchisma / 8.0;
+
+/// The step between the adaptive temperament's versions of a pitch
+/// class: four of those fifths up and a pure third down, a syntonic comma made
+/// a fraction smaller by the tempering, about 20.5 cents.
+inline constexpr double kAdaptiveComma =
+    4.0 * kGrovenFifth - 2400.0 - kPureMajorThird;
 
 /// The order pitch classes are reached by stacking fifths from the root.
 inline constexpr int kFifthOrder[12] = {0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5};
@@ -116,8 +140,8 @@ temperamentOffsets(Temperament t) noexcept {
   using namespace tuning;
 
   // Built once. None of this depends on anything but the constants above.
-  static const std::array<std::array<double, 12>, 6> tables = [] {
-    std::array<std::array<double, 12>, 6> out{};
+  static const std::array<std::array<double, 12>, 7> tables = [] {
+    std::array<std::array<double, 12>, 7> out{};
 
     // Equal: the thing everything else is measured against.
     out[0].fill(0.0);
@@ -163,11 +187,30 @@ temperamentOffsets(Temperament t) noexcept {
       out[5] = fromFifths(fifths);
     }
 
+    // Adaptive: just major again, but built from Groven's fifths and pure
+    // thirds rather than from exact ratios. Each pitch class is so many fifths
+    // and thirds from the root, and with the schisma tempered out, two
+    // spellings of one note that differ by it land on the same pitch, which is
+    // what lets three versions a comma apart reach every chord in every key.
+    {
+      const int fifthsAndThirds[12][2] = {{0, 0},  {-1, -1}, {2, 0},  {1, -1},
+                                          {0, 1},  {-1, 0},  {2, 1},  {1, 0},
+                                          {0, -1}, {-1, 1},  {2, -1}, {1, 1}};
+
+      for (int i = 0; i < 12; ++i) {
+        const auto raw = fifthsAndThirds[i][0] * kGrovenFifth +
+                         fifthsAndThirds[i][1] * kPureMajorThird;
+        const auto folded =
+            raw - 1200.0 * std::round((raw - 100.0 * (double)i) / 1200.0);
+        out[6][(size_t)i] = folded - 100.0 * (double)i;
+      }
+    }
+
     return out;
   }();
 
   const auto index = (int)t;
-  return tables[(size_t)(index >= 0 && index < 6 ? index : 0)];
+  return tables[(size_t)(index >= 0 && index < 7 ? index : 0)];
 }
 
 /// Frequency of a MIDI note.

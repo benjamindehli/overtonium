@@ -160,6 +160,48 @@ void paintDisplayGround(juce::Graphics &g, juce::Rectangle<float> area,
   g.fillRoundedRectangle(area, corner);
 }
 
+void paintGroupPocketShade(juce::Graphics &g, juce::Rectangle<int> r) {
+  const auto f = r.toFloat();
+
+  // Read as a pocket milled into the bar rather than a box drawn on it.
+  // Light comes from above, so the inside of the top edge is in shadow and
+  // the inside of the bottom edge catches it.
+  //
+  // The whole outline is stroked each time and then clipped to the half it
+  // belongs in, which is what keeps both marks on the box's own rounded
+  // edge. An arc inscribed in the rectangle instead would sweep across the
+  // middle of the box, straight through the controls standing in it.
+  const auto inner = f.reduced(0.5f);
+  const auto middle = f.getCentreY();
+
+  {
+    juce::Graphics::ScopedSaveState clip(g);
+    g.reduceClipRegion(f.withBottom(middle).getSmallestIntegerContainer());
+    g.setColour(juce::Colours::black.withAlpha(0.34f));
+    g.drawRoundedRectangle(inner.translated(0.0f, 1.0f), 4.0f, 1.3f);
+  }
+
+  {
+    juce::Graphics::ScopedSaveState clip(g);
+    g.reduceClipRegion(f.withTop(middle).getSmallestIntegerContainer());
+    g.setColour(juce::Colours::white.withAlpha(0.06f));
+    g.drawRoundedRectangle(inner.translated(0.0f, -1.0f), 4.0f, 1.0f);
+  }
+
+  g.setColour(colours::outline.withAlpha(0.9f));
+  g.drawRoundedRectangle(f.reduced(0.5f), 4.0f, 1.0f);
+}
+
+void paintGroupPocketFill(juce::Graphics &g, juce::Rectangle<int> r) {
+  g.setColour(colours::panelAlt.withAlpha(0.75f));
+  g.fillRoundedRectangle(r.toFloat(), 4.0f);
+}
+
+void paintGroupPocket(juce::Graphics &g, juce::Rectangle<int> r) {
+  paintGroupPocketFill(g, r);
+  paintGroupPocketShade(g, r);
+}
+
 void paintRecess(juce::Graphics &g, juce::Rectangle<float> opening,
                  float corner, float depth) {
   // The lit walls first, one depth out all the way round, and then the
@@ -456,8 +498,6 @@ void OvertoniumLookAndFeel::drawRotarySlider(
 
   const auto centre = bounds.getCentre();
   const auto dim = slider.isEnabled() ? 1.0f : 0.4f;
-  const auto angle =
-      rotaryStartAngle + sliderPos * (rotaryEndAngle - rotaryStartAngle);
 
   // Relative controls read as an offset either side of twelve o'clock rather
   // than as a level filling up from the left.
@@ -466,6 +506,18 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   const auto anchor =
       bipolar ? rotaryStartAngle + 0.5f * (rotaryEndAngle - rotaryStartAngle)
               : rotaryStartAngle;
+
+  // A knob standing for something that does not exist yet, such as a macro
+  // nobody has made: its ring all unlit, no pointer on its cap, and the cap at
+  // rest, since the collar turns with the knob and would give the setting
+  // away. So it cannot be read as a setting of nought, or of anything.
+  const bool blank =
+      (bool)slider.getProperties().getWithDefault("blank", false);
+
+  const auto angle =
+      blank
+          ? anchor
+          : rotaryStartAngle + sliderPos * (rotaryEndAngle - rotaryStartAngle);
 
   // A knob belonging to an effect that is switched off keeps its position,
   // since a setting is dialled in before the thing is turned on, but nothing
@@ -557,7 +609,7 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   for (int i = 0; i < ticks; ++i) {
     const auto t = (float)i / (float)(ticks - 1);
     const auto a = rotaryStartAngle + t * (rotaryEndAngle - rotaryStartAngle);
-    const bool lit = a >= lo - 1.0e-4f && a <= hi + 1.0e-4f;
+    const bool lit = !blank && a >= lo - 1.0e-4f && a <= hi + 1.0e-4f;
 
     const auto inner = radius * (lit ? 0.76f : 0.82f);
     const auto outer = radius * (lit ? 1.00f : 0.96f);
@@ -815,6 +867,9 @@ void OvertoniumLookAndFeel::drawRotarySlider(
     g.setColour(colour);
     g.fillPath(bar);
   };
+
+  if (blank)
+    return;
 
   const auto head = fill.brighter(0.25f).withMultipliedAlpha(dim);
 

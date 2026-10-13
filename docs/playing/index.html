@@ -6,7 +6,7 @@
         <title>Playing Overtonium: MPE, automation, macros and MIDI Learn</title>
         <meta
             name="description"
-            content="Playing Overtonium: MPE, legato, glide on every channel, the Settings menu, automation with all 839 parameters, macros and MIDI Learn."
+            content="Playing Overtonium: MPE, legato, glide on every channel, the Settings menu, automation with all 842 parameters, macros and MIDI Learn."
         />
         <meta name="author" content="Benjamin Dehli" />
         <meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -20,7 +20,7 @@
         <meta property="og:title" content="Playing Overtonium: MPE, automation, macros and MIDI Learn" />
         <meta
             property="og:description"
-            content="MPE with pitch bend and pressure per note, legato, a glide on every channel with each partial on its own time, every entry in the Settings menu, automating Overtonium from a host with all 839 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
+            content="MPE with pitch bend and pressure per note, legato, a glide on every channel with each partial on its own time, every entry in the Settings menu, automating Overtonium from a host with all 842 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-playing.jpg" />
         <meta property="og:image:type" content="image/jpeg" />
@@ -32,7 +32,7 @@
         <meta name="twitter:title" content="Playing Overtonium: MPE, automation, macros and MIDI Learn" />
         <meta
             name="twitter:description"
-            content="MPE with pitch bend and pressure per note, legato, a glide on every channel with each partial on its own time, every entry in the Settings menu, automating Overtonium from a host with all 839 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
+            content="MPE with pitch bend and pressure per note, legato, a glide on every channel with each partial on its own time, every entry in the Settings menu, automating Overtonium from a host with all 842 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-playing.jpg" />
         <meta name="twitter:image:alt" content="The Overtonium wordmark over the plugin window, captioned Playing." />
@@ -49,7 +49,7 @@
                 "@id": "https://benjamindehli.github.io/overtonium/playing/#webpage",
                 "url": "https://benjamindehli.github.io/overtonium/playing/",
                 "name": "Playing Overtonium: MPE, automation, macros and MIDI Learn",
-                "description": "Playing Overtonium: MPE, legato, glide on every channel, the Settings menu, automation with all 839 parameters, macros and MIDI Learn.",
+                "description": "Playing Overtonium: MPE, legato, glide on every channel, the Settings menu, automation with all 842 parameters, macros and MIDI Learn.",
                 "inLanguage": "en-GB",
                 "isPartOf": {
                     "@id": "https://benjamindehli.github.io/overtonium/#website"
@@ -63,7 +63,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-10-10",
+                "dateModified": "2026-10-12",
                 "breadcrumb": {
                     "@id": "https://benjamindehli.github.io/overtonium/playing/#breadcrumb"
                 }
@@ -118,6 +118,7 @@
                                     <li><a href="#mpe">MPE</a></li>
                                     <li><a href="#legato">Legato</a></li>
                                     <li><a href="#glide">Glide</a></li>
+                                    <li><a href="#bars">The Playing and Tuning bars</a></li>
                                     <li><a href="#settings">The Settings menu</a></li>
                                     <li>
                                         <a href="#automation">Automating it from the host</a>
@@ -151,15 +152,15 @@
                     <h2>MPE</h2>
 
                     <p>
-                        Off by default, and under Settings. With it on, a controller that gives every note its own MIDI channel can bend and press
-                        each note separately, which on this instrument means each finger gets its own copy of all 33 aftertouch destinations. Press
-                        into one note in a chord and only that note's upper partials come in.
+                        Off by default, and under Settings and in the Playing bar. With it on, a controller that gives every note its own MIDI channel
+                        can bend and press each note separately, which on this instrument means each finger gets its own copy of all 33 aftertouch
+                        destinations. Press into one note in a chord and only that note's upper partials come in.
                     </p>
 
                     <p>
-                        Slide, the forward and back axis under a finger, has a destination of its own under Settings. By default it moves that note's
-                        brightness, thinning or opening the top of the series, which is what a player's hands expect from that axis. It can be aimed
-                        at the tuning instead, so that pushing one finger forward slides that note alone
+                        Slide, the forward and back axis under a finger, has a destination of its own under Settings and in the Playing bar. By
+                        default it moves that note's brightness, thinning or opening the top of the series, which is what a player's hands expect from
+                        that axis. It can be aimed at the tuning instead, so that pushing one finger forward slides that note alone
                         <a href="../tuning/">between equal temperament and just intonation</a>
                         while the rest of the chord stays where it is. A keyboard with no slide axis sends nothing and changes nothing.
                     </p>
@@ -191,11 +192,11 @@
                     <h2>Legato</h2>
 
                     <p>
-                        A switch in Settings, beside the voice count, and what it does depends on that count. <strong>With one voice</strong> the
-                        instrument is not polyphonic at all: pressing a key while another is still held moves the note rather than starting it again,
-                        so the envelopes carry on and a run keeps the shape the first key gave it rather than restarting the attack under your
-                        fingers. Letting a key go while others are still down falls back to the most recent of them, which is what makes a trill work,
-                        and only the last key coming up releases the note.
+                        A switch in Settings and in the Playing bar, beside the voice count, and what it does depends on that count.
+                        <strong>With one voice</strong> the instrument is not polyphonic at all: pressing a key while another is still held moves the
+                        note rather than starting it again, so the envelopes carry on and a run keeps the shape the first key gave it rather than
+                        restarting the attack under your fingers. Letting a key go while others are still down falls back to the most recent of them,
+                        which is what makes a trill work, and only the last key coming up releases the note.
                     </p>
 
                     <p>
@@ -364,12 +365,62 @@
                     </p>
                 </section>
 
+                <section id="bars">
+                    <h2>The Playing and Tuning bars</h2>
+
+                    <p>
+                        The two lower buttons beside the preset name, a keyboard and a tuning fork, each open a bar between the top bar and the mixer,
+                        for the settings that get changed while playing rather than set once. Both are closed until you open them, and each instance
+                        remembers which are open. A bar takes its height from the mixer, which scrolls, so the window keeps its size, unless it is
+                        already as short as it goes, in which case it grows by the bar.
+                    </p>
+
+                    <p>
+                        <strong>Playing</strong> holds the voice count with IN USE, how many voices are sounding, release tails included, and Legato
+                        and No stack beside it, the pitch bend range, and MPE with Aftertouch from and Slide to. Then it shows what your hands are
+                        doing. SUSTAIN lights while the pedal is down. PITCH shows the pitch wheel from the middle against the bend range, or under
+                        MPE the key bent furthest. WHEEL and PRESSURE rise from the left, PRESSURE showing the keyboard's own pressure, the channel's
+                        or the key pressed hardest, so the wheel moves WHEEL alone even when Aftertouch from follows it. Last come the eight
+                        <a href="#macros">macros</a> as knobs in their colours, each named for the row it is aimed at and turning the same amount as
+                        its slider in MACROS. A macro not yet made shows a blank knob with its number. Right-click a knob to assign its macro, to
+                        change it in MACROS, or to bind a controller to it. <strong>Tuning</strong> holds the temperament, root and reference pitch,
+                        with the drift beside them under Adaptive. Under Adaptive it also has a NO DRIFT switch that keeps the keyboard home, a 7:4
+                        switch for the harmonic seventh, a PURE lamp and the Retune knob, which between them say
+                        <a href="../tuning/#adaptive">what Adaptive is doing</a> to the chord you hold. Last come twelve displays, one for each note,
+                        saying how far it sits from equal temperament in cents, with the white keys on a lighter ground the way a keyboard has them.
+                        Each display of a setting opens the same list as its entry in Settings and each switch lights while it is on, so a bar is
+                        another way to reach the same settings rather than a second copy of them. In a window too narrow for a whole bar, it wraps
+                        onto further rows the way the top bar does, and takes the extra height from the mixer.
+                    </p>
+
+                    <figure>
+                        <img
+                            loading="lazy"
+                            src="../overtonium-playing-bar.webp"
+                            alt="The Playing bar with C7 held on the pedal: eight voices with four in use, Legato off and No stack lit, a bend range of 2 semitones, MPE off with aftertouch from Either and slide to Brightness, SUSTAIN lit, the pitch wheel at rest in the middle, the mod wheel and pressure part way up, and three macros made, Level in red, Pitch mod depth in green and Release in blue, followed by five blank knobs numbered 4 to 8."
+                            width="1350"
+                            height="66"
+                        />
+                    </figure>
+
+                    <figure>
+                        <img
+                            loading="lazy"
+                            src="../overtonium-tuning-bar.webp"
+                            alt="The Tuning bar under Adaptive with C7 held: the temperament reading Adaptive on a root of C at 440 Hz with a drift of 0, NO DRIFT off, 7:4 lit, PURE lit and the Retune knob near its start, then twelve displays for the notes, C, E, G and B flat lit at 15.4, 1.7, 17.1 and minus 15.8 cents, the white keys on a light ground."
+                            width="1350"
+                            height="66"
+                        />
+                    </figure>
+                </section>
+
                 <section id="settings">
                     <h2>The Settings menu</h2>
 
                     <p>
                         Everything set once and then left. The menu is where the instrument is set up and the panel is where the sound is made, and a
-                        control's place says which of the two it is.
+                        control's place says which of the two it is. The ones changed while playing are in
+                        <a href="#bars">the Playing and Tuning bars</a> as well.
                     </p>
 
                     <div class="scroll">
@@ -409,7 +460,7 @@
                                     <td>How many notes can sound at once</td>
                                 </tr>
                                 <tr>
-                                    <td>One voice per key</td>
+                                    <td>No stack</td>
                                     <td>on by default</td>
                                     <td>
                                         Striking a key again takes over the note it is already sounding rather than laying a second copy beside it,
@@ -454,10 +505,38 @@
                                 </tr>
                                 <tr>
                                     <td>Temperament, Root, Reference pitch</td>
-                                    <td>Six temperaments, twelve roots, 415 to 466 Hz</td>
+                                    <td>Seven temperaments, twelve roots, 415 to 466 Hz</td>
                                     <td>
                                         What the keyboard underneath is tuned to, which <a href="../tuning/">the tuning system</a> works through. Root
                                         is greyed out for equal temperament, which has no centre to have
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Retune</td>
+                                    <td>Fast, 30 ms, the default, or Smooth, 300 ms</td>
+                                    <td>
+                                        How long a held note takes to slide to a new version when the <a href="../tuning/#adaptive">Adaptive</a>
+                                        temperament retunes the chord around it. Two quick settings of the Retune knob in the Tuning bar, which runs
+                                        from a jump at zero to a second. Greyed out under every other temperament
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Harmonic sevenths</td>
+                                    <td>on by default</td>
+                                    <td>
+                                        Whether Adaptive tunes a minor seventh 7:4 above its root, the harmonic seventh, where nothing else in the
+                                        chord would beat against it. Off, every seventh takes the size the chain of fifths gives it. Also the 7:4
+                                        switch in the Tuning bar. Greyed out under every other temperament
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>No drift</td>
+                                    <td>off by default</td>
+                                    <td>
+                                        Whether Adaptive keeps the chord you hold as near home as it can. On, a progression that would carry the
+                                        keyboard off a comma moves a held note a comma instead, and a key struck into silence goes home. Off, the
+                                        keyboard goes where the music takes it, up to two commas either way. Also the NO DRIFT switch in the Tuning
+                                        bar. Greyed out under every other temperament
                                     </td>
                                 </tr>
                                 <tr>
@@ -525,9 +604,9 @@
                     <h2>Automating it from the host</h2>
 
                     <p>
-                        Eight hundred and thirty-nine parameters reach the host: thirty-seven global ones, twenty-three on each of the 32 partials,
-                        eighteen on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals
-                        first and then channel by channel with the noise channel last.
+                        Eight hundred and forty-two parameters reach the host: forty global ones, twenty-three on each of the 32 partials, eighteen on
+                        the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals first and
+                        then channel by channel with the noise channel last.
                     </p>
 
                     <p>
@@ -596,11 +675,11 @@
                     <section class="parameter-list">
                         <h3 id="every-parameter">Every parameter</h3>
                         <p>
-                            All 839 as the host lists them, with a control that every partial or every macro carries given one row for all of them.
+                            All 842 as the host lists them, with a control that every partial or every macro carries given one row for all of them.
                             The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is
                             <a href="../parameters.json">parameters.json</a>, written by the plugin rather than by hand.
                         </p>
-                        <p><strong>Global</strong>, thirty-seven of them.</p>
+                        <p><strong>Global</strong>, forty of them.</p>
                         <div class="scroll">
                             <table>
                                 <thead>
@@ -625,7 +704,7 @@
                                         <td>8 voices</td>
                                     </tr>
                                     <tr>
-                                        <td><code>One Voice Per Key</code></td>
+                                        <td><code>No Stack</code></td>
                                         <td><code>oneVoicePerKey</code></td>
                                         <td>Off or on</td>
                                         <td>On</td>
@@ -687,7 +766,7 @@
                                     <tr>
                                         <td><code>Temperament</code></td>
                                         <td><code>temperament</code></td>
-                                        <td>Equal, Just (major), Pythagorean, Quarter-comma meantone, Werckmeister III, Young</td>
+                                        <td>Equal, Just (major), Pythagorean, Quarter-comma meantone, Werckmeister III, Young, Adaptive</td>
                                         <td>Equal</td>
                                     </tr>
                                     <tr>
@@ -790,13 +869,13 @@
                                         <td>0.0 ms</td>
                                     </tr>
                                     <tr>
-                                        <td><code>Pitch Mod In Phase</code></td>
+                                        <td><code>Pitch Mod Shared</code></td>
                                         <td><code>pmInPhase</code></td>
                                         <td>Off or on</td>
                                         <td>Off</td>
                                     </tr>
                                     <tr>
-                                        <td><code>Amp Mod In Phase</code></td>
+                                        <td><code>Amp Mod Shared</code></td>
                                         <td><code>amInPhase</code></td>
                                         <td>Off or on</td>
                                         <td>Off</td>
@@ -834,6 +913,24 @@
                                     <tr>
                                         <td><code>Legato</code></td>
                                         <td><code>legato</code></td>
+                                        <td>Off or on</td>
+                                        <td>Off</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Adaptive Retune</code></td>
+                                        <td><code>adaptiveRetune</code></td>
+                                        <td>0.0 ms to 1.00 s</td>
+                                        <td>30.0 ms</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Adaptive Harmonic Sevenths</code></td>
+                                        <td><code>adaptiveSeventh</code></td>
+                                        <td>Off or on</td>
+                                        <td>On</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Adaptive No Drift</code></td>
+                                        <td><code>adaptiveHome</code></td>
                                         <td>Off or on</td>
                                         <td>Off</td>
                                     </tr>
@@ -1232,8 +1329,10 @@
 
                     <p>
                         <strong>Right-click a macro's amount to bind a controller to it</strong>, the same MIDI Learn the mixer's controls use. Only
-                        the amount: the row, the scope and the curve say what a macro is rather than what it is doing. The macros icon lights whenever
-                        any are made, since a macro's work is otherwise invisible until you look at a ring.
+                        the amount: the row, the scope and the curve say what a macro is rather than what it is doing. Its knob in the Playing bar
+                        offers the same, with Edit macro beside it to open MACROS, and a macro not yet made offers Assign macro there instead, which
+                        makes it and opens MACROS. The macros icon lights whenever any are made, since a macro's work is otherwise invisible until you
+                        look at a ring.
                     </p>
                 </section>
 
@@ -1244,13 +1343,15 @@
                         <strong>Right-click any control and choose MIDI Learn</strong>, then move something on your controller. A violet ring marks
                         the control while it waits, so you can see what is listening without opening the menu again, and only ever one control carries
                         it. Right-click the same control afterwards and the menu says which controller moves it, with the way to forget it or to bind
-                        a different one. In the mixer these items sit under the LINK settings that right-click already opens. On the bar and the noise
-                        channel they are a menu of their own, since neither is part of the series LINK gangs.
+                        a different one. In the mixer these items sit under the LINK settings that right-click already opens. On the top bar, the
+                        Playing and Tuning bars and the noise channel they are a menu of their own, since none of them is part of the series LINK
+                        gangs.
                     </p>
 
                     <p>
                         Your host almost certainly offers the same thing. What this does that a host cannot is let you make the map by right-clicking
-                        the knob itself rather than finding <code>H17 AM Rate</code> in a list of 836, and behave the same way wherever you open it.
+                        the knob itself rather than finding <code>H17 AM Rate</code> in a list of 842 parameters, and behave the same way wherever you
+                        open it.
                     </p>
 
                     <p>

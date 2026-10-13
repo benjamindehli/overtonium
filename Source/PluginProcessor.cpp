@@ -206,6 +206,7 @@ void OvertoniumProcessor::prepareToPlay(double sampleRate,
   pitchBendNormalised = 0.0f;
   channelPressure = 0.0f;
   modWheel = 0.0f;
+  pedalChannels = 0;
 }
 
 bool OvertoniumProcessor::mpeIsOn() const noexcept {
@@ -219,6 +220,7 @@ void OvertoniumProcessor::setMpeEnabled(bool on) {
   // no longer be reached by the one about to take over, so it would hang.
   mpeInstrument.releaseAllNotes();
   engine.allNotesOff();
+  pedalChannels = 0;
 
   if (!on) {
     mpeInstrument.setZoneLayout({});
@@ -375,6 +377,8 @@ void OvertoniumProcessor::handleMidiMessage(const juce::MidiMessage &m) {
       midiLearn.handle(m.getControllerNumber(), m.getControllerValue()))
     return;
 
+  followPedal(m);
+
   if (mpeWasOn) {
     // Notes, bend, pressure, the pedal and the layout messages are all the
     // parser's, on every channel it has been given. That includes the master
@@ -401,6 +405,40 @@ void OvertoniumProcessor::handleMidiMessage(const juce::MidiMessage &m) {
   }
 
   handleOrdinaryMidiMessage(m);
+}
+
+void OvertoniumProcessor::followPedal(const juce::MidiMessage &m) noexcept {
+  const auto bit = 1u << (unsigned)juce::jlimit(0, 31, m.getChannel());
+
+  if (m.isSustainPedalOn())
+    pedalChannels |= bit;
+  else if (m.isSustainPedalOff())
+    pedalChannels &= ~bit;
+  else if (m.isAllNotesOff() || m.isAllSoundOff())
+    pedalChannels = 0;
+}
+
+void OvertoniumProcessor::publishPlaying() noexcept {
+  const auto held = engine.heldExpression();
+  const auto range = paramCache.bendRange != nullptr
+                         ? juce::jmax(1.0f, paramCache.bendRange->load())
+                         : 2.0f;
+
+  // The wheel bends every key together and an MPE controller bends each on
+  // its own, and either way the meter shows the one bent furthest.
+  auto bend = pitchBendNormalised;
+  if (const auto perNote = held.bendSemitones / range;
+      std::abs(perNote) > std::abs(bend))
+    bend = perNote;
+
+  sustainShown.store(pedalChannels != 0, std::memory_order_relaxed);
+  bendShown.store(juce::jlimit(-1.0f, 1.0f, bend), std::memory_order_relaxed);
+  wheelShown.store(modWheel, std::memory_order_relaxed);
+  // What the keyboard sends, whatever Aftertouch from makes of it, so the wheel
+  // shows on WHEEL alone and this says whether the keys are sending pressure.
+  pressureShown.store(
+      juce::jlimit(0.0f, 1.0f, juce::jmax(channelPressure, held.pressure)),
+      std::memory_order_relaxed);
 }
 
 void OvertoniumProcessor::handleOrdinaryMidiMessage(
@@ -609,6 +647,7 @@ void OvertoniumProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   }
 
   activeVoices.store(engine.getActiveVoiceCount());
+  publishPlaying();
 }
 
 int OvertoniumProcessor::getNumPrograms() {

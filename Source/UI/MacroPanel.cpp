@@ -64,10 +64,7 @@ MacroPanel::MacroPanel(juce::AudioProcessorValueTreeState &state)
     if (free < 0)
       return;
 
-    // Pointed at the first real row, which is TUNE, since that is the one
-    // issue #24 asked for and the one a macro is most wanted on.
-    write(params::macroRowId(free), 1);
-    refresh();
+    make(free);
   };
 
   addAndMakeVisible(addButton);
@@ -207,6 +204,18 @@ void MacroPanel::write(const juce::String &parameterId, int value) {
     p->setValueNotifyingHost(p->convertTo0to1((float)value));
 }
 
+void MacroPanel::make(int macro) {
+  if (macro < 0 || macro >= params::kNumMacros)
+    return;
+
+  // Pointed at the first real row, which is TUNE, since that is the one issue
+  // #24 asked for and the one a macro is most wanted on.
+  if (chosen(params::macroRowId(macro)) == 0)
+    write(params::macroRowId(macro), 1);
+
+  refresh();
+}
+
 int MacroPanel::firstFree() const {
   for (int m = 0; m < params::kNumMacros; ++m)
     if (chosen(params::macroRowId(m)) == 0)
@@ -273,9 +282,6 @@ void MacroPanel::showReading(int macro) {
   // a speck beside it. The tuning readouts write a sharp partial the same
   // way, with no sign at all, and a tuner does too.
   //
-  // Dim at nothing, the way a fader all the way down reads -inF dimmed: an
-  // amount of zero is a statement that the macro is doing nothing rather
-  // than a level it has been set to.
   const auto share = (float)strip.amount.getValue() * 100.0f;
 
   // Every element in the same place whatever the number is, which is what a
@@ -308,7 +314,7 @@ void MacroPanel::showReading(int macro) {
   shown += ".";
   shown += digit(tenths % 10);
 
-  strip.reading.setReading(shown, tenths > 0);
+  strip.reading.setReading(shown, true);
 
   // Said in words as well, because the cells are drawn rather than written
   // and there is no other way to read them. This was a Label before, whose

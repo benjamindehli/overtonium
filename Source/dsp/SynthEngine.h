@@ -7,6 +7,7 @@
 
 #include <atomic>
 
+#include "AdaptiveSnapshot.h"
 #include "BucketEcho.h"
 #include "BusDrive.h"
 #include "DigitalEcho.h"
@@ -53,6 +54,14 @@ public:
 
   void prepare(double sampleRate) noexcept;
   void reset() noexcept;
+
+  /// The held chord as Adaptive last settled it, for the Tuning bar. Copies it
+  /// into @p out and returns true if it has been settled again since the last
+  /// call, or returns false and leaves @p out alone. From one thread only, and
+  /// not the audio thread, which is the one writing it.
+  bool readAdaptiveSnapshot(AdaptiveSnapshot &out) noexcept {
+    return adaptiveSnapshots.read(out);
+  }
 
   /// What the output stage's lookahead costs, in samples, for the host to be
   /// told along with the bus stage's. Valid once prepare has run.
@@ -124,6 +133,24 @@ public:
               const SynthParams &p) noexcept;
 
   int getActiveVoiceCount() const noexcept;
+
+  /// The widest bend and the strongest pressure on any key still down, the
+  /// pedal's included, for the Playing bar's meters. A key let go is left out,
+  /// so a meter falls back as the key comes up rather than when its tail ends.
+  /// Only what belongs to each note: the wheel and channel pressure are the
+  /// processor's.
+  struct HeldExpression {
+    /// Signed, in semitones, whichever way the widest one goes.
+    float bendSemitones = 0.0f;
+    float pressure = 0.0f;
+  };
+
+  HeldExpression heldExpression() const noexcept;
+
+  /// Where a key that is down is sounding, before any bend or glide, or zero
+  /// if no voice is holding it. What the adaptive temperament chose is not
+  /// visible anywhere else, which is why this exists.
+  double frequencyOfNote(int note) const noexcept;
 
   /// Loudest instance of each partial across the sounding voices, 0..1.
   ///
@@ -396,6 +423,60 @@ private:
   Temperament legatoTemperament = Temperament::Equal;
   int legatoRoot = 0;
   double legatoReferenceHz = 440.0;
+
+  /// Where a key is tuned. A fixed temperament is a table and answers the same
+  /// whatever is sounding. Adaptive settles it with the held chord. See
+  /// settleAdaptive.
+  ///
+  /// @param self  the voice this key is going to, left out of what it is tuned
+  ///              against, since it may still be sounding its old note.
+  double frequencyFor(int note, Temperament temperament, int root,
+                      double referenceHz, const Voice *self) noexcept;
+
+  /// Which of its five versions each pitch class took last, -2 to 2 commas
+  /// from its place in just major on the root. A key with nothing to tune
+  /// against takes the version its pitch class used last, which is what keeps
+  /// a progression from wandering off a comma at a time once the chords stop
+  /// overlapping. Cleared on reset.
+  std::array<int, 12> adaptiveVersion{};
+
+  /// Settles every held key, and the one going down if there is one, on the
+  /// version that keeps the held chord as pure as it can be, moving as few of
+  /// them as it has to.
+  ///
+  /// With the schisma tempered out every pure interval is a fixed number of
+  /// steps on one chain of fifths, a fifth one up and a major third eight
+  /// down, so keeping a pair pure fixes how many commas apart their versions
+  /// are. The chord is then a set of fixed differences, solved by taking the
+  /// strongest intervals first, octaves, then fifths and fourths, then thirds
+  /// and sixths, and keeping each one that agrees with those already taken.
+  /// What is left free is where each connected group sits, chosen to move the
+  /// fewest held keys, then to agree with what is still ringing, then to keep
+  /// to where each pitch class was last.
+  ///
+  /// Run on every key that goes down and every one that comes up, so a chord
+  /// changing a note at a time is retuned as it changes: a key that was right
+  /// under the last chord and is wrong under this one slides to its new
+  /// version over adaptiveRetune, or at once if it went down within the chord
+  /// window.
+  ///
+  /// @param note  the key going down, or -1 when one has come up.
+  /// @param self  that key's voice, left out of what is already held.
+  /// @return the frequency for the key going down, or zero for none.
+  double settleAdaptive(int note, int root, double referenceHz,
+                        const Voice *self) noexcept;
+
+  /// What the last settle came to, for the Tuning bar.
+  TripleBuffer<AdaptiveSnapshot> adaptiveSnapshots;
+  static_assert(AdaptiveSnapshot::kMaxNotes >= kPoolSize + 1,
+                "room for every voice and the key going down");
+
+  /// The tuning the held chord was last settled under and how fast it moves,
+  /// kept for a key coming up, which carries no parameters.
+  bool adaptiveOn = false;
+  double adaptiveRetune = 0.03;
+  bool harmonicSevenths = true;
+  bool adaptiveHome = false;
 
   /// Drops a key from the stack. Nothing happens if it was not in it, which a
   /// note-off arriving without its note-on will do.
