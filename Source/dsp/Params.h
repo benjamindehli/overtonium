@@ -404,7 +404,7 @@ inline const char *stringsModeName(StringsMode m) {
 /// The strings nobody plays, ringing along with what is.
 struct StringsParams {
   StringsMode mode = StringsMode::Off;
-  float mix = 0.5f;          ///< how loud they ring along
+  float mix = 0.5f;          ///< the instrument alone at 0, the strings at 1
   float decaySeconds = 4.0f; ///< how long an undamped one rings
   float damping = 0.4f;      ///< 0 bright to 1 dark
 };

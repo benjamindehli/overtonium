@@ -14,7 +14,7 @@ namespace ovt {
 /// for its own note. The engine decides which are tuned to what and whose
 /// damper is up for each block, since only it knows which keys are held and
 /// where Adaptive has put them. This feeds every string the summed channels,
-/// before the bus drive, and adds what rings back into them, so the strings
+/// before the bus drive, and mixes what rings back in with them, so the strings
 /// are part of the instrument rather than a room behind it.
 ///
 /// A string whose damper is down rings out over a short damper time and is
@@ -48,7 +48,8 @@ public:
   /// ring out before it is skipped.
   bool isRinging() const noexcept;
 
-  /// Feeds the strings what is in `left` and `right` and adds what rings back.
+  /// Feeds the strings what is in `left` and `right`, and replaces it with
+  /// them as far as MIX says.
   void process(float *left, float *right, int numSamples, const StringsParams &,
                const Plan &) noexcept;
 
@@ -66,6 +67,13 @@ public:
   /// is, which is what keeps every string free under the pedal from running
   /// away. DECAY decides how long they take to build up and to ring out.
   static constexpr float kSend = 0.5f;
+
+  /// What the strings are turned up by on the way out, so MIX at 100 % lands
+  /// near the level of the instrument it replaces. Chosen by measuring a
+  /// chord held under the pedal on five presets at three decays: Piano comes
+  /// out within a few decibels of the instrument, Series a few under it, and
+  /// Octave, whose twelve tempered strings most partials miss, 4 to 16 under.
+  static constexpr float kWetScale = 1.0f;
 
 private:
   std::array<KarplusString, kStrings> strings;

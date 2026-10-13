@@ -87,10 +87,12 @@ void SympatheticStrings::process(float *left, float *right, int numSamples,
       ringing[s] = free || peak >= kQuiet;
     }
 
+    // MIX goes from the instrument alone to the strings alone, as the echo's
+    // and the reverb's do.
     for (int n = 0; n < len; ++n) {
-      const auto wet = sum[n] * mix;
-      left[done + n] += wet;
-      right[done + n] += wet;
+      const auto wet = sum[n] * kWetScale;
+      left[done + n] += (wet - left[done + n]) * mix;
+      right[done + n] += (wet - right[done + n]) * mix;
     }
   }
 }

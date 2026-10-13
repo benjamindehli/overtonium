@@ -535,7 +535,7 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   clipButton.setColour(juce::TextButton::textColourOnId, colours::accent);
 
   addKnob(stringsControls, "Strings", "MIX", params::stringsMixId,
-          "How loud the strings ring along", popupParent);
+          "From the instrument alone to the strings alone", popupParent);
   addKnob(stringsControls, "Strings", "DECAY", params::stringsDecayId,
           "How long a free string rings, and so how long it takes to build "
           "up. It does not make them louder: a string held at its own pitch "

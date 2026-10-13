@@ -4704,6 +4704,29 @@ void testSympatheticStrings() {
               std::to_string(wet) + " against " + std::to_string(dry) +
               " without them)");
   }
+
+  // ---- MIX crossfades, as the echo's and the reverb's do ------------------
+  {
+    const auto through = [sr](float mix) {
+      Strings bank;
+      bank.prepare(sr);
+      Strings::Plan quiet{}; // nothing tuned, nothing ringing
+      StringsParams params;
+      params.mode = StringsMode::Octave;
+      params.mix = mix;
+      std::vector<float> l(256, 0.5f), r(256, 0.5f);
+      bank.process(l.data(), r.data(), 256, params, quiet);
+      return l[100];
+    };
+
+    check(std::abs(through(1.0f)) < 1.0e-6f &&
+              std::abs(through(0.5f) - 0.25f) < 1.0e-6f &&
+              std::abs(through(0.0f) - 0.5f) < 1.0e-6f,
+          "MIX goes from the instrument alone to the strings alone (" +
+              std::to_string(through(0.0f)) + ", " +
+              std::to_string(through(0.5f)) + ", " +
+              std::to_string(through(1.0f)) + ")");
+  }
 }
 
 /// What the Playing bar's meters read off the engine: the widest bend and the
