@@ -4573,9 +4573,14 @@ void testSympatheticStrings() {
 
     p.pedalDown = true;
     const auto pedal = engine.planStrings(p);
+    bool pedalledRight = true;
+    for (int s = 0; s < Strings::kStrings; ++s)
+      pedalledRight &= pedal.pedalled[(size_t)s] == ((size_t)s != c4);
     check(std::all_of(pedal.free.begin(), pedal.free.end(),
-                      [](bool f) { return f; }),
-          "and the pedal frees every one");
+                      [](bool f) { return f; }) &&
+              pedalledRight,
+          "and the pedal frees every one, marking all but the held key's as "
+          "freed by the pedal");
     p.pedalDown = false;
     p.global.bendSemitones = 0.0f;
     engine.allSoundOff();
@@ -4703,6 +4708,96 @@ void testSympatheticStrings() {
           "stays bounded (" +
               std::to_string(wet) + " against " + std::to_string(dry) +
               " without them)");
+  }
+
+  // ---- a damper stops a bass string slower than a treble one ---------------
+  //
+  // A string driven at its own pitch, then damped. What is left a tenth of a
+  // second later, and whether anything is left after three.
+  {
+    const auto afterDamping = [sr](int key, double later) {
+      Strings bank;
+      bank.prepare(sr);
+      Strings::Plan plan{};
+      const auto s = (size_t)Strings::stringOf(key);
+      const auto hz = 440.0 * std::exp2((double)(key - 69) / 12.0);
+      plan.hz[s] = hz;
+      plan.free[s] = true;
+      StringsParams params;
+      params.mode = StringsMode::Piano;
+      params.mix = 1.0f;
+
+      std::vector<float> l(256), r(256);
+      double phase = 0.0;
+      float before = 0.0f, after = 0.0f;
+      const int drive = (int)(1.0 * sr) / 256, rest = (int)(later * sr) / 256;
+      for (int b = 0; b < drive + rest + 2; ++b) {
+        if (b == drive)
+          plan.free[s] = false;
+        for (int n = 0; n < 256; ++n) {
+          const auto x = b < drive ? (float)(0.5 * std::sin(phase)) : 0.0f;
+          phase += 2.0 * 3.14159265358979 * hz / sr;
+          l[(size_t)n] = r[(size_t)n] = x;
+        }
+        bank.process(l.data(), r.data(), 256, params, plan);
+        float peak = 0.0f;
+        for (auto y : l)
+          peak = std::max(peak, std::abs(y));
+        if (b == drive - 1)
+          before = peak;
+        if (b >= drive + rest)
+          after = std::max(after, peak);
+      }
+      return std::make_pair(20.0 * std::log10(after / before + 1.0e-12),
+                            bank.isRinging());
+    };
+
+    const auto bass = afterDamping(33, 0.1);
+    const auto treble = afterDamping(96, 0.1);
+    const auto gone = afterDamping(33, 3.0);
+
+    check(Strings::damperSeconds(0) > 4.0 * Strings::damperSeconds(87) &&
+              bass.first > -15.0 && treble.first < -25.0,
+          "a damped bass string rings on for a moment and a treble one "
+          "stops at once (" +
+              std::to_string(bass.first) + " and " +
+              std::to_string(treble.first) + " dB a tenth of a second on)");
+    check(!gone.second, "and three seconds on neither is ringing");
+  }
+
+  // ---- a string the pedal frees is fed less than a held key's --------------
+  {
+    const auto ringing = [sr](bool pedalled) {
+      Strings bank;
+      bank.prepare(sr);
+      Strings::Plan plan{};
+      const auto s = (size_t)Strings::stringOf(57);
+      plan.hz[s] = 220.0;
+      plan.free[s] = true;
+      plan.pedalled[s] = pedalled;
+      StringsParams params;
+      params.mode = StringsMode::Piano;
+      params.mix = 1.0f;
+
+      std::vector<float> l(256), r(256);
+      double phase = 0.0;
+      float peak = 0.0f;
+      for (int b = 0; b < (int)(3.0 * sr) / 256; ++b) {
+        for (int n = 0; n < 256; ++n) {
+          l[(size_t)n] = r[(size_t)n] = (float)(0.5 * std::sin(phase));
+          phase += 2.0 * 3.14159265358979 * 220.0 / sr;
+        }
+        bank.process(l.data(), r.data(), 256, params, plan);
+        for (auto y : l)
+          peak = std::max(peak, std::abs(y));
+      }
+      return peak;
+    };
+
+    const auto held = ringing(false), pedalled = ringing(true);
+    check(std::abs(pedalled / held - Strings::kPedalSend) < 0.05f,
+          "a string freed by the pedal rings at its share of a held key's (" +
+              std::to_string(pedalled / held) + ")");
   }
 
   // ---- MIX crossfades, as the echo's and the reverb's do ------------------

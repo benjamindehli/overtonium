@@ -1028,6 +1028,7 @@ SynthEngine::planStrings(const SynthParams &p) const noexcept {
       const bool isHeld = held[(size_t)s] > 0.0;
       set(key, isHeld ? held[(size_t)s] : restingFrequency(key, p),
           isHeld || p.pedalDown);
+      plan.pedalled[(size_t)s] = !isHeld && p.pedalDown;
     }
     break;
   }

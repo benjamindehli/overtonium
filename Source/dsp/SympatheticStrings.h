@@ -30,6 +30,11 @@ public:
   struct Plan {
     std::array<double, kStrings> hz{};
     std::array<bool, kStrings> free{};
+
+    /// Free only because the pedal is down, rather than because its key is
+    /// held. Fed less, so the pedal blooms under a chord rather than turning
+    /// it up. See kPedalSend.
+    std::array<bool, kStrings> pedalled{};
   };
 
   /// The key a string belongs to, and back.
@@ -58,8 +63,12 @@ public:
     return p.mode == StringsMode::Off ? 0.0f : p.decaySeconds;
   }
 
-  /// How long a string rings once its damper comes down.
-  static constexpr double kDamperSeconds = 0.12;
+  /// How long a string rings once its damper comes down: longest in the
+  /// bass, where a felt on a heavy string cannot stop it at once, and
+  /// shortest at the top, falling evenly in pitch between the two.
+  static double damperSeconds(int string) noexcept;
+  static constexpr double kDamperBassSeconds = 0.8;
+  static constexpr double kDamperTrebleSeconds = 0.12;
 
   /// How much of the summed channels each string is fed, once its own
   /// resonance has been taken back off: a partial held at a string's pitch
@@ -67,6 +76,10 @@ public:
   /// is, which is what keeps every string free under the pedal from running
   /// away. DECAY decides how long they take to build up and to ring out.
   static constexpr float kSend = 0.5f;
+
+  /// What a string freed by the pedal is fed, as a share of what a held
+  /// key's string is.
+  static constexpr float kPedalSend = 0.25f;
 
   /// What the strings are turned up by on the way out, so MIX at 100 % lands
   /// near the level of the instrument it replaces. Chosen by measuring a

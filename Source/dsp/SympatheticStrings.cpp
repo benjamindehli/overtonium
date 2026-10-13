@@ -32,6 +32,12 @@ void SympatheticStrings::reset() noexcept {
   ringing.fill(false);
 }
 
+double SympatheticStrings::damperSeconds(int string) noexcept {
+  const auto t = std::clamp((double)string / (double)(kStrings - 1), 0.0, 1.0);
+  return kDamperBassSeconds *
+         std::pow(kDamperTrebleSeconds / kDamperBassSeconds, t);
+}
+
 bool SympatheticStrings::isRinging() const noexcept {
   return std::any_of(ringing.begin(), ringing.end(), [](bool r) { return r; });
 }
@@ -67,14 +73,16 @@ void SympatheticStrings::process(float *left, float *right, int numSamples,
 
       // A string out of use keeps the pitch it last had while it rings out.
       string.setBlock(inUse ? plan.hz[s] : equalHz(keyOf(i)),
-                      free ? decay : kDamperSeconds, damp, -1.0f, len);
+                      free ? decay : damperSeconds(i), damp, -1.0f, len);
 
       float peak = 0.0f;
 
       // Driven at its own pitch a string builds up by 1 / (1 - g), which at
       // ten seconds on a low string is nearly two hundred, so that is taken
       // back off what it is fed.
-      const auto drive = free ? 1.0f - string.loopGain() : 0.0f;
+      const auto drive = free ? (1.0f - string.loopGain()) *
+                                    (plan.pedalled[s] ? kPedalSend : 1.0f)
+                              : 0.0f;
 
       for (int n = 0; n < len; ++n) {
         // Only an undamped string takes anything in. A damper presses on a
