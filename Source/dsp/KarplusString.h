@@ -23,15 +23,18 @@ namespace ovt {
 ///
 /// Where the loop gets too short to tune, at the top of the keyboard and more
 /// so at low sample rates, the string fades out and leaves the noise as it
-/// was, rather than playing out of tune. Below kLowestHz it fades out too,
-/// since the line is not long enough to reach.
+/// was, rather than playing out of tune. Below the lowest pitch it was sized
+/// for it fades out too, since the line is not long enough to reach.
 class KarplusString {
 public:
-  /// The lowest pitch the line is long enough for.
+  /// The lowest pitch the line is long enough for, unless told otherwise.
   static constexpr double kLowestHz = 10.0;
 
-  /// Sizes the line for the host's rate. The only place that allocates.
-  void prepare(double sampleRate) noexcept;
+  /// Sizes the line for the host's rate, long enough for `lowestHz`. The only
+  /// place that allocates. A string that only ever plays one note, as the
+  /// sympathetic strings do, is sized for that note rather than for the
+  /// bottom of the keyboard.
+  void prepare(double sampleRate, double lowestHz = kLowestHz) noexcept;
 
   /// The rate it is actually being run at, which the converter can lower
   /// below the host's but never raise above it, so the line is always long
@@ -47,7 +50,9 @@ public:
   /// @param decaySeconds  how long it rings, to a thousandth
   /// @param damp          0 bright to 1 dark, how quickly it loses its top
   /// @param pick          0 to 1, where along it the noise strikes, from near
-  ///                      the end to the middle
+  ///                      the end to the middle, or below nought for a string
+  ///                      nobody strikes at a point, which takes what it is
+  ///                      fed as it is
   void setBlock(double hz, double decaySeconds, float damp, float pick,
                 int len) noexcept;
 
@@ -57,6 +62,11 @@ public:
   /// How much of the string is heard rather than faded away at this pitch, 0
   /// to 1, ramped across the block as the pitch is. The noise takes the rest.
   float audibility() const noexcept { return fade; }
+
+  /// How much of itself the loop keeps each pass. A steady sine at the
+  /// string's own pitch builds up by 1 / (1 - this), which is what a string
+  /// driven rather than struck has to be scaled by.
+  float loopGain() const noexcept { return feedback; }
 
   /// Where a loop this many samples long stops being heard. Public for the
   /// tests, which check the fade against it.
@@ -71,6 +81,7 @@ private:
   std::vector<float> line, struck;
   std::size_t mask = 0, write = 0;
   double sampleRate = 48000.0;
+  double lowest = kLowestHz;
 
   double delay = 0.0, delayStep = 0.0;
   float fade = 0.0f, fadeStep = 0.0f;

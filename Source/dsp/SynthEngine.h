@@ -15,6 +15,7 @@
 #include "PlateReverb.h"
 #include "Reverb.h"
 #include "SpringReverb.h"
+#include "SympatheticStrings.h"
 #include "TapeEcho.h"
 #include "Voice.h"
 #include "Wobble.h"
@@ -151,6 +152,16 @@ public:
   /// if no voice is holding it. What the adaptive temperament chose is not
   /// visible anywhere else, which is why this exists.
   double frequencyOfNote(int note) const noexcept;
+
+  /// Where a key would sound if it were struck now into silence: the
+  /// temperament's pitch for it, or under Adaptive the version its pitch class
+  /// was last given. Where the sympathetic strings of keys nobody is holding
+  /// sit.
+  double restingFrequency(int note, const SynthParams &) const noexcept;
+
+  /// Which sympathetic strings sound this block, tuned to what, and whose
+  /// dampers are up. Public for the tests.
+  SympatheticStrings::Plan planStrings(const SynthParams &) const noexcept;
 
   /// Loudest instance of each partial across the sounding voices, 0..1.
   ///
@@ -529,6 +540,9 @@ private:
   DigitalEcho digital;
   PlateReverb plate;
   SpringReverb spring;
+
+  /// The strings nobody plays, between the summed channels and the bus drive.
+  SympatheticStrings sympathetic;
   Reverb reverb;
 };
 

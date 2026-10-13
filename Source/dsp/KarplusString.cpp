@@ -26,12 +26,13 @@ std::size_t nextPowerOfTwo(std::size_t n) {
 }
 } // namespace
 
-void KarplusString::prepare(double newSampleRate) noexcept {
+void KarplusString::prepare(double newSampleRate, double lowestHz) noexcept {
   sampleRate = std::max(1.0, newSampleRate);
+  lowest = std::max(1.0, lowestHz);
 
   // A period at the lowest pitch, and room either side for the interpolation.
   const auto longest =
-      nextPowerOfTwo((std::size_t)std::ceil(sampleRate / kLowestHz) + 8);
+      nextPowerOfTwo((std::size_t)std::ceil(sampleRate / lowest) + 8);
 
   line.assign(longest, 0.0f);
   struck.assign(longest, 0.0f);
@@ -77,8 +78,8 @@ void KarplusString::setBlock(double hz, double decaySeconds, float damp,
 
   b = kDampMax * std::clamp(damp, 0.0f, 1.0f);
 
-  const auto audibleLow = hz >= kLowestHz;
-  const auto f = std::max(hz, kLowestHz);
+  const auto audibleLow = hz >= lowest;
+  const auto f = std::max(hz, lowest);
   const auto period = sampleRate / f;
   const auto omega = kTwoPi * f / sampleRate;
 
@@ -104,10 +105,13 @@ void KarplusString::setBlock(double hz, double decaySeconds, float damp,
   // noise to itself, which doubles its power, and that is taken back off.
   inputGain = 0.70710678f;
 
-  pickDelay = std::max(
-      1, (int)std::lround(period *
-                          (kPickNearest + (kPickFurthest - kPickNearest) *
-                                              std::clamp(pick, 0.0f, 1.0f))));
+  pickDelay =
+      pick < 0.0f
+          ? 0
+          : std::max(1, (int)std::lround(
+                            period *
+                            (kPickNearest + (kPickFurthest - kPickNearest) *
+                                                std::clamp(pick, 0.0f, 1.0f))));
 
   // Heard while the loop is long enough to tune, faded out below that.
   const auto targetFade =
@@ -160,7 +164,10 @@ float KarplusString::tick(float excitation) noexcept {
   // apart.
   struck[write] = excitation;
   const auto strike =
-      excitation - struck[(write - (std::size_t)pickDelay + mask + 1) & mask];
+      pickDelay > 0
+          ? excitation -
+                struck[(write - (std::size_t)pickDelay + mask + 1) & mask]
+          : excitation;
 
   const auto out = read(delay);
   const auto damped = (1.0f - b) * out + b * lowpassPrevious;
