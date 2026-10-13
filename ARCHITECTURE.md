@@ -58,6 +58,7 @@ Source/
     PlateReverb.*   the same as a modulated plate
     SpringReverb.*  the same as a tray of springs
     KarplusString.* the string the noise channel strikes
+    SympatheticStrings.*  88 strings ringing along, before the bus drive
     Wobble.*        a warped record under the whole instrument
     OutputStage.*   the five clippers the mix runs into on its way out
     SynthEngine.*   voice pool, allocation, stealing, effects, master stage

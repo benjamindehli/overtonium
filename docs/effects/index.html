@@ -6,7 +6,7 @@
         <title>Overtonium effects: character, echo, reverb, converter and CLIP</title>
         <meta
             name="description"
-            content="Overtonium effects and global controls: six oscillator characters, wobble, bus drive, three echoes, three reverbs, a lo-fi converter and five clip shapes."
+            content="Overtonium effects and global controls: six oscillator characters, wobble, sympathetic strings, bus drive, three echoes, three reverbs, a lo-fi converter and five clip shapes."
         />
         <meta name="author" content="Benjamin Dehli" />
         <meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -20,7 +20,7 @@
         <meta property="og:title" content="Overtonium effects: character, echo, reverb, converter and CLIP" />
         <meta
             property="og:description"
-            content="The bar across the top of Overtonium: six oscillator characters that say which circuit every partial is, a wobble under the whole series, a bus drive that answers how hard you play, an echo and a reverb that are each one of three machines, a lo-fi converter, and an output stage of five clip shapes including a lookahead limiter."
+            content="The bar across the top of Overtonium: six oscillator characters that say which circuit every partial is, a wobble under the whole series, 88 sympathetic strings that ring along with what you play, a bus drive that answers how hard you play, an echo and a reverb that are each one of three machines, a lo-fi converter, and an output stage of five clip shapes including a lookahead limiter."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-effects.jpg" />
         <meta property="og:image:type" content="image/jpeg" />
@@ -32,7 +32,7 @@
         <meta name="twitter:title" content="Overtonium effects: character, echo, reverb, converter and CLIP" />
         <meta
             name="twitter:description"
-            content="The bar across the top of Overtonium: six oscillator characters that say which circuit every partial is, a wobble under the whole series, a bus drive that answers how hard you play, an echo and a reverb that are each one of three machines, a lo-fi converter, and an output stage of five clip shapes including a lookahead limiter."
+            content="The bar across the top of Overtonium: six oscillator characters that say which circuit every partial is, a wobble under the whole series, 88 sympathetic strings that ring along with what you play, a bus drive that answers how hard you play, an echo and a reverb that are each one of three machines, a lo-fi converter, and an output stage of five clip shapes including a lookahead limiter."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-effects.jpg" />
         <meta name="twitter:image:alt" content="The Overtonium wordmark over the plugin window, captioned Effects." />
@@ -49,7 +49,7 @@
                 "@id": "https://benjamindehli.github.io/overtonium/effects/#webpage",
                 "url": "https://benjamindehli.github.io/overtonium/effects/",
                 "name": "Overtonium effects: character, echo, reverb, converter and CLIP",
-                "description": "Overtonium effects and global controls: six oscillator characters, wobble, bus drive, three echoes, three reverbs, a lo-fi converter and five clip shapes.",
+                "description": "Overtonium effects and global controls: six oscillator characters, wobble, sympathetic strings, bus drive, three echoes, three reverbs, a lo-fi converter and five clip shapes.",
                 "inLanguage": "en-GB",
                 "isPartOf": {
                     "@id": "https://benjamindehli.github.io/overtonium/#website"
@@ -63,7 +63,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-10-10",
+                "dateModified": "2026-10-13",
                 "breadcrumb": {
                     "@id": "https://benjamindehli.github.io/overtonium/effects/#breadcrumb"
                 }
@@ -117,6 +117,7 @@
                                     <li><a href="#global">The signal chain</a></li>
                                     <li><a href="#character">Character</a></li>
                                     <li><a href="#wobble">Wobble</a></li>
+                                    <li><a href="#strings">Sympathetic strings</a></li>
                                     <li><a href="#bus-drive">Bus drive</a></li>
                                     <li><a href="#echo">Echo</a></li>
                                     <li><a href="#reverb">Reverb</a></li>
@@ -141,20 +142,21 @@
 
                 <p class="lead">
                     Everything on the bar along the top of the window works on the whole instrument rather than on one channel: the oscillator
-                    character every partial is built from, the wobble under the series, the drive on the bus the channels are summed onto, the echo,
-                    the reverb, the converter, and the output stage with its meter.
+                    character every partial is built from, the wobble under the series, the sympathetic strings, the drive on the bus the channels are
+                    summed onto, the echo, the reverb, the converter, and the output stage with its meter.
                 </p>
 
                 <section id="global">
                     <h2>The signal chain</h2>
 
                     <figure class="diagram">
-                        <svg class="chain" viewBox="0 0 674 268" role="img" aria-labelledby="chainTitle chainDesc" xmlns="http://www.w3.org/2000/svg">
+                        <svg class="chain" viewBox="0 0 763 268" role="img" aria-labelledby="chainTitle chainDesc" xmlns="http://www.w3.org/2000/svg">
                             <title id="chainTitle">The order the signal passes through</title>
                             <desc id="chainDesc">
                                 Each of the thirty-three channels runs a sine partial through its envelope and key-off stage, its tremolo, its
-                                velocity and pressure amounts, its fader and its pan. The thirty-three are summed onto a bus that drives, and the mix
-                                then passes the wobble, the echo, the reverb, the master fader and the safety clipper before it leaves.
+                                velocity and pressure amounts, its fader and its pan. The thirty-three are summed and run through the converter, the
+                                sympathetic strings and a bus that drives, and the mix then passes the wobble, the echo, the reverb, the master fader
+                                and the safety clipper before it leaves.
                             </desc>
                             <text x="10" y="38" class="lane">each of the thirty-three channels</text>
                             <rect x="10" y="52" width="88" height="46" rx="5" class="box" />
@@ -189,34 +191,39 @@
                             <path d="M 87 209 L 95 209" class="wire" />
                             <path d="M 90 206 L 95 209 L 90 212" class="head" />
                             <rect x="99" y="186" width="74" height="46" rx="5" class="box" />
-                            <text x="136" y="213" class="stage" text-anchor="middle">bus drive</text>
+                            <text x="136" y="206" class="stage" text-anchor="middle">strings</text>
+                            <text x="136" y="219" class="sub" text-anchor="middle">one per key</text>
                             <path d="M 176 209 L 184 209" class="wire" />
                             <path d="M 179 206 L 184 209 L 179 212" class="head" />
                             <rect x="188" y="186" width="74" height="46" rx="5" class="box" />
-                            <text x="225" y="213" class="stage" text-anchor="middle">wobble</text>
+                            <text x="225" y="213" class="stage" text-anchor="middle">bus drive</text>
                             <path d="M 265 209 L 273 209" class="wire" />
                             <path d="M 268 206 L 273 209 L 268 212" class="head" />
                             <rect x="277" y="186" width="74" height="46" rx="5" class="box" />
-                            <text x="314" y="213" class="stage" text-anchor="middle">echo</text>
+                            <text x="314" y="213" class="stage" text-anchor="middle">wobble</text>
                             <path d="M 354 209 L 362 209" class="wire" />
                             <path d="M 357 206 L 362 209 L 357 212" class="head" />
                             <rect x="366" y="186" width="74" height="46" rx="5" class="box" />
-                            <text x="403" y="213" class="stage" text-anchor="middle">reverb</text>
+                            <text x="403" y="213" class="stage" text-anchor="middle">echo</text>
                             <path d="M 443 209 L 451 209" class="wire" />
                             <path d="M 446 206 L 451 209 L 446 212" class="head" />
                             <rect x="455" y="186" width="74" height="46" rx="5" class="box" />
-                            <text x="492" y="206" class="stage" text-anchor="middle">master</text>
-                            <text x="492" y="219" class="sub" text-anchor="middle">fader</text>
+                            <text x="492" y="213" class="stage" text-anchor="middle">reverb</text>
                             <path d="M 532 209 L 540 209" class="wire" />
                             <path d="M 535 206 L 540 209 L 535 212" class="head" />
                             <rect x="544" y="186" width="74" height="46" rx="5" class="box" />
-                            <text x="581" y="213" class="stage" text-anchor="middle">clipper</text>
+                            <text x="581" y="206" class="stage" text-anchor="middle">master</text>
+                            <text x="581" y="219" class="sub" text-anchor="middle">fader</text>
+                            <path d="M 621 209 L 629 209" class="wire" />
+                            <path d="M 624 206 L 629 209 L 624 212" class="head" />
+                            <rect x="633" y="186" width="74" height="46" rx="5" class="box" />
+                            <text x="670" y="213" class="stage" text-anchor="middle">clipper</text>
                             <path d="M 314 98 L 314 156" class="wire" />
                             <path d="M 310 151 L 314 156 L 318 151" class="head" />
                             <text x="324" y="131" class="sub">summed</text>
-                            <path d="M 621 209 L 642 209" class="wire" />
-                            <path d="M 637 206 L 642 209 L 637 212" class="head" />
-                            <text x="647" y="213" class="sub">out</text>
+                            <path d="M 710 209 L 731 209" class="wire" />
+                            <path d="M 726 206 L 731 209 L 726 212" class="head" />
+                            <text x="736" y="213" class="sub">out</text>
                         </svg>
 
                         <figcaption>
@@ -229,7 +236,7 @@
                         <img
                             loading="lazy"
                             src="../overtonium-bar.webp"
-                            alt="The top bar: the loaded preset on a fourteen-segment display beside four icons, for settings and macros over the Playing and Tuning bars, the oscillator character, the stretch, track and wobble controls, the echo, the reverb, and the output meter with the master fader lying across it, two seven-segment converter readouts reading kilohertz and bits, and the output stage reading Soft."
+                            alt="The top bar: the loaded preset on a fourteen-segment display beside four icons, for settings and macros over the Playing and Tuning bars, the oscillator character, the stretch, track and wobble controls, the sympathetic strings with their mode and three knobs, the echo, the reverb, and the output meter with the master fader lying across it, two seven-segment converter readouts reading kilohertz and bits, and the output stage reading Soft."
                             width="1350"
                             height="66"
                         />
@@ -299,6 +306,40 @@
                         faster wander on top, and now and then a sharp slip that bends hard and settles back. The slips grow in both rate and size
                         with the square of the control, so a low setting is a tired turntable and a high one is a transport falling over itself. It
                         sits ahead of the echo, so the repeats inherit what it did rather than wobbling on their own.
+                    </p>
+                </section>
+
+                <section id="strings">
+                    <h2>Sympathetic strings</h2>
+                    <p>
+                        Eighty-eight strings nobody plays, one for each key of a piano from A0 to C8, ringing along with what is. They are fed the
+                        thirty-three channels once they are summed, and what rings back is mixed in before the bus drive, so the drive and everything
+                        after it treat them as part of the instrument rather than as a room behind it. The button beside the character says what they
+                        are tuned to and lights while they ring.
+                    </p>
+
+                    <p>
+                        <strong>Piano</strong> is a piano's: the strings of the keys you hold are free, the rest are damped, and the sustain pedal
+                        lifts every damper. A held key's string is tuned where the key is sounding, and the others wait where a key struck now would
+                        sound, under Adaptive at the version their pitch class had last. None of them bends, since a piano's strings do not follow the
+                        wheel. <strong>Octave</strong> is the twelve strings from C3, always free, so every note finds something to ring with.
+                        <strong>Series</strong> is the tuning root's first eight harmonics from its second octave, tuned pure and always free, a drone
+                        that answers whatever lands on the root's own series.
+                    </p>
+
+                    <p>
+                        <strong>MIX</strong> goes from the instrument alone to the strings alone, as it does on the echo and the reverb.
+                        <strong>DECAY</strong> is how long a free string rings, from 200 ms to 10 s, and so how long the strings take to build up
+                        under a held chord. It does not make them louder: a partial held at a string's pitch drives it to the same level whatever
+                        DECAY says. <strong>DAMP</strong> is how quickly the top dies out of them. A damper stops its string over 0.8 s at the bottom
+                        of the keyboard and 0.25 s at the top, so a released bass key leaves the short hum a felt on a heavy string does. A string
+                        freed only by the pedal is fed a quarter of what a held key's string is, so the pedal blooms under a chord rather than turning
+                        it up.
+                    </p>
+
+                    <p>
+                        They are part of the patch, and off in every factory preset. With eight voices they cost about one percent of a core with the
+                        pedal up and about five with every string free under it.
                     </p>
                 </section>
 

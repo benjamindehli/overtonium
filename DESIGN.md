@@ -938,6 +938,20 @@ A rate limit is the one imperfection here with a memory, so its cycle is simulat
 
 The shape of that list says something about the six. Bulb and Op-amp take more than half of it between them, and they are the two that are not fixed waveshapes: one answers the hand and the other answers the register, so both do something on a keyboard that no spectrum sitting still can. Diode came out of that first pass with nothing at all, and picked up its one patch a release later: _60s Organ_ wanted a kink rather than a warmth, which is what a pair of mismatched diodes is for.
 
+### Sympathetic strings
+
+Eighty-eight strings nobody plays, one for each key of a piano from A0 to C8, each a `KarplusString` sized for its own note, in `SympatheticStrings`. They sit after the thirty-three channels are summed and before the bus drive, fed the whole instrument and mixed back in with it, so the drive and the effects treat them as part of what is played. They are their own stage rather than a reverb type because a reverb is a room behind an instrument and these are the instrument's own strings. A piano's pedal is something the player does, not a place.
+
+The engine decides for each block which strings are tuned to what and whose damper is up, since only it knows which keys are held and where Adaptive has put them. **Piano** frees the strings of the held keys, tuned where each key is sounding before any bend, since a piano's strings do not follow the wheel, and the sustain pedal frees every one. The pedal reaches the engine as a mask over channels, so it works under MPE, where no pedal message ever does. **Octave** is the twelve strings from C3, always free. **Series** is the tuning root's first eight harmonics from its second octave, pure, each on the string of the key nearest it. An unheld string waits where a key struck into silence would sound, which under Adaptive is the version its pitch class had last.
+
+A string driven at its own pitch builds up by 1 / (1 - g), where g is what the loop keeps each pass, which on a low string ringing ten seconds is nearly two hundred. The first version ran away to 36 times the chord under the pedal. Each string's input is scaled by (1 - g), so a partial held at a string's pitch drives it to half its own level whatever DECAY is, and DECAY sets how long the strings take to build up and ring out rather than how loud they get. A string freed only by the pedal is fed a quarter of that, so the pedal blooms under a chord by one to three decibels rather than turning it up, which is what it was doing at full feed, by up to eight and a half.
+
+A damper does not stop a string at once. It rings out over 0.8 s at A0 and 0.25 s at C8, falling evenly in pitch between, so a released bass key leaves the short hum a felt on a heavy string does, and once a damped string is under a millionth it is skipped. With the pedal up only the held keys' strings cost anything: at eight voices Octave and Piano add about a point of a core to the 9.5% without them, and Piano with every string free under the pedal about five.
+
+MIX crossfades from the instrument alone to the strings alone, as the echo's and the reverb's do. At full, held under the pedal, Piano lands within a few decibels of the instrument it replaces, Series a few under it, and Octave 4 to 16 under, since most partials miss its twelve tempered strings. Off, the stage is not there at all, so every preset and every published clip renders bit for bit as it did.
+
+The four parameters are part of the patch and on the end of the layout. The section shares the character's frame on the bar where the two stand on one row, and wraps to the next row in a frame of its own on a narrow window, so adding it moved the bar's narrowest width by nothing.
+
 ### The bus the series is summed onto
 
 The thirty-three channels are not simply added together. They are summed onto a bus that drives, by an amount and in a way that belongs to the character, because the character is meant to say what circuit you are playing through and a summing amplifier is part of that circuit.
