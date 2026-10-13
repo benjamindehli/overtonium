@@ -1066,11 +1066,11 @@ Anything else is worth reporting on the [issue tracker](https://github.com/benja
 
 ## Telling you about new versions
 
-Off unless you ask for it. The first time you open the window, the credit line under the wordmark offers to turn the check on, once. Nothing reaches the network unless you take that offer, ignoring it costs nothing, and it is not asked again. The setting lives under Settings from then on.
+Off unless you ask for it. The first time you open the window, a dialog asks whether to turn the check on. Nothing reaches the network unless you say yes, and either answer is remembered, so it is not asked again. The setting lives under Settings from then on.
 
-With it on, the plugin fetches one small file from this site in the background and compares the version in it against the build you are running. If there is something newer, the credit line says so, and clicking it opens the release page. It is a plain request for a static file: no identifier, no telemetry, nothing about your machine. The [security policy](https://github.com/benjamindehli/overtonium/blob/main/SECURITY.md) spells out exactly what is sent.
+With it on, the plugin fetches one small file from this site when the window opens and compares the version in it against the build you are running. If there is something newer, a dialog says so, once for each release, SETTINGS lights up, and the first item in its menu opens the release page. It is a plain request for a static file: no identifier, no telemetry, nothing about your machine. The [security policy](https://github.com/benjamindehli/overtonium/blob/main/SECURITY.md) spells out exactly what is sent.
 
-There is no dialog, on purpose. A plugin cannot tell someone opening it from a host scanning its plugin folder at startup, and a modal in the second case stops the scan.
+The dialogs are drawn inside the plugin's own window rather than opened as windows of their own. A plugin cannot tell someone opening it from a host scanning its plugin folder at startup, and a window that waited for an answer would stop the scan. These wait for nothing, and a question only counts as asked once someone has answered it.
 
 ## What it costs to run
 

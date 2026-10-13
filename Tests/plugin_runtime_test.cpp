@@ -11351,6 +11351,112 @@ void testUpdateCheckIsQuiet(OvertoniumProcessor &p) {
         "and so does one on an instance that has been used");
 }
 
+/// The update check asks in the window, once, and says when a release is out.
+///
+/// Run against the machine's own settings, as the tests above are, so each
+/// value is put back as it was found. "Check for updates" is never pressed,
+/// since that would reach the network.
+void testUpdateDialogs(OvertoniumProcessor &p) {
+  section("Update dialogs");
+
+  const bool allowedBefore = ovt::updateCheckAllowed();
+  const bool offeredBefore = ovt::updateCheckOffered();
+  const auto announcedBefore = ovt::announcedVersion();
+
+  const auto open = [&p] {
+    std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
+    sizeEditor(*ed, 1350);
+    return ed;
+  };
+  const auto noticeOf = [](juce::AudioProcessorEditor &ed) -> auto & {
+    return dynamic_cast<OvertoniumEditor &>(ed).updateNotice();
+  };
+
+  // ---- the first time ------------------------------------------------------
+  ovt::setUpdateCheckAllowed(false);
+  ovt::setUpdateCheckOffered(false);
+  {
+    auto ed = open();
+    auto &notice = noticeOf(*ed);
+    const bool asked = notice.isShowing() &&
+                       notice.getMessage().contains("check for a new version");
+    const bool notYet = !ovt::updateCheckOffered();
+
+    check(asked, "the first window opened asks whether to check for updates");
+    check(notYet, "and opening it marks nothing, so a host scanning the "
+                  "plugin folder does not use the question up");
+
+    notice.secondaryButton().onClick();
+    check(!notice.isShowing(), "an answer puts the dialog away");
+  }
+  check(ovt::updateCheckOffered() && !ovt::updateCheckAllowed(),
+        "Not now is an answer: it is remembered, and nothing is checked");
+  {
+    auto ed = open();
+    check(!noticeOf(*ed).isShowing(), "so the next window does not ask again");
+  }
+
+  // ---- a release found -----------------------------------------------------
+  ovt::markVersionAnnounced({});
+  {
+    auto ed = open();
+    auto &editor = dynamic_cast<OvertoniumEditor &>(*ed);
+    editor.announceRelease("99.0.0",
+                           "https://example.invalid/overtonium/releases");
+
+    ovt::ui::TopBar *bar = nullptr;
+    std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+      for (auto *child : c.getChildren()) {
+        if (auto *b = dynamic_cast<ovt::ui::TopBar *>(child))
+          bar = b;
+        look(*child);
+      }
+    };
+    look(editor);
+
+    check(bar != nullptr && bar->isSettingsLit() &&
+              bar->availableUpdate() == "99.0.0",
+          "a release found lights SETTINGS");
+
+    if (bar != nullptr) {
+      auto menu = bar->buildSettingsMenu();
+      juce::PopupMenu::MenuItemIterator it(menu);
+      const bool first = it.next() && it.getItem().itemID == 703 &&
+                         it.getItem().text.contains("99.0.0");
+      check(first, "and is the first item in its menu");
+    }
+
+    auto &notice = noticeOf(*ed);
+    check(notice.isShowing() && notice.getMessage().contains("99.0.0"),
+          "and a dialog says which release is out");
+
+    notice.secondaryButton().onClick();
+  }
+  check(ovt::announcedVersion() == "99.0.0",
+        "Later is an answer too, remembered for that release");
+  {
+    auto ed = open();
+    auto &editor = dynamic_cast<OvertoniumEditor &>(*ed);
+    editor.announceRelease("99.0.0",
+                           "https://example.invalid/overtonium/releases");
+    const bool quiet = !noticeOf(*ed).isShowing();
+    editor.announceRelease("99.0.1",
+                           "https://example.invalid/overtonium/releases");
+    const bool next = noticeOf(*ed).isShowing();
+
+    check(quiet, "so the same release is not announced twice");
+    check(next, "and the next one is");
+  }
+
+  ovt::setUpdateCheckAllowed(allowedBefore);
+  ovt::setUpdateCheckOffered(offeredBefore);
+  ovt::markVersionAnnounced(announcedBefore);
+  check(ovt::updateCheckAllowed() == allowedBefore &&
+            ovt::updateCheckOffered() == offeredBefore &&
+            ovt::announcedVersion() == announcedBefore,
+        "and the machine's own answers are put back");
+}
+
 /// The preference survives the object that wrote it.
 ///
 /// It used to be held in one shared PropertiesFile that lived in a static,
@@ -11940,6 +12046,7 @@ int main(int argc, char **argv) {
   testCollapsibleSections();
   testUpdateCheck();
   testUpdateCheckIsQuiet(processor);
+  testUpdateDialogs(processor);
   testThePreferenceOutlivesItsWriter();
   testUpdateCheckOutlivesEditors(processor);
   testEveryControlIsNamed(processor);

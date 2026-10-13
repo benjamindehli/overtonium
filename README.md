@@ -71,13 +71,13 @@ That build treats warnings as errors, which is what CI does. On a compiler this 
 
 ## Checking for updates
 
-Off unless asked for. The first time an editor opens, the credit line under the wordmark offers to turn the check on, once, and nothing reaches the network unless that offer is taken. Ignoring it costs nothing and it is not asked again. The setting lives under Settings from then on.
+Off unless asked for. The first time an editor opens, a dialog asks whether to turn the check on, and nothing reaches the network unless the answer is yes. Either answer is remembered, so it is not asked again, and the setting lives under Settings from then on.
 
-With it on, a background thread fetches `docs/latest.json` from the project page and compares the version in it against this build. If the file names something newer, the credit line says so and clicking it opens the release page. It is a plain GET for one small static file: no identifier, no version, nothing about the machine, and the server it reaches is the same one serving the documentation.
+With it on, a background thread fetches `docs/latest.json` from the project page and compares the version in it against this build. If the file names something newer, a dialog says so once for that release, SETTINGS lights, and the first item in its menu opens the release page. It is a plain GET for one small static file: no identifier, no version, nothing about the machine, and the server it reaches is the same one serving the documentation.
 
 The preference is kept in a settings file beside the presets rather than in the plugin's state. It belongs to the person rather than to a patch, and kept in the state it would be asked afresh by every new instance, which is what a host walking its plugin folder makes dozens of.
 
-There is deliberately no dialog. A plugin cannot tell someone opening it from a host scanning at startup, and a modal in the second case stops the scan.
+The dialogs are drawn inside the editor rather than opened as windows of their own. A plugin cannot tell someone opening it from a host scanning at startup, and a window that waited for an answer would stop the scan. These wait for nothing, and a question is only marked as asked once it has been answered, so an editor a scan opens uses nothing up.
 
 The release workflow rewrites `docs/latest.json` as part of publishing, so the feed cannot name a version that was never shipped, and cannot lag one that was.
 

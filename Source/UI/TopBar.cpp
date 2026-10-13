@@ -84,6 +84,11 @@ constexpr int kTitleLead = 10;
 constexpr const char *kCredit = "32-partial overtone synthesizer";
 constexpr float kCreditSize = 10.5f;
 
+/// The sections SETTINGS opens, in the order it opens them, which is what its
+/// tooltip says whenever there is no new release to mention instead.
+constexpr const char *kSettingsTooltip =
+    "Polyphony, pitch bend range, expression, tuning, output and zoom";
+
 /// What the preset button says when nothing has been loaded yet.
 constexpr const char *kNoPreset = "Select...";
 
@@ -396,8 +401,7 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
     drawGearIcon(g, area, colour);
   };
   // The sections it opens, in the order it opens them.
-  settingsButton.setTooltip("Polyphony, pitch bend range, expression, tuning, "
-                            "output and zoom");
+  settingsButton.setTooltip(kSettingsTooltip);
   settingsButton.onClick = [this] { showSettingsMenu(); };
   addAndMakeVisible(settingsButton);
 
@@ -1047,6 +1051,13 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
   // A header rather than an item, because it is a fact about the plugin and
   // not something to be chosen. Disabled items read as actions that happen to
   // be unavailable, which this is not.
+  // A new release goes above even that, since it is the reason the gear is
+  // lit and the first thing anyone opening the menu then is looking for.
+  if (updateVersion.isNotEmpty()) {
+    m.addItem(703, "Overtonium " + updateVersion + " is available...");
+    m.addSeparator();
+  }
+
   m.addSectionHeader(versionLine());
 
   // A tick rather than a submenu. It is one decision with two answers, and it
@@ -1192,6 +1203,11 @@ void TopBar::showSettingsMenu() {
 
                     if (result == 701)
                       return onRedo ? onRedo() : void();
+
+                    if (result == 703) {
+                      juce::URL(updateUrl).launchInDefaultBrowser();
+                      return;
+                    }
 
                     if (result == 702) {
                       const bool now =
@@ -1826,33 +1842,11 @@ void TopBar::paint(juce::Graphics &g) {
   paintCreditLine(g, title.removeFromTop(13));
 }
 
-/// The line under the wordmark. Ordinarily the tagline, and an offer to update
-/// when there is one, because it is the one piece of text in the bar that is
-/// already saying something nobody needs to read twice.
+/// The line under the wordmark.
 void TopBar::paintCreditLine(juce::Graphics &g, juce::Rectangle<int> area) {
-  if (updateVersion.isEmpty() && !offeringUpdateCheck) {
-    updateBounds = {};
-    g.setColour(colours::textDim);
-    g.setFont(makeFont(kCreditSize));
-    g.drawText(kCredit, area, juce::Justification::centredLeft, false);
-    return;
-  }
-
-  const auto text = updateVersion.isNotEmpty()
-                        ? "Version " + updateVersion + " available"
-                        : juce::String("Check for new versions?");
-
-  g.setFont(makeFont(kCreditSize, true));
-  g.setColour(colours::accent);
-  g.drawText(text, area, juce::Justification::centredLeft, false);
-
-  // Only the text is clickable, not the width of the whole title block, so the
-  // pointer does not turn into a hand over empty panel.
-  const auto measured =
-      juce::GlyphArrangement::getStringWidth(g.getCurrentFont(), text);
-  const auto width =
-      juce::jmin(area.getWidth(), juce::roundToInt(measured) + 2);
-  updateBounds = area.withWidth(width);
+  g.setColour(colours::textDim);
+  g.setFont(makeFont(kCreditSize));
+  g.drawText(kCredit, area, juce::Justification::centredLeft, false);
 }
 
 void TopBar::setUpdateAvailable(const juce::String &version,
@@ -1862,33 +1856,16 @@ void TopBar::setUpdateAvailable(const juce::String &version,
 
   updateVersion = version;
   updateUrl = url;
-  repaint();
-}
 
-void TopBar::setUpdateOffer(bool offering) {
-  if (offering == offeringUpdateCheck)
-    return;
-
-  offeringUpdateCheck = offering;
-  repaint();
-}
-
-void TopBar::mouseUp(const juce::MouseEvent &e) {
-  if (updateBounds.isEmpty() || !updateBounds.contains(e.getPosition()))
-    return;
-
-  if (updateUrl.isNotEmpty())
-    juce::URL(updateUrl).launchInDefaultBrowser();
-  else if (offeringUpdateCheck && onUpdateOfferAccepted != nullptr)
-    onUpdateOfferAccepted();
-}
-
-void TopBar::mouseMove(const juce::MouseEvent &e) {
-  const bool over =
-      !updateBounds.isEmpty() && updateBounds.contains(e.getPosition());
-
-  setMouseCursor(over ? juce::MouseCursor::PointingHandCursor
-                      : juce::MouseCursor::NormalCursor);
+  // Lit while there is something to say, which is the one thing besides its
+  // menu that the gear ever says. The first item in the menu is what it is.
+  settingsButton.setToggleState(version.isNotEmpty(),
+                                juce::dontSendNotification);
+  settingsButton.setTooltip(
+      version.isNotEmpty()
+          ? "Overtonium " + version +
+                " is available. It is the first item in this menu."
+          : juce::String(kSettingsTooltip));
 }
 
 } // namespace ovt::ui

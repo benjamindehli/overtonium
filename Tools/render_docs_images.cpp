@@ -171,6 +171,11 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  // A machine that has never been asked about updates opens every window with
+  // the question up, which is right for a person and wrong for a picture of
+  // the instrument. Put away without answering it, so nothing is written.
+  editor->updateNotice().setVisible(false);
+
   // The width that shows all 32 channels, whatever that is today, and a
   // height chosen for the picture. See kPictureHeight.
   editor->fitAllChannels();

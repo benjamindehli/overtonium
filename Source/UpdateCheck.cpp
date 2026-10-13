@@ -98,7 +98,7 @@ namespace {
 /// inheritance rather than work around it, but the options decide the path,
 /// and a path that came out even slightly different would silently lose the
 /// answer of everyone who has already been asked. Not worth it for a file
-/// holding two booleans that is read a few times per window.
+/// holding two booleans and a version that is read a few times per window.
 juce::PropertiesFile::Options settingsOptions() {
   juce::PropertiesFile::Options o;
   o.applicationName = "Overtonium";
@@ -110,6 +110,7 @@ juce::PropertiesFile::Options settingsOptions() {
 
 const char *const kAllowed = "updateCheckAllowed";
 const char *const kOffered = "updateCheckOffered";
+const char *const kAnnounced = "announcedVersion";
 
 /// Reads one flag, with the file open for no longer than that.
 bool flag(const char *key) {
@@ -136,6 +137,19 @@ void setUpdateCheckAllowed(bool allowed) { setFlag(kAllowed, allowed); }
 bool updateCheckOffered() { return flag(kOffered); }
 
 void markUpdateCheckOffered() { setFlag(kOffered, true); }
+
+void setUpdateCheckOffered(bool offered) { setFlag(kOffered, offered); }
+
+juce::String announcedVersion() {
+  juce::PropertiesFile file(settingsOptions());
+  return file.getValue(kAnnounced);
+}
+
+void markVersionAnnounced(const juce::String &version) {
+  juce::PropertiesFile file(settingsOptions());
+  file.setValue(kAnnounced, version);
+  file.saveIfNeeded();
+}
 
 UpdateCheck::UpdateCheck() : juce::Thread("Overtonium update check") {}
 

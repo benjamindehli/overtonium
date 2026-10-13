@@ -69,7 +69,7 @@ Source/
   PluginEditor.*      window, zoom, LINK, gutter
   UI/                 theme, look and feel, channel and noise strips, top bar,
                       the Playing and Tuning bars, the Settings lists both
-                      share, macro panel
+                      share, macro panel, the update dialogs
 Tests/
   dsp_test.cpp            standalone DSP tests and CPU benchmark
   plugin_runtime_test.cpp headless plugin integration tests

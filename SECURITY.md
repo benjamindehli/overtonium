@@ -31,7 +31,7 @@ A crash on its own is a bug rather than a vulnerability, and an ordinary issue i
 
 ## The update check
 
-Off until asked. The first time an editor opens, the credit line under the wordmark offers to turn it on, and nothing leaves the machine unless that offer is taken. The offer is made once and never repeated, and the setting lives under Settings from then on. It is deliberately not a dialog: a plugin cannot tell a person opening it from a host walking the plugin folder at startup, and a modal in the second case stops the scan.
+Off until asked. The first time an editor opens, a dialog drawn inside it asks whether to turn it on, and nothing leaves the machine unless the answer is yes. Either answer is remembered and the question is not repeated, and the setting lives under Settings from then on. The dialog is part of the editor rather than a window of its own, since a plugin cannot tell a person opening it from a host walking the plugin folder at startup, and a window that waited for an answer would stop the scan.
 
 It is a GET for one static file on the project's own GitHub Pages site. No identifier, no version, no telemetry: the request carries nothing the plugin chose to put in it, and the server it reaches is the same one serving the documentation.
 

@@ -12,6 +12,7 @@
 #include "UI/LookAndFeel.h"
 #include "UI/MacroPanel.h"
 #include "UI/NoiseStrip.h"
+#include "UI/Notice.h"
 #include "UI/OptionBars.h"
 #include "UI/TopBar.h"
 #include "dsp/Drift.h"
@@ -279,6 +280,14 @@ public:
   /// so a test hands it a window directly.
   void dressWindow(juce::DocumentWindow &);
 
+  /// A newer release has been found: SETTINGS lights, and the first time this
+  /// release is found a dialog says so. Public so a test can hand it a release
+  /// without reaching the network.
+  void announceRelease(const juce::String &version, const juce::String &url);
+
+  /// The two questions the update check asks. Public for the tests.
+  ovt::ui::Notice &updateNotice() noexcept { return notice; }
+
 private:
   void timerCallback() override;
 
@@ -430,6 +439,9 @@ private:
 
   /// Over the mixer when it is up, and not in the way when it is not.
   ovt::ui::MacroPanel macroPanel;
+
+  /// The two questions the update check asks, over everything else.
+  ovt::ui::Notice notice;
 
   // stripsHolder is declared before the viewport that displays it, so on
   // teardown the viewport is destroyed first and never sees a dangling viewed
