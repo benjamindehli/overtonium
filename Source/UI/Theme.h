@@ -319,6 +319,10 @@ Section sectionOf(Row);
 /// Whether this row is hidden under the given mask.
 bool rowIsCollapsed(Row, SectionMask);
 
+/// How tall a row stands when it is shown. For a control placed off the rows
+/// that still wants to be the size the rows make everything else.
+int rowHeight(Row);
+
 /// The section whose heading row is under this point, or NumSections.
 Section headingSectionAt(const RowBounds &, juce::Point<int>);
 

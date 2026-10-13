@@ -7716,6 +7716,82 @@ void testNoiseString(OvertoniumProcessor &p) {
   p.applyFactoryPreset(presetIndex("Init"));
 }
 
+/// The noise strip's string knobs: named, wired to their parameters, and
+/// standing in order in the block under colour, gone when that block is
+/// folded away.
+void testNoiseStringKnobs(OvertoniumProcessor &p) {
+  section("The noise strip's string knobs");
+
+  struct SilentHover final : ovt::ui::HoverTarget {
+    void hoverChanged(int, ovt::ui::Row) override {}
+  };
+
+  SilentHover hover;
+  juce::Component popupParent;
+  ovt::ui::NoiseStrip strip(p.apvts, hover, popupParent);
+  strip.setSize(40, 1000);
+
+  const char *const titles[] = {"Noise string", "Noise string decay",
+                                "Noise string damp", "Noise string pick"};
+  const char *const suffixes[] = {
+      ovt::params::stringSuffix, ovt::params::stringDecaySuffix,
+      ovt::params::stringDampSuffix, ovt::params::stringPickSuffix};
+
+  std::array<juce::Slider *, 4> knobs{};
+  const juce::Component *colourCaption = nullptr;
+  for (auto *c : strip.getChildren()) {
+    if (auto *sl = dynamic_cast<juce::Slider *>(c))
+      for (size_t i = 0; i < 4; ++i)
+        if (sl->getTitle() == titles[i])
+          knobs[i] = sl;
+    if (auto *label = dynamic_cast<juce::Label *>(c))
+      if (label->getText() == "colour")
+        colourCaption = label;
+  }
+
+  const bool all = std::all_of(knobs.begin(), knobs.end(),
+                               [](auto *k) { return k != nullptr; });
+  check(all && colourCaption != nullptr,
+        "the noise strip has string, decay, damp and pick, named");
+  if (!all || colourCaption == nullptr)
+    return;
+
+  // Each moves its own parameter.
+  bool wired = true;
+  for (size_t i = 0; i < 4; ++i) {
+    auto *param = p.apvts.getParameter(ovt::params::noiseParamId(suffixes[i]));
+    const auto before = param->getValue();
+    knobs[i]->setValue(knobs[i]->getMaximum(), juce::sendNotificationSync);
+    wired &= param->getValue() > before + 0.01f || before > 0.99f;
+    knobs[i]->setValue(knobs[i]->getMinimum(), juce::sendNotificationSync);
+    wired &= param->getValue() < 0.01f;
+  }
+  check(wired, "and each turns its own parameter");
+  p.applyFactoryPreset(presetIndex("Init"));
+
+  // In order down the block under colour, evenly, each the size every knob
+  // in a row is, none overlapping.
+  bool ordered = knobs[0]->getY() >= colourCaption->getBottom();
+  std::vector<int> gaps;
+  for (size_t i = 1; i < 4; ++i) {
+    ordered &= knobs[i]->getY() >= knobs[i - 1]->getBottom();
+    gaps.push_back(knobs[i]->getY() - knobs[i - 1]->getY());
+  }
+  const auto [lo, hi] = std::minmax_element(gaps.begin(), gaps.end());
+  check(ordered && *hi - *lo <= 1,
+        "they stand in order under colour, evenly spaced (" +
+            std::to_string(*lo) + " to " + std::to_string(*hi) + " px apart)");
+
+  // Folding the pitch block folds them away with it.
+  strip.setCollapsedSections(ovt::ui::sectionBit(ovt::ui::Section::PitchMod));
+  const bool folded = std::none_of(knobs.begin(), knobs.end(),
+                                   [](auto *k) { return k->isVisible(); });
+  strip.setCollapsedSections(0);
+  const bool back = std::all_of(knobs.begin(), knobs.end(),
+                                [](auto *k) { return k->isVisible(); });
+  check(folded && back, "and fold away with the block they stand in");
+}
+
 /// What the processor publishes for the Playing bar's readouts: the pedal,
 /// the bend, the wheel and the pressure, with MPE off and on.
 void testPlayingReadouts(OvertoniumProcessor &p) {
@@ -12105,6 +12181,7 @@ int main(int argc, char **argv) {
   testOptionBars(processor);
   testSharedSettingsChoices(processor);
   testNoiseString(processor);
+  testNoiseStringKnobs(processor);
   testPlayingReadouts(processor);
   testPlayingBar(processor);
   testBarRightClicks(processor);

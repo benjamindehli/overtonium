@@ -445,6 +445,15 @@ constexpr int kRowHeights[kNumRows] = {
     16  // FaderText
 };
 
+} // namespace
+
+int rowHeight(Row r) {
+  const auto i = (int)r;
+  return i >= 0 && i < kNumRows ? kRowHeights[i] : 0;
+}
+
+namespace {
+
 /// The height the fader wants, and now the least it is ever given.
 ///
 /// There used to be a smaller floor beside this, 60, for a window too short to
