@@ -21,6 +21,14 @@ constexpr double kDriftMaxHz = 1.10;
 /// it into a usable "body" and "air" either side.
 constexpr double kNoiseTiltHz = 1000.0;
 
+/// What the noise channel adds to its string, +12 dB. A pluck rings at about
+/// the level of the burst that struck it, and a burst a few milliseconds long
+/// on a channel that is one layer among thirty-three is faint, so without it
+/// a pluck could not stand beside a full organ even with the channel's fader
+/// at the top. A breath, which builds up of its own accord, is the setting
+/// that wants the fader brought down instead.
+constexpr float kStringGain = 4.0f;
+
 /// Below this an envelope is silent, so restarting it costs nothing. The same
 /// figure the envelope itself calls the end of a release.
 constexpr float kSilent = 1.0e-5f;
@@ -84,6 +92,7 @@ void Voice::setRenderRate(double newSampleRate) noexcept {
     pt.env.setSampleRate(sampleRate);
 
   noise.env.setSampleRate(sampleRate);
+  noise.string.setRate(sampleRate);
 
   // Roughly a 15 ms time constant, stepped once per control block.
   pressureCoef =
@@ -94,6 +103,9 @@ void Voice::setRenderRate(double newSampleRate) noexcept {
 }
 
 void Voice::prepare(double newSampleRate, uint32_t seed) noexcept {
+  // Sized for the host's rate, the fastest the voice is ever run at, before
+  // the render rate is set. See KarplusString::setRate.
+  noise.string.prepare(newSampleRate);
   setRenderRate(newSampleRate);
 
   rng.reseed(seed);
@@ -124,6 +136,9 @@ void Voice::reset() noexcept {
   noise.lowpassState = 0.0f;
   noise.lastGain = 0.0f;
   noise.gainPrimed = false;
+  noise.string.reset();
+  noise.stringAlive = false;
+  noise.damperSeconds = 0.0f;
   noisePeak = 0.0f;
   noiseEnvelope = 0.0f;
   noiseTremolo = 0.0f;
@@ -144,6 +159,16 @@ void Voice::reset() noexcept {
 
 void Voice::noteOn(int channel, int note, float velocity, const SynthParams &p,
                    double frequency) noexcept {
+  // A different note on this voice starts from a silent string. The same key
+  // struck again keeps it ringing and strikes it again, as a re-struck string
+  // does.
+  if (note != midiNote || channel != midiChannel) {
+    noise.string.reset();
+    noise.stringAlive = false;
+  }
+
+  noise.damperSeconds = 0.0f;
+
   midiNote = note;
   midiChannel = channel;
   retuneSemis = 0.0;
@@ -393,6 +418,7 @@ void Voice::fade(float seconds) noexcept {
     pt.env.forceRelease(seconds);
 
   noise.env.forceRelease(seconds);
+  noise.damperSeconds = seconds;
 }
 
 void Voice::takeOver(const Voice &from) noexcept {
@@ -440,6 +466,7 @@ void Voice::steal() noexcept {
     pt.env.forceRelease(0.004f);
 
   noise.env.forceRelease(0.004f);
+  noise.damperSeconds = 0.004f;
 }
 
 void Voice::render(float *left, float *right, int numSamples,
@@ -859,7 +886,7 @@ void Voice::render(float *left, float *right, int numSamples,
     }
   }
 
-  active = noise.env.isActive() ||
+  active = noise.env.isActive() || noise.stringAlive ||
            std::any_of(partials.begin(), partials.end(),
                        [](const Partial &pt) { return pt.env.isActive(); });
 
@@ -878,7 +905,14 @@ void Voice::renderNoise(float *left, float *right, int len,
                       struckAttack(np.attack, noise.attackScale), np.decay,
                       np.sustain, np.swell, np.offLevel, np.release);
 
-  if (!noise.env.isActive())
+  const float amount = std::clamp(np.stringAmount, 0.0f, 1.0f);
+  const bool stringOn = amount > 0.0f;
+
+  if (!stringOn)
+    noise.stringAlive = false;
+
+  // The string can still be ringing after the noise has stopped.
+  if (!noise.env.isActive() && !noise.stringAlive)
     return;
 
   const double amPhaseInc = (double)np.amRateHz / sampleRate;
@@ -932,6 +966,8 @@ void Voice::renderNoise(float *left, float *right, int len,
     for (int n = 0; n < len; ++n)
       noise.env.tick();
 
+    // Nothing of the channel is heard, so neither is its string.
+    noise.stringAlive = false;
     return;
   }
 
@@ -948,20 +984,60 @@ void Voice::renderNoise(float *left, float *right, int len,
   const float panL = std::sqrt(0.5f * (1.0f - pan));
   const float panR = std::sqrt(0.5f * (1.0f + pan));
 
+  // The string, struck by the noise after COLOUR and its envelope have shaped
+  // it, so COLOUR decides how hard and bright the strike is and the envelope
+  // decides whether it is struck once or blown into. Tuned to the pitch the
+  // fundamental is sounding at, bends, its glide and Adaptive's slide
+  // included, without the fundamental's own vibrato and drift, which belong to
+  // that partial rather than to the note.
+  if (stringOn) {
+    const double semis = (double)(p.global.bendSemitones + noteBendSemitones) +
+                         partials[0].glideSemis + retuneSemis;
+
+    // RELEASE is the damper. Once the key is up the string dies away over
+    // the channel's release time as well as its own, so it has gone by the
+    // time the envelope has. A steal or a fade brings a damper of its own.
+    double decay = std::max(1.0e-3, (double)np.stringDecay);
+    if (released)
+      decay = 1.0 / (1.0 / decay + 1.0 / std::max(5.0e-3, (double)np.release));
+    if (noise.damperSeconds > 0.0f)
+      decay = 1.0 / (1.0 / decay + 1.0 / (double)noise.damperSeconds);
+
+    noise.string.setBlock(baseFreq * std::exp2(semis / 12.0), decay,
+                          np.stringDamp, np.stringPick, len);
+  }
+
+  float rungPeak = 0.0f;
+
   for (int n = 0; n < len; ++n) {
     const float white = noise.rng.bipolar();
 
     noise.lowpassState += lowpassCoef * (white - noise.lowpassState);
     const float high = white - noise.lowpassState;
 
-    const float s =
-        (lowMix * noise.lowpassState + highMix * high) * noise.env.tick() * g;
+    float out =
+        (lowMix * noise.lowpassState + highMix * high) * noise.env.tick();
+
+    // Crossfaded by STRING, and by how much of the string can be heard at
+    // this pitch: where the loop is too short to tune, the noise is left as
+    // it was.
+    if (stringOn) {
+      const float rung = noise.string.tick(out) * kStringGain;
+      rungPeak = std::max(rungPeak, std::abs(rung));
+      out += amount * noise.string.audibility() * (rung - out);
+    }
+
+    const float s = out * g;
 
     left[n] += s * panL;
     right[n] += s * panR;
 
     g += gInc;
   }
+
+  // Alive while it is being struck or is still above a millionth of full
+  // scale, a hundred and twenty decibels down.
+  noise.stringAlive = stringOn && (noise.env.isActive() || rungPeak >= 1.0e-6f);
 }
 
 } // namespace ovt

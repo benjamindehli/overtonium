@@ -809,9 +809,10 @@ void testParameterWiring(OvertoniumProcessor &p) {
   // params::legatoId. Then how fast the adaptive temperament retunes a held
   // note, whether it uses the harmonic seventh, and whether it stays home.
   // See params::adaptiveRetuneId, params::adaptiveSeventhId and
-  // params::adaptiveHomeId.
+  // params::adaptiveHomeId. Then four for the string the noise channel
+  // strikes. See params::stringSuffix.
   const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + 2 + 1 + 1 +
-                       1 + 1 + ovt::params::kNumMacros * 6;
+                       1 + 1 + 4 + ovt::params::kNumMacros * 6;
 
   // The behaviour that was there before it became a choice. Asked of the
   // parameter rather than of the tree, so the answer does not depend on what
@@ -7634,6 +7635,228 @@ void testSharedSettingsChoices(OvertoniumProcessor &p) {
   p.applyFactoryPreset(presetIndex("Init"));
 }
 
+/// The noise channel's string, reached through its parameters: STRING turns
+/// a burst of noise into a ringing note, DECAY decides for how long, and a
+/// preset puts it back to nought.
+void testNoiseString(OvertoniumProcessor &p) {
+  section("The noise channel's string");
+
+  namespace pp = ovt::params;
+
+  const auto setParam = [&p](const juce::String &id, float plain) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1(plain));
+  };
+
+  // A burst of noise and nothing else: every partial silent, the noise
+  // channel struck for a few milliseconds and then holding at silence.
+  const auto ringing = [&](float amount, float decay) {
+    p.applyFactoryPreset(presetIndex("Init"));
+    for (int i = 0; i < ovt::kNumHarmonics; ++i)
+      setParam(pp::oscParamId(pp::volumeSuffix, i), 0.0f);
+    setParam(pp::noiseParamId(pp::volumeSuffix), 0.8f);
+    setParam(pp::noiseParamId(pp::attackSuffix), 0.0005f);
+    setParam(pp::noiseParamId(pp::decaySuffix), 0.01f);
+    setParam(pp::noiseParamId(pp::sustainSuffix), 0.0f);
+    setParam(pp::noiseParamId(pp::stringSuffix), amount);
+    setParam(pp::noiseParamId(pp::stringDecaySuffix), decay);
+
+    p.prepareToPlay(48000.0, 512);
+    juce::AudioBuffer<float> buffer(2, 512);
+    double late = 0.0;
+    int counted = 0;
+
+    for (int b = 0; b < 60; ++b) {
+      juce::MidiBuffer midi =
+          b == 0 ? noteOnAt(57, 1.0f, 0) : juce::MidiBuffer{};
+      buffer.clear();
+      p.processBlock(buffer, midi);
+
+      // From a fifth of a second on, long after the burst.
+      if (b >= 19 && b < 40) {
+        for (int n = 0; n < 512; ++n)
+          late += (double)buffer.getSample(0, n) * buffer.getSample(0, n);
+        counted += 512;
+      }
+    }
+
+    juce::MidiBuffer off;
+    off.addEvent(juce::MidiMessage::allSoundOff(1), 0);
+    buffer.clear();
+    p.processBlock(buffer, off);
+    return std::sqrt(late / std::max(1, counted));
+  };
+
+  const auto without = ringing(0.0f, 1.5f);
+  const auto with = ringing(1.0f, 1.5f);
+  const auto brief = ringing(1.0f, 0.1f);
+
+  check(without < 1.0e-6 && with > 1.0e-3,
+        "Noise String turns a burst of noise into a ringing note (" +
+            std::to_string(without) + ", " + std::to_string(with) + ")");
+  check(brief < 0.1 * with,
+        "and Noise String Decay decides how long it rings (" +
+            std::to_string(brief) + " against " + std::to_string(with) + ")");
+
+  if (auto *decay =
+          p.apvts.getParameter(pp::noiseParamId(pp::stringDecaySuffix)))
+    check(decay->getText(decay->convertTo0to1(1.5f), 16) == "1.50 s",
+          "and reads as a time (" +
+              decay->getText(decay->convertTo0to1(1.5f), 16).toStdString() +
+              ")");
+
+  // A preset is a whole sound, so it puts the string back where every patch
+  // without one has it.
+  setParam(pp::noiseParamId(pp::stringSuffix), 0.7f);
+  p.applyFactoryPreset(presetIndex("Init"));
+  auto *amount = p.apvts.getParameter(pp::noiseParamId(pp::stringSuffix));
+  check(amount != nullptr && amount->getValue() < 1.0e-6f,
+        "and loading a preset puts Noise String back to nought");
+
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
+/// The noise strip's string knobs: named, wired to their parameters, and
+/// standing in order in the block under colour, gone when that block is
+/// folded away.
+void testNoiseStringKnobs(OvertoniumProcessor &p) {
+  section("The noise strip's string knobs");
+
+  struct WatchingHover final : ovt::ui::HoverTarget {
+    ovt::ui::Row last = ovt::ui::kNoRow;
+    void hoverChanged(int, ovt::ui::Row row) override { last = row; }
+  };
+
+  WatchingHover hover;
+  juce::Component popupParent;
+  ovt::ui::NoiseStrip strip(p.apvts, hover, popupParent);
+  strip.setSize(40, 1000);
+
+  const char *const titles[] = {"Noise string", "Noise string decay",
+                                "Noise string damp", "Noise string pick"};
+  const char *const suffixes[] = {
+      ovt::params::stringSuffix, ovt::params::stringDecaySuffix,
+      ovt::params::stringDampSuffix, ovt::params::stringPickSuffix};
+
+  std::array<juce::Slider *, 4> knobs{};
+  const juce::Component *colourCaption = nullptr;
+  for (auto *c : strip.getChildren()) {
+    if (auto *sl = dynamic_cast<juce::Slider *>(c))
+      for (size_t i = 0; i < 4; ++i)
+        if (sl->getTitle() == titles[i])
+          knobs[i] = sl;
+    if (auto *label = dynamic_cast<juce::Label *>(c))
+      if (label->getText() == "colour")
+        colourCaption = label;
+  }
+
+  const bool all = std::all_of(knobs.begin(), knobs.end(),
+                               [](auto *k) { return k != nullptr; });
+  check(all && colourCaption != nullptr,
+        "the noise strip has string, decay, damp and pick, named");
+  if (!all || colourCaption == nullptr)
+    return;
+
+  // Each moves its own parameter.
+  bool wired = true;
+  for (size_t i = 0; i < 4; ++i) {
+    auto *param = p.apvts.getParameter(ovt::params::noiseParamId(suffixes[i]));
+    const auto before = param->getValue();
+    knobs[i]->setValue(knobs[i]->getMaximum(), juce::sendNotificationSync);
+    wired &= param->getValue() > before + 0.01f || before > 0.99f;
+    knobs[i]->setValue(knobs[i]->getMinimum(), juce::sendNotificationSync);
+    wired &= param->getValue() < 0.01f;
+  }
+  check(wired, "and each turns its own parameter");
+  p.applyFactoryPreset(presetIndex("Init"));
+
+  // In order down the block under colour, evenly, each the size every knob
+  // in a row is, none overlapping.
+  bool ordered = knobs[0]->getY() >= colourCaption->getBottom();
+  std::vector<int> gaps;
+  for (size_t i = 1; i < 4; ++i) {
+    ordered &= knobs[i]->getY() >= knobs[i - 1]->getBottom();
+    gaps.push_back(knobs[i]->getY() - knobs[i - 1]->getY());
+  }
+  const auto [lo, hi] = std::minmax_element(gaps.begin(), gaps.end());
+  check(ordered && *hi - *lo <= 1,
+        "they stand in order under colour, evenly spaced (" +
+            std::to_string(*lo) + " to " + std::to_string(*hi) + " px apart)");
+
+  // Colour and the string are this strip's own, not its share of a row every
+  // channel has, so hovering them lights no row across the mixer, and a row
+  // lit from elsewhere is not drawn over them. Attack is still shared.
+  {
+    juce::Slider *colourKnob = nullptr, *attack = nullptr;
+    for (auto *c : strip.getChildren())
+      if (auto *sl = dynamic_cast<juce::Slider *>(c)) {
+        if (sl->getTitle() == "Noise colour")
+          colourKnob = sl;
+        if (sl->getTitle() == "Noise attack")
+          attack = sl;
+      }
+
+    const auto hoverOver = [&](juce::Component &c) {
+      const auto at = c.getBounds().getCentre().toFloat();
+      const auto now = juce::Time::getCurrentTime();
+      strip.mouseMove(juce::MouseEvent(
+          juce::Desktop::getInstance().getMainMouseSource(), at,
+          juce::ModifierKeys(), juce::MouseInputSource::defaultPressure,
+          juce::MouseInputSource::defaultOrientation,
+          juce::MouseInputSource::defaultRotation,
+          juce::MouseInputSource::defaultTiltX,
+          juce::MouseInputSource::defaultTiltY, &strip, &c, now, at, now, 0,
+          false));
+      return hover.last;
+    };
+
+    bool quiet = colourKnob != nullptr && attack != nullptr &&
+                 hoverOver(*colourKnob) == ovt::ui::kNoRow;
+    for (auto *k : knobs)
+      quiet &= hoverOver(*k) == ovt::ui::kNoRow;
+    const bool shared =
+        attack != nullptr && hoverOver(*attack) == ovt::ui::Row::Attack;
+
+    check(quiet && shared, "hovering colour or the string lights no row "
+                           "across the mixer, and attack still does");
+
+    // Drawn the same with a row lit from elsewhere as with none.
+    const auto picture = [&](ovt::ui::Row lit, juce::Rectangle<int> area) {
+      strip.setHighlightedRow(lit);
+      return strip.createComponentSnapshot(area, true, 1.0f);
+    };
+    const auto same = [](const juce::Image &a, const juce::Image &b) {
+      for (int y = 0; y < a.getHeight(); ++y)
+        for (int x = 0; x < a.getWidth(); ++x)
+          if (a.getPixelAt(x, y) != b.getPixelAt(x, y))
+            return false;
+      return true;
+    };
+
+    const auto block = knobs[0]->getBounds().getUnion(knobs[3]->getBounds());
+    const bool untouched = same(picture(ovt::ui::kNoRow, block),
+                                picture(ovt::ui::Row::PmRate, block));
+    const bool attackLit =
+        attack != nullptr &&
+        !same(picture(ovt::ui::kNoRow, attack->getBounds()),
+              picture(ovt::ui::Row::Attack, attack->getBounds()));
+    strip.setHighlightedRow(ovt::ui::kNoRow);
+
+    check(untouched && attackLit,
+          "and a row lit from elsewhere is not drawn over the string, where "
+          "attack's still is");
+  }
+
+  // Folding the pitch block folds them away with it.
+  strip.setCollapsedSections(ovt::ui::sectionBit(ovt::ui::Section::PitchMod));
+  const bool folded = std::none_of(knobs.begin(), knobs.end(),
+                                   [](auto *k) { return k->isVisible(); });
+  strip.setCollapsedSections(0);
+  const bool back = std::all_of(knobs.begin(), knobs.end(),
+                                [](auto *k) { return k->isVisible(); });
+  check(folded && back, "and fold away with the block they stand in");
+}
+
 /// What the processor publishes for the Playing bar's readouts: the pedal,
 /// the bend, the wheel and the pressure, with MPE off and on.
 void testPlayingReadouts(OvertoniumProcessor &p) {
@@ -12022,6 +12245,8 @@ int main(int argc, char **argv) {
   testSegmentCells();
   testOptionBars(processor);
   testSharedSettingsChoices(processor);
+  testNoiseString(processor);
+  testNoiseStringKnobs(processor);
   testPlayingReadouts(processor);
   testPlayingBar(processor);
   testBarRightClicks(processor);

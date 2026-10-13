@@ -75,7 +75,7 @@ It loads whether or not the preset is the one already showing, which is what the
 
 What tells the two apart is a gesture. Every control opens one before it writes and closes one after, which is how a host is told that a move has begun and ended, and automation does not: it sets values and says nothing. So the processor listens to itself for gesture begin and end, takes a baseline of every parameter when the first one opens, and when the last one closes puts whatever actually moved into the history as one step. A drag, a scroll wheel and a LINK drag across 32 channels are each one gesture and therefore each one step, however many values they moved and however long they took. A gesture that ends where it began is not a step at all.
 
-Only from the message thread. A host is allowed to open a gesture from the audio thread, and taking a baseline of 842 parameters there would allocate on it, so one that arrives from anywhere else is left alone. Nobody is turning a knob from the audio thread.
+Only from the message thread. A host is allowed to open a gesture from the audio thread, and taking a baseline of 846 parameters there would allocate on it, so one that arrives from anywhere else is left alone. Nobody is turning a knob from the audio thread.
 
 The things a person does that are not one gesture go through `recordEdit`, which takes the same baseline around whatever it is given: loading a preset writes hundreds of parameters and has to come back in one undo. The caller decides, and that is the point of it. Loading a preset from the menu is recorded and a clip firing a program change at the same `applyFactoryPreset` is not, because one of them is editing and the other is playing.
 
@@ -462,7 +462,7 @@ The exception to filling greedily is a last row that would come out nearly empty
 
 Double-clicking any knob restores its default. Hovering a harmonic number shows its interval and exact cent deviation.
 
-Pointing at a knob picks out its row all the way across the mixer, through every strip and the noise channel, and brightens the one caption in the gutter that names it. Out at harmonic 28 that caption is a long way to the left, and following a band back to it beats counting rows. The two readouts count as part of the control above them, so drifting off the tuning knob onto its cent figure does not put the highlight out.
+Pointing at a knob picks out its row all the way across the mixer, through every strip and the noise channel, and brightens the one caption in the gutter that names it. COLOUR and the noise channel's string are the exception, since the gutter's names are not theirs. Out at harmonic 28 that caption is a long way to the left, and following a band back to it beats counting rows. The two readouts count as part of the control above them, so drifting off the tuning knob onto its cent figure does not put the highlight out.
 
 The channel under the pointer is marked the same way, bracketed by a rule down each side with the same wash between them, and its number at the head of the strip goes accent exactly as the gutter caption does for the row. The row answers which of the twenty-two control rows you are on and the column answers which of the thirty-three channels, and where the two cross is the knob a drag would actually move. Thirty-eight pixels of strip is not much to aim at with a mixer this wide.
 
@@ -606,11 +606,23 @@ It takes the quietest, preferring one already on its way out. Taking the oldest 
 
 ### The noise channel
 
-Pinned on the right, after the series it does not belong to, is a noise channel marked NZ. It has the same envelope, tremolo, velocity, aftertouch, pan, mute, solo, level and meter as a partial, and takes part in solo alongside them. What it does not have is pitch, so the tuning, pitch modulation and drift rows are empty.
+Pinned on the right, after the series it does not belong to, is a noise channel marked NZ. It has the same envelope, tremolo, velocity, aftertouch, pan, mute, solo, level and meter as a partial, and takes part in solo alongside them. What it does not have is a place in the series, so it has no tuning, pitch modulation or drift of its own.
 
 COLOUR takes the tuning row instead. It tilts the noise from dark rumble at one end, through flat in the middle, to bright hiss at the other. The middle really is flat rather than merely filtered less: the two halves of a complementary one-pole pair are summed at unity there, which reconstructs the original white noise exactly. The tests measure a high to low band ratio of 0.13 dark, 1.06 flat and 4.35 bright.
 
 Each voice runs its own noise stream, so playing a chord does not layer 8 copies of the identical signal. Two voices measure about sqrt(2) times the energy of one, which is what independent sources give.
+
+**A string the noise strikes.** The block under COLOUR, where a partial's pitch modulation would be, holds a Karplus-Strong string, `KarplusString`: a delay line one period long fed back through a one-zero lowpass, so each pass round the loop is one cycle and the top of the series dies first, which is what makes a struck string sound struck. It is in the noise channel rather than a channel of its own because every partial being a channel you can see and shape is what the instrument is, and a string makes all its harmonics at once, which no row of the strips could reach. In the noise channel it gets the envelope, velocity, aftertouch, tremolo and pan the noise already has as its exciter, and adds four knobs rather than a column.
+
+It is struck by the noise after COLOUR and the envelope, so COLOUR decides how bright the strike is and the envelope whether it is struck once or blown into: a pluck and a pitched breath are settings, not modes. STRING crossfades from the noise alone to the string alone, so nought is the channel exactly as it was without one, and every preset renders bit for bit as it did.
+
+It is tuned to the fundamental's sounding pitch, the note with both bends, the fundamental's glide and Adaptive's slide, but not partial 1's own vibrato and drift, which belong to that partial. The pitch moves while a note sounds, so the loop is read at a fractional delay by third-order Lagrange interpolation that slides sample by sample, and the lowpass's own delay at the fundamental is taken out of the line's. Without that a dark string at 1000 Hz plays 19.6 cents flat. The tests hold it to under a cent at five pitches, three rates and three dampings. DECAY is the time the note itself takes, with the lowpass's loss at the fundamental given back in the loop gain, and holds to within 15% low and high, bright and dark.
+
+A pluck keeps the energy it was struck with, so it rings at about the level of the burst that struck it however long DECAY is, and a steady breath builds up the longer the string rings, as a resonating body does. Scaling the strike to keep a breath at the noise's level would leave a pluck 20 dB under its own strike. The noise channel then adds 12 dB, since a burst a few milliseconds long on one channel of thirty-three is faint beside a full organ.
+
+The string outlives the noise that struck it and keeps its voice alive while it rings, so a burst on an envelope that holds at silence still leaves a note. RELEASE is the damper: once the key is up the string's decay is shortened to the release time, so it has gone by the time the envelope has, and a stolen or faded voice damps it as fast as its envelopes are told to go. Where the loop is under 24 samples it starts fading back to the noise and is gone by 8, since a loop that short cannot be tuned, which at 48 kHz is from 2 kHz up. The line is sized once in `prepare` for the host's rate, which the converter can only lower, so nothing allocates on the audio thread, and a string nobody has played is never cleared.
+
+The four knobs share the block evenly rather than standing in the partials' rows, each with its name under it, since the gutter names those rows for the partials. For the same reason COLOUR and the string take no part in the row highlight: pointing at them lights no row across the mixer, and a row lit from another channel is not drawn over them.
 
 LINK gangs the 32 partials only. Its tuning, pitch modulation and drift have no noise counterpart, and having some ganged controls reach the noise channel while others could not would be worse than having none of them do.
 

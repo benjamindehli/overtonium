@@ -9,7 +9,23 @@
 namespace ovt::ui {
 
 namespace {
+/// The strip of each string row its name takes, under the knob, and the size
+/// it is set in, a little smaller than colour's since a knob shares its row.
+constexpr int kStringCaptionHeight = 9;
+constexpr float kStringCaptionFont = 9.0f;
+
 inline size_t rowIndex(Row r) { return (size_t)r; }
+
+/// The rows that hold the noise channel's own controls rather than its share
+/// of a row every channel has: colour where a partial is tuned, and the string
+/// where a partial's pitch is modulated. Neither is what the gutter names
+/// those rows, so the noise strip neither lights them across the mixer when
+/// they are hovered nor takes their highlight when another channel's are.
+bool ownRow(Row r) {
+  return r == Row::TuneKnob || r == Row::TuneText ||
+         r == Row::PitchModHeading || r == Row::PmShape || r == Row::PmRate ||
+         r == Row::PmDepth || r == Row::Drift || r == Row::Glide;
+}
 
 /// A neutral grey, deliberately outside the interval palette. Noise is not a
 /// member of the harmonic series and should not look like one.
@@ -66,6 +82,24 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
 
   setUpKnob(pan, params::panSuffix, colour,
             "Where the noise sits in the stereo field");
+
+  setUpKnob(stringAmount, params::stringSuffix, colour,
+            "How much of the noise goes through a string tuned to the note, "
+            "from the noise alone to the string alone. A short burst plucks "
+            "it, a held noise blows into it.",
+            "Noise string");
+  setUpKnob(stringDecay, params::stringDecaySuffix, colour,
+            "How long the string rings while the key is down. Once it is let "
+            "go the release damps it.",
+            "Noise string decay");
+  setUpKnob(stringDamp, params::stringDampSuffix, colour,
+            "How quickly the string loses its top, bright to dark",
+            "Noise string damp");
+  setUpKnob(stringPick, params::stringPickSuffix, colour,
+            "Where along the string the noise strikes it, from near the end, "
+            "which keeps every harmonic, to the middle, which loses the even "
+            "ones",
+            "Noise string pick");
 
   strike.getProperties().set("bipolar", true);
   velocity.getProperties().set("bipolar", true);
@@ -124,12 +158,13 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
   updateLevelReadout();
 
   setTooltip("Noise channel. It has the same envelope, tremolo, velocity and "
-             "aftertouch as a partial, but no pitch, so no tuning, pitch "
-             "modulation or drift.");
+             "aftertouch as a partial, and in place of tuning and pitch "
+             "modulation a string it can strike, tuned to the note.");
 }
 
 void NoiseStrip::setUpKnob(juce::Slider &s, const char *suffix,
-                           juce::Colour fill, const juce::String &tooltip) {
+                           juce::Colour fill, const juce::String &tooltip,
+                           const char *title) {
   s.setSliderStyle(juce::Slider::RotaryVerticalDrag);
   s.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
   s.setColour(juce::Slider::rotarySliderFillColourId, fill);
@@ -142,8 +177,9 @@ void NoiseStrip::setUpKnob(juce::Slider &s, const char *suffix,
   // tooltips are not, so the tooltip becomes the description instead: that is
   // the field for the longer explanation.
   const auto role = roleForSuffix(suffix);
-  s.setTitle(role != Role::NumRoles ? "Noise " + juce::String(roleLabel(role))
-                                    : "Noise colour");
+  s.setTitle(title != nullptr         ? juce::String(title)
+             : role != Role::NumRoles ? "Noise " + juce::String(roleLabel(role))
+                                      : "Noise colour");
   s.setDescription(tooltip);
   addAndMakeVisible(s);
 
@@ -330,7 +366,8 @@ void NoiseStrip::reportHover(const juce::MouseEvent &e) {
 
   // -1 says the pointer is off the harmonic series, which is what stops a
   // hover here from arming a LINK preview.
-  hover.hoverChanged(-1, inside ? ChannelStrip::rowUnder(rows, p) : kNoRow);
+  const auto row = inside ? ChannelStrip::rowUnder(rows, p) : kNoRow;
+  hover.hoverChanged(-1, ownRow(row) ? kNoRow : row);
 
   if (inside != hovered) {
     hovered = inside;
@@ -344,7 +381,8 @@ void NoiseStrip::paintOverChildren(juce::Graphics &g) {
   // that fills the whole row and paints an opaque backdrop, so a wash drawn
   // underneath is covered by it and only the output heading, which has no
   // lamp, appeared to highlight at all.
-  if (rowShowsHighlight(highlighted) && isHeadingRow(highlighted)) {
+  if (rowShowsHighlight(highlighted) && isHeadingRow(highlighted) &&
+      !ownRow(highlighted)) {
     const auto rows = layoutRows(
         getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed, scroll);
 
@@ -382,17 +420,25 @@ void NoiseStrip::paint(juce::Graphics &g) {
   // The same band the numbered channels light. This strip tracked the hovered
   // row and repainted for it but never drew it, so the mixer highlighted
   // across thirty-two columns and stopped at the thirty-third.
-  if (rowShowsHighlight(highlighted) && !isHeadingRow(highlighted))
+  if (rowShowsHighlight(highlighted) && !isHeadingRow(highlighted) &&
+      !ownRow(highlighted))
     paintRowHighlight(g, rows[rowIndex(highlighted)]);
 
   // Every other section rule carries a lamp and draws itself. This strip has
-  // no pitch to modulate, so that one heading is left plain and the rows under
-  // it are left empty, which the unlit rule already explains.
-  g.setColour(colours::outline.withAlpha(0.7f));
-  for (auto r : {Row::PitchModHeading}) {
-    const auto row = rows[rowIndex(r)];
-    g.fillRect(row.getX(), row.getY() + row.getHeight() / 2, row.getWidth(), 1);
-  }
+  // no pitch modulation, so its block holds the string instead and no rule is
+  // drawn across it.
+
+  // The string's knobs name themselves, as colour does, since the gutter
+  // names these rows for the partials.
+  static const char *const names[] = {"string", "decay", "damp", "pick"};
+
+  g.setColour(colours::textDim);
+  g.setFont(makeFont(kStringCaptionFont));
+
+  for (size_t i = 0; i < stringCaptions.size(); ++i)
+    if (!stringCaptions[i].isEmpty())
+      g.drawText(names[i], stringCaptions[i], juce::Justification::centred,
+                 false);
 }
 
 void NoiseStrip::updateLevelReadout() {
@@ -498,6 +544,43 @@ void NoiseStrip::resized() {
   placeRow(velocity, Row::Velocity, 1);
   placeRow(aftertouch, Row::Aftertouch, 1);
   placeRow(pan, Row::Pan, 1);
+
+  // The string takes the whole block a partial's pitch modulation takes, from
+  // under colour down to the envelope's rule, shared out evenly between its
+  // four knobs, each with its name under it. It is not lined up with the
+  // partials' rows, since the gutter's names are not its names. A row scrolled
+  // out of the band or folded away keeps its place with no height, so the
+  // block is found the same way whatever the scroll, and the header's cap
+  // covers whatever of it has scrolled under the header.
+  {
+    juce::Slider *knobs[] = {&stringAmount, &stringDecay, &stringDamp,
+                             &stringPick};
+
+    const auto top = rows[rowIndex(Row::PitchModHeading)].getY();
+    const auto bottom = rows[rowIndex(Row::EnvHeading)].getY();
+    const auto bandTop = rows[rowIndex(Row::Header)].getBottom();
+    const bool folded = rowIsCollapsed(Row::PmRate, collapsed);
+    const auto cell = (bottom - top) / 4;
+
+    for (size_t i = 0; i < 4; ++i) {
+      auto r = juce::Rectangle<int>(
+          rows[rowIndex(Row::PmRate)].getX(), top + (int)i * cell,
+          rows[rowIndex(Row::PmRate)].getWidth(), cell);
+
+      if (folded || r.getBottom() <= bandTop || r.getY() >= getHeight()) {
+        knobs[i]->setVisible(false);
+        stringCaptions[i] = {};
+        continue;
+      }
+
+      // The size a knob in a row is, centred in its share of the block, so
+      // the strip still has the two sizes every channel has.
+      stringCaptions[i] = r.removeFromBottom(kStringCaptionHeight);
+      knobs[i]->setVisible(true);
+      knobs[i]->setBounds(r.withSizeKeepingCentre(r.getWidth() - 2,
+                                                  rowHeight(Row::PmRate) - 2));
+    }
+  }
 
   // Down to the foot of the header and no further. The row's own rectangle
   // already carries the column's top padding, so adding it again put the cap

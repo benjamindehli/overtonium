@@ -6,6 +6,7 @@
 #include "Drift.h"
 #include "Envelope.h"
 #include "Harmonics.h"
+#include "KarplusString.h"
 #include "Lfo.h"
 #include "Params.h"
 #include "Velocity.h"
@@ -428,6 +429,18 @@ private:
   /// voice layering the identical signal.
   struct Noise {
     Envelope env;
+    KarplusString string;
+
+    /// Whether the string is still sounding. It outlives the noise that
+    /// struck it, which is the point of it: a pluck is a burst of noise a few
+    /// milliseconds long, and the string rings on after the noise's envelope
+    /// has gone idle. The voice stays alive while this is true.
+    bool stringAlive = false;
+
+    /// A damper brought down on the string by a steal or a fade, in seconds,
+    /// or nought for none. A voice taken for another note has to stop as
+    /// quickly as its envelopes are told to.
+    float damperSeconds = 0.0f;
     Xorshift rng;
     Lfo ampLfo;
     float lowpassState = 0.0f;
