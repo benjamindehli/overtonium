@@ -472,18 +472,14 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
 
   topBar.onUpdateCheckToggled = [this](bool allowed) {
     ovt::setUpdateCheckAllowed(allowed);
-    topBar.setUpdateOffer(false);
+
+    // Answered in the menu, so the question has been answered too.
+    ovt::markUpdateCheckOffered();
 
     if (allowed)
       maybeCheckForUpdates();
     else
       topBar.setUpdateAvailable({}, {});
-  };
-
-  topBar.onUpdateOfferAccepted = [this] {
-    ovt::setUpdateCheckAllowed(true);
-    topBar.setUpdateOffer(false);
-    maybeCheckForUpdates();
   };
 
   // applyPreset goes through the processor, which records the name itself, so
@@ -609,6 +605,10 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   // than to the scrolling content, so it covers the bar as well: it is a
   // thing you are doing instead of playing, not a part of the mixer.
   addChildComponent(macroPanel);
+
+  // Above even MACROS, since a question waiting for an answer should not end
+  // up behind a panel someone opens afterwards.
+  addChildComponent(notice);
 
   macroPanel.onLearnRequested = [this](const juce::String &id) {
     showLearnMenu(id);
@@ -881,6 +881,7 @@ void OvertoniumEditor::resized() {
   // playing, so the zoom that sizes the instrument has nothing to say about
   // how big a menu of macros should be.
   macroPanel.setBounds(getLocalBounds());
+  notice.setBounds(getLocalBounds());
 
   content.setTransform(juce::AffineTransform::scale(zoom));
   content.setBounds(0, 0, logicalWidth, logicalHeight);
@@ -1011,7 +1012,7 @@ void OvertoniumEditor::applyResizeLimits(int forLogicalWidth) {
   const int minWidth = minimumLogicalWidth();
 
   // The floor follows the width, and the reason is the bar. It takes three
-  // rows at the narrowest window, two from 648, and one from 1258, which is
+  // rows at the narrowest window, two from 628, and one from 1092, which is
   // 182, 124 and 66 pixels of chrome, so the same mixer needs a window 116
   // pixels taller at one end of the range than at the other.
   //
@@ -1226,7 +1227,7 @@ void OvertoniumEditor::maybeCheckForUpdates() {
       [safe = juce::Component::SafePointer<OvertoniumEditor>(this)] {
         if (auto *editor = safe.getComponent())
           if (const auto release = editor->plugin().updates().newerRelease())
-            editor->topBar.setUpdateAvailable(release->version, release->url);
+            editor->announceRelease(release->version, release->url);
       });
 
   plugin().updates().start(OVERTONIUM_VERSION);
@@ -1238,19 +1239,53 @@ void OvertoniumEditor::offerUpdateCheck() {
     return;
   }
 
-  // Offered once, in the credit line, and never again. No dialog: a plugin
-  // cannot tell a person opening it from a host walking the plugin folder at
-  // startup, and a modal in the second case stops the scan dead. pluginval
-  // does exactly that, several editors in a row.
-  //
-  // The mark is written before the offer is shown rather than after it is
-  // answered, because an offer nobody takes is still an offer made, and asking
-  // again every time the window opens is nagging.
   if (ovt::updateCheckOffered())
     return;
 
-  ovt::markUpdateCheckOffered();
-  topBar.setUpdateOffer(true);
+  // Asked in the window rather than in a window of its own, so a host walking
+  // the plugin folder at startup, which opens editors with nobody there, is
+  // not held up by it. pluginval does exactly that, several editors in a row.
+  //
+  // Marked when it is answered rather than when it is shown, for the same
+  // reason: an editor opened by a scan shows it to nobody, and that should not
+  // use up the one time it is asked. Both buttons are an answer, so a person
+  // sees it once.
+  notice.show(
+      "UPDATES",
+      "Overtonium can check for a new version when its window opens. "
+      "It reads one small file from the project's website and sends "
+      "nothing about you. You can change this any time under "
+      "SETTINGS.",
+      "Check for updates", "Not now",
+      [this] {
+        ovt::markUpdateCheckOffered();
+        ovt::setUpdateCheckAllowed(true);
+        maybeCheckForUpdates();
+      },
+      [] { ovt::markUpdateCheckOffered(); });
+}
+
+void OvertoniumEditor::announceRelease(const juce::String &version,
+                                       const juce::String &url) {
+  // SETTINGS says so for as long as it is true.
+  topBar.setUpdateAvailable(version, url);
+
+  // And a dialog says so once per release, marked when it is answered, as the
+  // first question is.
+  if (ovt::announcedVersion() == version)
+    return;
+
+  notice.show(
+      "UPDATE",
+      "Overtonium " + version +
+          " is out. Its release notes say what has changed. SETTINGS "
+          "stays lit until you have it.",
+      "See what's new", "Later",
+      [version, url] {
+        ovt::markVersionAnnounced(version);
+        juce::URL(url).launchInDefaultBrowser();
+      },
+      [version] { ovt::markVersionAnnounced(version); });
 }
 
 void OvertoniumEditor::applyPreset(int index) {
@@ -1631,6 +1666,10 @@ void OvertoniumEditor::showMacroPanel(bool show) {
   macroPanel.setVisible(show);
   macroPanel.toFront(false);
   topBar.setMacrosOn(show);
+
+  // A question still waiting stays in front of it.
+  if (notice.isShowing())
+    notice.toFront(false);
 }
 
 void OvertoniumEditor::showMacroMenu(int macro) {

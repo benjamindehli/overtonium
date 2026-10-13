@@ -29,6 +29,16 @@ void setUpdateCheckAllowed(bool);
 bool updateCheckOffered();
 void markUpdateCheckOffered();
 
+/// Clears the mark as well as setting it, for a test that has to put back
+/// whatever answer the machine running it already had.
+void setUpdateCheckOffered(bool);
+
+/// The newest release the window has already told someone about, so each one
+/// is announced once rather than every time the window opens. Empty until the
+/// first is. Kept beside the preference, for the same reason it is.
+juce::String announcedVersion();
+void markVersionAnnounced(const juce::String &version);
+
 /// The one release the plugin asks about.
 struct ReleaseInfo {
   juce::String version;

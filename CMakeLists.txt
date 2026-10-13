@@ -118,6 +118,7 @@ set(OVERTONIUM_SOURCES
     Source/UI/ChannelStrip.cpp
     Source/UI/LookAndFeel.cpp
     Source/UI/MuteSoloButton.cpp
+    Source/UI/Notice.cpp
     Source/UI/NoiseStrip.cpp
     Source/UI/OptionBars.cpp
     Source/UI/SettingsMenus.cpp

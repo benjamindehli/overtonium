@@ -530,7 +530,7 @@ Horizontal, split into left and right, because the two channels are identical un
 
 Page: Playing Overtonium: MPE, automation, macros and MIDI Learn
 URL: https://benjamindehli.github.io/overtonium/playing/
-Last changed: 2026-10-12
+Last changed: 2026-10-13
 
 # Playing
 
@@ -593,7 +593,7 @@ GLIDE is a row like any other, so [LINK](https://benjamindehli.github.io/overton
 
 ## The Playing and Tuning bars
 
-The two lower buttons beside the preset name, a keyboard and a tuning fork, each open a bar between the top bar and the mixer, for the settings that get changed while playing rather than set once. Both are closed until you open them, and each instance remembers which are open. A bar takes its height from the mixer, which scrolls, so the window keeps its size, unless it is already as short as it goes, in which case it grows by the bar.
+The two lower of the four buttons at the left end of the top bar, a keyboard and a tuning fork, each open a bar between the top bar and the mixer, for the settings that get changed while playing rather than set once. Both are closed until you open them, and each instance remembers which are open. A bar takes its height from the mixer, which scrolls, so the window keeps its size, unless it is already as short as it goes, in which case it grows by the bar.
 
 **Playing** holds the voice count with IN USE, how many voices are sounding, release tails included, and Legato and No stack beside it, the pitch bend range, and MPE with Aftertouch from and Slide to. Then it shows what your hands are doing. SUSTAIN lights while the pedal is down. PITCH shows the pitch wheel from the middle against the bend range, or under MPE the key bent furthest. WHEEL and PRESSURE rise from the left, PRESSURE showing the keyboard's own pressure, the channel's or the key pressed hardest, so the wheel moves WHEEL alone even when Aftertouch from follows it. Last come the eight [macros](https://benjamindehli.github.io/overtonium/playing/#macros) as knobs in their colours, each named for the row it is aimed at and turning the same amount as its slider in MACROS. A macro not yet made shows a blank knob with its number. Right-click a knob to assign its macro, to change it in MACROS, or to bind a controller to it. **Tuning** holds the temperament, root and reference pitch, with the drift beside them under Adaptive. Under Adaptive it also has a NO DRIFT switch that keeps the keyboard home, a 7:4 switch for the harmonic seventh, a PURE lamp and the Retune knob, which between them say [what Adaptive is doing](https://benjamindehli.github.io/overtonium/tuning/#adaptive) to the chord you hold. Last come twelve displays, one for each note, saying how far it sits from equal temperament in cents, with the white keys on a lighter ground the way a keyboard has them. Each display of a setting opens the same list as its entry in Settings and each switch lights while it is on, so a bar is another way to reach the same settings rather than a second copy of them. In a window too narrow for a whole bar, it wraps onto further rows the way the top bar does, and takes the extra height from the mixer.
 
@@ -1066,11 +1066,11 @@ Anything else is worth reporting on the [issue tracker](https://github.com/benja
 
 ## Telling you about new versions
 
-Off unless you ask for it. The first time you open the window, the credit line under the wordmark offers to turn the check on, once. Nothing reaches the network unless you take that offer, ignoring it costs nothing, and it is not asked again. The setting lives under Settings from then on.
+Off unless you ask for it. The first time you open the window, a dialog asks whether to turn the check on. Nothing reaches the network unless you say yes, and either answer is remembered, so it is not asked again. The setting lives under Settings from then on.
 
-With it on, the plugin fetches one small file from this site in the background and compares the version in it against the build you are running. If there is something newer, the credit line says so, and clicking it opens the release page. It is a plain request for a static file: no identifier, no telemetry, nothing about your machine. The [security policy](https://github.com/benjamindehli/overtonium/blob/main/SECURITY.md) spells out exactly what is sent.
+With it on, the plugin fetches one small file from this site when the window opens and compares the version in it against the build you are running. If there is something newer, a dialog says so, once for each release, SETTINGS lights up, and the first item in its menu opens the release page. It is a plain request for a static file: no identifier, no telemetry, nothing about your machine. The [security policy](https://github.com/benjamindehli/overtonium/blob/main/SECURITY.md) spells out exactly what is sent.
 
-There is no dialog, on purpose. A plugin cannot tell someone opening it from a host scanning its plugin folder at startup, and a modal in the second case stops the scan.
+The dialogs are drawn inside the plugin's own window rather than opened as windows of their own. A plugin cannot tell someone opening it from a host scanning its plugin folder at startup, and a window that waited for an answer would stop the scan. These wait for nothing, and a question only counts as asked once someone has answered it.
 
 ## What it costs to run
 

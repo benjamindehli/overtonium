@@ -113,22 +113,15 @@ public:
 
   void mouseDown(const juce::MouseEvent &) override;
 
-  /// Puts a newer release in the credit line under the wordmark, where the
-  /// tagline usually sits, and makes it clickable. Called with an empty
-  /// version to say nothing, which is the state it starts in and stays in for
-  /// anyone who has not turned the check on.
+  /// Says a newer release is out: SETTINGS lights, and the release is the
+  /// first item in its menu, which goes to it. Called with an empty version to
+  /// say nothing, which is the state it starts in and stays in for anyone who
+  /// has not turned the check on.
   void setUpdateAvailable(const juce::String &version, const juce::String &url);
 
-  /// Offers the update check in the credit line, once, instead of putting a
-  /// dialog in front of someone who has not asked for one. A plugin cannot
-  /// tell whether it is being opened by a person or by a host scanning its
-  /// folder, and a modal in the second case stops the scan.
-  void setUpdateOffer(bool);
-
-  std::function<void()> onUpdateOfferAccepted;
-
-  void mouseUp(const juce::MouseEvent &) override;
-  void mouseMove(const juce::MouseEvent &) override;
+  /// The release SETTINGS is saying is out, or empty. Read back by the tests.
+  const juce::String &availableUpdate() const noexcept { return updateVersion; }
+  bool isSettingsLit() const { return settingsButton.getToggleState(); }
 
   // ---- callbacks the editor fills in ----
   std::function<void(int)> onPresetChosen;
@@ -224,16 +217,10 @@ public:
   void setZoomChoice(float zoom);
 
 private:
-  /// The release the credit line is currently advertising, and where it sends
+  /// The release SETTINGS is currently advertising, and where it sends
   /// someone who clicks. Empty when there is nothing to say.
   juce::String updateVersion, updateUrl;
-  bool offeringUpdateCheck = false;
 
-  /// Where that text landed, so a click can be tested against it. Filled in
-  /// while painting, since that is where the block is worked out.
-  juce::Rectangle<int> updateBounds;
-
-  void paintCreditLine(juce::Graphics &, juce::Rectangle<int>);
   using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
   using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
 
@@ -376,8 +363,8 @@ private:
 
   /// Related controls sit together in a bordered group.
   enum Group {
-    PresetGroup = 0,
-    VoiceGroup,
+    VoiceGroup = 0,
+    PresetGroup,
     SeriesGroup,
     EchoGroup,
     ReverbGroup,
@@ -393,7 +380,7 @@ private:
   };
 
   /// Packs the groups into as many rows as it takes.
-  static RowPlan planRows(int firstRowWidth, int fullWidth, int maxRows);
+  static RowPlan planRows(int width, int maxRows);
 
   /// Clears every control's bounds before a fresh pass. Without this a control
   /// that does not get placed keeps whatever position it had when the window
