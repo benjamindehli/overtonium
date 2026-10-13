@@ -31,6 +31,7 @@
 #include "dsp/Envelope.h"
 #include "dsp/Halfband.h"
 #include "dsp/Harmonics.h"
+#include "dsp/KarplusString.h"
 #include "dsp/OutputStage.h"
 #include "dsp/PlateReverb.h"
 #include "dsp/Reverb.h"
@@ -4184,6 +4185,275 @@ void testActivity() {
     p.osc[0].velAmount = 0.0f;
     p.osc[0].atAmount = 0.0f;
   }
+}
+
+/// The pitch of a signal near `expectedHz`, from the autocorrelation peak
+/// refined by a parabola through its neighbours, so a fraction of a cent shows.
+double pitchNear(const std::vector<float> &x, size_t from, size_t count,
+                 double rate, double expectedHz) {
+  const auto expected = rate / expectedHz;
+  const auto lo = std::max<size_t>(2, (size_t)(expected * 0.95));
+  const auto hi = (size_t)(expected * 1.05) + 2;
+
+  const auto corr = [&](size_t lag) {
+    double sum = 0.0, a = 0.0, b = 0.0;
+    for (size_t n = from; n < from + count; ++n) {
+      sum += (double)x[n] * (double)x[n + lag];
+      a += (double)x[n] * (double)x[n];
+      b += (double)x[n + lag] * (double)x[n + lag];
+    }
+    return sum / std::sqrt(std::max(1.0e-30, a * b));
+  };
+
+  size_t best = lo;
+  double bestValue = -2.0;
+  for (size_t lag = lo; lag <= hi; ++lag)
+    if (const auto v = corr(lag); v > bestValue) {
+      bestValue = v;
+      best = lag;
+    }
+
+  const auto before = corr(best - 1), after = corr(best + 1);
+  const auto bend = before - 2.0 * bestValue + after;
+  const auto shift =
+      std::abs(bend) > 1.0e-12 ? 0.5 * (before - after) / bend : 0.0;
+  return rate / ((double)best + shift);
+}
+
+/// The string the noise channel strikes: in tune, ringing for as long as
+/// DECAY says, following a pitch that moves, quiet where it cannot be tuned,
+/// and as loud as the noise that breathes into it.
+void testKarplusString() {
+  section("The string in the noise channel");
+
+  std::mt19937 rng(11);
+  std::uniform_real_distribution<float> white(-1.0f, 1.0f);
+
+  // Struck with a short burst and left to ring.
+  const auto pluck = [&](KarplusString &string, double rate, double hz,
+                         double decay, float damp, double seconds) {
+    const auto n = (size_t)(seconds * rate);
+    std::vector<float> out(n);
+    const auto burst = (size_t)(0.004 * rate);
+    for (size_t i = 0; i < n; i += 32) {
+      const auto len = (int)std::min<size_t>(32, n - i);
+      string.setBlock(hz, decay, damp, 0.0f, len);
+      for (size_t k = i; k < i + (size_t)len; ++k)
+        out[k] = string.tick(k < burst ? white(rng) : 0.0f);
+    }
+    return out;
+  };
+
+  // ---- in tune
+  // ---------------------------------------------------------------
+  double worst = 0.0;
+  std::string worstCase;
+  for (const double rate : {44100.0, 48000.0, 96000.0})
+    for (const double hz : {55.0, 110.0, 261.6, 440.0, 1000.0})
+      for (const float damp : {0.0f, 0.5f, 1.0f}) {
+        KarplusString string;
+        string.prepare(rate);
+        const auto out = pluck(string, rate, hz, 3.0, damp, 0.5);
+        const auto from = (size_t)(0.1 * rate);
+        const auto measured =
+            pitchNear(out, from, (size_t)(0.25 * rate), rate, hz);
+        const auto cents = std::abs(1200.0 * std::log2(measured / hz));
+        if (cents > worst) {
+          worst = cents;
+          worstCase = std::to_string((int)hz) + " Hz at " +
+                      std::to_string((int)rate) + ", damp " +
+                      std::to_string(damp);
+        }
+      }
+  check(worst < 1.0, "the string is in tune at every pitch, rate and damping "
+                     "(worst " +
+                         std::to_string(worst) + " cents, " + worstCase + ")");
+
+  // ---- rings as long as DECAY says
+  // -------------------------------------------
+  {
+    const double rate = 48000.0, decay = 1.0;
+    bool asLong = true;
+    std::string readings;
+    // High as well as low, since the damping costs a high note far more of
+    // its fundamental each second than a low one.
+    for (const auto &[hz, damp] :
+         {std::pair{110.0, 0.0f}, std::pair{110.0, 1.0f},
+          std::pair{880.0, 1.0f}}) {
+      KarplusString string;
+      string.prepare(rate);
+      const auto out = pluck(string, rate, hz, decay, damp, 1.2);
+
+      const auto level = [&](double at) {
+        double sum = 0.0;
+        const auto from = (size_t)(at * rate), count = (size_t)(0.05 * rate);
+        for (size_t k = from; k < from + count; ++k)
+          sum += (double)out[k] * (double)out[k];
+        return std::sqrt(sum / (double)count);
+      };
+
+      // Late enough that the upper harmonics, which die faster, are gone.
+      const auto dB = 20.0 * std::log10(level(0.9) / level(0.4));
+      const auto t60 = -60.0 * 0.5 / dB;
+      readings += std::to_string(t60) + " ";
+      asLong &= t60 > 0.85 * decay && t60 < 1.15 * decay;
+    }
+    check(asLong, "and rings for the time DECAY says, bright or dark (" +
+                      readings + "s)");
+  }
+
+  // ---- follows a pitch that moves
+  // ----------------------------------------------
+  {
+    const double rate = 48000.0;
+    KarplusString string;
+    string.prepare(rate);
+    const auto n = (size_t)(1.0 * rate);
+    std::vector<float> out(n);
+    bool finite = true;
+    for (size_t i = 0; i < n; i += 32) {
+      // A breath held under an octave's slide up and back down, then held.
+      const auto t = (double)i / rate;
+      const auto hz = t < 0.4   ? 220.0 * std::exp2(t / 0.4)
+                      : t < 0.6 ? 440.0
+                                : 440.0;
+      string.setBlock(hz, 0.5, 0.4f, 0.25f, 32);
+      for (size_t k = i; k < i + 32 && k < n; ++k) {
+        out[k] = string.tick(0.2f * white(rng));
+        finite &= std::isfinite(out[k]) && std::abs(out[k]) < 4.0f;
+      }
+    }
+    const auto measured =
+        pitchNear(out, (size_t)(0.7 * rate), (size_t)(0.2 * rate), rate, 440.0);
+    check(finite && std::abs(1200.0 * std::log2(measured / 440.0)) < 3.0,
+          "it follows a slide an octave up, and lands in tune (" +
+              std::to_string(measured) + " Hz)");
+  }
+
+  // ---- faded where it cannot be tuned
+  // ------------------------------------------
+  {
+    const double rate = 48000.0;
+    const auto audibleAt = [&](double hz) {
+      KarplusString string;
+      string.prepare(rate);
+      string.setBlock(hz, 1.0, 0.4f, 0.25f, 32);
+      return string.audibility();
+    };
+    check(exactly(audibleAt(440.0), 1.0f) && exactly(audibleAt(1500.0), 1.0f),
+          "it is heard where the loop is long enough to tune");
+    check(exactly(audibleAt(rate / 6.0), 0.0f) && exactly(audibleAt(5.0), 0.0f),
+          "and gone where it is not, at the top and below the lowest string");
+    const auto between = audibleAt(rate / 16.0);
+    check(between > 0.0f && between < 1.0f,
+          "with a fade between (" + std::to_string(between) + ")");
+  }
+
+  // ---- as loud as what breathes into it
+  // ----------------------------------------
+  {
+    const double rate = 48000.0;
+    bool level = true;
+    std::string readings;
+    for (const double decay : {0.1, 1.0, 5.0}) {
+      KarplusString string;
+      string.prepare(rate);
+      double in = 0.0, out = 0.0;
+      const auto n = (size_t)(2.0 * rate);
+      for (size_t i = 0; i < n; i += 32) {
+        string.setBlock(220.0, decay, 0.0f, 0.5f, 32);
+        for (size_t k = 0; k < 32; ++k) {
+          const auto x = 0.3f * white(rng);
+          const auto y = string.tick(x);
+          if (i > n / 2) {
+            in += (double)x * x;
+            out += (double)y * y;
+          }
+        }
+      }
+      const auto ratio = std::sqrt(out / in);
+      readings += std::to_string(ratio) + " ";
+      level &= ratio > 0.4 && ratio < 2.5;
+    }
+    check(level, "breathed into steadily it comes out about as loud as the "
+                 "noise, however long it rings (" +
+                     readings + ")");
+  }
+
+  // ---- in the noise channel
+  // ------------------------------------------------------
+  const double sr = 48000.0;
+  const auto channel = [&](float amount, float bend, bool letGo) {
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+    auto p = makeFlatParams(0.0f);
+    // Every partial silent and its envelope gone within a few milliseconds,
+    // so nothing but the string can be keeping the voice alive.
+    for (auto &o : p.osc) {
+      o.volume = 0.0f;
+      o.decay = 0.01f;
+      o.sustain = 0.0f;
+      o.offLevel = 0.0f;
+    }
+    p.noise.volume = 0.6f;
+    p.noise.velAmount = 0.0f;
+    p.noise.attack = 0.001f;
+    p.noise.decay = 0.01f;
+    p.noise.sustain = 0.0f;
+    p.noise.release = 0.05f;
+    p.noise.stringAmount = amount;
+    p.noise.stringDecay = 2.0f;
+    p.noise.stringDamp = 0.3f;
+    p.noise.stringPick = 0.1f;
+    p.global.bendSemitones = bend;
+
+    engine.noteOn(57, 1.0f, p); // A3, 220 Hz
+    const auto n = (size_t)(0.6 * sr);
+    std::vector<float> l(n), r(n);
+
+    // In blocks the size a host hands over, since whether a voice is still
+    // alive is decided between them.
+    bool letGone = false;
+    for (size_t done = 0; done < n; done += 512) {
+      if (letGo && !letGone && done >= n / 2) {
+        engine.noteOff(57);
+        letGone = true;
+      }
+      const auto len = (int)std::min<size_t>(512, n - done);
+      engine.render(l.data() + done, r.data() + done, len, p);
+    }
+    return l;
+  };
+
+  const auto rms = [](const std::vector<float> &x, double from, double to) {
+    double sum = 0.0;
+    const auto a = (size_t)(from * 48000.0), b = (size_t)(to * 48000.0);
+    for (size_t k = a; k < b; ++k)
+      sum += (double)x[k] * (double)x[k];
+    return std::sqrt(sum / (double)(b - a));
+  };
+
+  const auto plain = channel(0.0f, 0.0f, false);
+  const auto strung = channel(1.0f, 0.0f, false);
+  const auto bent = channel(1.0f, 2.0f, false);
+  const auto damped = channel(1.0f, 0.0f, true);
+
+  check(rms(plain, 0.15, 0.25) < 1.0e-6 && rms(strung, 0.15, 0.25) > 1.0e-3,
+        "a burst of noise that has ended leaves the string ringing");
+
+  const auto played =
+      pitchNear(strung, (size_t)(0.1 * sr), (size_t)(0.15 * sr), sr, 220.0);
+  const auto bentTo = pitchNear(bent, (size_t)(0.1 * sr), (size_t)(0.15 * sr),
+                                sr, 220.0 * std::exp2(2.0 / 12.0));
+  check(std::abs(1200.0 * std::log2(played / 220.0)) < 2.0,
+        "at the note's pitch (" + std::to_string(played) + " Hz)");
+  check(std::abs(1200.0 * std::log2(bentTo / (220.0 * std::exp2(2.0 / 12.0)))) <
+            2.0,
+        "and follows the pitch wheel (" + std::to_string(bentTo) + " Hz)");
+
+  check(rms(damped, 0.45, 0.5) < 0.1 * rms(strung, 0.45, 0.5),
+        "letting the key go damps it over the channel's release");
 }
 
 /// What the Playing bar's meters read off the engine: the widest bend and the
@@ -10176,6 +10446,7 @@ int main() {
   testTopLineLegato();
   testOneVoicePerKey();
   testPerNoteChannels();
+  testKarplusString();
   testHeldExpression();
   testActivity();
   testPoolExhaustion();

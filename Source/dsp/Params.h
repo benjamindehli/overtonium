@@ -135,6 +135,14 @@ struct NoiseParams {
   float volume = 0.0f;
   float pan = 0.0f;
 
+  /// The string the noise strikes. See KarplusString. STRING crossfades from
+  /// the noise as it is to the string alone, so nought is the channel exactly
+  /// as it was without one.
+  float stringAmount = 0.0f;
+  float stringDecay = 1.5f; ///< seconds, how long it rings with the key down
+  float stringDamp = 0.4f;  ///< 0 bright to 1 dark
+  float stringPick = 0.25f; ///< 0 struck near the end to 1 in the middle
+
   bool audible = true;
 };
 
