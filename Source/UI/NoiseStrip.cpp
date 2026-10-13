@@ -16,6 +16,17 @@ constexpr float kStringCaptionFont = 9.0f;
 
 inline size_t rowIndex(Row r) { return (size_t)r; }
 
+/// The rows that hold the noise channel's own controls rather than its share
+/// of a row every channel has: colour where a partial is tuned, and the string
+/// where a partial's pitch is modulated. Neither is what the gutter names
+/// those rows, so the noise strip neither lights them across the mixer when
+/// they are hovered nor takes their highlight when another channel's are.
+bool ownRow(Row r) {
+  return r == Row::TuneKnob || r == Row::TuneText ||
+         r == Row::PitchModHeading || r == Row::PmShape || r == Row::PmRate ||
+         r == Row::PmDepth || r == Row::Drift || r == Row::Glide;
+}
+
 /// A neutral grey, deliberately outside the interval palette. Noise is not a
 /// member of the harmonic series and should not look like one.
 const juce::Colour kNoiseColour{0xff9aa4b0};
@@ -355,7 +366,8 @@ void NoiseStrip::reportHover(const juce::MouseEvent &e) {
 
   // -1 says the pointer is off the harmonic series, which is what stops a
   // hover here from arming a LINK preview.
-  hover.hoverChanged(-1, inside ? ChannelStrip::rowUnder(rows, p) : kNoRow);
+  const auto row = inside ? ChannelStrip::rowUnder(rows, p) : kNoRow;
+  hover.hoverChanged(-1, ownRow(row) ? kNoRow : row);
 
   if (inside != hovered) {
     hovered = inside;
@@ -369,7 +381,8 @@ void NoiseStrip::paintOverChildren(juce::Graphics &g) {
   // that fills the whole row and paints an opaque backdrop, so a wash drawn
   // underneath is covered by it and only the output heading, which has no
   // lamp, appeared to highlight at all.
-  if (rowShowsHighlight(highlighted) && isHeadingRow(highlighted)) {
+  if (rowShowsHighlight(highlighted) && isHeadingRow(highlighted) &&
+      !ownRow(highlighted)) {
     const auto rows = layoutRows(
         getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed, scroll);
 
@@ -407,7 +420,8 @@ void NoiseStrip::paint(juce::Graphics &g) {
   // The same band the numbered channels light. This strip tracked the hovered
   // row and repainted for it but never drew it, so the mixer highlighted
   // across thirty-two columns and stopped at the thirty-third.
-  if (rowShowsHighlight(highlighted) && !isHeadingRow(highlighted))
+  if (rowShowsHighlight(highlighted) && !isHeadingRow(highlighted) &&
+      !ownRow(highlighted))
     paintRowHighlight(g, rows[rowIndex(highlighted)]);
 
   // Every other section rule carries a lamp and draws itself. This strip has

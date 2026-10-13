@@ -21,6 +21,14 @@ constexpr double kDriftMaxHz = 1.10;
 /// it into a usable "body" and "air" either side.
 constexpr double kNoiseTiltHz = 1000.0;
 
+/// What the noise channel adds to its string, +12 dB. A pluck rings at about
+/// the level of the burst that struck it, and a burst a few milliseconds long
+/// on a channel that is one layer among thirty-three is faint, so without it
+/// a pluck could not stand beside a full organ even with the channel's fader
+/// at the top. A breath, which builds up of its own accord, is the setting
+/// that wants the fader brought down instead.
+constexpr float kStringGain = 4.0f;
+
 /// Below this an envelope is silent, so restarting it costs nothing. The same
 /// figure the envelope itself calls the end of a release.
 constexpr float kSilent = 1.0e-5f;
@@ -1014,7 +1022,7 @@ void Voice::renderNoise(float *left, float *right, int len,
     // this pitch: where the loop is too short to tune, the noise is left as
     // it was.
     if (stringOn) {
-      const float rung = noise.string.tick(out);
+      const float rung = noise.string.tick(out) * kStringGain;
       rungPeak = std::max(rungPeak, std::abs(rung));
       out += amount * noise.string.audibility() * (rung - out);
     }

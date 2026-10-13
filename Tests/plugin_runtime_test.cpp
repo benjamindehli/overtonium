@@ -7722,11 +7722,12 @@ void testNoiseString(OvertoniumProcessor &p) {
 void testNoiseStringKnobs(OvertoniumProcessor &p) {
   section("The noise strip's string knobs");
 
-  struct SilentHover final : ovt::ui::HoverTarget {
-    void hoverChanged(int, ovt::ui::Row) override {}
+  struct WatchingHover final : ovt::ui::HoverTarget {
+    ovt::ui::Row last = ovt::ui::kNoRow;
+    void hoverChanged(int, ovt::ui::Row row) override { last = row; }
   };
 
-  SilentHover hover;
+  WatchingHover hover;
   juce::Component popupParent;
   ovt::ui::NoiseStrip strip(p.apvts, hover, popupParent);
   strip.setSize(40, 1000);
@@ -7781,6 +7782,70 @@ void testNoiseStringKnobs(OvertoniumProcessor &p) {
   check(ordered && *hi - *lo <= 1,
         "they stand in order under colour, evenly spaced (" +
             std::to_string(*lo) + " to " + std::to_string(*hi) + " px apart)");
+
+  // Colour and the string are this strip's own, not its share of a row every
+  // channel has, so hovering them lights no row across the mixer, and a row
+  // lit from elsewhere is not drawn over them. Attack is still shared.
+  {
+    juce::Slider *colourKnob = nullptr, *attack = nullptr;
+    for (auto *c : strip.getChildren())
+      if (auto *sl = dynamic_cast<juce::Slider *>(c)) {
+        if (sl->getTitle() == "Noise colour")
+          colourKnob = sl;
+        if (sl->getTitle() == "Noise attack")
+          attack = sl;
+      }
+
+    const auto hoverOver = [&](juce::Component &c) {
+      const auto at = c.getBounds().getCentre().toFloat();
+      const auto now = juce::Time::getCurrentTime();
+      strip.mouseMove(juce::MouseEvent(
+          juce::Desktop::getInstance().getMainMouseSource(), at,
+          juce::ModifierKeys(), juce::MouseInputSource::defaultPressure,
+          juce::MouseInputSource::defaultOrientation,
+          juce::MouseInputSource::defaultRotation,
+          juce::MouseInputSource::defaultTiltX,
+          juce::MouseInputSource::defaultTiltY, &strip, &c, now, at, now, 0,
+          false));
+      return hover.last;
+    };
+
+    bool quiet = colourKnob != nullptr && attack != nullptr &&
+                 hoverOver(*colourKnob) == ovt::ui::kNoRow;
+    for (auto *k : knobs)
+      quiet &= hoverOver(*k) == ovt::ui::kNoRow;
+    const bool shared =
+        attack != nullptr && hoverOver(*attack) == ovt::ui::Row::Attack;
+
+    check(quiet && shared, "hovering colour or the string lights no row "
+                           "across the mixer, and attack still does");
+
+    // Drawn the same with a row lit from elsewhere as with none.
+    const auto picture = [&](ovt::ui::Row lit, juce::Rectangle<int> area) {
+      strip.setHighlightedRow(lit);
+      return strip.createComponentSnapshot(area, true, 1.0f);
+    };
+    const auto same = [](const juce::Image &a, const juce::Image &b) {
+      for (int y = 0; y < a.getHeight(); ++y)
+        for (int x = 0; x < a.getWidth(); ++x)
+          if (a.getPixelAt(x, y) != b.getPixelAt(x, y))
+            return false;
+      return true;
+    };
+
+    const auto block = knobs[0]->getBounds().getUnion(knobs[3]->getBounds());
+    const bool untouched = same(picture(ovt::ui::kNoRow, block),
+                                picture(ovt::ui::Row::PmRate, block));
+    const bool attackLit =
+        attack != nullptr &&
+        !same(picture(ovt::ui::kNoRow, attack->getBounds()),
+              picture(ovt::ui::Row::Attack, attack->getBounds()));
+    strip.setHighlightedRow(ovt::ui::kNoRow);
+
+    check(untouched && attackLit,
+          "and a row lit from elsewhere is not drawn over the string, where "
+          "attack's still is");
+  }
 
   // Folding the pitch block folds them away with it.
   strip.setCollapsedSections(ovt::ui::sectionBit(ovt::ui::Section::PitchMod));
