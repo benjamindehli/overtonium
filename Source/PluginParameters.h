@@ -301,6 +301,16 @@ void clearChannelSwitch(juce::AudioProcessorValueTreeState &,
 
 inline constexpr const char *colourSuffix = "colour";
 
+/// The string the noise strikes, the noise channel's own. See KarplusString.
+inline constexpr const char *stringSuffix = "string";
+inline constexpr const char *stringDecaySuffix = "stringDecay";
+inline constexpr const char *stringDampSuffix = "stringDamp";
+inline constexpr const char *stringPickSuffix = "stringPick";
+
+/// How long the noise channel's string rings at the longest, and its default.
+inline constexpr float kMaxStringDecaySeconds = 10.0f;
+inline constexpr float kStringDecayDefault = 1.5f;
+
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
 /// Default fader level for a partial: a 1/n roll-off over the first octave-and-
@@ -374,6 +384,10 @@ struct Cache {
     std::atomic<float> *solo = nullptr;
     std::atomic<float> *volume = nullptr;
     std::atomic<float> *pan = nullptr;
+    std::atomic<float> *string = nullptr;
+    std::atomic<float> *stringDecay = nullptr;
+    std::atomic<float> *stringDamp = nullptr;
+    std::atomic<float> *stringPick = nullptr;
   };
 
   NoiseChannel noise{};

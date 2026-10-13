@@ -1137,6 +1137,30 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   layout.add(std::make_unique<BoolP>(juce::ParameterID{adaptiveHomeId, 1},
                                      "Adaptive No Drift", false));
 
+  // The string the noise channel strikes, on the end so nothing a host goes
+  // by position moves. STRING at nought is the channel without one, which is
+  // what every patch written before it had. Part of the patch, since a pluck
+  // is part of the sound.
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{noiseParamId(stringSuffix), 1}, "Noise String",
+      juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f,
+      FAttr().withStringFromValueFunction(percentText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{noiseParamId(stringDecaySuffix), 1},
+      "Noise String Decay", logRange(0.05f, kMaxStringDecaySeconds),
+      kStringDecayDefault, FAttr().withStringFromValueFunction(timeText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{noiseParamId(stringDampSuffix), 1}, "Noise String Damp",
+      juce::NormalisableRange<float>(0.0f, 1.0f), 0.4f,
+      FAttr().withStringFromValueFunction(percentText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{noiseParamId(stringPickSuffix), 1}, "Noise String Pick",
+      juce::NormalisableRange<float>(0.0f, 1.0f), 0.25f,
+      FAttr().withStringFromValueFunction(percentText)));
+
   return layout;
 }
 
@@ -1261,8 +1285,14 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   noise.solo = apvts.getRawParameterValue(noiseParamId(soloSuffix));
   noise.volume = apvts.getRawParameterValue(noiseParamId(volumeSuffix));
   noise.pan = apvts.getRawParameterValue(noiseParamId(panSuffix));
+  noise.string = apvts.getRawParameterValue(noiseParamId(stringSuffix));
+  noise.stringDecay =
+      apvts.getRawParameterValue(noiseParamId(stringDecaySuffix));
+  noise.stringDamp = apvts.getRawParameterValue(noiseParamId(stringDampSuffix));
+  noise.stringPick = apvts.getRawParameterValue(noiseParamId(stringPickSuffix));
 
-  jassert(noise.colour != nullptr && noise.volume != nullptr);
+  jassert(noise.colour != nullptr && noise.volume != nullptr &&
+          noise.string != nullptr && noise.stringPick != nullptr);
 }
 
 juce::String strikeRangeText(float amount, float delay, float attack) {
@@ -1516,6 +1546,10 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     n.atAmount = noise.at->load();
     n.volume = noise.volume->load();
     n.pan = noise.pan->load();
+    n.stringAmount = noise.string->load();
+    n.stringDecay = noise.stringDecay->load();
+    n.stringDamp = noise.stringDamp->load();
+    n.stringPick = noise.stringPick->load();
 
     const bool muted = noise.mute->load() > 0.5f;
     const bool soloed = noise.solo->load() > 0.5f;

@@ -97,11 +97,12 @@ void KarplusString::setBlock(double hz, double decaySeconds, float damp,
   feedback = (float)std::min(0.99999, std::pow(10.0, -3.0 / (f * decay)) /
                                           std::max(1.0e-6, passLoss));
 
-  // White noise through a loop with this gain comes out stronger by
-  // 1 / sqrt(1 - g^2), whatever the loop's length. Taking that back off the
-  // way in keeps a string that is breathed into as loud as the noise
-  // breathing into it, however long it is set to ring.
-  inputGain = std::sqrt(std::max(0.0f, 1.0f - feedback * feedback));
+  // Struck as it is, so a pluck keeps the energy it was given and rings at
+  // about the level of the noise that struck it, however long DECAY lets it
+  // ring. Breathed into steadily, a string that rings longer builds up more,
+  // as a resonating body does. The pick's comb adds a delayed copy of the
+  // noise to itself, which doubles its power, and that is taken back off.
+  inputGain = 0.70710678f;
 
   pickDelay = std::max(
       1, (int)std::lround(period *

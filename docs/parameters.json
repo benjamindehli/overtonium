@@ -840,5 +840,9 @@
     {"id": "legato", "name": "Legato", "type": "switch", "default": "Off"},
     {"id": "adaptiveRetune", "name": "Adaptive Retune", "type": "continuous", "min": "0.0 ms", "max": "1.00 s", "default": "30.0 ms"},
     {"id": "adaptiveSeventh", "name": "Adaptive Harmonic Sevenths", "type": "switch", "default": "On"},
-    {"id": "adaptiveHome", "name": "Adaptive No Drift", "type": "switch", "default": "Off"}
+    {"id": "adaptiveHome", "name": "Adaptive No Drift", "type": "switch", "default": "Off"},
+    {"id": "noise_string", "name": "Noise String", "type": "continuous", "min": "0 %", "max": "100 %", "default": "0 %"},
+    {"id": "noise_stringDecay", "name": "Noise String Decay", "type": "continuous", "min": "50.0 ms", "max": "10.00 s", "default": "1.50 s"},
+    {"id": "noise_stringDamp", "name": "Noise String Damp", "type": "continuous", "min": "0 %", "max": "100 %", "default": "40 %"},
+    {"id": "noise_stringPick", "name": "Noise String Pick", "type": "continuous", "min": "0 %", "max": "100 %", "default": "25 %"}
 ]

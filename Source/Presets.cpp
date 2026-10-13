@@ -135,6 +135,11 @@ struct Applier {
     set(params::noiseParamId(params::muteSuffix), 0.0f);
     set(params::noiseParamId(params::soloSuffix), 0.0f);
     set(params::noiseParamId(params::panSuffix), 0.0f);
+    set(params::noiseParamId(params::stringSuffix), 0.0f);
+    set(params::noiseParamId(params::stringDecaySuffix),
+        params::kStringDecayDefault);
+    set(params::noiseParamId(params::stringDampSuffix), 0.4f);
+    set(params::noiseParamId(params::stringPickSuffix), 0.25f);
 
     // Everything global that is part of the sound rather than part of the
     // setup. A preset decides what the instrument is, so it has to decide

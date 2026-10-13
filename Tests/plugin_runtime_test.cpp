@@ -809,9 +809,10 @@ void testParameterWiring(OvertoniumProcessor &p) {
   // params::legatoId. Then how fast the adaptive temperament retunes a held
   // note, whether it uses the harmonic seventh, and whether it stays home.
   // See params::adaptiveRetuneId, params::adaptiveSeventhId and
-  // params::adaptiveHomeId.
+  // params::adaptiveHomeId. Then four for the string the noise channel
+  // strikes. See params::stringSuffix.
   const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + 2 + 1 + 1 +
-                       1 + 1 + ovt::params::kNumMacros * 6;
+                       1 + 1 + 4 + ovt::params::kNumMacros * 6;
 
   // The behaviour that was there before it became a choice. Asked of the
   // parameter rather than of the tree, so the answer does not depend on what
@@ -7634,6 +7635,87 @@ void testSharedSettingsChoices(OvertoniumProcessor &p) {
   p.applyFactoryPreset(presetIndex("Init"));
 }
 
+/// The noise channel's string, reached through its parameters: STRING turns
+/// a burst of noise into a ringing note, DECAY decides for how long, and a
+/// preset puts it back to nought.
+void testNoiseString(OvertoniumProcessor &p) {
+  section("The noise channel's string");
+
+  namespace pp = ovt::params;
+
+  const auto setParam = [&p](const juce::String &id, float plain) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1(plain));
+  };
+
+  // A burst of noise and nothing else: every partial silent, the noise
+  // channel struck for a few milliseconds and then holding at silence.
+  const auto ringing = [&](float amount, float decay) {
+    p.applyFactoryPreset(presetIndex("Init"));
+    for (int i = 0; i < ovt::kNumHarmonics; ++i)
+      setParam(pp::oscParamId(pp::volumeSuffix, i), 0.0f);
+    setParam(pp::noiseParamId(pp::volumeSuffix), 0.8f);
+    setParam(pp::noiseParamId(pp::attackSuffix), 0.0005f);
+    setParam(pp::noiseParamId(pp::decaySuffix), 0.01f);
+    setParam(pp::noiseParamId(pp::sustainSuffix), 0.0f);
+    setParam(pp::noiseParamId(pp::stringSuffix), amount);
+    setParam(pp::noiseParamId(pp::stringDecaySuffix), decay);
+
+    p.prepareToPlay(48000.0, 512);
+    juce::AudioBuffer<float> buffer(2, 512);
+    double late = 0.0;
+    int counted = 0;
+
+    for (int b = 0; b < 60; ++b) {
+      juce::MidiBuffer midi =
+          b == 0 ? noteOnAt(57, 1.0f, 0) : juce::MidiBuffer{};
+      buffer.clear();
+      p.processBlock(buffer, midi);
+
+      // From a fifth of a second on, long after the burst.
+      if (b >= 19 && b < 40) {
+        for (int n = 0; n < 512; ++n)
+          late += (double)buffer.getSample(0, n) * buffer.getSample(0, n);
+        counted += 512;
+      }
+    }
+
+    juce::MidiBuffer off;
+    off.addEvent(juce::MidiMessage::allSoundOff(1), 0);
+    buffer.clear();
+    p.processBlock(buffer, off);
+    return std::sqrt(late / std::max(1, counted));
+  };
+
+  const auto without = ringing(0.0f, 1.5f);
+  const auto with = ringing(1.0f, 1.5f);
+  const auto brief = ringing(1.0f, 0.1f);
+
+  check(without < 1.0e-6 && with > 1.0e-3,
+        "Noise String turns a burst of noise into a ringing note (" +
+            std::to_string(without) + ", " + std::to_string(with) + ")");
+  check(brief < 0.1 * with,
+        "and Noise String Decay decides how long it rings (" +
+            std::to_string(brief) + " against " + std::to_string(with) + ")");
+
+  if (auto *decay =
+          p.apvts.getParameter(pp::noiseParamId(pp::stringDecaySuffix)))
+    check(decay->getText(decay->convertTo0to1(1.5f), 16) == "1.50 s",
+          "and reads as a time (" +
+              decay->getText(decay->convertTo0to1(1.5f), 16).toStdString() +
+              ")");
+
+  // A preset is a whole sound, so it puts the string back where every patch
+  // without one has it.
+  setParam(pp::noiseParamId(pp::stringSuffix), 0.7f);
+  p.applyFactoryPreset(presetIndex("Init"));
+  auto *amount = p.apvts.getParameter(pp::noiseParamId(pp::stringSuffix));
+  check(amount != nullptr && amount->getValue() < 1.0e-6f,
+        "and loading a preset puts Noise String back to nought");
+
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
 /// What the processor publishes for the Playing bar's readouts: the pedal,
 /// the bend, the wheel and the pressure, with MPE off and on.
 void testPlayingReadouts(OvertoniumProcessor &p) {
@@ -12022,6 +12104,7 @@ int main(int argc, char **argv) {
   testSegmentCells();
   testOptionBars(processor);
   testSharedSettingsChoices(processor);
+  testNoiseString(processor);
   testPlayingReadouts(processor);
   testPlayingBar(processor);
   testBarRightClicks(processor);

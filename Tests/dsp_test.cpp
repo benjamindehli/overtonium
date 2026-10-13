@@ -4244,8 +4244,7 @@ void testKarplusString() {
     return out;
   };
 
-  // ---- in tune
-  // ---------------------------------------------------------------
+  // ---- in tune --------------------------------------------------------------
   double worst = 0.0;
   std::string worstCase;
   for (const double rate : {44100.0, 48000.0, 96000.0})
@@ -4269,8 +4268,7 @@ void testKarplusString() {
                      "(worst " +
                          std::to_string(worst) + " cents, " + worstCase + ")");
 
-  // ---- rings as long as DECAY says
-  // -------------------------------------------
+  // ---- rings as long as DECAY says ------------------------------------------
   {
     const double rate = 48000.0, decay = 1.0;
     bool asLong = true;
@@ -4302,8 +4300,7 @@ void testKarplusString() {
                       readings + "s)");
   }
 
-  // ---- follows a pitch that moves
-  // ----------------------------------------------
+  // ---- follows a pitch that moves -------------------------------------------
   {
     const double rate = 48000.0;
     KarplusString string;
@@ -4330,8 +4327,7 @@ void testKarplusString() {
               std::to_string(measured) + " Hz)");
   }
 
-  // ---- faded where it cannot be tuned
-  // ------------------------------------------
+  // ---- faded where it cannot be tuned ---------------------------------------
   {
     const double rate = 48000.0;
     const auto audibleAt = [&](double hz) {
@@ -4349,39 +4345,75 @@ void testKarplusString() {
           "with a fade between (" + std::to_string(between) + ")");
   }
 
-  // ---- as loud as what breathes into it
-  // ----------------------------------------
+  // ---- a pluck keeps what it was struck with --------------------------------
   {
     const double rate = 48000.0;
-    bool level = true;
+    std::vector<double> rings;
     std::string readings;
+    for (const double decay : {0.3, 1.5, 5.0}) {
+      KarplusString string;
+      string.prepare(rate);
+      const auto n = (size_t)(0.04 * rate), burst = (size_t)(0.01 * rate);
+      double in = 0.0, ring = 0.0;
+      size_t counted = 0;
+      for (size_t i = 0; i < n; i += 32) {
+        string.setBlock(220.0, decay, 0.4f, 0.25f, 32);
+        for (size_t k = i; k < i + 32; ++k) {
+          const auto x = k < burst ? white(rng) : 0.0f;
+          in += (double)x * x;
+          const auto y = string.tick(x);
+          // Just after the burst, before a short decay has had time to tell.
+          if (k >= (size_t)(0.012 * rate) && k < (size_t)(0.03 * rate)) {
+            ring += (double)y * y;
+            ++counted;
+          }
+        }
+      }
+      const auto under =
+          10.0 * std::log10((in / (double)burst) / (ring / (double)counted));
+      rings.push_back(under);
+      readings += std::to_string(under) + " ";
+    }
+    const auto [lo, hi] = std::minmax_element(rings.begin(), rings.end());
+    check(*hi < 12.0 && *hi - *lo < 4.0,
+          "a pluck rings at about the level of the noise that struck it, "
+          "however long DECAY lets it ring (" +
+              readings + "dB under)");
+  }
+
+  // ---- and builds up when it is breathed into -------------------------------
+  {
+    const double rate = 48000.0;
+    std::vector<double> ratios;
+    bool bounded = true;
     for (const double decay : {0.1, 1.0, 5.0}) {
       KarplusString string;
       string.prepare(rate);
       double in = 0.0, out = 0.0;
-      const auto n = (size_t)(2.0 * rate);
+      const auto n = (size_t)(3.0 * rate);
       for (size_t i = 0; i < n; i += 32) {
         string.setBlock(220.0, decay, 0.0f, 0.5f, 32);
         for (size_t k = 0; k < 32; ++k) {
           const auto x = 0.3f * white(rng);
           const auto y = string.tick(x);
+          bounded &= std::isfinite(y) && std::abs(y) < 4.0f;
           if (i > n / 2) {
             in += (double)x * x;
             out += (double)y * y;
           }
         }
       }
-      const auto ratio = std::sqrt(out / in);
-      readings += std::to_string(ratio) + " ";
-      level &= ratio > 0.4 && ratio < 2.5;
+      ratios.push_back(std::sqrt(out / in));
     }
-    check(level, "breathed into steadily it comes out about as loud as the "
-                 "noise, however long it rings (" +
-                     readings + ")");
+    check(bounded && ratios[0] < ratios[1] && ratios[1] < ratios[2] &&
+              ratios[2] < 10.0,
+          "breathed into steadily it builds up more the longer it rings, and "
+          "stays bounded (" +
+              std::to_string(ratios[0]) + ", " + std::to_string(ratios[1]) +
+              ", " + std::to_string(ratios[2]) + ")");
   }
 
-  // ---- in the noise channel
-  // ------------------------------------------------------
+  // ---- in the noise channel -------------------------------------------------
   const double sr = 48000.0;
   const auto channel = [&](float amount, float bend, bool letGo) {
     const auto engineOwner = std::make_unique<SynthEngine>();
