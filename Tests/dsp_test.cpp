@@ -4756,10 +4756,10 @@ void testSympatheticStrings() {
     const auto treble = afterDamping(96, 0.1);
     const auto gone = afterDamping(33, 3.0);
 
-    check(Strings::damperSeconds(0) > 4.0 * Strings::damperSeconds(87) &&
-              bass.first > -15.0 && treble.first < -25.0,
+    check(Strings::damperSeconds(0) > 2.0 * Strings::damperSeconds(87) &&
+              bass.first > -15.0 && treble.first < bass.first - 8.0,
           "a damped bass string rings on for a moment and a treble one "
-          "stops at once (" +
+          "stops sooner (" +
               std::to_string(bass.first) + " and " +
               std::to_string(treble.first) + " dB a tenth of a second on)");
     check(!gone.second, "and three seconds on neither is ringing");

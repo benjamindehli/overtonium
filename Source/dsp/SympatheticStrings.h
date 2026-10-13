@@ -68,7 +68,7 @@ public:
   /// shortest at the top, falling evenly in pitch between the two.
   static double damperSeconds(int string) noexcept;
   static constexpr double kDamperBassSeconds = 0.8;
-  static constexpr double kDamperTrebleSeconds = 0.12;
+  static constexpr double kDamperTrebleSeconds = 0.25;
 
   /// How much of the summed channels each string is fed, once its own
   /// resonance has been taken back off: a partial held at a string's pitch
