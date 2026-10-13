@@ -57,6 +57,7 @@ Source/
     Reverb.*        the master reverb as a feedback delay network
     PlateReverb.*   the same as a modulated plate
     SpringReverb.*  the same as a tray of springs
+    KarplusString.* the string the noise channel strikes
     Wobble.*        a warped record under the whole instrument
     OutputStage.*   the five clippers the mix runs into on its way out
     SynthEngine.*   voice pool, allocation, stealing, effects, master stage

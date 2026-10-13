@@ -285,7 +285,7 @@ One held chord, twice. With drift off a partial sits exactly where it was put. W
 
 Page: Overtonium controls: every knob on a channel strip
 URL: https://benjamindehli.github.io/overtonium/controls/
-Last changed: 2026-10-11
+Last changed: 2026-10-13
 
 # Controls
 
@@ -452,9 +452,13 @@ Clicking a section heading in the caption gutter folds that group of rows away a
 
 ## The noise channel
 
-Pinned on the right, after the series it does not belong to, is a noise channel marked NZ. It has the same envelope, tremolo, velocity, aftertouch, pan, mute, solo, level and meter as a partial, and takes part in solo alongside them. What it does not have is pitch, so the tuning, pitch modulation and drift rows are empty.
+Pinned on the right, after the series it does not belong to, is a noise channel marked NZ. It has the same envelope, tremolo, velocity, aftertouch, pan, mute, solo, level and meter as a partial, and takes part in solo alongside them. What it does not have is a place in the series, so it has no tuning, pitch modulation or drift of its own. COLOUR takes the tuning row, and a string takes the rest.
 
-COLOUR takes the tuning row instead, tilting the noise from dark rumble at one end, through flat in the middle, to bright hiss at the other. The middle really is flat rather than merely filtered less. Each voice runs its own noise stream, so playing a chord does not layer eight copies of the identical signal.
+COLOUR takes the tuning row instead, tilting the noise from dark rumble at one end, through flat in the middle, to bright hiss at the other. The middle really is flat rather than merely filtered less. \1
+
+**A string** stands under COLOUR, where a partial's pitch modulation would be, so the noise has something to strike. It is tuned to the note and follows the pitch wheel, glide and Adaptive the way the fundamental does, and the noise strikes it after COLOUR and the envelope have shaped it, so a darker colour strikes it softer. STRING crossfades from the noise alone to the string alone, DECAY is how long it rings while the key is down, DAMP how quickly it loses its top, and PICK where along it the noise strikes, from near the end, which keeps every harmonic, to the middle, which loses the even ones.
+
+The envelope decides what kind of string it is. A noise envelope a few milliseconds long plucks it and lets it ring, which is a harpsichord's onset or a guitar's under the organ, and a noise held under a short, dark string blows into it, which is a pitched breath. Once the key comes up the channel's RELEASE damps it. At the top of the keyboard, where the string gets too short to tune, it fades back to the plain noise rather than playing out of tune. COLOUR and the string's four knobs are the noise channel's own, so pointing at them lights no row across the mixer.
 
 ---
 
@@ -631,7 +635,7 @@ The safety clip is the exception in this table, and the master fader is the exce
 
 ## Automating it from the host
 
-Eight hundred and forty-six parameters reach the host: forty global ones, twenty-three on each of the 32 partials, eighteen on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals first and then channel by channel with the noise channel last.
+Eight hundred and forty-six parameters reach the host: forty global ones, twenty-three on each of the 32 partials, twenty-two on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals first and then channel by channel with the noise channel last.
 
 Every per-channel name carries its channel, so a parameter list answers both ways of looking for something. Type `H7` and you have that partial, type `Tune` and you have that row across the whole mixer. The same names are what a screen reader reads, which is why they are words rather than numbers.
 
@@ -643,7 +647,7 @@ Every per-channel name carries its channel, so a parameter list answers both way
 | The noise channel's brightness | `Noise Colour` |
 | How long the echo's repeats are | `Echo Time` |
 
-The noise channel has eighteen rather than twenty-three because it has no tuning, pitch modulation, drift or glide, and gains COLOUR in their place.
+The noise channel has twenty-two rather than twenty-three because it has no tuning, pitch modulation, drift or glide, and gains COLOUR and the four knobs of its string in their place.
 
 Everything in Settings is in the list too, even though no preset will ever move it. The temperament, the polyphony and the bend range are all automatable, so a piece that changes temperament partway through is something a host can do, whatever the panel thinks a setting is for.
 
