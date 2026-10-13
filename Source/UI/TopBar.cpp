@@ -22,13 +22,15 @@ constexpr int kBarPadY = 6;
 constexpr int kRowHeight = 54;
 constexpr int kRowGap = 4;
 constexpr int kGroupGap = 6;
-constexpr int kTitleWidth = 150;
 constexpr int kGroupPad = 6;
+
+/// Between the wordmark and the preset screen under it.
+constexpr int kWordmarkGap = 2;
 
 /// Minimum width of each group, in the order they are laid out. Only the
 /// output group grows, because the meter is the one thing worth more room.
 ///
-/// The second holds the four buttons that open something, SETTINGS and
+/// The first holds the four buttons that open something, SETTINGS and
 /// MACROS over PLAYING and TUNING, two by two so they take no more of the
 /// row's width than the first two did alone. It is sized against what the
 /// bar can spare rather than against what would be comfortable. Measured in
@@ -39,7 +41,7 @@ constexpr int kGroupPad = 6;
 /// is half a pixel off each converter readout, which stop naming their units
 /// below 53. A gear and a rack of faders say the same thing in a third of
 /// the room, and the words are still what a screen reader is given.
-constexpr int kGroupMinWidth[] = {144, 84, 218, 232, 228, 172};
+constexpr int kGroupMinWidth[] = {84, 144, 218, 232, 228, 172};
 constexpr int kOutputGroupIndex = 5;
 constexpr int kGroupCount = 6;
 
@@ -74,15 +76,6 @@ constexpr int kOutputMaxExtra = 120;
 /// window a few pixels short of fitting one row should narrow the meter rather
 /// than wrap, which is what used to strand the view group alone on row two.
 constexpr int kOutputMaxSqueeze = 40;
-
-/// The title only occupies the first row, so the second gets the full width.
-constexpr int kTitleLead = 10;
-
-/// What it is, under the wordmark. At kCreditSize it measures 142 px here
-/// against the 150 px the title block gives it, in DejaVu Sans, which is wider
-/// than the faces macOS and Windows set it in. A size larger runs it to 149.
-constexpr const char *kCredit = "32-partial overtone synthesizer";
-constexpr float kCreditSize = 10.5f;
 
 /// The sections SETTINGS opens, in the order it opens them, which is what its
 /// tooltip says whenever there is no new release to mention instead.
@@ -1401,8 +1394,7 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
 
 void TopBar::setZoomChoice(float newZoom) { zoom = newZoom; }
 
-TopBar::RowPlan TopBar::planRows(int firstRowWidth, int fullWidth,
-                                 int maxRows) {
+TopBar::RowPlan TopBar::planRows(int fullWidth, int maxRows) {
   RowPlan plan;
   plan.start.fill(kGroupCount);
   plan.start[0] = 0;
@@ -1410,10 +1402,9 @@ TopBar::RowPlan TopBar::planRows(int firstRowWidth, int fullWidth,
   int group = 0;
   int row = 0;
 
-  // Greedy, filling each row as far as it will go. The first row is short by
-  // the width of the title, the rest have the whole bar.
+  // Greedy, filling each row as far as it will go.
   while (group < kGroupCount && row < maxRows) {
-    const auto available = row == 0 ? firstRowWidth : fullWidth;
+    const auto available = fullWidth;
 
     int used = 0;
     int onThisRow = 0;
@@ -1457,10 +1448,7 @@ TopBar::RowPlan TopBar::planRows(int firstRowWidth, int fullWidth,
 }
 
 int TopBar::heightForWidth(int width) {
-  const auto full = width - 2 * kBarMargin;
-  const auto first = full - kTitleWidth - kTitleLead;
-
-  const auto rows = planRows(first, full, kGroupCount).rows;
+  const auto rows = planRows(width - 2 * kBarMargin, kGroupCount).rows;
 
   return rows * kRowHeight + (rows - 1) * kRowGap + 2 * kBarPadY;
 }
@@ -1470,11 +1458,9 @@ int TopBar::minimumWidth() {
   // per row if it has to, but at some point the chrome is taller than the
   // mixer underneath it. This is the narrowest window where it still fits in
   // kMaxComfortableRows, and the editor takes it as the floor.
-  for (int width = 2 * kBarMargin + kTitleWidth; width < 4000; ++width) {
-    const auto full = width - 2 * kBarMargin;
-    const auto first = full - kTitleWidth - kTitleLead;
-
-    if (planRows(first, full, kGroupCount).rows <= kMaxComfortableRows)
+  for (int width = 2 * kBarMargin + 1; width < 4000; ++width) {
+    if (planRows(width - 2 * kBarMargin, kGroupCount).rows <=
+        kMaxComfortableRows)
       return width;
   }
 
@@ -1533,10 +1519,15 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
 
   switch (group) {
   case PresetGroup:
+    // The wordmark over the preset name, both the width of the screen, so the
+    // name of the instrument and the name of what it is playing read as one
+    // block. The screen stands on the row's floor and paint puts the
+    // wordmark in what is left above it.
+    //
     // Not a button. It is a display that opens a menu, the way the converter
     // readouts are, so it is placed as a component rather than through the
     // button helper.
-    alignedWithDials(presetDisplay, r);
+    presetDisplay.setBounds(r.withTop(r.getBottom() - kControlHeight));
     break;
 
   case VoiceGroup: {
@@ -1722,18 +1713,13 @@ void TopBar::resized() {
   const auto affordable =
       juce::jmax(1, (area.getHeight() + kRowGap) / (kRowHeight + kRowGap));
 
-  const auto plan = planRows(fullWidth.getWidth() - kTitleWidth - kTitleLead,
-                             fullWidth.getWidth(), affordable);
+  const auto plan = planRows(fullWidth.getWidth(), affordable);
 
   for (int row = 0; row < plan.rows; ++row) {
     if (row > 0)
       area.removeFromTop(kRowGap);
 
     auto line = area.removeFromTop(kRowHeight);
-
-    // Only the first row has to make room for the title beside it.
-    if (row == 0)
-      line.removeFromLeft(kTitleWidth + kTitleLead);
 
     if (line.getWidth() < 60)
       break;
@@ -1811,42 +1797,27 @@ void TopBar::paint(juce::Graphics &g) {
     }
   }
 
-  auto title = getLocalBounds().reduced(kBarMargin, kBarPadY);
-  title = title.removeFromLeft(kTitleWidth).withHeight(kRowHeight);
+  // The wordmark, the width of the preset screen under it and centred in
+  // the room above it.
+  const auto &preset = groupBounds[(size_t)PresetGroup];
+
+  if (preset.isEmpty())
+    return;
+
+  const auto above = preset.reduced(kGroupPad, 0)
+                         .withBottom(presetDisplay.getY() - kWordmarkGap);
 
   if (logoScaled.isValid()) {
-    const auto wordmarkHeight =
-        juce::roundToInt((float)kTitleWidth * (float)logoScaled.getHeight() /
-                         (float)juce::jmax(1, logoScaled.getWidth()));
-
-    // The pair is centred as a block, so the wordmark does not drift when the
-    // credit line under it changes size.
-    auto block = title.withSizeKeepingCentre(kTitleWidth, wordmarkHeight + 15);
-
-    g.drawImage(logoScaled, block.removeFromTop(wordmarkHeight).toFloat(),
-                juce::RectanglePlacement::xLeft |
-                    juce::RectanglePlacement::yMid);
-
-    block.removeFromTop(2);
-
-    paintCreditLine(g, block);
+    g.drawImage(logoScaled, above.toFloat(),
+                juce::RectanglePlacement::centred |
+                    juce::RectanglePlacement::onlyReduceInSize);
     return;
   }
 
   // Nothing to fall back to but the name, which is better than a blank corner.
   g.setColour(colours::text);
-  g.setFont(makeFont(21.0f, true));
-  g.drawText("OVERTONIUM", title.removeFromTop(24),
-             juce::Justification::centredLeft, false);
-
-  paintCreditLine(g, title.removeFromTop(13));
-}
-
-/// The line under the wordmark.
-void TopBar::paintCreditLine(juce::Graphics &g, juce::Rectangle<int> area) {
-  g.setColour(colours::textDim);
-  g.setFont(makeFont(kCreditSize));
-  g.drawText(kCredit, area, juce::Justification::centredLeft, false);
+  g.setFont(makeFont(18.0f, true));
+  g.drawText("OVERTONIUM", above, juce::Justification::centred, false);
 }
 
 void TopBar::setUpdateAvailable(const juce::String &version,

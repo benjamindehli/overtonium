@@ -9506,7 +9506,7 @@ void testBarButtonsFitTheirWords(OvertoniumProcessor &p) {
 
 /// The width the bar comes onto one row at, which the design notes quote and
 /// which every control added to it moves.
-void testBarComesOntoOneRow(OvertoniumProcessor &) {
+void testBarComesOntoOneRow(OvertoniumProcessor &p) {
   section("One row");
 
   using namespace ovt::ui;
@@ -9532,9 +9532,34 @@ void testBarComesOntoOneRow(OvertoniumProcessor &) {
         "the bar is on one row at the width the window opens at (" +
             std::to_string(onOneRow) + ")");
 
+  // The wordmark stands over the preset screen at the screen's width, and the
+  // row has to hold both. The wordmark is 5.5 times as wide as it is tall.
+  {
+    juce::Component popupParent;
+    TopBar bar(p.apvts, popupParent);
+    bar.setPresetName("Big Saw");
+    bar.setSize(1350, TopBar::heightForWidth(1350));
+
+    const juce::Component *screen = nullptr;
+    for (auto *c : bar.getChildren())
+      if (c->getTitle().startsWith("Preset:"))
+        screen = c;
+
+    const auto room = screen != nullptr ? screen->getY() : 0;
+    const auto wordmark =
+        screen != nullptr
+            ? juce::roundToInt((float)screen->getWidth() * 448.0f / 2464.0f)
+            : 1000;
+
+    check(screen != nullptr && room >= wordmark + 2 + 6,
+          "the wordmark fits over the preset screen at its width (" +
+              std::to_string(room) + " px above the screen for a " +
+              std::to_string(wordmark) + " px wordmark)");
+  }
+
   // The figure the design notes quote. It moves whenever a control on the bar
   // changes width, and when it moves the notes move with it.
-  check(onOneRow == 1252, "and comes onto it at the width written down (" +
+  check(onOneRow == 1092, "and comes onto it at the width written down (" +
                               std::to_string(onOneRow) + ")");
 }
 

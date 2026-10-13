@@ -221,7 +221,6 @@ private:
   /// someone who clicks. Empty when there is nothing to say.
   juce::String updateVersion, updateUrl;
 
-  void paintCreditLine(juce::Graphics &, juce::Rectangle<int>);
   using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
   using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
 
@@ -364,8 +363,8 @@ private:
 
   /// Related controls sit together in a bordered group.
   enum Group {
-    PresetGroup = 0,
-    VoiceGroup,
+    VoiceGroup = 0,
+    PresetGroup,
     SeriesGroup,
     EchoGroup,
     ReverbGroup,
@@ -381,7 +380,7 @@ private:
   };
 
   /// Packs the groups into as many rows as it takes.
-  static RowPlan planRows(int firstRowWidth, int fullWidth, int maxRows);
+  static RowPlan planRows(int width, int maxRows);
 
   /// Clears every control's bounds before a fresh pass. Without this a control
   /// that does not get placed keeps whatever position it had when the window
