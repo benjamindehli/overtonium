@@ -8,7 +8,7 @@ There are two separate things here and they have different stories. The **plugin
 
 These are things that are checked rather than intended. Where a number appears it came from a measurement.
 
-**Every control says what it is.** All 656 sliders carry an accessible name, and no two share one, which the test suite checks on every commit. A screen reader hears "Harmonic 19 attack" or "Reverb mix" rather than "attack" six hundred times, and the noise channel names itself rather than borrowing a number. JUCE skips an element with neither a name nor a description entirely, so on a mixer this size that check is the difference between an instrument you can use without seeing it and one you cannot.
+**Every control says what it is.** All 659 sliders carry an accessible name, and no two share one, which the test suite checks on every commit. A screen reader hears "Harmonic 19 attack" or "Reverb mix" rather than "attack" six hundred times, and the noise channel names itself rather than borrowing a number. JUCE skips an element with neither a name nor a description entirely, so on a mixer this size that check is the difference between an instrument you can use without seeing it and one you cannot.
 
 **The readouts can be read by something other than an eye.** The tuning and level figures, the converter readouts and the displays in the Playing and Tuning bars are drawn as segment shapes rather than written as text, so there is nothing in them for a screen reader to find. Each one carries a spoken name and value separately for that reason. This was a regression once: swapping a plain label for a segment display silently removed the name, and the suite now holds it.
 
