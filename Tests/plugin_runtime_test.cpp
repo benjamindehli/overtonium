@@ -6161,6 +6161,201 @@ void testWheelOverAKnobStaysOnTheKnob(OvertoniumProcessor &p) {
   }
 }
 
+/// The same for the three bars above the mixer. Each listens deeply for
+/// right-clicks, so it hears every wheel its knobs take as well, and handing
+/// those on sent them to the editor, which scrolled the mixer sideways or the
+/// parameters up and down under a hand turning a knob in the top bar.
+void testWheelOverABarKnobStaysOnTheKnob(OvertoniumProcessor &p) {
+  section("A wheel over a knob in a bar does not scroll the mixer");
+
+  p.applyFactoryPreset(presetIndex("Init"));
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  // Narrow and short enough that there is somewhere to scroll both ways.
+  editor->setSize(900, 700);
+
+  juce::Viewport *viewport = nullptr;
+  ovt::ui::ChannelStrip *strip = nullptr;
+  ovt::ui::TopBar *top = nullptr;
+  ovt::ui::PlayingBar *playing = nullptr;
+  ovt::ui::TuningBar *tuning = nullptr;
+  juce::Button *playingButton = nullptr, *tuningButton = nullptr;
+
+  std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (auto *v = dynamic_cast<juce::Viewport *>(child))
+        viewport = v;
+      if (auto *s = dynamic_cast<ovt::ui::ChannelStrip *>(child))
+        strip = strip == nullptr ? s : strip;
+      if (auto *b = dynamic_cast<ovt::ui::TopBar *>(child))
+        top = b;
+      if (auto *b = dynamic_cast<ovt::ui::PlayingBar *>(child))
+        playing = b;
+      if (auto *b = dynamic_cast<ovt::ui::TuningBar *>(child))
+        tuning = b;
+      if (auto *b = dynamic_cast<juce::Button *>(child)) {
+        if (b->getTitle() == "Playing")
+          playingButton = b;
+        if (b->getTitle() == "Tuning")
+          tuningButton = b;
+      }
+      look(*child);
+    }
+  };
+  look(*editor);
+
+  check(viewport != nullptr && strip != nullptr && top != nullptr &&
+            playing != nullptr && tuning != nullptr &&
+            playingButton != nullptr && tuningButton != nullptr,
+        "the editor has a mixer, a top bar and both bars");
+  if (viewport == nullptr || strip == nullptr || top == nullptr ||
+      playing == nullptr || tuning == nullptr || playingButton == nullptr ||
+      tuningButton == nullptr)
+    return;
+
+  // A knob in each bar that can take the wheel: macro 1 made, so its knob
+  // is live, and Adaptive, which is when RETUNE is shown.
+  const auto setParam = [&p](const juce::String &id, float plain) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1(plain));
+  };
+  setParam(ovt::params::macroRowId(0), 1.0f);
+  setParam(ovt::params::temperamentId, (float)ovt::Temperament::Adaptive);
+
+  // Called rather than clicked, since a click needs a window to land in.
+  playingButton->onClick();
+  tuningButton->onClick();
+  playing->refresh();
+  tuning->refresh();
+
+  const auto span =
+      viewport->getViewedComponent()->getWidth() - viewport->getViewWidth();
+  viewport->setViewPosition(span / 2, 0);
+
+  // A control in the strip to follow up and down. See
+  // testTheWheelScrollsTheParameters.
+  juce::Slider *marker = nullptr;
+  for (auto *child : strip->getChildren())
+    if (auto *s = dynamic_cast<juce::Slider *>(child))
+      if (marker == nullptr)
+        marker = s;
+
+  check(span > 0 && marker != nullptr && marker->isVisible(),
+        "and something to scroll sideways, and a control to follow");
+  if (marker == nullptr)
+    return;
+
+  // Every event a distinct moment, since a slider ignores a second wheel
+  // stamped with the time of the last one.
+  auto when = juce::Time::getCurrentTime();
+
+  const auto eventFor = [&when](juce::Component &target,
+                                juce::Component &original,
+                                juce::Point<float> at) {
+    when = when + juce::RelativeTime::milliseconds(50);
+    return juce::MouseEvent(juce::Desktop::getInstance().getMainMouseSource(),
+                            at, juce::ModifierKeys(),
+                            juce::MouseInputSource::defaultPressure,
+                            juce::MouseInputSource::defaultOrientation,
+                            juce::MouseInputSource::defaultRotation,
+                            juce::MouseInputSource::defaultTiltX,
+                            juce::MouseInputSource::defaultTiltY, &target,
+                            &original, when, at, when, 1, false);
+  };
+
+  /// The first knob in a bar that takes the wheel, turned by it, and then the
+  /// same wheel handed to the bar the way JUCE hands it to a deep listener.
+  /// @returns whether the knob moved.
+  const auto wheelOver = [&](juce::Component &bar, float dx, float dy) {
+    juce::Slider *knob = nullptr;
+    std::function<void(juce::Component &)> find = [&](juce::Component &c) {
+      for (auto *child : c.getChildren()) {
+        if (auto *s = dynamic_cast<juce::Slider *>(child))
+          if (knob == nullptr && s->isVisible() && !s->getBounds().isEmpty() &&
+              s->isScrollWheelEnabled() && s->isRotary())
+            knob = s;
+        find(*child);
+      }
+    };
+    find(bar);
+
+    if (knob == nullptr)
+      return false;
+
+    // Towards the middle of its travel, so a push either way moves it.
+    knob->setValue(0.5 * (knob->getMinimum() + knob->getMaximum()),
+                   juce::sendNotificationSync);
+    const auto before = knob->getValue();
+
+    juce::MouseWheelDetails wheel{};
+    wheel.deltaX = dx;
+    wheel.deltaY = dy;
+
+    const auto centre = knob->getLocalBounds().getCentre().toFloat();
+    knob->mouseWheelMove(eventFor(*knob, *knob, centre), wheel);
+    bar.mouseWheelMove(eventFor(bar, *knob, bar.getLocalPoint(knob, centre)),
+                       wheel);
+
+    return std::abs(knob->getValue() - before) > 1.0e-9;
+  };
+
+  const struct {
+    juce::Component *bar;
+    const char *name;
+  } bars[] = {{top, "the top bar"},
+              {playing, "the Playing bar"},
+              {tuning, "the Tuning bar"}};
+
+  for (const auto &b : bars) {
+    for (const bool sideways : {true, false}) {
+      const auto x = viewport->getViewPositionX();
+      const auto y = marker->getY();
+      const bool turned = sideways ? wheelOver(*b.bar, -0.4f, 0.0f)
+                                   : wheelOver(*b.bar, 0.0f, -0.4f);
+
+      // A row scrolled off the top is hidden rather than moved, so either
+      // counts as the parameters having scrolled.
+      const bool rowsStill = marker->isVisible() && marker->getY() == y;
+
+      check(turned && viewport->getViewPositionX() == x && rowsStill,
+            std::string("a ") + (sideways ? "sideways" : "vertical") +
+                " wheel over a knob in " + b.name +
+                " turns the knob and leaves the mixer where it was (view " +
+                std::to_string(x) + " to " +
+                std::to_string(viewport->getViewPositionX()) + ", row " +
+                std::to_string(y) + " to " + std::to_string(marker->getY()) +
+                ")");
+    }
+  }
+
+  // A wheel on the top bar's own panel still goes on to the mixer, so the
+  // fix is not swallowing every wheel the bar is handed.
+  {
+    viewport->setViewPosition(span / 2, 0);
+    const auto x = viewport->getViewPositionX();
+    juce::MouseWheelDetails wheel{};
+    wheel.deltaX = -0.4f;
+    top->mouseWheelMove(eventFor(*top, *top, {2.0f, 2.0f}), wheel);
+
+    check(viewport->getViewPositionX() != x,
+          "and a sideways wheel on the top bar's own panel still scrolls the "
+          "mixer");
+  }
+
+  // Closed again, since which bars are open is kept with the session and the
+  // editors opened after this one would otherwise find them open.
+  playingButton->onClick();
+  tuningButton->onClick();
+  setParam(ovt::params::macroRowId(0), 0.0f);
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
 /// One right-click opens one LINK menu.
 ///
 /// Right-clicking the gap between two sections opened two menus stacked on
@@ -12362,6 +12557,7 @@ int main(int argc, char **argv) {
   testTheRulesFoldTheirSections(processor);
   testOneRightClickOpensOneMenu(processor);
   testWheelOverAKnobStaysOnTheKnob(processor);
+  testWheelOverABarKnobStaysOnTheKnob(processor);
   testASidewaysWheelMovesTheMixer(processor);
   testTheGutterBorderIsOneLine(processor);
   testTheBandsLayOutAColumn();

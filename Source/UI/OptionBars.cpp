@@ -57,6 +57,12 @@ void OptionBar::mouseDown(const juce::MouseEvent &e) {
     onLearnRequested(id);
 }
 
+void OptionBar::mouseWheelMove(const juce::MouseEvent &e,
+                               const juce::MouseWheelDetails &wheel) {
+  if (e.originalComponent == this)
+    juce::Component::mouseWheelMove(e, wheel);
+}
+
 juce::Colour OptionBar::captionColour(const Item &) const {
   return colours::textDim;
 }

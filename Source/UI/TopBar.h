@@ -113,6 +113,15 @@ public:
 
   void mouseDown(const juce::MouseEvent &) override;
 
+  /// Heard from every control in the bar too, since the bar listens deeply
+  /// for right-clicks, and Component's own handler passes whatever it is
+  /// given up to the parent. So a wheel a knob had already taken went on to
+  /// the editor and scrolled the mixer under the hand turning the knob. Only
+  /// a wheel that landed on the bar itself is passed on, as the noise strip
+  /// does it.
+  void mouseWheelMove(const juce::MouseEvent &,
+                      const juce::MouseWheelDetails &) override;
+
   /// Says a newer release is out: SETTINGS lights, and the release is the
   /// first item in its menu, which goes to it. Called with an empty version to
   /// say nothing, which is the state it starts in and stays in for anyone who
