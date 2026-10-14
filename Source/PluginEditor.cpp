@@ -87,9 +87,8 @@ RowGutter::RowGutter() {
   // pointer it gives you, so the button wears that pointer, and the menu it
   // opens is where the names are. See ui::PointerTool.
   toolButton.setTooltip(
-      "What a drag in the mixer does. Pointer moves one control, Link moves "
-      "the row it belongs to, and Draw sweeps values across the series. Only "
-      "one at a time, since a drag cannot be two of them at once.");
+      "What dragging in the mixer does. Pointer moves one control, Link moves "
+      "its whole row, and Draw paints values across the channels.");
   toolButton.setTitle("Pointer tool");
   toolButton.setColour(juce::TextButton::textColourOnId, colours::accent);
 
@@ -117,9 +116,9 @@ RowGutter::RowGutter() {
   // L and T, the way a channel says M and S: one character each, with the
   // whole of it in the tooltip and the name a screen reader is given.
   glideLegato.setButtonText("L");
-  glideLegato.setTooltip("Legato glide: only from a key still held down. "
-                         "Dark, every note glides from the last one, even "
-                         "after its key is up.");
+  glideLegato.setTooltip(
+      "Legato glide: only glide from a key that is still held. When off, every "
+      "note glides from the last one, even after its key is up.");
   glideLegato.setTitle("Legato glide");
   glideLegato.setComponentID("glideLegato");
   glideLegato.onClick = [this] {
@@ -128,10 +127,9 @@ RowGutter::RowGutter() {
   };
 
   glideFixedTime.setButtonText("T");
-  glideFixedTime.setTooltip("Fixed time: every glide takes the knob's time, "
-                            "however far it goes. Dark, a fixed rate, the "
-                            "time per octave, so a wide leap takes "
-                            "longer than a step.");
+  glideFixedTime.setTooltip(
+      "Fixed time: every glide takes the knob's time, however far it goes. "
+      "When off, the knob is the time per octave, so wide leaps take longer.");
   glideFixedTime.setTitle("Fixed glide time");
   glideFixedTime.setComponentID("glideFixedTime");
   glideFixedTime.onClick = [this] {
@@ -150,8 +148,8 @@ RowGutter::RowGutter() {
                                    std::function<void()> RowGutter::*callback) {
     b.onIcon = ovt::ui::drawSharedIcon;
     b.setTooltip(juce::String(which) +
-                 " shared by all notes: every note hears each channel's "
-                 "modulator in step. Dark, each note starts its own.");
+                 " shared by all notes: every note follows the same modulator "
+                 "on each channel. When off, each note starts its own.");
     b.setTitle(juce::String(which) + " shared by all notes");
     b.setComponentID(id);
     b.onClick = [this, callback] {

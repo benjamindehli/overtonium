@@ -259,7 +259,7 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   addMouseListener(this, true);
 
   masterFader.setPopupDisplayEnabled(true, true, &popupParent);
-  masterFader.setTooltip("Output level, over the meter that reads it");
+  masterFader.setTooltip("Output level");
 
   // Named for a screen reader, which has nothing else to go on: the control
   // has no caption beside it, since the meter under it is what says what it
@@ -277,9 +277,9 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
 
   stretch.slider.setPopupDisplayEnabled(true, true, &popupParent);
   stretch.slider.setTooltip(
-      "Pulls the partials off the harmonic series, the way a stiff string or a "
-      "struck bar does. A little of it is piano stretch. A lot of it is a "
-      "bell. It stacks with each channel's TUNE rather than replacing it.");
+      "Pulls the partials sharp of the harmonic series, as a stiff string "
+      "does. A little sounds like a piano, a lot like a bell. Adds to each "
+      "channel's TUNE.");
   stretch.slider.setDoubleClickReturnValue(true, 0.0);
   stretch.slider.getProperties().set("bipolar", true);
   addAndMakeVisible(stretch);
@@ -289,10 +289,9 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   learn::tag(stretch, params::stretchId);
 
   track.slider.setPopupDisplayEnabled(true, true, &popupParent);
-  track.slider.setTooltip(
-      "Thins the series as you play up the keyboard, the way a real body does: "
-      "the partials climb through a rolloff that stays put. Measured against "
-      "the fundamental, so high notes get duller rather than quieter.");
+  track.slider.setTooltip("Makes high notes duller by rolling off the partials "
+                          "above a fixed frequency, as an acoustic instrument "
+                          "does. The fundamental keeps its level.");
   track.slider.setDoubleClickReturnValue(true, 0.0);
   addAndMakeVisible(track);
 
@@ -302,9 +301,9 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
 
   wobble.slider.setPopupDisplayEnabled(true, true, &popupParent);
   wobble.slider.setTooltip(
-      "A warped record under the whole instrument, ahead of the echo. A slow "
-      "wander with the odd sharp slip on top, both of which get worse as you "
-      "turn it up. Both channels bend together, since it is one platter.");
+      "Warped-record pitch wobble on the whole instrument, before the echo: a "
+      "slow wander with occasional sharp slips, both growing as you turn it "
+      "up.");
   wobble.slider.setDoubleClickReturnValue(true, 0.0);
   addAndMakeVisible(wobble);
 
@@ -322,12 +321,11 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   masterFader.toFront(false);
 
   rateDisplay.setTooltip(
-      "The rate the instrument renders at. Turning it down is a real cut "
-      "rather than a filter over the top: it does less work, and the partials "
-      "above the new ceiling fold back down instead of disappearing.");
+      "The rate the instrument renders at. Lower rates save CPU, and partials "
+      "above the new limit fold back down as aliasing.");
 
-  bitsDisplay.setTooltip("The depth the instrument quantises to, ahead of the "
-                         "echo, the reverb and the fader.");
+  bitsDisplay.setTooltip("The bit depth the instrument is reduced to, before "
+                         "the echo, the reverb and the fader.");
 
   rateDisplay.onClick = [this] {
     juce::StringArray choices;
@@ -350,10 +348,9 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
 
   // ---- which oscillator -----------------------------------------------------
   characterButton.setTooltip(
-      "Which oscillator every partial is. All of them are sine oscillators, "
-      "and what differs is the way each circuit fails to make one: a lamp "
-      "that lags, an amplifier leaning on its rails, a shaper with mismatched "
-      "diodes. Pure is the sine nothing built out of parts produces.");
+      "The circuit every partial's oscillator is built on. Pure is an exact "
+      "sine. Bulb's level lags behind pitch changes, Rail and Diode add "
+      "harmonics, Valve adds a warm octave, and Op-amp hardens high notes.");
 
   characterButton.onClick = [this] {
     showChoiceMenu(params::characterId, params::characterChoices(),
@@ -364,11 +361,10 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
 
   // ---- the strings nobody plays ---------------------------------------------
   styleToggle(stringsButton, "STRINGS",
-              "Strings nobody plays, ringing along with what is, after the "
-              "channels are summed and before the bus drive. Piano is a "
-              "piano's: the strings of the keys held down ring, and every one "
-              "while the sustain pedal is down. Octave is twelve strings from "
-              "C3, always free, and Series the tuning root's harmonics.");
+              "Strings that resonate with what you play, before the bus drive. "
+              "Piano rings the held keys' strings, and all 88 while the "
+              "sustain pedal is down. Octave rings twelve strings from C3, and "
+              "Series the tuning root's harmonics.");
 
   // A menu over one parameter, so the click opens it rather than toggling
   // anything, and the light says what came back.
@@ -388,8 +384,7 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
 
   // ---- presets --------------------------------------------------------------
   presetDisplay.setReading(kNoPreset, true);
-  presetDisplay.setTooltip("Factory and saved presets, and somewhere to put "
-                           "the one you are working on");
+  presetDisplay.setTooltip("Factory and saved presets, and saving your own");
   presetDisplay.onClick = [this] { showPresetMenu(); };
   addAndMakeVisible(presetDisplay);
 
@@ -398,10 +393,8 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   // two switches that used to sit on the panel taking up room they had not
   // earned.
   macroButton.setButtonText("MACROS");
-  macroButton.setTooltip(
-      "One parameter that moves a whole row, and that a host can automate. "
-      "A LINK drag moves 32 parameters and a host catches only the last one "
-      "touched, which is what these are for.");
+  macroButton.setTooltip("Single host parameters that each move a whole row of "
+                         "knobs, so a row can be automated as one lane.");
   macroButton.setTitle("Macros");
   macroButton.setColour(juce::TextButton::textColourOnId, colours::accent);
   macroButton.onClick = [this] {
@@ -444,12 +437,11 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
     std::function<void()> TopBar::*callback;
   } bars[] = {
       {playingButton, "PLAYING", "Playing",
-       "Voices, legato, pitch bend range and expression, in a bar under this "
-       "one",
+       "Opens a bar with voices, legato, pitch bend range and expression",
        drawKeyboardIcon, &TopBar::onPlayingClicked},
       {tuningButton, "TUNING", "Tuning",
-       "Temperament, root and reference pitch, and what Adaptive is doing, in "
-       "a bar under this one",
+       "Opens a bar with the temperament, root, reference pitch and what "
+       "Adaptive is doing",
        drawTuningForkIcon, &TopBar::onTuningClicked},
   };
 
@@ -472,10 +464,9 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   // ---- the master effects
   // ----------------------------------------------------
   styleToggle(echoButton, "ECHO",
-              "Which delay the whole instrument runs into, before the master "
-              "fader: a tape loop, a line of buckets, or a plain digital one "
-              "that crosses every repeat to the other side. AGE means "
-              "something different on each, and the machine says what.");
+              "The delay the instrument runs into, before the master fader: "
+              "tape, bucket brigade, or a ping-pong digital delay. AGE wears "
+              "each one differently.");
 
   echoButton.onClick = [this] {
     auto m = buildEchoMenu();
@@ -487,10 +478,9 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
                     [this](int result) { chooseEcho(result); });
   };
   styleToggle(reverbButton, "REVERB",
-              "Which reverb the whole instrument runs into, after the echo: a "
-              "room built out of delay lines, a sheet of steel with no "
-              "geometry to it, or a tray of springs that turns every hit into "
-              "a falling chirp.");
+              "The reverb the instrument runs into, after the echo: a room, a "
+              "modulated plate, or a spring tank that turns hits into a "
+              "falling chirp.");
 
   reverbButton.onClick = [this] {
     auto m = buildReverbMenu();
@@ -514,13 +504,10 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   // because it chooses between five shapes rather than turning one on, and it
   // has left the settings menu for the same reason: it is part of the sound.
   styleToggle(clipButton, kClipName,
-              "What the finished output runs into, after the master fader, "
-              "which is therefore the drive into it. Soft bends, Hard stops "
-              "dead, Asymmetric leans one half of the wave over before the "
-              "other, "
-              "Limiter turns the level down instead of bending anything, and "
-              "Fold turns the wave back on itself. None of them lets the "
-              "output past full scale; off does.");
+              "Shapes the output after the master fader. Soft rounds the "
+              "peaks, Hard cuts them flat, Asymmetric bends one half of the "
+              "wave first, Limiter turns the level down and Fold folds the "
+              "wave back. Off lets the output go past full scale.");
 
   clipButton.onClick = [this] {
     auto m = buildClipMenu();
@@ -537,9 +524,8 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   addKnob(stringsControls, "Strings", "MIX", params::stringsMixId,
           "From the instrument alone to the strings alone", popupParent);
   addKnob(stringsControls, "Strings", "DECAY", params::stringsDecayId,
-          "How long a free string rings, and so how long it takes to build "
-          "up. It does not make them louder: a string held at its own pitch "
-          "rings at the same level whatever this says.",
+          "How long a free string rings, and how long it takes to build up. It "
+          "does not make the strings louder.",
           popupParent);
   addKnob(stringsControls, "Strings", "DAMP", params::stringsDampId,
           "How quickly the top dies out of the strings", popupParent);
@@ -547,28 +533,26 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   addKnob(echoControls, "Echo", "MIX", params::echoMixId,
           "How much of the output is repeats", popupParent);
   addKnob(echoControls, "Echo", "TIME", params::echoTimeId,
-          "Distance between the heads. Moving it winds the tape rather than "
-          "cutting to the new time, so the repeats slide in pitch on the way.",
+          "Time between repeats. Moving it winds the tape rather than cutting "
+          "to the new time, so the repeats slide in pitch.",
           popupParent);
   addKnob(echoControls, "Echo", "FDBK", params::echoFeedbackId,
           "How much of each repeat goes round again", popupParent);
   addKnob(echoControls, "Echo", "AGE", params::echoAgeId,
-          "How worn the machine is. Turning it up takes the top off every "
-          "repeat, sets the motor wandering and lets the tape lean over when "
-          "it is driven. New is clean and bright, old is dark and unsteady.",
+          "How worn the machine is. Higher makes the repeats darker and less "
+          "steady, through the tape, the bucket brigade's clock or the "
+          "digital's bits.",
           popupParent);
 
   addKnob(reverbControls, "Reverb", "MIX", params::reverbMixId,
           "How much of the output is reverb", popupParent);
   addKnob(reverbControls, "Reverb", "DECAY", params::reverbDecayId,
-          "How long the tail takes to fall away. The room is sized to match, "
-          "since a long tail in a small room is a spring rather than a place.",
+          "How long the tail takes to die away. The room size follows it.",
           popupParent);
   addKnob(reverbControls, "Reverb", "DAMP", params::reverbDampId,
           "How quickly the top end dies out of the tail", popupParent);
   addKnob(reverbControls, "Reverb", "PRE", params::reverbPreDelayId,
-          "Silence between the note and its reverb. A little of it keeps the "
-          "attack clear of the wash.",
+          "Silence before the reverb starts. A little keeps the attack clear.",
           popupParent);
 }
 

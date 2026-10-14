@@ -378,8 +378,8 @@ PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state,
     return d.naturalWidth(kControlHeight);
   };
 
-  inUse.setTooltip("How many voices are sounding, release tails included. "
-                   "Once it reaches VOICES, a new note takes one over.");
+  inUse.setTooltip("Voices sounding, release tails included. At the VOICES "
+                   "limit, a new note takes one over.");
 
   // Lit by the pedal, never by a click.
   sustain.setInterceptsMouseClicks(false, false);
@@ -830,32 +830,28 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
     scaleItems.push_back({scale[(size_t)pc].get(), natural(*scale[(size_t)pc]),
                           params::kPitchClassNames[(size_t)pc]});
   }
-  drift.setTooltip("How far the held chord sits from where just intonation on "
-                   "the root would put it, in commas. It moves only as far as "
-                   "the music takes it, and never more than two either way.");
+  drift.setTooltip("How far the held chord has drifted from just intonation on "
+                   "the root, in commas. Never more than two either way.");
   // Lit by the chord, never by a click.
   pure.setInterceptsMouseClicks(false, false);
   pure.setWantsKeyboardFocus(false);
   pure.setButtonText("PURE");
-  pure.setTooltip("Lit while every interval in the chord you hold is pure. "
-                  "Dark when the chord has had to give one up, which some "
-                  "chords cannot avoid.");
+  pure.setTooltip("Lit while every interval in the held chord is pure. Some "
+                  "chords cannot be pure throughout.");
 
-  styleSwitch(sevenths, "7:4", "Harmonic sevenths",
-              "Tunes a minor seventh 7:4 above its root, the harmonic "
-              "seventh, wherever nothing else in the chord would beat "
-              "against it. Off, every seventh takes the size the chain of "
-              "fifths gives it.");
+  styleSwitch(
+      sevenths, "7:4", "Harmonic sevenths",
+      "Tunes minor sevenths to the 7:4 harmonic seventh where nothing else in "
+      "the chord clashes with it. Off, sevenths follow the chain of fifths.");
   sevenths.onClick = [this] {
     settings::apply(apvts, settings::kHarmonicSevenths);
     refresh();
   };
 
   styleSwitch(home, "NO DRIFT", "No drift",
-              "Keeps the chord you hold as near home as Adaptive can, so the "
-              "keyboard does not drift. When a progression would carry it "
-              "off, a held note slides a comma instead. Off, the keyboard "
-              "goes where the music takes it, up to two commas either way.");
+              "Keeps the held chord close to home so the keyboard does not "
+              "drift, sliding a held note by a comma when needed. Off, the "
+              "tuning can wander up to two commas either way.");
   home.onClick = [this] {
     settings::apply(apvts, settings::kAdaptiveHome);
     refresh();

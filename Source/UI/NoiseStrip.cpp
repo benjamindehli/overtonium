@@ -84,9 +84,8 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
             "Where the noise sits in the stereo field");
 
   setUpKnob(stringAmount, params::stringSuffix, colour,
-            "How much of the noise goes through a string tuned to the note, "
-            "from the noise alone to the string alone. A short burst plucks "
-            "it, a held noise blows into it.",
+            "From the noise alone to the noise through a string tuned to the "
+            "note. A short burst plucks it, held noise blows into it.",
             "Noise string");
   setUpKnob(stringDecay, params::stringDecaySuffix, colour,
             "How long the string rings while the key is down. Once it is let "
@@ -96,9 +95,8 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
             "How quickly the string loses its top, bright to dark",
             "Noise string damp");
   setUpKnob(stringPick, params::stringPickSuffix, colour,
-            "Where along the string the noise strikes it, from near the end, "
-            "which keeps every harmonic, to the middle, which loses the even "
-            "ones",
+            "Where the noise strikes the string: near the end keeps every "
+            "harmonic, the middle loses the even ones.",
             "Noise string pick");
 
   strike.getProperties().set("bipolar", true);
@@ -157,9 +155,8 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
   volume.onValueChange = [this] { updateLevelReadout(); };
   updateLevelReadout();
 
-  setTooltip("Noise channel. It has the same envelope, tremolo, velocity and "
-             "aftertouch as a partial, and in place of tuning and pitch "
-             "modulation a string it can strike, tuned to the note.");
+  setTooltip("Noise channel. Same envelope, tremolo, velocity and aftertouch "
+             "as a partial, and a string it can strike, tuned to the note.");
 }
 
 void NoiseStrip::setUpKnob(juce::Slider &s, const char *suffix,

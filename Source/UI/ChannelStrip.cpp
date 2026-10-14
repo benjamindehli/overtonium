@@ -1368,13 +1368,12 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
 
   const auto tuning =
       exactly(info.jiCents, 0.0)
-          ? juce::String("An octave is the same interval in both, so TUNE has "
-                         "nothing to move here. STRETCH is what moves an "
-                         "octave partial.")
+          ? juce::String("An octave is the same in both, so TUNE has nothing "
+                         "to move here. STRETCH moves it.")
           : juce::String("Just intonation is ") +
                 (info.jiCents >= 0.0 ? "+" : "") + cents + " cents from that";
 
-  setTooltip("Harmonic " + juce::String(info.harmonic) + "  -  " +
+  setTooltip("Harmonic " + juce::String(info.harmonic) + ", " +
              intervalName(info.pitchClass) + "\n" +
              juce::String(info.etSemitones) +
              " semitones above the played note\n" + tuning);

@@ -55,9 +55,7 @@ MacroPanel::MacroPanel(juce::AudioProcessorValueTreeState &state)
     buildStrip(m);
 
   addButton.setButtonText("Add a macro");
-  addButton.setTooltip("Takes one of the eight and points it at a row. There "
-                       "are eight because a plugin declares its parameters "
-                       "once and cannot grow one later.");
+  addButton.setTooltip("Assigns one of the eight macros to a row.");
   addButton.onClick = [this] {
     const auto free = firstFree();
 
@@ -114,8 +112,8 @@ void MacroPanel::buildStrip(int macro) {
         &strips[(size_t)macro].row);
   };
 
-  strip.scope.setTooltip("Which channels it reaches. Past the first three, "
-                         "every interval the series carries.");
+  strip.scope.setTooltip("Which channels it reaches: all, odd, even, or one "
+                         "interval of the series.");
   strip.scope.onClick = [this, macro] {
     choose(
         macro, params::macroScopeId(macro), "Scope", params::kNumMacroScopes,
@@ -123,9 +121,9 @@ void MacroPanel::buildStrip(int macro) {
         &strips[(size_t)macro].scope);
   };
 
-  strip.curve.setTooltip("How it is shared out. Taper leans on the "
-                         "fundamental and fades towards the top of the "
-                         "series.");
+  strip.curve.setTooltip(
+      "How it is shared out. Uniform moves every channel the same, and Taper "
+      "is strongest at one channel and fades away from it.");
   strip.curve.onClick = [this, macro] {
     choose(
         macro, params::macroCurveId(macro), "Curve",
@@ -136,8 +134,8 @@ void MacroPanel::buildStrip(int macro) {
         &strips[(size_t)macro].curve);
   };
 
-  strip.anchor.setTooltip("The channel a taper leans on hardest. Shown only "
-                          "when the curve has somewhere to lean.");
+  strip.anchor.setTooltip(
+      "The channel the taper is strongest at. Shown when the curve is Taper.");
   strip.anchor.onClick = [this, macro] {
     choose(
         macro, params::macroAnchorId(macro), "Anchor", kNumHarmonics,
@@ -162,8 +160,8 @@ void MacroPanel::buildStrip(int macro) {
   };
 
   strip.remove.setButtonText("x");
-  strip.remove.setTooltip("Puts this macro back in the pool. What it was "
-                          "driving goes back to what the patch says.");
+  strip.remove.setTooltip(
+      "Frees this macro. What it moved goes back to what the patch says.");
   strip.remove.onClick = [this, macro] {
     write(params::macroRowId(macro), 0);
     refresh();
@@ -174,8 +172,8 @@ void MacroPanel::buildStrip(int macro) {
   // things it is covering.
   strip.amount.getProperties().set("segmentedTrack", true);
   strip.amount.getProperties().set("bipolar", true);
-  strip.amount.setTooltip("How far it pushes the row, and the one a host "
-                          "automates.");
+  strip.amount.setTooltip(
+      "How far it pushes the row. This is the parameter a host automates.");
   strip.amount.setDoubleClickReturnValue(true, 0.0);
 
   strip.attachment =
