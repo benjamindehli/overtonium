@@ -375,7 +375,7 @@ enum class StringsMode {
   /// A piano's: one string a key, the held keys' undamped, every one with the
   /// sustain pedal down.
   Piano,
-  /// A piano's with the pedal held down for good: every string undamped.
+  /// Piano with the sustain pedal always down, so every string is undamped.
   Open,
   /// One for each note of the octave from C3, always undamped.
   Octave,

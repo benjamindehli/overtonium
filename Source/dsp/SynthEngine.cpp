@@ -1016,7 +1016,7 @@ SynthEngine::planStrings(const SynthParams &p) const noexcept {
   switch (p.strings.mode) {
   case StringsMode::Piano:
   case StringsMode::Open: {
-    // Open is Piano with the pedal held down for good.
+    // Open is Piano with the sustain pedal always down.
     const bool pedal = p.pedalDown || p.strings.mode == StringsMode::Open;
 
     // A held key's string is where that key is sounding, before any bend:
