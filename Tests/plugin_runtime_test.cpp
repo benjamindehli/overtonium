@@ -810,9 +810,10 @@ void testParameterWiring(OvertoniumProcessor &p) {
   // note, whether it uses the harmonic seventh, and whether it stays home.
   // See params::adaptiveRetuneId, params::adaptiveSeventhId and
   // params::adaptiveHomeId. Then four for the string the noise channel
-  // strikes. See params::stringSuffix.
+  // strikes, and four for the sympathetic strings. See params::stringSuffix
+  // and params::stringsModeId.
   const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + 2 + 1 + 1 +
-                       1 + 1 + 4 + ovt::params::kNumMacros * 6;
+                       1 + 1 + 4 + 4 + ovt::params::kNumMacros * 6;
 
   // The behaviour that was there before it became a choice. Asked of the
   // parameter rather than of the tree, so the answer does not depend on what
@@ -4560,6 +4561,28 @@ void testMasterEffects(OvertoniumProcessor &p) {
   p.reset();
 
   check(tailAfterNote() < 1.0e-5f, "Init puts both of them away again");
+
+  // The sympathetic strings ring on after the note too, ahead of the
+  // effects, so their tail is the strings' and the effects' together.
+  setParam(ovt::params::stringsModeId, (float)(int)ovt::StringsMode::Octave);
+  setParam(ovt::params::stringsMixId, 1.0f);
+  setParam(ovt::params::stringsDecayId, 6.0f);
+
+  const auto strung = tailAfterNote();
+  check(strung > 1.0e-4f, "the sympathetic strings ring on after the note "
+                          "(peak " +
+                              std::to_string(strung) + ")");
+
+  check(p.getTailLengthSeconds() > 5.0,
+        "the reported tail covers the strings (" +
+            std::to_string(p.getTailLengthSeconds()) + " s)");
+
+  setParam(ovt::params::stringsModeId, (float)(int)ovt::StringsMode::Off);
+
+  check(tailAfterNote() < 1.0e-5f, "switching them off takes them away");
+
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+  p.reset();
 }
 
 void testMeterRepaint() {
@@ -5740,6 +5763,39 @@ void testMachineMenusFollowTheirParameters(OvertoniumProcessor &p) {
     check(tickedIn(stillDigital) == "Off",
           "and goes back to Off without forgetting which machine it was (" +
               tickedIn(stillDigital) + ")");
+  }
+
+  // ---- the strings, one parameter with Off among its modes -----------------
+  {
+    const auto stringsButton = [bar]() -> juce::Button * {
+      for (auto *c : bar->getChildren())
+        if (c->getTitle().startsWith("Strings:"))
+          return dynamic_cast<juce::Button *>(c);
+
+      return nullptr;
+    };
+
+    for (int i = 0; i < (int)ovt::StringsMode::NumModes; ++i) {
+      write(ovt::params::stringsModeId, (float)i);
+      bar->updatePanelReadouts(48000.0);
+
+      auto menu = bar->buildStringsMenu();
+      const juce::String wanted = ovt::stringsModeName((ovt::StringsMode)i);
+      auto *button = stringsButton();
+
+      check(tickedIn(menu) == wanted.toStdString(),
+            "the strings' menu names " + wanted.toStdString() +
+                " when that is the mode (" + tickedIn(menu) + ")");
+
+      check(button != nullptr &&
+                button->getButtonText() == wanted.toUpperCase() &&
+                button->getToggleState() == (i != 0),
+            "and their button says " + wanted.toUpperCase().toStdString() +
+                (i != 0 ? ", lit" : ", unlit"));
+    }
+
+    write(ovt::params::stringsModeId, 0.0f);
+    bar->updatePanelReadouts(48000.0);
   }
 
   // ---- and the output stage, which became one of these ---------------------
@@ -7857,6 +7913,40 @@ void testNoiseStringKnobs(OvertoniumProcessor &p) {
   check(folded && back, "and fold away with the block they stand in");
 }
 
+/// The sympathetic strings' parameters: the mode lists every mode by name,
+/// the knobs read as what they are, and a preset puts the strings away.
+void testSympatheticStringsParameters(OvertoniumProcessor &p) {
+  section("The sympathetic strings' parameters");
+
+  namespace pp = ovt::params;
+
+  auto *mode = dynamic_cast<juce::AudioParameterChoice *>(
+      p.apvts.getParameter(pp::stringsModeId));
+  check(mode != nullptr &&
+            mode->choices ==
+                juce::StringArray{"Off", "Piano", "Octave", "Series"} &&
+            mode->getIndex() == (int)ovt::StringsMode::Off,
+        "Strings Mode is Off, Piano, Octave or Series, and Off to begin with");
+
+  if (auto *decay = p.apvts.getParameter(pp::stringsDecayId))
+    check(decay->getText(decay->getDefaultValue(), 16) == "4.00 s",
+          "Strings Decay reads as a time (" +
+              decay->getText(decay->getDefaultValue(), 16).toStdString() + ")");
+
+  if (auto *mix = p.apvts.getParameter(pp::stringsMixId))
+    check(mix->getText(mix->getDefaultValue(), 16) == "50 %",
+          "Strings Mix reads as a share (" +
+              mix->getText(mix->getDefaultValue(), 16).toStdString() + ")");
+
+  // A preset is a whole sound, so it decides whether strings ring along.
+  if (mode != nullptr)
+    mode->setValueNotifyingHost(
+        mode->convertTo0to1((float)(int)ovt::StringsMode::Piano));
+  p.applyFactoryPreset(presetIndex("Init"));
+  check(mode != nullptr && mode->getIndex() == (int)ovt::StringsMode::Off,
+        "and loading a preset switches them off");
+}
+
 /// What the processor publishes for the Playing bar's readouts: the pedal,
 /// the bend, the wheel and the pressure, with MPE off and on.
 void testPlayingReadouts(OvertoniumProcessor &p) {
@@ -9654,6 +9744,20 @@ void testBarButtonsFitTheirWords(OvertoniumProcessor &p) {
   for (int i = 0; i < (int)ovt::ReverbType::NumTypes; ++i)
     reverbWords.add(ovt::reverbTypeShortName((ovt::ReverbType)i));
 
+  juce::StringArray stringsWords;
+  for (int i = 0; i < (int)ovt::StringsMode::NumModes; ++i)
+    stringsWords.add(ovt::stringsModeName((ovt::StringsMode)i));
+
+  const auto stringsText = widest(stringsWords);
+
+  std::printf("  the strings' longest word is %d px, in a button of %d\n",
+              stringsText, TopBar::kStringsWidth);
+
+  check(stringsText + 8 <= TopBar::kStringsWidth,
+        "every mode the strings can be in fits in their button (" +
+            std::to_string(stringsText) + " px in " +
+            std::to_string(TopBar::kStringsWidth) + ")");
+
   const auto reverbText = widest(reverbWords);
   const auto echoText = widest(echoWords);
   const auto characterText = widest(ovt::params::characterChoices());
@@ -9708,8 +9812,8 @@ void testBarButtonsFitTheirWords(OvertoniumProcessor &p) {
   {
     const auto captionFont = makeFont(9.0f, true);
 
-    const int widths[] = {TopBar::kCharacterWidth, TopBar::kEchoWidth,
-                          TopBar::kReverbWidth};
+    const int widths[] = {TopBar::kCharacterWidth, TopBar::kStringsWidth,
+                          TopBar::kEchoWidth, TopBar::kReverbWidth};
 
     for (size_t i = 0; i < std::size(TopBar::kGroupNames); ++i) {
       const juce::String word(TopBar::kGroupNames[i]);
@@ -9782,7 +9886,7 @@ void testBarComesOntoOneRow(OvertoniumProcessor &p) {
 
   // The figure the design notes quote. It moves whenever a control on the bar
   // changes width, and when it moves the notes move with it.
-  check(onOneRow == 1092, "and comes onto it at the width written down (" +
+  check(onOneRow == 1286, "and comes onto it at the width written down (" +
                               std::to_string(onOneRow) + ")");
 }
 
@@ -12246,6 +12350,7 @@ int main(int argc, char **argv) {
   testOptionBars(processor);
   testSharedSettingsChoices(processor);
   testNoiseString(processor);
+  testSympatheticStringsParameters(processor);
   testNoiseStringKnobs(processor);
   testPlayingReadouts(processor);
   testPlayingBar(processor);

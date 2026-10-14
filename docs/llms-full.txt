@@ -464,19 +464,19 @@ The envelope decides what kind of string it is. A noise envelope a few milliseco
 
 Page: Overtonium effects: character, echo, reverb, converter and CLIP
 URL: https://benjamindehli.github.io/overtonium/effects/
-Last changed: 2026-10-10
+Last changed: 2026-10-13
 
 # Effects
 
-Everything on the bar along the top of the window works on the whole instrument rather than on one channel: the oscillator character every partial is built from, the wobble under the series, the drive on the bus the channels are summed onto, the echo, the reverb, the converter, and the output stage with its meter.
+Everything on the bar along the top of the window works on the whole instrument rather than on one channel: the oscillator character every partial is built from, the wobble under the series, the sympathetic strings, the drive on the bus the channels are summed onto, the echo, the reverb, the converter, and the output stage with its meter.
 
 ## The signal chain
 
-[Diagram: The order the signal passes through. Each of the thirty-three channels runs a sine partial through its envelope and key-off stage, its tremolo, its velocity and pressure amounts, its fader and its pan. The thirty-three are summed onto a bus that drives, and the mix then passes the wobble, the echo, the reverb, the master fader and the safety clipper before it leaves. each of the thirty-three channels sine partial n envelope and key off tremolo velocity and pressure fader pan then the mix of all of them converter rate, bits bus drive wobble echo reverb master fader clipper summed out.]
+[Diagram: The order the signal passes through. Each of the thirty-three channels runs a sine partial through its envelope and key-off stage, its tremolo, its velocity and pressure amounts, its fader and its pan. The thirty-three are summed and run through the converter, the sympathetic strings and a bus that drives, and the mix then passes the wobble, the echo, the reverb, the master fader and the safety clipper before it leaves. each of the thirty-three channels sine partial n envelope and key off tremolo velocity and pressure fader pan then the mix of all of them converter rate, bits strings one per key bus drive wobble echo reverb master fader clipper summed out.]
 
 The order things happen in. Everything on a channel strip runs before the mix is made, and everything on the bar runs after it, which is why a channel meter and the output meter disagree while a tail is ringing.
 
-[Image: The top bar: the loaded preset on a fourteen-segment display beside four icons, for settings and macros over the Playing and Tuning bars, the oscillator character, the stretch, track and wobble controls, the echo, the reverb, and the output meter with the master fader lying across it, two seven-segment converter readouts reading kilohertz and bits, and the output stage reading Soft.]
+[Image: The top bar: the loaded preset on a fourteen-segment display beside four icons, for settings and macros over the Playing and Tuning bars, the oscillator character, the stretch, track and wobble controls, the sympathetic strings with their mode and three knobs, the echo, the reverb, and the output meter with the master fader lying across it, two seven-segment converter readouts reading kilohertz and bits, and the output stage reading Soft.]
 
 ## Character
 
@@ -495,6 +495,16 @@ It is part of the patch rather than part of the setup, so a preset can change it
 ## Wobble
 
 A warped record under the whole instrument. Pitch is bent by reading the output back through a delay line whose length keeps moving, which is what happens when a platter runs eccentric or a capstan slips. A slow warp near once round a 33 rpm disc, a faster wander on top, and now and then a sharp slip that bends hard and settles back. The slips grow in both rate and size with the square of the control, so a low setting is a tired turntable and a high one is a transport falling over itself. It sits ahead of the echo, so the repeats inherit what it did rather than wobbling on their own.
+
+## Sympathetic strings
+
+Eighty-eight strings nobody plays, one for each key of a piano from A0 to C8, ringing along with what is. They are fed the thirty-three channels once they are summed, and what rings back is mixed in before the bus drive, so the drive and everything after it treat them as part of the instrument rather than as a room behind it. The button beside the character says what they are tuned to and lights while they ring.
+
+**Piano** is a piano's: the strings of the keys you hold are free, the rest are damped, and the sustain pedal lifts every damper. A held key's string is tuned where the key is sounding, and the others wait where a key struck now would sound, under Adaptive at the version their pitch class had last. None of them bends, since a piano's strings do not follow the wheel. **Octave** is the twelve strings from C3, always free, so every note finds something to ring with. **Series** is the tuning root's first eight harmonics from its second octave, tuned pure and always free, a drone that answers whatever lands on the root's own series.
+
+**MIX** goes from the instrument alone to the strings alone, as it does on the echo and the reverb. **DECAY** is how long a free string rings, from 200 ms to 10 s, and so how long the strings take to build up under a held chord. It does not make them louder: a partial held at a string's pitch drives it to the same level whatever DECAY says. **DAMP** is how quickly the top dies out of them. A damper stops its string over 0.8 s at the bottom of the keyboard and 0.25 s at the top, so a released bass key leaves the short hum a felt on a heavy string does. A string freed only by the pedal is fed a quarter of what a held key's string is, so the pedal blooms under a chord rather than turning it up.
+
+They are part of the patch, and off in every factory preset. With eight voices they cost about one percent of a core with the pedal up and about five with every string free under it.
 
 ## Bus drive
 
@@ -635,7 +645,7 @@ The safety clip is the exception in this table, and the master fader is the exce
 
 ## Automating it from the host
 
-Eight hundred and forty-six parameters reach the host: forty global ones, twenty-three on each of the 32 partials, twenty-two on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals first and then channel by channel with the noise channel last.
+Eight hundred and fifty parameters reach the host: forty-four global ones, twenty-three on each of the 32 partials, twenty-two on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals first and then channel by channel with the noise channel last.
 
 Every per-channel name carries its channel, so a parameter list answers both ways of looking for something. Type `H7` and you have that partial, type `Tune` and you have that row across the whole mixer. The same names are what a screen reader reads, which is why they are words rather than numbers.
 
@@ -657,9 +667,9 @@ LINK is not a parameter, since it is a tool for the mouse rather than part of th
 
 ### Every parameter
 
-All 846 as the host lists them, with a control that every partial or every macro carries given one row for all of them. The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is [parameters.json](https://benjamindehli.github.io/overtonium/parameters.json), written by the plugin rather than by hand.
+All 850 as the host lists them, with a control that every partial or every macro carries given one row for all of them. The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is [parameters.json](https://benjamindehli.github.io/overtonium/parameters.json), written by the plugin rather than by hand.
 
-**Global**, forty of them.
+**Global**, forty-four of them.
 
 | What the host calls it | Id | Range | Default |
 |---|---|---|---|
@@ -703,6 +713,10 @@ All 846 as the host lists them, with a control that every partial or every macro
 | `Adaptive Retune` | `adaptiveRetune` | 0.0 ms to 1.00 s | 30.0 ms |
 | `Adaptive Harmonic Sevenths` | `adaptiveSeventh` | Off or on | On |
 | `Adaptive No Drift` | `adaptiveHome` | Off or on | Off |
+| `Strings Mode` | `stringsMode` | Off, Piano, Octave, Series | Off |
+| `Strings Mix` | `stringsMix` | 0 % to 100 % | 50 % |
+| `Strings Decay` | `stringsDecay` | 200 ms to 10.00 s | 4.00 s |
+| `Strings Damp` | `stringsDamp` | 0 % to 100 % | 40 % |
 
 **On every partial**, twenty-three controls, each one on all 32 partials.
 
@@ -794,7 +808,7 @@ A full sweep reaches the ends of the range, which means a patch already sitting 
 
 **Right-click any control and choose MIDI Learn**, then move something on your controller. A violet ring marks the control while it waits, so you can see what is listening without opening the menu again, and only ever one control carries it. Right-click the same control afterwards and the menu says which controller moves it, with the way to forget it or to bind a different one. In the mixer these items sit under the LINK settings that right-click already opens. On the top bar, the Playing and Tuning bars and the noise channel they are a menu of their own, since none of them is part of the series LINK gangs.
 
-Your host almost certainly offers the same thing. What this does that a host cannot is let you make the map by right-clicking the knob itself rather than finding `H17 AM Rate` in a list of 846 parameters, and behave the same way wherever you open it.
+Your host almost certainly offers the same thing. What this does that a host cannot is let you make the map by right-clicking the knob itself rather than finding `H17 AM Rate` in a list of 850 parameters, and behave the same way wherever you open it.
 
 **Eleven controllers are refused**, because something is already listening for them and losing it would be felt while playing rather than noticed afterwards. Controller 1 is the mod wheel, which can feed aftertouch. 64 is the sustain pedal. 74 is the slide axis, the one most easily bound by accident since it moves whenever a finger does on an MPE keyboard. 120 and 123 stop notes. Controllers 6, 38, 98, 99, 100 and 101 are how a keyboard tells the instrument what it is. Arming a knob and then reaching for the slide to steady a note leaves the note steadied and the knob still waiting.
 

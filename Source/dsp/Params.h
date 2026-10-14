@@ -367,6 +367,48 @@ struct LofiParams {
   int bits = 0;
 };
 
+/// What the sympathetic strings are tuned to. See SympatheticStrings.
+///
+/// Appended rather than inserted, since the index is what a preset stores.
+enum class StringsMode {
+  Off,
+  /// A piano's: one string a key, the held keys' undamped, every one with the
+  /// sustain pedal down.
+  Piano,
+  /// One for each note of the octave from C3, always undamped.
+  Octave,
+  /// The tuning root's harmonic series from its second octave, pure, always
+  /// undamped.
+  Series,
+  NumModes
+};
+
+inline const char *stringsModeName(StringsMode m) {
+  switch (m) {
+  case StringsMode::Off:
+    return "Off";
+  case StringsMode::Piano:
+    return "Piano";
+  case StringsMode::Octave:
+    return "Octave";
+  case StringsMode::Series:
+    return "Series";
+
+  case StringsMode::NumModes:
+    break;
+  }
+
+  return "Off";
+}
+
+/// The strings nobody plays, ringing along with what is.
+struct StringsParams {
+  StringsMode mode = StringsMode::Off;
+  float mix = 0.5f;          ///< the instrument alone at 0, the strings at 1
+  float decaySeconds = 4.0f; ///< how long an undamped one rings
+  float damping = 0.4f;      ///< 0 bright to 1 dark
+};
+
 struct SynthParams {
   std::array<OscParams, kNumHarmonics> osc{};
   NoiseParams noise{};
@@ -374,6 +416,11 @@ struct SynthParams {
   EchoParams echo{};
   ReverbParams reverb{};
   LofiParams lofi{};
+  StringsParams strings{};
+
+  /// Whether a sustain pedal is down on any channel. Set by whoever handles
+  /// the MIDI, since under MPE the pedal never reaches the engine as a pedal.
+  bool pedalDown = false;
 };
 
 } // namespace ovt

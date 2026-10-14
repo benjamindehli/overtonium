@@ -41,9 +41,22 @@ constexpr int kWordmarkGap = 2;
 /// is half a pixel off each converter readout, which stop naming their units
 /// below 53. A gear and a rack of faders say the same thing in a third of
 /// the room, and the words are still what a screen reader is given.
-constexpr int kGroupMinWidth[] = {84, 144, 218, 232, 228, 172};
-constexpr int kOutputGroupIndex = 5;
-constexpr int kGroupCount = 6;
+///
+/// The strings come straight after the character with no gap between, and
+/// where the two share a row they are framed as one, since both say what the
+/// instrument is rather than what is done to it afterwards. They are two
+/// groups so that a narrow window can put the strings on the next row rather
+/// than having to be wide enough for both.
+constexpr int kGroupMinWidth[] = {84, 144, 218, 194, 232, 228, 172};
+constexpr int kStringsGroupIndex = 3;
+constexpr int kOutputGroupIndex = 6;
+constexpr int kGroupCount = 7;
+
+/// The room left before a group that follows another on its row. None before
+/// the strings, whose frame carries on from the character's.
+constexpr int gapBefore(int group) {
+  return group == kStringsGroupIndex ? 0 : kGroupGap;
+}
 
 /// Buttons, lists and the output meter all stand this tall, centred on the
 /// dials beside them, so a row reads as one line of controls.
@@ -88,7 +101,7 @@ constexpr const char *kNoPreset = "Select...";
 int totalGroupWidth(int first, int last) {
   int total = 0;
   for (int g = first; g < last; ++g)
-    total += kGroupMinWidth[g] + (g > first ? kGroupGap : 0);
+    total += kGroupMinWidth[g] + (g > first ? gapBefore(g) : 0);
 
   return total;
 }
@@ -349,6 +362,30 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
 
   addAndMakeVisible(characterButton);
 
+  // ---- the strings nobody plays ---------------------------------------------
+  styleToggle(stringsButton, "STRINGS",
+              "Strings nobody plays, ringing along with what is, after the "
+              "channels are summed and before the bus drive. Piano is a "
+              "piano's: the strings of the keys held down ring, and every one "
+              "while the sustain pedal is down. Octave is twelve strings from "
+              "C3, always free, and Series the tuning root's harmonics.");
+
+  // A menu over one parameter, so the click opens it rather than toggling
+  // anything, and the light says what came back.
+  stringsButton.setClickingTogglesState(false);
+
+  stringsButton.onClick = [this] {
+    auto m = buildStringsMenu();
+    m.setLookAndFeel(&getLookAndFeel());
+
+    m.showMenuAsync(juce::PopupMenu::Options()
+                        .withTargetComponent(&stringsButton)
+                        .withStandardItemHeight(22),
+                    [this](int result) { chooseStrings(result); });
+  };
+
+  stringsButton.setColour(juce::TextButton::textColourOnId, colours::accent);
+
   // ---- presets --------------------------------------------------------------
   presetDisplay.setReading(kNoPreset, true);
   presetDisplay.setTooltip("Factory and saved presets, and somewhere to put "
@@ -496,6 +533,16 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   };
 
   clipButton.setColour(juce::TextButton::textColourOnId, colours::accent);
+
+  addKnob(stringsControls, "Strings", "MIX", params::stringsMixId,
+          "From the instrument alone to the strings alone", popupParent);
+  addKnob(stringsControls, "Strings", "DECAY", params::stringsDecayId,
+          "How long a free string rings, and so how long it takes to build "
+          "up. It does not make them louder: a string held at its own pitch "
+          "rings at the same level whatever this says.",
+          popupParent);
+  addKnob(stringsControls, "Strings", "DAMP", params::stringsDampId,
+          "How quickly the top dies out of the strings", popupParent);
 
   addKnob(echoControls, "Echo", "MIX", params::echoMixId,
           "How much of the output is repeats", popupParent);
@@ -778,6 +825,34 @@ void TopBar::chooseEcho(int id) {
     type->setValueNotifyingHost(type->convertTo0to1((float)(id - 2)));
 
   on->setValueNotifyingHost(1.0f);
+}
+
+juce::PopupMenu TopBar::buildStringsMenu() {
+  juce::PopupMenu m;
+
+  auto *mode = apvts.getParameter(params::stringsModeId);
+  const auto which =
+      mode == nullptr
+          ? 0
+          : juce::roundToInt(mode->convertFrom0to1(mode->getValue()));
+
+  // Off apart from the rest, as the echo's and the reverb's menus have it.
+  for (int i = 0; i < (int)StringsMode::NumModes; ++i) {
+    m.addItem(i + 1, stringsModeName((StringsMode)i), true, i == which);
+
+    if (i == (int)StringsMode::Off)
+      m.addSeparator();
+  }
+
+  return m;
+}
+
+void TopBar::chooseStrings(int id) {
+  if (id <= 0 || id > (int)StringsMode::NumModes)
+    return;
+
+  if (auto *mode = apvts.getParameter(params::stringsModeId))
+    mode->setValueNotifyingHost(mode->convertTo0to1((float)(id - 1)));
 }
 
 juce::PopupMenu TopBar::buildReverbMenu() {
@@ -1317,6 +1392,28 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
     setRingsLive(echoControls, running);
   }
 
+  // ---- and what the strings are tuned to, by the same rule ------------------
+  {
+    auto *mode = apvts.getParameter(params::stringsModeId);
+
+    const auto which =
+        mode == nullptr
+            ? StringsMode::Off
+            : (StringsMode)juce::jlimit(
+                  0, (int)StringsMode::NumModes - 1,
+                  juce::roundToInt(mode->convertFrom0to1(mode->getValue())));
+
+    const bool running = which != StringsMode::Off;
+    const juce::String name = stringsModeName(which);
+
+    stringsButton.setButtonText(name.toUpperCase());
+    stringsButton.setTitle(running ? "Strings: " + name
+                                   : juce::String("Strings: off"));
+    stringsButton.setToggleState(running, juce::dontSendNotification);
+
+    setRingsLive(stringsControls, running);
+  }
+
   // ---- and which reverb, by the same rule ----------------------------------
   {
     auto *on = apvts.getParameter(params::reverbOnId);
@@ -1410,7 +1507,8 @@ TopBar::RowPlan TopBar::planRows(int fullWidth, int maxRows) {
     int onThisRow = 0;
 
     while (group < kGroupCount) {
-      auto width = kGroupMinWidth[group] + (onThisRow > 0 ? kGroupGap : 0);
+      auto width =
+          kGroupMinWidth[group] + (onThisRow > 0 ? gapBefore(group) : 0);
 
       // The meter can give up a little rather than send its group to the next
       // row, so a window a few pixels short does not wrap.
@@ -1469,16 +1567,16 @@ int TopBar::minimumWidth() {
 }
 
 void TopBar::parkControls() {
-  juce::Component *all[] = {&masterFader,    &meter,         &presetDisplay,
-                            &settingsButton, &playingButton, &tuningButton,
-                            &echoButton,     &reverbButton,  &stretch,
-                            &track,          &rateDisplay,   &bitsDisplay,
-                            &characterButton};
+  juce::Component *all[] = {&masterFader,     &meter,         &presetDisplay,
+                            &settingsButton,  &playingButton, &tuningButton,
+                            &echoButton,      &reverbButton,  &stretch,
+                            &track,           &rateDisplay,   &bitsDisplay,
+                            &characterButton, &stringsButton};
 
   for (auto *c : all)
     c->setBounds({});
 
-  for (auto *set : {&echoControls, &reverbControls})
+  for (auto *set : {&stringsControls, &echoControls, &reverbControls})
     for (auto &c : *set)
       c.knob->setBounds({});
 
@@ -1554,6 +1652,12 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
     tuningButton.setBounds(bottom);
     break;
   }
+
+  case StringsGroup:
+    // Laid out the way an effect is: their button at the head and their
+    // knobs after it.
+    effect(stringsButton, stringsControls, r, kStringsWidth);
+    break;
 
   case SeriesGroup: {
     // What the partials are comes before what is done to them, so the
@@ -1676,7 +1780,7 @@ void TopBar::layoutRow(juce::Rectangle<int> row, int firstGroup,
 
   for (int g = firstGroup; g < lastGroup; ++g) {
     if (g > firstGroup)
-      row.removeFromLeft(kGroupGap);
+      row.removeFromLeft(gapBefore(g));
 
     auto width = kGroupMinWidth[g];
     if (g == kOutputGroupIndex && hasOutput)
@@ -1742,14 +1846,27 @@ void TopBar::paint(juce::Graphics &g) {
   // Only where there is something to group, though. A box drawn around a
   // single button says nothing that the button was not already saying, and
   // four of them in a row turn the bar into a fence.
+  //
+  // The character and the strings are one frame where they stand side by
+  // side, and each has its own where the strings have gone to the next row.
+  const auto &series = groupBounds[(size_t)SeriesGroup];
+  const auto &strings = groupBounds[(size_t)StringsGroup];
+  const bool joined = !series.isEmpty() && !strings.isEmpty() &&
+                      strings.getX() == series.getRight() &&
+                      strings.getY() == series.getY();
+
   for (int group = 0; group < NumGroups; ++group) {
-    const auto &r = groupBounds[(size_t)group];
+    auto r = groupBounds[(size_t)group];
 
-    const bool framed = group == SeriesGroup || group == EchoGroup ||
-                        group == ReverbGroup || group == OutputGroup;
+    const bool framed = group == SeriesGroup || group == StringsGroup ||
+                        group == EchoGroup || group == ReverbGroup ||
+                        group == OutputGroup;
 
-    if (r.isEmpty() || !framed)
+    if (r.isEmpty() || !framed || (joined && group == StringsGroup))
       continue;
+
+    if (joined && group == SeriesGroup)
+      r = r.getUnion(strings);
 
     paintGroupPocket(g, r);
   }
@@ -1772,6 +1889,7 @@ void TopBar::paint(juce::Graphics &g) {
       const juce::Component *head;
     } named[] = {
         {SeriesGroup, &characterButton},
+        {StringsGroup, &stringsButton},
         {EchoGroup, &echoButton},
         {ReverbGroup, &reverbButton},
     };

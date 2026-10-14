@@ -416,6 +416,10 @@ void OvertoniumProcessor::followPedal(const juce::MidiMessage &m) noexcept {
     pedalChannels &= ~bit;
   else if (m.isAllNotesOff() || m.isAllSoundOff())
     pedalChannels = 0;
+
+  // And the engine, which reads the pedal for the strings' dampers and under
+  // MPE would otherwise never hear it.
+  currentParams.pedalDown = pedalChannels != 0;
 }
 
 void OvertoniumProcessor::publishPlaying() noexcept {
@@ -560,6 +564,7 @@ void OvertoniumProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     setMpeEnabled(on);
 
   paramCache.snapshot(currentParams, pitchBendNormalised);
+  currentParams.pedalDown = pedalChannels != 0;
   updateAftertouch();
   engine.setPolyphony(paramCache.polyphonyValue());
   engine.setLegato(paramCache.legatoValue());

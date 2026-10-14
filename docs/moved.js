@@ -28,6 +28,7 @@
         "output-meter": "../effects/",
         reverb: "../effects/",
         settings: "../playing/",
+        strings: "../effects/",
         wobble: "../effects/"
     };
 

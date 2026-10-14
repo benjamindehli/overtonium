@@ -270,6 +270,11 @@ public:
   /// can be tested without being clicked.
   juce::PopupMenu buildReverbMenu();
 
+  /// What the sympathetic strings are tuned to, or Off. One parameter
+  /// rather than a switch and a type, since the strings arrived with their
+  /// modes and there was no older switch to keep.
+  juce::PopupMenu buildStringsMenu();
+
   /// How wide the two buttons that say a value have to be.
   ///
   /// Each is sized for the longest word it can show, in the capitals the bar
@@ -281,16 +286,18 @@ public:
   /// and DIGITAL is 50, and the air either side is what every other button on
   /// the bar has.
   static constexpr int kCharacterWidth = 62;
+  static constexpr int kStringsWidth = 62;
   static constexpr int kEchoWidth = 62;
   static constexpr int kReverbWidth = 58;
 
   /// The word painted under each of those, saying what the button chooses.
   ///
-  /// In the same order as the three widths above, and public for the same
+  /// In the same order as the four widths above, and public for the same
   /// reason they are: a word wider than the button it sits under is drawn
   /// with its middle taken out and nothing says so. See
   /// testBarButtonsFitTheirWords.
-  static constexpr const char *kGroupNames[] = {"CHARACTER", "ECHO", "REVERB"};
+  static constexpr const char *kGroupNames[] = {"CHARACTER", "STRINGS", "ECHO",
+                                                "REVERB"};
 
   /// The clipper's switch, under the meter beside the converter readouts.
   ///
@@ -330,6 +337,9 @@ private:
   /// The same for the reverb.
   void chooseReverb(int id);
 
+  /// And for the strings.
+  void chooseStrings(int id);
+
 public:
 private:
   /// The factory list, then whatever has been saved, then what can be done
@@ -366,6 +376,7 @@ private:
     VoiceGroup = 0,
     PresetGroup,
     SeriesGroup,
+    StringsGroup,
     EchoGroup,
     ReverbGroup,
     OutputGroup,
@@ -430,6 +441,12 @@ private:
   /// Pure, which is the one that adds nothing.
   GlowButton characterButton;
 
+  /// What the sympathetic strings are tuned to, beside the character in the
+  /// same group, since both are the instrument rather than something done to
+  /// it afterwards. Lit while they ring along, and saying OFF when they do
+  /// not, the way the echo's and the reverb's buttons do.
+  GlowButton stringsButton;
+
   /// The logo, rescaled once to the size it is drawn at. Scaling a 2464 px
   /// image down to 150 on every repaint would be both slow and soft.
   juce::Image logo, logoScaled;
@@ -488,7 +505,7 @@ private:
   /// legible at the width the window opens at.
   float zoom = 1.0f;
 
-  std::vector<Control> echoControls, reverbControls;
+  std::vector<Control> stringsControls, echoControls, reverbControls;
 
   LinkScope scope = LinkScope::All;
   LinkCurve curve = LinkCurve::Uniform;

@@ -1012,7 +1012,7 @@ void OvertoniumEditor::applyResizeLimits(int forLogicalWidth) {
   const int minWidth = minimumLogicalWidth();
 
   // The floor follows the width, and the reason is the bar. It takes three
-  // rows at the narrowest window, two from 628, and one from 1092, which is
+  // rows at the narrowest window, two from 676, and one from 1286, which is
   // 182, 124 and 66 pixels of chrome, so the same mixer needs a window 116
   // pixels taller at one end of the range than at the other.
   //
