@@ -4290,8 +4290,7 @@ void testRowHover() {
   // writing a number here means adding a row cannot quietly push the last one
   // off the bottom of the test without the test noticing.
   const auto rows =
-      layoutRows(juce::Rectangle<int>(0, 0, kStripWidth,
-                                      preferredStripHeight() + 2 * kStripPadY)
+      layoutRows(juce::Rectangle<int>(0, 0, kStripWidth, preferredStripHeight())
                      .reduced(kStripPadX, kStripPadY));
 
   const auto rowAtCentre = [&rows](Row r) {
@@ -6954,7 +6953,9 @@ void testTheBandsLayOutAColumn() {
   int states = 0, scrolling = 0;
 
   for (SectionMask mask = 0; mask < (1 << kNumSections); ++mask) {
-    const int preferred = preferredStripHeight(mask);
+    // The rows' own height: the bands are laid out inside the strip's
+    // padding, which preferredStripHeight includes.
+    const int preferred = preferredStripHeight(mask) - 2 * kStripPadY;
 
     for (int height : {preferred, preferred + 1, preferred + 200}) {
       const juce::Rectangle<int> area(0, 0, kStripWidth, height);
@@ -7376,6 +7377,78 @@ void testTheSafetyClipHoldsUnity() {
   // attempt at this test passed while rendering nothing.
   check(sounded == 3, "and it was driven hard enough to mean it (peak " +
                           std::to_string(worst) + ")");
+}
+
+/// Fit all 32 channels shows every row, with nothing left to scroll, and is
+/// the shortest window that does: a pixel shorter and the rows scroll. Asked
+/// with each combination of the two bars open, since each adds chrome.
+void testFittingShowsEveryRow(OvertoniumProcessor &p) {
+  section("Fitting shows every row");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  juce::ScrollBar *rowsBar = nullptr;
+  juce::Button *playing = nullptr, *tuning = nullptr;
+
+  std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      // The rows' scrollbar is the vertical one that does not belong to the
+      // mixer's viewport.
+      if (auto *s = dynamic_cast<juce::ScrollBar *>(child))
+        if (s->isVertical() && dynamic_cast<juce::Viewport *>(&c) == nullptr)
+          rowsBar = s;
+      if (auto *b = dynamic_cast<juce::Button *>(child)) {
+        if (b->getTitle() == "Playing")
+          playing = b;
+        if (b->getTitle() == "Tuning")
+          tuning = b;
+      }
+      look(*child);
+    }
+  };
+  look(*editor);
+
+  check(rowsBar != nullptr && playing != nullptr && tuning != nullptr,
+        "and has a scrollbar for the rows and both bar buttons");
+  if (rowsBar == nullptr || playing == nullptr || tuning == nullptr)
+    return;
+
+  const auto setOpen = [](juce::Button *b, bool open) {
+    if (b->getToggleState() != open)
+      b->onClick();
+  };
+
+  const auto scrolls = [rowsBar] {
+    return rowsBar->getCurrentRangeSize() <
+           rowsBar->getMaximumRangeLimit() - rowsBar->getMinimumRangeLimit();
+  };
+
+  for (int bars = 0; bars < 4; ++bars) {
+    setOpen(playing, (bars & 1) != 0);
+    setOpen(tuning, (bars & 2) != 0);
+    editor->fitAllChannels();
+
+    const auto fitted = editor->getHeight();
+    const auto fits = !scrolls();
+
+    editor->setSize(editor->getWidth(), fitted - 1);
+    const auto tighter = scrolls();
+
+    check(fits && tighter,
+          std::string("with ") + ((bars & 1) ? "Playing" : "no Playing bar") +
+              " and " + ((bars & 2) ? "Tuning" : "no Tuning bar") +
+              ", the fitted window shows every row and a pixel less does "
+              "not (" +
+              std::to_string(fitted) + " px)");
+  }
+
+  setOpen(playing, false);
+  setOpen(tuning, false);
 }
 
 /// Fit all 32 channels must land somewhere a drag can get back to.
@@ -12555,6 +12628,7 @@ int main(int argc, char **argv) {
   testAdaptiveReadouts(processor);
   testFoldingAndUnfoldingIsSymmetric(processor);
   testFittingLandsWhereADragCanReturn(processor);
+  testFittingShowsEveryRow(processor);
   testTheRulesFoldTheirSections(processor);
   testOneRightClickOpensOneMenu(processor);
   testWheelOverAKnobStaysOnTheKnob(processor);

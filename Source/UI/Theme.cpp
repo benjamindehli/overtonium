@@ -595,7 +595,8 @@ int collapsedRowsHeight(SectionMask collapsed) {
 }
 
 int preferredStripHeight(SectionMask collapsed) {
-  return fixedHeight(collapsed) + kIdealFaderHeight;
+  // The rows are laid out inside the strip's padding, top and bottom.
+  return fixedHeight(collapsed) + kIdealFaderHeight + 2 * kStripPadY;
 }
 
 int minimumStripHeight(SectionMask) {

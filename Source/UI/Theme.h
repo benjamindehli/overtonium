@@ -430,7 +430,8 @@ void coalesceRegions(juce::Array<juce::Rectangle<int>> &regions, int limit);
 /// is not what folding a section is for.
 int collapsedRowsHeight(SectionMask collapsed);
 
-/// Total height needed before the fader starts being squeezed.
+/// Total height a strip needs before the fader starts being squeezed,
+/// padding included.
 int preferredStripHeight(SectionMask collapsed = 0);
 
 /// Height below which the fader would be unusably short.

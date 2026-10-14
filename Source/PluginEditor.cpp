@@ -983,7 +983,11 @@ juce::Rectangle<int> OvertoniumEditor::standardSize() const {
   const int width = kGutterWidth + kStripWidth + kMasterGap +
                     kNumHarmonics * kStripWidth + kScrollBarThickness;
 
-  return {width, chromeHeight(width) + preferredStripHeight(collapsedSections)};
+  // At this width every strip fits across, so the mixer has no sideways
+  // scrollbar, and the room chromeHeight keeps for one would go to the strips
+  // as slack.
+  return {width, chromeHeight(width) - kScrollBarThickness +
+                     preferredStripHeight(collapsedSections)};
 }
 
 void OvertoniumEditor::fitAllChannels() {
