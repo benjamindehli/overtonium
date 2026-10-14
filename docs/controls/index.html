@@ -734,12 +734,13 @@
                     </p>
 
                     <p>
-                        <strong>A string</strong> sits under COLOUR, where a partial's pitch modulation would be, for the noise to strike. It is tuned
-                        to the note and follows the pitch wheel, glide and Adaptive like the fundamental does. The noise strikes it after COLOUR and
-                        the envelope have shaped the noise, so a darker colour strikes it more softly. STRING crossfades from the noise alone to the
-                        string alone. DECAY sets how long the string rings while the key is down, DAMP how quickly it loses its high frequencies, and
-                        PICK where along the string the noise strikes. PICK runs from near the end, which keeps every harmonic, to the middle, which
-                        removes the even ones.
+                        <strong>A string</strong> sits under COLOUR, where a partial's pitch modulation would be, for the noise to strike. It is a
+                        Karplus-Strong string: a delay line one period of the note long, fed back through a gentle low-pass filter, so a burst of
+                        noise sent into it comes out as a plucked note that loses its high frequencies first. It is tuned to the note and follows the
+                        pitch wheel, glide and Adaptive like the fundamental does. The noise strikes it after COLOUR and the envelope have shaped the
+                        noise, so a darker colour strikes it more softly. STRING crossfades from the noise alone to the string alone. DECAY sets how
+                        long the string rings while the key is down, DAMP how quickly it loses its high frequencies, and PICK where along the string
+                        the noise strikes. PICK runs from near the end, which keeps every harmonic, to the middle, which removes the even ones.
                     </p>
 
                     <p>

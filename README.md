@@ -37,7 +37,7 @@ The earlier instruments also show up in the details. DRIFT is the cassette's ran
 
 All three earlier instruments are sample libraries with a plugin wrapper, sold at [Dehli Musikk](https://store.dehlimusikk.no/). This one is free software, and it contains none of their code.
 
-The Adaptive temperament relies on another project of mine, [music-utils](https://github.com/benjamindehli/music-utils), a library that names chords from the MIDI notes held. The temperament is tested against its list of 125 chord types. Every one, in all twelve keys, has to sound the same however it is played, and be as pure as possible.
+The Adaptive temperament follows the Norwegian composer Eivind Groven, who from 1936 built organs with up to three pitches for every key, chosen automatically as the music moved, so an ordinary keyboard could play pure chords in every key. It relies on another project of mine, [music-utils](https://github.com/benjamindehli/music-utils), a library that names chords from the MIDI notes held. The temperament is tested against its list of 125 chord types. Every one, in all twelve keys, has to sound the same however it is played, and be as pure as possible.
 
 ## What is in it
 
@@ -48,8 +48,8 @@ Each channel is a strip, and each strip has the same twenty-three controls. The 
 Start with the [project page](https://benjamindehli.github.io/overtonium/). It has a page for each main part:
 
 - **[Tuning](https://benjamindehli.github.io/overtonium/tuning/)**: TUNE from equal to just, inharmonic stretch, six historical temperaments and an adaptive one on any root, keyboard tracking and per-partial drift
-- **[Controls](https://benjamindehli.github.io/overtonium/controls/)**: every knob on a channel strip, the two-part envelope, LINK for ganging the series, the lamps and meters, and the noise channel
-- **[Effects](https://benjamindehli.github.io/overtonium/effects/)**: the bar above the mixer, from the oscillator character, the wobble and the sympathetic strings through the echo, the reverb and the converter to the five CLIP shapes on the output
+- **[Controls](https://benjamindehli.github.io/overtonium/controls/)**: every knob on a channel strip, the two-part envelope, LINK for ganging the series, the lamps and meters, and the noise channel with its Karplus-Strong string
+- **[Effects](https://benjamindehli.github.io/overtonium/effects/)**: the bar above the mixer, from the oscillator character, the wobble and the 88 Karplus-Strong sympathetic strings through the echo, the reverb and the converter to the five CLIP shapes on the output
 - **[Playing](https://benjamindehli.github.io/overtonium/playing/)**: MPE, legato and glide, the Settings menu, automation with every parameter listed, macros and MIDI Learn
 - **[Presets](https://benjamindehli.github.io/overtonium/presets/)**: the thirty-four that ship, what a preset stores and deliberately leaves out, switching them with a MIDI program change, and where your own are saved
 - **[Install](https://benjamindehli.github.io/overtonium/install/)**: which download to choose, what to do when a host cannot see the plugin, and building from source
