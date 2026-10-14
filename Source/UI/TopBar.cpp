@@ -32,8 +32,10 @@ constexpr int kGroupGap = 6;
 constexpr int kGroupPad = 6;
 
 /// Between the groups that have no frame: the four buttons, the wordmark
-/// with the preset screen, and the first frame after them.
-constexpr int kUnframedGap = 22;
+/// with the preset screen, and the first frame after them. The same on both
+/// sides of the wordmark, so it stays centred between the buttons and the
+/// first frame.
+constexpr int kUnframedGap = 19;
 
 /// Between the four buttons, across and down.
 constexpr int kButtonGap = 7;
@@ -61,28 +63,20 @@ constexpr int kWordmarkGap = 2;
 /// of faders say the same thing in a third of the room, and the words are still
 /// what a screen reader is given.
 ///
-/// The strings come straight after the character with no gap between, and
-/// where the two share a row they are framed as one, since both say what the
-/// instrument is rather than what is done to it afterwards. They are two
-/// groups so that a narrow window can put the strings on the next row rather
-/// than having to be wide enough for both.
+/// The character and the strings each have their own frame, so the strings'
+/// knobs read as belonging to the strings' button.
 ///
 /// The first two have no frame, so their widths are their contents: two
 /// 33 px buttons with a gap, and the 132 px preset screen.
 constexpr int kGroupMinWidth[] = {73, 132, 218, 194, 232, 228, 172};
 constexpr int kPresetGroupIndex = 1;
 constexpr int kSeriesGroupIndex = 2;
-constexpr int kStringsGroupIndex = 3;
 constexpr int kOutputGroupIndex = 6;
 constexpr int kGroupCount = 7;
 
-/// The room left before a group that follows another on its row. None before
-/// the strings, whose frame carries on from the character's, and more round
+/// The room left before a group that follows another on its row, more round
 /// the two groups that have no frame.
 constexpr int gapBefore(int group) {
-  if (group == kStringsGroupIndex)
-    return 0;
-
   if (group == kPresetGroupIndex || group == kSeriesGroupIndex)
     return kUnframedGap;
 
@@ -1875,27 +1869,15 @@ void TopBar::paint(juce::Graphics &g) {
   // Only where there is something to group, though. A box drawn around a
   // single button says nothing that the button was not already saying, and
   // four of them in a row turn the bar into a fence.
-  //
-  // The character and the strings are one frame where they stand side by
-  // side, and each has its own where the strings have gone to the next row.
-  const auto &series = groupBounds[(size_t)SeriesGroup];
-  const auto &strings = groupBounds[(size_t)StringsGroup];
-  const bool joined = !series.isEmpty() && !strings.isEmpty() &&
-                      strings.getX() == series.getRight() &&
-                      strings.getY() == series.getY();
-
   for (int group = 0; group < NumGroups; ++group) {
-    auto r = groupBounds[(size_t)group];
+    const auto &r = groupBounds[(size_t)group];
 
     const bool framed = group == SeriesGroup || group == StringsGroup ||
                         group == EchoGroup || group == ReverbGroup ||
                         group == OutputGroup;
 
-    if (r.isEmpty() || !framed || (joined && group == StringsGroup))
+    if (r.isEmpty() || !framed)
       continue;
-
-    if (joined && group == SeriesGroup)
-      r = r.getUnion(strings);
 
     paintGroupPocket(g, r);
   }
