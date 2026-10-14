@@ -72,17 +72,24 @@ void SympatheticStrings::process(float *left, float *right, int numSamples,
       auto &string = strings[s];
 
       // A string out of use keeps the pitch it last had while it rings out.
-      string.setBlock(inUse ? plan.hz[s] : equalHz(keyOf(i)),
-                      free ? decay : damperSeconds(i), damp, -1.0f, len);
+      const auto hz = inUse ? plan.hz[s] : equalHz(keyOf(i));
+
+      // A damper never lets a string ring longer than DECAY would.
+      string.setBlock(hz, free ? decay : std::min(decay, damperSeconds(i)),
+                      damp, -1.0f, len);
 
       float peak = 0.0f;
 
-      // Driven at its own pitch a string builds up by 1 / (1 - g), which at
-      // ten seconds on a low string is nearly two hundred, so that is taken
-      // back off what it is fed.
-      const auto drive = free ? (1.0f - string.loopGain()) *
-                                    (plan.pedalled[s] ? kPedalSend : 1.0f)
-                              : 0.0f;
+      // The same rate whatever DECAY is. A string fed at its own pitch builds
+      // up to coupling / (1 - g), so a longer DECAY rings louder as well as
+      // longer, and at kCouplingSeconds that is kSend. Feeding each string in
+      // proportion to its own loss would hold the level steady, but a string
+      // with a long DECAY would then take in almost nothing during a short
+      // note.
+      const auto coupling =
+          1.0f - (float)std::pow(10.0, -3.0 / (hz * kCouplingSeconds));
+      const auto drive =
+          free ? coupling * (plan.pedalled[s] ? kPedalSend : 1.0f) : 0.0f;
 
       for (int n = 0; n < len; ++n) {
         // Only an undamped string takes anything in. A damper presses on a

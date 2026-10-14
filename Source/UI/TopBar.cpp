@@ -556,8 +556,8 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   addKnob(stringsControls, "Strings", "MIX", params::stringsMixId,
           "From the instrument alone to the strings alone", popupParent);
   addKnob(stringsControls, "Strings", "DECAY", params::stringsDecayId,
-          "How long a free string rings, and how long it takes to build up. It "
-          "does not make the strings louder.",
+          "How long a free string rings. Longer also makes the strings "
+          "louder.",
           popupParent);
   addKnob(stringsControls, "Strings", "DAMP", params::stringsDampId,
           "How quickly the strings lose their high end", popupParent);

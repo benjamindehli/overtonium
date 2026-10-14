@@ -70,16 +70,18 @@ public:
   static constexpr double kDamperBassSeconds = 0.8;
   static constexpr double kDamperTrebleSeconds = 0.25;
 
-  /// How much of the summed channels each string is fed, once its own
-  /// resonance has been taken back off: a partial held at a string's pitch
-  /// drives it to this share of the partial's own level, however long DECAY
-  /// is, which is what keeps every string free under the pedal from running
-  /// away. DECAY decides how long they take to build up and to ring out.
+  /// How loud a string gets against a partial held at its pitch, when DECAY
+  /// is kCouplingSeconds.
   static constexpr float kSend = 0.5f;
 
   /// What a string freed by the pedal is fed, as a share of what a held
   /// key's string is.
   static constexpr float kPedalSend = 0.25f;
+
+  /// Every string is fed at the rate that settles a string with this DECAY
+  /// at kSend. A short note then gets as much into a string at any DECAY, and
+  /// a longer DECAY makes the strings louder as well as longer.
+  static constexpr double kCouplingSeconds = 4.0;
 
   /// What the strings are turned up by on the way out, so MIX at 100 % lands
   /// near the level of the instrument it replaces. Chosen by measuring a

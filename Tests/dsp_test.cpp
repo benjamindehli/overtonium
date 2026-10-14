@@ -4781,6 +4781,94 @@ void testSympatheticStrings() {
     check(!gone.second, "and three seconds on neither is ringing");
   }
 
+  // ---- a damper never rings a string longer than DECAY would -------------
+  {
+    Strings bank;
+    bank.prepare(sr);
+    Strings::Plan plan{};
+    const auto s = (size_t)Strings::stringOf(33); // A1, the slowest damper
+    const auto hz = 55.0;
+    plan.hz[s] = hz;
+    plan.free[s] = true;
+    StringsParams params;
+    params.mode = StringsMode::Piano;
+    params.mix = 1.0f;
+    params.decaySeconds = 0.2f;
+
+    std::vector<float> l(256), r(256);
+    double phase = 0.0;
+    float before = 0.0f, after = 0.0f;
+    const int drive = (int)(1.0 * sr) / 256, rest = (int)(0.25 * sr) / 256;
+    for (int b = 0; b < drive + rest + 2; ++b) {
+      if (b == drive)
+        plan.free[s] = false;
+      for (int n = 0; n < 256; ++n) {
+        const auto x = b < drive ? (float)(0.5 * std::sin(phase)) : 0.0f;
+        phase += 2.0 * 3.14159265358979 * hz / sr;
+        l[(size_t)n] = r[(size_t)n] = x;
+      }
+      bank.process(l.data(), r.data(), 256, params, plan);
+      float peak = 0.0f;
+      for (auto y : l)
+        peak = std::max(peak, std::abs(y));
+      if (b == drive - 1)
+        before = peak;
+      if (b >= drive + rest)
+        after = std::max(after, peak);
+    }
+    const auto down = 20.0 * std::log10(after / before + 1.0e-12);
+    check(down < -60.0,
+          "a damper stops a string with a short DECAY as fast as DECAY "
+          "would, not at the damper's own slower pace (" +
+              std::to_string(down) + " dB a quarter second on)");
+  }
+
+  // ---- a short note reaches the strings more as DECAY grows ---------------
+  //
+  // With the pedal up a key's string is free only while the key is down, so a
+  // staccato note is all it gets. Fed in proportion to what it loses each
+  // pass, a string with a long DECAY would take in almost nothing in that
+  // time, and turning DECAY up would make the strings quieter.
+  {
+    const auto staccato = [&](float decay) {
+      const auto owner = std::make_unique<SynthEngine>();
+      auto &e = *owner;
+      e.prepare(sr);
+      auto q = p;
+      q.strings.mode = StringsMode::Piano;
+      q.strings.mix = 1.0f;
+      q.strings.decaySeconds = decay;
+      q.strings.damping = 0.4f;
+      q.pedalDown = false;
+
+      std::vector<float> l(512), r(512);
+      double sum = 0.0;
+      long counted = 0;
+      e.noteOn(60, 1.0f, q);
+      for (int b = 0; b < (int)(0.5 * sr) / 512; ++b) {
+        if (b == (int)(0.12 * sr) / 512)
+          e.noteOff(60);
+        e.render(l.data(), r.data(), 512, q);
+        for (auto x : l) {
+          sum += (double)x * x;
+          ++counted;
+        }
+      }
+      return std::sqrt(sum / (double)counted);
+    };
+
+    const double levels[] = {staccato(0.5f), staccato(1.0f), staccato(4.0f),
+                             staccato(10.0f)};
+    bool rising = true;
+    for (size_t i = 1; i < std::size(levels); ++i)
+      rising &= levels[i] >= 0.98 * levels[i - 1];
+    check(rising && levels[3] > 1.5 * levels[0],
+          "a staccato note rings the strings more as DECAY grows, not less (" +
+              std::to_string(levels[0]) + ", " + std::to_string(levels[1]) +
+              ", " + std::to_string(levels[2]) + ", " +
+              std::to_string(levels[3]) + ")");
+  }
+
   // ---- a string the pedal frees is fed less than a held key's --------------
   {
     const auto ringing = [sr](bool pedalled) {
