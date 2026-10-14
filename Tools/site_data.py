@@ -105,7 +105,9 @@ VIDEO = {
     "name": "Overtonium - Sound Examples",
     "description": "Eleven of the {presets} factory presets in Overtonium, played on an Expressive E Osmose, with no effects on the output except the plugin's own.",
     "thumbnail": BASE + "overtonium-video.webp",
-    "uploaded": "2026-09-26",
+    # Google wants a time and a time zone with the date. The day is the day the
+    # video went up. The time is noon in Norway, since the minute is not known.
+    "uploaded": "2026-09-26T12:00:00+02:00",
     "seconds": 674,
     "chapters": [
         ("Synth Ensemble", 0),
