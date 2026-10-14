@@ -86,7 +86,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-10-12",
+                "dateModified": "2026-10-14",
                 "mainEntity": {
                     "@id": "https://www.dehlimusikk.no/products/overtonium/#product"
                 }
@@ -147,12 +147,12 @@
                     "Inharmonic stretch and keyboard tracking",
                     "Per-partial envelope, tremolo, pitch modulation and pan",
                     "MPE, with pitch bend and pressure per note",
-                    "88 sympathetic strings that ring along with what is played, lifted by the sustain pedal",
-                    "An echo and a reverb that are each one of three machines, and a lo-fi converter",
+                    "88 sympathetic strings that resonate with what you play and respond to the sustain pedal",
+                    "An echo and a reverb with three machines each, and a lo-fi converter",
                     "Eight macros, each one host parameter that moves a whole row of channels",
                     "MIDI Learn on every control",
                     "An output stage with five clip shapes, including a lookahead limiter",
-                    "Glide on every channel, each partial travelling to a new note over its own time"
+                    "Glide on every channel, with each partial reaching a new note over its own time"
                 ]
             }
         </script>
@@ -166,7 +166,7 @@
                         "name": "Which hosts does Overtonium run in?",
                         "acceptedAnswer": {
                             "@type": "Answer",
-                            "text": "It builds as a VST3 on macOS, Windows and Linux, an Audio Unit on macOS and an LV2 on Linux, so it loads anywhere those formats do. There is a standalone build as well."
+                            "text": "It comes as a VST3 on macOS, Windows and Linux, an Audio Unit on macOS and an LV2 on Linux, so it loads in any host that supports those formats. There is also a standalone build."
                         }
                     },
                     {
@@ -174,7 +174,7 @@
                         "name": "Is Overtonium free?",
                         "acceptedAnswer": {
                             "@type": "Answer",
-                            "text": "Yes, and free software rather than only free of charge. It is released under the AGPLv3, which follows from JUCE, and the whole source is on GitHub."
+                            "text": "Yes. It is also free software, not only free of charge. It is released under the AGPLv3 because it uses JUCE, and all of the source is on GitHub."
                         }
                     },
                     {
@@ -182,7 +182,7 @@
                         "name": "What is additive synthesis?",
                         "acceptedAnswer": {
                             "@type": "Answer",
-                            "text": "Building a sound by adding sine waves together rather than by filtering a rich one down. Every timbre is a stack of partials at different frequencies and levels, and additive synthesis hands you those partials directly. Overtonium gives you 32 of them, one per mixer channel."
+                            "text": "It builds a sound by adding sine waves together, instead of filtering a rich waveform. Every timbre is a stack of partials at different frequencies and levels, and additive synthesis lets you control those partials directly. Overtonium gives you 32 of them, one per mixer channel."
                         }
                     },
                     {
@@ -190,7 +190,7 @@
                         "name": "Can Overtonium do microtonal tunings and just intonation?",
                         "acceptedAnswer": {
                             "@type": "Answer",
-                            "text": "Both, and separately. TUNE sweeps each partial between its equal-tempered position and its exact whole-number ratio. The keyboard underneath is tuned on its own, to equal, just, Pythagorean, quarter-comma meantone, Werckmeister III or Young, on any root, at any reference pitch from 415 to 466 Hz. Or to Adaptive, which keeps whatever chord you hold in just intonation as you play, moving a held note where the next chord needs it."
+                            "text": "Yes, both, and they are set separately. TUNE moves each partial between its equal-tempered position and its exact whole-number ratio. The keyboard has its own tuning: equal, just, Pythagorean, quarter-comma meantone, Werckmeister III or Young, on any root, at any reference pitch from 415 to 466 Hz. It can also use Adaptive, which keeps the chord you hold in just intonation as you play, and moves a held note when the next chord needs it."
                         }
                     },
                     {
@@ -198,7 +198,7 @@
                         "name": "Does Overtonium support MPE?",
                         "acceptedAnswer": {
                             "@type": "Answer",
-                            "text": "Yes. With MPE switched on, pitch bend and pressure arrive per note, and pressure has its own amount on every one of the 33 channels. An ordinary single-channel keyboard plays either way."
+                            "text": "Yes. With MPE switched on, pitch bend and pressure work per note, and each of the 33 channels has its own pressure amount. An ordinary single-channel keyboard works either way."
                         }
                     },
                     {
@@ -206,7 +206,7 @@
                         "name": "Can I play Overtonium from a MIDI controller?",
                         "acceptedAnswer": {
                             "@type": "Answer",
-                            "text": "Yes. Right-click any control, choose MIDI Learn and move a knob or fader on the controller. The map is saved with your project rather than with the preset. A macro moves a whole row from one parameter, so one controller or one automation lane can reach up to 32 controls at once."
+                            "text": "Yes. Right-click any control, choose MIDI Learn and move a knob or fader on the controller. The mapping is saved with your project, not with the preset. A macro is one parameter that moves a whole row, so one controller or one automation lane can move up to 32 controls at once."
                         }
                     },
                     {
@@ -214,7 +214,7 @@
                         "name": "Does Overtonium have portamento or glide?",
                         "acceptedAnswer": {
                             "@type": "Answer",
-                            "text": "Yes, on every channel separately. Each partial slides to a new note over its own GLIDE time, so the series can arrive a partial at a time. Two switches cover every channel: whether it glides always or only legato, and whether it moves at a fixed rate or takes a fixed time. Glide on the Playing page has the rest."
+                            "text": "Yes, on each channel separately. Each partial slides to a new note over its own GLIDE time, so the partials can arrive one at a time. Two switches apply to every channel. One sets whether it glides always or only when you play legato, and the other whether it moves at a fixed rate or takes a fixed time. Glide on the Playing page has the details."
                         }
                     },
                     {
@@ -222,7 +222,7 @@
                         "name": "How much CPU does Overtonium use?",
                         "acceptedAnswer": {
                             "@type": "Answer",
-                            "text": "Eight voices of 32 partials each, with every modulator running, costs about 7% of one core, and sixteen voices about 14%. Turning the render rate down is a real saving: at 8 kHz the whole voice pool costs a fifth as much. The figures in full are on the install page."
+                            "text": "Eight voices of 32 partials each, with every modulator running, use about 7% of one core, and sixteen voices about 14%. Lowering the render rate saves a lot. At 8 kHz the whole voice pool costs a fifth as much. The full figures are on the install page."
                         }
                     }
                 ]
@@ -234,7 +234,7 @@
                 "@type": "VideoObject",
                 "@id": "https://benjamindehli.github.io/overtonium/#video",
                 "name": "Overtonium - Sound Examples",
-                "description": "Eleven of the thirty-four factory presets in Overtonium, played on an Expressive E Osmose with nothing on the output but the plugin's own effects.",
+                "description": "Eleven of the thirty-four factory presets in Overtonium, played on an Expressive E Osmose, with no effects on the output except the plugin's own.",
                 "thumbnailUrl": "https://benjamindehli.github.io/overtonium/overtonium-video.webp",
                 "uploadDate": "2026-09-26",
                 "duration": "PT11M14S",
@@ -349,7 +349,7 @@
                             <nav class="contents" aria-label="On this page">
                                 <ul>
                                     <li><a href="#video">What it sounds like</a></li>
-                                    <li><a href="#tune">The control worth reaching for first</a></li>
+                                    <li><a href="#tune">The control to try first</a></li>
                                     <li><a href="#next">Where to go next</a></li>
                                     <li><a href="#questions">Questions</a></li>
                                     <li><a href="#lineage">Where it came from</a></li>
@@ -453,8 +453,8 @@
                     </dl>
 
                     <p class="intro">
-                        Additive synthesis usually hides its partials behind a spectrum drawing or a handful of macro controls. This puts all of them
-                        on the surface, as faders, and gives each one the controls a channel on a desk would have. Shaping a sound is mixing it.
+                        Additive synthesis usually hides its partials behind a spectrum drawing or a few macro controls. Overtonium puts all of them
+                        on the surface as faders, and gives each one the controls of a channel on a mixing desk. You shape a sound by mixing it.
                     </p>
 
                     <figure>
@@ -478,9 +478,8 @@
 
                     <p>
                         Eleven of the thirty-four <a href="presets/">factory presets</a>, played on an Expressive E Osmose, with nothing on the output
-                        but the plugin's own effects. Everything else on this site you can listen to is the plugin rendering a chord to a file, which
-                        is what keeps those clips honest and also what stops them showing what any of this does under hands. This is the one recording
-                        of it being played.
+                        except the plugin's own effects. All the other audio on this site is the plugin rendering a chord to a file. That keeps those
+                        clips accurate, but it cannot show how the plugin responds to playing. This is the only recording of it being played.
                     </p>
 
                     <figure class="video" data-title="Overtonium sound examples">
@@ -493,7 +492,7 @@
                                     loading="lazy"
                                     width="1920"
                                     height="1080"
-                                    alt="Play eleven of the presets, as a video."
+                                    alt="Play a video of eleven of the presets."
                                 />
                                 <span class="play">
                                     <svg viewBox="0 0 64 64" aria-hidden="true">
@@ -503,7 +502,7 @@
                                 </span>
                             </a>
                         </div>
-                        <figcaption>It plays here once you press it, and nothing on this page reaches YouTube before that.</figcaption>
+                        <figcaption>The video plays here when you press it, and nothing on this page contacts YouTube before that.</figcaption>
                     </figure>
 
                     <p>
@@ -513,17 +512,17 @@
                 </section>
 
                 <section id="tune">
-                    <h2>The control worth reaching for first</h2>
+                    <h2>The control to try first</h2>
 
                     <p>
-                        TUNE sweeps each partial continuously between equal temperament and just intonation. At the just end the partial sits at an
-                        exact whole-number ratio with the fundamental and the whole stack fuses into one timbre. At the equal end each partial snaps
-                        to the nearest semitone and the same stack smears into a chord.
+                        TUNE sweeps each partial continuously between equal temperament and just intonation. At the just end, each partial sits at an
+                        exact whole-number ratio to the fundamental and the whole stack blends into one timbre. At the equal end, each partial snaps
+                        to the nearest semitone and the same stack sounds like a chord.
                     </p>
 
                     <p>
                         Two of the <a href="presets/">factory presets</a>, <strong>Just Saw</strong> and <strong>Equal Saw</strong>, are identical
-                        except for that one control. They sound nothing alike.
+                        except for that one control. They sound completely different.
                     </p>
 
                     <figure class="listen">
@@ -553,8 +552,8 @@
                     <p>
                         Nothing about the tuning is hard-coded. For harmonic <code>n</code> the just interval is <code>1200 * log2(n)</code> cents,
                         the equal position is that rounded to the nearest semitone, and TUNE dials in the remainder.
-                        <a href="tuning/">The tuning system</a> works through it, along with stretch, the seven keyboard temperaments and keyboard
-                        tracking.
+                        <a href="tuning/">The tuning system</a> explains it in detail, along with stretch, the seven keyboard temperaments and
+                        keyboard tracking.
                     </p>
                 </section>
 
@@ -567,7 +566,7 @@
                                 ><strong>Tuning</strong
                                 ><span
                                     >TUNE, inharmonic stretch, six historical temperaments and an adaptive one on any root, and how the spectrum thins
-                                    as you play up the keyboard.</span
+                                    out higher up the keyboard.</span
                                 ></a
                             >
                         </li>
@@ -609,49 +608,50 @@
                     <dl class="qa">
                         <dt>Which hosts does Overtonium run in?</dt>
                         <dd>
-                            It builds as a VST3 on macOS, Windows and Linux, an Audio Unit on macOS and an LV2 on Linux, so it loads anywhere those
-                            formats do. There is a standalone build as well.
+                            It comes as a VST3 on macOS, Windows and Linux, an Audio Unit on macOS and an LV2 on Linux, so it loads in any host that
+                            supports those formats. There is also a standalone build.
                         </dd>
                         <dt>Is Overtonium free?</dt>
                         <dd>
-                            Yes, and free software rather than only free of charge. It is released under the AGPLv3, which follows from JUCE, and the
-                            whole source is on GitHub.
+                            Yes. It is also free software, not only free of charge. It is released under the AGPLv3 because it uses JUCE, and all of
+                            the source is on GitHub.
                         </dd>
                         <dt>What is additive synthesis?</dt>
                         <dd>
-                            Building a sound by adding sine waves together rather than by filtering a rich one down. Every timbre is a stack of
-                            partials at different frequencies and levels, and additive synthesis hands you those partials directly. Overtonium gives
-                            you 32 of them, one per mixer channel.
+                            It builds a sound by adding sine waves together, instead of filtering a rich waveform. Every timbre is a stack of partials
+                            at different frequencies and levels, and additive synthesis lets you control those partials directly. Overtonium gives you
+                            32 of them, one per mixer channel.
                         </dd>
                         <dt>Can Overtonium do microtonal tunings and just intonation?</dt>
                         <dd>
-                            Both, and separately. TUNE sweeps each partial between its equal-tempered position and its exact whole-number ratio. The
-                            keyboard underneath is tuned on its own, to equal, just, Pythagorean, quarter-comma meantone, Werckmeister III or Young,
-                            on any root, at any reference pitch from 415 to 466 Hz. Or to <a href="tuning/#adaptive">Adaptive</a>, which keeps
-                            whatever chord you hold in just intonation as you play, moving a held note where the next chord needs it.
+                            Yes, both, and they are set separately. TUNE moves each partial between its equal-tempered position and its exact
+                            whole-number ratio. The keyboard has its own tuning: equal, just, Pythagorean, quarter-comma meantone, Werckmeister III or
+                            Young, on any root, at any reference pitch from 415 to 466 Hz. It can also use <a href="tuning/#adaptive">Adaptive</a>,
+                            which keeps the chord you hold in just intonation as you play, and moves a held note when the next chord needs it.
                         </dd>
                         <dt>Does Overtonium support MPE?</dt>
                         <dd>
-                            Yes. With <a href="playing/#mpe">MPE</a> switched on, pitch bend and pressure arrive per note, and pressure has its own
-                            amount on every one of the 33 channels. An ordinary single-channel keyboard plays either way.
+                            Yes. With <a href="playing/#mpe">MPE</a> switched on, pitch bend and pressure work per note, and each of the 33 channels
+                            has its own pressure amount. An ordinary single-channel keyboard works either way.
                         </dd>
                         <dt>Can I play Overtonium from a MIDI controller?</dt>
                         <dd>
                             Yes. Right-click any control, choose <a href="playing/#midi-learn">MIDI Learn</a> and move a knob or fader on the
-                            controller. The map is saved with your project rather than with the preset. A <a href="playing/#macros">macro</a> moves a
-                            whole row from one parameter, so one controller or one automation lane can reach up to 32 controls at once.
+                            controller. The mapping is saved with your project, not with the preset. A <a href="playing/#macros">macro</a> is one
+                            parameter that moves a whole row, so one controller or one automation lane can move up to 32 controls at once.
                         </dd>
                         <dt>Does Overtonium have portamento or glide?</dt>
                         <dd>
-                            Yes, on every channel separately. Each partial slides to a new note over its own GLIDE time, so the series can arrive a
-                            partial at a time. Two switches cover every channel: whether it glides always or only legato, and whether it moves at a
-                            fixed rate or takes a fixed time. <a href="playing/#glide">Glide</a> on the Playing page has the rest.
+                            Yes, on each channel separately. Each partial slides to a new note over its own GLIDE time, so the partials can arrive one
+                            at a time. Two switches apply to every channel. One sets whether it glides always or only when you play legato, and the
+                            other whether it moves at a fixed rate or takes a fixed time. <a href="playing/#glide">Glide</a> on the Playing page has
+                            the details.
                         </dd>
                         <dt>How much CPU does Overtonium use?</dt>
                         <dd>
-                            Eight voices of 32 partials each, with every modulator running, costs about 7% of one core, and sixteen voices about 14%.
-                            Turning the render rate down is a real saving: at 8 kHz the whole voice pool costs a fifth as much.
-                            <a href="install/#cost">The figures in full</a> are on the install page.
+                            Eight voices of 32 partials each, with every modulator running, use about 7% of one core, and sixteen voices about 14%.
+                            Lowering the render rate saves a lot. At 8 kHz the whole voice pool costs a fifth as much.
+                            <a href="install/#cost">The full figures</a> are on the install page.
                         </dd>
                     </dl>
                 </section>
@@ -660,52 +660,52 @@
                     <h2>Where it came from</h2>
 
                     <p>
-                        Overtonium is the fourth instrument in a line, and the first that computes its sound rather than playing it back. The two
-                        ideas it is built on both arrived at the same place, sitting at a drawbar organ, and neither of them is really about organs.
+                        Overtonium is the fourth instrument in a series, and the first that computes its sound instead of playing back recordings. The
+                        two ideas it is built on both came from sitting at a drawbar organ, and neither is really about organs.
                     </p>
 
                     <p>
                         The first was the
-                        <a href="https://github.com/benjamindehli/VoltageControlledCassetteOrgan">Voltage Controlled Cassette Organ</a>, in 2023. A
-                        Korg CX-3 sampled through cassette tape, every note of every drawbar recorded as its own file. The tape was the point of it:
-                        wow, flutter and random warbles gave the organ a movement like a chorus or a rotary speaker, but without the fixed rate a
-                        modulation effect has. It was recorded to tape twice, which doubled it, and because no tape deck plays back the same way twice
-                        the two passes never quite agreed with each other.
+                        <a href="https://github.com/benjamindehli/VoltageControlledCassetteOrgan">Voltage Controlled Cassette Organ</a>, in 2023. It
+                        is a Korg CX-3 sampled through cassette tape, with every note of every drawbar recorded as its own file. The tape was the main
+                        idea: wow, flutter and random warbles gave the organ a movement like a chorus or a rotary speaker, but without the fixed rate
+                        of a modulation effect. It was recorded to tape twice, which doubled it, and because no tape deck plays back exactly the same
+                        way twice, the two passes never quite matched.
                     </p>
 
                     <p>
-                        <a href="https://github.com/benjamindehli/Strykebrett">Strykebrett</a> came in October of the same year, a sampled Logan
-                        String Melody II. Six faders rather than nine drawbars, each setting the level of one octave or one of the voices across a
-                        bass and a treble section, and four of them carrying their own envelope and their own LFO. It is not an organ, which is the
-                        useful thing about it: the workflow survived being moved onto something else.
+                        <a href="https://github.com/benjamindehli/Strykebrett">Strykebrett</a> followed in October of the same year, a sampled Logan
+                        String Melody II. It has six faders instead of nine drawbars, each setting the level of one octave or one of the voices across
+                        a bass and a treble section, and four of them have their own envelope and their own LFO. It is not an organ, and that is what
+                        makes it useful here: the workflow still worked on a different instrument.
                     </p>
 
                     <p>
-                        <a href="https://github.com/benjamindehli/EDB-Orgel">EDB-Orgel</a> followed in 2024, keeping the drawbar workflow and putting
+                        <a href="https://github.com/benjamindehli/EDB-Orgel">EDB-Orgel</a> followed in 2024. It keeps the drawbar workflow but puts
                         four digital synthesis types under it instead of an organ.
                     </p>
 
                     <p>
-                        All three gave a drawbar its own envelope and LFO, which is the first of the two ideas. A drawbar is a partial, and an organ
-                        moves them by hand while the note sounds. Nine of them shaped separately already sounds unlike an organ, so thirty-two, each
-                        with a full channel of controls, is that idea taken as far as it goes.
+                        All three gave each drawbar its own envelope and LFO, which is the first of the two ideas. A drawbar is a partial, and on an
+                        organ you move the drawbars by hand while the note sounds. Nine of them shaped separately already sound unlike an organ.
+                        Thirty-two, each with a full channel of controls, take that idea as far as it goes.
                     </p>
 
                     <p>
-                        The second idea is about where the drawbars are tuned. A drawbar is a harmonic, but an organ has only the twelve notes of the
-                        keyboard to build one out of, so each drawbar is put on the nearest one. The second, fifth and eighth are all fifths an octave
-                        apart, which means holding a C puts three G's into the sound. A harmonic series does not work like that. The real intervals
-                        are whole-number ratios, 2:1, 3:2, 4:3, and apart from the octaves none of them lands on a key.
-                        <a href="tuning/">TUNE</a> is that difference turned into a control, and computing the partials is what makes it possible: a
-                        sampled one is stuck at the pitch it was recorded at, while a computed one can sit where the organ would put it, at its exact
+                        The second idea is about how the drawbars are tuned. A drawbar is a harmonic, but an organ only has the twelve notes of the
+                        keyboard to build it from, so each drawbar is tuned to the nearest one. The second, fifth and eighth are all fifths an octave
+                        apart, so holding a C puts three G's into the sound. A harmonic series does not work like that. Its real intervals are
+                        whole-number ratios, 2:1, 3:2, 4:3, and apart from the octaves none of them lands on a key.
+                        <a href="tuning/">TUNE</a> turns that difference into a control, and computing the partials is what makes it possible. A
+                        sampled partial is stuck at the pitch it was recorded at. A computed one can sit where the organ would put it, at its exact
                         ratio, or anywhere between.
                     </p>
 
                     <p>
-                        The ancestry shows up in the details. DRIFT is the cassette's random warble, per partial. WOBBLE is the same thing under the
-                        whole instrument. The tape echo's two paths, each with its own motor speed and its own random stream, are the double tracking,
-                        and its AGE control never quite reaches zero for the same reason the two tape passes never agreed: a transport that held speed
-                        exactly would put the repeat back in mono, and there is no such transport.
+                        You can hear the ancestry in the details. DRIFT is the cassette's random warble, per partial. WOBBLE is the same thing applied
+                        to the whole instrument. The tape echo's two paths, each with its own motor speed and its own random stream, are the double
+                        tracking. Its AGE control never quite reaches zero for the same reason the two tape passes never matched: a transport that
+                        held speed exactly would put the repeat back in mono, and no real transport holds speed exactly.
                     </p>
 
                     <p>

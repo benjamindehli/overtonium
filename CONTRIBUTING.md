@@ -1,52 +1,52 @@
 # Contributing
 
-Bug reports, patches and reports of how it behaves in hosts nobody here has tried are all welcome. Windows and Linux in particular are built and tested on every push but have never been loaded into a DAW by anyone, so anything you find there is new information.
+Bug reports, patches and reports of how the plugin behaves in hosts not yet tried here are all welcome. Windows and Linux in particular are built and tested on every push, but nobody has loaded them into a DAW yet. Anything you find there is new information.
 
-There is a form for each of those when you open an issue, including one for a host report that went fine. "It loaded and behaved" is worth filing on a platform nobody has run it on.
+When you open an issue there is a form for each of these, including one for a host report where everything went fine. "It loaded and behaved" is worth filing for a platform nobody has run it on.
 
 By taking part you agree to the [code of conduct](CODE_OF_CONDUCT.md). For how the code is arranged, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Before a pull request
 
-Three things run in CI and all three are quick to check locally.
+Three things run in CI, and all three are quick to check locally.
 
 **The tests pass.** `ctest --test-dir build --build-config Release` runs both suites.
 
-**Warnings are errors.** This is the default, so an ordinary `cmake -B build` is already the build CI does and there is nothing extra to run. A tree configured before this became the default keeps whatever it was configured with, so reconfigure one of those with `-DOVERTONIUM_WARNINGS_AS_ERRORS=ON` or delete it.
+**Warnings are errors.** This is the default, so a plain `cmake -B build` already gives you the build CI does, with nothing extra to run. A tree configured before this became the default keeps its old setting. Reconfigure it with `-DOVERTONIUM_WARNINGS_AS_ERRORS=ON` or delete it.
 
-Compilers disagree about this. JUCE asks clang for a longer list than it asks gcc, and a newer clang asks for more than an older one, so a clean local build is not a promise that all three runners will agree.
+Compilers do not agree on warnings. JUCE turns on more warnings for clang than for gcc, and a newer clang warns about more than an older one. So a clean local build does not guarantee that all three runners will pass.
 
-If you are on a compiler none of the three runners covers and it objects to something this project has never seen, `-DOVERTONIUM_WARNINGS_AS_ERRORS=OFF` builds the plugin anyway. That is what the switch is for. Please report the warning as well, since it is one nothing here can see.
+If your compiler is not one the three runners use, and it warns about something this project has never seen, `-DOVERTONIUM_WARNINGS_AS_ERRORS=OFF` builds the plugin anyway. Please report the warning as well, because nothing here can see it.
 
-**Formatting.** C++ is clang-format with stock LLVM style, no overrides, so `clang-format -i` on a file you touched is the whole of it. Everything else, meaning the docs, the readme and the workflows, is prettier:
+**Formatting.** C++ uses clang-format with stock LLVM style and no overrides, so running `clang-format -i` on each file you touched is all you need. Everything else, meaning the docs, the readme and the workflows, uses prettier:
 
 ```sh
 npm ci
 npm run format
 ```
 
-`npm run format:check` is what CI runs. Prettier is pinned in `package-lock.json` because its output moves between versions, and a check that disagrees with your copy is worse than no check.
+`npm run format:check` is what CI runs. Prettier is pinned in `package-lock.json` because its output changes between versions, and a check that disagrees with your copy is worse than no check.
 
-CI checks the C++ the same way, and clang-format is pinned for the same reason. Take it from pip rather than from your package manager, or your copy will format differently from the job:
+CI checks the C++ the same way, and clang-format is pinned for the same reason. Install it from pip, not from your package manager, or your copy will format differently from the CI job:
 
 ```sh
 pip install clang-format==23.1.1
 clang-format --style=LLVM -i $(find Source Tests Tools -name '*.cpp' -o -name '*.h')
 ```
 
-One region is deliberately exempt. The factory presets inside `apply` in `Presets.cpp` sit between `clang-format off` and `on`, because `factoryCode` writes them and does its own wrapping. Reformatting them would mean a preset regenerated from the same patch no longer matched the file it came from, and that match is how a preset is checked against what its author actually dialled in.
+One region is deliberately exempt. The factory presets inside `apply` in `Presets.cpp` sit between `clang-format off` and `on`, because `factoryCode` writes them and does its own wrapping. If they were reformatted, a preset regenerated from the same patch would no longer match the file it came from. That match is how a preset is checked against what its author actually set.
 
-**pluginval.** CI loads the built VST3 into [pluginval](https://github.com/Tracktion/pluginval) at strictness 8 on all three platforms. It is a host that misuses the plugin on purpose, and it reaches things the suites here cannot, since they drive the processor directly rather than through a plugin format. To run it yourself, point it at a built or installed plugin:
+**pluginval.** CI loads the built VST3 into [pluginval](https://github.com/Tracktion/pluginval) at strictness 8 on all three platforms. pluginval is a host that misuses the plugin on purpose. It reaches things the suites here cannot, because they drive the processor directly, not through a plugin format. To run it yourself, point it at a built or installed plugin:
 
 ```sh
 pluginval --strictness-level 8 --validate ~/Library/Audio/Plug-Ins/VST3/Overtonium.vst3
 ```
 
-It randomises its parameter values, so CI pins the seed on a push and leaves it to chance on a weekly scheduled run. A failure prints the seed it used, and passing that back with `--random-seed` reproduces it exactly. That is the only way some of these are reproducible at all.
+pluginval picks random parameter values. CI fixes the seed on a push and leaves it random on a weekly scheduled run. A failure prints the seed it used, and passing that seed back with `--random-seed` reproduces it exactly. For some failures that is the only way to reproduce them at all.
 
-**The VST3 validator.** Steinberg's own conformance suite, which is a different thing from pluginval: it checks the VST3 contracts rather than misusing the plugin through a host. CI builds it from a pinned revision of the SDK and runs it on Linux, where the build is cheapest. To run it yourself, build the `validator` target out of [the SDK](https://github.com/steinbergmedia/vst3sdk) with `-DSMTG_ENABLE_VST3_PLUGIN_EXAMPLES=OFF -DSMTG_ENABLE_VSTGUI_SUPPORT=OFF`, which skips the parts it does not link, and point the result at a built `.vst3`.
+**The VST3 validator.** This is Steinberg's own conformance suite, which is different from pluginval. It checks the VST3 contracts instead of misusing the plugin through a host. CI builds it from a pinned revision of the SDK and runs it on Linux, where the build is cheapest. To run it yourself, build the `validator` target from [the SDK](https://github.com/steinbergmedia/vst3sdk) with `-DSMTG_ENABLE_VST3_PLUGIN_EXAMPLES=OFF -DSMTG_ENABLE_VSTGUI_SUPPORT=OFF`, which skips the parts it does not link, and point the result at a built `.vst3`.
 
-**Sanitizers.** Both suites run again on Linux with the address and undefined behaviour sanitizers on. Everything above says whether the plugin does the right thing. This says whether it does it without reading past an array or relying on behaviour the standard leaves undefined, neither of which the other checks can see. A read one byte off the end of a buffer returns a plausible number and passes.
+**Sanitizers.** Both suites run again on Linux with the address and undefined behaviour sanitizers on. The checks above test whether the plugin does the right thing. This one tests whether it does so without reading past the end of an array or relying on behaviour the standard leaves undefined. The other checks cannot see either problem. A read one byte past the end of a buffer returns a plausible number and passes.
 
 ```sh
 cmake -B build-san -DCMAKE_BUILD_TYPE=RelWithDebInfo -DOVERTONIUM_SANITIZE=ON
@@ -54,13 +54,13 @@ cmake --build build-san --target overtonium_dsp_test overtonium_runtime_test
 ctest --test-dir build-san --output-on-failure
 ```
 
-Off by default, and worth keeping to a tree of its own: the build is instrumented throughout and the result is several times slower than a plugin you would want to listen to. The sanitizers are asked to report everything rather than stop at the first thing, so a run can find a fault and still exit zero. CI reads the log for that reason, and a leak counts the same as an overflow.
+This is off by default, and best kept in a build tree of its own. The build is instrumented throughout, and the result runs several times slower than a plugin you would want to listen to. The sanitizers are set to report everything instead of stopping at the first problem, so a run can find a fault and still exit with zero. For that reason CI reads the log, and a leak counts the same as an overflow.
 
 ## Style
 
-Comments explain why, not what. The repository has a lot of them, and the ones worth having record a measurement, a rejected alternative or a trap: why the lamps merge by row and what the other way cost, why the scratch buffer has a floor, why the program count is what it is on each format. A comment restating the line below it is noise.
+Comments explain why, not what. The repository has a lot of them. The useful ones record a measurement, a rejected alternative or a trap: why the lamps merge by row and what the other way cost, why the scratch buffer has a floor, why the program count is what it is on each format. A comment that repeats the line below it is noise.
 
-Prose in the repository describes the present rather than its own history. Git already holds what changed.
+Prose in the repository describes the present, not its own history. Git already records what changed.
 
 ## Building
 
@@ -73,20 +73,20 @@ cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
 
-Drop `-G Ninja` to use Makefiles instead. Neither needs Xcode.app, the Command Line Tools (`xcode-select --install`) are enough.
+Drop `-G Ninja` to use Makefiles instead. Neither needs Xcode.app. The Command Line Tools (`xcode-select --install`) are enough.
 
-If you have full Xcode installed and want a project to debug in, use `cmake -B build-xcode -G Xcode` followed by `cmake --build build-xcode --config Release`. That generator needs Xcode.app specifically. With only the Command Line Tools, CMake misreads the version and fails with `Xcode 1.5 not supported`. Point it at a real install with `sudo xcode-select -s /Applications/Xcode.app` if you hit that.
+If you have full Xcode installed and want a project to debug in, use `cmake -B build-xcode -G Xcode` followed by `cmake --build build-xcode --config Release`. That generator needs Xcode.app itself. With only the Command Line Tools, CMake reads the version wrong and fails with `Xcode 1.5 not supported`. If you hit that, point it at a real install with `sudo xcode-select -s /Applications/Xcode.app`.
 
-`COPY_PLUGIN_AFTER_BUILD` is on, so the plugins are installed to `~/Library/Audio/Plug-Ins/VST3` and `~/Library/Audio/Plug-Ins/Components` as part of the build. Logic and GarageBand only rescan the AU after you quit and relaunch them. If the component does not show up, run `auval -v aumu Ovtn Dhmk` to see why.
+`COPY_PLUGIN_AFTER_BUILD` is on, so the build installs the plugins to `~/Library/Audio/Plug-Ins/VST3` and `~/Library/Audio/Plug-Ins/Components`. Logic and GarageBand only rescan the AU after you quit and relaunch them. If the component does not show up, run `auval -v aumu Ovtn Dhmk` to see why.
 
-Building installs into your own folder under `~/Library`, while the `.pkg` installs system-wide under `/Library`. When both hold an `Overtonium.component`, macOS registers one of them and the host uses whichever that is, which need not be the one you just built. A host can then sit on a build months old while `auval` reports the new one, and every change you make appears to do nothing. If a change to the Audio Unit has no effect, check for a second copy before doubting the change:
+Building installs into your own folder under `~/Library`, while the `.pkg` installs system-wide under `/Library`. When both contain an `Overtonium.component`, macOS registers one of them and the host uses that one, which may not be the one you just built. The host can then keep loading a build that is months old while `auval` reports the new one, and none of your changes seem to do anything. If a change to the Audio Unit has no effect, check for a second copy before doubting the change:
 
 ```sh
 ls -d /Library/Audio/Plug-Ins/Components/Overtonium.component \
       ~/Library/Audio/Plug-Ins/Components/Overtonium.component 2>/dev/null
 ```
 
-Logic shows the version it loaded beside the plugin name, which is the quickest way to tell whether it is looking at your build.
+Logic shows the version it loaded next to the plugin name. That is the quickest way to tell whether it is using your build.
 
 The build produces a universal arm64 and x86_64 binary. For a faster local build, add `-DCMAKE_OSX_ARCHITECTURES=arm64`.
 
@@ -112,14 +112,14 @@ cmake --build build -j
 
 ### Tests
 
-The DSP core has no JUCE dependency, so its tests compile straight from a compiler with no build system and no third-party headers involved:
+The DSP core has no JUCE dependency, so its tests compile with a compiler alone, with no build system and no third-party headers:
 
 ```sh
 c++ -std=c++17 -O2 -I Source Tests/dsp_test.cpp Source/dsp/*.cpp -o dsp_test
 ./dsp_test
 ```
 
-Through CMake, which also gets you the JUCE-linked tests:
+Through CMake, which also builds the JUCE-linked tests:
 
 ```sh
 cmake -B build -DCMAKE_BUILD_TYPE=Release
@@ -127,34 +127,34 @@ cmake --build build --target overtonium_dsp_test
 ./build/overtonium_dsp_test
 ```
 
-They cover the tuning table, blend endpoints, sine table accuracy, the anti-aliasing guard, envelope behaviour, mute and solo, click-free parameter changes, voice allocation, modulation and the two master effects, and they finish by printing a CPU benchmark.
+The tests cover the tuning table, blend endpoints, sine table accuracy, the anti-aliasing guard, envelope behaviour, mute and solo, click-free parameter changes, voice allocation, modulation and the two master effects, and they end by printing a CPU benchmark.
 
-A `SynthEngine` in the DSP tests is built with `make_unique` and read through a reference, rather than declared as a local. One is 200 kB, MSVC gives the main thread a 1 MB stack where macOS and Linux give 8, and a test that held three of them overflowed it on Windows alone. The suite now runs in a 64 kB stack, which is the check that says so.
+In the DSP tests, a `SynthEngine` is created with `make_unique` and used through a reference, not declared as a local variable. One engine is 200 kB. MSVC gives the main thread a 1 MB stack, where macOS and Linux give 8, so a test that holds three of them overflows it on Windows alone. The suite runs in a 64 kB stack, which checks this.
 
-There is a second target, `overtonium_runtime_test`, which builds the plugin sources as a console app and exercises parameter wiring, MIDI handling, the factory presets, user preset round-tripping, bus layouts, undo and state round-tripping. The editors it opens are never put on the desktop, so it runs on a machine with no display. Both targets are registered with CTest, so `ctest` from the build directory runs them together.
+There is a second target, `overtonium_runtime_test`. It builds the plugin sources as a console app and tests parameter wiring, MIDI handling, the factory presets, user preset round-tripping, bus layouts, undo and state round-tripping. The editors it opens are never put on the desktop, so it runs on a machine with no display. Both targets are registered with CTest, so running `ctest` from the build directory runs them together.
 
-The audio thread allocates nothing. A host is allowed to hand over a bigger block than the one it promised in `prepareToPlay`, and growing the scratch buffer to fit would take the allocator's lock on the audio thread, where whatever the message thread is doing can make it wait. The block is cut into pieces the scratch already holds instead, and the scratch is given a floor of 512 frames so a host that promises very little and delivers a lot is not cut into a great many of them. The seam has to be inaudible for that to be worth doing, so the test renders the same passage twice, once to a host that keeps its word and once to a host that promised a sixteenth of what it sent, and compares them sample by sample. They come out identical, sample for sample. The patch it uses has no random modulation in it, because drift is a random walk redrawn once per control block and those blocks fall in different places when a block is cut up, so a patch carrying drift would differ for reasons that have nothing to do with the cutting.
+The audio thread allocates nothing. A host may pass a bigger block than the one it promised in `prepareToPlay`. Growing the scratch buffer to fit would take the allocator's lock on the audio thread, where it might have to wait on whatever the message thread is doing. Instead, the block is cut into pieces that fit the scratch buffer. The scratch buffer has a floor of 512 frames, so a host that promises very little and delivers a lot does not get its block cut into a great many pieces. This is only worth doing if the joins are inaudible. So the test renders the same passage twice, once for a host that keeps its promise and once for a host that promised a sixteenth of what it sent, and compares them sample by sample. They come out identical. The patch it uses has no random modulation. Drift is a random walk redrawn once per control block, and those blocks fall in different places when a block is cut up. So a patch with drift would differ for reasons unrelated to the cutting.
 
-Both run in CI on macOS, Windows and Linux on every push and pull request, building the plugin itself along the way so a compile error in the JUCE half cannot pass unnoticed. A second job compiles the DSP core with the bare-compiler line above, and with `-Werror`, so the claim that it has no build system dependency is checked rather than asserted.
+Both run in CI on macOS, Windows and Linux on every push and pull request. CI builds the plugin itself along the way, so a compile error in the JUCE half cannot go unnoticed. A second job compiles the DSP core with the bare-compiler command above, with `-Werror`, so the claim that it needs no build system is checked, not just stated.
 
-Pass `-DOVERTONIUM_INSTALL_AFTER_BUILD=OFF` to skip copying the built plugins into your user plugin folders, which is what CI does and what you want on any machine with no host to rescan them.
+Pass `-DOVERTONIUM_INSTALL_AFTER_BUILD=OFF` to skip copying the built plugins into your user plugin folders. CI does this, and you want it on any machine with no host to rescan them.
 
 ### Factory presets
 
-Factory presets are code rather than embedded data. The cases in `Presets.cpp` say `1.0 / n` and `6.0 / (1 + 0.35 * (n - 1))` where the shape has a formula behind it, and a table of thirty-two figures where it does not, which makes a preset something you can read and argue with instead of a blob. The cost is one step between dialling a patch in and shipping it, and `Tools/preset_to_code.cpp` is that step:
+Factory presets are code, not embedded data. The cases in `Presets.cpp` say `1.0 / n` and `6.0 / (1 + 0.35 * (n - 1))` where the shape has a formula behind it, and give a table of thirty-two figures where it does not. That makes a preset something you can read and argue with, not a blob. The cost is one extra step between setting up a patch and shipping it, and `Tools/preset_to_code.cpp` is that step:
 
 ```sh
 cmake --build build --target overtonium_preset_to_code
 ./build/overtonium_preset_to_code_artefacts/overtonium_preset_to_code "Synth Ensemble.ovtpreset" 24
 ```
 
-Save the patch from the plugin's own preset menu, run that over the file it wrote, and paste the result over the case it names. The second argument is the case number, and leaving it off gives `case N:` to fill in by hand. It writes to stdout so it can be diffed against what is already there, which is the quickest way to see what a patch actually changed.
+Save the patch from the plugin's own preset menu, run the tool on the file it saved, and paste the result over the case it names. The second argument is the case number. Without it, the output says `case N:` for you to fill in by hand. It writes to stdout so you can diff it against what is already there. That is the quickest way to see what a patch actually changed.
 
-It loads the preset into a processor and calls `presets::factoryCode`, the same function the plugin's own authoring menu entry calls, rather than reimplementing the generation. A second implementation that agreed most of the time would be worse than none, and the runtime test already holds `factoryCode` to reproducing every factory preset it is given, so the tool inherits that check rather than needing one of its own.
+It loads the preset into a processor and calls `presets::factoryCode`, the same function the plugin's own authoring menu entry calls, instead of reimplementing the generation. A second implementation that agreed most of the time would be worse than none. The runtime test already checks that `factoryCode` reproduces every factory preset it is given, so the tool gets that check without needing one of its own.
 
-Two things it will not do. It does not edit `Presets.cpp`, because each case carries a hand-written comment above it saying what the patch is and why, and a generator writing the file in place would quietly lose them. And it writes no session parameters: the polyphony, the temperament and the reference pitch belong to whoever is playing rather than to the sound, so `factoryCode` leaves them out and a test fails the build if one ever appears in a case.
+There are two things it does not do. It does not edit `Presets.cpp`, because each case has a hand-written comment above it saying what the patch is and why, and a generator writing the file in place would lose them without notice. It also writes no session parameters. The polyphony, the temperament and the reference pitch belong to the player, not to the sound, so `factoryCode` leaves them out, and a test fails the build if one ever appears in a case.
 
-Regenerating an existing preset is the way to check a patch really is what you think. Running the tool over the file and diffing against the committed case shows every row that moved and nothing else.
+Regenerating an existing preset is how to check that a patch really is what you think. Running the tool on the file and diffing against the committed case shows every row that changed and nothing else.
 
 ### Releases
 
@@ -165,21 +165,21 @@ git tag -a v1.4.0 -m "Overtonium 1.4.0"
 git push origin v1.4.0
 ```
 
-The notes for the release page come from `release-notes/`, one file per version, named after the tag without its `v`. So `v1.2.0` is written up in `release-notes/1.2.0.md`, and it has to exist and be headed `# Overtonium 1.2.0` before the tag is pushed. A file per release rather than one that gets rewritten means the notes for a version stay readable in the tree after the next one lands, and the tag picks its own out by name instead of taking whatever the file happens to say.
+The notes for the release page come from `release-notes/`, one file per version, named after the tag without its `v`. So `v1.2.0` is described in `release-notes/1.2.0.md`, and that file has to exist and start with the heading `# Overtonium 1.2.0` before the tag is pushed. With one file per release, instead of one file that gets rewritten, the notes for a version stay readable in the tree after the next release. The tag also picks its own file by name, instead of taking whatever the file happens to say.
 
-The heading is checked as well as the filename, since copying the previous release's notes to a new name and forgetting to edit them is exactly the mistake that would otherwise reach the release page.
+The heading is checked as well as the filename. Otherwise, copying the previous release's notes to a new name and forgetting to edit them would reach the release page.
 
-Each platform gets an installer where there is a sensible one, and a zip holding every format it can build alongside it, plus the readme and the licence. macOS gets VST3, AU and Standalone as a universal binary covering Apple Silicon and Intel, Linux gets VST3, LV2 and Standalone, and Windows gets VST3 and Standalone. The tests run before anything is packaged, so a tag that does not pass them produces no release.
+Each platform gets an installer where a sensible one exists, and next to it a zip holding every format it can build, plus the readme and the licence. macOS gets VST3, AU and Standalone as a universal binary for Apple Silicon and Intel. Linux gets VST3, LV2 and Standalone, and Windows gets VST3 and Standalone. The tests run before anything is packaged, so a tag that fails them produces no release.
 
-The same workflow can be started by hand from the Actions tab. That builds and uploads the archives against the run without publishing anything, which is how to exercise the packaging without spending a version number on it.
+You can also start the same workflow by hand from the Actions tab. That builds the archives and uploads them to the run without publishing anything. Use it to test the packaging without using up a version number.
 
-Each platform also gets an installer. macOS gets a `.pkg` built by `packaging/macos/build-pkg.sh`, with a chooser so VST3, the Audio Unit and the standalone can be taken separately, and Windows gets an `.exe` from `packaging/windows/overtonium.iss`. The zips stay alongside them, for anyone without administrator rights or with plugin folders of their own. Linux gets the zip only, since there is no install location a distribution would agree on.
+Each platform also gets an installer. macOS gets a `.pkg` built by `packaging/macos/build-pkg.sh`, with a chooser so VST3, the Audio Unit and the standalone can be installed separately. Windows gets an `.exe` from `packaging/windows/overtonium.iss`. The zips are still provided, for anyone without administrator rights or with their own plugin folders. Linux gets only the zip, because there is no install location that distributions agree on.
 
-The tag has to match `project(Overtonium VERSION ...)` in CMakeLists, and the workflow fails the release if it does not. The archive is named from the tag while the version a host displays comes from CMake, so without that check the two can disagree and nothing says so.
+The tag has to match `project(Overtonium VERSION ...)` in CMakeLists, and the workflow fails the release if it does not. The archive name comes from the tag, while the version a host displays comes from CMake. Without that check the two could disagree with no warning.
 
-It also has to have a section on `docs/releases/index.html`, headed with the version and the date. That page is the site's own account of what changed, written for somebody reading the site rather than somebody standing on the release page, so it cannot be generated from the notes file and has to be written before the tag goes up. The check runs before anything is built, so a forgotten entry costs a commit and a second tag rather than a published release with a site that stops one version short.
+The version also needs a section on `docs/releases/index.html`, with the version and the date in its heading. That page is the site's own record of what changed, written for someone reading the site, not someone on the release page. So it cannot be generated from the notes file and has to be written before the tag is pushed. The check runs before anything is built, so a forgotten entry costs a commit and a second tag, not a published release with a site that is one version behind.
 
-**What the release writes back.** Publishing and updating the site are the same act, so the workflow commits to `main` after the release lands:
+**What the release writes back.** Publishing a release and updating the site happen together, so the workflow commits to `main` after the release is published:
 
 | What                                                      | Why it cannot wait                                              |
 | --------------------------------------------------------- | --------------------------------------------------------------- |
@@ -188,11 +188,11 @@ It also has to have a section on `docs/releases/index.html`, headed with the ver
 | the version and date printed under them                   | the page would name a release nobody can download               |
 | `RELEASED` in `Tools/site_data.py`, then the site rebuilt | a crawler would carry the old release date into search results  |
 
-Every one of those is counted before and after it is rewritten, and the job fails if a substitution matched a different number of times than expected. A `sed` that silently matches nothing is the one way this goes wrong with nothing to show for it. The download links are visible the moment somebody clicks them, but a `softwareVersion` a release behind is visible to nothing but a crawler, which is why it is checked rather than trusted. The version itself is read from `CMakeLists.txt` by the site generator, so bumping it there and rebuilding is all a version needs.
+Each of those is counted before and after it is rewritten, and the job fails if a substitution matched a different number of times than expected. A `sed` that matches nothing without saying so is the one way this can fail with no visible sign. Anyone who clicks a wrong download link sees it at once, but a `softwareVersion` one release behind is visible only to a crawler, which is why it is checked. The site generator reads the version itself from `CMakeLists.txt`, so changing it there and rebuilding is all a new version needs.
 
-The step rebuilds the site and reformats the install page and the feed with Prettier before committing, because a longer version number can push a line past the width Prettier wraps at, and the format job checks `main` on every push including this one.
+Before committing, the step rebuilds the site and reformats the install page and the feed with Prettier. A longer version number can push a line past Prettier's wrap width, and the format job checks `main` on every push, including this one.
 
-**Signing.** The macOS side signs and notarises when the repository has the secrets for it, and falls back to an ad-hoc signature when it does not, so the workflow can be rehearsed before any of them exist. Ad-hoc is what lets a bundle load at all on Apple Silicon, where an unsigned one is refused outright, but it is not notarisation and a download still has to be opened past Gatekeeper.
+**Signing.** The macOS side signs and notarises when the repository has the secrets for it. When it does not, it falls back to an ad-hoc signature, so the workflow can be tested before any of the secrets exist. An ad-hoc signature is what lets a bundle load at all on Apple Silicon, which refuses unsigned ones outright. But it is not notarisation, and a download still has to be opened past Gatekeeper.
 
 | Secret                                 | What it is                                                                        |
 | -------------------------------------- | --------------------------------------------------------------------------------- |
@@ -204,15 +204,15 @@ The step rebuilds the site and reformats the install page and the feed with Pret
 | `APPLE_APP_SPECIFIC_PASSWORD`          | an app-specific password for that Apple ID, not the account password              |
 | `APPLE_TEAM_ID`                        | the ten-character team identifier                                                 |
 
-Base64 a certificate with `base64 -i cert.p12 | pbcopy`. The two certificates are different: Application signs the bundles, Installer signs the `.pkg`, and notarisation refuses a package signed with the wrong one.
+Base64-encode a certificate with `base64 -i cert.p12 | pbcopy`. The two certificates are different. Application signs the bundles, Installer signs the `.pkg`, and notarisation rejects a package signed with the wrong one.
 
-The Windows installer is not signed, so SmartScreen tells the user the publisher is unknown and they have to choose "More info" and then "Run anyway". A certificate that would remove that is an ongoing cost, and the release notes explain the warning instead.
+The Windows installer is not signed, so SmartScreen tells the user the publisher is unknown, and they have to choose "More info" and then "Run anyway". A certificate that removes the warning is an ongoing cost, so the release notes explain the warning instead.
 
 ### The project page
 
-`docs/` is served by GitHub Pages from the `main` branch, one folder per URL so the site has addresses like `/tuning/` rather than `/tuning.html`. What is in the repository is what gets served, with no build on GitHub's side, and `.nojekyll` stops GitHub running Jekyll over it.
+`docs/` is served by GitHub Pages from the `main` branch, with one folder per URL so the site has addresses like `/tuning/` instead of `/tuning.html`. GitHub serves exactly what is in the repository, with no build step on its side, and `.nojekyll` stops GitHub running Jekyll over it.
 
-**The parts every page shares are generated.** `python3 Tools/build_site.py` rewrites them in place, from `Tools/site_data.py` and from what the source already knows:
+**The parts every page shares are generated.** `python3 Tools/build_site.py` rewrites them in place, from `Tools/site_data.py` and from what the source code already contains:
 
 | Generated                                                     | From                                                              |
 | ------------------------------------------------------------- | ----------------------------------------------------------------- |
@@ -228,84 +228,84 @@ The Windows installer is not signed, so SmartScreen tells the user the publisher
 | `llms-full.txt`, every page's content as Markdown             | each page's `<main>`                                              |
 | the parameter list on the playing page                        | `docs/parameters.json`                                            |
 
-Everything between those parts is ordinary HTML and is edited where it is. An edit inside a generated part is overwritten by the next build, so change the data file instead. The contents rail lists every `<section id>` that opens with an `<h2>`, with every `<h3 id>` inside it as a sub-entry, so a new section reaches the rail by being given an id. The generator runs the pinned Prettier over each page, which means `npm ci` first, and the format job runs it with `--check` and fails if the result differs from what is committed.
+Everything between those parts is ordinary HTML that you edit directly. An edit inside a generated part is overwritten by the next build, so change the data file instead. The contents rail lists every `<section id>` that starts with an `<h2>`, with each `<h3 id>` inside it as a sub-entry, so giving a new section an id adds it to the rail. The generator runs the pinned Prettier over each page, so run `npm ci` first. The format job runs it with `--check` and fails if the result differs from what is committed.
 
-**The parameter list is written by the plugin.** `docs/parameters.json` is every parameter the host sees, one per line, with its id, its name, and the range and default as the plugin displays them. `overtonium_runtime_test --write-parameters` writes it from the real layout, and the same test, which CI runs on all three platforms, fails when the file and the layout disagree. So a parameter added, renamed or given a new range means running that, then `Tools/build_site.py`, which folds the file into the table on the playing page, a row for each control rather than one for each of the 32 copies.
+**The parameter list is written by the plugin.** `docs/parameters.json` lists every parameter the host sees, one per line, with its id, its name, and its range and default as the plugin displays them. `overtonium_runtime_test --write-parameters` writes it from the real layout. The same test, which CI runs on all three platforms, fails when the file and the layout disagree. So when you add or rename a parameter or change its range, run that, then `Tools/build_site.py`. That folds the file into the table on the playing page, with a row for each control, not one for each of the 32 copies.
 
-**A page's last-modified day moves when its words do.** `Tools/site_dates.json` holds a hash of the text in each page's `<main>` and the day it last changed. When the text changes the build dates the page today, in UTC, and the sitemap and the page's `dateModified` both carry it. A change to the head, the rail, the footer or the markup around the words leaves the day alone, since it is not a change to what the page says. The hash is checked too, so a page edited without rebuilding fails CI rather than keeping an old date. The day comes from this file rather than from git because a CI checkout has no history to read it from.
+**A page's last-modified day changes when its text does.** `Tools/site_dates.json` holds a hash of the text in each page's `<main>` and the day it last changed. When the text changes, the build gives the page today's date, in UTC, and the sitemap and the page's `dateModified` both use it. A change to the head, the rail, the footer or the markup around the text leaves the day alone, because it does not change what the page says. The hash is checked too, so a page edited without rebuilding fails CI instead of keeping an old date. The day comes from this file, not from git, because a CI checkout has no history to read it from.
 
-`llms.txt` is a summary of the project for language models, in the shape [llmstxt.org](https://llmstxt.org/) describes: what the instrument is, then links to each page with a line saying what is on it, then the facts worth having in one place. `llms-full.txt` is the whole site as Markdown in one file, for a model that would rather read everything than follow links. `robots.txt` names both, since no crawler is obliged to look for them. The facts in `llms.txt` are prose in the data file and are worth a glance when a release changes what the plugin can do. The counts and the preset list in them are filled in from the source.
+`llms.txt` is a summary of the project for language models, in the format [llmstxt.org](https://llmstxt.org/) describes: what the instrument is, then links to each page with a line saying what is on it, then the key facts in one place. `llms-full.txt` is the whole site as Markdown in one file, for a model that would rather read everything than follow links. `robots.txt` names both, because no crawler is required to look for them. The facts in `llms.txt` are prose in the data file, and are worth checking when a release changes what the plugin can do. The counts and the preset list in them are filled in from the source.
 
-The screenshots are rendered rather than captured. The plugin has no dependency on a display, so `Tools/render_docs_images.cpp` builds the editor, plays a chord into it, hands the strips the levels the engine measured, and writes the window out with `createComponentSnapshot`. That means the pictures can be regenerated after a layout change instead of going stale, and it works on a machine with no window server.
+The screenshots are rendered, not captured. The plugin does not depend on a display, so `Tools/render_docs_images.cpp` builds the editor, plays a chord into it, gives the strips the levels the engine measured, and writes the window out with `createComponentSnapshot`. That means the pictures can be regenerated after a layout change instead of going out of date, and it works on a machine with no window server.
 
 ```
 cmake --build build --target overtonium_render_docs
 ./build/overtonium_render_docs_artefacts/overtonium_render_docs out
 ```
 
-That writes the window, the six-channel detail and the top bar, and then, with both bars opened and C7 held under Adaptive, the Playing and Tuning bars on their own, the Playing bar with the pedal down, the mod wheel and pressure part way up and three macros made. Where each crop falls comes from `kGutterWidth`, `kStripWidth` and `TopBar::heightForWidth` rather than from numbers typed in, so a taller bar or a wider strip moves the crops with it instead of slicing one through the middle of a row. A second argument scales the window, and it is a genuine redraw rather than an upscale, which is where artwork needing the window larger than the page shows it comes from.
+That writes the window, the six-channel detail and the top bar. Then, with both bars open and C7 held under Adaptive, it writes the Playing and Tuning bars on their own, and the Playing bar with the pedal down, the mod wheel and pressure part way up and three macros made. The crop positions come from `kGutterWidth`, `kStripWidth` and `TopBar::heightForWidth`, not from typed-in numbers, so a taller bar or a wider strip moves the crops with it instead of cutting one through the middle of a row. A second argument scales the window. It is a real redraw, not an upscale, and it is what artwork that needs the window larger than the page shows it is made from.
 
-It writes PNG, because JUCE has no WebP encoder, so producing what the pages actually load is a second step with a lossless encoder:
+It writes PNG, because JUCE has no WebP encoder. Producing the files the pages actually load is a second step with a lossless encoder:
 
 ```
 cwebp -lossless out/overtonium.png -o docs/overtonium.webp
 ```
 
-Through Pillow instead, it is `save(lossless=True, quality=100, method=6)`. The `quality` is not optional: on a lossless save it sets how hard the encoder works rather than how much it throws away, and leaving it at the default of 80 makes the window shot 341 KB where 100 makes it 204 KB, which is larger than the PNG it was supposed to beat.
+With Pillow instead, it is `save(lossless=True, quality=100, method=6)`. The `quality` setting is required. On a lossless save it sets how hard the encoder works, not how much it discards. At the default of 80 the window shot is 341 KB, which is larger than the PNG it is meant to beat. At 100 it is 204 KB.
 
-**A new control needs a name before it needs anything else.** JUCE reads a control's accessible name from `Component::setTitle`, and an element with neither a name nor a description may be skipped by accessibility clients entirely. The runtime suite walks the whole mixer and fails if a slider has no title or shares one with another, so "attack" on its own will not pass and "Harmonic 19 attack" will. A control that draws its value rather than writing it, as the segment readouts do, needs a spoken name and value of its own: swapping a plain label for one of those silently removed a name once. [ACCESSIBILITY.md](ACCESSIBILITY.md) has what the project does and does not do here.
+**A new control needs a name before anything else.** JUCE reads a control's accessible name from `Component::setTitle`, and accessibility clients may skip an element entirely if it has neither a name nor a description. The runtime suite walks the whole mixer and fails if a slider has no title or shares one with another. So "attack" on its own will not pass, and "Harmonic 19 attack" will. A control that draws its value instead of writing it, as the segment readouts do, needs its own spoken name and value. Replacing a plain label with one of those has removed a name without warning before. [ACCESSIBILITY.md](ACCESSIBILITY.md) describes what the project does and does not do here.
 
-**One check runs for a compiler that is not here.** `.github/scripts/lambda_captures.py` looks for lambdas that read a function-local `constexpr` without capturing it. The standard asks for no capture, gcc and clang agree, and MSVC refuses with C3493, so the fault reaches the Windows job and nowhere earlier. That job runs last and takes twenty minutes to report, and it has reported this twice. Run it before pushing, or let the DSP core job do it in a fifth of a second:
+**One check runs for a compiler that is not here.** `.github/scripts/lambda_captures.py` looks for lambdas that read a function-local `constexpr` without capturing it. The standard requires no capture, and gcc and clang agree, but MSVC refuses it with C3493. So the fault only shows up in the Windows job. That job runs last and takes twenty minutes to report, and it has caught this twice. Run the script before pushing, or let the DSP core job run it in a fifth of a second:
 
 ```
 python3 .github/scripts/lambda_captures.py --self-test
 python3 .github/scripts/lambda_captures.py Source Tests
 ```
 
-It checks itself first, and that is not ceremony. It has twice been wrong in the one direction that matters, quietly passing everything it was given: once because `} // namespace` at the end of a block made every function after it look like a namespace, and once because `[&in]` was read as a default capture when it captures one name and nothing else. Both are among its cases, so neither can come back.
+It tests itself first, for a reason. It has twice been wrong in the direction that matters most, by passing everything it was given without complaint. Once, `} // namespace` at the end of a block made every function after it look like a namespace. The other time, `[&in]` was read as a default capture, when it captures one name and nothing else. Both are among its test cases, so neither can come back.
 
-Reading a Windows log is a skill of its own for the same reason. One lambda that will not compile makes every call to it an `<error type>`, so MSVC reports C2064, C2110, C2737 and C3536 throughout the file and gives up at a hundred errors. Start from the first error rather than the last.
+Reading a Windows log takes practice for the same reason. When one lambda will not compile, every call to it becomes an `<error type>`, so MSVC reports C2064, C2110, C2737 and C3536 throughout the file and gives up at a hundred errors. Start from the first error, not the last.
 
-A machine that has never answered the update question opens every window with it up, since what it has been told lives in `Overtonium.settings` beside the presets rather than in the tree. The renderer puts that dialog away without answering it, so the pictures show the instrument wherever they are rendered and nothing is written to the settings file.
+On a machine that has never answered the update question, every window opens with that question showing, because the answer is stored in `Overtonium.settings` next to the presets, not in the tree. The renderer closes that dialog without answering it, so the pictures show the instrument wherever they are rendered, and nothing is written to the settings file.
 
-Regenerating the same source on the same JUCE gives byte-identical files. DRIFT is a random walk, but each voice reseeds from a fixed number in `prepare`, so the meters and the lamps land in the same place every run. A diff therefore means something actually moved, which is what makes the pictures worth regenerating after a layout change. Upgrading JUCE is the exception: its rasteriser does not promise the same pixels between versions, and 9.0.2 moved about five percent of them by no more than three values each, which is invisible and still a diff.
+Regenerating from the same source on the same JUCE version gives byte-identical files. DRIFT is a random walk, but each voice reseeds from a fixed number in `prepare`, so the meters and the lamps land in the same place every run. A diff therefore means something really changed, which is what makes the pictures worth regenerating after a layout change. Upgrading JUCE is the exception. Its rasteriser does not promise the same pixels between versions, and 9.0.2 changed about five percent of them by no more than three values each. That is invisible, but it is still a diff.
 
-The target is built by default so that it cannot quietly stop compiling, which is how the program that made the first set of pictures was lost. `-DOVERTONIUM_BUILD_TOOLS=OFF` skips it.
+The target is built by default so that it cannot stop compiling without anyone noticing. That is how the program that made the first set of pictures was lost. `-DOVERTONIUM_BUILD_TOOLS=OFF` skips it.
 
-**The audio examples.** The tuning page is about things you hear, so every section on it carries a clip or a pair: _Just Saw_ against _Equal Saw_ and the sweep between them, STRETCH taken from a harmonic series out past a piano, one chord in equal against the same chord in Werckmeister III, five notes up the keyboard with TRACK off and on, and a held chord with and without DRIFT. The playing page has two pairs of its own: a phrase on the Glide preset with every glide at zero and as the preset has them, and a melody over slowly swelling chords on Synth Ensemble with Legato off and on. The front page carries the first two. They are rendered by the plugin rather than recorded, on the same switch and for the same reason:
+**The audio examples.** The tuning page is about things you hear, so every section on it has a clip or a pair of clips: _Just Saw_ against _Equal Saw_ and the sweep between them, STRETCH taken from a harmonic series out past a piano, one chord in equal temperament against the same chord in Werckmeister III, five notes up the keyboard with TRACK off and on, and a held chord with and without DRIFT. The playing page has two pairs of its own: a phrase on the Glide preset with every glide at zero and as the preset sets them, and a melody over slowly swelling chords on Synth Ensemble with Legato off and on. The front page has the first two. They are rendered by the plugin, not recorded, with the same switch and for the same reason:
 
 ```sh
 cmake --build build --target overtonium_render_docs_audio
 ./build/overtonium_render_docs_audio_artefacts/overtonium_render_docs_audio docs/audio
 ```
 
-The presets page carries one clip per factory preset on top of those, all thirty-four presets playing the same spread C major, arriving a note at a time and let go together. The same gesture on every one is the point: the page is listened down rather than watched, and a patch that showed itself off in its own way would be selling rather than describing. Their file names come from `slugOf`, which lowercases the preset's name and hyphenates it, so adding a preset adds a clip without a second list to keep in step. Two things they deliberately do not do. The levels are left where the presets put them, because thirty-four clips meant to be browsed have to be honest about which patches are quiet ones, and only clips meant to be compared against each other are matched. And nothing sweeps: anything that needs a control moved, or the keyboard played across, already has a clip of its own on the tuning page.
+The presets page also has one clip per factory preset, all thirty-four presets playing the same spread C major chord, its notes coming in one at a time and released together. Using the same gesture on every preset is deliberate. The page is for listening down the list, and a patch that showed itself off in its own way would be advertising, not describing. The file names come from `slugOf`, which lowercases the preset's name and hyphenates it, so adding a preset adds a clip without a second list to keep up to date. There are two things these clips deliberately do not do. The levels are left where the presets set them, because thirty-four clips meant to be browsed have to show truthfully which patches are quiet. Only clips meant to be compared with each other are level-matched. And nothing sweeps. Anything that needs a control moved, or the keyboard played across, already has its own clip on the tuning page.
 
-A note, a chord or a run of notes, held and let go, with a short fade at both ends so a file cannot start or stop on a step. TRACK needs the run: the rolloff sits at a fixed 1 kHz while the partials climb through it, so one note shows nothing. A clip may sweep a control as it runs, which is what the TUNE and STRETCH ones do: the page claims those knobs move through a range rather than switching between two states, and a pair of fixed clips cannot show that. Mono, because neither patch pans anything and a stereo file would be two copies of one signal, which the renderer asserts rather than assumes. Both come out at the same RMS, so the pair can be played against each other without the louder one seeming better.
+Each clip is a note, a chord or a run of notes, held and released, with a short fade at both ends so a file cannot start or stop on a step. TRACK needs the run: the rolloff sits at a fixed 1 kHz while the partials climb through it, so one note shows nothing. A clip may sweep a control as it plays, as the TUNE and STRETCH clips do. The page says those knobs move through a range instead of switching between two states, and a pair of fixed clips cannot show that. The clips are mono, because neither patch pans anything and a stereo file would hold two copies of one signal. The renderer asserts this instead of assuming it. Both clips in a pair come out at the same RMS, so they can be compared without the louder one seeming better.
 
-Ogg first and FLAC behind it, which is the only pair JUCE can write that covers everything. Current Safari takes the Ogg, which it did not always do, so on the browsers anyone has checked the FLAC is never fetched. It stays because a fallback is cheap insurance against the browser nobody checked, and because it is what the page offers as a download to anyone whose browser plays neither, which has to be a file you would want to keep rather than the lossy one. Both are lossless or near enough, and the fallback is the file the page links to for anyone whose browser plays neither. FLAC rather than WAV because the fallback is the expensive half: across all forty-eight clips the WAVs come to 28.6 MB and the FLACs to 9.9, for the same samples, and a repository whose packed history is 13 MB should not triple to carry a format that exists for one browser. The `<audio>` elements carry `preload="none"`, so a page with audio on it costs what a page of text costs until somebody presses play. Re-rendering on the same JUCE gives a byte-identical FLAC and a different Ogg every time, since the Ogg container carries a random stream serial. Across a JUCE upgrade the FLAC changes too, without the sound changing: 9.0.1 builds libflac as C rather than C++ and encodes differently for it. The way to tell one from the other is the MD5 of the unencoded audio that FLAC stores in its own header, which stayed the same on all forty-two clips. That holds for the DRIFT clip too: drift is a random walk, but each voice reseeds from a fixed number in `prepare`, so the same command draws the same contour.
+Ogg comes first with FLAC behind it, because that is the only pair JUCE can write that covers every browser. Current versions of Safari play the Ogg, so on every browser anyone has checked, the FLAC is never fetched. It stays as cheap insurance against a browser nobody checked. It is also what the page offers as a download to anyone whose browser plays neither, and that has to be a file worth keeping, not the lossy one. Both are lossless or near enough. FLAC is used instead of WAV because the fallback is the expensive half: across all forty-eight clips the WAVs come to 28.6 MB and the FLACs to 9.9, for the same samples. A repository whose packed history is 13 MB should not triple in size to carry a format that exists for one browser. The `<audio>` elements have `preload="none"`, so a page with audio costs the same as a page of text until somebody presses play. Re-rendering on the same JUCE version gives a byte-identical FLAC and a different Ogg every time, because the Ogg container carries a random stream serial. Across a JUCE upgrade the FLAC changes too, without the sound changing: 9.0.1 builds libflac as C instead of C++ and encodes differently because of it. To tell the two cases apart, compare the MD5 of the unencoded audio that FLAC stores in its own header. It stayed the same on all forty-two clips. That holds for the DRIFT clip too: drift is a random walk, but each voice reseeds from a fixed number in `prepare`, so the same command draws the same contour.
 
-The pages load WebP, encoded losslessly, which is a third smaller than the PNG for a screenshot and pixel-identical. Lossy is worse here rather than better: the panel grain is high-frequency noise, and at quality 95 the window shot comes out larger than the PNG.
+The pages load WebP, encoded losslessly, which is a third smaller than the PNG for a screenshot and pixel-identical to it. Lossy WebP is worse here, not better. The panel grain is high-frequency noise, and at quality 95 the window shot comes out larger than the PNG.
 
-One file is the exception and says so here rather than quietly. `overtonium-674.webp` is the narrow half of the window shot's `srcset`, produced by resampling the render down to 674 across, so there is no original for it to be identical to and lossless buys nothing: it costs 156 KB where quality 80 costs 63. Quality barely moves the result either, since what lossy mangles is the grain and it mangles it at every setting. Between 75 and 90 the mean error only falls from 4.5 to 3.2 of 255 while the file doubles, so 80 is where it sits. Everything else on the pages is lossless. Some images in `docs/` are never loaded by a browser at all. They are the `og:image` files, and they avoid WebP because social card renderers cannot be relied on to read it. `overtonium.png` and `overtonium-strips.png` are the screenshots the inner pages point at, so regenerating a screenshot means writing the PNG as well as the WebP. `overtonium-card.jpg` is the front page's card, composed at the 1200x630 every renderer expects, and it is a JPEG because the graded background is grainy enough that the PNG of it runs four times the size for no visible gain.
+One file is an exception, and it is listed here. `overtonium-674.webp` is the narrow half of the window shot's `srcset`, made by resampling the render down to 674 pixels wide. There is no original for it to be identical to, so lossless gains nothing: it costs 156 KB, where quality 80 costs 63. Quality barely changes the result either, because lossy compression damages the grain at every setting. Between 75 and 90 the mean error only falls from 4.5 to 3.2 of 255 while the file doubles, so it is set to 80. Everything else on the pages is lossless. Some images in `docs/` are never loaded by a browser at all. They are the `og:image` files, and they avoid WebP because social card renderers cannot be relied on to read it. `overtonium.png` and `overtonium-strips.png` are the screenshots the inner pages point to, so regenerating a screenshot means writing the PNG as well as the WebP. `overtonium-card.jpg` is the front page's card, composed at the 1200x630 every renderer expects. It is a JPEG because the graded background is grainy enough that a PNG of it is four times the size with no visible gain.
 
-**The cards are composed rather than rendered**, and `Tools/compose_cards.py` composes all five: the window shot at full width, centre cropped to the frame, the wordmark over it at seven tenths of the width, and on the four page cards a dim over the background and a caption under the mark. It needs masters that are not in the repository. The background and the mark are hand-composed artwork rather than anything a build can produce, and the four captions are set in a face that lives on the machine they were made on, so they are kept as alpha mattes lifted off the 1.8.0 cards and stored beside the other two. Every number in that script was measured off the cards it replaces rather than chosen, and `--check` composes the old set again from the old background to show it: all five come back within 2.9 of 255, which is the JPEG's own noise rather than anything anyone could see. That check is why the recipe is written down at all. It had to be recovered from the pictures once already.
+**The cards are composed, not rendered.** `Tools/compose_cards.py` composes all five: the window shot at full width, centre-cropped to the frame, the wordmark over it at seven tenths of the width, and on the four page cards a dim layer over the background and a caption under the mark. It needs masters that are not in the repository. The background and the mark are hand-made artwork that no build can produce. The four captions are set in a typeface that only exists on the machine they were made on, so they are kept as alpha mattes taken from the 1.8.0 cards and stored next to the other two. Every number in that script was measured from the cards it replaces, not chosen, and `--check` composes the old set again from the old background to show it: all five come back within 2.9 of 255, which is the JPEG's own noise and nothing anyone could see. That check is the reason the recipe is written down at all. The recipe has already had to be recovered from the pictures once.
 
-The front page hero is layered rather than flattened. The window shot is a background that `object-fit: cover` crops to the frame, and the wordmark is a separate image with an alpha channel centred over it. Because the stylesheet sizes the mark as a share of the frame, the background can be cropped to any band without the crop ever reaching the name, and the mark can take a larger share of the width on a phone than on a desktop. Flattening the two would give up both.
+The front page hero is layered, not flattened. The window shot is a background that `object-fit: cover` crops to the frame, and the wordmark is a separate image with an alpha channel, centred over it. The stylesheet sizes the mark as a share of the frame. So the background can be cropped to any band without the crop ever reaching the name, and the mark can take a larger share of the width on a phone than on a desktop. Flattening the two would lose both.
 
-The hero's background is a plain render, and the recipe is here so that it stays one. `overtonium_render_docs <dir> 4` writes `overtonium@4x.png` at 5392x4040, the bottom 3301 rows of that are the band the hero uses, and resampling the crop to 2360x1445 and 1180x722 gives the two files in the `srcset`. WebP quality 50, which is where it weighs what the old one did.
+The hero's background is a plain render, and the recipe is written here so that it stays one. `overtonium_render_docs <dir> 4` writes `overtonium@4x.png` at 5392x4040. The bottom 3301 rows of that are the band the hero uses, and resampling the crop to 2360x1445 and 1180x722 gives the two files in the `srcset`. It uses WebP quality 50, where the file weighs what the old one did.
 
-It used to be a screenshot with a blur and a grade over it, kept outside the repository, and nobody could regenerate it. So it went stale: it was still showing a `lift` row that had been taken out of the instrument and missing the `strike` that replaced it, and the master it came from was stale in the same way, which left no way back to it. The stylesheet is what makes a plain render enough. It scales the picture by 1.26, crops it with `object-fit: cover`, lays a radial scrim over it and drifts it, so the softening the artwork used to carry is done at display time on whatever the current build looks like. Measured against the brightest patch under each line, the plain render carries a little more contrast than the graded one did rather than less.
+A screenshot with a blur and a grade over it, kept outside the repository, cannot be regenerated, so it goes stale. The earlier background did: it showed a `lift` row that had been removed from the instrument and lacked the `strike` that replaced it, and its master was out of date in the same way, which left no way back to it. The stylesheet is what makes a plain render enough. It scales the picture by 1.26, crops it with `object-fit: cover`, lays a radial scrim over it and drifts it. So the softening that was baked into the artwork is applied at display time to whatever the current build looks like. Measured against the brightest patch under each line, the plain render has slightly more contrast than the graded one, not less.
 
-The stylesheet takes its palette from `Source/UI/Theme.h`, so the page and the instrument stay the same colour. One value deliberately does not. The instrument's dim text is `#77828d`, which measures 4.97 against the page background, 4.55 against a panel and 4.51 against the alternate, clearing the 4.5 that WCAG AA asks for at this size by a hundredth at worst, and it is the colour behind the nav, the fact labels, the captions and the footer. The page lifts it to `#838d97`, which clears the bar with a margin on every surface it lands on. Changing it in `Theme.h` instead would drag the instrument's own captions with it and put the hero wordmark, which is hand-composed, out of step with the plugin.
+The stylesheet takes its palette from `Source/UI/Theme.h`, so the page and the instrument use the same colours. One value deliberately differs. The instrument's dim text is `#77828d`, which measures 4.97 against the page background, 4.55 against a panel and 4.51 against the alternate. At worst that clears the 4.5 that WCAG AA asks for at this size by a hundredth, and it is the colour of the nav, the fact labels, the captions and the footer. The page raises it to `#838d97`, which clears the bar with a margin on every surface it appears on. Changing it in `Theme.h` instead would change the instrument's own captions too, and put the hero wordmark, which is hand-made, out of step with the plugin.
 
-Images wider than the column that shows them carry a `srcset`. A phone lays the front page out at 364 CSS pixels, so the window shot goes out at 674 rather than 1350, which is the difference between 61 KB and 205 KB on the connection least able to afford it.
+Images wider than the column that shows them have a `srcset`. A phone lays the front page out at 364 CSS pixels, so the window shot is sent at 674 instead of 1350. That is 61 KB instead of 205 KB, on the connection least able to afford it.
 
-**Every `<img>` carries a width and a height**, so the browser reserves the space before the bytes arrive, and `.github/scripts/image_dimensions.py` checks that what a page says matches what the file is. Getting it wrong is the layout shift those attributes exist to prevent, and nothing says so: the page looks right to whoever is testing it on a fast connection. It went wrong exactly that way. The scrollbar that came with the scrolling parameters made the window ten pixels wider, the renderer went on asking for the old size because it was a literal, and the pages went on declaring a width the picture had not had for two releases.
+**Every `<img>` has a width and a height**, so the browser reserves the space before the image arrives, and `.github/scripts/image_dimensions.py` checks that what a page declares matches the file. Getting it wrong causes exactly the layout shift those attributes exist to prevent, and nothing reports it: the page looks right to whoever tests it on a fast connection. This has happened. The scrollbar added with the scrolling parameters made the window ten pixels wider, the renderer kept asking for the old size because it was a literal, and the pages declared a width the picture had not had for two releases.
 
 ```
 python3 .github/scripts/image_dimensions.py --self-test
 python3 .github/scripts/image_dimensions.py docs
 ```
 
-It reads PNG, JPEG and WebP headers itself rather than reaching for Pillow, so it costs what the checks beside it cost. The attributes have to match one of the pictures the element can actually load, since declaring the largest of a `srcset` is as honest as declaring the one in `src`, and every other entry has to be the same shape within a percent. A percent rather than exactly, because halving 383 gives 191.5 and a file cannot be half a pixel tall, so a resampled entry is always a fraction off. It checks the social cards are 1200x630 as well, which is the one thing about them nothing on the site would reveal: no browser loads a card, so a card of the wrong shape only shows up in somebody else's link preview. It self-tests first, for the reason `lambda_captures.py` does.
+It reads PNG, JPEG and WebP headers itself instead of using Pillow, so it is as cheap as the checks next to it. The attributes have to match one of the pictures the element can actually load, because declaring the largest image in a `srcset` is as correct as declaring the one in `src`. Every other entry has to have the same proportions within a percent. A percent, not exact, because halving 383 gives 191.5 and a file cannot be half a pixel tall, so a resampled entry is always slightly off. It also checks that the social cards are 1200x630, which is the one thing about them nothing on the site would show: no browser loads a card, so a card of the wrong shape only shows up in someone else's link preview. It tests itself first, for the same reason `lambda_captures.py` does.

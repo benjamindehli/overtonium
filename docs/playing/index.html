@@ -144,7 +144,7 @@
                 <h1>Playing</h1>
 
                 <p class="lead">
-                    How the instrument is played and driven from outside the window: MPE and legato, the Settings menu, automating it from a host with
+                    How to play the instrument and control it from outside the window: MPE and legato, the Settings menu, automation from a host with
                     every parameter listed, macros that move a whole row from one control, and MIDI Learn for playing it from a controller.
                 </p>
 
@@ -152,39 +152,39 @@
                     <h2>MPE</h2>
 
                     <p>
-                        Off by default, and under Settings and in the Playing bar. With it on, a controller that gives every note its own MIDI channel
-                        can bend and press each note separately, which on this instrument means each finger gets its own copy of all 33 aftertouch
+                        Off by default. It is in Settings and in the Playing bar. With MPE on, a controller that gives every note its own MIDI channel
+                        can bend and press each note separately. On this instrument, that means each finger gets its own copy of all 33 aftertouch
                         destinations. Press into one note in a chord and only that note's upper partials come in.
                     </p>
 
                     <p>
-                        Slide, the forward and back axis under a finger, has a destination of its own under Settings and in the Playing bar. By
-                        default it moves that note's brightness, thinning or opening the top of the series, which is what a player's hands expect from
-                        that axis. It can be aimed at the tuning instead, so that pushing one finger forward slides that note alone
+                        Slide, the forward and back movement of a finger on the key, has its own destination setting in Settings and in the Playing
+                        bar. By default it changes that note's brightness, thinning or opening up the top of the series, which is what players expect
+                        from that axis. It can control the tuning instead, so that pushing one finger forward moves that note alone
                         <a href="../tuning/">between equal temperament and just intonation</a>
-                        while the rest of the chord stays where it is. A keyboard with no slide axis sends nothing and changes nothing.
+                        while the rest of the chord stays where it is. A keyboard without a slide axis sends nothing, so nothing changes.
                     </p>
 
                     <p>
-                        It is read as movement rather than as a position: the first value a note is given becomes that note's nought, and what reaches
-                        the sound is how far the axis has travelled from it since. Controllers disagree about what the axis is, which is why. A
-                        Seaboard reports where the finger sits and rests at the centre, while an Expressive E Osmose spends the first part of the key
-                        travel on pressure and only then starts sending slide, from the bottom of its range upward. Read as a position that second
-                        kind lurches the moment the axis engages. Read as movement both start the note on the patch and follow the finger from there.
+                        Slide is read as movement, not as a position. The first value a note receives becomes that note's zero, and what affects the
+                        sound is how far the axis has moved from it since. This is because controllers handle the axis differently. A Seaboard reports
+                        where the finger is and rests at the centre. An Expressive E Osmose uses the first part of the key travel for pressure and
+                        only then starts sending slide, from the bottom of its range upward. Read as a position, the Osmose would jump the moment the
+                        axis starts sending. Read as movement, both start the note as the patch sets it and follow the finger from there.
                     </p>
 
                     <p>
-                        The travel is scaled so that the longer of the two directions away from the rest is the whole of the slide, and both
-                        directions move at that one rate. A rest near the bottom of the axis leaves very little travel underneath it, and giving that
-                        sliver a scale of its own would make it a hair-trigger: pressing in would feel smooth while coming back out snapped to dark.
-                        The short side keeps the long side's sensitivity and simply reaches less far, which is honest, since there is less of it.
+                        The movement is scaled so that the longer of the two directions from the resting point covers the full slide, and both
+                        directions use that same rate. A resting point near the bottom of the axis leaves very little room below it. Giving that small
+                        range its own scale would make it far too sensitive: pressing in would feel smooth, but coming back out would jump straight to
+                        dark. So the short side has the same sensitivity as the long side and reaches less far.
                     </p>
 
                     <p>
-                        It is a setting rather than something permanently on because it changes what a channel number means. With it off, a channel is
-                        ignored: a key-up on channel 7 releases a note that went down on channel 1, which is what a single-channel keyboard needs.
-                        With it on, the channel is part of who the note is, so the same key can be held twice on two channels, bent in two directions,
-                        as two voices rather than one retriggering the other.
+                        MPE is a setting, not always on, because it changes what a channel number means. With it off, the channel is ignored: a key-up
+                        on channel 7 releases a note that started on channel 1, which is what a single-channel keyboard needs. With it on, the channel
+                        is part of the note's identity, so the same key can be held on two channels at once and bent in two directions, as two voices
+                        instead of one retriggering the other.
                     </p>
                 </section>
 
@@ -192,27 +192,27 @@
                     <h2>Legato</h2>
 
                     <p>
-                        A switch in Settings and in the Playing bar, beside the voice count, and what it does depends on that count.
-                        <strong>With one voice</strong> the instrument is not polyphonic at all: pressing a key while another is still held moves the
-                        note rather than starting it again, so the envelopes carry on and a run keeps the shape the first key gave it rather than
-                        restarting the attack under your fingers. Letting a key go while others are still down falls back to the most recent of them,
-                        which is what makes a trill work, and only the last key coming up releases the note.
+                        A switch in Settings and in the Playing bar, beside the voice count. What it does depends on that count.
+                        <strong>With one voice</strong> the instrument is monophonic. Pressing a key while another is still held moves the note
+                        instead of starting it again, so the envelopes continue and a run keeps the shape the first key gave it, without restarting
+                        the attack. Releasing a key while others are still held goes back to the most recent of them, which makes trills work. Only
+                        releasing the last key releases the note.
                     </p>
 
                     <p>
-                        <strong>With more than one voice it plays a top line.</strong> A key that lands above everything you are holding, except the
-                        highest note, carries that note's phrase on: it starts a voice of its own that takes over the highest note's envelopes where
-                        they stand and glides from its pitch, so it does not start again. Every other key plays as it always does. A legato melody
-                        over a staccato chord does what it sounds like: the chord retriggers each time its keys come up and go down again, and the
-                        melody slides from note to note over it, up or down, as long as it stays above the chord.
+                        <strong>With more than one voice it plays a top line.</strong> A key pressed above every held note except the highest one
+                        continues that highest note's phrase. It starts its own voice, which takes over the highest note's envelopes at their current
+                        point and glides from its pitch, so the sound does not start again. Every other key plays as normal. This means you can play a
+                        legato melody over a staccato chord. The chord retriggers each time its keys are released and pressed again, and the melody
+                        carries on from note to note above it, up or down, as long as it stays above the chord.
                     </p>
 
                     <figure class="listen">
                         <figcaption>
-                            A melody held from note to note over chords struck under it, two notes to a bar, one landing with the chord and one in
-                            between, on Synth Ensemble played softly, where each newly struck note takes about half a second to swell in. With Legato
-                            off every note of the melody swells in again. With it on and eight voices the melody carries on from note to note, with
-                            the chord or without it, while the chords still swell in underneath.
+                            A legato melody over chords played below it, two notes to a bar, one with the chord and one in between. It is played
+                            softly on Synth Ensemble, where each new note takes about half a second to swell in. With Legato off, every note of the
+                            melody swells in again. With it on and eight voices, the melody carries on from note to note, with or without the chord,
+                            while the chords still swell in underneath.
                         </figcaption>
 
                         <div class="players">
@@ -239,24 +239,24 @@
                     </figure>
 
                     <p>
-                        The note a melody carries on from is never taken away, so a key that turns out to be part of the chord always sounds. It goes
-                        on sounding while its key is down and fades quickly when the key comes up, rather than ringing out its release under the
-                        melody, and so does the upper note of a trill lifted back onto the key below.
+                        The note a melody carries on from is never cut off, so a key that turns out to be part of the chord always sounds. It keeps
+                        sounding while its key is down and fades quickly when the key is released, instead of playing its full release under the
+                        melody. The same goes for the upper note of a trill when you return to the lower key.
                     </p>
 
                     <p>
-                        A key going down under the highest note could be the melody stepping down or a chord struck under a held melody, and only what
-                        the old melody key does afterwards would tell them apart, so the instrument goes by what is likely. Above the highest note, a
-                        key always carries on. Under it, with a chord held and no other key just struck, it carries on if it is above that chord,
-                        however far down it goes. Alone under a lone melody, or among keys struck together, it carries on only if it is within a major
-                        third and the highest of the keys struck with it, since a melody moves by seconds and thirds and the top of a chord usually
-                        sits further down. A wrong guess costs no more than an attack. No key ever waits.
+                        A key pressed below the highest note could be the melody stepping down, or a chord played under a held melody. Only what the
+                        previous melody key does next would tell them apart, so the instrument goes by what is most likely. Above the highest note, a
+                        key always carries on. Below it, with a chord held and no other key just struck, it carries on if it is above that chord,
+                        however far down it goes. Alone under a single melody note, or among keys struck together, it carries on only if it is within
+                        a major third and is the highest of the keys struck with it. A melody usually moves by seconds and thirds, and the top of a
+                        chord usually sits further down. A wrong guess costs no more than a new attack. No key is ever delayed.
                     </p>
 
                     <p>
-                        When the voices run out, the melody is the last thing taken. The sustain pedal holds the sound, not the line, so a note only
-                        the pedal is keeping does not carry anything on. With MPE on it works the same, and a note carried onto a key of its own
-                        channel brings that key's bend, pressure and slide with it.
+                        When the instrument runs out of voices, the melody is the last voice taken. The sustain pedal holds the sound but not the
+                        melody, so a note held only by the pedal does not carry anything on. With MPE on it works the same way, and a note carried
+                        onto a key on its own channel takes on that key's bend, pressure and slide.
                     </p>
 
                     <p>Legato moves the note in a single step. With a <a href="#glide">glide</a> time on the channels, it slides there instead.</p>
@@ -266,19 +266,20 @@
                     <h2>Glide</h2>
 
                     <p>
-                        <strong>Every channel has its own glide</strong>, the last knob under PITCH MOD. It is how long that partial takes to travel
-                        from the note before to the new one, from Off, where every channel starts, to five seconds. Because each partial travels on
-                        its own time, the series does not have to arrive together. Short times on the top and a long one on the fundamental land the
-                        brightness first and let the pitch follow. The other way round, the note arrives and its colour catches up. Somewhere between,
-                        the partials stop agreeing on a fundamental while they move and settle into one as they land, which no single portamento can
-                        do.
+                        <strong>Every channel has its own glide</strong>, the last knob under PITCH MOD. It sets how long that partial takes to move
+                        from the previous note to the new one, from Off, the default on every channel, to five seconds. Because each partial has its
+                        own time, the partials do not have to arrive together. Short times on the upper partials and a long one on the fundamental
+                        bring the brightness in first, with the pitch following. The other way round, the pitch arrives first and the tone follows.
+                        With settings in between, the partials stop agreeing on a fundamental while they move and settle on one as they arrive. A
+                        single portamento cannot do this.
                     </p>
 
                     <figure class="listen">
                         <figcaption>
-                            The same phrase twice on the <a href="../presets/">Glide</a> preset, up a fifth, up a fourth and down the octave. With
-                            every glide at zero each note simply arrives. As the preset has them, from nothing on the fundamental to two and a half
-                            seconds on the thirty-second, the pitch lands at once and the upper partials are heard still on their way.
+                            The same phrase twice on the <a href="../presets/">Glide</a> preset: up a fifth, up a fourth and down the octave. With
+                            every glide at zero, each note arrives straight away. With the preset's settings, from nothing on the fundamental to two
+                            and a half seconds on the thirty-second partial, the pitch arrives at once and you can hear the upper partials still
+                            moving.
                         </figcaption>
 
                         <div class="players">
@@ -305,18 +306,18 @@
                     </figure>
 
                     <p>
-                        A partial glides in a straight line in pitch, and everything that follows the pitch follows the glide: the oscillator
-                        character is chosen at the frequency the partial has reached, and the Bulb character's lamp sags behind a long slide as a real
-                        one would. Vibrato, drift and both kinds of bend ride on top of it. The needle on each partial's PITCH MOD rule follows the
-                        glide, swinging back to centre as the partial arrives, so a series given different glide times can be watched landing a
-                        partial at a time.
+                        A partial glides in a straight line in pitch, and everything that depends on pitch follows the glide. The oscillator character
+                        is chosen for the frequency the partial has reached, and the Bulb character's lamp lags behind a long slide as a real lamp
+                        would. Vibrato, drift and both kinds of bend are added on top. The needle on each partial's PITCH MOD rule follows the glide
+                        and swings back to centre as the partial arrives, so with different glide times you can watch the partials arrive one at a
+                        time.
                     </p>
 
                     <p>
-                        <strong>Two switches govern every channel at once</strong>, on the two lit letters beside the GLIDE caption on the left of the
-                        mixer, <strong>L</strong> and <strong>T</strong>, and again at the end of the menu a right-click on any GLIDE knob opens,
-                        under <em>Glide (every channel)</em>. A letter is lit when its switch is on. They belong to the patch, so a preset saves them
-                        and a legato lead can say so, and the letters show it the moment one loads.
+                        <strong>Two switches control every channel at once.</strong> They are the two letters <strong>L</strong> and
+                        <strong>T</strong> beside the GLIDE caption on the left of the mixer. They are also at the end of the menu that opens when you
+                        right-click any GLIDE knob, under <em>Glide (every channel)</em>. A letter is lit when its switch is on. The switches are part
+                        of the patch, so a preset saves them and a legato lead can set them. The letters show their state as soon as a preset loads.
                     </p>
 
                     <div class="scroll">
@@ -333,19 +334,18 @@
                                     <td>When, L</td>
                                     <td>Always, the default, or Legato (L lit)</td>
                                     <td>
-                                        Always glides from the last note played, even when its key came up long ago. Legato glides only when the new
-                                        key goes down over another one still under a finger, so a phrase played detached lands on each note and the
-                                        same phrase played joined slides through them. The sustain pedal holds the sound and not the hand, so a note
-                                        it is holding does not count as held
+                                        Always glides from the last note played, even if its key was released long ago. Legato glides only when the
+                                        new key is pressed while another key is still held, so a phrase played detached jumps to each note and the
+                                        same phrase played legato slides between them. A note held only by the sustain pedal does not count as held
                                     </td>
                                 </tr>
                                 <tr>
                                     <td>What the time means, T</td>
                                     <td>Fixed rate, the default, or Fixed time (T lit)</td>
                                     <td>
-                                        Fixed rate makes the time the length of an octave's slide, so a fifth takes a little over half of it and two
-                                        octaves take twice it, the way a finger sliding along a string at a steady pace does. Fixed time makes every
-                                        slide take the time however far it goes, so a leap and a step land on the same beat
+                                        Fixed rate makes the time the length of a slide over one octave, so a fifth takes a little over half of it and
+                                        two octaves take twice as long, like a finger sliding along a string at a steady speed. Fixed time makes every
+                                        slide take the set time however far it goes, so a leap and a step arrive at the same moment
                                     </td>
                                 </tr>
                             </tbody>
@@ -353,15 +353,15 @@
                     </div>
 
                     <p>
-                        Played polyphonically, each new note glides from the one played last. In <a href="#legato">Legato</a> the voice carrying the
-                        phrase glides from wherever it is, the one voice with one voice set and the top line with more, so a key pressed halfway
-                        through a slide turns the slide round from where it had got to rather than jumping to either end. A trill falling back to a
-                        key still held glides back to it too.
+                        Played polyphonically, each new note glides from the last note played. In <a href="#legato">Legato</a>, the voice carrying the
+                        phrase glides from wherever it is: the single voice when one voice is set, and the top line when more are set. A key pressed
+                        halfway through a slide reverses it from the current point instead of jumping to either end. A trill that returns to a key
+                        still held also glides back to it.
                     </p>
 
                     <p>
                         GLIDE is a row like any other, so <a href="../controls/#link">LINK</a> sets it across the series in one drag and a
-                        <a href="#macros">macro</a> can sweep every channel's glide time from one control.
+                        <a href="#macros">macro</a> can change every channel's glide time from one control.
                     </p>
                 </section>
 
@@ -369,28 +369,28 @@
                     <h2>The Playing and Tuning bars</h2>
 
                     <p>
-                        The two lower of the four buttons at the left end of the top bar, a keyboard and a tuning fork, each open a bar between the
-                        top bar and the mixer, for the settings that get changed while playing rather than set once. Both are closed until you open
-                        them, and each instance remembers which are open. A bar takes its height from the mixer, which scrolls, so the window keeps
-                        its size, unless it is already as short as it goes, in which case it grows by the bar.
+                        The lower two of the four buttons at the left end of the top bar, a keyboard and a tuning fork, each open a bar between the
+                        top bar and the mixer. The bars hold the settings you change while playing, as opposed to the ones you set once. Both bars
+                        start closed, and each instance remembers which are open. A bar takes its height from the mixer, which scrolls, so the window
+                        stays the same size. If the window is already at its minimum height, it grows by the height of the bar.
                     </p>
 
                     <p>
-                        <strong>Playing</strong> holds the voice count with IN USE, how many voices are sounding, release tails included, and Legato
-                        and No stack beside it, the pitch bend range, and MPE with Aftertouch from and Slide to. Then it shows what your hands are
-                        doing. SUSTAIN lights while the pedal is down. PITCH shows the pitch wheel from the middle against the bend range, or under
-                        MPE the key bent furthest. WHEEL and PRESSURE rise from the left, PRESSURE showing the keyboard's own pressure, the channel's
-                        or the key pressed hardest, so the wheel moves WHEEL alone even when Aftertouch from follows it. Last come the eight
-                        <a href="#macros">macros</a> as knobs in their colours, each named for the row it is aimed at and turning the same amount as
-                        its slider in MACROS. A macro not yet made shows a blank knob with its number. Right-click a knob to assign its macro, to
-                        change it in MACROS, or to bind a controller to it. <strong>Tuning</strong> holds the temperament, root and reference pitch,
-                        with the drift beside them under Adaptive. Under Adaptive it also has a NO DRIFT switch that keeps the keyboard home, a 7:4
-                        switch for the harmonic seventh, a PURE lamp and the Retune knob, which between them say
-                        <a href="../tuning/#adaptive">what Adaptive is doing</a> to the chord you hold. Last come twelve displays, one for each note,
-                        saying how far it sits from equal temperament in cents, with the white keys on a lighter ground the way a keyboard has them.
-                        Each display of a setting opens the same list as its entry in Settings and each switch lights while it is on, so a bar is
-                        another way to reach the same settings rather than a second copy of them. In a window too narrow for a whole bar, it wraps
-                        onto further rows the way the top bar does, and takes the extra height from the mixer.
+                        <strong>Playing</strong> has the voice count with IN USE, which shows how many voices are sounding, release tails included.
+                        Beside them are Legato and No stack, the pitch bend range, and MPE with Aftertouch from and Slide to. After these it shows
+                        what your hands are doing. SUSTAIN lights while the pedal is down. PITCH shows the pitch wheel's position from the centre
+                        against the bend range, or with MPE on, the key bent furthest. WHEEL and PRESSURE fill from the left. PRESSURE shows the
+                        keyboard's own pressure, from the channel or from the key pressed hardest, so the wheel moves only WHEEL even when Aftertouch
+                        from follows it. Last are the eight <a href="#macros">macros</a> as knobs in their colours. Each is named after the row it
+                        controls and turns by the same amount as its slider in MACROS. A macro not yet made shows a blank knob with its number.
+                        Right-click a knob to assign its macro, to edit it in MACROS, or to bind a controller to it. <strong>Tuning</strong> has the
+                        temperament, root and reference pitch, and under Adaptive, the drift beside them. Under Adaptive it also has a NO DRIFT switch
+                        that keeps the keyboard home, a 7:4 switch for the harmonic seventh, a PURE lamp and the Retune knob. Together they show
+                        <a href="../tuning/#adaptive">what Adaptive is doing</a> to the chord you hold. Last are twelve displays, one for each note,
+                        showing how far it is from equal temperament in cents, with the white keys on a lighter background as on a keyboard. Each
+                        setting's display opens the same list as its entry in Settings, and each switch lights while it is on, so a bar is another way
+                        to reach the same settings, not a separate copy of them. If the window is too narrow for a whole bar, the bar wraps onto more
+                        rows like the top bar does, and takes the extra height from the mixer.
                     </p>
 
                     <figure>
@@ -418,9 +418,9 @@
                     <h2>The Settings menu</h2>
 
                     <p>
-                        Everything set once and then left. The menu is where the instrument is set up and the panel is where the sound is made, and a
-                        control's place says which of the two it is. The ones changed while playing are in
-                        <a href="#bars">the Playing and Tuning bars</a> as well.
+                        Settings you set once and then leave. The menu is where you set up the instrument, and the panel is where you make the sound,
+                        so where a control sits tells you which kind it is. The ones you change while playing are also in
+                        <a href="#bars">the Playing and Tuning bars</a>.
                     </p>
 
                     <div class="scroll">
@@ -437,22 +437,22 @@
                                     <td>Which version this is</td>
                                     <td></td>
                                     <td>
-                                        A heading at the top of the menu rather than an entry, since it is a fact about the build and not a choice. It
-                                        is the number a bug report asks for
+                                        A heading at the top of the menu, not an entry, because it describes the build and is not a choice. A bug
+                                        report asks for this number
                                     </td>
                                 </tr>
                                 <tr>
                                     <td>Check for new versions</td>
                                     <td>off by default</td>
                                     <td>
-                                        The one entry that reaches outside the machine. <a href="../install/">What it sends</a> is nothing but a
-                                        request for a file
+                                        The only entry that connects to anything outside your computer. <a href="../install/">What it sends</a> is
+                                        only a request for a file
                                     </td>
                                 </tr>
                                 <tr>
                                     <td>Undo, Redo</td>
                                     <td></td>
-                                    <td>The same steps Cmd-Z reaches, for the hosts that keep that shortcut for themselves</td>
+                                    <td>The same steps as Cmd-Z, for hosts that keep that shortcut for themselves</td>
                                 </tr>
                                 <tr>
                                     <td>Polyphony</td>
@@ -463,123 +463,120 @@
                                     <td>No stack</td>
                                     <td>on by default</td>
                                     <td>
-                                        Striking a key again takes over the note it is already sounding rather than laying a second copy beside it,
-                                        which is what a string or a bar does. Off, every strike gets a voice of its own and the tails sum, so a
-                                        repeatedly struck bell builds up
+                                        Playing a key again takes over the note it is already sounding instead of adding a second copy, as a string or
+                                        a bar does. When off, every strike gets its own voice and the tails add up, so a bell struck repeatedly builds
+                                        up
                                     </td>
                                 </tr>
                                 <tr>
                                     <td>Legato</td>
                                     <td>off by default</td>
                                     <td>
-                                        With one voice, a key pressed while another is held moves the note without starting it again. With more, the
-                                        highest held note does that for a key above the rest, and everything under it plays as usual: see
+                                        With one voice, a key pressed while another is held moves the note without starting it again. With more
+                                        voices, the highest held note does this for a key above the rest, and everything below it plays as normal. See
                                         <a href="#legato">Legato</a>
                                     </td>
                                 </tr>
                                 <tr>
                                     <td>Pitch bend range</td>
                                     <td>0, 1, 2, 3, 4, 5, 7, 12 or 24 semitones. 2 by default</td>
-                                    <td>How far the wheel bends. The counts anyone actually uses rather than all twenty-five</td>
+                                    <td>How far the wheel bends. Only the commonly used ranges are offered, not all twenty-five</td>
                                 </tr>
                                 <tr>
                                     <td>MPE</td>
                                     <td>off by default</td>
-                                    <td>
-                                        Whether a note's channel is part of who that note is, which is what lets pitch bend and pressure arrive per
-                                        note
-                                    </td>
+                                    <td>Whether a note's channel is part of its identity, which lets pitch bend and pressure work per note</td>
                                 </tr>
                                 <tr>
                                     <td>Aftertouch from</td>
                                     <td>Channel pressure, Mod wheel, Either. Either by default</td>
                                     <td>
-                                        What feeds the AT row on every strip. Polyphonic aftertouch is not on the list because it stays routed
-                                        whatever this says
+                                        What drives the AT row on every strip. Polyphonic aftertouch is not on the list because it is always routed,
+                                        whatever this is set to
                                     </td>
                                 </tr>
                                 <tr>
                                     <td>Slide to</td>
                                     <td>Off, Brightness, Tuning. Brightness by default</td>
-                                    <td>Where the forward and back axis under an MPE finger goes</td>
+                                    <td>What the forward and back movement of an MPE finger controls</td>
                                 </tr>
                                 <tr>
                                     <td>Temperament, Root, Reference pitch</td>
                                     <td>Seven temperaments, twelve roots, 415 to 466 Hz</td>
                                     <td>
-                                        What the keyboard underneath is tuned to, which <a href="../tuning/">the tuning system</a> works through. Root
-                                        is greyed out for equal temperament, which has no centre to have
+                                        What the keyboard is tuned to, as explained in <a href="../tuning/">the tuning system</a>. Root is greyed out
+                                        for equal temperament, which has no centre
                                     </td>
                                 </tr>
                                 <tr>
                                     <td>Retune</td>
                                     <td>Fast, 30 ms, the default, or Smooth, 300 ms</td>
                                     <td>
-                                        How long a held note takes to slide to a new version when the <a href="../tuning/#adaptive">Adaptive</a>
-                                        temperament retunes the chord around it. Two quick settings of the Retune knob in the Tuning bar, which runs
-                                        from a jump at zero to a second. Greyed out under every other temperament
+                                        How long a held note takes to slide to its new tuning when the <a href="../tuning/#adaptive">Adaptive</a>
+                                        temperament retunes the chord around it. These are two quick settings for the Retune knob in the Tuning bar,
+                                        which runs from an instant jump at zero up to one second. Greyed out for every other temperament
                                     </td>
                                 </tr>
                                 <tr>
                                     <td>Harmonic sevenths</td>
                                     <td>on by default</td>
                                     <td>
-                                        Whether Adaptive tunes a minor seventh 7:4 above its root, the harmonic seventh, where nothing else in the
-                                        chord would beat against it. Off, every seventh takes the size the chain of fifths gives it. Also the 7:4
-                                        switch in the Tuning bar. Greyed out under every other temperament
+                                        Whether Adaptive tunes a minor seventh 7:4 above its root, the harmonic seventh, when nothing else in the
+                                        chord would beat against it. When off, every seventh has the size the chain of fifths gives it. Also the 7:4
+                                        switch in the Tuning bar. Greyed out for every other temperament
                                     </td>
                                 </tr>
                                 <tr>
                                     <td>No drift</td>
                                     <td>off by default</td>
                                     <td>
-                                        Whether Adaptive keeps the chord you hold as near home as it can. On, a progression that would carry the
-                                        keyboard off a comma moves a held note a comma instead, and a key struck into silence goes home. Off, the
-                                        keyboard goes where the music takes it, up to two commas either way. Also the NO DRIFT switch in the Tuning
-                                        bar. Greyed out under every other temperament
+                                        Whether Adaptive keeps the chord you hold as close to home as it can. When on, a progression that would shift
+                                        the keyboard by a comma moves a held note by a comma instead, and a key played after silence goes home. When
+                                        off, the keyboard follows the music, up to two commas either way. Also the NO DRIFT switch in the Tuning bar.
+                                        Greyed out for every other temperament
                                     </td>
                                 </tr>
                                 <tr>
                                     <td>Phase reset</td>
                                     <td>on by default</td>
                                     <td>
-                                        Starts each partial where its ATTACK says when a note begins from silence: a rising zero crossing, or nearer
-                                        its peak when the attack is turned below its shortest time. Off, a partial carries on from wherever its cycle
-                                        was
+                                        When a note begins from silence, starts each partial at the point its ATTACK sets: a rising zero crossing, or
+                                        nearer its peak when the attack is turned below its shortest time. When off, a partial carries on from
+                                        wherever its cycle was
                                     </td>
                                 </tr>
                                 <tr>
                                     <td>Safety clip</td>
                                     <td>on by default</td>
                                     <td>
-                                        Whether the output stage at the end of the chain is running, worth leaving on when you push 32 faders up.
-                                        Which of its five shapes is running is chosen on the bar, under the meter
+                                        Whether the output stage at the end of the chain is on. Best left on when you push 32 faders up. Which of its
+                                        five shapes it uses is chosen on the bar, under the meter
                                     </td>
                                 </tr>
                                 <tr>
                                     <td>Limiter lookahead</td>
                                     <td>off by default</td>
                                     <td>
-                                        Whether the Limiter may see what is coming. On makes it smooth at the cost of two milliseconds of latency on
-                                        every shape, since only that one uses the window and the figure must not move with the patch. The only setting
-                                        here that changes what the plugin reports to your host
+                                        Whether the Limiter can look ahead at the incoming signal. On makes it smoother but adds two milliseconds of
+                                        latency on every shape. Only the Limiter uses the lookahead, but the latency must not change with the patch.
+                                        The only setting here that changes what the plugin reports to your host
                                     </td>
                                 </tr>
                                 <tr>
                                     <td>Zoom</td>
                                     <td>75, 100, 125 or 150%</td>
                                     <td>
-                                        How big the window is on your screen. Down here with the entry under it, since everything above the two is the
-                                        instrument and these are not
+                                        How big the window is on your screen. It sits at the bottom with the entry below it, because everything above
+                                        these two is about the instrument and these are not
                                     </td>
                                 </tr>
                                 <tr>
                                     <td>Fit all 32 channels</td>
                                     <td></td>
                                     <td>
-                                        Puts the window back to the width that shows the whole mixer, and to whatever height the rows you have left
-                                        unfolded need. A window remembers what it was dragged to, so a narrow one opens narrow every session after
-                                        that, and this is the way back
+                                        Resets the window to the width that shows the whole mixer, and to the height your unfolded rows need. A window
+                                        remembers the size you dragged it to, so a narrow window opens narrow in every later session. This entry
+                                        resets it
                                     </td>
                                 </tr>
                             </tbody>
@@ -587,16 +584,15 @@
                     </div>
 
                     <p>
-                        Almost none of it travels with a <a href="../presets/">preset</a>, and that is a rule rather than a list that might fall
-                        behind one: how you play the instrument and what it is tuned to are properties of the session rather than of any one sound in
-                        it. The zoom, the window size and which groups of rows you have folded away are in the same position for the same reason.
+                        Almost none of these settings are saved in a <a href="../presets/">preset</a>. This is a rule, not a list that might get out
+                        of date: how you play the instrument and what it is tuned to belong to the session, not to any one sound in it. For the same
+                        reason, presets do not save the zoom, the window size or which groups of rows you have folded away.
                     </p>
                     <p>
-                        The safety clip is the exception in this table, and the master fader is the exception outside it. Both used to sit with the
-                        rest on the grounds that how loud the instrument is belongs to the session, and both moved when the clipper became five shapes
-                        you choose between: the fader is the drive into that stage, so how hard a patch leans on it is part of the patch rather than
-                        part of the desk. The cost is worth knowing before you go looking for it:
-                        <strong>loading a preset now moves your output level</strong>.
+                        The safety clip is the exception in this table, and the master fader is the exception outside it. The output stage has five
+                        shapes to choose from, and the master fader sets how hard the signal drives into it, so how hard a patch drives that stage is
+                        part of the patch, not of your setup. As a result,
+                        <strong>loading a preset changes your output level</strong>.
                     </p>
                 </section>
 
@@ -605,14 +601,14 @@
 
                     <p>
                         Eight hundred and fifty parameters reach the host: forty-four global ones, twenty-three on each of the 32 partials, twenty-two
-                        on the noise channel, and six for each of the eight macros. They are listed in the order the panel reads, the globals first
-                        and then channel by channel with the noise channel last.
+                        on the noise channel, and six for each of the eight macros. They are listed in the same order as the panel, with the globals
+                        first, then each channel in turn, and the noise channel last.
                     </p>
 
                     <p>
-                        Every per-channel name carries its channel, so a parameter list answers both ways of looking for something. Type
-                        <code>H7</code> and you have that partial, type <code>Tune</code> and you have that row across the whole mixer. The same names
-                        are what a screen reader reads, which is why they are words rather than numbers.
+                        Every per-channel name includes its channel, so you can search a parameter list either way. Type
+                        <code>H7</code> to find that partial, or type <code>Tune</code> to find that row across the whole mixer. A screen reader reads
+                        the same names, which is why they are words, not numbers.
                     </p>
 
                     <div class="scroll">
@@ -649,27 +645,25 @@
                     </div>
 
                     <p>
-                        The noise channel has twenty-two rather than twenty-three because it has no tuning, pitch modulation, drift or glide, and
-                        gains COLOUR and the four knobs of its string in their place.
+                        The noise channel has twenty-two instead of twenty-three because it has no tuning, pitch modulation, drift or glide, and has
+                        COLOUR and the four knobs of its string instead.
                     </p>
 
                     <p>
-                        Everything in Settings is in the list too, even though no preset will ever move it. The temperament, the polyphony and the
-                        bend range are all automatable, so a piece that changes temperament partway through is something a host can do, whatever the
-                        panel thinks a setting is for.
+                        Everything in Settings is in the list too, even though no preset changes it. The temperament, the polyphony and the bend range
+                        can all be automated, so a host can change the temperament partway through a piece.
                     </p>
 
                     <p>
-                        <strong>A parameter is identified by an id of its own rather than by its position</strong>, in the Audio Unit as in the VST3.
-                        That is what lets a release add controls without breaking what you have already written: 1.6.0 put 65 new parameters among the
-                        existing ones rather than after them, and every automation lane written before it still points at the control it was pointing
-                        at.
+                        <strong>Each parameter is identified by its own id, not by its position</strong>, in the Audio Unit and in the VST3. This lets
+                        a release add controls without breaking automation you have already written. 1.6.0 added 65 new parameters among the existing
+                        ones, not after them, and every automation lane written before it still points at the same control.
                     </p>
 
                     <p>
-                        LINK is not a parameter, since it is a tool for the mouse rather than part of the sound. A drag under it opens a gesture on
-                        every channel it reaches, writes each one, and closes them together, so what a host records is what actually moved: thirty-two
-                        lanes if the drag moved thirty-two channels.
+                        LINK is not a parameter, because it is a mouse tool, not part of the sound. A LINK drag starts a gesture on every channel it
+                        reaches, writes each one, and ends them all together, so the host records what actually moved: thirty-two lanes if the drag
+                        moved thirty-two channels.
                     </p>
 
                     <section class="parameter-list">
@@ -1325,62 +1319,62 @@
                     <h2>Macros</h2>
 
                     <p>
-                        <strong>A macro is one parameter that moves a whole row</strong>, and the reason it exists is automation. A Link drag across
-                        the tuning knobs moves 32 parameters, and a host catches only the last one you touched, so a relationship you can edit by hand
-                        cannot be recorded at all. A macro gives that relationship a single control a host can draw.
+                        <strong>A macro is one parameter that moves a whole row.</strong> Macros exist for automation. A Link drag across the tuning
+                        knobs moves 32 parameters, and a host records only the last one you touched, so a change across the row that you can make by
+                        hand cannot be recorded. A macro gives that change a single control that a host can automate.
                     </p>
 
                     <p>
-                        The icon of three faders on the top bar, beside the settings cog, opens them over the mixer. Each macro is one line: a colour,
-                        the row it drives, which channels of that row it reaches, how it is shared out across them, and the amount. Add a macro takes
-                        one of eight, and the cross at the end puts it back.
+                        The icon of three faders on the top bar, beside the settings cog, opens the macros over the mixer. Each macro is one line: a
+                        colour, the row it controls, which channels of that row it reaches, how the movement is shared between them, and the amount.
+                        Add a macro uses one of the eight, and the cross at the end of the line frees it again.
                     </p>
 
                     <p>
-                        <strong>Eight is a pool rather than a limit you are meant to feel.</strong> A plugin declares its parameters once when it is
-                        created and neither VST3 nor AU can add one later, so making a macro takes one of eight that already exist and removing it
-                        puts it back. The panel shows the ones you have made, and your host's parameter list shows all eight whether or not you use
-                        them.
+                        <strong>The eight macros are a pool, not a limit you are meant to notice.</strong> A plugin declares its parameters once when
+                        it is created, and neither VST3 nor AU can add one later. So making a macro uses one of eight that already exist, and removing
+                        it frees it again. The panel shows the ones you have made, and your host's parameter list shows all eight whether you use them
+                        or not.
                     </p>
 
                     <p>
                         <strong>Scope</strong> is All, Odd, Even, or any one interval: choosing fifths reaches harmonics 3, 6, 12 and 24.
-                        <strong>Curve</strong> is Uniform or Taper, and a taper leans hardest on a channel you pick and fades with distance either
-                        side of it. Link's third curve, Spread, is not offered and could not be: it scatters each strip along the direction your drag
-                        gave it relative to the strip under the mouse, and a macro has neither a direction nor a strip under the mouse.
+                        <strong>Curve</strong> is Uniform or Taper. A taper has the most effect on a channel you pick, and less with distance on
+                        either side of it. Link's third curve, Spread, is not available and cannot be. It moves each strip in a direction based on
+                        your drag relative to the strip under the mouse, and a macro has no drag direction and no strip under the mouse.
                     </p>
 
                     <p>
-                        <strong>A macro offsets what the patch says rather than writing it.</strong> Nothing in your sound is overwritten, the host
-                        has one lane to draw instead of thirty-two to catch, and the knobs do not move when a macro does. That last part is normal for
-                        anything that works this way and is surprising the first time, so the controls say both at once: the ring around a knob lights
-                        to where the macro has taken the value, in the macro's colour, while the pointer on the cap stays at what the patch holds, in
-                        the channel's. The gap between them is the macro. A fader, which has no ring to spare, says it in the gutters either side of
-                        its track: two narrow columns of segments appear there, cut from the same cloth as the meter behind the fader, and light from
-                        the foot of the track up to the level it has been taken to. The glass of the cap takes a wash of the same colour.
+                        <strong>A macro offsets the patch's values instead of writing them.</strong> Nothing in your sound is overwritten, the host
+                        has one lane to draw instead of thirty-two to record, and the knobs do not move when a macro does. That last part is normal
+                        for controls that work this way, but it can be surprising at first, so the controls show both values at once. The ring around
+                        a knob lights up to the value the macro has set, in the macro's colour, while the pointer on the cap stays at the patch's
+                        value, in the channel's colour. The gap between them is the macro. A fader has no ring, so it shows this in the gutters on
+                        either side of its track. Two narrow columns of segments appear there, in the same style as the meter behind the fader, and
+                        light from the bottom of the track up to the level the macro has set. The glass of the cap is tinted in the same colour.
                     </p>
 
-                    <p>With a macro at rest the two coincide, so a macro you have assigned but not moved looks like no macro at all.</p>
+                    <p>With a macro at rest the two are in the same place, so a macro you have assigned but not moved looks the same as no macro.</p>
 
                     <p>
-                        The amount runs from -1 to +1 whatever it drives, so a macro can always push a control either way from where the patch left
-                        it, and it moves a proportion of each control's own travel rather than a number of its units. That matters most on a row like
-                        decay, which runs from a thousandth of a second to twenty: the same number of seconds added would be a twentyfold change at
-                        one end and a rounding error at the other.
-                    </p>
-
-                    <p>
-                        A full sweep reaches the ends of the range, which means a patch already sitting near one end has a stretch of fader that does
-                        nothing in that direction. That is deliberate. One macro reaches up to 32 controls that may be set anywhere, so there is no
-                        smaller fraction of the range that would be right for all of them.
+                        The amount runs from -1 to +1 whatever it controls, so a macro can always push a control either way from the patch's value. It
+                        moves each control by a proportion of its own range, not by a number of units. This matters most on a row like decay, which
+                        runs from a thousandth of a second to twenty seconds. Adding the same number of seconds would be a twentyfold change at one
+                        end and almost no change at the other.
                     </p>
 
                     <p>
-                        <strong>Right-click a macro's amount to bind a controller to it</strong>, the same MIDI Learn the mixer's controls use. Only
-                        the amount: the row, the scope and the curve say what a macro is rather than what it is doing. Its knob in the Playing bar
-                        offers the same, with Edit macro beside it to open MACROS, and a macro not yet made offers Assign macro there instead, which
-                        makes it and opens MACROS. The macros icon lights whenever any are made, since a macro's work is otherwise invisible until you
-                        look at a ring.
+                        A full sweep reaches the ends of the range, so if the patch value is already near one end, part of the macro's travel does
+                        nothing in that direction. This is on purpose. One macro reaches up to 32 controls that may be set anywhere, so no smaller
+                        part of the range would suit all of them.
+                    </p>
+
+                    <p>
+                        <strong>Right-click a macro's amount to bind a controller to it</strong>, using the same MIDI Learn as the mixer's controls.
+                        Only the amount can be bound, because the row, the scope and the curve define the macro rather than move it. Its knob in the
+                        Playing bar has the same option, with Edit macro beside it to open MACROS. For a macro not yet made, the knob offers Assign
+                        macro instead, which creates the macro and opens MACROS. The macros icon lights whenever any macros exist, because otherwise
+                        you cannot see a macro's effect without looking at a ring.
                     </p>
                 </section>
 
@@ -1389,44 +1383,43 @@
 
                     <p>
                         <strong>Right-click any control and choose MIDI Learn</strong>, then move something on your controller. A violet ring marks
-                        the control while it waits, so you can see what is listening without opening the menu again, and only ever one control carries
-                        it. Right-click the same control afterwards and the menu says which controller moves it, with the way to forget it or to bind
-                        a different one. In the mixer these items sit under the LINK settings that right-click already opens. On the top bar, the
-                        Playing and Tuning bars and the noise channel they are a menu of their own, since none of them is part of the series LINK
-                        gangs.
+                        the control while it waits, so you can see which control is listening without opening the menu again. Only one control can
+                        wait at a time. Right-click the same control afterwards and the menu shows which controller moves it, with options to remove
+                        the binding or bind a different one. In the mixer these items are below the LINK settings in the right-click menu. On the top
+                        bar, the Playing and Tuning bars and the noise channel, they have a menu of their own, because none of these is part of the
+                        series LINK gangs.
                     </p>
 
                     <p>
-                        Your host almost certainly offers the same thing. What this does that a host cannot is let you make the map by right-clicking
-                        the knob itself rather than finding <code>H17 AM Rate</code> in a list of 850 parameters, and behave the same way wherever you
-                        open it.
+                        Your host almost certainly offers the same thing. The difference is that here you set up the mapping by right-clicking the
+                        knob itself, instead of finding <code>H17 AM Rate</code> in a list of 850 parameters, and it works the same way in every host.
                     </p>
 
                     <p>
-                        <strong>Eleven controllers are refused</strong>, because something is already listening for them and losing it would be felt
-                        while playing rather than noticed afterwards. Controller 1 is the mod wheel, which can feed aftertouch. 64 is the sustain
-                        pedal. 74 is the slide axis, the one most easily bound by accident since it moves whenever a finger does on an MPE keyboard.
-                        120 and 123 stop notes. Controllers 6, 38, 98, 99, 100 and 101 are how a keyboard tells the instrument what it is. Arming a
-                        knob and then reaching for the slide to steady a note leaves the note steadied and the knob still waiting.
+                        <strong>Eleven controllers cannot be bound</strong>, because the instrument already uses them and losing them would affect
+                        your playing. Controller 1 is the mod wheel, which can drive aftertouch. 64 is the sustain pedal. 74 is the slide axis, the
+                        easiest to bind by accident because it moves whenever a finger moves on an MPE keyboard. 120 and 123 stop notes. Controllers
+                        6, 38, 98, 99, 100 and 101 are how a keyboard tells the instrument what kind of keyboard it is. If you arm a knob and then
+                        touch the slide to steady a note, the note is steadied and the knob keeps waiting.
                     </p>
 
                     <p>
-                        <strong>It works the same with MPE switched on</strong>, which is not free: with MPE on, nearly every message belongs to the
-                        part of the instrument that reads your keyboard's layout, so a binding is looked for before that rather than after it.
-                        Otherwise it would be dead on exactly the controllers this is usually played from.
+                        <strong>It works the same with MPE on</strong>, which takes extra handling. With MPE on, nearly every message goes to the part
+                        of the instrument that reads your keyboard's layout, so bindings are checked before that, not after. Otherwise MIDI Learn
+                        would not work on the controllers the instrument is most often played from.
                     </p>
 
                     <p>
-                        The map is saved with your project, beside the window size and the folded sections, and
-                        <strong>a preset never touches it</strong>. Which controller moves which knob describes the desk you are plugged into rather
-                        than the sound, and a patch that rearranged it would be rearranging your hardware. A binding records the parameter by name, so
-                        a later version adding controls cannot silently repoint it at something else.
+                        The mapping is saved with your project, along with the window size and the folded sections, and
+                        <strong>a preset never changes it</strong>. Which controller moves which knob depends on your hardware setup, not on the
+                        sound, so a patch should not change it. A binding stores the parameter by name, so a later version that adds controls cannot
+                        quietly point it at something else.
                     </p>
 
                     <p>
-                        Two things to expect. A control jumps to wherever the controller is standing rather than waiting to be picked up, so a knob
-                        turned to the top will take the parameter there the moment you touch it. And a controller moving a control is not something
-                        undo reverses, for the same reason automation is not.
+                        Two things to expect. A control jumps to the controller's current position instead of waiting for the controller to reach it,
+                        so a hardware knob turned to the top takes the parameter there the moment you touch it. And undo does not reverse changes made
+                        from a controller, for the same reason it does not reverse automation.
                     </p>
                 </section>
 

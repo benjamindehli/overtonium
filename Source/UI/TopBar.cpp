@@ -301,9 +301,9 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
 
   wobble.slider.setPopupDisplayEnabled(true, true, &popupParent);
   wobble.slider.setTooltip(
-      "Warped-record pitch wobble on the whole instrument, before the echo: a "
-      "slow wander with occasional sharp slips, both growing as you turn it "
-      "up.");
+      "Pitch wobble like a warped record on the whole instrument, before the "
+      "echo: a slow wander with occasional sharp slips. Both increase as you "
+      "turn it up.");
   wobble.slider.setDoubleClickReturnValue(true, 0.0);
   addAndMakeVisible(wobble);
 
@@ -364,7 +364,7 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
       stringsButton, "STRINGS",
       "Strings that resonate with what you play, before the bus drive. Piano "
       "rings the held keys' strings, and all 88 while the sustain pedal is "
-      "down. Open rings all 88 as if the pedal never came up. Octave rings "
+      "down. Open rings all 88 as if the pedal were always down. Octave rings "
       "twelve strings from C3, and Series the tuning root's harmonics.");
 
   // A menu over one parameter, so the click opens it rather than toggling
@@ -465,9 +465,9 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   // ---- the master effects
   // ----------------------------------------------------
   styleToggle(echoButton, "ECHO",
-              "The delay the instrument runs into, before the master fader: "
-              "tape, bucket brigade, or a ping-pong digital delay. AGE wears "
-              "each one differently.");
+              "A delay on the instrument, before the master fader: tape, "
+              "bucket brigade, or a ping-pong digital delay. AGE works "
+              "differently on each.");
 
   echoButton.onClick = [this] {
     auto m = buildEchoMenu();
@@ -479,7 +479,7 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
                     [this](int result) { chooseEcho(result); });
   };
   styleToggle(reverbButton, "REVERB",
-              "The reverb the instrument runs into, after the echo: a room, a "
+              "A reverb on the instrument, after the echo: a room, a "
               "modulated plate, or a spring tank that turns hits into a "
               "falling chirp.");
 
@@ -529,7 +529,7 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
           "does not make the strings louder.",
           popupParent);
   addKnob(stringsControls, "Strings", "DAMP", params::stringsDampId,
-          "How quickly the top dies out of the strings", popupParent);
+          "How quickly the strings lose their high end", popupParent);
 
   addKnob(echoControls, "Echo", "MIX", params::echoMixId,
           "How much of the output is repeats", popupParent);
@@ -551,7 +551,7 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
           "How long the tail takes to die away. The room size follows it.",
           popupParent);
   addKnob(reverbControls, "Reverb", "DAMP", params::reverbDampId,
-          "How quickly the top end dies out of the tail", popupParent);
+          "How quickly the tail loses its high end", popupParent);
   addKnob(reverbControls, "Reverb", "PRE", params::reverbPreDelayId,
           "Silence before the reverb starts. A little keeps the attack clear.",
           popupParent);

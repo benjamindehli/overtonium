@@ -1,34 +1,34 @@
 {
     "": {
-        "words": "03862742849c629a",
-        "modified": "2026-10-12"
+        "words": "d263c802854c088d",
+        "modified": "2026-10-14"
     },
     "tuning/": {
-        "words": "85ea6a7ebcdfce02",
-        "modified": "2026-10-11"
+        "words": "4acf3a4acc4a4395",
+        "modified": "2026-10-14"
     },
     "controls/": {
-        "words": "996482786d6fc21b",
-        "modified": "2026-10-13"
+        "words": "8292422ebc0f6946",
+        "modified": "2026-10-14"
     },
     "presets/": {
-        "words": "975edc4a8b89f36c",
-        "modified": "2026-10-12"
+        "words": "94fc56a5cd307fed",
+        "modified": "2026-10-14"
     },
     "install/": {
-        "words": "9fa4b2e9c91f0e9e",
-        "modified": "2026-10-13"
+        "words": "e28578f47cc4c436",
+        "modified": "2026-10-14"
     },
     "releases/": {
         "words": "1a5fc93fe8aa3030",
         "modified": "2026-10-12"
     },
     "effects/": {
-        "words": "405dc2cef6f64a70",
+        "words": "306894d5cb75a0f0",
         "modified": "2026-10-14"
     },
     "playing/": {
-        "words": "cfd7383f1770e177",
+        "words": "1a180f2f357336c5",
         "modified": "2026-10-14"
     }
 }

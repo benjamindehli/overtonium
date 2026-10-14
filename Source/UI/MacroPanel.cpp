@@ -93,8 +93,8 @@ void MacroPanel::buildStrip(int macro) {
 
   // A swatch rather than a word. The colour is the thing it says, and a
   // button reading "Violet" in grey would be saying it twice and worse.
-  strip.colour.setTooltip("The colour this macro lends the controls it "
-                          "drives.");
+  strip.colour.setTooltip("The colour this macro gives the controls it "
+                          "moves.");
   strip.colour.onClick = [this, macro] {
     choose(
         macro, params::macroColourId(macro), "Colour", params::kNumMacroColours,
@@ -121,9 +121,9 @@ void MacroPanel::buildStrip(int macro) {
         &strips[(size_t)macro].scope);
   };
 
-  strip.curve.setTooltip(
-      "How it is shared out. Uniform moves every channel the same, and Taper "
-      "is strongest at one channel and fades away from it.");
+  strip.curve.setTooltip("How the amount is spread. Uniform moves every "
+                         "channel the same, and Taper "
+                         "is strongest at one channel and fades away from it.");
   strip.curve.onClick = [this, macro] {
     choose(
         macro, params::macroCurveId(macro), "Curve",
@@ -161,7 +161,7 @@ void MacroPanel::buildStrip(int macro) {
 
   strip.remove.setButtonText("x");
   strip.remove.setTooltip(
-      "Frees this macro. What it moved goes back to what the patch says.");
+      "Removes this macro. The controls it moved go back to the patch values.");
   strip.remove.onClick = [this, macro] {
     write(params::macroRowId(macro), 0);
     refresh();
@@ -173,7 +173,7 @@ void MacroPanel::buildStrip(int macro) {
   strip.amount.getProperties().set("segmentedTrack", true);
   strip.amount.getProperties().set("bipolar", true);
   strip.amount.setTooltip(
-      "How far it pushes the row. This is the parameter a host automates.");
+      "How far it moves the row. This is the parameter a host automates.");
   strip.amount.setDoubleClickReturnValue(true, 0.0);
 
   strip.attachment =
@@ -511,7 +511,7 @@ void MacroPanel::paint(juce::Graphics &g) {
   if (showing.empty()) {
     g.setColour(colours::textDim);
     g.setFont(makeFont(12.0f, false));
-    g.drawText("One parameter that moves a whole row, and that a host can "
+    g.drawText("One parameter that moves a whole row, which a host can "
                "automate.",
                emptyMessage, juce::Justification::centred, true);
 

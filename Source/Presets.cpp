@@ -461,7 +461,7 @@ bool save(APVTS &apvts, const juce::String &name, juce::String &error) {
   const auto clean = sanitiseName(name);
 
   if (clean.isEmpty()) {
-    error = "That name has nothing in it that a file can be called.";
+    error = "That name has no characters that can be used in a file name.";
     return false;
   }
 
@@ -480,7 +480,7 @@ bool load(APVTS &apvts, const juce::File &file, juce::String &error) {
   const auto doc = juce::XmlDocument::parse(file);
 
   if (doc == nullptr) {
-    error = file.getFileName() + " is not readable.";
+    error = file.getFileName() + " cannot be read.";
     return false;
   }
 

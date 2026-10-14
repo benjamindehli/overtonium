@@ -118,7 +118,7 @@ RowGutter::RowGutter() {
   glideLegato.setButtonText("L");
   glideLegato.setTooltip(
       "Legato glide: only glide from a key that is still held. When off, every "
-      "note glides from the last one, even after its key is up.");
+      "note glides from the last one, even after its key is released.");
   glideLegato.setTitle("Legato glide");
   glideLegato.setComponentID("glideLegato");
   glideLegato.onClick = [this] {
@@ -1276,8 +1276,8 @@ void OvertoniumEditor::announceRelease(const juce::String &version,
   notice.show(
       "UPDATE",
       "Overtonium " + version +
-          " is out. Its release notes say what has changed. SETTINGS "
-          "stays lit until you have it.",
+          " is available. The release notes list what has changed. "
+          "SETTINGS stays lit until you install it.",
       "See what's new", "Later",
       [version, url] {
         ovt::markVersionAnnounced(version);

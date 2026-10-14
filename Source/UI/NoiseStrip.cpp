@@ -55,8 +55,8 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
   setUpKnob(colourKnob, params::colourSuffix, colour,
             "Tilts the noise from dark rumble through flat to bright hiss");
   setUpKnob(strike, params::strikeSuffix, colour,
-            "How much the speed you strike the key at brings the delay in and "
-            "shortens the attack. Negative inverts it.");
+            "How much key velocity brings in the delay and shortens the "
+            "attack. Negative inverts it.");
   // See ChannelStrip: the percentage is not the thing being dialled in.
   strike.textFromValueFunction = [this](double amount) {
     return params::strikeRangeText((float)amount, (float)delay.getValue(),
@@ -88,8 +88,8 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
             "note. A short burst plucks it, held noise blows into it.",
             "Noise string");
   setUpKnob(stringDecay, params::stringDecaySuffix, colour,
-            "How long the string rings while the key is down. Once it is let "
-            "go the release damps it.",
+            "How long the string rings while the key is down. After the key is "
+            "released, the release damps it.",
             "Noise string decay");
   setUpKnob(stringDamp, params::stringDampSuffix, colour,
             "How quickly the string loses its top, bright to dark",

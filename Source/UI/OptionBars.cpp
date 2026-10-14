@@ -343,13 +343,14 @@ PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state,
                        juce::Component &popupHost)
     : OptionBar("PLAYING"), apvts(state), popupParent(popupHost) {
   styleSwitch(legato, "LEGATO", "Legato",
-              "A key going down while another is held carries the note on "
-              "rather than starting a new one");
+              "A key pressed while another is held continues the note "
+              "instead of starting a new one");
   styleSwitch(noStack, "NO STACK", "No stack",
-              "A key played again takes over its own voice rather than "
+              "A key played again reuses its own voice instead of "
               "starting another");
-  styleSwitch(mpe, "MPE", "MPE",
-              "Each note bent, pressed and slid on a channel of its own");
+  styleSwitch(
+      mpe, "MPE", "MPE",
+      "Each note gets its own MIDI channel for bend, pressure and slide");
 
   const auto flip = [this](settings::Id id) {
     settings::apply(apvts, id);
