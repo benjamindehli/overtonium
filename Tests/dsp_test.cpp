@@ -4582,6 +4582,18 @@ void testSympatheticStrings() {
           "and the pedal frees every one, marking all but the held key's as "
           "freed by the pedal");
     p.pedalDown = false;
+
+    // Open is the same with the pedal down whether it is or not.
+    p.strings.mode = StringsMode::Open;
+    const auto open = engine.planStrings(p);
+    bool sameAsPedal = true;
+    for (size_t s = 0; s < (size_t)Strings::kStrings; ++s)
+      sameAsPedal &= open.free[s] == pedal.free[s] &&
+                     open.pedalled[s] == pedal.pedalled[s] &&
+                     exactly(open.hz[s], pedal.hz[s]);
+    check(sameAsPedal, "Open plans the strings the way Piano does with the "
+                       "pedal down, without it");
+
     p.global.bendSemitones = 0.0f;
     engine.allSoundOff();
   }
@@ -4657,6 +4669,7 @@ void testSympatheticStrings() {
   const auto heldUnder = ringAfter(StringsMode::Piano, true, false, false);
   const auto pedalled = ringAfter(StringsMode::Piano, false, true, false);
   const auto liftedPedal = ringAfter(StringsMode::Piano, false, true, true);
+  const auto open = ringAfter(StringsMode::Open, false, false, false);
 
   check(none < 1.0e-6 && octave > 1.0e-3,
         "the octave's strings ring on after a note has stopped (" +
@@ -4671,6 +4684,9 @@ void testSympatheticStrings() {
         "the pedal lets every string ring, and letting it up stops them (" +
             std::to_string(pedalled) + ", " + std::to_string(liftedPedal) +
             ")");
+  check(open > 1.0e-4 && open > 10.0 * alone,
+        "Open rings every string with no pedal down (" + std::to_string(open) +
+            " against " + std::to_string(alone) + " for Piano)");
 
   // ---- bounded at the extremes
   // --------------------------------------------------

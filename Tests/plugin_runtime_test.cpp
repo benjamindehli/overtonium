@@ -8119,9 +8119,10 @@ void testSympatheticStringsParameters(OvertoniumProcessor &p) {
       p.apvts.getParameter(pp::stringsModeId));
   check(mode != nullptr &&
             mode->choices ==
-                juce::StringArray{"Off", "Piano", "Octave", "Series"} &&
+                juce::StringArray{"Off", "Piano", "Open", "Octave", "Series"} &&
             mode->getIndex() == (int)ovt::StringsMode::Off,
-        "Strings Mode is Off, Piano, Octave or Series, and Off to begin with");
+        "Strings Mode is Off, Piano, Open, Octave or Series, and Off to begin "
+        "with");
 
   if (auto *decay = p.apvts.getParameter(pp::stringsDecayId))
     check(decay->getText(decay->getDefaultValue(), 16) == "4.00 s",

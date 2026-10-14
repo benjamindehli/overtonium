@@ -360,11 +360,12 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   addAndMakeVisible(characterButton);
 
   // ---- the strings nobody plays ---------------------------------------------
-  styleToggle(stringsButton, "STRINGS",
-              "Strings that resonate with what you play, before the bus drive. "
-              "Piano rings the held keys' strings, and all 88 while the "
-              "sustain pedal is down. Octave rings twelve strings from C3, and "
-              "Series the tuning root's harmonics.");
+  styleToggle(
+      stringsButton, "STRINGS",
+      "Strings that resonate with what you play, before the bus drive. Piano "
+      "rings the held keys' strings, and all 88 while the sustain pedal is "
+      "down. Open rings all 88 as if the pedal never came up. Octave rings "
+      "twelve strings from C3, and Series the tuning root's harmonics.");
 
   // A menu over one parameter, so the click opens it rather than toggling
   // anything, and the light says what came back.

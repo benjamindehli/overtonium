@@ -369,12 +369,14 @@ struct LofiParams {
 
 /// What the sympathetic strings are tuned to. See SympatheticStrings.
 ///
-/// Appended rather than inserted, since the index is what a preset stores.
+/// A new mode goes on the end, since the index is what a preset stores.
 enum class StringsMode {
   Off,
   /// A piano's: one string a key, the held keys' undamped, every one with the
   /// sustain pedal down.
   Piano,
+  /// A piano's with the pedal held down for good: every string undamped.
+  Open,
   /// One for each note of the octave from C3, always undamped.
   Octave,
   /// The tuning root's harmonic series from its second octave, pure, always
@@ -389,6 +391,8 @@ inline const char *stringsModeName(StringsMode m) {
     return "Off";
   case StringsMode::Piano:
     return "Piano";
+  case StringsMode::Open:
+    return "Open";
   case StringsMode::Octave:
     return "Octave";
   case StringsMode::Series:

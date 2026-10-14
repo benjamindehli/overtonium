@@ -1014,7 +1014,11 @@ SynthEngine::planStrings(const SynthParams &p) const noexcept {
   };
 
   switch (p.strings.mode) {
-  case StringsMode::Piano: {
+  case StringsMode::Piano:
+  case StringsMode::Open: {
+    // Open is Piano with the pedal held down for good.
+    const bool pedal = p.pedalDown || p.strings.mode == StringsMode::Open;
+
     // A held key's string is where that key is sounding, before any bend:
     // a piano's strings do not follow the wheel. The rest wait where a key
     // struck into silence would sound.
@@ -1029,8 +1033,8 @@ SynthEngine::planStrings(const SynthParams &p) const noexcept {
       const auto key = SympatheticStrings::keyOf(s);
       const bool isHeld = held[(size_t)s] > 0.0;
       set(key, isHeld ? held[(size_t)s] : restingFrequency(key, p),
-          isHeld || p.pedalDown);
-      plan.pedalled[(size_t)s] = !isHeld && p.pedalDown;
+          isHeld || pedal);
+      plan.pedalled[(size_t)s] = !isHeld && pedal;
     }
     break;
   }

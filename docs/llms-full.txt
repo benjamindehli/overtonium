@@ -464,7 +464,7 @@ The envelope decides what kind of string it is. A noise envelope a few milliseco
 
 Page: Overtonium effects: character, echo, reverb, converter and CLIP
 URL: https://benjamindehli.github.io/overtonium/effects/
-Last changed: 2026-10-13
+Last changed: 2026-10-14
 
 # Effects
 
@@ -500,7 +500,7 @@ A warped record under the whole instrument. Pitch is bent by reading the output 
 
 Eighty-eight strings nobody plays, one for each key of a piano from A0 to C8, ringing along with what is. They are fed the thirty-three channels once they are summed, and what rings back is mixed in before the bus drive, so the drive and everything after it treat them as part of the instrument rather than as a room behind it. The button beside the character says what they are tuned to and lights while they ring.
 
-**Piano** is a piano's: the strings of the keys you hold are free, the rest are damped, and the sustain pedal lifts every damper. A held key's string is tuned where the key is sounding, and the others wait where a key struck now would sound, under Adaptive at the version their pitch class had last. None of them bends, since a piano's strings do not follow the wheel. **Octave** is the twelve strings from C3, always free, so every note finds something to ring with. **Series** is the tuning root's first eight harmonics from its second octave, tuned pure and always free, a drone that answers whatever lands on the root's own series.
+**Piano** is a piano's: the strings of the keys you hold are free, the rest are damped, and the sustain pedal lifts every damper. A held key's string is tuned where the key is sounding, and the others wait where a key struck now would sound, under Adaptive at the version their pitch class had last. None of them bends, since a piano's strings do not follow the wheel. **Open** is Piano with the pedal held down for good: every string rings, a held key's the loudest. **Octave** is the twelve strings from C3, always free, so every note finds something to ring with. **Series** is the tuning root's first eight harmonics from its second octave, tuned pure and always free, a drone that answers whatever lands on the root's own series.
 
 **MIX** goes from the instrument alone to the strings alone, as it does on the echo and the reverb. **DECAY** is how long a free string rings, from 200 ms to 10 s, and so how long the strings take to build up under a held chord. It does not make them louder: a partial held at a string's pitch drives it to the same level whatever DECAY says. **DAMP** is how quickly the top dies out of them. A damper stops its string over 0.8 s at the bottom of the keyboard and 0.25 s at the top, so a released bass key leaves the short hum a felt on a heavy string does. A string freed only by the pedal is fed a quarter of what a held key's string is, so the pedal blooms under a chord rather than turning it up.
 
@@ -544,7 +544,7 @@ Horizontal, split into left and right, because the two channels are identical un
 
 Page: Playing Overtonium: MPE, automation, macros and MIDI Learn
 URL: https://benjamindehli.github.io/overtonium/playing/
-Last changed: 2026-10-13
+Last changed: 2026-10-14
 
 # Playing
 
@@ -713,7 +713,7 @@ All 850 as the host lists them, with a control that every partial or every macro
 | `Adaptive Retune` | `adaptiveRetune` | 0.0 ms to 1.00 s | 30.0 ms |
 | `Adaptive Harmonic Sevenths` | `adaptiveSeventh` | Off or on | On |
 | `Adaptive No Drift` | `adaptiveHome` | Off or on | Off |
-| `Strings Mode` | `stringsMode` | Off, Piano, Octave, Series | Off |
+| `Strings Mode` | `stringsMode` | Off, Piano, Open, Octave, Series | Off |
 | `Strings Mix` | `stringsMix` | 0 % to 100 % | 50 % |
 | `Strings Decay` | `stringsDecay` | 200 ms to 10.00 s | 4.00 s |
 | `Strings Damp` | `stringsDamp` | 0 % to 100 % | 40 % |
