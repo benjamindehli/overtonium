@@ -14,13 +14,19 @@ namespace ovt::ui {
 
 namespace {
 /// The same margins and spacing the top bar keeps, so the groups in a bar
-/// read as more of it.
-constexpr int kBarMargin = 12;
-constexpr int kBarPadY = 6;
+/// read as more of it: the same space on every side, with one more at the
+/// bottom for the bar's 1 px bottom line.
+constexpr int kBarMargin = 7;
+constexpr int kBarPadTop = 5;
+constexpr int kBarPadBottom = 6;
 
 /// A row and the gap between rows, the top bar's own.
-constexpr int kRow = 54;
+constexpr int kRow = 55;
 constexpr int kRowGap = 4;
+
+/// Below the controls in a frame, as in the top bar, so a dial is the size it
+/// is there.
+constexpr int kBelowControls = 1;
 constexpr int kGroupGap = 6;
 constexpr int kGroupPad = 6;
 constexpr int kControlGap = 6;
@@ -61,6 +67,13 @@ void OptionBar::mouseWheelMove(const juce::MouseEvent &e,
                                const juce::MouseWheelDetails &wheel) {
   if (e.originalComponent == this)
     juce::Component::mouseWheelMove(e, wheel);
+}
+
+juce::Rectangle<int> OptionBar::rowsArea() const {
+  return getLocalBounds()
+      .reduced(kBarMargin, 0)
+      .withTrimmedTop(kBarPadTop)
+      .withTrimmedBottom(kBarPadBottom);
 }
 
 juce::Colour OptionBar::captionColour(const Item &) const {
@@ -206,14 +219,13 @@ OptionBar::placeGroups(juce::Rectangle<int> area, int *rows) const {
 int OptionBar::heightForWidth(int width) const {
   int rows = 1;
   placeGroups(
-      {kBarMargin, kBarPadY, juce::jmax(1, width - 2 * kBarMargin), kRow},
+      {kBarMargin, kBarPadTop, juce::jmax(1, width - 2 * kBarMargin), kRow},
       &rows);
-  return rows * kRow + (rows - 1) * kRowGap + 2 * kBarPadY;
+  return rows * kRow + (rows - 1) * kRowGap + kBarPadTop + kBarPadBottom;
 }
 
 void OptionBar::resized() {
-  groupBounds =
-      placeGroups(getLocalBounds().reduced(kBarMargin, kBarPadY), nullptr);
+  groupBounds = placeGroups(rowsArea(), nullptr);
 
   for (size_t g = 0; g < groups.size(); ++g) {
     const auto &bounds = groupBounds[g];
@@ -221,13 +233,11 @@ void OptionBar::resized() {
     // The line the controls go along, one row tall, moving down a row when the
     // next control does not fit in what is left of it, which only a group
     // wider than the bar ever needs.
-    auto line = bounds.withHeight(kRow);
+    auto line = bounds.withHeight(kRow - kBelowControls);
     auto inner = line.reduced(kGroupPad, 0);
     bool first = true;
     int placedHere = 0;
-    const auto each = perLine(
-        groups[g], getLocalBounds().reduced(kBarMargin, kBarPadY).getWidth() -
-                       2 * kGroupPad);
+    const auto each = perLine(groups[g], rowsArea().getWidth() - 2 * kGroupPad);
 
     for (auto &item : groups[g].items) {
       const bool shown = !bounds.isEmpty() && item.shown;

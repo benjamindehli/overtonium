@@ -4857,7 +4857,7 @@ void testTopBarLayout() {
         "the bar fits in a sensible minimum width (" + std::to_string(minimum) +
             ")");
 
-  check(tallest <= 3 * 54 + 2 * 4 + 2 * 6,
+  check(tallest <= 3 * 55 + 2 * 4 + 5 + 6,
         "and takes no more than three rows there (" + std::to_string(tallest) +
             " px)");
 
@@ -10082,7 +10082,7 @@ void testBarComesOntoOneRow(OvertoniumProcessor &p) {
 
   // The figure the design notes quote. It moves whenever a control on the bar
   // changes width, and when it moves the notes move with it.
-  check(onOneRow == 1286, "and comes onto it at the width written down (" +
+  check(onOneRow == 1285, "and comes onto it at the width written down (" +
                               std::to_string(onOneRow) + ")");
 }
 

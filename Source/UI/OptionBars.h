@@ -66,6 +66,10 @@ public:
   /// Settings menu can move any of them.
   virtual void refresh() = 0;
 
+private:
+  /// The bar less its margins, where the rows go.
+  juce::Rectangle<int> rowsArea() const;
+
 protected:
   /// One control in a group, how wide it stands, and the caption under it,
   /// which may be empty.

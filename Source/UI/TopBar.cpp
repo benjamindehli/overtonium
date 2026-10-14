@@ -17,12 +17,31 @@ namespace ovt::ui {
 namespace {
 constexpr float kZoomChoices[] = {0.75f, 1.0f, 1.25f, 1.5f};
 
-constexpr int kBarMargin = 12;
-constexpr int kBarPadY = 6;
-constexpr int kRowHeight = 54;
+/// The space round the edges of the bar. The same on the left, the right,
+/// the top and the bottom, and the same as between the four buttons. The
+/// bottom padding is one more than the top because the bar's bottom edge is
+/// a 1 px line.
+constexpr int kBarMargin = 7;
+constexpr int kBarPadTop = 5;
+constexpr int kBarPadBottom = 6;
+constexpr int kRowHeight = 55;
 constexpr int kRowGap = 4;
 constexpr int kGroupGap = 6;
+
+/// Inside a framed group, between its frame and its controls.
 constexpr int kGroupPad = 6;
+
+/// Between the groups that have no frame: the four buttons, the wordmark
+/// with the preset screen, and the first frame after them.
+constexpr int kUnframedGap = 22;
+
+/// Between the four buttons, across and down.
+constexpr int kButtonGap = 7;
+
+/// Below the controls in a frame, so its captions sit 2 px above the frame's
+/// bottom edge as its dials sit 3 px below the top, and every dial in a row is
+/// the same size.
+constexpr int kBelowControls = 1;
 
 /// Between the wordmark and the preset screen under it.
 constexpr int kWordmarkGap = 2;
@@ -36,26 +55,38 @@ constexpr int kWordmarkGap = 2;
 /// bar can spare rather than against what would be comfortable. Measured in
 /// the font a 24 px button picks, SETTINGS is 61 px of text and MACROS is 54.
 ///
-/// Both wear an icon instead, which is what makes 84 enough: the words want
-/// 62 and 54 px and the bar could spare 58 each, and every pixel taken here
-/// is half a pixel off each converter readout, which stop naming their units
-/// below 53. A gear and a rack of faders say the same thing in a third of
-/// the room, and the words are still what a screen reader is given.
+/// Both wear an icon instead, which is what makes 73 enough: the words want
+/// 62 and 54 px, and every pixel taken here is half a pixel off each
+/// converter readout, which stop naming their units below 53. A gear and a rack
+/// of faders say the same thing in a third of the room, and the words are still
+/// what a screen reader is given.
 ///
 /// The strings come straight after the character with no gap between, and
 /// where the two share a row they are framed as one, since both say what the
 /// instrument is rather than what is done to it afterwards. They are two
 /// groups so that a narrow window can put the strings on the next row rather
 /// than having to be wide enough for both.
-constexpr int kGroupMinWidth[] = {84, 144, 218, 194, 232, 228, 172};
+///
+/// The first two have no frame, so their widths are their contents: two
+/// 33 px buttons with a gap, and the 132 px preset screen.
+constexpr int kGroupMinWidth[] = {73, 132, 218, 194, 232, 228, 172};
+constexpr int kPresetGroupIndex = 1;
+constexpr int kSeriesGroupIndex = 2;
 constexpr int kStringsGroupIndex = 3;
 constexpr int kOutputGroupIndex = 6;
 constexpr int kGroupCount = 7;
 
 /// The room left before a group that follows another on its row. None before
-/// the strings, whose frame carries on from the character's.
+/// the strings, whose frame carries on from the character's, and more round
+/// the two groups that have no frame.
 constexpr int gapBefore(int group) {
-  return group == kStringsGroupIndex ? 0 : kGroupGap;
+  if (group == kStringsGroupIndex)
+    return 0;
+
+  if (group == kPresetGroupIndex || group == kSeriesGroupIndex)
+    return kUnframedGap;
+
+  return kGroupGap;
 }
 
 /// Buttons, lists and the output meter all stand this tall, centred on the
@@ -1539,7 +1570,7 @@ TopBar::RowPlan TopBar::planRows(int fullWidth, int maxRows) {
 int TopBar::heightForWidth(int width) {
   const auto rows = planRows(width - 2 * kBarMargin, kGroupCount).rows;
 
-  return rows * kRowHeight + (rows - 1) * kRowGap + 2 * kBarPadY;
+  return rows * kRowHeight + (rows - 1) * kRowGap + kBarPadTop + kBarPadBottom;
 }
 
 int TopBar::minimumWidth() {
@@ -1577,7 +1608,11 @@ void TopBar::parkControls() {
 void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
   groupBounds[(size_t)group] = bounds;
 
-  auto r = bounds.reduced(kGroupPad, 0);
+  // The groups with no frame use their whole width.
+  const bool framed = group != VoiceGroup && group != PresetGroup;
+  auto r = framed
+               ? bounds.reduced(kGroupPad, 0).withTrimmedBottom(kBelowControls)
+               : bounds;
 
   // Everything in the bar lines up with the dials rather than with the middle
   // of the row. A knob carries its caption underneath, so its dial sits above
@@ -1628,18 +1663,18 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
     // which is the one place on the bar that does not: there is no room for
     // a second row of buttons otherwise, and four in a line pushed the bar
     // onto another row at the width that shows all 32 channels.
-    const auto half = (r.getWidth() - kFxToggleGap) / 2;
-    const auto height = (r.getHeight() - kFxToggleGap) / 2;
+    const auto half = (r.getWidth() - kButtonGap) / 2;
+    const auto height = (r.getHeight() - kButtonGap) / 2;
 
     auto top = r.withHeight(height);
     auto bottom = r.withTop(r.getBottom() - height);
 
     settingsButton.setBounds(top.removeFromLeft(half));
-    top.removeFromLeft(kFxToggleGap);
+    top.removeFromLeft(kButtonGap);
     macroButton.setBounds(top);
 
     playingButton.setBounds(bottom.removeFromLeft(half));
-    bottom.removeFromLeft(kFxToggleGap);
+    bottom.removeFromLeft(kButtonGap);
     tuningButton.setBounds(bottom);
     break;
   }
@@ -1802,7 +1837,10 @@ void TopBar::resized() {
 
   parkControls();
 
-  auto area = getLocalBounds().reduced(kBarMargin, kBarPadY);
+  auto area = getLocalBounds()
+                  .reduced(kBarMargin, 0)
+                  .withTrimmedTop(kBarPadTop)
+                  .withTrimmedBottom(kBarPadBottom);
   const auto fullWidth = area;
 
   const auto affordable =
@@ -1898,27 +1936,29 @@ void TopBar::paint(juce::Graphics &g) {
       // Centred under the head rather than pushed into the corner, because
       // that is what the knob captions beside it do and the point is to read
       // as one more of them.
-      const auto band = LabelledKnob::captionBounds(r)
-                            .withX(n.head->getX())
-                            .withWidth(n.head->getWidth());
+      const auto band =
+          LabelledKnob::captionBounds(r.withTrimmedBottom(kBelowControls))
+              .withX(n.head->getX())
+              .withWidth(n.head->getWidth());
 
       g.drawText(kGroupNames[i], band, juce::Justification::centred, false);
     }
   }
 
-  // The wordmark, the width of the preset screen under it and centred in
-  // the room above it.
+  // The wordmark, the width of the preset screen under it, at the top of the
+  // room above it, so its tallest letter is level with the top of the
+  // buttons and the frames.
   const auto &preset = groupBounds[(size_t)PresetGroup];
 
   if (preset.isEmpty())
     return;
 
-  const auto above = preset.reduced(kGroupPad, 0)
-                         .withBottom(presetDisplay.getY() - kWordmarkGap);
+  const auto above = preset.withBottom(presetDisplay.getY() - kWordmarkGap);
 
   if (logoScaled.isValid()) {
     g.drawImage(logoScaled, above.toFloat(),
-                juce::RectanglePlacement::centred |
+                juce::RectanglePlacement::xMid |
+                    juce::RectanglePlacement::yTop |
                     juce::RectanglePlacement::onlyReduceInSize);
     return;
   }
