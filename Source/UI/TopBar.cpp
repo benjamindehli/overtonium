@@ -630,6 +630,12 @@ void TopBar::mouseDown(const juce::MouseEvent &e) {
     onLearnRequested(id);
 }
 
+void TopBar::mouseWheelMove(const juce::MouseEvent &e,
+                            const juce::MouseWheelDetails &wheel) {
+  if (e.originalComponent == this)
+    juce::Component::mouseWheelMove(e, wheel);
+}
+
 void TopBar::setBarsOpen(bool playing, bool tuning) {
   playingButton.setToggleState(playing, juce::dontSendNotification);
   tuningButton.setToggleState(tuning, juce::dontSendNotification);
