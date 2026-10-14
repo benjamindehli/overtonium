@@ -367,10 +367,10 @@ struct LofiParams {
   int bits = 0;
 };
 
-/// What the sympathetic strings are tuned to. See SympatheticStrings.
+/// What the resonator's strings are tuned to. See SympatheticStrings.
 ///
 /// A new mode goes on the end, since the index is what a preset stores.
-enum class StringsMode {
+enum class ResonatorMode {
   Off,
   /// A piano's: one string a key, the held keys' undamped, every one with the
   /// sustain pedal down.
@@ -385,30 +385,30 @@ enum class StringsMode {
   NumModes
 };
 
-inline const char *stringsModeName(StringsMode m) {
+inline const char *resonatorModeName(ResonatorMode m) {
   switch (m) {
-  case StringsMode::Off:
+  case ResonatorMode::Off:
     return "Off";
-  case StringsMode::Piano:
+  case ResonatorMode::Piano:
     return "Piano";
-  case StringsMode::Open:
+  case ResonatorMode::Open:
     return "Open";
-  case StringsMode::Octave:
+  case ResonatorMode::Octave:
     return "Octave";
-  case StringsMode::Series:
+  case ResonatorMode::Series:
     return "Series";
 
-  case StringsMode::NumModes:
+  case ResonatorMode::NumModes:
     break;
   }
 
   return "Off";
 }
 
-/// The strings nobody plays, ringing along with what is.
-struct StringsParams {
-  StringsMode mode = StringsMode::Off;
-  float mix = 0.5f;          ///< the instrument alone at 0, the strings at 1
+/// The resonator: 88 sympathetic strings that resonate with what is played.
+struct ResonatorParams {
+  ResonatorMode mode = ResonatorMode::Off;
+  float mix = 0.5f;          ///< the instrument alone at 0, the resonator at 1
   float decaySeconds = 4.0f; ///< how long an undamped one rings
   float damping = 0.4f;      ///< 0 bright to 1 dark
 };
@@ -420,7 +420,7 @@ struct SynthParams {
   EchoParams echo{};
   ReverbParams reverb{};
   LofiParams lofi{};
-  StringsParams strings{};
+  ResonatorParams resonator{};
 
   /// Whether a sustain pedal is down on any channel. Set by whoever handles
   /// the MIDI, since under MPE the pedal never reaches the engine as a pedal.

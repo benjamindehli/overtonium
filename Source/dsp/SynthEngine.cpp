@@ -1013,11 +1013,11 @@ SynthEngine::planStrings(const SynthParams &p) const noexcept {
     }
   };
 
-  switch (p.strings.mode) {
-  case StringsMode::Piano:
-  case StringsMode::Open: {
+  switch (p.resonator.mode) {
+  case ResonatorMode::Piano:
+  case ResonatorMode::Open: {
     // Open is Piano with the sustain pedal always down.
-    const bool pedal = p.pedalDown || p.strings.mode == StringsMode::Open;
+    const bool pedal = p.pedalDown || p.resonator.mode == ResonatorMode::Open;
 
     // A held key's string is where that key is sounding, before any bend:
     // a piano's strings do not follow the wheel. The rest wait where a key
@@ -1039,12 +1039,12 @@ SynthEngine::planStrings(const SynthParams &p) const noexcept {
     break;
   }
 
-  case StringsMode::Octave:
+  case ResonatorMode::Octave:
     for (int key = 48; key < 60; ++key)
       set(key, restingFrequency(key, p), true);
     break;
 
-  case StringsMode::Series: {
+  case ResonatorMode::Series: {
     // The root's harmonics from its second octave, pure, each on the string
     // of the key nearest to it.
     const auto rootKey = 36 + ((p.global.tuningRoot % 12) + 12) % 12;
@@ -1056,8 +1056,8 @@ SynthEngine::planStrings(const SynthParams &p) const noexcept {
     break;
   }
 
-  case StringsMode::Off:
-  case StringsMode::NumModes:
+  case ResonatorMode::Off:
+  case ResonatorMode::NumModes:
     break;
   }
 
@@ -1455,12 +1455,12 @@ void SynthEngine::render(float *left, float *right, int numSamples,
   renderVoices(left, right, numSamples, p);
   clock += (uint64_t)numSamples;
 
-  // ---- the strings nobody plays --------------------------------------------
+  // ---- the resonator --------------------------------------------------------
   // On the summed channels and before the bus drive, so they ring inside the
   // instrument and the character drives them with everything else. Off, and
   // with nothing left ringing, the stage is not there at all.
-  if (p.strings.mode != StringsMode::Off || sympathetic.isRinging())
-    sympathetic.process(left, right, numSamples, p.strings, planStrings(p));
+  if (p.resonator.mode != ResonatorMode::Off || sympathetic.isRinging())
+    sympathetic.process(left, right, numSamples, p.resonator, planStrings(p));
 
   // ---- the bus the series is summed onto -----------------------------------
   // Before the effects, since this is the summing amplifier rather than

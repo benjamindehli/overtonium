@@ -4518,13 +4518,13 @@ void testSympatheticStrings() {
 
   // ---- the plan ------------------------------------------------------------
   {
-    p.strings.mode = StringsMode::Off;
+    p.resonator.mode = ResonatorMode::Off;
     const auto off = engine.planStrings(p);
     check(std::all_of(off.hz.begin(), off.hz.end(),
                       [](double hz) { return exactly(hz, 0.0); }),
           "off, no string is in use");
 
-    p.strings.mode = StringsMode::Octave;
+    p.resonator.mode = ResonatorMode::Octave;
     const auto octave = engine.planStrings(p);
     int inUse = 0;
     bool right = true;
@@ -4538,7 +4538,7 @@ void testSympatheticStrings() {
     check(inUse == 12 && right,
           "Octave rings twelve strings from C3, in tune and undamped");
 
-    p.strings.mode = StringsMode::Series;
+    p.resonator.mode = ResonatorMode::Series;
     p.global.tuningRoot = 2; // D
     const auto series = engine.planStrings(p);
     bool harmonics = true;
@@ -4553,7 +4553,7 @@ void testSympatheticStrings() {
 
   // ---- Piano: held keys free, the rest damped, all free under the pedal -----
   {
-    p.strings.mode = StringsMode::Piano;
+    p.resonator.mode = ResonatorMode::Piano;
     engine.noteOn(60, 1.0f, p);
     p.global.bendSemitones = 2.0f;
     std::vector<float> l(512), r(512);
@@ -4584,7 +4584,7 @@ void testSympatheticStrings() {
     p.pedalDown = false;
 
     // Open is the same with the pedal down whether it is or not.
-    p.strings.mode = StringsMode::Open;
+    p.resonator.mode = ResonatorMode::Open;
     const auto open = engine.planStrings(p);
     bool sameAsPedal = true;
     for (size_t s = 0; s < (size_t)Strings::kStrings; ++s)
@@ -4600,7 +4600,7 @@ void testSympatheticStrings() {
 
   // ---- under Adaptive an unheld string waits where its key last sounded -----
   {
-    p.strings.mode = StringsMode::Piano;
+    p.resonator.mode = ResonatorMode::Piano;
     p.global.temperament = Temperament::Adaptive;
     // D under a B flat major chord takes the version a third above B flat,
     // not the one D has alone on a root of C.
@@ -4625,16 +4625,16 @@ void testSympatheticStrings() {
 
   // ---- what they do to the sound
   // ---------------------------------------------
-  const auto ringAfter = [&](StringsMode mode, bool holdC3, bool pedal,
+  const auto ringAfter = [&](ResonatorMode mode, bool holdC3, bool pedal,
                              bool pedalUpAfter) {
     const auto owner = std::make_unique<SynthEngine>();
     auto &e = *owner;
     e.prepare(sr);
     auto q = p;
-    q.strings.mode = mode;
-    q.strings.mix = 1.0f;
-    q.strings.decaySeconds = 3.0f;
-    q.strings.damping = 0.2f;
+    q.resonator.mode = mode;
+    q.resonator.mix = 1.0f;
+    q.resonator.decaySeconds = 3.0f;
+    q.resonator.damping = 0.2f;
     q.pedalDown = pedal;
     q.osc[0].velAmount = 1.0f;
 
@@ -4663,13 +4663,13 @@ void testSympatheticStrings() {
     return bounded ? std::sqrt(sum / (double)(to - from)) : 1.0e9;
   };
 
-  const auto none = ringAfter(StringsMode::Off, false, false, false);
-  const auto octave = ringAfter(StringsMode::Octave, false, false, false);
-  const auto alone = ringAfter(StringsMode::Piano, false, false, false);
-  const auto heldUnder = ringAfter(StringsMode::Piano, true, false, false);
-  const auto pedalled = ringAfter(StringsMode::Piano, false, true, false);
-  const auto liftedPedal = ringAfter(StringsMode::Piano, false, true, true);
-  const auto open = ringAfter(StringsMode::Open, false, false, false);
+  const auto none = ringAfter(ResonatorMode::Off, false, false, false);
+  const auto octave = ringAfter(ResonatorMode::Octave, false, false, false);
+  const auto alone = ringAfter(ResonatorMode::Piano, false, false, false);
+  const auto heldUnder = ringAfter(ResonatorMode::Piano, true, false, false);
+  const auto pedalled = ringAfter(ResonatorMode::Piano, false, true, false);
+  const auto liftedPedal = ringAfter(ResonatorMode::Piano, false, true, true);
+  const auto open = ringAfter(ResonatorMode::Open, false, false, false);
 
   check(none < 1.0e-6 && octave > 1.0e-3,
         "the octave's strings ring on after a note has stopped (" +
@@ -4693,17 +4693,17 @@ void testSympatheticStrings() {
   {
     // The loudest the strings can be asked to ring, against the same chord
     // with none: they may add to it, but they must not run away.
-    const auto peakOf = [&](StringsMode mode) {
+    const auto peakOf = [&](ResonatorMode mode) {
       const auto owner = std::make_unique<SynthEngine>();
       auto &e = *owner;
       e.prepare(sr);
       auto q = p;
       for (auto &o : q.osc)
         o.volume = 1.0f;
-      q.strings.mode = mode;
-      q.strings.mix = 1.0f;
-      q.strings.decaySeconds = 10.0f;
-      q.strings.damping = 0.0f;
+      q.resonator.mode = mode;
+      q.resonator.mix = 1.0f;
+      q.resonator.decaySeconds = 10.0f;
+      q.resonator.damping = 0.0f;
       q.pedalDown = true;
       for (int key : {24, 36, 48, 55, 60, 64, 67, 72, 84, 96})
         e.noteOn(key, 1.0f, q);
@@ -4717,8 +4717,8 @@ void testSympatheticStrings() {
       return peak;
     };
 
-    const auto dry = peakOf(StringsMode::Off);
-    const auto wet = peakOf(StringsMode::Piano);
+    const auto dry = peakOf(ResonatorMode::Off);
+    const auto wet = peakOf(ResonatorMode::Piano);
     check(wet < 4.0f * dry,
           "every string free, ringing ten seconds, bright, under a loud chord, "
           "stays bounded (" +
@@ -4739,8 +4739,8 @@ void testSympatheticStrings() {
       const auto hz = 440.0 * std::exp2((double)(key - 69) / 12.0);
       plan.hz[s] = hz;
       plan.free[s] = true;
-      StringsParams params;
-      params.mode = StringsMode::Piano;
+      ResonatorParams params;
+      params.mode = ResonatorMode::Piano;
       params.mix = 1.0f;
 
       std::vector<float> l(256), r(256);
@@ -4790,8 +4790,8 @@ void testSympatheticStrings() {
     const auto hz = 55.0;
     plan.hz[s] = hz;
     plan.free[s] = true;
-    StringsParams params;
-    params.mode = StringsMode::Piano;
+    ResonatorParams params;
+    params.mode = ResonatorMode::Piano;
     params.mix = 1.0f;
     params.decaySeconds = 0.2f;
 
@@ -4835,10 +4835,10 @@ void testSympatheticStrings() {
       auto &e = *owner;
       e.prepare(sr);
       auto q = p;
-      q.strings.mode = StringsMode::Piano;
-      q.strings.mix = 1.0f;
-      q.strings.decaySeconds = decay;
-      q.strings.damping = 0.4f;
+      q.resonator.mode = ResonatorMode::Piano;
+      q.resonator.mix = 1.0f;
+      q.resonator.decaySeconds = decay;
+      q.resonator.damping = 0.4f;
       q.pedalDown = false;
 
       std::vector<float> l(512), r(512);
@@ -4879,8 +4879,8 @@ void testSympatheticStrings() {
       plan.hz[s] = 220.0;
       plan.free[s] = true;
       plan.pedalled[s] = pedalled;
-      StringsParams params;
-      params.mode = StringsMode::Piano;
+      ResonatorParams params;
+      params.mode = ResonatorMode::Piano;
       params.mix = 1.0f;
 
       std::vector<float> l(256), r(256);
@@ -4910,8 +4910,8 @@ void testSympatheticStrings() {
       Strings bank;
       bank.prepare(sr);
       Strings::Plan quiet{}; // nothing tuned, nothing ringing
-      StringsParams params;
-      params.mode = StringsMode::Octave;
+      ResonatorParams params;
+      params.mode = ResonatorMode::Octave;
       params.mix = mix;
       std::vector<float> l(256, 0.5f), r(256, 0.5f);
       bank.process(l.data(), r.data(), 256, params, quiet);

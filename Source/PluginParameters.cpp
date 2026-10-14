@@ -1161,31 +1161,29 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::NormalisableRange<float>(0.0f, 1.0f), 0.25f,
       FAttr().withStringFromValueFunction(percentText)));
 
-  // The sympathetic strings, on the end after the noise channel's string.
-  // Off is the instrument without them, which is what every patch written
-  // before them had. Part of the patch, since strings ringing along are part
-  // of the sound, and the mode's list is declared in full for the reason the
-  // reverb's is.
-  juce::StringArray stringsModeChoices;
-  for (int i = 0; i < (int)StringsMode::NumModes; ++i)
-    stringsModeChoices.add(stringsModeName((StringsMode)i));
+  // The resonator, on the end after the noise channel's string. Off is the
+  // instrument without it. Part of the patch, since it is part of the sound,
+  // and the mode's list is declared in full for the reason the reverb's is.
+  juce::StringArray resonatorModeChoices;
+  for (int i = 0; i < (int)ResonatorMode::NumModes; ++i)
+    resonatorModeChoices.add(resonatorModeName((ResonatorMode)i));
 
   layout.add(std::make_unique<juce::AudioParameterChoice>(
-      juce::ParameterID{stringsModeId, 1}, "Strings Mode", stringsModeChoices,
-      (int)StringsMode::Off));
+      juce::ParameterID{resonatorModeId, 1}, "Resonator Mode",
+      resonatorModeChoices, (int)ResonatorMode::Off));
 
   layout.add(std::make_unique<FloatP>(
-      juce::ParameterID{stringsMixId, 1}, "Strings Mix",
+      juce::ParameterID{resonatorMixId, 1}, "Resonator Mix",
       juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f,
       FAttr().withStringFromValueFunction(percentText)));
 
   layout.add(std::make_unique<FloatP>(
-      juce::ParameterID{stringsDecayId, 1}, "Strings Decay",
-      logRange(0.2f, kMaxStringsDecaySeconds), kStringsDecayDefault,
+      juce::ParameterID{resonatorDecayId, 1}, "Resonator Decay",
+      logRange(0.2f, kMaxResonatorDecaySeconds), kResonatorDecayDefault,
       FAttr().withStringFromValueFunction(timeText)));
 
   layout.add(std::make_unique<FloatP>(
-      juce::ParameterID{stringsDampId, 1}, "Strings Damp",
+      juce::ParameterID{resonatorDampId, 1}, "Resonator Damp",
       juce::NormalisableRange<float>(0.0f, 1.0f), 0.4f,
       FAttr().withStringFromValueFunction(percentText)));
 
@@ -1263,13 +1261,13 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   reverb.damp = apvts.getRawParameterValue(reverbDampId);
   reverb.preDelay = apvts.getRawParameterValue(reverbPreDelayId);
 
-  strings.mode = apvts.getRawParameterValue(stringsModeId);
-  strings.mix = apvts.getRawParameterValue(stringsMixId);
-  strings.decay = apvts.getRawParameterValue(stringsDecayId);
-  strings.damp = apvts.getRawParameterValue(stringsDampId);
+  resonator.mode = apvts.getRawParameterValue(resonatorModeId);
+  resonator.mix = apvts.getRawParameterValue(resonatorMixId);
+  resonator.decay = apvts.getRawParameterValue(resonatorDecayId);
+  resonator.damp = apvts.getRawParameterValue(resonatorDampId);
 
   jassert(echo.on != nullptr && reverb.on != nullptr &&
-          strings.mode != nullptr && strings.damp != nullptr);
+          resonator.mode != nullptr && resonator.damp != nullptr);
 
   for (int i = 0; i < kNumHarmonics; ++i) {
     auto &o = osc[(size_t)i];
@@ -1684,12 +1682,12 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   out.reverb.damping = reverb.damp->load();
   out.reverb.preDelaySeconds = reverb.preDelay->load();
 
-  out.strings.mode =
-      (StringsMode)juce::jlimit(0, (int)StringsMode::NumModes - 1,
-                                (int)std::lround(strings.mode->load()));
-  out.strings.mix = strings.mix->load();
-  out.strings.decaySeconds = strings.decay->load();
-  out.strings.damping = strings.damp->load();
+  out.resonator.mode =
+      (ResonatorMode)juce::jlimit(0, (int)ResonatorMode::NumModes - 1,
+                                  (int)std::lround(resonator.mode->load()));
+  out.resonator.mix = resonator.mix->load();
+  out.resonator.decaySeconds = resonator.decay->load();
+  out.resonator.damping = resonator.damp->load();
 }
 
 } // namespace ovt::params

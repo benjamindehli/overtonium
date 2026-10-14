@@ -43,7 +43,7 @@ bool SympatheticStrings::isRinging() const noexcept {
 }
 
 void SympatheticStrings::process(float *left, float *right, int numSamples,
-                                 const StringsParams &params,
+                                 const ResonatorParams &params,
                                  const Plan &plan) noexcept {
   const float mix = std::clamp(params.mix, 0.0f, 1.0f);
   const float damp = std::clamp(params.damping, 0.0f, 1.0f);
@@ -102,7 +102,7 @@ void SympatheticStrings::process(float *left, float *right, int numSamples,
       ringing[s] = free || peak >= kQuiet;
     }
 
-    // MIX goes from the instrument alone to the strings alone, as the echo's
+    // MIX goes from the instrument alone to the resonator alone, as the echo's
     // and the reverb's do.
     for (int n = 0; n < len; ++n) {
       const auto wet = sum[n] * kWetScale;

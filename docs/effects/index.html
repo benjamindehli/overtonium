@@ -6,7 +6,7 @@
         <title>Overtonium effects: character, echo, reverb, converter and CLIP</title>
         <meta
             name="description"
-            content="Overtonium effects and global controls: six oscillator characters, wobble, sympathetic strings, bus drive, three echoes, three reverbs, a lo-fi converter and five clip shapes."
+            content="Overtonium effects and global controls: six oscillator characters, wobble, a resonator, bus drive, three echoes, three reverbs, a lo-fi converter and five clip shapes."
         />
         <meta name="author" content="Benjamin Dehli" />
         <meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -20,7 +20,7 @@
         <meta property="og:title" content="Overtonium effects: character, echo, reverb, converter and CLIP" />
         <meta
             property="og:description"
-            content="The bar across the top of Overtonium: six oscillator characters that set which circuit every partial is modelled on, a wobble across the whole series, 88 sympathetic strings that resonate with what you play, a bus drive that responds to how hard you play, an echo and a reverb with three machines each, a lo-fi converter, and an output stage with five clip shapes including a lookahead limiter."
+            content="The bar across the top of Overtonium: six oscillator characters that set which circuit every partial is modelled on, a wobble across the whole series, a resonator of 88 sympathetic strings that resonate with what you play, a bus drive that responds to how hard you play, an echo and a reverb with three machines each, a lo-fi converter, and an output stage with five clip shapes including a lookahead limiter."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-effects.jpg" />
         <meta property="og:image:type" content="image/jpeg" />
@@ -32,7 +32,7 @@
         <meta name="twitter:title" content="Overtonium effects: character, echo, reverb, converter and CLIP" />
         <meta
             name="twitter:description"
-            content="The bar across the top of Overtonium: six oscillator characters that set which circuit every partial is modelled on, a wobble across the whole series, 88 sympathetic strings that resonate with what you play, a bus drive that responds to how hard you play, an echo and a reverb with three machines each, a lo-fi converter, and an output stage with five clip shapes including a lookahead limiter."
+            content="The bar across the top of Overtonium: six oscillator characters that set which circuit every partial is modelled on, a wobble across the whole series, a resonator of 88 sympathetic strings that resonate with what you play, a bus drive that responds to how hard you play, an echo and a reverb with three machines each, a lo-fi converter, and an output stage with five clip shapes including a lookahead limiter."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-effects.jpg" />
         <meta name="twitter:image:alt" content="The Overtonium wordmark over the plugin window, captioned Effects." />
@@ -49,7 +49,7 @@
                 "@id": "https://benjamindehli.github.io/overtonium/effects/#webpage",
                 "url": "https://benjamindehli.github.io/overtonium/effects/",
                 "name": "Overtonium effects: character, echo, reverb, converter and CLIP",
-                "description": "Overtonium effects and global controls: six oscillator characters, wobble, sympathetic strings, bus drive, three echoes, three reverbs, a lo-fi converter and five clip shapes.",
+                "description": "Overtonium effects and global controls: six oscillator characters, wobble, a resonator, bus drive, three echoes, three reverbs, a lo-fi converter and five clip shapes.",
                 "inLanguage": "en-GB",
                 "isPartOf": {
                     "@id": "https://benjamindehli.github.io/overtonium/#website"
@@ -117,7 +117,7 @@
                                     <li><a href="#global">The signal chain</a></li>
                                     <li><a href="#character">Character</a></li>
                                     <li><a href="#wobble">Wobble</a></li>
-                                    <li><a href="#strings">Sympathetic strings</a></li>
+                                    <li><a href="#resonator">Resonator</a></li>
                                     <li><a href="#bus-drive">Bus drive</a></li>
                                     <li><a href="#echo">Echo</a></li>
                                     <li><a href="#reverb">Reverb</a></li>
@@ -142,8 +142,8 @@
 
                 <p class="lead">
                     Everything on the bar along the top of the window affects the whole instrument, not a single channel: the oscillator character
-                    every partial is built from, the wobble under the series, the sympathetic strings, the drive on the bus where the channels are
-                    summed, the echo, the reverb, the converter, and the output stage with its meter.
+                    every partial is built from, the wobble under the series, the resonator, the drive on the bus where the channels are summed, the
+                    echo, the reverb, the converter, and the output stage with its meter.
                 </p>
 
                 <section id="global">
@@ -155,8 +155,8 @@
                             <desc id="chainDesc">
                                 Each of the thirty-three channels runs a sine partial through its envelope and key-off stage, its tremolo, its
                                 velocity and pressure amounts, its fader and its pan. The thirty-three are summed and run through the converter, the
-                                sympathetic strings and the bus drive. The mix then passes through the wobble, the echo, the reverb, the master fader
-                                and the safety clipper before it leaves.
+                                resonator and the bus drive. The mix then passes through the wobble, the echo, the reverb, the master fader and the
+                                safety clipper before it leaves.
                             </desc>
                             <text x="10" y="38" class="lane">each of the thirty-three channels</text>
                             <rect x="10" y="52" width="88" height="46" rx="5" class="box" />
@@ -191,8 +191,8 @@
                             <path d="M 87 209 L 95 209" class="wire" />
                             <path d="M 90 206 L 95 209 L 90 212" class="head" />
                             <rect x="99" y="186" width="74" height="46" rx="5" class="box" />
-                            <text x="136" y="206" class="stage" text-anchor="middle">strings</text>
-                            <text x="136" y="219" class="sub" text-anchor="middle">one per key</text>
+                            <text x="136" y="206" class="stage" text-anchor="middle">resonator</text>
+                            <text x="136" y="219" class="sub" text-anchor="middle">88 strings</text>
                             <path d="M 176 209 L 184 209" class="wire" />
                             <path d="M 179 206 L 184 209 L 179 212" class="head" />
                             <rect x="188" y="186" width="74" height="46" rx="5" class="box" />
@@ -236,7 +236,7 @@
                         <img
                             loading="lazy"
                             src="../overtonium-bar.webp"
-                            alt="The top bar: the loaded preset on a fourteen-segment display beside four icons, for settings and macros over the Playing and Tuning bars, the oscillator character, the stretch, track and wobble controls, the sympathetic strings with their mode and three knobs, the echo, the reverb, and the output meter with the master fader across it, two seven-segment converter readouts reading kilohertz and bits, and the output stage reading Soft."
+                            alt="The top bar: the loaded preset on a fourteen-segment display beside four icons, for settings and macros over the Playing and Tuning bars, the oscillator character, the stretch, track and wobble controls, the resonator with its mode and three knobs, the echo, the reverb, and the output meter with the master fader across it, two seven-segment converter readouts reading kilohertz and bits, and the output stage reading Soft."
                             width="1350"
                             height="66"
                         />
@@ -307,13 +307,13 @@
                     </p>
                 </section>
 
-                <section id="strings">
-                    <h2>Sympathetic strings</h2>
+                <section id="resonator">
+                    <h2>Resonator</h2>
                     <p>
-                        Eighty-eight strings that resonate with what you play, one for each key of a piano from A0 to C8. Each is a Karplus-Strong
-                        string, the same kind the noise channel strikes. They are fed the sum of the thirty-three channels, and what they ring back is
-                        mixed in before the bus drive. So the drive and everything after it treat them as part of the instrument, not as a room around
-                        it. The button beside the character shows what they are tuned to and lights while they ring.
+                        The resonator is eighty-eight sympathetic strings, one for each key of a piano from A0 to C8, that resonate with what you
+                        play. Each is a Karplus-Strong string, the same kind the noise channel strikes. They are fed the sum of the thirty-three
+                        channels, and what they ring back is mixed in before the bus drive. So the drive and everything after it treat them as part of
+                        the instrument, not as a room around it. The RESONATOR button shows what the strings are tuned to and lights while they ring.
                     </p>
 
                     <p>
@@ -327,8 +327,8 @@
                     </p>
 
                     <p>
-                        <strong>MIX</strong> goes from the instrument alone to the strings alone, as on the echo and the reverb.
-                        <strong>DECAY</strong> sets how long a free string rings, from 200 ms to 10 s. A longer DECAY also makes the strings louder,
+                        <strong>MIX</strong> goes from the instrument alone to the resonator alone, as on the echo and the reverb.
+                        <strong>DECAY</strong> sets how long a free string rings, from 200 ms to 10 s. A longer DECAY also makes the resonator louder,
                         and a short note reaches them the same at any setting. <strong>DAMP</strong> sets how quickly the high end dies away. A damper
                         stops its string over 0.8 s at the bottom of the keyboard and 0.25 s at the top, or sooner if DECAY is shorter, so a released
                         bass key leaves the short hum of a felt damper on a heavy string. A string freed only by the pedal gets a quarter of the
@@ -336,8 +336,8 @@
                     </p>
 
                     <p>
-                        They are part of the patch, and off in every factory preset. With eight voices they use about one percent of a core with the
-                        pedal up, and about five percent with every string freed by the pedal.
+                        The resonator is part of the patch, and off in every factory preset. With eight voices it uses about one percent of a core
+                        with the pedal up, and about five percent with every string freed by the pedal.
                     </p>
                 </section>
 

@@ -63,8 +63,8 @@ constexpr int kWordmarkGap = 2;
 /// of faders say the same thing in a third of the room, and the words are still
 /// what a screen reader is given.
 ///
-/// The character and the strings each have their own frame, so the strings'
-/// knobs read as belonging to the strings' button.
+/// The character and the resonator each have their own frame, so the
+/// resonator's knobs read as belonging to its button.
 ///
 /// The first two have no frame, so their widths are their contents: two
 /// 33 px buttons with a gap, and the 132 px preset screen.
@@ -384,29 +384,31 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
 
   addAndMakeVisible(characterButton);
 
-  // ---- the strings nobody plays ---------------------------------------------
+  // ---- the resonator
+  // ---------------------------------------------------------
   styleToggle(
-      stringsButton, "STRINGS",
-      "Strings that resonate with what you play, before the bus drive. Piano "
-      "rings the held keys' strings, and all 88 while the sustain pedal is "
-      "down. Open rings all 88 as if the pedal were always down. Octave rings "
-      "twelve strings from C3, and Series the tuning root's harmonics.");
+      resonatorButton, "RESONATOR",
+      "88 sympathetic strings that resonate with what you play, before the bus "
+      "drive. Piano rings the held keys' strings, and all 88 while the "
+      "sustain pedal is down. Open rings all 88 as if the pedal were always "
+      "down. Octave rings twelve strings from C3, and Series the tuning root's "
+      "harmonics.");
 
   // A menu over one parameter, so the click opens it rather than toggling
   // anything, and the light says what came back.
-  stringsButton.setClickingTogglesState(false);
+  resonatorButton.setClickingTogglesState(false);
 
-  stringsButton.onClick = [this] {
-    auto m = buildStringsMenu();
+  resonatorButton.onClick = [this] {
+    auto m = buildResonatorMenu();
     m.setLookAndFeel(&getLookAndFeel());
 
     m.showMenuAsync(juce::PopupMenu::Options()
-                        .withTargetComponent(&stringsButton)
+                        .withTargetComponent(&resonatorButton)
                         .withStandardItemHeight(22),
-                    [this](int result) { chooseStrings(result); });
+                    [this](int result) { chooseResonator(result); });
   };
 
-  stringsButton.setColour(juce::TextButton::textColourOnId, colours::accent);
+  resonatorButton.setColour(juce::TextButton::textColourOnId, colours::accent);
 
   // ---- presets --------------------------------------------------------------
   presetDisplay.setReading(kNoPreset, true);
@@ -547,14 +549,14 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
 
   clipButton.setColour(juce::TextButton::textColourOnId, colours::accent);
 
-  addKnob(stringsControls, "Strings", "MIX", params::stringsMixId,
-          "From the instrument alone to the strings alone", popupParent);
-  addKnob(stringsControls, "Strings", "DECAY", params::stringsDecayId,
-          "How long a free string rings. Longer also makes the strings "
+  addKnob(resonatorControls, "Resonator", "MIX", params::resonatorMixId,
+          "From the instrument alone to the resonator alone", popupParent);
+  addKnob(resonatorControls, "Resonator", "DECAY", params::resonatorDecayId,
+          "How long a free string rings. Longer also makes the resonator "
           "louder.",
           popupParent);
-  addKnob(stringsControls, "Strings", "DAMP", params::stringsDampId,
-          "How quickly the strings lose their high end", popupParent);
+  addKnob(resonatorControls, "Resonator", "DAMP", params::resonatorDampId,
+          "How quickly the resonator loses its high end", popupParent);
 
   addKnob(echoControls, "Echo", "MIX", params::echoMixId,
           "How much of the output is repeats", popupParent);
@@ -843,31 +845,31 @@ void TopBar::chooseEcho(int id) {
   on->setValueNotifyingHost(1.0f);
 }
 
-juce::PopupMenu TopBar::buildStringsMenu() {
+juce::PopupMenu TopBar::buildResonatorMenu() {
   juce::PopupMenu m;
 
-  auto *mode = apvts.getParameter(params::stringsModeId);
+  auto *mode = apvts.getParameter(params::resonatorModeId);
   const auto which =
       mode == nullptr
           ? 0
           : juce::roundToInt(mode->convertFrom0to1(mode->getValue()));
 
   // Off apart from the rest, as the echo's and the reverb's menus have it.
-  for (int i = 0; i < (int)StringsMode::NumModes; ++i) {
-    m.addItem(i + 1, stringsModeName((StringsMode)i), true, i == which);
+  for (int i = 0; i < (int)ResonatorMode::NumModes; ++i) {
+    m.addItem(i + 1, resonatorModeName((ResonatorMode)i), true, i == which);
 
-    if (i == (int)StringsMode::Off)
+    if (i == (int)ResonatorMode::Off)
       m.addSeparator();
   }
 
   return m;
 }
 
-void TopBar::chooseStrings(int id) {
-  if (id <= 0 || id > (int)StringsMode::NumModes)
+void TopBar::chooseResonator(int id) {
+  if (id <= 0 || id > (int)ResonatorMode::NumModes)
     return;
 
-  if (auto *mode = apvts.getParameter(params::stringsModeId))
+  if (auto *mode = apvts.getParameter(params::resonatorModeId))
     mode->setValueNotifyingHost(mode->convertTo0to1((float)(id - 1)));
 }
 
@@ -1408,26 +1410,26 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
     setRingsLive(echoControls, running);
   }
 
-  // ---- and what the strings are tuned to, by the same rule ------------------
+  // ---- and what the resonator is tuned to, by the same rule ----------------
   {
-    auto *mode = apvts.getParameter(params::stringsModeId);
+    auto *mode = apvts.getParameter(params::resonatorModeId);
 
     const auto which =
         mode == nullptr
-            ? StringsMode::Off
-            : (StringsMode)juce::jlimit(
-                  0, (int)StringsMode::NumModes - 1,
+            ? ResonatorMode::Off
+            : (ResonatorMode)juce::jlimit(
+                  0, (int)ResonatorMode::NumModes - 1,
                   juce::roundToInt(mode->convertFrom0to1(mode->getValue())));
 
-    const bool running = which != StringsMode::Off;
-    const juce::String name = stringsModeName(which);
+    const bool running = which != ResonatorMode::Off;
+    const juce::String name = resonatorModeName(which);
 
-    stringsButton.setButtonText(name.toUpperCase());
-    stringsButton.setTitle(running ? "Strings: " + name
-                                   : juce::String("Strings: off"));
-    stringsButton.setToggleState(running, juce::dontSendNotification);
+    resonatorButton.setButtonText(name.toUpperCase());
+    resonatorButton.setTitle(running ? "Resonator: " + name
+                                     : juce::String("Resonator: off"));
+    resonatorButton.setToggleState(running, juce::dontSendNotification);
 
-    setRingsLive(stringsControls, running);
+    setRingsLive(resonatorControls, running);
   }
 
   // ---- and which reverb, by the same rule ----------------------------------
@@ -1583,16 +1585,16 @@ int TopBar::minimumWidth() {
 }
 
 void TopBar::parkControls() {
-  juce::Component *all[] = {&masterFader,     &meter,         &presetDisplay,
-                            &settingsButton,  &playingButton, &tuningButton,
-                            &echoButton,      &reverbButton,  &stretch,
-                            &track,           &rateDisplay,   &bitsDisplay,
-                            &characterButton, &stringsButton};
+  juce::Component *all[] = {&masterFader,     &meter,          &presetDisplay,
+                            &settingsButton,  &playingButton,  &tuningButton,
+                            &echoButton,      &reverbButton,   &stretch,
+                            &track,           &rateDisplay,    &bitsDisplay,
+                            &characterButton, &resonatorButton};
 
   for (auto *c : all)
     c->setBounds({});
 
-  for (auto *set : {&stringsControls, &echoControls, &reverbControls})
+  for (auto *set : {&resonatorControls, &echoControls, &reverbControls})
     for (auto &c : *set)
       c.knob->setBounds({});
 
@@ -1673,10 +1675,10 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
     break;
   }
 
-  case StringsGroup:
+  case ResonatorGroup:
     // Laid out the way an effect is: their button at the head and their
     // knobs after it.
-    effect(stringsButton, stringsControls, r, kStringsWidth);
+    effect(resonatorButton, resonatorControls, r, kResonatorWidth);
     break;
 
   case SeriesGroup: {
@@ -1872,7 +1874,7 @@ void TopBar::paint(juce::Graphics &g) {
   for (int group = 0; group < NumGroups; ++group) {
     const auto &r = groupBounds[(size_t)group];
 
-    const bool framed = group == SeriesGroup || group == StringsGroup ||
+    const bool framed = group == SeriesGroup || group == ResonatorGroup ||
                         group == EchoGroup || group == ReverbGroup ||
                         group == OutputGroup;
 
@@ -1900,7 +1902,7 @@ void TopBar::paint(juce::Graphics &g) {
       const juce::Component *head;
     } named[] = {
         {SeriesGroup, &characterButton},
-        {StringsGroup, &stringsButton},
+        {ResonatorGroup, &resonatorButton},
         {EchoGroup, &echoButton},
         {ReverbGroup, &reverbButton},
     };

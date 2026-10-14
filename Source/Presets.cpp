@@ -221,12 +221,12 @@ struct Applier {
     set(params::reverbDampId, 0.5f);
     set(params::reverbPreDelayId, 0.0f);
 
-    // No strings ringing along unless a preset asks for them, and their
-    // settings back to the panel defaults either way.
-    set(params::stringsModeId, (float)(int)StringsMode::Off);
-    set(params::stringsMixId, 0.5f);
-    set(params::stringsDecayId, params::kStringsDecayDefault);
-    set(params::stringsDampId, 0.4f);
+    // No resonator unless a preset asks for it, and its settings back to the
+    // panel defaults either way.
+    set(params::resonatorModeId, (float)(int)ResonatorMode::Off);
+    set(params::resonatorMixId, 0.5f);
+    set(params::resonatorDecayId, params::kResonatorDecayDefault);
+    set(params::resonatorDampId, 0.4f);
   }
 
   /// The old stereo spread control, written out as pan positions.

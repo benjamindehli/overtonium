@@ -242,7 +242,7 @@ public:
   /// offline bounce correctly. The strings ring into the effects, so their
   /// tails add.
   float effectsTailSeconds(const SynthParams &p) const noexcept {
-    return SympatheticStrings::tailSeconds(p.strings) +
+    return SympatheticStrings::tailSeconds(p.resonator) +
            std::max({echo.tailSeconds(p.echo), bucket.tailSeconds(p.echo),
                      digital.tailSeconds(p.echo), reverb.tailSeconds(p.reverb),
                      plate.tailSeconds(p.reverb),
@@ -544,7 +544,7 @@ private:
   PlateReverb plate;
   SpringReverb spring;
 
-  /// The strings nobody plays, between the summed channels and the bus drive.
+  /// The resonator's strings, between the summed channels and the bus drive.
   SympatheticStrings sympathetic;
   Reverb reverb;
 };

@@ -58,7 +58,7 @@ Source/
     PlateReverb.*   the same as a modulated plate
     SpringReverb.*  the same as a tray of springs
     KarplusString.* the string the noise channel strikes
-    SympatheticStrings.*  88 strings that resonate with what you play, before the bus drive
+    SympatheticStrings.*  the resonator: 88 sympathetic strings, before the bus drive
     Wobble.*        a warped-record wobble on the whole instrument
     OutputStage.*   the five clippers at the end of the signal chain
     SynthEngine.*   voice pool, allocation, stealing, effects, master stage

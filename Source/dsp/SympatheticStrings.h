@@ -55,12 +55,12 @@ public:
 
   /// Feeds the strings what is in `left` and `right`, and replaces it with
   /// them as far as MIX says.
-  void process(float *left, float *right, int numSamples, const StringsParams &,
-               const Plan &) noexcept;
+  void process(float *left, float *right, int numSamples,
+               const ResonatorParams &, const Plan &) noexcept;
 
   /// How long they ring on once nothing drives them, nought when they are off.
-  static float tailSeconds(const StringsParams &p) noexcept {
-    return p.mode == StringsMode::Off ? 0.0f : p.decaySeconds;
+  static float tailSeconds(const ResonatorParams &p) noexcept {
+    return p.mode == ResonatorMode::Off ? 0.0f : p.decaySeconds;
   }
 
   /// How long a string rings once its damper comes down: longest in the

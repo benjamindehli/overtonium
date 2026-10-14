@@ -116,17 +116,17 @@ inline constexpr const char *reverbDecayId = "reverbDecay";
 inline constexpr const char *reverbDampId = "reverbDamp";
 inline constexpr const char *reverbPreDelayId = "reverbPreDelay";
 
-/// The sympathetic strings between the summed channels and the bus drive. See
-/// SympatheticStrings.
-inline constexpr const char *stringsModeId = "stringsMode";
-inline constexpr const char *stringsMixId = "stringsMix";
-inline constexpr const char *stringsDecayId = "stringsDecay";
-inline constexpr const char *stringsDampId = "stringsDamp";
+/// The resonator between the summed channels and the bus drive, a bank of
+/// sympathetic strings. See SympatheticStrings.
+inline constexpr const char *resonatorModeId = "resonatorMode";
+inline constexpr const char *resonatorMixId = "resonatorMix";
+inline constexpr const char *resonatorDecayId = "resonatorDecay";
+inline constexpr const char *resonatorDampId = "resonatorDamp";
 
 /// How long an undamped sympathetic string rings at the longest, and its
 /// default.
-inline constexpr float kMaxStringsDecaySeconds = 10.0f;
-inline constexpr float kStringsDecayDefault = 4.0f;
+inline constexpr float kMaxResonatorDecaySeconds = 10.0f;
+inline constexpr float kResonatorDecayDefault = 4.0f;
 
 // ---- per-partial parameter IDs ----------------------------------------------
 // Suffixes are appended to a stable "h01".."h32" prefix.
@@ -468,7 +468,7 @@ struct Cache {
     std::atomic<float> *preDelay = nullptr;
   };
 
-  struct Strings {
+  struct Resonator {
     std::atomic<float> *mode = nullptr;
     std::atomic<float> *mix = nullptr;
     std::atomic<float> *decay = nullptr;
@@ -477,7 +477,7 @@ struct Cache {
 
   Echo echo{};
   Reverb reverb{};
-  Strings strings{};
+  Resonator resonator{};
 
   void connect(juce::AudioProcessorValueTreeState &apvts);
 

@@ -466,15 +466,15 @@ Last changed: 2026-10-14
 
 # Effects
 
-Everything on the bar along the top of the window affects the whole instrument, not a single channel: the oscillator character every partial is built from, the wobble under the series, the sympathetic strings, the drive on the bus where the channels are summed, the echo, the reverb, the converter, and the output stage with its meter.
+Everything on the bar along the top of the window affects the whole instrument, not a single channel: the oscillator character every partial is built from, the wobble under the series, the resonator, the drive on the bus where the channels are summed, the echo, the reverb, the converter, and the output stage with its meter.
 
 ## The signal chain
 
-[Diagram: The order the signal passes through. Each of the thirty-three channels runs a sine partial through its envelope and key-off stage, its tremolo, its velocity and pressure amounts, its fader and its pan. The thirty-three are summed and run through the converter, the sympathetic strings and the bus drive. The mix then passes through the wobble, the echo, the reverb, the master fader and the safety clipper before it leaves. each of the thirty-three channels sine partial n envelope and key off tremolo velocity and pressure fader pan then the mix of all of them converter rate, bits strings one per key bus drive wobble echo reverb master fader clipper summed out.]
+[Diagram: The order the signal passes through. Each of the thirty-three channels runs a sine partial through its envelope and key-off stage, its tremolo, its velocity and pressure amounts, its fader and its pan. The thirty-three are summed and run through the converter, the resonator and the bus drive. The mix then passes through the wobble, the echo, the reverb, the master fader and the safety clipper before it leaves. each of the thirty-three channels sine partial n envelope and key off tremolo velocity and pressure fader pan then the mix of all of them converter rate, bits resonator 88 strings bus drive wobble echo reverb master fader clipper summed out.]
 
 The order things happen in. Everything on a channel strip runs before the channels are mixed, and everything on the bar runs after. This is why a channel meter and the output meter disagree while a tail is ringing.
 
-[Image: The top bar: the loaded preset on a fourteen-segment display beside four icons, for settings and macros over the Playing and Tuning bars, the oscillator character, the stretch, track and wobble controls, the sympathetic strings with their mode and three knobs, the echo, the reverb, and the output meter with the master fader across it, two seven-segment converter readouts reading kilohertz and bits, and the output stage reading Soft.]
+[Image: The top bar: the loaded preset on a fourteen-segment display beside four icons, for settings and macros over the Playing and Tuning bars, the oscillator character, the stretch, track and wobble controls, the resonator with its mode and three knobs, the echo, the reverb, and the output meter with the master fader across it, two seven-segment converter readouts reading kilohertz and bits, and the output stage reading Soft.]
 
 ## Character
 
@@ -494,15 +494,15 @@ Character is part of the patch, not part of the setup, so a preset can change it
 
 Makes the whole instrument sound like a warped record. The pitch is bent by reading the output back through a delay line whose length keeps changing, as happens when a platter runs off-centre or a capstan slips. There is a slow warp at about once per turn of a 33 rpm disc, a faster wander on top, and now and then a sharp slip that bends hard and settles back. The slips grow in both rate and size with the square of the control, so a low setting sounds like a tired turntable and a high one like a badly failing tape transport. It comes before the echo, so the repeats carry its wobble instead of wobbling on their own.
 
-## Sympathetic strings
+## Resonator
 
-Eighty-eight strings that resonate with what you play, one for each key of a piano from A0 to C8. Each is a Karplus-Strong string, the same kind the noise channel strikes. They are fed the sum of the thirty-three channels, and what they ring back is mixed in before the bus drive. So the drive and everything after it treat them as part of the instrument, not as a room around it. The button beside the character shows what they are tuned to and lights while they ring.
+The resonator is eighty-eight sympathetic strings, one for each key of a piano from A0 to C8, that resonate with what you play. Each is a Karplus-Strong string, the same kind the noise channel strikes. They are fed the sum of the thirty-three channels, and what they ring back is mixed in before the bus drive. So the drive and everything after it treat them as part of the instrument, not as a room around it. The RESONATOR button shows what the strings are tuned to and lights while they ring.
 
 **Piano** works like a piano: the strings of the keys you hold are free, the rest are damped, and the sustain pedal lifts every damper. A held key's string is tuned to the pitch the key is sounding. The other strings wait at the pitch a key struck now would sound, which under Adaptive is the tuning their pitch class had last. None of them bends, because a piano's strings do not follow the wheel. **Open** is Piano with the sustain pedal always down: every string rings, and held keys ring the loudest. **Octave** is twelve strings from C3, always free, so every note finds something to ring with. **Series** is the tuning root's first eight harmonics from its second octave, tuned pure and always free. It works as a drone that responds to any note that falls on the root's own harmonic series.
 
-**MIX** goes from the instrument alone to the strings alone, as on the echo and the reverb. **DECAY** sets how long a free string rings, from 200 ms to 10 s. A longer DECAY also makes the strings louder, and a short note reaches them the same at any setting. **DAMP** sets how quickly the high end dies away. A damper stops its string over 0.8 s at the bottom of the keyboard and 0.25 s at the top, or sooner if DECAY is shorter, so a released bass key leaves the short hum of a felt damper on a heavy string. A string freed only by the pedal gets a quarter of the signal a held key's string gets, so the pedal adds a bloom under a chord instead of making it louder.
+**MIX** goes from the instrument alone to the resonator alone, as on the echo and the reverb. **DECAY** sets how long a free string rings, from 200 ms to 10 s. A longer DECAY also makes the resonator louder, and a short note reaches them the same at any setting. **DAMP** sets how quickly the high end dies away. A damper stops its string over 0.8 s at the bottom of the keyboard and 0.25 s at the top, or sooner if DECAY is shorter, so a released bass key leaves the short hum of a felt damper on a heavy string. A string freed only by the pedal gets a quarter of the signal a held key's string gets, so the pedal adds a bloom under a chord instead of making it louder.
 
-They are part of the patch, and off in every factory preset. With eight voices they use about one percent of a core with the pedal up, and about five percent with every string freed by the pedal.
+The resonator is part of the patch, and off in every factory preset. With eight voices it uses about one percent of a core with the pedal up, and about five percent with every string freed by the pedal.
 
 ## Bus drive
 
@@ -711,10 +711,10 @@ All 850 as the host lists them, with a control that every partial or every macro
 | `Adaptive Retune` | `adaptiveRetune` | 0.0 ms to 1.00 s | 30.0 ms |
 | `Adaptive Harmonic Sevenths` | `adaptiveSeventh` | Off or on | On |
 | `Adaptive No Drift` | `adaptiveHome` | Off or on | Off |
-| `Strings Mode` | `stringsMode` | Off, Piano, Open, Octave, Series | Off |
-| `Strings Mix` | `stringsMix` | 0 % to 100 % | 50 % |
-| `Strings Decay` | `stringsDecay` | 200 ms to 10.00 s | 4.00 s |
-| `Strings Damp` | `stringsDamp` | 0 % to 100 % | 40 % |
+| `Resonator Mode` | `resonatorMode` | Off, Piano, Open, Octave, Series | Off |
+| `Resonator Mix` | `resonatorMix` | 0 % to 100 % | 50 % |
+| `Resonator Decay` | `resonatorDecay` | 200 ms to 10.00 s | 4.00 s |
+| `Resonator Damp` | `resonatorDamp` | 0 % to 100 % | 40 % |
 
 **On every partial**, twenty-three controls, each one on all 32 partials.
 

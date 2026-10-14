@@ -279,10 +279,10 @@ public:
   /// can be tested without being clicked.
   juce::PopupMenu buildReverbMenu();
 
-  /// What the sympathetic strings are tuned to, or Off. One parameter
-  /// rather than a switch and a type, since the strings arrived with their
+  /// What the resonator is tuned to, or Off. One parameter rather than a
+  /// switch and a type, since the resonator arrived with its
   /// modes and there was no older switch to keep.
-  juce::PopupMenu buildStringsMenu();
+  juce::PopupMenu buildResonatorMenu();
 
   /// How wide the two buttons that say a value have to be.
   ///
@@ -295,7 +295,7 @@ public:
   /// and DIGITAL is 50, and the air either side is what every other button on
   /// the bar has.
   static constexpr int kCharacterWidth = 62;
-  static constexpr int kStringsWidth = 62;
+  static constexpr int kResonatorWidth = 62;
   static constexpr int kEchoWidth = 62;
   static constexpr int kReverbWidth = 58;
 
@@ -305,8 +305,8 @@ public:
   /// reason they are: a word wider than the button it sits under is drawn
   /// with its middle taken out and nothing says so. See
   /// testBarButtonsFitTheirWords.
-  static constexpr const char *kGroupNames[] = {"CHARACTER", "STRINGS", "ECHO",
-                                                "REVERB"};
+  static constexpr const char *kGroupNames[] = {"CHARACTER", "RESONATOR",
+                                                "ECHO", "REVERB"};
 
   /// The clipper's switch, under the meter beside the converter readouts.
   ///
@@ -346,8 +346,8 @@ private:
   /// The same for the reverb.
   void chooseReverb(int id);
 
-  /// And for the strings.
-  void chooseStrings(int id);
+  /// And for the resonator.
+  void chooseResonator(int id);
 
 public:
 private:
@@ -385,7 +385,7 @@ private:
     VoiceGroup = 0,
     PresetGroup,
     SeriesGroup,
-    StringsGroup,
+    ResonatorGroup,
     EchoGroup,
     ReverbGroup,
     OutputGroup,
@@ -450,11 +450,11 @@ private:
   /// Pure, which is the one that adds nothing.
   GlowButton characterButton;
 
-  /// What the sympathetic strings are tuned to, beside the character in the
+  /// What the resonator is tuned to, beside the character in the
   /// same group, since both are the instrument rather than something done to
   /// it afterwards. Lit while they ring along, and saying OFF when they do
   /// not, the way the echo's and the reverb's buttons do.
-  GlowButton stringsButton;
+  GlowButton resonatorButton;
 
   /// The logo, rescaled once to the size it is drawn at. Scaling a 2464 px
   /// image down to 150 on every repaint would be both slow and soft.
@@ -514,7 +514,7 @@ private:
   /// legible at the width the window opens at.
   float zoom = 1.0f;
 
-  std::vector<Control> stringsControls, echoControls, reverbControls;
+  std::vector<Control> resonatorControls, echoControls, reverbControls;
 
   LinkScope scope = LinkScope::All;
   LinkCurve curve = LinkCurve::Uniform;

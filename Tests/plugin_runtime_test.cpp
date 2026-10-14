@@ -810,8 +810,8 @@ void testParameterWiring(OvertoniumProcessor &p) {
   // note, whether it uses the harmonic seventh, and whether it stays home.
   // See params::adaptiveRetuneId, params::adaptiveSeventhId and
   // params::adaptiveHomeId. Then four for the string the noise channel
-  // strikes, and four for the sympathetic strings. See params::stringSuffix
-  // and params::stringsModeId.
+  // strikes, and four for the resonator. See params::stringSuffix
+  // and params::resonatorModeId.
   const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + 2 + 1 + 1 +
                        1 + 1 + 4 + 4 + ovt::params::kNumMacros * 6;
 
@@ -4561,22 +4561,23 @@ void testMasterEffects(OvertoniumProcessor &p) {
 
   check(tailAfterNote() < 1.0e-5f, "Init puts both of them away again");
 
-  // The sympathetic strings ring on after the note too, ahead of the
-  // effects, so their tail is the strings' and the effects' together.
-  setParam(ovt::params::stringsModeId, (float)(int)ovt::StringsMode::Octave);
-  setParam(ovt::params::stringsMixId, 1.0f);
-  setParam(ovt::params::stringsDecayId, 6.0f);
+  // The resonator rings on after the note too, ahead of the effects, so the
+  // tail is the resonator's and the effects' together.
+  setParam(ovt::params::resonatorModeId,
+           (float)(int)ovt::ResonatorMode::Octave);
+  setParam(ovt::params::resonatorMixId, 1.0f);
+  setParam(ovt::params::resonatorDecayId, 6.0f);
 
   const auto strung = tailAfterNote();
-  check(strung > 1.0e-4f, "the sympathetic strings ring on after the note "
+  check(strung > 1.0e-4f, "the resonator rings on after the note "
                           "(peak " +
                               std::to_string(strung) + ")");
 
   check(p.getTailLengthSeconds() > 5.0,
-        "the reported tail covers the strings (" +
+        "the reported tail covers the resonator (" +
             std::to_string(p.getTailLengthSeconds()) + " s)");
 
-  setParam(ovt::params::stringsModeId, (float)(int)ovt::StringsMode::Off);
+  setParam(ovt::params::resonatorModeId, (float)(int)ovt::ResonatorMode::Off);
 
   check(tailAfterNote() < 1.0e-5f, "switching them off takes them away");
 
@@ -5764,36 +5765,36 @@ void testMachineMenusFollowTheirParameters(OvertoniumProcessor &p) {
               tickedIn(stillDigital) + ")");
   }
 
-  // ---- the strings, one parameter with Off among its modes -----------------
+  // ---- the resonator, one parameter with Off among its modes ---------------
   {
-    const auto stringsButton = [bar]() -> juce::Button * {
+    const auto resonatorButton = [bar]() -> juce::Button * {
       for (auto *c : bar->getChildren())
-        if (c->getTitle().startsWith("Strings:"))
+        if (c->getTitle().startsWith("Resonator:"))
           return dynamic_cast<juce::Button *>(c);
 
       return nullptr;
     };
 
-    for (int i = 0; i < (int)ovt::StringsMode::NumModes; ++i) {
-      write(ovt::params::stringsModeId, (float)i);
+    for (int i = 0; i < (int)ovt::ResonatorMode::NumModes; ++i) {
+      write(ovt::params::resonatorModeId, (float)i);
       bar->updatePanelReadouts(48000.0);
 
-      auto menu = bar->buildStringsMenu();
-      const juce::String wanted = ovt::stringsModeName((ovt::StringsMode)i);
-      auto *button = stringsButton();
+      auto menu = bar->buildResonatorMenu();
+      const juce::String wanted = ovt::resonatorModeName((ovt::ResonatorMode)i);
+      auto *button = resonatorButton();
 
       check(tickedIn(menu) == wanted.toStdString(),
-            "the strings' menu names " + wanted.toStdString() +
+            "the resonator's menu names " + wanted.toStdString() +
                 " when that is the mode (" + tickedIn(menu) + ")");
 
       check(button != nullptr &&
                 button->getButtonText() == wanted.toUpperCase() &&
                 button->getToggleState() == (i != 0),
-            "and their button says " + wanted.toUpperCase().toStdString() +
+            "and its button says " + wanted.toUpperCase().toStdString() +
                 (i != 0 ? ", lit" : ", unlit"));
     }
 
-    write(ovt::params::stringsModeId, 0.0f);
+    write(ovt::params::resonatorModeId, 0.0f);
     bar->updatePanelReadouts(48000.0);
   }
 
@@ -8181,38 +8182,39 @@ void testNoiseStringKnobs(OvertoniumProcessor &p) {
   check(folded && back, "and fold away with the block they stand in");
 }
 
-/// The sympathetic strings' parameters: the mode lists every mode by name,
-/// the knobs read as what they are, and a preset puts the strings away.
-void testSympatheticStringsParameters(OvertoniumProcessor &p) {
-  section("The sympathetic strings' parameters");
+/// The resonator's parameters: the mode lists every mode by name,
+/// the knobs read as what they are, and a preset turns the resonator off.
+void testResonatorParameters(OvertoniumProcessor &p) {
+  section("The resonator's parameters");
 
   namespace pp = ovt::params;
 
   auto *mode = dynamic_cast<juce::AudioParameterChoice *>(
-      p.apvts.getParameter(pp::stringsModeId));
-  check(mode != nullptr &&
-            mode->choices ==
-                juce::StringArray{"Off", "Piano", "Open", "Octave", "Series"} &&
-            mode->getIndex() == (int)ovt::StringsMode::Off,
-        "Strings Mode is Off, Piano, Open, Octave or Series, and Off to begin "
-        "with");
+      p.apvts.getParameter(pp::resonatorModeId));
+  check(
+      mode != nullptr &&
+          mode->choices ==
+              juce::StringArray{"Off", "Piano", "Open", "Octave", "Series"} &&
+          mode->getIndex() == (int)ovt::ResonatorMode::Off,
+      "Resonator Mode is Off, Piano, Open, Octave or Series, and Off to begin "
+      "with");
 
-  if (auto *decay = p.apvts.getParameter(pp::stringsDecayId))
+  if (auto *decay = p.apvts.getParameter(pp::resonatorDecayId))
     check(decay->getText(decay->getDefaultValue(), 16) == "4.00 s",
-          "Strings Decay reads as a time (" +
+          "Resonator Decay reads as a time (" +
               decay->getText(decay->getDefaultValue(), 16).toStdString() + ")");
 
-  if (auto *mix = p.apvts.getParameter(pp::stringsMixId))
+  if (auto *mix = p.apvts.getParameter(pp::resonatorMixId))
     check(mix->getText(mix->getDefaultValue(), 16) == "50 %",
-          "Strings Mix reads as a share (" +
+          "Resonator Mix reads as a share (" +
               mix->getText(mix->getDefaultValue(), 16).toStdString() + ")");
 
-  // A preset is a whole sound, so it decides whether strings ring along.
+  // A preset is a whole sound, so it decides whether the resonator is on.
   if (mode != nullptr)
     mode->setValueNotifyingHost(
-        mode->convertTo0to1((float)(int)ovt::StringsMode::Piano));
+        mode->convertTo0to1((float)(int)ovt::ResonatorMode::Piano));
   p.applyFactoryPreset(presetIndex("Init"));
-  check(mode != nullptr && mode->getIndex() == (int)ovt::StringsMode::Off,
+  check(mode != nullptr && mode->getIndex() == (int)ovt::ResonatorMode::Off,
         "and loading a preset switches them off");
 }
 
@@ -10013,19 +10015,19 @@ void testBarButtonsFitTheirWords(OvertoniumProcessor &p) {
   for (int i = 0; i < (int)ovt::ReverbType::NumTypes; ++i)
     reverbWords.add(ovt::reverbTypeShortName((ovt::ReverbType)i));
 
-  juce::StringArray stringsWords;
-  for (int i = 0; i < (int)ovt::StringsMode::NumModes; ++i)
-    stringsWords.add(ovt::stringsModeName((ovt::StringsMode)i));
+  juce::StringArray resonatorWords;
+  for (int i = 0; i < (int)ovt::ResonatorMode::NumModes; ++i)
+    resonatorWords.add(ovt::resonatorModeName((ovt::ResonatorMode)i));
 
-  const auto stringsText = widest(stringsWords);
+  const auto resonatorText = widest(resonatorWords);
 
-  std::printf("  the strings' longest word is %d px, in a button of %d\n",
-              stringsText, TopBar::kStringsWidth);
+  std::printf("  the resonator's longest word is %d px, in a button of %d\n",
+              resonatorText, TopBar::kResonatorWidth);
 
-  check(stringsText + 8 <= TopBar::kStringsWidth,
-        "every mode the strings can be in fits in their button (" +
-            std::to_string(stringsText) + " px in " +
-            std::to_string(TopBar::kStringsWidth) + ")");
+  check(resonatorText + 8 <= TopBar::kResonatorWidth,
+        "every mode the resonator can be in fits in its button (" +
+            std::to_string(resonatorText) + " px in " +
+            std::to_string(TopBar::kResonatorWidth) + ")");
 
   const auto reverbText = widest(reverbWords);
   const auto echoText = widest(echoWords);
@@ -10081,7 +10083,7 @@ void testBarButtonsFitTheirWords(OvertoniumProcessor &p) {
   {
     const auto captionFont = makeFont(9.0f, true);
 
-    const int widths[] = {TopBar::kCharacterWidth, TopBar::kStringsWidth,
+    const int widths[] = {TopBar::kCharacterWidth, TopBar::kResonatorWidth,
                           TopBar::kEchoWidth, TopBar::kReverbWidth};
 
     for (size_t i = 0; i < std::size(TopBar::kGroupNames); ++i) {
@@ -12619,7 +12621,7 @@ int main(int argc, char **argv) {
   testOptionBars(processor);
   testSharedSettingsChoices(processor);
   testNoiseString(processor);
-  testSympatheticStringsParameters(processor);
+  testResonatorParameters(processor);
   testNoiseStringKnobs(processor);
   testPlayingReadouts(processor);
   testPlayingBar(processor);
