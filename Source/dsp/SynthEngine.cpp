@@ -1005,7 +1005,9 @@ SynthEngine::planStrings(const SynthParams &p) const noexcept {
 
   const auto set = [&plan](int key, double hz, bool free) {
     const auto s = SympatheticStrings::stringOf(key);
-    if (s >= 0 && s < kStrings) {
+    // The class's constant rather than the local beside it, which MSVC would
+    // need captured.
+    if (s >= 0 && s < SympatheticStrings::kStrings) {
       plan.hz[(size_t)s] = hz;
       plan.free[(size_t)s] = free;
     }
