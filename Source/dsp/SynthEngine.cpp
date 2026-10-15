@@ -1458,8 +1458,8 @@ void SynthEngine::render(float *left, float *right, int numSamples,
   // ---- the resonator --------------------------------------------------------
   // On the summed channels and before the bus drive, so they ring inside the
   // instrument and the character drives them with everything else. Off, and
-  // with nothing left ringing, the stage is not there at all.
-  if (p.resonator.mode != ResonatorMode::Off || sympathetic.isRinging())
+  // faded out, the stage is not there at all.
+  if (p.resonator.mode != ResonatorMode::Off || sympathetic.isBusy())
     sympathetic.process(left, right, numSamples, p.resonator, planStrings(p));
 
   // ---- the bus the series is summed onto -----------------------------------

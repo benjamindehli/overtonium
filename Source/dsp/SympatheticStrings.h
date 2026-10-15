@@ -49,9 +49,13 @@ public:
   /// Silences them all.
   void reset() noexcept;
 
-  /// Whether anything is still ringing, so a bank switched off can be left to
-  /// ring out before it is skipped.
+  /// Whether anything is still ringing.
   bool isRinging() const noexcept;
+
+  /// Whether it still has anything to do once switched off: strings ringing,
+  /// the instrument's level still on its way back up to where it is with
+  /// the resonator gone, or levels still to set after a reset.
+  bool isBusy() const noexcept;
 
   /// Feeds the strings what is in `left` and `right`, and replaces it with
   /// them as far as MIX says.
@@ -96,6 +100,11 @@ public:
   /// tempered strings, which most partials miss.
   static float makeUpDecibels(ResonatorMode) noexcept;
 
+  /// How quickly the instrument's level and the resonator's follow MIX, the
+  /// mode and switching it off, as a time constant. A level stepped at the
+  /// start of a block is a click.
+  static constexpr double kGainSeconds = 0.02;
+
 private:
   std::array<KarplusString, kStrings> strings;
 
@@ -106,6 +115,21 @@ private:
   /// What each string was fed at the end of the last block, so a change in
   /// what it is fed can be moved across the next one.
   std::array<float, kStrings> feeding{};
+
+  /// The level the instrument and the resonator are let through at, as they
+  /// move towards what MIX and the mode ask for.
+  float dryNow = 1.0f, wetNow = 0.0f;
+
+  /// Set when everything has just been silenced, so the levels can go
+  /// straight to where they are headed: with nothing sounding there is no
+  /// step to hear. Not set when it stops itself after being switched off, so
+  /// switching it on again still slides in.
+  bool fresh = true;
+
+  /// Stops every string, without touching the levels.
+  void silence() noexcept;
+
+  double rate = 48000.0;
 };
 
 } // namespace ovt

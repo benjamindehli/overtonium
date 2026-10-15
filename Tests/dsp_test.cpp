@@ -4954,6 +4954,65 @@ void testSympatheticStrings() {
               " dB against steady play)");
   }
 
+  // ---- switching it on and off moves the level, never steps it -------------
+  {
+    // A held note with the resonator off, then on at half MIX, then off while
+    // its string still rings. The instrument's level and the resonator's have
+    // to slide each time: a step shows as the output moving further in one
+    // sample than a held note ever makes it move.
+    Strings bank;
+    bank.prepare(sr);
+    Strings::Plan plan{};
+    const auto s = (size_t)Strings::stringOf(57);
+    plan.hz[s] = 220.0;
+    ResonatorParams params;
+    params.mix = 0.5f;
+
+    const int blocks = (int)(3.0 * sr) / 256;
+    const int on = (int)(0.5 * sr) / 256, off = (int)(1.5 * sr) / 256;
+    std::vector<float> l(256), r(256), out;
+    double phase = 0.0;
+    bool busyAfter = true, plainAfter = false;
+    for (int b = 0; b < blocks; ++b) {
+      const bool running = b >= on && b < off;
+      params.mode = running ? ResonatorMode::Piano : ResonatorMode::Off;
+      plan.free[s] = running;
+      for (int n = 0; n < 256; ++n) {
+        l[(size_t)n] = r[(size_t)n] = (float)(0.5 * std::sin(phase));
+        phase += 2.0 * 3.14159265358979 * 220.0 / sr;
+      }
+      const auto in = l;
+      if (params.mode != ResonatorMode::Off || bank.isBusy())
+        bank.process(l.data(), r.data(), 256, params, plan);
+      out.insert(out.end(), l.begin(), l.end());
+      if (b == blocks - 1) {
+        busyAfter = bank.isBusy();
+        plainAfter = l == in;
+      }
+    }
+
+    const auto jump = [&out](size_t from, size_t to) {
+      float most = 0.0f;
+      for (size_t n = from + 1; n < to; ++n)
+        most = std::max(most, std::abs(out[n] - out[n - 1]));
+      return most;
+    };
+    const auto at = [](int block) { return (size_t)block * 256; };
+    const auto steady =
+        std::max(jump(at(off) - at(8), at(off)), jump(0, at(on)));
+    const auto switching = std::max(jump(at(on) - 256, at(on) + at(40)),
+                                    jump(at(off) - 256, at(off) + at(40)));
+
+    check(switching < 1.2f * steady,
+          "switching the resonator on or off moves the level rather than "
+          "stepping it (largest move in a sample " +
+              std::to_string(switching) + " against " + std::to_string(steady) +
+              " in steady play)");
+    check(!busyAfter && plainAfter,
+          "and once off and faded out, it stops and leaves the instrument as "
+          "it was");
+  }
+
   // ---- a string the pedal frees is fed less than a held key's --------------
   {
     const auto ringing = [sr](bool pedalled) {
@@ -4977,8 +5036,10 @@ void testSympatheticStrings() {
           phase += 2.0 * 3.14159265358979 * 220.0 / sr;
         }
         bank.process(l.data(), r.data(), 256, params, plan);
-        for (auto y : l)
-          peak = std::max(peak, std::abs(y));
+        // Once the string has come up, and the instrument's level has gone.
+        if (b * 256 > (int)(2.0 * sr))
+          for (auto y : l)
+            peak = std::max(peak, std::abs(y));
       }
       return peak;
     };
@@ -4998,8 +5059,13 @@ void testSympatheticStrings() {
       ResonatorParams params;
       params.mode = ResonatorMode::Octave;
       params.mix = mix;
-      std::vector<float> l(256, 0.5f), r(256, 0.5f);
-      bank.process(l.data(), r.data(), 256, params, quiet);
+      // Long enough for the levels to have slid to where MIX puts them.
+      std::vector<float> l(256), r(256);
+      for (int b = 0; b < (int)(0.5 * sr) / 256; ++b) {
+        std::fill(l.begin(), l.end(), 0.5f);
+        std::fill(r.begin(), r.end(), 0.5f);
+        bank.process(l.data(), r.data(), 256, params, quiet);
+      }
       return l[100];
     };
 

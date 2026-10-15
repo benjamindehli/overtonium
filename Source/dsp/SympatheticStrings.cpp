@@ -17,6 +17,8 @@ double equalHz(int key) { return 440.0 * std::exp2((double)(key - 69) / 12.0); }
 } // namespace
 
 void SympatheticStrings::prepare(double sampleRate) noexcept {
+  rate = sampleRate;
+
   // Each long enough for its own note pulled down as far as any temperament,
   // or Adaptive two commas down, can take it, with room to spare.
   for (int i = 0; i < kStrings; ++i)
@@ -24,14 +26,20 @@ void SympatheticStrings::prepare(double sampleRate) noexcept {
 
   ringing.fill(false);
   feeding.fill(0.0f);
+  fresh = true;
 }
 
-void SympatheticStrings::reset() noexcept {
+void SympatheticStrings::silence() noexcept {
   for (auto &s : strings)
     s.reset();
 
   ringing.fill(false);
   feeding.fill(0.0f);
+}
+
+void SympatheticStrings::reset() noexcept {
+  silence();
+  fresh = true;
 }
 
 double SympatheticStrings::damperSeconds(int string) noexcept {
@@ -62,15 +70,35 @@ bool SympatheticStrings::isRinging() const noexcept {
   return std::any_of(ringing.begin(), ringing.end(), [](bool r) { return r; });
 }
 
+bool SympatheticStrings::isBusy() const noexcept {
+  // Neither goes past where it is headed, so these say it has not arrived.
+  return fresh || isRinging() || dryNow < 1.0f || wetNow > 0.0f;
+}
+
 void SympatheticStrings::process(float *left, float *right, int numSamples,
                                  const ResonatorParams &params,
                                  const Plan &plan) noexcept {
-  // An equal-power crossfade. The resonator and the instrument do not add up
-  // in phase, so a straight one would dip in the middle of the knob.
+  // A crossfade that stays fuller in the middle than a straight one. The
+  // resonator and the instrument do not add up in phase, so a straight one
+  // would dip in the middle of the knob. Switched off, the instrument goes
+  // back to its own level and the resonator out.
+  const bool on = params.mode != ResonatorMode::Off;
   const float mix = std::clamp(params.mix, 0.0f, 1.0f);
-  const float dryGain = std::pow(std::cos(mix * 1.5707963f), 1.5f);
-  const float wetGain = std::pow(std::sin(mix * 1.5707963f), 1.5f) *
-                        std::pow(10.0f, makeUpDecibels(params.mode) / 20.0f);
+  const float dryGain = on ? std::pow(std::cos(mix * 1.5707963f), 1.5f) : 1.0f;
+  const float wetGain =
+      on ? std::pow(std::sin(mix * 1.5707963f), 1.5f) *
+               std::pow(10.0f, makeUpDecibels(params.mode) / 20.0f)
+         : 0.0f;
+  const auto glide = (float)std::exp(-1.0 / (kGainSeconds * rate));
+
+  if (fresh) {
+    dryNow = dryGain;
+    wetNow = wetGain;
+    fresh = false;
+  }
+
+  if (!on && !isBusy())
+    return;
   const float damp = std::clamp(params.damping, 0.0f, 1.0f);
   const double decay = std::max(0.05, (double)params.decaySeconds);
 
@@ -146,10 +174,22 @@ void SympatheticStrings::process(float *left, float *right, int numSamples,
     // MIX goes from the instrument alone to the resonator alone, as the echo's
     // and the reverb's do.
     for (int n = 0; n < len; ++n) {
-      const auto wet = sum[n] * wetGain;
-      left[done + n] = left[done + n] * dryGain + wet;
-      right[done + n] = right[done + n] * dryGain + wet;
+      dryNow = dryGain + (dryNow - dryGain) * glide;
+      wetNow = wetGain + (wetNow - wetGain) * glide;
+
+      const auto wet = sum[n] * wetNow;
+      left[done + n] = left[done + n] * dryNow + wet;
+      right[done + n] = right[done + n] * dryNow + wet;
     }
+  }
+
+  // Switched off and faded out: whatever the strings still hold cannot be
+  // heard, so they are stopped rather than left to come back if it is
+  // switched on again, and the stage is not there at all until then.
+  if (!on && std::abs(dryNow - 1.0f) < 1.0e-4f && wetNow < 1.0e-4f) {
+    silence();
+    dryNow = 1.0f;
+    wetNow = 0.0f;
   }
 }
 
