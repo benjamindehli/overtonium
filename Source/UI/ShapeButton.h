@@ -5,6 +5,7 @@
 
 #include "../PluginParameters.h"
 #include "../dsp/Lfo.h"
+#include "PaintCache.h"
 
 namespace ovt::ui {
 
@@ -65,6 +66,9 @@ public:
 private:
   void applyToEveryChannel(int index);
 
+  /// Everything paint draws, before it is kept as a picture.
+  void paintShape(juce::Graphics &);
+
   juce::AudioProcessorValueTreeState &apvts;
   void setInPhase(bool);
 
@@ -77,6 +81,10 @@ private:
   juce::Span<const LfoShape> offered;
   juce::StringArray names;
   bool hovered = false;
+
+  /// Its last two looks, so a strip that is soloed or scrolled copies the
+  /// glyph rather than drawing it again.
+  PaintCache looks;
 
   /// Repaints when the parameter moves, which is mostly not from here.
   ///

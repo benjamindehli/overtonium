@@ -8,6 +8,7 @@
 
 #include "../dsp/Character.h"
 #include "../dsp/Harmonics.h"
+#include "PaintCache.h"
 
 namespace ovt::ui {
 
@@ -154,6 +155,14 @@ public:
       onIcon;
 
   void paintButton(juce::Graphics &, bool highlighted, bool down) override;
+
+private:
+  /// Everything paintButton draws, before it is kept as a picture.
+  void paintCap(juce::Graphics &, bool highlighted, bool down);
+
+  /// Its last two looks, which for the M and S on 33 strips is most of what
+  /// soloing would otherwise draw again.
+  PaintCache looks;
 };
 
 /// A switch shown as a letter lit in a screen, for the gutter.

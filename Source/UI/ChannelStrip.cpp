@@ -31,72 +31,21 @@ namespace {
 inline size_t rowIndex(Row r) { return (size_t)r; }
 } // namespace
 
-std::uint64_t LinkableSlider::lookKey(float scale) const {
-  // FNV-1a over everything below, which is plenty to tell two looks apart.
-  std::uint64_t h = 1469598103934665603ull;
-  const auto mix = [&h](const void *data, size_t size) {
-    const auto *bytes = static_cast<const unsigned char *>(data);
-    for (size_t i = 0; i < size; ++i) {
-      h ^= bytes[i];
-      h *= 1099511628211ull;
-    }
-  };
-  const auto number = [&mix](double v) { mix(&v, sizeof v); };
-  const auto text = [&mix](const juce::String &t) {
-    mix(t.toRawUTF8(), t.getNumBytesAsUTF8());
-  };
-
-  number(getWidth());
-  number(getHeight());
-  number(scale);
-  number(getValue());
-  number(isEnabled() ? 1.0 : 0.0);
+void LinkableSlider::paint(juce::Graphics &g) {
+  // Everything the look and feel reads to draw this control: its value,
+  // whether it is enabled, its colours, and every property, so a property
+  // added later cannot leave a stale picture behind.
+  LookKey key;
+  key.add(getValue()).add(isEnabled()).add(getProperties());
 
   for (const auto id :
        {juce::Slider::rotarySliderFillColourId,
         juce::Slider::rotarySliderOutlineColourId, juce::Slider::trackColourId,
-        juce::Slider::thumbColourId, juce::Slider::backgroundColourId}) {
-    const auto argb = findColour(id).getARGB();
-    mix(&argb, sizeof argb);
-  }
+        juce::Slider::thumbColourId, juce::Slider::backgroundColourId})
+    key.add(findColour(id));
 
-  const auto &looksSet = getProperties();
-  for (int i = 0; i < looksSet.size(); ++i) {
-    text(looksSet.getName(i).toString());
-    text(looksSet.getValueAt(i).toString());
-  }
-
-  return h;
-}
-
-void LinkableSlider::paint(juce::Graphics &g) {
-  const auto scale = g.getInternalContext().getPhysicalPixelScaleFactor();
-  const auto key = lookKey(scale);
-
-  for (size_t i = 0; i < looks.size(); ++i)
-    if (looks[i].key == key && looks[i].picture.isValid()) {
-      newest = i;
-      g.drawImage(looks[i].picture, getLocalBounds().toFloat());
-      return;
-    }
-
-  // Drawn at the display's own resolution, so the picture is copied pixel
-  // for pixel rather than scaled.
-  const auto w = juce::jmax(1, juce::roundToInt((float)getWidth() * scale));
-  const auto h = juce::jmax(1, juce::roundToInt((float)getHeight() * scale));
-  juce::Image picture(juce::Image::ARGB, w, h, true);
-  {
-    juce::Graphics into(picture);
-    into.addTransform(juce::AffineTransform::scale(
-        (float)w / (float)juce::jmax(1, getWidth()),
-        (float)h / (float)juce::jmax(1, getHeight())));
-    juce::Slider::paint(into);
-  }
-
-  // Over the older of the two.
-  newest = 1 - newest;
-  looks[newest] = {key, picture};
-  g.drawImage(picture, getLocalBounds().toFloat());
+  looks.paint(g, *this, key,
+              [this](juce::Graphics &into) { juce::Slider::paint(into); });
 }
 
 RelativeKnob::RelativeKnob() {
@@ -793,6 +742,24 @@ SegmentDisplay::createAccessibilityHandler() {
 }
 
 void SegmentDisplay::paint(juce::Graphics &g) {
+  LookKey key;
+  key.add(reading).add(active).add(hovered).add(sharpSign).add(unitText);
+
+  // How many cells the reading fitted is worked out while drawing, so it is
+  // kept beside each picture for cellsDrawn to go on reporting.
+  bool drewIt = false;
+  const auto used = looks.paint(g, *this, key, [&](juce::Graphics &into) {
+    paintReading(into);
+    drewIt = true;
+  });
+
+  if (drewIt)
+    drawnFor[used] = drawn;
+  else
+    drawn = drawnFor[used];
+}
+
+void SegmentDisplay::paintReading(juce::Graphics &g) {
   auto area = getLocalBounds().toFloat().reduced(1.0f);
 
   // Fainter where there are fourteen bars to a cell. Twice the bars means

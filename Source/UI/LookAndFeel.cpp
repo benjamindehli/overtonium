@@ -564,15 +564,18 @@ void OvertoniumLookAndFeel::drawRotarySlider(
           ? anchor
           : rotaryStartAngle + sliderPos * (rotaryEndAngle - rotaryStartAngle);
 
-  // A knob belonging to an effect that is switched off keeps its position,
-  // since a setting is dialled in before the thing is turned on, but nothing
-  // on it is lit. A ring glowing on a stage that is not in the signal says the
-  // opposite of the truth, and now that the group is named underneath it there
-  // is no longer any need for the ring to be what says the group is there.
+  // A knob belonging to an effect that is switched off, or to a channel
+  // nobody can hear, keeps its position, since a setting is dialled in before
+  // the thing is turned on, but nothing on it is lit. A ring glowing on a stage
+  // that is not in the signal says the opposite of the truth, and now that the
+  // group is named underneath it there is no longer any need for the ring to be
+  // what says the group is there.
   //
-  // The whole colour is swapped rather than the ring alone. The pointer on the
-  // cap is drawn from the same one, and a lit pointer standing in a dark ring
-  // reads as one lamp that failed rather than as a stage that is off.
+  // The ring goes out entirely, every tick drawn as an unlit one, because the
+  // ticks are lamps and a lamp that is off is dark, not grey. The pointer on
+  // the cap is what still says where the knob stands, so it keeps a colour,
+  // the plain grey of the panel's writing rather than the channel's, which
+  // would read as one lamp left on.
   const bool live =
       !(bool)slider.getProperties().getWithDefault("unlit", false);
 
@@ -625,11 +628,9 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   const bool driven = !drivenBy.isVoid();
 
   // A macro's colour is a light like any other, so it goes out with the rest
-  // when the channel is silenced. The ring still stands where the macro took
-  // the value, which is the same bargain the knobs of a switched-off effect
-  // make: the setting is kept and the light is not.
+  // of the ring when the channel is silenced.
   const auto ringColour =
-      driven && live ? juce::Colour((juce::uint32)(int)drivenBy) : fill;
+      driven ? juce::Colour((juce::uint32)(int)drivenBy) : fill;
 
   const auto ringAngle =
       driven ? rotaryStartAngle +
@@ -654,7 +655,7 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   for (int i = 0; i < ticks; ++i) {
     const auto t = (float)i / (float)(ticks - 1);
     const auto a = rotaryStartAngle + t * (rotaryEndAngle - rotaryStartAngle);
-    const bool lit = !blank && a >= lo - 1.0e-4f && a <= hi + 1.0e-4f;
+    const bool lit = live && !blank && a >= lo - 1.0e-4f && a <= hi + 1.0e-4f;
 
     const auto inner = radius * (lit ? 0.76f : 0.82f);
     const auto outer = radius * (lit ? 1.00f : 0.96f);

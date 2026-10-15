@@ -297,6 +297,24 @@ void ScreenSwitch::paintButton(juce::Graphics &g, bool highlighted, bool) {
 }
 
 void GlowButton::paintButton(juce::Graphics &g, bool highlighted, bool down) {
+  // The icon is not in the key. Every button is given its icon once, when it
+  // is made, and keeps it.
+  LookKey key;
+  key.add(getButtonText())
+      .add(getToggleState())
+      .add(highlighted)
+      .add(down)
+      .add(isEnabled())
+      .add(onIcon != nullptr)
+      .add(findColour(juce::TextButton::buttonColourId))
+      .add(findColour(juce::TextButton::textColourOnId))
+      .add(getProperties());
+
+  looks.paint(g, *this, key,
+              [&](juce::Graphics &into) { paintCap(into, highlighted, down); });
+}
+
+void GlowButton::paintCap(juce::Graphics &g, bool highlighted, bool down) {
   // What the cap is moulded in, for the few buttons that ask for a particular
   // face. Everything else leaves it and the lamp decides.
   const auto fill = findColour(juce::TextButton::buttonColourId);
