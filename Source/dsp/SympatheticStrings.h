@@ -75,13 +75,19 @@ public:
   static constexpr float kSend = 0.5f;
 
   /// What a string freed by the pedal is fed, as a share of what a held
-  /// key's string is.
-  static constexpr float kPedalSend = 0.25f;
+  /// key's string is. Small, so pressing the pedal changes a held chord by
+  /// about 1.3 dB at any DECAY.
+  static constexpr float kPedalSend = 0.08f;
 
-  /// Every string is fed at the rate that settles a string with this DECAY
-  /// at kSend. A short note then gets as much into a string at any DECAY, and
-  /// a longer DECAY makes the strings louder as well as longer.
+  /// The DECAY at which a held partial drives its string to kSend of its own
+  /// level. The feed follows the string's loss from there. See
+  /// kLossExponent.
   static constexpr double kCouplingSeconds = 4.0;
+
+  /// How closely a string's feed follows what it loses each pass. At 1 a
+  /// held note would be as loud at any DECAY and a short note would get
+  /// quieter as DECAY grows. At 0 the reverse. See process.
+  static constexpr double kLossExponent = 0.75;
 
   /// How much the resonator is turned up on the way out, in decibels, so that
   /// on a held chord at the default DECAY it is about as loud as the
@@ -96,6 +102,10 @@ private:
   /// Whether each string is still sounding, so a damped, silent one can be
   /// skipped altogether.
   std::array<bool, kStrings> ringing{};
+
+  /// What each string was fed at the end of the last block, so a change in
+  /// what it is fed can be moved across the next one.
+  std::array<float, kStrings> feeding{};
 };
 
 } // namespace ovt

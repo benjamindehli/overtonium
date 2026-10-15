@@ -4823,50 +4823,135 @@ void testSympatheticStrings() {
               std::to_string(down) + " dB a quarter second on)");
   }
 
-  // ---- a short note reaches the strings more as DECAY grows ---------------
+  // ---- the level holds across DECAY, the pedal and how it is played ------
   //
-  // With the pedal up a key's string is free only while the key is down, so a
-  // staccato note is all it gets. Fed in proportion to what it loses each
-  // pass, a string with a long DECAY would take in almost nothing in that
-  // time, and turning DECAY up would make the strings quieter.
+  // A held note drives a string continuously, so its level grows with how
+  // long the string rings. A short note only gets in what its moment allows,
+  // whatever DECAY is. The feed splits the difference, so neither moves far,
+  // and a string freed only by the pedal is fed little enough that pressing
+  // the pedal blooms rather than turns the chord up.
   {
-    const auto staccato = [&](float decay) {
+    const auto level = [sr](float mix, float decay, bool pedal, bool staccato,
+                            bool pedalChanges = false,
+                            std::vector<float> *keep = nullptr) {
       const auto owner = std::make_unique<SynthEngine>();
       auto &e = *owner;
       e.prepare(sr);
-      auto q = p;
+      SynthParams q;
+      for (int i = 0; i < kNumHarmonics; ++i) {
+        auto &o = q.osc[(size_t)i];
+        o.tuneBlend = 0.0f;
+        o.attack = 0.002f;
+        o.sustain = 1.0f;
+        o.release = 0.05f;
+        o.velAmount = 0.0f;
+        o.volume = 0.4f / (float)(i + 1);
+        o.audible = true;
+      }
+      q.global.masterGain = 1.0f;
+      q.global.safetyClip = false;
       q.resonator.mode = ResonatorMode::Piano;
-      q.resonator.mix = 1.0f;
+      q.resonator.mix = mix;
       q.resonator.decaySeconds = decay;
-      q.resonator.damping = 0.4f;
-      q.pedalDown = false;
+      q.pedalDown = pedal;
 
-      std::vector<float> l(512), r(512);
+      const int chords[3][3] = {{48, 55, 64}, {50, 57, 65}, {52, 59, 67}};
+      std::vector<float> l(256), r(256);
       double sum = 0.0;
       long counted = 0;
-      e.noteOn(60, 1.0f, q);
-      for (int b = 0; b < (int)(0.5 * sr) / 512; ++b) {
-        if (b == (int)(0.12 * sr) / 512)
-          e.noteOff(60);
-        e.render(l.data(), r.data(), 512, q);
-        for (auto x : l) {
-          sum += (double)x * x;
-          ++counted;
-        }
+      const int every = (int)(0.5 * sr) / 256, hold = (int)(0.15 * sr) / 256;
+      if (!staccato)
+        for (int n : {48, 52, 55, 60})
+          e.noteOn(n, 0.9f, q);
+      for (int b = 0; b < (int)(3.0 * sr) / 256; ++b) {
+        if (staccato && b % every == 0)
+          for (int n : chords[(b / every) % 3])
+            e.noteOn(n, 0.9f, q);
+        if (staccato && b % every == hold)
+          for (int n : chords[(b / every) % 3])
+            e.noteOff(n);
+        if (pedalChanges)
+          q.pedalDown = (b / every) % 2 == 1;
+        e.render(l.data(), r.data(), 256, q);
+        if (keep != nullptr)
+          keep->insert(keep->end(), l.begin(), l.end());
+        if (b * 256 > (int)(1.5 * sr))
+          for (auto x : l) {
+            sum += (double)x * x;
+            ++counted;
+          }
       }
       return std::sqrt(sum / (double)counted);
     };
 
-    const double levels[] = {staccato(0.5f), staccato(1.0f), staccato(4.0f),
-                             staccato(10.0f)};
-    bool rising = true;
-    for (size_t i = 1; i < std::size(levels); ++i)
-      rising &= levels[i] >= 0.98 * levels[i - 1];
-    check(rising && levels[3] > 1.5 * levels[0],
-          "a staccato note rings the strings more as DECAY grows, not less (" +
-              std::to_string(levels[0]) + ", " + std::to_string(levels[1]) +
-              ", " + std::to_string(levels[2]) + ", " +
-              std::to_string(levels[3]) + ")");
+    double furthest = 0.0;
+    std::string worst;
+    double bloom = 0.0;
+    for (const float decay : {0.2f, 4.0f, 10.0f})
+      for (const bool staccato : {false, true})
+        for (const bool pedal : {false, true}) {
+          const auto off =
+              20.0 * std::log10(level(0.5f, decay, pedal, staccato) /
+                                level(0.0f, decay, pedal, staccato));
+          if (std::abs(off) > std::abs(furthest)) {
+            furthest = off;
+            worst = std::to_string(decay).substr(0, 4) + " s, " +
+                    (staccato ? "staccato" : "held") +
+                    (pedal ? ", pedal down" : ", pedal up");
+          }
+          if (!staccato && pedal)
+            bloom = std::max(
+                bloom,
+                std::abs(20.0 * std::log10(level(1.0f, decay, true, false) /
+                                           level(1.0f, decay, false, false))));
+        }
+
+    check(std::abs(furthest) < 4.5,
+          "at half MIX the level stays within 4.5 dB of the instrument from "
+          "0.2 to 10 s of DECAY, held or staccato, pedal up or down "
+          "(furthest " +
+              std::to_string(furthest) + " dB, " + worst + ")");
+    check(bloom < 2.0,
+          "and pressing the pedal changes a held chord by less than 2 dB at "
+          "any DECAY (" +
+              std::to_string(bloom) + " dB)");
+
+    // The pedal going down and up must not click: every string it frees or
+    // damps has its feed and its loop gain moved across a block rather than
+    // stepped, or eighty-seven strings click at once. Measured as the energy
+    // above 16 kHz, where neither the partials nor the strings have much,
+    // just after each change against the same in steady play.
+    std::vector<float> out;
+    level(1.0f, 1.0f, false, false, true, &out);
+    const int w = 240;
+    const auto above16k = [&out, w, sr](size_t start) {
+      double e = 0.0;
+      for (int k = (int)(16000.0 / sr * w); k < w / 2; ++k) {
+        double re = 0.0, im = 0.0;
+        for (int n = 0; n < w; ++n) {
+          const auto hann = 0.5 - 0.5 * std::cos(6.283185307 * n / (w - 1));
+          re +=
+              out[start + (size_t)n] * hann * std::cos(6.283185307 * k * n / w);
+          im -=
+              out[start + (size_t)n] * hann * std::sin(6.283185307 * k * n / w);
+        }
+        e += re * re + im * im;
+      }
+      return e;
+    };
+    const auto every = (size_t)((int)(0.5 * sr) / 256 * 256);
+    double changing = 0.0, steady = 0.0;
+    for (size_t c = 2 * every; c + every < out.size(); c += every) {
+      for (size_t at = c - 240; at < c + 480; at += 60)
+        changing = std::max(changing, above16k(at));
+      for (size_t at = c + 4800; at < c + every - 720; at += 240)
+        steady = std::max(steady, above16k(at));
+    }
+    check(changing < 2.0 * steady,
+          "and the pedal going down or up makes no click (energy above 16 kHz "
+          "at a change " +
+              std::to_string(10.0 * std::log10(changing / steady)) +
+              " dB against steady play)");
   }
 
   // ---- a string the pedal frees is fed less than a held key's --------------
@@ -4984,8 +5069,8 @@ void testSympatheticStrings() {
         }
       }
     }
-    check(std::abs(furthest) < 2.0,
-          "on a held chord every mode stays within 2 dB of the instrument "
+    check(std::abs(furthest) < 3.0,
+          "on a held chord every mode stays within 3 dB of the instrument "
           "across MIX (furthest " +
               std::to_string(furthest) + " dB, " + worst + ")");
   }

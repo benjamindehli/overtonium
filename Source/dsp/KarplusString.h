@@ -85,7 +85,7 @@ private:
 
   double delay = 0.0, delayStep = 0.0;
   float fade = 0.0f, fadeStep = 0.0f;
-  float feedback = 0.0f, inputGain = 0.0f, b = 0.25f;
+  float feedback = 0.0f, feedbackStep = 0.0f, inputGain = 0.0f, b = 0.25f;
   float lowpassPrevious = 0.0f;
   int pickDelay = 1;
   bool primed = false;

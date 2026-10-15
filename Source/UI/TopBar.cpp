@@ -552,9 +552,7 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   addKnob(resonatorControls, "Resonator", "MIX", params::resonatorMixId,
           "From the instrument alone to the resonator alone", popupParent);
   addKnob(resonatorControls, "Resonator", "DECAY", params::resonatorDecayId,
-          "How long a free string rings. Longer also makes the resonator "
-          "louder.",
-          popupParent);
+          "How long a free string rings", popupParent);
   addKnob(resonatorControls, "Resonator", "DAMP", params::resonatorDampId,
           "How quickly the resonator loses its high end", popupParent);
 

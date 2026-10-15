@@ -23,6 +23,7 @@ void SympatheticStrings::prepare(double sampleRate) noexcept {
     strings[(size_t)i].prepare(sampleRate, 0.85 * equalHz(keyOf(i)));
 
   ringing.fill(false);
+  feeding.fill(0.0f);
 }
 
 void SympatheticStrings::reset() noexcept {
@@ -30,6 +31,7 @@ void SympatheticStrings::reset() noexcept {
     s.reset();
 
   ringing.fill(false);
+  feeding.fill(0.0f);
 }
 
 double SympatheticStrings::damperSeconds(int string) noexcept {
@@ -41,12 +43,13 @@ double SympatheticStrings::damperSeconds(int string) noexcept {
 float SympatheticStrings::makeUpDecibels(ResonatorMode mode) noexcept {
   switch (mode) {
   case ResonatorMode::Piano:
-    return 6.5f;
+    return 8.0f;
   case ResonatorMode::Open:
+    return 7.5f;
   case ResonatorMode::Series:
-    return 3.0f;
+    return 4.5f;
   case ResonatorMode::Octave:
-    return 9.5f;
+    return 11.0f;
   case ResonatorMode::Off:
   case ResonatorMode::NumModes:
     break;
@@ -102,25 +105,41 @@ void SympatheticStrings::process(float *left, float *right, int numSamples,
 
       float peak = 0.0f;
 
-      // The same rate whatever DECAY is. A string fed at its own pitch builds
-      // up to coupling / (1 - g), so a longer DECAY rings louder as well as
-      // longer, and at kCouplingSeconds that is kSend. Feeding each string in
-      // proportion to its own loss would hold the level steady, but a string
-      // with a long DECAY would then take in almost nothing during a short
-      // note.
-      const auto coupling =
-          1.0f - (float)std::pow(10.0, -3.0 / (hz * kCouplingSeconds));
-      const auto drive =
-          free ? coupling * (plan.pedalled[s] ? kPedalSend : 1.0f) : 0.0f;
+      // How fast a string takes energy in. A string fed at its own pitch
+      // settles at drive / (1 - g), where 1 - g is what it loses each pass,
+      // so a held note's level follows DECAY unless the drive follows the
+      // loss. A short note, though, takes in drive times its length,
+      // whatever DECAY is. No drive keeps both even, so it follows the loss
+      // to the power kLossExponent, which splits the difference: from 0.2 to
+      // 10 s a held note and a short one each move by a few decibels, in
+      // opposite directions. At kCouplingSeconds a held partial drives its
+      // string to kSend of its own level.
+      const auto lossAt = [hz](double seconds) {
+        return 1.0 - std::pow(10.0, -3.0 / (hz * seconds));
+      };
+      const auto reference = lossAt(kCouplingSeconds);
+      const auto target =
+          free ? (float)(reference *
+                         std::pow(lossAt(decay) / reference, kLossExponent)) *
+                     (plan.pedalled[s] ? kPedalSend : 1.0f)
+               : 0.0f;
+
+      // Moved across the block rather than stepped at its start. A step in
+      // what eighty-seven strings are fed, when the pedal goes down or up, is
+      // eighty-seven clicks at once.
+      const auto step = (target - feeding[s]) / (float)len;
 
       for (int n = 0; n < len; ++n) {
+        feeding[s] += step;
+
         // Only an undamped string takes anything in. A damper presses on a
         // string, and what it does not stop it soon will.
-        const auto y = string.tick(in[n] * drive) * string.audibility();
+        const auto y = string.tick(in[n] * feeding[s]) * string.audibility();
         peak = std::max(peak, std::abs(y));
         sum[n] += y;
       }
 
+      feeding[s] = target;
       ringing[s] = free || peak >= kQuiet;
     }
 

@@ -58,6 +58,7 @@ void KarplusString::reset() noexcept {
   primed = false;
   fade = 0.0f;
   fadeStep = 0.0f;
+  feedbackStep = 0.0f;
 }
 
 double KarplusString::lowpassDelay(double omega, double coeff) noexcept {
@@ -95,8 +96,8 @@ void KarplusString::setBlock(double hz, double decaySeconds, float damp,
   const auto passLoss =
       std::hypot((1.0 - (double)b) + (double)b * std::cos(omega),
                  (double)b * std::sin(omega));
-  feedback = (float)std::min(0.99999, std::pow(10.0, -3.0 / (f * decay)) /
-                                          std::max(1.0e-6, passLoss));
+  const auto targetFeedback = (float)std::min(
+      0.99999, std::pow(10.0, -3.0 / (f * decay)) / std::max(1.0e-6, passLoss));
 
   // Struck as it is, so a pluck keeps the energy it was given and rings at
   // about the level of the noise that struck it, however long DECAY lets it
@@ -125,11 +126,17 @@ void KarplusString::setBlock(double hz, double decaySeconds, float damp,
   if (!primed) {
     delay = target;
     fade = targetFade;
+    feedback = targetFeedback;
     primed = true;
   }
 
   delayStep = (target - delay) / (double)len;
   fadeStep = (targetFade - fade) / (float)len;
+
+  // Moved across the block too. A loop gain that changes in one step, as it
+  // does when a damper comes down, leaves a step in the line where the last
+  // pass at the old gain meets the first at the new one, and that is a click.
+  feedbackStep = (targetFeedback - feedback) / (float)len;
 }
 
 float KarplusString::read(double samples) const noexcept {
@@ -178,6 +185,7 @@ float KarplusString::tick(float excitation) noexcept {
 
   delay += delayStep;
   fade = std::clamp(fade + fadeStep, 0.0f, 1.0f);
+  feedback += feedbackStep;
 
   return damped;
 }
