@@ -13,7 +13,7 @@ constexpr double kTwoPi = 6.283185307179586;
 /// classic average of two neighbours, as dark as the loop gets.
 constexpr float kDampMax = 0.5f;
 
-/// PICK's travel, as a share of the string's length. Struck near the end
+/// POINT's travel, as a share of the string's length. Struck near the end
 /// keeps nearly every harmonic, struck in the middle loses every even one.
 constexpr float kPickNearest = 0.02f;
 constexpr float kPickFurthest = 0.5f;

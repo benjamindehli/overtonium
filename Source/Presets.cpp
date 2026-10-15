@@ -139,7 +139,7 @@ struct Applier {
     set(params::noiseParamId(params::stringDecaySuffix),
         params::kStringDecayDefault);
     set(params::noiseParamId(params::stringDampSuffix), 0.4f);
-    set(params::noiseParamId(params::stringPickSuffix), 0.25f);
+    set(params::noiseParamId(params::stringPointSuffix), 0.25f);
 
     // Everything global that is part of the sound rather than part of the
     // setup. A preset decides what the instrument is, so it has to decide
@@ -3259,7 +3259,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_string", 0.8848f);
     ap.set("noise_stringDamp", 0.0954f);
     ap.set("noise_stringDecay", 4.8938f);
-    ap.set("noise_stringPick", 0.132f);
+    ap.set("noise_stringPoint", 0.132f);
     ap.set("noise_sustain", 0.0103f);
     ap.set("noise_vel", 1.0f);
     ap.set("noise_volume", 1.0f);

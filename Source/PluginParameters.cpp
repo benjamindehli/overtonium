@@ -1157,8 +1157,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       FAttr().withStringFromValueFunction(percentText)));
 
   layout.add(std::make_unique<FloatP>(
-      juce::ParameterID{noiseParamId(stringPickSuffix), 1}, "Noise String Pick",
-      juce::NormalisableRange<float>(0.0f, 1.0f), 0.25f,
+      juce::ParameterID{noiseParamId(stringPointSuffix), 1},
+      "Noise String Point", juce::NormalisableRange<float>(0.0f, 1.0f), 0.25f,
       FAttr().withStringFromValueFunction(percentText)));
 
   // The resonator, on the end after the noise channel's string. Off is the
@@ -1321,10 +1321,11 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   noise.stringDecay =
       apvts.getRawParameterValue(noiseParamId(stringDecaySuffix));
   noise.stringDamp = apvts.getRawParameterValue(noiseParamId(stringDampSuffix));
-  noise.stringPick = apvts.getRawParameterValue(noiseParamId(stringPickSuffix));
+  noise.stringPoint =
+      apvts.getRawParameterValue(noiseParamId(stringPointSuffix));
 
   jassert(noise.colour != nullptr && noise.volume != nullptr &&
-          noise.string != nullptr && noise.stringPick != nullptr);
+          noise.string != nullptr && noise.stringPoint != nullptr);
 }
 
 juce::String strikeRangeText(float amount, float delay, float attack) {
@@ -1581,7 +1582,7 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     n.stringAmount = noise.string->load();
     n.stringDecay = noise.stringDecay->load();
     n.stringDamp = noise.stringDamp->load();
-    n.stringPick = noise.stringPick->load();
+    n.stringPoint = noise.stringPoint->load();
 
     const bool muted = noise.mute->load() > 0.5f;
     const bool soloed = noise.solo->load() > 0.5f;

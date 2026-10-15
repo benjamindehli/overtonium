@@ -317,7 +317,7 @@ inline constexpr const char *colourSuffix = "colour";
 inline constexpr const char *stringSuffix = "string";
 inline constexpr const char *stringDecaySuffix = "stringDecay";
 inline constexpr const char *stringDampSuffix = "stringDamp";
-inline constexpr const char *stringPickSuffix = "stringPick";
+inline constexpr const char *stringPointSuffix = "stringPoint";
 
 /// How long the noise channel's string rings at the longest, and its default.
 inline constexpr float kMaxStringDecaySeconds = 10.0f;
@@ -399,7 +399,7 @@ struct Cache {
     std::atomic<float> *string = nullptr;
     std::atomic<float> *stringDecay = nullptr;
     std::atomic<float> *stringDamp = nullptr;
-    std::atomic<float> *stringPick = nullptr;
+    std::atomic<float> *stringPoint = nullptr;
   };
 
   NoiseChannel noise{};

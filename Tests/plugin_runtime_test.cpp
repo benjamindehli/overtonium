@@ -8058,10 +8058,10 @@ void testNoiseStringKnobs(OvertoniumProcessor &p) {
   strip.setSize(40, 1000);
 
   const char *const titles[] = {"Noise string", "Noise string decay",
-                                "Noise string damp", "Noise string pick"};
+                                "Noise string damp", "Noise string point"};
   const char *const suffixes[] = {
       ovt::params::stringSuffix, ovt::params::stringDecaySuffix,
-      ovt::params::stringDampSuffix, ovt::params::stringPickSuffix};
+      ovt::params::stringDampSuffix, ovt::params::stringPointSuffix};
 
   std::array<juce::Slider *, 4> knobs{};
   const juce::Component *colourCaption = nullptr;
@@ -8078,7 +8078,7 @@ void testNoiseStringKnobs(OvertoniumProcessor &p) {
   const bool all = std::all_of(knobs.begin(), knobs.end(),
                                [](auto *k) { return k != nullptr; });
   check(all && colourCaption != nullptr,
-        "the noise strip has string, decay, damp and pick, named");
+        "the noise strip has string, decay, damp and point, named");
   if (!all || colourCaption == nullptr)
     return;
 

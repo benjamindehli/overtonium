@@ -4438,7 +4438,7 @@ void testKarplusString() {
     p.noise.stringAmount = amount;
     p.noise.stringDecay = 2.0f;
     p.noise.stringDamp = 0.3f;
-    p.noise.stringPick = 0.1f;
+    p.noise.stringPoint = 0.1f;
     p.global.bendSemitones = bend;
 
     engine.noteOn(57, 1.0f, p); // A3, 220 Hz

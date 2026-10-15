@@ -94,10 +94,11 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
   setUpKnob(stringDamp, params::stringDampSuffix, colour,
             "How quickly the string loses its top, bright to dark",
             "Noise string damp");
-  setUpKnob(stringPick, params::stringPickSuffix, colour,
-            "Where the noise strikes the string: near the end keeps every "
-            "harmonic, the middle loses the even ones.",
-            "Noise string pick");
+  setUpKnob(stringPoint, params::stringPointSuffix, colour,
+            "The point where the noise strikes the string, from near the end, "
+            "which keeps every harmonic, to the middle, which loses the even "
+            "ones.",
+            "Noise string point");
 
   strike.getProperties().set("bipolar", true);
   velocity.getProperties().set("bipolar", true);
@@ -427,7 +428,7 @@ void NoiseStrip::paint(juce::Graphics &g) {
 
   // The string's knobs name themselves, as colour does, since the gutter
   // names these rows for the partials.
-  static const char *const names[] = {"string", "decay", "damp", "pick"};
+  static const char *const names[] = {"string", "decay", "damp", "point"};
 
   g.setColour(colours::textDim);
   g.setFont(makeFont(kStringCaptionFont));
@@ -551,7 +552,7 @@ void NoiseStrip::resized() {
   // covers whatever of it has scrolled under the header.
   {
     juce::Slider *knobs[] = {&stringAmount, &stringDecay, &stringDamp,
-                             &stringPick};
+                             &stringPoint};
 
     const auto top = rows[rowIndex(Row::PitchModHeading)].getY();
     const auto bottom = rows[rowIndex(Row::EnvHeading)].getY();

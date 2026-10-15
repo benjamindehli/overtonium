@@ -131,7 +131,7 @@ private:
   /// The string the noise strikes, in the rows a partial's pitch modulation
   /// takes, since a string is what gives this channel a pitch. Each carries
   /// its own caption, since the gutter names those rows for the partials.
-  juce::Slider stringAmount, stringDecay, stringDamp, stringPick;
+  juce::Slider stringAmount, stringDecay, stringDamp, stringPoint;
   std::array<juce::Rectangle<int>, 4> stringCaptions{};
   /// The tremolo's shape. No pitch modulator here to give one to.
   ShapeButton amShape;

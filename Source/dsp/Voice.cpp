@@ -1004,7 +1004,7 @@ void Voice::renderNoise(float *left, float *right, int len,
       decay = 1.0 / (1.0 / decay + 1.0 / (double)noise.damperSeconds);
 
     noise.string.setBlock(baseFreq * std::exp2(semis / 12.0), decay,
-                          np.stringDamp, np.stringPick, len);
+                          np.stringDamp, np.stringPoint, len);
   }
 
   float rungPeak = 0.0f;
