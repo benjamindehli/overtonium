@@ -6,7 +6,7 @@
         <title>Overtonium controls: every knob on a channel strip</title>
         <meta
             name="description"
-            content="Every control on an Overtonium channel strip: tuning, glide, the two-part envelope, modulation, velocity, pressure, LINK, the lamps and the noise channel."
+            content="Every control on an Overtonium channel strip: tuning, glide, envelope, modulation, velocity, pressure, LINK, the lamps, and the noise channel&#x27;s string."
         />
         <meta name="author" content="Benjamin Dehli" />
         <meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -50,7 +50,7 @@
                 "@id": "https://benjamindehli.github.io/overtonium/controls/#webpage",
                 "url": "https://benjamindehli.github.io/overtonium/controls/",
                 "name": "Overtonium controls: every knob on a channel strip",
-                "description": "Every control on an Overtonium channel strip: tuning, glide, the two-part envelope, modulation, velocity, pressure, LINK, the lamps and the noise channel.",
+                "description": "Every control on an Overtonium channel strip: tuning, glide, envelope, modulation, velocity, pressure, LINK, the lamps, and the noise channel's string.",
                 "inLanguage": "en-GB",
                 "isPartOf": {
                     "@id": "https://benjamindehli.github.io/overtonium/#website"
@@ -127,6 +127,7 @@
                                             <li><a href="#lamps">Lamps on the rules</a></li>
                                             <li><a href="#meters">Meters</a></li>
                                             <li><a href="#colour-and-hover">Colour and hover</a></li>
+                                            <li><a href="#silenced">Silenced channels</a></li>
                                             <li><a href="#folding">Folding the mixer down</a></li>
                                         </ul>
                                     </li>
@@ -188,8 +189,8 @@
                                     <td>equal to just</td>
                                     <td>
                                         Where this partial sits between the tempered position and the exact ratio. The readout shows the resulting
-                                        cent offset. On the six octave channels both tunings agree, so the knob has nothing to move and the strip
-                                        shows this
+                                        cent offset. On the six octave channels both tunings agree, so the knob has nothing to move and the readout
+                                        stays at 0.0
                                     </td>
                                 </tr>
                                 <tr>
@@ -431,7 +432,8 @@
                         in one drag. If every partial starts at its peak at the same time, the result is a spike: for 32 partials on a falling series,
                         the first sample is about four times the steady peak, and the output stage has to handle it. Spreading the start points across
                         the channels keeps the sharp start without the spike. With phase reset off in Settings, a partial carries on from wherever its
-                        cycle was, and this part of the knob acts as the shortest attack.
+                        cycle was, and this part of the knob acts as the shortest attack. The noise channel has no cycle to start, so its ATTACK stops
+                        at 0.2 ms.
                     </p>
 
                     <p>
@@ -469,10 +471,9 @@
                     <h2>Ganging the channels</h2>
 
                     <p>
-                        <strong>One button at the top of the caption column on the left</strong> sets what a drag in the mixer does. It is the one
-                        control that is not on the top bar. Instead of a word, it shows the pointer you will get: a plain arrow, an arrow with two
-                        chain links, or an arrow with a drawn contour. Click it to see the three by name. A right-click anywhere in the mixer opens
-                        the same menu.
+                        <strong>One button at the top of the caption column on the left</strong> sets what a drag in the mixer does. Instead of a
+                        word, it shows the pointer you will get: a plain arrow, an arrow with two chain links, or an arrow with a drawn contour. Click
+                        it to see the three by name. A right-click anywhere in the mixer opens the same menu.
                     </p>
 
                     <p>
@@ -597,8 +598,7 @@
                         32 channels. Without undo, the only way back would be to reload the preset. Each step is a whole gesture, not a single value
                         change, so that drag is undone in one step, not thirty-two. Cmd-Z and Cmd-Shift-Z, or Ctrl with the same keys on other
                         systems, work when the host passes them on. Many hosts do not, because a DAW usually keeps those keys for its own undo. Both
-                        are also in the Settings menu, just under the version, and that always works. Loading a session starts with an empty undo
-                        history.
+                        are also near the top of the Settings menu, and that always works. Loading a session starts with an empty undo history.
                     </p>
 
                     <p>
@@ -706,6 +706,13 @@
                         two meet is the one a drag would move.
                     </p>
 
+                    <h3 id="silenced">Silenced channels</h3>
+                    <p>
+                        A channel you cannot hear, because it is muted or because another channel is soloed, turns its lights off. Its knob rings,
+                        both readouts and the macro columns beside its fader go dark, and its waveform drawings turn grey. The pointer on each knob
+                        and the fader cap still show where they are set, and M and S stay lit, since one of them is usually what silenced it.
+                    </p>
+
                     <h3 id="folding">Folding the mixer down</h3>
                     <p>
                         Clicking a section heading in the caption gutter folds that group of rows away on every channel at once. Clicking that
@@ -748,7 +755,8 @@
                         the start of a harpsichord note, or of a guitar note under the organ. A noise held on a short, dark string blows into it,
                         which gives a pitched breath. When the key is released, the channel's RELEASE damps the string. At the top of the keyboard,
                         where the string is too short to tune, it fades back to plain noise instead of playing out of tune. COLOUR and the string's
-                        four knobs belong only to the noise channel, so pointing at them does not light a row across the mixer.
+                        four knobs belong only to the noise channel, so pointing at them does not light a row across the mixer. The
+                        <a href="../presets/#what-ships">Space Cowboy</a> preset plucks it for its tremolo guitar.
                     </p>
                 </section>
 

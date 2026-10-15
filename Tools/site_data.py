@@ -10,7 +10,7 @@ Any string here can name a count the source knows, and the generator fills it
 in rather than trusting whoever last typed it:
 
     {presets}       the factory presets in words, "thirty-five"
-    {parameters}    the host parameters in figures, "842"
+    {parameters}    the host parameters in figures, "850"
     {preset_names}  every factory preset, in the order the menu lists them
 
 The version is read from CMakeLists.txt. RELEASED is the day that version went
@@ -150,7 +150,7 @@ QUESTIONS = [
         "Can Overtonium do microtonal tunings and just intonation?",
         "Yes, both, and they are set separately. TUNE moves each partial between its equal-tempered position and its exact whole-number "
         "ratio. The keyboard has its own tuning: equal, just, Pythagorean, quarter-comma meantone, Werckmeister III or Young, on any root, at "
-        'any reference pitch from 415 to 466 Hz. It can also use <a href="tuning/#adaptive">Adaptive</a>, which keeps the chord you hold in '
+        'any of eleven reference pitches from 415 to 466 Hz. It can also use <a href="tuning/#adaptive">Adaptive</a>, which keeps the chord you hold in '
         "just intonation as you play, and moves a held note when the next chord needs it.",
     ),
     (
@@ -172,8 +172,10 @@ QUESTIONS = [
     ),
     (
         "How much CPU does Overtonium use?",
-        "Eight voices of 32 partials each, with every modulator running, use about 7% of one core, and sixteen voices about 14%. Lowering "
-        "the render rate saves a lot. At 8 kHz the whole voice pool costs a fifth as much. "
+        "Eight voices of 32 partials each, with every modulator running, use about 7% of one core, and sixteen voices about 14%. The "
+        "effects add little, except the resonator with all its strings free, which costs about half as much as eight voices. Lowering the "
+        "render rate saves a lot. "
+        "At 8 kHz the whole voice pool costs a fifth as much. "
         '<a href="install/#cost">The full figures</a> are on the install page.',
     ),
 ]
@@ -244,7 +246,7 @@ PAGES = [
         "path": "controls/",
         "nav": "Controls",
         "title": "Overtonium controls: every knob on a channel strip",
-        "description": "Every control on an Overtonium channel strip: tuning, glide, the two-part envelope, modulation, velocity, pressure, LINK, the lamps and the noise channel.",
+        "description": "Every control on an Overtonium channel strip: tuning, glide, envelope, modulation, velocity, pressure, LINK, the lamps, and the noise channel's string.",
         "social": "A reference for every control on an Overtonium channel strip: the twenty-three on each of the 32 channels, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, the gestures the panel responds to, and the noise channel.",
         "image": "overtonium-card-controls.jpg",
         "image_alt": "The Overtonium wordmark over the plugin window, captioned Controls.",
@@ -259,7 +261,7 @@ PAGES = [
         "path": "effects/",
         "nav": "Effects",
         "title": "Overtonium effects: character, echo, reverb, converter and CLIP",
-        "description": "Overtonium effects and global controls: six oscillator characters, wobble, a resonator, bus drive, three echoes, three reverbs, a lo-fi converter and five clip shapes.",
+        "description": "Overtonium's top bar: six oscillator characters, wobble, a resonator, bus drive, three echoes, three reverbs, a lo-fi converter and five clip shapes.",
         "social": "The bar across the top of Overtonium: six oscillator characters that set which circuit every partial is modelled on, a wobble across the whole series, a resonator of 88 sympathetic strings that resonate with what you play, a bus drive that responds to how hard you play, an echo and a reverb with three machines each, a lo-fi converter, and an output stage with five clip shapes including a lookahead limiter.",
         "image": "overtonium-card-effects.jpg",
         "image_alt": "The Overtonium wordmark over the plugin window, captioned Effects.",
@@ -336,7 +338,6 @@ PAGES = [
 ]
 
 # llms.txt, in the shape llmstxt.org describes: a summary, then the pages,
-
 # then the rest. The page entries are each page's "llms" field above.
 
 LLMS_SUMMARY = 'A free, open source additive synthesizer plugin laid out like a 32-channel mixer. Every channel is one sine oscillator locked to a harmonic of the played note, and every channel has its own tuning, envelope, modulation and place in the stereo field. VST3, Audio Unit, LV2 and standalone, for macOS, Windows and Linux, under the AGPLv3.'

@@ -63,7 +63,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-10-14",
+                "dateModified": "2026-10-15",
                 "breadcrumb": {
                     "@id": "https://benjamindehli.github.io/overtonium/install/#breadcrumb"
                 }
@@ -349,7 +349,7 @@
                     <h3 id="windows">Windows</h3>
                     <p>
                         The installer is not signed, so SmartScreen says the publisher is unknown. Choose "More info" and then "Run anyway". If you
-                        would rather not, build from source instead, which takes one command. The VST3 goes to the shared plugin folder, so the
+                        would rather not, <a href="#building">build it from source</a> instead. The VST3 goes to the shared plugin folder, so the
                         installer asks for administrator rights.
                     </p>
 
@@ -477,8 +477,10 @@
                         The effects on the bar add to that, and cost the same at any polyphony, because they process the sum and not each voice. Most
                         of them cost far less than the voices: the room and the plate are around half a percent each and the echoes less. The spring
                         is the exception at about two and a half percent, because its dispersion is a chain of filters per spring and there are three
-                        springs. These are one machine's figures and not a promise about yours, but the proportions hold: the voices are the main cost
-                        and nothing else comes close.
+                        springs. The resonator costs about a tenth of what eight voices do in Piano or Octave. In Open, or in Piano with the sustain
+                        pedal down, all eighty-eight of its strings are free to ring, and it costs about half of what eight voices do. These are one
+                        machine's figures and not a promise about yours, but the proportions hold: the voices are the main cost, and the resonator
+                        with all its strings free is the only effect that comes near them.
                     </p>
 
                     <p>
@@ -521,7 +523,12 @@ cmake --build build</code></pre>
                     <p>
                         The plugins are copied into your user plugin folders as part of the build. Pass
                         <code>-DOVERTONIUM_INSTALL_AFTER_BUILD=OFF</code> to skip that. Linux needs a handful of development packages first, which the
-                        <a href="https://github.com/benjamindehli/overtonium#linux">readme</a> lists.
+                        <a href="https://github.com/benjamindehli/overtonium/blob/main/CONTRIBUTING.md#linux">contributing guide</a> lists.
+                    </p>
+
+                    <p>
+                        The build treats warnings as errors, the same as the project's own checks. If your compiler is one the project has not been
+                        tested with, add <code>-DOVERTONIUM_WARNINGS_AS_ERRORS=OFF</code> to the first cmake command and it builds anyway.
                     </p>
 
                     <p>
