@@ -462,7 +462,7 @@ The envelope sets how the string is played. A noise envelope a few milliseconds 
 
 Page: Overtonium effects: character, echo, reverb, converter and CLIP
 URL: https://benjamindehli.github.io/overtonium/effects/
-Last changed: 2026-10-14
+Last changed: 2026-10-15
 
 # Effects
 
@@ -500,7 +500,7 @@ The resonator is eighty-eight sympathetic strings, one for each key of a piano f
 
 **Piano** works like a piano: the strings of the keys you hold are free, the rest are damped, and the sustain pedal lifts every damper. A held key's string is tuned to the pitch the key is sounding. The other strings wait at the pitch a key struck now would sound, which under Adaptive is the tuning their pitch class had last. None of them bends, because a piano's strings do not follow the wheel. **Open** is Piano with the sustain pedal always down: every string rings, and held keys ring the loudest. **Octave** is twelve strings from C3, always free, so every note finds something to ring with. **Series** is the tuning root's first eight harmonics from its second octave, tuned pure and always free. It works as a drone that responds to any note that falls on the root's own harmonic series.
 
-**MIX** goes from the instrument alone to the resonator alone, as on the echo and the reverb. **DECAY** sets how long a free string rings, from 200 ms to 10 s. A longer DECAY also makes the resonator louder, and a short note reaches them the same at any setting. **DAMP** sets how quickly the high end dies away. A damper stops its string over 0.8 s at the bottom of the keyboard and 0.25 s at the top, or sooner if DECAY is shorter, so a released bass key leaves the short hum of a felt damper on a heavy string. A string freed only by the pedal gets a quarter of the signal a held key's string gets, so the pedal adds a bloom under a chord instead of making it louder.
+**MIX** goes from the instrument alone to the resonator alone, as on the echo and the reverb. On a held chord the level stays about the same as you turn it up. At 100 % only the resonator is left, so short notes lose their attack there. **DECAY** sets how long a free string rings, from 200 ms to 10 s. A longer DECAY also makes the resonator louder, and a short note reaches them the same at any setting. **DAMP** sets how quickly the high end dies away. A damper stops its string over 0.8 s at the bottom of the keyboard and 0.25 s at the top, or sooner if DECAY is shorter, so a released bass key leaves the short hum of a felt damper on a heavy string. A string freed only by the pedal gets a quarter of the signal a held key's string gets, so the pedal adds a bloom under a chord instead of making it louder.
 
 The resonator is part of the patch, and off in every factory preset. With eight voices it uses about one percent of a core with the pedal up, and about five percent with every string freed by the pedal.
 

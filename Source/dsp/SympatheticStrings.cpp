@@ -38,6 +38,23 @@ double SympatheticStrings::damperSeconds(int string) noexcept {
          std::pow(kDamperTrebleSeconds / kDamperBassSeconds, t);
 }
 
+float SympatheticStrings::makeUpDecibels(ResonatorMode mode) noexcept {
+  switch (mode) {
+  case ResonatorMode::Piano:
+    return 6.5f;
+  case ResonatorMode::Open:
+  case ResonatorMode::Series:
+    return 3.0f;
+  case ResonatorMode::Octave:
+    return 9.5f;
+  case ResonatorMode::Off:
+  case ResonatorMode::NumModes:
+    break;
+  }
+
+  return 0.0f;
+}
+
 bool SympatheticStrings::isRinging() const noexcept {
   return std::any_of(ringing.begin(), ringing.end(), [](bool r) { return r; });
 }
@@ -45,7 +62,12 @@ bool SympatheticStrings::isRinging() const noexcept {
 void SympatheticStrings::process(float *left, float *right, int numSamples,
                                  const ResonatorParams &params,
                                  const Plan &plan) noexcept {
+  // An equal-power crossfade. The resonator and the instrument do not add up
+  // in phase, so a straight one would dip in the middle of the knob.
   const float mix = std::clamp(params.mix, 0.0f, 1.0f);
+  const float dryGain = std::pow(std::cos(mix * 1.5707963f), 1.5f);
+  const float wetGain = std::pow(std::sin(mix * 1.5707963f), 1.5f) *
+                        std::pow(10.0f, makeUpDecibels(params.mode) / 20.0f);
   const float damp = std::clamp(params.damping, 0.0f, 1.0f);
   const double decay = std::max(0.05, (double)params.decaySeconds);
 
@@ -105,9 +127,9 @@ void SympatheticStrings::process(float *left, float *right, int numSamples,
     // MIX goes from the instrument alone to the resonator alone, as the echo's
     // and the reverb's do.
     for (int n = 0; n < len; ++n) {
-      const auto wet = sum[n] * kWetScale;
-      left[done + n] += (wet - left[done + n]) * mix;
-      right[done + n] += (wet - right[done + n]) * mix;
+      const auto wet = sum[n] * wetGain;
+      left[done + n] = left[done + n] * dryGain + wet;
+      right[done + n] = right[done + n] * dryGain + wet;
     }
   }
 }

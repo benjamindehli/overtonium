@@ -83,12 +83,12 @@ public:
   /// a longer DECAY makes the strings louder as well as longer.
   static constexpr double kCouplingSeconds = 4.0;
 
-  /// What the strings are turned up by on the way out, so MIX at 100 % lands
-  /// near the level of the instrument it replaces. Chosen by measuring a
-  /// chord held under the pedal on five presets at three decays: Piano comes
-  /// out within a few decibels of the instrument, Series a few under it, and
-  /// Octave, whose twelve tempered strings most partials miss, 4 to 16 under.
-  static constexpr float kWetScale = 1.0f;
+  /// How much the resonator is turned up on the way out, in decibels, so that
+  /// on a held chord at the default DECAY it is about as loud as the
+  /// instrument and turning MIX up does not turn the sound down. Measured
+  /// for each mode, since they ring very differently: Octave has only twelve
+  /// tempered strings, which most partials miss.
+  static float makeUpDecibels(ResonatorMode) noexcept;
 
 private:
   std::array<KarplusString, kStrings> strings;

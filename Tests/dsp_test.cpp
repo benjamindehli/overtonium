@@ -4918,13 +4918,76 @@ void testSympatheticStrings() {
       return l[100];
     };
 
+    // Half way, the instrument is about 4.5 dB down: between a straight
+    // crossfade, which dips because the two do not add up in phase, and an
+    // equal-power one, which bulges because they partly do.
+    const auto halfway = 0.5f * std::pow(std::cos(0.7853982f), 1.5f);
     check(std::abs(through(1.0f)) < 1.0e-6f &&
-              std::abs(through(0.5f) - 0.25f) < 1.0e-6f &&
+              std::abs(through(0.5f) - halfway) < 1.0e-4f &&
               std::abs(through(0.0f) - 0.5f) < 1.0e-6f,
-          "MIX goes from the instrument alone to the strings alone (" +
+          "MIX goes from the instrument alone to the resonator alone, the "
+          "instrument about 4.5 dB down half way (" +
               std::to_string(through(0.0f)) + ", " +
               std::to_string(through(0.5f)) + ", " +
               std::to_string(through(1.0f)) + ")");
+  }
+
+  // ---- turning MIX up does not turn a held chord down ---------------------
+  {
+    const auto level = [sr](ResonatorMode mode, float mix) {
+      const auto owner = std::make_unique<SynthEngine>();
+      auto &e = *owner;
+      e.prepare(sr);
+      SynthParams q;
+      for (int i = 0; i < kNumHarmonics; ++i) {
+        auto &o = q.osc[(size_t)i];
+        o.tuneBlend = 0.0f;
+        o.attack = 0.002f;
+        o.sustain = 1.0f;
+        o.release = 0.05f;
+        o.velAmount = 0.0f;
+        o.volume = 0.4f / (float)(i + 1);
+        o.audible = true;
+      }
+      q.global.masterGain = 1.0f;
+      q.global.safetyClip = false;
+      q.resonator.mode = mode;
+      q.resonator.mix = mix;
+
+      for (int n : {48, 52, 55, 60})
+        e.noteOn(n, 0.9f, q);
+      std::vector<float> l(256), r(256);
+      double sum = 0.0;
+      long counted = 0;
+      for (int b = 0; b < (int)(3.0 * sr) / 256; ++b) {
+        e.render(l.data(), r.data(), 256, q);
+        if (b * 256 > (int)(1.0 * sr))
+          for (auto x : l) {
+            sum += (double)x * x;
+            ++counted;
+          }
+      }
+      return std::sqrt(sum / (double)counted);
+    };
+
+    std::string worst;
+    double furthest = 0.0;
+    for (const auto mode : {ResonatorMode::Piano, ResonatorMode::Open,
+                            ResonatorMode::Octave, ResonatorMode::Series}) {
+      const auto dry = level(mode, 0.0f);
+      for (const float mix : {0.25f, 0.5f, 0.75f, 1.0f}) {
+        const auto off = 20.0 * std::log10(level(mode, mix) / dry);
+        if (std::abs(off) > std::abs(furthest)) {
+          furthest = off;
+          worst = std::string(resonatorModeName(mode)) + " at " +
+                  std::to_string((int)(mix * 100.0f)) + " %";
+        }
+      }
+    }
+    check(std::abs(furthest) < 2.0,
+          "on a held chord every mode stays within 2 dB of the instrument "
+          "across MIX (furthest " +
+              std::to_string(furthest) + " dB, " + worst + ")");
   }
 }
 
