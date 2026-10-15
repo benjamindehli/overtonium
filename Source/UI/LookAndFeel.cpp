@@ -86,6 +86,51 @@ void paintGrain(juce::Graphics &g, juce::Rectangle<int> area) {
   g.fillRect(area);
 }
 
+void paintChannelBackground(juce::Component &c, juce::Graphics &g,
+                            juce::Rectangle<int> bounds, juce::Colour base) {
+  if (auto *lnf = dynamic_cast<OvertoniumLookAndFeel *>(&c.getLookAndFeel()))
+    lnf->drawChannelBackground(g, bounds, base);
+  else
+    paintChannelBackground(g, bounds, base);
+}
+
+void OvertoniumLookAndFeel::drawChannelBackground(juce::Graphics &g,
+                                                  juce::Rectangle<int> bounds,
+                                                  juce::Colour base) {
+  if (bounds.isEmpty())
+    return;
+
+  const auto scale = g.getInternalContext().getPhysicalPixelScaleFactor();
+
+  for (const auto &b : backgrounds)
+    if (b.width == bounds.getWidth() && b.height == bounds.getHeight() &&
+        std::abs(b.scale - scale) < 1.0e-4f && b.base == base.getARGB()) {
+      g.drawImage(b.picture, bounds.toFloat());
+      return;
+    }
+
+  // Drawn at the display's own resolution, so it is copied pixel for pixel.
+  const auto w =
+      juce::jmax(1, juce::roundToInt((float)bounds.getWidth() * scale));
+  const auto h =
+      juce::jmax(1, juce::roundToInt((float)bounds.getHeight() * scale));
+  juce::Image picture(juce::Image::ARGB, w, h, true);
+  {
+    juce::Graphics into(picture);
+    into.addTransform(
+        juce::AffineTransform::scale((float)w / (float)bounds.getWidth(),
+                                     (float)h / (float)bounds.getHeight()));
+    paintChannelBackground(into, bounds.withZeroOrigin(), base);
+  }
+
+  if (backgrounds.size() >= 6)
+    backgrounds.erase(backgrounds.begin());
+
+  backgrounds.push_back(
+      {bounds.getWidth(), bounds.getHeight(), scale, base.getARGB(), picture});
+  g.drawImage(picture, bounds.toFloat());
+}
+
 void paintChannelBackground(juce::Graphics &g, juce::Rectangle<int> bounds,
                             juce::Colour base) {
   const auto r = bounds.toFloat();

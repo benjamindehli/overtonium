@@ -410,7 +410,7 @@ void NoiseStrip::paint(juce::Graphics &g) {
   // is that it is the only strip with no interval colour anywhere on it, and
   // the only one headed with a name rather than a number, which it says
   // without a second wash that the hover highlight has to be told from.
-  paintChannelBackground(g, bounds, colours::channel);
+  paintChannelBackground(*this, g, bounds, colours::channel);
 
   const auto rows =
       layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed, scroll);
@@ -477,7 +477,7 @@ void NoiseStrip::paintHeaderBand(juce::Graphics &g) {
   // See ChannelStrip::paintHeaderBand. The background is drawn for the whole
   // column and clipped to the cap, so the two cannot come adrift.
   const auto bounds = getLocalBounds();
-  paintChannelBackground(g, bounds, colours::channel);
+  paintChannelBackground(*this, g, bounds, colours::channel);
 
   const auto rows =
       layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed, scroll);

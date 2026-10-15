@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+#include <cstdint>
 #include <memory>
 #include <vector>
 
@@ -93,9 +95,31 @@ public:
 
   std::function<void()> onUserDragStart, onUserDragEnd;
 
+  /// Drawn from a picture of itself when nothing that decides its look has
+  /// changed. Scrolling the mixer or resizing the window repaints every strip,
+  /// and drawing six hundred knobs again exactly as they were is most of what
+  /// that costs. See lookKey for what counts as a change.
+  void paint(juce::Graphics &) override;
+
 private:
   bool dragging = false;
   bool drawing = false;
+
+  /// Everything the look and feel reads to draw this control, folded into
+  /// one number: its size, its value, whether it is enabled, its colours, the
+  /// display's scale, and every property, so a property added later cannot
+  /// leave a stale picture behind.
+  std::uint64_t lookKey(float scale) const;
+
+  /// The last two looks, so soloing a channel on and off swaps between two
+  /// pictures instead of drawing again. Held by the control, so they go with
+  /// the window rather than outliving it.
+  struct Look {
+    std::uint64_t key = 0;
+    juce::Image picture;
+  };
+  std::array<Look, 2> looks{};
+  size_t newest = 0;
 };
 
 /// An endless, relative control.
