@@ -51,7 +51,7 @@ Start with the [project page](https://benjamindehli.github.io/overtonium/). It h
 - **[Controls](https://benjamindehli.github.io/overtonium/controls/)**: every knob on a channel strip, the two-part envelope, LINK for ganging the series, the lamps and meters, and the noise channel with its Karplus-Strong string
 - **[Effects](https://benjamindehli.github.io/overtonium/effects/)**: the bar above the mixer, from the oscillator character, the wobble and the resonator of 88 Karplus-Strong sympathetic strings through the echo, the reverb and the converter to the five CLIP shapes on the output
 - **[Playing](https://benjamindehli.github.io/overtonium/playing/)**: MPE, legato and glide, the Settings menu, automation with every parameter listed, macros and MIDI Learn
-- **[Presets](https://benjamindehli.github.io/overtonium/presets/)**: the thirty-four that ship, what a preset stores and deliberately leaves out, switching them with a MIDI program change, and where your own are saved
+- **[Presets](https://benjamindehli.github.io/overtonium/presets/)**: the thirty-five that ship, what a preset stores and deliberately leaves out, switching them with a MIDI program change, and where your own are saved
 - **[Install](https://benjamindehli.github.io/overtonium/install/)**: which download to choose, what to do when a host cannot see the plugin, and building from source
 
 [DESIGN.md](DESIGN.md) covers the same ground in more detail, with the reasoning: what each part does, what the alternatives cost, and the measurements behind the numbers.
