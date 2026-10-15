@@ -1192,8 +1192,12 @@ void OvertoniumLookAndFeel::drawLinearSlider(
     // track and another against the edge of the strip.
     const auto lane = juce::jmax(1.5f, (track.getX() - whole.getX()) - 2.0f);
 
+    // None lit on a channel nobody can hear, the same as a knob's ring. The
+    // column is a row of lamps, and lamps that are off are dark rather than
+    // grey. The cap still says where the fader is.
     const auto onNow =
-        juce::jlimit(0, count, juce::roundToInt(reached * (float)count));
+        live ? juce::jlimit(0, count, juce::roundToInt(reached * (float)count))
+             : 0;
 
     // Unlit in the macro's own colour held down low, the way the meter's
     // unlit segments are the channel's. A column that goes grey where it ends
