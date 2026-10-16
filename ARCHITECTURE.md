@@ -90,7 +90,7 @@ Tools/
   compose_cards.py        composes the social cards
 .github/
   workflows/          build and test on every push, release on a tag, and
-                      tell IndexNow which pages changed once Pages publishes
+                      tell IndexNow which pages changed once they are live
   scripts/            the checks those run that are not inline
 release-notes/        one file per version, read by the release workflow
 docs/                 the project page, one folder per URL

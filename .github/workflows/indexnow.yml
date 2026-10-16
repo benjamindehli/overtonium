@@ -5,15 +5,24 @@ name: IndexNow
 # just changed, so they fetch them again now rather than whenever their crawler
 # next comes round.
 #
-# After GitHub Pages has published, not on the push itself, so a crawler sent
-# straight away finds the new page rather than the old one. Pages publishes
-# this site through its own "pages build and deployment" workflow, so this
-# follows that run finishing. That also covers the commit the release workflow
-# pushes, which as a push from a workflow would start nothing on its own.
+# On a push to main that changes the sitemap, which is every push that changes
+# what a page says, since the sitemap carries the day each page last did. Pages
+# publishes this site through a workflow GitHub runs itself, which no other
+# workflow can follow, so this waits for the published sitemap to match the
+# committed one instead, and a crawler sent straight away finds the new page.
+#
+# The release workflow's own commit to main starts nothing, as no push from a
+# workflow does, so it calls this one when it has pushed.
 on:
-  workflow_run:
-    workflows: ["pages build and deployment"]
-    types: [completed]
+  push:
+    branches: [main]
+    paths: ["docs/sitemap.xml"]
+  workflow_call:
+    inputs:
+      ref:
+        description: The commit whose sitemap to read.
+        type: string
+        required: false
   workflow_dispatch:
 
 permissions:
@@ -23,15 +32,12 @@ jobs:
   notify:
     name: Notify
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    timeout-minutes: 15
 
     steps:
-      # The commit Pages just published, which is what the sitemap has to be
-      # read from.
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ inputs.ref || github.sha }}
 
       # The key file is the one at the root of benjamindehli.github.io, which
       # another site on the same host already serves. A key at the root of a
@@ -52,21 +58,43 @@ jobs:
           import os
           import re
           import sys
+          import time
           import urllib.error
           import urllib.request
           from pathlib import Path
 
-          sitemap = Path("docs/sitemap.xml").read_text(encoding="utf-8")
+          SITEMAP = "https://benjamindehli.github.io/overtonium/sitemap.xml"
+
+          committed = Path("docs/sitemap.xml").read_text(encoding="utf-8")
           today = datetime.datetime.now(datetime.timezone.utc).date()
           recent = {str(today), str(today - datetime.timedelta(days=1))}
 
           urls = [loc for loc, day in re.findall(
-              r"<loc>([^<]+)</loc>\s*<lastmod>([^<]+)</lastmod>", sitemap)
+              r"<loc>([^<]+)</loc>\s*<lastmod>([^<]+)</lastmod>", committed)
               if day in recent]
 
           if not urls:
               print("no page changed today or yesterday, nothing to send")
               sys.exit(0)
+
+          # Pages usually publishes within a minute or two. Ten minutes is far
+          # past that, and after it the pages are sent anyway rather than not
+          # at all: a crawler that comes a little early fetches again later.
+          for attempt in range(40):
+              try:
+                  request = urllib.request.Request(
+                      f"{SITEMAP}?{time.time()}",
+                      headers={"Cache-Control": "no-cache"})
+                  with urllib.request.urlopen(request, timeout=30) as response:
+                      if response.read().decode("utf-8") == committed:
+                          print("the published sitemap matches this commit")
+                          break
+              except (urllib.error.URLError, TimeoutError) as e:
+                  print(f"  could not read the published sitemap yet: {e}")
+              time.sleep(15)
+          else:
+              print("::warning::the published sitemap never matched this "
+                    "commit within ten minutes, sending anyway")
 
           key = os.environ["KEY"]
           body = json.dumps({

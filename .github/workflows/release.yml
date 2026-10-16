@@ -590,3 +590,13 @@ jobs:
           git add docs/ Tools/site_data.py Tools/site_dates.json
           git commit -m "Point the site at $GITHUB_REF_NAME"
           git push origin main
+
+  # The commit above changed the sitemap, but a push from a workflow starts no
+  # other workflow, so the one that tells IndexNow is called from here.
+  indexnow:
+    name: Tell IndexNow
+    needs: publish
+    if: github.ref_type == 'tag'
+    uses: ./.github/workflows/indexnow.yml
+    with:
+      ref: main
