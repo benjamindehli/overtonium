@@ -1148,11 +1148,23 @@ Overtonium is free software under the AGPLv3, which follows from JUCE. The whole
 
 Page: Overtonium releases: what changed in each version
 URL: https://benjamindehli.github.io/overtonium/releases/
-Last changed: 2026-10-15
+Last changed: 2026-10-16
 
 # Releases
 
 What changed in each version, newest first. Each one links to its full notes, which say more and carry the installing and upgrading detail as well.
+
+## 1.14.0, 16 October 2026
+
+**A string in the noise channel.** A Karplus-Strong string the noise strikes, tuned to the note and following the wheel, glide, MPE and every temperament. STRING, DECAY, DAMP and POINT sit under COLOUR. A short noise envelope plucks it and a held one blows into it, so a pluck and a pitched breath are settings, not modes.
+
+**The resonator.** Eighty-eight sympathetic strings that ring with what you play, before the bus drive, in their own frame on the top bar. Piano frees the strings of held keys and the sustain pedal frees the rest, Open keeps the pedal down, Octave rings twelve strings from C3 and Series the root's own harmonics. MIX, DECAY and DAMP keep the level about the same across their range. The new preset Space Cowboy uses both, and Metallic Piano now rings its own strings.
+
+**A rearranged top bar and a faster mixer.** The four buttons come first, then the wordmark over the preset screen, with the spacing evened out. The update question is asked inside the window, and SETTINGS stays lit while a new version waits. Silenced channels and switched-off stages turn their lights fully off. Soloing, scrolling and resizing redraw the mixer far faster. A wheel over a knob in the bars no longer scrolls the mixer, Fit all 32 channels gives every row its full height, and JUCE 9.0.4 fixes a possible crash in Windows hosts when a window closes.
+
+**Before upgrading.** Space Cowboy sorts at program 25, so a MIDI program change from 25 up lands one preset later, while a saved session keeps its preset by name. Metallic Piano sounds fuller than it did. There are 850 parameters, the eight new ones on the end.
+
+[The full notes for 1.14.0](https://github.com/benjamindehli/overtonium/releases/tag/v1.14.0)
 
 ## 1.13.0, 13 October 2026
 
