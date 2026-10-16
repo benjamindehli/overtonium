@@ -1,0 +1,85 @@
+name: IndexNow
+
+# Tells the search engines that take IndexNow (Bing, and through it the answer
+# engines that read Bing's index, and Yandex, Seznam and Naver) which pages
+# just changed, so they fetch them again now rather than whenever their crawler
+# next comes round.
+#
+# After GitHub Pages has published, not on the push itself, so a crawler sent
+# straight away finds the new page rather than the old one.
+on:
+  page_build:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    name: Notify
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name == 'workflow_dispatch' || github.event.build.status == 'built'
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # The key file is the one at the root of benjamindehli.github.io, which
+      # another site on the same host already serves. A key at the root of a
+      # host covers every address on it, /overtonium/ included. The key is
+      # public by design: anyone can read it from that file.
+      #
+      # Only pages the sitemap dates today or yesterday are sent. The site
+      # builder dates a page by the UTC day it ran, so a page edited just
+      # before midnight and pushed just after is still sent, and sending a
+      # page twice does no harm.
+      - name: Send the pages that changed
+        env:
+          KEY: a842ed43022d4f0db0527dbde835b9ad
+        run: |
+          python3 - <<'PY'
+          import datetime
+          import json
+          import os
+          import re
+          import sys
+          import urllib.error
+          import urllib.request
+          from pathlib import Path
+
+          sitemap = Path("docs/sitemap.xml").read_text(encoding="utf-8")
+          today = datetime.datetime.now(datetime.timezone.utc).date()
+          recent = {str(today), str(today - datetime.timedelta(days=1))}
+
+          urls = [loc for loc, day in re.findall(
+              r"<loc>([^<]+)</loc>\s*<lastmod>([^<]+)</lastmod>", sitemap)
+              if day in recent]
+
+          if not urls:
+              print("no page changed today or yesterday, nothing to send")
+              sys.exit(0)
+
+          key = os.environ["KEY"]
+          body = json.dumps({
+              "host": "benjamindehli.github.io",
+              "key": key,
+              "keyLocation": f"https://benjamindehli.github.io/{key}.txt",
+              "urlList": urls,
+          }).encode("utf-8")
+
+          request = urllib.request.Request(
+              "https://api.indexnow.org/indexnow", data=body,
+              headers={"Content-Type": "application/json; charset=utf-8"})
+
+          try:
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  print(f"IndexNow answered {response.status} for:")
+          except urllib.error.HTTPError as e:
+              # 403 is a key the file does not match, 422 an address outside
+              # the key's host. Both are a setup fault worth failing on.
+              print(f"::error::IndexNow answered {e.code}: {e.read().decode(errors='replace')}")
+              sys.exit(1)
+
+          for url in urls:
+              print(f"  {url}")
+          PY

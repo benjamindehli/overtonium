@@ -89,7 +89,8 @@ Tools/
   build_site.py           writes the parts every page shares, from site_data.py
   compose_cards.py        composes the social cards
 .github/
-  workflows/          build and test on every push, release on a tag
+  workflows/          build and test on every push, release on a tag, and
+                      tell IndexNow which pages changed once Pages publishes
   scripts/            the checks those run that are not inline
 release-notes/        one file per version, read by the release workflow
 docs/                 the project page, one folder per URL
