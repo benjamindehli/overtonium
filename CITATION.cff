@@ -7,7 +7,8 @@ abstract: >-
   channel is one sine oscillator locked to a harmonic of the played note, with
   its own tuning, envelope, modulation and pan. A continuous blend sweeps each
   partial between equal temperament and just intonation, and the keyboard
-  underneath can be tuned to any of six historical temperaments on any root.
+  underneath can be tuned to any of six historical temperaments, or an
+  adaptive one that keeps held chords pure, on any root.
 authors:
   - family-names: Dehli
     given-names: Benjamin
@@ -15,8 +16,8 @@ authors:
 repository-code: https://github.com/benjamindehli/overtonium
 url: https://benjamindehli.github.io/overtonium/
 license: AGPL-3.0-or-later
-version: 1.13.0
-date-released: "2026-10-13"
+version: 1.14.0
+date-released: "2026-10-16"
 keywords:
   - additive synthesis
   - audio plugin
@@ -25,6 +26,8 @@ keywords:
   - microtonal
   - temperament
   - overtone series
+  - Karplus-Strong
+  - sympathetic strings
   - VST3
   - audio unit
   - LV2
