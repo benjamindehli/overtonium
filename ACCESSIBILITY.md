@@ -1,6 +1,6 @@
 # Accessibility
 
-Overtonium is a synthesizer with six hundred and fifty-six knobs on it. That is a lot of small targets in a dark window, and the instrument could easily end up usable only by people who see well and point accurately. This document says what the project does about that, what it does not do yet, and how to report a problem when you find one.
+Overtonium is a synthesizer with six hundred and fifty-nine knobs on it. That is a lot of small targets in a dark window, and the instrument could easily end up usable only by people who see well and point accurately. This document says what the project does about that, what it does not do yet, and how to report a problem when you find one.
 
 There are two separate things here, and they are in different situations. The **plugin** is a window a host draws, and the **site** is static HTML. Most writing about accessibility in open source is about the second kind. The harder problems are in the first.
 
@@ -26,9 +26,9 @@ These are things that are checked, not just intended. Where a number appears, it
 
 These are described as what you would run into, not as standards codes.
 
-**The plugin's own window cannot be used with a keyboard.** Tab does not move between controls and there is no focus indicator, because nothing in the editor takes keyboard focus. The only key it handles is undo. Every control can be reached from the host's generic parameter view instead, and from MIDI Learn, but that is a way around the problem, not a fix. This is the largest barrier in the project, and it is not close to being solved.
+**The plugin's own window cannot be used with a keyboard.** Tab does not move between controls and there is no focus indicator, because nothing in the editor takes keyboard focus. The only keys it handles are undo and redo. Every control can be reached from the host's generic parameter view instead, and from MIDI Learn, but that is a way around the problem, not a fix. This is the largest barrier in the project, and it is not close to being solved.
 
-**Which macro controls a knob is shown only by colour.** A knob under a macro lights its ring in that macro's colour, and there is no second cue. If you cannot tell the eight colours apart, the macro panel lists which rows and channels each macro reaches, and the macro knobs in the Playing bar name the row each one targets. A knob in the mixer will not tell you.
+**Which macro controls a knob is shown only by colour.** A knob under a macro lights its ring in that macro's colour, and there is no second cue. On a channel that is muted or silenced by a solo the ring goes dark, so even the colour is gone there. If you cannot tell the eight colours apart, the macro panel lists which rows and channels each macro reaches, and the macro knobs in the Playing bar name the row each one targets. A knob in the mixer will not tell you.
 
 **The Playing bar's three meters give their name but not their value.** PITCH, WHEEL and PRESSURE have a spoken name and no value, so a screen reader can find them but cannot read them. They show what a controller is doing, not a setting, so there is no host parameter to read instead.
 

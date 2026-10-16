@@ -4,10 +4,10 @@
 //   dsp_test && ./dsp_test
 //
 // Every SynthEngine here is built on the heap and read through a reference, so
-// a test reads as though it held one. An engine is 200 kB, MSVC gives the main
-// thread a 1 MB stack where the other platforms give 8, and a test holding
-// three of them overflowed it. Windows was the only platform that noticed, and
-// it noticed as a segfault carrying no output at all.
+// a test reads as though it held one. An engine is about 260 kB, and MSVC
+// gives the main thread a 1 MB stack where the other platforms give 8, so a
+// test holding a few of them overflows it on Windows alone, as a segfault
+// carrying no output at all.
 
 #include <algorithm>
 #include <array>

@@ -1584,9 +1584,8 @@ void ChannelStrip::setSilencedByOthers(bool shouldDim) {
   // The light out of the controls rather than a wash over the whole strip.
   // The wash dimmed the mute along with everything else, and on a silenced
   // channel the mute is the one thing that has to stay readable, since it is
-  // usually what silenced it. Greying the controls instead is what the echo
-  // and reverb knobs already do when their machine is off, and what the
-  // converter readouts do when they are following the host: the value stays
+  // usually what silenced it. Turning the controls' lights off instead is what
+  // the echo and reverb knobs do when their machine is off: the value stays
   // where it was set and the light comes out of it.
   std::function<void(juce::Component &)> drain = [&](juce::Component &c) {
     for (auto *child : c.getChildren()) {

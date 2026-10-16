@@ -15,8 +15,8 @@ constexpr float kDampMax = 0.5f;
 
 /// POINT's travel, as a share of the string's length. Struck near the end
 /// keeps nearly every harmonic, struck in the middle loses every even one.
-constexpr float kPickNearest = 0.02f;
-constexpr float kPickFurthest = 0.5f;
+constexpr float kPointNearest = 0.02f;
+constexpr float kPointFurthest = 0.5f;
 
 std::size_t nextPowerOfTwo(std::size_t n) {
   std::size_t p = 1;
@@ -73,7 +73,7 @@ double KarplusString::lowpassDelay(double omega, double coeff) noexcept {
 }
 
 void KarplusString::setBlock(double hz, double decaySeconds, float damp,
-                             float pick, int len) noexcept {
+                             float point, int len) noexcept {
   if (line.empty() || len <= 0)
     return;
 
@@ -102,17 +102,17 @@ void KarplusString::setBlock(double hz, double decaySeconds, float damp,
   // Struck as it is, so a pluck keeps the energy it was given and rings at
   // about the level of the noise that struck it, however long DECAY lets it
   // ring. Breathed into steadily, a string that rings longer builds up more,
-  // as a resonating body does. The pick's comb adds a delayed copy of the
+  // as a resonating body does. The comb POINT makes adds a delayed copy of the
   // noise to itself, which doubles its power, and that is taken back off.
   inputGain = 0.70710678f;
 
-  pickDelay =
-      pick < 0.0f
+  pointDelay =
+      point < 0.0f
           ? 0
-          : std::max(1, (int)std::lround(
-                            period *
-                            (kPickNearest + (kPickFurthest - kPickNearest) *
-                                                std::clamp(pick, 0.0f, 1.0f))));
+          : std::max(1, (int)std::lround(period *
+                                         (kPointNearest +
+                                          (kPointFurthest - kPointNearest) *
+                                              std::clamp(point, 0.0f, 1.0f))));
 
   // Heard while the loop is long enough to tune, faded out below that.
   const auto targetFade =
@@ -167,13 +167,13 @@ float KarplusString::tick(float excitation) noexcept {
   touched = true;
 
   // Struck at a point along it, which cancels the harmonics with a node
-  // there: the strike and its reflection from the near end, a pick's length
-  // apart.
+  // there: the strike and its reflection from the near end, POINT's
+  // length apart.
   struck[write] = excitation;
   const auto strike =
-      pickDelay > 0
+      pointDelay > 0
           ? excitation -
-                struck[(write - (std::size_t)pickDelay + mask + 1) & mask]
+                struck[(write - (std::size_t)pointDelay + mask + 1) & mask]
           : excitation;
 
   const auto out = read(delay);

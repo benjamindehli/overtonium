@@ -22,7 +22,7 @@ The message thread owns the editor and the state tree. Values the editor display
 
 Work that arrives over MIDI but belongs to the message thread is handled the same way. A program change is a preset load, which moves hundreds of parameters and reports each one to the host. So the audio thread stores the number in an atomic and a 20 Hz timer on the processor picks it up. Nothing is posted from the audio thread, which would take the message queue's lock.
 
-There is also a third lifetime, and it is the easiest one to get wrong. A plugin is a library the host loads and later unloads, so anything with static lifetime is destroyed at unload rather than when the last instance is removed. By then JUCE has shut its event system down, and on Windows the destructors run under the loader lock, which is also the lock a thread needs in order to finish exiting. Any static that joins a thread when it is destroyed therefore deadlocks the host, instead of only delaying the unload. The statics here are a handful of tables, an identifier or two and one cached image, and none of them owns a thread or needs the event system to be destroyed. Check this before adding another static, because it is easy to break without noticing. `juce::PropertiesFile` privately inherits `juce::Timer`, and every `Timer` holds a reference to the single thread JUCE runs timers on, so a settings file kept in a static joins a thread at unload with nothing in the code to show it.
+There is also a third lifetime, and it is the easiest one to get wrong. A plugin is a library the host loads and later unloads, so anything with static lifetime is destroyed at unload rather than when the last instance is removed. By then JUCE has shut its event system down, and on Windows the destructors run under the loader lock. A destructor that needs another thread to finish, or hands something back to a graphics driver whose threads are waiting on that same lock, deadlocks the host instead of only delaying the unload. So the rule is that a static holds plain memory and nothing else: tables, identifiers and lists of names. The test is whether its destructor touches anything outside the heap, not whether it owns a thread. A `juce::Image` can be a texture on a graphics device, which is why the panel's grain tile lives in a `juce::SharedResourcePointer` held by each look and feel and goes with the last window. `juce::PropertiesFile` privately inherits `juce::Timer`, and every `Timer` holds a reference to the single thread JUCE runs timers on, so a settings file kept in a static joins a thread at unload with nothing in the code to show it. The picture caches the controls draw from belong to the controls for the same reason.
 
 ## Layout
 
@@ -57,7 +57,8 @@ Source/
     Reverb.*        the master reverb as a feedback delay network
     PlateReverb.*   the same as a modulated plate
     SpringReverb.*  the same as a tray of springs
-    KarplusString.* the string the noise channel strikes
+    KarplusString.* the string the noise channel strikes, and each of the
+                    resonator's 88
     SympatheticStrings.*  the resonator: 88 sympathetic strings, before the bus drive
     Wobble.*        a warped-record wobble on the whole instrument
     OutputStage.*   the five clippers at the end of the signal chain
@@ -69,12 +70,28 @@ Source/
   MidiLearn.*         which controller moves which control
   PluginProcessor.*   MIDI handling, sample-accurate rendering, state
   PluginEditor.*      window, zoom, LINK, gutter
+  UpdateCheck.*       the opt-in check for a new version, in the background,
+                      and the settings file its answer is kept in
   UI/                 theme, look and feel, channel and noise strips, top bar,
                       the Playing and Tuning bars, the Settings lists both
-                      share, macro panel, the update dialogs
+                      share, macro panel
+    Notice.*          the in-window dialog the update question and a new
+                      release are shown in
+    PaintCache.h      the last two looks of a control, kept as pictures
 Tests/
   dsp_test.cpp            standalone DSP tests and CPU benchmark
   plugin_runtime_test.cpp headless plugin integration tests
+  music_utils_chord_types.h  the 125 chord types Adaptive is tested on
+Tools/
+  render_docs_images.cpp  renders the screenshots on the site
+  render_docs_audio.cpp   renders the clips on the site
+  preset_to_code.cpp      turns a saved preset into a factory preset's code
+  build_site.py           writes the parts every page shares, from site_data.py
+  compose_cards.py        composes the social cards
+.github/
+  workflows/          build and test on every push, release on a tag
+  scripts/            the checks those run that are not inline
+release-notes/        one file per version, read by the release workflow
 docs/                 the project page, one folder per URL
 ```
 
@@ -94,13 +111,19 @@ The meters and lamps are the only things that move on their own, so they set wha
 - **Merged by row, not by neighbour.** Lamps sit at the same heights on every strip, so merging across a row gives a thin wide band. Merging by proximity would pair a lamp at the top of one strip with a meter at the bottom of it. `mergeIntoRows` and `coalesceRegions` in `Theme.cpp` are the two passes, and the comments there carry the measurements.
 - **Segmented rather than continuous**, so the display only changes when a level crosses a boundary rather than on every frame in which it moves at all.
 
+Soloing a channel, scrolling the mixer and resizing the window redraw every strip at once, which is a different cost: hundreds of controls that mostly look exactly as they did. Three things keep that down:
+
+- **Controls are copied, not drawn.** Knobs, faders, the shape buttons, the segment readouts and the lamp buttons each keep their last two looks as pictures in a `PaintCache`, at the display's own resolution, keyed by a hash of everything their drawing reads. Two looks, because soloing swaps each control between its lit and its unlit look.
+- **The strips are opaque**, so JUCE does not repaint the panel behind each one first.
+- **One background for every strip.** The look and feel keeps the strip's gradient and grain as a picture for each size, so 32 strips share it.
+
 `JUCE_COREGRAPHICS_RENDER_WITH_MULTIPLE_PAINT_CALLS` is set for Apple builds in `CMakeLists.txt`. Without it CoreGraphics answers a list of scattered dirty rectangles by redrawing the one rectangle enclosing them, which for this layout is the whole window, and none of the savings above take effect.
 
 ## Parameters and state
 
-Parameters are declared once in `PluginParameters.cpp` and reached by string id, built from a suffix and a channel index by `oscParamId`. Adding a control means adding it there, giving it a `Row`, and placing that row in a section.
+Parameters are declared once in `PluginParameters.cpp` and reached by string id, built from a suffix and a channel index by `oscParamId`. Adding a channel control means adding it there, giving it a `Row`, and placing that row in a section. A control on the top bar has no `Row` and goes into a group on the bar instead. Either way, two things then fail until they are updated: the expected parameter count in `Tests/plugin_runtime_test.cpp`, and `docs/parameters.json`, which `overtonium_runtime_test --write-parameters` writes.
 
-The saved state is the `AudioProcessorValueTreeState` tree plus a few properties written alongside it for things that belong to the session rather than the patch: window size, zoom, LINK settings, which sections are folded, which of the Playing and Tuning bars are open, and the current program. Presets deliberately carry less than the state does, so loading a sound never moves your window or your temperament.
+The saved state is the `AudioProcessorValueTreeState` tree plus a few properties written alongside it for things that belong to the session rather than the patch: window size, zoom, LINK settings, which sections are folded, which of the Playing and Tuning bars are open, where the parameter section is scrolled to, the MIDI Learn bindings, the name of the loaded preset and the current program. Presets deliberately carry less than the state does, so loading a sound never moves your window or your temperament.
 
 The factory presets are generated C++ rather than data files, converted from patches saved on the panel. `factoryCode` in `Presets.cpp` writes that code, diffing against `neutralBase` so a preset only spells out what it changes.
 

@@ -27,9 +27,9 @@ This is the fourth instrument in a series, and the first that generates its soun
 
 [Strykebrett](https://github.com/benjamindehli/Strykebrett) came in October of the same year. It is a sampled Logan String Melody II. It has six faders instead of nine drawbars, each setting the level of one octave or one of the voices across a bass and a treble section, and four of them have their own envelope and LFO. It is not an organ, and that is what makes it useful here: it showed that the workflow still works on a different instrument.
 
-[EDB-Orgel](https://github.com/benjamindehli/EDB-Orgel) followed in 2024. It keeps the drawbar workflow and puts four digital synthesis types under it instead of an organ.
+[EDB-Orgel](https://github.com/benjamindehli/EDB-Orgel) followed in 2024. It keeps the drawbar workflow and puts four sampled digital synthesis types under it instead of an organ.
 
-All three gave each drawbar its own envelope and LFO, and that is the first of the two ideas. A drawbar is a partial, and on an organ you move them by hand while the note sounds. Nine of them shaped separately already sounds unlike an organ. Thirty-two, each with a full channel of controls, takes that idea as far as it goes.
+All three gave their drawbars, or most of Strykebrett's faders, their own envelope and LFO, and that is the first of the two ideas. A drawbar is a partial, and on an organ you move them by hand while the note sounds. Nine of them shaped separately already sounds unlike an organ. Thirty-two, each with a full channel of controls, takes that idea as far as it goes.
 
 The second idea is about how the drawbars are tuned. A drawbar is a harmonic, but an organ only has the twelve notes of the keyboard to build it from, so each drawbar is set to the nearest one. The second, fifth and eighth are all fifths an octave apart, so holding a C puts three G's into the sound. A real harmonic series is different. Its intervals are whole-number ratios, 2:1, 3:2, 4:3, and apart from the octaves none of them lands on a key. TUNE turns that difference into a control. This only works because the partials are computed. A sampled partial is stuck at the pitch it was recorded at. A computed one can sit where the organ would put it, at its exact ratio, or anywhere between.
 
@@ -41,7 +41,7 @@ The Adaptive temperament follows the Norwegian composer Eivind Groven, who from 
 
 ## What is in it
 
-Each channel is a strip, and each strip has the same twenty-three controls. The captions are listed once down the left instead of repeated across all thirty-three, and each channel is coloured by its interval against the fundamental.
+Each channel is a strip. The 32 harmonic strips have the same twenty-three controls, and the noise strip puts a colour knob and its string's four knobs where the tuning and pitch modulation rows are. The captions are listed once down the left instead of repeated across all thirty-three, and each channel is coloured by its interval against the fundamental.
 
 <img src="docs/overtonium-strips.webp" alt="A close view of the first six channels, with the row captions in the gutter and each channel in its interval colour." width="306" />
 
@@ -49,7 +49,7 @@ Start with the [project page](https://benjamindehli.github.io/overtonium/). It h
 
 - **[Tuning](https://benjamindehli.github.io/overtonium/tuning/)**: TUNE from equal to just, inharmonic stretch, six historical temperaments and an adaptive one on any root, keyboard tracking and per-partial drift
 - **[Controls](https://benjamindehli.github.io/overtonium/controls/)**: every knob on a channel strip, the two-part envelope, LINK for ganging the series, the lamps and meters, and the noise channel with its Karplus-Strong string
-- **[Effects](https://benjamindehli.github.io/overtonium/effects/)**: the bar above the mixer, from the oscillator character, the wobble and the resonator of 88 Karplus-Strong sympathetic strings through the echo, the reverb and the converter to the five CLIP shapes on the output
+- **[Effects](https://benjamindehli.github.io/overtonium/effects/)**: the bar above the mixer, left to right: the oscillator character and the wobble, the resonator of 88 Karplus-Strong sympathetic strings, the echo, the reverb, the converter and the five CLIP shapes on the output
 - **[Playing](https://benjamindehli.github.io/overtonium/playing/)**: MPE, legato and glide, the Settings menu, automation with every parameter listed, macros and MIDI Learn
 - **[Presets](https://benjamindehli.github.io/overtonium/presets/)**: the thirty-five that ship, what a preset stores and deliberately leaves out, switching them with a MIDI program change, and where your own are saved
 - **[Install](https://benjamindehli.github.io/overtonium/install/)**: which download to choose, what to do when a host cannot see the plugin, and building from source

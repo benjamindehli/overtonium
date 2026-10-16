@@ -17,10 +17,10 @@ namespace ovt::ui {
 namespace {
 constexpr float kZoomChoices[] = {0.75f, 1.0f, 1.25f, 1.5f};
 
-/// The space round the edges of the bar. The same on the left, the right,
-/// the top and the bottom, and the same as between the four buttons. The
-/// bottom padding is one more than the top because the bar's bottom edge is
-/// a 1 px line.
+/// The space round the edges of the bar: the margin on the left and the
+/// right, which is also the space between the four buttons, and the padding
+/// above and below the row. The bottom padding is one more than the top
+/// because the bar's bottom edge is a 1 px line.
 constexpr int kBarMargin = 7;
 constexpr int kBarPadTop = 5;
 constexpr int kBarPadBottom = 6;

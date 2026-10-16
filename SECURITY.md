@@ -4,8 +4,8 @@
 
 | Version | Supported |
 | ------- | --------- |
-| 1.0.x   | yes       |
-| < 1.0   | no        |
+| 1.13.x  | yes       |
+| < 1.13  | no        |
 
 Fixes go into the next release rather than into patches for older ones. This is a one-person project and there is no long-term support branch to promise.
 
@@ -21,7 +21,7 @@ Expect an acknowledgement within a week. A one-person project cannot promise a f
 
 Overtonium is an audio plugin. It has no web browser compiled in, stores no credentials and talks to no service, so most of what a security policy usually covers does not apply. What remains is the untrusted input it reads, and the one request it can make:
 
-- **Preset files.** A `.overtonium` preset is XML read from disk, and presets get passed between people. Anything that turns a malformed or hostile preset into a crash, an out-of-bounds access or code execution is worth reporting.
+- **Preset files.** A `.ovtpreset` preset is XML read from disk, and presets get passed between people. Anything that turns a malformed or hostile preset into a crash, an out-of-bounds access or code execution is worth reporting.
 - **Host state blobs.** The state a host hands back through `setStateInformation` is untrusted in the same way, since it travels inside project files.
 - **MIDI input**, including MPE, which arrives from hardware and from other software.
 - **The update check.** When it is switched on, and only then, the plugin fetches `https://benjamindehli.github.io/overtonium/latest.json` in the background and reads a version string out of it. It sends nothing beyond the request itself, and the response is length-capped and parsed as JSON. Any way to make a hostile response do more than fail quietly is worth reporting.

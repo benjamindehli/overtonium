@@ -49,11 +49,11 @@ public:
   /// @param hz            the pitch it is tuned to, moved to across the block
   /// @param decaySeconds  how long it rings, to a thousandth
   /// @param damp          0 bright to 1 dark, how quickly it loses its top
-  /// @param pick          0 to 1, where along it the noise strikes, from near
+  /// @param point         0 to 1, where along it the noise strikes, from near
   ///                      the end to the middle, or below nought for a string
   ///                      nobody strikes at a point, which takes what it is
   ///                      fed as it is
-  void setBlock(double hz, double decaySeconds, float damp, float pick,
+  void setBlock(double hz, double decaySeconds, float damp, float point,
                 int len) noexcept;
 
   /// One sample: the noise striking it in, the string out.
@@ -87,7 +87,7 @@ private:
   float fade = 0.0f, fadeStep = 0.0f;
   float feedback = 0.0f, feedbackStep = 0.0f, inputGain = 0.0f, b = 0.25f;
   float lowpassPrevious = 0.0f;
-  int pickDelay = 1;
+  int pointDelay = 1;
   bool primed = false;
 
   /// Whether anything has been through it since it was last cleared. Clearing
