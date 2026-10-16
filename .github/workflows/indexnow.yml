@@ -6,9 +6,14 @@ name: IndexNow
 # next comes round.
 #
 # After GitHub Pages has published, not on the push itself, so a crawler sent
-# straight away finds the new page rather than the old one.
+# straight away finds the new page rather than the old one. Pages publishes
+# this site through its own "pages build and deployment" workflow, so this
+# follows that run finishing. That also covers the commit the release workflow
+# pushes, which as a push from a workflow would start nothing on its own.
 on:
-  page_build:
+  workflow_run:
+    workflows: ["pages build and deployment"]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -19,10 +24,14 @@ jobs:
     name: Notify
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    if: github.event_name == 'workflow_dispatch' || github.event.build.status == 'built'
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
 
     steps:
+      # The commit Pages just published, which is what the sitemap has to be
+      # read from.
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       # The key file is the one at the root of benjamindehli.github.io, which
       # another site on the same host already serves. A key at the root of a
