@@ -248,6 +248,7 @@ The Windows installer is not signed, so SmartScreen tells the user the publisher
 | `llms.txt`                                                    | `llms` per page and the `LLMS_` lists                             |
 | `llms-full.txt`, every page's content as Markdown             | each page's `<main>`                                              |
 | the parameter list on the playing page                        | `docs/parameters.json`                                            |
+| each page's clips as `AudioObject`s in its JSON-LD            | the page's `<audio>` elements and the text that describes each    |
 
 Everything between those parts is ordinary HTML that you edit directly. An edit inside a generated part is overwritten by the next build, so change the data file instead. The contents rail lists every `<section id>` that starts with an `<h2>`, with each `<h3 id>` inside it as a sub-entry, so giving a new section an id adds it to the rail. The generator runs the pinned Prettier over each page, so run `npm ci` first. The format job runs it with `--check` and fails if the result differs from what is committed.
 

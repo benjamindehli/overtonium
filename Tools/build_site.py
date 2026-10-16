@@ -241,6 +241,90 @@ def video():
     }
 
 
+# --- The clips ---------------------------------------------------------------
+#
+# Every clip on the site, read from the pages rather than listed again here, so
+# a clip added to a page is described without a second list to keep up to date.
+# A clip is an <audio> with an aria-label and an Ogg and a FLAC source. What
+# describes it is the <dd> after it in a preset list, or the caption of the
+# figure it sits in.
+
+# Each clip by its file name: its name, what describes it, and its two files.
+CLIPS = {}
+
+# The clips on each page, by the page's path, in the order the page plays them.
+PAGE_CLIPS = {}
+
+
+def flac_seconds(path):
+    """How long a FLAC file plays, from the STREAMINFO block every one starts
+    with: the sample rate in 20 bits and the total samples in 36."""
+    head = path.read_bytes()[:42]
+    if head[:4] != b"fLaC":
+        sys.exit(f"{path}: not a FLAC file")
+    info = head[8:]
+    rate = (info[10] << 12) | (info[11] << 4) | (info[12] >> 4)
+    total = ((info[13] & 0x0F) << 32) | (info[14] << 24) | (info[15] << 16) | (info[16] << 8) | info[17]
+    return total / rate
+
+
+def clips_in(main):
+    """The clips in one page's <main>, each with whatever describes it there."""
+    found = []
+    pattern = (r'<audio\b[^>]*aria-label="([^"]+)"[^>]*>.*?'
+               r'<source src="(?:\.\./)?audio/([^"]+)\.ogg".*?</audio>')
+
+    def take(markup, description):
+        for name, slug in re.findall(pattern, markup, flags=re.S):
+            found.append((slug, html.unescape(name), description))
+
+    for figure in re.findall(r'<figure class="listen">(.*?)</figure>', main, flags=re.S):
+        caption = re.search(r"<figcaption>(.*?)</figcaption>", figure, flags=re.S)
+        take(figure, plain(caption.group(1)) if caption else "")
+    for term, definition in re.findall(r"<dt>(.*?)</dt>\s*<dd>(.*?)</dd>", main, flags=re.S):
+        take(term, plain(definition))
+    return found
+
+
+def gather_clips(pages):
+    """Reads every page once, before anything is built. A clip on two pages is
+    one clip, so it gets one description: the fullest any page gives it."""
+    for page, path in pages:
+        if page is data.NOT_FOUND:
+            continue
+        clips = clips_in(main_of(path.read_text(encoding="utf-8")))
+        PAGE_CLIPS[page["path"]] = [slug for slug, _, _ in clips]
+        for slug, name, description in clips:
+            known = CLIPS.get(slug)
+            if known is None or len(description) > len(known["description"]):
+                CLIPS[slug] = {"name": name, "description": description}
+
+
+def audio(page):
+    """Every clip on a page as an AudioObject, so a search or answer engine can
+    find the sound itself and say what it is, not only the page around it."""
+    objects = []
+    for slug in dict.fromkeys(PAGE_CLIPS[page["path"]]):
+        clip = CLIPS[slug]
+        seconds = round(flac_seconds(DOCS / "audio" / (slug + ".flac")))
+        block = {
+            "@type": "AudioObject",
+            "@id": data.BASE + "audio/" + slug + ".ogg#clip",
+            "name": clip["name"],
+            "contentUrl": data.BASE + "audio/" + slug + ".ogg",
+            "encodingFormat": "audio/ogg",
+            "encoding": {"@type": "MediaObject", "contentUrl": data.BASE + "audio/" + slug + ".flac", "encodingFormat": "audio/flac"},
+            "duration": f"PT{seconds}S",
+            "isAccessibleForFree": True,
+            "creator": {"@id": data.AUTHOR["@id"]},
+            "about": {"@id": data.PRODUCT["@id"]},
+        }
+        if clip["description"]:
+            block["description"] = clip["description"]
+        objects.append(block)
+    return {"@context": "https://schema.org", "@graph": objects}
+
+
 # --- The elements this owns --------------------------------------------------
 
 
@@ -259,8 +343,11 @@ def head(page):
         "faq": faq,
         "breadcrumbs": lambda: breadcrumbs(page),
         "video": video,
+        "audio": lambda: audio(page),
     }
     names = [name for name in blocks if name == "webpage" or name in page["jsonld"]]
+    if PAGE_CLIPS.get(page["path"]):
+        names.append("audio")
 
     return "\n".join(
         [
@@ -943,6 +1030,7 @@ def main():
 
     pages = [(page, DOCS / page["path"] / "index.html") for page in data.PAGES]
     pages.append((data.NOT_FOUND, DOCS / data.NOT_FOUND["file"]))
+    gather_clips(pages)
 
     written = {}
     for page, path in pages:
