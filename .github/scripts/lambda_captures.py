@@ -55,6 +55,16 @@ TYPE_OR_NAMESPACE = re.compile(r"\b(?:namespace|class|struct|union|enum)\b")
 
 WORD = re.compile(r"\b[A-Za-z_]\w*\b")
 
+# A name being declared: a type right before it, a word or a template closed
+# against the word it belongs to, then the name and what can follow one. It
+# used to be anything made of words, spaces and angle brackets before the
+# name, which read `s < kStrings)` as a declaration of kStrings, took the
+# lambda to be reading its own, and let a C3493 through to the Windows job on
+# 14 October 2026. A keyword that takes an expression is not a type.
+DECLARED = (r"(?:\b(?!(?:return|case|sizeof|throw|else|new|delete|co_return|"
+            r"co_yield|goto)\b)[A-Za-z_]\w*|\w<[^<>;(){{}}]*>)"
+            r"(?:\s+|\s*[*&]+\s*)\b{}\s*[=;,)\[{{(]")
+
 
 def stripped(text: str) -> str:
     """The same text with comments and literals blanked out.
@@ -198,8 +208,7 @@ def scan_text(source: str, label: str) -> list[str]:
                 continue
 
             # Declared again inside the lambda, so that is what it reads.
-            if re.search(r"\b\w[\w:<>,*&\s]*\b" + re.escape(name) +
-                         r"\s*[=;,)]", body[1:]):
+            if re.search(DECLARED.format(re.escape(name)), body[1:]):
                 continue
 
             missing.add(name)
@@ -283,6 +292,30 @@ void f() {
 
 void h() {
   const auto g = [](std::pair<int, int> v) { return v.first; };
+}
+"""),
+    ("comparing against it is not declaring it", 1, """
+void f() {
+  constexpr int kStrings = 88;
+  const auto g = [](int s) { return s >= 0 && s < kStrings; };
+}
+"""),
+    ("nor is returning it", 1, """
+void f() {
+  constexpr int kStrings = 88;
+  const auto g = [](int s) { return kStrings; };
+}
+"""),
+    ("a lambda declaring its own reads its own", 0, """
+void f() {
+  constexpr int kStrings = 88;
+  const auto g = [](int s) { const int kStrings = 4; return s < kStrings; };
+}
+"""),
+    ("and so does one declaring a template type of it", 0, """
+void f() {
+  constexpr int kStrings = 88;
+  const auto g = [](int s) { std::array<int, 3> kStrings{}; return s; };
 }
 """),
     ("nor is a local of another function", 0, """

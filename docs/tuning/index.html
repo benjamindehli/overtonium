@@ -20,7 +20,7 @@
         <meta property="og:title" content="The Overtonium tuning system: TUNE, stretch and seven temperaments" />
         <meta
             property="og:description"
-            content="Hear all of it: TUNE blending every partial between equal temperament and just intonation, STRETCH from harmonic out past a piano, a chord in equal against Werckmeister III, keyboard tracking thinning the series as you play up, and per-partial drift. With a diagram of where each partial falls against the semitone it snaps to."
+            content="Audio of TUNE blending every partial between equal temperament and just intonation, STRETCH from harmonic to beyond a piano, a chord in equal temperament against Werckmeister III, keyboard tracking thinning the partials as you play higher, and per-partial drift. There is also a diagram of where each partial falls against the semitone it snaps to."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-tuning.jpg" />
         <meta property="og:image:type" content="image/jpeg" />
@@ -32,7 +32,7 @@
         <meta name="twitter:title" content="The Overtonium tuning system: TUNE, stretch and seven temperaments" />
         <meta
             name="twitter:description"
-            content="Hear all of it: TUNE blending every partial between equal temperament and just intonation, STRETCH from harmonic out past a piano, a chord in equal against Werckmeister III, keyboard tracking thinning the series as you play up, and per-partial drift. With a diagram of where each partial falls against the semitone it snaps to."
+            content="Audio of TUNE blending every partial between equal temperament and just intonation, STRETCH from harmonic to beyond a piano, a chord in equal temperament against Werckmeister III, keyboard tracking thinning the partials as you play higher, and per-partial drift. There is also a diagram of where each partial falls against the semitone it snaps to."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-tuning.jpg" />
         <meta name="twitter:image:alt" content="The Overtonium wordmark over the plugin window, captioned Tuning." />
@@ -63,7 +63,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-10-11",
+                "dateModified": "2026-10-16",
                 "breadcrumb": {
                     "@id": "https://benjamindehli.github.io/overtonium/tuning/#breadcrumb"
                 }
@@ -143,40 +143,39 @@
                 <h1>The tuning system</h1>
 
                 <p class="lead">
-                    Three separate axes. TUNE decides how the overtone series is spelled, STRETCH decides whether it is a series at all, and the
-                    temperament decides what the keyboard underneath is tuned to. They combine rather than overlap.
+                    Three separate controls. TUNE sets how the overtone series is tuned, STRETCH sets how far it moves away from a true harmonic
+                    series, and the temperament sets how the keyboard itself is tuned. They work together and do not overlap.
                 </p>
 
                 <section id="tune">
                     <h2>TUNE, from equal to just</h2>
 
                     <p>
-                        A drawbar organ is the shortest way into what this control does, because it is the same problem answered the other way round.
-                        Every drawbar is a harmonic, but an organ has only the twelve notes of the keyboard to build one out of, so each drawbar is
-                        put on the nearest one. The second, fifth and eighth are all fifths an octave apart, which means holding a C puts three G's
-                        into the sound. A harmonic series is not spaced that way. Its intervals are whole-number ratios, 2:1, 3:2, 4:3, and apart from
-                        the octaves not one of them lands on a key. TUNE is the distance between those two answers, and it is continuous rather than a
-                        switch between them.
+                        A drawbar organ is the easiest way to explain this control, because it solves the same problem the other way round. Each
+                        drawbar is a harmonic, but an organ only has the twelve notes of the keyboard to build it from, so each drawbar is tuned to
+                        the nearest one. The second, fifth and eighth are all fifths an octave apart, so holding a C puts three G's into the sound. A
+                        harmonic series is not spaced like that. Its intervals are whole-number ratios, 2:1, 3:2, 4:3, and apart from the octaves none
+                        of them lands on a key. TUNE moves between those two tunings. It is a continuous knob, not a switch.
                     </p>
 
                     <p>
                         For harmonic <code>n</code>, the just interval above the fundamental is <code>1200 * log2(n)</code> cents. Overtonium rounds
-                        that to the nearest semitone to get the equal-tempered position, and the remainder is the cent offset the TUNE knob dials in.
+                        that to the nearest semitone to get the equal-tempered position. The remainder is the cent offset that the TUNE knob adds.
                     </p>
 
                     <pre><code>semitoneOffset(n, blend) = round(1200*log2(n)/100) + blend * (1200*log2(n) mod 100) / 100</code></pre>
 
                     <p>
-                        At <code>blend = 1</code> this is exactly <code>n</code> times the fundamental, so the stack fuses into one timbre. At
-                        <code>blend = 0</code> every partial is on a semitone of the chromatic scale and the same stack reads as a chord. Nothing is
-                        written down as a constant, but rounded to whole cents the derivation reproduces the familiar table, which the test suite
-                        asserts so it cannot quietly drift.
+                        At <code>blend = 1</code> this is exactly <code>n</code> times the fundamental, so the stack blends into one timbre. At
+                        <code>blend = 0</code> every partial is on a semitone of the chromatic scale and the same stack sounds like a chord. None of
+                        the values are stored as constants. Rounded to whole cents, the formula gives the familiar table, and the test suite checks
+                        this so it cannot change by accident.
                     </p>
 
                     <figure class="listen">
                         <figcaption>
-                            The same patch on the same note, differing in TUNE and nothing else: every partial at its exact whole-number ratio, then
-                            each one pulled to the nearest semitone, then the knob taken slowly from one to the other.
+                            The same patch on the same note, with only TUNE changed. First every partial at its exact whole-number ratio, then each
+                            one moved to the nearest semitone, then the knob turned slowly from one to the other.
                         </figcaption>
 
                         <div class="players">
@@ -222,10 +221,10 @@
                         >
                             <title id="seriesTitle">Where each partial sits against the nearest semitone</title>
                             <desc id="seriesDesc">
-                                Thirty-two rows, one per partial. The line down the middle is the tempered semitone TUNE snaps to at one end of its
-                                travel, and each dot is where that partial actually falls as a whole-number ratio. The distance between them is what
-                                the knob dials through. Only the octaves, partials 1, 2, 4, 8, 16 and 32, sit exactly on the line. The table below
-                                gives the same figures exactly.
+                                Thirty-two rows, one per partial. The line down the middle is the tempered semitone that TUNE moves the partial to at
+                                one end of its range. Each dot is where that partial falls as a whole-number ratio. The knob moves the partial across
+                                the distance between them. Only the octaves, partials 1, 2, 4, 8, 16 and 32, sit exactly on the line. The table below
+                                gives the exact figures.
                             </desc>
                             <line x1="72.9" y1="36" x2="72.9" y2="467" class="grid" />
                             <text x="72.9" y="28" class="tick" text-anchor="middle">-50</text>
@@ -335,17 +334,16 @@
                         </svg>
 
                         <figcaption>
-                            Every partial against the semitone TUNE snaps it to. The dot is the whole-number ratio, the line is the tempered position,
-                            and the distance between them is what the knob dials through. Only the octaves sit on the line.
+                            Every partial compared with the semitone TUNE moves it to. The dot is the whole-number ratio and the line is the tempered
+                            position. The knob moves the partial across the distance between them. Only the octaves sit on the line.
                         </figcaption>
                     </figure>
 
                     <p>
-                        Sitting on the line has a consequence worth knowing at the panel: on channels 1, 2, 4, 8, 16 and 32 the knob does nothing to
-                        the sound. An octave is 1200 cents in both tunings, so there is nowhere for the blend to take those six, and their readouts
-                        stay at 0.0 wherever the knob is. Hovering one of those strips says so rather than leaving you to work it out. They are not
-                        stuck, they are just not moved by that knob: STRETCH moves them, and so do DRIFT, the pitch modulator, and the oscillator
-                        character, whose rack sits every partial but the first a few cents off spec.
+                        This means that on channels 1, 2, 4, 8, 16 and 32 the knob does not change the sound. An octave is 1200 cents in both tunings,
+                        so the blend has nothing to move on those six, and their readouts stay at 0.0 wherever the knob is. Hovering over one of those
+                        strips tells you this. The channels are not stuck. Only that knob leaves them alone. STRETCH moves them, and so do DRIFT, the
+                        pitch modulator and the oscillator character, whose rack puts every partial except the first a few cents off its exact pitch.
                     </p>
 
                     <div class="scroll">
@@ -528,17 +526,17 @@
                     </div>
 
                     <p>
-                        The two big offsets are the ones worth knowing by ear. The seventh partial lands 31 cents flat of a minor seventh and the
-                        eleventh 49 cents flat of a tritone, which is to say halfway between two keys. Those are the partials that make a just-tuned
-                        stack sound unlike anything a keyboard can play.
+                        The two large offsets are the ones you hear most. The seventh partial is 31 cents flat of a minor seventh, and the eleventh is
+                        49 cents flat of a tritone, about halfway between two keys. These partials make a just-tuned stack sound unlike anything a
+                        keyboard can play.
                     </p>
 
                     <p>
-                        The eleventh has a name in Norway. Its pitch between the fourth and the tritone is the natural fourth of Norwegian folk music,
-                        which the willow flute plays because the harmonic series is all it can play. The composer Eivind Groven spent much of his life
-                        on it. From 1936 he built organs with up to three pitches behind every key, chosen automatically as the music moved, so an
-                        ordinary keyboard could play pure triads in every key and the eleventh partial came out exactly in tune. Here it is the
-                        eleventh row with TUNE at just, 551 cents above the octave below it, and his way of keeping every chord pure on an ordinary
+                        In Norway the eleventh has a name. Its pitch, between the fourth and the tritone, is the natural fourth of Norwegian folk
+                        music. The willow flute plays it because it can only play the harmonic series. The composer Eivind Groven spent much of his
+                        life on it. From 1936 he built organs with up to three pitches for every key, chosen automatically as the music moved. This
+                        let an ordinary keyboard play pure triads in every key, with the eleventh partial exactly in tune. In Overtonium it is the
+                        eleventh row with TUNE at just, 551 cents above the octave below it. His way of keeping every chord pure on an ordinary
                         keyboard is the <a href="#adaptive">Adaptive</a> temperament further down.
                     </p>
                 </section>
@@ -547,15 +545,15 @@
                     <h2>Stretch</h2>
 
                     <p>
-                        Nothing real rings at integer multiples of anything. A string with any bending stiffness has partials at
-                        <code>n * f0 * sqrt(1 + B * n^2)</code>, sharp of the harmonic and increasingly so up the series, and it is that, not the
-                        hammer or the soundboard, that makes a piano sound like a piano rather than like a sawtooth. It is also what a tuner is
-                        matching when they stretch the octaves: tune the top of the instrument to the theory and it beats against its own overtones.
+                        Real instruments do not ring at exact whole-number multiples. A string with any stiffness has partials at
+                        <code>n * f0 * sqrt(1 + B * n^2)</code>. They are sharp of the harmonic, and more so further up the series. This, more than
+                        the hammer or the soundboard, is what makes a piano sound like a piano and not like a sawtooth. It is also why a tuner
+                        stretches the octaves. If the top of the instrument is tuned to the theory, it beats against its own overtones.
                     </p>
 
                     <p>
-                        STRETCH is that stiffness, dialled by what it does to the top partial rather than by its own value, which lives between
-                        0.00003 and 0.008 and means nothing to anyone. At +150 cents, which is a real piano:
+                        STRETCH sets that stiffness. It is set by how far it moves the top partial, not by the stiffness value itself, which runs from
+                        0.00003 to 0.008 and is hard to read. At +150 cents, which is a real piano:
                     </p>
 
                     <div class="scroll">
@@ -582,20 +580,20 @@
                     </div>
 
                     <p>
-                        The bottom of the series barely moves and the top of it walks away, which is the shape that matters. Push further and the
-                        partials stop agreeing on a fundamental, and the sound stops being a note with a timbre and becomes a bell. Negative pulls
-                        them inward instead, which no physical string does and which is worth having anyway.
+                        The bottom of the series barely moves and the top moves a long way. Turn it further and the partials no longer share a
+                        fundamental, so the sound stops being a note with a timbre and becomes a bell. Negative values pull the partials inward. No
+                        real string does this, but it is still a useful sound.
                     </p>
 
                     <p>
-                        It is a separate axis from TUNE rather than more of it, and the two combine: equal temperament with heavy stretch is a
-                        different object from just intonation with the same stretch. Zero is the plain harmonic series.
+                        It is separate from TUNE, and the two work together. Equal temperament with heavy stretch sounds different from just
+                        intonation with the same stretch. Zero is the plain harmonic series.
                     </p>
 
                     <figure class="listen">
                         <figcaption>
-                            One note while STRETCH is taken from a harmonic series out past a piano. The bottom of the series barely moves and the top
-                            of it walks away, and somewhere along the way the partials stop agreeing on a fundamental.
+                            One note while STRETCH turns from a harmonic series to beyond a piano. The bottom of the series barely moves and the top
+                            moves a long way. Along the way the partials stop sharing a fundamental.
                         </figcaption>
 
                         <div class="players">
@@ -616,8 +614,8 @@
                     <h2>Tuning the keyboard</h2>
 
                     <p>
-                        Everything above is about where a partial sits over the note you played. This is about where that note sits. Settings and the
-                        <a href="../playing/#bars">Tuning bar</a> carry seven temperaments: six fixed ones, and one that retunes as you play.
+                        Everything above is about where a partial sits above the note you play. This section is about how that note is tuned. Settings
+                        and the <a href="../playing/#bars">Tuning bar</a> have seven temperaments: six fixed ones, and one that retunes as you play.
                     </p>
 
                     <div class="scroll">
@@ -647,7 +645,7 @@
                                     <td>Pythagorean</td>
                                     <td>407.82</td>
                                     <td>701.96</td>
-                                    <td>every fifth pure, the third pays for it</td>
+                                    <td>every fifth pure, at the cost of a wide third</td>
                                 </tr>
                                 <tr>
                                     <td>Quarter-comma meantone</td>
@@ -665,7 +663,7 @@
                                     <td>Young</td>
                                     <td>392.18</td>
                                     <td>698.04</td>
-                                    <td>six narrowed by a sixth, gentler again</td>
+                                    <td>six fifths narrowed by a sixth of a comma, milder still</td>
                                 </tr>
                                 <tr>
                                     <td><a href="#adaptive">Adaptive</a></td>
@@ -678,84 +676,85 @@
                     </div>
 
                     <p>
-                        They are derived from the circle of fifths rather than copied out as tables of cents. Almost every historical temperament is
-                        described by how much each of the twelve fifths is narrowed, so that is what the code says, and the pitch classes fall out of
-                        it. The two commas it is all built from come out at 23.460 and 21.506 cents, which are the published figures, and the tests
-                        assert the property that defines each temperament rather than the numbers that happen to result: meantone's third pure to a
-                        thousandth of a cent, Pythagorean's fifth likewise, Werckmeister at its characteristic 390.2.
+                        They are worked out from the circle of fifths, not copied from tables of cents. Almost every historical temperament is
+                        described by how much each of the twelve fifths is narrowed. The code stores that, and the pitch classes are calculated from
+                        it. The two commas everything is built from come out at 23.460 and 21.506 cents, which match the published figures. The tests
+                        check the property that defines each temperament, not the resulting numbers: meantone's third pure to a thousandth of a cent,
+                        Pythagorean's fifth the same, and Werckmeister's third at 390.2.
                     </p>
 
                     <h3 id="adaptive">Adaptive</h3>
                     <p>
-                        Every fixed temperament is in tune somewhere and out of tune somewhere else. Just major is pure in the keys near its root and
-                        a comma out in a chord from anywhere further away, which is the oldest problem in tuning. Adaptive answers it the way Eivind
-                        Groven's organs did, by giving every key more than one pitch and choosing between them as you play. Every pitch class has five
-                        versions, its place in just major on the root and one and two commas either side of it, and the chord you are holding is kept
-                        on whichever versions make it purest.
+                        Every fixed temperament is in tune in some keys and out of tune in others. Just major is pure in the keys near its root, and a
+                        chord in a key further away is a comma out. This is the oldest problem in tuning. Adaptive solves it the way Eivind Groven's
+                        organs did. It gives every key more than one pitch and chooses between them as you play. Every pitch class has five versions:
+                        its place in just major on the root, and one and two commas either side of it. The chord you hold uses whichever versions make
+                        it purest.
                     </p>
 
                     <p>
-                        The chord is settled again every time a key goes down or comes up, so a chord turning into the next one a note at a time stays
-                        in tune all the way, not only one struck fresh. Keys struck together are settled together. A held note that the new chord
-                        needs somewhere else slides there over the time set by the <strong>Retune</strong> knob in the Tuning bar, from a jump at zero
-                        to a second. The 30 ms it starts at is quick enough to pass for a note that was always there, and around 300 ms is slow enough
-                        to hear the chord settle. Settings offers those two as <em>Fast</em> and <em>Smooth</em>. It moves as few notes as it can, and
-                        new notes take whichever version fits the ones already held. The keys you hold decide how the chord is tuned, not the order
-                        they went down in, so a chord struck at once, played a key at a time or reached from another chord comes out the same,
-                        interval for interval. Every chord type in <a href="https://github.com/benjamindehli/music-utils">music-utils</a>, a library
-                        of mine for naming chords from the notes held, 125 of them from a bare third to an altered thirteenth, is played through it in
-                        all twelve keys on every build to hold it to that, and to tuning each one as purely as it can be tuned.
+                        The chord is retuned every time a key goes down or comes up. A chord that changes into the next one a note at a time stays in
+                        tune all the way, as well as a chord struck all at once. Keys struck together are tuned together. If the new chord needs a
+                        held note at a different pitch, the note slides there over the time set by the <strong>Retune</strong> knob in the Tuning bar,
+                        from an instant jump at zero up to a second. At 30 ms, where the knob starts, the note sounds as if it was always there, and
+                        at around 300 ms you can hear the chord settle. Settings offers those two as <em>Fast</em> and <em>Smooth</em>. Adaptive moves
+                        as few notes as it can, and new notes take whichever version fits the notes already held. The keys you hold decide how the
+                        chord is tuned, not the order you pressed them in. A chord struck at once, played a key at a time or reached from another
+                        chord comes out the same, interval for interval. Every chord type in
+                        <a href="https://github.com/benjamindehli/music-utils">music-utils</a>, my library for naming chords from the notes held, is
+                        played through it in all twelve keys on every build. That is 125 of them, from a bare third to an altered thirteenth. The test
+                        checks that each chord comes out the same every way, and that it is tuned as purely as it can be.
                     </p>
 
                     <p>
-                        What it tunes against is everything you can hear: the keys that are down, the ones the pedal is holding, and a chord still
-                        ringing after its keys came up decides between versions the held keys leave open. A key struck into silence takes the version
-                        its pitch class used last, which keeps a progression from wandering away a comma at a time, and since no key can stray further
-                        than its outer versions, the keyboard never drifts more than two commas from where it started, however long you play. Tuning
-                        every chord pure to the last one, with nothing to hold it, would leave a C major, A minor, D minor, G progression played four
-                        times over two and a half semitones sharp. If you would rather it did not drift at all, the <strong>NO DRIFT</strong> switch
-                        in the Tuning bar, and No drift in Settings, keeps the chord as near home as it can: when a progression would carry it off, a
-                        held note slides a comma instead, and a key struck into silence goes home.
+                        It tunes against everything you can hear: the keys that are down and the ones the pedal is holding. When the held keys allow
+                        more than one version, a chord still ringing after its keys came up decides between them. A key struck into silence takes the
+                        version its pitch class used last. This keeps a progression from wandering away a comma at a time. No key can go further than
+                        its outer versions, so the keyboard never drifts more than two commas from where it started, however long you play. If every
+                        chord were tuned pure to the last one with no limit, a C major, A minor, D minor, G progression played four times would end up
+                        over two and a half semitones sharp. If you want no drift at all, turn on the <strong>NO DRIFT</strong> switch in the Tuning
+                        bar, or No drift in Settings. It keeps the chord as close to home as it can. When a progression would carry it away, a held
+                        note slides a comma instead, and a key struck into silence goes back home.
                     </p>
 
                     <p>
-                        Like Groven's organs it tempers each fifth by an eighth of a schisma, a quarter of a cent, so eight fifths and a pure major
-                        third close up exactly. Without that, chords far from the root would be left two cents out, which on pure partials is slow but
-                        clearly audible beating. The major thirds are pure, and a quarter of a cent on a fifth beats about once every eighteen seconds
-                        on the third partial of a note in the middle of the keyboard. The same chord reached by a different route can settle a comma
-                        higher or lower, with every interval in it the same, so a piece can end a comma or two from where it began. Root decides where
-                        the middle versions sit, and Reference pitch where A's does.
+                        Like Groven's organs, it narrows each fifth by an eighth of a schisma, a quarter of a cent, so that eight fifths and a pure
+                        major third meet exactly. Without this, chords far from the root would be two cents out, which on pure partials gives slow but
+                        clearly audible beating. The major thirds are pure. A quarter of a cent on a fifth beats about once every eighteen seconds on
+                        the third partial of a note in the middle of the keyboard. The same chord reached by a different route can end up a comma
+                        higher or lower, with every interval in it the same, so a piece can end a comma or two from where it began. Root sets where
+                        the middle versions sit, and Reference pitch sets where A's middle version sits.
                     </p>
 
                     <p>
-                        Some chords cannot be pure all the way through, because pure fifths and pure thirds never quite meet: in C11 the fifth from G
-                        to D and the minor third from D to F cannot both be. Adaptive then gives up as little as it can, counting a fifth or a fourth
-                        above a third or a sixth and those above a seventh, so C6 with an added ninth keeps its thirds and sixths and lets the fourth
-                        from A to D go a comma wide, rather than keeping that fourth and losing three thirds.
+                        Some chords cannot be pure all the way through, because pure fifths and pure thirds never quite fit together. In C11 the fifth
+                        from G to D and the minor third from D to F cannot both be pure. Adaptive then gives up as little as it can. It ranks a fifth
+                        or a fourth above a third or a sixth, and those above a seventh. Counted that way, C6 with an added ninth keeps its thirds and
+                        sixths and lets the fourth from A to D go a comma wide. Keeping that fourth would cost three thirds.
                     </p>
 
                     <p>
-                        A minor seventh is tuned on the harmonic seventh, 7:4 above its root, 969 cents, unless another held note would then be out of
-                        tune with it. A dominant seventh becomes 4:5:6:7: four harmonics of one note an octave below its root, the same seventh every
-                        partial here already carries as its seventh harmonic, and the smoothest a seventh chord can be. It is noticeably lower than
-                        the equal-tempered seventh, which is most of why it sounds so settled. A ninth adds the ninth harmonic, and a seventh over its
-                        root alone or over its fifth is 7:4 as well. A minor third above the root keeps the seventh at 9:5, since 7:4 would put it 48
-                        cents flat of a pure fifth above that third, and a sharp ninth does the same for the same reason. A suspended seventh keeps
-                        16:9, two pure fourths, a minor second or a tritone above the root keeps the size the chain gives it too, and a major seventh
-                        is 15:8. Like everything else here it depends only on the keys held, so C and B flat are 7:4 however they were played, and a
-                        held note slides to the harmonic seventh or away from it when the chord around it changes what it is. The
-                        <strong>7:4</strong> switch in the Tuning bar, and Harmonic sevenths in Settings, turn it off, and every seventh then takes
-                        the size the chain gives it.
+                        A minor seventh is tuned to the harmonic seventh, 7:4 above its root, 969 cents, unless that would put it out of tune with
+                        another held note. A dominant seventh becomes 4:5:6:7. These are four harmonics of one note an octave below its root, the same
+                        seventh that every partial here already has as its seventh harmonic, and the smoothest a seventh chord can be. It is
+                        noticeably lower than the equal-tempered seventh, and that is most of why it sounds so settled. A ninth adds the ninth
+                        harmonic. A seventh over its root alone or over its fifth is 7:4 as well. With a minor third above the root, the seventh stays
+                        at 9:5, because 7:4 would put it 48 cents flat of a pure fifth above that third. A sharp ninth is held back the same way, for
+                        the same reason. A suspended seventh keeps 16:9, two pure fourths. With a minor second or a tritone above the root, the
+                        seventh also keeps the size the chain gives it. A major seventh is 15:8. Like everything else here, it depends only on the
+                        keys held. C and B flat are 7:4 however they were played, and a held note slides to or away from the harmonic seventh when the
+                        chord around it changes type. The <strong>7:4</strong> switch in the Tuning bar, and Harmonic sevenths in Settings, turn this
+                        off. Every seventh then takes the size the chain gives it.
                     </p>
 
                     <p>
-                        The <a href="../playing/#bars">Tuning bar</a> shows what it is doing to the chord you hold, following every key as it goes
-                        down and comes up. <strong>PURE</strong> lights while every interval in the chord is pure, and goes dark when a chord cannot
-                        be pure all the way through and has had to give one up. <strong>7:4</strong> lights while a seventh is tuned on the harmonic
-                        seventh, and <strong>DRIFT</strong> says how far the keyboard has drifted, in commas. Beside those, one display for each of
-                        the twelve notes says how far it sits from equal temperament in cents. The notes you hold are lit, and the rest stay unlit
-                        until you play them. Under every other temperament the same twelve displays chart the scale, all of them lit, so the Tuning
-                        bar shows what Werckmeister III or Just on D does to each note before you play it.
+                        The <a href="../playing/#bars">Tuning bar</a> shows how Adaptive is tuning the chord you hold, and updates as each key goes
+                        down and comes up. <strong>PURE</strong> lights while every interval in the chord is pure. It goes dark when a chord cannot be
+                        pure all the way through and one interval has been given up. <strong>7:4</strong> lights while a seventh is tuned to the
+                        harmonic seventh, and <strong>DRIFT</strong> shows how far the keyboard has drifted, in commas. Next to those, there is one
+                        display for each of the twelve notes, showing how far it is from equal temperament in cents. The notes you hold are lit, and
+                        the rest stay unlit until you play them. Under every other temperament the same twelve displays show the whole scale, all of
+                        them lit. So the Tuning bar shows what Werckmeister III or Just on D does to each note before you play it.
                     </p>
 
                     <figure>
@@ -767,35 +766,42 @@
                             height="66"
                         />
                         <figcaption>
-                            C7 under Adaptive. C sits 15.4 cents above equal, where just major on C puts it with A on 440, E and G are a pure third
-                            and fifth above it, and B flat is the harmonic seventh, 31.2 cents below C's equal-tempered seventh.
+                            C7 under Adaptive. C is 15.4 cents above equal, where just major on C puts it with A at 440. E and G are a pure third and
+                            fifth above it, and B flat is the harmonic seventh, 31.2 cents below C's equal-tempered seventh.
                         </figcaption>
                     </figure>
 
                     <h3 id="root">Root</h3>
                     <p>
-                        Picks which pitch class the temperament is built on, since an unequal temperament is only in tune in the keys near its centre,
-                        and that is the point of it. For Adaptive it is where the middle versions are placed. It is greyed out for equal temperament,
-                        which has no centre to have.
+                        Sets which pitch class the temperament is built on. An unequal temperament is only in tune in the keys near its centre, so you
+                        choose that centre here. For Adaptive it sets where the middle versions are placed. It is greyed out for equal temperament,
+                        which has no centre, unless the <a href="../effects/#resonator">resonator</a> is in Series, which is built on the root in
+                        every temperament.
                     </p>
 
                     <h3 id="reference-pitch">Reference pitch</h3>
                     <p>
-                        415 through 466 Hz. A stays exactly there in every fixed temperament, because the offsets are taken relative to A's own: a
-                        tuner tunes A first and works outwards. Only the other eleven notes move. Under Adaptive it is A's middle version that sits on
-                        the reference, and an A in a chord that needs it takes the version a comma either side.
+                        One of eleven pitches for A: 415, 430, 432, 435, 438, 440, 442, 443, 444, 446 or 466 Hz. A stays exactly at this pitch in
+                        every fixed temperament, because the offsets are measured relative to A, the same way a tuner tunes A first and works
+                        outwards. Only the other eleven notes move. Under Adaptive, A's middle version sits on the reference, and an A in a chord that
+                        needs it takes the version a comma either side.
                     </p>
 
                     <p>
-                        None of the three travels with a <a href="../presets/">preset</a>. A temperament is a property of the music you are playing
-                        rather than of any one sound in it: you set it once and work, and having a patch drag you back to equal in the middle of that
-                        would be no help. That includes Init, which clears the patch rather than the session.
+                        The <a href="../effects/#resonator">resonator</a>'s strings are tuned the same way, so they follow the temperament, the root
+                        and the reference pitch. Its Series mode is built on the root's own harmonics.
+                    </p>
+
+                    <p>
+                        None of the three is saved with a <a href="../presets/">preset</a>. A temperament belongs to the music you are playing, not to
+                        any one sound in it. You set it once and keep working, and a patch that reset it to equal while you worked would get in the
+                        way. This includes Init, which clears the patch but not the session.
                     </p>
 
                     <figure class="listen">
                         <figcaption>
-                            One C major chord, twice, on a temperament built on C. Equal spaces the third at 400 cents and Werckmeister III at 390,
-                            which is most of the way to the pure 386, so the beating between the third and the root slows almost to a stop.
+                            One C major chord, twice, on a temperament built on C. Equal puts the third at 400 cents and Werckmeister III at 390,
+                            which is most of the way to the pure 386. The beating between the third and the root slows almost to a stop.
                         </figcaption>
 
                         <div class="players">
@@ -826,30 +832,29 @@
                     <h2>Tracking</h2>
 
                     <p>
-                        Without TRACK, a patch has the same spectrum at every pitch. Nothing real does. Play up a piano and the top of the series
-                        thins out, not because the note changed but because the body has a rolloff that stays where it is while the partials climb up
-                        through it.
+                        Without TRACK, a patch has the same spectrum at every pitch. Real instruments do not. Play up a piano and the top of the
+                        series thins out. This happens because the body has a rolloff at a fixed frequency, and the partials climb up through it as
+                        the notes get higher.
                     </p>
 
                     <p>
-                        TRACK is that rolloff, in dB per octave above a fixed corner of 1 kHz, which is around C6. It is measured against the
-                        fundamental rather than absolutely, and that is the part that matters: taken absolutely it would be a shelf, making high notes
-                        quieter rather than duller, which is not the thing worth having. Normalised, the fundamental keeps its level at every pitch
-                        and only the spectrum above it thins.
+                        TRACK sets that rolloff, in dB per octave above a fixed corner of 1 kHz, which is around C6. It is measured relative to the
+                        fundamental, not as an absolute level. An absolute rolloff would act as a shelf and make high notes quieter instead of duller.
+                        Measured this way, the fundamental keeps its level at every pitch and only the spectrum above it thins.
                     </p>
 
                     <p>
-                        The consequence falls out of where the corner sits. A bass note has most of its series below 1 kHz and keeps nearly all of it.
-                        A treble note whose fundamental is already above the corner loses the full slope across every partial it has. At 6 dB per
-                        octave, the 32nd partial keeps 57% of its level at A1 and 4% at A5. Zero is off, and off is exact.
+                        The effect depends on where the corner sits. A bass note has most of its series below 1 kHz and keeps nearly all of it. A
+                        treble note whose fundamental is already above the corner gets the full slope on every partial. At 6 dB per octave, the 32nd
+                        partial keeps 57% of its level at A1 and 4% at A5. Zero is off, and off changes nothing.
                     </p>
 
                     <figure class="listen">
                         <figcaption>
-                            The same five notes an octave apart, twice. With it off the spectrum is the same at every pitch. With it on the bass note
-                            keeps nearly all of its series, since most of it sits below the corner, and the top note has walked most of its into the
-                            rolloff. Measured on these two files, the partials above the fundamental come to 1.43 times it at C2 either way, and at C6
-                            to 1.45 with tracking off against 0.49 with it on.
+                            The same five notes an octave apart, twice. With TRACK off the spectrum is the same at every pitch. With it on, the bass
+                            note keeps nearly all of its series, because most of it sits below the corner, and most of the top note's series is in the
+                            rolloff. Measured on these two files, the partials above the fundamental add up to 1.43 times the fundamental at C2 in
+                            both. At C6 they add up to 1.45 with tracking off and 0.49 with it on.
                         </figcaption>
 
                         <div class="players">
@@ -880,22 +885,22 @@
                     <h2>Drift, the fourth kind of detuning</h2>
 
                     <p>
-                        Per channel rather than global, and random rather than periodic. DRIFT gives a partial a smooth random walk of up to 25 cents,
-                        redrawn as the note plays, which is the cassette warble the earlier instruments in this line got from tape. Every partial
-                        draws from its own stream, so a stack with drift on it never quite settles, and no two notes drift the same way.
+                        DRIFT works per channel, not globally, and it is random, not periodic. It moves a partial's pitch in a smooth random path of
+                        up to 25 cents that keeps changing as the note plays. This is the cassette warble that the earlier instruments in this line
+                        got from tape. Every partial has its own random stream, so a stack with drift never quite settles, and no two notes drift the
+                        same way.
                     </p>
 
                     <p>
-                        It is the reason a held chord keeps moving without any modulation being dialled in, and it is why the pitch lamp on the PITCH
-                        MOD rule reads a needle rather than a pulse: what it shows is where modulation and drift together have the partial at this
-                        instant.
+                        Drift is why a held chord keeps moving with no modulation set. It is also why the pitch lamp on the PITCH MOD rule shows a
+                        needle and not a pulse. The needle shows where modulation and drift together put the partial at that moment.
                     </p>
 
                     <figure class="listen">
                         <figcaption>
-                            One held chord, twice. With drift off a partial sits exactly where it was put. With it on every partial walks its own way
-                            and the stack never settles: measured across these files, the eighth partial holds at 0 cents in the first and wanders
-                            over 12 cents in the second.
+                            One held chord, twice. With drift off, each partial stays exactly at its pitch. With it on, every partial moves on its own
+                            and the stack never settles. Measured across these files, the eighth partial stays at 0 cents in the first and moves over
+                            12 cents in the second.
                         </figcaption>
 
                         <div class="players">

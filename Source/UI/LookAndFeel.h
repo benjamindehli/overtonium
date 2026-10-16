@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "Theme.h"
@@ -134,7 +136,28 @@ public:
   juce::Font getPopupMenuFont() override;
   juce::Font getSliderPopupFont(juce::Slider &) override;
 
+  /// paintChannelBackground, drawn from a picture when it has been drawn at
+  /// this size, scale and colour before. Every channel strip is the same size
+  /// and their grain starts at their own corner, so one picture serves all
+  /// thirty-two, and a repaint of the mixer copies it instead of filling
+  /// gradients and grain thirty-two times. Held here, per window, for the
+  /// reason the grain tile is.
+  void drawChannelBackground(juce::Graphics &, juce::Rectangle<int> bounds,
+                             juce::Colour base);
+
 private:
+  struct Background {
+    int width = 0, height = 0;
+    float scale = 0.0f;
+    juce::uint32 base = 0;
+    juce::Image picture;
+  };
+
+  /// The few sizes in use at once: the strips, the noise strip, and the
+  /// panels the editor fills the same way. Kept short, since a resize makes
+  /// a new size and the old ones are of no more use.
+  std::vector<Background> backgrounds;
+
   /// What keeps the grain tile alive, and the reason it is a member here
   /// rather than a static beside the function that builds it.
   ///
@@ -158,6 +181,11 @@ juce::Font makeFont(float height, bool bold = false);
 /// of shade along the top is the shadow the header casts onto them.
 void paintChannelBackground(juce::Graphics &, juce::Rectangle<int> bounds,
                             juce::Colour base);
+
+/// The same, through the component's look and feel when it is this
+/// plugin's, so the picture it keeps is used.
+void paintChannelBackground(juce::Component &, juce::Graphics &,
+                            juce::Rectangle<int> bounds, juce::Colour base);
 
 /// Picks out the row under the pointer.
 ///

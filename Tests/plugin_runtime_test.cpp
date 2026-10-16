@@ -809,9 +809,11 @@ void testParameterWiring(OvertoniumProcessor &p) {
   // params::legatoId. Then how fast the adaptive temperament retunes a held
   // note, whether it uses the harmonic seventh, and whether it stays home.
   // See params::adaptiveRetuneId, params::adaptiveSeventhId and
-  // params::adaptiveHomeId.
+  // params::adaptiveHomeId. Then four for the string the noise channel
+  // strikes, and four for the resonator. See params::stringSuffix
+  // and params::resonatorModeId.
   const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + 2 + 1 + 1 +
-                       1 + 1 + ovt::params::kNumMacros * 6;
+                       1 + 1 + 4 + 4 + ovt::params::kNumMacros * 6;
 
   // The behaviour that was there before it became a choice. Asked of the
   // parameter rather than of the tree, so the answer does not depend on what
@@ -4288,8 +4290,7 @@ void testRowHover() {
   // writing a number here means adding a row cannot quietly push the last one
   // off the bottom of the test without the test noticing.
   const auto rows =
-      layoutRows(juce::Rectangle<int>(0, 0, kStripWidth,
-                                      preferredStripHeight() + 2 * kStripPadY)
+      layoutRows(juce::Rectangle<int>(0, 0, kStripWidth, preferredStripHeight())
                      .reduced(kStripPadX, kStripPadY));
 
   const auto rowAtCentre = [&rows](Row r) {
@@ -4559,6 +4560,29 @@ void testMasterEffects(OvertoniumProcessor &p) {
   p.reset();
 
   check(tailAfterNote() < 1.0e-5f, "Init puts both of them away again");
+
+  // The resonator rings on after the note too, ahead of the effects, so the
+  // tail is the resonator's and the effects' together.
+  setParam(ovt::params::resonatorModeId,
+           (float)(int)ovt::ResonatorMode::Octave);
+  setParam(ovt::params::resonatorMixId, 1.0f);
+  setParam(ovt::params::resonatorDecayId, 6.0f);
+
+  const auto strung = tailAfterNote();
+  check(strung > 1.0e-4f, "the resonator rings on after the note "
+                          "(peak " +
+                              std::to_string(strung) + ")");
+
+  check(p.getTailLengthSeconds() > 5.0,
+        "the reported tail covers the resonator (" +
+            std::to_string(p.getTailLengthSeconds()) + " s)");
+
+  setParam(ovt::params::resonatorModeId, (float)(int)ovt::ResonatorMode::Off);
+
+  check(tailAfterNote() < 1.0e-5f, "switching them off takes them away");
+
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+  p.reset();
 }
 
 void testMeterRepaint() {
@@ -4833,7 +4857,7 @@ void testTopBarLayout() {
         "the bar fits in a sensible minimum width (" + std::to_string(minimum) +
             ")");
 
-  check(tallest <= 3 * 54 + 2 * 4 + 2 * 6,
+  check(tallest <= 3 * 55 + 2 * 4 + 5 + 6,
         "and takes no more than three rows there (" + std::to_string(tallest) +
             " px)");
 
@@ -5741,6 +5765,39 @@ void testMachineMenusFollowTheirParameters(OvertoniumProcessor &p) {
               tickedIn(stillDigital) + ")");
   }
 
+  // ---- the resonator, one parameter with Off among its modes ---------------
+  {
+    const auto resonatorButton = [bar]() -> juce::Button * {
+      for (auto *c : bar->getChildren())
+        if (c->getTitle().startsWith("Resonator:"))
+          return dynamic_cast<juce::Button *>(c);
+
+      return nullptr;
+    };
+
+    for (int i = 0; i < (int)ovt::ResonatorMode::NumModes; ++i) {
+      write(ovt::params::resonatorModeId, (float)i);
+      bar->updatePanelReadouts(48000.0);
+
+      auto menu = bar->buildResonatorMenu();
+      const juce::String wanted = ovt::resonatorModeName((ovt::ResonatorMode)i);
+      auto *button = resonatorButton();
+
+      check(tickedIn(menu) == wanted.toStdString(),
+            "the resonator's menu names " + wanted.toStdString() +
+                " when that is the mode (" + tickedIn(menu) + ")");
+
+      check(button != nullptr &&
+                button->getButtonText() == wanted.toUpperCase() &&
+                button->getToggleState() == (i != 0),
+            "and its button says " + wanted.toUpperCase().toStdString() +
+                (i != 0 ? ", lit" : ", unlit"));
+    }
+
+    write(ovt::params::resonatorModeId, 0.0f);
+    bar->updatePanelReadouts(48000.0);
+  }
+
   // ---- and the output stage, which became one of these ---------------------
   {
     write(ovt::params::safetyClipId, 0.0f);
@@ -6102,6 +6159,201 @@ void testWheelOverAKnobStaysOnTheKnob(OvertoniumProcessor &p) {
           "a shifted wheel on the strip's background still scrolls the "
           "series");
   }
+}
+
+/// The same for the three bars above the mixer. Each listens deeply for
+/// right-clicks, so it hears every wheel its knobs take as well, and handing
+/// those on sent them to the editor, which scrolled the mixer sideways or the
+/// parameters up and down under a hand turning a knob in the top bar.
+void testWheelOverABarKnobStaysOnTheKnob(OvertoniumProcessor &p) {
+  section("A wheel over a knob in a bar does not scroll the mixer");
+
+  p.applyFactoryPreset(presetIndex("Init"));
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  // Narrow and short enough that there is somewhere to scroll both ways.
+  editor->setSize(900, 700);
+
+  juce::Viewport *viewport = nullptr;
+  ovt::ui::ChannelStrip *strip = nullptr;
+  ovt::ui::TopBar *top = nullptr;
+  ovt::ui::PlayingBar *playing = nullptr;
+  ovt::ui::TuningBar *tuning = nullptr;
+  juce::Button *playingButton = nullptr, *tuningButton = nullptr;
+
+  std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (auto *v = dynamic_cast<juce::Viewport *>(child))
+        viewport = v;
+      if (auto *s = dynamic_cast<ovt::ui::ChannelStrip *>(child))
+        strip = strip == nullptr ? s : strip;
+      if (auto *b = dynamic_cast<ovt::ui::TopBar *>(child))
+        top = b;
+      if (auto *b = dynamic_cast<ovt::ui::PlayingBar *>(child))
+        playing = b;
+      if (auto *b = dynamic_cast<ovt::ui::TuningBar *>(child))
+        tuning = b;
+      if (auto *b = dynamic_cast<juce::Button *>(child)) {
+        if (b->getTitle() == "Playing")
+          playingButton = b;
+        if (b->getTitle() == "Tuning")
+          tuningButton = b;
+      }
+      look(*child);
+    }
+  };
+  look(*editor);
+
+  check(viewport != nullptr && strip != nullptr && top != nullptr &&
+            playing != nullptr && tuning != nullptr &&
+            playingButton != nullptr && tuningButton != nullptr,
+        "the editor has a mixer, a top bar and both bars");
+  if (viewport == nullptr || strip == nullptr || top == nullptr ||
+      playing == nullptr || tuning == nullptr || playingButton == nullptr ||
+      tuningButton == nullptr)
+    return;
+
+  // A knob in each bar that can take the wheel: macro 1 made, so its knob
+  // is live, and Adaptive, which is when RETUNE is shown.
+  const auto setParam = [&p](const juce::String &id, float plain) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1(plain));
+  };
+  setParam(ovt::params::macroRowId(0), 1.0f);
+  setParam(ovt::params::temperamentId, (float)ovt::Temperament::Adaptive);
+
+  // Called rather than clicked, since a click needs a window to land in.
+  playingButton->onClick();
+  tuningButton->onClick();
+  playing->refresh();
+  tuning->refresh();
+
+  const auto span =
+      viewport->getViewedComponent()->getWidth() - viewport->getViewWidth();
+  viewport->setViewPosition(span / 2, 0);
+
+  // A control in the strip to follow up and down. See
+  // testTheWheelScrollsTheParameters.
+  juce::Slider *marker = nullptr;
+  for (auto *child : strip->getChildren())
+    if (auto *s = dynamic_cast<juce::Slider *>(child))
+      if (marker == nullptr)
+        marker = s;
+
+  check(span > 0 && marker != nullptr && marker->isVisible(),
+        "and something to scroll sideways, and a control to follow");
+  if (marker == nullptr)
+    return;
+
+  // Every event a distinct moment, since a slider ignores a second wheel
+  // stamped with the time of the last one.
+  auto when = juce::Time::getCurrentTime();
+
+  const auto eventFor = [&when](juce::Component &target,
+                                juce::Component &original,
+                                juce::Point<float> at) {
+    when = when + juce::RelativeTime::milliseconds(50);
+    return juce::MouseEvent(juce::Desktop::getInstance().getMainMouseSource(),
+                            at, juce::ModifierKeys(),
+                            juce::MouseInputSource::defaultPressure,
+                            juce::MouseInputSource::defaultOrientation,
+                            juce::MouseInputSource::defaultRotation,
+                            juce::MouseInputSource::defaultTiltX,
+                            juce::MouseInputSource::defaultTiltY, &target,
+                            &original, when, at, when, 1, false);
+  };
+
+  /// The first knob in a bar that takes the wheel, turned by it, and then the
+  /// same wheel handed to the bar the way JUCE hands it to a deep listener.
+  /// @returns whether the knob moved.
+  const auto wheelOver = [&](juce::Component &bar, float dx, float dy) {
+    juce::Slider *knob = nullptr;
+    std::function<void(juce::Component &)> find = [&](juce::Component &c) {
+      for (auto *child : c.getChildren()) {
+        if (auto *s = dynamic_cast<juce::Slider *>(child))
+          if (knob == nullptr && s->isVisible() && !s->getBounds().isEmpty() &&
+              s->isScrollWheelEnabled() && s->isRotary())
+            knob = s;
+        find(*child);
+      }
+    };
+    find(bar);
+
+    if (knob == nullptr)
+      return false;
+
+    // Towards the middle of its travel, so a push either way moves it.
+    knob->setValue(0.5 * (knob->getMinimum() + knob->getMaximum()),
+                   juce::sendNotificationSync);
+    const auto before = knob->getValue();
+
+    juce::MouseWheelDetails wheel{};
+    wheel.deltaX = dx;
+    wheel.deltaY = dy;
+
+    const auto centre = knob->getLocalBounds().getCentre().toFloat();
+    knob->mouseWheelMove(eventFor(*knob, *knob, centre), wheel);
+    bar.mouseWheelMove(eventFor(bar, *knob, bar.getLocalPoint(knob, centre)),
+                       wheel);
+
+    return std::abs(knob->getValue() - before) > 1.0e-9;
+  };
+
+  const struct {
+    juce::Component *bar;
+    const char *name;
+  } bars[] = {{top, "the top bar"},
+              {playing, "the Playing bar"},
+              {tuning, "the Tuning bar"}};
+
+  for (const auto &b : bars) {
+    for (const bool sideways : {true, false}) {
+      const auto x = viewport->getViewPositionX();
+      const auto y = marker->getY();
+      const bool turned = sideways ? wheelOver(*b.bar, -0.4f, 0.0f)
+                                   : wheelOver(*b.bar, 0.0f, -0.4f);
+
+      // A row scrolled off the top is hidden rather than moved, so either
+      // counts as the parameters having scrolled.
+      const bool rowsStill = marker->isVisible() && marker->getY() == y;
+
+      check(turned && viewport->getViewPositionX() == x && rowsStill,
+            std::string("a ") + (sideways ? "sideways" : "vertical") +
+                " wheel over a knob in " + b.name +
+                " turns the knob and leaves the mixer where it was (view " +
+                std::to_string(x) + " to " +
+                std::to_string(viewport->getViewPositionX()) + ", row " +
+                std::to_string(y) + " to " + std::to_string(marker->getY()) +
+                ")");
+    }
+  }
+
+  // A wheel on the top bar's own panel still goes on to the mixer, so the
+  // fix is not swallowing every wheel the bar is handed.
+  {
+    viewport->setViewPosition(span / 2, 0);
+    const auto x = viewport->getViewPositionX();
+    juce::MouseWheelDetails wheel{};
+    wheel.deltaX = -0.4f;
+    top->mouseWheelMove(eventFor(*top, *top, {2.0f, 2.0f}), wheel);
+
+    check(viewport->getViewPositionX() != x,
+          "and a sideways wheel on the top bar's own panel still scrolls the "
+          "mixer");
+  }
+
+  // Closed again, since which bars are open is kept with the session and the
+  // editors opened after this one would otherwise find them open.
+  playingButton->onClick();
+  tuningButton->onClick();
+  setParam(ovt::params::macroRowId(0), 0.0f);
+  p.applyFactoryPreset(presetIndex("Init"));
 }
 
 /// One right-click opens one LINK menu.
@@ -6702,7 +6954,9 @@ void testTheBandsLayOutAColumn() {
   int states = 0, scrolling = 0;
 
   for (SectionMask mask = 0; mask < (1 << kNumSections); ++mask) {
-    const int preferred = preferredStripHeight(mask);
+    // The rows' own height: the bands are laid out inside the strip's
+    // padding, which preferredStripHeight includes.
+    const int preferred = preferredStripHeight(mask) - 2 * kStripPadY;
 
     for (int height : {preferred, preferred + 1, preferred + 200}) {
       const juce::Rectangle<int> area(0, 0, kStripWidth, height);
@@ -7124,6 +7378,78 @@ void testTheSafetyClipHoldsUnity() {
   // attempt at this test passed while rendering nothing.
   check(sounded == 3, "and it was driven hard enough to mean it (peak " +
                           std::to_string(worst) + ")");
+}
+
+/// Fit all 32 channels shows every row, with nothing left to scroll, and is
+/// the shortest window that does: a pixel shorter and the rows scroll. Asked
+/// with each combination of the two bars open, since each adds chrome.
+void testFittingShowsEveryRow(OvertoniumProcessor &p) {
+  section("Fitting shows every row");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  juce::ScrollBar *rowsBar = nullptr;
+  juce::Button *playing = nullptr, *tuning = nullptr;
+
+  std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      // The rows' scrollbar is the vertical one that does not belong to the
+      // mixer's viewport.
+      if (auto *s = dynamic_cast<juce::ScrollBar *>(child))
+        if (s->isVertical() && dynamic_cast<juce::Viewport *>(&c) == nullptr)
+          rowsBar = s;
+      if (auto *b = dynamic_cast<juce::Button *>(child)) {
+        if (b->getTitle() == "Playing")
+          playing = b;
+        if (b->getTitle() == "Tuning")
+          tuning = b;
+      }
+      look(*child);
+    }
+  };
+  look(*editor);
+
+  check(rowsBar != nullptr && playing != nullptr && tuning != nullptr,
+        "and has a scrollbar for the rows and both bar buttons");
+  if (rowsBar == nullptr || playing == nullptr || tuning == nullptr)
+    return;
+
+  const auto setOpen = [](juce::Button *b, bool open) {
+    if (b->getToggleState() != open)
+      b->onClick();
+  };
+
+  const auto scrolls = [rowsBar] {
+    return rowsBar->getCurrentRangeSize() <
+           rowsBar->getMaximumRangeLimit() - rowsBar->getMinimumRangeLimit();
+  };
+
+  for (int bars = 0; bars < 4; ++bars) {
+    setOpen(playing, (bars & 1) != 0);
+    setOpen(tuning, (bars & 2) != 0);
+    editor->fitAllChannels();
+
+    const auto fitted = editor->getHeight();
+    const auto fits = !scrolls();
+
+    editor->setSize(editor->getWidth(), fitted - 1);
+    const auto tighter = scrolls();
+
+    check(fits && tighter,
+          std::string("with ") + ((bars & 1) ? "Playing" : "no Playing bar") +
+              " and " + ((bars & 2) ? "Tuning" : "no Tuning bar") +
+              ", the fitted window shows every row and a pixel less does "
+              "not (" +
+              std::to_string(fitted) + " px)");
+  }
+
+  setOpen(playing, false);
+  setOpen(tuning, false);
 }
 
 /// Fit all 32 channels must land somewhere a drag can get back to.
@@ -7632,6 +7958,264 @@ void testSharedSettingsChoices(OvertoniumProcessor &p) {
 
   restoreSessionSettings(p);
   p.applyFactoryPreset(presetIndex("Init"));
+}
+
+/// The noise channel's string, reached through its parameters: STRING turns
+/// a burst of noise into a ringing note, DECAY decides for how long, and a
+/// preset puts it back to nought.
+void testNoiseString(OvertoniumProcessor &p) {
+  section("The noise channel's string");
+
+  namespace pp = ovt::params;
+
+  const auto setParam = [&p](const juce::String &id, float plain) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1(plain));
+  };
+
+  // A burst of noise and nothing else: every partial silent, the noise
+  // channel struck for a few milliseconds and then holding at silence.
+  const auto ringing = [&](float amount, float decay) {
+    p.applyFactoryPreset(presetIndex("Init"));
+    for (int i = 0; i < ovt::kNumHarmonics; ++i)
+      setParam(pp::oscParamId(pp::volumeSuffix, i), 0.0f);
+    setParam(pp::noiseParamId(pp::volumeSuffix), 0.8f);
+    setParam(pp::noiseParamId(pp::attackSuffix), 0.0005f);
+    setParam(pp::noiseParamId(pp::decaySuffix), 0.01f);
+    setParam(pp::noiseParamId(pp::sustainSuffix), 0.0f);
+    setParam(pp::noiseParamId(pp::stringSuffix), amount);
+    setParam(pp::noiseParamId(pp::stringDecaySuffix), decay);
+
+    p.prepareToPlay(48000.0, 512);
+    juce::AudioBuffer<float> buffer(2, 512);
+    double late = 0.0;
+    int counted = 0;
+
+    for (int b = 0; b < 60; ++b) {
+      juce::MidiBuffer midi =
+          b == 0 ? noteOnAt(57, 1.0f, 0) : juce::MidiBuffer{};
+      buffer.clear();
+      p.processBlock(buffer, midi);
+
+      // From a fifth of a second on, long after the burst.
+      if (b >= 19 && b < 40) {
+        for (int n = 0; n < 512; ++n)
+          late += (double)buffer.getSample(0, n) * buffer.getSample(0, n);
+        counted += 512;
+      }
+    }
+
+    juce::MidiBuffer off;
+    off.addEvent(juce::MidiMessage::allSoundOff(1), 0);
+    buffer.clear();
+    p.processBlock(buffer, off);
+    return std::sqrt(late / std::max(1, counted));
+  };
+
+  const auto without = ringing(0.0f, 1.5f);
+  const auto with = ringing(1.0f, 1.5f);
+  const auto brief = ringing(1.0f, 0.1f);
+
+  check(without < 1.0e-6 && with > 1.0e-3,
+        "Noise String turns a burst of noise into a ringing note (" +
+            std::to_string(without) + ", " + std::to_string(with) + ")");
+  check(brief < 0.1 * with,
+        "and Noise String Decay decides how long it rings (" +
+            std::to_string(brief) + " against " + std::to_string(with) + ")");
+
+  if (auto *decay =
+          p.apvts.getParameter(pp::noiseParamId(pp::stringDecaySuffix)))
+    check(decay->getText(decay->convertTo0to1(1.5f), 16) == "1.50 s",
+          "and reads as a time (" +
+              decay->getText(decay->convertTo0to1(1.5f), 16).toStdString() +
+              ")");
+
+  // A preset is a whole sound, so it puts the string back where every patch
+  // without one has it.
+  setParam(pp::noiseParamId(pp::stringSuffix), 0.7f);
+  p.applyFactoryPreset(presetIndex("Init"));
+  auto *amount = p.apvts.getParameter(pp::noiseParamId(pp::stringSuffix));
+  check(amount != nullptr && amount->getValue() < 1.0e-6f,
+        "and loading a preset puts Noise String back to nought");
+
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
+/// The noise strip's string knobs: named, wired to their parameters, and
+/// standing in order in the block under colour, gone when that block is
+/// folded away.
+void testNoiseStringKnobs(OvertoniumProcessor &p) {
+  section("The noise strip's string knobs");
+
+  struct WatchingHover final : ovt::ui::HoverTarget {
+    ovt::ui::Row last = ovt::ui::kNoRow;
+    void hoverChanged(int, ovt::ui::Row row) override { last = row; }
+  };
+
+  WatchingHover hover;
+  juce::Component popupParent;
+  ovt::ui::NoiseStrip strip(p.apvts, hover, popupParent);
+  strip.setSize(40, 1000);
+
+  const char *const titles[] = {"Noise string", "Noise string decay",
+                                "Noise string damp", "Noise string point"};
+  const char *const suffixes[] = {
+      ovt::params::stringSuffix, ovt::params::stringDecaySuffix,
+      ovt::params::stringDampSuffix, ovt::params::stringPointSuffix};
+
+  std::array<juce::Slider *, 4> knobs{};
+  const juce::Component *colourCaption = nullptr;
+  for (auto *c : strip.getChildren()) {
+    if (auto *sl = dynamic_cast<juce::Slider *>(c))
+      for (size_t i = 0; i < 4; ++i)
+        if (sl->getTitle() == titles[i])
+          knobs[i] = sl;
+    if (auto *label = dynamic_cast<juce::Label *>(c))
+      if (label->getText() == "colour")
+        colourCaption = label;
+  }
+
+  const bool all = std::all_of(knobs.begin(), knobs.end(),
+                               [](auto *k) { return k != nullptr; });
+  check(all && colourCaption != nullptr,
+        "the noise strip has string, decay, damp and point, named");
+  if (!all || colourCaption == nullptr)
+    return;
+
+  // Each moves its own parameter.
+  bool wired = true;
+  for (size_t i = 0; i < 4; ++i) {
+    auto *param = p.apvts.getParameter(ovt::params::noiseParamId(suffixes[i]));
+    const auto before = param->getValue();
+    knobs[i]->setValue(knobs[i]->getMaximum(), juce::sendNotificationSync);
+    wired &= param->getValue() > before + 0.01f || before > 0.99f;
+    knobs[i]->setValue(knobs[i]->getMinimum(), juce::sendNotificationSync);
+    wired &= param->getValue() < 0.01f;
+  }
+  check(wired, "and each turns its own parameter");
+  p.applyFactoryPreset(presetIndex("Init"));
+
+  // In order down the block under colour, evenly, each the size every knob
+  // in a row is, none overlapping.
+  bool ordered = knobs[0]->getY() >= colourCaption->getBottom();
+  std::vector<int> gaps;
+  for (size_t i = 1; i < 4; ++i) {
+    ordered &= knobs[i]->getY() >= knobs[i - 1]->getBottom();
+    gaps.push_back(knobs[i]->getY() - knobs[i - 1]->getY());
+  }
+  const auto [lo, hi] = std::minmax_element(gaps.begin(), gaps.end());
+  check(ordered && *hi - *lo <= 1,
+        "they stand in order under colour, evenly spaced (" +
+            std::to_string(*lo) + " to " + std::to_string(*hi) + " px apart)");
+
+  // Colour and the string are this strip's own, not its share of a row every
+  // channel has, so hovering them lights no row across the mixer, and a row
+  // lit from elsewhere is not drawn over them. Attack is still shared.
+  {
+    juce::Slider *colourKnob = nullptr, *attack = nullptr;
+    for (auto *c : strip.getChildren())
+      if (auto *sl = dynamic_cast<juce::Slider *>(c)) {
+        if (sl->getTitle() == "Noise colour")
+          colourKnob = sl;
+        if (sl->getTitle() == "Noise attack")
+          attack = sl;
+      }
+
+    const auto hoverOver = [&](juce::Component &c) {
+      const auto at = c.getBounds().getCentre().toFloat();
+      const auto now = juce::Time::getCurrentTime();
+      strip.mouseMove(juce::MouseEvent(
+          juce::Desktop::getInstance().getMainMouseSource(), at,
+          juce::ModifierKeys(), juce::MouseInputSource::defaultPressure,
+          juce::MouseInputSource::defaultOrientation,
+          juce::MouseInputSource::defaultRotation,
+          juce::MouseInputSource::defaultTiltX,
+          juce::MouseInputSource::defaultTiltY, &strip, &c, now, at, now, 0,
+          false));
+      return hover.last;
+    };
+
+    bool quiet = colourKnob != nullptr && attack != nullptr &&
+                 hoverOver(*colourKnob) == ovt::ui::kNoRow;
+    for (auto *k : knobs)
+      quiet &= hoverOver(*k) == ovt::ui::kNoRow;
+    const bool shared =
+        attack != nullptr && hoverOver(*attack) == ovt::ui::Row::Attack;
+
+    check(quiet && shared, "hovering colour or the string lights no row "
+                           "across the mixer, and attack still does");
+
+    // Drawn the same with a row lit from elsewhere as with none.
+    const auto picture = [&](ovt::ui::Row lit, juce::Rectangle<int> area) {
+      strip.setHighlightedRow(lit);
+      return strip.createComponentSnapshot(area, true, 1.0f);
+    };
+    const auto same = [](const juce::Image &a, const juce::Image &b) {
+      for (int y = 0; y < a.getHeight(); ++y)
+        for (int x = 0; x < a.getWidth(); ++x)
+          if (a.getPixelAt(x, y) != b.getPixelAt(x, y))
+            return false;
+      return true;
+    };
+
+    const auto block = knobs[0]->getBounds().getUnion(knobs[3]->getBounds());
+    const bool untouched = same(picture(ovt::ui::kNoRow, block),
+                                picture(ovt::ui::Row::PmRate, block));
+    const bool attackLit =
+        attack != nullptr &&
+        !same(picture(ovt::ui::kNoRow, attack->getBounds()),
+              picture(ovt::ui::Row::Attack, attack->getBounds()));
+    strip.setHighlightedRow(ovt::ui::kNoRow);
+
+    check(untouched && attackLit,
+          "and a row lit from elsewhere is not drawn over the string, where "
+          "attack's still is");
+  }
+
+  // Folding the pitch block folds them away with it.
+  strip.setCollapsedSections(ovt::ui::sectionBit(ovt::ui::Section::PitchMod));
+  const bool folded = std::none_of(knobs.begin(), knobs.end(),
+                                   [](auto *k) { return k->isVisible(); });
+  strip.setCollapsedSections(0);
+  const bool back = std::all_of(knobs.begin(), knobs.end(),
+                                [](auto *k) { return k->isVisible(); });
+  check(folded && back, "and fold away with the block they stand in");
+}
+
+/// The resonator's parameters: the mode lists every mode by name,
+/// the knobs read as what they are, and a preset turns the resonator off.
+void testResonatorParameters(OvertoniumProcessor &p) {
+  section("The resonator's parameters");
+
+  namespace pp = ovt::params;
+
+  auto *mode = dynamic_cast<juce::AudioParameterChoice *>(
+      p.apvts.getParameter(pp::resonatorModeId));
+  check(
+      mode != nullptr &&
+          mode->choices ==
+              juce::StringArray{"Off", "Piano", "Open", "Octave", "Series"} &&
+          mode->getIndex() == (int)ovt::ResonatorMode::Off,
+      "Resonator Mode is Off, Piano, Open, Octave or Series, and Off to begin "
+      "with");
+
+  if (auto *decay = p.apvts.getParameter(pp::resonatorDecayId))
+    check(decay->getText(decay->getDefaultValue(), 16) == "4.00 s",
+          "Resonator Decay reads as a time (" +
+              decay->getText(decay->getDefaultValue(), 16).toStdString() + ")");
+
+  if (auto *mix = p.apvts.getParameter(pp::resonatorMixId))
+    check(mix->getText(mix->getDefaultValue(), 16) == "50 %",
+          "Resonator Mix reads as a share (" +
+              mix->getText(mix->getDefaultValue(), 16).toStdString() + ")");
+
+  // A preset is a whole sound, so it decides whether the resonator is on.
+  if (mode != nullptr)
+    mode->setValueNotifyingHost(
+        mode->convertTo0to1((float)(int)ovt::ResonatorMode::Piano));
+  p.applyFactoryPreset(presetIndex("Init"));
+  check(mode != nullptr && mode->getIndex() == (int)ovt::ResonatorMode::Off,
+        "and loading a preset switches them off");
 }
 
 /// What the processor publishes for the Playing bar's readouts: the pedal,
@@ -8473,6 +9057,50 @@ void testTuningBar(OvertoniumProcessor &p) {
   pick(st::kTemperament + (int)ovt::Temperament::Equal);
   check(temperament->getReading().trim() == "EQUAL" && !root->isActive(),
         "under Equal the root is dimmed, as its Settings entry is greyed out");
+
+  // ---- unless the resonator's Series is built on it -------------------------
+  {
+    ovt::ui::TopBar *topBar = nullptr;
+    std::function<void(juce::Component &)> findTop = [&](juce::Component &c) {
+      for (auto *child : c.getChildren()) {
+        if (auto *t = dynamic_cast<ovt::ui::TopBar *>(child))
+          topBar = t;
+        findTop(*child);
+      }
+    };
+    findTop(*editor);
+
+    const auto settingsRootLive = [&topBar] {
+      bool live = false;
+      if (topBar != nullptr) {
+        auto menu = topBar->buildSettingsMenu();
+        for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+          if (it.getItem().text == "Root")
+            live = it.getItem().isEnabled;
+      }
+      return live;
+    };
+
+    auto *mode = p.apvts.getParameter(ovt::params::resonatorModeId);
+    const auto setMode = [mode](ovt::ResonatorMode m) {
+      mode->setValueNotifyingHost(mode->convertTo0to1((float)(int)m));
+    };
+
+    const bool deadBefore = !settingsRootLive();
+    setMode(ovt::ResonatorMode::Series);
+    bar->refresh();
+    const bool liveForSeries = root->isActive() && settingsRootLive();
+    setMode(ovt::ResonatorMode::Piano);
+    bar->refresh();
+    const bool deadAgain = !root->isActive() && !settingsRootLive();
+    setMode(ovt::ResonatorMode::Off);
+    bar->refresh();
+
+    check(topBar != nullptr && deadBefore && liveForSeries && deadAgain,
+          "and under Equal the root lights, on the bar and in Settings, while "
+          "the resonator is in Series, which rings the root's harmonics, and "
+          "only then");
+  }
 
   // ---- under Adaptive, Retune joins it -------------------------------------
   pick(st::kTemperament + (int)ovt::Temperament::Adaptive);
@@ -9431,6 +10059,20 @@ void testBarButtonsFitTheirWords(OvertoniumProcessor &p) {
   for (int i = 0; i < (int)ovt::ReverbType::NumTypes; ++i)
     reverbWords.add(ovt::reverbTypeShortName((ovt::ReverbType)i));
 
+  juce::StringArray resonatorWords;
+  for (int i = 0; i < (int)ovt::ResonatorMode::NumModes; ++i)
+    resonatorWords.add(ovt::resonatorModeName((ovt::ResonatorMode)i));
+
+  const auto resonatorText = widest(resonatorWords);
+
+  std::printf("  the resonator's longest word is %d px, in a button of %d\n",
+              resonatorText, TopBar::kResonatorWidth);
+
+  check(resonatorText + 8 <= TopBar::kResonatorWidth,
+        "every mode the resonator can be in fits in its button (" +
+            std::to_string(resonatorText) + " px in " +
+            std::to_string(TopBar::kResonatorWidth) + ")");
+
   const auto reverbText = widest(reverbWords);
   const auto echoText = widest(echoWords);
   const auto characterText = widest(ovt::params::characterChoices());
@@ -9485,8 +10127,8 @@ void testBarButtonsFitTheirWords(OvertoniumProcessor &p) {
   {
     const auto captionFont = makeFont(9.0f, true);
 
-    const int widths[] = {TopBar::kCharacterWidth, TopBar::kEchoWidth,
-                          TopBar::kReverbWidth};
+    const int widths[] = {TopBar::kCharacterWidth, TopBar::kResonatorWidth,
+                          TopBar::kEchoWidth, TopBar::kReverbWidth};
 
     for (size_t i = 0; i < std::size(TopBar::kGroupNames); ++i) {
       const juce::String word(TopBar::kGroupNames[i]);
@@ -9506,7 +10148,7 @@ void testBarButtonsFitTheirWords(OvertoniumProcessor &p) {
 
 /// The width the bar comes onto one row at, which the design notes quote and
 /// which every control added to it moves.
-void testBarComesOntoOneRow(OvertoniumProcessor &) {
+void testBarComesOntoOneRow(OvertoniumProcessor &p) {
   section("One row");
 
   using namespace ovt::ui;
@@ -9532,9 +10174,34 @@ void testBarComesOntoOneRow(OvertoniumProcessor &) {
         "the bar is on one row at the width the window opens at (" +
             std::to_string(onOneRow) + ")");
 
+  // The wordmark stands over the preset screen at the screen's width, and the
+  // row has to hold both. The wordmark is 5.5 times as wide as it is tall.
+  {
+    juce::Component popupParent;
+    TopBar bar(p.apvts, popupParent);
+    bar.setPresetName("Big Saw");
+    bar.setSize(1350, TopBar::heightForWidth(1350));
+
+    const juce::Component *screen = nullptr;
+    for (auto *c : bar.getChildren())
+      if (c->getTitle().startsWith("Preset:"))
+        screen = c;
+
+    const auto room = screen != nullptr ? screen->getY() : 0;
+    const auto wordmark =
+        screen != nullptr
+            ? juce::roundToInt((float)screen->getWidth() * 448.0f / 2464.0f)
+            : 1000;
+
+    check(screen != nullptr && room >= wordmark + 2 + 6,
+          "the wordmark fits over the preset screen at its width (" +
+              std::to_string(room) + " px above the screen for a " +
+              std::to_string(wordmark) + " px wordmark)");
+  }
+
   // The figure the design notes quote. It moves whenever a control on the bar
   // changes width, and when it moves the notes move with it.
-  check(onOneRow == 1252, "and comes onto it at the width written down (" +
+  check(onOneRow == 1285, "and comes onto it at the width written down (" +
                               std::to_string(onOneRow) + ")");
 }
 
@@ -11351,6 +12018,112 @@ void testUpdateCheckIsQuiet(OvertoniumProcessor &p) {
         "and so does one on an instance that has been used");
 }
 
+/// The update check asks in the window, once, and says when a release is out.
+///
+/// Run against the machine's own settings, as the tests above are, so each
+/// value is put back as it was found. "Check for updates" is never pressed,
+/// since that would reach the network.
+void testUpdateDialogs(OvertoniumProcessor &p) {
+  section("Update dialogs");
+
+  const bool allowedBefore = ovt::updateCheckAllowed();
+  const bool offeredBefore = ovt::updateCheckOffered();
+  const auto announcedBefore = ovt::announcedVersion();
+
+  const auto open = [&p] {
+    std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
+    sizeEditor(*ed, 1350);
+    return ed;
+  };
+  const auto noticeOf = [](juce::AudioProcessorEditor &ed) -> auto & {
+    return dynamic_cast<OvertoniumEditor &>(ed).updateNotice();
+  };
+
+  // ---- the first time ------------------------------------------------------
+  ovt::setUpdateCheckAllowed(false);
+  ovt::setUpdateCheckOffered(false);
+  {
+    auto ed = open();
+    auto &notice = noticeOf(*ed);
+    const bool asked = notice.isShowing() &&
+                       notice.getMessage().contains("check for a new version");
+    const bool notYet = !ovt::updateCheckOffered();
+
+    check(asked, "the first window opened asks whether to check for updates");
+    check(notYet, "and opening it marks nothing, so a host scanning the "
+                  "plugin folder does not use the question up");
+
+    notice.secondaryButton().onClick();
+    check(!notice.isShowing(), "an answer puts the dialog away");
+  }
+  check(ovt::updateCheckOffered() && !ovt::updateCheckAllowed(),
+        "Not now is an answer: it is remembered, and nothing is checked");
+  {
+    auto ed = open();
+    check(!noticeOf(*ed).isShowing(), "so the next window does not ask again");
+  }
+
+  // ---- a release found -----------------------------------------------------
+  ovt::markVersionAnnounced({});
+  {
+    auto ed = open();
+    auto &editor = dynamic_cast<OvertoniumEditor &>(*ed);
+    editor.announceRelease("99.0.0",
+                           "https://example.invalid/overtonium/releases");
+
+    ovt::ui::TopBar *bar = nullptr;
+    std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+      for (auto *child : c.getChildren()) {
+        if (auto *b = dynamic_cast<ovt::ui::TopBar *>(child))
+          bar = b;
+        look(*child);
+      }
+    };
+    look(editor);
+
+    check(bar != nullptr && bar->isSettingsLit() &&
+              bar->availableUpdate() == "99.0.0",
+          "a release found lights SETTINGS");
+
+    if (bar != nullptr) {
+      auto menu = bar->buildSettingsMenu();
+      juce::PopupMenu::MenuItemIterator it(menu);
+      const bool first = it.next() && it.getItem().itemID == 703 &&
+                         it.getItem().text.contains("99.0.0");
+      check(first, "and is the first item in its menu");
+    }
+
+    auto &notice = noticeOf(*ed);
+    check(notice.isShowing() && notice.getMessage().contains("99.0.0"),
+          "and a dialog says which release is out");
+
+    notice.secondaryButton().onClick();
+  }
+  check(ovt::announcedVersion() == "99.0.0",
+        "Later is an answer too, remembered for that release");
+  {
+    auto ed = open();
+    auto &editor = dynamic_cast<OvertoniumEditor &>(*ed);
+    editor.announceRelease("99.0.0",
+                           "https://example.invalid/overtonium/releases");
+    const bool quiet = !noticeOf(*ed).isShowing();
+    editor.announceRelease("99.0.1",
+                           "https://example.invalid/overtonium/releases");
+    const bool next = noticeOf(*ed).isShowing();
+
+    check(quiet, "so the same release is not announced twice");
+    check(next, "and the next one is");
+  }
+
+  ovt::setUpdateCheckAllowed(allowedBefore);
+  ovt::setUpdateCheckOffered(offeredBefore);
+  ovt::markVersionAnnounced(announcedBefore);
+  check(ovt::updateCheckAllowed() == allowedBefore &&
+            ovt::updateCheckOffered() == offeredBefore &&
+            ovt::announcedVersion() == announcedBefore,
+        "and the machine's own answers are put back");
+}
+
 /// The preference survives the object that wrote it.
 ///
 /// It used to be held in one shared PropertiesFile that lived in a static,
@@ -11891,6 +12664,9 @@ int main(int argc, char **argv) {
   testSegmentCells();
   testOptionBars(processor);
   testSharedSettingsChoices(processor);
+  testNoiseString(processor);
+  testResonatorParameters(processor);
+  testNoiseStringKnobs(processor);
   testPlayingReadouts(processor);
   testPlayingBar(processor);
   testBarRightClicks(processor);
@@ -11898,9 +12674,11 @@ int main(int argc, char **argv) {
   testAdaptiveReadouts(processor);
   testFoldingAndUnfoldingIsSymmetric(processor);
   testFittingLandsWhereADragCanReturn(processor);
+  testFittingShowsEveryRow(processor);
   testTheRulesFoldTheirSections(processor);
   testOneRightClickOpensOneMenu(processor);
   testWheelOverAKnobStaysOnTheKnob(processor);
+  testWheelOverABarKnobStaysOnTheKnob(processor);
   testASidewaysWheelMovesTheMixer(processor);
   testTheGutterBorderIsOneLine(processor);
   testTheBandsLayOutAColumn();
@@ -11940,6 +12718,7 @@ int main(int argc, char **argv) {
   testCollapsibleSections();
   testUpdateCheck();
   testUpdateCheckIsQuiet(processor);
+  testUpdateDialogs(processor);
   testThePreferenceOutlivesItsWriter();
   testUpdateCheckOutlivesEditors(processor);
   testEveryControlIsNamed(processor);

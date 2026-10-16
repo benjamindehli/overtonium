@@ -135,6 +135,14 @@ struct NoiseParams {
   float volume = 0.0f;
   float pan = 0.0f;
 
+  /// The string the noise strikes. See KarplusString. STRING crossfades from
+  /// the noise as it is to the string alone, so nought is the channel exactly
+  /// as it was without one.
+  float stringAmount = 0.0f;
+  float stringDecay = 1.5f;  ///< seconds, how long it rings with the key down
+  float stringDamp = 0.4f;   ///< 0 bright to 1 dark
+  float stringPoint = 0.25f; ///< 0 struck near the end to 1 in the middle
+
   bool audible = true;
 };
 
@@ -359,6 +367,52 @@ struct LofiParams {
   int bits = 0;
 };
 
+/// What the resonator's strings are tuned to. See SympatheticStrings.
+///
+/// A new mode goes on the end, since the index is what a preset stores.
+enum class ResonatorMode {
+  Off,
+  /// A piano's: one string a key, the held keys' undamped, every one with the
+  /// sustain pedal down.
+  Piano,
+  /// Piano with the sustain pedal always down, so every string is undamped.
+  Open,
+  /// One for each note of the octave from C3, always undamped.
+  Octave,
+  /// The tuning root's harmonic series from its second octave, pure, always
+  /// undamped.
+  Series,
+  NumModes
+};
+
+inline const char *resonatorModeName(ResonatorMode m) {
+  switch (m) {
+  case ResonatorMode::Off:
+    return "Off";
+  case ResonatorMode::Piano:
+    return "Piano";
+  case ResonatorMode::Open:
+    return "Open";
+  case ResonatorMode::Octave:
+    return "Octave";
+  case ResonatorMode::Series:
+    return "Series";
+
+  case ResonatorMode::NumModes:
+    break;
+  }
+
+  return "Off";
+}
+
+/// The resonator: 88 sympathetic strings that resonate with what is played.
+struct ResonatorParams {
+  ResonatorMode mode = ResonatorMode::Off;
+  float mix = 0.5f;          ///< the instrument alone at 0, the resonator at 1
+  float decaySeconds = 4.0f; ///< how long an undamped one rings
+  float damping = 0.4f;      ///< 0 bright to 1 dark
+};
+
 struct SynthParams {
   std::array<OscParams, kNumHarmonics> osc{};
   NoiseParams noise{};
@@ -366,6 +420,11 @@ struct SynthParams {
   EchoParams echo{};
   ReverbParams reverb{};
   LofiParams lofi{};
+  ResonatorParams resonator{};
+
+  /// Whether a sustain pedal is down on any channel. Set by whoever handles
+  /// the MIDI, since under MPE the pedal never reaches the engine as a pedal.
+  bool pedalDown = false;
 };
 
 } // namespace ovt

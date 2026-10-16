@@ -31,6 +31,23 @@ namespace {
 inline size_t rowIndex(Row r) { return (size_t)r; }
 } // namespace
 
+void LinkableSlider::paint(juce::Graphics &g) {
+  // Everything the look and feel reads to draw this control: its value,
+  // whether it is enabled, its colours, and every property, so a property
+  // added later cannot leave a stale picture behind.
+  LookKey key;
+  key.add(getValue()).add(isEnabled()).add(getProperties());
+
+  for (const auto id :
+       {juce::Slider::rotarySliderFillColourId,
+        juce::Slider::rotarySliderOutlineColourId, juce::Slider::trackColourId,
+        juce::Slider::thumbColourId, juce::Slider::backgroundColourId})
+    key.add(findColour(id));
+
+  looks.paint(g, *this, key,
+              [this](juce::Graphics &into) { juce::Slider::paint(into); });
+}
+
 RelativeKnob::RelativeKnob() {
   setSliderStyle(juce::Slider::RotaryVerticalDrag);
   setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
@@ -725,6 +742,24 @@ SegmentDisplay::createAccessibilityHandler() {
 }
 
 void SegmentDisplay::paint(juce::Graphics &g) {
+  LookKey key;
+  key.add(reading).add(active).add(hovered).add(sharpSign).add(unitText);
+
+  // How many cells the reading fitted is worked out while drawing, so it is
+  // kept beside each picture for cellsDrawn to go on reporting.
+  bool drewIt = false;
+  const auto used = looks.paint(g, *this, key, [&](juce::Graphics &into) {
+    paintReading(into);
+    drewIt = true;
+  });
+
+  if (drewIt)
+    drawnFor[used] = drawn;
+  else
+    drawn = drawnFor[used];
+}
+
+void SegmentDisplay::paintReading(juce::Graphics &g) {
   auto area = getLocalBounds().toFloat().reduced(1.0f);
 
   // Fainter where there are fourteen bars to a cell. Twice the bars means
@@ -1248,6 +1283,11 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
       muteButton(state, "M"), soloButton(state, "S"), meter(colour),
       pitchLamp(colour), envLamp(colour), keyOffLamp(colour),
       tremoloLamp(colour), velocityLamp(colour), pressureLamp(colour) {
+  // The background fills the whole strip, so nothing behind it needs
+  // painting. Without this every repaint of a strip, as the mixer scrolls,
+  // paints the editor's grain under it first.
+  setOpaque(true);
+
   // Deep listener, so a pointer resting on a knob is reported by the strip that
   // owns it rather than being swallowed by the control.
   addMouseListener(this, true);
@@ -1368,13 +1408,12 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
 
   const auto tuning =
       exactly(info.jiCents, 0.0)
-          ? juce::String("An octave is the same interval in both, so TUNE has "
-                         "nothing to move here. STRETCH is what moves an "
-                         "octave partial.")
+          ? juce::String("An octave is the same in both, so TUNE has nothing "
+                         "to move here. STRETCH moves it.")
           : juce::String("Just intonation is ") +
                 (info.jiCents >= 0.0 ? "+" : "") + cents + " cents from that";
 
-  setTooltip("Harmonic " + juce::String(info.harmonic) + "  -  " +
+  setTooltip("Harmonic " + juce::String(info.harmonic) + ", " +
              intervalName(info.pitchClass) + "\n" +
              juce::String(info.etSemitones) +
              " semitones above the played note\n" + tuning);
@@ -1545,9 +1584,8 @@ void ChannelStrip::setSilencedByOthers(bool shouldDim) {
   // The light out of the controls rather than a wash over the whole strip.
   // The wash dimmed the mute along with everything else, and on a silenced
   // channel the mute is the one thing that has to stay readable, since it is
-  // usually what silenced it. Greying the controls instead is what the echo
-  // and reverb knobs already do when their machine is off, and what the
-  // converter readouts do when they are following the host: the value stays
+  // usually what silenced it. Turning the controls' lights off instead is what
+  // the echo and reverb knobs do when their machine is off: the value stays
   // where it was set and the light comes out of it.
   std::function<void(juce::Component &)> drain = [&](juce::Component &c) {
     for (auto *child : c.getChildren()) {
@@ -1891,7 +1929,7 @@ void ChannelStrip::setLinkGlow(Role role, float amount, bool accent) {
 void ChannelStrip::paint(juce::Graphics &g) {
   auto bounds = getLocalBounds();
 
-  paintChannelBackground(g, bounds, colours::channel);
+  paintChannelBackground(*this, g, bounds, colours::channel);
 
   const auto rows =
       layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed, scroll);
@@ -1910,7 +1948,7 @@ void ChannelStrip::paintHeaderBand(juce::Graphics &g) {
   // whole strip and clipped to the cap, rather than worked out again for a
   // smaller rectangle, so the two cannot come adrift.
   const auto bounds = getLocalBounds();
-  paintChannelBackground(g, bounds, colours::channel);
+  paintChannelBackground(*this, g, bounds, colours::channel);
 
   const auto rows =
       layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed, scroll);

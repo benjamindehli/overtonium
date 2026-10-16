@@ -15,6 +15,7 @@
 #include "PlateReverb.h"
 #include "Reverb.h"
 #include "SpringReverb.h"
+#include "SympatheticStrings.h"
 #include "TapeEcho.h"
 #include "Voice.h"
 #include "Wobble.h"
@@ -152,6 +153,16 @@ public:
   /// visible anywhere else, which is why this exists.
   double frequencyOfNote(int note) const noexcept;
 
+  /// Where a key would sound if it were struck now into silence: the
+  /// temperament's pitch for it, or under Adaptive the version its pitch class
+  /// was last given. Where the sympathetic strings of keys nobody is holding
+  /// sit.
+  double restingFrequency(int note, const SynthParams &) const noexcept;
+
+  /// Which sympathetic strings sound this block, tuned to what, and whose
+  /// dampers are up. Public for the tests.
+  SympatheticStrings::Plan planStrings(const SynthParams &) const noexcept;
+
   /// Loudest instance of each partial across the sounding voices, 0..1.
   ///
   /// The loudest rather than the sum, so the display shows the shape of the
@@ -226,10 +237,13 @@ public:
     return outputLevelR.load(std::memory_order_relaxed);
   }
 
-  /// How long the master effects would take to fall silent under the settings
-  /// they are holding, so the host can pad an offline bounce correctly.
+  /// How long the sympathetic strings and the master effects would take to
+  /// fall silent under the settings they are holding, so the host can pad an
+  /// offline bounce correctly. The strings ring into the effects, so their
+  /// tails add.
   float effectsTailSeconds(const SynthParams &p) const noexcept {
-    return std::max({echo.tailSeconds(p.echo), bucket.tailSeconds(p.echo),
+    return SympatheticStrings::tailSeconds(p.resonator) +
+           std::max({echo.tailSeconds(p.echo), bucket.tailSeconds(p.echo),
                      digital.tailSeconds(p.echo), reverb.tailSeconds(p.reverb),
                      plate.tailSeconds(p.reverb),
                      spring.tailSeconds(p.reverb)});
@@ -529,6 +543,9 @@ private:
   DigitalEcho digital;
   PlateReverb plate;
   SpringReverb spring;
+
+  /// The resonator's strings, between the summed channels and the bus drive.
+  SympatheticStrings sympathetic;
   Reverb reverb;
 };
 

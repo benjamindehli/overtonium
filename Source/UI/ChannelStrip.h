@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <memory>
 #include <vector>
 
@@ -7,6 +8,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "MuteSoloButton.h"
+#include "PaintCache.h"
 #include "ShapeButton.h"
 #include "Theme.h"
 
@@ -93,9 +95,17 @@ public:
 
   std::function<void()> onUserDragStart, onUserDragEnd;
 
+  /// Drawn from a picture of itself when nothing that decides its look has
+  /// changed. Scrolling the mixer or resizing the window repaints every strip,
+  /// and drawing six hundred knobs again exactly as they were is most of what
+  /// that costs. See paint for what counts as a change.
+  void paint(juce::Graphics &) override;
+
 private:
   bool dragging = false;
   bool drawing = false;
+
+  PaintCache looks;
 };
 
 /// An endless, relative control.
@@ -278,6 +288,9 @@ public:
   createAccessibilityHandler() override;
 
 private:
+  /// Everything paint draws, before it is kept as a picture.
+  void paintReading(juce::Graphics &);
+
   /// Draws one character in the classic seven-bar arrangement.
   void paintGlyph(juce::Graphics &, juce::Rectangle<float>, char,
                   juce::Colour on, juce::Colour off) const;
@@ -291,6 +304,10 @@ private:
 
   /// Set by paint, read by cellsDrawn.
   mutable int drawn = 0;
+
+  /// Its last two looks, and what cellsDrawn was for each.
+  PaintCache looks;
+  std::array<int, 2> drawnFor{};
 
   juce::String reading, unitText;
   bool active = false;

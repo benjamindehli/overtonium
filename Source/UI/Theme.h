@@ -8,6 +8,7 @@
 
 #include "../dsp/Character.h"
 #include "../dsp/Harmonics.h"
+#include "PaintCache.h"
 
 namespace ovt::ui {
 
@@ -154,6 +155,14 @@ public:
       onIcon;
 
   void paintButton(juce::Graphics &, bool highlighted, bool down) override;
+
+private:
+  /// Everything paintButton draws, before it is kept as a picture.
+  void paintCap(juce::Graphics &, bool highlighted, bool down);
+
+  /// Its last two looks, which for the M and S on 33 strips is most of what
+  /// soloing would otherwise draw again.
+  PaintCache looks;
 };
 
 /// A switch shown as a letter lit in a screen, for the gutter.
@@ -319,6 +328,10 @@ Section sectionOf(Row);
 /// Whether this row is hidden under the given mask.
 bool rowIsCollapsed(Row, SectionMask);
 
+/// How tall a row stands when it is shown. For a control placed off the rows
+/// that still wants to be the size the rows make everything else.
+int rowHeight(Row);
+
 /// The section whose heading row is under this point, or NumSections.
 Section headingSectionAt(const RowBounds &, juce::Point<int>);
 
@@ -426,7 +439,8 @@ void coalesceRegions(juce::Array<juce::Rectangle<int>> &regions, int limit);
 /// is not what folding a section is for.
 int collapsedRowsHeight(SectionMask collapsed);
 
-/// Total height needed before the fader starts being squeezed.
+/// Total height a strip needs before the fader starts being squeezed,
+/// padding included.
 int preferredStripHeight(SectionMask collapsed = 0);
 
 /// Height below which the fader would be unusably short.

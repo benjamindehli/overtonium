@@ -6,7 +6,7 @@
         <title>Overtonium controls: every knob on a channel strip</title>
         <meta
             name="description"
-            content="Every control on an Overtonium channel strip: tuning, glide, the two-part envelope, modulation, velocity, pressure, LINK, the lamps and the noise channel."
+            content="Every control on an Overtonium channel strip: tuning, glide, envelope, modulation, velocity, pressure, LINK, the lamps, and the noise channel&#x27;s string."
         />
         <meta name="author" content="Benjamin Dehli" />
         <meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -20,7 +20,7 @@
         <meta property="og:title" content="Overtonium controls: every knob on a channel strip" />
         <meta
             property="og:description"
-            content="A reference for every control on an Overtonium channel strip: the twenty-three on each of the 32 channels, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, the gestures the panel answers to, and the noise channel."
+            content="A reference for every control on an Overtonium channel strip: the twenty-three on each of the 32 channels, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, the gestures the panel responds to, and the noise channel."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-controls.jpg" />
         <meta property="og:image:type" content="image/jpeg" />
@@ -32,7 +32,7 @@
         <meta name="twitter:title" content="Overtonium controls: every knob on a channel strip" />
         <meta
             name="twitter:description"
-            content="A reference for every control on an Overtonium channel strip: the twenty-three on each of the 32 channels, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, the gestures the panel answers to, and the noise channel."
+            content="A reference for every control on an Overtonium channel strip: the twenty-three on each of the 32 channels, the two-part envelope, per-partial velocity and pressure, LINK for ganging the series, the lamps and meters, the gestures the panel responds to, and the noise channel."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-controls.jpg" />
         <meta name="twitter:image:alt" content="The Overtonium wordmark over the plugin window, captioned Controls." />
@@ -50,7 +50,7 @@
                 "@id": "https://benjamindehli.github.io/overtonium/controls/#webpage",
                 "url": "https://benjamindehli.github.io/overtonium/controls/",
                 "name": "Overtonium controls: every knob on a channel strip",
-                "description": "Every control on an Overtonium channel strip: tuning, glide, the two-part envelope, modulation, velocity, pressure, LINK, the lamps and the noise channel.",
+                "description": "Every control on an Overtonium channel strip: tuning, glide, envelope, modulation, velocity, pressure, LINK, the lamps, and the noise channel's string.",
                 "inLanguage": "en-GB",
                 "isPartOf": {
                     "@id": "https://benjamindehli.github.io/overtonium/#website"
@@ -64,7 +64,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-10-11",
+                "dateModified": "2026-10-15",
                 "breadcrumb": {
                     "@id": "https://benjamindehli.github.io/overtonium/controls/#breadcrumb"
                 }
@@ -127,6 +127,7 @@
                                             <li><a href="#lamps">Lamps on the rules</a></li>
                                             <li><a href="#meters">Meters</a></li>
                                             <li><a href="#colour-and-hover">Colour and hover</a></li>
+                                            <li><a href="#silenced">Silenced channels</a></li>
                                             <li><a href="#folding">Folding the mixer down</a></li>
                                         </ul>
                                     </li>
@@ -149,14 +150,14 @@
                 <h1>Controls</h1>
 
                 <p class="lead">
-                    Thirty-two channel strips, a noise channel, and a bar of global controls across the top. Every strip carries the same twenty-three
-                    controls, which is seven hundred and thirty-six of them before the bar is counted, so a good deal of the design is about not
-                    having to move them one at a time.
+                    Thirty-two channel strips, a noise channel, and a bar of global controls across the top. Every strip has the same twenty-three
+                    controls. That is seven hundred and thirty-six of them before the bar is counted, so much of the design is about not having to
+                    move them one at a time.
                 </p>
 
                 <p>
-                    This page is the mixer. The bar across the top, from the oscillator character to the output stage, is on
-                    <a href="../effects/">Effects</a>, and playing the instrument from a keyboard, a host or a controller is on
+                    This page covers the mixer. The bar across the top, from the oscillator character to the output stage, is covered on
+                    <a href="../effects/">Effects</a>. Playing the instrument from a keyboard, a host or a controller is covered on
                     <a href="../playing/">Playing</a>.
                 </p>
 
@@ -170,9 +171,7 @@
                             width="306"
                             height="944"
                         />
-                        <figcaption>
-                            Six channels and the caption gutter. Captions are named once on the left rather than repeated across every strip.
-                        </figcaption>
+                        <figcaption>Six channels and the caption gutter. Each row is named once on the left instead of on every strip.</figcaption>
                     </figure>
 
                     <div class="scroll">
@@ -190,8 +189,8 @@
                                     <td>equal to just</td>
                                     <td>
                                         Where this partial sits between the tempered position and the exact ratio. The readout shows the resulting
-                                        cent offset. On the six octave channels both tunings agree, so there is nothing for it to move and the strip
-                                        says so
+                                        cent offset. On the six octave channels both tunings agree, so the knob has nothing to move and the readout
+                                        stays at 0.0
                                     </td>
                                 </tr>
                                 <tr>
@@ -208,21 +207,21 @@
                                     <td>GLIDE</td>
                                     <td>Off to 5 s</td>
                                     <td>
-                                        How long this partial takes to reach a new note, so the series can arrive a partial at a time. Whether it
-                                        glides always or only legato, and at a fixed rate or in a fixed time, is on the L and T switches beside the
-                                        caption and in the knob's right-click menu: see
+                                        How long this partial takes to reach a new note, so the partials can arrive one at a time. The L and T
+                                        switches beside the caption, and the knob's right-click menu, set whether it glides always or only legato, and
+                                        at a fixed rate or in a fixed time. See
                                         <a href="../playing/#glide">Glide</a>
                                     </td>
                                 </tr>
                                 <tr>
                                     <td>ENVELOPE strike, delay, A, D, S</td>
                                     <td>-100 to +100%, 0 to 5 s, 90&deg; then 0.2 ms to 5 s, 1 ms to 20 s, 0 to 100%</td>
-                                    <td>Exponential decay. STRIKE starts the partial sooner and faster the harder the key is struck</td>
+                                    <td>Exponential decay. The harder the key is struck, the sooner and faster STRIKE starts the partial</td>
                                 </tr>
                                 <tr>
                                     <td>KEY OFF swell, level, release</td>
                                     <td>0 to 5 s, 0 to 100%, 1 ms to 20 s</td>
-                                    <td>A second envelope for letting go</td>
+                                    <td>A second envelope that runs when the key is released</td>
                                 </tr>
                                 <tr>
                                     <td>AMP MOD shape, rate, depth</td>
@@ -242,17 +241,17 @@
                                 <tr>
                                     <td>PAN</td>
                                     <td>hard left to hard right</td>
-                                    <td>Equal power, so the level holds as the partial crosses the field</td>
+                                    <td>Equal power, so the level stays the same as the partial moves across the stereo field</td>
                                 </tr>
                                 <tr>
                                     <td>M and S</td>
                                     <td></td>
-                                    <td>Mute wins over solo. Right-click either one to clear every mute or every solo at once</td>
+                                    <td>Mute overrides solo. Right-click either one to clear every mute or every solo at once</td>
                                 </tr>
                                 <tr>
                                     <td>LEVEL</td>
                                     <td>-inf to 0 dB</td>
-                                    <td>Fader spaced by decibels, with the meter filling its track</td>
+                                    <td>Fader scaled in decibels, with the meter inside its track</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -263,9 +262,9 @@
                     <h2>What the modulators trace</h2>
 
                     <p>
-                        Both per-partial modulators have a shape as well as a rate and a depth, picked from a small drawing of the wave between the
-                        two knobs. Click it for the list by name. Pitch offers eight, amplitude seven, and each channel has its own, the noise channel
-                        included, which is the point: the fifth partial can be gated while the fourth breathes.
+                        Both per-partial modulators have a shape as well as a rate and a depth. You pick the shape from a small drawing of the wave
+                        between the two knobs. Click it to see the list by name. Pitch has eight shapes and amplitude has seven. Each channel has its
+                        own, the noise channel included, so the fifth partial can switch on and off while the fourth swells smoothly.
                     </p>
 
                     <div class="scroll">
@@ -279,73 +278,76 @@
                             <tbody>
                                 <tr>
                                     <td>Sine</td>
-                                    <td>The default, and what both modulators were before there was a choice</td>
+                                    <td>The default</td>
                                 </tr>
                                 <tr>
                                     <td>Triangle</td>
-                                    <td>The same travel at an even speed, which reads as more mechanical than a sine</td>
+                                    <td>The same range at an even speed, which sounds more mechanical than a sine</td>
                                 </tr>
                                 <tr>
                                     <td>Sawtooth, Reverse Sawtooth</td>
-                                    <td>A ramp and a snap back, either way round</td>
+                                    <td>A ramp and a sudden jump back, in either direction</td>
                                 </tr>
                                 <tr>
                                     <td>Square</td>
                                     <td>
-                                        Two values and nothing in between. On pitch it is a trill, and comes in a bipolar form that goes the same
-                                        distance either side of the note and a unipolar one that only ever goes up
+                                        Two values and nothing in between. On pitch it is a trill. It comes in a bipolar form, which goes the same
+                                        distance above and below the note, and a unipolar form, which only goes up
                                     </td>
                                 </tr>
                                 <tr>
                                     <td>Sample &amp; Hold</td>
                                     <td>
-                                        A new random value each cycle, held until the next. On pitch, with the depth wide open, that is a run of
-                                        random notes anywhere within an octave either side
+                                        A new random value each cycle, held until the next. On pitch, with the depth at full, it plays random notes
+                                        anywhere within an octave above or below
                                     </td>
                                 </tr>
                                 <tr>
                                     <td>Random</td>
-                                    <td>The same values, glided between rather than stepped. The contour DRIFT traces, under your own rate</td>
+                                    <td>
+                                        The same random values, moving smoothly between them instead of in steps. It is the contour DRIFT follows, at
+                                        a rate you set
+                                    </td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
 
                     <p>
-                        <strong>Amplitude has one square, not two.</strong> A tremolo only ever comes down from the fader, so there is no second
-                        direction for a unipolar shape to go in and the one square gates the whole depth. For the same reason every shape on that side
-                        is read a quarter turn ahead: a note begins at full level and dips, rather than starting half attenuated.
+                        <strong>Amplitude has only one square.</strong> A tremolo only ever lowers the level set by the fader, so a unipolar shape has
+                        no second direction to go in. The one square switches across the whole depth. For the same reason, every amplitude shape
+                        starts a quarter of a cycle ahead. A note begins at full level and then dips, instead of starting half attenuated.
                     </p>
 
                     <p>
-                        The square and stepped shapes do not click. The gain a partial is given already slides across each control block rather than
-                        jumping, so an edge arrives as a slew of about two thirds of a millisecond, which is short enough to read as an edge and long
-                        enough not to be heard as a tick.
+                        The square and stepped shapes do not click. A partial's gain changes smoothly across each control block instead of jumping, so
+                        each edge takes about two thirds of a millisecond. That is short enough to sound like an edge and long enough not to be heard
+                        as a click.
                     </p>
 
                     <p>
-                        LINK does not reach these. It drags a value across the series along a weighted curve and there is no weighting a list of named
-                        shapes, so the shape menu offers to set every channel at once instead.
+                        LINK does not change the shapes. It moves a value across the series along a weighted curve, and a list of named shapes cannot
+                        be weighted. Instead, the shape menu can set every channel at once.
                     </p>
 
                     <p>
-                        <strong>Shared by all notes</strong> is the other entry in that menu, one for each of the two modulators, and it is also the
-                        switch beside each SHAPE caption on the left of the mixer, the one marked with three strokes merging into one. A modulator
-                        belongs to a note by default, so striking a chord a note at a time gives you three tremolos that each started where their own
-                        key did and breathe out of step. Ticked, the modulator belongs to the channel instead and a note arriving late joins whatever
-                        is already running, so a chord breathes as one thing however it was played. That is what an instrument with one tremolo
-                        circuit in it does, which is why <a href="../presets/">Wurli</a> ships with its tremolo shared and StyloPoly with its vibrato.
+                        <strong>Shared by all notes</strong> is the other entry in that menu, one for each of the two modulators. It is also the
+                        switch beside each SHAPE caption on the left of the mixer, marked with three strokes joining into one. By default each note
+                        has its own modulator. Play a chord one note at a time and you get three tremolos, each starting when its own key went down,
+                        so they move out of step. With the entry ticked, the modulator belongs to the channel instead. A note that arrives late joins
+                        the modulation already running, so the chord moves as one however it was played. An instrument with a single tremolo circuit
+                        behaves like this, which is why <a href="../presets/">Wurli</a> ships with its tremolo shared and StyloPoly with its vibrato.
                     </p>
 
                     <p>
-                        Each channel keeps its own rate and shape either way. What is shared is one circuit per channel rather than one for the
-                        instrument, so a patch built on thirty-two rates that never line up still sounds like itself with the switch on. It is part of
-                        the patch, so a preset carries it, and both switches are off in anything that does not ask.
+                        Each channel keeps its own rate and shape either way. Sharing gives one modulator per channel, not one for the whole
+                        instrument, so a patch built on thirty-two rates that never line up still sounds the same with the switch on. The switch is
+                        part of the patch, so a preset saves it. Both switches are off unless a patch turns them on.
                     </p>
 
                     <p>
-                        The switch lights when its modulator is shared, so a preset that arrives with a shared tremolo says so on the panel rather
-                        than only in the menu. One switch per modulator, since all thirty-three channels answer to it.
+                        The switch lights when its modulator is shared, so a preset with a shared tremolo shows it on the panel as well as in the
+                        menu. There is one switch per modulator, and it applies to all thirty-three channels.
                     </p>
                 </section>
 
@@ -353,29 +355,29 @@
                     <h2>Velocity and pressure, per partial</h2>
 
                     <p>
-                        Velocity being per partial is what lets a soft note be a different timbre rather than just a quieter one. Set the fundamental
-                        to 0% and the upper partials to 100% and the tone opens up as you play harder, which is roughly what a struck string or bar
-                        does.
+                        Because velocity is set per partial, a soft note can have a different timbre, not just a lower level. Set the fundamental to
+                        0% and the upper partials to 100%, and the tone gets brighter as you play harder. A struck string or bar behaves roughly like
+                        this.
                     </p>
 
                     <p>
-                        Both controls run either side of zero. A positive amount means harder or heavier is louder. A negative amount inverts that, so
-                        the partial is at its loudest when you play softly. The two halves are exact mirrors, so -50% at a given velocity matches +50%
-                        at the opposite velocity. The reason to want the negative half is crossfading: give one set of partials a positive amount and
-                        another set a negative one, and the two timbres trade places across the velocity range instead of one simply fading in.
+                        Both controls go either side of zero. A positive amount makes harder or heavier playing louder. A negative amount inverts
+                        that, so the partial is loudest when you play softly. The two halves mirror each other exactly, so -50% at a given velocity
+                        matches +50% at the opposite velocity. The negative half is useful for crossfading. Give one set of partials a positive amount
+                        and another set a negative one, and the two timbres swap places across the velocity range instead of one just fading in.
                     </p>
 
                     <p>
-                        Aftertouch works the same way but <strong>adds</strong> to the fader instead of scaling it, and it ignores velocity entirely.
-                        A strip with its fader all the way down is silent until you lean on the key, and then it fades in under your finger, while a
-                        negative amount fades an open strip back out. Both channel pressure and polyphonic aftertouch are accepted and whichever is
-                        higher wins. Pressure is smoothed over about 15 ms, so seven-bit MIDI does not step the gain.
+                        Aftertouch works the same way but <strong>adds</strong> to the fader instead of scaling it, and it ignores velocity. A strip
+                        with its fader all the way down is silent until you press into the key, and then it fades in. A negative amount fades an open
+                        strip out instead. Both channel pressure and polyphonic aftertouch are accepted, and the higher of the two is used. Pressure
+                        is smoothed over about 15 ms, so the steps of seven-bit MIDI are not heard in the gain.
                     </p>
 
                     <p>
-                        The mod wheel stands in for it by default, since most keyboards have no aftertouch at all and the wheel is the control your
-                        hand already goes to. A wheel left alone reads zero, so nothing changes for a controller that does send pressure. Settings has
-                        an "Aftertouch from" entry if you would rather have one or the other on its own.
+                        By default the mod wheel also works as aftertouch, because most keyboards have no aftertouch and the wheel is close to hand. A
+                        wheel left at rest reads zero, so nothing changes on a controller that does send pressure. To use only one or the other,
+                        choose it in the "Aftertouch from" entry in Settings.
                     </p>
                 </section>
 
@@ -383,84 +385,85 @@
                     <h2>The two-part envelope</h2>
 
                     <p>
-                        Delay, attack, decay and sustain on the way in. Letting go of a key then runs its own little envelope rather than simply
-                        fading out: the KEY OFF rows say where the level goes when the key is released and how long it takes to get there, and only
-                        then does the release run from that level down to silence.
+                        Delay, attack, decay and sustain while the key is down. Releasing the key runs a small envelope of its own instead of just
+                        fading out. The KEY OFF rows set the level the sound moves to when the key is released, and how long it takes to get there.
+                        Only then does the release run from that level down to silence.
                     </p>
 
                     <p>
-                        Above the sustain that is a release click or a bloom, the sound a damper landing or a hammer returning makes, and it can be
-                        louder than the note was while you were holding it. <em>Drawbar Organ</em> uses it that way: the upper drawbars jump to 55%
-                        for two milliseconds as the contacts break. Below the sustain it is the fast initial drop into a long tail that a piano or a
-                        struck bell actually has, which is probably the half that gets more use. A key-off level of zero skips the stage entirely and
-                        releases from wherever the level sat.
+                        A key-off level above the sustain gives a release click or swell, like the sound of a damper landing or a hammer returning,
+                        and it can be louder than the held note. <em>Drawbar Organ</em> uses it this way: the upper drawbars jump to 55% for two
+                        milliseconds as the contacts break. A level below the sustain gives the fast drop into a long tail that a piano or a struck
+                        bell has, which is probably the more common use. A key-off level of zero skips the stage and releases from the current level.
                     </p>
 
                     <p>
-                        <strong>How fast you let the key up scales that tail</strong>, on a keyboard that can sense a release. The hardest lift leaves
-                        twice the level, the softest half of it and 64 is neutral, and it scales the level the tail would have started from, so on a
-                        patch with a key-off level of its own it moves that and on a patch without one it moves the sustain. There is no knob for it
-                        and no parameter: it belongs to the gesture rather than to the patch, the way velocity does. A partial already sounding at
-                        full has nowhere for a hard lift to go, since the envelope stops at full scale.
+                        <strong>How fast you release the key scales that tail</strong>, on a keyboard that can sense release velocity. The fastest
+                        release doubles the level, the slowest halves it, and 64 leaves it unchanged. It scales the level the tail starts from. On a
+                        patch with its own key-off level it changes that level, and on a patch without one it changes the sustain. It has no knob and
+                        no parameter, because like velocity it belongs to how you play, not to the patch. A fast release cannot raise a partial that
+                        is already at full level, since the envelope stops at full scale.
                     </p>
 
                     <p>
-                        Most keyboards cannot sense a release at all, and on those nothing changes. They say so in two different ways, either a
-                        note-off carrying zero or a note-on of velocity zero standing in for one, and both are read as no information rather than as
-                        the softest lift there is.
+                        Most keyboards cannot sense release velocity, and on those nothing changes. They send either a note-off with a velocity of
+                        zero or a note-on with a velocity of zero in its place. Both are read as no information, not as the slowest possible release.
                     </p>
 
                     <p>
-                        The delay stage holds a partial silent before its attack begins. Staggering it across the series makes the spectrum unfold
-                        rather than arrive all at once, which is how <em>Slow Pad</em> and <em>Shimmer</em> open up. It is latched in samples at
-                        note-on, so moving the knob cannot retime a note already waiting.
+                        The delay stage keeps a partial silent before its attack begins. Setting different delays across the series makes the spectrum
+                        build up gradually instead of arriving all at once. This is how <em>Slow Pad</em> and <em>Shimmer</em> open up. The delay is
+                        fixed in samples at note-on, so moving the knob does not change the timing of a note already waiting.
                     </p>
 
                     <p>
-                        <strong>ATTACK reaches below its shortest time.</strong> Turned past 0.2 ms it stops being a time and becomes where in its
-                        cycle the partial starts, from 0&deg;, a rising zero crossing, down to 90&deg; at the bottom of the knob, which starts the
-                        partial on its own peak with no attack at all. A zero crossing is the softest onset there is: a partial cannot reach its peak
-                        until a quarter of its period has gone by, and below about 500 Hz that is longer than the shortest attack, so on most of the
-                        keyboard the edge of a note is set by where its cycle starts rather than by the envelope. A millisecond into an A1, a partial
-                        starting from the crossing is a third of the way up, from 45&deg; nine tenths, and from the peak all of it. On the ring that
-                        stretch is drawn as dots rather than ticks, so a knob in degrees and a knob in milliseconds can be told apart at a glance.
+                        <strong>ATTACK goes below its shortest time.</strong> Turned below 0.2 ms, it sets where in its cycle the partial starts
+                        instead of a time. This runs from 0&deg;, a rising zero crossing, to 90&deg; at the bottom of the knob, which starts the
+                        partial at its peak with no attack at all. A zero crossing is the softest possible start. A partial cannot reach its peak
+                        until a quarter of its period has passed, and below about 500 Hz that is longer than the shortest attack. So on most of the
+                        keyboard, where the cycle starts shapes the start of a note more than the envelope does. One millisecond into an A1, a partial
+                        starting from the zero crossing is a third of the way up, one starting from 45&deg; is nine tenths of the way up, and one
+                        starting from the peak is all the way up. This part of the knob's ring is marked with dots instead of ticks, so you can see at
+                        a glance whether a knob is set in degrees or in milliseconds.
                     </p>
 
                     <p>
-                        It is per channel like every row, so the edge can go on some partials and not others, and LINK spreads it across the series in
-                        one drag. Every partial on its peak at once is a spike: for 32 partials on a falling series the first sample is about four
-                        times the steady peak, and the output stage meets it. Staggering the start across the channels keeps the edge and loses the
-                        spike. With phase reset off in Settings a partial carries on from wherever its cycle was, and this stretch of the knob is the
-                        shortest attack.
+                        Like every row, it is set per channel, so some partials can start sharply and others not. LINK can spread it across the series
+                        in one drag. If every partial starts at its peak at the same time, the result is a spike: for 32 partials on a falling series,
+                        the first sample is about four times the steady peak, and the output stage has to handle it. Spreading the start points across
+                        the channels keeps the sharp start without the spike. With phase reset off in Settings, a partial carries on from wherever its
+                        cycle was, and this part of the knob acts as the shortest attack. The noise channel has no cycle to start, so its ATTACK stops
+                        at 0.2 ms.
                     </p>
 
                     <p>
-                        <strong>STRIKE</strong> sits at the head of the section because it is about the blow rather than about the shape, and it aims
-                        that blow at the two rows under it, the way the velocity row aims it at the fader. Zero ignores the gesture. Positive means a
-                        hard note starts sooner and arrives faster, and a soft one waits and then opens slowly. Negative inverts it.
+                        <strong>STRIKE</strong> is at the top of the section because it is about how hard the key is struck, not about the shape of
+                        the envelope. It applies velocity to the two rows below it, the way the velocity row applies it to the fader. At zero it has
+                        no effect. A positive amount makes a hard note start sooner and rise faster, and makes a soft note wait and then rise slowly.
+                        A negative amount inverts this.
                     </p>
 
                     <p>
-                        The two halves lean opposite ways on purpose, and each knob stays the limit of its own row. Velocity only ever lengthens the
-                        attack, so ATTACK goes on meaning the fastest the partial gets, and it only ever pulls the delay in, so DELAY goes on meaning
-                        the latest it arrives. Both span eight octaves at full amount, a range of 256 to 1: a partial set to 2 ms attacks in 2 ms
-                        under a hard blow and takes half a second under the softest, and a 400 ms delay stays 400 ms under the softest and comes in to
-                        under two milliseconds under the hardest. The stretched attack stops at five seconds, which is as long as the ATTACK row
-                        itself goes. It moves the whole of the row, the stretch below the shortest time included: a partial set to start on its peak
-                        starts there under a hard blow, nearer the zero crossing under a lighter one, and past it into a short attack under the
-                        softest. A quarter turn is worth two octaves of attack, so at full amount the softest note takes that peak to about 13 ms.
+                        The two act in opposite directions on purpose, so each knob stays the limit of its own row. Velocity only ever lengthens the
+                        attack, so ATTACK is always the fastest the partial can rise. It only ever shortens the delay, so DELAY is always the latest
+                        the partial can arrive. At full amount both cover eight octaves, a range of 256 to 1. A partial set to a 2 ms attack rises in
+                        2 ms when struck hardest and takes half a second when struck softest. A 400 ms delay stays 400 ms when struck softest and
+                        drops to under two milliseconds when struck hardest. The lengthened attack stops at five seconds, the longest the ATTACK row
+                        goes. STRIKE moves the whole row, including the part below the shortest time. A partial set to start at its peak starts there
+                        when struck hard, nearer the zero crossing when struck more lightly, and past it into a short attack when struck softest. A
+                        quarter turn is worth two octaves of attack, so at full amount the softest note turns a start at the peak into an attack of
+                        about 13 ms.
                     </p>
 
                     <p>
-                        Setting it per partial is what separates it from a velocity curve over the whole instrument: give the upper partials a strike
-                        amount and leave the fundamental at zero, and a hard chord lands as one bright block while a soft one unfolds, the fundamental
-                        first and the series arriving behind it.
+                        Because it is set per partial, it does more than a velocity curve for the whole instrument. Give the upper partials a strike
+                        amount and leave the fundamental at zero. A hard chord then arrives all at once and bright, while a soft one builds up, with
+                        the fundamental first and the upper partials after it.
                     </p>
 
                     <p>
-                        One shape worth knowing, because it is what a music box or a thumb piano has: no sustain at all, so the partial decays to
-                        silence while the key is still down, and then a key-off level that brings it back. Reaching zero is not the same as being
-                        finished.
+                        One useful shape is the one a music box or a thumb piano has. Set no sustain at all, so the partial decays to silence while
+                        the key is still down, and then set a key-off level that brings it back. Decaying to zero does not end the note.
                     </p>
                 </section>
 
@@ -468,50 +471,41 @@
                     <h2>Ganging the channels</h2>
 
                     <p>
-                        <strong>One button at the top of the caption column on the left</strong> chooses what a drag in the mixer does, and it is the
-                        one control that is not on the top bar. It wears the pointer you are about to be holding rather than a word: a plain arrow, an
-                        arrow with two chain links, or an arrow with a drawn contour. Clicking it names the three, and a right-click anywhere in the
-                        mixer opens the same menu, which is where you are when you want it.
+                        <strong>One button at the top of the caption column on the left</strong> sets what a drag in the mixer does. Instead of a
+                        word, it shows the pointer you will get: a plain arrow, an arrow with two chain links, or an arrow with a drawn contour. Click
+                        it to see the three by name. A right-click anywhere in the mixer opens the same menu.
                     </p>
 
                     <p>
-                        <strong>Link</strong> gangs the strips: dragging any knob moves the same knob on the others. It works relatively, applying an
-                        offset to wherever each strip already sits rather than dragging everything to one shared value, so a spectrum you have shaped
-                        by hand keeps its shape. The offset is always measured from the values captured when the drag started, so returning the knob
-                        to where you began restores the strips exactly, even if some of them hit an end stop along the way.
+                        <strong>Link</strong> gangs the strips: dragging any knob moves the same knob on the other strips. It works relatively. It
+                        adds an offset to each strip's current value instead of setting them all to one value, so a spectrum you have shaped by hand
+                        keeps its shape. The offset is always measured from the values at the start of the drag, so moving the knob back to where you
+                        started restores the strips exactly, even if some of them hit the end of their range along the way.
                     </p>
 
                     <p>
-                        Which channels a drag reaches and how it is shared out are set in the same menu, under the three tools, so the tool and its
-                        settings are one click apart. With Link chosen, pointing at a knob arms every knob a drag from it would move, before you touch
-                        anything, and how brightly each one lights follows the curve.
+                        Which channels a drag reaches, and how the movement is shared between them, are set in the same menu, under the three tools.
+                        With Link chosen, pointing at a knob lights every knob a drag from it would move, before you click. How brightly each one
+                        lights follows the curve.
                     </p>
 
                     <p>
-                        <strong>Draw</strong> is the third. A drag across the faders sets each channel it passes over from the pointer's height, so a
-                        spectrum can be drawn in one stroke rather than one fader at a time. Holding shift does the same for as long as it is held,
-                        whatever tool is chosen, and the button shows the contour for as long as the key is down, so the panel says what a drag would
-                        do however it came to be that way.
+                        <strong>Draw</strong> is the third tool. Dragging across the faders sets each channel you pass over to the pointer's height,
+                        so you can draw a spectrum in one stroke instead of one fader at a time. Holding shift does the same whatever tool is chosen,
+                        and the button shows the contour while the key is down. Either way, the button shows what a drag would do.
                     </p>
 
                     <p>
-                        They are one choice rather than three switches because a drag cannot be two of them at once. When they were two separate
-                        switches, LINK had to be shown as off while drawing was armed without actually being off, which is a lie the mouse-up would
-                        have exposed.
+                        Drawing is different from Link. Link shares one relative move across the channels by a rule, and drawing sets absolute values
+                        freehand, so neither can do the other's job. Channels the pointer skips over between one moment and the next are filled in, so
+                        a fast drag leaves no gaps, and the whole stroke is a single undo step. Drawing works on the faders only, because a fader's
+                        value is its height and a pointer's height means nothing for a knob.
                     </p>
 
                     <p>
-                        It is not Link under another name: Link shares one relative move out across the channels by a rule, and drawing sets absolute
-                        values freehand, so neither can do the other's job. Columns the pointer crosses between one moment and the next are filled in,
-                        so a fast hand leaves no gaps, and the whole stroke is a single undo. It works on the faders alone, because a fader's value is
-                        where it stands and a pointer's height means nothing to a knob.
-                    </p>
-
-                    <p>
-                        While it is armed every fader lights, in the same accent the button is lit in, so what the next drag would reach is visible
-                        before you touch anything. That is the same preview LINK uses, since both answer the one question. The pointer becomes a
-                        pencil and LINK reads as off, without being off: only one of the two can be what the next drag does, and letting go gives LINK
-                        back.
+                        While drawing is armed, every fader lights in the same accent colour as the button, so you can see what the next drag would
+                        reach before you click, the same way Link previews its knobs. The pointer becomes a pencil. If you hold shift with another
+                        tool chosen, the button shows the pencil while the key is down and goes back to your tool when you let go.
                     </p>
 
                     <div class="scroll">
@@ -536,7 +530,7 @@
                                 </tr>
                                 <tr>
                                     <td>Odd harmonics</td>
-                                    <td>1, 3, 5 and so on, the hollow half of the series</td>
+                                    <td>1, 3, 5 and so on, the half of the series that sounds hollow</td>
                                 </tr>
                                 <tr>
                                     <td>Even harmonics</td>
@@ -566,8 +560,8 @@
                                 <tr>
                                     <td>Spread / gather</td>
                                     <td>
-                                        pushing up scatters the strips apart along random directions, pulling down gathers them onto the strip you are
-                                        dragging
+                                        dragging up spreads the strips apart in random directions, dragging down pulls them together onto the strip
+                                        you are dragging
                                     </td>
                                 </tr>
                             </tbody>
@@ -575,17 +569,17 @@
                     </div>
 
                     <p>
-                        Taper is anchored on the strip you grabbed, which always gets exactly its full share of the drag. That has to be true, since
-                        the knob under the mouse follows the mouse. From there a strip's share falls off in a straight line with distance, reaching
-                        nothing thirty-one channels away.
+                        Taper is centred on the strip you grabbed, which always moves by the full amount of the drag, because the knob under the mouse
+                        has to follow the mouse. From there, each strip's share falls off in a straight line with distance, reaching nothing
+                        thirty-one channels away.
                     </p>
 
                     <p>
-                        Where you reach in is therefore the whole control. Grab channel 1 and the mixer tilts down across its full width, from
-                        everything to nothing. Grab channel 32 and it tilts up instead. Grab channel 10 and the curve peaks under your hand and falls
-                        away on both sides, to 0.71 at channel 1 and 0.29 at channel 32. Distance is measured against the full width rather than
-                        against whichever end is nearer, so the reach stays the same wherever you grab: scaling it to the nearer end would make a grab
-                        on channel 2 drop channel 1 to nothing in a single step.
+                        So the channel you grab sets the shape. Grab channel 1 and the movement tilts down across the full width of the mixer, from
+                        the full amount to nothing. Grab channel 32 and it tilts up instead. Grab channel 10 and the curve peaks at that channel and
+                        falls away on both sides, to 0.71 at channel 1 and 0.29 at channel 32. Distance is measured against the full width, not
+                        against the nearer end, so the reach is the same wherever you grab. Scaling it to the nearer end would make a grab on channel
+                        2 drop channel 1 to nothing in a single step.
                     </p>
 
                     <p>LINK gangs the 32 partials only. The noise channel has no tuning, pitch modulation or drift to gang.</p>
@@ -595,29 +589,28 @@
                     <h2>Working the panel</h2>
 
                     <p>
-                        <strong>Double-clicking a knob restores its default</strong>, which is that control's own default rather than the bottom of
-                        its range. On a fader that is 0 dB rather than silence.
+                        <strong>Double-clicking a knob resets it to its default</strong>, which is that control's own default, not the bottom of its
+                        range. On a fader that is 0 dB, not silence.
                     </p>
 
                     <p>
-                        <strong>Undo and redo</strong> matter here more than they would on a smaller instrument, because one LINK drag moves the same
-                        knob on all 32 channels and without a history the only way back is to reload the preset. A step is a gesture rather than a
-                        value change, so that drag comes back in one rather than thirty-two. Cmd-Z and Cmd-Shift-Z, or Ctrl with the same two keys
-                        away from a Mac, work where the host lets them through, which many do not, since a DAW usually keeps those for its own
-                        history. Both are also in the Settings menu, just under the version, which always works. Loading a session starts you with an
-                        empty history rather than with whatever the last person did.
+                        <strong>Undo and redo</strong> matter more here than on a smaller instrument, because one LINK drag moves the same knob on all
+                        32 channels. Without undo, the only way back would be to reload the preset. Each step is a whole gesture, not a single value
+                        change, so that drag is undone in one step, not thirty-two. Cmd-Z and Cmd-Shift-Z, or Ctrl with the same keys on other
+                        systems, work when the host passes them on. Many hosts do not, because a DAW usually keeps those keys for its own undo. Both
+                        are also near the top of the Settings menu, and that always works. Loading a session starts with an empty undo history.
                     </p>
 
                     <p>
-                        <strong>Resting on a strip</strong> names the partial it belongs to: the harmonic number, the interval that harmonic makes
-                        with the fundamental, how many semitones above the played note the tempered position is, and how far the exact ratio sits from
-                        that in cents. It is the row that channel has in <a href="../tuning/">the table of the series</a>, without leaving the mixer.
-                        The mute and solo buttons say which harmonic they would silence.
+                        <strong>Hovering over a strip</strong> shows the partial it belongs to: the harmonic number, the interval that harmonic makes
+                        with the fundamental, how many semitones above the played note its tempered position is, and how far the exact ratio is from
+                        that in cents. It is that channel's row in <a href="../tuning/">the table of the series</a>, shown in the mixer. The mute and
+                        solo buttons show which harmonic they would silence.
                     </p>
 
                     <p>
-                        <strong>Right-clicking anywhere in the mixer</strong> opens the LINK menu, which is where your hand already is when you want
-                        it. The mute and solo buttons take the click instead and clear every mute or every solo at once.
+                        <strong>Right-clicking anywhere in the mixer</strong> opens the LINK menu. On the mute and solo buttons, a right-click clears
+                        every mute or every solo at once instead.
                     </p>
                 </section>
 
@@ -626,18 +619,18 @@
 
                     <h3 id="readouts">The two readouts</h3>
                     <p>
-                        Each channel carries two figures, the cents its tuning knob is worth and the level its fader is at, both drawn as
-                        seven-segment displays rather than as text: a number the instrument is reporting back should look different from a number you
-                        typed. Two of the things they show are not numbers. A partial left in equal temperament reads <strong>Et</strong> and a fader
-                        all the way down reads <strong>-inF</strong>. The fundamental and the octaves read <strong>0.0</strong>, since their just
-                        interval is the note itself. Like a real display, each has a fixed row of cells whose segments are lit or unlit, so the
-                        figures are the same size whatever they say.
+                        Each channel shows two figures: the cents set by its tuning knob and the level of its fader. Both are drawn as seven-segment
+                        displays instead of text, so a number the instrument reports looks different from a number you typed. Two of the readings are
+                        not numbers. A partial left in equal temperament reads
+                        <strong>Et</strong>, and a fader all the way down reads <strong>-inF</strong>. The fundamental and the octaves read
+                        <strong>0.0</strong>, because their just interval is the note itself. As on a real display, each has a fixed row of cells
+                        whose segments are either lit or unlit, so the figures are always the same size.
                     </p>
 
                     <h3 id="lamps">Lamps on the rules</h3>
                     <p>
-                        The rules dividing a strip into groups carry a lamp each, showing what the group under them is doing to this partial right
-                        now.
+                        Each of the rules that divide a strip into groups has a lamp. It shows what the group below it is doing to this partial at
+                        that moment.
                     </p>
 
                     <div class="scroll">
@@ -652,8 +645,8 @@
                                 <tr>
                                     <td>PITCH MOD</td>
                                     <td>
-                                        a needle on a track, flat to the left and sharp to the right, where modulation, drift and a glide still on its
-                                        way have the partial now
+                                        a needle on a track, flat to the left and sharp to the right, showing where modulation, drift and any glide
+                                        still in progress have put the partial
                                     </td>
                                 </tr>
                                 <tr>
@@ -667,14 +660,15 @@
                                 <tr>
                                     <td>AMP MOD</td>
                                     <td>
-                                        how far the tremolo has pulled the level down, so it pulses at the rate and swings further at greater depth
+                                        how far the tremolo has lowered the level, so it pulses at the tremolo's rate and swings further at greater
+                                        depth
                                     </td>
                                 </tr>
                                 <tr>
                                     <td>OUTPUT</td>
                                     <td>
-                                        two lamps side by side, one for each row beneath it: the left is what the blow has left of the partial, the
-                                        right is what the pressure on the key is adding
+                                        two lamps side by side, one for each row below it: the left shows how much of the partial velocity has left,
+                                        the right shows what pressure on the key is adding
                                     </td>
                                 </tr>
                             </tbody>
@@ -682,45 +676,52 @@
                     </div>
 
                     <p>
-                        They read from the voice pool rather than from the knobs, so they describe a note rather than a setting and nothing pulses
-                        over silence, and they follow the loudest voice on that partial, which is the one the meter follows. The output rule carries
-                        two of them, one for each row beneath it, and each is the shape of the knob above it. VELOCITY can only take level away, so
-                        its lamp shows what the row has left: full when the blow has cost the partial nothing, dark when the row has taken all of it,
-                        and full at every velocity when the knob sits at the centre. AFTERTOUCH adds instead, so its lamp rests dark and comes up as
-                        you lean on the key, and it does not matter which way that row is set to push. The needle's scale is fixed and the same on
-                        every strip, so two channels can be compared by eye. Full deflection is 225 cents, which is a vibrato and a drift at full
-                        stretch rather than the widest the depth knob now reaches. A square set to jump an octave pegs it, and so does a wide glide
-                        until it is within a couple of semitones of its note, which is the honest thing for a needle to do when it is off the end of
-                        its scale: scaled to the octave instead, an ordinary vibrato would not move it at all.
+                        The lamps read the voice pool, not the knobs, so they show what a note is doing, not a setting, and nothing pulses when
+                        nothing is sounding. They follow the loudest voice on that partial, the same one the meter follows. The output rule has two
+                        lamps, one for each row below it, and each has the shape of the knob above it. VELOCITY can only reduce the level, so its lamp
+                        shows what the row leaves: full when velocity has taken nothing from the partial, dark when it has taken all of it, and full
+                        at every velocity when the knob is at the centre. AFTERTOUCH adds level instead, so its lamp is dark at rest and lights up as
+                        you press into the key, whichever direction that row is set to push. The needle's scale is fixed and the same on every strip,
+                        so you can compare two channels by eye. Full deflection is 225 cents. That covers a vibrato and a drift at full depth, but not
+                        the widest the depth knob reaches. A square set to jump an octave pushes the needle to the end of its track, and so does a
+                        wide glide until it is within a couple of semitones of its note. With a scale wide enough for an octave, an ordinary vibrato
+                        would not move the needle at all.
                     </p>
 
                     <h3 id="meters">Meters</h3>
                     <p>
-                        Each channel meters what that partial is actually putting out, on a decibel scale floored at -48 dB, so the envelope, tremolo,
-                        velocity, aftertouch and mute or solo all show at once and the spectrum can be watched evolving as a note decays. The meter
-                        fills the fader's own track rather than sitting beside it, and the cap is drawn as translucent glass so the meter reads
-                        through it. It reads the loudest instance of a partial across the sounding voices rather than the sum, so it shows the shape
-                        of the patch instead of pinning itself the moment you play a chord.
+                        Each channel meters the actual output of its partial, on a decibel scale down to -48 dB. The envelope, tremolo, velocity,
+                        aftertouch and mute or solo all show in it, and you can watch the spectrum change as a note decays. The meter fills the
+                        fader's own track instead of sitting beside it, and the fader cap is drawn as translucent glass so the meter shows through it.
+                        It shows the loudest instance of the partial across the sounding voices, not the sum, so it shows the shape of the patch
+                        instead of hitting the top as soon as you play a chord.
                     </p>
 
                     <h3 id="colour-and-hover">Colour and hover</h3>
                     <p>
-                        Channels are coloured by interval class, in chromatic order along a narrow band from blue at the octave, through magenta and
-                        red, to yellow at the major seventh, so octaves, fifths and thirds stay visible while you scroll. The band is deliberately
-                        narrow so 32 channels read as one family rather than a rainbow, and nothing in it enters the green and cyan the global
-                        controls use. Pointing at a knob picks out its row all the way across the mixer and brackets the channel it is on, so where
-                        the two cross is the control a drag would move.
+                        Channels are coloured by interval class, in chromatic order along a narrow range from blue at the octave, through magenta and
+                        red, to yellow at the major seventh, so you can pick out octaves, fifths and thirds while you scroll. The range is narrow on
+                        purpose, so 32 channels look like one family instead of a rainbow, and none of the colours overlap the green and cyan of the
+                        global controls. Pointing at a knob highlights its row across the whole mixer and marks its channel, so the control where the
+                        two meet is the one a drag would move.
+                    </p>
+
+                    <h3 id="silenced">Silenced channels</h3>
+                    <p>
+                        A channel you cannot hear, because it is muted or because another channel is soloed, turns its lights off. Its knob rings,
+                        both readouts and the macro columns beside its fader go dark, and its waveform drawings turn grey. The pointer on each knob
+                        and the fader cap still show where they are set, and M and S stay lit, since one of them is usually what silenced it.
                     </p>
 
                     <h3 id="folding">Folding the mixer down</h3>
                     <p>
-                        Clicking a section heading in the caption gutter folds that group of rows away across every channel at once, and so does
-                        clicking the rule that section draws across any strip, which saves crossing to the gutter and finding your way back to the
-                        partial you were working on. Pointing at a rule gives the same hand a heading does and lights that section's caption and its
-                        disclosure mark, so what the click would fold is visible before you make it. The window loses exactly the height those rows
-                        were taking. Pitch modulation, envelope, key off, amp mod and output each fold. The tuning at the top and the faders at the
-                        bottom always stay. The heading keeps its activity lamp while folded, so a group you cannot see still reports whether it is
-                        doing anything, and the fold state is remembered with the session rather than with the patch.
+                        Clicking a section heading in the caption gutter folds that group of rows away on every channel at once. Clicking that
+                        section's rule on any strip does the same, so you do not have to move to the gutter and then find the partial you were working
+                        on again. Pointing at a rule shows the same hand pointer as a heading and lights that section's caption and its disclosure
+                        mark, so you can see what the click would fold before you click. The window shrinks by exactly the height of those rows. Pitch
+                        modulation, envelope, key off, amp mod and output can each be folded. The tuning at the top and the faders at the bottom
+                        always stay. A folded heading keeps its activity lamp, so a hidden group still shows whether it is doing anything. The fold
+                        state is saved with the session, not with the patch.
                     </p>
                 </section>
 
@@ -728,15 +729,34 @@
                     <h2>The noise channel</h2>
 
                     <p>
-                        Pinned on the right, after the series it does not belong to, is a noise channel marked NZ. It has the same envelope, tremolo,
-                        velocity, aftertouch, pan, mute, solo, level and meter as a partial, and takes part in solo alongside them. What it does not
-                        have is pitch, so the tuning, pitch modulation and drift rows are empty.
+                        A noise channel marked NZ sits on the right, after the series. It has the same envelope, tremolo, velocity, aftertouch, pan,
+                        mute, solo, level and meter as a partial, and takes part in solo alongside them. It is not part of the harmonic series, so it
+                        has no tuning, pitch modulation or drift of its own. COLOUR takes the place of the tuning row, and a string takes the rest.
                     </p>
 
                     <p>
-                        COLOUR takes the tuning row instead, tilting the noise from dark rumble at one end, through flat in the middle, to bright hiss
-                        at the other. The middle really is flat rather than merely filtered less. Each voice runs its own noise stream, so playing a
-                        chord does not layer eight copies of the identical signal.
+                        COLOUR tilts the noise from a dark rumble at one end, through flat in the middle, to a bright hiss at the other. The middle is
+                        fully flat, not just less filtered. Each voice runs its own noise stream, so playing a chord does not layer eight copies of
+                        the identical signal.
+                    </p>
+
+                    <p>
+                        <strong>A string</strong> sits under COLOUR, where a partial's pitch modulation would be, for the noise to strike. It is a
+                        Karplus-Strong string: a delay line one period of the note long, fed back through a gentle low-pass filter, so a burst of
+                        noise sent into it comes out as a plucked note that loses its high frequencies first. It is tuned to the note and follows the
+                        pitch wheel, glide and Adaptive like the fundamental does. The noise strikes it after COLOUR and the envelope have shaped the
+                        noise, so a darker colour strikes it more softly. STRING crossfades from the noise alone to the string alone. DECAY sets how
+                        long the string rings while the key is down, DAMP how quickly it loses its high frequencies, and POINT where along the string
+                        the noise strikes. POINT runs from near the end, which keeps every harmonic, to the middle, which removes the even ones.
+                    </p>
+
+                    <p>
+                        The envelope sets how the string is played. A noise envelope a few milliseconds long plucks the string and lets it ring, like
+                        the start of a harpsichord note, or of a guitar note under the organ. A noise held on a short, dark string blows into it,
+                        which gives a pitched breath. When the key is released, the channel's RELEASE damps the string. At the top of the keyboard,
+                        where the string is too short to tune, it fades back to plain noise instead of playing out of tune. COLOUR and the string's
+                        four knobs belong only to the noise channel, so pointing at them does not light a row across the mixer. The
+                        <a href="../presets/#what-ships">Space Cowboy</a> preset plucks it for its tremolo guitar.
                     </p>
                 </section>
 

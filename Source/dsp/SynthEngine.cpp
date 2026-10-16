@@ -11,6 +11,7 @@ void SynthEngine::prepare(double newSampleRate) noexcept {
   renderRate = sampleRate;
 
   outputStage.prepare(sampleRate);
+  sympathetic.prepare(sampleRate);
 
   // Builds the oscillator tables if nothing has yet, which takes about eight
   // milliseconds: each circuit run over a sine, the harmonics read off it, and
@@ -46,6 +47,7 @@ void SynthEngine::reset() noexcept {
 
   wobble.reset();
   busDrive.reset();
+  sympathetic.reset();
   outputStage.reset();
   echo.reset();
   bucket.reset();
@@ -982,6 +984,86 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
   return result;
 }
 
+double SynthEngine::restingFrequency(int note,
+                                     const SynthParams &p) const noexcept {
+  const auto t = p.global.temperament;
+  const auto root = p.global.tuningRoot;
+  const auto reference = p.global.referenceHz;
+
+  if (t != Temperament::Adaptive)
+    return noteFrequency(note, t, root, reference);
+
+  const auto version = adaptiveVersion[(size_t)(((note % 12) + 12) % 12)];
+  return noteFrequency(note, t, root, reference) *
+         std::exp2((double)version * tuning::kAdaptiveComma / 1200.0);
+}
+
+SympatheticStrings::Plan
+SynthEngine::planStrings(const SynthParams &p) const noexcept {
+  SympatheticStrings::Plan plan;
+  constexpr int kStrings = SympatheticStrings::kStrings;
+
+  const auto set = [&plan](int key, double hz, bool free) {
+    const auto s = SympatheticStrings::stringOf(key);
+    // The class's constant rather than the local beside it, which MSVC would
+    // need captured.
+    if (s >= 0 && s < SympatheticStrings::kStrings) {
+      plan.hz[(size_t)s] = hz;
+      plan.free[(size_t)s] = free;
+    }
+  };
+
+  switch (p.resonator.mode) {
+  case ResonatorMode::Piano:
+  case ResonatorMode::Open: {
+    // Open is Piano with the sustain pedal always down.
+    const bool pedal = p.pedalDown || p.resonator.mode == ResonatorMode::Open;
+
+    // A held key's string is where that key is sounding, before any bend:
+    // a piano's strings do not follow the wheel. The rest wait where a key
+    // struck into silence would sound.
+    std::array<double, kStrings> held{};
+    for (const auto &v : voices) {
+      const auto s = SympatheticStrings::stringOf(v.getNote());
+      if (v.isActive() && !v.isReleasing() && s >= 0 && s < kStrings)
+        held[(size_t)s] = v.getFrequency();
+    }
+
+    for (int s = 0; s < kStrings; ++s) {
+      const auto key = SympatheticStrings::keyOf(s);
+      const bool isHeld = held[(size_t)s] > 0.0;
+      set(key, isHeld ? held[(size_t)s] : restingFrequency(key, p),
+          isHeld || pedal);
+      plan.pedalled[(size_t)s] = !isHeld && pedal;
+    }
+    break;
+  }
+
+  case ResonatorMode::Octave:
+    for (int key = 48; key < 60; ++key)
+      set(key, restingFrequency(key, p), true);
+    break;
+
+  case ResonatorMode::Series: {
+    // The root's harmonics from its second octave, pure, each on the string
+    // of the key nearest to it.
+    const auto rootKey = 36 + ((p.global.tuningRoot % 12) + 12) % 12;
+    const auto fundamental = restingFrequency(rootKey, p);
+
+    for (int h = 1; h <= 8; ++h)
+      set(rootKey + (int)std::lround(12.0 * std::log2((double)h)),
+          fundamental * (double)h, true);
+    break;
+  }
+
+  case ResonatorMode::Off:
+  case ResonatorMode::NumModes:
+    break;
+  }
+
+  return plan;
+}
+
 double SynthEngine::frequencyOfNote(int note) const noexcept {
   for (const auto &v : voices)
     if (v.isActive() && !v.isReleasing() && v.getNote() == note)
@@ -1099,6 +1181,8 @@ void SynthEngine::allSoundOff() noexcept {
 
   for (auto &v : voices)
     v.reset();
+
+  sympathetic.reset();
 
   heldBySustain.fill(false);
   sustainDown = false;
@@ -1370,6 +1454,13 @@ void SynthEngine::render(float *left, float *right, int numSamples,
   glide = GlideSettings::of(p);
   renderVoices(left, right, numSamples, p);
   clock += (uint64_t)numSamples;
+
+  // ---- the resonator --------------------------------------------------------
+  // On the summed channels and before the bus drive, so they ring inside the
+  // instrument and the character drives them with everything else. Off, and
+  // faded out, the stage is not there at all.
+  if (p.resonator.mode != ResonatorMode::Off || sympathetic.isBusy())
+    sympathetic.process(left, right, numSamples, p.resonator, planStrings(p));
 
   // ---- the bus the series is summed onto -----------------------------------
   // Before the effects, since this is the summing amplifier rather than

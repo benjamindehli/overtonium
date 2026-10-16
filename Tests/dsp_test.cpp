@@ -4,10 +4,10 @@
 //   dsp_test && ./dsp_test
 //
 // Every SynthEngine here is built on the heap and read through a reference, so
-// a test reads as though it held one. An engine is 200 kB, MSVC gives the main
-// thread a 1 MB stack where the other platforms give 8, and a test holding
-// three of them overflowed it. Windows was the only platform that noticed, and
-// it noticed as a segfault carrying no output at all.
+// a test reads as though it held one. An engine is about 260 kB, and MSVC
+// gives the main thread a 1 MB stack where the other platforms give 8, so a
+// test holding a few of them overflows it on Windows alone, as a segfault
+// carrying no output at all.
 
 #include <algorithm>
 #include <array>
@@ -31,10 +31,12 @@
 #include "dsp/Envelope.h"
 #include "dsp/Halfband.h"
 #include "dsp/Harmonics.h"
+#include "dsp/KarplusString.h"
 #include "dsp/OutputStage.h"
 #include "dsp/PlateReverb.h"
 #include "dsp/Reverb.h"
 #include "dsp/SineTable.h"
+#include "dsp/SympatheticStrings.h"
 #include "dsp/SynthEngine.h"
 #include "dsp/TapeEcho.h"
 #include "dsp/Temperament.h"
@@ -4183,6 +4185,960 @@ void testActivity() {
     p.osc[0].volume = 0.5f;
     p.osc[0].velAmount = 0.0f;
     p.osc[0].atAmount = 0.0f;
+  }
+}
+
+/// The pitch of a signal near `expectedHz`, from the autocorrelation peak
+/// refined by a parabola through its neighbours, so a fraction of a cent shows.
+double pitchNear(const std::vector<float> &x, size_t from, size_t count,
+                 double rate, double expectedHz) {
+  const auto expected = rate / expectedHz;
+  const auto lo = std::max<size_t>(2, (size_t)(expected * 0.95));
+  const auto hi = (size_t)(expected * 1.05) + 2;
+
+  const auto corr = [&](size_t lag) {
+    double sum = 0.0, a = 0.0, b = 0.0;
+    for (size_t n = from; n < from + count; ++n) {
+      sum += (double)x[n] * (double)x[n + lag];
+      a += (double)x[n] * (double)x[n];
+      b += (double)x[n + lag] * (double)x[n + lag];
+    }
+    return sum / std::sqrt(std::max(1.0e-30, a * b));
+  };
+
+  size_t best = lo;
+  double bestValue = -2.0;
+  for (size_t lag = lo; lag <= hi; ++lag)
+    if (const auto v = corr(lag); v > bestValue) {
+      bestValue = v;
+      best = lag;
+    }
+
+  const auto before = corr(best - 1), after = corr(best + 1);
+  const auto bend = before - 2.0 * bestValue + after;
+  const auto shift =
+      std::abs(bend) > 1.0e-12 ? 0.5 * (before - after) / bend : 0.0;
+  return rate / ((double)best + shift);
+}
+
+/// The string the noise channel strikes: in tune, ringing for as long as
+/// DECAY says, following a pitch that moves, quiet where it cannot be tuned,
+/// and as loud as the noise that breathes into it.
+void testKarplusString() {
+  section("The string in the noise channel");
+
+  std::mt19937 rng(11);
+  std::uniform_real_distribution<float> white(-1.0f, 1.0f);
+
+  // Struck with a short burst and left to ring.
+  const auto pluck = [&](KarplusString &string, double rate, double hz,
+                         double decay, float damp, double seconds) {
+    const auto n = (size_t)(seconds * rate);
+    std::vector<float> out(n);
+    const auto burst = (size_t)(0.004 * rate);
+    for (size_t i = 0; i < n; i += 32) {
+      const auto len = (int)std::min<size_t>(32, n - i);
+      string.setBlock(hz, decay, damp, 0.0f, len);
+      for (size_t k = i; k < i + (size_t)len; ++k)
+        out[k] = string.tick(k < burst ? white(rng) : 0.0f);
+    }
+    return out;
+  };
+
+  // ---- in tune --------------------------------------------------------------
+  double worst = 0.0;
+  std::string worstCase;
+  for (const double rate : {44100.0, 48000.0, 96000.0})
+    for (const double hz : {55.0, 110.0, 261.6, 440.0, 1000.0})
+      for (const float damp : {0.0f, 0.5f, 1.0f}) {
+        KarplusString string;
+        string.prepare(rate);
+        const auto out = pluck(string, rate, hz, 3.0, damp, 0.5);
+        const auto from = (size_t)(0.1 * rate);
+        const auto measured =
+            pitchNear(out, from, (size_t)(0.25 * rate), rate, hz);
+        const auto cents = std::abs(1200.0 * std::log2(measured / hz));
+        if (cents > worst) {
+          worst = cents;
+          worstCase = std::to_string((int)hz) + " Hz at " +
+                      std::to_string((int)rate) + ", damp " +
+                      std::to_string(damp);
+        }
+      }
+  check(worst < 1.0, "the string is in tune at every pitch, rate and damping "
+                     "(worst " +
+                         std::to_string(worst) + " cents, " + worstCase + ")");
+
+  // ---- rings as long as DECAY says ------------------------------------------
+  {
+    const double rate = 48000.0, decay = 1.0;
+    bool asLong = true;
+    std::string readings;
+    // High as well as low, since the damping costs a high note far more of
+    // its fundamental each second than a low one.
+    for (const auto &[hz, damp] :
+         {std::pair{110.0, 0.0f}, std::pair{110.0, 1.0f},
+          std::pair{880.0, 1.0f}}) {
+      KarplusString string;
+      string.prepare(rate);
+      const auto out = pluck(string, rate, hz, decay, damp, 1.2);
+
+      const auto level = [&](double at) {
+        double sum = 0.0;
+        const auto from = (size_t)(at * rate), count = (size_t)(0.05 * rate);
+        for (size_t k = from; k < from + count; ++k)
+          sum += (double)out[k] * (double)out[k];
+        return std::sqrt(sum / (double)count);
+      };
+
+      // Late enough that the upper harmonics, which die faster, are gone.
+      const auto dB = 20.0 * std::log10(level(0.9) / level(0.4));
+      const auto t60 = -60.0 * 0.5 / dB;
+      readings += std::to_string(t60) + " ";
+      asLong &= t60 > 0.85 * decay && t60 < 1.15 * decay;
+    }
+    check(asLong, "and rings for the time DECAY says, bright or dark (" +
+                      readings + "s)");
+  }
+
+  // ---- follows a pitch that moves -------------------------------------------
+  {
+    const double rate = 48000.0;
+    KarplusString string;
+    string.prepare(rate);
+    const auto n = (size_t)(1.0 * rate);
+    std::vector<float> out(n);
+    bool finite = true;
+    for (size_t i = 0; i < n; i += 32) {
+      // A breath held under an octave's slide up and back down, then held.
+      const auto t = (double)i / rate;
+      const auto hz = t < 0.4   ? 220.0 * std::exp2(t / 0.4)
+                      : t < 0.6 ? 440.0
+                                : 440.0;
+      string.setBlock(hz, 0.5, 0.4f, 0.25f, 32);
+      for (size_t k = i; k < i + 32 && k < n; ++k) {
+        out[k] = string.tick(0.2f * white(rng));
+        finite &= std::isfinite(out[k]) && std::abs(out[k]) < 4.0f;
+      }
+    }
+    const auto measured =
+        pitchNear(out, (size_t)(0.7 * rate), (size_t)(0.2 * rate), rate, 440.0);
+    check(finite && std::abs(1200.0 * std::log2(measured / 440.0)) < 3.0,
+          "it follows a slide an octave up, and lands in tune (" +
+              std::to_string(measured) + " Hz)");
+  }
+
+  // ---- faded where it cannot be tuned ---------------------------------------
+  {
+    const double rate = 48000.0;
+    const auto audibleAt = [&](double hz) {
+      KarplusString string;
+      string.prepare(rate);
+      string.setBlock(hz, 1.0, 0.4f, 0.25f, 32);
+      return string.audibility();
+    };
+    check(exactly(audibleAt(440.0), 1.0f) && exactly(audibleAt(1500.0), 1.0f),
+          "it is heard where the loop is long enough to tune");
+    check(exactly(audibleAt(rate / 6.0), 0.0f) && exactly(audibleAt(5.0), 0.0f),
+          "and gone where it is not, at the top and below the lowest string");
+    const auto between = audibleAt(rate / 16.0);
+    check(between > 0.0f && between < 1.0f,
+          "with a fade between (" + std::to_string(between) + ")");
+  }
+
+  // ---- a pluck keeps what it was struck with --------------------------------
+  {
+    const double rate = 48000.0;
+    std::vector<double> rings;
+    std::string readings;
+    for (const double decay : {0.3, 1.5, 5.0}) {
+      KarplusString string;
+      string.prepare(rate);
+      const auto n = (size_t)(0.04 * rate), burst = (size_t)(0.01 * rate);
+      double in = 0.0, ring = 0.0;
+      size_t counted = 0;
+      for (size_t i = 0; i < n; i += 32) {
+        string.setBlock(220.0, decay, 0.4f, 0.25f, 32);
+        for (size_t k = i; k < i + 32; ++k) {
+          const auto x = k < burst ? white(rng) : 0.0f;
+          in += (double)x * x;
+          const auto y = string.tick(x);
+          // Just after the burst, before a short decay has had time to tell.
+          if (k >= (size_t)(0.012 * rate) && k < (size_t)(0.03 * rate)) {
+            ring += (double)y * y;
+            ++counted;
+          }
+        }
+      }
+      const auto under =
+          10.0 * std::log10((in / (double)burst) / (ring / (double)counted));
+      rings.push_back(under);
+      readings += std::to_string(under) + " ";
+    }
+    const auto [lo, hi] = std::minmax_element(rings.begin(), rings.end());
+    check(*hi < 12.0 && *hi - *lo < 4.0,
+          "a pluck rings at about the level of the noise that struck it, "
+          "however long DECAY lets it ring (" +
+              readings + "dB under)");
+  }
+
+  // ---- and builds up when it is breathed into -------------------------------
+  {
+    const double rate = 48000.0;
+    std::vector<double> ratios;
+    bool bounded = true;
+    for (const double decay : {0.1, 1.0, 5.0}) {
+      KarplusString string;
+      string.prepare(rate);
+      double in = 0.0, out = 0.0;
+      const auto n = (size_t)(3.0 * rate);
+      for (size_t i = 0; i < n; i += 32) {
+        string.setBlock(220.0, decay, 0.0f, 0.5f, 32);
+        for (size_t k = 0; k < 32; ++k) {
+          const auto x = 0.3f * white(rng);
+          const auto y = string.tick(x);
+          bounded &= std::isfinite(y) && std::abs(y) < 4.0f;
+          if (i > n / 2) {
+            in += (double)x * x;
+            out += (double)y * y;
+          }
+        }
+      }
+      ratios.push_back(std::sqrt(out / in));
+    }
+    check(bounded && ratios[0] < ratios[1] && ratios[1] < ratios[2] &&
+              ratios[2] < 10.0,
+          "breathed into steadily it builds up more the longer it rings, and "
+          "stays bounded (" +
+              std::to_string(ratios[0]) + ", " + std::to_string(ratios[1]) +
+              ", " + std::to_string(ratios[2]) + ")");
+  }
+
+  // ---- in the noise channel -------------------------------------------------
+  const double sr = 48000.0;
+  const auto channel = [&](float amount, float bend, bool letGo) {
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+    auto p = makeFlatParams(0.0f);
+    // Every partial silent and its envelope gone within a few milliseconds,
+    // so nothing but the string can be keeping the voice alive.
+    for (auto &o : p.osc) {
+      o.volume = 0.0f;
+      o.decay = 0.01f;
+      o.sustain = 0.0f;
+      o.offLevel = 0.0f;
+    }
+    p.noise.volume = 0.6f;
+    p.noise.velAmount = 0.0f;
+    p.noise.attack = 0.001f;
+    p.noise.decay = 0.01f;
+    p.noise.sustain = 0.0f;
+    p.noise.release = 0.05f;
+    p.noise.stringAmount = amount;
+    p.noise.stringDecay = 2.0f;
+    p.noise.stringDamp = 0.3f;
+    p.noise.stringPoint = 0.1f;
+    p.global.bendSemitones = bend;
+
+    engine.noteOn(57, 1.0f, p); // A3, 220 Hz
+    const auto n = (size_t)(0.6 * sr);
+    std::vector<float> l(n), r(n);
+
+    // In blocks the size a host hands over, since whether a voice is still
+    // alive is decided between them.
+    bool letGone = false;
+    for (size_t done = 0; done < n; done += 512) {
+      if (letGo && !letGone && done >= n / 2) {
+        engine.noteOff(57);
+        letGone = true;
+      }
+      const auto len = (int)std::min<size_t>(512, n - done);
+      engine.render(l.data() + done, r.data() + done, len, p);
+    }
+    return l;
+  };
+
+  const auto rms = [](const std::vector<float> &x, double from, double to) {
+    double sum = 0.0;
+    const auto a = (size_t)(from * 48000.0), b = (size_t)(to * 48000.0);
+    for (size_t k = a; k < b; ++k)
+      sum += (double)x[k] * (double)x[k];
+    return std::sqrt(sum / (double)(b - a));
+  };
+
+  const auto plain = channel(0.0f, 0.0f, false);
+  const auto strung = channel(1.0f, 0.0f, false);
+  const auto bent = channel(1.0f, 2.0f, false);
+  const auto damped = channel(1.0f, 0.0f, true);
+
+  check(rms(plain, 0.15, 0.25) < 1.0e-6 && rms(strung, 0.15, 0.25) > 1.0e-3,
+        "a burst of noise that has ended leaves the string ringing");
+
+  const auto played =
+      pitchNear(strung, (size_t)(0.1 * sr), (size_t)(0.15 * sr), sr, 220.0);
+  const auto bentTo = pitchNear(bent, (size_t)(0.1 * sr), (size_t)(0.15 * sr),
+                                sr, 220.0 * std::exp2(2.0 / 12.0));
+  check(std::abs(1200.0 * std::log2(played / 220.0)) < 2.0,
+        "at the note's pitch (" + std::to_string(played) + " Hz)");
+  check(std::abs(1200.0 * std::log2(bentTo / (220.0 * std::exp2(2.0 / 12.0)))) <
+            2.0,
+        "and follows the pitch wheel (" + std::to_string(bentTo) + " Hz)");
+
+  check(rms(damped, 0.45, 0.5) < 0.1 * rms(strung, 0.45, 0.5),
+        "letting the key go damps it over the channel's release");
+}
+
+/// The strings nobody plays: which ones sound, tuned where, with whose
+/// dampers up, and what they do to the sound.
+void testSympatheticStrings() {
+  section("Sympathetic strings");
+
+  constexpr double sr = 48000.0;
+  using Strings = SympatheticStrings;
+
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
+  engine.prepare(sr);
+
+  auto p = makeFlatParams(0.0f);
+  p.osc[0].volume = 0.5f;
+  p.osc[0].tuneBlend = 0.0f;
+  p.osc[0].release = 0.03f;
+  p.noise.release = 0.02f;
+  p.global.masterGain = 1.0f;
+  p.global.safetyClip = false;
+
+  const auto equal = [](int key) {
+    return 440.0 * std::exp2((double)(key - 69) / 12.0);
+  };
+  const auto near = [](double a, double b) {
+    return std::abs(1200.0 * std::log2(a / b)) < 0.01;
+  };
+
+  // ---- the plan ------------------------------------------------------------
+  {
+    p.resonator.mode = ResonatorMode::Off;
+    const auto off = engine.planStrings(p);
+    check(std::all_of(off.hz.begin(), off.hz.end(),
+                      [](double hz) { return exactly(hz, 0.0); }),
+          "off, no string is in use");
+
+    p.resonator.mode = ResonatorMode::Octave;
+    const auto octave = engine.planStrings(p);
+    int inUse = 0;
+    bool right = true;
+    for (int s = 0; s < Strings::kStrings; ++s)
+      if (octave.hz[(size_t)s] > 0.0) {
+        ++inUse;
+        const auto key = Strings::keyOf(s);
+        right &= key >= 48 && key < 60 && octave.free[(size_t)s] &&
+                 near(octave.hz[(size_t)s], equal(key));
+      }
+    check(inUse == 12 && right,
+          "Octave rings twelve strings from C3, in tune and undamped");
+
+    p.resonator.mode = ResonatorMode::Series;
+    p.global.tuningRoot = 2; // D
+    const auto series = engine.planStrings(p);
+    bool harmonics = true;
+    const int keys[] = {38, 50, 57, 62, 66, 69, 72, 74};
+    for (int h = 1; h <= 8; ++h) {
+      const auto s = (size_t)Strings::stringOf(keys[h - 1]);
+      harmonics &= series.free[s] && near(series.hz[s], equal(38) * h);
+    }
+    check(harmonics, "Series rings D's first eight harmonics, pure");
+    p.global.tuningRoot = 0;
+  }
+
+  // ---- Piano: held keys free, the rest damped, all free under the pedal -----
+  {
+    p.resonator.mode = ResonatorMode::Piano;
+    engine.noteOn(60, 1.0f, p);
+    p.global.bendSemitones = 2.0f;
+    std::vector<float> l(512), r(512);
+    engine.render(l.data(), r.data(), 512, p);
+
+    const auto held = engine.planStrings(p);
+    const auto c4 = (size_t)Strings::stringOf(60);
+    int free = 0;
+    for (bool f : held.free)
+      free += f ? 1 : 0;
+
+    check(free == 1 && held.free[c4] && near(held.hz[c4], equal(60)),
+          "Piano frees only the held key's string, at its pitch before the "
+          "bend");
+    check(near(held.hz[(size_t)Strings::stringOf(69)], 440.0),
+          "and keeps the others where a key struck now would sound");
+
+    p.pedalDown = true;
+    const auto pedal = engine.planStrings(p);
+    bool pedalledRight = true;
+    for (int s = 0; s < Strings::kStrings; ++s)
+      pedalledRight &= pedal.pedalled[(size_t)s] == ((size_t)s != c4);
+    check(std::all_of(pedal.free.begin(), pedal.free.end(),
+                      [](bool f) { return f; }) &&
+              pedalledRight,
+          "and the pedal frees every one, marking all but the held key's as "
+          "freed by the pedal");
+    p.pedalDown = false;
+
+    // Open is the same with the pedal down whether it is or not.
+    p.resonator.mode = ResonatorMode::Open;
+    const auto open = engine.planStrings(p);
+    bool sameAsPedal = true;
+    for (size_t s = 0; s < (size_t)Strings::kStrings; ++s)
+      sameAsPedal &= open.free[s] == pedal.free[s] &&
+                     open.pedalled[s] == pedal.pedalled[s] &&
+                     exactly(open.hz[s], pedal.hz[s]);
+    check(sameAsPedal, "Open plans the strings the way Piano does with the "
+                       "pedal down, without it");
+
+    p.global.bendSemitones = 0.0f;
+    engine.allSoundOff();
+  }
+
+  // ---- under Adaptive an unheld string waits where its key last sounded -----
+  {
+    p.resonator.mode = ResonatorMode::Piano;
+    p.global.temperament = Temperament::Adaptive;
+    // D under a B flat major chord takes the version a third above B flat,
+    // not the one D has alone on a root of C.
+    for (int key : {58, 62, 65})
+      engine.noteOn(key, 1.0f, p);
+    std::vector<float> l(512), r(512);
+    engine.render(l.data(), r.data(), 512, p);
+    const auto sounded = engine.frequencyOfNote(62);
+    for (int key : {58, 62, 65})
+      engine.noteOff(key);
+    for (int b = 0; b < 20; ++b)
+      engine.render(l.data(), r.data(), 512, p);
+
+    const auto plan = engine.planStrings(p);
+    check(near(plan.hz[(size_t)Strings::stringOf(62)], sounded) &&
+              !plan.free[(size_t)Strings::stringOf(62)],
+          "under Adaptive a string nobody holds waits where its key last "
+          "sounded, damped");
+    p.global.temperament = Temperament::Equal;
+    engine.allSoundOff();
+  }
+
+  // ---- what they do to the sound
+  // ---------------------------------------------
+  const auto ringAfter = [&](ResonatorMode mode, bool holdC3, bool pedal,
+                             bool pedalUpAfter) {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &e = *owner;
+    e.prepare(sr);
+    auto q = p;
+    q.resonator.mode = mode;
+    q.resonator.mix = 1.0f;
+    q.resonator.decaySeconds = 3.0f;
+    q.resonator.damping = 0.2f;
+    q.pedalDown = pedal;
+    q.osc[0].velAmount = 1.0f;
+
+    // C3 held silently, its velocity so low it makes no sound of its own.
+    if (holdC3)
+      e.noteOn(48, 1.0e-4f, q);
+    e.noteOn(60, 1.0f, q);
+
+    const auto n = (size_t)(0.8 * sr);
+    std::vector<float> l(n), r(n);
+    bool bounded = true;
+    for (size_t done = 0; done < n; done += 512) {
+      if (done == 512 * 20)
+        e.noteOff(60);
+      if (pedalUpAfter && done == 512 * 30)
+        q.pedalDown = false;
+      e.render(l.data() + done, r.data() + done, 512, q);
+    }
+    for (auto x : l)
+      bounded &= std::isfinite(x) && std::abs(x) < 4.0f;
+
+    double sum = 0.0;
+    const auto from = (size_t)(0.6 * sr), to = (size_t)(0.8 * sr);
+    for (size_t k = from; k < to; ++k)
+      sum += (double)l[k] * l[k];
+    return bounded ? std::sqrt(sum / (double)(to - from)) : 1.0e9;
+  };
+
+  const auto none = ringAfter(ResonatorMode::Off, false, false, false);
+  const auto octave = ringAfter(ResonatorMode::Octave, false, false, false);
+  const auto alone = ringAfter(ResonatorMode::Piano, false, false, false);
+  const auto heldUnder = ringAfter(ResonatorMode::Piano, true, false, false);
+  const auto pedalled = ringAfter(ResonatorMode::Piano, false, true, false);
+  const auto liftedPedal = ringAfter(ResonatorMode::Piano, false, true, true);
+  const auto open = ringAfter(ResonatorMode::Open, false, false, false);
+
+  check(none < 1.0e-6 && octave > 1.0e-3,
+        "the octave's strings ring on after a note has stopped (" +
+            std::to_string(octave) + ")");
+  check(heldUnder > 1.0e-4 && heldUnder > 10.0 * alone,
+        "a key held silently rings along with the octave played above it, "
+        "and does not when nobody holds it (" +
+            std::to_string(heldUnder) + " against " + std::to_string(alone) +
+            ")");
+  check(pedalled > 1.0e-4 && pedalled > 10.0 * alone &&
+            liftedPedal < 0.1 * pedalled,
+        "the pedal lets every string ring, and letting it up stops them (" +
+            std::to_string(pedalled) + ", " + std::to_string(liftedPedal) +
+            ")");
+  check(open > 1.0e-4 && open > 10.0 * alone,
+        "Open rings every string with no pedal down (" + std::to_string(open) +
+            " against " + std::to_string(alone) + " for Piano)");
+
+  // ---- bounded at the extremes
+  // --------------------------------------------------
+  {
+    // The loudest the strings can be asked to ring, against the same chord
+    // with none: they may add to it, but they must not run away.
+    const auto peakOf = [&](ResonatorMode mode) {
+      const auto owner = std::make_unique<SynthEngine>();
+      auto &e = *owner;
+      e.prepare(sr);
+      auto q = p;
+      for (auto &o : q.osc)
+        o.volume = 1.0f;
+      q.resonator.mode = mode;
+      q.resonator.mix = 1.0f;
+      q.resonator.decaySeconds = 10.0f;
+      q.resonator.damping = 0.0f;
+      q.pedalDown = true;
+      for (int key : {24, 36, 48, 55, 60, 64, 67, 72, 84, 96})
+        e.noteOn(key, 1.0f, q);
+      std::vector<float> l(512), r(512);
+      float peak = 0.0f;
+      for (int b = 0; b < 200; ++b) {
+        e.render(l.data(), r.data(), 512, q);
+        for (auto x : l)
+          peak = std::isfinite(x) ? std::max(peak, std::abs(x)) : 1.0e9f;
+      }
+      return peak;
+    };
+
+    const auto dry = peakOf(ResonatorMode::Off);
+    const auto wet = peakOf(ResonatorMode::Piano);
+    check(wet < 4.0f * dry,
+          "every string free, ringing ten seconds, bright, under a loud chord, "
+          "stays bounded (" +
+              std::to_string(wet) + " against " + std::to_string(dry) +
+              " without them)");
+  }
+
+  // ---- a damper stops a bass string slower than a treble one ---------------
+  //
+  // A string driven at its own pitch, then damped. What is left a tenth of a
+  // second later, and whether anything is left after three.
+  {
+    const auto afterDamping = [sr](int key, double later) {
+      Strings bank;
+      bank.prepare(sr);
+      Strings::Plan plan{};
+      const auto s = (size_t)Strings::stringOf(key);
+      const auto hz = 440.0 * std::exp2((double)(key - 69) / 12.0);
+      plan.hz[s] = hz;
+      plan.free[s] = true;
+      ResonatorParams params;
+      params.mode = ResonatorMode::Piano;
+      params.mix = 1.0f;
+
+      std::vector<float> l(256), r(256);
+      double phase = 0.0;
+      float before = 0.0f, after = 0.0f;
+      const int drive = (int)(1.0 * sr) / 256, rest = (int)(later * sr) / 256;
+      for (int b = 0; b < drive + rest + 2; ++b) {
+        if (b == drive)
+          plan.free[s] = false;
+        for (int n = 0; n < 256; ++n) {
+          const auto x = b < drive ? (float)(0.5 * std::sin(phase)) : 0.0f;
+          phase += 2.0 * 3.14159265358979 * hz / sr;
+          l[(size_t)n] = r[(size_t)n] = x;
+        }
+        bank.process(l.data(), r.data(), 256, params, plan);
+        float peak = 0.0f;
+        for (auto y : l)
+          peak = std::max(peak, std::abs(y));
+        if (b == drive - 1)
+          before = peak;
+        if (b >= drive + rest)
+          after = std::max(after, peak);
+      }
+      return std::make_pair(20.0 * std::log10(after / before + 1.0e-12),
+                            bank.isRinging());
+    };
+
+    const auto bass = afterDamping(33, 0.1);
+    const auto treble = afterDamping(96, 0.1);
+    const auto gone = afterDamping(33, 3.0);
+
+    check(Strings::damperSeconds(0) > 2.0 * Strings::damperSeconds(87) &&
+              bass.first > -15.0 && treble.first < bass.first - 8.0,
+          "a damped bass string rings on for a moment and a treble one "
+          "stops sooner (" +
+              std::to_string(bass.first) + " and " +
+              std::to_string(treble.first) + " dB a tenth of a second on)");
+    check(!gone.second, "and three seconds on neither is ringing");
+  }
+
+  // ---- a damper never rings a string longer than DECAY would -------------
+  {
+    Strings bank;
+    bank.prepare(sr);
+    Strings::Plan plan{};
+    const auto s = (size_t)Strings::stringOf(33); // A1, the slowest damper
+    const auto hz = 55.0;
+    plan.hz[s] = hz;
+    plan.free[s] = true;
+    ResonatorParams params;
+    params.mode = ResonatorMode::Piano;
+    params.mix = 1.0f;
+    params.decaySeconds = 0.2f;
+
+    std::vector<float> l(256), r(256);
+    double phase = 0.0;
+    float before = 0.0f, after = 0.0f;
+    const int drive = (int)(1.0 * sr) / 256, rest = (int)(0.25 * sr) / 256;
+    for (int b = 0; b < drive + rest + 2; ++b) {
+      if (b == drive)
+        plan.free[s] = false;
+      for (int n = 0; n < 256; ++n) {
+        const auto x = b < drive ? (float)(0.5 * std::sin(phase)) : 0.0f;
+        phase += 2.0 * 3.14159265358979 * hz / sr;
+        l[(size_t)n] = r[(size_t)n] = x;
+      }
+      bank.process(l.data(), r.data(), 256, params, plan);
+      float peak = 0.0f;
+      for (auto y : l)
+        peak = std::max(peak, std::abs(y));
+      if (b == drive - 1)
+        before = peak;
+      if (b >= drive + rest)
+        after = std::max(after, peak);
+    }
+    const auto down = 20.0 * std::log10(after / before + 1.0e-12);
+    check(down < -60.0,
+          "a damper stops a string with a short DECAY as fast as DECAY "
+          "would, not at the damper's own slower pace (" +
+              std::to_string(down) + " dB a quarter second on)");
+  }
+
+  // ---- the level holds across DECAY, the pedal and how it is played ------
+  //
+  // A held note drives a string continuously, so its level grows with how
+  // long the string rings. A short note only gets in what its moment allows,
+  // whatever DECAY is. The feed splits the difference, so neither moves far,
+  // and a string freed only by the pedal is fed little enough that pressing
+  // the pedal blooms rather than turns the chord up.
+  {
+    const auto level = [sr](float mix, float decay, bool pedal, bool staccato,
+                            bool pedalChanges = false,
+                            std::vector<float> *keep = nullptr) {
+      const auto owner = std::make_unique<SynthEngine>();
+      auto &e = *owner;
+      e.prepare(sr);
+      SynthParams q;
+      for (int i = 0; i < kNumHarmonics; ++i) {
+        auto &o = q.osc[(size_t)i];
+        o.tuneBlend = 0.0f;
+        o.attack = 0.002f;
+        o.sustain = 1.0f;
+        o.release = 0.05f;
+        o.velAmount = 0.0f;
+        o.volume = 0.4f / (float)(i + 1);
+        o.audible = true;
+      }
+      q.global.masterGain = 1.0f;
+      q.global.safetyClip = false;
+      q.resonator.mode = ResonatorMode::Piano;
+      q.resonator.mix = mix;
+      q.resonator.decaySeconds = decay;
+      q.pedalDown = pedal;
+
+      const int chords[3][3] = {{48, 55, 64}, {50, 57, 65}, {52, 59, 67}};
+      std::vector<float> l(256), r(256);
+      double sum = 0.0;
+      long counted = 0;
+      const int every = (int)(0.5 * sr) / 256, hold = (int)(0.15 * sr) / 256;
+      if (!staccato)
+        for (int n : {48, 52, 55, 60})
+          e.noteOn(n, 0.9f, q);
+      for (int b = 0; b < (int)(3.0 * sr) / 256; ++b) {
+        if (staccato && b % every == 0)
+          for (int n : chords[(b / every) % 3])
+            e.noteOn(n, 0.9f, q);
+        if (staccato && b % every == hold)
+          for (int n : chords[(b / every) % 3])
+            e.noteOff(n);
+        if (pedalChanges)
+          q.pedalDown = (b / every) % 2 == 1;
+        e.render(l.data(), r.data(), 256, q);
+        if (keep != nullptr)
+          keep->insert(keep->end(), l.begin(), l.end());
+        if (b * 256 > (int)(1.5 * sr))
+          for (auto x : l) {
+            sum += (double)x * x;
+            ++counted;
+          }
+      }
+      return std::sqrt(sum / (double)counted);
+    };
+
+    double furthest = 0.0;
+    std::string worst;
+    double bloom = 0.0;
+    for (const float decay : {0.2f, 4.0f, 10.0f})
+      for (const bool staccato : {false, true})
+        for (const bool pedal : {false, true}) {
+          const auto off =
+              20.0 * std::log10(level(0.5f, decay, pedal, staccato) /
+                                level(0.0f, decay, pedal, staccato));
+          if (std::abs(off) > std::abs(furthest)) {
+            furthest = off;
+            worst = std::to_string(decay).substr(0, 4) + " s, " +
+                    (staccato ? "staccato" : "held") +
+                    (pedal ? ", pedal down" : ", pedal up");
+          }
+          if (!staccato && pedal)
+            bloom = std::max(
+                bloom,
+                std::abs(20.0 * std::log10(level(1.0f, decay, true, false) /
+                                           level(1.0f, decay, false, false))));
+        }
+
+    check(std::abs(furthest) < 4.5,
+          "at half MIX the level stays within 4.5 dB of the instrument from "
+          "0.2 to 10 s of DECAY, held or staccato, pedal up or down "
+          "(furthest " +
+              std::to_string(furthest) + " dB, " + worst + ")");
+    check(bloom < 2.0,
+          "and pressing the pedal changes a held chord by less than 2 dB at "
+          "any DECAY (" +
+              std::to_string(bloom) + " dB)");
+
+    // The pedal going down and up must not click: every string it frees or
+    // damps has its feed and its loop gain moved across a block rather than
+    // stepped, or eighty-seven strings click at once. Measured as the energy
+    // above 16 kHz, where neither the partials nor the strings have much,
+    // just after each change against the same in steady play.
+    std::vector<float> out;
+    level(1.0f, 1.0f, false, false, true, &out);
+    const int w = 240;
+    const auto above16k = [&out, w, sr](size_t start) {
+      double e = 0.0;
+      for (int k = (int)(16000.0 / sr * w); k < w / 2; ++k) {
+        double re = 0.0, im = 0.0;
+        for (int n = 0; n < w; ++n) {
+          const auto hann = 0.5 - 0.5 * std::cos(6.283185307 * n / (w - 1));
+          re +=
+              out[start + (size_t)n] * hann * std::cos(6.283185307 * k * n / w);
+          im -=
+              out[start + (size_t)n] * hann * std::sin(6.283185307 * k * n / w);
+        }
+        e += re * re + im * im;
+      }
+      return e;
+    };
+    const auto every = (size_t)((int)(0.5 * sr) / 256 * 256);
+    double changing = 0.0, steady = 0.0;
+    for (size_t c = 2 * every; c + every < out.size(); c += every) {
+      for (size_t at = c - 240; at < c + 480; at += 60)
+        changing = std::max(changing, above16k(at));
+      for (size_t at = c + 4800; at < c + every - 720; at += 240)
+        steady = std::max(steady, above16k(at));
+    }
+    check(changing < 2.0 * steady,
+          "and the pedal going down or up makes no click (energy above 16 kHz "
+          "at a change " +
+              std::to_string(10.0 * std::log10(changing / steady)) +
+              " dB against steady play)");
+  }
+
+  // ---- switching it on and off moves the level, never steps it -------------
+  {
+    // A held note with the resonator off, then on at half MIX, then off while
+    // its string still rings. The instrument's level and the resonator's have
+    // to slide each time: a step shows as the output moving further in one
+    // sample than a held note ever makes it move.
+    Strings bank;
+    bank.prepare(sr);
+    Strings::Plan plan{};
+    const auto s = (size_t)Strings::stringOf(57);
+    plan.hz[s] = 220.0;
+    ResonatorParams params;
+    params.mix = 0.5f;
+
+    const int blocks = (int)(3.0 * sr) / 256;
+    const int on = (int)(0.5 * sr) / 256, off = (int)(1.5 * sr) / 256;
+    std::vector<float> l(256), r(256), out;
+    double phase = 0.0;
+    bool busyAfter = true, plainAfter = false;
+    for (int b = 0; b < blocks; ++b) {
+      const bool running = b >= on && b < off;
+      params.mode = running ? ResonatorMode::Piano : ResonatorMode::Off;
+      plan.free[s] = running;
+      for (int n = 0; n < 256; ++n) {
+        l[(size_t)n] = r[(size_t)n] = (float)(0.5 * std::sin(phase));
+        phase += 2.0 * 3.14159265358979 * 220.0 / sr;
+      }
+      const auto in = l;
+      if (params.mode != ResonatorMode::Off || bank.isBusy())
+        bank.process(l.data(), r.data(), 256, params, plan);
+      out.insert(out.end(), l.begin(), l.end());
+      if (b == blocks - 1) {
+        busyAfter = bank.isBusy();
+        plainAfter = l == in;
+      }
+    }
+
+    const auto jump = [&out](size_t from, size_t to) {
+      float most = 0.0f;
+      for (size_t n = from + 1; n < to; ++n)
+        most = std::max(most, std::abs(out[n] - out[n - 1]));
+      return most;
+    };
+    const auto at = [](int block) { return (size_t)block * 256; };
+    const auto steady =
+        std::max(jump(at(off) - at(8), at(off)), jump(0, at(on)));
+    const auto switching = std::max(jump(at(on) - 256, at(on) + at(40)),
+                                    jump(at(off) - 256, at(off) + at(40)));
+
+    check(switching < 1.2f * steady,
+          "switching the resonator on or off moves the level rather than "
+          "stepping it (largest move in a sample " +
+              std::to_string(switching) + " against " + std::to_string(steady) +
+              " in steady play)");
+    check(!busyAfter && plainAfter,
+          "and once off and faded out, it stops and leaves the instrument as "
+          "it was");
+  }
+
+  // ---- a string the pedal frees is fed less than a held key's --------------
+  {
+    const auto ringing = [sr](bool pedalled) {
+      Strings bank;
+      bank.prepare(sr);
+      Strings::Plan plan{};
+      const auto s = (size_t)Strings::stringOf(57);
+      plan.hz[s] = 220.0;
+      plan.free[s] = true;
+      plan.pedalled[s] = pedalled;
+      ResonatorParams params;
+      params.mode = ResonatorMode::Piano;
+      params.mix = 1.0f;
+
+      std::vector<float> l(256), r(256);
+      double phase = 0.0;
+      float peak = 0.0f;
+      for (int b = 0; b < (int)(3.0 * sr) / 256; ++b) {
+        for (int n = 0; n < 256; ++n) {
+          l[(size_t)n] = r[(size_t)n] = (float)(0.5 * std::sin(phase));
+          phase += 2.0 * 3.14159265358979 * 220.0 / sr;
+        }
+        bank.process(l.data(), r.data(), 256, params, plan);
+        // Once the string has come up, and the instrument's level has gone.
+        if (b * 256 > (int)(2.0 * sr))
+          for (auto y : l)
+            peak = std::max(peak, std::abs(y));
+      }
+      return peak;
+    };
+
+    const auto held = ringing(false), pedalled = ringing(true);
+    check(std::abs(pedalled / held - Strings::kPedalSend) < 0.05f,
+          "a string freed by the pedal rings at its share of a held key's (" +
+              std::to_string(pedalled / held) + ")");
+  }
+
+  // ---- MIX crossfades, as the echo's and the reverb's do ------------------
+  {
+    const auto through = [sr](float mix) {
+      Strings bank;
+      bank.prepare(sr);
+      Strings::Plan quiet{}; // nothing tuned, nothing ringing
+      ResonatorParams params;
+      params.mode = ResonatorMode::Octave;
+      params.mix = mix;
+      // Long enough for the levels to have slid to where MIX puts them.
+      std::vector<float> l(256), r(256);
+      for (int b = 0; b < (int)(0.5 * sr) / 256; ++b) {
+        std::fill(l.begin(), l.end(), 0.5f);
+        std::fill(r.begin(), r.end(), 0.5f);
+        bank.process(l.data(), r.data(), 256, params, quiet);
+      }
+      return l[100];
+    };
+
+    // Half way, the instrument is about 4.5 dB down: between a straight
+    // crossfade, which dips because the two do not add up in phase, and an
+    // equal-power one, which bulges because they partly do.
+    const auto halfway = 0.5f * std::pow(std::cos(0.7853982f), 1.5f);
+    check(std::abs(through(1.0f)) < 1.0e-6f &&
+              std::abs(through(0.5f) - halfway) < 1.0e-4f &&
+              std::abs(through(0.0f) - 0.5f) < 1.0e-6f,
+          "MIX goes from the instrument alone to the resonator alone, the "
+          "instrument about 4.5 dB down half way (" +
+              std::to_string(through(0.0f)) + ", " +
+              std::to_string(through(0.5f)) + ", " +
+              std::to_string(through(1.0f)) + ")");
+  }
+
+  // ---- turning MIX up does not turn a held chord down ---------------------
+  {
+    const auto level = [sr](ResonatorMode mode, float mix) {
+      const auto owner = std::make_unique<SynthEngine>();
+      auto &e = *owner;
+      e.prepare(sr);
+      SynthParams q;
+      for (int i = 0; i < kNumHarmonics; ++i) {
+        auto &o = q.osc[(size_t)i];
+        o.tuneBlend = 0.0f;
+        o.attack = 0.002f;
+        o.sustain = 1.0f;
+        o.release = 0.05f;
+        o.velAmount = 0.0f;
+        o.volume = 0.4f / (float)(i + 1);
+        o.audible = true;
+      }
+      q.global.masterGain = 1.0f;
+      q.global.safetyClip = false;
+      q.resonator.mode = mode;
+      q.resonator.mix = mix;
+
+      for (int n : {48, 52, 55, 60})
+        e.noteOn(n, 0.9f, q);
+      std::vector<float> l(256), r(256);
+      double sum = 0.0;
+      long counted = 0;
+      for (int b = 0; b < (int)(3.0 * sr) / 256; ++b) {
+        e.render(l.data(), r.data(), 256, q);
+        if (b * 256 > (int)(1.0 * sr))
+          for (auto x : l) {
+            sum += (double)x * x;
+            ++counted;
+          }
+      }
+      return std::sqrt(sum / (double)counted);
+    };
+
+    std::string worst;
+    double furthest = 0.0;
+    for (const auto mode : {ResonatorMode::Piano, ResonatorMode::Open,
+                            ResonatorMode::Octave, ResonatorMode::Series}) {
+      const auto dry = level(mode, 0.0f);
+      for (const float mix : {0.25f, 0.5f, 0.75f, 1.0f}) {
+        const auto off = 20.0 * std::log10(level(mode, mix) / dry);
+        if (std::abs(off) > std::abs(furthest)) {
+          furthest = off;
+          worst = std::string(resonatorModeName(mode)) + " at " +
+                  std::to_string((int)(mix * 100.0f)) + " %";
+        }
+      }
+    }
+    check(std::abs(furthest) < 3.0,
+          "on a held chord every mode stays within 3 dB of the instrument "
+          "across MIX (furthest " +
+              std::to_string(furthest) + " dB, " + worst + ")");
   }
 }
 
@@ -10176,6 +11132,8 @@ int main() {
   testTopLineLegato();
   testOneVoicePerKey();
   testPerNoteChannels();
+  testKarplusString();
+  testSympatheticStrings();
   testHeldExpression();
   testActivity();
   testPoolExhaustion();

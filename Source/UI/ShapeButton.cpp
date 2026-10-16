@@ -151,6 +151,14 @@ LfoShape ShapeButton::selectedShape() const {
 juce::String ShapeButton::currentName() const { return names[selectedIndex()]; }
 
 void ShapeButton::paint(juce::Graphics &g) {
+  LookKey key;
+  key.add(selectedIndex()).add(hovered).add(getProperties());
+
+  looks.paint(g, *this, key,
+              [this](juce::Graphics &into) { paintShape(into); });
+}
+
+void ShapeButton::paintShape(juce::Graphics &g) {
   const auto area = getLocalBounds().toFloat().reduced(3.0f, 2.0f);
 
   paintRecess(g, area, 2.0f);

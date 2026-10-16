@@ -26,6 +26,7 @@
         "midi-learn": "../playing/",
         mpe: "../playing/",
         "output-meter": "../effects/",
+        resonator: "../effects/",
         reverb: "../effects/",
         settings: "../playing/",
         wobble: "../effects/"

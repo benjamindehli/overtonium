@@ -12,8 +12,9 @@ you looked at it in, since CI can build all three and has ears on none.
 
 ## Before you open it
 
-Three things run in CI and all three are quick to check first.
-[CONTRIBUTING.md](https://github.com/benjamindehli/overtonium/blob/main/CONTRIBUTING.md) has the commands.
+CI runs more than this, but these three catch most of what it finds and are
+quick to check first.
+[CONTRIBUTING.md](https://github.com/benjamindehli/overtonium/blob/main/CONTRIBUTING.md) has the commands for all of it.
 
 - [ ] `ctest --test-dir build --build-config Release` passes, both suites
 - [ ] It builds clean with no warnings, which is the default and so is

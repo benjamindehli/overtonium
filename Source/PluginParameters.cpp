@@ -1137,6 +1137,56 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   layout.add(std::make_unique<BoolP>(juce::ParameterID{adaptiveHomeId, 1},
                                      "Adaptive No Drift", false));
 
+  // The string the noise channel strikes, on the end so nothing a host goes
+  // by position moves. STRING at nought is the channel without one, which is
+  // what every patch written before it had. Part of the patch, since a pluck
+  // is part of the sound.
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{noiseParamId(stringSuffix), 1}, "Noise String",
+      juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f,
+      FAttr().withStringFromValueFunction(percentText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{noiseParamId(stringDecaySuffix), 1},
+      "Noise String Decay", logRange(0.05f, kMaxStringDecaySeconds),
+      kStringDecayDefault, FAttr().withStringFromValueFunction(timeText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{noiseParamId(stringDampSuffix), 1}, "Noise String Damp",
+      juce::NormalisableRange<float>(0.0f, 1.0f), 0.4f,
+      FAttr().withStringFromValueFunction(percentText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{noiseParamId(stringPointSuffix), 1},
+      "Noise String Point", juce::NormalisableRange<float>(0.0f, 1.0f), 0.25f,
+      FAttr().withStringFromValueFunction(percentText)));
+
+  // The resonator, on the end after the noise channel's string. Off is the
+  // instrument without it. Part of the patch, since it is part of the sound,
+  // and the mode's list is declared in full for the reason the reverb's is.
+  juce::StringArray resonatorModeChoices;
+  for (int i = 0; i < (int)ResonatorMode::NumModes; ++i)
+    resonatorModeChoices.add(resonatorModeName((ResonatorMode)i));
+
+  layout.add(std::make_unique<juce::AudioParameterChoice>(
+      juce::ParameterID{resonatorModeId, 1}, "Resonator Mode",
+      resonatorModeChoices, (int)ResonatorMode::Off));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{resonatorMixId, 1}, "Resonator Mix",
+      juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f,
+      FAttr().withStringFromValueFunction(percentText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{resonatorDecayId, 1}, "Resonator Decay",
+      logRange(0.2f, kMaxResonatorDecaySeconds), kResonatorDecayDefault,
+      FAttr().withStringFromValueFunction(timeText)));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{resonatorDampId, 1}, "Resonator Damp",
+      juce::NormalisableRange<float>(0.0f, 1.0f), 0.4f,
+      FAttr().withStringFromValueFunction(percentText)));
+
   return layout;
 }
 
@@ -1211,7 +1261,13 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   reverb.damp = apvts.getRawParameterValue(reverbDampId);
   reverb.preDelay = apvts.getRawParameterValue(reverbPreDelayId);
 
-  jassert(echo.on != nullptr && reverb.on != nullptr);
+  resonator.mode = apvts.getRawParameterValue(resonatorModeId);
+  resonator.mix = apvts.getRawParameterValue(resonatorMixId);
+  resonator.decay = apvts.getRawParameterValue(resonatorDecayId);
+  resonator.damp = apvts.getRawParameterValue(resonatorDampId);
+
+  jassert(echo.on != nullptr && reverb.on != nullptr &&
+          resonator.mode != nullptr && resonator.damp != nullptr);
 
   for (int i = 0; i < kNumHarmonics; ++i) {
     auto &o = osc[(size_t)i];
@@ -1261,8 +1317,15 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   noise.solo = apvts.getRawParameterValue(noiseParamId(soloSuffix));
   noise.volume = apvts.getRawParameterValue(noiseParamId(volumeSuffix));
   noise.pan = apvts.getRawParameterValue(noiseParamId(panSuffix));
+  noise.string = apvts.getRawParameterValue(noiseParamId(stringSuffix));
+  noise.stringDecay =
+      apvts.getRawParameterValue(noiseParamId(stringDecaySuffix));
+  noise.stringDamp = apvts.getRawParameterValue(noiseParamId(stringDampSuffix));
+  noise.stringPoint =
+      apvts.getRawParameterValue(noiseParamId(stringPointSuffix));
 
-  jassert(noise.colour != nullptr && noise.volume != nullptr);
+  jassert(noise.colour != nullptr && noise.volume != nullptr &&
+          noise.string != nullptr && noise.stringPoint != nullptr);
 }
 
 juce::String strikeRangeText(float amount, float delay, float attack) {
@@ -1516,6 +1579,10 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     n.atAmount = noise.at->load();
     n.volume = noise.volume->load();
     n.pan = noise.pan->load();
+    n.stringAmount = noise.string->load();
+    n.stringDecay = noise.stringDecay->load();
+    n.stringDamp = noise.stringDamp->load();
+    n.stringPoint = noise.stringPoint->load();
 
     const bool muted = noise.mute->load() > 0.5f;
     const bool soloed = noise.solo->load() > 0.5f;
@@ -1615,6 +1682,13 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   out.reverb.decaySeconds = reverb.decay->load();
   out.reverb.damping = reverb.damp->load();
   out.reverb.preDelaySeconds = reverb.preDelay->load();
+
+  out.resonator.mode =
+      (ResonatorMode)juce::jlimit(0, (int)ResonatorMode::NumModes - 1,
+                                  (int)std::lround(resonator.mode->load()));
+  out.resonator.mix = resonator.mix->load();
+  out.resonator.decaySeconds = resonator.decay->load();
+  out.resonator.damping = resonator.damp->load();
 }
 
 } // namespace ovt::params

@@ -14,13 +14,19 @@ namespace ovt::ui {
 
 namespace {
 /// The same margins and spacing the top bar keeps, so the groups in a bar
-/// read as more of it.
-constexpr int kBarMargin = 12;
-constexpr int kBarPadY = 6;
+/// read as more of it: the same space on every side, with one more at the
+/// bottom for the bar's 1 px bottom line.
+constexpr int kBarMargin = 7;
+constexpr int kBarPadTop = 5;
+constexpr int kBarPadBottom = 6;
 
 /// A row and the gap between rows, the top bar's own.
-constexpr int kRow = 54;
+constexpr int kRow = 55;
 constexpr int kRowGap = 4;
+
+/// Below the controls in a frame, as in the top bar, so a dial is the size it
+/// is there.
+constexpr int kBelowControls = 1;
 constexpr int kGroupGap = 6;
 constexpr int kGroupPad = 6;
 constexpr int kControlGap = 6;
@@ -55,6 +61,19 @@ void OptionBar::mouseDown(const juce::MouseEvent &e) {
 
   if (id.isNotEmpty())
     onLearnRequested(id);
+}
+
+void OptionBar::mouseWheelMove(const juce::MouseEvent &e,
+                               const juce::MouseWheelDetails &wheel) {
+  if (e.originalComponent == this)
+    juce::Component::mouseWheelMove(e, wheel);
+}
+
+juce::Rectangle<int> OptionBar::rowsArea() const {
+  return getLocalBounds()
+      .reduced(kBarMargin, 0)
+      .withTrimmedTop(kBarPadTop)
+      .withTrimmedBottom(kBarPadBottom);
 }
 
 juce::Colour OptionBar::captionColour(const Item &) const {
@@ -200,14 +219,13 @@ OptionBar::placeGroups(juce::Rectangle<int> area, int *rows) const {
 int OptionBar::heightForWidth(int width) const {
   int rows = 1;
   placeGroups(
-      {kBarMargin, kBarPadY, juce::jmax(1, width - 2 * kBarMargin), kRow},
+      {kBarMargin, kBarPadTop, juce::jmax(1, width - 2 * kBarMargin), kRow},
       &rows);
-  return rows * kRow + (rows - 1) * kRowGap + 2 * kBarPadY;
+  return rows * kRow + (rows - 1) * kRowGap + kBarPadTop + kBarPadBottom;
 }
 
 void OptionBar::resized() {
-  groupBounds =
-      placeGroups(getLocalBounds().reduced(kBarMargin, kBarPadY), nullptr);
+  groupBounds = placeGroups(rowsArea(), nullptr);
 
   for (size_t g = 0; g < groups.size(); ++g) {
     const auto &bounds = groupBounds[g];
@@ -215,13 +233,11 @@ void OptionBar::resized() {
     // The line the controls go along, one row tall, moving down a row when the
     // next control does not fit in what is left of it, which only a group
     // wider than the bar ever needs.
-    auto line = bounds.withHeight(kRow);
+    auto line = bounds.withHeight(kRow - kBelowControls);
     auto inner = line.reduced(kGroupPad, 0);
     bool first = true;
     int placedHere = 0;
-    const auto each = perLine(
-        groups[g], getLocalBounds().reduced(kBarMargin, kBarPadY).getWidth() -
-                       2 * kGroupPad);
+    const auto each = perLine(groups[g], rowsArea().getWidth() - 2 * kGroupPad);
 
     for (auto &item : groups[g].items) {
       const bool shown = !bounds.isEmpty() && item.shown;
@@ -337,13 +353,14 @@ PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state,
                        juce::Component &popupHost)
     : OptionBar("PLAYING"), apvts(state), popupParent(popupHost) {
   styleSwitch(legato, "LEGATO", "Legato",
-              "A key going down while another is held carries the note on "
-              "rather than starting a new one");
+              "A key pressed while another is held continues the note "
+              "instead of starting a new one");
   styleSwitch(noStack, "NO STACK", "No stack",
-              "A key played again takes over its own voice rather than "
+              "A key played again reuses its own voice instead of "
               "starting another");
-  styleSwitch(mpe, "MPE", "MPE",
-              "Each note bent, pressed and slid on a channel of its own");
+  styleSwitch(
+      mpe, "MPE", "MPE",
+      "Each note gets its own MIDI channel for bend, pressure and slide");
 
   const auto flip = [this](settings::Id id) {
     settings::apply(apvts, id);
@@ -372,8 +389,8 @@ PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state,
     return d.naturalWidth(kControlHeight);
   };
 
-  inUse.setTooltip("How many voices are sounding, release tails included. "
-                   "Once it reaches VOICES, a new note takes one over.");
+  inUse.setTooltip("Voices sounding, release tails included. At the VOICES "
+                   "limit, a new note takes one over.");
 
   // Lit by the pedal, never by a click.
   sustain.setInterceptsMouseClicks(false, false);
@@ -779,7 +796,8 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
                      juce::Component &popupParent)
     : OptionBar("TUNING"), apvts(state) {
   temperament.setTooltip("How the twelve keys of the octave are tuned");
-  root.setTooltip("The key the temperament is built on");
+  root.setTooltip(
+      "The key the temperament is built on, and the resonator's Series");
   root.showSharpSign(true);
   reference.setTooltip("The pitch A is tuned to");
   retune.slider.setTooltip("How long Adaptive takes to slide a held note to "
@@ -799,10 +817,10 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
   };
 
   // Equal temperament is the one that does not care, so the root says nothing
-  // under it and opens nothing, as its Settings entry is greyed out.
+  // under it and opens nothing, as its Settings entry is greyed out. Unless
+  // the resonator is in Series, which rings the root's harmonics.
   root.onClick = [this] {
-    if (settings::choiceIndex(apvts, params::temperamentId) !=
-        (int)Temperament::Equal)
+    if (settings::rootInUse(apvts))
       showList(root, settings::root(apvts), apvts);
   };
 
@@ -824,32 +842,28 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
     scaleItems.push_back({scale[(size_t)pc].get(), natural(*scale[(size_t)pc]),
                           params::kPitchClassNames[(size_t)pc]});
   }
-  drift.setTooltip("How far the held chord sits from where just intonation on "
-                   "the root would put it, in commas. It moves only as far as "
-                   "the music takes it, and never more than two either way.");
+  drift.setTooltip("How far the held chord has drifted from just intonation on "
+                   "the root, in commas. Never more than two either way.");
   // Lit by the chord, never by a click.
   pure.setInterceptsMouseClicks(false, false);
   pure.setWantsKeyboardFocus(false);
   pure.setButtonText("PURE");
-  pure.setTooltip("Lit while every interval in the chord you hold is pure. "
-                  "Dark when the chord has had to give one up, which some "
-                  "chords cannot avoid.");
+  pure.setTooltip("Lit while every interval in the held chord is pure. Some "
+                  "chords cannot be pure throughout.");
 
-  styleSwitch(sevenths, "7:4", "Harmonic sevenths",
-              "Tunes a minor seventh 7:4 above its root, the harmonic "
-              "seventh, wherever nothing else in the chord would beat "
-              "against it. Off, every seventh takes the size the chain of "
-              "fifths gives it.");
+  styleSwitch(
+      sevenths, "7:4", "Harmonic sevenths",
+      "Tunes minor sevenths to the 7:4 harmonic seventh where nothing else in "
+      "the chord clashes with it. Off, sevenths follow the chain of fifths.");
   sevenths.onClick = [this] {
     settings::apply(apvts, settings::kHarmonicSevenths);
     refresh();
   };
 
   styleSwitch(home, "NO DRIFT", "No drift",
-              "Keeps the chord you hold as near home as Adaptive can, so the "
-              "keyboard does not drift. When a progression would carry it "
-              "off, a held note slides a comma instead. Off, the keyboard "
-              "goes where the music takes it, up to two commas either way.");
+              "Keeps the held chord close to home so the keyboard does not "
+              "drift, sliding a held note by a comma when needed. Off, the "
+              "tuning can wander up to two commas either way.");
   home.onClick = [this] {
     settings::apply(apvts, settings::kAdaptiveHome);
     refresh();
@@ -876,7 +890,6 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
 
 void TuningBar::refresh() {
   const auto picked = settings::choiceIndex(apvts, params::temperamentId);
-  const auto equal = picked == (int)Temperament::Equal;
   const auto adaptive = picked == (int)Temperament::Adaptive;
 
   temperament.setReading(temperamentWord(picked), true);
@@ -886,9 +899,10 @@ void TuningBar::refresh() {
   const auto key =
       juce::jlimit(0, (int)params::kPitchClassNames.size() - 1,
                    settings::choiceIndex(apvts, params::tuningRootId));
-  root.setReading(params::kPitchClassNames[(size_t)key], !equal);
+  const auto rootUsed = settings::rootInUse(apvts);
+  root.setReading(params::kPitchClassNames[(size_t)key], rootUsed);
   root.setTitle(juce::String("Root: ") + params::kPitchClassNames[(size_t)key] +
-                (equal ? ", not used by equal temperament" : ""));
+                (rootUsed ? "" : ", not used by equal temperament"));
 
   const auto hz = params::kReferenceHzChoices[(size_t)juce::jlimit(
       0, (int)params::kReferenceHzChoices.size() - 1,

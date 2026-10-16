@@ -52,10 +52,23 @@ public:
   /// since a right-click on a knob goes to the knob and nowhere else.
   void mouseDown(const juce::MouseEvent &) override;
 
+  /// Heard from every control in the bar too, since the bar listens deeply
+  /// for right-clicks, and Component's own handler passes whatever it is
+  /// given up to the parent. So a wheel a knob had already taken went on to
+  /// the editor and scrolled the mixer under the hand turning the knob. Only
+  /// a wheel that landed on the bar itself is passed on, as the noise strip
+  /// does it.
+  void mouseWheelMove(const juce::MouseEvent &,
+                      const juce::MouseWheelDetails &) override;
+
   /// Reads every value off the parameters again. The editor calls it on its
   /// housekeeping tick while the bar is open, since a host, a preset or the
   /// Settings menu can move any of them.
   virtual void refresh() = 0;
+
+private:
+  /// The bar less its margins, where the rows go.
+  juce::Rectangle<int> rowsArea() const;
 
 protected:
   /// One control in a group, how wide it stands, and the caption under it,

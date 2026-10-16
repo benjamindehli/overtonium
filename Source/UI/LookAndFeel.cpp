@@ -86,6 +86,51 @@ void paintGrain(juce::Graphics &g, juce::Rectangle<int> area) {
   g.fillRect(area);
 }
 
+void paintChannelBackground(juce::Component &c, juce::Graphics &g,
+                            juce::Rectangle<int> bounds, juce::Colour base) {
+  if (auto *lnf = dynamic_cast<OvertoniumLookAndFeel *>(&c.getLookAndFeel()))
+    lnf->drawChannelBackground(g, bounds, base);
+  else
+    paintChannelBackground(g, bounds, base);
+}
+
+void OvertoniumLookAndFeel::drawChannelBackground(juce::Graphics &g,
+                                                  juce::Rectangle<int> bounds,
+                                                  juce::Colour base) {
+  if (bounds.isEmpty())
+    return;
+
+  const auto scale = g.getInternalContext().getPhysicalPixelScaleFactor();
+
+  for (const auto &b : backgrounds)
+    if (b.width == bounds.getWidth() && b.height == bounds.getHeight() &&
+        std::abs(b.scale - scale) < 1.0e-4f && b.base == base.getARGB()) {
+      g.drawImage(b.picture, bounds.toFloat());
+      return;
+    }
+
+  // Drawn at the display's own resolution, so it is copied pixel for pixel.
+  const auto w =
+      juce::jmax(1, juce::roundToInt((float)bounds.getWidth() * scale));
+  const auto h =
+      juce::jmax(1, juce::roundToInt((float)bounds.getHeight() * scale));
+  juce::Image picture(juce::Image::ARGB, w, h, true);
+  {
+    juce::Graphics into(picture);
+    into.addTransform(
+        juce::AffineTransform::scale((float)w / (float)bounds.getWidth(),
+                                     (float)h / (float)bounds.getHeight()));
+    paintChannelBackground(into, bounds.withZeroOrigin(), base);
+  }
+
+  if (backgrounds.size() >= 6)
+    backgrounds.erase(backgrounds.begin());
+
+  backgrounds.push_back(
+      {bounds.getWidth(), bounds.getHeight(), scale, base.getARGB(), picture});
+  g.drawImage(picture, bounds.toFloat());
+}
+
 void paintChannelBackground(juce::Graphics &g, juce::Rectangle<int> bounds,
                             juce::Colour base) {
   const auto r = bounds.toFloat();
@@ -519,15 +564,18 @@ void OvertoniumLookAndFeel::drawRotarySlider(
           ? anchor
           : rotaryStartAngle + sliderPos * (rotaryEndAngle - rotaryStartAngle);
 
-  // A knob belonging to an effect that is switched off keeps its position,
-  // since a setting is dialled in before the thing is turned on, but nothing
-  // on it is lit. A ring glowing on a stage that is not in the signal says the
-  // opposite of the truth, and now that the group is named underneath it there
-  // is no longer any need for the ring to be what says the group is there.
+  // A knob belonging to an effect that is switched off, or to a channel
+  // nobody can hear, keeps its position, since a setting is dialled in before
+  // the thing is turned on, but nothing on it is lit. A ring glowing on a stage
+  // that is not in the signal says the opposite of the truth, and now that the
+  // group is named underneath it there is no longer any need for the ring to be
+  // what says the group is there.
   //
-  // The whole colour is swapped rather than the ring alone. The pointer on the
-  // cap is drawn from the same one, and a lit pointer standing in a dark ring
-  // reads as one lamp that failed rather than as a stage that is off.
+  // The ring goes out entirely, every tick drawn as an unlit one, because the
+  // ticks are lamps and a lamp that is off is dark, not grey. The pointer on
+  // the cap is what still says where the knob stands, so it keeps a colour,
+  // the plain grey of the panel's writing rather than the channel's, which
+  // would read as one lamp left on.
   const bool live =
       !(bool)slider.getProperties().getWithDefault("unlit", false);
 
@@ -580,11 +628,9 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   const bool driven = !drivenBy.isVoid();
 
   // A macro's colour is a light like any other, so it goes out with the rest
-  // when the channel is silenced. The ring still stands where the macro took
-  // the value, which is the same bargain the knobs of a switched-off effect
-  // make: the setting is kept and the light is not.
+  // of the ring when the channel is silenced.
   const auto ringColour =
-      driven && live ? juce::Colour((juce::uint32)(int)drivenBy) : fill;
+      driven ? juce::Colour((juce::uint32)(int)drivenBy) : fill;
 
   const auto ringAngle =
       driven ? rotaryStartAngle +
@@ -609,7 +655,7 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   for (int i = 0; i < ticks; ++i) {
     const auto t = (float)i / (float)(ticks - 1);
     const auto a = rotaryStartAngle + t * (rotaryEndAngle - rotaryStartAngle);
-    const bool lit = !blank && a >= lo - 1.0e-4f && a <= hi + 1.0e-4f;
+    const bool lit = live && !blank && a >= lo - 1.0e-4f && a <= hi + 1.0e-4f;
 
     const auto inner = radius * (lit ? 0.76f : 0.82f);
     const auto outer = radius * (lit ? 1.00f : 0.96f);
@@ -1146,8 +1192,12 @@ void OvertoniumLookAndFeel::drawLinearSlider(
     // track and another against the edge of the strip.
     const auto lane = juce::jmax(1.5f, (track.getX() - whole.getX()) - 2.0f);
 
+    // None lit on a channel nobody can hear, the same as a knob's ring. The
+    // column is a row of lamps, and lamps that are off are dark rather than
+    // grey. The cap still says where the fader is.
     const auto onNow =
-        juce::jlimit(0, count, juce::roundToInt(reached * (float)count));
+        live ? juce::jlimit(0, count, juce::roundToInt(reached * (float)count))
+             : 0;
 
     // Unlit in the macro's own colour held down low, the way the meter's
     // unlit segments are the channel's. A column that goes grey where it ends

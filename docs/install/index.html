@@ -6,7 +6,7 @@
         <title>Installing Overtonium on macOS, Windows and Linux</title>
         <meta
             name="description"
-            content="Install Overtonium on macOS, Windows or Linux, get a host to see it, check what it costs to run, or build it from source."
+            content="Install Overtonium on macOS, Windows or Linux, get a host to see it, check its CPU use, or build it from source."
         />
         <meta name="author" content="Benjamin Dehli" />
         <meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -20,7 +20,7 @@
         <meta property="og:title" content="Installing Overtonium on macOS, Windows and Linux" />
         <meta
             property="og:description"
-            content="How to install Overtonium: a signed and notarised universal package for macOS, an installer for Windows, and a zip for Linux, what to do when a host does not see the plugin, what it costs to run, and how to build it from source."
+            content="How to install Overtonium: a signed and notarised universal package for macOS, an installer for Windows, and a zip for Linux, what to do when a host does not see the plugin, how much CPU it uses, and how to build it from source."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-install.jpg" />
         <meta property="og:image:type" content="image/jpeg" />
@@ -32,7 +32,7 @@
         <meta name="twitter:title" content="Installing Overtonium on macOS, Windows and Linux" />
         <meta
             name="twitter:description"
-            content="How to install Overtonium: a signed and notarised universal package for macOS, an installer for Windows, and a zip for Linux, what to do when a host does not see the plugin, what it costs to run, and how to build it from source."
+            content="How to install Overtonium: a signed and notarised universal package for macOS, an installer for Windows, and a zip for Linux, what to do when a host does not see the plugin, how much CPU it uses, and how to build it from source."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-install.jpg" />
         <meta name="twitter:image:alt" content="The Overtonium wordmark over the plugin window, captioned Install." />
@@ -49,7 +49,7 @@
                 "@id": "https://benjamindehli.github.io/overtonium/install/#webpage",
                 "url": "https://benjamindehli.github.io/overtonium/install/",
                 "name": "Installing Overtonium on macOS, Windows and Linux",
-                "description": "Install Overtonium on macOS, Windows or Linux, get a host to see it, check what it costs to run, or build it from source.",
+                "description": "Install Overtonium on macOS, Windows or Linux, get a host to see it, check its CPU use, or build it from source.",
                 "inLanguage": "en-GB",
                 "isPartOf": {
                     "@id": "https://benjamindehli.github.io/overtonium/#website"
@@ -63,7 +63,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-10-13",
+                "dateModified": "2026-10-15",
                 "breadcrumb": {
                     "@id": "https://benjamindehli.github.io/overtonium/install/#breadcrumb"
                 }
@@ -98,7 +98,7 @@
                     "@type": "CreativeWork",
                     "url": "https://benjamindehli.github.io/overtonium/controls/"
                 },
-                "softwareVersion": "1.13.0",
+                "softwareVersion": "1.14.0",
                 "datePublished": "2026-10-13",
                 "offers": {
                     "@type": "Offer",
@@ -119,16 +119,18 @@
                 },
                 "featureList": [
                     "32 sine partials plus a noise channel",
+                    "A Karplus-Strong string in the noise channel, tuned to the note, that the noise plucks or blows into",
                     "Continuous blend between equal temperament and just intonation",
                     "Seven keyboard temperaments on any root, one of them adaptive",
                     "Inharmonic stretch and keyboard tracking",
                     "Per-partial envelope, tremolo, pitch modulation and pan",
                     "MPE, with pitch bend and pressure per note",
-                    "An echo and a reverb that are each one of three machines, and a lo-fi converter",
+                    "A resonator of 88 sympathetic strings that resonate with what you play and respond to the sustain pedal",
+                    "An echo and a reverb with three machines each, and a lo-fi converter",
                     "Eight macros, each one host parameter that moves a whole row of channels",
                     "MIDI Learn on every control",
                     "An output stage with five clip shapes, including a lookahead limiter",
-                    "Glide on every channel, each partial travelling to a new note over its own time"
+                    "Glide on every channel, with each partial reaching a new note over its own time"
                 ]
             }
         </script>
@@ -192,7 +194,7 @@
                                     <li><a href="#troubleshooting">When a host does not see it</a></li>
                                     <li><a href="#update-check">Telling you about new versions</a></li>
                                     <li><a href="#cost">What it costs to run</a></li>
-                                    <li><a href="#tested">What has actually been tried</a></li>
+                                    <li><a href="#tested">What has been tested</a></li>
                                     <li><a href="#building">Building from source</a></li>
                                 </ul>
                             </nav>
@@ -208,8 +210,8 @@
                 <h1>Installing</h1>
 
                 <p class="lead">
-                    Installers for macOS and Windows, and a zip for Linux. Every release carries a zip alongside the installer holding the same builds
-                    loose, for anyone without administrator rights or with plugin folders of their own.
+                    Installers for macOS and Windows, and a zip for Linux. Every release also has a zip next to the installer with the same builds
+                    unpacked, for anyone without administrator rights or who keeps plugins in their own folders.
                 </p>
 
                 <!-- The five links below are rewritten by the release workflow, which
@@ -229,7 +231,7 @@
                 <section id="downloads">
                     <h2>Download</h2>
 
-                    <p>Five files, because one size does not fit everyone. Take the installer for your platform unless a row below describes you.</p>
+                    <p>Five files. Most people want the installer for their platform.</p>
 
                     <div class="scroll">
                         <table>
@@ -237,7 +239,7 @@
                                 <tr>
                                     <th>File</th>
                                     <th>Holds</th>
-                                    <th>Take this one if</th>
+                                    <th>When to use it</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -248,7 +250,7 @@
                                         >
                                     </td>
                                     <td>VST3, Audio Unit, Standalone</td>
-                                    <td>You are on a Mac. It asks which of the three you want and installs only those</td>
+                                    <td>The usual choice on a Mac. You choose which of the three formats to install</td>
                                 </tr>
                                 <tr>
                                     <td>
@@ -257,7 +259,7 @@
                                         >
                                     </td>
                                     <td>VST3, Audio Unit, Standalone</td>
-                                    <td>You have no administrator rights, or you keep plugins somewhere of your own</td>
+                                    <td>On a Mac without administrator rights, or if you keep your plugins in a folder of your own</td>
                                 </tr>
                                 <tr>
                                     <td>
@@ -266,7 +268,9 @@
                                         >
                                     </td>
                                     <td>VST3, Standalone</td>
-                                    <td>You are on Windows. It needs administrator rights, and SmartScreen will say the publisher is unknown</td>
+                                    <td>
+                                        The usual choice on Windows. It needs administrator rights, and SmartScreen will say the publisher is unknown
+                                    </td>
                                 </tr>
                                 <tr>
                                     <td>
@@ -275,7 +279,10 @@
                                         >
                                     </td>
                                     <td>VST3, Standalone</td>
-                                    <td>Same three reasons, or you would rather not run an unsigned installer</td>
+                                    <td>
+                                        On Windows without administrator rights, if you keep your plugins in a folder of your own, or if you would
+                                        rather not run an unsigned installer
+                                    </td>
                                 </tr>
                                 <tr>
                                     <td>
@@ -284,7 +291,10 @@
                                         >
                                     </td>
                                     <td>VST3, LV2, Standalone</td>
-                                    <td>You are on Linux. There is no installer, since no two distributions agree on where a plugin goes</td>
+                                    <td>
+                                        The only download for Linux. There is no installer, because Linux distributions do not agree on where plugins
+                                        go
+                                    </td>
                                 </tr>
                             </tbody>
                         </table>
@@ -333,20 +343,20 @@
                     <p>
                         The package asks which of the three formats you want and installs only those. It is a universal binary, so one download covers
                         Apple Silicon and Intel, and it is signed and notarised, so it opens without a warning. The minimum is macOS 10.13 on Intel
-                        and 11.0 on Apple Silicon, which is the floor the toolchain sets for that architecture.
+                        and 11.0 on Apple Silicon, which is the lowest version the toolchain supports for that architecture.
                     </p>
 
                     <h3 id="windows">Windows</h3>
                     <p>
                         The installer is not signed, so SmartScreen says the publisher is unknown. Choose "More info" and then "Run anyway". If you
-                        would rather not, build from source instead, which takes one command. The VST3 goes to the shared plugin folder, so the
+                        would rather not, <a href="#building">build it from source</a> instead. The VST3 goes to the shared plugin folder, so the
                         installer asks for administrator rights.
                     </p>
 
                     <h3 id="linux">Linux</h3>
                     <p>
-                        No installer, since there is no install location a distribution would agree on. The zip holds VST3, LV2 and standalone, and
-                        the two plugin folders go in <code>~/.vst3</code> and <code>~/.lv2</code>.
+                        There is no installer, because Linux distributions do not agree on an install location. The zip holds VST3, LV2 and
+                        standalone, and the two plugin folders go in <code>~/.vst3</code> and <code>~/.lv2</code>.
                     </p>
                 </section>
 
@@ -364,13 +374,13 @@
                             <tbody>
                                 <tr>
                                     <td>Logic or GarageBand shows no Overtonium</td>
-                                    <td>They only look for new Audio Units when they start. Quit and reopen, rather than rescanning</td>
+                                    <td>They only look for new Audio Units when they start. Quit and reopen instead of rescanning</td>
                                 </tr>
                                 <tr>
                                     <td>A host lists it but will not load it</td>
                                     <td>
-                                        Check you have the right format. Logic uses the Audio Unit, most others use the VST3, and installing only one
-                                        of the two is easy to do by accident in the chooser
+                                        Check you have the right format. Logic uses the Audio Unit and most others use the VST3. It is easy to install
+                                        only one of the two by accident in the chooser
                                     </td>
                                 </tr>
                                 <tr>
@@ -384,20 +394,20 @@
                                     <td>The plugin loads but is silent</td>
                                     <td>
                                         Check the master fader and whether a channel is <a href="../controls/">soloed</a>. Solo is per channel and
-                                        mute wins over solo, so a strip can be muted inside a solo
+                                        mute overrides solo, so a soloed strip can still be muted
                                     </td>
                                 </tr>
                                 <tr>
                                     <td>Held notes sound but nothing new does</td>
-                                    <td>Overtonium is a synthesizer and needs MIDI. Check the track's input rather than the plugin</td>
+                                    <td>Overtonium is a synthesizer and needs MIDI. Check the track's input, not the plugin</td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
 
                     <p>
-                        Anything else is worth reporting on the <a href="https://github.com/benjamindehli/overtonium/issues">issue tracker</a>,
-                        particularly on Windows and Linux, for the reason below.
+                        Please report anything else on the <a href="https://github.com/benjamindehli/overtonium/issues">issue tracker</a>, especially
+                        on Windows and Linux, for the reason below.
                     </p>
                 </section>
 
@@ -405,22 +415,23 @@
                     <h2>Telling you about new versions</h2>
 
                     <p>
-                        Off unless you ask for it. The first time you open the window, the credit line under the wordmark offers to turn the check on,
-                        once. Nothing reaches the network unless you take that offer, ignoring it costs nothing, and it is not asked again. The
-                        setting lives under Settings from then on.
+                        The check is off unless you turn it on. The first time you open the window, a dialog asks whether to turn it on. Nothing goes
+                        out to the network unless you say yes. Either answer is remembered, so you are not asked again. After that, the setting is
+                        under Settings.
                     </p>
 
                     <p>
-                        With it on, the plugin fetches one small file from this site in the background and compares the version in it against the
-                        build you are running. If there is something newer, the credit line says so, and clicking it opens the release page. It is a
-                        plain request for a static file: no identifier, no telemetry, nothing about your machine. The
-                        <a href="https://github.com/benjamindehli/overtonium/blob/main/SECURITY.md">security policy</a> spells out exactly what is
-                        sent.
+                        With it on, the plugin downloads one small file from this site when the window opens and compares the version in it with the
+                        build you are running. If there is a newer version, a dialog says so, once for each release, SETTINGS lights up, and the first
+                        item in its menu opens the release page. It is a plain request for a static file: no identifier, no telemetry, nothing about
+                        your machine. The <a href="https://github.com/benjamindehli/overtonium/blob/main/SECURITY.md">security policy</a> lists
+                        exactly what is sent.
                     </p>
 
                     <p>
-                        There is no dialog, on purpose. A plugin cannot tell someone opening it from a host scanning its plugin folder at startup, and
-                        a modal in the second case stops the scan.
+                        The dialogs are drawn inside the plugin's own window, not opened as separate windows. A plugin cannot tell whether someone is
+                        opening it or a host is scanning its plugin folder at startup, and a window that waited for an answer would stop the scan.
+                        These dialogs do not wait for anything, and a question only counts as asked once someone has answered it.
                     </p>
                 </section>
 
@@ -428,9 +439,9 @@
                     <h2>What it costs to run</h2>
 
                     <p>
-                        Polyphony is the multiplier that matters, since eight voices of 32 partials is 256 sine oscillators. Measured on one core at
-                        48 kHz with everything running at once: both modulators on every channel, drift, velocity, aftertouch, the meters and the
-                        noise channel.
+                        Polyphony is what matters most, because eight voices of 32 partials is 256 sine oscillators. Measured on one core at 48 kHz
+                        with everything running at once: both modulators on every channel, drift, velocity, aftertouch, the meters and the noise
+                        channel.
                     </p>
 
                     <div class="scroll">
@@ -463,36 +474,36 @@
                     </div>
 
                     <p>
-                        The effects on the bar are on top of whatever that comes to and cost the same at any polyphony, since they work on the sum
-                        rather than once per voice. Most of them are far below the voices: the room and the plate are around half a percent each and
-                        the echoes less. The spring is the exception at about two and a half, since its dispersion is a chain of filters per spring
-                        and there are three springs. One machine's figures rather than a promise about yours, but the shape of them holds: the voices
-                        are the cost and nothing else comes close.
+                        The effects on the bar add to that, and cost the same at any polyphony, because they process the sum and not each voice. Most
+                        of them cost far less than the voices: the room and the plate are around half a percent each and the echoes less. The spring
+                        is the exception at about two and a half percent, because its dispersion is a chain of filters per spring and there are three
+                        springs. The resonator costs about a tenth of what eight voices do in Piano or Octave. In Open, or in Piano with the sustain
+                        pedal down, all eighty-eight of its strings are free to ring, and it costs about half of what eight voices do. These are one
+                        machine's figures and not a promise about yours, but the proportions hold: the voices are the main cost, and the resonator
+                        with all its strings free is the only effect that comes near them.
                     </p>
 
                     <p>
-                        <strong>The render rate is the control to reach for</strong> if you need it cheaper. Turning it down is a genuine cut rather
-                        than a filter laid over the top, because the whole voice pool renders slower: at 8 kHz it costs a fifth as much. It is also
-                        audible, which is the point of having it on the panel rather than in a preferences dialog. Dropping the polyphony works too,
-                        and proportionally.
+                        <strong>The render rate is the control to reach for</strong> if you need it cheaper. Turning it down really lowers the rate,
+                        it is not a filter on top. The whole voice pool renders at the lower rate, and at 8 kHz it costs a fifth as much. You can also
+                        hear it, which is why it is on the panel and not in a preferences dialog. Lowering the polyphony also works, in proportion.
                     </p>
 
                     <p>
-                        What keeps it affordable at all is that the engine stays a plain bank of oscillators. A 4096-point interpolated sine table
-                        rather than a sine call per sample, modulators and envelope coefficients updating once per 32-sample block while only the
-                        oscillator and the envelope run at sample rate, and a partial that is muted, faded out or sitting at zero skipping the
-                        oscillator entirely.
+                        What keeps it affordable is that the engine stays a plain bank of oscillators. It uses a 4096-point interpolated sine table
+                        instead of a sine call per sample. Modulators and envelope coefficients update once per 32-sample block, and only the
+                        oscillator and the envelope run at sample rate. A partial that is muted, faded out or at zero skips the oscillator entirely.
                     </p>
                 </section>
 
                 <section id="tested">
-                    <h2>What has actually been tried</h2>
+                    <h2>What has been tested</h2>
 
                     <p>
-                        All three platforms are built and run through the test suite on every push, and the VST3 is put through pluginval at
-                        strictness 8 on each of them. macOS is the only platform where the plugin has been loaded into a real host, where the Audio
-                        Unit and the VST3 also pass <code>auval</code>. Nobody has run the Windows or Linux builds in a DAW yet, so treat those as
-                        untried.
+                        All three platforms are built and run through the test suite on every push, and the VST3 is checked with pluginval at
+                        strictness 8 on each of them. macOS is the only platform where the plugin has been loaded into a real host, and there the
+                        Audio Unit and the VST3 also pass <code>auval</code>. Nobody has run the Windows or Linux builds in a DAW yet, so treat those
+                        as untested.
                     </p>
                 </section>
 
@@ -512,7 +523,12 @@ cmake --build build</code></pre>
                     <p>
                         The plugins are copied into your user plugin folders as part of the build. Pass
                         <code>-DOVERTONIUM_INSTALL_AFTER_BUILD=OFF</code> to skip that. Linux needs a handful of development packages first, which the
-                        <a href="https://github.com/benjamindehli/overtonium#linux">readme</a> lists.
+                        <a href="https://github.com/benjamindehli/overtonium/blob/main/CONTRIBUTING.md#linux">contributing guide</a> lists.
+                    </p>
+
+                    <p>
+                        The build treats warnings as errors, the same as the project's own checks. If your compiler is one the project has not been
+                        tested with, add <code>-DOVERTONIUM_WARNINGS_AS_ERRORS=OFF</code> to the first cmake command and it builds anyway.
                     </p>
 
                     <p>
