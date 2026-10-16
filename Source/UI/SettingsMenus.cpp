@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include "../PluginParameters.h"
+#include "../dsp/Params.h"
 #include "../dsp/Temperament.h"
 
 namespace ovt::ui::settings {
@@ -31,6 +32,12 @@ bool isOn(juce::AudioProcessorValueTreeState &apvts, const char *id) {
 int choiceIndex(juce::AudioProcessorValueTreeState &apvts, const char *id) {
   auto *p = apvts.getParameter(id);
   return p != nullptr ? juce::roundToInt(p->convertFrom0to1(p->getValue())) : 0;
+}
+
+bool rootInUse(juce::AudioProcessorValueTreeState &apvts) {
+  return choiceIndex(apvts, params::temperamentId) != (int)Temperament::Equal ||
+         choiceIndex(apvts, params::resonatorModeId) ==
+             (int)ResonatorMode::Series;
 }
 
 int voiceCount(juce::AudioProcessorValueTreeState &apvts) {

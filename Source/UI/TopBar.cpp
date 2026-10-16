@@ -1196,9 +1196,8 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
   m.addSubMenu("Temperament", settings::temperament(apvts));
 
   // A temperament has to be built on something, and equal temperament is the
-  // one that does not care.
-  m.addSubMenu("Root", settings::root(apvts),
-               temperamentIndex != (int)Temperament::Equal);
+  // one that does not care, unless the resonator's Series is built on it.
+  m.addSubMenu("Root", settings::root(apvts), settings::rootInUse(apvts));
 
   m.addSubMenu("Reference pitch", settings::referencePitch(apvts));
 

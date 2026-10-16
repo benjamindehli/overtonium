@@ -60,6 +60,11 @@ bool isOn(juce::AudioProcessorValueTreeState &, const char *id);
 /// The index of a choice parameter's current choice.
 int choiceIndex(juce::AudioProcessorValueTreeState &, const char *id);
 
+/// Whether the root decides anything you can hear. Every temperament but
+/// equal is built on it, and so is the resonator's Series mode, which rings
+/// the root's own harmonics whatever the temperament.
+bool rootInUse(juce::AudioProcessorValueTreeState &);
+
 /// Carries out a choice from any of the lists above, or one of the switches.
 /// Returns false, and does nothing, for an id that is none of them.
 bool apply(juce::AudioProcessorValueTreeState &, int id);

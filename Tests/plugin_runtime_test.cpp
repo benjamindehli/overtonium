@@ -9058,6 +9058,50 @@ void testTuningBar(OvertoniumProcessor &p) {
   check(temperament->getReading().trim() == "EQUAL" && !root->isActive(),
         "under Equal the root is dimmed, as its Settings entry is greyed out");
 
+  // ---- unless the resonator's Series is built on it -------------------------
+  {
+    ovt::ui::TopBar *topBar = nullptr;
+    std::function<void(juce::Component &)> findTop = [&](juce::Component &c) {
+      for (auto *child : c.getChildren()) {
+        if (auto *t = dynamic_cast<ovt::ui::TopBar *>(child))
+          topBar = t;
+        findTop(*child);
+      }
+    };
+    findTop(*editor);
+
+    const auto settingsRootLive = [&topBar] {
+      bool live = false;
+      if (topBar != nullptr) {
+        auto menu = topBar->buildSettingsMenu();
+        for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+          if (it.getItem().text == "Root")
+            live = it.getItem().isEnabled;
+      }
+      return live;
+    };
+
+    auto *mode = p.apvts.getParameter(ovt::params::resonatorModeId);
+    const auto setMode = [mode](ovt::ResonatorMode m) {
+      mode->setValueNotifyingHost(mode->convertTo0to1((float)(int)m));
+    };
+
+    const bool deadBefore = !settingsRootLive();
+    setMode(ovt::ResonatorMode::Series);
+    bar->refresh();
+    const bool liveForSeries = root->isActive() && settingsRootLive();
+    setMode(ovt::ResonatorMode::Piano);
+    bar->refresh();
+    const bool deadAgain = !root->isActive() && !settingsRootLive();
+    setMode(ovt::ResonatorMode::Off);
+    bar->refresh();
+
+    check(topBar != nullptr && deadBefore && liveForSeries && deadAgain,
+          "and under Equal the root lights, on the bar and in Settings, while "
+          "the resonator is in Series, which rings the root's harmonics, and "
+          "only then");
+  }
+
   // ---- under Adaptive, Retune joins it -------------------------------------
   pick(st::kTemperament + (int)ovt::Temperament::Adaptive);
   pick(st::kRetune + 1);

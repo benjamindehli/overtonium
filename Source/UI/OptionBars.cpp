@@ -796,7 +796,8 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
                      juce::Component &popupParent)
     : OptionBar("TUNING"), apvts(state) {
   temperament.setTooltip("How the twelve keys of the octave are tuned");
-  root.setTooltip("The key the temperament is built on");
+  root.setTooltip(
+      "The key the temperament is built on, and the resonator's Series");
   root.showSharpSign(true);
   reference.setTooltip("The pitch A is tuned to");
   retune.slider.setTooltip("How long Adaptive takes to slide a held note to "
@@ -816,10 +817,10 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
   };
 
   // Equal temperament is the one that does not care, so the root says nothing
-  // under it and opens nothing, as its Settings entry is greyed out.
+  // under it and opens nothing, as its Settings entry is greyed out. Unless
+  // the resonator is in Series, which rings the root's harmonics.
   root.onClick = [this] {
-    if (settings::choiceIndex(apvts, params::temperamentId) !=
-        (int)Temperament::Equal)
+    if (settings::rootInUse(apvts))
       showList(root, settings::root(apvts), apvts);
   };
 
@@ -889,7 +890,6 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
 
 void TuningBar::refresh() {
   const auto picked = settings::choiceIndex(apvts, params::temperamentId);
-  const auto equal = picked == (int)Temperament::Equal;
   const auto adaptive = picked == (int)Temperament::Adaptive;
 
   temperament.setReading(temperamentWord(picked), true);
@@ -899,9 +899,10 @@ void TuningBar::refresh() {
   const auto key =
       juce::jlimit(0, (int)params::kPitchClassNames.size() - 1,
                    settings::choiceIndex(apvts, params::tuningRootId));
-  root.setReading(params::kPitchClassNames[(size_t)key], !equal);
+  const auto rootUsed = settings::rootInUse(apvts);
+  root.setReading(params::kPitchClassNames[(size_t)key], rootUsed);
   root.setTitle(juce::String("Root: ") + params::kPitchClassNames[(size_t)key] +
-                (equal ? ", not used by equal temperament" : ""));
+                (rootUsed ? "" : ", not used by equal temperament"));
 
   const auto hz = params::kReferenceHzChoices[(size_t)juce::jlimit(
       0, (int)params::kReferenceHzChoices.size() - 1,

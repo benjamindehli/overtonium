@@ -130,7 +130,7 @@ All three earlier instruments are sample libraries with a plugin wrapper, sold a
 
 Page: The Overtonium tuning system: TUNE, stretch and seven temperaments
 URL: https://benjamindehli.github.io/overtonium/tuning/
-Last changed: 2026-10-15
+Last changed: 2026-10-16
 
 # The tuning system
 
@@ -241,7 +241,7 @@ C7 under Adaptive. C is 15.4 cents above equal, where just major on C puts it wi
 
 ### Root
 
-Sets which pitch class the temperament is built on. An unequal temperament is only in tune in the keys near its centre, so you choose that centre here. For Adaptive it sets where the middle versions are placed. It is greyed out for equal temperament, which has no centre.
+Sets which pitch class the temperament is built on. An unequal temperament is only in tune in the keys near its centre, so you choose that centre here. For Adaptive it sets where the middle versions are placed. It is greyed out for equal temperament, which has no centre, unless the [resonator](https://benjamindehli.github.io/overtonium/effects/#resonator) is in Series, which is built on the root in every temperament.
 
 ### Reference pitch
 
@@ -468,7 +468,7 @@ The envelope sets how the string is played. A noise envelope a few milliseconds 
 
 Page: Overtonium effects: character, echo, reverb, converter and CLIP
 URL: https://benjamindehli.github.io/overtonium/effects/
-Last changed: 2026-10-15
+Last changed: 2026-10-16
 
 # Effects
 
@@ -504,7 +504,7 @@ Makes the whole instrument sound like a warped record. The pitch is bent by read
 
 The resonator is eighty-eight sympathetic strings, one for each key of a piano from A0 to C8, that resonate with what you play. Each is a Karplus-Strong string, the same kind the noise channel strikes. They are fed the sum of the thirty-three channels, and what they ring back is mixed in before the bus drive. So the drive and everything after it treat them as part of the instrument, not as a room around it. It has its own frame on the top bar, after the character's. The RESONATOR button shows the mode and opens a menu of the five, and it is lit whenever the mode is not Off.
 
-**Piano** works like a piano: the strings of the keys you hold are free, the rest are damped, and the sustain pedal lifts every damper. A held key's string is tuned to the pitch the key is sounding. The other strings wait at the pitch a key struck now would sound, which under Adaptive is the tuning their pitch class had last. None of them bends, because a piano's strings do not follow the wheel. **Open** is Piano with the sustain pedal always down: every string rings, and held keys ring the loudest. **Octave** is twelve strings from C3, always free, so every note finds something to ring with. **Series** is the tuning root's first eight harmonics from its second octave, tuned pure and always free. It works as a drone that responds to any note that falls on the root's own harmonic series.
+**Piano** works like a piano: the strings of the keys you hold are free, the rest are damped, and the sustain pedal lifts every damper. A held key's string is tuned to the pitch the key is sounding. The other strings wait at the pitch a key struck now would sound, which under Adaptive is the tuning their pitch class had last. None of them bends, because a piano's strings do not follow the wheel. **Open** is Piano with the sustain pedal always down: every string rings, and held keys ring the loudest. **Octave** is twelve strings from C3, always free, so every note finds something to ring with. **Series** is the tuning root's first eight harmonics from its second octave, tuned pure and always free. It works as a drone that responds to any note that falls on the root's own harmonic series. The root is set on the [Tuning](https://benjamindehli.github.io/overtonium/tuning/#root) bar or in Settings, and it stays available for Series under equal temperament too.
 
 **MIX** goes from the instrument alone to the resonator alone, as on the echo and the reverb. On a held chord the level stays about the same as you turn it up. At 100 % only the resonator is left, so short notes lose their attack there. **DECAY** sets how long a free string rings, from 200 ms to 10 s. The level stays about the same at any setting. **DAMP** sets how quickly the high end dies away. A damper stops its string over 0.8 s at the bottom of the keyboard and 0.25 s at the top, or sooner if DECAY is shorter, so a released bass key leaves the short hum of a felt damper on a heavy string. A string freed only by the pedal gets much less of the signal than a held key's string, so the pedal adds a bloom under a chord instead of making it louder.
 
