@@ -1,8 +1,8 @@
 Page: Overtonium releases: what changed in each version
 URL: https://benjamindehli.github.io/overtonium/releases/
-Last changed: 2026-10-16
+Last changed: 2026-10-17
 
-# Releases
+# Overtonium releases
 
 What changed in each version, newest first. Each one links to its full notes, which say more and carry the installing and upgrading detail as well.
 

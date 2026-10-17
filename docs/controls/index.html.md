@@ -1,8 +1,8 @@
 Page: Overtonium controls: every knob on a channel strip
 URL: https://benjamindehli.github.io/overtonium/controls/
-Last changed: 2026-10-15
+Last changed: 2026-10-17
 
-# Controls
+# Overtonium controls
 
 Thirty-two channel strips, a noise channel, and a bar of global controls across the top. Every strip has the same twenty-three controls. That is seven hundred and thirty-six of them before the bar is counted, so much of the design is about not having to move them one at a time.
 

@@ -1,8 +1,8 @@
 Page: Overtonium effects: character, echo, reverb, converter and CLIP
 URL: https://benjamindehli.github.io/overtonium/effects/
-Last changed: 2026-10-16
+Last changed: 2026-10-17
 
-# Effects
+# Overtonium effects
 
 Everything on the bar along the top of the window affects the whole instrument, not a single channel: the oscillator character every partial is built from, the wobble under the series, the resonator, the drive on the bus where the channels are summed, the echo, the reverb, the converter, and the output stage with its meter.
 

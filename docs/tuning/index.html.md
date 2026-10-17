@@ -1,8 +1,8 @@
 Page: The Overtonium tuning system: TUNE, stretch and seven temperaments
 URL: https://benjamindehli.github.io/overtonium/tuning/
-Last changed: 2026-10-16
+Last changed: 2026-10-17
 
-# The tuning system
+# The Overtonium tuning system
 
 Three separate controls. TUNE sets how the overtone series is tuned, STRETCH sets how far it moves away from a true harmonic series, and the temperament sets how the keyboard itself is tuned. They work together and do not overlap.
 

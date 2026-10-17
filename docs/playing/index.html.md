@@ -1,8 +1,8 @@
 Page: Playing Overtonium: MPE, automation, macros and MIDI Learn
 URL: https://benjamindehli.github.io/overtonium/playing/
-Last changed: 2026-10-15
+Last changed: 2026-10-17
 
-# Playing
+# Playing Overtonium
 
 How to play the instrument and control it from outside the window: MPE, legato and glide, the Playing and Tuning bars, the Settings menu, automation from a host with every parameter listed, macros that move a whole row from one control, and MIDI Learn for playing it from a controller.
 

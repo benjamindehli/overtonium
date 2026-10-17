@@ -130,9 +130,9 @@ All three earlier instruments are sample libraries with a plugin wrapper, sold a
 
 Page: The Overtonium tuning system: TUNE, stretch and seven temperaments
 URL: https://benjamindehli.github.io/overtonium/tuning/
-Last changed: 2026-10-16
+Last changed: 2026-10-17
 
-# The tuning system
+# The Overtonium tuning system
 
 Three separate controls. TUNE sets how the overtone series is tuned, STRETCH sets how far it moves away from a true harmonic series, and the temperament sets how the keyboard itself is tuned. They work together and do not overlap.
 
@@ -287,9 +287,9 @@ One held chord, twice. With drift off, each partial stays exactly at its pitch. 
 
 Page: Overtonium controls: every knob on a channel strip
 URL: https://benjamindehli.github.io/overtonium/controls/
-Last changed: 2026-10-15
+Last changed: 2026-10-17
 
-# Controls
+# Overtonium controls
 
 Thirty-two channel strips, a noise channel, and a bar of global controls across the top. Every strip has the same twenty-three controls. That is seven hundred and thirty-six of them before the bar is counted, so much of the design is about not having to move them one at a time.
 
@@ -468,9 +468,9 @@ The envelope sets how the string is played. A noise envelope a few milliseconds 
 
 Page: Overtonium effects: character, echo, reverb, converter and CLIP
 URL: https://benjamindehli.github.io/overtonium/effects/
-Last changed: 2026-10-16
+Last changed: 2026-10-17
 
-# Effects
+# Overtonium effects
 
 Everything on the bar along the top of the window affects the whole instrument, not a single channel: the oscillator character every partial is built from, the wobble under the series, the resonator, the drive on the bus where the channels are summed, the echo, the reverb, the converter, and the output stage with its meter.
 
@@ -550,9 +550,9 @@ Horizontal, and split into left and right. The two channels are identical until 
 
 Page: Playing Overtonium: MPE, automation, macros and MIDI Learn
 URL: https://benjamindehli.github.io/overtonium/playing/
-Last changed: 2026-10-15
+Last changed: 2026-10-17
 
-# Playing
+# Playing Overtonium
 
 How to play the instrument and control it from outside the window: MPE, legato and glide, the Playing and Tuning bars, the Settings menu, automation from a host with every parameter listed, macros that move a whole row from one control, and MIDI Learn for playing it from a controller.
 
@@ -831,9 +831,9 @@ Two things to expect. A control jumps to the controller's current position inste
 
 Page: Overtonium presets: the thirty-five that ship, and saving your own
 URL: https://benjamindehli.github.io/overtonium/presets/
-Last changed: 2026-10-15
+Last changed: 2026-10-17
 
-# Presets
+# Overtonium presets
 
 Thirty-five presets ship with the plugin. All but a handful were set up on the panel and converted directly from the saved file. What ships is exactly what was played, not an approximation written afterwards.
 
@@ -1047,9 +1047,9 @@ They are small XML files of parameter values, so you can read them, edit them, k
 
 Page: Installing Overtonium on macOS, Windows and Linux
 URL: https://benjamindehli.github.io/overtonium/install/
-Last changed: 2026-10-16
+Last changed: 2026-10-17
 
-# Installing
+# Installing Overtonium
 
 Installers for macOS and Windows, and a zip for Linux. Every release also has a zip next to the installer with the same builds unpacked, for anyone without administrator rights or who keeps plugins in their own folders.
 
@@ -1148,9 +1148,9 @@ Overtonium is free software under the AGPLv3, which follows from JUCE. The whole
 
 Page: Overtonium releases: what changed in each version
 URL: https://benjamindehli.github.io/overtonium/releases/
-Last changed: 2026-10-16
+Last changed: 2026-10-17
 
-# Releases
+# Overtonium releases
 
 What changed in each version, newest first. Each one links to its full notes, which say more and carry the installing and upgrading detail as well.
 

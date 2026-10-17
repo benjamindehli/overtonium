@@ -1,8 +1,8 @@
 Page: Overtonium presets: the thirty-five that ship, and saving your own
 URL: https://benjamindehli.github.io/overtonium/presets/
-Last changed: 2026-10-15
+Last changed: 2026-10-17
 
-# Presets
+# Overtonium presets
 
 Thirty-five presets ship with the plugin. All but a handful were set up on the panel and converted directly from the saved file. What ships is exactly what was played, not an approximation written afterwards.
 

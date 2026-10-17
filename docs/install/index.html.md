@@ -1,8 +1,8 @@
 Page: Installing Overtonium on macOS, Windows and Linux
 URL: https://benjamindehli.github.io/overtonium/install/
-Last changed: 2026-10-16
+Last changed: 2026-10-17
 
-# Installing
+# Installing Overtonium
 
 Installers for macOS and Windows, and a zip for Linux. Every release also has a zip next to the installer with the same builds unpacked, for anyone without administrator rights or who keeps plugins in their own folders.
 
