@@ -38,6 +38,7 @@ AUTHOR = {
     "@id": "https://musicbrainz.org/artist/56639e59-2bb5-40bd-9d5a-97d964298b6f",
     "name": "Benjamin Dehli",
     "url": "https://github.com/benjamindehli",
+    "sameAs": ["https://www.wikidata.org/wiki/Q141757746"],
 }
 
 PUBLISHER = {
@@ -45,6 +46,7 @@ PUBLISHER = {
     "@id": "https://www.dehlimusikk.no/",
     "name": "Dehli Musikk",
     "url": "https://www.dehlimusikk.no/",
+    "sameAs": ["https://www.wikidata.org/wiki/Q141757809"],
 }
 
 # One description of the instrument, for every page that carries one. The
@@ -70,6 +72,7 @@ PRODUCT = {
         "https://www.kvraudio.com/product/overtonium-by-dehli-musikk",
         "https://github.com/benjamindehli/overtonium",
         "https://www.youtube.com/watch?v=L1oYdPxGlGA",
+        "https://www.wikidata.org/wiki/Q141757590",
     ],
     "codeRepository": "https://github.com/benjamindehli/overtonium",
     "downloadUrl": BASE + "install/#downloads",
