@@ -15,7 +15,10 @@ the next build and caught by --check in CI before that.
 
 It also writes three files whole: sitemap.xml, llms.txt, and llms-full.txt,
 which is every page's content as Markdown for a language model to read in one
-request rather than seven.
+request rather than eight. And beside each page, index.html.md, that page alone
+as the same Markdown, at the address llmstxt.org gives a page's Markdown copy.
+llms-full.txt is too long for a reader that cuts a fetch short, and that reader
+can take one page at a time from llms.txt instead.
 
 Each page's last-modified day lives in Tools/site_dates.json beside a hash of
 the words in its <main>. When the words change the day becomes today, in UTC,
@@ -362,6 +365,7 @@ def head(page):
             # crawler would pick by default.
             '<meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1" />',
             f'<link rel="canonical" href="{url}" />',
+            f'<link rel="alternate" type="text/markdown" href="{url}index.html.md" />',
             f'<meta name="theme-color" content="{data.THEME_COLOUR}" />',
             "",
             '<meta property="og:type" content="website" />',
@@ -780,7 +784,7 @@ def llms():
     for paragraph in data.LLMS_INTRO:
         lines += [fill(paragraph), ""]
     lines += ["## Documentation", ""]
-    lines += [f"- [{page['nav']}]({data.BASE + page['path']}): {fill(page['llms'])}" for page in data.PAGES]
+    lines += [f"- [{page['nav']}]({data.BASE + page['path']}index.html.md): {fill(page['llms'])}" for page in data.PAGES]
     lines += ["", "## Source", ""]
     lines += [f"- [{name}]({url}): {fill(text)}" for name, url, text in data.LLMS_SOURCE]
     lines += ["", "## Facts", ""]
@@ -1001,11 +1005,17 @@ def llms_full(pages):
         f"The short version, with links into each page, is {data.BASE}llms.txt.",
     ]
     for page, text in pages:
-        reader = Markdown(data.BASE + page["path"])
-        reader.feed(main_of(text))
-        lines += ["", "---", "", f"Page: {fill(page['title'])}", f"URL: {data.BASE + page['path']}", f"Last changed: {MODIFIED[page['path']]}", ""]
-        lines.append(reader.markdown())
+        lines += ["", "---", "", page_markdown(page, text)]
     return "\n".join(lines) + "\n"
+
+
+def page_markdown(page, text):
+    """One page as llms-full.txt carries it, and as its index.html.md is."""
+    reader = Markdown(data.BASE + page["path"])
+    reader.feed(main_of(text))
+    lines = [f"Page: {fill(page['title'])}", f"URL: {data.BASE + page['path']}", f"Last changed: {MODIFIED[page['path']]}", ""]
+    lines.append(reader.markdown())
+    return "\n".join(lines)
 
 
 def prettier(path, text):
@@ -1041,6 +1051,9 @@ def main():
     written[DOCS / "sitemap.xml"] = sitemap()
     written[DOCS / "llms.txt"] = llms()
     written[DOCS / "llms-full.txt"] = llms_full(built)
+    for page, text in built:
+        path = DOCS / page["path"] / "index.html.md"
+        written[path] = prettier(path, page_markdown(page, text) + "\n")
     written[DATES] = prettier(DATES, json.dumps(dates, indent=4) + "\n")
 
     stale = []

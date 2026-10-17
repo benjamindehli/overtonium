@@ -1,0 +1,79 @@
+Page: Overtonium effects: character, echo, reverb, converter and CLIP
+URL: https://benjamindehli.github.io/overtonium/effects/
+Last changed: 2026-10-16
+
+# Effects
+
+Everything on the bar along the top of the window affects the whole instrument, not a single channel: the oscillator character every partial is built from, the wobble under the series, the resonator, the drive on the bus where the channels are summed, the echo, the reverb, the converter, and the output stage with its meter.
+
+## The signal chain
+
+[Diagram: The order the signal passes through. Each of the thirty-three channels runs a sine partial through its envelope and key-off stage, its tremolo, its velocity and pressure amounts, its fader and its pan. The thirty-three are summed and run through the converter, the resonator and the bus drive. The mix then passes through the wobble, the echo, the reverb, the master fader and the safety clipper before it leaves. each of the thirty-three channels sine partial n envelope and key off tremolo velocity and pressure fader pan then the mix of all of them converter rate, bits resonator 88 strings bus drive wobble echo reverb master fader clipper summed out.]
+
+The order things happen in. Everything on a channel strip runs before the channels are mixed, and everything on the bar runs after. This is why a channel meter and the output meter disagree while a tail is ringing.
+
+[Image: The top bar: four icon buttons in two rows, settings and macros above the buttons that open the Playing and Tuning bars, then the wordmark over the loaded preset on a fourteen-segment display, the oscillator character, the stretch, track and wobble controls, the resonator with its mode and three knobs, the echo, the reverb, and the output meter with the master fader across it, two seven-segment converter readouts reading kilohertz and bits, and the output stage reading Soft.]
+
+## Character
+
+Chooses the oscillator that every partial uses, and is the first control in the group that sets up the series. All six are sine oscillators. They differ in how each circuit fails to make a perfect sine. **Pure** is an ideal sine that no real circuit produces. **Bulb** is a Wien bridge oscillator kept steady by a lamp. It adds no harmonics at all, but its level lags half a second behind every change of pitch, so it reacts to gestures. A vibrato is heard in the level as well as in the pitch, and a bend dips and then recovers as the lamp catches up. A held note with nothing moving sounds exactly like Pure, because the circuit's job is to hold the level steady. **Rail** is a phase-shift oscillator driven into its own supply rail. This hardens the tone with a third harmonic and no even harmonics. **Diode** is a triangle shaped into a sine by two mismatched diodes. This puts a kink in one half of the wave and adds a second, third and fourth harmonic. **Valve** is a triode biased so that one half of the wave bends over before the other. It is the only one here whose loudest added harmonic is an octave above the partial rather than a twelfth, and that is what people mean by valve warmth.
+
+**Op-amp** is an amplifier that cannot keep up with a fast note. It is the one that changes as you play. Below a kilohertz nothing is limited and the partials are untouched. Above it they lose first their corners and then everything but their slopes, which leaves a triangle. So the top of the series gets harder as it climbs while the bottom stays the same, and a chord played high sounds like a different instrument from the same chord played low.
+
+Because this is an additive instrument, these harmonics land among the partials you are already mixing, at exact multiples of the partial that made them. The rack's own spread, described below, moves the real partials off those exact ratios, and TUNE and STRETCH move them further. So the two beat against each other instead of adding up, and that is what makes a character sound like a circuit and not like a tone control. The harmonics are removed as a partial climbs, so nothing folds back down. A partial near the top of the range plays a plain sine whatever character is chosen.
+
+Each character is also a rack of thirty-two oscillators, not one oscillator used thirty-two times. Units built to the same spec do not come out identical, so every character except Pure puts each partial a couple of cents and a fraction of a decibel off its target. The amount is fixed for each character, so you get the same rack every time you load the patch, in every host and on every machine. This is not DRIFT, which wanders. Partial 1 is the reference the other thirty-one were tuned against, and it stays exactly in place. So a note still lands on the key you played, and choosing a character does not change how loud the patch is. This spread is what makes the beating above happen in a patch nobody has detuned. The units also differ in how much they distort: each unit's circuit is built to one of three drives, fifteen percent either side of the nominal.
+
+The button lights in the character's own colour, taken from the same colour band as the channel strips: yellow for Bulb, running down through the warm colours to the red of channel 3 for Op-amp. Pure does not light, because it adds nothing.
+
+Character is part of the patch, not part of the setup, so a preset can change it and saving a preset stores it. Twenty-eight of the thirty-five [factory presets](https://benjamindehli.github.io/overtonium/presets/) use one, so most of what you load already uses a circuit, not the plain sine.
+
+## Wobble
+
+Makes the whole instrument sound like a warped record. The pitch is bent by reading the output back through a delay line whose length keeps changing, as happens when a platter runs off-centre or a capstan slips. There is a slow warp at about once per turn of a 33 rpm disc, a faster wander on top, and now and then a sharp slip that bends hard and settles back. The slips grow in both rate and size with the square of the control, so a low setting sounds like a tired turntable and a high one like a badly failing tape transport. It comes before the echo, so the repeats carry its wobble instead of wobbling on their own.
+
+## Resonator
+
+The resonator is eighty-eight sympathetic strings, one for each key of a piano from A0 to C8, that resonate with what you play. Each is a Karplus-Strong string, the same kind the noise channel strikes. They are fed the sum of the thirty-three channels, and what they ring back is mixed in before the bus drive. So the drive and everything after it treat them as part of the instrument, not as a room around it. It has its own frame on the top bar, after the character's. The RESONATOR button shows the mode and opens a menu of the five, and it is lit whenever the mode is not Off.
+
+**Piano** works like a piano: the strings of the keys you hold are free, the rest are damped, and the sustain pedal lifts every damper. A held key's string is tuned to the pitch the key is sounding. The other strings wait at the pitch a key struck now would sound, which under Adaptive is the tuning their pitch class had last. None of them bends, because a piano's strings do not follow the wheel. **Open** is Piano with the sustain pedal always down: every string rings, and held keys ring the loudest. **Octave** is twelve strings from C3, always free, so every note finds something to ring with. **Series** is the tuning root's first eight harmonics from its second octave, tuned pure and always free. It works as a drone that responds to any note that falls on the root's own harmonic series. The root is set on the [Tuning](https://benjamindehli.github.io/overtonium/tuning/#root) bar or in Settings, and it stays available for Series under equal temperament too.
+
+**MIX** goes from the instrument alone to the resonator alone, as on the echo and the reverb. On a held chord the level stays about the same as you turn it up. At 100 % only the resonator is left, so short notes lose their attack there. **DECAY** sets how long a free string rings, from 200 ms to 10 s. The level stays about the same at any setting. **DAMP** sets how quickly the high end dies away. A damper stops its string over 0.8 s at the bottom of the keyboard and 0.25 s at the top, or sooner if DECAY is shorter, so a released bass key leaves the short hum of a felt damper on a heavy string. A string freed only by the pedal gets much less of the signal than a held key's string, so the pedal adds a bloom under a chord instead of making it louder.
+
+The resonator is part of the patch. Metallic Piano and Space Cowboy use it, and the other factory presets have it off. With eight voices it uses about one percent of a core with the pedal up, and about five percent with every string freed by the pedal.
+
+## Bus drive
+
+The thirty-three channels are not just added together. They are summed onto a bus with drive, by an amount and in a style set by the oscillator character. So a patch gets louder into the same kind of saturation a mixing desk would give it. It responds to level, not to a setting: play quietly and it is barely there, play hard and you hear it. Pure sums cleanly and adds nothing. There is no knob, because the amount is part of the character you choose.
+
+## Echo
+
+Three machines behind one button, and the button shows which one is running. **Tape** is a loop with two motors. Moving the time knob makes the tape speed up or slow down to the new setting instead of jumping to it, so the repeats slide in pitch on the way. The two paths run at slightly different speeds, so a repeat comes back doubled rather than bounced. **BBD** is a bucket brigade delay. It loses its high end because a bucket brigade is a sampler with almost no filtering, and it sweeps as the clock wanders. **Digital** is a clean delay: what goes in comes back out, later and quieter, crossing to the other side on every repeat. It is the only ping-pong of the three.
+
+When the echo is off, its knobs keep their settings, but their rings go dark and only the pointer on each knob shows where it is set. The reverb and the resonator do the same when they are off.
+
+AGE means something different on each machine. On the tape it is wear: the high end lost on every pass, how far the motor wanders, and how hard the tape saturates. On the BBD it is the clock slowing down and how much the companding breathes. On the digital it is bits and sample rate, so a tail starts as the clean signal and ends as a degraded copy of it. The tape never reaches zero wear, because a transport that held speed exactly would put the repeat back in mono, and no real transport holds speed exactly.
+
+## Reverb
+
+Three machines again, on the same kind of button. **Room** is a feedback delay network whose room size follows its decay time, because a long tail in a small room sounds like a spring, not a space. **Modulated plate** is a sheet of steel with no shape you can hear, so a hit spreads across all of it at once and the tail is dense from the start instead of building up in stages. Its allpass filters move further than a real plate's would, which is why the menu calls it modulated. Without that movement, a long decay repeats its own pattern instead of washing out. **Spring** is a tray of coiled springs. A coil carries high frequencies faster than low ones, so a hit comes back as a chirp that starts high and falls. Every bounce adds another chirp, so a spring sounds less like what you played as it decays, not just quieter.
+
+DECAY, DAMP and PRE mean the same on all three and are matched, so switching machines changes the character of a tail but not its length or loudness. On the plate, DAMP is the sheet losing its high end to the air. On the spring, it is the spring's own loss each time the signal crosses the tray.
+
+## The converter
+
+Shown as two seven-segment readouts under the output meter. Turning the sample rate down really lowers the rate, it is not a filter on top. The whole voice pool renders at the lower rate, which costs a fifth as much at 8 kHz, and partials above the new ceiling fold back down instead of disappearing.
+
+## CLIP
+
+Five machines behind one button, on the finished output after the master fader, so the master fader sets how hard they are driven. The fader and the choice are both saved with the preset, so how hard a patch drives this stage is part of the patch. **Soft** is linear up to seven tenths and then rounds off, gradually and symmetrically. Every preset is balanced for Soft. **Hard** is a wall at full scale: nothing happens until the signal reaches it. It sounds like a converter with no headroom left. **Asymmetric** lets one half of the wave bend over before the other, as a single-ended stage does. Soft and Hard treat both halves the same and add odd harmonics. Asymmetric adds even ones, so it sounds different, not just louder. **Limiter** does not change the shape of the wave. It turns the level down as the signal approaches the ceiling and lets it back up afterwards. **Fold** folds the wave back on itself instead of flattening it. This makes far more harmonics than the others, and they move with the level, so it sounds tonal where the others crunch.
+
+Off lets the output go past full scale and reach the host unchanged. Use it when something later in the chain catches the peaks. None of the five lets the output past full scale. That limit is the purpose of the stage, not a side effect of the shapes, and each shape stays within it however hard it is driven. The button shortens Asymmetric to ASYM and Limiter to LIMIT to fit, while the menu and your host's automation lane show the full names. It sits under the meter with the converter readouts, because together they are everything that happens to the signal on its way out. The switch is also in the Settings menu.
+
+With **Limiter lookahead** switched on in the Settings menu, the Limiter looks two milliseconds ahead. The gain reduction is already in place when the peak arrives, instead of following it, and that is what makes it a true limiter and not a clipper. This adds latency. A plugin whose latency changed with the preset would make the host rebuild its processing graph every time, so the latency applies to all five shapes and to the stage when it is off. Overtonium reports 108 samples at 48 kHz, a little over two milliseconds, which your host compensates for on playback.
+
+**It is off by default**, and the plugin then reports only the bus stage's 12 samples. Only the Limiter uses the lookahead and no factory preset uses the Limiter, so with it on everyone else would pay two milliseconds for nothing. The limiter still works with it off. The detector sees a single sample instead of a window, so the gain is exact and immediate and the ceiling still holds. But the smoothing is lost, and a gain that jumps in steps is a distortion in itself, about fifteen times as much. It is in Settings and not on the bar because nothing a preset can change is allowed to change what the plugin reports to your host. If you rely on the Limiter and want it smooth, switch it on. Most hosts pick up the new figure while running, and some only when playback stops or on reload, so choose before a take, not during one.
+
+## The output meter
+
+Horizontal, and split into left and right. The two channels are identical until something is panned off centre, and a single summed meter would hide exactly that. It reads the finished output after master gain and the clipper. The lamps run from teal through amber to orange as they approach full scale. Each colour is fixed to its decibel position instead of stretching with the level. A scale below is marked at -48, -36, -24, -12, -6 and 0 dB. Each bar holds its peak for a couple of seconds.
