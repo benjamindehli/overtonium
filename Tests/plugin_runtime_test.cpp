@@ -187,7 +187,7 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
   // from the same constant the parameter is built from would check nothing.
   const List globals[] = {
       {ovt::params::polyphonyId, 8},    {ovt::params::characterId, 6},
-      {ovt::params::temperamentId, 7},  {ovt::params::tuningRootId, 12},
+      {ovt::params::temperamentId, 9},  {ovt::params::tuningRootId, 12},
       {ovt::params::referenceHzId, 11}, {ovt::params::atSourceId, 3},
       {ovt::params::slideDestId, 3},    {ovt::params::lofiRateId, 8},
       {ovt::params::lofiBitsId, 9},     {ovt::params::echoTypeId, 3},
@@ -5538,9 +5538,11 @@ void testSettingsMenu(OvertoniumProcessor &p) {
   check(std::count(entries.begin(), entries.end(), std::string("Legato")) == 1,
         "and is there once, as the switch rather than as a voice count");
 
-  // The adaptive temperament is offered with the six fixed ones, last, so a
-  // session's stored choice keeps the temperament it always named, and the
-  // root stays live for it, since its versions are placed around the root.
+  // The adaptive temperament is offered with the eight fixed ones, last, and
+  // the root stays live for it, since its versions are placed around the
+  // root. The menu lists the historical ones by age, while the parameter keeps
+  // the order they were added in, so a session's stored choice keeps the
+  // temperament it always named.
   {
     std::vector<std::string> temperaments;
     bool rootLive = false;
@@ -5556,9 +5558,13 @@ void testSettingsMenu(OvertoniumProcessor &p) {
         rootLive = item.isEnabled;
     }
 
-    check(temperaments.size() == 7 && temperaments.back() == "Adaptive",
-          "the Temperament menu ends with Adaptive (" + joined(temperaments) +
-              ")");
+    check(joined(temperaments) ==
+              "Equal / Just (major) / Pythagorean / Quarter-comma meantone / "
+              "Werckmeister III / Vallotti / Kirnberger III / Young / "
+              "Adaptive / ",
+          "the Temperament menu lists the fixed ones by age and ends with "
+          "Adaptive (" +
+              joined(temperaments) + ")");
 
     if (auto *t = p.apvts.getParameter(ovt::params::temperamentId)) {
       t->setValueNotifyingHost(
@@ -7839,7 +7845,7 @@ void testSharedSettingsChoices(OvertoniumProcessor &p) {
       {st::kBendRange + 7, ovt::params::bendRangeId, 7},
       {st::kAftertouchFrom + 2, ovt::params::atSourceId, 2},
       {st::kSlideTo + 2, ovt::params::slideDestId, 2},
-      {st::kTemperament + 6, ovt::params::temperamentId, 6},
+      {st::kTemperament + 8, ovt::params::temperamentId, 8},
       {st::kRoot + 11, ovt::params::tuningRootId, 11},
       {st::kReferencePitch + 3, ovt::params::referenceHzId, 3},
   };
@@ -7932,7 +7938,7 @@ void testSharedSettingsChoices(OvertoniumProcessor &p) {
   }
 
   check(!st::apply(apvts, 700) && !st::apply(apvts, 800) &&
-            !st::apply(apvts, 820) && !st::apply(apvts, st::kTemperament + 7) &&
+            !st::apply(apvts, 820) && !st::apply(apvts, st::kTemperament + 9) &&
             !st::apply(apvts, st::kVoices),
         "undo, zoom, Fit all 32 channels and ids past a list are left to the "
         "menu");

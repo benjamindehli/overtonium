@@ -8,7 +8,7 @@ Every page of https://benjamindehli.github.io/overtonium/ as Markdown, in the or
 
 Page: Overtonium, a free 32-partial additive synthesizer plugin
 URL: https://benjamindehli.github.io/overtonium/
-Last changed: 2026-10-15
+Last changed: 2026-10-18
 
 # Overtonium, a 32-partial additive overtone synthesizer
 
@@ -63,11 +63,11 @@ Two of the [factory presets](https://benjamindehli.github.io/overtonium/presets/
 
 One note each, the same patch, the same level. Only TUNE differs.
 
-Nothing about the tuning is hard-coded. For harmonic `n` the just interval is `1200 * log2(n)` cents, the equal position is that rounded to the nearest semitone, and TUNE dials in the remainder. [The tuning system](https://benjamindehli.github.io/overtonium/tuning/) explains it in detail, along with stretch, the seven keyboard temperaments and keyboard tracking.
+Nothing about the tuning is hard-coded. For harmonic `n` the just interval is `1200 * log2(n)` cents, the equal position is that rounded to the nearest semitone, and TUNE dials in the remainder. [The tuning system](https://benjamindehli.github.io/overtonium/tuning/) explains it in detail, along with stretch, the nine keyboard temperaments and keyboard tracking.
 
 ## Where to go next
 
-- [**Tuning**TUNE, inharmonic stretch, six historical temperaments and an adaptive one on any root, and how the spectrum thins out higher up the keyboard.](https://benjamindehli.github.io/overtonium/tuning/)
+- [**Tuning**TUNE, inharmonic stretch, eight historical temperaments and an adaptive one on any root, and how the spectrum thins out higher up the keyboard.](https://benjamindehli.github.io/overtonium/tuning/)
 - [**Controls**Every knob on a channel strip, then the effects on the bar and how to play it from a keyboard, a host or a controller.](https://benjamindehli.github.io/overtonium/controls/)
 - [**Presets**The thirty-five that ship, what a preset carries, and where your own are kept on each platform.](https://benjamindehli.github.io/overtonium/presets/)
 - [**Install**Installers for macOS and Windows, a zip for Linux, what to do when a host does not see it, and building from source.](https://benjamindehli.github.io/overtonium/install/)
@@ -90,7 +90,7 @@ It builds a sound by adding sine waves together, instead of filtering a rich wav
 
 **Can Overtonium do microtonal tunings and just intonation?**
 
-Yes, both, and they are set separately. TUNE moves each partial between its equal-tempered position and its exact whole-number ratio. The keyboard has its own tuning: equal, just, Pythagorean, quarter-comma meantone, Werckmeister III or Young, on any root, at any of eleven reference pitches from 415 to 466 Hz. It can also use [Adaptive](https://benjamindehli.github.io/overtonium/tuning/#adaptive), which keeps the chord you hold in just intonation as you play, and moves a held note when the next chord needs it.
+Yes, both, and they are set separately. TUNE moves each partial between its equal-tempered position and its exact whole-number ratio. The keyboard has its own tuning: equal, just, Pythagorean, quarter-comma meantone, Werckmeister III, Vallotti, Kirnberger III or Young, on any root, at any of eleven reference pitches from 415 to 466 Hz. It can also use [Adaptive](https://benjamindehli.github.io/overtonium/tuning/#adaptive), which keeps the chord you hold in just intonation as you play, and moves a held note when the next chord needs it.
 
 **Does Overtonium support MPE?**
 
@@ -128,9 +128,9 @@ All three earlier instruments are sample libraries with a plugin wrapper, sold a
 
 ---
 
-Page: The Overtonium tuning system: TUNE, stretch and seven temperaments
+Page: The Overtonium tuning system: TUNE, stretch and nine temperaments
 URL: https://benjamindehli.github.io/overtonium/tuning/
-Last changed: 2026-10-17
+Last changed: 2026-10-18
 
 # The Overtonium tuning system
 
@@ -205,7 +205,7 @@ One note while STRETCH turns from a harmonic series to beyond a piano. The botto
 
 ## Tuning the keyboard
 
-Everything above is about where a partial sits above the note you play. This section is about how that note is tuned. Settings and the [Tuning bar](https://benjamindehli.github.io/overtonium/playing/#bars) have seven temperaments: six fixed ones, and one that retunes as you play.
+Everything above is about where a partial sits above the note you play. This section is about how that note is tuned. Settings and the [Tuning bar](https://benjamindehli.github.io/overtonium/playing/#bars) have nine temperaments: eight fixed ones, and one that retunes as you play.
 
 | Temperament | Major third | Fifth | What it is |
 |---|---|---|---|
@@ -214,10 +214,14 @@ Everything above is about where a partial sits above the note you play. This sec
 | Pythagorean | 407.82 | 701.96 | every fifth pure, at the cost of a wide third |
 | Quarter-comma meantone | 386.31 | 696.58 | fifths narrowed a quarter comma, which makes the third pure |
 | Werckmeister III | 390.22 | 696.09 | four fifths narrowed, no wolf, every key playable |
-| Young | 392.18 | 698.04 | six fifths narrowed by a sixth of a comma, milder still |
+| Vallotti | 392.18 | 698.04 | six fifths, F-C to E-B, narrowed by a sixth of a comma, milder still |
+| Kirnberger III | 386.31 | 696.58 | four fifths narrowed a quarter comma, so the third on the root is pure, no wolf |
+| Young | 392.18 | 698.04 | Vallotti's six fifths a fifth higher, C-G to B-F# |
 | [Adaptive](https://benjamindehli.github.io/overtonium/tuning/#adaptive) | 386.31 | 701.71 | pure in every key, the held chord retuned as you play |
 
-They are worked out from the circle of fifths, not copied from tables of cents. Almost every historical temperament is described by how much each of the twelve fifths is narrowed. The code stores that, and the pitch classes are calculated from it. The two commas everything is built from come out at 23.460 and 21.506 cents, which match the published figures. The tests check the property that defines each temperament, not the resulting numbers: meantone's third pure to a thousandth of a cent, Pythagorean's fifth the same, and Werckmeister's third at 390.2.
+They are worked out from the circle of fifths, not copied from tables of cents. Almost every historical temperament is described by how much each of the twelve fifths is narrowed. The code stores that, and the pitch classes are calculated from it. The two commas everything is built from come out at 23.460 and 21.506 cents, which match the published figures. The tests check the property that defines each temperament, not the resulting numbers: meantone's third pure to a thousandth of a cent, Pythagorean's fifth the same, Werckmeister's third at 390.2, and Kirnberger III's third pure.
+
+Vallotti and Young narrow the same six fifths, one starting a fifth lower than the other. So Vallotti on C is Young on F, note for note. Both are in the list because players know them by both names.
 
 ### Adaptive
 
@@ -242,6 +246,8 @@ C7 under Adaptive. C is 15.4 cents above equal, where just major on C puts it wi
 ### Root
 
 Sets which pitch class the temperament is built on. An unequal temperament is only in tune in the keys near its centre, so you choose that centre here. For Adaptive it sets where the middle versions are placed. It is greyed out for equal temperament, which has no centre, unless the [resonator](https://benjamindehli.github.io/overtonium/effects/#resonator) is in Series, which is built on the root in every temperament.
+
+On a root of C every temperament is laid out the way organs were tuned. Pythagorean and quarter-comma meantone each have one fifth that cannot be used, the wolf, and on C it is G#-Eb. That keeps C, F, Bb, G, D and A major in tune. On another root the wolf moves with it, a minor sixth above the root.
 
 ### Reference pitch
 
@@ -550,7 +556,7 @@ Horizontal, and split into left and right. The two channels are identical until 
 
 Page: Playing Overtonium: MPE, automation, macros and MIDI Learn
 URL: https://benjamindehli.github.io/overtonium/playing/
-Last changed: 2026-10-17
+Last changed: 2026-10-18
 
 # Playing Overtonium
 
@@ -636,7 +642,7 @@ Settings you set once and then leave. The menu is where you set up the instrumen
 | MPE | off by default | Whether a note's channel is part of its identity, which lets pitch bend and pressure work per note |
 | Aftertouch from | Channel pressure, Mod wheel, Either. Either by default | What drives the AT row on every strip. Polyphonic aftertouch is not on the list because it is always routed, whatever this is set to |
 | Slide to | Off, Brightness, Tuning. Brightness by default | What the forward and back movement of an MPE finger controls |
-| Temperament, Root, Reference pitch | Seven temperaments, twelve roots, 415 to 466 Hz | What the keyboard is tuned to, as explained in [the tuning system](https://benjamindehli.github.io/overtonium/tuning/). Root is greyed out for equal temperament, which has no centre |
+| Temperament, Root, Reference pitch | Nine temperaments, twelve roots, 415 to 466 Hz | What the keyboard is tuned to, as explained in [the tuning system](https://benjamindehli.github.io/overtonium/tuning/). Root is greyed out for equal temperament, which has no centre |
 | Retune | Fast, 30 ms, the default, or Smooth, 300 ms | How long a held note takes to slide to its new tuning when the [Adaptive](https://benjamindehli.github.io/overtonium/tuning/#adaptive) temperament retunes the chord around it. These are two quick settings for the Retune knob in the Tuning bar, which runs from an instant jump at zero up to one second. Greyed out for every other temperament |
 | Harmonic sevenths | on by default | Whether Adaptive tunes a minor seventh 7:4 above its root, the harmonic seventh, when nothing else in the chord would beat against it. When off, every seventh has the size the chain of fifths gives it. Also the 7:4 switch in the Tuning bar. Greyed out for every other temperament |
 | No drift | off by default | Whether Adaptive keeps the chord you hold as close to home as it can. When on, a progression that would shift the keyboard by a comma moves a held note by a comma instead, and a key played after silence goes home. When off, the keyboard follows the music, up to two commas either way. Also the NO DRIFT switch in the Tuning bar. Greyed out for every other temperament |
@@ -692,7 +698,7 @@ All 850 as the host lists them, with a control that every partial or every macro
 | `Tracking` | `track` | Off to 12.0 dB/oct | Off |
 | `Character` | `character` | Pure, Bulb, Rail, Diode, Valve, Op-amp | Pure |
 | `Wobble` | `wobble` | 0 % to 100 % | 0 % |
-| `Temperament` | `temperament` | Equal, Just (major), Pythagorean, Quarter-comma meantone, Werckmeister III, Young, Adaptive | Equal |
+| `Temperament` | `temperament` | Equal, Just (major), Pythagorean, Quarter-comma meantone, Werckmeister III, Young, Adaptive, Kirnberger III, Vallotti | Equal |
 | `Tuning Root` | `tuningRoot` | C, C#, D, D#, E, F, F#, G, G#, A, A#, B | C |
 | `Reference Pitch` | `referenceHz` | A = 415 Hz, A = 430 Hz, A = 432 Hz, A = 435 Hz, A = 438 Hz, A = 440 Hz, A = 442 Hz, A = 443 Hz, A = 444 Hz, A = 446 Hz, A = 466 Hz | A = 440 Hz |
 | `Aftertouch From` | `atSource` | Channel pressure, Mod wheel, Either | Either |
