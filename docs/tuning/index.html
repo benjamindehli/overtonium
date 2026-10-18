@@ -3,10 +3,10 @@
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>The Overtonium tuning system: TUNE, stretch and seven temperaments</title>
+        <title>The Overtonium tuning system: TUNE, stretch and nine temperaments</title>
         <meta
             name="description"
-            content="Hear TUNE blend every partial between equal temperament and just intonation, plus inharmonic stretch, seven temperaments, keyboard tracking and drift."
+            content="Hear TUNE blend every partial between equal temperament and just intonation, plus inharmonic stretch, nine temperaments, keyboard tracking and drift."
         />
         <meta name="author" content="Benjamin Dehli" />
         <meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -18,7 +18,7 @@
         <meta property="og:site_name" content="Overtonium" />
         <meta property="og:locale" content="en_GB" />
         <meta property="og:url" content="https://benjamindehli.github.io/overtonium/tuning/" />
-        <meta property="og:title" content="The Overtonium tuning system: TUNE, stretch and seven temperaments" />
+        <meta property="og:title" content="The Overtonium tuning system: TUNE, stretch and nine temperaments" />
         <meta
             property="og:description"
             content="Audio of TUNE blending every partial between equal temperament and just intonation, STRETCH from harmonic to beyond a piano, a chord in equal temperament against Werckmeister III, keyboard tracking thinning the partials as you play higher, and per-partial drift. There is also a diagram of where each partial falls against the semitone it snaps to."
@@ -30,7 +30,7 @@
         <meta property="og:image:alt" content="The Overtonium wordmark over the plugin window, captioned Tuning." />
 
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="The Overtonium tuning system: TUNE, stretch and seven temperaments" />
+        <meta name="twitter:title" content="The Overtonium tuning system: TUNE, stretch and nine temperaments" />
         <meta
             name="twitter:description"
             content="Audio of TUNE blending every partial between equal temperament and just intonation, STRETCH from harmonic to beyond a piano, a chord in equal temperament against Werckmeister III, keyboard tracking thinning the partials as you play higher, and per-partial drift. There is also a diagram of where each partial falls against the semitone it snaps to."
@@ -49,8 +49,8 @@
                 "@type": "WebPage",
                 "@id": "https://benjamindehli.github.io/overtonium/tuning/#webpage",
                 "url": "https://benjamindehli.github.io/overtonium/tuning/",
-                "name": "The Overtonium tuning system: TUNE, stretch and seven temperaments",
-                "description": "Hear TUNE blend every partial between equal temperament and just intonation, plus inharmonic stretch, seven temperaments, keyboard tracking and drift.",
+                "name": "The Overtonium tuning system: TUNE, stretch and nine temperaments",
+                "description": "Hear TUNE blend every partial between equal temperament and just intonation, plus inharmonic stretch, nine temperaments, keyboard tracking and drift.",
                 "inLanguage": "en-GB",
                 "isPartOf": {
                     "@id": "https://benjamindehli.github.io/overtonium/#website"
@@ -64,7 +64,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-10-17",
+                "dateModified": "2026-10-18",
                 "breadcrumb": {
                     "@id": "https://benjamindehli.github.io/overtonium/tuning/#breadcrumb"
                 }
@@ -833,7 +833,7 @@
 
                     <p>
                         Everything above is about where a partial sits above the note you play. This section is about how that note is tuned. Settings
-                        and the <a href="../playing/#bars">Tuning bar</a> have seven temperaments: six fixed ones, and one that retunes as you play.
+                        and the <a href="../playing/#bars">Tuning bar</a> have nine temperaments: eight fixed ones, and one that retunes as you play.
                     </p>
 
                     <div class="scroll">
@@ -878,10 +878,22 @@
                                     <td>four fifths narrowed, no wolf, every key playable</td>
                                 </tr>
                                 <tr>
+                                    <td>Vallotti</td>
+                                    <td>392.18</td>
+                                    <td>698.04</td>
+                                    <td>six fifths, F-C to E-B, narrowed by a sixth of a comma, milder still</td>
+                                </tr>
+                                <tr>
+                                    <td>Kirnberger III</td>
+                                    <td>386.31</td>
+                                    <td>696.58</td>
+                                    <td>four fifths narrowed a quarter comma, so the third on the root is pure, no wolf</td>
+                                </tr>
+                                <tr>
                                     <td>Young</td>
                                     <td>392.18</td>
                                     <td>698.04</td>
-                                    <td>six fifths narrowed by a sixth of a comma, milder still</td>
+                                    <td>Vallotti's six fifths a fifth higher, C-G to B-F#</td>
                                 </tr>
                                 <tr>
                                     <td><a href="#adaptive">Adaptive</a></td>
@@ -898,7 +910,12 @@
                         described by how much each of the twelve fifths is narrowed. The code stores that, and the pitch classes are calculated from
                         it. The two commas everything is built from come out at 23.460 and 21.506 cents, which match the published figures. The tests
                         check the property that defines each temperament, not the resulting numbers: meantone's third pure to a thousandth of a cent,
-                        Pythagorean's fifth the same, and Werckmeister's third at 390.2.
+                        Pythagorean's fifth the same, Werckmeister's third at 390.2, and Kirnberger III's third pure.
+                    </p>
+
+                    <p>
+                        Vallotti and Young narrow the same six fifths, one starting a fifth lower than the other. So Vallotti on C is Young on F, note
+                        for note. Both are in the list because players know them by both names.
                     </p>
 
                     <h3 id="adaptive">Adaptive</h3>

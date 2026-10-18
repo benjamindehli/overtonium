@@ -25,6 +25,11 @@ enum class Temperament {
   /// below is the middle versions, on Groven's tempered fifths. See
   /// SynthEngine::frequencyFor.
   Adaptive,
+  /// These two came after Adaptive, and are after it here because a host
+  /// stores the choice by its place in the list. The menus show them beside
+  /// the other fixed temperaments.
+  KirnbergerIII,
+  Vallotti,
   NumTemperaments
 };
 
@@ -42,6 +47,10 @@ inline const char *temperamentName(Temperament t) {
     return "Young";
   case Temperament::Adaptive:
     return "Adaptive";
+  case Temperament::KirnbergerIII:
+    return "Kirnberger III";
+  case Temperament::Vallotti:
+    return "Vallotti";
 
   // Listed rather than left to a default, so adding a temperament is a
   // compiler error here until it has been given a name.
@@ -140,8 +149,11 @@ temperamentOffsets(Temperament t) noexcept {
   using namespace tuning;
 
   // Built once. None of this depends on anything but the constants above.
-  static const std::array<std::array<double, 12>, 7> tables = [] {
-    std::array<std::array<double, 12>, 7> out{};
+  using Tables =
+      std::array<std::array<double, 12>, (size_t)Temperament::NumTemperaments>;
+
+  static const Tables tables = [] {
+    Tables out{};
 
     // Equal: the thing everything else is measured against.
     out[0].fill(0.0);
@@ -206,11 +218,39 @@ temperamentOffsets(Temperament t) noexcept {
       }
     }
 
+    // Kirnberger III: C-G, G-D, D-A and A-E narrowed by a quarter of the
+    // syntonic comma, so C-E is pure as in meantone, and F#-C# narrowed by the
+    // schisma, which is what is left of the Pythagorean comma. Steps 0 to 3
+    // and 6. The rest are pure.
+    {
+      std::array<double, 12> fifths{};
+      fifths.fill(kPureFifth);
+
+      for (int step : {0, 1, 2, 3})
+        fifths[(size_t)step] = kPureFifth - kSyntonicComma / 4.0;
+      fifths[6] = kPureFifth - kSchisma;
+
+      out[7] = fromFifths(fifths);
+    }
+
+    // Vallotti: Young's six narrowed fifths, starting a fifth lower, F-C
+    // through E-B. That is step 11 and steps 0 to 4, so Vallotti on any root
+    // is Young on the root a fifth below.
+    {
+      std::array<double, 12> fifths{};
+      fifths.fill(kPureFifth);
+
+      for (int step : {11, 0, 1, 2, 3, 4})
+        fifths[(size_t)step] = kPureFifth - kPythagoreanComma / 6.0;
+
+      out[8] = fromFifths(fifths);
+    }
+
     return out;
   }();
 
   const auto index = (int)t;
-  return tables[(size_t)(index >= 0 && index < 7 ? index : 0)];
+  return tables[(size_t)(index >= 0 && index < (int)tables.size() ? index : 0)];
 }
 
 /// Frequency of a MIDI note.

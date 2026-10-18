@@ -553,6 +553,51 @@ void testTemperaments() {
         "Young's is 392.2 (" + std::to_string(interval(Temperament::Young, 4)) +
             ")");
 
+  // Kirnberger III keeps meantone's pure C-E, and puts the whole of the
+  // syntonic comma into the four fifths that make it.
+  check(std::abs(interval(Temperament::KirnbergerIII, 4) - pureThird) < 0.001,
+        "Kirnberger III's major third is pure (" +
+            std::to_string(interval(Temperament::KirnbergerIII, 4)) + ")");
+
+  check(std::abs(interval(Temperament::KirnbergerIII, 7) -
+                 (tuning::kPureFifth - tuning::kSyntonicComma / 4.0)) < 0.001,
+        "and its fifth is meantone's (" +
+            std::to_string(interval(Temperament::KirnbergerIII, 7)) + ")");
+
+  // Vallotti is Young's pattern a fifth lower, so on any root it is Young on
+  // the root a fifth below, note for note.
+  {
+    bool same = true;
+    for (int root = 0; root < 12; ++root)
+      for (int note = 0; note < 128; ++note)
+        same &=
+            std::abs(noteFrequency(note, Temperament::Vallotti, root, 440.0) -
+                     noteFrequency(note, Temperament::Young, (root + 5) % 12,
+                                   440.0)) < 1.0e-9;
+
+    check(same, "Vallotti on any root is Young on the root a fifth below");
+  }
+
+  // Which makes them two temperaments on the same root: Vallotti tempers F-C
+  // and leaves B-F# pure, and Young the other way round.
+  const auto fifthOn = [](Temperament t, int pitchClass) {
+    const auto &o = temperamentOffsets(t);
+    return 700.0 + o[(size_t)((pitchClass + 7) % 12)] - o[(size_t)pitchClass];
+  };
+
+  const auto sixth = tuning::kPureFifth - tuning::kPythagoreanComma / 6.0;
+
+  check(std::abs(fifthOn(Temperament::Vallotti, 5) - sixth) < 0.001 &&
+            std::abs(fifthOn(Temperament::Vallotti, 11) - tuning::kPureFifth) <
+                0.001,
+        "Vallotti tempers F-C and leaves B-F# pure (" +
+            std::to_string(fifthOn(Temperament::Vallotti, 5)) + ", " +
+            std::to_string(fifthOn(Temperament::Vallotti, 11)) + ")");
+
+  check(std::abs(fifthOn(Temperament::Young, 5) - tuning::kPureFifth) < 0.001 &&
+            std::abs(fifthOn(Temperament::Young, 11) - sixth) < 0.001,
+        "and Young the other way round");
+
   std::printf("  major third and fifth, in cents:\n");
   for (int t = 0; t < (int)Temperament::NumTemperaments; ++t) {
     const auto which = (Temperament)t;

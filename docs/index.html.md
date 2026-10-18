@@ -1,6 +1,6 @@
 Page: Overtonium, a free 32-partial additive synthesizer plugin
 URL: https://benjamindehli.github.io/overtonium/
-Last changed: 2026-10-15
+Last changed: 2026-10-18
 
 # Overtonium, a 32-partial additive overtone synthesizer
 
@@ -55,11 +55,11 @@ Two of the [factory presets](https://benjamindehli.github.io/overtonium/presets/
 
 One note each, the same patch, the same level. Only TUNE differs.
 
-Nothing about the tuning is hard-coded. For harmonic `n` the just interval is `1200 * log2(n)` cents, the equal position is that rounded to the nearest semitone, and TUNE dials in the remainder. [The tuning system](https://benjamindehli.github.io/overtonium/tuning/) explains it in detail, along with stretch, the seven keyboard temperaments and keyboard tracking.
+Nothing about the tuning is hard-coded. For harmonic `n` the just interval is `1200 * log2(n)` cents, the equal position is that rounded to the nearest semitone, and TUNE dials in the remainder. [The tuning system](https://benjamindehli.github.io/overtonium/tuning/) explains it in detail, along with stretch, the nine keyboard temperaments and keyboard tracking.
 
 ## Where to go next
 
-- [**Tuning**TUNE, inharmonic stretch, six historical temperaments and an adaptive one on any root, and how the spectrum thins out higher up the keyboard.](https://benjamindehli.github.io/overtonium/tuning/)
+- [**Tuning**TUNE, inharmonic stretch, eight historical temperaments and an adaptive one on any root, and how the spectrum thins out higher up the keyboard.](https://benjamindehli.github.io/overtonium/tuning/)
 - [**Controls**Every knob on a channel strip, then the effects on the bar and how to play it from a keyboard, a host or a controller.](https://benjamindehli.github.io/overtonium/controls/)
 - [**Presets**The thirty-five that ship, what a preset carries, and where your own are kept on each platform.](https://benjamindehli.github.io/overtonium/presets/)
 - [**Install**Installers for macOS and Windows, a zip for Linux, what to do when a host does not see it, and building from source.](https://benjamindehli.github.io/overtonium/install/)
@@ -82,7 +82,7 @@ It builds a sound by adding sine waves together, instead of filtering a rich wav
 
 **Can Overtonium do microtonal tunings and just intonation?**
 
-Yes, both, and they are set separately. TUNE moves each partial between its equal-tempered position and its exact whole-number ratio. The keyboard has its own tuning: equal, just, Pythagorean, quarter-comma meantone, Werckmeister III or Young, on any root, at any of eleven reference pitches from 415 to 466 Hz. It can also use [Adaptive](https://benjamindehli.github.io/overtonium/tuning/#adaptive), which keeps the chord you hold in just intonation as you play, and moves a held note when the next chord needs it.
+Yes, both, and they are set separately. TUNE moves each partial between its equal-tempered position and its exact whole-number ratio. The keyboard has its own tuning: equal, just, Pythagorean, quarter-comma meantone, Werckmeister III, Vallotti, Kirnberger III or Young, on any root, at any of eleven reference pitches from 415 to 466 Hz. It can also use [Adaptive](https://benjamindehli.github.io/overtonium/tuning/#adaptive), which keeps the chord you hold in just intonation as you play, and moves a held note when the next chord needs it.
 
 **Does Overtonium support MPE?**
 

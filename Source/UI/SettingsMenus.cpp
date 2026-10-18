@@ -1,6 +1,7 @@
 #include "SettingsMenus.h"
 
 #include <cmath>
+#include <iterator>
 
 #include "../PluginParameters.h"
 #include "../dsp/Params.h"
@@ -11,6 +12,20 @@ namespace ovt::ui::settings {
 namespace {
 /// The semitone counts anyone actually uses, rather than all 25 of them.
 constexpr int kBendChoices[] = {0, 1, 2, 3, 4, 5, 7, 12, 24};
+
+/// The order the menu lists the temperaments in: equal and just first, the
+/// historical ones by age, and Adaptive last since it is the one that is not
+/// fixed. The parameter keeps the order they were added in, so a host's lanes
+/// and saved sessions do not move.
+constexpr Temperament kTemperamentOrder[] = {
+    Temperament::Equal,         Temperament::Just,
+    Temperament::Pythagorean,   Temperament::QuarterComma,
+    Temperament::Werckmeister3, Temperament::Vallotti,
+    Temperament::KirnbergerIII, Temperament::Young,
+    Temperament::Adaptive};
+static_assert(std::size(kTemperamentOrder) ==
+                  (size_t)Temperament::NumTemperaments,
+              "every temperament in the menu");
 
 void choose(juce::AudioProcessorValueTreeState &apvts, const char *id,
             int index) {
@@ -116,9 +131,9 @@ juce::PopupMenu temperament(juce::AudioProcessorValueTreeState &apvts) {
 
   juce::PopupMenu m;
 
-  for (int i = 0; i < (int)Temperament::NumTemperaments; ++i)
-    m.addItem(kTemperament + i, temperamentName((Temperament)i), true,
-              i == current);
+  for (const auto t : kTemperamentOrder)
+    m.addItem(kTemperament + (int)t, temperamentName(t), true,
+              (int)t == current);
 
   return m;
 }

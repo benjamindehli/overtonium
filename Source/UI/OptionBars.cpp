@@ -778,10 +778,11 @@ juce::String AdaptiveReading::spoken() const {
 // ---- Tuning -----------------------------------------------------------------
 
 namespace {
-/// In Temperament's order. Eight cells hold every one whole but Pythagorean
-/// and Werckmeister, which are cut where a reader still knows them.
+/// In Temperament's order. Eight cells hold every one whole but Pythagorean,
+/// Werckmeister and Kirnberger, which are cut where a reader still knows them.
 constexpr const char *kTemperamentWords[] = {
-    "EQUAL", "JUST", "PYTHAG", "MEANTONE", "WERCKIII", "YOUNG", "ADAPTIVE"};
+    "EQUAL", "JUST",     "PYTHAG",   "MEANTONE", "WERCKIII",
+    "YOUNG", "ADAPTIVE", "KIRNBIII", "VALLOTTI"};
 static_assert(std::size(kTemperamentWords) ==
                   (size_t)Temperament::NumTemperaments,
               "a word for every temperament");

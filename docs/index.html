@@ -88,7 +88,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-10-15",
+                "dateModified": "2026-10-18",
                 "mainEntity": {
                     "@id": "https://www.dehlimusikk.no/products/overtonium/#product"
                 }
@@ -151,7 +151,7 @@
                     "32 sine partials plus a noise channel",
                     "A Karplus-Strong string in the noise channel, tuned to the note, that the noise plucks or blows into",
                     "Continuous blend between equal temperament and just intonation",
-                    "Seven keyboard temperaments on any root, one of them adaptive",
+                    "Nine keyboard temperaments on any root, one of them adaptive",
                     "Inharmonic stretch and keyboard tracking",
                     "Per-partial envelope, tremolo, pitch modulation and pan",
                     "MPE, with pitch bend and pressure per note",
@@ -198,7 +198,7 @@
                         "name": "Can Overtonium do microtonal tunings and just intonation?",
                         "acceptedAnswer": {
                             "@type": "Answer",
-                            "text": "Yes, both, and they are set separately. TUNE moves each partial between its equal-tempered position and its exact whole-number ratio. The keyboard has its own tuning: equal, just, Pythagorean, quarter-comma meantone, Werckmeister III or Young, on any root, at any of eleven reference pitches from 415 to 466 Hz. It can also use Adaptive, which keeps the chord you hold in just intonation as you play, and moves a held note when the next chord needs it."
+                            "text": "Yes, both, and they are set separately. TUNE moves each partial between its equal-tempered position and its exact whole-number ratio. The keyboard has its own tuning: equal, just, Pythagorean, quarter-comma meantone, Werckmeister III, Vallotti, Kirnberger III or Young, on any root, at any of eleven reference pitches from 415 to 466 Hz. It can also use Adaptive, which keeps the chord you hold in just intonation as you play, and moves a held note when the next chord needs it."
                         }
                     },
                     {
@@ -610,8 +610,8 @@
                     <p>
                         Nothing about the tuning is hard-coded. For harmonic <code>n</code> the just interval is <code>1200 * log2(n)</code> cents,
                         the equal position is that rounded to the nearest semitone, and TUNE dials in the remainder.
-                        <a href="tuning/">The tuning system</a> explains it in detail, along with stretch, the seven keyboard temperaments and
-                        keyboard tracking.
+                        <a href="tuning/">The tuning system</a> explains it in detail, along with stretch, the nine keyboard temperaments and keyboard
+                        tracking.
                     </p>
                 </section>
 
@@ -623,8 +623,8 @@
                             <a href="tuning/"
                                 ><strong>Tuning</strong
                                 ><span
-                                    >TUNE, inharmonic stretch, six historical temperaments and an adaptive one on any root, and how the spectrum thins
-                                    out higher up the keyboard.</span
+                                    >TUNE, inharmonic stretch, eight historical temperaments and an adaptive one on any root, and how the spectrum
+                                    thins out higher up the keyboard.</span
                                 ></a
                             >
                         </li>
@@ -683,8 +683,8 @@
                         <dt>Can Overtonium do microtonal tunings and just intonation?</dt>
                         <dd>
                             Yes, both, and they are set separately. TUNE moves each partial between its equal-tempered position and its exact
-                            whole-number ratio. The keyboard has its own tuning: equal, just, Pythagorean, quarter-comma meantone, Werckmeister III or
-                            Young, on any root, at any of eleven reference pitches from 415 to 466 Hz. It can also use
+                            whole-number ratio. The keyboard has its own tuning: equal, just, Pythagorean, quarter-comma meantone, Werckmeister III,
+                            Vallotti, Kirnberger III or Young, on any root, at any of eleven reference pitches from 415 to 466 Hz. It can also use
                             <a href="tuning/#adaptive">Adaptive</a>, which keeps the chord you hold in just intonation as you play, and moves a held
                             note when the next chord needs it.
                         </dd>

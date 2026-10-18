@@ -1,6 +1,6 @@
-Page: The Overtonium tuning system: TUNE, stretch and seven temperaments
+Page: The Overtonium tuning system: TUNE, stretch and nine temperaments
 URL: https://benjamindehli.github.io/overtonium/tuning/
-Last changed: 2026-10-17
+Last changed: 2026-10-18
 
 # The Overtonium tuning system
 
@@ -75,19 +75,23 @@ One note while STRETCH turns from a harmonic series to beyond a piano. The botto
 
 ## Tuning the keyboard
 
-Everything above is about where a partial sits above the note you play. This section is about how that note is tuned. Settings and the [Tuning bar](https://benjamindehli.github.io/overtonium/playing/#bars) have seven temperaments: six fixed ones, and one that retunes as you play.
+Everything above is about where a partial sits above the note you play. This section is about how that note is tuned. Settings and the [Tuning bar](https://benjamindehli.github.io/overtonium/playing/#bars) have nine temperaments: eight fixed ones, and one that retunes as you play.
 
-| Temperament                                                             | Major third | Fifth  | What it is                                                  |
-| ----------------------------------------------------------------------- | ----------- | ------ | ----------------------------------------------------------- |
-| Equal                                                                   | 400.00      | 700.00 | the reference everything else is measured against           |
-| Just (major)                                                            | 386.31      | 701.96 | pure by construction, chosen interval by interval           |
-| Pythagorean                                                             | 407.82      | 701.96 | every fifth pure, at the cost of a wide third               |
-| Quarter-comma meantone                                                  | 386.31      | 696.58 | fifths narrowed a quarter comma, which makes the third pure |
-| Werckmeister III                                                        | 390.22      | 696.09 | four fifths narrowed, no wolf, every key playable           |
-| Young                                                                   | 392.18      | 698.04 | six fifths narrowed by a sixth of a comma, milder still     |
-| [Adaptive](https://benjamindehli.github.io/overtonium/tuning/#adaptive) | 386.31      | 701.71 | pure in every key, the held chord retuned as you play       |
+| Temperament                                                             | Major third | Fifth  | What it is                                                                      |
+| ----------------------------------------------------------------------- | ----------- | ------ | ------------------------------------------------------------------------------- |
+| Equal                                                                   | 400.00      | 700.00 | the reference everything else is measured against                               |
+| Just (major)                                                            | 386.31      | 701.96 | pure by construction, chosen interval by interval                               |
+| Pythagorean                                                             | 407.82      | 701.96 | every fifth pure, at the cost of a wide third                                   |
+| Quarter-comma meantone                                                  | 386.31      | 696.58 | fifths narrowed a quarter comma, which makes the third pure                     |
+| Werckmeister III                                                        | 390.22      | 696.09 | four fifths narrowed, no wolf, every key playable                               |
+| Vallotti                                                                | 392.18      | 698.04 | six fifths, F-C to E-B, narrowed by a sixth of a comma, milder still            |
+| Kirnberger III                                                          | 386.31      | 696.58 | four fifths narrowed a quarter comma, so the third on the root is pure, no wolf |
+| Young                                                                   | 392.18      | 698.04 | Vallotti's six fifths a fifth higher, C-G to B-F#                               |
+| [Adaptive](https://benjamindehli.github.io/overtonium/tuning/#adaptive) | 386.31      | 701.71 | pure in every key, the held chord retuned as you play                           |
 
-They are worked out from the circle of fifths, not copied from tables of cents. Almost every historical temperament is described by how much each of the twelve fifths is narrowed. The code stores that, and the pitch classes are calculated from it. The two commas everything is built from come out at 23.460 and 21.506 cents, which match the published figures. The tests check the property that defines each temperament, not the resulting numbers: meantone's third pure to a thousandth of a cent, Pythagorean's fifth the same, and Werckmeister's third at 390.2.
+They are worked out from the circle of fifths, not copied from tables of cents. Almost every historical temperament is described by how much each of the twelve fifths is narrowed. The code stores that, and the pitch classes are calculated from it. The two commas everything is built from come out at 23.460 and 21.506 cents, which match the published figures. The tests check the property that defines each temperament, not the resulting numbers: meantone's third pure to a thousandth of a cent, Pythagorean's fifth the same, Werckmeister's third at 390.2, and Kirnberger III's third pure.
+
+Vallotti and Young narrow the same six fifths, one starting a fifth lower than the other. So Vallotti on C is Young on F, note for note. Both are in the list because players know them by both names.
 
 ### Adaptive
 

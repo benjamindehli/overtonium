@@ -128,7 +128,7 @@ What does move an octave partial is STRETCH, on its own curve, along with DRIFT,
 
 Everything above is about where a partial sits above the note you played. This section is about where that note sits. The default is twelve-tone equal temperament, `440 * 2^((n - 69) / 12)`.
 
-An instrument about tuning should be able to tune the keyboard too, not only put the partials in just intonation. Settings has a Temperament entry with seven, six fixed and one that retunes as you play:
+An instrument about tuning should be able to tune the keyboard too, not only put the partials in just intonation. Settings has a Temperament entry with nine, eight fixed and one that retunes as you play:
 
 |                        | Major third | Fifth  |                                                             |
 | ---------------------- | ----------- | ------ | ----------------------------------------------------------- |
@@ -137,10 +137,16 @@ An instrument about tuning should be able to tune the keyboard too, not only put
 | Pythagorean            | 407.82      | 701.96 | every fifth pure, at the cost of the third                  |
 | Quarter-comma meantone | 386.31      | 696.58 | fifths narrowed a quarter comma, which makes the third pure |
 | Werckmeister III       | 390.22      | 696.09 | four fifths narrowed, no wolf, every key playable           |
-| Young                  | 392.18      | 698.04 | six narrowed by a sixth, gentler still                      |
+| Vallotti               | 392.18      | 698.04 | six narrowed by a sixth, F-C to E-B, gentler still          |
+| Kirnberger III         | 386.31      | 696.58 | four narrowed a quarter comma, so the root's third is pure  |
+| Young                  | 392.18      | 698.04 | Vallotti's six a fifth higher, C-G to B-F#                  |
 | Adaptive               | 386.31      | 701.96 | pure in every key, chosen note by note as you play          |
 
-They are derived from the circle of fifths, not copied from tables of cents. Almost every historical temperament is described by how much each of the twelve fifths is narrowed, so that is what the code specifies, and the pitch classes follow from it. The two commas everything is built from come out at 23.460 and 21.506 cents, which are the published figures. The tests check the property that defines each temperament rather than the numbers that result: meantone's third pure to a thousandth of a cent, Pythagorean's fifth likewise, Werckmeister at its characteristic 390.2.
+They are derived from the circle of fifths, not copied from tables of cents. Almost every historical temperament is described by how much each of the twelve fifths is narrowed, so that is what the code specifies, and the pitch classes follow from it. The two commas everything is built from come out at 23.460 and 21.506 cents, which are the published figures. The tests check the property that defines each temperament rather than the numbers that result: meantone's third pure to a thousandth of a cent, Pythagorean's fifth likewise, Werckmeister at its characteristic 390.2, Kirnberger III's third pure.
+
+Vallotti and Young are one pattern of fifths on roots a fifth apart, so Vallotti on C is Young on F, note for note, and a test checks this on every root. Both are offered because players know them by both names, and a player who knows they want Vallotti should not have to work out that it is Young on another root.
+
+**The menu order is not the parameter's order.** The menu lists equal and just first, the historical temperaments by age, and Adaptive last. The parameter lists them in the order they were added, with Kirnberger III and Vallotti after Adaptive. A saved session stores the position in that list, so a new temperament anywhere but the end would change what old sessions are tuned to. A host's automation stores a fraction of the list's length instead, so adding to the end still moves a lane drawn against the shorter list, and the release notes say so.
 
 **Root** picks which pitch class the temperament is built on. An unequal temperament is only in tune in the keys near its centre, and that is intended. Root is greyed out for equal temperament, which has no centre, unless the resonator is in Series. Series rings the root's own harmonics whatever the temperament, so the root decides what it rings, and it stays live on the Tuning bar and in Settings for as long as Series is chosen.
 
