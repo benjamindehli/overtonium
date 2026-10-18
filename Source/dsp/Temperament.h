@@ -103,12 +103,21 @@ inline constexpr int kFifthOrder[12] = {0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5};
 /// from that rather than copying a table of cents means the defining property
 /// stays visible in the code, and it is checkable, since the twelve have to add
 /// up to seven octaves exactly or the circle does not close.
-inline std::array<double, 12> fromFifths(const std::array<double, 12> &fifths) {
+///
+/// @param below  how many fifths below the root the chain starts, so step 0
+///               of `fifths` is the one from that note. Zero starts on the
+///               root. It only matters where the circle is not even, and it
+///               decides where the wolf falls.
+inline std::array<double, 12> fromFifths(const std::array<double, 12> &fifths,
+                                         int below = 0) {
   std::array<double, 12> offsets{};
-  double running = 0.0;
+
+  // Start where equal temperament puts the first note, so every offset is a
+  // small deviation and the fold below never splits the chain.
+  double running = -700.0 * (double)below;
 
   for (int step = 0; step < 12; ++step) {
-    const auto pitchClass = kFifthOrder[step];
+    const auto pitchClass = kFifthOrder[(step - below + 12) % 12];
 
     // Fold into one octave, then measure against where equal temperament
     // would have put it.
@@ -127,6 +136,11 @@ inline std::array<double, 12> fromFifths(const std::array<double, 12> &fifths) {
     running += fifths[(size_t)step];
   }
 
+  // Measured from the root, as every table is.
+  const auto root = offsets[0];
+  for (auto &cents : offsets)
+    cents -= root;
+
   return offsets;
 }
 
@@ -139,6 +153,12 @@ inline std::array<double, 12> withWolf(double fifth) {
 
   return fifths;
 }
+
+/// Where a temperament with a wolf starts its chain: three fifths below the
+/// root, so on C it runs from Eb to G# and the wolf is G#-Eb. That is where
+/// organs and harpsichords put it, and it keeps C, F, Bb, G, D and A major in
+/// tune, which are the keys most of the music for these temperaments is in.
+inline constexpr int kWolfBelow = 3;
 
 } // namespace tuning
 
@@ -168,11 +188,12 @@ temperamentOffsets(Temperament t) noexcept {
       out[1][(size_t)i] = 1200.0 * std::log2(ratios[i]) - 100.0 * (double)i;
 
     // Pythagorean: every fifth pure, so the twelfth takes the whole comma.
-    out[2] = fromFifths(withWolf(kPureFifth));
+    out[2] = fromFifths(withWolf(kPureFifth), kWolfBelow);
 
     // Quarter-comma meantone: every fifth narrowed by a quarter of a syntonic
     // comma, which is exactly what makes the major thirds pure.
-    out[3] = fromFifths(withWolf(kPureFifth - kSyntonicComma / 4.0));
+    out[3] =
+        fromFifths(withWolf(kPureFifth - kSyntonicComma / 4.0), kWolfBelow);
 
     // Werckmeister III: four fifths narrowed by a quarter of the Pythagorean
     // comma, the rest pure, so the circle closes with no wolf. C-G, G-D, D-A

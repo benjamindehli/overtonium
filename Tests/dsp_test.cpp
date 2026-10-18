@@ -661,6 +661,38 @@ void testTemperaments() {
     rotates &= std::abs(thirdFromRoot(root) - pureThird) < 0.001;
 
   check(rotates, "meantone's pure third follows the root wherever it is put");
+
+  // The wolf goes where an organ builder puts it: on C the chain runs from Eb
+  // to G#, so F and Bb major are in tune and G#-Eb is the wolf. The first
+  // version started the chain on the root and put the wolf on F-C.
+  const auto cents = [](Temperament t, int root, int from, int semitones) {
+    return 1200.0 *
+           std::log2(noteFrequency(60 + from + semitones, t, root, 440.0) /
+                     noteFrequency(60 + from, t, root, 440.0));
+  };
+
+  bool flatKeys = true;
+  for (int from : {3, 5, 10}) // Eb, F and Bb
+    flatKeys &= std::abs(cents(Temperament::QuarterComma, 0, from, 4) -
+                         pureThird) < 0.001;
+
+  check(flatKeys, "meantone on C has pure thirds on Eb, F and Bb");
+
+  for (const auto t : {Temperament::QuarterComma, Temperament::Pythagorean}) {
+    const auto wolf = 8400.0 - 11.0 * (interval(t, 7));
+
+    bool placed = true;
+    for (int root = 0; root < 12; ++root)
+      for (int from = 0; from < 12; ++from) {
+        const auto fifth = cents(t, root, (root + from) % 12, 7);
+        placed &= std::abs(fifth - (from == 8 ? wolf : interval(t, 7))) < 0.001;
+      }
+
+    check(placed, std::string(temperamentName(t)) +
+                      " has its wolf a minor sixth above the root, G#-Eb on "
+                      "C, on every root (" +
+                      std::to_string(cents(t, 0, 8, 7)) + " on C)");
+  }
 }
 
 void testAdaptiveTuning() {

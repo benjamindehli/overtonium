@@ -247,6 +247,8 @@ C7 under Adaptive. C is 15.4 cents above equal, where just major on C puts it wi
 
 Sets which pitch class the temperament is built on. An unequal temperament is only in tune in the keys near its centre, so you choose that centre here. For Adaptive it sets where the middle versions are placed. It is greyed out for equal temperament, which has no centre, unless the [resonator](https://benjamindehli.github.io/overtonium/effects/#resonator) is in Series, which is built on the root in every temperament.
 
+On a root of C every temperament is laid out the way organs were tuned. Pythagorean and quarter-comma meantone each have one fifth that cannot be used, the wolf, and on C it is G#-Eb. That keeps C, F, Bb, G, D and A major in tune. On another root the wolf moves with it, a minor sixth above the root.
+
 ### Reference pitch
 
 One of eleven pitches for A: 415, 430, 432, 435, 438, 440, 442, 443, 444, 446 or 466 Hz. A stays exactly at this pitch in every fixed temperament, because the offsets are measured relative to A, the same way a tuner tunes A first and works outwards. Only the other eleven notes move. Under Adaptive, A's middle version sits on the reference, and an A in a chord that needs it takes the version a comma either side.

@@ -150,6 +150,8 @@ Vallotti and Young are one pattern of fifths on roots a fifth apart, so Vallotti
 
 **Root** picks which pitch class the temperament is built on. An unequal temperament is only in tune in the keys near its centre, and that is intended. Root is greyed out for equal temperament, which has no centre, unless the resonator is in Series. Series rings the root's own harmonics whatever the temperament, so the root decides what it rings, and it stays live on the Tuning bar and in Settings for as long as Series is chosen.
 
+**On C, each temperament has its standard layout.** For the well temperaments this follows from starting the chain of fifths on the root. Werckmeister III on C tempers C-G, G-D, D-A and B-F#, as Werckmeister wrote it. Pythagorean and quarter-comma meantone have a wolf, and a chain started on the root would put it on F-C, which leaves F and Bb major unusable. Those two start their chain three fifths below the root instead, `kWolfBelow`, so on C it runs from Eb to G# and the wolf is G#-Eb. That is where organs and harpsichords put it, and it keeps the keys most of their music is written in. Before 1.15.0 the chain started on the root, so a session saved with either temperament sounds different when opened in 1.15.0.
+
 **Reference pitch** offers 415 to 466 Hz. A stays exactly at that pitch in every fixed temperament, because the offsets are measured from A: a tuner tunes A first and works outwards. Only the other eleven notes move. Under Adaptive, A's middle version sits at the reference pitch.
 
 Equal temperament at 440 matches `440 * 2^((n - 69) / 12)` bit for bit, and the tests check this across all 128 notes.
