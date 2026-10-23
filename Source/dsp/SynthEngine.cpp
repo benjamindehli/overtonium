@@ -63,6 +63,7 @@ void SynthEngine::reset() noexcept {
   adaptiveVersion.fill(0);
   adaptiveSnapshots.publish(AdaptiveSnapshot{});
   clock = 0;
+  motorTurns = 0.0;
   pressedAt.fill(0);
   pressedWithOthers.fill(false);
   forgetLine();
@@ -1229,6 +1230,12 @@ SharedModulation
 SynthEngine::advanceSharedModulators(int numFrames,
                                      const SynthParams &p) noexcept {
   SharedModulation out;
+
+  // Turned whatever the character, so switching to Wheel joins a motor that
+  // was already running rather than starting one.
+  out.motorTurns = motorTurns;
+  out.motorStep = kWheelMotorHz / renderRate;
+  motorTurns = wrapPhase(motorTurns + out.motorStep * (double)numFrames);
 
   if (!p.global.pitchModInPhase && !p.global.ampModInPhase)
     return out;

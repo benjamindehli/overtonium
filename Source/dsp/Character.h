@@ -232,6 +232,17 @@ public:
     /// Which of kDriveVariants this unit's circuit was built to, so no two
     /// neighbours distort by quite the same amount.
     std::array<int, kNumHarmonics> drive{};
+
+    /// How much each tonewheel moves as its shaft turns, and nothing on every
+    /// other character. Pitch in cents and level as a fraction once a turn,
+    /// pitch in Hz and level as a fraction twice a turn, and where in the
+    /// turn each level change sits against the pitch change. See Measured.h.
+    std::array<float, kNumHarmonics> shaftCents{};
+    std::array<float, kNumHarmonics> shaftLevel{};
+    std::array<float, kNumHarmonics> twiceHz{};
+    std::array<float, kNumHarmonics> twiceLevel{};
+    std::array<float, kNumHarmonics> shaftLevelTurns{};
+    std::array<float, kNumHarmonics> twiceTurns{};
   };
 
   static const UnitSpread &instance() noexcept {
@@ -280,6 +291,31 @@ private:
         rack.drive[(size_t)i] =
             std::min((int)(driveRng.unipolar() * (float)kDriveVariants.size()),
                      (int)kDriveVariants.size() - 1);
+      }
+
+      // The wheels' wobble, on a stream of its own for the same reason the
+      // drive has one. Every unit gets it, the first included: it is how a
+      // wheel turns, not how far it was tuned.
+      if ((Character)c == Character::Wheel) {
+        Xorshift wobbleRng((uint32_t)c + 0x632be5abu);
+
+        const auto between = [&wobbleRng](const std::array<double, 2> &range) {
+          return range[0] *
+                 std::pow(range[1] / range[0], (double)wobbleRng.unipolar());
+        };
+
+        const auto fraction = [](double db) {
+          return (float)(std::pow(10.0, db / 20.0) - 1.0);
+        };
+
+        for (size_t i = 0; i < (size_t)kNumHarmonics; ++i) {
+          rack.shaftCents[i] = (float)between(kWheelShaftCents);
+          rack.shaftLevel[i] = fraction(between(kWheelShaftDb));
+          rack.twiceHz[i] = (float)between(kWheelTwiceHz);
+          rack.twiceLevel[i] = fraction(between(kWheelTwiceDb));
+          rack.shaftLevelTurns[i] = wobbleRng.unipolar();
+          rack.twiceTurns[i] = wobbleRng.unipolar();
+        }
       }
     }
   }

@@ -133,6 +133,12 @@ struct SharedModulation {
   /// How many boundaries each channel holds, so channel i starts at i * stride.
   /// The noise channel comes after the 32 partials.
   int stride = 0;
+
+  /// Where the tonewheel organ's motor is in its turn at the start of this
+  /// chunk, and how far it turns each sample. One motor drives every wheel, so
+  /// every voice reads the same one. Only Wheel listens. See kWheelMotorHz.
+  double motorTurns = 0.0;
+  double motorStep = 0.0;
 };
 
 /// What a voice needs to know to glide, which the engine keeps a copy of so a
@@ -422,6 +428,11 @@ private:
     /// is a slide to the ear.
     double glideSemis = 0.0;
     double glideStep = 0.0;
+
+    /// Where the shaft under this partial's tonewheel is in its turn. Drawn
+    /// when a note starts, since a key can go down at any point in a wheel's
+    /// turn, and only read on Wheel. See wheelShaftHz.
+    double shaftTurns = 0.0;
   };
 
   /// The noise channel runs alongside the partials with its own envelope and
@@ -483,6 +494,11 @@ private:
   int midiChannel = 0;
 
   Xorshift rng;
+
+  /// Where each note's tonewheel shafts start, on a stream of their own so
+  /// that drawing them moves nothing that rng draws for every other character.
+  Xorshift wheelRng;
+
   float noteBendSemitones = 0.0f;
   float polyPressure = 0.0f;
   float slide = 0.0f;

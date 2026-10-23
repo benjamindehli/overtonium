@@ -110,6 +110,7 @@ void Voice::prepare(double newSampleRate, uint32_t seed) noexcept {
 
   rng.reseed(seed);
   noise.rng.reseed(seed ^ 0x5bf03635u);
+  wheelRng.reseed(seed ^ 0x2545f491u);
 
   reset();
 }
@@ -264,6 +265,13 @@ void Voice::noteOn(int channel, int note, float velocity, const SynthParams &p,
     // frequency is exactly the case this character exists to show.
     if (fresh)
       pt.semisPrimed = false;
+
+    // Drawn on every note whatever the character, so the stream does not
+    // depend on which one is chosen.
+    const auto shaftStart = (double)wheelRng.unipolar();
+
+    if (fresh)
+      pt.shaftTurns = shaftStart;
 
     // A fresh rate per partial per note. Reusing one rate would turn 32
     // independent wanders into a single detune.
@@ -436,6 +444,7 @@ void Voice::takeOver(const Voice &from) noexcept {
     pt.onsetStale = true;
     pt.bulbSettled = src.bulbSettled;
     pt.semisPrimed = src.semisPrimed;
+    pt.shaftTurns = src.shaftTurns;
 
     // Already sounding, so the gain ramp starts from where the other voice's
     // was rather than priming itself afresh, and the oscillator starts its
@@ -481,6 +490,9 @@ void Voice::render(float *left, float *right, int numSamples,
   // the whole call: the spread is fixed, so it is the same rack for every
   // block and every note. See UnitSpread.
   const auto &unit = UnitSpread::instance().rack(p.global.character);
+
+  const bool wheel = p.global.character == Character::Wheel;
+  const auto &sine = SineTable::instance();
 
   // One pole per control block rather than per sample, which is where every
   // other slow thing in here is worked out.
@@ -637,7 +649,49 @@ void Voice::render(float *left, float *right, int numSamples,
             remaining > 0.0 ? std::copysign(remaining, pt.glideSemis) : 0.0;
       }
 
-      const double freq = baseFreq * std::exp2(semis / 12.0);
+      // ---- the shaft the tonewheel turns on
+      // ----------------------------------
+      //
+      // Pitch and level move once a turn and a little at twice that, by what
+      // this unit was drawn with, and the motor that drives every wheel moves
+      // the pitch at its own rate on top. The shaft rate comes from the pitch
+      // the partial is at before any of this, so the wobble cannot change the
+      // rate it wobbles at. Worked out once a block, like the modulators: a
+      // shaft turns at most 32 times a second and a block is 1500 a second.
+      double wobbleCents = 0.0;
+      float wobbleGain = 1.0f;
+
+      if (wheel) {
+        const double unwobbled = baseFreq * std::exp2(semis / 12.0);
+        const double turn = pt.shaftTurns;
+        const double motor =
+            wrapPhase(shared.motorTurns + (double)start * shared.motorStep);
+
+        // The twice-a-turn pitch was measured in hertz, which is the same on
+        // every wheel, and is turned into cents at this one's pitch.
+        const double twiceCents = 1731.2340490667560 *
+                                  (double)unit.twiceHz[(size_t)i] /
+                                  std::max(1.0, unwobbled);
+
+        wobbleCents =
+            (double)unit.shaftCents[(size_t)i] * (double)sine.at(turn) +
+            twiceCents * (double)sine.at(wrapPhase(2.0 * turn)) +
+            kWheelMotorCents * (double)sine.at(motor);
+
+        wobbleGain = 1.0f +
+                     unit.shaftLevel[(size_t)i] *
+                         sine.at(wrapPhase(
+                             turn + (double)unit.shaftLevelTurns[(size_t)i])) +
+                     unit.twiceLevel[(size_t)i] *
+                         sine.at(wrapPhase(2.0 * turn +
+                                           (double)unit.twiceTurns[(size_t)i]));
+
+        pt.shaftTurns = wrapPhase(turn + wheelShaftHz(unwobbled) * (double)len /
+                                             sampleRate);
+      }
+
+      const double freq =
+          baseFreq * std::exp2((semis + wobbleCents * 0.01) / 12.0);
 
       // Reduced into the first turn of the table. Sampling a sinusoid above
       // the rate produces the same numbers as sampling the one it folds to, so
@@ -741,7 +795,7 @@ void Voice::render(float *left, float *right, int numSamples,
       // error joins them as a plain multiply, being a property of the
       // oscillator rather than of anything the player is doing.
       const float base = op.audible ? level * nyq * track[(size_t)i] * bulb *
-                                          unit.gain[(size_t)i]
+                                          unit.gain[(size_t)i] * wobbleGain
                                     : 0.0f;
       const float gEnd = base * amEnd;
 

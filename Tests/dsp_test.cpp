@@ -14,6 +14,7 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <complex>
 #include <cstdio>
 #include <functional>
 #include <memory>
@@ -2580,6 +2581,173 @@ void testMeasuredCharacters() {
   check(octaveOf(Character::Operator, 69) > -62.0 &&
             octaveOf(Character::Pure, 69) < -90.0,
         "the operator's second harmonic reaches the output, and Pure has none");
+}
+
+/// The tonewheel's wobble, measured the way the organ was: as the pair of
+/// sidebands either side of a wheel's tone, split into the part that moves the
+/// level and the part that moves the pitch.
+///
+/// With the carrier turned to be real, the upper sideband plus the conjugate
+/// of the lower is the level modulation and their difference is the pitch
+/// modulation, each as a modulation index.
+void testWheelWobble() {
+  section("Tonewheel wobble");
+
+  constexpr double sr = 48000.0;
+  constexpr double kTwoPi = 6.283185307179586;
+  constexpr int kStart = 24000;
+  constexpr int kEnd = 24000 + 96000;
+
+  const auto render = [sr, kEnd](Character c, std::initializer_list<int> notes,
+                                 int secondAt) {
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+    engine.setPolyphony(4);
+
+    auto p = makeFlatParams(0.0f);
+    p.osc[0].volume = 0.25f;
+    p.osc[0].tuneBlend = 1.0f;
+    p.osc[0].decay = 8.0f;
+    p.global.character = c;
+
+    std::vector<float> l((size_t)kEnd), r((size_t)kEnd);
+    int at = 0;
+    bool first = true;
+
+    for (int note : notes) {
+      const int until = first ? 0 : secondAt;
+
+      if (until > at) {
+        engine.render(l.data() + at, r.data() + at, until - at, p);
+        at = until;
+      }
+
+      engine.noteOn(note, 1.0f, p);
+      first = false;
+    }
+
+    engine.render(l.data() + at, r.data() + at, kEnd - at, p);
+    return l;
+  };
+
+  // A windowed correlation at one frequency, with every frequency measured
+  // from the same sample, so that phases can be compared between them.
+  const auto at = [kTwoPi, sr, kStart, kEnd](const std::vector<float> &x,
+                                             double hz) {
+    std::complex<double> sum{};
+    double norm = 0.0;
+
+    for (int n = kStart; n < kEnd; ++n) {
+      const double w = 0.5 - 0.5 * std::cos(kTwoPi * (double)(n - kStart) /
+                                            (double)(kEnd - kStart));
+      sum += w * (double)x[(size_t)n] *
+             std::polar(1.0, -kTwoPi * hz * (double)n / sr);
+      norm += w;
+    }
+
+    return 2.0 * sum / norm;
+  };
+
+  struct Modulation {
+    double levelIndex, pitchIndex;
+    std::complex<double> pitchPhasor;
+  };
+
+  const auto modulation = [&at](const std::vector<float> &x, double f,
+                                double rate) {
+    const auto carrier = at(x, f);
+    const auto turn = std::conj(carrier) / std::abs(carrier);
+    const auto lower = at(x, f - rate) * turn / std::abs(carrier);
+    const auto upper = at(x, f + rate) * turn / std::abs(carrier);
+
+    return Modulation{std::abs(upper + std::conj(lower)),
+                      std::abs(upper - std::conj(lower)),
+                      upper - std::conj(lower)};
+  };
+
+  const auto cents = [](double index, double rate, double f) {
+    return 1731.2340490667560 * index * rate / f;
+  };
+
+  // C6, one partial, which is the first unit of the rack.
+  const double f = 440.0 * std::exp2((84.0 - 69.0) / 12.0);
+  const double shaft = wheelShaftHz(f);
+  const auto &rack = UnitSpread::instance().rack(Character::Wheel);
+
+  check(std::abs(shaft - 16.3516) < 0.01,
+        "a C turns on the C shaft, at 16.35 Hz (" + std::to_string(shaft) +
+            ")");
+
+  check(std::abs(wheelShaftHz(30.87) - 30.87) < 1.0e-9 &&
+            std::abs(wheelShaftHz(7902.1) - 30.868) < 0.01,
+        "and a B on the fastest, at 30.87 Hz, from any octave");
+
+  const auto wheel = render(Character::Wheel, {84}, 0);
+  const auto onShaft = modulation(wheel, f, shaft);
+  const auto onMotor = modulation(wheel, f, kWheelMotorHz);
+
+  const double shaftCents = cents(onShaft.pitchIndex, shaft, f);
+  const double shaftDb = 20.0 * std::log10(1.0 + onShaft.levelIndex);
+  const double motorCents = cents(onMotor.pitchIndex, kWheelMotorHz, f);
+
+  std::printf("  C6 on Wheel: %.2f ct and %.3f dB once a turn (drawn %.2f ct "
+              "and %.3f dB), %.2f ct from the motor\n",
+              shaftCents, shaftDb, (double)rack.shaftCents[0],
+              20.0 * std::log10(1.0 + (double)rack.shaftLevel[0]), motorCents);
+
+  check(std::abs(shaftCents / (double)rack.shaftCents[0] - 1.0) < 0.1,
+        "the wheel moves in pitch once a turn by what its unit was drawn with");
+
+  check(std::abs(onShaft.levelIndex / (double)rack.shaftLevel[0] - 1.0) < 0.1,
+        "and in level");
+
+  check(std::abs(motorCents / kWheelMotorCents - 1.0) < 0.1,
+        "and the motor moves it by its own 0.9 cent");
+
+  // ---- one motor --------------------------------------------------------
+  //
+  // Two notes, the second started a third of a second after the first. Each
+  // wheel's own shaft starts wherever the key found it, but the motor was
+  // already turning, so both notes have to be moving with it in step. D6's
+  // shaft turns at 18.35 Hz, well clear of the motor's 25.
+  {
+    const double d = 440.0 * std::exp2((86.0 - 69.0) / 12.0);
+    const auto both = render(Character::Wheel, {84, 86}, 16000);
+
+    const auto c6 = modulation(both, f, kWheelMotorHz).pitchPhasor;
+    const auto d6 = modulation(both, d, kWheelMotorHz).pitchPhasor;
+
+    const double apart = std::abs(std::arg(c6 / d6));
+
+    check(apart < 0.2,
+          "two notes struck at different moments move with the one motor in "
+          "step (" +
+              std::to_string(apart) + " rad apart)");
+  }
+
+  // ---- and nothing on anything else -------------------------------------
+  for (auto c : {Character::Pure, Character::Valve, Character::Operator}) {
+    const auto x = render(c, {84}, 0);
+    const auto m = modulation(x, f, kWheelMotorHz);
+    const auto s = modulation(x, f, shaft);
+
+    check(m.pitchIndex < 1.0e-4 && s.pitchIndex < 1.0e-4 &&
+              s.levelIndex < 1.0e-4,
+          std::string(characterName(c)) + " has no shaft and no motor");
+  }
+
+  // The rack draws inside the ranges written down, for every unit.
+  bool inside = true;
+
+  for (size_t i = 0; i < (size_t)kNumHarmonics; ++i) {
+    inside &= rack.shaftCents[i] >= kWheelShaftCents[0] - 1.0e-6 &&
+              rack.shaftCents[i] <= kWheelShaftCents[1] + 1.0e-6;
+    inside &= rack.twiceHz[i] >= kWheelTwiceHz[0] - 1.0e-6 &&
+              rack.twiceHz[i] <= kWheelTwiceHz[1] + 1.0e-6;
+  }
+
+  check(inside, "every wheel's wobble is inside the measured range");
 }
 
 void testUnitSpread() {
@@ -11479,6 +11647,7 @@ int main() {
   testCharacter();
   testDriveVariants();
   testMeasuredCharacters();
+  testWheelWobble();
   testUnitSpread();
   testRenderedSpectrum();
   testAliasing();

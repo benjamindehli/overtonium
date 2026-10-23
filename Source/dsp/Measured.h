@@ -131,6 +131,63 @@ inline constexpr MeasuredRecipe kDcoRecipe{{{1.0f, 0.0f},
                                             {1.1715e-04f, 3.8723e-04f},
                                             {-2.0258e-04f, 8.0492e-05f}}};
 
+/// How a tonewheel moves as it turns.
+///
+/// Every wheel sits on a shaft geared to one motor, and none of it is
+/// perfectly round or perfectly steady. A wheel that is slightly off centre
+/// moves in pitch and level once per turn of its shaft, and a little at twice
+/// that. The motor itself speeds up and slows down slightly, and since it
+/// drives every wheel, that part moves every wheel together. All of it shows
+/// in the recordings as pairs of sidebands either side of each wheel's tone,
+/// which were fitted at the exact frequencies and split into the part that
+/// changes the level and the part that changes the pitch.
+///
+/// The figures are peak values. They come from the wheels from C3 up. Below
+/// that, a wheel's sidebands land exactly on other wheels of the same note,
+/// which leak into the recording, so the two cannot be told apart.
+///
+/// The motor turns at 25 Hz, which is 1500 rpm on 50 Hz mains, and moves
+/// every wheel by about 0.9 cent at that rate. The takes spread from 0.6 to
+/// 2 cents around that, as the same motor measured at different moments.
+inline constexpr double kWheelMotorHz = 25.0;
+inline constexpr double kWheelMotorCents = 0.9;
+
+/// What each wheel's own shaft does, which differs from wheel to wheel, so
+/// each unit draws its own from these ranges. Drawn evenly in log, since the
+/// recorded wheels spread over more than a decade and cluster around the
+/// middle of it in log terms.
+///
+///   once a turn, pitch    0.25 to 4 cents, about 1 typically
+///   once a turn, level    0.025 to 0.33 dB, about 0.1 typically
+///   twice a turn, pitch   0.05 to 0.5 Hz, which is several cents on the
+///                         middle wheels and a fraction of one at the top
+///   twice a turn, level   0.01 to 0.2 dB
+inline constexpr std::array<double, 2> kWheelShaftCents{0.25, 4.0};
+inline constexpr std::array<double, 2> kWheelShaftDb{0.025, 0.33};
+inline constexpr std::array<double, 2> kWheelTwiceHz{0.05, 0.5};
+inline constexpr std::array<double, 2> kWheelTwiceDb{0.01, 0.2};
+
+/// How fast the shaft under a wheel at this frequency turns, in turns a
+/// second.
+///
+/// The wheels of one note share a gear ratio and differ only in how many teeth
+/// they have, two on the lowest and twice as many each octave up. So the shaft
+/// turns at the note's frequency folded down by octaves, into the octave
+/// between 16 and 32 Hz, where the twelve notes' shafts sit: 16.35 for C up to
+/// 30.87 for B.
+inline double wheelShaftHz(double freq) noexcept {
+  if (!(freq > 0.0))
+    return 16.0;
+
+  while (freq >= 32.0)
+    freq *= 0.5;
+
+  while (freq < 16.0)
+    freq *= 2.0;
+
+  return freq;
+}
+
 /// How much stronger the two synthesizers' harmonics are played than they
 /// were measured, in dB.
 ///
