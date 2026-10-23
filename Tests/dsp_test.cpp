@@ -2449,16 +2449,21 @@ void testMeasuredCharacters() {
   //
   // Read from the table itself and not from the recipe. A recipe built into
   // the wrong slot would still match itself.
+  //
+  // The synthesizers' harmonics are played kSynthesizerLiftDb stronger than
+  // they were measured, and the tonewheel's as measured.
   struct Probe {
     Character c;
     double freq;
     const MeasuredRecipe *recipe;
+    double liftDb;
     const char *what;
   };
 
   std::vector<Probe> probes{
-      {Character::Operator, 440.0, &kOperatorRecipe, "the operator"},
-      {Character::Dco, 440.0, &kDcoRecipe, "the DCO"},
+      {Character::Operator, 440.0, &kOperatorRecipe, kSynthesizerLiftDb,
+       "the operator"},
+      {Character::Dco, 440.0, &kDcoRecipe, kSynthesizerLiftDb, "the DCO"},
   };
 
   const double wheelPitches[] = {65.4,  98.0,   174.6, 293.7,
@@ -2466,7 +2471,7 @@ void testMeasuredCharacters() {
 
   for (size_t band = 0; band < kWheelRecipes.size(); ++band)
     probes.push_back({Character::Wheel, wheelPitches[band],
-                      &kWheelRecipes[band], "a tonewheel"});
+                      &kWheelRecipes[band], 0.0, "a tonewheel"});
 
   for (const auto &probe : probes) {
     const auto &w = tables.table(probe.c, probe.freq, kMaxCharacterHarmonic);
@@ -2480,7 +2485,8 @@ void testMeasuredCharacters() {
     for (int n = 1; n <= kMaxCharacterHarmonic; ++n) {
       // Below -80 dB the table's interpolation error affects the reading, so
       // those harmonics only have to be quiet.
-      const double want = recipeDb(*probe.recipe, n);
+      const double want =
+          recipeDb(*probe.recipe, n) + (n > 1 ? probe.liftDb : 0.0);
       const double got = harmonicDb(w, n);
 
       worst = std::max(worst, want > -80.0 ? std::abs(got - want)
@@ -2566,6 +2572,10 @@ void testMeasuredCharacters() {
   check(high < -40.0,
         "and a C5 one has the much weaker one of the middle of the organ (" +
             std::to_string(high) + " dB)");
+
+  // A little, and no more than a little. See kSynthesizerLiftDb.
+  check(kSynthesizerLiftDb > 0.0 && kSynthesizerLiftDb <= 10.0,
+        "the synthesizers are lifted by a few decibels and no more");
 
   check(octaveOf(Character::Operator, 69) > -62.0 &&
             octaveOf(Character::Pure, 69) < -90.0,
@@ -8973,6 +8983,74 @@ void testTapeEcho() {
 /// pairs, which is why a loud chord through a real desk fuses rather than
 /// stacking. The difference tone below exists at no setting of any other
 /// control in this instrument.
+/// No sample on its own off the wave the bus is shaping.
+///
+/// The antialiasing divides a change in the curve's antiderivative by the
+/// change in the input, so any jump in the antiderivative turns into a spike
+/// on the one sample that crosses it. Near the top of a wave the input barely
+/// moves, so the spike is large: a jump of 1e-5 where two formulas meet came
+/// out as a dip of a tenth of full scale, twice a cycle, on every note loud
+/// enough to reach it. It sounded like a buzz that came and went as two
+/// partials beat, which is why it had to be heard before it was found.
+///
+/// Each sample is checked against the one its four neighbours predict, which
+/// for a smooth wave is close to exact and for a one-sample dip is the depth of
+/// the dip. Loud enough to drive every curve deep into its bend, at a low note
+/// so that the samples near each peak are close together.
+void testBusDriveIsSmooth() {
+  section("Bus drive, sample by sample");
+
+  constexpr double sr = 48000.0;
+  constexpr double kTwoPi = 6.283185307179586;
+  constexpr size_t kSettle = 4800;
+  constexpr size_t kLength = 48000;
+
+  double worstOverall = 0.0;
+
+  for (auto c : {Character::Rail, Character::Diode, Character::Valve,
+                 Character::Opamp, Character::Wheel}) {
+    double worst = 0.0, worstLevel = 0.0;
+
+    // In fine steps, because the fault was at one level and every level
+    // either side of it was clean.
+    for (double level = 0.25; level <= 6.0; level += 0.05) {
+      std::vector<float> l(kLength), r(kLength);
+
+      for (size_t n = 0; n < kLength; ++n)
+        l[n] = r[n] = (float)(level * std::sin(kTwoPi * 65.4 * (double)n / sr));
+
+      BusDrive bus;
+      bus.prepare(sr);
+      bus.process(l.data(), r.data(), (int)kLength, c,
+                  (float)BusDrive::amountFor(c));
+
+      for (size_t n = kSettle; n + 2 < kLength; ++n) {
+        const double predicted = (-(double)l[n - 2] + 4.0 * (double)l[n - 1] +
+                                  4.0 * (double)l[n + 1] - (double)l[n + 2]) /
+                                 6.0;
+        const double off = std::abs((double)l[n] - predicted);
+
+        if (off > worst) {
+          worst = off;
+          worstLevel = level;
+        }
+      }
+    }
+
+    std::printf("  %-7s worst sample %.1e off its neighbours, at level %.2f\n",
+                characterName(c), worst, worstLevel);
+
+    worstOverall = std::max(worstOverall, worst);
+  }
+
+  // Not nothing, because Op-amp's curve meets its rail with a bend rather
+  // than a smooth turn, and a bend is what this check measures. That comes to
+  // about 3e-5. The fault this is here for was a thousand times that.
+  check(worstOverall < 1.0e-4,
+        "no sample stands off the wave at any level the bus is driven to (" +
+            std::to_string(worstOverall) + " at the worst)");
+}
+
 void testBusDrive() {
   section("Bus drive");
 
@@ -11438,6 +11516,7 @@ int main() {
   testBucketEcho();
   testDigitalEcho();
   testBusDrive();
+  testBusDriveIsSmooth();
   testWobble();
   testReverb();
   testPlateReverb();
