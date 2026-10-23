@@ -384,6 +384,9 @@ private:
                    float pressure, const SharedModulation &shared,
                    int block) noexcept;
 
+  void renderLeaks(float *left, float *right, int len, double keyFreq,
+                   double power, bool foldAliases) noexcept;
+
   struct Partial {
     double phase = 0.0;
     Lfo pitchLfo;
@@ -475,6 +478,17 @@ private:
   std::array<float, kNumHarmonics> partialPressures{};
 
   Noise noise;
+
+  /// The wheels leaking into this note on Wheel, one per entry of
+  /// kWheelLeaks. Each is a wheel of its own, so each has its own phase, and
+  /// its level slides across a block like a partial's does.
+  struct Leak {
+    double phase = 0.0;
+    float lastGain = 0.0f;
+  };
+
+  std::array<Leak, kWheelLeaks.size()> leaks{};
+
   float noisePeak = 0.0f;
   float noiseEnvelope = 0.0f;
   float noiseTremolo = 0.0f;

@@ -188,6 +188,43 @@ inline double wheelShaftHz(double freq) noexcept {
   return freq;
 }
 
+/// The wheels that leak into a held note, and how loud each one is against
+/// it.
+///
+/// In a tonewheel generator every wheel turns all the time, and a little of
+/// the wheels near the one being played gets into its pickup and wiring. The
+/// recordings show which: the same note's wheels in the octaves below, and the
+/// wheels a fifth away, which sit next to it in the generator. Each candidate
+/// was found as a peak within half a percent of its ratio to the played wheel
+/// and counted only where it stood 10 dB above the floor around it. These are
+/// the four found in most takes and loudest, at the median of the takes that
+/// had them:
+///
+///   two octaves down              18 of 20 takes, -47.7 dB
+///   a fourth down                 19 of 20 takes, -49.6 dB
+///   an octave down                20 of 20 takes, -51.9 dB
+///   a fifth down                  14 of 20 takes, -55.4 dB
+///
+/// The fourth down is the wheel a fifth up, an octave lower. The rest were
+/// quieter or found in fewer takes: three octaves down at -57.5, a fifth up at
+/// -57.2, and the fifth down an octave or two lower at -60 and -68. The hum
+/// at 50 Hz is left out, since it does not belong to a note.
+struct WheelLeak {
+  double ratio; ///< the leaking wheel's frequency against the played one
+  double db;    ///< and its level against it
+};
+
+inline constexpr std::array<WheelLeak, 4> kWheelLeaks{{
+    {0.25, -47.7},
+    {0.7491535384383408, -49.6},
+    {0.5, -51.9},
+    {0.6674199270850172, -55.4},
+}};
+
+/// The lowest wheel on the organ, C1. A leak that would fall below it has no
+/// wheel to come from, so it is silent.
+inline constexpr double kLowestWheelHz = 32.70;
+
 /// How much stronger the two synthesizers' harmonics are played than they
 /// were measured, in dB.
 ///

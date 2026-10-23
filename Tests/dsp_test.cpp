@@ -2750,6 +2750,147 @@ void testWheelWobble() {
   check(inside, "every wheel's wobble is inside the measured range");
 }
 
+/// The wheels that leak into a note on Wheel, read off a rendered note at
+/// the frequencies they are meant to be at.
+void testWheelLeaks() {
+  section("Tonewheel leakage");
+
+  constexpr double sr = 48000.0;
+  constexpr double kTwoPi = 6.283185307179586;
+  constexpr int kLength = 72000;
+  constexpr int kStart = 24000;
+
+  // Held for the whole render unless a release is asked for, in which case
+  // the key comes up half way and the release is a tenth of a second.
+  const auto render = [sr, kLength](Character c, int note, int partials,
+                                    bool release) {
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+    engine.setPolyphony(2);
+
+    auto p = makeFlatParams(0.0f);
+
+    for (int i = 0; i < partials; ++i) {
+      p.osc[(size_t)i].volume = 0.25f;
+      p.osc[(size_t)i].tuneBlend = 1.0f;
+      p.osc[(size_t)i].decay = 8.0f;
+      p.osc[(size_t)i].release = 0.1f;
+    }
+
+    p.global.character = c;
+
+    std::vector<float> l((size_t)kLength), r((size_t)kLength);
+    engine.noteOn(note, 1.0f, p);
+
+    if (release) {
+      engine.render(l.data(), r.data(), kLength / 2, p);
+      engine.noteOff(note);
+      engine.render(l.data() + kLength / 2, r.data() + kLength / 2, kLength / 2,
+                    p);
+    } else {
+      engine.render(l.data(), r.data(), kLength, p);
+    }
+
+    return l;
+  };
+
+  const auto levelAt = [kTwoPi, sr, kStart,
+                        kLength](const std::vector<float> &x, double hz) {
+    std::complex<double> sum{};
+    double norm = 0.0;
+
+    for (int n = kStart; n < kLength; ++n) {
+      const double w = 0.5 - 0.5 * std::cos(kTwoPi * (double)(n - kStart) /
+                                            (double)(kLength - kStart));
+      sum += w * (double)x[(size_t)n] *
+             std::polar(1.0, -kTwoPi * hz * (double)n / sr);
+      norm += w;
+    }
+
+    return 20.0 * std::log10(std::max(1.0e-12, 2.0 * std::abs(sum) / norm));
+  };
+
+  // C6, one partial. Each leak against the partial, as measured. High
+  // enough that the leaking wheels are clean ones: under C4 the wheel two
+  // octaves down has a second harmonic at -13 dB, which lands on the wheel an
+  // octave down and adds to it, on the organ as here.
+  const double c6 = 440.0 * std::exp2((84.0 - 69.0) / 12.0);
+  const auto one = render(Character::Wheel, 84, 1, false);
+  const double played = levelAt(one, c6);
+
+  double worst = 0.0;
+
+  for (const auto &leak : kWheelLeaks) {
+    const double got = levelAt(one, c6 * leak.ratio) - played;
+
+    std::printf("  a wheel at %.3f of C6: %.1f dB, measured on the organ at "
+                "%.1f\n",
+                leak.ratio, got, leak.db);
+
+    worst = std::max(worst, std::abs(got - leak.db));
+  }
+
+  check(worst < 0.5, "each leaking wheel sounds at the level it was measured "
+                     "at (" +
+                         std::to_string(worst) + " dB out at the worst)");
+
+  // Two partials at the same fader leak with their powers added, since each
+  // wheel leaks on its own. The second is another unit, so it is as loud as
+  // its own level spread makes it.
+  {
+    const auto two = render(Character::Wheel, 84, 2, false);
+    const double more = levelAt(two, c6 * kWheelLeaks[0].ratio) -
+                        levelAt(one, c6 * kWheelLeaks[0].ratio);
+
+    const double second =
+        (double)UnitSpread::instance().rack(Character::Wheel).gain[1];
+    const double expected = 10.0 * std::log10(1.0 + second * second);
+
+    check(std::abs(more - expected) < 0.2,
+          "two partials leak their powers added (" + std::to_string(more) +
+              " dB, expected " + std::to_string(expected) + ")");
+  }
+
+  // C2. Two octaves down is below the organ's lowest wheel and has nothing
+  // to come from. An octave down is C1, the lowest wheel there is. Its level
+  // is not checked here: C2's shaft turns at 16.35 Hz, so its twice-a-turn
+  // wobble lands exactly on C1 too, as it does on every note from 65 to 131
+  // Hz, on the organ as here.
+  {
+    const double c2 = 440.0 * std::exp2((36.0 - 69.0) / 12.0);
+    const auto low = render(Character::Wheel, 36, 1, false);
+    const double played2 = levelAt(low, c2);
+
+    check(levelAt(low, c2 * 0.25) - played2 < -100.0,
+          "no wheel leaks from below C1");
+
+    check(levelAt(low, c2 * 0.5) - played2 > -60.0, "and C1 itself does");
+  }
+
+  // Nothing on the other characters.
+  for (auto c : {Character::Pure, Character::Valve, Character::Operator}) {
+    const auto x = render(c, 84, 1, false);
+
+    check(levelAt(x, c6 * 0.25) - levelAt(x, c6) < -100.0,
+          std::string(characterName(c)) + " has no wheels to leak");
+  }
+
+  // The leaks follow the note out, so once its release is over nothing is
+  // left of them either.
+  {
+    const auto x = render(Character::Wheel, 84, 1, true);
+    double tail = 0.0;
+
+    for (int n = kLength - 4800; n < kLength; ++n)
+      tail = std::max(tail, std::abs((double)x[(size_t)n]));
+
+    check(tail < 1.0e-6, "and nothing is left once the note has been "
+                         "released (" +
+                             std::to_string(tail) + ")");
+  }
+}
+
 void testUnitSpread() {
   section("Unit tolerance");
 
@@ -11648,6 +11789,7 @@ int main() {
   testDriveVariants();
   testMeasuredCharacters();
   testWheelWobble();
+  testWheelLeaks();
   testUnitSpread();
   testRenderedSpectrum();
   testAliasing();
