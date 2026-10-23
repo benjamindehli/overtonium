@@ -1,6 +1,7 @@
 #include "Theme.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <vector>
@@ -414,11 +415,19 @@ juce::Colour characterColour(Character c) {
   constexpr float kYellow = 11.0f / 11.0f;
   constexpr float kFifth = 7.0f / 11.0f;
 
-  const auto first = 1; // Pure is not on the band
-  const auto last = (int)Character::NumCharacters - 1;
-  const auto steps = (float)std::max(1, last - first);
+  // Gentlest first, which is not the order they were added in. The two
+  // synthesizers have the weakest harmonics, about thirty decibels below the
+  // circuits, so they are at the yellow end. Wheel sits next to Valve, because
+  // both are mostly a second harmonic. Pure is not on the band.
+  constexpr std::array<Character, (size_t)Character::NumCharacters - 1> kBand{
+      Character::Dco,   Character::Operator, Character::Bulb,
+      Character::Rail,  Character::Diode,    Character::Valve,
+      Character::Wheel, Character::Opamp};
 
-  const auto t = std::clamp((float)((int)c - first) / steps, 0.0f, 1.0f);
+  const auto at = std::find(kBand.begin(), kBand.end(), c);
+  const auto steps = (float)std::max(1, (int)kBand.size() - 1);
+
+  const auto t = std::clamp((float)(at - kBand.begin()) / steps, 0.0f, 1.0f);
 
   return bandColour(kYellow + t * (kFifth - kYellow));
 }

@@ -41,8 +41,13 @@ namespace ovt {
 ///   Valve   10%
 ///   Op-amp  10%
 ///   Bulb    15%
+///   Wheel   10%
 ///   Pure    none, and never any: it is the oscillator that is not a circuit
+///   Operator none, because that synthesizer mixes its voices digitally
+///   DCO      none, for the same reason
 ///
+/// Wheel uses the triode curve at Valve's amount, because the organ's own
+/// amplifier uses valves.
 /// Found by ear, the first three on 26 September 2026 and the last two on the
 /// 27th. The lamp wants the most of any of them, which follows from it being
 /// the only one that is not distortion: what the others are asked for is an
@@ -77,6 +82,10 @@ double BusDrive::amountFor(Character c) noexcept {
     return 0.10;
   case Character::Bulb:
     return 0.15;
+  case Character::Wheel:
+    return 0.10;
+  case Character::Operator:
+  case Character::Dco:
   case Character::Pure:
   case Character::NumCharacters:
     break;
@@ -224,16 +233,21 @@ BusDrive::Recipe BusDrive::recipeFor(Character c, float amount,
     break;
 
   case Character::Valve:
+  case Character::Wheel:
+  case Character::Operator:
+  case Character::Dco:
   case Character::Bulb:
   case Character::Pure:
   case Character::NumCharacters:
     // The triode, biased so one half of the wave leans over before the other,
     // which is what puts an octave on top of every partial rather than a
-    // twelfth.
+    // twelfth. The tonewheel organ's amplifier also uses valves, so Wheel
+    // uses the same curve.
     //
-    // Bulb and Pure are listed so that adding a character is a compiler error
-    // here until somebody has decided what it does. Neither reaches this:
-    // Pure has no stage at all and Bulb is a lamp, which leaves above.
+    // The rest are listed so that adding a character is a compiler error
+    // here until somebody has decided what it does. None of them reaches
+    // this: Pure, Operator and DCO have no stage at all and Bulb is a lamp,
+    // which leaves above.
     evenly(drive);
     k.bias = 0.2;
 

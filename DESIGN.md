@@ -880,7 +880,7 @@ A good starting shape is mirrored pairs, 1 and 2 in the centre widening out to 3
 
 Sets which kind of oscillator every partial uses. There is one choice for all 32, on the bar at the head of the series group, because an instrument is built from one circuit repeated, not from a different circuit per channel.
 
-Every entry is a sine oscillator. They differ in how each one falls short of a perfect sine. That is the only thing that tells two analogue oscillators apart. No circuit produces a mathematically perfect sine, and the way each design misses is what people mean when they call one warm and another sterile.
+Every entry is a sine oscillator. They differ in how each one falls short of a perfect sine. That is the only thing that tells two analogue oscillators apart. No circuit produces a mathematically perfect sine, and the way each design misses is what people mean when they call one warm and another sterile. Pure is the plain sine. The next five are circuits, simulated once at startup. The last three are measured from recordings of real instruments.
 
 | Character | What it is                                           | What it does                                                                     |
 | --------- | ---------------------------------------------------- | -------------------------------------------------------------------------------- |
@@ -890,8 +890,11 @@ Every entry is a sine oscillator. They differ in how each one falls short of a p
 | Diode     | a triangle shaped into a sine by two mismatched ones | a second, third and fourth all near -32 dB, which is a kink rather than a warmth |
 | Valve     | a triode, biased so one half of the wave bends first | a second harmonic at -20 dB over a third at -23, which is the warm one           |
 | Op-amp    | one that cannot change its output as fast as asked   | nothing below a kilohertz, and a third harmonic climbing to -19 dB above it      |
+| Wheel     | a tonewheel organ's generator, recorded              | a second harmonic of -13 dB on the lowest C, and -42 to -50 dB above C4          |
+| Operator  | one operator of an FM synthesizer, recorded          | a second harmonic at -57 dB and the rest below -66                               |
+| DCO       | a phase distortion synthesizer's DCO, recorded       | a second harmonic at -58 dB and the rest below -63                               |
 
-On the panel it is a button at the head of the series group, in capitals like everything else on the bar. It lights in its own colour, from yellow for Bulb to the red of channel 3 for Op-amp. Pure does not light at all, because it adds nothing.
+On the panel it is a button at the head of the series group, in capitals like everything else on the bar. It lights in its own colour, from yellow for DCO to the red of channel 3 for Op-amp. The colours run from the gentlest to the hardest, not in the order the characters were added: DCO, Operator, Bulb, Rail, Diode, Valve, Wheel, Op-amp. Pure does not light at all, because it adds nothing.
 
 **It costs nothing per sample, and that decided the design.** The oscillator is one interpolated table read, an envelope tick and a gain, and it runs 512 times per sample at 16 voices. A waveshaper in that loop would cost as much as the whole engine again, and four times oversampling to keep it from aliasing would cost three engines more. A fixed waveshape does not need to be in the loop at all. The circuit is run over a sine once at startup, the harmonics it adds are measured, and a table is built from them. The inner loop then reads a different table and otherwise runs the same instructions. Measured against Pure at eight voices, on a machine quiet enough for the figure to mean something, Diode costs two percent more, Rail and Valve three, and Op-amp six. Op-amp costs more because one note's partials fall in different bands and read several tables where the others read one. The measurement is accurate to about two points. Bulb comes out at two, and Bulb reads the same plain sine table as Pure.
 
@@ -907,7 +910,7 @@ Every table meets two rules, and a test checks both across every character and e
 
 **What it does that a fader cannot.** This is an additive instrument, so a second harmonic on partial 3 lands near partial 6. It does not land exactly on it. TUNE and STRETCH move the real partials off exact whole-number ratios, while a character's harmonics sit at exact multiples of the partial that produced them, so the two beat against each other. That beating is the useful part, and it is also why the recipes are small. Thirty-two partials each adding a few harmonics fill the top of the spectrum quickly.
 
-**A rack of thirty-two is not one oscillator copied thirty-two times.** Every character except Pure has a fixed spread. Each partial sits a few cents and a fraction of a decibel off the rack's specification, by the same amount in every session, in every host and on every machine. It is not DRIFT, which wanders. The offsets are where the units sit when they are switched on, and they are the same every time. The first partial is the reference the other thirty-one were tuned against, so its pitch and level are exactly on spec. That keeps a note on the key that played it and keeps a patch from changing level when the character changes.
+**A rack of thirty-two is not one oscillator copied thirty-two times.** Each of the five circuits has a fixed spread. Each partial sits a few cents and a fraction of a decibel off the rack's specification, by the same amount in every session, in every host and on every machine. It is not DRIFT, which wanders. The offsets are where the units sit when they are switched on, and they are the same every time. The first partial is the reference the other thirty-one were tuned against, so its pitch and level are exactly on spec. That keeps a note on the key that played it and keeps a patch from changing level when the character changes.
 
 | Character | Pitch   | Level    | Why that one                                                                              |
 | --------- | ------- | -------- | ----------------------------------------------------------------------------------------- |
@@ -916,12 +919,17 @@ Every table meets two rules, and a test checks both across every character and e
 | Diode     | ±2 ct   | ±0.4 dB  | an integrator sets the frequency, which is accurate, and two diodes set the level         |
 | Valve     | ±3 ct   | ±0.35 dB | a heater in every unit and nothing regulating either end of it                            |
 | Op-amp    | ±2 ct   | ±0.3 dB  | an ordinary amplifier around an ordinary core                                             |
+| Wheel     | none    | ±1 dB    | every wheel is geared to one motor, and the recorded wheels' levels vary                  |
+| Operator  | none    | none     | a crystal clock and levels calculated digitally                                           |
+| DCO       | none    | none     | the same                                                                                  |
+
+Wheel's level spread comes from the recordings. The 8' wheels vary by 2 dB rms around a straight line through their levels. Part of that comes from the keyboard's wiring and not from the wheels, so the spread uses about half of it.
 
 The spread is what a tuned rack holds, not the tolerance of the parts. Component tolerance is a percent or more, which is eighty cents, and a rack spread across eighty cents has not been tuned. What remains after tuning is a couple of cents. The order of the characters comes from which part of each circuit sets its frequency and which sets its level.
 
 The pitch figures were set by playing, not by measuring. At twice these figures, three to six cents, several patches sounded detuned, like a rack that needs tuning again. The level spread did not need changing.
 
-**No two units distort by exactly the same amount.** If all thirty-two circuits clipped, folded or slewed by exactly the same amount, the rack would still be one circuit repeated, even with each one tuned a little differently. So each unit is also built to one of three drives, 15% either side of the nominal, chosen by index like the rest of the spread. A third of the partials sit on the nominal drive, which is the drive every other figure given for these characters describes.
+**No two units distort by exactly the same amount.** If all thirty-two circuits clipped, folded or slewed by exactly the same amount, the rack would still be one circuit repeated, even with each one tuned a little differently. So each unit is also built to one of three drives, 15% either side of the nominal, chosen by index like the rest of the spread. A third of the partials sit on the nominal drive, which is the drive every other figure given for these characters describes. The three recorded characters are built at one drive, because a recording has one fixed amount of distortion.
 
 | Character | Its own drive         | The third or second harmonic across the three |
 | --------- | --------------------- | --------------------------------------------- |
@@ -930,7 +938,7 @@ The pitch figures were set by playing, not by measuring. At twice these figures,
 | Valve     | how hard it is driven | -22.0, -20.1 and -18.6 dB                     |
 | Op-amp    | how fast it can move  | -27.3, -24.5 and -22.6 dB                     |
 
-**Three drives, not thirty-two.** The drive is built into the table, so a drive per channel would mean thirty-two tables per character and a note reading thirty-two of them per sample. A character costs nothing only because 512 oscillators read one 16 kB table that stays in cache. Three drives keep the idea and keep the number of tables small: 72 against 24 with one drive, 1.15 MB against 400 kB, and 31 ms to build at startup against 8. The per-sample work is the same single interpolated read, because only the table being read differs.
+**Three drives, not thirty-two.** The drive is built into the table, so a drive per channel would mean thirty-two tables per character and a note reading thirty-two of them per sample. A character costs nothing only because 512 oscillators read one 16 kB table that stays in cache. Three drives keep the idea and keep the number of tables small: 72 against 24 with one drive, 1.15 MB against 400 kB, and 31 ms to build at startup against 8. The recorded characters add 36 tables, 590 kB, of which 28 are Wheel's seven bands. The per-sample work is the same single interpolated read, because only the table being read differs.
 
 **The three drives cost two to three percent of a character.** This is the one figure here that had to be measured, because the risk was cache. Two builds were compared, one drive against three, with ten runs of one and five of the other, taking the minimum of each. At eight voices: Rail 7.13 to 7.24% of a core, Diode 7.13 to 7.27, Valve 7.06 to 7.26 and Op-amp 7.31 to 7.52. Pure and Bulb show the measurement noise, because they have no tables to multiply and cannot have changed. Pure went 7.04 to 6.98 and Bulb 7.01 to 7.04, so the noise floor is about a percent and the four that grew are above it.
 
@@ -953,6 +961,14 @@ So it responds to playing gestures. A held note with no vibrato, no bend and no 
 Three tables cover it, at a quarter, six tenths and twice again past the corner, and anything above the last one reads the last one. This loses nothing. Measured, the third harmonic reaches -19.1 dB by twice the corner and does not change however much harder the limit works, because by then the wave is a triangle, and a triangle at a given fundamental is always the same triangle. Op-amp is also the character that costs the most, about six percent over Pure at eight voices, because one note's partials land in different bands and read several tables where the others read one.
 
 A rate limit is the only imperfection here with a memory, so its cycle is simulated rather than shaped. A limiter runs over a sine for several cycles, and the steady state it settles into is what gets analysed.
+
+**Wheel, Operator and DCO are recordings.** Each instrument was recorded one sine at a time, from its direct output, at 48 kHz and 24 bits. Each take is a held note of about four seconds, and each instrument has one take with no note, to measure the noise floor. The pitch of each take is fitted by least squares, and then the level and phase of harmonics 1 to 10 are fitted over the steady part of the note. The take is shifted in time so its fundamental is a sine of amplitude one, which is the form the tables use. `Measured.h` holds the results, with a table of the levels for each one.
+
+A tonewheel organ has a separate wheel for every pitch, so Wheel is not one shape. The 8' drawbar was recorded on every C and F# and on four more keys in the bottom octave, and the 1' drawbar on the C and F# of the top two octaves. The takes are grouped into seven bands where their harmonics are similar, and a partial reads the band for its own frequency, in the same way Op-amp reads a slew band. A partial that bends or glides across a band edge changes table with the same cross-fade as every other table change. Five more takes played the same wheel, C5, from five different drawbars. Their harmonics agree within two decibels and their levels differ by up to eight, so a drawbar changes the level of a wheel and not its shape, and one set of harmonics per wheel covers every drawbar.
+
+Operator and DCO come from the notes between C4 and C6. Below C4 the output's coupling capacitor shifts the phases of the low notes. On the FM synthesizer the takes also carry a vibrato of ±1 cent at 5.6 Hz, which restarts at the same point on every key press, so it comes from the synthesizer's LFO and not from its tone. Above C6 that vibrato blurs the upper harmonics. The vibrato is not part of the character. Neither is the noise floor, which rises by 6 dB on the FM synthesizer while a note sounds.
+
+Both synthesizers' sines are about thirty-five decibels quieter in harmonics than Rail. That is subtle, but they are still not pure sines, and the table builder keeps any harmonic above -80 dB.
 
 **What the factory presets use.** Twenty-eight of the thirty-five use a character, chosen by ear at a keyboard and by nothing else: eleven on Bulb, nine on Op-amp, five on Valve, two on Rail, one on Diode, and seven left on Pure. Four of those seven are on Pure on purpose. Init is the neutral patch. Just Saw and Equal Saw are played against each other to demonstrate tuning, and a difference in timbre between them would distract from that. 6581 Triangle is a chip, and its dirt comes from the chip's arithmetic, not from anything analogue.
 
@@ -989,9 +1005,12 @@ The bus drive is separate from the tables, and it has to be. A table is one part
 | Valve     | 10%              |
 | Op-amp    | 10%              |
 | Diode     | 7%               |
+| Wheel     | 10%              |
 | Pure      | none             |
+| Operator  | none             |
+| DCO       | none             |
 
-Pure sums cleanly and adds nothing, which is its purpose. There is no knob for the rest, because how hard a summing amplifier is driven is part of choosing a character, not a separate setting.
+Pure sums cleanly and adds nothing, which is its purpose. Operator and DCO sum cleanly too, because both synthesizers mix their voices digitally. Wheel uses the triode's curve at Valve's amount, because the organ's own amplifier uses valves. There is no knob for the rest, because how hard a summing amplifier is driven is part of choosing a character, not a separate setting.
 
 **The op-amp bus uses a cubic corner, not a slew limit.** A slew limit is the right model for an amplifier that cannot keep up, and the wrong model for a bus. On one partial it hardens the top of the series, which is the purpose of the character. On a mix it responds to the slope of the sum rather than to any one note, so it breaks up on high notes at settings that sound fine on low ones. It measured -67, -67, -53 and -73 dB of inharmonic noise across A2, A4, A6 and A7. A cubic corner does what is wanted without the register deciding how much.
 

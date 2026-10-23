@@ -6,7 +6,7 @@
         <title>Overtonium effects: character, echo, reverb, converter and CLIP</title>
         <meta
             name="description"
-            content="Overtonium&#x27;s top bar: six oscillator characters, wobble, a resonator, bus drive, three echoes, three reverbs, a lo-fi converter and five clip shapes."
+            content="Overtonium&#x27;s top bar: nine oscillator characters, wobble, a resonator, bus drive, three echoes, three reverbs, a lo-fi converter and five clip shapes."
         />
         <meta name="author" content="Benjamin Dehli" />
         <meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -21,7 +21,7 @@
         <meta property="og:title" content="Overtonium effects: character, echo, reverb, converter and CLIP" />
         <meta
             property="og:description"
-            content="The bar across the top of Overtonium: six oscillator characters that set which circuit every partial is modelled on, a wobble across the whole series, a resonator of 88 sympathetic strings that resonate with what you play, a bus drive that responds to how hard you play, an echo and a reverb with three machines each, a lo-fi converter, and an output stage with five clip shapes including a lookahead limiter."
+            content="The bar across the top of Overtonium: nine oscillator characters that set which oscillator every partial is modelled on, a wobble across the whole series, a resonator of 88 sympathetic strings that resonate with what you play, a bus drive that responds to how hard you play, an echo and a reverb with three machines each, a lo-fi converter, and an output stage with five clip shapes including a lookahead limiter."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-effects.jpg" />
         <meta property="og:image:type" content="image/jpeg" />
@@ -33,7 +33,7 @@
         <meta name="twitter:title" content="Overtonium effects: character, echo, reverb, converter and CLIP" />
         <meta
             name="twitter:description"
-            content="The bar across the top of Overtonium: six oscillator characters that set which circuit every partial is modelled on, a wobble across the whole series, a resonator of 88 sympathetic strings that resonate with what you play, a bus drive that responds to how hard you play, an echo and a reverb with three machines each, a lo-fi converter, and an output stage with five clip shapes including a lookahead limiter."
+            content="The bar across the top of Overtonium: nine oscillator characters that set which oscillator every partial is modelled on, a wobble across the whole series, a resonator of 88 sympathetic strings that resonate with what you play, a bus drive that responds to how hard you play, an echo and a reverb with three machines each, a lo-fi converter, and an output stage with five clip shapes including a lookahead limiter."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-effects.jpg" />
         <meta name="twitter:image:alt" content="The Overtonium wordmark over the plugin window, captioned Effects." />
@@ -50,7 +50,7 @@
                 "@id": "https://benjamindehli.github.io/overtonium/effects/#webpage",
                 "url": "https://benjamindehli.github.io/overtonium/effects/",
                 "name": "Overtonium effects: character, echo, reverb, converter and CLIP",
-                "description": "Overtonium's top bar: six oscillator characters, wobble, a resonator, bus drive, three echoes, three reverbs, a lo-fi converter and five clip shapes.",
+                "description": "Overtonium's top bar: nine oscillator characters, wobble, a resonator, bus drive, three echoes, three reverbs, a lo-fi converter and five clip shapes.",
                 "inLanguage": "en-GB",
                 "isPartOf": {
                     "@id": "https://benjamindehli.github.io/overtonium/#website"
@@ -64,7 +64,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-10-17",
+                "dateModified": "2026-10-23",
                 "breadcrumb": {
                     "@id": "https://benjamindehli.github.io/overtonium/effects/#breadcrumb"
                 }
@@ -247,8 +247,8 @@
                 <section id="character">
                     <h2>Character</h2>
                     <p>
-                        Chooses the oscillator that every partial uses, and is the first control in the group that sets up the series. All six are
-                        sine oscillators. They differ in how each circuit fails to make a perfect sine.
+                        Chooses the oscillator that every partial uses, and is the first control in the group that sets up the series. All nine are
+                        sine oscillators. They differ in how each one fails to make a perfect sine.
                         <strong>Pure</strong> is an ideal sine that no real circuit produces. <strong>Bulb</strong> is a Wien bridge oscillator kept
                         steady by a lamp. It adds no harmonics at all, but its level lags half a second behind every change of pitch, so it reacts to
                         gestures. A vibrato is heard in the level as well as in the pitch, and a bend dips and then recovers as the lamp catches up. A
@@ -268,6 +268,17 @@
                     </p>
 
                     <p>
+                        <strong>Wheel</strong>, <strong>Operator</strong> and <strong>DCO</strong> are measured from recordings of real instruments,
+                        not simulated. <strong>Wheel</strong> is the tone generator of a tonewheel organ. Every pitch has its own wheel, so Wheel has
+                        seven sets of harmonics and picks one by the pitch of each partial. The low wheels have a strong second harmonic, -13 dB on
+                        the lowest C, which gets weaker up to A3 and then drops by fifteen decibels by C4. Above that the wheels are close to pure
+                        sines. <strong>Operator</strong> is one operator of a frequency modulation synthesizer with nothing modulating it, and
+                        <strong>DCO</strong> is the oscillator of a phase distortion synthesizer with the distortion turned off. Both are nearly pure,
+                        with a second harmonic near -57 dB and weaker ones above it. That is about thirty-five decibels below Rail, so the difference
+                        from Pure is small, but it is there.
+                    </p>
+
+                    <p>
                         Because this is an additive instrument, these harmonics land among the partials you are already mixing, at exact multiples of
                         the partial that made them. The rack's own spread, described below, moves the real partials off those exact ratios, and TUNE
                         and STRETCH move them further. So the two beat against each other instead of adding up, and that is what makes a character
@@ -277,16 +288,18 @@
 
                     <p>
                         Each character is also a rack of thirty-two oscillators, not one oscillator used thirty-two times. Units built to the same
-                        spec do not come out identical, so every character except Pure puts each partial a couple of cents and a fraction of a decibel
-                        off its target. The amount is fixed for each character, so you get the same rack every time you load the patch, in every host
-                        and on every machine. This is not DRIFT, which wanders. Partial 1 is the reference the other thirty-one were tuned against,
-                        and it stays exactly in place. So a note still lands on the key you played, and choosing a character does not change how loud
-                        the patch is. This spread is what makes the beating above happen in a patch nobody has detuned. The units also differ in how
-                        much they distort: each unit's circuit is built to one of three drives, fifteen percent either side of the nominal.
+                        spec do not come out identical, so each of the five circuits puts each partial a couple of cents and a fraction of a decibel
+                        off its target. The tonewheels are all driven by one motor through gears, so Wheel keeps every partial in tune and only varies
+                        the level, by up to a decibel. Operator and DCO have no spread at all, like Pure. The amount is fixed for each character, so
+                        you get the same rack every time you load the patch, in every host and on every machine. This is not DRIFT, which wanders.
+                        Partial 1 is the reference the other thirty-one were tuned against, and it stays exactly in place. So a note still lands on
+                        the key you played, and choosing a character does not change how loud the patch is. This spread is what makes the beating
+                        above happen in a patch nobody has detuned. The units also differ in how much they distort: in the five circuits, each unit is
+                        built to one of three drives, fifteen percent either side of the nominal.
                     </p>
 
                     <p>
-                        The button lights in the character's own colour, taken from the same colour band as the channel strips: yellow for Bulb,
+                        The button lights in the character's own colour, taken from the same colour band as the channel strips: yellow for DCO,
                         running down through the warm colours to the red of channel 3 for Op-amp. Pure does not light, because it adds nothing.
                     </p>
 
@@ -351,8 +364,8 @@
                     <p>
                         The thirty-three channels are not just added together. They are summed onto a bus with drive, by an amount and in a style set
                         by the oscillator character. So a patch gets louder into the same kind of saturation a mixing desk would give it. It responds
-                        to level, not to a setting: play quietly and it is barely there, play hard and you hear it. Pure sums cleanly and adds
-                        nothing. There is no knob, because the amount is part of the character you choose.
+                        to level, not to a setting: play quietly and it is barely there, play hard and you hear it. Pure, Operator and DCO sum cleanly
+                        and add nothing. There is no knob, because the amount is part of the character you choose.
                     </p>
                 </section>
 
