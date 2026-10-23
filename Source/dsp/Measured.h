@@ -131,6 +131,18 @@ inline constexpr MeasuredRecipe kDcoRecipe{{{1.0f, 0.0f},
                                             {1.1715e-04f, 3.8723e-04f},
                                             {-2.0258e-04f, 8.0492e-05f}}};
 
+/// How much stronger the two synthesizers' harmonics are played than they
+/// were measured, in dB.
+///
+/// The tables hold the measured harmonics exactly, and next to the recordings
+/// they still sound a little too clean. A table cannot hold what the
+/// recordings have besides their harmonics: the noise under each note, and on
+/// the operator the 6th to 10th harmonics, which stay at about -70 dB and are
+/// past where the tables stop. So the harmonics that are in the tables are
+/// lifted a little to make up for it. The figure was set by ear, not measured.
+/// The tonewheel is not lifted, because it does not sound too clean.
+inline constexpr double kSynthesizerLiftDb = 6.0;
+
 /// Which tonewheel band a partial at this frequency reads.
 inline int wheelBandFor(double freq) noexcept {
   int band = 0;

@@ -891,8 +891,8 @@ Every entry is a sine oscillator. They differ in how each one falls short of a p
 | Valve     | a triode, biased so one half of the wave bends first | a second harmonic at -20 dB over a third at -23, which is the warm one           |
 | Op-amp    | one that cannot change its output as fast as asked   | nothing below a kilohertz, and a third harmonic climbing to -19 dB above it      |
 | Wheel     | a tonewheel organ's generator, recorded              | a second harmonic of -13 dB on the lowest C, and -42 to -50 dB above C4          |
-| Operator  | one operator of an FM synthesizer, recorded          | a second harmonic at -57 dB and the rest below -66                               |
-| DCO       | a phase distortion synthesizer's DCO, recorded       | a second harmonic at -58 dB and the rest below -63                               |
+| Operator  | one operator of an FM synthesizer, recorded          | a second harmonic at -51 dB and the rest below -60                               |
+| DCO       | a phase distortion synthesizer's DCO, recorded       | a second harmonic at -52 dB and the rest below -57                               |
 
 On the panel it is a button at the head of the series group, in capitals like everything else on the bar. It lights in its own colour, from yellow for DCO to the red of channel 3 for Op-amp. The colours run from the gentlest to the hardest, not in the order the characters were added: DCO, Operator, Bulb, Rail, Diode, Valve, Wheel, Op-amp. Pure does not light at all, because it adds nothing.
 
@@ -968,7 +968,7 @@ A tonewheel organ has a separate wheel for every pitch, so Wheel is not one shap
 
 Operator and DCO come from the notes between C4 and C6. Below C4 the output's coupling capacitor shifts the phases of the low notes. On the FM synthesizer the takes also carry a vibrato of ±1 cent at 5.6 Hz, which restarts at the same point on every key press, so it comes from the synthesizer's LFO and not from its tone. Above C6 that vibrato blurs the upper harmonics. The vibrato is not part of the character. Neither is the noise floor, which rises by 6 dB on the FM synthesizer while a note sounds.
 
-Both synthesizers' sines are about thirty-five decibels quieter in harmonics than Rail. That is subtle, but they are still not pure sines, and the table builder keeps any harmonic above -80 dB.
+Both synthesizers' sines were measured with a second harmonic at -57 and -58 dB. Played at exactly those levels they sounded a little cleaner than the recordings, because a table holds only the harmonics, not the noise under each note, and Operator's 6th to 10th harmonics, which stay at about -70 dB, are past where the tables stop. So their harmonics are played 6 dB stronger than measured. That figure, `kSynthesizerLiftDb`, was set by ear. Wheel is played as measured. Even lifted, the two synthesizers are about thirty decibels quieter in harmonics than Rail.
 
 **What the factory presets use.** Twenty-eight of the thirty-five use a character, chosen by ear at a keyboard and by nothing else: eleven on Bulb, nine on Op-amp, five on Valve, two on Rail, one on Diode, and seven left on Pure. Four of those seven are on Pure on purpose. Init is the neutral patch. Just Saw and Equal Saw are played against each other to demonstrate tuning, and a difference in timbre between them would distract from that. 6581 Triangle is a chip, and its dirt comes from the chip's arithmetic, not from anything analogue.
 

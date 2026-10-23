@@ -507,10 +507,18 @@ private:
                        : c == Character::Operator ? kOperatorRecipe
                                                   : kDcoRecipe;
 
+    // The fundamental stays at one, so the lift changes what the partial
+    // sounds like and not how loud it is.
+    const auto lift = c == Character::Wheel
+                          ? 1.0f
+                          : (float)std::pow(10.0, kSynthesizerLiftDb / 20.0);
+
     std::array<Harmonic, kMaxCharacterHarmonic> out{};
 
-    for (size_t n = 0; n < out.size(); ++n)
-      out[n] = {from[n][0], from[n][1]};
+    for (size_t n = 0; n < out.size(); ++n) {
+      const auto gain = n == 0 ? 1.0f : lift;
+      out[n] = {from[n][0] * gain, from[n][1] * gain};
+    }
 
     return out;
   }
