@@ -3135,6 +3135,7 @@ void testThePresetDisplaySpells(OvertoniumProcessor &) {
 
       // And a cut on top of both, which is the longest name there is.
       {"2-bit Fuzz Organ", "2-BTFZZRG"},
+      {"KarplusStrong", "KRPLSSTRN"},
       {"Synth Ensemble", "SYNTHNSMB"},
   };
 

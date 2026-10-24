@@ -8,7 +8,7 @@ Every page of https://benjamindehli.github.io/overtonium/ as Markdown, in the or
 
 Page: Overtonium, a free 32-partial additive synthesizer plugin
 URL: https://benjamindehli.github.io/overtonium/
-Last changed: 2026-10-18
+Last changed: 2026-10-24
 
 # Overtonium, a 32-partial additive overtone synthesizer
 
@@ -45,11 +45,11 @@ The whole instrument. Thirty-two channels, a noise channel pinned on the right, 
 
 ## What it sounds like
 
-Eleven of the thirty-five [factory presets](https://benjamindehli.github.io/overtonium/presets/), played on an Expressive E Osmose, with nothing on the output except the plugin's own effects. All the other audio on this site is the plugin rendering a chord to a file. That keeps those clips accurate, but it cannot show how the plugin responds to playing. This is the only recording of it being played.
+Eleven of the thirty-eight [factory presets](https://benjamindehli.github.io/overtonium/presets/), played on an Expressive E Osmose, with nothing on the output except the plugin's own effects. All the other audio on this site is the plugin rendering a chord to a file. That keeps those clips accurate, but it cannot show how the plugin responds to playing. This is the only recording of it being played.
 
 [Video: Overtonium sound examples](https://www.youtube.com/watch?v=L1oYdPxGlGA)
 
-[The presets page](https://benjamindehli.github.io/overtonium/presets/#video) has a chapter link for each of the eleven, and a clip of every one of the thirty-five presets.
+[The presets page](https://benjamindehli.github.io/overtonium/presets/#video) has a chapter link for each of the eleven, and a clip of every one of the thirty-eight presets.
 
 ## The control to try first
 
@@ -69,7 +69,7 @@ Nothing about the tuning is hard-coded. For harmonic `n` the just interval is `1
 
 - [**Tuning**TUNE, inharmonic stretch, eight historical temperaments and an adaptive one on any root, and how the spectrum thins out higher up the keyboard.](https://benjamindehli.github.io/overtonium/tuning/)
 - [**Controls**Every knob on a channel strip, then the effects on the bar and how to play it from a keyboard, a host or a controller.](https://benjamindehli.github.io/overtonium/controls/)
-- [**Presets**The thirty-five that ship, what a preset carries, and where your own are kept on each platform.](https://benjamindehli.github.io/overtonium/presets/)
+- [**Presets**The thirty-eight that ship, what a preset carries, and where your own are kept on each platform.](https://benjamindehli.github.io/overtonium/presets/)
 - [**Install**Installers for macOS and Windows, a zip for Linux, what to do when a host does not see it, and building from source.](https://benjamindehli.github.io/overtonium/install/)
 
 What changed in each version, newest first, and what to know before upgrading are on [the releases page](https://benjamindehli.github.io/overtonium/releases/).
@@ -293,7 +293,7 @@ One held chord, twice. With drift off, each partial stays exactly at its pitch. 
 
 Page: Overtonium controls: every knob on a channel strip
 URL: https://benjamindehli.github.io/overtonium/controls/
-Last changed: 2026-10-17
+Last changed: 2026-10-24
 
 # Overtonium controls
 
@@ -468,7 +468,7 @@ COLOUR tilts the noise from a dark rumble at one end, through flat in the middle
 
 **A string** sits under COLOUR, where a partial's pitch modulation would be, for the noise to strike. It is a Karplus-Strong string: a delay line one period of the note long, fed back through a gentle low-pass filter, so a burst of noise sent into it comes out as a plucked note that loses its high frequencies first. It is tuned to the note and follows the pitch wheel, glide and Adaptive like the fundamental does. The noise strikes it after COLOUR and the envelope have shaped the noise, so a darker colour strikes it more softly. STRING crossfades from the noise alone to the string alone. DECAY sets how long the string rings while the key is down, DAMP how quickly it loses its high frequencies, and POINT where along the string the noise strikes. POINT runs from near the end, which keeps every harmonic, to the middle, which removes the even ones.
 
-The envelope sets how the string is played. A noise envelope a few milliseconds long plucks the string and lets it ring, like the start of a harpsichord note, or of a guitar note under the organ. A noise held on a short, dark string blows into it, which gives a pitched breath. When the key is released, the channel's RELEASE damps the string. At the top of the keyboard, where the string is too short to tune, it fades back to plain noise instead of playing out of tune. COLOUR and the string's four knobs belong only to the noise channel, so pointing at them does not light a row across the mixer. The [Space Cowboy](https://benjamindehli.github.io/overtonium/presets/#what-ships) preset plucks it for its tremolo guitar.
+The envelope sets how the string is played. A noise envelope a few milliseconds long plucks the string and lets it ring, like the start of a harpsichord note, or of a guitar note under the organ. A noise held on a short, dark string blows into it, which gives a pitched breath. When the key is released, the channel's RELEASE damps the string. At the top of the keyboard, where the string is too short to tune, it fades back to plain noise instead of playing out of tune. COLOUR and the string's four knobs belong only to the noise channel, so pointing at them does not light a row across the mixer. The [Space Cowboy](https://benjamindehli.github.io/overtonium/presets/#what-ships) preset plucks it for its tremolo guitar, and KarplusStrong strikes it beside a lone fundamental.
 
 ---
 
@@ -504,7 +504,7 @@ Each character is also a rack of thirty-two oscillators, not one oscillator used
 
 The button lights in the character's own colour, taken from the same colour band as the channel strips: yellow for PD, running down through the warm colours to the red of channel 3 for Op-amp. Pure does not light, because it adds nothing.
 
-Character is part of the patch, not part of the setup, so a preset can change it and saving a preset stores it. Twenty-eight of the thirty-five [factory presets](https://benjamindehli.github.io/overtonium/presets/) use one, so most of what you load already uses a circuit, not the plain sine.
+Character is part of the patch, not part of the setup, so a preset can change it and saving a preset stores it. Thirty-three of the thirty-eight [factory presets](https://benjamindehli.github.io/overtonium/presets/) use one, so most of what you load already uses a circuit or a recording, not the plain sine.
 
 ## Wobble
 
@@ -518,7 +518,7 @@ The resonator is eighty-eight sympathetic strings, one for each key of a piano f
 
 **MIX** goes from the instrument alone to the resonator alone, as on the echo and the reverb. On a held chord the level stays about the same as you turn it up. At 100 % only the resonator is left, so short notes lose their attack there. **DECAY** sets how long a free string rings, from 200 ms to 10 s. The level stays about the same at any setting. **DAMP** sets how quickly the high end dies away. A damper stops its string over 0.8 s at the bottom of the keyboard and 0.25 s at the top, or sooner if DECAY is shorter, so a released bass key leaves the short hum of a felt damper on a heavy string. A string freed only by the pedal gets much less of the signal than a held key's string, so the pedal adds a bloom under a chord instead of making it louder.
 
-The resonator is part of the patch. Metallic Piano and Space Cowboy use it, and the other factory presets have it off. With eight voices it uses about one percent of a core with the pedal up, and about five percent with every string freed by the pedal.
+The resonator is part of the patch. Metallic Piano, Space Cowboy and KarplusStrong use it, and the other factory presets have it off. With eight voices it uses about one percent of a core with the pedal up, and about five percent with every string freed by the pedal.
 
 ## Bus drive
 
@@ -839,13 +839,13 @@ Two things to expect. A control jumps to the controller's current position inste
 
 ---
 
-Page: Overtonium presets: the thirty-five that ship, and saving your own
+Page: Overtonium presets: the thirty-eight that ship, and saving your own
 URL: https://benjamindehli.github.io/overtonium/presets/
-Last changed: 2026-10-17
+Last changed: 2026-10-24
 
 # Overtonium presets
 
-Thirty-five presets ship with the plugin. All but a handful were set up on the panel and converted directly from the saved file. What ships is exactly what was played, not an approximation written afterwards.
+Thirty-eight presets ship with the plugin. All but a handful were set up on the panel and converted directly from the saved file. What ships is exactly what was played, not an approximation written afterwards.
 
 ## Hear them played
 
@@ -871,11 +871,11 @@ Straight to one of them:
 
 ## What ships
 
-Thirty-five presets. Only two of them are versions of one patch, and they are the place to start: **Just Saw** and **Equal Saw** are identical except for [TUNE](https://benjamindehli.github.io/overtonium/tuning/), and they sound nothing alike.
+Thirty-eight presets. Only two of them are versions of one patch, and they are the place to start: **Just Saw** and **Equal Saw** are identical except for [TUNE](https://benjamindehli.github.io/overtonium/tuning/), and they sound nothing alike.
 
 Each clip plays the same thing: a spread C major chord, played a note at a time and released all at once. This makes it easy to listen through them in order. The clips are rendered by the plugin, not recorded, so they always match what it does. The levels are the ones each preset sets, not matched to each other. Nothing downloads until you press play.
 
-Twenty-eight of them use one of the six [oscillator characters](https://benjamindehli.github.io/overtonium/effects/#character). The character is part of the patch like everything else here, so what you hear is the preset as it ships. Keep two of the six in mind while listening. Bulb is only audible when the pitch moves, and Op-amp only affects partials above a kilohertz. Both do more when you play them on a keyboard than in a clip of a held chord.
+Thirty-three of them use one of the ten [oscillator characters](https://benjamindehli.github.io/overtonium/effects/#character). The character is part of the patch like everything else here, so what you hear is the preset as it ships. Keep two of the ten in mind while listening. Bulb is only audible when the pitch moves, and Op-amp only affects partials above a kilohertz. Both do more when you play them on a keyboard than in a clip of a held chord.
 
 **2-bit Fuzz Organ**
 
@@ -885,9 +885,17 @@ An organ at 8 kHz and 2 bits, where the aliasing and the quantisation noise prov
 
 A worn combo organ, with a few milliseconds of key click on every note. It goes into a bucket brigade delay driven so hard that the repeats grow instead of fading, then into a spring reverb long enough to still ring when the next chord starts
 
+**6581 Pulse**
+
+The pulse wave of a MOS 6581, the SID chip in a Commodore 64, at half its width, which makes it a square wave. It is on Op-amp, which hardens the partials above a kilohertz
+
+**6581 Sawtooth**
+
+The sawtooth wave of the same chip, on the 6581 character. The character is measured from a real chip, and gives every partial the uneven steps of the chip's converter, the slight bow after it, and its hiss
+
 **6581 Triangle**
 
-The triangle wave of a MOS 6581, the SID chip in a Commodore 64. A triangle wave has odd harmonics that fall with the square of their number, and this is not quite that. The chip folds the top bit of its accumulator and drops the lowest one, so it draws a staircase instead of a straight line. That adds even harmonics and a noise floor under them, and these are most of what makes a SID sound like a SID
+The triangle wave of the same chip, also on the 6581 character. A triangle wave has odd harmonics that fall with the square of their number, and the chip's also has a few faint even ones
 
 **Big Saw**
 
@@ -907,7 +915,7 @@ A soft, round electric piano of the kind used in underwater music. It is dark ex
 
 **Drawbar Organ**
 
-Nine drawbars, with the key-off stage used as a release click. The upper drawbars jump to 55% for two milliseconds as the contacts break
+Nine drawbars on Wheel, with the key-off stage used as a release click. The upper drawbars jump to 55% for two milliseconds as the contacts break
 
 **Dream Phase**
 
@@ -923,7 +931,7 @@ Just Saw with every partial moved to equal temperament
 
 **FM Piano**
 
-The electric piano sound of an FM synthesizer such as the DX7, not the instrument it imitates
+The electric piano sound of an FM synthesizer such as the DX7, not the instrument it imitates, on FM
 
 **Glass Armonica**
 
@@ -945,6 +953,10 @@ The neutral starting point: the first three partials and nothing else. It clears
 
 The same sound as Equal Saw with every partial at its exact whole-number ratio
 
+**KarplusStrong**
+
+A single fundamental and the noise channel's Karplus-Strong string, struck together, with the resonator's piano strings ringing in sympathy
+
 **Lo-fi**
 
 8 kHz and 8 bits, soft, with very short partials starting at different times. Close to the sound of a Roland D-50, a Korg Wavestation or a granular synthesizer
@@ -959,7 +971,7 @@ Plucked steel teeth, with irregular vibrato on each partial and one partial bent
 
 **Nylon EP**
 
-A very round electric piano, as if the tines were nylon instead of steel
+A very round electric piano on PD, as if the tines were nylon instead of steel
 
 **Odd Harmonics**
 

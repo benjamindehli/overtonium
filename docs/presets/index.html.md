@@ -1,10 +1,10 @@
-Page: Overtonium presets: the thirty-five that ship, and saving your own
+Page: Overtonium presets: the thirty-eight that ship, and saving your own
 URL: https://benjamindehli.github.io/overtonium/presets/
-Last changed: 2026-10-17
+Last changed: 2026-10-24
 
 # Overtonium presets
 
-Thirty-five presets ship with the plugin. All but a handful were set up on the panel and converted directly from the saved file. What ships is exactly what was played, not an approximation written afterwards.
+Thirty-eight presets ship with the plugin. All but a handful were set up on the panel and converted directly from the saved file. What ships is exactly what was played, not an approximation written afterwards.
 
 ## Hear them played
 
@@ -30,11 +30,11 @@ Straight to one of them:
 
 ## What ships
 
-Thirty-five presets. Only two of them are versions of one patch, and they are the place to start: **Just Saw** and **Equal Saw** are identical except for [TUNE](https://benjamindehli.github.io/overtonium/tuning/), and they sound nothing alike.
+Thirty-eight presets. Only two of them are versions of one patch, and they are the place to start: **Just Saw** and **Equal Saw** are identical except for [TUNE](https://benjamindehli.github.io/overtonium/tuning/), and they sound nothing alike.
 
 Each clip plays the same thing: a spread C major chord, played a note at a time and released all at once. This makes it easy to listen through them in order. The clips are rendered by the plugin, not recorded, so they always match what it does. The levels are the ones each preset sets, not matched to each other. Nothing downloads until you press play.
 
-Twenty-eight of them use one of the six [oscillator characters](https://benjamindehli.github.io/overtonium/effects/#character). The character is part of the patch like everything else here, so what you hear is the preset as it ships. Keep two of the six in mind while listening. Bulb is only audible when the pitch moves, and Op-amp only affects partials above a kilohertz. Both do more when you play them on a keyboard than in a clip of a held chord.
+Thirty-three of them use one of the ten [oscillator characters](https://benjamindehli.github.io/overtonium/effects/#character). The character is part of the patch like everything else here, so what you hear is the preset as it ships. Keep two of the ten in mind while listening. Bulb is only audible when the pitch moves, and Op-amp only affects partials above a kilohertz. Both do more when you play them on a keyboard than in a clip of a held chord.
 
 **2-bit Fuzz Organ**
 
@@ -44,9 +44,17 @@ An organ at 8 kHz and 2 bits, where the aliasing and the quantisation noise prov
 
 A worn combo organ, with a few milliseconds of key click on every note. It goes into a bucket brigade delay driven so hard that the repeats grow instead of fading, then into a spring reverb long enough to still ring when the next chord starts
 
+**6581 Pulse**
+
+The pulse wave of a MOS 6581, the SID chip in a Commodore 64, at half its width, which makes it a square wave. It is on Op-amp, which hardens the partials above a kilohertz
+
+**6581 Sawtooth**
+
+The sawtooth wave of the same chip, on the 6581 character. The character is measured from a real chip, and gives every partial the uneven steps of the chip's converter, the slight bow after it, and its hiss
+
 **6581 Triangle**
 
-The triangle wave of a MOS 6581, the SID chip in a Commodore 64. A triangle wave has odd harmonics that fall with the square of their number, and this is not quite that. The chip folds the top bit of its accumulator and drops the lowest one, so it draws a staircase instead of a straight line. That adds even harmonics and a noise floor under them, and these are most of what makes a SID sound like a SID
+The triangle wave of the same chip, also on the 6581 character. A triangle wave has odd harmonics that fall with the square of their number, and the chip's also has a few faint even ones
 
 **Big Saw**
 
@@ -66,7 +74,7 @@ A soft, round electric piano of the kind used in underwater music. It is dark ex
 
 **Drawbar Organ**
 
-Nine drawbars, with the key-off stage used as a release click. The upper drawbars jump to 55% for two milliseconds as the contacts break
+Nine drawbars on Wheel, with the key-off stage used as a release click. The upper drawbars jump to 55% for two milliseconds as the contacts break
 
 **Dream Phase**
 
@@ -82,7 +90,7 @@ Just Saw with every partial moved to equal temperament
 
 **FM Piano**
 
-The electric piano sound of an FM synthesizer such as the DX7, not the instrument it imitates
+The electric piano sound of an FM synthesizer such as the DX7, not the instrument it imitates, on FM
 
 **Glass Armonica**
 
@@ -104,6 +112,10 @@ The neutral starting point: the first three partials and nothing else. It clears
 
 The same sound as Equal Saw with every partial at its exact whole-number ratio
 
+**KarplusStrong**
+
+A single fundamental and the noise channel's Karplus-Strong string, struck together, with the resonator's piano strings ringing in sympathy
+
 **Lo-fi**
 
 8 kHz and 8 bits, soft, with very short partials starting at different times. Close to the sound of a Roland D-50, a Korg Wavestation or a granular synthesizer
@@ -118,7 +130,7 @@ Plucked steel teeth, with irregular vibrato on each partial and one partial bent
 
 **Nylon EP**
 
-A very round electric piano, as if the tines were nylon instead of steel
+A very round electric piano on PD, as if the tines were nylon instead of steel
 
 **Odd Harmonics**
 

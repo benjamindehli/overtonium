@@ -34,7 +34,7 @@ These are described as what you would run into, not as standards codes.
 
 **The window does not scale with the operating system's text size.** It has its own zoom, in the Settings menu, which scales the whole window, not only the text.
 
-**The video on the front page relies on YouTube's captions**, which are automatic, not written by hand. The thirty-five preset clips each have a written description next to them, which describes the sound and is not a transcript.
+**The video on the front page relies on YouTube's captions**, which are automatic, not written by hand. The thirty-eight preset clips each have a written description next to them, which describes the sound and is not a transcript.
 
 **Nobody who relies on assistive technology has evaluated any of this.** Everything above is what the code does and what the tests check. It is not a conformance claim, and no audit has been done. If you use a screen reader or a keyboard and try this, your report will be worth more than anything in this file.
 

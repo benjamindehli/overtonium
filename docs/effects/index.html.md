@@ -30,7 +30,7 @@ Each character is also a rack of thirty-two oscillators, not one oscillator used
 
 The button lights in the character's own colour, taken from the same colour band as the channel strips: yellow for PD, running down through the warm colours to the red of channel 3 for Op-amp. Pure does not light, because it adds nothing.
 
-Character is part of the patch, not part of the setup, so a preset can change it and saving a preset stores it. Twenty-eight of the thirty-five [factory presets](https://benjamindehli.github.io/overtonium/presets/) use one, so most of what you load already uses a circuit, not the plain sine.
+Character is part of the patch, not part of the setup, so a preset can change it and saving a preset stores it. Thirty-three of the thirty-eight [factory presets](https://benjamindehli.github.io/overtonium/presets/) use one, so most of what you load already uses a circuit or a recording, not the plain sine.
 
 ## Wobble
 
@@ -44,7 +44,7 @@ The resonator is eighty-eight sympathetic strings, one for each key of a piano f
 
 **MIX** goes from the instrument alone to the resonator alone, as on the echo and the reverb. On a held chord the level stays about the same as you turn it up. At 100 % only the resonator is left, so short notes lose their attack there. **DECAY** sets how long a free string rings, from 200 ms to 10 s. The level stays about the same at any setting. **DAMP** sets how quickly the high end dies away. A damper stops its string over 0.8 s at the bottom of the keyboard and 0.25 s at the top, or sooner if DECAY is shorter, so a released bass key leaves the short hum of a felt damper on a heavy string. A string freed only by the pedal gets much less of the signal than a held key's string, so the pedal adds a bloom under a chord instead of making it louder.
 
-The resonator is part of the patch. Metallic Piano and Space Cowboy use it, and the other factory presets have it off. With eight voices it uses about one percent of a core with the pedal up, and about five percent with every string freed by the pedal.
+The resonator is part of the patch. Metallic Piano, Space Cowboy and KarplusStrong use it, and the other factory presets have it off. With eight voices it uses about one percent of a core with the pedal up, and about five percent with every string freed by the pedal.
 
 ## Bus drive
 
