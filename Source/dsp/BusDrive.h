@@ -112,7 +112,7 @@ private:
   /// converter or an output stage, measured on one of the synthesizers, which
   /// leans one half of the wave out and the other in by the same small amount
   /// and so makes only a second harmonic, and sum and difference tones between
-  /// notes. See kDcoSummingH2Db.
+  /// notes. See kPdSummingH2Db.
   enum class Shape { Tanh, Cubic, Quadratic };
   /// One side of the wave. Two of them, because a circuit is not obliged to
   /// treat the two halves alike and the ones worth modelling do not: a pair of

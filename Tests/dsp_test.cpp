@@ -2451,7 +2451,7 @@ void testMeasuredCharacters() {
   // Read from the table itself and not from the recipe. A recipe built into
   // the wrong slot would still match itself.
   //
-  // The synthesizers' harmonics are played what kOperatorByEar and kDcoByEar
+  // The synthesizers' harmonics are played what kFmByEar and kPdByEar
   // add stronger than
   // they were measured, and the tonewheel's as measured.
   struct Probe {
@@ -2463,9 +2463,8 @@ void testMeasuredCharacters() {
   };
 
   std::vector<Probe> probes{
-      {Character::Operator, 440.0, &kOperatorRecipe, kOperatorByEar.harmonicsDb,
-       "the operator"},
-      {Character::Dco, 440.0, &kDcoRecipe, kDcoByEar.harmonicsDb, "the DCO"},
+      {Character::Fm, 440.0, &kFmRecipe, kFmByEar.harmonicsDb, "FM"},
+      {Character::Pd, 440.0, &kPdRecipe, kPdByEar.harmonicsDb, "PD"},
   };
 
   const double wheelPitches[] = {65.4,  98.0,   174.6, 293.7,
@@ -2491,9 +2490,9 @@ void testMeasuredCharacters() {
           recipeDb(*probe.recipe, n) + (n > 1 ? probe.liftDb : 0.0);
       const double got = harmonicDb(w, n);
 
-      // The DCO's second harmonic is made on the bus, so its table has none.
-      // See testDcoSumming.
-      if (probe.c == Character::Dco && n == 2) {
+      // PD's second harmonic is made on the bus, so its table has none.
+      // See testPdSumming.
+      if (probe.c == Character::Pd && n == 2) {
         worst = std::max(worst, std::max(0.0, got + 100.0));
         continue;
       }
@@ -2522,7 +2521,7 @@ void testMeasuredCharacters() {
   check(recipeDb(kWheelRecipes[2], 2) - recipeDb(kWheelRecipes[3], 2) > 15.0,
         "and it drops by more than fifteen decibels between A3 and C4");
 
-  for (const auto *r : {&kOperatorRecipe, &kDcoRecipe})
+  for (const auto *r : {&kFmRecipe, &kPdRecipe})
     check(recipeDb(*r, 2) > -60.0 && recipeDb(*r, 2) < -55.0,
           "a synthesizer's sine has a quiet second harmonic (" +
               std::to_string(recipeDb(*r, 2)) + " dB)");
@@ -2532,33 +2531,32 @@ void testMeasuredCharacters() {
   //
   // Their upper harmonics stay around -70 dB instead of falling away, so they
   // carry ten. Everything else carries five, as it always has.
-  check(harmonicsFor(Character::Operator) == 10 &&
-            harmonicsFor(Character::Dco) == 10 &&
+  check(harmonicsFor(Character::Fm) == 10 &&
+            harmonicsFor(Character::Pd) == 10 &&
             harmonicsFor(Character::Wheel) == 5 &&
             harmonicsFor(Character::Valve) == 5,
         "the synthesizers carry ten harmonics and every other character five");
 
-  // And each of the operator's bands stops where it says, which is what keeps
+  // And each of FM's bands stops where it says, which is what keeps
   // the extra harmonics from folding back down on a high partial.
   {
     bool stops = true;
 
-    for (int highest = 2; highest < harmonicsFor(Character::Operator);
-         ++highest) {
-      const auto &w = tables.table(Character::Operator, 440.0, highest);
+    for (int highest = 2; highest < harmonicsFor(Character::Fm); ++highest) {
+      const auto &w = tables.table(Character::Fm, 440.0, highest);
 
       stops &= harmonicDb(w, highest) > -80.0;
       stops &= harmonicDb(w, highest + 1) < -100.0;
     }
 
-    check(stops, "every band of the operator stops at its own harmonic");
+    check(stops, "every band of FM stops at its own harmonic");
   }
 
   // ---- one of everything ---------------------------------------------------
   //
   // A recording has no drive setting, so every unit reads the same table,
   // whichever drive the rack gave it.
-  for (auto c : {Character::Wheel, Character::Operator, Character::Dco}) {
+  for (auto c : {Character::Wheel, Character::Fm, Character::Pd}) {
     check(driveCountFor(c) == 1,
           std::string(characterName(c)) + " is built at one drive");
 
@@ -2609,17 +2607,16 @@ void testMeasuredCharacters() {
         "and a C5 one has the much weaker one of the middle of the organ (" +
             std::to_string(high) + " dB)");
 
-  // A little, and no more than a little. See kOperatorByEar.
-  check(kOperatorByEar.harmonicsDb >= 0.0 &&
-            kOperatorByEar.harmonicsDb <= 10.0 &&
-            kDcoByEar.harmonicsDb >= 0.0 && kDcoByEar.harmonicsDb <= 10.0 &&
-            std::abs(kOperatorByEar.noiseDb) <= 10.0 &&
-            std::abs(kDcoByEar.noiseDb) <= 10.0,
+  // A little, and no more than a little. See kFmByEar.
+  check(kFmByEar.harmonicsDb >= 0.0 && kFmByEar.harmonicsDb <= 10.0 &&
+            kPdByEar.harmonicsDb >= 0.0 && kPdByEar.harmonicsDb <= 10.0 &&
+            std::abs(kFmByEar.noiseDb) <= 10.0 &&
+            std::abs(kPdByEar.noiseDb) <= 10.0,
         "the synthesizers are lifted by a few decibels and no more");
 
-  check(octaveOf(Character::Operator, 69) > -62.0 &&
+  check(octaveOf(Character::Fm, 69) > -62.0 &&
             octaveOf(Character::Pure, 69) < -90.0,
-        "the operator's second harmonic reaches the output, and Pure has none");
+        "FM's second harmonic reaches the output, and Pure has none");
 }
 
 /// The tonewheel's wobble, measured the way the organ was: as the pair of
@@ -2766,7 +2763,7 @@ void testWheelWobble() {
   }
 
   // ---- and nothing on anything else -------------------------------------
-  for (auto c : {Character::Pure, Character::Valve, Character::Operator}) {
+  for (auto c : {Character::Pure, Character::Valve, Character::Fm}) {
     const auto x = render(c, {84}, 0);
     const auto m = modulation(x, f, kWheelMotorHz);
     const auto s = modulation(x, f, shaft);
@@ -2908,7 +2905,7 @@ void testWheelLeaks() {
   }
 
   // Nothing on the other characters.
-  for (auto c : {Character::Pure, Character::Valve, Character::Operator}) {
+  for (auto c : {Character::Pure, Character::Valve, Character::Fm}) {
     const auto x = render(c, 84, 1, false);
 
     check(levelAt(x, c6 * 0.25) - levelAt(x, c6) < -100.0,
@@ -2930,7 +2927,7 @@ void testWheelLeaks() {
   }
 }
 
-/// The noise under each note on Operator and DCO, measured off a render as
+/// The noise under each note on FM and PD, measured off a render as
 /// what is left once the note's harmonics are taken out.
 ///
 /// A4 at 48 kHz is exactly 440 cycles in a second, so a one-second window
@@ -3014,9 +3011,8 @@ void testSynthesizerNoise() {
   };
 
   for (const auto &[c, dbPerHz] :
-       {std::pair{Character::Operator,
-                  kOperatorNoiseDbPerHz + kOperatorByEar.noiseDb},
-        std::pair{Character::Dco, kDcoNoiseDbPerHz + kDcoByEar.noiseDb}}) {
+       {std::pair{Character::Fm, kFmNoiseDbPerHz + kFmByEar.noiseDb},
+        std::pair{Character::Pd, kPdNoiseDbPerHz + kPdByEar.noiseDb}}) {
     const double got = noiseAgainstNote(render(c, false));
     const double want = dbPerHz + 10.0 * std::log10(0.5 * sr);
 
@@ -3036,7 +3032,7 @@ void testSynthesizerNoise() {
   check(pure < -120.0, "and Pure has none (" + std::to_string(pure) + " dB)");
 
   {
-    const auto x = render(Character::Operator, true);
+    const auto x = render(Character::Fm, true);
     double tail = 0.0;
 
     for (int n = kLength - 4800; n < kLength; ++n)
@@ -3048,7 +3044,7 @@ void testSynthesizerNoise() {
   }
 }
 
-/// The DCO's second harmonic, made on the bus by the measured bow in the
+/// PD's second harmonic, made on the bus by the measured bow in the
 /// phase distortion synthesizer's mix, and the sum and difference tones that
 /// bow makes between notes.
 ///
@@ -3056,8 +3052,8 @@ void testSynthesizerNoise() {
 /// and two sines sum and difference tones of c A against each, which is 6 dB
 /// above it. That ratio is what the instrument measured, and is what showed
 /// the bow is on the mix.
-void testDcoSumming() {
-  section("DCO summing");
+void testPdSumming() {
+  section("PD summing");
 
   constexpr double sr = 48000.0;
   constexpr double kTwoPi = 6.283185307179586;
@@ -3106,11 +3102,11 @@ void testDcoSumming() {
 
   const double a4 = 440.0;
   const double e5 = 440.0 * std::exp2(7.0 / 12.0);
-  const double second = kDcoSummingH2Db + kDcoByEar.harmonicsDb;
+  const double second = kPdSummingH2Db + kPdByEar.harmonicsDb;
 
   // One partial at full fader: the second harmonic it was measured with.
   {
-    const auto x = render(Character::Dco, {69}, 1.0f);
+    const auto x = render(Character::Pd, {69}, 1.0f);
     const double got = levelAt(x, 2.0 * a4) - levelAt(x, a4);
 
     std::printf("  one partial at full fader: second harmonic %.1f dB, "
@@ -3121,7 +3117,7 @@ void testDcoSumming() {
           "one partial at full fader gets the measured second harmonic");
 
     // Half the fader, half the bow: 6 dB less.
-    const auto half = render(Character::Dco, {69}, 0.5f);
+    const auto half = render(Character::Pd, {69}, 0.5f);
     const double quieter = levelAt(half, 2.0 * a4) - levelAt(half, a4);
 
     check(std::abs(quieter - (second - 6.02)) < 0.3,
@@ -3131,7 +3127,7 @@ void testDcoSumming() {
 
   // Two notes: sum and difference tones 6 dB above that, as measured.
   {
-    const auto x = render(Character::Dco, {69, 76}, 1.0f);
+    const auto x = render(Character::Pd, {69, 76}, 1.0f);
     const double note = levelAt(x, a4);
     const double sum = levelAt(x, a4 + e5) - note;
     const double difference = levelAt(x, e5 - a4) - note;
@@ -3146,13 +3142,13 @@ void testDcoSumming() {
           "harmonic, as the instrument does");
   }
 
-  // The operator's mix measured clean, so it makes none. Not below -100 dB,
+  // FM's mix measured clean, so it makes none. Not below -100 dB,
   // because its own noise comes to about -101 in this window.
   {
-    const auto x = render(Character::Operator, {69, 76}, 1.0f);
+    const auto x = render(Character::Fm, {69, 76}, 1.0f);
 
     check(levelAt(x, a4 + e5) - levelAt(x, a4) < -80.0,
-          "and Operator makes no sum tone");
+          "and FM makes no sum tone");
   }
 }
 
@@ -9582,7 +9578,7 @@ void testBusDriveIsSmooth() {
   double worstOverall = 0.0;
 
   for (auto c : {Character::Rail, Character::Diode, Character::Valve,
-                 Character::Opamp, Character::Wheel, Character::Dco}) {
+                 Character::Opamp, Character::Wheel, Character::Pd}) {
     double worst = 0.0, worstLevel = 0.0;
 
     // In fine steps, because the fault was at one level and every level
@@ -12056,7 +12052,7 @@ int main() {
   testWheelWobble();
   testWheelLeaks();
   testSynthesizerNoise();
-  testDcoSumming();
+  testPdSumming();
   testUnitSpread();
   testRenderedSpectrum();
   testAliasing();

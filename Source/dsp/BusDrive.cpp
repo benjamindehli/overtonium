@@ -43,8 +43,8 @@ namespace ovt {
 ///   Bulb    15%
 ///   Wheel   10%
 ///   Pure    none, and never any: it is the oscillator that is not a circuit
-///   Operator none, because that synthesizer's mix measured clean
-///   DCO      the measured bow in that synthesizer's mix, at full strength
+///   FM      none, because that synthesizer's mix measured clean
+///   PD      the measured bow in that synthesizer's mix, at full strength
 ///
 /// Wheel uses the triode curve at Valve's amount, because the organ's own
 /// amplifier uses valves.
@@ -84,9 +84,9 @@ double BusDrive::amountFor(Character c) noexcept {
     return 0.15;
   case Character::Wheel:
     return 0.10;
-  case Character::Dco:
+  case Character::Pd:
     return 1.0;
-  case Character::Operator:
+  case Character::Fm:
   case Character::Pure:
   case Character::NumCharacters:
     break;
@@ -136,16 +136,16 @@ BusDrive::Recipe BusDrive::recipeFor(Character c, float amount,
   // The phase distortion synthesizer's mix, which bows by a measured amount
   // rather than running into anything. Sized so that one partial at full fader
   // gets the second harmonic the instrument's single notes have, plus what was
-  // added to its harmonics by ear. See kDcoSummingH2Db.
+  // added to its harmonics by ear. See kPdSummingH2Db.
   //
   // The second harmonic of a sine of amplitude A through x - c x^2 is c A / 2
   // against the fundamental, and the bend divided by its drive d comes to
   // c = d / 2.
-  if (c == Character::Dco) {
+  if (c == Character::Pd) {
     out.machine = Machine::Curve;
 
     const double secondHarmonic =
-        std::pow(10.0, (kDcoSummingH2Db + kDcoByEar.harmonicsDb) / 20.0);
+        std::pow(10.0, (kPdSummingH2Db + kPdByEar.harmonicsDb) / 20.0);
     const double d = (double)std::clamp(amount, 0.0f, 1.0f) * 4.0 *
                      secondHarmonic / kBusReferenceAmplitude;
 
@@ -259,8 +259,8 @@ BusDrive::Recipe BusDrive::recipeFor(Character c, float amount,
 
   case Character::Valve:
   case Character::Wheel:
-  case Character::Operator:
-  case Character::Dco:
+  case Character::Fm:
+  case Character::Pd:
   case Character::Bulb:
   case Character::Pure:
   case Character::NumCharacters:
@@ -271,7 +271,7 @@ BusDrive::Recipe BusDrive::recipeFor(Character c, float amount,
     //
     // The rest are listed so that adding a character is a compiler error
     // here until somebody has decided what it does. None of them reaches
-    // this: Pure and Operator have no stage at all, Bulb is a lamp and DCO is
+    // this: Pure and FM have no stage at all, Bulb is a lamp and PD is
     // a quadratic, which both leave above.
     evenly(drive);
     k.bias = 0.2;

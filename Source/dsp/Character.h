@@ -36,8 +36,8 @@ enum class Character {
   Valve,    ///< a triode leaning over on one side before the other
   Opamp,    ///< an amplifier that cannot move as fast as the note asks
   Wheel,    ///< a tonewheel organ's generator, a wheel for every pitch
-  Operator, ///< a frequency modulation synthesizer's operator, alone
-  Dco,      ///< a phase distortion synthesizer's oscillator, undistorted
+  Fm,       ///< a frequency modulation synthesizer's operator, alone
+  Pd,       ///< a phase distortion synthesizer's oscillator, undistorted
   NumCharacters
 };
 
@@ -46,8 +46,7 @@ enum class Character {
 /// A recording has no drive setting, so it is built at one drive where the
 /// circuits are built at three.
 inline bool isMeasured(Character c) noexcept {
-  return c == Character::Wheel || c == Character::Operator ||
-         c == Character::Dco;
+  return c == Character::Wheel || c == Character::Fm || c == Character::Pd;
 }
 
 /// What each one is called on the panel.
@@ -62,16 +61,18 @@ inline bool isMeasured(Character c) noexcept {
 /// mathematically perfect sine, which is the whole point of it.
 ///
 /// The three recorded characters follow the same rule where they can. A
-/// tonewheel is a physical part. Operator and DCO are the names the two
-/// synthesizers use for the oscillator that was recorded.
+/// tonewheel is a physical part. FM and PD are named for the two methods of
+/// synthesis instead, frequency modulation and phase distortion, since the
+/// instruments' own words for their oscillators are their makers' terms and
+/// read as something else to most players.
 inline const char *characterName(Character c) {
   switch (c) {
   case Character::Wheel:
     return "Wheel";
-  case Character::Operator:
-    return "Operator";
-  case Character::Dco:
-    return "DCO";
+  case Character::Fm:
+    return "FM";
+  case Character::Pd:
+    return "PD";
   case Character::Bulb:
     return "Bulb";
   case Character::Rail:
@@ -203,8 +204,8 @@ inline UnitTolerance unitToleranceFor(Character c) noexcept {
 
   // Both synthesizers run from a crystal clock and calculate their levels
   // digitally, so every unit is identical, as with Pure.
-  case Character::Operator:
-  case Character::Dco:
+  case Character::Fm:
+  case Character::Pd:
     return {};
 
   // Pure is the one that is not a circuit, so a rack of them has no spread at
@@ -340,9 +341,8 @@ inline constexpr int kMostCharacterHarmonics = kMeasuredHarmonics;
 
 /// How many harmonics this character carries.
 inline int harmonicsFor(Character c) noexcept {
-  return c == Character::Operator || c == Character::Dco
-             ? kMostCharacterHarmonics
-             : kMaxCharacterHarmonic;
+  return c == Character::Fm || c == Character::Pd ? kMostCharacterHarmonics
+                                                  : kMaxCharacterHarmonic;
 }
 
 /// Tables per shape, one for each count of harmonics that fits.
@@ -552,8 +552,8 @@ private:
     const auto &from = c == Character::Wheel
                            ? kWheelRecipes[(size_t)std::clamp(
                                  shape, 0, (int)kWheelRecipes.size() - 1)]
-                       : c == Character::Operator ? kOperatorRecipe
-                                                  : kDcoRecipe;
+                       : c == Character::Fm ? kFmRecipe
+                                            : kPdRecipe;
 
     // The fundamental stays at one, so the lift changes what the partial
     // sounds like and not how loud it is.
@@ -561,8 +561,7 @@ private:
         c == Character::Wheel
             ? 1.0f
             : (float)std::pow(
-                  10.0, (c == Character::Operator ? kOperatorByEar : kDcoByEar)
-                                .harmonicsDb /
+                  10.0, (c == Character::Fm ? kFmByEar : kPdByEar).harmonicsDb /
                             20.0);
 
     std::array<Harmonic, kMostCharacterHarmonics> out{};
@@ -572,9 +571,9 @@ private:
       out[n] = {from[n][0] * gain, from[n][1] * gain};
     }
 
-    // The DCO's second harmonic comes from its mix, so the bus makes it rather
-    // than the table. See kDcoSummingH2Db.
-    if (c == Character::Dco)
+    // PD's second harmonic comes from its mix, so the bus makes it rather
+    // than the table. See kPdSummingH2Db.
+    if (c == Character::Pd)
       out[1] = {};
 
     return out;
@@ -686,8 +685,8 @@ private:
 
     // Recorded characters are not simulated. See measured().
     case Character::Wheel:
-    case Character::Operator:
-    case Character::Dco:
+    case Character::Fm:
+    case Character::Pd:
     case Character::Pure:
     case Character::Bulb:
     case Character::NumCharacters:

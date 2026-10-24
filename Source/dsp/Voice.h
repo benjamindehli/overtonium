@@ -516,9 +516,9 @@ private:
   /// that drawing them moves nothing that rng draws for every other character.
   Xorshift wheelRng;
 
-  /// The noise under each note on Operator and DCO, on a stream of its own
+  /// The noise under each note on FM and PD, on a stream of its own
   /// for the same reason, and the level it reached at the end of the last
-  /// block. See kOperatorNoiseDbPerHz.
+  /// block. See kFmNoiseDbPerHz.
   Xorshift hissRng;
   float hissLastGain = 0.0f;
 

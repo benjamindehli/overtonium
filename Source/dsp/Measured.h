@@ -118,17 +118,17 @@ inline constexpr std::array<MeasuredRecipe, 7> kWheelRecipes{{
 ///
 /// That is thirty-five decibels below Rail's third harmonic, but it is still
 /// not a pure sine. The noise under each note is added in the voice. See
-/// kOperatorNoiseDbPerHz.
-inline constexpr MeasuredRecipe kOperatorRecipe{{{1.0f, 0.0f},
-                                                 {-8.2557e-04f, -1.1348e-03f},
-                                                 {4.4523e-04f, -1.2926e-04f},
-                                                 {-2.2984e-04f, 5.4516e-05f},
-                                                 {-2.4276e-04f, 1.3594e-04f},
-                                                 {-2.9924e-04f, -1.5054e-04f},
-                                                 {1.3757e-04f, -1.2954e-04f},
-                                                 {-2.7770e-04f, -1.6513e-04f},
-                                                 {-1.1735e-04f, 1.4676e-04f},
-                                                 {-2.7895e-04f, -5.8257e-05f}}};
+/// kFmNoiseDbPerHz.
+inline constexpr MeasuredRecipe kFmRecipe{{{1.0f, 0.0f},
+                                           {-8.2557e-04f, -1.1348e-03f},
+                                           {4.4523e-04f, -1.2926e-04f},
+                                           {-2.2984e-04f, 5.4516e-05f},
+                                           {-2.4276e-04f, 1.3594e-04f},
+                                           {-2.9924e-04f, -1.5054e-04f},
+                                           {1.3757e-04f, -1.2954e-04f},
+                                           {-2.7770e-04f, -1.6513e-04f},
+                                           {-1.1735e-04f, 1.4676e-04f},
+                                           {-2.7895e-04f, -5.8257e-05f}}};
 
 /// The oscillator of a phase distortion synthesizer, with the distortion
 /// turned fully off.
@@ -139,16 +139,16 @@ inline constexpr MeasuredRecipe kOperatorRecipe{{{1.0f, 0.0f},
 ///
 ///   2nd -58.0, 3rd -63.7, 4th -67.9, 5th -73.2 dB on the fundamental
 ///   6th -79.1, 7th -75.3, 8th -73.1, 9th -118.0, 10th -81.4
-inline constexpr MeasuredRecipe kDcoRecipe{{{1.0f, 0.0f},
-                                            {1.3230e-04f, 1.2575e-03f},
-                                            {-6.4099e-04f, 1.3650e-04f},
-                                            {1.1715e-04f, 3.8723e-04f},
-                                            {-2.0258e-04f, 8.0492e-05f},
-                                            {-4.9999e-05f, -9.9016e-05f},
-                                            {-1.4300e-04f, 9.4750e-05f},
-                                            {-1.3438e-04f, -1.7572e-04f},
-                                            {1.0274e-06f, 7.4000e-07f},
-                                            {-6.5028e-05f, -5.5200e-05f}}};
+inline constexpr MeasuredRecipe kPdRecipe{{{1.0f, 0.0f},
+                                           {1.3230e-04f, 1.2575e-03f},
+                                           {-6.4099e-04f, 1.3650e-04f},
+                                           {1.1715e-04f, 3.8723e-04f},
+                                           {-2.0258e-04f, 8.0492e-05f},
+                                           {-4.9999e-05f, -9.9016e-05f},
+                                           {-1.4300e-04f, 9.4750e-05f},
+                                           {-1.3438e-04f, -1.7572e-04f},
+                                           {1.0274e-06f, 7.4000e-07f},
+                                           {-6.5028e-05f, -5.5200e-05f}}};
 
 /// How a tonewheel moves as it turns.
 ///
@@ -252,8 +252,8 @@ inline constexpr double kLowestWheelHz = 32.70;
 /// were recorded, and these are added when the tables and the noise are
 /// built.
 ///
-/// The operator's harmonics are 3 dB stronger than measured, and the DCO's 6.
-/// The DCO's noise is 3 dB stronger than measured, and the operator's is as
+/// FM's harmonics are 3 dB stronger than measured, and PD's 6. PD's noise is
+/// 3 dB stronger than measured, and FM's is as
 /// measured. The tonewheel has none of this, because it sounds like the
 /// recordings as measured.
 struct ByEar {
@@ -261,10 +261,10 @@ struct ByEar {
   double noiseDb;     ///< added to the measured noise
 };
 
-inline constexpr ByEar kOperatorByEar{3.0, 0.0};
-inline constexpr ByEar kDcoByEar{6.0, 3.0};
+inline constexpr ByEar kFmByEar{3.0, 0.0};
+inline constexpr ByEar kPdByEar{6.0, 3.0};
 
-/// Where the DCO's second harmonic comes from, which is the mix and not each
+/// Where PD's second harmonic comes from, which is the mix and not each
 /// oscillator.
 ///
 /// Held as a chord, the phase distortion synthesizer makes sum and difference
@@ -278,12 +278,12 @@ inline constexpr ByEar kDcoByEar{6.0, 3.0};
 /// 25 to 40 dB below what a shared curve would give, so its harmonics all
 /// belong to each operator, and it has no curve on its mix.
 ///
-/// So the DCO's second harmonic is made by a quadratic on the bus, sized so
+/// So PD's second harmonic is made by a quadratic on the bus, sized so
 /// that one partial at full fader and full velocity, which is
 /// kBusReferenceAmplitude in each channel, gets the measured -58 dB. A chord
 /// then makes sum and difference tones between its notes and partials, as the
 /// instrument does. See BusDrive.
-inline constexpr double kDcoSummingH2Db = -58.0;
+inline constexpr double kPdSummingH2Db = -58.0;
 
 /// What one partial at full fader and full velocity, panned to the centre,
 /// comes to in each channel where the bus sees it.
@@ -296,20 +296,20 @@ inline constexpr double kBusReferenceAmplitude = 0.70710678118654752;
 /// either side of every harmonic and 3 Hz either side of the mains hum, and
 /// averaged over the notes from C4 to C6. Both are close to flat. The
 /// operator's floor is within a decibel of -105.5 from 1 kHz to 10 kHz and
-/// lifts by two above 12 kHz. The DCO's falls gently, from -112 at 100 Hz to
+/// lifts by two above 12 kHz. PD's falls gently, from -112 at 100 Hz to
 /// -117 at 10 kHz, and -114.5 is its middle. Over the whole band they add up
 /// to about 62 and 72 dB under the note.
 ///
 /// While a note sounds, both floors are about 5 dB above the take with no
 /// note, so the noise follows the note, which is what the voice does with it.
 /// It is white, sized to the note's partials and silent when nothing plays.
-/// See kOperatorByEar for what is added to it.
+/// See kFmByEar for what is added to it.
 ///
 /// Close to each tone there is also a faint skirt, which is not included. It
 /// holds less power than the floor, and on the operator most of it is the
 /// vibrato in the takes.
-inline constexpr double kOperatorNoiseDbPerHz = -105.5;
-inline constexpr double kDcoNoiseDbPerHz = -114.5;
+inline constexpr double kFmNoiseDbPerHz = -105.5;
+inline constexpr double kPdNoiseDbPerHz = -114.5;
 
 /// Which tonewheel band a partial at this frequency reads.
 inline int wheelBandFor(double freq) noexcept {
