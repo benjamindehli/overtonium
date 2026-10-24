@@ -387,6 +387,9 @@ private:
   void renderLeaks(float *left, float *right, int len, double keyFreq,
                    double power, bool foldAliases) noexcept;
 
+  void renderHiss(float *left, float *right, int len, double power,
+                  double dbPerHz) noexcept;
+
   struct Partial {
     double phase = 0.0;
     Lfo pitchLfo;
@@ -512,6 +515,12 @@ private:
   /// Where each note's tonewheel shafts start, on a stream of their own so
   /// that drawing them moves nothing that rng draws for every other character.
   Xorshift wheelRng;
+
+  /// The noise under each note on Operator and DCO, on a stream of its own
+  /// for the same reason, and the level it reached at the end of the last
+  /// block. See kOperatorNoiseDbPerHz.
+  Xorshift hissRng;
+  float hissLastGain = 0.0f;
 
   float noteBendSemitones = 0.0f;
   float polyPressure = 0.0f;

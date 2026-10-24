@@ -20,9 +20,9 @@ namespace ovt {
 /// any phase shift from its output stage.
 ///
 /// Only the steady tone is stored here. Changes over time cannot be stored in
-/// a table. The tonewheel's flutter is handled in the voice. One of the
-/// synthesizers had a vibrato in the takes, which came from its LFO and not
-/// from its tone, so it is not included.
+/// a table. The tonewheel's wobble and leakage, and the synthesizers' noise,
+/// are added in the voice. One of the synthesizers had a vibrato in the takes,
+/// which came from its LFO and not from its tone, so it is not included.
 ///
 /// Room for ten harmonics. The tonewheel uses the first five, as the circuits
 /// do, and the two synthesizers use all ten. See harmonicsFor.
@@ -117,9 +117,8 @@ inline constexpr std::array<MeasuredRecipe, 7> kWheelRecipes{{
 /// instead of falling away. Together they hold 14% of the harmonic power.
 ///
 /// That is thirty-five decibels below Rail's third harmonic, but it is still
-/// not a pure sine. The noise between the harmonics also rises by six
-/// decibels while a note sounds. That is noise and not a harmonic, so it is
-/// not included.
+/// not a pure sine. The noise under each note is added in the voice. See
+/// kOperatorNoiseDbPerHz.
 inline constexpr MeasuredRecipe kOperatorRecipe{{{1.0f, 0.0f},
                                                  {-8.2557e-04f, -1.1348e-03f},
                                                  {4.4523e-04f, -1.2926e-04f},
@@ -248,13 +247,32 @@ inline constexpr double kLowestWheelHz = 32.70;
 /// How much stronger the two synthesizers' harmonics are played than they
 /// were measured, in dB.
 ///
-/// The tables hold the measured harmonics exactly, and next to the recordings
-/// they still sound a little too clean. A table cannot hold what the
-/// recordings have besides their harmonics: the noise under each note. So the
-/// harmonics are lifted a little to make up for it. The figure was set by ear,
+/// At the measured levels the two synthesizers sounded a little cleaner than
+/// the recordings, so their harmonics are lifted. The figure was set by ear,
 /// not measured. The tonewheel is not lifted, because it does not sound too
 /// clean.
 inline constexpr double kSynthesizerLiftDb = 6.0;
+
+/// The noise under each of the two synthesizers' notes, in dB per hertz
+/// against the note's fundamental (dBc/Hz).
+///
+/// Measured between the harmonics, from 100 Hz to 20 kHz, leaving out 30 Hz
+/// either side of every harmonic and 3 Hz either side of the mains hum, and
+/// averaged over the notes from C4 to C6. Both are close to flat. The
+/// operator's floor is within a decibel of -105.5 from 1 kHz to 10 kHz and
+/// lifts by two above 12 kHz. The DCO's falls gently, from -112 at 100 Hz to
+/// -117 at 10 kHz, and -114.5 is its middle. Over the whole band they add up
+/// to about 62 and 72 dB under the note.
+///
+/// While a note sounds, both floors are about 5 dB above the take with no
+/// note, so the noise follows the note, which is what the voice does with it.
+/// It is white, sized to the note's partials and silent when nothing plays.
+///
+/// Close to each tone there is also a faint skirt, which is not included. It
+/// holds less power than the floor, and on the operator most of it is the
+/// vibrato in the takes.
+inline constexpr double kOperatorNoiseDbPerHz = -105.5;
+inline constexpr double kDcoNoiseDbPerHz = -114.5;
 
 /// Which tonewheel band a partial at this frequency reads.
 inline int wheelBandFor(double freq) noexcept {

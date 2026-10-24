@@ -2918,6 +2918,123 @@ void testWheelLeaks() {
   }
 }
 
+/// The noise under each note on Operator and DCO, measured off a render as
+/// what is left once the note's harmonics are taken out.
+///
+/// A4 at 48 kHz is exactly 440 cycles in a second, so a one-second window
+/// holds a whole number of cycles of every harmonic and taking them out leaves
+/// nothing of them behind. What is left is the noise, and its variance per
+/// channel against the fundamental is the level per hertz times half the rate.
+void testSynthesizerNoise() {
+  section("Synthesizer noise");
+
+  constexpr double sr = 48000.0;
+  constexpr double kTwoPi = 6.283185307179586;
+  constexpr int kStart = 24000;
+  constexpr int kWindow = 48000;
+  constexpr int kLength = kStart + kWindow;
+
+  const auto render = [sr, kStart, kWindow, kLength](Character c,
+                                                     bool release) {
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+    engine.setPolyphony(1);
+
+    auto p = makeFlatParams(0.0f);
+    p.osc[0].volume = 0.5f;
+    p.osc[0].tuneBlend = 1.0f;
+    p.osc[0].decay = 8.0f;
+    p.osc[0].release = 0.1f;
+    p.global.character = c;
+
+    std::vector<float> l((size_t)kLength), r((size_t)kLength);
+    engine.noteOn(69, 1.0f, p);
+
+    if (release) {
+      engine.render(l.data(), r.data(), kStart, p);
+      engine.noteOff(69);
+      engine.render(l.data() + kStart, r.data() + kStart, kWindow, p);
+    } else {
+      engine.render(l.data(), r.data(), kLength, p);
+    }
+
+    return l;
+  };
+
+  /// The noise's variance against the fundamental's power, in dB.
+  const auto noiseAgainstNote = [kTwoPi, kStart,
+                                 kWindow](const std::vector<float> &x) {
+    std::vector<double> rest(x.begin() + kStart, x.begin() + kStart + kWindow);
+    double fundamental = 0.0;
+
+    for (int n = 1; n <= 12; ++n) {
+      std::complex<double> c{};
+
+      for (int t = 0; t < kWindow; ++t)
+        c += rest[(size_t)t] *
+             std::polar(1.0, -kTwoPi * 440.0 * n * (double)t / 48000.0);
+
+      c *= 2.0 / (double)kWindow;
+
+      if (n == 1)
+        fundamental = std::abs(c);
+
+      for (int t = 0; t < kWindow; ++t)
+        rest[(size_t)t] -= std::real(
+            c * std::polar(1.0, kTwoPi * 440.0 * n * (double)t / 48000.0));
+    }
+
+    double mean = 0.0, variance = 0.0;
+
+    for (double v : rest)
+      mean += v;
+
+    mean /= (double)rest.size();
+
+    for (double v : rest)
+      variance += (v - mean) * (v - mean);
+
+    variance /= (double)rest.size();
+
+    return 10.0 * std::log10(std::max(1.0e-30, variance) /
+                             (0.5 * fundamental * fundamental));
+  };
+
+  for (const auto &[c, dbPerHz] :
+       {std::pair{Character::Operator, kOperatorNoiseDbPerHz},
+        std::pair{Character::Dco, kDcoNoiseDbPerHz}}) {
+    const double got = noiseAgainstNote(render(c, false));
+    const double want = dbPerHz + 10.0 * std::log10(0.5 * sr);
+
+    std::printf("  %-8s noise %.1f dB against the note, %.1f dB per hertz "
+                "over half the rate\n",
+                characterName(c), got, want);
+
+    check(std::abs(got - want) < 0.5,
+          std::string(characterName(c)) +
+              " has the noise it was measured with under its note");
+  }
+
+  // Not nothing, since single-precision rounding leaves about -140 dB, but
+  // far below either synthesizer.
+  const double pure = noiseAgainstNote(render(Character::Pure, false));
+
+  check(pure < -120.0, "and Pure has none (" + std::to_string(pure) + " dB)");
+
+  {
+    const auto x = render(Character::Operator, true);
+    double tail = 0.0;
+
+    for (int n = kLength - 4800; n < kLength; ++n)
+      tail = std::max(tail, std::abs((double)x[(size_t)n]));
+
+    check(tail < 1.0e-6, "and the noise goes with the note when it is "
+                         "released (" +
+                             std::to_string(tail) + ")");
+  }
+}
+
 void testUnitSpread() {
   section("Unit tolerance");
 
@@ -11817,6 +11934,7 @@ int main() {
   testMeasuredCharacters();
   testWheelWobble();
   testWheelLeaks();
+  testSynthesizerNoise();
   testUnitSpread();
   testRenderedSpectrum();
   testAliasing();
