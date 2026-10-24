@@ -2451,7 +2451,8 @@ void testMeasuredCharacters() {
   // Read from the table itself and not from the recipe. A recipe built into
   // the wrong slot would still match itself.
   //
-  // The synthesizers' harmonics are played kSynthesizerLiftDb stronger than
+  // The synthesizers' harmonics are played what kOperatorByEar and kDcoByEar
+  // add stronger than
   // they were measured, and the tonewheel's as measured.
   struct Probe {
     Character c;
@@ -2462,9 +2463,9 @@ void testMeasuredCharacters() {
   };
 
   std::vector<Probe> probes{
-      {Character::Operator, 440.0, &kOperatorRecipe, kSynthesizerLiftDb,
+      {Character::Operator, 440.0, &kOperatorRecipe, kOperatorByEar.harmonicsDb,
        "the operator"},
-      {Character::Dco, 440.0, &kDcoRecipe, kSynthesizerLiftDb, "the DCO"},
+      {Character::Dco, 440.0, &kDcoRecipe, kDcoByEar.harmonicsDb, "the DCO"},
   };
 
   const double wheelPitches[] = {65.4,  98.0,   174.6, 293.7,
@@ -2601,8 +2602,12 @@ void testMeasuredCharacters() {
         "and a C5 one has the much weaker one of the middle of the organ (" +
             std::to_string(high) + " dB)");
 
-  // A little, and no more than a little. See kSynthesizerLiftDb.
-  check(kSynthesizerLiftDb > 0.0 && kSynthesizerLiftDb <= 10.0,
+  // A little, and no more than a little. See kOperatorByEar.
+  check(kOperatorByEar.harmonicsDb >= 0.0 &&
+            kOperatorByEar.harmonicsDb <= 10.0 &&
+            kDcoByEar.harmonicsDb >= 0.0 && kDcoByEar.harmonicsDb <= 10.0 &&
+            std::abs(kOperatorByEar.noiseDb) <= 10.0 &&
+            std::abs(kDcoByEar.noiseDb) <= 10.0,
         "the synthesizers are lifted by a few decibels and no more");
 
   check(octaveOf(Character::Operator, 69) > -62.0 &&
@@ -3002,8 +3007,9 @@ void testSynthesizerNoise() {
   };
 
   for (const auto &[c, dbPerHz] :
-       {std::pair{Character::Operator, kOperatorNoiseDbPerHz},
-        std::pair{Character::Dco, kDcoNoiseDbPerHz}}) {
+       {std::pair{Character::Operator,
+                  kOperatorNoiseDbPerHz + kOperatorByEar.noiseDb},
+        std::pair{Character::Dco, kDcoNoiseDbPerHz + kDcoByEar.noiseDb}}) {
     const double got = noiseAgainstNote(render(c, false));
     const double want = dbPerHz + 10.0 * std::log10(0.5 * sr);
 

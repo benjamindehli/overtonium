@@ -247,11 +247,22 @@ inline constexpr double kLowestWheelHz = 32.70;
 /// How much stronger the two synthesizers' harmonics are played than they
 /// were measured, in dB.
 ///
-/// At the measured levels the two synthesizers sounded a little cleaner than
-/// the recordings, so their harmonics are lifted. The figure was set by ear,
-/// not measured. The tonewheel is not lifted, because it does not sound too
-/// clean.
-inline constexpr double kSynthesizerLiftDb = 6.0;
+/// What was changed by ear on the two synthesizers, in dB, after playing them
+/// next to the recordings. The measured figures above and below stay as they
+/// were recorded, and these are added when the tables and the noise are
+/// built.
+///
+/// The operator's harmonics are 3 dB stronger than measured, and the DCO's 6.
+/// The DCO's noise is 3 dB stronger than measured, and the operator's is as
+/// measured. The tonewheel has none of this, because it sounds like the
+/// recordings as measured.
+struct ByEar {
+  double harmonicsDb; ///< added to every harmonic above the fundamental
+  double noiseDb;     ///< added to the measured noise
+};
+
+inline constexpr ByEar kOperatorByEar{3.0, 0.0};
+inline constexpr ByEar kDcoByEar{6.0, 3.0};
 
 /// The noise under each of the two synthesizers' notes, in dB per hertz
 /// against the note's fundamental (dBc/Hz).
@@ -267,6 +278,7 @@ inline constexpr double kSynthesizerLiftDb = 6.0;
 /// While a note sounds, both floors are about 5 dB above the take with no
 /// note, so the noise follows the note, which is what the voice does with it.
 /// It is white, sized to the note's partials and silent when nothing plays.
+/// See kOperatorByEar for what is added to it.
 ///
 /// Close to each tone there is also a faint skirt, which is not included. It
 /// holds less power than the floor, and on the operator most of it is the

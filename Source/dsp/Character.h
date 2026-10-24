@@ -557,9 +557,13 @@ private:
 
     // The fundamental stays at one, so the lift changes what the partial
     // sounds like and not how loud it is.
-    const auto lift = c == Character::Wheel
-                          ? 1.0f
-                          : (float)std::pow(10.0, kSynthesizerLiftDb / 20.0);
+    const auto lift =
+        c == Character::Wheel
+            ? 1.0f
+            : (float)std::pow(
+                  10.0, (c == Character::Operator ? kOperatorByEar : kDcoByEar)
+                                .harmonicsDb /
+                            20.0);
 
     std::array<Harmonic, kMostCharacterHarmonics> out{};
 

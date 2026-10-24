@@ -512,9 +512,10 @@ void Voice::render(float *left, float *right, int numSamples,
   // The two synthesizers, which carry their measured noise under each note.
   const bool hiss = p.global.character == Character::Operator ||
                     p.global.character == Character::Dco;
-  const double hissDbPerHz = p.global.character == Character::Operator
-                                 ? kOperatorNoiseDbPerHz
-                                 : kDcoNoiseDbPerHz;
+  const double hissDbPerHz =
+      p.global.character == Character::Operator
+          ? kOperatorNoiseDbPerHz + kOperatorByEar.noiseDb
+          : kDcoNoiseDbPerHz + kDcoByEar.noiseDb;
   const auto &sine = SineTable::instance();
 
   // One pole per control block rather than per sample, which is where every
