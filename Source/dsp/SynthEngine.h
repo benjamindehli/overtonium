@@ -410,6 +410,10 @@ private:
   /// rather than one per voice. Only the random shapes draw from it.
   Xorshift sharedRandom{0x51ed270fu};
 
+  /// Where the tonewheel organ's motor is in its turn. One for the whole
+  /// instrument, because one motor drives every wheel. See SharedModulation.
+  double motorTurns = 0.0;
+
   /// Where the reduced rate has got to between host samples, carried across
   /// blocks so the hold pattern does not restart every buffer.
   double resamplePhase = 1.0;

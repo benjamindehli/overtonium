@@ -133,6 +133,12 @@ struct SharedModulation {
   /// How many boundaries each channel holds, so channel i starts at i * stride.
   /// The noise channel comes after the 32 partials.
   int stride = 0;
+
+  /// Where the tonewheel organ's motor is in its turn at the start of this
+  /// chunk, and how far it turns each sample. One motor drives every wheel, so
+  /// every voice reads the same one. Only Wheel listens. See kWheelMotorHz.
+  double motorTurns = 0.0;
+  double motorStep = 0.0;
 };
 
 /// What a voice needs to know to glide, which the engine keeps a copy of so a
@@ -378,6 +384,9 @@ private:
                    float pressure, const SharedModulation &shared,
                    int block) noexcept;
 
+  void renderLeaks(float *left, float *right, int len, double keyFreq,
+                   double power, bool foldAliases) noexcept;
+
   struct Partial {
     double phase = 0.0;
     Lfo pitchLfo;
@@ -422,6 +431,11 @@ private:
     /// is a slide to the ear.
     double glideSemis = 0.0;
     double glideStep = 0.0;
+
+    /// Where the shaft under this partial's tonewheel is in its turn. Drawn
+    /// when a note starts, since a key can go down at any point in a wheel's
+    /// turn, and only read on Wheel. See wheelShaftHz.
+    double shaftTurns = 0.0;
   };
 
   /// The noise channel runs alongside the partials with its own envelope and
@@ -464,6 +478,17 @@ private:
   std::array<float, kNumHarmonics> partialPressures{};
 
   Noise noise;
+
+  /// The wheels leaking into this note on Wheel, one per entry of
+  /// kWheelLeaks. Each is a wheel of its own, so each has its own phase, and
+  /// its level slides across a block like a partial's does.
+  struct Leak {
+    double phase = 0.0;
+    float lastGain = 0.0f;
+  };
+
+  std::array<Leak, kWheelLeaks.size()> leaks{};
+
   float noisePeak = 0.0f;
   float noiseEnvelope = 0.0f;
   float noiseTremolo = 0.0f;
@@ -483,6 +508,11 @@ private:
   int midiChannel = 0;
 
   Xorshift rng;
+
+  /// Where each note's tonewheel shafts start, on a stream of their own so
+  /// that drawing them moves nothing that rng draws for every other character.
+  Xorshift wheelRng;
+
   float noteBendSemitones = 0.0f;
   float polyPressure = 0.0f;
   float slide = 0.0f;

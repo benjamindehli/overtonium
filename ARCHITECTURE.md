@@ -41,6 +41,7 @@ Source/
                     Adaptive's chain of fifths
     SineTable.h     interpolated wavetable lookup, and the plain sine
     Character.h     the oscillator characters, as band-limited tables
+    Measured.h      the harmonics of the three recorded characters
     Drift.h         seeded PRNG and the smooth random contour
     Lfo.h           the LFO shapes
     Envelope.h      per-partial delay, ADSR and the two-stage key-off

@@ -56,8 +56,8 @@ namespace ovt {
 /// number. In single precision that loses most of its significant digits: at
 /// the bottom of the knob a partial came through 1.4 dB quiet, which is a gain
 /// error rather than the straight line it should have been. It is all done in
-/// double here, and the antiderivative uses a series where its own cancellation
-/// would bite.
+/// double here, and the antiderivative is written in a form without
+/// cancellation where the plain one would lose its digits.
 ///
 /// And the antiderivative belongs to a particular curve. Carrying the last
 /// one over a block boundary while the drive moves means dividing the
@@ -185,15 +185,23 @@ private:
   ///
   /// Two forms, because neither is good everywhere. Past the crossover, cosh
   /// overflows anything it is asked for directly, so it is written out of
-  /// log1p. Below it, the direct form is the difference of two numbers near
-  /// log 2 that cancel down to almost nothing, so the series it cancels to is
-  /// used instead.
+  /// log1p. Below it, that form is the difference of two numbers near log 2
+  /// that cancel down to almost nothing, so cosh(a) - 1 is written as
+  /// 2 sinh(a / 2)^2 instead, which has no cancellation in it.
+  ///
+  /// Both forms are exact, so they agree at the crossover to the last bit.
+  /// They have to. The difference quotient divides the change in this function
+  /// by the change in the input, and near the top of a wave that change is
+  /// tiny. A jump of 1e-5 where the two forms meet becomes an error of a tenth
+  /// of full scale on the one sample that crosses it, on the way up and again
+  /// on the way down, which is heard as a buzz on every note loud enough to
+  /// reach it. A truncated series has exactly that jump.
   static double logCosh(double u) noexcept {
     const auto a = std::abs(u);
 
     if (a < 0.5) {
-      const auto s = a * a;
-      return s * (0.5 - s * (1.0 / 12.0 - s * (1.0 / 45.0 - s / 315.0)));
+      const auto half = std::sinh(0.5 * a);
+      return std::log1p(2.0 * half * half);
     }
 
     return a + std::log1p(std::exp(-2.0 * a)) - 0.6931471805599453;

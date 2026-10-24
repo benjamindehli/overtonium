@@ -186,7 +186,7 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
   // Every global one, by hand, because the number is the point. Reading it
   // from the same constant the parameter is built from would check nothing.
   const List globals[] = {
-      {ovt::params::polyphonyId, 8},    {ovt::params::characterId, 6},
+      {ovt::params::polyphonyId, 8},    {ovt::params::characterId, 9},
       {ovt::params::temperamentId, 9},  {ovt::params::tuningRootId, 12},
       {ovt::params::referenceHzId, 11}, {ovt::params::atSourceId, 3},
       {ovt::params::slideDestId, 3},    {ovt::params::lofiRateId, 8},
@@ -10083,6 +10083,11 @@ void testBarButtonsFitTheirWords(OvertoniumProcessor &p) {
   const auto echoText = widest(echoWords);
   const auto characterText = widest(ovt::params::characterChoices());
 
+  // Each of them, since the comment on kCharacterWidth lists them.
+  for (const auto &name : ovt::params::characterChoices())
+    std::printf("  %-9s is %d px\n", name.toUpperCase().toRawUTF8(),
+                widest({name}));
+
   std::printf("  the echo's longest word is %d px and the character's %d, in "
               "buttons of %d and %d\n",
               echoText, characterText, TopBar::kEchoWidth,
@@ -10207,6 +10212,13 @@ void testBarComesOntoOneRow(OvertoniumProcessor &p) {
 
   // The figure the design notes quote. It moves whenever a control on the bar
   // changes width, and when it moves the notes move with it.
+  // And where it comes onto two and three, which the design notes also give.
+  for (int w = 475, lastHeight = TopBar::heightForWidth(475); w < onOneRow; ++w)
+    if (TopBar::heightForWidth(w) < lastHeight) {
+      lastHeight = TopBar::heightForWidth(w);
+      std::printf("  it gets a row shorter at %d px\n", w);
+    }
+
   check(onOneRow == 1285, "and comes onto it at the width written down (" +
                               std::to_string(onOneRow) + ")");
 }
@@ -11821,13 +11833,29 @@ void testCharacterControl(OvertoniumProcessor &p) {
     }
   }
 
-  check(ovt::ui::characterColour(ovt::Character::Bulb) ==
+  check(ovt::ui::characterColour(ovt::Character::Dco) ==
             ovt::ui::intervalColour(11),
         "the gentlest character stands at the yellow end of the mixer's band");
 
   check(ovt::ui::characterColour(ovt::Character::Opamp) ==
             ovt::ui::intervalColour(ovt::harmonic(2).pitchClass),
         "and the hardest on the red of channel 3");
+
+  // The band runs by how hard each one is rather than by when it was added,
+  // so a list that left one out would put two characters on the same colour.
+  {
+    std::vector<juce::Colour> seen;
+
+    for (int c = 1; c < (int)ovt::Character::NumCharacters; ++c) {
+      const auto colour = ovt::ui::characterColour((ovt::Character)c);
+
+      check(std::find(seen.begin(), seen.end(), colour) == seen.end(),
+            std::string(ovt::characterName((ovt::Character)c)) +
+                " has a colour of its own");
+
+      seen.push_back(colour);
+    }
+  }
 
   set(ovt::Character::Pure);
   p.applyFactoryPreset(presetIndex("Init"));
