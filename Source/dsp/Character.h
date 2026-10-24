@@ -626,7 +626,9 @@ private:
     for (int i = 0; i < kFine; ++i) {
       const auto code = (int)std::lround(2047.5 + 2047.5 * turn[(size_t)i]);
       const auto x = level[(size_t)std::clamp(code, 0, 4095)];
-      cycle[(size_t)i] = x - kSidQuadratic * x * x;
+      // Only the part of the bow inside each voice. The part on the mix is
+      // the bus's, so it reaches every note at once. See kSidMixQuadratic.
+      cycle[(size_t)i] = x - (kSidQuadratic - kSidMixQuadratic) * x * x;
     }
 
     std::array<Harmonic, kMostCharacterHarmonics> out{};

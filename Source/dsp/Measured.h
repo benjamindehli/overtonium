@@ -386,6 +386,26 @@ inline constexpr std::array<double, 12> kSidBitWeights{
 /// tenths of a decibel high.
 inline constexpr double kSidQuadratic = 0.1377;
 
+/// How much of that bow comes after the chip's voices are mixed, on the same
+/// swing.
+///
+/// Recorded as two voices together, triangles at C4 and G4, the chip makes
+/// sum and difference tones between them at -25.3 dB against each note. A bow
+/// entirely on the mix would make them at -17, and a bow entirely inside
+/// each voice would make none, so it is split: this much on the mix, and the
+/// rest of kSidQuadratic in each voice. Simulated with both triangles, it
+/// gives the sum and difference tones at -25.3 dB and a single voice its
+/// second harmonic at -23.2, as recorded. Each voice alone matches the
+/// converter within a decibel, so both voices' converters are alike.
+///
+/// The weaker tones at a note's second harmonic less the other note were
+/// recorded at -47.7 dB, lower than a bow on the mix acting on what each
+/// voice's bow already made would give with triangles. So the mix's bow may
+/// act on the voices before their own bows, which one take cannot tell apart.
+/// With sines, as the partials are, those tones are far below the main ones
+/// either way.
+inline constexpr double kSidMixQuadratic = 0.0684;
+
 /// The 6581's noise, in dB per hertz against a full-scale sine's fundamental,
 /// below and above kHissSplitHz.
 ///
