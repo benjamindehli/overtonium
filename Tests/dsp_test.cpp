@@ -1962,7 +1962,7 @@ void testCharacter() {
     }
 
     for (double pitch : pitches)
-      for (int highest = 1; highest <= kMaxCharacterHarmonic; ++highest) {
+      for (int highest = 1; highest <= harmonicsFor((Character)c); ++highest) {
         const auto &w = tables.table((Character)c, pitch, highest);
 
         double dc = 0.0, peak = 0.0;
@@ -2451,7 +2451,8 @@ void testMeasuredCharacters() {
   // Read from the table itself and not from the recipe. A recipe built into
   // the wrong slot would still match itself.
   //
-  // The synthesizers' harmonics are played kSynthesizerLiftDb stronger than
+  // The synthesizers' harmonics are played what kFmByEar and kPdByEar
+  // add stronger than
   // they were measured, and the tonewheel's as measured.
   struct Probe {
     Character c;
@@ -2462,9 +2463,8 @@ void testMeasuredCharacters() {
   };
 
   std::vector<Probe> probes{
-      {Character::Operator, 440.0, &kOperatorRecipe, kSynthesizerLiftDb,
-       "the operator"},
-      {Character::Dco, 440.0, &kDcoRecipe, kSynthesizerLiftDb, "the DCO"},
+      {Character::Fm, 440.0, &kFmRecipe, kFmByEar.harmonicsDb, "FM"},
+      {Character::Pd, 440.0, &kPdRecipe, kPdByEar.harmonicsDb, "PD"},
   };
 
   const double wheelPitches[] = {65.4,  98.0,   174.6, 293.7,
@@ -2475,7 +2475,7 @@ void testMeasuredCharacters() {
                       &kWheelRecipes[band], 0.0, "a tonewheel"});
 
   for (const auto &probe : probes) {
-    const auto &w = tables.table(probe.c, probe.freq, kMaxCharacterHarmonic);
+    const auto &w = tables.table(probe.c, probe.freq, harmonicsFor(probe.c));
 
     check(&w != &SineTable::instance(),
           std::string(probe.what) + " at " + std::to_string(probe.freq) +
@@ -2483,12 +2483,19 @@ void testMeasuredCharacters() {
 
     double worst = 0.0;
 
-    for (int n = 1; n <= kMaxCharacterHarmonic; ++n) {
+    for (int n = 1; n <= harmonicsFor(probe.c); ++n) {
       // Below -80 dB the table's interpolation error affects the reading, so
       // those harmonics only have to be quiet.
       const double want =
           recipeDb(*probe.recipe, n) + (n > 1 ? probe.liftDb : 0.0);
       const double got = harmonicDb(w, n);
+
+      // PD's second harmonic is made on the bus, so its table has none.
+      // See testPdSumming.
+      if (probe.c == Character::Pd && n == 2) {
+        worst = std::max(worst, std::max(0.0, got + 100.0));
+        continue;
+      }
 
       worst = std::max(worst, want > -80.0 ? std::abs(got - want)
                                            : std::max(0.0, got + 75.0));
@@ -2514,16 +2521,42 @@ void testMeasuredCharacters() {
   check(recipeDb(kWheelRecipes[2], 2) - recipeDb(kWheelRecipes[3], 2) > 15.0,
         "and it drops by more than fifteen decibels between A3 and C4");
 
-  for (const auto *r : {&kOperatorRecipe, &kDcoRecipe})
+  for (const auto *r : {&kFmRecipe, &kPdRecipe})
     check(recipeDb(*r, 2) > -60.0 && recipeDb(*r, 2) < -55.0,
           "a synthesizer's sine has a quiet second harmonic (" +
               std::to_string(recipeDb(*r, 2)) + " dB)");
+
+  // ---- ten harmonics on the synthesizers
+  // -------------------------------------
+  //
+  // Their upper harmonics stay around -70 dB instead of falling away, so they
+  // carry ten. Everything else carries five, as it always has.
+  check(harmonicsFor(Character::Fm) == 10 &&
+            harmonicsFor(Character::Pd) == 10 &&
+            harmonicsFor(Character::Wheel) == 5 &&
+            harmonicsFor(Character::Valve) == 5,
+        "the synthesizers carry ten harmonics and every other character five");
+
+  // And each of FM's bands stops where it says, which is what keeps
+  // the extra harmonics from folding back down on a high partial.
+  {
+    bool stops = true;
+
+    for (int highest = 2; highest < harmonicsFor(Character::Fm); ++highest) {
+      const auto &w = tables.table(Character::Fm, 440.0, highest);
+
+      stops &= harmonicDb(w, highest) > -80.0;
+      stops &= harmonicDb(w, highest + 1) < -100.0;
+    }
+
+    check(stops, "every band of FM stops at its own harmonic");
+  }
 
   // ---- one of everything ---------------------------------------------------
   //
   // A recording has no drive setting, so every unit reads the same table,
   // whichever drive the rack gave it.
-  for (auto c : {Character::Wheel, Character::Operator, Character::Dco}) {
+  for (auto c : {Character::Wheel, Character::Fm, Character::Pd}) {
     check(driveCountFor(c) == 1,
           std::string(characterName(c)) + " is built at one drive");
 
@@ -2574,13 +2607,16 @@ void testMeasuredCharacters() {
         "and a C5 one has the much weaker one of the middle of the organ (" +
             std::to_string(high) + " dB)");
 
-  // A little, and no more than a little. See kSynthesizerLiftDb.
-  check(kSynthesizerLiftDb > 0.0 && kSynthesizerLiftDb <= 10.0,
+  // A little, and no more than a little. See kFmByEar.
+  check(kFmByEar.harmonicsDb >= 0.0 && kFmByEar.harmonicsDb <= 10.0 &&
+            kPdByEar.harmonicsDb >= 0.0 && kPdByEar.harmonicsDb <= 10.0 &&
+            std::abs(kFmByEar.noiseDb) <= 10.0 &&
+            std::abs(kPdByEar.noiseDb) <= 10.0,
         "the synthesizers are lifted by a few decibels and no more");
 
-  check(octaveOf(Character::Operator, 69) > -62.0 &&
+  check(octaveOf(Character::Fm, 69) > -62.0 &&
             octaveOf(Character::Pure, 69) < -90.0,
-        "the operator's second harmonic reaches the output, and Pure has none");
+        "FM's second harmonic reaches the output, and Pure has none");
 }
 
 /// The tonewheel's wobble, measured the way the organ was: as the pair of
@@ -2727,7 +2763,7 @@ void testWheelWobble() {
   }
 
   // ---- and nothing on anything else -------------------------------------
-  for (auto c : {Character::Pure, Character::Valve, Character::Operator}) {
+  for (auto c : {Character::Pure, Character::Valve, Character::Fm}) {
     const auto x = render(c, {84}, 0);
     const auto m = modulation(x, f, kWheelMotorHz);
     const auto s = modulation(x, f, shaft);
@@ -2869,7 +2905,7 @@ void testWheelLeaks() {
   }
 
   // Nothing on the other characters.
-  for (auto c : {Character::Pure, Character::Valve, Character::Operator}) {
+  for (auto c : {Character::Pure, Character::Valve, Character::Fm}) {
     const auto x = render(c, 84, 1, false);
 
     check(levelAt(x, c6 * 0.25) - levelAt(x, c6) < -100.0,
@@ -2888,6 +2924,342 @@ void testWheelLeaks() {
     check(tail < 1.0e-6, "and nothing is left once the note has been "
                          "released (" +
                              std::to_string(tail) + ")");
+  }
+}
+
+/// The noise under each note on FM and PD, measured off a render as
+/// what is left once the note's harmonics are taken out.
+///
+/// A4 at 48 kHz is exactly 440 cycles in a second, so a one-second window
+/// holds a whole number of cycles of every harmonic and taking them out leaves
+/// nothing of them behind. What is left is the noise, and its variance per
+/// channel against the fundamental is the level per hertz times half the rate.
+void testSynthesizerNoise() {
+  section("Synthesizer noise");
+
+  constexpr double sr = 48000.0;
+  constexpr double kTwoPi = 6.283185307179586;
+  constexpr int kStart = 24000;
+  constexpr int kWindow = 48000;
+  constexpr int kLength = kStart + kWindow;
+
+  const auto render = [sr, kStart, kWindow, kLength](Character c,
+                                                     bool release) {
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+    engine.setPolyphony(1);
+
+    auto p = makeFlatParams(0.0f);
+    p.osc[0].volume = 0.5f;
+    p.osc[0].tuneBlend = 1.0f;
+    p.osc[0].decay = 8.0f;
+    p.osc[0].release = 0.1f;
+    p.global.character = c;
+
+    std::vector<float> l((size_t)kLength), r((size_t)kLength);
+    engine.noteOn(69, 1.0f, p);
+
+    if (release) {
+      engine.render(l.data(), r.data(), kStart, p);
+      engine.noteOff(69);
+      engine.render(l.data() + kStart, r.data() + kStart, kWindow, p);
+    } else {
+      engine.render(l.data(), r.data(), kLength, p);
+    }
+
+    return l;
+  };
+
+  /// The noise's variance against the fundamental's power, in dB.
+  const auto noiseAgainstNote = [kTwoPi, kStart,
+                                 kWindow](const std::vector<float> &x) {
+    std::vector<double> rest(x.begin() + kStart, x.begin() + kStart + kWindow);
+    double fundamental = 0.0;
+
+    for (int n = 1; n <= 12; ++n) {
+      std::complex<double> c{};
+
+      for (int t = 0; t < kWindow; ++t)
+        c += rest[(size_t)t] *
+             std::polar(1.0, -kTwoPi * 440.0 * n * (double)t / 48000.0);
+
+      c *= 2.0 / (double)kWindow;
+
+      if (n == 1)
+        fundamental = std::abs(c);
+
+      for (int t = 0; t < kWindow; ++t)
+        rest[(size_t)t] -= std::real(
+            c * std::polar(1.0, kTwoPi * 440.0 * n * (double)t / 48000.0));
+    }
+
+    double mean = 0.0, variance = 0.0;
+
+    for (double v : rest)
+      mean += v;
+
+    mean /= (double)rest.size();
+
+    for (double v : rest)
+      variance += (v - mean) * (v - mean);
+
+    variance /= (double)rest.size();
+
+    return 10.0 * std::log10(std::max(1.0e-30, variance) /
+                             (0.5 * fundamental * fundamental));
+  };
+
+  for (const auto &[c, dbPerHz] :
+       {std::pair{Character::Fm, kFmNoiseDbPerHz + kFmByEar.noiseDb},
+        std::pair{Character::Pd, kPdNoiseDbPerHz + kPdByEar.noiseDb}}) {
+    const double got = noiseAgainstNote(render(c, false));
+    const double want = dbPerHz + 10.0 * std::log10(0.5 * sr);
+
+    std::printf("  %-8s noise %.1f dB against the note, %.1f dB per hertz "
+                "over half the rate\n",
+                characterName(c), got, want);
+
+    check(std::abs(got - want) < 0.5,
+          std::string(characterName(c)) +
+              " has the noise it was measured with under its note");
+  }
+
+  // Not nothing, since single-precision rounding leaves about -140 dB, but
+  // far below either synthesizer.
+  const double pure = noiseAgainstNote(render(Character::Pure, false));
+
+  check(pure < -120.0, "and Pure has none (" + std::to_string(pure) + " dB)");
+
+  {
+    const auto x = render(Character::Fm, true);
+    double tail = 0.0;
+
+    for (int n = kLength - 4800; n < kLength; ++n)
+      tail = std::max(tail, std::abs((double)x[(size_t)n]));
+
+    check(tail < 1.0e-6, "and the noise goes with the note when it is "
+                         "released (" +
+                             std::to_string(tail) + ")");
+  }
+}
+
+/// How the synthesizers' noise grows as keys are added.
+///
+/// Four notes, A3 to A6, one partial each at the same fader, against A3 alone.
+/// Every harmonic of all four is a multiple of 220 Hz and a whole number of
+/// cycles in a second, so the noise can be read cleanly at the frequencies in
+/// between. FM's noise is a fixed share sized by the loudest note plus the
+/// rest sized by all of them, in two bands, and PD's is all the second kind.
+void testHissOverKeys() {
+  section("Synthesizer noise over several keys");
+
+  constexpr double sr = 48000.0;
+  constexpr double kTwoPi = 6.283185307179586;
+  constexpr int kStart = 24000;
+  constexpr int kWindow = 48000;
+  constexpr int kLength = kStart + kWindow;
+
+  const auto render = [sr, kLength](Character c,
+                                    std::initializer_list<int> notes) {
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+    engine.setPolyphony(4);
+
+    auto p = makeFlatParams(0.0f);
+    p.osc[0].volume = 0.25f;
+    p.osc[0].tuneBlend = 1.0f;
+    p.osc[0].decay = 8.0f;
+    p.global.character = c;
+
+    for (int note : notes)
+      engine.noteOn(note, 1.0f, p);
+
+    std::vector<float> l((size_t)kLength), r((size_t)kLength);
+    engine.render(l.data(), r.data(), kLength, p);
+    return l;
+  };
+
+  // Mean power at every third bin between two frequencies, leaving out the
+  // multiples of 220 Hz, where the notes are.
+  const auto noiseBetween = [kTwoPi, kStart, kWindow](
+                                const std::vector<float> &x, int from, int to) {
+    double total = 0.0;
+    int bins = 0;
+
+    for (int k = from; k < to; k += 3) {
+      if (k % 220 == 0)
+        continue;
+
+      std::complex<double> c{};
+      const auto step = std::polar(1.0, -kTwoPi * (double)k / (double)kWindow);
+      std::complex<double> turn{1.0, 0.0};
+
+      for (int t = 0; t < kWindow; ++t) {
+        c += (double)x[(size_t)(kStart + t)] * turn;
+        turn *= step;
+      }
+
+      total += std::norm(c);
+      ++bins;
+    }
+
+    return total / (double)bins;
+  };
+
+  // The split's own filter, so that what is expected is exact at each band
+  // and not the idealised two flat halves.
+  const double a = 1.0 - std::exp(-kTwoPi * kHissSplitHz / sr);
+  const auto expected = [a, kTwoPi, sr](const FixedHiss &fixed, double notes,
+                                        int from, int to) {
+    const double low = fixed.low + (1.0 - fixed.low) * notes;
+    const double high = fixed.high + (1.0 - fixed.high) * notes;
+    double total = 0.0;
+    int bins = 0;
+
+    for (int k = from; k < to; k += 3) {
+      if (k % 220 == 0)
+        continue;
+
+      const auto z = std::polar(1.0, -kTwoPi * (double)k / sr);
+      const auto onePole = a / (1.0 - (1.0 - a) * z);
+      const auto lowPass = onePole * onePole;
+      total += std::norm(std::sqrt(low) * lowPass +
+                         std::sqrt(high) * (1.0 - lowPass));
+      ++bins;
+    }
+
+    return 10.0 * std::log10(total / (double)bins);
+  };
+
+  for (const auto &[c, fixed] : {std::pair{Character::Fm, kFmFixedHiss},
+                                 std::pair{Character::Pd, kPdFixedHiss}}) {
+    const auto one = render(c, {57});
+    const auto four = render(c, {57, 69, 81, 93});
+
+    for (const auto &[from, to] :
+         {std::pair{1000, 3000}, std::pair{15000, 19000}}) {
+      const double grew = 10.0 * std::log10(noiseBetween(four, from, to) /
+                                            noiseBetween(one, from, to));
+      const double want = expected(fixed, 4.0, from, to);
+
+      std::printf("  %-3s %5d to %5d Hz: four keys %+.2f dB over one, "
+                  "expected %+.2f\n",
+                  characterName(c), from, to, grew, want);
+
+      check(std::abs(grew - want) < 0.4,
+            std::string(characterName(c)) + "'s noise from " +
+                std::to_string(from) + " Hz grows as measured with four keys");
+    }
+  }
+}
+
+/// PD's second harmonic, made on the bus by the measured bow in the
+/// phase distortion synthesizer's mix, and the sum and difference tones that
+/// bow makes between notes.
+///
+/// One quadratic on the mix gives a single sine a second harmonic of c A / 2
+/// and two sines sum and difference tones of c A against each, which is 6 dB
+/// above it. That ratio is what the instrument measured, and is what showed
+/// the bow is on the mix.
+void testPdSumming() {
+  section("PD summing");
+
+  constexpr double sr = 48000.0;
+  constexpr double kTwoPi = 6.283185307179586;
+  constexpr int kStart = 24000;
+  constexpr int kLength = 72000;
+
+  const auto render = [sr, kLength](Character c,
+                                    std::initializer_list<int> notes,
+                                    float volume) {
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+    engine.setPolyphony(4);
+
+    auto p = makeFlatParams(0.0f);
+    p.osc[0].volume = volume;
+    p.osc[0].tuneBlend = 1.0f;
+    p.osc[0].decay = 8.0f;
+    p.global.character = c;
+    p.global.busDrive = (float)BusDrive::amountFor(c);
+
+    for (int note : notes)
+      engine.noteOn(note, 1.0f, p);
+
+    std::vector<float> l((size_t)kLength), r((size_t)kLength);
+    engine.render(l.data(), r.data(), kLength, p);
+    return l;
+  };
+
+  const auto levelAt = [kTwoPi, sr, kStart,
+                        kLength](const std::vector<float> &x, double hz) {
+    std::complex<double> sum{};
+    double norm = 0.0;
+
+    for (int n = kStart; n < kLength; ++n) {
+      const double t = (double)(n - kStart) / (double)(kLength - kStart);
+      const double w =
+          0.42 - 0.5 * std::cos(kTwoPi * t) + 0.08 * std::cos(2.0 * kTwoPi * t);
+      sum += w * (double)x[(size_t)n] *
+             std::polar(1.0, -kTwoPi * hz * (double)n / sr);
+      norm += w;
+    }
+
+    return 20.0 * std::log10(std::max(1.0e-12, 2.0 * std::abs(sum) / norm));
+  };
+
+  const double a4 = 440.0;
+  const double e5 = 440.0 * std::exp2(7.0 / 12.0);
+  const double second = kPdSummingH2Db + kPdByEar.harmonicsDb;
+
+  // One partial at full fader: the second harmonic it was measured with.
+  {
+    const auto x = render(Character::Pd, {69}, 1.0f);
+    const double got = levelAt(x, 2.0 * a4) - levelAt(x, a4);
+
+    std::printf("  one partial at full fader: second harmonic %.1f dB, "
+                "expected %.1f\n",
+                got, second);
+
+    check(std::abs(got - second) < 0.3,
+          "one partial at full fader gets the measured second harmonic");
+
+    // Half the fader, half the bow: 6 dB less.
+    const auto half = render(Character::Pd, {69}, 0.5f);
+    const double quieter = levelAt(half, 2.0 * a4) - levelAt(half, a4);
+
+    check(std::abs(quieter - (second - 6.02)) < 0.3,
+          "and 6 dB less at half the fader (" + std::to_string(quieter) +
+              " dB)");
+  }
+
+  // Two notes: sum and difference tones 6 dB above that, as measured.
+  {
+    const auto x = render(Character::Pd, {69, 76}, 1.0f);
+    const double note = levelAt(x, a4);
+    const double sum = levelAt(x, a4 + e5) - note;
+    const double difference = levelAt(x, e5 - a4) - note;
+
+    std::printf("  A4 and E5: sum tone %.1f dB and difference tone %.1f dB, "
+                "expected %.1f\n",
+                sum, difference, second + 6.02);
+
+    check(std::abs(sum - (second + 6.02)) < 0.5 &&
+              std::abs(difference - (second + 6.02)) < 0.5,
+          "two notes make sum and difference tones 6 dB above the second "
+          "harmonic, as the instrument does");
+  }
+
+  // FM's mix measured clean, so it makes none. Not below -100 dB,
+  // because its own noise comes to about -101 in this window.
+  {
+    const auto x = render(Character::Fm, {69, 76}, 1.0f);
+
+    check(levelAt(x, a4 + e5) - levelAt(x, a4) < -80.0,
+          "and FM makes no sum tone");
   }
 }
 
@@ -9317,7 +9689,7 @@ void testBusDriveIsSmooth() {
   double worstOverall = 0.0;
 
   for (auto c : {Character::Rail, Character::Diode, Character::Valve,
-                 Character::Opamp, Character::Wheel}) {
+                 Character::Opamp, Character::Wheel, Character::Pd}) {
     double worst = 0.0, worstLevel = 0.0;
 
     // In fine steps, because the fault was at one level and every level
@@ -11790,6 +12162,9 @@ int main() {
   testMeasuredCharacters();
   testWheelWobble();
   testWheelLeaks();
+  testSynthesizerNoise();
+  testHissOverKeys();
+  testPdSumming();
   testUnitSpread();
   testRenderedSpectrum();
   testAliasing();

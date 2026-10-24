@@ -20,10 +20,15 @@ namespace ovt {
 /// any phase shift from its output stage.
 ///
 /// Only the steady tone is stored here. Changes over time cannot be stored in
-/// a table. The tonewheel's flutter is handled in the voice. One of the
-/// synthesizers had a vibrato in the takes, which came from its LFO and not
-/// from its tone, so it is not included.
-using MeasuredRecipe = std::array<std::array<float, 2>, 5>;
+/// a table. The tonewheel's wobble and leakage, and the synthesizers' noise,
+/// are added in the voice. One of the synthesizers had a vibrato in the takes,
+/// which came from its LFO and not from its tone, so it is not included.
+///
+/// Room for ten harmonics. The tonewheel uses the first five, as the circuits
+/// do, and the two synthesizers use all ten. See harmonicsFor.
+inline constexpr int kMeasuredHarmonics = 10;
+
+using MeasuredRecipe = std::array<std::array<float, 2>, kMeasuredHarmonics>;
 
 /// Where each of the tonewheel bands below starts, in Hz.
 ///
@@ -106,16 +111,24 @@ inline constexpr std::array<MeasuredRecipe, 7> kWheelRecipes{{
 /// within two decibels and the others within five:
 ///
 ///   2nd -57.1, 3rd -66.7, 4th -72.5, 5th -71.1 dB on the fundamental
+///   6th -69.5, 7th -74.5, 8th -69.8, 9th -74.5, 10th -70.9
+///
+/// Ten rather than five, because the upper ones stay level at about -70 dB
+/// instead of falling away. Together they hold 14% of the harmonic power.
 ///
 /// That is thirty-five decibels below Rail's third harmonic, but it is still
-/// not a pure sine. The noise between the harmonics also rises by six
-/// decibels while a note sounds. That is noise and not a harmonic, so it is
-/// not included.
-inline constexpr MeasuredRecipe kOperatorRecipe{{{1.0f, 0.0f},
-                                                 {-8.2557e-04f, -1.1348e-03f},
-                                                 {4.4523e-04f, -1.2926e-04f},
-                                                 {-2.2984e-04f, 5.4516e-05f},
-                                                 {-2.4276e-04f, 1.3594e-04f}}};
+/// not a pure sine. The noise under each note is added in the voice. See
+/// kFmNoiseDbPerHz.
+inline constexpr MeasuredRecipe kFmRecipe{{{1.0f, 0.0f},
+                                           {-8.2557e-04f, -1.1348e-03f},
+                                           {4.4523e-04f, -1.2926e-04f},
+                                           {-2.2984e-04f, 5.4516e-05f},
+                                           {-2.4276e-04f, 1.3594e-04f},
+                                           {-2.9924e-04f, -1.5054e-04f},
+                                           {1.3757e-04f, -1.2954e-04f},
+                                           {-2.7770e-04f, -1.6513e-04f},
+                                           {-1.1735e-04f, 1.4676e-04f},
+                                           {-2.7895e-04f, -5.8257e-05f}}};
 
 /// The oscillator of a phase distortion synthesizer, with the distortion
 /// turned fully off.
@@ -125,11 +138,17 @@ inline constexpr MeasuredRecipe kOperatorRecipe{{{1.0f, 0.0f},
 /// lowest key to the highest, and there is no modulation in the takes.
 ///
 ///   2nd -58.0, 3rd -63.7, 4th -67.9, 5th -73.2 dB on the fundamental
-inline constexpr MeasuredRecipe kDcoRecipe{{{1.0f, 0.0f},
-                                            {1.3230e-04f, 1.2575e-03f},
-                                            {-6.4099e-04f, 1.3650e-04f},
-                                            {1.1715e-04f, 3.8723e-04f},
-                                            {-2.0258e-04f, 8.0492e-05f}}};
+///   6th -79.1, 7th -75.3, 8th -73.1, 9th -118.0, 10th -81.4
+inline constexpr MeasuredRecipe kPdRecipe{{{1.0f, 0.0f},
+                                           {1.3230e-04f, 1.2575e-03f},
+                                           {-6.4099e-04f, 1.3650e-04f},
+                                           {1.1715e-04f, 3.8723e-04f},
+                                           {-2.0258e-04f, 8.0492e-05f},
+                                           {-4.9999e-05f, -9.9016e-05f},
+                                           {-1.4300e-04f, 9.4750e-05f},
+                                           {-1.3438e-04f, -1.7572e-04f},
+                                           {1.0274e-06f, 7.4000e-07f},
+                                           {-6.5028e-05f, -5.5200e-05f}}};
 
 /// How a tonewheel moves as it turns.
 ///
@@ -228,14 +247,104 @@ inline constexpr double kLowestWheelHz = 32.70;
 /// How much stronger the two synthesizers' harmonics are played than they
 /// were measured, in dB.
 ///
-/// The tables hold the measured harmonics exactly, and next to the recordings
-/// they still sound a little too clean. A table cannot hold what the
-/// recordings have besides their harmonics: the noise under each note, and on
-/// the operator the 6th to 10th harmonics, which stay at about -70 dB and are
-/// past where the tables stop. So the harmonics that are in the tables are
-/// lifted a little to make up for it. The figure was set by ear, not measured.
-/// The tonewheel is not lifted, because it does not sound too clean.
-inline constexpr double kSynthesizerLiftDb = 6.0;
+/// What was changed by ear on the two synthesizers, in dB, after playing them
+/// next to the recordings. The measured figures above and below stay as they
+/// were recorded, and these are added when the tables and the noise are
+/// built.
+///
+/// FM's harmonics are 3 dB stronger than measured, and PD's 6. PD's noise is
+/// 3 dB stronger than measured, and FM's is as
+/// measured. The tonewheel has none of this, because it sounds like the
+/// recordings as measured.
+struct ByEar {
+  double harmonicsDb; ///< added to every harmonic above the fundamental
+  double noiseDb;     ///< added to the measured noise
+};
+
+inline constexpr ByEar kFmByEar{3.0, 0.0};
+inline constexpr ByEar kPdByEar{6.0, 3.0};
+
+/// Where PD's second harmonic comes from, which is the mix and not each
+/// oscillator.
+///
+/// Held as a chord, the phase distortion synthesizer makes sum and difference
+/// tones between its notes, every one of them at -51 to -53 dB against a note.
+/// One quadratic shared by the whole mix makes those exactly 6 dB above the
+/// second harmonic it gives a single note, and the single note's second
+/// harmonic is -57.7, so the mix is where it comes from. Its third-order
+/// products are 14 to 23 dB below what a shared curve would give for its
+/// third harmonic, so the third and those above it belong to each oscillator
+/// and stay in the table. The frequency modulation synthesizer's products are
+/// 25 to 40 dB below what a shared curve would give, so its harmonics all
+/// belong to each operator, and it has no curve on its mix.
+///
+/// So PD's second harmonic is made by a quadratic on the bus, sized so
+/// that one partial at full fader and full velocity, which is
+/// kBusReferenceAmplitude in each channel, gets the measured -58 dB. A chord
+/// then makes sum and difference tones between its notes and partials, as the
+/// instrument does. See BusDrive.
+inline constexpr double kPdSummingH2Db = -58.0;
+
+/// What one partial at full fader and full velocity, panned to the centre,
+/// comes to in each channel where the bus sees it.
+inline constexpr double kBusReferenceAmplitude = 0.70710678118654752;
+
+/// The noise under each of the two synthesizers' notes, in dB per hertz
+/// against the note's fundamental (dBc/Hz).
+///
+/// Measured between the harmonics, from 100 Hz to 20 kHz, leaving out 30 Hz
+/// either side of every harmonic and 3 Hz either side of the mains hum, and
+/// averaged over the notes from C4 to C6. Both are close to flat. The
+/// operator's floor is within a decibel of -105.5 from 1 kHz to 10 kHz and
+/// lifts by two above 12 kHz. PD's falls gently, from -112 at 100 Hz to
+/// -117 at 10 kHz, and -114.5 is its middle. Over the whole band they add up
+/// to about 62 and 72 dB under the note.
+///
+/// While a note sounds, both floors are about 5 dB above the take with no
+/// note, so the noise follows the note. It is white, sized to the notes'
+/// partials and silent when nothing plays, and how it grows as keys are added
+/// is kFmFixedHiss. See kFmByEar for what is added to it.
+///
+/// Close to each tone there is also a faint skirt, which is not included. It
+/// holds less power than the floor, and on the operator most of it is the
+/// vibrato in the takes.
+inline constexpr double kFmNoiseDbPerHz = -105.5;
+inline constexpr double kPdNoiseDbPerHz = -114.5;
+
+/// How much of each synthesizer's noise is a fixed hiss, which does not grow
+/// as keys are added, below and above kHissSplitHz.
+///
+/// Both were recorded again as a chord built up one key every four seconds,
+/// C3, C4, G4, C5 and E5, each held. The frequency modulation synthesizer's
+/// noise between the lines fits a fixed part plus a part that follows the
+/// signal's power, within a decibel above 400 Hz and three below. With one key
+/// the fixed part is about a third of it below 6.4 kHz and more than three
+/// quarters above, which is where hiss is heard. So from one key to five its
+/// noise above 6.4 kHz grows 2.8 dB while the signal grows 7. The share above
+/// is the one that growth gives at two, four and five keys alike. With the
+/// two bands split as the engine splits them, the model grows within about a
+/// decibel of the instrument at every count of keys.
+///
+/// The phase distortion synthesizer's fixed part is 2 to 10% with one key,
+/// which is too little to hear, so its noise is all the part that follows the
+/// signal. Its floor between the lines did jump when G4 and E5 came in, but
+/// that was its sum and difference tones, which its bus makes. See
+/// kPdSummingH2Db.
+///
+/// The fixed part is sized by the loudest note sounding rather than by
+/// nothing at all, so a quiet patch hisses less and there is no hiss when
+/// nothing plays. With one note the two parts add up to the measured level,
+/// exactly as before.
+struct FixedHiss {
+  double low; ///< share of a single note's noise that is fixed, below the split
+  double high; ///< and above it
+};
+
+inline constexpr FixedHiss kFmFixedHiss{0.32, 0.78};
+inline constexpr FixedHiss kPdFixedHiss{0.0, 0.0};
+
+/// Where the noise is split into its two bands, in Hz.
+inline constexpr double kHissSplitHz = 6400.0;
 
 /// Which tonewheel band a partial at this frequency reads.
 inline int wheelBandFor(double freq) noexcept {

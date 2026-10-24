@@ -420,9 +420,8 @@ juce::Colour characterColour(Character c) {
   // circuits, so they are at the yellow end. Wheel sits next to Valve, because
   // both are mostly a second harmonic. Pure is not on the band.
   constexpr std::array<Character, (size_t)Character::NumCharacters - 1> kBand{
-      Character::Dco,   Character::Operator, Character::Bulb,
-      Character::Rail,  Character::Diode,    Character::Valve,
-      Character::Wheel, Character::Opamp};
+      Character::Pd,    Character::Fm,    Character::Bulb,  Character::Rail,
+      Character::Diode, Character::Valve, Character::Wheel, Character::Opamp};
 
   const auto at = std::find(kBand.begin(), kBand.end(), c);
   const auto steps = (float)std::max(1, (int)kBand.size() - 1);

@@ -107,7 +107,13 @@ private:
   /// it holds a straight line until it meets the rail and then stops, so its
   /// knee is a corner rather than a bend. Both are odd and both have unit
   /// slope at rest, so everything either side of them is the same.
-  enum class Shape { Tanh, Cubic };
+  ///
+  /// The third is not a circuit giving way at all. It is the slight bow in a
+  /// converter or an output stage, measured on one of the synthesizers, which
+  /// leans one half of the wave out and the other in by the same small amount
+  /// and so makes only a second harmonic, and sum and difference tones between
+  /// notes. See kPdSummingH2Db.
+  enum class Shape { Tanh, Cubic, Quadratic };
   /// One side of the wave. Two of them, because a circuit is not obliged to
   /// treat the two halves alike and the ones worth modelling do not: a pair of
   /// diodes that do not match runs out of room sooner one way than the other.
@@ -165,6 +171,12 @@ private:
     if (shape == Shape::Tanh)
       return std::tanh(u);
 
+    // Of unit slope at rest like the others, and leaning the positive half in.
+    // It only turns back at u = 1, which the drive it is used at puts at about
+    // seventy times full scale.
+    if (shape == Shape::Quadratic)
+      return u - 0.5 * u * u;
+
     // Straight until it meets the rail and flat past it, joined so the slope
     // arrives at nothing rather than at a corner. What an amplifier with
     // feedback around it does: linear, linear, and then no more.
@@ -214,11 +226,16 @@ private:
   /// each is zero there, so the pair is one continuous function and a step
   /// that straddles the crossing is averaged correctly rather than picking up
   /// the difference between two constants.
-  /// The antiderivative of bend, even because bend is odd, and nothing at
+  /// The antiderivative of bend, even where bend is odd, and nothing at
   /// rest so that the two halves of a curve meet where they should.
   static double bendIntegral(Shape shape, double u) noexcept {
     if (shape == Shape::Tanh)
       return logCosh(u);
+
+    // Not even, because the quadratic is not odd, and exact everywhere, so
+    // there is nothing where two forms meet.
+    if (shape == Shape::Quadratic)
+      return u * u * (0.5 - u / 6.0);
 
     const auto a = std::abs(u);
 

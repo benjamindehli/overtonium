@@ -11833,7 +11833,7 @@ void testCharacterControl(OvertoniumProcessor &p) {
     }
   }
 
-  check(ovt::ui::characterColour(ovt::Character::Dco) ==
+  check(ovt::ui::characterColour(ovt::Character::Pd) ==
             ovt::ui::intervalColour(11),
         "the gentlest character stands at the yellow end of the mixer's band");
 

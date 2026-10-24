@@ -291,9 +291,9 @@ public:
   /// here has. A word that does not fit is drawn with its middle taken out and
   /// nothing says so, which is why a test measures these rather than trusting
   /// them. See testBarButtonsFitTheirWords.
-  /// OPERATOR is the longest character, at 68 px. The resonator's longest
-  /// mode is 49 px.
-  static constexpr int kCharacterWidth = 76;
+  /// OP-AMP is the longest character, at 51 px, and the resonator's longest
+  /// mode is 49 px, so both land on the same figure.
+  static constexpr int kCharacterWidth = 62;
   static constexpr int kResonatorWidth = 62;
   static constexpr int kEchoWidth = 62;
   static constexpr int kReverbWidth = 58;

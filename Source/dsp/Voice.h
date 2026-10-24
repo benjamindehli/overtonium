@@ -344,6 +344,18 @@ public:
   /// The row's amount against the pressure on the key, so it rests dark and
   /// brightens as the player leans in. Unsigned, since a row set to push a
   /// partial down is doing as much as one set to lift it.
+  /// Room for one power per control block of the longest call the engine
+  /// makes. See SynthEngine::kModChunk.
+  static constexpr int kMaxPowerBlocks = 2048 / kControlBlock + 1;
+
+  /// How loud this note's partials were together in each control block of
+  /// the last call, as the sum of their squared amplitudes. Filled only on FM
+  /// and PD, whose noise the engine sizes from every note at once. See
+  /// SynthEngine::renderHiss.
+  const std::array<float, kMaxPowerBlocks> &getBlockPowers() const noexcept {
+    return blockPowers;
+  }
+
   const std::array<float, kNumHarmonics> &getPartialPressures() const noexcept {
     return partialPressures;
   }
@@ -488,6 +500,8 @@ private:
   };
 
   std::array<Leak, kWheelLeaks.size()> leaks{};
+
+  std::array<float, kMaxPowerBlocks> blockPowers{};
 
   float noisePeak = 0.0f;
   float noiseEnvelope = 0.0f;
