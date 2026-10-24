@@ -3044,6 +3044,117 @@ void testSynthesizerNoise() {
   }
 }
 
+/// How the synthesizers' noise grows as keys are added.
+///
+/// Four notes, A3 to A6, one partial each at the same fader, against A3 alone.
+/// Every harmonic of all four is a multiple of 220 Hz and a whole number of
+/// cycles in a second, so the noise can be read cleanly at the frequencies in
+/// between. FM's noise is a fixed share sized by the loudest note plus the
+/// rest sized by all of them, in two bands, and PD's is all the second kind.
+void testHissOverKeys() {
+  section("Synthesizer noise over several keys");
+
+  constexpr double sr = 48000.0;
+  constexpr double kTwoPi = 6.283185307179586;
+  constexpr int kStart = 24000;
+  constexpr int kWindow = 48000;
+  constexpr int kLength = kStart + kWindow;
+
+  const auto render = [sr, kLength](Character c,
+                                    std::initializer_list<int> notes) {
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+    engine.setPolyphony(4);
+
+    auto p = makeFlatParams(0.0f);
+    p.osc[0].volume = 0.25f;
+    p.osc[0].tuneBlend = 1.0f;
+    p.osc[0].decay = 8.0f;
+    p.global.character = c;
+
+    for (int note : notes)
+      engine.noteOn(note, 1.0f, p);
+
+    std::vector<float> l((size_t)kLength), r((size_t)kLength);
+    engine.render(l.data(), r.data(), kLength, p);
+    return l;
+  };
+
+  // Mean power at every third bin between two frequencies, leaving out the
+  // multiples of 220 Hz, where the notes are.
+  const auto noiseBetween = [kTwoPi, kStart, kWindow](
+                                const std::vector<float> &x, int from, int to) {
+    double total = 0.0;
+    int bins = 0;
+
+    for (int k = from; k < to; k += 3) {
+      if (k % 220 == 0)
+        continue;
+
+      std::complex<double> c{};
+      const auto step = std::polar(1.0, -kTwoPi * (double)k / (double)kWindow);
+      std::complex<double> turn{1.0, 0.0};
+
+      for (int t = 0; t < kWindow; ++t) {
+        c += (double)x[(size_t)(kStart + t)] * turn;
+        turn *= step;
+      }
+
+      total += std::norm(c);
+      ++bins;
+    }
+
+    return total / (double)bins;
+  };
+
+  // The split's own filter, so that what is expected is exact at each band
+  // and not the idealised two flat halves.
+  const double a = 1.0 - std::exp(-kTwoPi * kHissSplitHz / sr);
+  const auto expected = [a, kTwoPi, sr](const FixedHiss &fixed, double notes,
+                                        int from, int to) {
+    const double low = fixed.low + (1.0 - fixed.low) * notes;
+    const double high = fixed.high + (1.0 - fixed.high) * notes;
+    double total = 0.0;
+    int bins = 0;
+
+    for (int k = from; k < to; k += 3) {
+      if (k % 220 == 0)
+        continue;
+
+      const auto z = std::polar(1.0, -kTwoPi * (double)k / sr);
+      const auto onePole = a / (1.0 - (1.0 - a) * z);
+      const auto lowPass = onePole * onePole;
+      total += std::norm(std::sqrt(low) * lowPass +
+                         std::sqrt(high) * (1.0 - lowPass));
+      ++bins;
+    }
+
+    return 10.0 * std::log10(total / (double)bins);
+  };
+
+  for (const auto &[c, fixed] : {std::pair{Character::Fm, kFmFixedHiss},
+                                 std::pair{Character::Pd, kPdFixedHiss}}) {
+    const auto one = render(c, {57});
+    const auto four = render(c, {57, 69, 81, 93});
+
+    for (const auto &[from, to] :
+         {std::pair{1000, 3000}, std::pair{15000, 19000}}) {
+      const double grew = 10.0 * std::log10(noiseBetween(four, from, to) /
+                                            noiseBetween(one, from, to));
+      const double want = expected(fixed, 4.0, from, to);
+
+      std::printf("  %-3s %5d to %5d Hz: four keys %+.2f dB over one, "
+                  "expected %+.2f\n",
+                  characterName(c), from, to, grew, want);
+
+      check(std::abs(grew - want) < 0.4,
+            std::string(characterName(c)) + "'s noise from " +
+                std::to_string(from) + " Hz grows as measured with four keys");
+    }
+  }
+}
+
 /// PD's second harmonic, made on the bus by the measured bow in the
 /// phase distortion synthesizer's mix, and the sum and difference tones that
 /// bow makes between notes.
@@ -12052,6 +12163,7 @@ int main() {
   testWheelWobble();
   testWheelLeaks();
   testSynthesizerNoise();
+  testHissOverKeys();
   testPdSumming();
   testUnitSpread();
   testRenderedSpectrum();

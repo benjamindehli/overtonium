@@ -319,6 +319,15 @@ private:
   void sumChunk(float *left, float *right, int numFrames, const SynthParams &p,
                 Activity &into, const SharedModulation &shared) noexcept;
 
+  /// The noise under FM's and PD's notes, one source for the whole
+  /// instrument and sized from every voice rendered in this chunk at once.
+  /// Part of it follows the sum of the notes' powers, and a fixed share
+  /// follows only the loudest note, so the hiss does not build up as keys are
+  /// added. See kFmFixedHiss.
+  void renderHiss(float *left, float *right, int numFrames,
+                  const SynthParams &p,
+                  const std::array<bool, kPoolSize> &rendered) noexcept;
+
   /// Steps the modulators a whole keyboard shares and hands back what it read.
   ///
   /// One value per control block boundary per channel, worked out before any
@@ -413,6 +422,14 @@ private:
   /// Where the tonewheel organ's motor is in its turn. One for the whole
   /// instrument, because one motor drives every wheel. See SharedModulation.
   double motorTurns = 0.0;
+
+  /// The synthesizers' noise: its own stream, the gain each band reached at
+  /// the end of the last block, and the low band's two filter stages.
+  Xorshift hissRandom{0x7f4a7c15u};
+  float hissLowGain = 0.0f;
+  float hissHighGain = 0.0f;
+  float hissFirst = 0.0f;
+  float hissLowState = 0.0f;
 
   /// Where the reduced rate has got to between host samples, carried across
   /// blocks so the hold pattern does not restart every buffer.

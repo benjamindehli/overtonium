@@ -111,7 +111,6 @@ void Voice::prepare(double newSampleRate, uint32_t seed) noexcept {
   rng.reseed(seed);
   noise.rng.reseed(seed ^ 0x5bf03635u);
   wheelRng.reseed(seed ^ 0x2545f491u);
-  hissRng.reseed(seed ^ 0x7f4a7c15u);
 
   reset();
 }
@@ -142,7 +141,7 @@ void Voice::reset() noexcept {
   noise.stringAlive = false;
   noise.damperSeconds = 0.0f;
   leaks.fill(Leak{});
-  hissLastGain = 0.0f;
+  blockPowers.fill(0.0f);
   noisePeak = 0.0f;
   noiseEnvelope = 0.0f;
   noiseTremolo = 0.0f;
@@ -476,7 +475,6 @@ void Voice::takeOver(const Voice &from) noexcept {
   noise.gainPrimed = from.noise.gainPrimed;
 
   leaks = from.leaks;
-  hissLastGain = from.hissLastGain;
 
   pressureSmoothed = from.pressureSmoothed;
 }
@@ -509,12 +507,10 @@ void Voice::render(float *left, float *right, int numSamples,
 
   const bool wheel = p.global.character == Character::Wheel;
 
-  // The two synthesizers, which carry their measured noise under each note.
+  // The two synthesizers, whose noise the engine adds from every note's
+  // power at once. See SynthEngine::renderHiss.
   const bool hiss = p.global.character == Character::Fm ||
                     p.global.character == Character::Pd;
-  const double hissDbPerHz = p.global.character == Character::Fm
-                                 ? kFmNoiseDbPerHz + kFmByEar.noiseDb
-                                 : kPdNoiseDbPerHz + kPdByEar.noiseDb;
   const auto &sine = SineTable::instance();
 
   // One pole per control block rather than per sample, which is where every
@@ -974,8 +970,8 @@ void Voice::render(float *left, float *right, int numSamples,
                                        12.0),
                   notePower, foldAliases);
 
-    if (hiss)
-      renderHiss(left + start, right + start, len, notePower, hissDbPerHz);
+    if (hiss && block < kMaxPowerBlocks)
+      blockPowers[(size_t)block] = (float)notePower;
 
     renderNoise(left + start, right + start, len, p, pressure, shared, block);
 
@@ -1000,8 +996,6 @@ void Voice::render(float *left, float *right, int numSamples,
     // below anything audible, and the next note finds its wheels afresh.
     for (auto &leak : leaks)
       leak.lastGain = 0.0f;
-
-    hissLastGain = 0.0f;
   }
 }
 
@@ -1062,38 +1056,6 @@ void Voice::renderLeaks(float *left, float *right, int len, double keyFreq,
     leak.phase = ph;
     leak.lastGain = target;
   }
-}
-
-void Voice::renderHiss(float *left, float *right, int len, double power,
-                       double dbPerHz) noexcept {
-  // The level per hertz was measured against the fundamental of a mono
-  // recording. Here a centred partial of amplitude a puts a / sqrt 2 in each
-  // channel, so each channel's note power is the sum of a squared over four,
-  // and white noise spread over half the rate has that much per hertz times
-  // half the rate.
-  const double variance =
-      std::pow(10.0, dbPerHz / 10.0) * (0.25 * power) * (0.5 * sampleRate);
-
-  // A uniform draw between -1 and 1 has a variance of a third.
-  const auto target = (float)std::sqrt(3.0 * variance);
-
-  if (hissLastGain <= 0.0f && target <= 0.0f)
-    return;
-
-  float g = hissLastGain;
-  const float gInc = (target - g) / (float)len;
-
-  // One noise for both channels, since both synthesizers are mono.
-  for (int n = 0; n < len; ++n) {
-    const float s = hissRng.bipolar() * g;
-
-    left[n] += s;
-    right[n] += s;
-
-    g += gInc;
-  }
-
-  hissLastGain = target;
 }
 
 void Voice::renderNoise(float *left, float *right, int len,

@@ -301,15 +301,50 @@ inline constexpr double kBusReferenceAmplitude = 0.70710678118654752;
 /// to about 62 and 72 dB under the note.
 ///
 /// While a note sounds, both floors are about 5 dB above the take with no
-/// note, so the noise follows the note, which is what the voice does with it.
-/// It is white, sized to the note's partials and silent when nothing plays.
-/// See kFmByEar for what is added to it.
+/// note, so the noise follows the note. It is white, sized to the notes'
+/// partials and silent when nothing plays, and how it grows as keys are added
+/// is kFmFixedHiss. See kFmByEar for what is added to it.
 ///
 /// Close to each tone there is also a faint skirt, which is not included. It
 /// holds less power than the floor, and on the operator most of it is the
 /// vibrato in the takes.
 inline constexpr double kFmNoiseDbPerHz = -105.5;
 inline constexpr double kPdNoiseDbPerHz = -114.5;
+
+/// How much of each synthesizer's noise is a fixed hiss, which does not grow
+/// as keys are added, below and above kHissSplitHz.
+///
+/// Both were recorded again as a chord built up one key every four seconds,
+/// C3, C4, G4, C5 and E5, each held. The frequency modulation synthesizer's
+/// noise between the lines fits a fixed part plus a part that follows the
+/// signal's power, within a decibel above 400 Hz and three below. With one key
+/// the fixed part is about a third of it below 6.4 kHz and more than three
+/// quarters above, which is where hiss is heard. So from one key to five its
+/// noise above 6.4 kHz grows 2.8 dB while the signal grows 7. The share above
+/// is the one that growth gives at two, four and five keys alike. With the
+/// two bands split as the engine splits them, the model grows within about a
+/// decibel of the instrument at every count of keys.
+///
+/// The phase distortion synthesizer's fixed part is 2 to 10% with one key,
+/// which is too little to hear, so its noise is all the part that follows the
+/// signal. Its floor between the lines did jump when G4 and E5 came in, but
+/// that was its sum and difference tones, which its bus makes. See
+/// kPdSummingH2Db.
+///
+/// The fixed part is sized by the loudest note sounding rather than by
+/// nothing at all, so a quiet patch hisses less and there is no hiss when
+/// nothing plays. With one note the two parts add up to the measured level,
+/// exactly as before.
+struct FixedHiss {
+  double low; ///< share of a single note's noise that is fixed, below the split
+  double high; ///< and above it
+};
+
+inline constexpr FixedHiss kFmFixedHiss{0.32, 0.78};
+inline constexpr FixedHiss kPdFixedHiss{0.0, 0.0};
+
+/// Where the noise is split into its two bands, in Hz.
+inline constexpr double kHissSplitHz = 6400.0;
 
 /// Which tonewheel band a partial at this frequency reads.
 inline int wheelBandFor(double freq) noexcept {
