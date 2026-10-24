@@ -572,6 +572,11 @@ private:
       out[n] = {from[n][0] * gain, from[n][1] * gain};
     }
 
+    // The DCO's second harmonic comes from its mix, so the bus makes it rather
+    // than the table. See kDcoSummingH2Db.
+    if (c == Character::Dco)
+      out[1] = {};
+
     return out;
   }
 

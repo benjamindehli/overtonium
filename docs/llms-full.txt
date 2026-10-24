@@ -520,7 +520,7 @@ The resonator is part of the patch. Metallic Piano and Space Cowboy use it, and 
 
 ## Bus drive
 
-The thirty-three channels are not just added together. They are summed onto a bus with drive, by an amount and in a style set by the oscillator character. So a patch gets louder into the same kind of saturation a mixing desk would give it. It responds to level, not to a setting: play quietly and it is barely there, play hard and you hear it. Pure, Operator and DCO sum cleanly and add nothing. There is no knob, because the amount is part of the character you choose.
+The thirty-three channels are not just added together. They are summed onto a bus with drive, by an amount and in a style set by the oscillator character. So a patch gets louder into the same kind of saturation a mixing desk would give it. It responds to level, not to a setting: play quietly and it is barely there, play hard and you hear it. Pure and Operator sum cleanly and add nothing. DCO's bus has the slight bow measured in the phase distortion synthesizer's own mix, which gives each note its second harmonic and gives a chord faint sum and difference tones between its notes, as the instrument does. There is no knob, because the amount is part of the character you choose.
 
 ## Echo
 

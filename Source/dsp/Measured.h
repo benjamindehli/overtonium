@@ -264,6 +264,31 @@ struct ByEar {
 inline constexpr ByEar kOperatorByEar{3.0, 0.0};
 inline constexpr ByEar kDcoByEar{6.0, 3.0};
 
+/// Where the DCO's second harmonic comes from, which is the mix and not each
+/// oscillator.
+///
+/// Held as a chord, the phase distortion synthesizer makes sum and difference
+/// tones between its notes, every one of them at -51 to -53 dB against a note.
+/// One quadratic shared by the whole mix makes those exactly 6 dB above the
+/// second harmonic it gives a single note, and the single note's second
+/// harmonic is -57.7, so the mix is where it comes from. Its third-order
+/// products are 14 to 23 dB below what a shared curve would give for its
+/// third harmonic, so the third and those above it belong to each oscillator
+/// and stay in the table. The frequency modulation synthesizer's products are
+/// 25 to 40 dB below what a shared curve would give, so its harmonics all
+/// belong to each operator, and it has no curve on its mix.
+///
+/// So the DCO's second harmonic is made by a quadratic on the bus, sized so
+/// that one partial at full fader and full velocity, which is
+/// kBusReferenceAmplitude in each channel, gets the measured -58 dB. A chord
+/// then makes sum and difference tones between its notes and partials, as the
+/// instrument does. See BusDrive.
+inline constexpr double kDcoSummingH2Db = -58.0;
+
+/// What one partial at full fader and full velocity, panned to the centre,
+/// comes to in each channel where the bus sees it.
+inline constexpr double kBusReferenceAmplitude = 0.70710678118654752;
+
 /// The noise under each of the two synthesizers' notes, in dB per hertz
 /// against the note's fundamental (dBc/Hz).
 ///

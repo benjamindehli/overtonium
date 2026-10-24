@@ -2491,6 +2491,13 @@ void testMeasuredCharacters() {
           recipeDb(*probe.recipe, n) + (n > 1 ? probe.liftDb : 0.0);
       const double got = harmonicDb(w, n);
 
+      // The DCO's second harmonic is made on the bus, so its table has none.
+      // See testDcoSumming.
+      if (probe.c == Character::Dco && n == 2) {
+        worst = std::max(worst, std::max(0.0, got + 100.0));
+        continue;
+      }
+
       worst = std::max(worst, want > -80.0 ? std::abs(got - want)
                                            : std::max(0.0, got + 75.0));
     }
@@ -3038,6 +3045,114 @@ void testSynthesizerNoise() {
     check(tail < 1.0e-6, "and the noise goes with the note when it is "
                          "released (" +
                              std::to_string(tail) + ")");
+  }
+}
+
+/// The DCO's second harmonic, made on the bus by the measured bow in the
+/// phase distortion synthesizer's mix, and the sum and difference tones that
+/// bow makes between notes.
+///
+/// One quadratic on the mix gives a single sine a second harmonic of c A / 2
+/// and two sines sum and difference tones of c A against each, which is 6 dB
+/// above it. That ratio is what the instrument measured, and is what showed
+/// the bow is on the mix.
+void testDcoSumming() {
+  section("DCO summing");
+
+  constexpr double sr = 48000.0;
+  constexpr double kTwoPi = 6.283185307179586;
+  constexpr int kStart = 24000;
+  constexpr int kLength = 72000;
+
+  const auto render = [sr, kLength](Character c,
+                                    std::initializer_list<int> notes,
+                                    float volume) {
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+    engine.setPolyphony(4);
+
+    auto p = makeFlatParams(0.0f);
+    p.osc[0].volume = volume;
+    p.osc[0].tuneBlend = 1.0f;
+    p.osc[0].decay = 8.0f;
+    p.global.character = c;
+    p.global.busDrive = (float)BusDrive::amountFor(c);
+
+    for (int note : notes)
+      engine.noteOn(note, 1.0f, p);
+
+    std::vector<float> l((size_t)kLength), r((size_t)kLength);
+    engine.render(l.data(), r.data(), kLength, p);
+    return l;
+  };
+
+  const auto levelAt = [kTwoPi, sr, kStart,
+                        kLength](const std::vector<float> &x, double hz) {
+    std::complex<double> sum{};
+    double norm = 0.0;
+
+    for (int n = kStart; n < kLength; ++n) {
+      const double t = (double)(n - kStart) / (double)(kLength - kStart);
+      const double w =
+          0.42 - 0.5 * std::cos(kTwoPi * t) + 0.08 * std::cos(2.0 * kTwoPi * t);
+      sum += w * (double)x[(size_t)n] *
+             std::polar(1.0, -kTwoPi * hz * (double)n / sr);
+      norm += w;
+    }
+
+    return 20.0 * std::log10(std::max(1.0e-12, 2.0 * std::abs(sum) / norm));
+  };
+
+  const double a4 = 440.0;
+  const double e5 = 440.0 * std::exp2(7.0 / 12.0);
+  const double second = kDcoSummingH2Db + kDcoByEar.harmonicsDb;
+
+  // One partial at full fader: the second harmonic it was measured with.
+  {
+    const auto x = render(Character::Dco, {69}, 1.0f);
+    const double got = levelAt(x, 2.0 * a4) - levelAt(x, a4);
+
+    std::printf("  one partial at full fader: second harmonic %.1f dB, "
+                "expected %.1f\n",
+                got, second);
+
+    check(std::abs(got - second) < 0.3,
+          "one partial at full fader gets the measured second harmonic");
+
+    // Half the fader, half the bow: 6 dB less.
+    const auto half = render(Character::Dco, {69}, 0.5f);
+    const double quieter = levelAt(half, 2.0 * a4) - levelAt(half, a4);
+
+    check(std::abs(quieter - (second - 6.02)) < 0.3,
+          "and 6 dB less at half the fader (" + std::to_string(quieter) +
+              " dB)");
+  }
+
+  // Two notes: sum and difference tones 6 dB above that, as measured.
+  {
+    const auto x = render(Character::Dco, {69, 76}, 1.0f);
+    const double note = levelAt(x, a4);
+    const double sum = levelAt(x, a4 + e5) - note;
+    const double difference = levelAt(x, e5 - a4) - note;
+
+    std::printf("  A4 and E5: sum tone %.1f dB and difference tone %.1f dB, "
+                "expected %.1f\n",
+                sum, difference, second + 6.02);
+
+    check(std::abs(sum - (second + 6.02)) < 0.5 &&
+              std::abs(difference - (second + 6.02)) < 0.5,
+          "two notes make sum and difference tones 6 dB above the second "
+          "harmonic, as the instrument does");
+  }
+
+  // The operator's mix measured clean, so it makes none. Not below -100 dB,
+  // because its own noise comes to about -101 in this window.
+  {
+    const auto x = render(Character::Operator, {69, 76}, 1.0f);
+
+    check(levelAt(x, a4 + e5) - levelAt(x, a4) < -80.0,
+          "and Operator makes no sum tone");
   }
 }
 
@@ -9467,7 +9582,7 @@ void testBusDriveIsSmooth() {
   double worstOverall = 0.0;
 
   for (auto c : {Character::Rail, Character::Diode, Character::Valve,
-                 Character::Opamp, Character::Wheel}) {
+                 Character::Opamp, Character::Wheel, Character::Dco}) {
     double worst = 0.0, worstLevel = 0.0;
 
     // In fine steps, because the fault was at one level and every level
@@ -11941,6 +12056,7 @@ int main() {
   testWheelWobble();
   testWheelLeaks();
   testSynthesizerNoise();
+  testDcoSumming();
   testUnitSpread();
   testRenderedSpectrum();
   testAliasing();
