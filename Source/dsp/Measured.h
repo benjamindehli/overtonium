@@ -23,7 +23,12 @@ namespace ovt {
 /// a table. The tonewheel's flutter is handled in the voice. One of the
 /// synthesizers had a vibrato in the takes, which came from its LFO and not
 /// from its tone, so it is not included.
-using MeasuredRecipe = std::array<std::array<float, 2>, 5>;
+///
+/// Room for ten harmonics. The tonewheel uses the first five, as the circuits
+/// do, and the two synthesizers use all ten. See harmonicsFor.
+inline constexpr int kMeasuredHarmonics = 10;
+
+using MeasuredRecipe = std::array<std::array<float, 2>, kMeasuredHarmonics>;
 
 /// Where each of the tonewheel bands below starts, in Hz.
 ///
@@ -106,6 +111,10 @@ inline constexpr std::array<MeasuredRecipe, 7> kWheelRecipes{{
 /// within two decibels and the others within five:
 ///
 ///   2nd -57.1, 3rd -66.7, 4th -72.5, 5th -71.1 dB on the fundamental
+///   6th -69.5, 7th -74.5, 8th -69.8, 9th -74.5, 10th -70.9
+///
+/// Ten rather than five, because the upper ones stay level at about -70 dB
+/// instead of falling away. Together they hold 14% of the harmonic power.
 ///
 /// That is thirty-five decibels below Rail's third harmonic, but it is still
 /// not a pure sine. The noise between the harmonics also rises by six
@@ -115,7 +124,12 @@ inline constexpr MeasuredRecipe kOperatorRecipe{{{1.0f, 0.0f},
                                                  {-8.2557e-04f, -1.1348e-03f},
                                                  {4.4523e-04f, -1.2926e-04f},
                                                  {-2.2984e-04f, 5.4516e-05f},
-                                                 {-2.4276e-04f, 1.3594e-04f}}};
+                                                 {-2.4276e-04f, 1.3594e-04f},
+                                                 {-2.9924e-04f, -1.5054e-04f},
+                                                 {1.3757e-04f, -1.2954e-04f},
+                                                 {-2.7770e-04f, -1.6513e-04f},
+                                                 {-1.1735e-04f, 1.4676e-04f},
+                                                 {-2.7895e-04f, -5.8257e-05f}}};
 
 /// The oscillator of a phase distortion synthesizer, with the distortion
 /// turned fully off.
@@ -125,11 +139,17 @@ inline constexpr MeasuredRecipe kOperatorRecipe{{{1.0f, 0.0f},
 /// lowest key to the highest, and there is no modulation in the takes.
 ///
 ///   2nd -58.0, 3rd -63.7, 4th -67.9, 5th -73.2 dB on the fundamental
+///   6th -79.1, 7th -75.3, 8th -73.1, 9th -118.0, 10th -81.4
 inline constexpr MeasuredRecipe kDcoRecipe{{{1.0f, 0.0f},
                                             {1.3230e-04f, 1.2575e-03f},
                                             {-6.4099e-04f, 1.3650e-04f},
                                             {1.1715e-04f, 3.8723e-04f},
-                                            {-2.0258e-04f, 8.0492e-05f}}};
+                                            {-2.0258e-04f, 8.0492e-05f},
+                                            {-4.9999e-05f, -9.9016e-05f},
+                                            {-1.4300e-04f, 9.4750e-05f},
+                                            {-1.3438e-04f, -1.7572e-04f},
+                                            {1.0274e-06f, 7.4000e-07f},
+                                            {-6.5028e-05f, -5.5200e-05f}}};
 
 /// How a tonewheel moves as it turns.
 ///
@@ -230,11 +250,10 @@ inline constexpr double kLowestWheelHz = 32.70;
 ///
 /// The tables hold the measured harmonics exactly, and next to the recordings
 /// they still sound a little too clean. A table cannot hold what the
-/// recordings have besides their harmonics: the noise under each note, and on
-/// the operator the 6th to 10th harmonics, which stay at about -70 dB and are
-/// past where the tables stop. So the harmonics that are in the tables are
-/// lifted a little to make up for it. The figure was set by ear, not measured.
-/// The tonewheel is not lifted, because it does not sound too clean.
+/// recordings have besides their harmonics: the noise under each note. So the
+/// harmonics are lifted a little to make up for it. The figure was set by ear,
+/// not measured. The tonewheel is not lifted, because it does not sound too
+/// clean.
 inline constexpr double kSynthesizerLiftDb = 6.0;
 
 /// Which tonewheel band a partial at this frequency reads.

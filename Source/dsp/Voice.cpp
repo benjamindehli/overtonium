@@ -761,7 +761,7 @@ void Voice::render(float *left, float *right, int numSamples,
       // depends on how fast the wave is asking the amplifier to move.
       const auto &wave =
           characters.table(p.global.character, freq,
-                           foldAliases ? kMaxCharacterHarmonic
+                           foldAliases ? kMostCharacterHarmonics
                                        : highestHarmonicUnder(freq, sampleRate),
                            unit.drive[(size_t)i]);
 
@@ -1023,7 +1023,7 @@ void Voice::renderLeaks(float *left, float *right, int len, double keyFreq,
     // cross-fade a partial uses.
     const auto &wave =
         tables.table(Character::Wheel, freq,
-                     foldAliases ? kMaxCharacterHarmonic
+                     foldAliases ? kMostCharacterHarmonics
                                  : highestHarmonicUnder(freq, sampleRate));
 
     float g = leak.lastGain;

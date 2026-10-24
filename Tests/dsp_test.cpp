@@ -1962,7 +1962,7 @@ void testCharacter() {
     }
 
     for (double pitch : pitches)
-      for (int highest = 1; highest <= kMaxCharacterHarmonic; ++highest) {
+      for (int highest = 1; highest <= harmonicsFor((Character)c); ++highest) {
         const auto &w = tables.table((Character)c, pitch, highest);
 
         double dc = 0.0, peak = 0.0;
@@ -2475,7 +2475,7 @@ void testMeasuredCharacters() {
                       &kWheelRecipes[band], 0.0, "a tonewheel"});
 
   for (const auto &probe : probes) {
-    const auto &w = tables.table(probe.c, probe.freq, kMaxCharacterHarmonic);
+    const auto &w = tables.table(probe.c, probe.freq, harmonicsFor(probe.c));
 
     check(&w != &SineTable::instance(),
           std::string(probe.what) + " at " + std::to_string(probe.freq) +
@@ -2483,7 +2483,7 @@ void testMeasuredCharacters() {
 
     double worst = 0.0;
 
-    for (int n = 1; n <= kMaxCharacterHarmonic; ++n) {
+    for (int n = 1; n <= harmonicsFor(probe.c); ++n) {
       // Below -80 dB the table's interpolation error affects the reading, so
       // those harmonics only have to be quiet.
       const double want =
@@ -2518,6 +2518,33 @@ void testMeasuredCharacters() {
     check(recipeDb(*r, 2) > -60.0 && recipeDb(*r, 2) < -55.0,
           "a synthesizer's sine has a quiet second harmonic (" +
               std::to_string(recipeDb(*r, 2)) + " dB)");
+
+  // ---- ten harmonics on the synthesizers
+  // -------------------------------------
+  //
+  // Their upper harmonics stay around -70 dB instead of falling away, so they
+  // carry ten. Everything else carries five, as it always has.
+  check(harmonicsFor(Character::Operator) == 10 &&
+            harmonicsFor(Character::Dco) == 10 &&
+            harmonicsFor(Character::Wheel) == 5 &&
+            harmonicsFor(Character::Valve) == 5,
+        "the synthesizers carry ten harmonics and every other character five");
+
+  // And each of the operator's bands stops where it says, which is what keeps
+  // the extra harmonics from folding back down on a high partial.
+  {
+    bool stops = true;
+
+    for (int highest = 2; highest < harmonicsFor(Character::Operator);
+         ++highest) {
+      const auto &w = tables.table(Character::Operator, 440.0, highest);
+
+      stops &= harmonicDb(w, highest) > -80.0;
+      stops &= harmonicDb(w, highest + 1) < -100.0;
+    }
+
+    check(stops, "every band of the operator stops at its own harmonic");
+  }
 
   // ---- one of everything ---------------------------------------------------
   //

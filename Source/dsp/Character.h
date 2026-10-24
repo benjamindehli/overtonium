@@ -328,13 +328,25 @@ private:
 /// harmonic, and the voice picks the highest one that fits under Nyquist at
 /// the pitch the partial is currently at.
 ///
-/// Five is where the recipes below stop being worth carrying: past it the
-/// levels are under -50 dB, which is below what the interpolation error of the
-/// table itself amounts to.
+/// Five is where the circuits' recipes stop being worth carrying: past it
+/// their levels are under -50 dB, far below their own lower harmonics.
 inline constexpr int kMaxCharacterHarmonic = 5;
 
+/// The most any character carries, which is the size every recipe is held
+/// at. The two synthesizers need all of it: their harmonics are around -70 dB
+/// from the 2nd to the 10th, so stopping at five would leave out part of what
+/// was measured.
+inline constexpr int kMostCharacterHarmonics = kMeasuredHarmonics;
+
+/// How many harmonics this character carries.
+inline int harmonicsFor(Character c) noexcept {
+  return c == Character::Operator || c == Character::Dco
+             ? kMostCharacterHarmonics
+             : kMaxCharacterHarmonic;
+}
+
 /// Tables per shape, one for each count of harmonics that fits.
-inline constexpr int kCharacterBands = kMaxCharacterHarmonic - 1;
+inline int bandsFor(Character c) noexcept { return harmonicsFor(c) - 1; }
 
 /// Where a full-scale sine first asks the amplifier to move faster than it
 /// can, in Hz.
@@ -394,7 +406,7 @@ inline int slewBandFor(double freq) noexcept {
 
 /// Every table an oscillator can read, built once and then only read.
 ///
-/// A hundred and eight of them, 1.8 MB, which sounds like a lot next to one
+/// A hundred and eighteen of them, 1.9 MB, which sounds like a lot next to one
 /// 16 kB sine until you count what it replaces: the alternative is a waveshaper
 /// in the inner loop and four times oversampling to keep it from aliasing,
 /// which is the whole engine again three times over. A patch only ever reads
@@ -436,7 +448,7 @@ public:
     if (shape < 0)
       return SineTable::instance();
 
-    const auto band = std::min(highestHarmonic, kMaxCharacterHarmonic) - 2;
+    const auto band = std::min(highestHarmonic, harmonicsFor(c)) - 2;
 
     return tables[(size_t)(base[which] + at(c, drive, shape) + band)];
   }
@@ -448,13 +460,13 @@ public:
   /// that has more than a single shape.
   /// @param drive  which of kDriveVariants, the nominal one by default, which
   /// is what every figure written down about these characters describes.
-  const std::array<Harmonic, kMaxCharacterHarmonic> &
+  const std::array<Harmonic, kMostCharacterHarmonics> &
   harmonics(Character c, int shapeBand = 0,
             int drive = kNominalDrive) const noexcept {
     const auto shape = std::clamp(shapeBand, 0, shapeCount(c) - 1);
 
     return recipes[(size_t)(recipeBase[(size_t)c] +
-                            at(c, drive, shape) / kCharacterBands)];
+                            at(c, drive, shape) / bandsFor(c))];
   }
 
   /// How many shapes a character has. One for everything that is a fixed
@@ -477,7 +489,7 @@ private:
   static int at(Character c, int drive, int shape) noexcept {
     const auto which = std::clamp(drive, 0, driveCountFor(c) - 1);
 
-    return (which * shapeCount(c) + shape) * kCharacterBands;
+    return (which * shapeCount(c) + shape) * bandsFor(c);
   }
 
   CharacterTables() {
@@ -511,7 +523,7 @@ private:
 
           bool worthIt = false;
 
-          for (int n = 2; n <= kMaxCharacterHarmonic; ++n)
+          for (int n = 2; n <= harmonicsFor((Character)c); ++n)
             worthIt |= std::hypot(recipe[(size_t)(n - 1)].sine,
                                   recipe[(size_t)(n - 1)].cosine) > kAudible;
 
@@ -520,8 +532,8 @@ private:
           // Built for every shape once any of them is worth building, so the
           // bands stay at a fixed stride and a quiet one in the middle cannot
           // shift the rest out from under the index.
-          build(recipe);
-          offset += kCharacterBands;
+          build(recipe, harmonicsFor((Character)c));
+          offset += bandsFor((Character)c);
         }
 
       shaped[(size_t)c] = anything;
@@ -535,7 +547,7 @@ private:
   }
 
   /// The measured harmonics of a recorded character.
-  static std::array<Harmonic, kMaxCharacterHarmonic>
+  static std::array<Harmonic, kMostCharacterHarmonics>
   measured(Character c, int shape) noexcept {
     const auto &from = c == Character::Wheel
                            ? kWheelRecipes[(size_t)std::clamp(
@@ -549,7 +561,7 @@ private:
                           ? 1.0f
                           : (float)std::pow(10.0, kSynthesizerLiftDb / 20.0);
 
-    std::array<Harmonic, kMaxCharacterHarmonic> out{};
+    std::array<Harmonic, kMostCharacterHarmonics> out{};
 
     for (size_t n = 0; n < out.size(); ++n) {
       const auto gain = n == 0 ? 1.0f : lift;
@@ -695,9 +707,9 @@ private:
   /// top of it. DC comes out in the analysis and is simply not built back in,
   /// which matters more here than it looks: 512 oscillators each carrying a
   /// small offset is headroom quietly disappearing.
-  static std::array<Harmonic, kMaxCharacterHarmonic>
+  static std::array<Harmonic, kMostCharacterHarmonics>
   analyse(const std::vector<double> &cycle) noexcept {
-    std::array<Harmonic, kMaxCharacterHarmonic> out{};
+    std::array<Harmonic, kMostCharacterHarmonics> out{};
 
     for (int n = 1; n <= kMaxCharacterHarmonic; ++n) {
       double sn = 0.0, cs = 0.0;
@@ -730,10 +742,11 @@ private:
   /// because each band is the band below it plus one more harmonic. Building
   /// them separately would be the same work four times over, and this runs at
   /// startup where something is waiting for it.
-  void build(const std::array<Harmonic, kMaxCharacterHarmonic> &recipe) {
+  void build(const std::array<Harmonic, kMostCharacterHarmonics> &recipe,
+             int harmonics) {
     std::vector<double> sum((size_t)kPoints, 0.0);
 
-    for (int n = 1; n <= kMaxCharacterHarmonic; ++n) {
+    for (int n = 1; n <= harmonics; ++n) {
       const auto &h = recipe[(size_t)(n - 1)];
 
       for (int i = 0; i < kPoints; ++i) {
@@ -768,7 +781,7 @@ private:
   static constexpr double kTwoPi = 6.283185307179586476;
 
   std::vector<Wave> tables;
-  std::vector<std::array<Harmonic, kMaxCharacterHarmonic>> recipes;
+  std::vector<std::array<Harmonic, kMostCharacterHarmonics>> recipes;
 
   /// Where each character's tables and recipes start, and whether it has any
   /// tables at all.
@@ -784,7 +797,7 @@ private:
 /// rather than folding it back down.
 inline int highestHarmonicUnder(double freq, double sampleRate) noexcept {
   if (freq <= 0.0 || sampleRate <= 0.0)
-    return kMaxCharacterHarmonic;
+    return kMostCharacterHarmonics;
 
   // Against the same 0.49 the fundamental's own fade ends at rather than
   // against Nyquist itself, so a harmonic that lands exactly on it is dropped
