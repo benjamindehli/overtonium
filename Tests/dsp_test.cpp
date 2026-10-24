@@ -3134,7 +3134,8 @@ void testHissOverKeys() {
   };
 
   for (const auto &[c, fixed] : {std::pair{Character::Fm, kFmFixedHiss},
-                                 std::pair{Character::Pd, kPdFixedHiss}}) {
+                                 std::pair{Character::Pd, kPdFixedHiss},
+                                 std::pair{Character::Sid, kSidFixedHiss}}) {
     const auto one = render(c, {57});
     const auto four = render(c, {57, 69, 81, 93});
 
@@ -3260,6 +3261,244 @@ void testPdSumming() {
 
     check(levelAt(x, a4 + e5) - levelAt(x, a4) < -80.0,
           "and FM makes no sum tone");
+  }
+}
+
+/// The 6581: a sine run through the chip's measured converter and the bow
+/// after it, as a table of 32 harmonics, with the chip's fixed hiss.
+void testSid6581() {
+  section("6581");
+
+  const auto &tables = CharacterTables::instance();
+
+  const auto db = [](const Harmonic &h) {
+    return 20.0 * std::log10(std::max(
+                      1.0e-12, std::hypot((double)h.sine, (double)h.cosine)));
+  };
+
+  // ---- the converter, as measured ------------------------------------------
+  //
+  // Every bit worth less than twice the one below, which is what makes the
+  // output fall back where many bits change at once.
+  bool short_ = true;
+
+  for (size_t b = 1; b < kSidBitWeights.size() - 2; ++b)
+    short_ &= kSidBitWeights[b] < 2.0 * kSidBitWeights[b - 1];
+
+  check(short_, "every bit up to the tenth is worth less than twice the one "
+                "below it");
+
+  const auto levelOf = [](int code) {
+    double sum = 0.0;
+    for (int b = 0; b < 12; ++b)
+      sum += ((code >> b) & 1) * kSidBitWeights[(size_t)b];
+    return sum;
+  };
+
+  const double step = 1.0 / 4095.0;
+  const double middle = (levelOf(2048) - levelOf(2047)) / step;
+
+  check(middle < -50.0, "and the output falls back by " +
+                            std::to_string(-middle) +
+                            " average steps from code 2047 to 2048");
+
+  // ---- the table -----------------------------------------------------------
+  check(harmonicsFor(Character::Sid) == 32 &&
+            driveCountFor(Character::Sid) == 1,
+        "the 6581 carries 32 harmonics at one drive");
+
+  // The table carries the part of the bow inside each voice, and the bus the
+  // part on the mix. Together they give a full partial the whole of it.
+  const auto &h = tables.harmonics(Character::Sid);
+  const double inVoice =
+      20.0 * std::log10((kSidQuadratic - kSidMixQuadratic) / 2.0);
+  const double second = 20.0 * std::log10(kSidQuadratic / 2.0);
+
+  check(std::abs(db(h[1]) - inVoice) < 0.3,
+        "its table's second harmonic is the bow inside each voice (" +
+            std::to_string(db(h[1])) + " dB against " +
+            std::to_string(inVoice) + ")");
+
+  check(db(h[2]) > -45.0 && db(h[2]) < -40.0,
+        "its third is the converter's (" + std::to_string(db(h[2])) + " dB)");
+
+  bool tail = true;
+
+  for (int n = 11; n <= 31; n += 2)
+    tail &= db(h[(size_t)(n - 1)]) > -66.0 && db(h[(size_t)(n - 1)]) < -52.0;
+
+  check(tail, "and its odd harmonics stay between -66 and -52 dB from the "
+              "11th to the 31st");
+
+  // Every band stops where it says, so the tail drops out on a high partial
+  // rather than folding back down.
+  {
+    const auto harmonicDb = [](const Wave &w, int n) {
+      double re = 0.0, im = 0.0;
+      for (int i = 0; i < Wave::kSize; ++i) {
+        const double turns = (double)i / (double)Wave::kSize;
+        const double v = (double)w.at(turns);
+        re += v * std::cos(6.283185307179586 * (double)n * turns);
+        im += v * std::sin(6.283185307179586 * (double)n * turns);
+      }
+      return 20.0 * std::log10(std::max(1.0e-12, 2.0 * std::hypot(re, im) /
+                                                     (double)Wave::kSize));
+    };
+
+    bool stops = true;
+
+    for (int highest = 2; highest < 32; ++highest) {
+      const auto &w = tables.table(Character::Sid, 100.0, highest);
+      stops &= harmonicDb(w, highest + 1) < -100.0;
+    }
+
+    check(stops, "every band of the 6581 stops at its own harmonic");
+  }
+
+  // ---- through the engine --------------------------------------------------
+  constexpr double sr = 48000.0;
+  constexpr double kTwoPi = 6.283185307179586;
+  constexpr int kStart = 24000;
+  constexpr int kWindow = 48000;
+  constexpr int kLength = kStart + kWindow;
+
+  // One partial at full fader, with the 6581's bus, which is how the
+  // instrument plays it: the table's half of the bow and the bus's together.
+  const auto renderNotes = [sr, kLength](std::initializer_list<int> notes,
+                                         bool bus) {
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+    engine.setPolyphony(2);
+
+    auto p = makeFlatParams(0.0f);
+    p.osc[0].volume = 1.0f;
+    p.osc[0].tuneBlend = 1.0f;
+    p.osc[0].decay = 8.0f;
+    p.global.character = Character::Sid;
+    p.global.busDrive = bus ? (float)BusDrive::amountFor(Character::Sid) : 0.0f;
+
+    for (int note : notes)
+      engine.noteOn(note, 1.0f, p);
+
+    std::vector<float> out((size_t)kLength), right((size_t)kLength);
+    engine.render(out.data(), right.data(), kLength, p);
+    return out;
+  };
+
+  const auto l = renderNotes({69}, true);
+
+  // A4 is a whole number of cycles in the window, so every bin is exact.
+  const auto bin = [&l, kTwoPi, kStart, kWindow](int k) {
+    std::complex<double> c{};
+    const auto stepBy = std::polar(1.0, -kTwoPi * (double)k / (double)kWindow);
+    std::complex<double> turn{1.0, 0.0};
+
+    for (int t = 0; t < kWindow; ++t) {
+      c += (double)l[(size_t)(kStart + t)] * turn;
+      turn *= stepBy;
+    }
+
+    return c;
+  };
+
+  const double carrier = std::norm(bin(440));
+  const double rendered2 = 10.0 * std::log10(std::norm(bin(880)) / carrier);
+  const double rendered23 =
+      10.0 * std::log10(std::norm(bin(23 * 440)) / carrier);
+
+  std::printf("  A4 on the 6581: second harmonic %.1f dB, 23rd %.1f dB\n",
+              rendered2, rendered23);
+
+  check(std::abs(rendered2 - second) < 0.5 && rendered23 > -66.0,
+        "a rendered note has the whole bow's second harmonic and the "
+        "converter's high odd ones");
+
+  // Two notes: sum and difference tones from the part of the bow on the mix,
+  // a times one partial's swing against each note. A4 and E5, read at their
+  // exact frequencies.
+  {
+    const auto pair = renderNotes({69, 76}, true);
+    const double a4 = 440.0, e5 = 440.0 * std::exp2(7.0 / 12.0);
+
+    const auto levelAt = [&pair, kTwoPi, sr, kStart, kLength](double hz) {
+      std::complex<double> sum{};
+      double norm = 0.0;
+
+      for (int n = kStart; n < kLength; ++n) {
+        const double t = (double)(n - kStart) / (double)(kLength - kStart);
+        const double w = 0.42 - 0.5 * std::cos(kTwoPi * t) +
+                         0.08 * std::cos(2.0 * kTwoPi * t);
+        sum += w * (double)pair[(size_t)n] *
+               std::polar(1.0, -kTwoPi * hz * (double)n / sr);
+        norm += w;
+      }
+
+      return 20.0 * std::log10(2.0 * std::abs(sum) / norm);
+    };
+
+    const double note = levelAt(a4);
+    const double sumTone = levelAt(a4 + e5) - note;
+    const double want = 20.0 * std::log10(kSidMixQuadratic);
+
+    std::printf("  A4 and E5 on the 6581: sum tone %.1f dB, expected %.1f\n",
+                sumTone, want);
+
+    check(std::abs(sumTone - want) < 0.5,
+          "two notes make the sum tone the part of the bow on the mix gives");
+  }
+
+  // The noise per hertz against the fundamental, in a band below the split
+  // and one above it, worked out from the split's own filter. Read with the
+  // bus off: the noise is the chip's as it comes out of the voices, and the
+  // bus's half-band filters take a decibel or two off the top of everything.
+  const auto quiet = renderNotes({69}, false);
+  const auto quietBin = [&quiet, kTwoPi, kStart, kWindow](int k) {
+    std::complex<double> c{};
+    const auto stepBy = std::polar(1.0, -kTwoPi * (double)k / (double)kWindow);
+    std::complex<double> turn{1.0, 0.0};
+
+    for (int t = 0; t < kWindow; ++t) {
+      c += (double)quiet[(size_t)(kStart + t)] * turn;
+      turn *= stepBy;
+    }
+
+    return c;
+  };
+  const double quietCarrier = std::norm(quietBin(440));
+  const double a = 1.0 - std::exp(-kTwoPi * kHissSplitHz / sr);
+  const double low = std::pow(10.0, kSidNoiseLowDbPerHz / 10.0);
+  const double high = std::pow(10.0, kSidNoiseHighDbPerHz / 10.0);
+
+  for (const auto &[from, to] :
+       {std::pair{1000, 3000}, std::pair{15000, 19000}}) {
+    double measured = 0.0, expected = 0.0;
+    int bins = 0;
+
+    for (int k = from; k < to; k += 3) {
+      if (k % 440 == 0)
+        continue;
+
+      measured += std::norm(quietBin(k));
+
+      const auto z = std::polar(1.0, -kTwoPi * (double)k / sr);
+      const auto onePole = a / (1.0 - (1.0 - a) * z);
+      const auto lowPass = onePole * onePole;
+      expected += std::norm(std::sqrt(low) * lowPass +
+                            std::sqrt(high) * (1.0 - lowPass));
+      ++bins;
+    }
+
+    const double got = 10.0 * std::log10(measured / (double)bins * kWindow /
+                                         (sr * quietCarrier));
+    const double want = 10.0 * std::log10(expected / (double)bins);
+
+    std::printf("  noise from %d to %d Hz: %.1f dB per hertz, expected %.1f\n",
+                from, to, got, want);
+
+    check(std::abs(got - want) < 0.5, "the 6581's noise from " +
+                                          std::to_string(from) +
+                                          " Hz is the measured level");
   }
 }
 
@@ -9688,8 +9927,9 @@ void testBusDriveIsSmooth() {
 
   double worstOverall = 0.0;
 
-  for (auto c : {Character::Rail, Character::Diode, Character::Valve,
-                 Character::Opamp, Character::Wheel, Character::Pd}) {
+  for (auto c :
+       {Character::Rail, Character::Diode, Character::Valve, Character::Opamp,
+        Character::Wheel, Character::Pd, Character::Sid}) {
     double worst = 0.0, worstLevel = 0.0;
 
     // In fine steps, because the fault was at one level and every level
@@ -12165,6 +12405,7 @@ int main() {
   testSynthesizerNoise();
   testHissOverKeys();
   testPdSumming();
+  testSid6581();
   testUnitSpread();
   testRenderedSpectrum();
   testAliasing();

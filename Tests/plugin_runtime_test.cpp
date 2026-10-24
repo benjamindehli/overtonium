@@ -186,7 +186,7 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
   // Every global one, by hand, because the number is the point. Reading it
   // from the same constant the parameter is built from would check nothing.
   const List globals[] = {
-      {ovt::params::polyphonyId, 8},    {ovt::params::characterId, 9},
+      {ovt::params::polyphonyId, 8},    {ovt::params::characterId, 10},
       {ovt::params::temperamentId, 9},  {ovt::params::tuningRootId, 12},
       {ovt::params::referenceHzId, 11}, {ovt::params::atSourceId, 3},
       {ovt::params::slideDestId, 3},    {ovt::params::lofiRateId, 8},

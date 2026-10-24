@@ -45,6 +45,7 @@ namespace ovt {
 ///   Pure    none, and never any: it is the oscillator that is not a circuit
 ///   FM      none, because that synthesizer's mix measured clean
 ///   PD      the measured bow in that synthesizer's mix, at full strength
+///   6581    the measured bow in that chip's mix, at full strength
 ///
 /// Wheel uses the triode curve at Valve's amount, because the organ's own
 /// amplifier uses valves.
@@ -85,6 +86,7 @@ double BusDrive::amountFor(Character c) noexcept {
   case Character::Wheel:
     return 0.10;
   case Character::Pd:
+  case Character::Sid:
     return 1.0;
   case Character::Fm:
   case Character::Pure:
@@ -148,6 +150,25 @@ BusDrive::Recipe BusDrive::recipeFor(Character c, float amount,
         std::pow(10.0, (kPdSummingH2Db + kPdByEar.harmonicsDb) / 20.0);
     const double d = (double)std::clamp(amount, 0.0f, 1.0f) * 4.0 *
                      secondHarmonic / kBusReferenceAmplitude;
+
+    k.shape = Shape::Quadratic;
+    k.up.drive = k.down.drive = d;
+    k.up.scale = k.down.scale = 1.0 / d;
+    out.curve = k;
+
+    return out;
+  }
+
+  // The 6581's mix bows too, by the share of its bow measured as sum and
+  // difference tones between two voices. Its level was measured on a swing of
+  // -1 to 1, which is kBusReferenceAmplitude here, so x - a (s / r)^2 in the
+  // bus's own units is s - (a / r) s^2, and the bend divided by its drive d
+  // comes to a / r = d / 2. See kSidMixQuadratic.
+  if (c == Character::Sid) {
+    out.machine = Machine::Curve;
+
+    const double d = (double)std::clamp(amount, 0.0f, 1.0f) * 2.0 *
+                     kSidMixQuadratic / kBusReferenceAmplitude;
 
     k.shape = Shape::Quadratic;
     k.up.drive = k.down.drive = d;
@@ -261,6 +282,7 @@ BusDrive::Recipe BusDrive::recipeFor(Character c, float amount,
   case Character::Wheel:
   case Character::Fm:
   case Character::Pd:
+  case Character::Sid:
   case Character::Bulb:
   case Character::Pure:
   case Character::NumCharacters:
@@ -271,8 +293,8 @@ BusDrive::Recipe BusDrive::recipeFor(Character c, float amount,
     //
     // The rest are listed so that adding a character is a compiler error
     // here until somebody has decided what it does. None of them reaches
-    // this: Pure and FM have no stage at all, Bulb is a lamp and PD is
-    // a quadratic, which both leave above.
+    // this: Pure and FM have no stage at all, Bulb is a lamp and PD and the
+    // 6581 are quadratics, which all leave above.
     evenly(drive);
     k.bias = 0.2;
 

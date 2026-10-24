@@ -507,10 +507,11 @@ void Voice::render(float *left, float *right, int numSamples,
 
   const bool wheel = p.global.character == Character::Wheel;
 
-  // The two synthesizers, whose noise the engine adds from every note's
-  // power at once. See SynthEngine::renderHiss.
+  // The two synthesizers and the 6581, whose noise the engine adds from
+  // every note's power at once. See SynthEngine::renderHiss.
   const bool hiss = p.global.character == Character::Fm ||
-                    p.global.character == Character::Pd;
+                    p.global.character == Character::Pd ||
+                    p.global.character == Character::Sid;
   const auto &sine = SineTable::instance();
 
   // One pole per control block rather than per sample, which is where every
