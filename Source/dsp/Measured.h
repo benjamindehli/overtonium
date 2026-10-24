@@ -353,6 +353,10 @@ inline constexpr double kHissSplitHz = 6400.0;
 /// The 6581's 12-bit converter: what each bit of a code adds to the output,
 /// bit 0 first, scaled so that all twelve add up to one.
 ///
+/// The chip was played with SidStation ASID
+/// (https://github.com/benjamindehli/sidstation-asid), which writes its
+/// registers directly, so each take is the chip as set and nothing else.
+///
 /// The chip makes every waveform as a 12-bit code and turns it into a voltage
 /// with a resistor ladder whose bits are not weighted in exact powers of two.
 /// A slow sawtooth steps through every code in order, so each step from one
