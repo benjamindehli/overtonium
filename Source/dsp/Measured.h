@@ -4,20 +4,24 @@
 
 namespace ovt {
 
-/// The harmonics of the three characters that come from recordings.
+/// The harmonics of the four characters that come from recordings.
 ///
 /// The other characters are circuits that are simulated once at startup.
-/// These three are real instruments. Each one was recorded one sine at a
-/// time at 48 kHz and 24 bits, with a held note of about four seconds per key
-/// and one take with no note, to measure the noise floor. The harmonics were
-/// fitted by least squares over the steady part of each note, after fitting
-/// the note's exact pitch the same way.
+/// These four are real instruments. The tonewheel and the two synthesizers
+/// were recorded one sine at a time at 48 kHz and 24 bits, with a held note of
+/// about four seconds per key and one take with no note, to measure the noise
+/// floor. The harmonics were fitted by least squares over the steady part of
+/// each note, after fitting the note's exact pitch the same way.
 ///
 /// Each harmonic is stored the way the tables store it: the amplitude of the
 /// sine and of the cosine at n times the fundamental. The take is first
 /// shifted in time so that its fundamental is a sine with an amplitude of
 /// exactly one. The phases are the ones the instrument produced, including
 /// any phase shift from its output stage.
+///
+/// The 6581 has no sine to record, so what is stored for it is its
+/// converter and the bow after it, measured from its other waveforms, and the
+/// sine it would make is worked out from them. See kSidBitWeights.
 ///
 /// Only the steady tone is stored here. Changes over time cannot be stored in
 /// a table. The tonewheel's wobble and leakage, and the synthesizers' noise,
@@ -345,6 +349,56 @@ inline constexpr FixedHiss kPdFixedHiss{0.0, 0.0};
 
 /// Where the noise is split into its two bands, in Hz.
 inline constexpr double kHissSplitHz = 6400.0;
+
+/// The 6581's 12-bit converter: what each bit of a code adds to the output,
+/// bit 0 first, scaled so that all twelve add up to one.
+///
+/// The chip makes every waveform as a 12-bit code and turns it into a voltage
+/// with a resistor ladder whose bits are not weighted in exact powers of two.
+/// A slow sawtooth steps through every code in order, so each step from one
+/// code to the next was measured as the jump between straight lines fitted on
+/// either side of it, which leaves out the slow sag the output's coupling puts
+/// between steps. Every step changes a known set of bits, so the twelve weights
+/// were fitted to 163,800 steps from the three slowest sawtooths, at 87, 46
+/// and 23 samples per code at 192 kHz. Fitted one take at a time they agree on
+/// the shape within about 1%.
+///
+/// Each bit is worth 1.94 to 1.96 times the one below it rather than two, and
+/// the lowest few less still. So where many bits change at once the output
+/// falls back instead of stepping up: by 82 average steps from code 2047 to
+/// 2048, and by 18 to 26 at the quarters. That uneven staircase is most of
+/// what the chip sounds like.
+inline constexpr std::array<double, 12> kSidBitWeights{
+    5.4357173444e-04, 7.6113214830e-04, 1.2904715623e-03, 2.3227781767e-03,
+    4.4508006323e-03, 8.6247381393e-03, 1.6803809368e-02, 3.2777685621e-02,
+    6.4136530806e-02, 1.2544682802e-01, 2.5281303293e-01, 4.9002862086e-01};
+
+/// The bow after the converter: y = x - a x^2, with x the converter's level on
+/// a swing from -1 to 1.
+///
+/// The chip's triangle steps up and back down through the same codes, so a
+/// converter alone gives it no even harmonics at all, and the recorded
+/// triangles have them: -23 dB at the second, falling as one over n squared,
+/// which is what squaring a triangle gives. This is the quadratic that matches
+/// them at 16 Hz. Without refitting, the converter and the quadratic together
+/// give every harmonic of the 16 Hz triangle to within 0.5 dB and of the 8 Hz
+/// one to within 0.9, and the sawtooth's small pattern of even harmonics a few
+/// tenths of a decibel high.
+inline constexpr double kSidQuadratic = 0.1377;
+
+/// The 6581's noise, in dB per hertz against a full-scale sine's fundamental,
+/// below and above kHissSplitHz.
+///
+/// From the take with no note, with the other two voices routed into the
+/// filter to keep their leakage out. It falls with frequency, from -96 at 100
+/// to 400 Hz to -115 above 6.4 kHz, and the band below is its power mean over
+/// 100 Hz to 6.4 kHz. Above 6.4 kHz the floor while a note sounds is within a
+/// decibel of the floor with none, so it does not follow the note: all of it
+/// is fixed, sized by the loudest note so there is still none when nothing
+/// plays. About 66 dB under a full-scale note in all.
+inline constexpr double kSidNoiseLowDbPerHz = -104.4;
+inline constexpr double kSidNoiseHighDbPerHz = -115.0;
+inline constexpr FixedHiss kSidFixedHiss{1.0, 1.0};
 
 /// Which tonewheel band a partial at this frequency reads.
 inline int wheelBandFor(double freq) noexcept {

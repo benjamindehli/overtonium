@@ -38,6 +38,7 @@ enum class Character {
   Wheel,    ///< a tonewheel organ's generator, a wheel for every pitch
   Fm,       ///< a frequency modulation synthesizer's operator, alone
   Pd,       ///< a phase distortion synthesizer's oscillator, undistorted
+  Sid,      ///< a sine through a 6581's measured converter
   NumCharacters
 };
 
@@ -46,7 +47,8 @@ enum class Character {
 /// A recording has no drive setting, so it is built at one drive where the
 /// circuits are built at three.
 inline bool isMeasured(Character c) noexcept {
-  return c == Character::Wheel || c == Character::Fm || c == Character::Pd;
+  return c == Character::Wheel || c == Character::Fm || c == Character::Pd ||
+         c == Character::Sid;
 }
 
 /// What each one is called on the panel.
@@ -60,11 +62,12 @@ inline bool isMeasured(Character c) noexcept {
 /// Pure is the one exception and has to be. There is no part that makes a
 /// mathematically perfect sine, which is the whole point of it.
 ///
-/// The three recorded characters follow the same rule where they can. A
-/// tonewheel is a physical part. FM and PD are named for the two methods of
-/// synthesis instead, frequency modulation and phase distortion, since the
-/// instruments' own words for their oscillators are their makers' terms and
-/// read as something else to most players.
+/// The recorded characters follow the same rule where they can. A tonewheel
+/// is a physical part, and so is the 6581, the chip whose converter that
+/// character is measured from, named by its part number. FM and PD are named
+/// for the two methods of synthesis instead, frequency modulation and phase
+/// distortion, since the instruments' own words for their oscillators are
+/// their makers' terms and read as something else to most players.
 inline const char *characterName(Character c) {
   switch (c) {
   case Character::Wheel:
@@ -73,6 +76,8 @@ inline const char *characterName(Character c) {
     return "FM";
   case Character::Pd:
     return "PD";
+  case Character::Sid:
+    return "6581";
   case Character::Bulb:
     return "Bulb";
   case Character::Rail:
@@ -202,10 +207,11 @@ inline UnitTolerance unitToleranceFor(Character c) noexcept {
   case Character::Wheel:
     return {0.0f, 1.0f};
 
-  // Both synthesizers run from a crystal clock and calculate their levels
-  // digitally, so every unit is identical, as with Pure.
+  // Both synthesizers and the 6581 run from a clock and make their levels
+  // from numbers, so every unit is identical, as with Pure.
   case Character::Fm:
   case Character::Pd:
+  case Character::Sid:
     return {};
 
   // Pure is the one that is not a circuit, so a rack of them has no spread at
@@ -334,14 +340,22 @@ private:
 inline constexpr int kMaxCharacterHarmonic = 5;
 
 /// The most any character carries, which is the size every recipe is held
-/// at. The two synthesizers need all of it: their harmonics are around -70 dB
-/// from the 2nd to the 10th, so stopping at five would leave out part of what
-/// was measured.
-inline constexpr int kMostCharacterHarmonics = kMeasuredHarmonics;
+/// at. The 6581 needs all of it: the uneven steps in its converter give a
+/// sine odd harmonics that stay between -55 and -63 dB from the 11th to past
+/// the 30th, and that tail is its grit.
+inline constexpr int kMostCharacterHarmonics = 32;
 
 /// How many harmonics this character carries.
+///
+/// Five for the circuits and the tonewheel, whose harmonics fall away. Ten for
+/// the two synthesizers, whose harmonics stay around -70 dB from the 2nd to
+/// the 10th, so stopping at five would leave out part of what was measured.
+/// Thirty-two for the 6581.
 inline int harmonicsFor(Character c) noexcept {
-  return c == Character::Fm || c == Character::Pd ? kMostCharacterHarmonics
+  if (c == Character::Sid)
+    return kMostCharacterHarmonics;
+
+  return c == Character::Fm || c == Character::Pd ? kMeasuredHarmonics
                                                   : kMaxCharacterHarmonic;
 }
 
@@ -547,8 +561,11 @@ private:
   }
 
   /// The measured harmonics of a recorded character.
-  static std::array<Harmonic, kMostCharacterHarmonics>
-  measured(Character c, int shape) noexcept {
+  static std::array<Harmonic, kMostCharacterHarmonics> measured(Character c,
+                                                                int shape) {
+    if (c == Character::Sid)
+      return sid();
+
     const auto &from = c == Character::Wheel
                            ? kWheelRecipes[(size_t)std::clamp(
                                  shape, 0, (int)kWheelRecipes.size() - 1)]
@@ -566,7 +583,7 @@ private:
 
     std::array<Harmonic, kMostCharacterHarmonics> out{};
 
-    for (size_t n = 0; n < out.size(); ++n) {
+    for (size_t n = 0; n < from.size(); ++n) {
       const auto gain = n == 0 ? 1.0f : lift;
       out[n] = {from[n][0] * gain, from[n][1] * gain};
     }
@@ -575,6 +592,62 @@ private:
     // than the table. See kPdSummingH2Db.
     if (c == Character::Pd)
       out[1] = {};
+
+    return out;
+  }
+
+  /// What the 6581 makes of a sine, from its measured converter.
+  ///
+  /// A sine at full scale is rounded to the chip's 12-bit codes, each code is
+  /// turned into the level its bits add up to, and the measured bow is applied.
+  /// Worked out over many more points than a table holds, so the converter's
+  /// sharp steps do not fold back into the harmonics that are kept. The
+  /// fundamental is normalised to one and DC is left out, as for the circuits.
+  static std::array<Harmonic, kMostCharacterHarmonics> sid() {
+    constexpr int kFine = 1 << 16;
+
+    std::vector<double> level(4096);
+
+    for (int code = 0; code < 4096; ++code) {
+      double sum = 0.0;
+
+      for (int b = 0; b < 12; ++b)
+        sum += ((code >> b) & 1) * kSidBitWeights[(size_t)b];
+
+      // From the swing of 0 to 1 the weights add up to, to -1 to 1.
+      level[(size_t)code] = 2.0 * sum - 1.0;
+    }
+
+    std::vector<double> turn(kFine), cycle(kFine);
+
+    for (int i = 0; i < kFine; ++i)
+      turn[(size_t)i] = std::sin(kTwoPi * (double)i / (double)kFine);
+
+    for (int i = 0; i < kFine; ++i) {
+      const auto code = (int)std::lround(2047.5 + 2047.5 * turn[(size_t)i]);
+      const auto x = level[(size_t)std::clamp(code, 0, 4095)];
+      cycle[(size_t)i] = x - kSidQuadratic * x * x;
+    }
+
+    std::array<Harmonic, kMostCharacterHarmonics> out{};
+
+    for (int n = 1; n <= kMostCharacterHarmonics; ++n) {
+      double sn = 0.0, cs = 0.0;
+
+      for (int i = 0; i < kFine; ++i) {
+        const auto at = (size_t)(((int64_t)n * i) % kFine);
+        sn += cycle[(size_t)i] * turn[at];
+        cs += cycle[(size_t)i] * turn[(at + kFine / 4) % kFine];
+      }
+
+      out[(size_t)(n - 1)] = {(float)(2.0 * sn / kFine),
+                              (float)(2.0 * cs / kFine)};
+    }
+
+    const double first = std::hypot((double)out[0].sine, (double)out[0].cosine);
+
+    for (auto &h : out)
+      h = {(float)((double)h.sine / first), (float)((double)h.cosine / first)};
 
     return out;
   }
@@ -687,6 +760,7 @@ private:
     case Character::Wheel:
     case Character::Fm:
     case Character::Pd:
+    case Character::Sid:
     case Character::Pure:
     case Character::Bulb:
     case Character::NumCharacters:

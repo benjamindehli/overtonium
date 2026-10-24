@@ -87,6 +87,7 @@ double BusDrive::amountFor(Character c) noexcept {
   case Character::Pd:
     return 1.0;
   case Character::Fm:
+  case Character::Sid:
   case Character::Pure:
   case Character::NumCharacters:
     break;
@@ -261,6 +262,7 @@ BusDrive::Recipe BusDrive::recipeFor(Character c, float amount,
   case Character::Wheel:
   case Character::Fm:
   case Character::Pd:
+  case Character::Sid:
   case Character::Bulb:
   case Character::Pure:
   case Character::NumCharacters:

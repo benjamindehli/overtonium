@@ -6,7 +6,7 @@
         <title>Overtonium effects: character, echo, reverb, converter and CLIP</title>
         <meta
             name="description"
-            content="Overtonium&#x27;s top bar: nine oscillator characters, wobble, a resonator, bus drive, three echoes, three reverbs, a lo-fi converter and five clip shapes."
+            content="Overtonium&#x27;s top bar: ten oscillator characters, wobble, a resonator, bus drive, three echoes, three reverbs, a lo-fi converter and five clip shapes."
         />
         <meta name="author" content="Benjamin Dehli" />
         <meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -21,7 +21,7 @@
         <meta property="og:title" content="Overtonium effects: character, echo, reverb, converter and CLIP" />
         <meta
             property="og:description"
-            content="The bar across the top of Overtonium: nine oscillator characters that set which oscillator every partial is modelled on, a wobble across the whole series, a resonator of 88 sympathetic strings that resonate with what you play, a bus drive that responds to how hard you play, an echo and a reverb with three machines each, a lo-fi converter, and an output stage with five clip shapes including a lookahead limiter."
+            content="The bar across the top of Overtonium: ten oscillator characters that set which oscillator every partial is modelled on, a wobble across the whole series, a resonator of 88 sympathetic strings that resonate with what you play, a bus drive that responds to how hard you play, an echo and a reverb with three machines each, a lo-fi converter, and an output stage with five clip shapes including a lookahead limiter."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-effects.jpg" />
         <meta property="og:image:type" content="image/jpeg" />
@@ -33,7 +33,7 @@
         <meta name="twitter:title" content="Overtonium effects: character, echo, reverb, converter and CLIP" />
         <meta
             name="twitter:description"
-            content="The bar across the top of Overtonium: nine oscillator characters that set which oscillator every partial is modelled on, a wobble across the whole series, a resonator of 88 sympathetic strings that resonate with what you play, a bus drive that responds to how hard you play, an echo and a reverb with three machines each, a lo-fi converter, and an output stage with five clip shapes including a lookahead limiter."
+            content="The bar across the top of Overtonium: ten oscillator characters that set which oscillator every partial is modelled on, a wobble across the whole series, a resonator of 88 sympathetic strings that resonate with what you play, a bus drive that responds to how hard you play, an echo and a reverb with three machines each, a lo-fi converter, and an output stage with five clip shapes including a lookahead limiter."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-effects.jpg" />
         <meta name="twitter:image:alt" content="The Overtonium wordmark over the plugin window, captioned Effects." />
@@ -50,7 +50,7 @@
                 "@id": "https://benjamindehli.github.io/overtonium/effects/#webpage",
                 "url": "https://benjamindehli.github.io/overtonium/effects/",
                 "name": "Overtonium effects: character, echo, reverb, converter and CLIP",
-                "description": "Overtonium's top bar: nine oscillator characters, wobble, a resonator, bus drive, three echoes, three reverbs, a lo-fi converter and five clip shapes.",
+                "description": "Overtonium's top bar: ten oscillator characters, wobble, a resonator, bus drive, three echoes, three reverbs, a lo-fi converter and five clip shapes.",
                 "inLanguage": "en-GB",
                 "isPartOf": {
                     "@id": "https://benjamindehli.github.io/overtonium/#website"
@@ -247,7 +247,7 @@
                 <section id="character">
                     <h2>Character</h2>
                     <p>
-                        Chooses the oscillator that every partial uses, and is the first control in the group that sets up the series. All nine are
+                        Chooses the oscillator that every partial uses, and is the first control in the group that sets up the series. All ten are
                         sine oscillators. They differ in how each one fails to make a perfect sine.
                         <strong>Pure</strong> is an ideal sine that no real circuit produces. <strong>Bulb</strong> is a Wien bridge oscillator kept
                         steady by a lamp. It adds no harmonics at all, but its level lags half a second behind every change of pitch, so it reacts to
@@ -268,22 +268,32 @@
                     </p>
 
                     <p>
-                        <strong>Wheel</strong>, <strong>FM</strong> and <strong>PD</strong> are measured from recordings of real instruments, not
-                        simulated. <strong>Wheel</strong> is the tone generator of a tonewheel organ. Every pitch has its own wheel, so Wheel has
-                        seven sets of harmonics and picks one by the pitch of each partial. The low wheels have a strong second harmonic, -13 dB on
-                        the lowest C, which gets weaker up to A3 and then drops by fifteen decibels by C4. Above that the wheels are close to pure
-                        sines. The wheels also move slightly as they turn, as on the organ. Each one changes in pitch by about a cent and in level by
-                        about a tenth of a decibel once per turn of its shaft, between 16 and 31 times a second depending on the note, and the motor
-                        that drives them all moves every wheel together by about 0.9 cent at 25 Hz. A held note also carries faint tones from the
-                        wheels near it in the organ's generator: the same note one and two octaves down, and the wheels a fourth and a fifth below, 48
-                        to 55 dB under the note. They follow the note's level and stop at C1, the organ's lowest wheel. <strong>FM</strong> is one
-                        operator of a frequency modulation synthesizer with nothing modulating it, and <strong>PD</strong> is the oscillator of a
-                        phase distortion synthesizer with the distortion turned off. Both are nearly pure, with a second harmonic near -54 and -52 dB
-                        and weaker ones above it. That is about thirty decibels below Rail, so the difference from Pure is small, but it is there.
-                        Each note on them also carries the noise measured under the instrument's own notes, about 62 dB under the note on FM and 69 dB
-                        on PD, so they are not perfectly clean either. It follows the notes, so there is no hiss when nothing plays. On FM most of the
-                        hiss above 6.4 kHz is a fixed part that follows only the loudest note, as on the instrument, so it hardly builds up as you add
-                        keys: five keys add about 3.6 dB of hiss up there, where the notes themselves add 7.
+                        <strong>Wheel</strong>, <strong>FM</strong>, <strong>PD</strong> and <strong>6581</strong> are measured from recordings of
+                        real instruments, not simulated. <strong>Wheel</strong> is the tone generator of a tonewheel organ. Every pitch has its own
+                        wheel, so Wheel has seven sets of harmonics and picks one by the pitch of each partial. The low wheels have a strong second
+                        harmonic, -13 dB on the lowest C, which gets weaker up to A3 and then drops by fifteen decibels by C4. Above that the wheels
+                        are close to pure sines. The wheels also move slightly as they turn, as on the organ. Each one changes in pitch by about a
+                        cent and in level by about a tenth of a decibel once per turn of its shaft, between 16 and 31 times a second depending on the
+                        note, and the motor that drives them all moves every wheel together by about 0.9 cent at 25 Hz. A held note also carries faint
+                        tones from the wheels near it in the organ's generator: the same note one and two octaves down, and the wheels a fourth and a
+                        fifth below, 48 to 55 dB under the note. They follow the note's level and stop at C1, the organ's lowest wheel.
+                        <strong>FM</strong> is one operator of a frequency modulation synthesizer with nothing modulating it, and
+                        <strong>PD</strong> is the oscillator of a phase distortion synthesizer with the distortion turned off. Both are nearly pure,
+                        with a second harmonic near -54 and -52 dB and weaker ones above it. That is about thirty decibels below Rail, so the
+                        difference from Pure is small, but it is there. Each note on them also carries the noise measured under the instrument's own
+                        notes, about 62 dB under the note on FM and 69 dB on PD, so they are not perfectly clean either. It follows the notes, so
+                        there is no hiss when nothing plays. On FM most of the hiss above 6.4 kHz is a fixed part that follows only the loudest note,
+                        as on the instrument, so it hardly builds up as you add keys: five keys add about 3.6 dB of hiss up there, where the notes
+                        themselves add 7.
+                    </p>
+
+                    <p>
+                        <strong>6581</strong> is measured from a 6581 sound chip, which has no sine at all. It makes every waveform as a 12-bit number
+                        and turns it into a voltage with a ladder of resistors whose bits are not weighted exactly. Each bit is worth about 1.95 times
+                        the one below instead of twice, so where many bits change at once the output falls back instead of stepping up. That uneven
+                        staircase, and a slight bow after it, were measured from the chip's slow sawtooth and triangle, and the sine it would make is
+                        worked out from them. It has a second harmonic at -23 dB and a long tail of odd harmonics between -55 and -63 dB, which is the
+                        chip's grit, carried to the 32nd. It also has the chip's hiss, which stays the same however many keys you hold.
                     </p>
 
                     <p>
