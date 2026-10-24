@@ -9,7 +9,7 @@ HTML and is edited there.
 Any string here can name a count the source knows, and the generator fills it
 in rather than trusting whoever last typed it:
 
-    {presets}       the factory presets in words, "thirty-five"
+    {presets}       the factory presets in words, "thirty-eight"
     {parameters}    the host parameters in figures, "850"
     {preset_names}  every factory preset, in the order the menu lists them
 
@@ -387,7 +387,7 @@ LLMS_FACTS = [
     ('Output stage', 'the master fader drives a CLIP stage of five shapes, Soft, Hard, Asymmetric, Limiter and Fold, or Off. With the Limiter lookahead switched on in Settings, the Limiter looks 2 ms ahead and the plugin reports 108 samples of latency at 48 kHz whichever shape is chosen, so changing preset never changes the latency. Lookahead is off by default. The plugin then reports only the 12 samples of the bus stage, and the Limiter is rougher.'),
     ('Automation', '{parameters} parameters reach the host, 44 global, 23 on each of the 32 partials, 22 on the noise channel and 6 on each of the eight macros. A per-channel parameter has its channel in its name, such as "H7 Tune" or "Noise Level". Each parameter has its own id rather than being identified by its position, so when a release adds parameters, existing automation still controls the same things.'),
     ('Program change', 'a MIDI program change loads a factory preset by its position in the alphabetical Factory list, counting from zero, on any channel and with MPE on. Numbers past the last preset are ignored, and your own presets cannot be loaded this way.'),
-    ('Factory presets', "{preset_names}. Twenty-eight of them set an oscillator character, chosen by ear: eleven on Bulb, nine on Op-amp, five on Valve, two on Rail, one on Diode, and seven on Pure, four of those on purpose (Init, Just Saw, Equal Saw, 6581 Triangle, whose grit comes from the chip's arithmetic rather than anything analogue)."),
+    ('Factory presets', "{preset_names}. Thirty-three of them set an oscillator character, chosen by ear: ten on Op-amp, nine on Bulb, five on Valve, two each on Rail, Diode and 6581, one each on Wheel, FM and PD, and five on Pure, three of those on purpose (Init, Just Saw, Equal Saw)."),
     ('Audio examples', 'every section of the tuning page has audio, and so do glide, legato and every factory preset: Just Saw against Equal Saw and the TUNE sweep between them, a STRETCH sweep from harmonic out past a piano, one chord in equal against Werckmeister III, a run up the keyboard with tracking off and on, a held chord with and without drift, a phrase with glide off and on, a melody over chords with Legato off and on, and all {presets} presets playing the same spread C major. They are rendered by the plugin rather than recorded, so they always match what it does.'),
     ('Privacy', 'nothing reaches the network unless the update check is switched on, which is off by default and offered once.'),
 ]
