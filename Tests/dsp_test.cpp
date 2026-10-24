@@ -9894,6 +9894,103 @@ void testTapeEcho() {
 
 /// The warped record under the whole instrument.
 
+/// The bus does not dull what passes through it.
+///
+/// The curve's antialiasing reads it as its average over the step from the
+/// last sample, which on anything quiet is the mean of two neighbouring
+/// samples at the doubled rate, a low pass of its own. The filter that brings
+/// it back down lifts the top to undo it. Read as rms over whole seconds,
+/// because a sine's sample peaks at a few samples a cycle can miss its real
+/// peak by 3 dB and look like a loss that is not there.
+void testBusDriveIsFlat() {
+  section("Bus drive, flat to the top");
+
+  constexpr double kTwoPi = 6.283185307179586;
+
+  double worst = 0.0;
+
+  for (double sr : {44100.0, 48000.0, 96000.0}) {
+    const int n = (int)(2.0 * sr);
+
+    for (double f : {1000.0, 5000.0, 9000.0, 12000.0, 15000.0}) {
+      std::vector<float> l((size_t)n), r((size_t)n);
+
+      for (int i = 0; i < n; ++i)
+        l[(size_t)i] = r[(size_t)i] =
+            (float)(0.001 * std::sin(kTwoPi * f * (double)i / sr));
+
+      BusDrive bus;
+      bus.prepare(sr);
+      bus.process(l.data(), r.data(), n, Character::Valve, 1.0f);
+
+      double in = 0.0, out = 0.0;
+
+      for (int i = n / 2; i < n; ++i) {
+        const double x = 0.001 * std::sin(kTwoPi * f * (double)i / sr);
+        in += x * x;
+        out += (double)l[(size_t)i] * (double)l[(size_t)i];
+      }
+
+      worst = std::max(worst, std::abs(10.0 * std::log10(out / in)));
+    }
+  }
+
+  check(worst < 0.3, "a quiet signal comes through within 0.3 dB from 1 to "
+                     "15 kHz at 44.1, 48 and 96 kHz (" +
+                         std::to_string(worst) + " dB out at the worst)");
+
+  // The lift also lifts what the curve makes above the old Nyquist before the
+  // filter takes it out, so what folds back is checked as well: a 3.1 kHz
+  // partial at 80% through the hardest knee, and the loudest thing below
+  // 20 kHz that is not one of its harmonics.
+  {
+    constexpr double sr = 48000.0, f0 = 3100.0;
+    constexpr int kN = 96000, kW = 48000;
+
+    std::vector<float> l((size_t)kN), r((size_t)kN);
+
+    for (int i = 0; i < kN; ++i)
+      l[(size_t)i] = r[(size_t)i] =
+          (float)(0.8 * std::sin(kTwoPi * f0 * (double)i / sr));
+
+    BusDrive bus;
+    bus.prepare(sr);
+    bus.process(l.data(), r.data(), kN, Character::Opamp, 1.0f);
+
+    const auto at = [&l, kTwoPi, sr, kN, kW](double f) {
+      std::complex<double> c{};
+
+      for (int i = 0; i < kW; ++i)
+        c += (double)l[(size_t)(kN - kW + i)] *
+             std::polar(1.0, -kTwoPi * f * (double)i / sr);
+
+      return std::abs(c) * 2.0 / (double)kW;
+    };
+
+    const double partial = at(f0);
+    double folded = 0.0;
+
+    for (int k = 20; k < 20000; k += 10) {
+      const double nearest = std::round((double)k / f0) * f0;
+
+      if (std::abs((double)k - nearest) < 50.0)
+        continue;
+
+      folded = std::max(folded, at((double)k));
+    }
+
+    const double db = 20.0 * std::log10(folded / partial);
+
+    std::printf("  the hardest knee folds nothing below 20 kHz louder than "
+                "%.1f dB\n",
+                db);
+
+    check(db < -85.0,
+          "and nothing it folds back below 20 kHz comes near hearing (" +
+              std::to_string(db) + " dB)");
+  }
+}
+
 /// The bus the whole series is summed onto, which is the one place two
 /// partials meet.
 ///
@@ -12444,6 +12541,7 @@ int main() {
   testDigitalEcho();
   testBusDrive();
   testBusDriveIsSmooth();
+  testBusDriveIsFlat();
   testWobble();
   testReverb();
   testPlateReverb();
