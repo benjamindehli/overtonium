@@ -1336,11 +1336,15 @@ void SynthEngine::sumChunk(float *left, float *right, int numFrames,
     for (size_t i = 0; i < peaks.size(); ++i) {
       // A voice that reaches here is sounding, so it has something to say
       // about this partial even when what it is saying is that the partial
-      // is at zero. See Activity::claimed.
-      if (into.claimed[i] && peaks[i] <= into.peaks[i])
+      // is at zero. See Activity::claimed. The louder voice wins, and on a
+      // tie the newer note. See Activity::ages.
+      if (into.claimed[i] &&
+          (peaks[i] < into.peaks[i] ||
+           (exactly(peaks[i], into.peaks[i]) && v.getAge() <= into.ages[i])))
         continue;
 
       into.claimed[i] = true;
+      into.ages[i] = v.getAge();
       into.peaks[i] = peaks[i];
       into.envelopes[i] = envelopes[i];
       into.tremolos[i] = tremolos[i];
@@ -1349,8 +1353,11 @@ void SynthEngine::sumChunk(float *left, float *right, int numFrames,
       into.pressures[i] = pressures[i];
     }
 
-    if (!into.noiseClaimed || v.getNoisePeak() > into.noisePeak) {
+    if (!into.noiseClaimed || v.getNoisePeak() > into.noisePeak ||
+        (exactly(v.getNoisePeak(), into.noisePeak) &&
+         v.getAge() > into.noiseAge)) {
       into.noiseClaimed = true;
+      into.noiseAge = v.getAge();
       into.noisePeak = v.getNoisePeak();
       into.noiseEnvelope = v.getNoiseEnvelope();
       into.noiseTremolo = v.getNoiseTremolo();

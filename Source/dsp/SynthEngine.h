@@ -304,6 +304,15 @@ private:
     std::array<bool, kNumHarmonics> claimed{};
     bool noiseClaimed = false;
 
+    /// How new the note is that each partial's lamps are showing, by Voice's
+    /// age, so a tie on the peak can go to the newest note. A partial whose
+    /// fader is down is at zero on every note, so without this its lamps go
+    /// to whichever voice comes first in the pool, which is as often a note
+    /// that has finished its partials but is still counted as sounding, by its
+    /// noise channel's release, as the note just played.
+    std::array<uint64_t, kNumHarmonics> ages{};
+    uint64_t noiseAge = 0;
+
     float noisePeak = 0.0f;
     float noiseEnvelope = 0.0f;
     float noiseTremolo = 0.0f;

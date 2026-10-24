@@ -4934,6 +4934,67 @@ void testOneVoicePerKey() {
             std::to_string(loose.getActiveVoiceCount()) + ")");
 }
 
+/// A partial whose fader is down follows the note just played.
+///
+/// Every note is at zero on a partial with its fader down, so the lamps there
+/// are a tie between every voice still sounding. A note whose partials have
+/// finished is still sounding while its noise channel releases, 0.4 s by
+/// default and whatever its fader, so a tie that went to the first voice in
+/// the pool showed the old note's finished envelope on those lamps for most of
+/// the next note, and only on some notes, depending on which voice each got.
+void testLampsFollowNewestNote() {
+  section("Lamps follow the newest note");
+
+  constexpr double sr = 48000.0;
+  constexpr int kBlock = 256;
+
+  auto p = makeFlatParams(0.0f);
+
+  for (auto &o : p.osc) {
+    o.attack = 0.002f;
+    o.release = 0.002f;
+    o.decay = 0.1f;
+    o.sustain = 1.0f;
+  }
+
+  p.osc[0].volume = 1.0f;
+
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
+  engine.prepare(sr);
+  engine.setPolyphony(8);
+
+  std::vector<float> l((size_t)kBlock), r((size_t)kBlock);
+
+  const int notes[] = {60, 62, 60, 62, 64, 62};
+  int wrong = 0, read = 0;
+
+  for (int note : notes) {
+    engine.noteOn(note, 1.0f, p);
+
+    for (int b = 0; b < (int)(0.2 * sr / kBlock); ++b) {
+      engine.render(l.data(), r.data(), kBlock, p);
+
+      // Once the attack is over, both a raised partial and a lowered one show
+      // this note at full, rather than a finished one at nothing.
+      if (b > 0) {
+        ++read;
+        wrong += engine.getPartialEnvelope(5) < 0.5f ? 1 : 0;
+      }
+    }
+
+    engine.noteOff(note);
+
+    for (int b = 0; b < (int)(0.05 * sr / kBlock); ++b)
+      engine.render(l.data(), r.data(), kBlock, p);
+  }
+
+  check(wrong == 0, "a partial with its fader down shows the note just "
+                    "played (" +
+                        std::to_string(wrong) + " of " + std::to_string(read) +
+                        " readings showed an older one)");
+}
+
 /// What the lamps between the knob groups are told.
 ///
 /// They are fed from the voice pool rather than from the parameters, so they
@@ -12518,6 +12579,7 @@ int main() {
   testSympatheticStrings();
   testHeldExpression();
   testActivity();
+  testLampsFollowNewestNote();
   testPoolExhaustion();
   testLfoShapes();
   testEveryAmpShapeIsClickFree();
