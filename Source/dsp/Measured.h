@@ -379,32 +379,38 @@ inline constexpr std::array<double, 12> kSidBitWeights{
 /// The chip's triangle steps up and back down through the same codes, so a
 /// converter alone gives it no even harmonics at all, and the recorded
 /// triangles have them: -23 dB at the second, falling as one over n squared,
-/// which is what squaring a triangle gives. This is the quadratic that matches
-/// them at 16 Hz. Without refitting, the converter and the quadratic together
-/// give every harmonic of the 16 Hz triangle to within 0.5 dB and of the 8 Hz
-/// one to within 0.9, and the sawtooth's small pattern of even harmonics a few
-/// tenths of a decibel high.
-inline constexpr double kSidQuadratic = 0.1377;
+/// which is what squaring a triangle gives. Fitted to the 16 Hz triangle, a
+/// bow of 0.138 and the converter together give every harmonic of it within
+/// 0.5 dB and of the 8 Hz one within 0.9, without refitting, and the
+/// sawtooth's small pattern of even harmonics a few tenths of a decibel high.
+///
+/// Those takes had the chip's other two voices routed into its filter to keep
+/// their leakage out. Recorded again with the filter bypassed, which is the
+/// chip in its plain state, the voices come out 3.3 dB louder, and a voice at
+/// C4 has its second harmonic 0.6 dB stronger and everything else within half
+/// a decibel. So the bow is the one fitted to those takes, 0.146, and the
+/// level change is a gain after it.
+inline constexpr double kSidQuadratic = 0.146;
 
 /// How much of that bow comes after the chip's voices are mixed, on the same
 /// swing.
 ///
-/// Recorded as two voices together, triangles at C4 and G4, the chip makes
-/// sum and difference tones between them at -25.3 dB against each note. A bow
-/// entirely on the mix would make them at -17, and a bow entirely inside
-/// each voice would make none, so it is split: this much on the mix, and the
-/// rest of kSidQuadratic in each voice. Simulated with both triangles, it
-/// gives the sum and difference tones at -25.3 dB and a single voice its
-/// second harmonic at -23.2, as recorded. Each voice alone matches the
-/// converter within a decibel, so both voices' converters are alike.
+/// Recorded as two voices together, triangles at C4 and G4 with the filter
+/// bypassed, the chip makes sum and difference tones between them at -26.7 dB
+/// against each note. A bow entirely on the mix would make them at -17, and a
+/// bow entirely inside each voice would make none, so it is split: this much
+/// on the mix, 40% of it, and the rest of kSidQuadratic in each voice.
+/// Simulated with both triangles, that gives the sum and difference tones and
+/// a single voice's second harmonic as recorded. Each voice alone matches the
+/// converter within a decibel, so both voices' converters are alike. With
+/// the other voices routed into the filter, the mix's share came out at 50%.
 ///
-/// The weaker tones at a note's second harmonic less the other note were
-/// recorded at -47.7 dB, lower than a bow on the mix acting on what each
-/// voice's bow already made would give with triangles. So the mix's bow may
-/// act on the voices before their own bows, which one take cannot tell apart.
-/// With sines, as the partials are, those tones are far below the main ones
-/// either way.
-inline constexpr double kSidMixQuadratic = 0.0684;
+/// The weaker tones, at a note's second harmonic less the other note, were
+/// recorded at -41.3 dB, and at -47.7 with the filter in use. The model puts
+/// them at about -37 whether the mix's bow comes before the voices' own bows
+/// or after, so the order cannot be told from them. They are 15 dB or more
+/// below the main tones, and with sines, as the partials are, lower still.
+inline constexpr double kSidMixQuadratic = 0.058;
 
 /// The 6581's noise, in dB per hertz against a full-scale sine's fundamental,
 /// below and above kHissSplitHz.
