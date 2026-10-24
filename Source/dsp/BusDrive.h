@@ -271,16 +271,51 @@ private:
     return y;
   }
 
+  /// How much the filter that brings the curve back down lifts the top, to
+  /// undo what the antialiasing takes off it.
+  ///
+  /// Reading the curve as its average over the step from the last sample is
+  /// what keeps it from aliasing, and on anything quiet enough to stay on the
+  /// straight part of a curve that average is just the mean of two
+  /// neighbouring samples at the doubled rate. That is a low pass of its own:
+  /// cos(w / 2), which at 48 kHz takes 0.4 dB off 9 kHz, 1.1 dB off 15 kHz and
+  /// 2 dB off 20 kHz, on every character with a bus stage.
+  ///
+  /// [-k, 1 + 2k, -k] at the doubled rate lifts the top by close to the
+  /// inverse. At this k the two together stay within 0.2 dB from 20 Hz to
+  /// 20 kHz at 44.1, 48 and 96 kHz.
+  static constexpr double kLift = 0.17;
+
+  /// The filter that brings the curve back down: the half-band with the lift
+  /// folded into it, two taps longer and still symmetric. Its middle is one
+  /// tap further in, and the window is taken one sample earlier to match, so
+  /// it lands on the same sample as the half-band alone and the stage's
+  /// latency does not move.
+  static const std::array<double, Halfband::kTaps + 2> &downKernel() noexcept {
+    static const auto built = [] {
+      const auto &h = Halfband::kernel();
+      const double lift[3] = {-kLift, 1.0 + 2.0 * kLift, -kLift};
+      std::array<double, Halfband::kTaps + 2> d{};
+
+      for (size_t m = 0; m < h.size(); ++m)
+        for (size_t j = 0; j < 3; ++j)
+          d[m + j] += h[m] * lift[j];
+
+      return d;
+    }();
+
+    return built;
+  }
+
   /// Everything one side of the stereo field remembers.
   struct Channel {
     /// The samples as they arrived, newest first. Both the doubling and the
     /// bypass read out of this, which is what keeps the two the same length.
     std::array<double, Halfband::kHalf + 1> in{};
 
-    /// What came back from the circuit at the doubled rate, newest first, one
-    /// longer than the filter so the window can be taken from the sample that
-    /// lines up with the host's own.
-    std::array<double, Halfband::kTaps + 1> up{};
+    /// What came back from the circuit at the doubled rate, newest first, as
+    /// long as the filter that brings it back down. See downKernel.
+    std::array<double, Halfband::kTaps + 2> up{};
 
     double last = 0.0; ///< the curve's previous input
 

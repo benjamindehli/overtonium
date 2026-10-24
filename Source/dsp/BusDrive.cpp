@@ -366,12 +366,14 @@ double BusDrive::run(Channel &c, const Curve &k, double x,
   c.up[1] = first;
   c.up[0] = second;
 
-  // Back down, taking the window from one sample in so its middle lands on
-  // the one the host would have had rather than between two of them.
+  // Back down, through the half-band with the lift folded into it. Its middle
+  // lands on the one the host would have had rather than between two of them.
+  // See downKernel.
+  const auto &down = downKernel();
   double out = 0.0;
 
-  for (size_t m = 0; m < h.size(); ++m)
-    out += h[m] * c.up[m + 1];
+  for (size_t m = 0; m < down.size(); ++m)
+    out += down[m] * c.up[m];
 
   c.dc = out - c.dcIn + dcCoef * c.dc;
   c.dcIn = out;
