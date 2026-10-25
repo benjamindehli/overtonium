@@ -421,6 +421,11 @@ juce::Colour characterColour(Character c) {
   if (c == Character::Fm)
     return juce::Colour(0xff00825f);
 
+  // The VCO lights in a colour of its own as well, so adding it moved nobody
+  // else's.
+  if (c == Character::Vco)
+    return juce::Colour(0xffd9822b);
+
   // The fifth is where the red the mixer already uses sits, on channel 3, and
   // the seventh is the yellow at the top of the band. Running the characters
   // down between them puts the gentlest at the yellow end and the hardest on
@@ -434,8 +439,9 @@ juce::Colour characterColour(Character c) {
   // circuits, so their places are at the yellow end, and 6581 sits between
   // Valve and Wheel. The three keep their places, though they light in their
   // own colours, so the others keep the colours they had. Wheel sits next to
-  // Valve, because both are mostly a second harmonic. Pure is not on the band.
-  constexpr std::array<Character, (size_t)Character::NumCharacters - 1> kBand{
+  // Valve, because both are mostly a second harmonic. Pure is not on the band,
+  // and nor is the VCO, which came after the band was laid out.
+  constexpr std::array<Character, 9> kBand{
       Character::Pd,   Character::Fm,    Character::Bulb,
       Character::Rail, Character::Diode, Character::Valve,
       Character::Sid,  Character::Wheel, Character::Opamp};

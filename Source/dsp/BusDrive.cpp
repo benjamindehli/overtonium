@@ -85,6 +85,11 @@ double BusDrive::amountFor(Character c) noexcept {
     return 0.15;
   case Character::Wheel:
     return 0.10;
+  // Where the op-amp sits, as a starting point to be set by ear. The mixer it
+  // comes from has a level knob, so how hard it is driven is the player's
+  // choice on the instrument, and here it is part of choosing the character.
+  case Character::Vco:
+    return 0.10;
   case Character::Pd:
   case Character::Sid:
     return 1.0;
@@ -276,6 +281,20 @@ BusDrive::Recipe BusDrive::recipeFor(Character c, float amount,
     // See Character::Opamp and kSlewCornerHz.
     evenly(drive);
     k.shape = Shape::Cubic;
+    break;
+
+  case Character::Vco:
+    // The mixer the VCO was recorded through, which is straight until it
+    // bends over a short knee and then stops, at a rail on each side, and
+    // whose negative side reaches its rail 2.44 times sooner than the
+    // positive side. So the op-amp's corner, with the negative half driven
+    // that much harder, as the diodes' halves are. A clip that lopsided gives
+    // an octave as well as a twelfth. See kVcoMixerMismatch.
+    k.shape = Shape::Cubic;
+    k.up.drive = drive;
+    k.up.scale = 1.0 / drive;
+    k.down.drive = drive * kVcoMixerMismatch;
+    k.down.scale = 1.0 / (drive * kVcoMixerMismatch);
     break;
 
   case Character::Valve:

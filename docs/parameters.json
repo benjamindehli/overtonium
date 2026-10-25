@@ -57,7 +57,7 @@
     {"id": "mpe", "name": "MPE", "type": "switch", "default": "Off"},
     {"id": "stretch", "name": "Stretch", "type": "continuous", "min": "-1200 ct", "max": "+1200 ct", "default": "Harmonic"},
     {"id": "track", "name": "Tracking", "type": "continuous", "min": "Off", "max": "12.0 dB/oct", "default": "Off"},
-    {"id": "character", "name": "Character", "type": "choice", "choices": ["Pure", "Bulb", "Rail", "Diode", "Valve", "Op-amp", "Wheel", "FM", "PD", "6581"], "default": "Pure"},
+    {"id": "character", "name": "Character", "type": "choice", "choices": ["Pure", "Bulb", "Rail", "Diode", "Valve", "Op-amp", "Wheel", "FM", "PD", "6581", "VCO"], "default": "Pure"},
     {"id": "wobble", "name": "Wobble", "type": "continuous", "min": "0 %", "max": "100 %", "default": "0 %"},
     {"id": "temperament", "name": "Temperament", "type": "choice", "choices": ["Equal", "Just (major)", "Pythagorean", "Quarter-comma meantone", "Werckmeister III", "Young", "Adaptive", "Kirnberger III", "Vallotti"], "default": "Equal"},
     {"id": "tuningRoot", "name": "Tuning Root", "type": "choice", "choices": ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"], "default": "C"},

@@ -1368,7 +1368,8 @@ void SynthEngine::sumChunk(float *left, float *right, int numFrames,
 
   if (p.global.character == Character::Fm ||
       p.global.character == Character::Pd ||
-      p.global.character == Character::Sid)
+      p.global.character == Character::Sid ||
+      p.global.character == Character::Vco)
     renderHiss(left, right, numFrames, p, rendered);
 }
 
@@ -1376,7 +1377,8 @@ void SynthEngine::renderHiss(
     float *left, float *right, int numFrames, const SynthParams &p,
     const std::array<bool, kPoolSize> &rendered) noexcept {
   // Each instrument's level per hertz below and above the split, and how
-  // much of each is fixed. FM's and PD's are flat, the 6581's falls.
+  // much of each is fixed. FM's, PD's and the VCO's are flat, the 6581's
+  // falls.
   double lowDb = kFmNoiseDbPerHz + kFmByEar.noiseDb, highDb = lowDb;
   auto fixed = kFmFixedHiss;
 
@@ -1387,6 +1389,9 @@ void SynthEngine::renderHiss(
     lowDb = kSidNoiseLowDbPerHz;
     highDb = kSidNoiseHighDbPerHz;
     fixed = kSidFixedHiss;
+  } else if (p.global.character == Character::Vco) {
+    lowDb = highDb = kVcoNoiseDbPerHz;
+    fixed = kVcoFixedHiss;
   }
 
   // The level per hertz was measured against the fundamental of a mono

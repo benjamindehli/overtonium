@@ -4,10 +4,10 @@
 
 namespace ovt {
 
-/// The harmonics of the four characters that come from recordings.
+/// The harmonics of the five characters that come from recordings.
 ///
 /// The other characters are circuits that are simulated once at startup.
-/// These four are real instruments. The tonewheel and the two synthesizers
+/// These five are real instruments. The tonewheel and the two synthesizers
 /// were recorded one sine at a time at 48 kHz and 24 bits, with a held note of
 /// about four seconds per key and one take with no note, to measure the noise
 /// floor. The harmonics were fitted by least squares over the steady part of
@@ -29,7 +29,7 @@ namespace ovt {
 /// which came from its LFO and not from its tone, so it is not included.
 ///
 /// Room for ten harmonics. The tonewheel uses the first five, as the circuits
-/// do, and the two synthesizers use all ten. See harmonicsFor.
+/// do, and the two synthesizers and the VCO use all ten. See harmonicsFor.
 inline constexpr int kMeasuredHarmonics = 10;
 
 using MeasuredRecipe = std::array<std::array<float, 2>, kMeasuredHarmonics>;
@@ -429,6 +429,63 @@ inline constexpr double kSidMixQuadratic = 0.058;
 inline constexpr double kSidNoiseLowDbPerHz = -104.4;
 inline constexpr double kSidNoiseHighDbPerHz = -115.0;
 inline constexpr FixedHiss kSidFixedHiss{1.0, 1.0};
+
+/// A voltage-controlled oscillator's sine, straight from its output.
+///
+/// Recorded from a modulation oscillator that tracks the keyboard and makes a
+/// sine, at 192 kHz and 24 bits, on every C and F# from about 4 Hz to 6 kHz.
+/// Its shape hardly changes with pitch: from 16 Hz to 500 Hz every harmonic
+/// stays within half a decibel. In the top octave the second harmonic falls
+/// away, by 8 dB at 4.2 kHz, which is left out, since a partial that high has
+/// almost no room for harmonics under Nyquist anyway. Taken from C3 to C5,
+/// where the phases agree within five degrees. Below C3 the levels are the
+/// same but the output's coupling capacitor turns the phases.
+///
+///   2nd -24.7, 3rd -25.9, 4th -46.6, 5th -42.0 dB on the fundamental
+///   6th -56.1, 7th -53.1, 8th -62.1, 9th -57.2, 10th -64.6
+///
+/// A second and a third at about -25 dB is a sine made from a triangle by an
+/// analogue shaper, and as much as Rail or Valve add. Each take holds its
+/// pitch within a quarter of a cent. Between takes it moved by up to twenty,
+/// since its tuning is a potentiometer, which is the room and not the tone.
+inline constexpr MeasuredRecipe kVcoRecipe{{{1.0f, 0.0f},
+                                            {4.6386e-03f, -5.8213e-02f},
+                                            {5.0505e-02f, -6.4706e-03f},
+                                            {-1.4862e-03f, -4.4627e-03f},
+                                            {7.9406e-03f, -2.0611e-04f},
+                                            {9.2417e-04f, -1.2586e-03f},
+                                            {-2.1810e-03f, -3.2029e-04f},
+                                            {-7.4257e-04f, 2.6270e-04f},
+                                            {1.3764e-03f, 1.7846e-04f},
+                                            {5.8038e-04f, -9.2275e-05f}}};
+
+/// The noise under the VCO's notes, in dB per hertz against the fundamental.
+///
+/// Measured between the harmonics as for the synthesizers, on the notes from
+/// C3 to C5. Above 6.4 kHz it is -121.9 to -124.4, 25 dB above the recording
+/// chain's own floor, so it is the oscillator's. Nearer each note it rises
+/// into a skirt, the pitch moving very slightly all the time, which is not
+/// included. There was no way to silence the oscillator, so whether the noise
+/// is there between notes could not be measured, and it follows the note.
+inline constexpr double kVcoNoiseDbPerHz = -122.0;
+inline constexpr FixedHiss kVcoFixedHiss{0.0, 0.0};
+
+/// How much sooner the VCO's mixer clips its negative half than its positive
+/// one.
+///
+/// The oscillator was recorded through the mixer it feeds, driven from a
+/// voltage-controlled amplifier swept slowly from near silence to well past
+/// clipping, with the amplifier's output and the mixer's recorded together so
+/// the curve could be read sample against sample. Driven hard, the mixer is
+/// straight until it bends over a short knee and then stops rising, at a rail
+/// on each side, and the negative side's rail is 2.44 times nearer than the
+/// positive side's. Fitted as the op-amp bus's cubic knee on each side, with
+/// the output's coupling taken off, it matches the recording within 25 dB. A
+/// knee whose hardness was fitted as well came out only 1.5 dB closer, so the
+/// cubic the bus already has is used. A gentler sweep showed a soft bend well
+/// below the rails as well, about -40 dB, which is 15 dB under the
+/// oscillator's own harmonics and is left out.
+inline constexpr double kVcoMixerMismatch = 2.44;
 
 /// Which tonewheel band a partial at this frequency reads.
 inline int wheelBandFor(double freq) noexcept {

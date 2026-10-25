@@ -1,6 +1,6 @@
 Page: Playing Overtonium: MPE, automation, macros and MIDI Learn
 URL: https://benjamindehli.github.io/overtonium/playing/
-Last changed: 2026-10-24
+Last changed: 2026-10-25
 
 # Playing Overtonium
 
@@ -140,7 +140,7 @@ All 850 as the host lists them, with a control that every partial or every macro
 | `MPE`                        | `mpe`             | Off or on                                                                                                                          | Off        |
 | `Stretch`                    | `stretch`         | -1200 ct to +1200 ct                                                                                                               | Harmonic   |
 | `Tracking`                   | `track`           | Off to 12.0 dB/oct                                                                                                                 | Off        |
-| `Character`                  | `character`       | Pure, Bulb, Rail, Diode, Valve, Op-amp, Wheel, FM, PD, 6581                                                                        | Pure       |
+| `Character`                  | `character`       | Pure, Bulb, Rail, Diode, Valve, Op-amp, Wheel, FM, PD, 6581, VCO                                                                   | Pure       |
 | `Wobble`                     | `wobble`          | 0 % to 100 %                                                                                                                       | 0 %        |
 | `Temperament`                | `temperament`     | Equal, Just (major), Pythagorean, Quarter-comma meantone, Werckmeister III, Young, Adaptive, Kirnberger III, Vallotti              | Equal      |
 | `Tuning Root`                | `tuningRoot`      | C, C#, D, D#, E, F, F#, G, G#, A, A#, B                                                                                            | C          |
