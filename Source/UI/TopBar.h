@@ -291,9 +291,8 @@ public:
   /// here has. A word that does not fit is drawn with its middle taken out and
   /// nothing says so, which is why a test measures these rather than trusting
   /// them. See testBarButtonsFitTheirWords.
-  /// Both land on the same figure, from different directions: OP-AMP is 51 px
-  /// and DIGITAL is 50, and the air either side is what every other button on
-  /// the bar has.
+  /// OP-AMP is the longest character, at 51 px, and the resonator's longest
+  /// mode is 49 px, so both land on the same figure.
   static constexpr int kCharacterWidth = 62;
   static constexpr int kResonatorWidth = 62;
   static constexpr int kEchoWidth = 62;

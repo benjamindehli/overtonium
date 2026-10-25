@@ -41,8 +41,14 @@ namespace ovt {
 ///   Valve   10%
 ///   Op-amp  10%
 ///   Bulb    15%
+///   Wheel   10%
 ///   Pure    none, and never any: it is the oscillator that is not a circuit
+///   FM      none, because that synthesizer's mix measured clean
+///   PD      the measured bow in that synthesizer's mix, at full strength
+///   6581    the measured bow in that chip's mix, at full strength
 ///
+/// Wheel uses the triode curve at Valve's amount, because the organ's own
+/// amplifier uses valves.
 /// Found by ear, the first three on 26 September 2026 and the last two on the
 /// 27th. The lamp wants the most of any of them, which follows from it being
 /// the only one that is not distortion: what the others are asked for is an
@@ -77,6 +83,12 @@ double BusDrive::amountFor(Character c) noexcept {
     return 0.10;
   case Character::Bulb:
     return 0.15;
+  case Character::Wheel:
+    return 0.10;
+  case Character::Pd:
+  case Character::Sid:
+    return 1.0;
+  case Character::Fm:
   case Character::Pure:
   case Character::NumCharacters:
     break;
@@ -119,6 +131,49 @@ BusDrive::Recipe BusDrive::recipeFor(Character c, float amount,
     // oscillating ever shows.
     out.depth = (double)std::clamp(amount, 0.0f, 1.0f) * 2.0;
     out.warming = 1.0 - std::exp(-1.0 / (0.5 * sampleRate));
+
+    return out;
+  }
+
+  // The phase distortion synthesizer's mix, which bows by a measured amount
+  // rather than running into anything. Sized so that one partial at full fader
+  // gets the second harmonic the instrument's single notes have, plus what was
+  // added to its harmonics by ear. See kPdSummingH2Db.
+  //
+  // The second harmonic of a sine of amplitude A through x - c x^2 is c A / 2
+  // against the fundamental, and the bend divided by its drive d comes to
+  // c = d / 2.
+  if (c == Character::Pd) {
+    out.machine = Machine::Curve;
+
+    const double secondHarmonic =
+        std::pow(10.0, (kPdSummingH2Db + kPdByEar.harmonicsDb) / 20.0);
+    const double d = (double)std::clamp(amount, 0.0f, 1.0f) * 4.0 *
+                     secondHarmonic / kBusReferenceAmplitude;
+
+    k.shape = Shape::Quadratic;
+    k.up.drive = k.down.drive = d;
+    k.up.scale = k.down.scale = 1.0 / d;
+    out.curve = k;
+
+    return out;
+  }
+
+  // The 6581's mix bows too, by the share of its bow measured as sum and
+  // difference tones between two voices. Its level was measured on a swing of
+  // -1 to 1, which is kBusReferenceAmplitude here, so x - a (s / r)^2 in the
+  // bus's own units is s - (a / r) s^2, and the bend divided by its drive d
+  // comes to a / r = d / 2. See kSidMixQuadratic.
+  if (c == Character::Sid) {
+    out.machine = Machine::Curve;
+
+    const double d = (double)std::clamp(amount, 0.0f, 1.0f) * 2.0 *
+                     kSidMixQuadratic / kBusReferenceAmplitude;
+
+    k.shape = Shape::Quadratic;
+    k.up.drive = k.down.drive = d;
+    k.up.scale = k.down.scale = 1.0 / d;
+    out.curve = k;
 
     return out;
   }
@@ -224,16 +279,22 @@ BusDrive::Recipe BusDrive::recipeFor(Character c, float amount,
     break;
 
   case Character::Valve:
+  case Character::Wheel:
+  case Character::Fm:
+  case Character::Pd:
+  case Character::Sid:
   case Character::Bulb:
   case Character::Pure:
   case Character::NumCharacters:
     // The triode, biased so one half of the wave leans over before the other,
     // which is what puts an octave on top of every partial rather than a
-    // twelfth.
+    // twelfth. The tonewheel organ's amplifier also uses valves, so Wheel
+    // uses the same curve.
     //
-    // Bulb and Pure are listed so that adding a character is a compiler error
-    // here until somebody has decided what it does. Neither reaches this:
-    // Pure has no stage at all and Bulb is a lamp, which leaves above.
+    // The rest are listed so that adding a character is a compiler error
+    // here until somebody has decided what it does. None of them reaches
+    // this: Pure and FM have no stage at all, Bulb is a lamp and PD and the
+    // 6581 are quadratics, which all leave above.
     evenly(drive);
     k.bias = 0.2;
 
@@ -305,12 +366,14 @@ double BusDrive::run(Channel &c, const Curve &k, double x,
   c.up[1] = first;
   c.up[0] = second;
 
-  // Back down, taking the window from one sample in so its middle lands on
-  // the one the host would have had rather than between two of them.
+  // Back down, through the half-band with the lift folded into it. Its middle
+  // lands on the one the host would have had rather than between two of them.
+  // See downKernel.
+  const auto &down = downKernel();
   double out = 0.0;
 
-  for (size_t m = 0; m < h.size(); ++m)
-    out += h[m] * c.up[m + 1];
+  for (size_t m = 0; m < down.size(); ++m)
+    out += down[m] * c.up[m];
 
   c.dc = out - c.dcIn + dcCoef * c.dc;
   c.dcIn = out;

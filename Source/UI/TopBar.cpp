@@ -93,10 +93,10 @@ constexpr int kFxToggleGap = 6;
 
 /// Sized for the longest name it has to say, in the capitals the bar shouts
 /// everything in. Measured at the font the button picks from its own height,
-/// which at the bar's 24 px lands on the 13 px clamp: OP-AMP is 51 px, DIODE
-/// 40, VALVE 39, PURE and BULB 34 and RAIL 29. This is the widest of those plus
-/// the air either side that every other button on the bar has. It was 80 while
-/// the widest was SQUASHED at 69.
+/// which at the bar's 24 px lands on the 13 px clamp: OP-AMP is 51 px, WHEEL
+/// 45, DIODE 40, VALVE 39, PURE and BULB 34, RAIL 29, FM 19 and PD 18. This is
+/// the widest of those plus the air either side that every other button on the
+/// bar has.
 
 /// How far the master fader's cap stands proud of the lamps it lies on, at
 /// each end. A channel's cap does the same against its own meter, which is

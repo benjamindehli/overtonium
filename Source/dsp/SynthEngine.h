@@ -304,6 +304,15 @@ private:
     std::array<bool, kNumHarmonics> claimed{};
     bool noiseClaimed = false;
 
+    /// How new the note is that each partial's lamps are showing, by Voice's
+    /// age, so a tie on the peak can go to the newest note. A partial whose
+    /// fader is down is at zero on every note, so without this its lamps go
+    /// to whichever voice comes first in the pool, which is as often a note
+    /// that has finished its partials but is still counted as sounding, by its
+    /// noise channel's release, as the note just played.
+    std::array<uint64_t, kNumHarmonics> ages{};
+    uint64_t noiseAge = 0;
+
     float noisePeak = 0.0f;
     float noiseEnvelope = 0.0f;
     float noiseTremolo = 0.0f;
@@ -318,6 +327,15 @@ private:
   /// One pass of that, over as much as the shared modulators hold at once.
   void sumChunk(float *left, float *right, int numFrames, const SynthParams &p,
                 Activity &into, const SharedModulation &shared) noexcept;
+
+  /// The noise under FM's and PD's notes, one source for the whole
+  /// instrument and sized from every voice rendered in this chunk at once.
+  /// Part of it follows the sum of the notes' powers, and a fixed share
+  /// follows only the loudest note, so the hiss does not build up as keys are
+  /// added. See kFmFixedHiss.
+  void renderHiss(float *left, float *right, int numFrames,
+                  const SynthParams &p,
+                  const std::array<bool, kPoolSize> &rendered) noexcept;
 
   /// Steps the modulators a whole keyboard shares and hands back what it read.
   ///
@@ -409,6 +427,18 @@ private:
   /// One stream for the shared modulators, since they are one circuit each
   /// rather than one per voice. Only the random shapes draw from it.
   Xorshift sharedRandom{0x51ed270fu};
+
+  /// Where the tonewheel organ's motor is in its turn. One for the whole
+  /// instrument, because one motor drives every wheel. See SharedModulation.
+  double motorTurns = 0.0;
+
+  /// The synthesizers' noise: its own stream, the gain each band reached at
+  /// the end of the last block, and the low band's two filter stages.
+  Xorshift hissRandom{0x7f4a7c15u};
+  float hissLowGain = 0.0f;
+  float hissHighGain = 0.0f;
+  float hissFirst = 0.0f;
+  float hissLowState = 0.0f;
 
   /// Where the reduced rate has got to between host samples, carried across
   /// blocks so the hold pattern does not restart every buffer.

@@ -186,8 +186,8 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
   // Every global one, by hand, because the number is the point. Reading it
   // from the same constant the parameter is built from would check nothing.
   const List globals[] = {
-      {ovt::params::polyphonyId, 8},    {ovt::params::characterId, 6},
-      {ovt::params::temperamentId, 7},  {ovt::params::tuningRootId, 12},
+      {ovt::params::polyphonyId, 8},    {ovt::params::characterId, 10},
+      {ovt::params::temperamentId, 9},  {ovt::params::tuningRootId, 12},
       {ovt::params::referenceHzId, 11}, {ovt::params::atSourceId, 3},
       {ovt::params::slideDestId, 3},    {ovt::params::lofiRateId, 8},
       {ovt::params::lofiBitsId, 9},     {ovt::params::echoTypeId, 3},
@@ -3135,6 +3135,7 @@ void testThePresetDisplaySpells(OvertoniumProcessor &) {
 
       // And a cut on top of both, which is the longest name there is.
       {"2-bit Fuzz Organ", "2-BTFZZRG"},
+      {"KarplusStrong", "KRPLSSTRN"},
       {"Synth Ensemble", "SYNTHNSMB"},
   };
 
@@ -5538,9 +5539,11 @@ void testSettingsMenu(OvertoniumProcessor &p) {
   check(std::count(entries.begin(), entries.end(), std::string("Legato")) == 1,
         "and is there once, as the switch rather than as a voice count");
 
-  // The adaptive temperament is offered with the six fixed ones, last, so a
-  // session's stored choice keeps the temperament it always named, and the
-  // root stays live for it, since its versions are placed around the root.
+  // The adaptive temperament is offered with the eight fixed ones, last, and
+  // the root stays live for it, since its versions are placed around the
+  // root. The menu lists the historical ones by age, while the parameter keeps
+  // the order they were added in, so a session's stored choice keeps the
+  // temperament it always named.
   {
     std::vector<std::string> temperaments;
     bool rootLive = false;
@@ -5556,9 +5559,13 @@ void testSettingsMenu(OvertoniumProcessor &p) {
         rootLive = item.isEnabled;
     }
 
-    check(temperaments.size() == 7 && temperaments.back() == "Adaptive",
-          "the Temperament menu ends with Adaptive (" + joined(temperaments) +
-              ")");
+    check(joined(temperaments) ==
+              "Equal / Just (major) / Pythagorean / Quarter-comma meantone / "
+              "Werckmeister III / Vallotti / Kirnberger III / Young / "
+              "Adaptive / ",
+          "the Temperament menu lists the fixed ones by age and ends with "
+          "Adaptive (" +
+              joined(temperaments) + ")");
 
     if (auto *t = p.apvts.getParameter(ovt::params::temperamentId)) {
       t->setValueNotifyingHost(
@@ -7839,7 +7846,7 @@ void testSharedSettingsChoices(OvertoniumProcessor &p) {
       {st::kBendRange + 7, ovt::params::bendRangeId, 7},
       {st::kAftertouchFrom + 2, ovt::params::atSourceId, 2},
       {st::kSlideTo + 2, ovt::params::slideDestId, 2},
-      {st::kTemperament + 6, ovt::params::temperamentId, 6},
+      {st::kTemperament + 8, ovt::params::temperamentId, 8},
       {st::kRoot + 11, ovt::params::tuningRootId, 11},
       {st::kReferencePitch + 3, ovt::params::referenceHzId, 3},
   };
@@ -7932,7 +7939,7 @@ void testSharedSettingsChoices(OvertoniumProcessor &p) {
   }
 
   check(!st::apply(apvts, 700) && !st::apply(apvts, 800) &&
-            !st::apply(apvts, 820) && !st::apply(apvts, st::kTemperament + 7) &&
+            !st::apply(apvts, 820) && !st::apply(apvts, st::kTemperament + 9) &&
             !st::apply(apvts, st::kVoices),
         "undo, zoom, Fit all 32 channels and ids past a list are left to the "
         "menu");
@@ -10077,6 +10084,11 @@ void testBarButtonsFitTheirWords(OvertoniumProcessor &p) {
   const auto echoText = widest(echoWords);
   const auto characterText = widest(ovt::params::characterChoices());
 
+  // Each of them, since the comment on kCharacterWidth lists them.
+  for (const auto &name : ovt::params::characterChoices())
+    std::printf("  %-9s is %d px\n", name.toUpperCase().toRawUTF8(),
+                widest({name}));
+
   std::printf("  the echo's longest word is %d px and the character's %d, in "
               "buttons of %d and %d\n",
               echoText, characterText, TopBar::kEchoWidth,
@@ -10201,6 +10213,13 @@ void testBarComesOntoOneRow(OvertoniumProcessor &p) {
 
   // The figure the design notes quote. It moves whenever a control on the bar
   // changes width, and when it moves the notes move with it.
+  // And where it comes onto two and three, which the design notes also give.
+  for (int w = 475, lastHeight = TopBar::heightForWidth(475); w < onOneRow; ++w)
+    if (TopBar::heightForWidth(w) < lastHeight) {
+      lastHeight = TopBar::heightForWidth(w);
+      std::printf("  it gets a row shorter at %d px\n", w);
+    }
+
   check(onOneRow == 1285, "and comes onto it at the width written down (" +
                               std::to_string(onOneRow) + ")");
 }
@@ -11816,12 +11835,38 @@ void testCharacterControl(OvertoniumProcessor &p) {
   }
 
   check(ovt::ui::characterColour(ovt::Character::Bulb) ==
-            ovt::ui::intervalColour(11),
-        "the gentlest character stands at the yellow end of the mixer's band");
+            ovt::ui::bandColour(1.0f - 2.0f / 8.0f * (4.0f / 11.0f)),
+        "the circuits keep their places on the mixer's band");
+
+  // The three measured from a synthesizer or a chip light in their
+  // instrument's colour instead.
+  check(ovt::ui::characterColour(ovt::Character::Sid) ==
+                juce::Colour(0xff867ade) &&
+            ovt::ui::characterColour(ovt::Character::Pd) ==
+                juce::Colour(0xffd5df7c) &&
+            ovt::ui::characterColour(ovt::Character::Fm) ==
+                juce::Colour(0xff00825f),
+        "6581, PD and FM light in their instrument's colour");
 
   check(ovt::ui::characterColour(ovt::Character::Opamp) ==
             ovt::ui::intervalColour(ovt::harmonic(2).pitchClass),
         "and the hardest on the red of channel 3");
+
+  // The band runs by how hard each one is rather than by when it was added,
+  // so a list that left one out would put two characters on the same colour.
+  {
+    std::vector<juce::Colour> seen;
+
+    for (int c = 1; c < (int)ovt::Character::NumCharacters; ++c) {
+      const auto colour = ovt::ui::characterColour((ovt::Character)c);
+
+      check(std::find(seen.begin(), seen.end(), colour) == seen.end(),
+            std::string(ovt::characterName((ovt::Character)c)) +
+                " has a colour of its own");
+
+      seen.push_back(colour);
+    }
+  }
 
   set(ovt::Character::Pure);
   p.applyFactoryPreset(presetIndex("Init"));

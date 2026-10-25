@@ -6,7 +6,7 @@
         <title>Overtonium effects: character, echo, reverb, converter and CLIP</title>
         <meta
             name="description"
-            content="Overtonium&#x27;s top bar: six oscillator characters, wobble, a resonator, bus drive, three echoes, three reverbs, a lo-fi converter and five clip shapes."
+            content="Overtonium&#x27;s top bar: ten oscillator characters, wobble, a resonator, bus drive, three echoes, three reverbs, a lo-fi converter and five clip shapes."
         />
         <meta name="author" content="Benjamin Dehli" />
         <meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -21,7 +21,7 @@
         <meta property="og:title" content="Overtonium effects: character, echo, reverb, converter and CLIP" />
         <meta
             property="og:description"
-            content="The bar across the top of Overtonium: six oscillator characters that set which circuit every partial is modelled on, a wobble across the whole series, a resonator of 88 sympathetic strings that resonate with what you play, a bus drive that responds to how hard you play, an echo and a reverb with three machines each, a lo-fi converter, and an output stage with five clip shapes including a lookahead limiter."
+            content="The bar across the top of Overtonium: ten oscillator characters that set which oscillator every partial is modelled on, a wobble across the whole series, a resonator of 88 sympathetic strings that resonate with what you play, a bus drive that responds to how hard you play, an echo and a reverb with three machines each, a lo-fi converter, and an output stage with five clip shapes including a lookahead limiter."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-effects.jpg" />
         <meta property="og:image:type" content="image/jpeg" />
@@ -33,7 +33,7 @@
         <meta name="twitter:title" content="Overtonium effects: character, echo, reverb, converter and CLIP" />
         <meta
             name="twitter:description"
-            content="The bar across the top of Overtonium: six oscillator characters that set which circuit every partial is modelled on, a wobble across the whole series, a resonator of 88 sympathetic strings that resonate with what you play, a bus drive that responds to how hard you play, an echo and a reverb with three machines each, a lo-fi converter, and an output stage with five clip shapes including a lookahead limiter."
+            content="The bar across the top of Overtonium: ten oscillator characters that set which oscillator every partial is modelled on, a wobble across the whole series, a resonator of 88 sympathetic strings that resonate with what you play, a bus drive that responds to how hard you play, an echo and a reverb with three machines each, a lo-fi converter, and an output stage with five clip shapes including a lookahead limiter."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-effects.jpg" />
         <meta name="twitter:image:alt" content="The Overtonium wordmark over the plugin window, captioned Effects." />
@@ -50,7 +50,7 @@
                 "@id": "https://benjamindehli.github.io/overtonium/effects/#webpage",
                 "url": "https://benjamindehli.github.io/overtonium/effects/",
                 "name": "Overtonium effects: character, echo, reverb, converter and CLIP",
-                "description": "Overtonium's top bar: six oscillator characters, wobble, a resonator, bus drive, three echoes, three reverbs, a lo-fi converter and five clip shapes.",
+                "description": "Overtonium's top bar: ten oscillator characters, wobble, a resonator, bus drive, three echoes, three reverbs, a lo-fi converter and five clip shapes.",
                 "inLanguage": "en-GB",
                 "isPartOf": {
                     "@id": "https://benjamindehli.github.io/overtonium/#website"
@@ -64,7 +64,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-10-17",
+                "dateModified": "2026-10-24",
                 "breadcrumb": {
                     "@id": "https://benjamindehli.github.io/overtonium/effects/#breadcrumb"
                 }
@@ -247,8 +247,8 @@
                 <section id="character">
                     <h2>Character</h2>
                     <p>
-                        Chooses the oscillator that every partial uses, and is the first control in the group that sets up the series. All six are
-                        sine oscillators. They differ in how each circuit fails to make a perfect sine.
+                        Chooses the oscillator that every partial uses, and is the first control in the group that sets up the series. All ten are
+                        sine oscillators. They differ in how each one fails to make a perfect sine.
                         <strong>Pure</strong> is an ideal sine that no real circuit produces. <strong>Bulb</strong> is a Wien bridge oscillator kept
                         steady by a lamp. It adds no harmonics at all, but its level lags half a second behind every change of pitch, so it reacts to
                         gestures. A vibrato is heard in the level as well as in the pitch, and a bend dips and then recovers as the lamp catches up. A
@@ -268,6 +268,39 @@
                     </p>
 
                     <p>
+                        <strong>Wheel</strong>, <strong>FM</strong>, <strong>PD</strong> and <strong>6581</strong> are measured from recordings of
+                        real instruments, not simulated. <strong>Wheel</strong> is the tone generator of a tonewheel organ. Every pitch has its own
+                        wheel, so Wheel has seven sets of harmonics and picks one by the pitch of each partial. The low wheels have a strong second
+                        harmonic, -13 dB on the lowest C, which gets weaker up to A3 and then drops by fifteen decibels by C4. Above that the wheels
+                        are close to pure sines. The wheels also move slightly as they turn, as on the organ. Each one changes in pitch by about a
+                        cent and in level by about a tenth of a decibel once per turn of its shaft, between 16 and 31 times a second depending on the
+                        note, and the motor that drives them all moves every wheel together by about 0.9 cent at 25 Hz. A held note also carries faint
+                        tones from the wheels near it in the organ's generator: the same note one and two octaves down, and the wheels a fourth and a
+                        fifth below, 48 to 55 dB under the note. They follow the note's level and stop at C1, the organ's lowest wheel.
+                        <strong>FM</strong> is one operator of a frequency modulation synthesizer with nothing modulating it, and
+                        <strong>PD</strong> is the oscillator of a phase distortion synthesizer with the distortion turned off. Both are nearly pure,
+                        with a second harmonic near -54 and -52 dB and weaker ones above it. That is about thirty decibels below Rail, so the
+                        difference from Pure is small, but it is there. Each note on them also carries the noise measured under the instrument's own
+                        notes, about 62 dB under the note on FM and 69 dB on PD, so they are not perfectly clean either. It follows the notes, so
+                        there is no hiss when nothing plays. On FM most of the hiss above 6.4 kHz is a fixed part that follows only the loudest note,
+                        as on the instrument, so it hardly builds up as you add keys: five keys add about 3.6 dB of hiss up there, where the notes
+                        themselves add 7.
+                    </p>
+
+                    <p>
+                        <strong>6581</strong> is measured from a 6581 sound chip, which has no sine at all. It makes every waveform as a 12-bit number
+                        and turns it into a voltage with a ladder of resistors whose bits are not weighted exactly. Each bit is worth about 1.95 times
+                        the one below instead of twice, so where many bits change at once the output falls back instead of stepping up. That uneven
+                        staircase, and a slight bow after it, were measured from the chip's slow sawtooth and triangle, and the sine it would make is
+                        worked out from them. It has a second harmonic at -23 dB and a long tail of odd harmonics between -55 and -63 dB, which is the
+                        chip's grit, carried to the 32nd. Part of the bow comes after the chip's voices are mixed, so a chord on 6581 also gets faint
+                        sum and difference tones between its notes, as the chip does. It also has the chip's hiss, which stays the same however many
+                        keys you hold. The chip was recorded through <a href="https://benjamindehli.github.io/sidstation-asid/">SidStation ASID</a>, a
+                        plugin by the same maker that writes the chip's registers directly, so every setting reached the chip exactly as set and each
+                        voice could be recorded on its own.
+                    </p>
+
+                    <p>
                         Because this is an additive instrument, these harmonics land among the partials you are already mixing, at exact multiples of
                         the partial that made them. The rack's own spread, described below, moves the real partials off those exact ratios, and TUNE
                         and STRETCH move them further. So the two beat against each other instead of adding up, and that is what makes a character
@@ -277,23 +310,28 @@
 
                     <p>
                         Each character is also a rack of thirty-two oscillators, not one oscillator used thirty-two times. Units built to the same
-                        spec do not come out identical, so every character except Pure puts each partial a couple of cents and a fraction of a decibel
-                        off its target. The amount is fixed for each character, so you get the same rack every time you load the patch, in every host
-                        and on every machine. This is not DRIFT, which wanders. Partial 1 is the reference the other thirty-one were tuned against,
-                        and it stays exactly in place. So a note still lands on the key you played, and choosing a character does not change how loud
-                        the patch is. This spread is what makes the beating above happen in a patch nobody has detuned. The units also differ in how
-                        much they distort: each unit's circuit is built to one of three drives, fifteen percent either side of the nominal.
+                        spec do not come out identical, so each of the five circuits puts each partial a couple of cents and a fraction of a decibel
+                        off its target. The tonewheels are all driven by one motor through gears, so Wheel keeps every partial in tune and only varies
+                        the level, by up to a decibel. FM and PD have no spread at all, like Pure. The amount is fixed for each character, so you get
+                        the same rack every time you load the patch, in every host and on every machine. This is not DRIFT, which wanders. Partial 1
+                        is the reference the other thirty-one were tuned against, and it stays exactly in place. So a note still lands on the key you
+                        played, and choosing a character does not change how loud the patch is. This spread is what makes the beating above happen in
+                        a patch nobody has detuned. The units also differ in how much they distort: in the five circuits, each unit is built to one of
+                        three drives, fifteen percent either side of the nominal.
                     </p>
 
                     <p>
-                        The button lights in the character's own colour, taken from the same colour band as the channel strips: yellow for Bulb,
-                        running down through the warm colours to the red of channel 3 for Op-amp. Pure does not light, because it adds nothing.
+                        The button lights in the character's own colour. The circuits and Wheel take theirs from the same colour band as the channel
+                        strips, running down through the warm colours to the red of channel 3 for Op-amp. FM, PD and 6581 light in a colour of the
+                        instrument they were measured from instead: FM in the green of the synthesizer's membrane buttons, PD in the colour of the
+                        model name printed on the synthesizer, and 6581 in the blue of the startup screen of the computer the chip was made for. Pure
+                        does not light, because it adds nothing.
                     </p>
 
                     <p>
-                        Character is part of the patch, not part of the setup, so a preset can change it and saving a preset stores it. Twenty-eight
-                        of the thirty-five <a href="../presets/">factory presets</a> use one, so most of what you load already uses a circuit, not the
-                        plain sine.
+                        Character is part of the patch, not part of the setup, so a preset can change it and saving a preset stores it. Thirty-three
+                        of the thirty-eight <a href="../presets/">factory presets</a> use one, so most of what you load already uses a circuit or a
+                        recording, not the plain sine.
                     </p>
                 </section>
 
@@ -340,9 +378,9 @@
                     </p>
 
                     <p>
-                        The resonator is part of the patch. Metallic Piano and Space Cowboy use it, and the other factory presets have it off. With
-                        eight voices it uses about one percent of a core with the pedal up, and about five percent with every string freed by the
-                        pedal.
+                        The resonator is part of the patch. Metallic Piano, Space Cowboy and KarplusStrong use it, and the other factory presets have
+                        it off. With eight voices it uses about one percent of a core with the pedal up, and about five percent with every string
+                        freed by the pedal.
                     </p>
                 </section>
 
@@ -351,8 +389,11 @@
                     <p>
                         The thirty-three channels are not just added together. They are summed onto a bus with drive, by an amount and in a style set
                         by the oscillator character. So a patch gets louder into the same kind of saturation a mixing desk would give it. It responds
-                        to level, not to a setting: play quietly and it is barely there, play hard and you hear it. Pure sums cleanly and adds
-                        nothing. There is no knob, because the amount is part of the character you choose.
+                        to level, not to a setting: play quietly and it is barely there, play hard and you hear it. Pure and FM sum cleanly and add
+                        nothing. PD's bus has the slight bow measured in the phase distortion synthesizer's own mix, which gives each note its second
+                        harmonic and gives a chord faint sum and difference tones between its notes, as the instrument does. The 6581's bus has the
+                        part of its chip's bow that was measured on the mix of its voices. There is no knob, because the amount is part of the
+                        character you choose.
                     </p>
                 </section>
 

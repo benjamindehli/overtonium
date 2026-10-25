@@ -1,6 +1,6 @@
 Page: Overtonium controls: every knob on a channel strip
 URL: https://benjamindehli.github.io/overtonium/controls/
-Last changed: 2026-10-17
+Last changed: 2026-10-24
 
 # Overtonium controls
 
@@ -175,4 +175,4 @@ COLOUR tilts the noise from a dark rumble at one end, through flat in the middle
 
 **A string** sits under COLOUR, where a partial's pitch modulation would be, for the noise to strike. It is a Karplus-Strong string: a delay line one period of the note long, fed back through a gentle low-pass filter, so a burst of noise sent into it comes out as a plucked note that loses its high frequencies first. It is tuned to the note and follows the pitch wheel, glide and Adaptive like the fundamental does. The noise strikes it after COLOUR and the envelope have shaped the noise, so a darker colour strikes it more softly. STRING crossfades from the noise alone to the string alone. DECAY sets how long the string rings while the key is down, DAMP how quickly it loses its high frequencies, and POINT where along the string the noise strikes. POINT runs from near the end, which keeps every harmonic, to the middle, which removes the even ones.
 
-The envelope sets how the string is played. A noise envelope a few milliseconds long plucks the string and lets it ring, like the start of a harpsichord note, or of a guitar note under the organ. A noise held on a short, dark string blows into it, which gives a pitched breath. When the key is released, the channel's RELEASE damps the string. At the top of the keyboard, where the string is too short to tune, it fades back to plain noise instead of playing out of tune. COLOUR and the string's four knobs belong only to the noise channel, so pointing at them does not light a row across the mixer. The [Space Cowboy](https://benjamindehli.github.io/overtonium/presets/#what-ships) preset plucks it for its tremolo guitar.
+The envelope sets how the string is played. A noise envelope a few milliseconds long plucks the string and lets it ring, like the start of a harpsichord note, or of a guitar note under the organ. A noise held on a short, dark string blows into it, which gives a pitched breath. When the key is released, the channel's RELEASE damps the string. At the top of the keyboard, where the string is too short to tune, it fades back to plain noise instead of playing out of tune. COLOUR and the string's four knobs belong only to the noise channel, so pointing at them does not light a row across the mixer. The [Space Cowboy](https://benjamindehli.github.io/overtonium/presets/#what-ships) preset plucks it for its tremolo guitar, and KarplusStrong strikes it beside a lone fundamental.

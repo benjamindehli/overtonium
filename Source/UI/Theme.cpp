@@ -1,6 +1,7 @@
 #include "Theme.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <vector>
@@ -406,6 +407,20 @@ juce::Colour intervalColour(int pitchClass) {
 }
 
 juce::Colour characterColour(Character c) {
+  // The three measured from a synthesizer or a sound chip light in a colour
+  // of the instrument they were measured from rather than in one from the
+  // band: 6581 in the blue of the startup screen of the computer the chip was
+  // made for, PD in the colour of the model name printed on the synthesizer,
+  // and FM in the green of the synthesizer's membrane buttons.
+  if (c == Character::Sid)
+    return juce::Colour(0xff867ade);
+
+  if (c == Character::Pd)
+    return juce::Colour(0xffd5df7c);
+
+  if (c == Character::Fm)
+    return juce::Colour(0xff00825f);
+
   // The fifth is where the red the mixer already uses sits, on channel 3, and
   // the seventh is the yellow at the top of the band. Running the characters
   // down between them puts the gentlest at the yellow end and the hardest on
@@ -414,11 +429,21 @@ juce::Colour characterColour(Character c) {
   constexpr float kYellow = 11.0f / 11.0f;
   constexpr float kFifth = 7.0f / 11.0f;
 
-  const auto first = 1; // Pure is not on the band
-  const auto last = (int)Character::NumCharacters - 1;
-  const auto steps = (float)std::max(1, last - first);
+  // Gentlest first, which is not the order they were added in. The two
+  // synthesizers have the weakest harmonics, about thirty decibels below the
+  // circuits, so their places are at the yellow end, and 6581 sits between
+  // Valve and Wheel. The three keep their places, though they light in their
+  // own colours, so the others keep the colours they had. Wheel sits next to
+  // Valve, because both are mostly a second harmonic. Pure is not on the band.
+  constexpr std::array<Character, (size_t)Character::NumCharacters - 1> kBand{
+      Character::Pd,   Character::Fm,    Character::Bulb,
+      Character::Rail, Character::Diode, Character::Valve,
+      Character::Sid,  Character::Wheel, Character::Opamp};
 
-  const auto t = std::clamp((float)((int)c - first) / steps, 0.0f, 1.0f);
+  const auto at = std::find(kBand.begin(), kBand.end(), c);
+  const auto steps = (float)std::max(1, (int)kBand.size() - 1);
+
+  const auto t = std::clamp((float)(at - kBand.begin()) / steps, 0.0f, 1.0f);
 
   return bandColour(kYellow + t * (kFifth - kYellow));
 }

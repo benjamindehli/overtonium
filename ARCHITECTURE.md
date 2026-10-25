@@ -8,7 +8,7 @@ There are three layers, and the boundary between the first two is the important 
 
 **A DSP core with no JUCE in it.** Everything under `Source/dsp/` compiles from a bare compiler with no framework and no third-party headers. A CI job checks this. It builds the core with `c++ -std=c++17 -Wall -Wextra -Werror` and runs its tests, so an accidental `#include <juce_core/...>` fails the build. This means the part that does the arithmetic can be tested without a plugin host, a display or a build system.
 
-**A JUCE layer** that owns parameters, MIDI, state and the editor. `PluginProcessor` handles notes and rendering, `PluginParameters` declares the 850 parameters and flattens them into a plain snapshot the audio thread can read, and `Presets` holds the thirty-five factory patches.
+**A JUCE layer** that owns parameters, MIDI, state and the editor. `PluginProcessor` handles notes and rendering, `PluginParameters` declares the 850 parameters and flattens them into a plain snapshot the audio thread can read, and `Presets` holds the thirty-eight factory patches.
 
 **A UI layer** under `Source/UI/`, which draws the mixer and knows nothing about how sound is made.
 
@@ -41,6 +41,7 @@ Source/
                     Adaptive's chain of fifths
     SineTable.h     interpolated wavetable lookup, and the plain sine
     Character.h     the oscillator characters, as band-limited tables
+    Measured.h      what the four recorded characters were measured to be
     Drift.h         seeded PRNG and the smooth random contour
     Lfo.h           the LFO shapes
     Envelope.h      per-partial delay, ADSR and the two-stage key-off
@@ -130,4 +131,4 @@ The factory presets are generated C++ rather than data files, converted from pat
 
 ## Formats
 
-`juce_add_plugin` builds VST3 and standalone everywhere, an Audio Unit on macOS and LV2 on Linux. Most of the plugin does not know which format it is running in, with one deliberate exception. `getNumPrograms` reports the thirty-five factory presets to the Audio Unit alone, because Logic reads its preset menu from there. A program count above one would make the VST3 wrapper publish an automatable parameter that rewrites every other parameter when it moves.
+`juce_add_plugin` builds VST3 and standalone everywhere, an Audio Unit on macOS and LV2 on Linux. Most of the plugin does not know which format it is running in, with one deliberate exception. `getNumPrograms` reports the thirty-eight factory presets to the Audio Unit alone, because Logic reads its preset menu from there. A program count above one would make the VST3 wrapper publish an automatable parameter that rewrites every other parameter when it moves.

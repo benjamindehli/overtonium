@@ -110,6 +110,7 @@ void Voice::prepare(double newSampleRate, uint32_t seed) noexcept {
 
   rng.reseed(seed);
   noise.rng.reseed(seed ^ 0x5bf03635u);
+  wheelRng.reseed(seed ^ 0x2545f491u);
 
   reset();
 }
@@ -139,6 +140,8 @@ void Voice::reset() noexcept {
   noise.string.reset();
   noise.stringAlive = false;
   noise.damperSeconds = 0.0f;
+  leaks.fill(Leak{});
+  blockPowers.fill(0.0f);
   noisePeak = 0.0f;
   noiseEnvelope = 0.0f;
   noiseTremolo = 0.0f;
@@ -168,6 +171,16 @@ void Voice::noteOn(int channel, int note, float velocity, const SynthParams &p,
   }
 
   noise.damperSeconds = 0.0f;
+
+  // The leaking wheels turn all the time, so a note finds each at some point
+  // in its turn. Drawn on every note whatever the character, like the shafts,
+  // and kept where a leak is still sounding so it does not jump.
+  for (auto &leak : leaks) {
+    const auto start = (double)wheelRng.unipolar();
+
+    if (leak.lastGain <= 0.0f)
+      leak.phase = start;
+  }
 
   midiNote = note;
   midiChannel = channel;
@@ -264,6 +277,13 @@ void Voice::noteOn(int channel, int note, float velocity, const SynthParams &p,
     // frequency is exactly the case this character exists to show.
     if (fresh)
       pt.semisPrimed = false;
+
+    // Drawn on every note whatever the character, so the stream does not
+    // depend on which one is chosen.
+    const auto shaftStart = (double)wheelRng.unipolar();
+
+    if (fresh)
+      pt.shaftTurns = shaftStart;
 
     // A fresh rate per partial per note. Reusing one rate would turn 32
     // independent wanders into a single detune.
@@ -436,6 +456,7 @@ void Voice::takeOver(const Voice &from) noexcept {
     pt.onsetStale = true;
     pt.bulbSettled = src.bulbSettled;
     pt.semisPrimed = src.semisPrimed;
+    pt.shaftTurns = src.shaftTurns;
 
     // Already sounding, so the gain ramp starts from where the other voice's
     // was rather than priming itself afresh, and the oscillator starts its
@@ -452,6 +473,8 @@ void Voice::takeOver(const Voice &from) noexcept {
   noise.attackScale = from.noise.attackScale;
   noise.lastGain = from.noise.lastGain;
   noise.gainPrimed = from.noise.gainPrimed;
+
+  leaks = from.leaks;
 
   pressureSmoothed = from.pressureSmoothed;
 }
@@ -481,6 +504,15 @@ void Voice::render(float *left, float *right, int numSamples,
   // the whole call: the spread is fixed, so it is the same rack for every
   // block and every note. See UnitSpread.
   const auto &unit = UnitSpread::instance().rack(p.global.character);
+
+  const bool wheel = p.global.character == Character::Wheel;
+
+  // The two synthesizers and the 6581, whose noise the engine adds from
+  // every note's power at once. See SynthEngine::renderHiss.
+  const bool hiss = p.global.character == Character::Fm ||
+                    p.global.character == Character::Pd ||
+                    p.global.character == Character::Sid;
+  const auto &sine = SineTable::instance();
 
   // One pole per control block rather than per sample, which is where every
   // other slow thing in here is worked out.
@@ -567,6 +599,12 @@ void Voice::render(float *left, float *right, int numSamples,
     pressureSmoothed += (pressureTarget - pressureSmoothed) * pressureCoef;
     const float pressure = pressureSmoothed;
 
+    // How loud the note's partials are together this block, as the sum of
+    // their squared amplitudes. The wheels that leak into a note and the
+    // synthesizers' noise are both sized from it. Each partial's wheel leaks
+    // on its own and the leaks do not line up in phase, so their powers add.
+    double notePower = 0.0;
+
     for (int i = 0; i < kNumHarmonics; ++i) {
       auto &pt = partials[(size_t)i];
       const auto &op = p.osc[(size_t)i];
@@ -637,7 +675,49 @@ void Voice::render(float *left, float *right, int numSamples,
             remaining > 0.0 ? std::copysign(remaining, pt.glideSemis) : 0.0;
       }
 
-      const double freq = baseFreq * std::exp2(semis / 12.0);
+      // ---- the shaft the tonewheel turns on
+      // ----------------------------------
+      //
+      // Pitch and level move once a turn and a little at twice that, by what
+      // this unit was drawn with, and the motor that drives every wheel moves
+      // the pitch at its own rate on top. The shaft rate comes from the pitch
+      // the partial is at before any of this, so the wobble cannot change the
+      // rate it wobbles at. Worked out once a block, like the modulators: a
+      // shaft turns at most 32 times a second and a block is 1500 a second.
+      double wobbleCents = 0.0;
+      float wobbleGain = 1.0f;
+
+      if (wheel) {
+        const double unwobbled = baseFreq * std::exp2(semis / 12.0);
+        const double turn = pt.shaftTurns;
+        const double motor =
+            wrapPhase(shared.motorTurns + (double)start * shared.motorStep);
+
+        // The twice-a-turn pitch was measured in hertz, which is the same on
+        // every wheel, and is turned into cents at this one's pitch.
+        const double twiceCents = 1731.2340490667560 *
+                                  (double)unit.twiceHz[(size_t)i] /
+                                  std::max(1.0, unwobbled);
+
+        wobbleCents =
+            (double)unit.shaftCents[(size_t)i] * (double)sine.at(turn) +
+            twiceCents * (double)sine.at(wrapPhase(2.0 * turn)) +
+            kWheelMotorCents * (double)sine.at(motor);
+
+        wobbleGain = 1.0f +
+                     unit.shaftLevel[(size_t)i] *
+                         sine.at(wrapPhase(
+                             turn + (double)unit.shaftLevelTurns[(size_t)i])) +
+                     unit.twiceLevel[(size_t)i] *
+                         sine.at(wrapPhase(2.0 * turn +
+                                           (double)unit.twiceTurns[(size_t)i]));
+
+        pt.shaftTurns = wrapPhase(turn + wheelShaftHz(unwobbled) * (double)len /
+                                             sampleRate);
+      }
+
+      const double freq =
+          baseFreq * std::exp2((semis + wobbleCents * 0.01) / 12.0);
 
       // Reduced into the first turn of the table. Sampling a sinusoid above
       // the rate produces the same numbers as sampling the one it folds to, so
@@ -689,7 +769,7 @@ void Voice::render(float *left, float *right, int numSamples,
       // depends on how fast the wave is asking the amplifier to move.
       const auto &wave =
           characters.table(p.global.character, freq,
-                           foldAliases ? kMaxCharacterHarmonic
+                           foldAliases ? kMostCharacterHarmonics
                                        : highestHarmonicUnder(freq, sampleRate),
                            unit.drive[(size_t)i]);
 
@@ -741,7 +821,7 @@ void Voice::render(float *left, float *right, int numSamples,
       // error joins them as a plain multiply, being a property of the
       // oscillator rather than of anything the player is doing.
       const float base = op.audible ? level * nyq * track[(size_t)i] * bulb *
-                                          unit.gain[(size_t)i]
+                                          unit.gain[(size_t)i] * wobbleGain
                                     : 0.0f;
       const float gEnd = base * amEnd;
 
@@ -762,6 +842,11 @@ void Voice::render(float *left, float *right, int numSamples,
       pt.pitchLfo.advance(rng, pmPhaseInc * (double)len, op.pmShape);
 
       pt.lastGain = gEnd;
+
+      if (wheel || hiss) {
+        const double amplitude = (double)(pt.env.getLevel() * gEnd);
+        notePower += amplitude * amplitude;
+      }
 
       // One multiply and one compare per partial per control block. Both terms
       // are already to hand, so metering costs essentially nothing here.
@@ -875,6 +960,20 @@ void Voice::render(float *left, float *right, int numSamples,
       pt.phase = ph;
     }
 
+    // Where the key itself sits, which is what the leaking wheels are placed
+    // against: the note, the bends, the retune and the first partial's glide,
+    // and none of the partials' own tuning.
+    if (wheel)
+      renderLeaks(left + start, right + start, len,
+                  baseFreq * std::exp2(((double)(p.global.bendSemitones +
+                                                 noteBendSemitones) +
+                                        partials[0].glideSemis + retuneSemis) /
+                                       12.0),
+                  notePower, foldAliases);
+
+    if (hiss && block < kMaxPowerBlocks)
+      blockPowers[(size_t)block] = (float)notePower;
+
     renderNoise(left + start, right + start, len, p, pressure, shared, block);
 
     // The adaptive retune moves the whole note, so it steps once a block
@@ -893,6 +992,70 @@ void Voice::render(float *left, float *right, int numSamples,
   if (!active) {
     released = false;
     midiNote = -1;
+
+    // The partials it followed have finished, so whatever is left of it is
+    // below anything audible, and the next note finds its wheels afresh.
+    for (auto &leak : leaks)
+      leak.lastGain = 0.0f;
+  }
+}
+
+void Voice::renderLeaks(float *left, float *right, int len, double keyFreq,
+                        double power, bool foldAliases) noexcept {
+  const auto &tables = CharacterTables::instance();
+  const auto loudness = (float)std::sqrt(power);
+
+  // Centred, as the leaks come from the whole generator rather than from
+  // where any one partial is panned.
+  constexpr float kCentre = 0.70710678f;
+
+  for (size_t k = 0; k < leaks.size(); ++k) {
+    auto &leak = leaks[k];
+    const double freq = keyFreq * kWheelLeaks[k].ratio;
+
+    const float target =
+        freq >= kLowestWheelHz
+            ? loudness * (float)std::pow(10.0, kWheelLeaks[k].db / 20.0) *
+                  (foldAliases ? 1.0f : nyquistGain(freq, sampleRate))
+            : 0.0f;
+
+    double inc = freq / sampleRate;
+    inc -= std::floor(inc);
+
+    if (leak.lastGain <= 1.0e-9f && target <= 1.0e-9f) {
+      leak.phase = wrapPhase(leak.phase + inc * (double)len);
+      leak.lastGain = 0.0f;
+      continue;
+    }
+
+    // A leaking wheel is a wheel, so it has the shape the wheels at its pitch
+    // have. A step between two tables at -50 dB is far below hearing, so a
+    // leak that glides across a band edge changes table without the
+    // cross-fade a partial uses.
+    const auto &wave =
+        tables.table(Character::Wheel, freq,
+                     foldAliases ? kMostCharacterHarmonics
+                                 : highestHarmonicUnder(freq, sampleRate));
+
+    float g = leak.lastGain;
+    const float gInc = (target - g) / (float)len;
+    double ph = leak.phase;
+
+    for (int n = 0; n < len; ++n) {
+      const float s = wave.at(ph) * g * kCentre;
+
+      left[n] += s;
+      right[n] += s;
+
+      ph += inc;
+      if (ph >= 1.0)
+        ph -= 1.0;
+
+      g += gInc;
+    }
+
+    leak.phase = ph;
+    leak.lastGain = target;
   }
 }
 

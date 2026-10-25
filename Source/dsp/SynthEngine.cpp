@@ -63,6 +63,8 @@ void SynthEngine::reset() noexcept {
   adaptiveVersion.fill(0);
   adaptiveSnapshots.publish(AdaptiveSnapshot{});
   clock = 0;
+  motorTurns = 0.0;
+  hissLowGain = hissHighGain = hissFirst = hissLowState = 0.0f;
   pressedAt.fill(0);
   pressedWithOthers.fill(false);
   forgetLine();
@@ -1230,6 +1232,12 @@ SynthEngine::advanceSharedModulators(int numFrames,
                                      const SynthParams &p) noexcept {
   SharedModulation out;
 
+  // Turned whatever the character, so switching to Wheel joins a motor that
+  // was already running rather than starting one.
+  out.motorTurns = motorTurns;
+  out.motorStep = kWheelMotorHz / renderRate;
+  motorTurns = wrapPhase(motorTurns + out.motorStep * (double)numFrames);
+
   if (!p.global.pitchModInPhase && !p.global.ampModInPhase)
     return out;
 
@@ -1302,11 +1310,16 @@ void SynthEngine::sumVoices(float *left, float *right, int numFrames,
 void SynthEngine::sumChunk(float *left, float *right, int numFrames,
                            const SynthParams &p, Activity &into,
                            const SharedModulation &shared) noexcept {
-  for (auto &v : voices) {
+  std::array<bool, kPoolSize> rendered{};
+
+  for (size_t index = 0; index < voices.size(); ++index) {
+    auto &v = voices[index];
+
     if (!v.isActive())
       continue;
 
     v.render(left, right, numFrames, p, shared);
+    rendered[index] = true;
 
     // The lamps follow the meter rather than being gathered on their own
     // terms. Whichever voice is loudest on a partial is the one you are
@@ -1323,11 +1336,15 @@ void SynthEngine::sumChunk(float *left, float *right, int numFrames,
     for (size_t i = 0; i < peaks.size(); ++i) {
       // A voice that reaches here is sounding, so it has something to say
       // about this partial even when what it is saying is that the partial
-      // is at zero. See Activity::claimed.
-      if (into.claimed[i] && peaks[i] <= into.peaks[i])
+      // is at zero. See Activity::claimed. The louder voice wins, and on a
+      // tie the newer note. See Activity::ages.
+      if (into.claimed[i] &&
+          (peaks[i] < into.peaks[i] ||
+           (exactly(peaks[i], into.peaks[i]) && v.getAge() <= into.ages[i])))
         continue;
 
       into.claimed[i] = true;
+      into.ages[i] = v.getAge();
       into.peaks[i] = peaks[i];
       into.envelopes[i] = envelopes[i];
       into.tremolos[i] = tremolos[i];
@@ -1336,14 +1353,111 @@ void SynthEngine::sumChunk(float *left, float *right, int numFrames,
       into.pressures[i] = pressures[i];
     }
 
-    if (!into.noiseClaimed || v.getNoisePeak() > into.noisePeak) {
+    if (!into.noiseClaimed || v.getNoisePeak() > into.noisePeak ||
+        (exactly(v.getNoisePeak(), into.noisePeak) &&
+         v.getAge() > into.noiseAge)) {
       into.noiseClaimed = true;
+      into.noiseAge = v.getAge();
       into.noisePeak = v.getNoisePeak();
       into.noiseEnvelope = v.getNoiseEnvelope();
       into.noiseTremolo = v.getNoiseTremolo();
       into.noiseVelocity = v.getNoiseVelocity();
       into.noisePressure = v.getNoisePressure();
     }
+  }
+
+  if (p.global.character == Character::Fm ||
+      p.global.character == Character::Pd ||
+      p.global.character == Character::Sid)
+    renderHiss(left, right, numFrames, p, rendered);
+}
+
+void SynthEngine::renderHiss(
+    float *left, float *right, int numFrames, const SynthParams &p,
+    const std::array<bool, kPoolSize> &rendered) noexcept {
+  // Each instrument's level per hertz below and above the split, and how
+  // much of each is fixed. FM's and PD's are flat, the 6581's falls.
+  double lowDb = kFmNoiseDbPerHz + kFmByEar.noiseDb, highDb = lowDb;
+  auto fixed = kFmFixedHiss;
+
+  if (p.global.character == Character::Pd) {
+    lowDb = highDb = kPdNoiseDbPerHz + kPdByEar.noiseDb;
+    fixed = kPdFixedHiss;
+  } else if (p.global.character == Character::Sid) {
+    lowDb = kSidNoiseLowDbPerHz;
+    highDb = kSidNoiseHighDbPerHz;
+    fixed = kSidFixedHiss;
+  }
+
+  // The level per hertz was measured against the fundamental of a mono
+  // recording. A centred partial of amplitude a puts a / sqrt 2 in each
+  // channel, so each channel's note power is the sum of a squared over four,
+  // and white noise spread over half the rate has that much per hertz times
+  // half the rate. A uniform draw between -1 and 1 has a variance of a third,
+  // which the three makes up.
+  const double lowPerPower =
+      std::pow(10.0, lowDb / 10.0) * 0.25 * 0.5 * renderRate * 3.0;
+  const double highPerPower =
+      std::pow(10.0, highDb / 10.0) * 0.25 * 0.5 * renderRate * 3.0;
+
+  // Two poles for the low band, and the rest of the noise is the high band,
+  // so the two add back up to the noise itself when their gains are equal.
+  // One pole would leave too much of the low band above the split, which
+  // would make the hiss there grow faster than the instrument's does.
+  const auto split =
+      (float)(1.0 - std::exp(-6.283185307179586 * kHissSplitHz / renderRate));
+
+  const int blocks =
+      (numFrames + Voice::kControlBlock - 1) / Voice::kControlBlock;
+
+  for (int b = 0; b < blocks && b < Voice::kMaxPowerBlocks; ++b) {
+    const int start = b * Voice::kControlBlock;
+    const int len = std::min(Voice::kControlBlock, numFrames - start);
+
+    // Every note's power this block, added up and at its loudest.
+    double sum = 0.0, loudest = 0.0;
+
+    for (size_t v = 0; v < voices.size(); ++v) {
+      if (!rendered[v])
+        continue;
+
+      const auto power = (double)voices[v].getBlockPowers()[(size_t)b];
+      sum += power;
+      loudest = std::max(loudest, power);
+    }
+
+    const auto lowTarget = (float)std::sqrt(
+        lowPerPower * (fixed.low * loudest + (1.0 - fixed.low) * sum));
+    const auto highTarget = (float)std::sqrt(
+        highPerPower * (fixed.high * loudest + (1.0 - fixed.high) * sum));
+
+    if (hissLowGain <= 0.0f && hissHighGain <= 0.0f && lowTarget <= 0.0f &&
+        highTarget <= 0.0f)
+      continue;
+
+    // Both gains slide across the block, as a partial's does, so a note
+    // coming in or going out moves the noise without a step.
+    float low = hissLowGain, high = hissHighGain;
+    const float lowInc = (lowTarget - low) / (float)len;
+    const float highInc = (highTarget - high) / (float)len;
+
+    for (int n = start; n < start + len; ++n) {
+      const float white = hissRandom.bipolar();
+      hissFirst += split * (white - hissFirst);
+      hissLowState += split * (hissFirst - hissLowState);
+
+      // One noise for both channels, since both synthesizers are mono.
+      const float s = low * hissLowState + high * (white - hissLowState);
+
+      left[n] += s;
+      right[n] += s;
+
+      low += lowInc;
+      high += highInc;
+    }
+
+    hissLowGain = lowTarget;
+    hissHighGain = highTarget;
   }
 }
 

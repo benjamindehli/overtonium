@@ -1,10 +1,22 @@
 Page: Overtonium releases: what changed in each version
 URL: https://benjamindehli.github.io/overtonium/releases/
-Last changed: 2026-10-17
+Last changed: 2026-10-25
 
 # Overtonium releases
 
 What changed in each version, newest first. Each one links to its full notes, which say more and carry the installing and upgrading detail as well.
+
+## 1.15.0, 25 October 2026
+
+**Four characters measured from real instruments.** Wheel is a tonewheel organ's generator, with each wheel's own harmonics, its wobble as it turns and the faint leakage of the wheels near each note. FM and PD are the nearly pure sines of a frequency modulation and a phase distortion synthesizer, with the noise measured under their notes, and on PD the sum and difference tones its mix gives a chord. 6581 is a sine as a 6581 sound chip would play it, through its uneven 12-bit converter, with its bow, its sum and difference tones and its hiss. FM, PD and 6581 light the character button in their instrument's colour.
+
+**Kirnberger III, Vallotti and the wolf on G#-Eb.** Two more temperaments, nine in all. Meantone and Pythagorean now put their wolf on G#-Eb, as organs and harpsichords do, which keeps C, F, B flat, G, D and A major in tune on C.
+
+**Presets and fixes.** 6581 Pulse, 6581 Sawtooth and KarplusStrong are new, thirty-eight in all, and 6581 Triangle, Drawbar Organ, FM Piano and Nylon EP moved to the new characters. The bus drive no longer loses about a decibel of the top octave, and no longer pops on loud notes on Valve, Rail and Diode. The lamps follow the note you just played.
+
+**Before upgrading.** CHARACTER grows from six choices to ten and the temperament list from seven to nine, so automation drawn before lands a little further along. Sessions saved with meantone or Pythagorean put the wolf in a new place. A MIDI program change from 2 up lands two presets later, and from 17 up three later, while a saved session keeps its preset by name. Still 850 parameters.
+
+[The full notes for 1.15.0](https://github.com/benjamindehli/overtonium/releases/tag/v1.15.0)
 
 ## 1.14.0, 16 October 2026
 

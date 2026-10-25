@@ -56,8 +56,8 @@ namespace ovt {
 /// number. In single precision that loses most of its significant digits: at
 /// the bottom of the knob a partial came through 1.4 dB quiet, which is a gain
 /// error rather than the straight line it should have been. It is all done in
-/// double here, and the antiderivative uses a series where its own cancellation
-/// would bite.
+/// double here, and the antiderivative is written in a form without
+/// cancellation where the plain one would lose its digits.
 ///
 /// And the antiderivative belongs to a particular curve. Carrying the last
 /// one over a block boundary while the drive moves means dividing the
@@ -107,7 +107,13 @@ private:
   /// it holds a straight line until it meets the rail and then stops, so its
   /// knee is a corner rather than a bend. Both are odd and both have unit
   /// slope at rest, so everything either side of them is the same.
-  enum class Shape { Tanh, Cubic };
+  ///
+  /// The third is not a circuit giving way at all. It is the slight bow in a
+  /// converter or an output stage, measured on one of the synthesizers, which
+  /// leans one half of the wave out and the other in by the same small amount
+  /// and so makes only a second harmonic, and sum and difference tones between
+  /// notes. See kPdSummingH2Db.
+  enum class Shape { Tanh, Cubic, Quadratic };
   /// One side of the wave. Two of them, because a circuit is not obliged to
   /// treat the two halves alike and the ones worth modelling do not: a pair of
   /// diodes that do not match runs out of room sooner one way than the other.
@@ -165,6 +171,29 @@ private:
     if (shape == Shape::Tanh)
       return std::tanh(u);
 
+    // Of unit slope at rest like the others, and leaning the positive half in.
+    // The bow was measured on a mix of at most three voices, a small part of
+    // the way to u = 1, and a parabola left to itself past there does what no
+    // output stage does: the positive half turns back and gets quieter as it
+    // is pushed harder, and the negative half bends further without limit. So
+    // past u = 1 each half runs out of room instead. The positive half holds
+    // the top it has reached, where its slope is already nothing. The negative
+    // half bends over from u = -1, its slope falling from two to nothing over
+    // one more unit, and holds there. Those edges are chosen, not measured,
+    // and only a dense chord played hard reaches them on the 6581. PD's drive
+    // puts them about seventy times full scale out.
+    if (shape == Shape::Quadratic) {
+      if (u >= 1.0)
+        return 0.5;
+
+      if (u > -1.0)
+        return u - 0.5 * u * u;
+
+      const auto v = std::min(-1.0 - u, 1.0);
+
+      return -1.5 - 2.0 * v + v * v;
+    }
+
     // Straight until it meets the rail and flat past it, joined so the slope
     // arrives at nothing rather than at a corner. What an amplifier with
     // feedback around it does: linear, linear, and then no more.
@@ -185,15 +214,23 @@ private:
   ///
   /// Two forms, because neither is good everywhere. Past the crossover, cosh
   /// overflows anything it is asked for directly, so it is written out of
-  /// log1p. Below it, the direct form is the difference of two numbers near
-  /// log 2 that cancel down to almost nothing, so the series it cancels to is
-  /// used instead.
+  /// log1p. Below it, that form is the difference of two numbers near log 2
+  /// that cancel down to almost nothing, so cosh(a) - 1 is written as
+  /// 2 sinh(a / 2)^2 instead, which has no cancellation in it.
+  ///
+  /// Both forms are exact, so they agree at the crossover to the last bit.
+  /// They have to. The difference quotient divides the change in this function
+  /// by the change in the input, and near the top of a wave that change is
+  /// tiny. A jump of 1e-5 where the two forms meet becomes an error of a tenth
+  /// of full scale on the one sample that crosses it, on the way up and again
+  /// on the way down, which is heard as a buzz on every note loud enough to
+  /// reach it. A truncated series has exactly that jump.
   static double logCosh(double u) noexcept {
     const auto a = std::abs(u);
 
     if (a < 0.5) {
-      const auto s = a * a;
-      return s * (0.5 - s * (1.0 / 12.0 - s * (1.0 / 45.0 - s / 315.0)));
+      const auto half = std::sinh(0.5 * a);
+      return std::log1p(2.0 * half * half);
     }
 
     return a + std::log1p(std::exp(-2.0 * a)) - 0.6931471805599453;
@@ -206,11 +243,28 @@ private:
   /// each is zero there, so the pair is one continuous function and a step
   /// that straddles the crossing is averaged correctly rather than picking up
   /// the difference between two constants.
-  /// The antiderivative of bend, even because bend is odd, and nothing at
+  /// The antiderivative of bend, even where bend is odd, and nothing at
   /// rest so that the two halves of a curve meet where they should.
   static double bendIntegral(Shape shape, double u) noexcept {
     if (shape == Shape::Tanh)
       return logCosh(u);
+
+    // Not even, because the quadratic is not odd. Each piece starts from
+    // where the one before it ends, so the pieces agree where they meet.
+    if (shape == Shape::Quadratic) {
+      if (u >= 1.0)
+        return 1.0 / 3.0 + 0.5 * (u - 1.0);
+
+      if (u > -1.0)
+        return u * u * (0.5 - u / 6.0);
+
+      const auto v = -1.0 - u;
+
+      if (v < 1.0)
+        return 2.0 / 3.0 + v * (1.5 + v - v * v / 3.0);
+
+      return 17.0 / 6.0 + 2.5 * (v - 1.0);
+    }
 
     const auto a = std::abs(u);
 
@@ -246,16 +300,51 @@ private:
     return y;
   }
 
+  /// How much the filter that brings the curve back down lifts the top, to
+  /// undo what the antialiasing takes off it.
+  ///
+  /// Reading the curve as its average over the step from the last sample is
+  /// what keeps it from aliasing, and on anything quiet enough to stay on the
+  /// straight part of a curve that average is just the mean of two
+  /// neighbouring samples at the doubled rate. That is a low pass of its own:
+  /// cos(w / 2), which at 48 kHz takes 0.4 dB off 9 kHz, 1.1 dB off 15 kHz and
+  /// 2 dB off 20 kHz, on every character with a bus stage.
+  ///
+  /// [-k, 1 + 2k, -k] at the doubled rate lifts the top by close to the
+  /// inverse. At this k the two together stay within 0.2 dB from 20 Hz to
+  /// 20 kHz at 44.1, 48 and 96 kHz.
+  static constexpr double kLift = 0.17;
+
+  /// The filter that brings the curve back down: the half-band with the lift
+  /// folded into it, two taps longer and still symmetric. Its middle is one
+  /// tap further in, and the window is taken one sample earlier to match, so
+  /// it lands on the same sample as the half-band alone and the stage's
+  /// latency does not move.
+  static const std::array<double, Halfband::kTaps + 2> &downKernel() noexcept {
+    static const auto built = [] {
+      const auto &h = Halfband::kernel();
+      const double lift[3] = {-kLift, 1.0 + 2.0 * kLift, -kLift};
+      std::array<double, Halfband::kTaps + 2> d{};
+
+      for (size_t m = 0; m < h.size(); ++m)
+        for (size_t j = 0; j < 3; ++j)
+          d[m + j] += h[m] * lift[j];
+
+      return d;
+    }();
+
+    return built;
+  }
+
   /// Everything one side of the stereo field remembers.
   struct Channel {
     /// The samples as they arrived, newest first. Both the doubling and the
     /// bypass read out of this, which is what keeps the two the same length.
     std::array<double, Halfband::kHalf + 1> in{};
 
-    /// What came back from the circuit at the doubled rate, newest first, one
-    /// longer than the filter so the window can be taken from the sample that
-    /// lines up with the host's own.
-    std::array<double, Halfband::kTaps + 1> up{};
+    /// What came back from the circuit at the doubled rate, newest first, as
+    /// long as the filter that brings it back down. See downKernel.
+    std::array<double, Halfband::kTaps + 2> up{};
 
     double last = 0.0; ///< the curve's previous input
 

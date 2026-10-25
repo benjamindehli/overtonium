@@ -8,6 +8,7 @@
 
 #include "Drift.h"
 #include "Harmonics.h"
+#include "Measured.h"
 #include "SineTable.h"
 
 namespace ovt {
@@ -20,6 +21,9 @@ namespace ovt {
 /// the ways each design misses are what people mean when they call one warm
 /// and another sterile.
 ///
+/// The last three are measured from recordings of real instruments instead of
+/// being simulated. See Measured.h.
+///
 /// The order is the order they are saved in, so a new one goes on the end.
 ///
 /// Declared here rather than beside the parameter it comes from, because the
@@ -31,8 +35,21 @@ enum class Character {
   Diode,    ///< a triangle bent into a sine by two diodes that do not match
   Valve,    ///< a triode leaning over on one side before the other
   Opamp,    ///< an amplifier that cannot move as fast as the note asks
+  Wheel,    ///< a tonewheel organ's generator, a wheel for every pitch
+  Fm,       ///< a frequency modulation synthesizer's operator, alone
+  Pd,       ///< a phase distortion synthesizer's oscillator, undistorted
+  Sid,      ///< a sine through a 6581's measured converter
   NumCharacters
 };
+
+/// Whether a character comes from a recording instead of a circuit.
+///
+/// A recording has no drive setting, so it is built at one drive where the
+/// circuits are built at three.
+inline bool isMeasured(Character c) noexcept {
+  return c == Character::Wheel || c == Character::Fm || c == Character::Pd ||
+         c == Character::Sid;
+}
 
 /// What each one is called on the panel.
 ///
@@ -44,8 +61,23 @@ enum class Character {
 ///
 /// Pure is the one exception and has to be. There is no part that makes a
 /// mathematically perfect sine, which is the whole point of it.
+///
+/// The recorded characters follow the same rule where they can. A tonewheel
+/// is a physical part, and so is the 6581, the chip whose converter that
+/// character is measured from, named by its part number. FM and PD are named
+/// for the two methods of synthesis instead, frequency modulation and phase
+/// distortion, since the instruments' own words for their oscillators are
+/// their makers' terms and read as something else to most players.
 inline const char *characterName(Character c) {
   switch (c) {
+  case Character::Wheel:
+    return "Wheel";
+  case Character::Fm:
+    return "FM";
+  case Character::Pd:
+    return "PD";
+  case Character::Sid:
+    return "6581";
   case Character::Bulb:
     return "Bulb";
   case Character::Rail:
@@ -104,6 +136,15 @@ inline double driveFor(Character c, int variant) noexcept {
   return 1.0 + (kDriveVariants[(size_t)which] - 1.0) * driveDepthFor(c);
 }
 
+/// How many of those a character is built at.
+///
+/// One for a recording, because a recording has a single fixed level of
+/// distortion. Three copies of it would triple the tables and sound the
+/// same.
+inline int driveCountFor(Character c) noexcept {
+  return isMeasured(c) ? 1 : (int)kDriveVariants.size();
+}
+
 /// How far apart thirty-two units built to the same spec end up.
 ///
 /// Not DRIFT, which wanders. This is the spread a rack has the moment it is
@@ -158,6 +199,21 @@ inline UnitTolerance unitToleranceFor(Character c) noexcept {
   case Character::Opamp:
     return {2.0f, 0.3f};
 
+  // Every wheel is driven by the same motor through gears, so no wheel can be
+  // randomly out of tune with the others. Their levels do differ. The
+  // recorded 8' wheels vary by two decibels rms around a straight line. Part
+  // of that comes from the keyboard wiring and not from the wheels, so about
+  // half of it is used.
+  case Character::Wheel:
+    return {0.0f, 1.0f};
+
+  // Both synthesizers and the 6581 run from a clock and make their levels
+  // from numbers, so every unit is identical, as with Pure.
+  case Character::Fm:
+  case Character::Pd:
+  case Character::Sid:
+    return {};
+
   // Pure is the one that is not a circuit, so a rack of them has no spread at
   // all. That is also what keeps every patch written before any of this
   // existed sounding exactly as it did.
@@ -183,6 +239,17 @@ public:
     /// Which of kDriveVariants this unit's circuit was built to, so no two
     /// neighbours distort by quite the same amount.
     std::array<int, kNumHarmonics> drive{};
+
+    /// How much each tonewheel moves as its shaft turns, and nothing on every
+    /// other character. Pitch in cents and level as a fraction once a turn,
+    /// pitch in Hz and level as a fraction twice a turn, and where in the
+    /// turn each level change sits against the pitch change. See Measured.h.
+    std::array<float, kNumHarmonics> shaftCents{};
+    std::array<float, kNumHarmonics> shaftLevel{};
+    std::array<float, kNumHarmonics> twiceHz{};
+    std::array<float, kNumHarmonics> twiceLevel{};
+    std::array<float, kNumHarmonics> shaftLevelTurns{};
+    std::array<float, kNumHarmonics> twiceTurns{};
   };
 
   static const UnitSpread &instance() noexcept {
@@ -232,6 +299,31 @@ private:
             std::min((int)(driveRng.unipolar() * (float)kDriveVariants.size()),
                      (int)kDriveVariants.size() - 1);
       }
+
+      // The wheels' wobble, on a stream of its own for the same reason the
+      // drive has one. Every unit gets it, the first included: it is how a
+      // wheel turns, not how far it was tuned.
+      if ((Character)c == Character::Wheel) {
+        Xorshift wobbleRng((uint32_t)c + 0x632be5abu);
+
+        const auto between = [&wobbleRng](const std::array<double, 2> &range) {
+          return range[0] *
+                 std::pow(range[1] / range[0], (double)wobbleRng.unipolar());
+        };
+
+        const auto fraction = [](double db) {
+          return (float)(std::pow(10.0, db / 20.0) - 1.0);
+        };
+
+        for (size_t i = 0; i < (size_t)kNumHarmonics; ++i) {
+          rack.shaftCents[i] = (float)between(kWheelShaftCents);
+          rack.shaftLevel[i] = fraction(between(kWheelShaftDb));
+          rack.twiceHz[i] = (float)between(kWheelTwiceHz);
+          rack.twiceLevel[i] = fraction(between(kWheelTwiceDb));
+          rack.shaftLevelTurns[i] = wobbleRng.unipolar();
+          rack.twiceTurns[i] = wobbleRng.unipolar();
+        }
+      }
     }
   }
 
@@ -243,13 +335,32 @@ private:
 /// harmonic, and the voice picks the highest one that fits under Nyquist at
 /// the pitch the partial is currently at.
 ///
-/// Five is where the recipes below stop being worth carrying: past it the
-/// levels are under -50 dB, which is below what the interpolation error of the
-/// table itself amounts to.
+/// Five is where the circuits' recipes stop being worth carrying: past it
+/// their levels are under -50 dB, far below their own lower harmonics.
 inline constexpr int kMaxCharacterHarmonic = 5;
 
+/// The most any character carries, which is the size every recipe is held
+/// at. The 6581 needs all of it: the uneven steps in its converter give a
+/// sine odd harmonics that stay between -55 and -63 dB from the 11th to past
+/// the 30th, and that tail is its grit.
+inline constexpr int kMostCharacterHarmonics = 32;
+
+/// How many harmonics this character carries.
+///
+/// Five for the circuits and the tonewheel, whose harmonics fall away. Ten for
+/// the two synthesizers, whose harmonics stay around -70 dB from the 2nd to
+/// the 10th, so stopping at five would leave out part of what was measured.
+/// Thirty-two for the 6581.
+inline int harmonicsFor(Character c) noexcept {
+  if (c == Character::Sid)
+    return kMostCharacterHarmonics;
+
+  return c == Character::Fm || c == Character::Pd ? kMeasuredHarmonics
+                                                  : kMaxCharacterHarmonic;
+}
+
 /// Tables per shape, one for each count of harmonics that fits.
-inline constexpr int kCharacterBands = kMaxCharacterHarmonic - 1;
+inline int bandsFor(Character c) noexcept { return harmonicsFor(c) - 1; }
 
 /// Where a full-scale sine first asks the amplifier to move faster than it
 /// can, in Hz.
@@ -309,10 +420,12 @@ inline int slewBandFor(double freq) noexcept {
 
 /// Every table an oscillator can read, built once and then only read.
 ///
-/// About four hundred kilobytes of them, which sounds like a lot next to one
+/// A hundred and eighteen of them, 1.9 MB, which sounds like a lot next to one
 /// 16 kB sine until you count what it replaces: the alternative is a waveshaper
 /// in the inner loop and four times oversampling to keep it from aliasing,
-/// which is the whole engine again three times over.
+/// which is the whole engine again three times over. A patch only ever reads
+/// the ones its own character has, and of those only the ones its partials'
+/// pitches land in.
 class CharacterTables {
 public:
   static const CharacterTables &instance() noexcept {
@@ -323,8 +436,8 @@ public:
   /// The table to read for this character, at this pitch.
   ///
   /// @param freq  the partial's frequency right now, which decides how hard a
-  /// slew limit bites. Every other character reads the same table whatever it
-  /// is playing.
+  /// slew limit bites and which wheel a tonewheel partial is. Every other
+  /// character reads the same table whatever it is playing.
   /// @param highestHarmonic  the highest multiple of that frequency which
   /// still fits below Nyquist. One means there is only room for the
   /// fundamental, which is a plain sine whatever the character says.
@@ -342,12 +455,14 @@ public:
         !shaped[which])
       return SineTable::instance();
 
-    const int shape = c == Character::Opamp ? slewBandFor(freq) : 0;
+    const int shape = c == Character::Opamp   ? slewBandFor(freq)
+                      : c == Character::Wheel ? wheelBandFor(freq)
+                                              : 0;
 
     if (shape < 0)
       return SineTable::instance();
 
-    const auto band = std::min(highestHarmonic, kMaxCharacterHarmonic) - 2;
+    const auto band = std::min(highestHarmonic, harmonicsFor(c)) - 2;
 
     return tables[(size_t)(base[which] + at(c, drive, shape) + band)];
   }
@@ -359,19 +474,26 @@ public:
   /// that has more than a single shape.
   /// @param drive  which of kDriveVariants, the nominal one by default, which
   /// is what every figure written down about these characters describes.
-  const std::array<Harmonic, kMaxCharacterHarmonic> &
+  const std::array<Harmonic, kMostCharacterHarmonics> &
   harmonics(Character c, int shapeBand = 0,
             int drive = kNominalDrive) const noexcept {
     const auto shape = std::clamp(shapeBand, 0, shapeCount(c) - 1);
 
     return recipes[(size_t)(recipeBase[(size_t)c] +
-                            at(c, drive, shape) / kCharacterBands)];
+                            at(c, drive, shape) / bandsFor(c))];
   }
 
   /// How many shapes a character has. One for everything that is a fixed
-  /// waveform, and a band per slew ratio for the one that is not.
+  /// waveform, a band per slew ratio for the one that is not, and a band per
+  /// group of recorded wheels for the organ.
   static int shapeCount(Character c) noexcept {
-    return c == Character::Opamp ? (int)kSlewRatios.size() : 1;
+    if (c == Character::Opamp)
+      return (int)kSlewRatios.size();
+
+    if (c == Character::Wheel)
+      return (int)kWheelRecipes.size();
+
+    return 1;
   }
 
 private:
@@ -379,9 +501,9 @@ private:
   /// own base. Drives outermost, then shapes, then the Nyquist bands, so a
   /// partial that crosses a band moves by one and the rest stays put.
   static int at(Character c, int drive, int shape) noexcept {
-    const auto which = std::clamp(drive, 0, (int)kDriveVariants.size() - 1);
+    const auto which = std::clamp(drive, 0, driveCountFor(c) - 1);
 
-    return (which * shapeCount(c) + shape) * kCharacterBands;
+    return (which * shapeCount(c) + shape) * bandsFor(c);
   }
 
   CharacterTables() {
@@ -397,10 +519,13 @@ private:
       // partial only ever moves between the bands of the drive it was built
       // to. Bulb and Pure make no harmonics at any drive, and fall out below
       // without a table to their name.
-      for (int drive = 0; drive < (int)kDriveVariants.size(); ++drive)
+      for (int drive = 0; drive < driveCountFor((Character)c); ++drive)
         for (int shape = 0; shape < shapeCount((Character)c); ++shape) {
-          const auto recipe = analyse(
-              renderCycle((Character)c, shape, driveFor((Character)c, drive)));
+          const auto recipe =
+              isMeasured((Character)c)
+                  ? measured((Character)c, shape)
+                  : analyse(renderCycle((Character)c, shape,
+                                        driveFor((Character)c, drive)));
           recipes.push_back(recipe);
 
           // Below this a harmonic is quieter than the table's own interpolation
@@ -412,7 +537,7 @@ private:
 
           bool worthIt = false;
 
-          for (int n = 2; n <= kMaxCharacterHarmonic; ++n)
+          for (int n = 2; n <= harmonicsFor((Character)c); ++n)
             worthIt |= std::hypot(recipe[(size_t)(n - 1)].sine,
                                   recipe[(size_t)(n - 1)].cosine) > kAudible;
 
@@ -421,8 +546,8 @@ private:
           // Built for every shape once any of them is worth building, so the
           // bands stay at a fixed stride and a quiet one in the middle cannot
           // shift the rest out from under the index.
-          build(recipe);
-          offset += kCharacterBands;
+          build(recipe, harmonicsFor((Character)c));
+          offset += bandsFor((Character)c);
         }
 
       shaped[(size_t)c] = anything;
@@ -433,6 +558,100 @@ private:
         offset = base[(size_t)c];
       }
     }
+  }
+
+  /// The measured harmonics of a recorded character.
+  static std::array<Harmonic, kMostCharacterHarmonics> measured(Character c,
+                                                                int shape) {
+    if (c == Character::Sid)
+      return sid();
+
+    const auto &from = c == Character::Wheel
+                           ? kWheelRecipes[(size_t)std::clamp(
+                                 shape, 0, (int)kWheelRecipes.size() - 1)]
+                       : c == Character::Fm ? kFmRecipe
+                                            : kPdRecipe;
+
+    // The fundamental stays at one, so the lift changes what the partial
+    // sounds like and not how loud it is.
+    const auto lift =
+        c == Character::Wheel
+            ? 1.0f
+            : (float)std::pow(
+                  10.0, (c == Character::Fm ? kFmByEar : kPdByEar).harmonicsDb /
+                            20.0);
+
+    std::array<Harmonic, kMostCharacterHarmonics> out{};
+
+    for (size_t n = 0; n < from.size(); ++n) {
+      const auto gain = n == 0 ? 1.0f : lift;
+      out[n] = {from[n][0] * gain, from[n][1] * gain};
+    }
+
+    // PD's second harmonic comes from its mix, so the bus makes it rather
+    // than the table. See kPdSummingH2Db.
+    if (c == Character::Pd)
+      out[1] = {};
+
+    return out;
+  }
+
+  /// What the 6581 makes of a sine, from its measured converter.
+  ///
+  /// A sine at full scale is rounded to the chip's 12-bit codes, each code is
+  /// turned into the level its bits add up to, and the measured bow is applied.
+  /// Worked out over many more points than a table holds, so the converter's
+  /// sharp steps do not fold back into the harmonics that are kept. The
+  /// fundamental is normalised to one and DC is left out, as for the circuits.
+  static std::array<Harmonic, kMostCharacterHarmonics> sid() {
+    constexpr int kFine = 1 << 16;
+
+    std::vector<double> level(4096);
+
+    for (int code = 0; code < 4096; ++code) {
+      double sum = 0.0;
+
+      for (int b = 0; b < 12; ++b)
+        sum += ((code >> b) & 1) * kSidBitWeights[(size_t)b];
+
+      // From the swing of 0 to 1 the weights add up to, to -1 to 1.
+      level[(size_t)code] = 2.0 * sum - 1.0;
+    }
+
+    std::vector<double> turn(kFine), cycle(kFine);
+
+    for (int i = 0; i < kFine; ++i)
+      turn[(size_t)i] = std::sin(kTwoPi * (double)i / (double)kFine);
+
+    for (int i = 0; i < kFine; ++i) {
+      const auto code = (int)std::lround(2047.5 + 2047.5 * turn[(size_t)i]);
+      const auto x = level[(size_t)std::clamp(code, 0, 4095)];
+      // Only the part of the bow inside each voice. The part on the mix is
+      // the bus's, so it reaches every note at once. See kSidMixQuadratic.
+      cycle[(size_t)i] = x - (kSidQuadratic - kSidMixQuadratic) * x * x;
+    }
+
+    std::array<Harmonic, kMostCharacterHarmonics> out{};
+
+    for (int n = 1; n <= kMostCharacterHarmonics; ++n) {
+      double sn = 0.0, cs = 0.0;
+
+      for (int i = 0; i < kFine; ++i) {
+        const auto at = (size_t)(((int64_t)n * i) % kFine);
+        sn += cycle[(size_t)i] * turn[at];
+        cs += cycle[(size_t)i] * turn[(at + kFine / 4) % kFine];
+      }
+
+      out[(size_t)(n - 1)] = {(float)(2.0 * sn / kFine),
+                              (float)(2.0 * cs / kFine)};
+    }
+
+    const double first = std::hypot((double)out[0].sine, (double)out[0].cosine);
+
+    for (auto &h : out)
+      h = {(float)((double)h.sine / first), (float)((double)h.cosine / first)};
+
+    return out;
   }
 
   /// One turn of what a circuit makes of a sine.
@@ -539,6 +758,11 @@ private:
       return out;
     }
 
+    // Recorded characters are not simulated. See measured().
+    case Character::Wheel:
+    case Character::Fm:
+    case Character::Pd:
+    case Character::Sid:
     case Character::Pure:
     case Character::Bulb:
     case Character::NumCharacters:
@@ -567,9 +791,9 @@ private:
   /// top of it. DC comes out in the analysis and is simply not built back in,
   /// which matters more here than it looks: 512 oscillators each carrying a
   /// small offset is headroom quietly disappearing.
-  static std::array<Harmonic, kMaxCharacterHarmonic>
+  static std::array<Harmonic, kMostCharacterHarmonics>
   analyse(const std::vector<double> &cycle) noexcept {
-    std::array<Harmonic, kMaxCharacterHarmonic> out{};
+    std::array<Harmonic, kMostCharacterHarmonics> out{};
 
     for (int n = 1; n <= kMaxCharacterHarmonic; ++n) {
       double sn = 0.0, cs = 0.0;
@@ -602,10 +826,11 @@ private:
   /// because each band is the band below it plus one more harmonic. Building
   /// them separately would be the same work four times over, and this runs at
   /// startup where something is waiting for it.
-  void build(const std::array<Harmonic, kMaxCharacterHarmonic> &recipe) {
+  void build(const std::array<Harmonic, kMostCharacterHarmonics> &recipe,
+             int harmonics) {
     std::vector<double> sum((size_t)kPoints, 0.0);
 
-    for (int n = 1; n <= kMaxCharacterHarmonic; ++n) {
+    for (int n = 1; n <= harmonics; ++n) {
       const auto &h = recipe[(size_t)(n - 1)];
 
       for (int i = 0; i < kPoints; ++i) {
@@ -640,7 +865,7 @@ private:
   static constexpr double kTwoPi = 6.283185307179586476;
 
   std::vector<Wave> tables;
-  std::vector<std::array<Harmonic, kMaxCharacterHarmonic>> recipes;
+  std::vector<std::array<Harmonic, kMostCharacterHarmonics>> recipes;
 
   /// Where each character's tables and recipes start, and whether it has any
   /// tables at all.
@@ -656,7 +881,7 @@ private:
 /// rather than folding it back down.
 inline int highestHarmonicUnder(double freq, double sampleRate) noexcept {
   if (freq <= 0.0 || sampleRate <= 0.0)
-    return kMaxCharacterHarmonic;
+    return kMostCharacterHarmonics;
 
   // Against the same 0.49 the fundamental's own fade ends at rather than
   // against Nyquist itself, so a harmonic that lands exactly on it is dropped
