@@ -9955,6 +9955,84 @@ void testTapeEcho() {
 
 /// The warped record under the whole instrument.
 
+/// The 6581's bow runs out of room past what the chip was measured over.
+///
+/// The bow on its mix is a parabola, measured on at most three voices. Left
+/// to itself it turns back past its top, so a chord pushed harder came out
+/// quieter on the positive half, and the negative half bent further without
+/// limit. A 50 Hz swing far past both edges, read against the same swing at
+/// the edges themselves: the crest must not fall back from where the top was
+/// reached, and the trough must stop where the rail is. Read within a cycle
+/// rather than as levels, because the bus is AC-coupled and an uneven curve
+/// moves the whole wave by what it rectifies.
+void testSidBusRunsOutOfRoom() {
+  section("6581 bus, out of room past the measured range");
+
+  constexpr double kTwoPi = 6.283185307179586;
+  constexpr double sr = 48000.0, f = 50.0, amplitude = 24.0;
+  constexpr int n = 48000;
+
+  const auto amount = (float)BusDrive::amountFor(Character::Sid);
+  const double d =
+      (double)amount * 2.0 * kSidMixQuadratic / kBusReferenceAmplitude;
+
+  std::vector<float> l((size_t)n), r((size_t)n);
+
+  const auto input = [&](int i) {
+    return amplitude * std::sin(kTwoPi * f * (double)i / sr);
+  };
+
+  for (int i = 0; i < n; ++i)
+    l[(size_t)i] = r[(size_t)i] = (float)input(i);
+
+  BusDrive bus;
+  bus.prepare(sr);
+  bus.process(l.data(), r.data(), n, Character::Sid, amount);
+
+  // Each quarter cycle the input rises from where the top is reached, u = 1,
+  // to the crest, and each falls from where the negative rail is reached,
+  // u = -2, to the trough. How far the output moves the wrong way over that
+  // stretch, from where it was when the stretch began, is the whole question.
+  double crestDrop = 0.0, troughDrop = 0.0;
+  bool inCrest = false, inTrough = false;
+  double crestFrom = 0.0, troughFrom = 0.0;
+
+  for (int i = n / 2; i < n - BusDrive::kLatency; ++i) {
+    const double x = input(i), before = input(i - 1);
+    const double out = (double)l[(size_t)(i + BusDrive::kLatency)];
+
+    const bool crest = x > 1.0 / d && x > before;
+    const bool trough = x < -2.0 / d && x < before;
+
+    if (crest && !inCrest)
+      crestFrom = out;
+    if (trough && !inTrough)
+      troughFrom = out;
+
+    inCrest = crest;
+    inTrough = trough;
+
+    if (crest)
+      crestDrop = std::max(crestDrop, crestFrom - out);
+    if (trough)
+      troughDrop = std::max(troughDrop, troughFrom - out);
+  }
+
+  std::printf("  past the edges: the crest falls back by %.3f, the trough "
+              "goes on by %.3f, against a top of %.3f\n",
+              crestDrop, troughDrop, 0.5 / d);
+
+  // A held top still sags a little over the 4 ms it is held, by about half a
+  // unit, because the bus is AC-coupled and a flat stretch is what a coupling
+  // lets drift. The parabola left to itself fell back by 27 here and ran on
+  // by 45, so a third of the top tells the two apart with room to spare.
+  check(crestDrop < 1.0,
+        "pushed past the top of the bow, the positive half holds instead "
+        "of turning back");
+  check(troughDrop < 1.0,
+        "and past the rail the negative half holds instead of bending on");
+}
+
 /// The bus does not dull what passes through it.
 ///
 /// The curve's antialiasing reads it as its average over the step from the
@@ -12604,6 +12682,7 @@ int main() {
   testBusDrive();
   testBusDriveIsSmooth();
   testBusDriveIsFlat();
+  testSidBusRunsOutOfRoom();
   testWobble();
   testReverb();
   testPlateReverb();

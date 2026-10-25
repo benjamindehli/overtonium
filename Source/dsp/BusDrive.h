@@ -172,10 +172,27 @@ private:
       return std::tanh(u);
 
     // Of unit slope at rest like the others, and leaning the positive half in.
-    // It only turns back at u = 1, which the drive it is used at puts at about
-    // seventy times full scale.
-    if (shape == Shape::Quadratic)
-      return u - 0.5 * u * u;
+    // The bow was measured on a mix of at most three voices, a small part of
+    // the way to u = 1, and a parabola left to itself past there does what no
+    // output stage does: the positive half turns back and gets quieter as it
+    // is pushed harder, and the negative half bends further without limit. So
+    // past u = 1 each half runs out of room instead. The positive half holds
+    // the top it has reached, where its slope is already nothing. The negative
+    // half bends over from u = -1, its slope falling from two to nothing over
+    // one more unit, and holds there. Those edges are chosen, not measured,
+    // and only a dense chord played hard reaches them on the 6581. PD's drive
+    // puts them about seventy times full scale out.
+    if (shape == Shape::Quadratic) {
+      if (u >= 1.0)
+        return 0.5;
+
+      if (u > -1.0)
+        return u - 0.5 * u * u;
+
+      const auto v = std::min(-1.0 - u, 1.0);
+
+      return -1.5 - 2.0 * v + v * v;
+    }
 
     // Straight until it meets the rail and flat past it, joined so the slope
     // arrives at nothing rather than at a corner. What an amplifier with
@@ -232,10 +249,22 @@ private:
     if (shape == Shape::Tanh)
       return logCosh(u);
 
-    // Not even, because the quadratic is not odd, and exact everywhere, so
-    // there is nothing where two forms meet.
-    if (shape == Shape::Quadratic)
-      return u * u * (0.5 - u / 6.0);
+    // Not even, because the quadratic is not odd. Each piece starts from
+    // where the one before it ends, so the pieces agree where they meet.
+    if (shape == Shape::Quadratic) {
+      if (u >= 1.0)
+        return 1.0 / 3.0 + 0.5 * (u - 1.0);
+
+      if (u > -1.0)
+        return u * u * (0.5 - u / 6.0);
+
+      const auto v = -1.0 - u;
+
+      if (v < 1.0)
+        return 2.0 / 3.0 + v * (1.5 + v - v * v / 3.0);
+
+      return 17.0 / 6.0 + 2.5 * (v - 1.0);
+    }
 
     const auto a = std::abs(u);
 
