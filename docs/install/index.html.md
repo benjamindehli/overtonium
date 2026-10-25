@@ -1,6 +1,6 @@
 Page: Installing Overtonium on macOS, Windows and Linux
 URL: https://benjamindehli.github.io/overtonium/install/
-Last changed: 2026-10-17
+Last changed: 2026-10-25
 
 # Installing Overtonium
 
@@ -12,13 +12,13 @@ Five files. Most people want the installer for their platform.
 
 | File                                                                                                                      | Holds                        | When to use it                                                                                                                                  |
 | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| [macOS installer](https://github.com/benjamindehli/overtonium/releases/download/v1.14.0/Overtonium-v1.14.0-macOS.pkg)     | VST3, Audio Unit, Standalone | The usual choice on a Mac. You choose which of the three formats to install                                                                     |
-| [macOS zip](https://github.com/benjamindehli/overtonium/releases/download/v1.14.0/Overtonium-v1.14.0-macOS.zip)           | VST3, Audio Unit, Standalone | On a Mac without administrator rights, or if you keep your plugins in a folder of your own                                                      |
-| [Windows installer](https://github.com/benjamindehli/overtonium/releases/download/v1.14.0/Overtonium-v1.14.0-Windows.exe) | VST3, Standalone             | The usual choice on Windows. It needs administrator rights, and SmartScreen will say the publisher is unknown                                   |
-| [Windows zip](https://github.com/benjamindehli/overtonium/releases/download/v1.14.0/Overtonium-v1.14.0-Windows.zip)       | VST3, Standalone             | On Windows without administrator rights, if you keep your plugins in a folder of your own, or if you would rather not run an unsigned installer |
-| [Linux zip](https://github.com/benjamindehli/overtonium/releases/download/v1.14.0/Overtonium-v1.14.0-Linux.zip)           | VST3, LV2, Standalone        | The only download for Linux. There is no installer, because Linux distributions do not agree on where plugins go                                |
+| [macOS installer](https://github.com/benjamindehli/overtonium/releases/download/v1.15.0/Overtonium-v1.15.0-macOS.pkg)     | VST3, Audio Unit, Standalone | The usual choice on a Mac. You choose which of the three formats to install                                                                     |
+| [macOS zip](https://github.com/benjamindehli/overtonium/releases/download/v1.15.0/Overtonium-v1.15.0-macOS.zip)           | VST3, Audio Unit, Standalone | On a Mac without administrator rights, or if you keep your plugins in a folder of your own                                                      |
+| [Windows installer](https://github.com/benjamindehli/overtonium/releases/download/v1.15.0/Overtonium-v1.15.0-Windows.exe) | VST3, Standalone             | The usual choice on Windows. It needs administrator rights, and SmartScreen will say the publisher is unknown                                   |
+| [Windows zip](https://github.com/benjamindehli/overtonium/releases/download/v1.15.0/Overtonium-v1.15.0-Windows.zip)       | VST3, Standalone             | On Windows without administrator rights, if you keep your plugins in a folder of your own, or if you would rather not run an unsigned installer |
+| [Linux zip](https://github.com/benjamindehli/overtonium/releases/download/v1.15.0/Overtonium-v1.15.0-Linux.zip)           | VST3, LV2, Standalone        | The only download for Linux. There is no installer, because Linux distributions do not agree on where plugins go                                |
 
-Every file above is from **version 1.14.0**, released 16 October 2026. [What changed in it](https://benjamindehli.github.io/overtonium/releases/), and in every version before it, has a page of its own. Older builds and the source are on the [releases page](https://github.com/benjamindehli/overtonium/releases/latest).
+Every file above is from **version 1.15.0**, released 25 October 2026. [What changed in it](https://benjamindehli.github.io/overtonium/releases/), and in every version before it, has a page of its own. Older builds and the source are on the [releases page](https://github.com/benjamindehli/overtonium/releases/latest).
 
 ## What each platform gets
 
