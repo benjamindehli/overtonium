@@ -448,6 +448,11 @@ private:
     /// when a note starts, since a key can go down at any point in a wheel's
     /// turn, and only read on Wheel. See wheelShaftHz.
     double shaftTurns = 0.0;
+
+    /// How far this partial's oscillator has wandered from its pitch, in
+    /// cents, on VCO. Kept from note to note, since it is the oscillator that
+    /// wanders and not the note. See kVcoWanderCents.
+    double wanderCents = 0.0;
   };
 
   /// The noise channel runs alongside the partials with its own envelope and
@@ -526,6 +531,10 @@ private:
   /// Where each note's tonewheel shafts start, on a stream of their own so
   /// that drawing them moves nothing that rng draws for every other character.
   Xorshift wheelRng;
+
+  /// The VCO's wander, on a stream of its own for the same reason, and only
+  /// drawn on VCO.
+  Xorshift vcoRng;
 
   float noteBendSemitones = 0.0f;
   float polyPressure = 0.0f;

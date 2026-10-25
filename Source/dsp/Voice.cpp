@@ -111,6 +111,7 @@ void Voice::prepare(double newSampleRate, uint32_t seed) noexcept {
   rng.reseed(seed);
   noise.rng.reseed(seed ^ 0x5bf03635u);
   wheelRng.reseed(seed ^ 0x2545f491u);
+  vcoRng.reseed(seed ^ 0x7f4a7c15u);
 
   reset();
 }
@@ -130,6 +131,7 @@ void Voice::reset() noexcept {
     pt.lastWave = nullptr;
     pt.glideSemis = 0.0;
     pt.glideStep = 0.0;
+    pt.wanderCents = 0.0;
   }
 
   noise.env.reset();
@@ -506,6 +508,16 @@ void Voice::render(float *left, float *right, int numSamples,
   const auto &unit = UnitSpread::instance().rack(p.global.character);
 
   const bool wheel = p.global.character == Character::Wheel;
+  const bool vco = p.global.character == Character::Vco;
+
+  // The VCO's wander, noise through one pole at kVcoWanderHz once a block.
+  // A uniform draw has a variance of a third, and one pole leaves a / (2 - a)
+  // of what goes in, so this scale gives kVcoWanderCents rms.
+  const double blockRate = sampleRate / (double)kControlBlock;
+  const double wanderPole = 1.0 - std::exp(-6.283185307179586 * kVcoWanderHz /
+                                           std::max(1.0, blockRate));
+  const double wanderScale =
+      kVcoWanderCents * std::sqrt(3.0 * (2.0 - wanderPole) / wanderPole);
 
   // The two synthesizers, the 6581 and the VCO, whose noise the engine adds
   // from every note's power at once. See SynthEngine::renderHiss.
@@ -715,6 +727,12 @@ void Voice::render(float *left, float *right, int numSamples,
 
         pt.shaftTurns = wrapPhase(turn + wheelShaftHz(unwobbled) * (double)len /
                                              sampleRate);
+      }
+
+      if (vco) {
+        pt.wanderCents += wanderPole * (wanderScale * (double)vcoRng.bipolar() -
+                                        pt.wanderCents);
+        wobbleCents = pt.wanderCents;
       }
 
       const double freq =

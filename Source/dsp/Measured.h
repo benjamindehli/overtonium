@@ -464,11 +464,25 @@ inline constexpr MeasuredRecipe kVcoRecipe{{{1.0f, 0.0f},
 /// Measured between the harmonics as for the synthesizers, on the notes from
 /// C3 to C5. Above 6.4 kHz it is -121.9 to -124.4, 25 dB above the recording
 /// chain's own floor, so it is the oscillator's. Nearer each note it rises
-/// into a skirt, the pitch moving very slightly all the time, which is not
-/// included. There was no way to silence the oscillator, so whether the noise
-/// is there between notes could not be measured, and it follows the note.
+/// into a skirt, which is the pitch moving very slightly all the time and is
+/// added as that. See kVcoWanderCents. There was no way to silence the
+/// oscillator, so whether the noise is there between notes could not be
+/// measured, and it follows the note.
 inline constexpr double kVcoNoiseDbPerHz = -122.0;
 inline constexpr FixedHiss kVcoFixedHiss{0.0, 0.0};
+
+/// How the VCO's pitch moves within a held note.
+///
+/// Read directly from the takes: the fundamental isolated, its phase taken
+/// from the analytic signal, and a steady pitch's straight line taken off.
+/// What is left moves about 0.2 cents rms, close to that in cents from C2 to
+/// C5, so it scales with the pitch as a tuning voltage with a little noise on
+/// it does. It is spread evenly over how fast it moves, from half a hertz to
+/// 60 Hz, about 0.03 cents per root hertz, with no peak at the mains. Above
+/// 60 Hz it could not be told from the recording's own floor, so it stops
+/// there.
+inline constexpr double kVcoWanderCents = 0.2;
+inline constexpr double kVcoWanderHz = 60.0;
 
 /// How much sooner the VCO's mixer clips its negative half than its positive
 /// one.

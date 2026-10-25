@@ -2620,6 +2620,73 @@ void testMeasuredCharacters() {
         "FM's second harmonic reaches the output, and Pure has none");
 }
 
+/// The VCO's wander: a held note's pitch moving about 0.2 cents rms, as the
+/// recorded oscillator's did, and not at all on Pure.
+///
+/// Read from the zero crossings of one partial, each cycle's length against
+/// the mean. Two seconds of A4 is 880 cycles, plenty to read an rms from.
+void testVcoWander() {
+  section("VCO wander");
+
+  constexpr double sr = 48000.0;
+  constexpr int kLength = 120000;
+
+  const auto spread = [sr, kLength](Character c) {
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+
+    auto p = makeFlatParams(0.0f);
+    p.osc[0].volume = 0.25f;
+    p.osc[0].tuneBlend = 1.0f;
+    p.osc[0].decay = 8.0f;
+    p.global.character = c;
+
+    std::vector<float> l((size_t)kLength), r((size_t)kLength);
+    engine.noteOn(69, 1.0f, p);
+    engine.render(l.data(), r.data(), kLength, p);
+
+    std::vector<double> crossings;
+
+    for (int n = 24000; n < kLength; ++n)
+      if (l[(size_t)n - 1] < 0.0f && l[(size_t)n] >= 0.0f)
+        crossings.push_back(
+            (double)(n - 1) +
+            (double)(-l[(size_t)n - 1] / (l[(size_t)n] - l[(size_t)n - 1])));
+
+    std::vector<double> periods;
+
+    for (size_t i = 1; i < crossings.size(); ++i)
+      periods.push_back(crossings[i] - crossings[i - 1]);
+
+    double mean = 0.0;
+
+    for (double t : periods)
+      mean += t;
+
+    mean /= (double)periods.size();
+
+    double sum = 0.0;
+
+    for (double t : periods) {
+      const double cents = 1200.0 * std::log2(mean / t);
+      sum += cents * cents;
+    }
+
+    return std::sqrt(sum / (double)periods.size());
+  };
+
+  const double vco = spread(Character::Vco);
+  const double pure = spread(Character::Pure);
+
+  std::printf("  A4, cycle by cycle: %.3f cents rms on VCO, %.4f on Pure\n",
+              vco, pure);
+
+  check(vco > 0.12 && vco < 0.3,
+        "a held note on VCO wanders about as much as the recording did");
+  check(pure < 0.01, "and on Pure it holds still");
+}
+
 /// The tonewheel's wobble, measured the way the organ was: as the pair of
 /// sidebands either side of a wheel's tone, split into the part that moves the
 /// level and the part that moves the pitch.
@@ -12758,6 +12825,7 @@ int main() {
   testBusDriveIsFlat();
   testSidBusRunsOutOfRoom();
   testVcoMixer();
+  testVcoWander();
   testWobble();
   testReverb();
   testPlateReverb();

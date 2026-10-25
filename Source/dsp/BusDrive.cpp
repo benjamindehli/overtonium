@@ -85,11 +85,11 @@ double BusDrive::amountFor(Character c) noexcept {
     return 0.15;
   case Character::Wheel:
     return 0.10;
-  // Where the op-amp sits, as a starting point to be set by ear. The mixer it
-  // comes from has a level knob, so how hard it is driven is the player's
-  // choice on the instrument, and here it is part of choosing the character.
+  // Set by ear, a little under the op-amp. The mixer it comes from has a
+  // level knob, so how hard it is driven is the player's choice on the
+  // instrument, and here it is part of choosing the character.
   case Character::Vco:
-    return 0.10;
+    return 0.07;
   case Character::Pd:
   case Character::Sid:
     return 1.0;
