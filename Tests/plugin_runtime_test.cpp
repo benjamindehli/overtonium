@@ -11834,9 +11834,19 @@ void testCharacterControl(OvertoniumProcessor &p) {
     }
   }
 
-  check(ovt::ui::characterColour(ovt::Character::Pd) ==
-            ovt::ui::intervalColour(11),
-        "the gentlest character stands at the yellow end of the mixer's band");
+  check(ovt::ui::characterColour(ovt::Character::Bulb) ==
+            ovt::ui::bandColour(1.0f - 2.0f / 8.0f * (4.0f / 11.0f)),
+        "the circuits keep their places on the mixer's band");
+
+  // The three measured from a synthesizer or a chip light in their
+  // instrument's colour instead.
+  check(ovt::ui::characterColour(ovt::Character::Sid) ==
+                juce::Colour(0xff867ade) &&
+            ovt::ui::characterColour(ovt::Character::Pd) ==
+                juce::Colour(0xffd5df7c) &&
+            ovt::ui::characterColour(ovt::Character::Fm) ==
+                juce::Colour(0xff00825f),
+        "6581, PD and FM light in their instrument's colour");
 
   check(ovt::ui::characterColour(ovt::Character::Opamp) ==
             ovt::ui::intervalColour(ovt::harmonic(2).pitchClass),
