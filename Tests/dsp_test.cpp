@@ -2465,6 +2465,7 @@ void testMeasuredCharacters() {
   std::vector<Probe> probes{
       {Character::Fm, 440.0, &kFmRecipe, kFmByEar.harmonicsDb, "FM"},
       {Character::Pd, 440.0, &kPdRecipe, kPdByEar.harmonicsDb, "PD"},
+      {Character::Vco, 440.0, &kVcoRecipe, 0.0, "the VCO"},
   };
 
   const double wheelPitches[] = {65.4,  98.0,   174.6, 293.7,
@@ -2617,6 +2618,73 @@ void testMeasuredCharacters() {
   check(octaveOf(Character::Fm, 69) > -62.0 &&
             octaveOf(Character::Pure, 69) < -90.0,
         "FM's second harmonic reaches the output, and Pure has none");
+}
+
+/// The VCO's wander: a held note's pitch moving about 0.2 cents rms, as the
+/// recorded oscillator's did, and not at all on Pure.
+///
+/// Read from the zero crossings of one partial, each cycle's length against
+/// the mean. Two seconds of A4 is 880 cycles, plenty to read an rms from.
+void testVcoWander() {
+  section("VCO wander");
+
+  constexpr double sr = 48000.0;
+  constexpr int kLength = 120000;
+
+  const auto spread = [sr, kLength](Character c) {
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+
+    auto p = makeFlatParams(0.0f);
+    p.osc[0].volume = 0.25f;
+    p.osc[0].tuneBlend = 1.0f;
+    p.osc[0].decay = 8.0f;
+    p.global.character = c;
+
+    std::vector<float> l((size_t)kLength), r((size_t)kLength);
+    engine.noteOn(69, 1.0f, p);
+    engine.render(l.data(), r.data(), kLength, p);
+
+    std::vector<double> crossings;
+
+    for (int n = 24000; n < kLength; ++n)
+      if (l[(size_t)n - 1] < 0.0f && l[(size_t)n] >= 0.0f)
+        crossings.push_back(
+            (double)(n - 1) +
+            (double)(-l[(size_t)n - 1] / (l[(size_t)n] - l[(size_t)n - 1])));
+
+    std::vector<double> periods;
+
+    for (size_t i = 1; i < crossings.size(); ++i)
+      periods.push_back(crossings[i] - crossings[i - 1]);
+
+    double mean = 0.0;
+
+    for (double t : periods)
+      mean += t;
+
+    mean /= (double)periods.size();
+
+    double sum = 0.0;
+
+    for (double t : periods) {
+      const double cents = 1200.0 * std::log2(mean / t);
+      sum += cents * cents;
+    }
+
+    return std::sqrt(sum / (double)periods.size());
+  };
+
+  const double vco = spread(Character::Vco);
+  const double pure = spread(Character::Pure);
+
+  std::printf("  A4, cycle by cycle: %.3f cents rms on VCO, %.4f on Pure\n",
+              vco, pure);
+
+  check(vco > 0.12 && vco < 0.3,
+        "a held note on VCO wanders about as much as the recording did");
+  check(pure < 0.01, "and on Pure it holds still");
 }
 
 /// The tonewheel's wobble, measured the way the organ was: as the pair of
@@ -9955,6 +10023,79 @@ void testTapeEcho() {
 
 /// The warped record under the whole instrument.
 
+/// The VCO's mixer, which clips its negative half 2.44 times sooner than its
+/// positive half.
+///
+/// Read through the bus at a level far past both rails, where the swing from
+/// top to bottom has to be the two rails together. The bus is AC-coupled, so a
+/// lopsided clip moves the whole wave by what it rectifies, but not its swing.
+/// Then at a level between the two rails, where the negative half is clipped
+/// and the positive half is not, so the wave has to come out taller than it is
+/// deep, and with an octave on it that an even clip would not give.
+void testVcoMixer() {
+  section("VCO mixer");
+
+  constexpr double kTwoPi = 6.283185307179586;
+  constexpr double sr = 48000.0, f = 200.0;
+  constexpr int n = 48000;
+
+  const auto amount = (float)BusDrive::amountFor(Character::Vco);
+  const double drive = (double)amount * 2.0;
+  const double up = (2.0 / 3.0) / drive;
+  const double down = up / kVcoMixerMismatch;
+
+  const auto through = [&](double amplitude) {
+    std::vector<float> l((size_t)n), r((size_t)n);
+
+    for (int i = 0; i < n; ++i)
+      l[(size_t)i] = r[(size_t)i] =
+          (float)(amplitude * std::sin(kTwoPi * f * (double)i / sr));
+
+    BusDrive bus;
+    bus.prepare(sr);
+    bus.process(l.data(), r.data(), n, Character::Vco, amount);
+
+    // The second half, once the coupling has settled.
+    return std::vector<float>(l.begin() + n / 2, l.end());
+  };
+
+  const auto far = through(20.0 * up);
+  const auto [lo, hi] = std::minmax_element(far.begin(), far.end());
+  const double swing = (double)*hi - (double)*lo;
+
+  std::printf("  far past both rails: swing %.4f, the rails %.4f and %.4f add "
+              "to %.4f\n",
+              swing, up, down, up + down);
+
+  // The half-band filters ring a little on the corners of a wave clipped this
+  // hard, which comes to about 3% on top of the rails.
+  check(std::abs(swing / (up + down) - 1.0) < 0.05,
+        "driven far past both rails, the swing is the two rails together");
+
+  const auto between = through(0.5 * (up + down));
+  const auto [low, high] = std::minmax_element(between.begin(), between.end());
+
+  double re1 = 0.0, im1 = 0.0, re2 = 0.0, im2 = 0.0;
+
+  for (size_t i = 0; i < between.size(); ++i) {
+    const double t = (double)(i + n / 2) / sr;
+    re1 += (double)between[i] * std::cos(kTwoPi * f * t);
+    im1 += (double)between[i] * std::sin(kTwoPi * f * t);
+    re2 += (double)between[i] * std::cos(2.0 * kTwoPi * f * t);
+    im2 += (double)between[i] * std::sin(2.0 * kTwoPi * f * t);
+  }
+
+  const double octave =
+      20.0 * std::log10(std::hypot(re2, im2) / std::hypot(re1, im1));
+
+  std::printf("  between the rails: %.4f up, %.4f down, octave %.1f dB\n",
+              (double)*high, -(double)*low, octave);
+
+  check(*high > -*low,
+        "between the rails, the negative half is the one that clips");
+  check(octave > -30.0, "and the lopsided clip puts an octave on the note");
+}
+
 /// The 6581's bow runs out of room past what the chip was measured over.
 ///
 /// The bow on its mix is a parabola, measured on at most three voices. Left
@@ -12683,6 +12824,8 @@ int main() {
   testBusDriveIsSmooth();
   testBusDriveIsFlat();
   testSidBusRunsOutOfRoom();
+  testVcoMixer();
+  testVcoWander();
   testWobble();
   testReverb();
   testPlateReverb();

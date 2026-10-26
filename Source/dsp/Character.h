@@ -21,8 +21,8 @@ namespace ovt {
 /// the ways each design misses are what people mean when they call one warm
 /// and another sterile.
 ///
-/// The last three are measured from recordings of real instruments instead of
-/// being simulated. See Measured.h.
+/// Wheel and everything after it are measured from recordings of real
+/// instruments instead of being simulated. See Measured.h.
 ///
 /// The order is the order they are saved in, so a new one goes on the end.
 ///
@@ -39,6 +39,7 @@ enum class Character {
   Fm,       ///< a frequency modulation synthesizer's operator, alone
   Pd,       ///< a phase distortion synthesizer's oscillator, undistorted
   Sid,      ///< a sine through a 6581's measured converter
+  Vco,      ///< an analogue oscillator's sine, through a mixer that clips
   NumCharacters
 };
 
@@ -48,7 +49,7 @@ enum class Character {
 /// circuits are built at three.
 inline bool isMeasured(Character c) noexcept {
   return c == Character::Wheel || c == Character::Fm || c == Character::Pd ||
-         c == Character::Sid;
+         c == Character::Sid || c == Character::Vco;
 }
 
 /// What each one is called on the panel.
@@ -64,7 +65,8 @@ inline bool isMeasured(Character c) noexcept {
 ///
 /// The recorded characters follow the same rule where they can. A tonewheel
 /// is a physical part, and so is the 6581, the chip whose converter that
-/// character is measured from, named by its part number. FM and PD are named
+/// character is measured from, named by its part number, and VCO is the
+/// voltage-controlled oscillator its sine comes from. FM and PD are named
 /// for the two methods of synthesis instead, frequency modulation and phase
 /// distortion, since the instruments' own words for their oscillators are
 /// their makers' terms and read as something else to most players.
@@ -78,6 +80,8 @@ inline const char *characterName(Character c) {
     return "PD";
   case Character::Sid:
     return "6581";
+  case Character::Vco:
+    return "VCO";
   case Character::Bulb:
     return "Bulb";
   case Character::Rail:
@@ -214,6 +218,12 @@ inline UnitTolerance unitToleranceFor(Character c) noexcept {
   case Character::Sid:
     return {};
 
+  // An analogue oscillator tuned by hand, as the circuits are. One was
+  // recorded, so there is nothing to measure a rack's spread from, and it
+  // takes the op-amp's, an ordinary core in an ordinary circuit.
+  case Character::Vco:
+    return {2.0f, 0.3f};
+
   // Pure is the one that is not a circuit, so a rack of them has no spread at
   // all. That is also what keeps every patch written before any of this
   // existed sounding exactly as it did.
@@ -349,14 +359,16 @@ inline constexpr int kMostCharacterHarmonics = 32;
 ///
 /// Five for the circuits and the tonewheel, whose harmonics fall away. Ten for
 /// the two synthesizers, whose harmonics stay around -70 dB from the 2nd to
-/// the 10th, so stopping at five would leave out part of what was measured.
+/// the 10th, so stopping at five would leave out part of what was measured,
+/// and for the VCO, whose 5th, 7th and 9th are still above -58 dB.
 /// Thirty-two for the 6581.
 inline int harmonicsFor(Character c) noexcept {
   if (c == Character::Sid)
     return kMostCharacterHarmonics;
 
-  return c == Character::Fm || c == Character::Pd ? kMeasuredHarmonics
-                                                  : kMaxCharacterHarmonic;
+  return c == Character::Fm || c == Character::Pd || c == Character::Vco
+             ? kMeasuredHarmonics
+             : kMaxCharacterHarmonic;
 }
 
 /// Tables per shape, one for each count of harmonics that fits.
@@ -569,13 +581,14 @@ private:
     const auto &from = c == Character::Wheel
                            ? kWheelRecipes[(size_t)std::clamp(
                                  shape, 0, (int)kWheelRecipes.size() - 1)]
-                       : c == Character::Fm ? kFmRecipe
-                                            : kPdRecipe;
+                       : c == Character::Fm  ? kFmRecipe
+                       : c == Character::Vco ? kVcoRecipe
+                                             : kPdRecipe;
 
     // The fundamental stays at one, so the lift changes what the partial
-    // sounds like and not how loud it is.
+    // sounds like and not how loud it is. Only the synthesizers have one.
     const auto lift =
-        c == Character::Wheel
+        c == Character::Wheel || c == Character::Vco
             ? 1.0f
             : (float)std::pow(
                   10.0, (c == Character::Fm ? kFmByEar : kPdByEar).harmonicsDb /
@@ -763,6 +776,7 @@ private:
     case Character::Fm:
     case Character::Pd:
     case Character::Sid:
+    case Character::Vco:
     case Character::Pure:
     case Character::Bulb:
     case Character::NumCharacters:
