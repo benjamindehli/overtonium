@@ -529,7 +529,7 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   // since what it does is the last thing that happens to the signal and the
   // readouts beside it are the other two facts about the output. It is a
   // machine button like the echo and the reverb now rather than a switch,
-  // because it chooses between five shapes rather than turning one on, and it
+  // because it chooses between six machines rather than turning one on, and it
   // has left the settings menu for the same reason: it is part of the sound.
   styleToggle(clipButton, kClipName,
               "Shapes the output after the master fader. Soft rounds the "

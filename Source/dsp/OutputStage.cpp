@@ -33,6 +33,10 @@ constexpr float kBiasDown = 0.9f;
 /// limiter without lookahead cannot promise that on its own.
 constexpr float kLimitCeiling = 0.98f;
 
+/// The console's limiter's ceiling, -0.1 dBFS, which is where the chain it is
+/// measured from is set when it is used.
+constexpr float kConsoleCeiling = 0.98855309f;
+
 /// A tanh knee above the threshold, bounded by one.
 float softKnee(float a, float threshold) {
   const float over = (a - threshold) / (1.0f - threshold);
@@ -113,6 +117,8 @@ void OutputStage::prepare(double sampleRate) noexcept {
   boxOne.assign((size_t)fullBox, 1.0f);
   boxTwo.assign((size_t)fullBox, 1.0f);
 
+  console.prepare(rate);
+
   reset();
 }
 
@@ -148,6 +154,8 @@ void OutputStage::reset() noexcept {
   std::fill(boxTwo.begin(), boxTwo.end(), 1.0f);
   boxOneAt = boxTwoAt = 0;
   boxOneSum = boxTwoSum = (double)box;
+
+  console.reset();
 }
 
 float OutputStage::delayed(std::vector<float> &line, float in) noexcept {
@@ -157,7 +165,7 @@ float OutputStage::delayed(std::vector<float> &line, float in) noexcept {
   return out;
 }
 
-float OutputStage::gainFor(float peak) noexcept {
+float OutputStage::gainFor(float peak, float ceiling) noexcept {
   // Drop everything the newcomer is at least as loud as: none of it can be
   // the maximum of any window this one is in.
   const auto capacity = (int)wedgeValue.size();
@@ -179,7 +187,7 @@ float OutputStage::gainFor(float peak) noexcept {
   const float worst =
       wedgeTail > wedgeHead ? wedgeValue[(size_t)(wedgeHead % capacity)] : 0.0f;
 
-  const float wanted = worst > kLimitCeiling ? kLimitCeiling / worst : 1.0f;
+  const float wanted = worst > ceiling ? ceiling / worst : 1.0f;
 
   // Straight down to whatever is needed, and back up on the release. The
   // boxes below are what stop that step being heard as a step.
@@ -224,15 +232,31 @@ void OutputStage::process(float *left, float *right, int numSamples,
                 : type == ClipType::Fold       ? shapeFold
                                                : shapeSoft;
 
+  const bool consoling = shaping && type == ClipType::Console;
+  const float ceiling = consoling ? kConsoleCeiling : kLimitCeiling;
+
   for (int n = 0; n < numSamples; ++n) {
+    // The console runs on every sample, for the reason the detector does, and
+    // what it makes is only used when it is chosen. Ahead of the delay, so the
+    // limiter after it looks ahead at the console's output.
+    float inLeft = left[n], inRight = right[n];
+    float conLeft = inLeft, conRight = inRight;
+    console.process(conLeft, conRight);
+
+    if (consoling) {
+      inLeft = conLeft;
+      inRight = conRight;
+    }
+
     // Linked, from whichever channel is louder, so the image holds still.
     // Run whatever the type is, so that choosing the limiter half way through
     // a note finds a detector that already knows what the last window held
     // rather than one starting from silence.
-    const float gain = gainFor(std::max(std::abs(left[n]), std::abs(right[n])));
+    const float gain =
+        gainFor(std::max(std::abs(inLeft), std::abs(inRight)), ceiling);
 
-    const float outLeft = delaying ? delayed(lineLeft, left[n]) : left[n];
-    const float outRight = delaying ? delayed(lineRight, right[n]) : right[n];
+    const float outLeft = delaying ? delayed(lineLeft, inLeft) : inLeft;
+    const float outRight = delaying ? delayed(lineRight, inRight) : inRight;
 
     if (delaying)
       writeIndex = (writeIndex + 1) % delay;
@@ -243,7 +267,7 @@ void OutputStage::process(float *left, float *right, int numSamples,
       continue;
     }
 
-    if (type == ClipType::Limiter) {
+    if (type == ClipType::Limiter || type == ClipType::Console) {
       // The backstop. It has nothing to do now that the gain arrives with the
       // peak rather than after it, and it stays because this stage has to be
       // bounded whatever arrives: a rate so low that the window is a couple of
