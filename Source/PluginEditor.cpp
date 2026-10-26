@@ -254,10 +254,10 @@ void RowGutter::setTool(ovt::ui::PointerTool which, ovt::ui::LinkCurve curve) {
   toolIcon = ovt::ui::pointerToolImage(tool, curve, 1.0f);
 
   // The lamp does not move with the tool: see where it is set, in the
-  // constructor. Only the icon changes.
-  toolButton.setButtonText(tool == ovt::ui::PointerTool::Pointer ? "" : "");
+  // constructor. Only the icon changes, and the button has to be told, or it
+  // repaints the picture it kept of the last one. See GlowButton::iconChanged.
   toolButton.setTitle(juce::String("Tool: ") + ovt::ui::pointerToolName(tool));
-  toolButton.repaint();
+  toolButton.iconChanged();
   repaint();
 }
 

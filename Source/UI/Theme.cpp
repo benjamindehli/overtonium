@@ -298,8 +298,9 @@ void ScreenSwitch::paintButton(juce::Graphics &g, bool highlighted, bool) {
 }
 
 void GlowButton::paintButton(juce::Graphics &g, bool highlighted, bool down) {
-  // The icon is not in the key. Every button is given its icon once, when it
-  // is made, and keeps it.
+  // The icon is a function and cannot be compared, so it is in the key as a
+  // count of the times it has changed. Most buttons keep one icon for life
+  // and never move it. See iconChanged.
   LookKey key;
   key.add(getButtonText())
       .add(getToggleState())
@@ -307,6 +308,7 @@ void GlowButton::paintButton(juce::Graphics &g, bool highlighted, bool down) {
       .add(down)
       .add(isEnabled())
       .add(onIcon != nullptr)
+      .add(iconRevision)
       .add(findColour(juce::TextButton::buttonColourId))
       .add(findColour(juce::TextButton::textColourOnId))
       .add(getProperties());
