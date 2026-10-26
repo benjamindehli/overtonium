@@ -37,6 +37,11 @@ const juce::Identifier kEditorHeight{"editorHeight"};
 const juce::Identifier kEditorZoom{"editorZoom"};
 const juce::Identifier kLinkScope{"linkScope"};
 
+/// The channels the Selected scope reaches, as their harmonic numbers with
+/// commas between, which reads the same whatever order the list was built in
+/// and cannot be misread if the number of channels ever changes.
+const juce::Identifier kLinkSelection{"linkSelection"};
+
 /// Whether LINK is on. Kept beside the scope and the curve because it is the
 /// same setting: those two say what a drag would reach and this says whether
 /// it reaches anything. Saving two of the three and not the third meant a
@@ -560,6 +565,17 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   topBar.setLinkCurve(
       linkCurveFromState(state.getProperty(kLinkCurveId).toString(),
                          (int)state.getProperty(kLinkCurve, -1)));
+
+  for (const auto &number : juce::StringArray::fromTokens(
+           state.getProperty(kLinkSelection).toString(), ",", "")) {
+    const auto i = number.trim().getIntValue() - 1;
+
+    if (i >= 0 && i < kNumHarmonics)
+      selection[(size_t)i] = true;
+  }
+
+  topBar.onSelectionCleared = [this] { clearSelection(); };
+  selectionChanged(false);
 
   topBar.onLinkSettingsChanged = [this] {
     rememberTool();
@@ -1376,6 +1392,103 @@ void OvertoniumEditor::drawEnded() {
       param->endChangeGesture();
 }
 
+void OvertoniumEditor::selectionStarted(int index0, juce::Point<int> onScreen) {
+  if (index0 < 0 || index0 >= kNumHarmonics)
+    return;
+
+  // The channel clicked decides what the whole drag does, as a paint stroke in
+  // a spreadsheet does: starting on an unselected channel adds every channel
+  // crossed, and starting on a selected one takes them away. Mixed would leave
+  // a drag that flickered each channel it passed back and forth.
+  selectingAdds = !selection[(size_t)index0];
+  selection[(size_t)index0] = selectingAdds;
+  selectingNow = true;
+  lastSelected = onScreen;
+
+  // A selection is only worth making for the scope that reaches it, so making
+  // one chooses that scope with LINK, as if picked from the menu. Taking a
+  // channel away leaves the tool alone, since that is tidying rather than
+  // asking for anything.
+  if (selectingAdds && (!topBar.isLinkEnabled() ||
+                        topBar.getLinkScope() != LinkScope::Selected)) {
+    chooseTool(ovt::ui::PointerTool::Link);
+    topBar.setLinkScope(LinkScope::Selected);
+
+    if (topBar.onLinkSettingsChanged)
+      topBar.onLinkSettingsChanged();
+  }
+
+  selectionChanged(false);
+}
+
+void OvertoniumEditor::selectionMovedTo(juce::Point<int> onScreen) {
+  if (!selectingNow)
+    return;
+
+  // Every column between the last point and this one, for the reason drawing
+  // fills them in: a quick hand crosses several channels between two events.
+  const auto from = lastSelected;
+  const auto steps = juce::jmax(1, std::abs(onScreen.x - from.x));
+
+  for (int i = 1; i <= steps; ++i)
+    applySelectionAt({from.x + juce::roundToInt((double)i / (double)steps *
+                                                (onScreen.x - from.x)),
+                      from.y});
+
+  lastSelected = onScreen;
+  selectionChanged(false);
+}
+
+void OvertoniumEditor::selectionEnded() {
+  if (!selectingNow)
+    return;
+
+  selectingNow = false;
+  selectionChanged(true);
+}
+
+void OvertoniumEditor::applySelectionAt(juce::Point<int> onScreen) {
+  // By column alone, at any height, so a drag that wanders off the numbers
+  // onto the knobs below them still selects the channels it passes.
+  for (size_t i = 0; i < strips.size(); ++i) {
+    const auto local = strips[i]->getLocalPoint(nullptr, onScreen);
+
+    if (local.x >= 0 && local.x < strips[i]->getWidth())
+      selection[i] = selectingAdds;
+  }
+}
+
+void OvertoniumEditor::clearSelection() {
+  selection.fill(false);
+  selectionChanged(true);
+}
+
+void OvertoniumEditor::selectionChanged(bool save) {
+  bool any = false;
+
+  for (size_t i = 0; i < strips.size(); ++i) {
+    strips[i]->setSelected(selection[i]);
+    any = any || selection[i];
+  }
+
+  topBar.setHasSelection(any);
+
+  if (save) {
+    juce::StringArray numbers;
+
+    for (int i = 0; i < kNumHarmonics; ++i)
+      if (selection[(size_t)i])
+        numbers.add(juce::String(i + 1));
+
+    // See OvertoniumProcessor::stateLock.
+    const juce::ScopedLock sl(plugin().stateLock());
+    plugin().apvts.state.setProperty(kLinkSelection,
+                                     numbers.joinIntoString(","), nullptr);
+  }
+
+  updateLinkGlow();
+}
+
 /// Every fader a drawn line can reach, the noise channel included.
 ///
 /// It is not a harmonic, but it is a fader, and a drag that crossed it and
@@ -1756,6 +1869,9 @@ void OvertoniumEditor::gatherLinkWeights(
       break;
     case LinkScope::Even:
       selected = ((i + 1) % 2) == 0;
+      break;
+    case LinkScope::Selected:
+      selected = selection[(size_t)i];
       break;
     case LinkScope::All:
     case LinkScope::NumScopes:

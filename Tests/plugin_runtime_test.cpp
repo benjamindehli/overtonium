@@ -4752,8 +4752,10 @@ void testLinkMenu() {
   }
 
   check(headers == 2, "the menu is in two named sections");
-  check(items == 1 + (int)LinkScope::NumScopes + (int)LinkCurve::NumCurves,
-        "the switch, every scope and every curve are all there (" +
+  // The switch, the scopes, clearing the selection and the curves.
+  check(items == 1 + (int)LinkScope::NumScopes + 1 + (int)LinkCurve::NumCurves,
+        "the switch, every scope, clearing the selection and every curve are "
+        "all there (" +
             std::to_string(items) + ")");
 
   // Exactly the two current settings are ticked, and nothing else.
@@ -4766,6 +4768,7 @@ void testLinkMenu() {
   check(enabled == 1, "with LINK off only the switch itself can be picked");
 
   settings.enabled = true;
+  settings.hasSelection = true;
   int enabledOn = 0;
   auto onMenu = buildLinkMenu(settings);
 
@@ -4774,7 +4777,13 @@ void testLinkMenu() {
         !it.getItem().isSectionHeader)
       ++enabledOn;
 
-  check(enabledOn == items, "with LINK on every item can be picked");
+  check(enabledOn == items,
+        "with LINK on and a selection made, every item can be picked");
+
+  check(isClearSelectionChoice(2) && !isClearSelectionChoice(1) &&
+            !applyLinkMenuChoice(2, settings),
+        "clearing the selection is its own choice, not one of LINK's "
+        "settings");
 
   // ---- what the menu does when something is chosen --------------------------
   LinkSettings state;
@@ -9613,6 +9622,165 @@ void testSegmentCells() {
 ///
 /// All three are checked rather than the one that was missing, so the next
 /// setting added here cannot be the one forgotten.
+/// Picking channels by their numbers, for the Selected scope (#75).
+///
+/// A command-click on a number picks that channel, and a drag from there
+/// across the numbers picks every channel it crosses. Making a selection
+/// chooses LINK with the Selected scope, and a LINK drag then moves only the
+/// channels picked. Starting on a picked channel takes channels away instead,
+/// the selection is kept with the session, and the menu can clear it.
+void testSelectingChannels(OvertoniumProcessor &p) {
+  section("Selecting channels");
+
+  const auto open = [&p] {
+    return std::unique_ptr<juce::AudioProcessorEditor>(p.createEditor());
+  };
+
+  const auto stripsOf = [](juce::Component &root) {
+    std::vector<ovt::ui::ChannelStrip *> strips;
+    std::function<void(juce::Component &)> gather = [&](juce::Component &c) {
+      if (auto *s = dynamic_cast<ovt::ui::ChannelStrip *>(&c))
+        strips.push_back(s);
+      for (auto *child : c.getChildren())
+        gather(*child);
+    };
+    gather(root);
+    return strips;
+  };
+
+  const auto picked = [](const std::vector<ovt::ui::ChannelStrip *> &strips) {
+    std::string out;
+    for (size_t i = 0; i < strips.size(); ++i)
+      if (strips[i]->isSelected())
+        out += std::to_string(i + 1) + " ";
+    return out;
+  };
+
+  {
+    auto base = open();
+    auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+    auto *bar = editor != nullptr ? findTopBar(*editor) : nullptr;
+    auto *target = dynamic_cast<ovt::ui::LinkTarget *>(editor);
+
+    check(editor != nullptr && bar != nullptr && target != nullptr,
+          "the editor opens and takes selections");
+    if (editor == nullptr || bar == nullptr || target == nullptr)
+      return;
+
+    auto strips = stripsOf(*editor);
+
+    if (strips.size() != (size_t)ovt::kNumHarmonics)
+      return;
+
+    editor->chooseTool(ovt::ui::PointerTool::Pointer);
+
+    const auto number = [&strips](int i) {
+      return strips[(size_t)i]->localPointToGlobal(
+          juce::Point<int>(strips[(size_t)i]->getWidth() / 2, 10));
+    };
+
+    // ---- a drag across the numbers picks a run of channels -----------------
+    target->selectionStarted(2, number(2));
+    target->selectionMovedTo(number(5));
+    target->selectionEnded();
+
+    check(picked(strips) == "3 4 5 6 ",
+          "a drag from channel 3 to 6 picks the four (" + picked(strips) + ")");
+
+    check(editor->currentTool() == ovt::ui::PointerTool::Link &&
+              bar->getLinkScope() == ovt::ui::LinkScope::Selected,
+          "and making a selection chooses LINK with the Selected scope");
+
+    // ---- a LINK drag moves only the channels picked ------------------------
+    //
+    // On the pan knobs, which LINK moves in a straight line from wherever each
+    // one is. The faders are shared out in decibels, so one standing at the
+    // bottom would stay there and look left out.
+    const auto panOf = [&p](int i) {
+      auto *param = p.apvts.getParameter(
+          ovt::params::oscParamId(ovt::params::panSuffix, i));
+      return param != nullptr ? param->getValue() : -1.0f;
+    };
+
+    std::array<float, ovt::kNumHarmonics> before{};
+    for (int i = 0; i < ovt::kNumHarmonics; ++i)
+      before[(size_t)i] = panOf(i);
+
+    auto *source =
+        dynamic_cast<juce::RangedAudioParameter *>(p.apvts.getParameter(
+            ovt::params::oscParamId(ovt::params::panSuffix, 3)));
+
+    if (source == nullptr)
+      return;
+
+    // A little either way of where it stands, so it cannot meet an end.
+    const auto to = source->convertFrom0to1(
+        source->getValue() + (source->getValue() > 0.5f ? -0.1f : 0.1f));
+
+    target->linkDragStarted(ovt::ui::Role::Pan, 3);
+    source->setValueNotifyingHost(source->convertTo0to1(to));
+    target->linkValueChanged(ovt::ui::Role::Pan, 3, to);
+    target->linkDragEnded(ovt::ui::Role::Pan, 3);
+
+    std::string moved;
+    for (int i = 0; i < ovt::kNumHarmonics; ++i)
+      if (std::abs(panOf(i) - before[(size_t)i]) > 1.0e-4f)
+        moved += std::to_string(i + 1) + " ";
+
+    check(moved == "3 4 5 6 ",
+          "a LINK drag on channel 4 moves the picked channels and no others (" +
+              moved + ")");
+
+    // Put back, so the tests after this one find the pans they expect.
+    for (int i = 0; i < ovt::kNumHarmonics; ++i)
+      if (auto *param = p.apvts.getParameter(
+              ovt::params::oscParamId(ovt::params::panSuffix, i)))
+        param->setValueNotifyingHost(before[(size_t)i]);
+
+    // ---- starting on a picked channel takes channels away ------------------
+    target->selectionStarted(4, number(4));
+    target->selectionMovedTo(number(5));
+    target->selectionEnded();
+
+    check(picked(strips) == "3 4 ",
+          "a drag that starts on a picked channel takes channels away (" +
+              picked(strips) + ")");
+  }
+
+  // ---- kept with the session ------------------------------------------------
+  {
+    auto base = open();
+    auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+    auto *bar = editor != nullptr ? findTopBar(*editor) : nullptr;
+
+    if (editor == nullptr || bar == nullptr)
+      return;
+
+    auto strips = stripsOf(*editor);
+
+    check(picked(strips) == "3 4 ",
+          "the selection is still there when the window opens again (" +
+              picked(strips) + ")");
+
+    check(bar->onSelectionCleared != nullptr,
+          "and the menu can ask for it to be cleared");
+
+    if (bar->onSelectionCleared)
+      bar->onSelectionCleared();
+
+    check(picked(strips).empty(), "which leaves no channel picked");
+
+    editor->chooseTool(ovt::ui::PointerTool::Pointer);
+  }
+
+  {
+    auto base = open();
+    auto strips = stripsOf(*base);
+
+    check(picked(strips).empty(), "and that is kept with the session too");
+  }
+}
+
 void testLinkSurvivesAReopen(OvertoniumProcessor &p) {
   section("LINK survives a reopen");
 
@@ -12705,6 +12873,7 @@ int main(int argc, char **argv) {
   testFitAllChannels(processor);
   testZoomTickFollowsTheZoom(processor);
   testDrawingAcrossTheFaders(processor);
+  testSelectingChannels(processor);
   testLinkSurvivesAReopen(processor);
   testSegmentCells();
   testOptionBars(processor);

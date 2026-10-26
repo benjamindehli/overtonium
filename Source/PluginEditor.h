@@ -200,6 +200,29 @@ public:
 
   std::vector<juce::RangedAudioParameter *> faderParameters() const;
   void applyDrawAt(juce::Point<int>);
+
+  /// The channels picked by their numbers, which the Selected scope reaches.
+  /// Saved with the session beside LINK's other settings, since it is part of
+  /// how the desk is set up rather than part of the sound.
+  std::array<bool, ovt::kNumHarmonics> selection{};
+
+  /// A selection drag under way: whether it is adding or taking away, decided
+  /// by the channel it began on, and where it last reached.
+  bool selectingNow = false;
+  bool selectingAdds = true;
+  juce::Point<int> lastSelected;
+
+  void selectionStarted(int index0, juce::Point<int>) override;
+  void selectionMovedTo(juce::Point<int>) override;
+  void selectionEnded() override;
+
+  /// Sets whichever channel's column this point is in, at any height.
+  void applySelectionAt(juce::Point<int>);
+
+  /// Hands the selection to the strips, the bar and the session, and lights
+  /// the preview again, since the selection is what one scope reaches.
+  void selectionChanged(bool save);
+  void clearSelection();
   void linkDragStarted(ovt::ui::Role, int sourceIndex) override;
   void linkValueChanged(ovt::ui::Role, int sourceIndex,
                         float plainValue) override;

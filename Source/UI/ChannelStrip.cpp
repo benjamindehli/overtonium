@@ -1631,6 +1631,21 @@ void ChannelStrip::mouseDown(const juce::MouseEvent &e) {
   const bool echoOfTheSameClick = e.eventTime == lastClick;
   lastClick = e.eventTime;
 
+  // The command key on the channel's number picks the channel, for the
+  // Selected scope. Only on the number: on a knob that key asks for fine
+  // movement, and the number is the channel's name, so it is where picking a
+  // channel belongs. The command key rather than shift, which draws.
+  if (!e.mods.isPopupMenu() && e.mods.isCommandDown() &&
+      headerCap.getBounds().contains(
+          e.getEventRelativeTo(this).getPosition())) {
+    if (!echoOfTheSameClick) {
+      selecting = true;
+      link.selectionStarted(index, e.getScreenPosition());
+    }
+
+    return;
+  }
+
   if (!e.mods.isPopupMenu()) {
     foldSectionUnder(e, echoOfTheSameClick);
     return;
@@ -1979,6 +1994,36 @@ void ChannelStrip::paintHeaderBand(juce::Graphics &g) {
   g.setFont(makeFont(14.0f, true));
   g.drawText(juce::String(info.harmonic), header, juce::Justification::centred,
              false);
+
+  // A bar under the number for a selected channel, in the accent the reach
+  // lights the number in, so the two read as one family: the bar is what was
+  // picked, the lit number is what the next drag would move.
+  if (selected) {
+    g.setColour(colours::accent);
+    g.fillRect(juce::Rectangle<int>(14, 2).withCentre(
+        {header.getCentreX(), header.getBottom() - 2}));
+  }
+}
+
+void ChannelStrip::mouseDrag(const juce::MouseEvent &e) {
+  if (selecting)
+    link.selectionMovedTo(e.getScreenPosition());
+}
+
+void ChannelStrip::mouseUp(const juce::MouseEvent &) {
+  if (!selecting)
+    return;
+
+  selecting = false;
+  link.selectionEnded();
+}
+
+void ChannelStrip::setSelected(bool on) {
+  if (selected == on)
+    return;
+
+  selected = on;
+  headerCap.repaint();
 }
 
 void ChannelStrip::setLinkReach(float amount) {

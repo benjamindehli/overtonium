@@ -1,6 +1,6 @@
 Page: Overtonium controls: every knob on a channel strip
 URL: https://benjamindehli.github.io/overtonium/controls/
-Last changed: 2026-10-24
+Last changed: 2026-10-26
 
 # Overtonium controls
 
@@ -108,6 +108,9 @@ While drawing is armed, every fader lights in the same accent colour as the butt
 | Same interval  | only the strips sharing the interval class of the one you grab, so you can move just the fifths, or just the octaves |
 | Odd harmonics  | 1, 3, 5 and so on, the half of the series that sounds hollow                                                         |
 | Even harmonics | 2, 4, 6 and so on                                                                                                    |
+| Selected       | the channels you picked by their numbers, whichever they are                                                         |
+
+To move a set of channels no rule describes, pick them. Cmd-click a channel's number on a Mac, or Ctrl-click on Windows and Linux, to pick it or put it back, and drag across the numbers to do the same to every channel you cross. A drag that starts on a picked channel takes channels away instead. Picked channels show a short bar under their number, and picking one switches to Link with the Selected scope, so the next drag moves only those channels. The selection is kept with your session, and Clear selection in the Link menu empties it.
 
 | Curve               | How the drag is shared out                                                                                                   |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
