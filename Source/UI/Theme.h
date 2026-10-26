@@ -504,6 +504,7 @@ enum class LinkScope {
   SameInterval, ///< only strips sharing the dragged one's interval class
   Odd,          ///< odd harmonic numbers, the hollow half of the series
   Even,
+  Selected, ///< the channels picked by their numbers, whichever they are
   NumScopes
 };
 
@@ -550,6 +551,10 @@ struct LinkSettings {
   bool enabled = false;
   LinkScope scope = LinkScope::All;
   LinkCurve curve = LinkCurve::Uniform;
+
+  /// Whether any channel is selected, which is all the menu needs to know to
+  /// offer clearing the selection.
+  bool hasSelection = false;
 };
 
 /// The LINK menu, built as data rather than assembled at the click.
@@ -572,6 +577,11 @@ bool applyToolMenuChoice(int id, PointerTool &tool);
 /// @returns false when the id was not one of ours, which includes the 0 that
 /// means the menu was dismissed.
 bool applyLinkMenuChoice(int id, LinkSettings &);
+
+/// Whether the menu came back asking for the selection to be cleared. That is
+/// not one of LINK's settings but an action on the channels, so it is asked
+/// about separately rather than folded into applyLinkMenuChoice.
+bool isClearSelectionChoice(int id);
 
 /// Weight applied to a strip's share of a LINK drag.
 ///
@@ -714,6 +724,24 @@ struct LinkTarget {
   virtual bool drawStarted(juce::Point<int> onScreen) = 0;
   virtual void drawMovedTo(juce::Point<int> onScreen) = 0;
   virtual void drawEnded() = 0;
+
+  /// A click with the command key on a channel's number, which adds the
+  /// channel to the selection or takes it out, and a drag from there across
+  /// the numbers, which does the same to every channel it crosses. Through
+  /// the editor for the reason drawing is: the pointer belongs to the strip
+  /// the drag began on, and only the editor knows where the others are.
+  ///
+  /// Empty by default, since nothing but the editor holds a selection.
+  ///
+  /// @param index0    the channel whose number was clicked, from zero
+  /// @param onScreen  where the pointer is, in screen coordinates
+  virtual void selectionStarted(int index0, juce::Point<int> onScreen) {
+    juce::ignoreUnused(index0, onScreen);
+  }
+  virtual void selectionMovedTo(juce::Point<int> onScreen) {
+    juce::ignoreUnused(onScreen);
+  }
+  virtual void selectionEnded() {}
 };
 
 } // namespace ovt::ui

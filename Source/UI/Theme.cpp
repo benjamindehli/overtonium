@@ -982,6 +982,8 @@ const char *linkScopeName(LinkScope s) {
     return "Odd harmonics";
   case LinkScope::Even:
     return "Even harmonics";
+  case LinkScope::Selected:
+    return "Selected";
 
   case LinkScope::NumScopes:
   default:
@@ -1046,9 +1048,12 @@ namespace {
 /// Menu ids. Scopes and curves are offset so the two lists cannot be confused
 /// for one another, and neither can be confused for the switch.
 constexpr int kLinkToggleId = 1;
+constexpr int kClearSelectionId = 2;
 constexpr int kScopeBaseId = 100;
 constexpr int kCurveBaseId = 200;
 } // namespace
+
+bool isClearSelectionChoice(int id) { return id == kClearSelectionId; }
 
 const char *pointerToolName(PointerTool t) {
   switch (t) {
@@ -1105,6 +1110,11 @@ juce::PopupMenu buildToolMenu(PointerTool tool, const LinkSettings &settings) {
     m.addItem(kScopeBaseId + i, linkScopeName((LinkScope)i), linking,
               i == (int)settings.scope);
 
+  // Under the scopes, since the selection is what one of them reaches. Offered
+  // whichever tool is chosen, because a selection can be made with any of
+  // them and is still there, lit on the numbers, when it is not in use.
+  m.addItem(kClearSelectionId, "Clear selection", settings.hasSelection);
+
   m.addSeparator();
   m.addSectionHeader("Curve");
   for (int i = 0; i < (int)LinkCurve::NumCurves; ++i)
@@ -1134,6 +1144,8 @@ juce::PopupMenu buildLinkMenu(const LinkSettings &settings) {
   for (int i = 0; i < (int)LinkScope::NumScopes; ++i)
     m.addItem(kScopeBaseId + i, linkScopeName((LinkScope)i), settings.enabled,
               i == (int)settings.scope);
+
+  m.addItem(kClearSelectionId, "Clear selection", settings.hasSelection);
 
   m.addSeparator();
   m.addSectionHeader("Curve");

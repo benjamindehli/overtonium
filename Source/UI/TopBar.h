@@ -189,6 +189,13 @@ public:
 
   std::function<void()> onLinkSettingsChanged;
 
+  /// Whether any channel is selected, so the menu can offer to clear it. The
+  /// selection itself is the editor's. See LinkScope::Selected.
+  void setHasSelection(bool any) { hasSelection = any; }
+
+  /// Asked for when "Clear selection" is chosen from the menu.
+  std::function<void()> onSelectionCleared;
+
   /// The switch, the scope and the curve, in one menu.
   ///
   /// Shared by the button in the bar and by a right-click anywhere on a strip,
@@ -517,6 +524,7 @@ private:
 
   LinkScope scope = LinkScope::All;
   LinkCurve curve = LinkCurve::Uniform;
+  bool hasSelection = false;
 
   std::unique_ptr<SliderAttachment> masterAttachment, stretchAttachment,
       trackAttachment, wobbleAttachment;

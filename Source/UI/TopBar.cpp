@@ -676,7 +676,7 @@ void TopBar::setMacroCount(int made) {
 void TopBar::showLinkMenu(juce::Component *anchor,
                           const juce::String &parameterId, MidiLearn *map,
                           PointerTool tool) {
-  const LinkSettings settings{linkOn, scope, curve};
+  const LinkSettings settings{linkOn, scope, curve, hasSelection};
 
   auto m = buildToolMenu(tool, settings);
 
@@ -714,6 +714,13 @@ void TopBar::showLinkMenu(juce::Component *anchor,
 
     if (glide::applyChoice(result, apvts))
       return;
+
+    if (isClearSelectionChoice(result)) {
+      if (onSelectionCleared != nullptr)
+        onSelectionCleared();
+
+      return;
+    }
 
     auto picked = PointerTool::Pointer;
 

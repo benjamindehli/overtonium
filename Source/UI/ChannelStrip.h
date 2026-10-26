@@ -509,6 +509,8 @@ public:
   void mouseMove(const juce::MouseEvent &) override;
   void mouseExit(const juce::MouseEvent &) override;
   void mouseDown(const juce::MouseEvent &) override;
+  void mouseDrag(const juce::MouseEvent &) override;
+  void mouseUp(const juce::MouseEvent &) override;
 
   /// Keeps a wheel that landed on a control from scrolling the mixer as well.
   ///
@@ -594,6 +596,13 @@ public:
   /// highest contrast thing a channel owns. It is also already the channel's
   /// name, which is exactly the question a scope raises.
   void setLinkReach(float amount);
+
+  /// Whether this channel is in the selection the Selected scope reaches.
+  /// Marked under the number, apart from the LINK reach, which lights the
+  /// number itself: the reach says what the next drag would move and changes
+  /// with the scope, and the selection says what was picked and stays.
+  void setSelected(bool);
+  bool isSelected() const { return selected; }
 
   /// Which macro drives this row, as its colour, or transparent for none.
   ///
@@ -698,6 +707,10 @@ private:
   /// See setLinkReach. Quantised before it is acted on, so a curve sliding
   /// under the pointer does not repaint thirty-two headers every frame.
   float linkReach = 0.0f;
+
+  /// See setSelected, and whether a selection drag began on this strip.
+  bool selected = false;
+  bool selecting = false;
 
   /// Whether the glow is lit in the accent rather than in the channel's own
   /// colour. LINK's preview is per channel, since it is saying how much each
