@@ -12454,6 +12454,202 @@ void benchmarkLofi() {
 /// that happen to be in it. A type that could be driven past unity would make
 /// the clipper's own promise false, and the plugin hands its output to a host
 /// that was told what to expect.
+/// The console, against the model it was ported from and against what was
+/// measured.
+///
+/// The model was fitted to a real console chain recorded one unit at a time
+/// and validated against the recordings, and these are its figures on steady
+/// tones at 48 kHz, three seconds each and read over the last half second,
+/// with its gain taken to unity at a quiet 1 kHz tone. The port has to give
+/// them back. Then what the recordings showed of the compressor: linked, its
+/// sidechain filtered at 120 Hz, and an automatic release that lets go fast
+/// after a short hit and slowly after a long one.
+void testConsole() {
+  section("Console");
+
+  constexpr double kTwoPi = 6.283185307179586;
+  constexpr double sr = 48000.0;
+  constexpr int kN = 144000;
+
+  struct Read {
+    double gainDb, thirdDb;
+  };
+
+  const auto steady = [sr, kTwoPi, kN](double f, double db) {
+    OutputStage stage;
+    stage.prepare(sr);
+
+    const double a = std::pow(10.0, db / 20.0);
+    std::vector<float> l((size_t)kN), r((size_t)kN);
+
+    for (int i = 0; i < kN; ++i)
+      l[(size_t)i] = r[(size_t)i] =
+          (float)(a * std::sin(kTwoPi * f * (double)i / sr));
+
+    stage.process(l.data(), r.data(), kN, ClipType::Console, true, true);
+
+    const int from = kN - 24000;
+    std::complex<double> h1{}, h3{};
+    double norm = 0.0;
+
+    for (int i = from; i < kN; ++i) {
+      const double t = (double)(i - from) / 24000.0;
+      const double w =
+          0.42 - 0.5 * std::cos(kTwoPi * t) + 0.08 * std::cos(2.0 * kTwoPi * t);
+      const double ph = kTwoPi * f * (double)i / sr;
+      h1 += w * (double)l[(size_t)i] * std::polar(1.0, -ph);
+      h3 += w * (double)l[(size_t)i] * std::polar(1.0, -3.0 * ph);
+      norm += w;
+    }
+
+    return Read{20.0 * std::log10(2.0 * std::abs(h1) / norm / a),
+                20.0 * std::log10(std::abs(h3) / std::abs(h1))};
+  };
+
+  struct Expect {
+    double f, db, gainDb, thirdDb;
+  };
+
+  // The third harmonic is only held where the model has one to speak of.
+  const Expect expect[] = {
+      {1000.0, -40.0, 0.0, -999.0},  {1000.0, -6.0, -0.69, -37.88},
+      {1000.0, -1.0, -2.23, -39.72}, {60.0, -40.0, 0.19, -999.0},
+      {60.0, -1.0, -0.94, -40.49},   {250.0, -1.0, -2.13, -37.77}};
+
+  double worstGain = 0.0, worstThird = 0.0;
+
+  for (const auto &e : expect) {
+    const auto got = steady(e.f, e.db);
+
+    std::printf("  %4.0f Hz at %3.0f dBFS: gain %+6.2f dB (model %+6.2f), "
+                "third %7.2f dB (model %7.2f)\n",
+                e.f, e.db, got.gainDb, e.gainDb, got.thirdDb, e.thirdDb);
+
+    worstGain = std::max(worstGain, std::abs(got.gainDb - e.gainDb));
+
+    if (e.thirdDb > -100.0)
+      worstThird = std::max(worstThird, std::abs(got.thirdDb - e.thirdDb));
+  }
+
+  check(worstGain < 0.15, "the console's gain matches the model it was "
+                          "fitted as, within 0.15 dB (" +
+                              std::to_string(worstGain) + ")");
+  check(worstThird < 1.5, "and its third harmonic within 1.5 dB (" +
+                              std::to_string(worstThird) + ")");
+
+  // ---- the compressor, as recorded ----------------------------------------
+  //
+  // The reduction it applies to a quiet 1 kHz tone, read as the tone's level
+  // in 5 ms windows against where it stood before anything loud arrived.
+  const auto reduction = [sr, kTwoPi](const std::vector<float> &x, int at) {
+    const int n = 240;
+    std::complex<double> h{};
+
+    for (int i = at; i < at + n; ++i)
+      h += (double)x[(size_t)i] *
+           std::polar(1.0, -kTwoPi * 1000.0 * (double)i / sr);
+
+    return 20.0 * std::log10(2.0 * std::abs(h) / (double)n);
+  };
+
+  // A -30 dBFS bed of 1 kHz on both sides, with something loud added to one
+  // or both from one second in, for `seconds`.
+  const auto withBurst = [sr, kTwoPi](double burstHz, double seconds,
+                                      bool leftOnly, int length) {
+    std::vector<float> l((size_t)length), r((size_t)length);
+    const double bed = std::pow(10.0, -30.0 / 20.0);
+    const double loud = std::pow(10.0, -1.0 / 20.0);
+    const int start = (int)sr, stop = start + (int)(seconds * sr);
+
+    for (int i = 0; i < length; ++i) {
+      const double t = (double)i / sr;
+      const double b = bed * std::sin(kTwoPi * 1000.0 * t);
+      const double hit =
+          i >= start && i < stop ? loud * std::sin(kTwoPi * burstHz * t) : 0.0;
+      l[(size_t)i] = (float)(b + hit);
+      r[(size_t)i] = (float)(b + (leftOnly ? 0.0 : hit));
+    }
+
+    OutputStage stage;
+    stage.prepare(sr);
+    stage.process(l.data(), r.data(), length, ClipType::Console, true, true);
+
+    return std::make_pair(l, r);
+  };
+
+  {
+    // The burst at 400 Hz on the left alone, read on the right's 1 kHz bed.
+    const auto [l, r] = withBurst(400.0, 1.0, true, (int)(3.0 * sr));
+    const double before = reduction(r, (int)(0.8 * sr));
+    const double during = reduction(r, (int)(1.9 * sr));
+
+    std::printf("  a loud burst on the left alone: the right moves %+.2f dB\n",
+                during - before);
+    check(during - before < -1.0,
+          "the two sides are linked: a burst on one side turns both down");
+  }
+
+  {
+    // The same burst at 60 Hz and at 400 Hz on both sides, read on the bed.
+    // Over 100 ms with a taper, which keeps a loud 60 Hz out of the reading
+    // of the bed's 1 kHz, where 5 ms with none lets it straight in.
+    const auto bedAt = [sr, kTwoPi](const std::vector<float> &x, int at) {
+      const int n = 4800;
+      std::complex<double> h{};
+      double norm = 0.0;
+
+      for (int i = at; i < at + n; ++i) {
+        const double t = (double)(i - at) / (double)n;
+        const double w = 0.42 - 0.5 * std::cos(kTwoPi * t) +
+                         0.08 * std::cos(2.0 * kTwoPi * t);
+        h += w * (double)x[(size_t)i] *
+             std::polar(1.0, -kTwoPi * 1000.0 * (double)i / sr);
+        norm += w;
+      }
+
+      return 20.0 * std::log10(2.0 * std::abs(h) / norm);
+    };
+
+    const auto [l60, r60] = withBurst(60.0, 1.0, false, (int)(3.0 * sr));
+    const auto [l4, r4] = withBurst(400.0, 1.0, false, (int)(3.0 * sr));
+    const double low =
+        bedAt(l60, (int)(1.8 * sr)) - bedAt(l60, (int)(0.8 * sr));
+    const double mid = bedAt(l4, (int)(1.8 * sr)) - bedAt(l4, (int)(0.8 * sr));
+
+    std::printf("  a loud burst at 60 Hz takes %.2f dB, at 400 Hz %.2f dB\n",
+                -low, -mid);
+    check(mid < -1.0 && low > mid + 1.5,
+          "the sidechain's filter keeps a 60 Hz burst from taking what a "
+          "400 Hz one takes");
+  }
+
+  {
+    // Release after a 20 ms hit and after a 3 s one, as the share of the
+    // reduction still there 300 ms after each ends.
+    const auto left = [&](double seconds) {
+      const auto [l, r] =
+          withBurst(400.0, seconds, false, (int)((2.0 + seconds) * sr));
+      const int end = (int)((1.0 + seconds) * sr);
+      const double before = reduction(l, (int)(0.8 * sr));
+      double deepest = 0.0;
+
+      for (int at = (int)sr; at < end; at += 240)
+        deepest = std::min(deepest, reduction(l, at) - before);
+
+      return (reduction(l, end + (int)(0.3 * sr)) - before) / deepest;
+    };
+
+    const double shortHit = left(0.02), longHit = left(3.0);
+
+    std::printf("  300 ms after a 20 ms hit %.0f%% of the reduction is left, "
+                "after a 3 s hit %.0f%%\n",
+                100.0 * shortHit, 100.0 * longHit);
+    check(shortHit < 0.2 && longHit > 0.5,
+          "the release lets go fast after a short hit and slowly after a "
+          "long one");
+  }
+}
+
 void testOutputStage() {
   section("The output stage");
 
@@ -12832,6 +13028,7 @@ int main() {
   testSpringReverb();
   testLofi();
   testOutputStage();
+  testConsole();
   benchmark();
   benchmarkLofi();
 

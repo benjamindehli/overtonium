@@ -27,7 +27,7 @@ inline constexpr const char *tuningRootId = "tuningRoot";
 inline constexpr const char *referenceHzId = "referenceHz";
 inline constexpr const char *safetyClipId = "safetyClip";
 
-/// Which of the five shapes the output stage uses, when it is on.
+/// Which of the six machines the output stage uses, when it is on.
 ///
 /// Beside the switch rather than replacing it, for the reason echoTypeId is:
 /// a boolean every saved patch stores and every lane points at cannot become a
@@ -43,9 +43,9 @@ inline constexpr const char *clipTypeId = "clipType";
 /// in Settings with the temperament and the polyphony and is listed in
 /// kSessionParamIds with them.
 ///
-/// Off by default. Only one of the five shapes uses the window at all, so with
-/// it on everyone who never reaches for the Limiter pays two milliseconds for
-/// nothing, and no factory preset uses the Limiter. On is there for anyone who
+/// Off by default. Only the Limiter and Console use the window at all, so with
+/// it on everyone who never reaches for either pays two milliseconds for
+/// nothing, and no factory preset uses either. On is there for anyone who
 /// does and wants it smooth.
 inline constexpr const char *lookaheadId = "lookahead";
 inline constexpr const char *mpeId = "mpe";
@@ -523,7 +523,7 @@ juce::String polyphonyName(int index);
 /// Adding a setting means adding it here too.
 ///
 /// The master fader and the clipper were here and are not any more. The output
-/// stage became five machines rather than a guard with a switch, which makes
+/// stage became six machines rather than a guard with a switch, which makes
 /// it part of the sound, and the master sits in front of it, so how hard a
 /// patch drives it is something the patch has to be able to say. The cost is
 /// honest: loading a preset now moves the output level.

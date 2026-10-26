@@ -173,7 +173,7 @@ struct Applier {
     set(params::lofiBitsId, 0.0f);
 
     // The output stage, which a preset decides because it is part of the sound
-    // rather than part of the desk: five machines rather than a guard with a
+    // rather than part of the desk: six machines rather than a guard with a
     // switch, and the master in front of them setting how hard they are
     // driven. Both were things a preset left alone until that was true.
     //

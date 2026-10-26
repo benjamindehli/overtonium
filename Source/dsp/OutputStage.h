@@ -5,12 +5,14 @@
 #include <cstdint>
 #include <vector>
 
+#include "Console.h"
+
 namespace ovt {
 
 /// What the mixer runs into on its way out.
 ///
 /// It began as one soft clipper with a switch, there to stop the instrument
-/// handing a host something louder than it asked for. Five of them now, which
+/// handing a host something louder than it asked for. Six of them now, which
 /// makes it part of the sound rather than only a guard: the master fader sits
 /// in front of this, so how hard you drive it is a thing a patch decides.
 ///
@@ -51,6 +53,13 @@ enum class ClipType {
   /// with the level, so it sings rather than crunches.
   Fold,
 
+  /// A console's mix bus, measured from a real chain: its transformer, its
+  /// bus compressor and a tape stage, into the limiter with its ceiling at
+  /// -0.1 dBFS. The lows thicken as the transformer saturates, the compressor
+  /// holds the whole together, and the tape stage adds a steady third
+  /// harmonic once it is driven. Unity for a quiet 1 kHz tone. See Console.
+  Console,
+
   NumTypes
 };
 
@@ -66,6 +75,8 @@ inline const char *clipTypeName(ClipType t) {
     return "Limiter";
   case ClipType::Fold:
     return "Fold";
+  case ClipType::Console:
+    return "Console";
 
   // Listed rather than left to a default, so adding one is a compiler error
   // here until it has a name.
@@ -76,7 +87,7 @@ inline const char *clipTypeName(ClipType t) {
   return "Soft";
 }
 
-/// What the bar's button says, which is the name itself for three of the five.
+/// What the bar's button says, which is the name itself for three of the six.
 ///
 /// Asymmetric has to be shortened. The button is 62 px wide and gives a label
 /// 46 of them, and in that button's own font ASYMMETRIC is 54.3. The ten
@@ -88,6 +99,10 @@ inline const char *clipTypeName(ClipType t) {
 /// could stay, but SOFT, HARD, ASYM, LIMIT and FOLD read as one set of
 /// choices where a single long word among them reads as the odd one.
 ///
+/// Console is shortened the way the preset display fits a long name, by its
+/// consonants: CONSOLE is 42.4 px against the 34 the button has at its
+/// narrowest, and CNSL reads as the same word where CONS reads as another.
+///
 /// Only the button abbreviates. The menu it opens, the name the host shows on
 /// the automation lane and the documentation all have room for the word.
 inline const char *clipTypeShortName(ClipType t) {
@@ -96,6 +111,8 @@ inline const char *clipTypeShortName(ClipType t) {
     return "Asym";
   case ClipType::Limiter:
     return "Limit";
+  case ClipType::Console:
+    return "Cnsl";
 
   case ClipType::Soft:
   case ClipType::Hard:
@@ -107,7 +124,7 @@ inline const char *clipTypeShortName(ClipType t) {
   return clipTypeName(t);
 }
 
-/// The output stage, which is stateful because one of the five is.
+/// The output stage, which is stateful because two of the six are.
 ///
 /// The four shapers are memoryless and could be free functions. The limiter
 /// carries a gain that walks towards what the signal needs, and that gain is
@@ -158,7 +175,7 @@ public:
 
   /// Shapes both channels in place, and delays them whether or not it shapes.
   ///
-  /// @param type     which of the five.
+  /// @param type     which of the six.
   /// @param shaping  false to pass the audio through at the same delay and
   ///                 otherwise leave it alone, which is the stage switched
   ///                 off rather than a sixth type.
@@ -177,8 +194,9 @@ private:
   /// nobody flips mid-phrase is better than that.
   void applyLookahead(bool ahead) noexcept;
   /// The gain the limiter wants for the sample about to arrive, from the
-  /// loudest of the window still sitting in the delay line.
-  float gainFor(float peak) noexcept;
+  /// loudest of the window still sitting in the delay line, against the
+  /// ceiling of whichever type is running it.
+  float gainFor(float peak, float ceiling) noexcept;
 
   float delayed(std::vector<float> &line, float in) noexcept;
 
@@ -225,6 +243,11 @@ private:
   /// coefficient it recovers by.
   float held = 1.0f;
   float release = 0.0f;
+
+  /// The console's units, run on every sample whatever the type, as the
+  /// limiter's detector is, so choosing Console part way through a note finds
+  /// its filters and its compressor already settled.
+  Console console;
 };
 
 } // namespace ovt

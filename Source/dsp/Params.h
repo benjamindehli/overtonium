@@ -204,7 +204,7 @@ struct GlobalParams {
   /// out of the way, which is what the whole DSP suite does.
   float busDrive = 0.0f;
   /// Shape the sum on its way out. 32 faders make it very easy to overshoot,
-  /// which is what this began as, and it is five machines now, so it is part
+  /// which is what this began as, and it is six machines now, so it is part
   /// of the sound as well as a guard. The master fader sits in front of it, so
   /// how hard it is driven is a thing a patch decides. See OutputStage.
   bool safetyClip = true;

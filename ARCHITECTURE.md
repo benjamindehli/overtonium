@@ -62,7 +62,8 @@ Source/
                     resonator's 88
     SympatheticStrings.*  the resonator: 88 sympathetic strings, before the bus drive
     Wobble.*        a warped-record wobble on the whole instrument
-    OutputStage.*   the five clippers at the end of the signal chain
+    OutputStage.*   the six machines at the end of the signal chain
+    Console.*       the console machine's transformer, compressor and tape stage
     SynthEngine.*   voice pool, allocation, stealing, effects, master stage
     AdaptiveSnapshot.h  Adaptive's result for the held chord, and the
                     triple buffer that hands it to the editor
