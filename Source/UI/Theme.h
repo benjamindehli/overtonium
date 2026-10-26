@@ -154,11 +154,24 @@ public:
   std::function<void(juce::Graphics &, juce::Rectangle<float>, juce::Colour)>
       onIcon;
 
+  /// Says that what onIcon draws has changed, and repaints.
+  ///
+  /// The button keeps its last looks as pictures, keyed by what it draws, and
+  /// onIcon is a function, which cannot be compared. So a button whose icon
+  /// changes has to say so, or it repaints the picture it already has.
+  void iconChanged() {
+    ++iconRevision;
+    repaint();
+  }
+
   void paintButton(juce::Graphics &, bool highlighted, bool down) override;
 
 private:
   /// Everything paintButton draws, before it is kept as a picture.
   void paintCap(juce::Graphics &, bool highlighted, bool down);
+
+  /// See iconChanged.
+  int iconRevision = 0;
 
   /// Its last two looks, which for the M and S on 33 strips is most of what
   /// soloing would otherwise draw again.

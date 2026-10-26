@@ -9622,6 +9622,73 @@ void testSegmentCells() {
 ///
 /// All three are checked rather than the one that was missing, so the next
 /// setting added here cannot be the one forgotten.
+/// The tool button shows the tool as soon as it is chosen.
+///
+/// The button draws from a cache of its last looks, keyed by what its drawing
+/// reads, and the icon was left out of the key, since every other button keeps
+/// one icon for life. This one changes it with the tool, so choosing a tool
+/// repainted the old picture, and the icon only caught up on the next click.
+void testToolButtonShowsTheTool(OvertoniumProcessor &p) {
+  section("The tool button shows the tool");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  // Found by having no words on it: it wears the tool's cursor instead.
+  juce::TextButton *button = nullptr;
+  std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+    if (auto *b = dynamic_cast<juce::TextButton *>(&c))
+      if (b->getButtonText().isEmpty() &&
+          b->getTitle().containsIgnoreCase("tool"))
+        button = b;
+    for (auto *child : c.getChildren())
+      look(*child);
+  };
+
+  editor->chooseTool(ovt::ui::PointerTool::Pointer);
+  look(*editor);
+
+  check(button != nullptr, "the gutter carries the tool button");
+  if (button == nullptr)
+    return;
+
+  const auto shot = [button] {
+    return button->createComponentSnapshot(button->getLocalBounds(), true,
+                                           1.0f);
+  };
+
+  const auto same = [](const juce::Image &a, const juce::Image &b) {
+    if (a.getWidth() != b.getWidth() || a.getHeight() != b.getHeight())
+      return false;
+
+    for (int y = 0; y < a.getHeight(); ++y)
+      for (int x = 0; x < a.getWidth(); ++x)
+        if (a.getPixelAt(x, y) != b.getPixelAt(x, y))
+          return false;
+
+    return true;
+  };
+
+  const auto pointer = shot();
+
+  editor->chooseTool(ovt::ui::PointerTool::Link);
+  const auto link = shot();
+
+  editor->chooseTool(ovt::ui::PointerTool::Draw);
+  const auto draw = shot();
+
+  editor->chooseTool(ovt::ui::PointerTool::Pointer);
+  const auto back = shot();
+
+  check(!same(pointer, link), "choosing Link changes the icon at once");
+  check(!same(link, draw), "and so does choosing Draw");
+  check(same(pointer, back), "and the pointer comes back as it was");
+}
+
 /// Picking channels by their numbers, for the Selected scope (#75).
 ///
 /// A command-click on a number picks that channel, and a drag from there
@@ -12874,6 +12941,7 @@ int main(int argc, char **argv) {
   testZoomTickFollowsTheZoom(processor);
   testDrawingAcrossTheFaders(processor);
   testSelectingChannels(processor);
+  testToolButtonShowsTheTool(processor);
   testLinkSurvivesAReopen(processor);
   testSegmentCells();
   testOptionBars(processor);
