@@ -524,7 +524,8 @@ void Voice::render(float *left, float *right, int numSamples,
   const bool hiss = p.global.character == Character::Fm ||
                     p.global.character == Character::Pd ||
                     p.global.character == Character::Sid ||
-                    p.global.character == Character::Vco;
+                    p.global.character == Character::Vco ||
+                    p.global.character == Character::Combo;
   const auto &sine = SineTable::instance();
 
   // One pole per control block rather than per sample, which is where every

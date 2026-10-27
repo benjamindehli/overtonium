@@ -4,10 +4,10 @@
 
 namespace ovt {
 
-/// The harmonics of the five characters that come from recordings.
+/// The harmonics of the six characters that come from recordings.
 ///
 /// The other characters are circuits that are simulated once at startup.
-/// These five are real instruments. The tonewheel and the two synthesizers
+/// These six are real instruments. The tonewheel and the two synthesizers
 /// were recorded one sine at a time at 48 kHz and 24 bits, with a held note of
 /// about four seconds per key and one take with no note, to measure the noise
 /// floor. The harmonics were fitted by least squares over the steady part of
@@ -29,7 +29,8 @@ namespace ovt {
 /// which came from its LFO and not from its tone, so it is not included.
 ///
 /// Room for ten harmonics. The tonewheel uses the first five, as the circuits
-/// do, and the two synthesizers and the VCO use all ten. See harmonicsFor.
+/// do, and the two synthesizers, the VCO and the combo organ use all ten.
+/// See harmonicsFor.
 inline constexpr int kMeasuredHarmonics = 10;
 
 using MeasuredRecipe = std::array<std::array<float, 2>, kMeasuredHarmonics>;
@@ -251,14 +252,15 @@ inline constexpr double kLowestWheelHz = 32.70;
 /// How much stronger the two synthesizers' harmonics are played than they
 /// were measured, in dB.
 ///
-/// What was changed by ear on the two synthesizers, in dB, after playing them
-/// next to the recordings. The measured figures above and below stay as they
-/// were recorded, and these are added when the tables and the noise are
-/// built.
+/// What was changed by ear on the two synthesizers and the combo organ, in dB,
+/// after playing them next to the recordings and the other characters. The
+/// measured figures above and below stay as they were recorded, and these are
+/// added when the tables and the noise are built.
 ///
 /// FM's harmonics are 3 dB stronger than measured, and PD's 6. PD's noise is
-/// 3 dB stronger than measured, and FM's is as
-/// measured. The tonewheel has none of this, because it sounds like the
+/// 3 dB stronger than measured, and FM's is as measured. The combo organ's
+/// noise is 10 dB weaker than measured, since beside the others its hiss was
+/// too much. The tonewheel has none of this, because it sounds like the
 /// recordings as measured.
 struct ByEar {
   double harmonicsDb; ///< added to every harmonic above the fundamental
@@ -510,5 +512,153 @@ inline int wheelBandFor(double freq) noexcept {
 
   return band;
 }
+
+/// Where each of the combo organ's bands below starts, in Hz.
+///
+/// A transistor combo organ divided down from one oscillator per pitch class,
+/// recorded on its 8' lever, the one of its drawbar-like levers closest to a
+/// sine, on every C and F# of the main keyboard, and on its 16' lever for the
+/// octave below, where the two match within a few decibels at the same pitch.
+/// The tone is a square wave rounded off by a filter, mostly odd harmonics,
+/// and it darkens steadily up the keyboard, so the takes are grouped into
+/// bands where their third, fifth and seventh harmonics stay within 2.5 dB.
+/// Each edge is halfway in pitch between the bands either side. Above the 8'
+/// lever's highest note the last band holds: the higher levers are filtered
+/// brighter, so they are a different voicing and not more of this one.
+inline constexpr std::array<double, 7> kComboBandEdges{
+    77.8, 220.0, 311.1, 439.9, 622.2, 879.9, 1759.7};
+
+/// The combo organ's bands, from the bottom.
+///
+/// The level of each harmonic is the power mean of the takes in its band, and
+/// its phase the phase of their sum, as for the tonewheel.
+///
+///   band  notes              3rd    5th    7th    9th, dB on the fundamental
+///      0  C2 (16')          -16.2  -26.1  -33.4  -39.5
+///      1  F#2 (16') to F#3  -18.5  -29.4  -37.4  -43.8
+///      2  C4                -22.2  -35.0  -44.4  -51.9
+///      3  F#4               -24.9  -39.2  -49.5  -57.5
+///      4  C5                -27.4  -43.1  -54.4  -62.8
+///      5  F#5               -29.8  -46.9  -58.6  -67.1
+///      6  C6 and F#6        -33.0  -51.0  -63.6  -68.5
+///      7  C7 and above      -35.1  -55.3  -68.9  -71.6
+///
+/// The even harmonics are 53 to 80 dB down, except at C7, where the second
+/// and sixth came out at -42 and -55 dB. That key leaked its 4' lever at
+/// -42.7 dB with no levers out, so those two are the key's other levers and
+/// not the 8' tone, and the top band takes the band below's instead, as the
+/// rest of the organ's leakage is left out. Each key leaks its other levers
+/// 55 to 75 dB under the 8' tone, the 2 2/3' most, which is quieter than the
+/// tonewheel's leakage and is not added. The 50 Hz hum is left out as well.
+inline constexpr std::array<MeasuredRecipe, 8> kComboRecipes{{
+    {{{1.0000e+00f, 0.0000e+00f},
+      {4.3350e-04f, -1.6374e-03f},
+      {-1.4397e-01f, -5.7099e-02f},
+      {-3.8345e-04f, 4.0171e-04f},
+      {-1.6360e-02f, 4.6995e-02f},
+      {1.2239e-04f, 3.2587e-04f},
+      {1.8232e-02f, 1.0989e-02f},
+      {2.3708e-04f, -3.1959e-04f},
+      {8.1102e-03f, -6.8985e-03f},
+      {2.5475e-05f, -6.7907e-05f}}},
+    {{{1.0000e+00f, 0.0000e+00f},
+      {1.6760e-03f, -1.8782e-04f},
+      {1.0084e-01f, -6.1964e-02f},
+      {4.2237e-04f, -3.4460e-04f},
+      {2.9089e-02f, -1.7487e-02f},
+      {1.8823e-04f, 2.6161e-04f},
+      {7.0462e-03f, -1.1509e-02f},
+      {-2.0245e-04f, -2.8221e-04f},
+      {4.1344e-03f, -4.9122e-03f},
+      {6.7831e-05f, -5.4604e-05f}}},
+    {{{1.0000e+00f, 0.0000e+00f},
+      {8.3722e-04f, 4.3105e-04f},
+      {3.1623e-02f, 7.1331e-02f},
+      {3.2009e-05f, 3.6852e-04f},
+      {-1.7663e-02f, 1.0811e-03f},
+      {-1.5301e-04f, -1.0677e-04f},
+      {2.8460e-03f, -5.3076e-03f},
+      {2.8553e-04f, -1.3158e-04f},
+      {1.0511e-03f, 2.3104e-03f},
+      {-2.3881e-05f, 4.4986e-05f}}},
+    {{{1.0000e+00f, 0.0000e+00f},
+      {6.8508e-04f, 5.7662e-04f},
+      {-1.9458e-02f, 5.3717e-02f},
+      {-3.1993e-04f, 1.4591e-04f},
+      {-4.9861e-04f, -1.0970e-02f},
+      {1.1437e-04f, -2.0053e-04f},
+      {7.4023e-04f, 3.2814e-03f},
+      {-2.2396e-04f, 1.5813e-04f},
+      {-3.8204e-04f, -1.2748e-03f},
+      {4.9494e-05f, 2.5614e-05f}}},
+    {{{1.0000e+00f, 0.0000e+00f},
+      {4.2192e-04f, 7.7239e-04f},
+      {-3.6519e-02f, 2.1655e-02f},
+      {-3.0088e-04f, -2.9927e-04f},
+      {6.8576e-03f, -1.3758e-03f},
+      {-1.0964e-04f, 5.4763e-05f},
+      {-1.7936e-03f, -6.7326e-04f},
+      {3.8332e-04f, -2.7742e-05f},
+      {3.4700e-04f, 6.3771e-04f},
+      {-3.4101e-05f, -3.0139e-05f}}},
+    {{{1.0000e+00f, 0.0000e+00f},
+      {6.5109e-05f, 1.3709e-03f},
+      {-3.0862e-02f, -9.3330e-03f},
+      {3.3316e-04f, -3.6308e-04f},
+      {4.2997e-04f, 4.5141e-03f},
+      {1.5009e-04f, -1.3410e-04f},
+      {1.1158e-03f, -3.4642e-04f},
+      {-6.2677e-04f, -5.2486e-05f},
+      {-2.7888e-04f, -3.4353e-04f},
+      {5.2872e-06f, 5.9567e-05f}}},
+    {{{1.0000e+00f, 0.0000e+00f},
+      {-1.4682e-03f, 1.1620e-03f},
+      {-7.4154e-03f, -2.1245e-02f},
+      {-1.2970e-05f, 2.3279e-03f},
+      {-2.8005e-03f, -4.1146e-04f},
+      {1.5940e-04f, 2.1635e-04f},
+      {-4.0455e-04f, 5.1966e-04f},
+      {4.0480e-05f, 4.3361e-05f},
+      {4.7693e-05f, 3.7488e-04f},
+      {1.2707e-04f, 1.6867e-04f}}},
+    // The top band's even harmonics are the band below's. See above.
+    {{{1.0000e+00f, 0.0000e+00f},
+      {-1.4682e-03f, 1.1620e-03f},
+      {9.3192e-03f, -1.4922e-02f},
+      {-1.2970e-05f, 2.3279e-03f},
+      {2.6157e-04f, -1.6983e-03f},
+      {1.5940e-04f, 2.1635e-04f},
+      {-1.9236e-04f, -3.0213e-04f},
+      {4.0480e-05f, 4.3361e-05f},
+      {-1.4385e-04f, -2.1924e-04f},
+      {1.2707e-04f, 1.6867e-04f}}},
+}};
+
+/// Which combo organ band a partial at this frequency reads.
+inline int comboBandFor(double freq) noexcept {
+  int band = 0;
+
+  for (double edge : kComboBandEdges)
+    band += freq >= edge ? 1 : 0;
+
+  return band;
+}
+
+/// The combo organ's hiss, in dB per hertz against a single note's
+/// fundamental, below and above kHissSplitHz.
+///
+/// Measured between the harmonics and the mains hum, against C4 on the 8'
+/// lever. With no key down it is within a decibel of what it is under a note,
+/// -88.8 against -87.9 below the split and -92.6 against -92.4 above it, so
+/// the organ hisses whether or not it is played, and all of it is fixed:
+/// sized by the loudest note sounding, so there is still none when nothing
+/// plays. About 50 dB under a note in all, which is what a transistor organ
+/// sounds like and twelve decibels more than the frequency modulation
+/// synthesizer. Played beside the other characters that stood out, so it is
+/// played kComboByEar quieter, about 60 dB under a note.
+inline constexpr double kComboNoiseLowDbPerHz = -87.9;
+inline constexpr double kComboNoiseHighDbPerHz = -92.4;
+inline constexpr FixedHiss kComboFixedHiss{1.0, 1.0};
+inline constexpr ByEar kComboByEar{0.0, -10.0};
 
 } // namespace ovt

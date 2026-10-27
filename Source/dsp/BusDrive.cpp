@@ -93,7 +93,10 @@ double BusDrive::amountFor(Character c) noexcept {
   case Character::Pd:
   case Character::Sid:
     return 1.0;
+  // The combo organ mixed its notes cleanly: with five keys held, a
+  // difference tone between two of them was 60 dB under the notes.
   case Character::Fm:
+  case Character::Combo:
   case Character::Pure:
   case Character::NumCharacters:
     break;
@@ -300,6 +303,7 @@ BusDrive::Recipe BusDrive::recipeFor(Character c, float amount,
   case Character::Valve:
   case Character::Wheel:
   case Character::Fm:
+  case Character::Combo:
   case Character::Pd:
   case Character::Sid:
   case Character::Bulb:

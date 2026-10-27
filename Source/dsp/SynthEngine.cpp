@@ -1369,7 +1369,8 @@ void SynthEngine::sumChunk(float *left, float *right, int numFrames,
   if (p.global.character == Character::Fm ||
       p.global.character == Character::Pd ||
       p.global.character == Character::Sid ||
-      p.global.character == Character::Vco)
+      p.global.character == Character::Vco ||
+      p.global.character == Character::Combo)
     renderHiss(left, right, numFrames, p, rendered);
 }
 
@@ -1392,6 +1393,10 @@ void SynthEngine::renderHiss(
   } else if (p.global.character == Character::Vco) {
     lowDb = highDb = kVcoNoiseDbPerHz;
     fixed = kVcoFixedHiss;
+  } else if (p.global.character == Character::Combo) {
+    lowDb = kComboNoiseLowDbPerHz + kComboByEar.noiseDb;
+    highDb = kComboNoiseHighDbPerHz + kComboByEar.noiseDb;
+    fixed = kComboFixedHiss;
   }
 
   // The level per hertz was measured against the fundamental of a mono

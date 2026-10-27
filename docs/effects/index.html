@@ -6,7 +6,7 @@
         <title>Overtonium effects: character, echo, reverb, converter and CLIP</title>
         <meta
             name="description"
-            content="Overtonium&#x27;s top bar: eleven oscillator characters, wobble, a resonator, bus drive, three echoes, three reverbs, a lo-fi converter and six clip machines."
+            content="Overtonium&#x27;s top bar: twelve oscillator characters, wobble, a resonator, bus drive, three echoes, three reverbs, a lo-fi converter and six clip machines."
         />
         <meta name="author" content="Benjamin Dehli" />
         <meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -21,7 +21,7 @@
         <meta property="og:title" content="Overtonium effects: character, echo, reverb, converter and CLIP" />
         <meta
             property="og:description"
-            content="The bar across the top of Overtonium: eleven oscillator characters that set which oscillator every partial is modelled on, a wobble across the whole series, a resonator of 88 sympathetic strings that resonate with what you play, a bus drive that responds to how hard you play, an echo and a reverb with three machines each, a lo-fi converter, and an output stage with six clip machines including a lookahead limiter and a measured console mix bus."
+            content="The bar across the top of Overtonium: twelve oscillator characters that set which oscillator every partial is modelled on, a wobble across the whole series, a resonator of 88 sympathetic strings that resonate with what you play, a bus drive that responds to how hard you play, an echo and a reverb with three machines each, a lo-fi converter, and an output stage with six clip machines including a lookahead limiter and a measured console mix bus."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-effects.jpg" />
         <meta property="og:image:type" content="image/jpeg" />
@@ -33,7 +33,7 @@
         <meta name="twitter:title" content="Overtonium effects: character, echo, reverb, converter and CLIP" />
         <meta
             name="twitter:description"
-            content="The bar across the top of Overtonium: eleven oscillator characters that set which oscillator every partial is modelled on, a wobble across the whole series, a resonator of 88 sympathetic strings that resonate with what you play, a bus drive that responds to how hard you play, an echo and a reverb with three machines each, a lo-fi converter, and an output stage with six clip machines including a lookahead limiter and a measured console mix bus."
+            content="The bar across the top of Overtonium: twelve oscillator characters that set which oscillator every partial is modelled on, a wobble across the whole series, a resonator of 88 sympathetic strings that resonate with what you play, a bus drive that responds to how hard you play, an echo and a reverb with three machines each, a lo-fi converter, and an output stage with six clip machines including a lookahead limiter and a measured console mix bus."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-effects.jpg" />
         <meta name="twitter:image:alt" content="The Overtonium wordmark over the plugin window, captioned Effects." />
@@ -50,7 +50,7 @@
                 "@id": "https://benjamindehli.github.io/overtonium/effects/#webpage",
                 "url": "https://benjamindehli.github.io/overtonium/effects/",
                 "name": "Overtonium effects: character, echo, reverb, converter and CLIP",
-                "description": "Overtonium's top bar: eleven oscillator characters, wobble, a resonator, bus drive, three echoes, three reverbs, a lo-fi converter and six clip machines.",
+                "description": "Overtonium's top bar: twelve oscillator characters, wobble, a resonator, bus drive, three echoes, three reverbs, a lo-fi converter and six clip machines.",
                 "inLanguage": "en-GB",
                 "isPartOf": {
                     "@id": "https://benjamindehli.github.io/overtonium/#website"
@@ -64,7 +64,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-10-26",
+                "dateModified": "2026-10-27",
                 "breadcrumb": {
                     "@id": "https://benjamindehli.github.io/overtonium/effects/#breadcrumb"
                 }
@@ -247,7 +247,7 @@
                 <section id="character">
                     <h2>Character</h2>
                     <p>
-                        Chooses the oscillator that every partial uses, and is the first control in the group that sets up the series. All eleven are
+                        Chooses the oscillator that every partial uses, and is the first control in the group that sets up the series. All twelve are
                         sine oscillators. They differ in how each one fails to make a perfect sine.
                         <strong>Pure</strong> is an ideal sine that no real circuit produces. <strong>Bulb</strong> is a Wien bridge oscillator kept
                         steady by a lamp. It adds no harmonics at all, but its level lags half a second behind every change of pitch, so it reacts to
@@ -268,23 +268,23 @@
                     </p>
 
                     <p>
-                        <strong>Wheel</strong>, <strong>FM</strong>, <strong>PD</strong>, <strong>6581</strong> and <strong>VCO</strong> are measured
-                        from recordings of real instruments, not simulated. <strong>Wheel</strong> is the tone generator of a tonewheel organ. Every
-                        pitch has its own wheel, so Wheel has seven sets of harmonics and picks one by the pitch of each partial. The low wheels have
-                        a strong second harmonic, -13 dB on the lowest C, which gets weaker up to A3 and then drops by fifteen decibels by C4. Above
-                        that the wheels are close to pure sines. The wheels also move slightly as they turn, as on the organ. Each one changes in
-                        pitch by about a cent and in level by about a tenth of a decibel once per turn of its shaft, between 16 and 31 times a second
-                        depending on the note, and the motor that drives them all moves every wheel together by about 0.9 cent at 25 Hz. A held note
-                        also carries faint tones from the wheels near it in the organ's generator: the same note one and two octaves down, and the
-                        wheels a fourth and a fifth below, 48 to 55 dB under the note. They follow the note's level and stop at C1, the organ's lowest
-                        wheel. <strong>FM</strong> is one operator of a frequency modulation synthesizer with nothing modulating it, and
-                        <strong>PD</strong> is the oscillator of a phase distortion synthesizer with the distortion turned off. Both are nearly pure,
-                        with a second harmonic near -54 and -52 dB and weaker ones above it. That is about thirty decibels below Rail, so the
-                        difference from Pure is small, but it is there. Each note on them also carries the noise measured under the instrument's own
-                        notes, about 62 dB under the note on FM and 69 dB on PD, so they are not perfectly clean either. It follows the notes, so
-                        there is no hiss when nothing plays. On FM most of the hiss above 6.4 kHz is a fixed part that follows only the loudest note,
-                        as on the instrument, so it hardly builds up as you add keys: five keys add about 3.6 dB of hiss up there, where the notes
-                        themselves add 7.
+                        <strong>Wheel</strong>, <strong>FM</strong>, <strong>PD</strong>, <strong>6581</strong>, <strong>VCO</strong> and
+                        <strong>Combo</strong> are measured from recordings of real instruments, not simulated. <strong>Wheel</strong> is the tone
+                        generator of a tonewheel organ. Every pitch has its own wheel, so Wheel has seven sets of harmonics and picks one by the pitch
+                        of each partial. The low wheels have a strong second harmonic, -13 dB on the lowest C, which gets weaker up to A3 and then
+                        drops by fifteen decibels by C4. Above that the wheels are close to pure sines. The wheels also move slightly as they turn, as
+                        on the organ. Each one changes in pitch by about a cent and in level by about a tenth of a decibel once per turn of its shaft,
+                        between 16 and 31 times a second depending on the note, and the motor that drives them all moves every wheel together by about
+                        0.9 cent at 25 Hz. A held note also carries faint tones from the wheels near it in the organ's generator: the same note one
+                        and two octaves down, and the wheels a fourth and a fifth below, 48 to 55 dB under the note. They follow the note's level and
+                        stop at C1, the organ's lowest wheel. <strong>FM</strong> is one operator of a frequency modulation synthesizer with nothing
+                        modulating it, and <strong>PD</strong> is the oscillator of a phase distortion synthesizer with the distortion turned off.
+                        Both are nearly pure, with a second harmonic near -54 and -52 dB and weaker ones above it. That is about thirty decibels below
+                        Rail, so the difference from Pure is small, but it is there. Each note on them also carries the noise measured under the
+                        instrument's own notes, about 62 dB under the note on FM and 69 dB on PD, so they are not perfectly clean either. It follows
+                        the notes, so there is no hiss when nothing plays. On FM most of the hiss above 6.4 kHz is a fixed part that follows only the
+                        loudest note, as on the instrument, so it hardly builds up as you add keys: five keys add about 3.6 dB of hiss up there, where
+                        the notes themselves add 7.
                     </p>
 
                     <p>
@@ -311,6 +311,15 @@
                     </p>
 
                     <p>
+                        <strong>Combo</strong> is the 8' footage lever of a transistor combo organ. The organ divides one oscillator down for every
+                        octave of a note, which gives a square wave, and the lever is that square through a filter. So it has only odd harmonics, and
+                        the filter stays put while the notes move, so the low notes keep more of the square: the third harmonic is -16 dB on the
+                        lowest C and -35 dB above C7. Like Wheel it picks one of eight sets of harmonics by the pitch of each partial. Its notes mix
+                        cleanly, so it has no bus drive, and it carries the organ's faint hiss, about 98 dB per hertz under the loudest note, which
+                        does not build up as you add keys.
+                    </p>
+
+                    <p>
                         Because this is an additive instrument, these harmonics land among the partials you are already mixing, at exact multiples of
                         the partial that made them. The rack's own spread, described below, moves the real partials off those exact ratios, and TUNE
                         and STRETCH move them further. So the two beat against each other instead of adding up, and that is what makes a character
@@ -322,13 +331,13 @@
                         Each character is also a rack of thirty-two oscillators, not one oscillator used thirty-two times. Units built to the same
                         spec do not come out identical, so each of the five circuits puts each partial a couple of cents and a fraction of a decibel
                         off its target. The tonewheels are all driven by one motor through gears, so Wheel keeps every partial in tune and only varies
-                        the level, by up to a decibel. FM and PD have no spread at all, like Pure. Only one VCO was recorded, so it takes the spread
-                        of the Op-amp circuit. The amount is fixed for each character, so you get the same rack every time you load the patch, in
-                        every host and on every machine. This is not DRIFT, which wanders. Partial 1 is the reference the other thirty-one were tuned
-                        against, and it stays exactly in place. So a note still lands on the key you played, and choosing a character does not change
-                        how loud the patch is. This spread is what makes the beating above happen in a patch nobody has detuned. The units also differ
-                        in how much they distort: in the five circuits, each unit is built to one of three drives, fifteen percent either side of the
-                        nominal.
+                        the level, by up to a decibel. FM, PD and 6581 have no spread at all, like Pure, and neither does Combo, because the organ
+                        makes every octave of a note from one oscillator. Only one VCO was recorded, so it takes the spread of the Op-amp circuit. The
+                        amount is fixed for each character, so you get the same rack every time you load the patch, in every host and on every
+                        machine. This is not DRIFT, which wanders. Partial 1 is the reference the other thirty-one were tuned against, and it stays
+                        exactly in place. So a note still lands on the key you played, and choosing a character does not change how loud the patch is.
+                        This spread is what makes the beating above happen in a patch nobody has detuned. The units also differ in how much they
+                        distort: in the five circuits, each unit is built to one of three drives, fifteen percent either side of the nominal.
                     </p>
 
                     <p>
@@ -336,7 +345,7 @@
                         strips, running down through the warm colours to the red of channel 3 for Op-amp. FM, PD and 6581 light in a colour of the
                         instrument they were measured from instead: FM in the green of the synthesizer's membrane buttons, PD in the colour of the
                         model name printed on the synthesizer, and 6581 in the blue of the startup screen of the computer the chip was made for. VCO
-                        lights in a colour of its own as well. Pure does not light, because it adds nothing.
+                        and Combo light in colours of their own as well. Pure does not light, because it adds nothing.
                     </p>
 
                     <p>
