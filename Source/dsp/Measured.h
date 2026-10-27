@@ -252,14 +252,15 @@ inline constexpr double kLowestWheelHz = 32.70;
 /// How much stronger the two synthesizers' harmonics are played than they
 /// were measured, in dB.
 ///
-/// What was changed by ear on the two synthesizers, in dB, after playing them
-/// next to the recordings. The measured figures above and below stay as they
-/// were recorded, and these are added when the tables and the noise are
-/// built.
+/// What was changed by ear on the two synthesizers and the combo organ, in dB,
+/// after playing them next to the recordings and the other characters. The
+/// measured figures above and below stay as they were recorded, and these are
+/// added when the tables and the noise are built.
 ///
 /// FM's harmonics are 3 dB stronger than measured, and PD's 6. PD's noise is
-/// 3 dB stronger than measured, and FM's is as
-/// measured. The tonewheel has none of this, because it sounds like the
+/// 3 dB stronger than measured, and FM's is as measured. The combo organ's
+/// noise is 10 dB weaker than measured, since beside the others its hiss was
+/// too much. The tonewheel has none of this, because it sounds like the
 /// recordings as measured.
 struct ByEar {
   double harmonicsDb; ///< added to every harmonic above the fundamental
@@ -653,9 +654,11 @@ inline int comboBandFor(double freq) noexcept {
 /// sized by the loudest note sounding, so there is still none when nothing
 /// plays. About 50 dB under a note in all, which is what a transistor organ
 /// sounds like and twelve decibels more than the frequency modulation
-/// synthesizer.
+/// synthesizer. Played beside the other characters that stood out, so it is
+/// played kComboByEar quieter, about 60 dB under a note.
 inline constexpr double kComboNoiseLowDbPerHz = -87.9;
 inline constexpr double kComboNoiseHighDbPerHz = -92.4;
 inline constexpr FixedHiss kComboFixedHiss{1.0, 1.0};
+inline constexpr ByEar kComboByEar{0.0, -10.0};
 
 } // namespace ovt

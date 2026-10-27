@@ -1394,8 +1394,8 @@ void SynthEngine::renderHiss(
     lowDb = highDb = kVcoNoiseDbPerHz;
     fixed = kVcoFixedHiss;
   } else if (p.global.character == Character::Combo) {
-    lowDb = kComboNoiseLowDbPerHz;
-    highDb = kComboNoiseHighDbPerHz;
+    lowDb = kComboNoiseLowDbPerHz + kComboByEar.noiseDb;
+    highDb = kComboNoiseHighDbPerHz + kComboByEar.noiseDb;
     fixed = kComboFixedHiss;
   }
 

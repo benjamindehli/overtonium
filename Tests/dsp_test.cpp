@@ -2636,8 +2636,9 @@ void testMeasuredCharacters() {
   check(kFmByEar.harmonicsDb >= 0.0 && kFmByEar.harmonicsDb <= 10.0 &&
             kPdByEar.harmonicsDb >= 0.0 && kPdByEar.harmonicsDb <= 10.0 &&
             std::abs(kFmByEar.noiseDb) <= 10.0 &&
-            std::abs(kPdByEar.noiseDb) <= 10.0,
-        "the synthesizers are lifted by a few decibels and no more");
+            std::abs(kPdByEar.noiseDb) <= 10.0 &&
+            std::abs(kComboByEar.noiseDb) <= 10.0,
+        "what was set by ear moves a few decibels and no more");
 
   check(octaveOf(Character::Fm, 69) > -62.0 &&
             octaveOf(Character::Pure, 69) < -90.0,
