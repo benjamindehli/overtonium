@@ -2446,6 +2446,23 @@ void testMeasuredCharacters() {
 
   check(stepping, "each edge is where one band hands over to the next");
 
+  // ---- which band of the combo organ a pitch is ----------------------------
+  check(comboBandFor(20.0) == 0 && comboBandFor(65.4) == 0,
+        "the combo organ's bottom octave reads its lowest band");
+
+  check(comboBandFor(20000.0) == (int)kComboRecipes.size() - 1,
+        "and anything above C7 holds the top band");
+
+  bool comboStepping = true;
+
+  for (size_t i = 0; i < kComboBandEdges.size(); ++i) {
+    comboStepping &= comboBandFor(kComboBandEdges[i] * 0.999) == (int)i;
+    comboStepping &= comboBandFor(kComboBandEdges[i] * 1.001) == (int)i + 1;
+  }
+
+  check(comboStepping,
+        "each of the combo organ's edges hands one band over to the next");
+
   // ---- what each table holds -----------------------------------------------
   //
   // Read from the table itself and not from the recipe. A recipe built into
@@ -2474,6 +2491,13 @@ void testMeasuredCharacters() {
   for (size_t band = 0; band < kWheelRecipes.size(); ++band)
     probes.push_back({Character::Wheel, wheelPitches[band],
                       &kWheelRecipes[band], 0.0, "a tonewheel"});
+
+  const double comboPitches[] = {65.4,  146.8, 261.6,  370.0,
+                                 523.3, 740.0, 1174.7, 2093.0};
+
+  for (size_t band = 0; band < kComboRecipes.size(); ++band)
+    probes.push_back({Character::Combo, comboPitches[band],
+                      &kComboRecipes[band], 0.0, "the combo organ"});
 
   for (const auto &probe : probes) {
     const auto &w = tables.table(probe.c, probe.freq, harmonicsFor(probe.c));

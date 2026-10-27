@@ -40,6 +40,7 @@ enum class Character {
   Pd,       ///< a phase distortion synthesizer's oscillator, undistorted
   Sid,      ///< a sine through a 6581's measured converter
   Vco,      ///< an analogue oscillator's sine, through a mixer that clips
+  Combo,    ///< a transistor combo organ's filtered square, on its 8' lever
   NumCharacters
 };
 
@@ -49,7 +50,7 @@ enum class Character {
 /// circuits are built at three.
 inline bool isMeasured(Character c) noexcept {
   return c == Character::Wheel || c == Character::Fm || c == Character::Pd ||
-         c == Character::Sid || c == Character::Vco;
+         c == Character::Sid || c == Character::Vco || c == Character::Combo;
 }
 
 /// What each one is called on the panel.
@@ -66,7 +67,9 @@ inline bool isMeasured(Character c) noexcept {
 /// The recorded characters follow the same rule where they can. A tonewheel
 /// is a physical part, and so is the 6581, the chip whose converter that
 /// character is measured from, named by its part number, and VCO is the
-/// voltage-controlled oscillator its sine comes from. FM and PD are named
+/// voltage-controlled oscillator its sine comes from. Combo is the kind of
+/// organ, the transistor combo organ, since every part of it is a filter on a
+/// divider and none of them is the sound on its own. FM and PD are named
 /// for the two methods of synthesis instead, frequency modulation and phase
 /// distortion, since the instruments' own words for their oscillators are
 /// their makers' terms and read as something else to most players.
@@ -82,6 +85,8 @@ inline const char *characterName(Character c) {
     return "6581";
   case Character::Vco:
     return "VCO";
+  case Character::Combo:
+    return "Combo";
   case Character::Bulb:
     return "Bulb";
   case Character::Rail:
@@ -216,6 +221,12 @@ inline UnitTolerance unitToleranceFor(Character c) noexcept {
   case Character::Fm:
   case Character::Pd:
   case Character::Sid:
+    return {};
+
+  // A divider organ makes every octave of a note from one oscillator, so its
+  // octaves cannot be out with each other, and its levels follow a smooth
+  // curve across the keyboard rather than scattering. Nothing to spread.
+  case Character::Combo:
     return {};
 
   // An analogue oscillator tuned by hand, as the circuits are. One was
@@ -360,13 +371,15 @@ inline constexpr int kMostCharacterHarmonics = 32;
 /// Five for the circuits and the tonewheel, whose harmonics fall away. Ten for
 /// the two synthesizers, whose harmonics stay around -70 dB from the 2nd to
 /// the 10th, so stopping at five would leave out part of what was measured,
-/// and for the VCO, whose 5th, 7th and 9th are still above -58 dB.
+/// and for the VCO, whose 5th, 7th and 9th are still above -58 dB, and the
+/// combo organ, whose odd harmonics fall away slowly in the low bands.
 /// Thirty-two for the 6581.
 inline int harmonicsFor(Character c) noexcept {
   if (c == Character::Sid)
     return kMostCharacterHarmonics;
 
-  return c == Character::Fm || c == Character::Pd || c == Character::Vco
+  return c == Character::Fm || c == Character::Pd || c == Character::Vco ||
+                 c == Character::Combo
              ? kMeasuredHarmonics
              : kMaxCharacterHarmonic;
 }
@@ -469,6 +482,7 @@ public:
 
     const int shape = c == Character::Opamp   ? slewBandFor(freq)
                       : c == Character::Wheel ? wheelBandFor(freq)
+                      : c == Character::Combo ? comboBandFor(freq)
                                               : 0;
 
     if (shape < 0)
@@ -504,6 +518,9 @@ public:
 
     if (c == Character::Wheel)
       return (int)kWheelRecipes.size();
+
+    if (c == Character::Combo)
+      return (int)kComboRecipes.size();
 
     return 1;
   }
@@ -578,17 +595,19 @@ private:
     if (c == Character::Sid)
       return sid();
 
-    const auto &from = c == Character::Wheel
-                           ? kWheelRecipes[(size_t)std::clamp(
-                                 shape, 0, (int)kWheelRecipes.size() - 1)]
-                       : c == Character::Fm  ? kFmRecipe
-                       : c == Character::Vco ? kVcoRecipe
-                                             : kPdRecipe;
+    const auto &from =
+        c == Character::Wheel   ? kWheelRecipes[(size_t)std::clamp(
+                                      shape, 0, (int)kWheelRecipes.size() - 1)]
+        : c == Character::Combo ? kComboRecipes[(size_t)std::clamp(
+                                      shape, 0, (int)kComboRecipes.size() - 1)]
+        : c == Character::Fm    ? kFmRecipe
+        : c == Character::Vco   ? kVcoRecipe
+                                : kPdRecipe;
 
     // The fundamental stays at one, so the lift changes what the partial
     // sounds like and not how loud it is. Only the synthesizers have one.
     const auto lift =
-        c == Character::Wheel || c == Character::Vco
+        c == Character::Wheel || c == Character::Vco || c == Character::Combo
             ? 1.0f
             : (float)std::pow(
                   10.0, (c == Character::Fm ? kFmByEar : kPdByEar).harmonicsDb /
@@ -777,6 +796,7 @@ private:
     case Character::Pd:
     case Character::Sid:
     case Character::Vco:
+    case Character::Combo:
     case Character::Pure:
     case Character::Bulb:
     case Character::NumCharacters:

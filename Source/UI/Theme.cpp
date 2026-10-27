@@ -428,6 +428,9 @@ juce::Colour characterColour(Character c) {
   if (c == Character::Vco)
     return juce::Colour(0xffd9822b);
 
+  if (c == Character::Combo)
+    return juce::Colour(0xffc4b28a);
+
   // The fifth is where the red the mixer already uses sits, on channel 3, and
   // the seventh is the yellow at the top of the band. Running the characters
   // down between them puts the gentlest at the yellow end and the hardest on
