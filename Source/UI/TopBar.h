@@ -177,6 +177,11 @@ public:
     return characterButton.findColour(juce::TextButton::textColourOnId);
   }
 
+  /// The colour the rings in the character's frame light in.
+  juce::Colour getCharacterRingColour() const {
+    return stretch.slider.findColour(juce::Slider::rotarySliderFillColourId);
+  }
+
   bool isLinkEnabled() const { return linkOn; }
 
   /// Latched by the editor at the start of each LINK drag.
@@ -345,6 +350,11 @@ private:
   /// the signal, and a knob that is not doing anything should not look as
   /// though it is.
   void setRingsLive(std::vector<Control> &controls, bool live);
+
+  /// The colour a group's rings light in, which is its button's, so the knobs
+  /// read as belonging to the machine they set.
+  static void setRingColour(juce::Slider &, juce::Colour);
+  static void setRingColour(std::vector<Control> &controls, juce::Colour);
 
   /// Applies what buildEchoMenu came back with. Zero means dismissed.
   void chooseEcho(int id);
