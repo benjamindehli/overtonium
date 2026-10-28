@@ -523,8 +523,15 @@ inline int wheelBandFor(double freq) noexcept {
 /// and it darkens steadily up the keyboard, so the takes are grouped into
 /// bands where their third, fifth and seventh harmonics stay within 2.5 dB.
 /// Each edge is halfway in pitch between the bands either side. Above the 8'
-/// lever's highest note the last band holds: the higher levers are filtered
-/// brighter, so they are a different voicing and not more of this one.
+/// lever's highest note the last band holds.
+///
+/// The filter belongs to the key and not to the lever. Every lever was
+/// recorded at C6 as well, each from the key that sounds C6 on it, and each
+/// came out with the 8' lever's shape on that key within about 2 dB: the 4'
+/// from C5 matches the 8' on C5, the 1' from C3 the 8' on C3, and the two
+/// tempered levers fall between the 8' takes either side of their keys. So a
+/// band is chosen by the key that is played, and a partial high in the series
+/// of a low note keeps the low key's brighter shape, as a high lever does.
 inline constexpr std::array<double, 7> kComboBandEdges{
     77.8, 220.0, 311.1, 439.9, 622.2, 879.9, 1759.7};
 
@@ -634,7 +641,7 @@ inline constexpr std::array<MeasuredRecipe, 8> kComboRecipes{{
       {1.2707e-04f, 1.6867e-04f}}},
 }};
 
-/// Which combo organ band a partial at this frequency reads.
+/// Which combo organ band a key at this frequency reads.
 inline int comboBandFor(double freq) noexcept {
   int band = 0;
 
