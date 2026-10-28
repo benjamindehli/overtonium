@@ -12053,9 +12053,7 @@ void testCharacterControl(OvertoniumProcessor &p) {
             "and follows a change it did not make");
 
       // Lit in the character's own colour, and not lit at all on the one that
-      // adds nothing. The colours are the mixer's own band, running down from
-      // the yellow at the top of it to the red the fifth stands in, which is
-      // the colour of channel 3.
+      // adds nothing.
       check(bar->isCharacterLit(), "a character lights the button");
 
       check(bar->getCharacterColour() ==
@@ -12069,10 +12067,6 @@ void testCharacterControl(OvertoniumProcessor &p) {
     }
   }
 
-  check(ovt::ui::characterColour(ovt::Character::Bulb) ==
-            ovt::ui::bandColour(1.0f - 2.0f / 8.0f * (4.0f / 11.0f)),
-        "the circuits keep their places on the mixer's band");
-
   // The three measured from a synthesizer or a chip light in their
   // instrument's colour instead.
   check(ovt::ui::characterColour(ovt::Character::Sid) ==
@@ -12083,12 +12077,8 @@ void testCharacterControl(OvertoniumProcessor &p) {
                 juce::Colour(0xff00825f),
         "6581, PD and FM light in their instrument's colour");
 
-  check(ovt::ui::characterColour(ovt::Character::Opamp) ==
-            ovt::ui::intervalColour(ovt::harmonic(2).pitchClass),
-        "and the hardest on the red of channel 3");
-
-  // The band runs by how hard each one is rather than by when it was added,
-  // so a list that left one out would put two characters on the same colour.
+  // Each is there to be told apart from the others, so a list that left one
+  // out, or gave two the same, would defeat it.
   {
     std::vector<juce::Colour> seen;
 
@@ -12101,6 +12091,40 @@ void testCharacterControl(OvertoniumProcessor &p) {
 
       seen.push_back(colour);
     }
+  }
+
+  // The machines likewise, within each set, and the echo and the reverb
+  // beside each other never on the same colour.
+  {
+    const auto distinct = [](const std::vector<juce::Colour> &colours) {
+      for (size_t i = 0; i < colours.size(); ++i)
+        for (size_t j = i + 1; j < colours.size(); ++j)
+          if (colours[i] == colours[j])
+            return false;
+
+      return true;
+    };
+
+    std::vector<juce::Colour> resonator, echo, reverb, clip, beside;
+
+    for (int m = 1; m < (int)ovt::ResonatorMode::NumModes; ++m)
+      resonator.push_back(ovt::ui::resonatorColour((ovt::ResonatorMode)m));
+
+    for (int t = 0; t < (int)ovt::EchoType::NumTypes; ++t)
+      echo.push_back(ovt::ui::echoColour((ovt::EchoType)t));
+
+    for (int t = 0; t < (int)ovt::ReverbType::NumTypes; ++t)
+      reverb.push_back(ovt::ui::reverbColour((ovt::ReverbType)t));
+
+    for (int t = 0; t < (int)ovt::ClipType::NumTypes; ++t)
+      clip.push_back(ovt::ui::clipColour((ovt::ClipType)t));
+
+    beside = echo;
+    beside.insert(beside.end(), reverb.begin(), reverb.end());
+
+    check(distinct(resonator) && distinct(echo) && distinct(reverb) &&
+              distinct(clip) && distinct(beside),
+          "every machine lights in a colour of its own within its set");
   }
 
   set(ovt::Character::Pure);

@@ -3,6 +3,9 @@ build-*/
 cmake-build-*/
 _deps/
 
+# What the DSP-core check builds in the root, as the workflow does.
+/dsp_test
+
 # Where the release workflow stages the installers and zips, and where
 # gh run download puts them when they are fetched back to attach by hand.
 archives/

@@ -408,8 +408,6 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
                     [this](int result) { chooseResonator(result); });
   };
 
-  resonatorButton.setColour(juce::TextButton::textColourOnId, colours::accent);
-
   // ---- presets --------------------------------------------------------------
   presetDisplay.setReading(kNoPreset, true);
   presetDisplay.setTooltip("Factory and saved presets, and saving your own");
@@ -520,11 +518,6 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
                     [this](int result) { chooseReverb(result); });
   };
 
-  // The colour the word comes up in, since the face stays where it is. See
-  // GlowButton.
-  echoButton.setColour(juce::TextButton::textColourOnId, colours::accent);
-  reverbButton.setColour(juce::TextButton::textColourOnId, colours::accent);
-
   // The output stage stands with the converter rather than with the effects,
   // since what it does is the last thing that happens to the signal and the
   // readouts beside it are the other two facts about the output. It is a
@@ -546,8 +539,6 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
                         .withStandardItemHeight(22),
                     [this](int result) { chooseClip(result); });
   };
-
-  clipButton.setColour(juce::TextButton::textColourOnId, colours::accent);
 
   addKnob(resonatorControls, "Resonator", "MIX", params::resonatorMixId,
           "From the instrument alone to the resonator alone", popupParent);
@@ -1409,6 +1400,10 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
     // it is: the face reads out as "tape" on its own, which says nothing about
     // what is being tape.
     echoButton.setTitle(running ? "Echo: " + name : juce::String("Echo: off"));
+
+    // The colour the word comes up in, since the face stays where it is, one
+    // for each machine. See GlowButton.
+    echoButton.setColour(juce::TextButton::textColourOnId, echoColour(which));
     echoButton.setToggleState(running, juce::dontSendNotification);
 
     setRingsLive(echoControls, running);
@@ -1431,6 +1426,8 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
     resonatorButton.setButtonText(name.toUpperCase());
     resonatorButton.setTitle(running ? "Resonator: " + name
                                      : juce::String("Resonator: off"));
+    resonatorButton.setColour(juce::TextButton::textColourOnId,
+                              resonatorColour(which));
     resonatorButton.setToggleState(running, juce::dontSendNotification);
 
     setRingsLive(resonatorControls, running);
@@ -1457,6 +1454,8 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
 
     reverbButton.setTitle(running ? "Reverb: " + name
                                   : juce::String("Reverb: off"));
+    reverbButton.setColour(juce::TextButton::textColourOnId,
+                           reverbColour(which));
     reverbButton.setToggleState(running, juce::dontSendNotification);
 
     setRingsLive(reverbControls, running);
@@ -1485,6 +1484,7 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
     // "Clip" rather than the parameter's own word, because what it is called
     // on the bar is what someone is looking for when they hear it.
     clipButton.setTitle(running ? "Clip: " + name : juce::String("Clip: off"));
+    clipButton.setColour(juce::TextButton::textColourOnId, clipColour(which));
     clipButton.setToggleState(running, juce::dontSendNotification);
   }
 

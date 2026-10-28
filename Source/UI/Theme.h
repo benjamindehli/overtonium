@@ -8,6 +8,8 @@
 
 #include "../dsp/Character.h"
 #include "../dsp/Harmonics.h"
+#include "../dsp/OutputStage.h"
+#include "../dsp/Params.h"
 #include "PaintCache.h"
 
 namespace ovt::ui {
@@ -121,13 +123,20 @@ juce::Colour intervalColour(int pitchClass);
 /// is one band rather than two that drift apart.
 juce::Colour bandColour(float t);
 
-/// Where each oscillator character stands on it.
+/// The colour each oscillator character lights in.
 ///
-/// Yellow for the gentlest and red for the hardest, running down the warm end
-/// of the band and finishing exactly on the fifth, which is the colour of
-/// channel 3. Pure is not on the band at all: it is the absence of a
-/// character rather than one of them, and it does not light.
+/// FM, PD and 6581 in a colour of the instrument they were measured from, and
+/// the rest spread as far apart in hue as they go, so the one chosen can be
+/// told at a glance. Pure is the absence of a character rather than one of
+/// them, and it does not light.
 juce::Colour characterColour(Character);
+
+/// The colour each machine of the resonator, the echo, the reverb and the
+/// output stage lights in, spread as far apart in hue as each set allows.
+juce::Colour resonatorColour(ResonatorMode);
+juce::Colour echoColour(EchoType);
+juce::Colour reverbColour(ReverbType);
+juce::Colour clipColour(ClipType);
 
 /// A lamp behind a square plastic cap, the way a tape machine's are.
 ///
