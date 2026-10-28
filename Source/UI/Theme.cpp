@@ -410,53 +410,94 @@ juce::Colour intervalColour(int pitchClass) {
 
 juce::Colour characterColour(Character c) {
   // The three measured from a synthesizer or a sound chip light in a colour
-  // of the instrument they were measured from rather than in one from the
-  // band: 6581 in the blue of the startup screen of the computer the chip was
-  // made for, PD in the colour of the model name printed on the synthesizer,
-  // and FM in the green of the synthesizer's membrane buttons.
-  if (c == Character::Sid)
+  // of the instrument they were measured from: 6581 in the blue of the
+  // startup screen of the computer the chip was made for, PD in the colour of
+  // the model name printed on the synthesizer, and FM in the green of the
+  // synthesizer's membrane buttons.
+  //
+  // The rest are there to tell the characters apart at a glance, so they are
+  // spread as far from each other and from those three as the hue wheel
+  // allows: all at one lightness and saturation in OKLCH, so none stands out
+  // for being brighter, with the eight hues placed in the gaps the three
+  // leave, about thirty degrees apart. The warm end keeps roughly the order
+  // the characters had, with Op-amp still red. Pure does not light.
+  switch (c) {
+  case Character::Sid:
     return juce::Colour(0xff867ade);
-
-  if (c == Character::Pd)
+  case Character::Pd:
     return juce::Colour(0xffd5df7c);
-
-  if (c == Character::Fm)
+  case Character::Fm:
     return juce::Colour(0xff00825f);
+  case Character::Opamp:
+    return juce::Colour(0xfff47a7c);
+  case Character::Valve:
+    return juce::Colour(0xffed8642);
+  case Character::Bulb:
+    return juce::Colour(0xffd29a00);
+  case Character::Wheel:
+    return juce::Colour(0xff00beac);
+  case Character::Vco:
+    return juce::Colour(0xff00b5e7);
+  case Character::Combo:
+    return juce::Colour(0xff65a6ff);
+  case Character::Diode:
+    return juce::Colour(0xffcb84e1);
+  case Character::Rail:
+    return juce::Colour(0xffe87ab3);
+  case Character::Pure:
+  case Character::NumCharacters:
+    break;
+  }
 
-  // The VCO lights in a colour of its own as well, so adding it moved nobody
-  // else's.
-  if (c == Character::Vco)
-    return juce::Colour(0xffd9822b);
+  return colours::textDim;
+}
 
-  if (c == Character::Combo)
-    return juce::Colour(0xffc4b28a);
+// The machines light the same way: at the characters' lightness and
+// saturation, each set spread evenly round the hue wheel so the machines in it
+// are as far apart as they can be. Each set is turned so that the first
+// machine of each, which is what a new patch has, lands on a different colour
+// from the others and from Op-amp's red: Piano purple, Tape green, Room amber
+// and Soft teal. The reverb's three sit between the echo's, so the two buttons
+// beside each other never share a colour. Each is a list in the order of its
+// type, checked against the count when it is built.
 
-  // The fifth is where the red the mixer already uses sits, on channel 3, and
-  // the seventh is the yellow at the top of the band. Running the characters
-  // down between them puts the gentlest at the yellow end and the hardest on
-  // that red, and adding one subdivides the same stretch rather than walking
-  // off the end of it into the blues.
-  constexpr float kYellow = 11.0f / 11.0f;
-  constexpr float kFifth = 7.0f / 11.0f;
+juce::Colour resonatorColour(ResonatorMode m) {
+  // Piano, Open, Octave and Series, a quarter of the wheel apart.
+  constexpr std::array<juce::uint32, 4> kLit{0xffce83de, 0xffee8545, 0xff6ebb5d,
+                                             0xff00b4ec};
+  static_assert(kLit.size() + 1 == (size_t)ResonatorMode::NumModes);
 
-  // Gentlest first, which is not the order they were added in. The two
-  // synthesizers have the weakest harmonics, about thirty decibels below the
-  // circuits, so their places are at the yellow end, and 6581 sits between
-  // Valve and Wheel. The three keep their places, though they light in their
-  // own colours, so the others keep the colours they had. Wheel sits next to
-  // Valve, because both are mostly a second harmonic. Pure is not on the band,
-  // and nor is the VCO, which came after the band was laid out.
-  constexpr std::array<Character, 9> kBand{
-      Character::Pd,   Character::Fm,    Character::Bulb,
-      Character::Rail, Character::Diode, Character::Valve,
-      Character::Sid,  Character::Wheel, Character::Opamp};
+  const auto at = (int)m - 1;
 
-  const auto at = std::find(kBand.begin(), kBand.end(), c);
-  const auto steps = (float)std::max(1, (int)kBand.size() - 1);
+  return at < 0 || at >= (int)kLit.size() ? colours::textDim
+                                          : juce::Colour(kLit[(size_t)at]);
+}
 
-  const auto t = std::clamp((float)(at - kBand.begin()) / steps, 0.0f, 1.0f);
+juce::Colour echoColour(EchoType t) {
+  // Tape, Bucket brigade and Digital, a third of the wheel apart.
+  constexpr std::array<juce::uint32, 3> kLit{0xff6ebb5d, 0xff6da4ff,
+                                             0xfff47a7d};
+  static_assert(kLit.size() == (size_t)EchoType::NumTypes);
 
-  return bandColour(kYellow + t * (kFifth - kYellow));
+  return juce::Colour(kLit[(size_t)std::clamp((int)t, 0, 2)]);
+}
+
+juce::Colour reverbColour(ReverbType t) {
+  // Room, Modulated Plate and Spring, between the echo's three.
+  constexpr std::array<juce::uint32, 3> kLit{0xffd59800, 0xff00bbc3,
+                                             0xffce83de};
+  static_assert(kLit.size() == (size_t)ReverbType::NumTypes);
+
+  return juce::Colour(kLit[(size_t)std::clamp((int)t, 0, 2)]);
+}
+
+juce::Colour clipColour(ClipType t) {
+  // Soft, Hard, Asymmetric, Limiter, Fold and Console, a sixth apart.
+  constexpr std::array<juce::uint32, 6> kLit{
+      0xff00bbc3, 0xff6da4ff, 0xffce83de, 0xfff47a7d, 0xffd59800, 0xff6ebb5d};
+  static_assert(kLit.size() == (size_t)ClipType::NumTypes);
+
+  return juce::Colour(kLit[(size_t)std::clamp((int)t, 0, 5)]);
 }
 
 namespace {
