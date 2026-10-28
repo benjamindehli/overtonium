@@ -64,7 +64,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-10-27",
+                "dateModified": "2026-10-28",
                 "breadcrumb": {
                     "@id": "https://benjamindehli.github.io/overtonium/playing/#breadcrumb"
                 }
@@ -1391,7 +1391,7 @@
                                         <td><code>macro1_scope to macro8_scope</code></td>
                                         <td>
                                             All, Odd, Even, Prime/octave, Minor second, Major second, Minor third, Major third, Fourth, Tritone,
-                                            Fifth, Minor sixth, Major sixth, Minor seventh, Major seventh
+                                            Fifth, Minor sixth, Major sixth, Minor seventh, Major seventh, Selected
                                         </td>
                                         <td>All</td>
                                     </tr>
@@ -1442,10 +1442,13 @@
                     </p>
 
                     <p>
-                        <strong>Scope</strong> is All, Odd, Even, or any one interval: choosing fifths reaches harmonics 3, 6, 12 and 24.
-                        <strong>Curve</strong> is Uniform or Taper. A taper has the most effect on a channel you pick, and less with distance on
-                        either side of it. Link's third curve, Spread, is not available and cannot be. It moves each strip in a direction based on
-                        your drag relative to the strip under the mouse, and a macro has no drag direction and no strip under the mouse.
+                        <strong>Scope</strong> is All, Odd, Even, any one interval, or Selected channels. Choosing fifths reaches harmonics 3, 6, 12
+                        and 24. Selected channels reaches the channels you picked by their numbers with Cmd-click, or Ctrl-click on Windows, before
+                        opening the panel, and the menu lists them. The macro keeps its own copy, so picking other channels afterwards does not move
+                        it. To change them, pick the new ones and choose Selected channels again. They are saved with the session and with a preset of
+                        your own. <strong>Curve</strong> is Uniform or Taper. A taper has the most effect on a channel you pick, and less with
+                        distance on either side of it. Link's third curve, Spread, is not available and cannot be. It moves each strip in a direction
+                        based on your drag relative to the strip under the mouse, and a macro has no drag direction and no strip under the mouse.
                     </p>
 
                     <p>

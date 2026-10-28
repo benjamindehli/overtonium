@@ -112,14 +112,7 @@ void MacroPanel::buildStrip(int macro) {
         &strips[(size_t)macro].row);
   };
 
-  strip.scope.setTooltip("Which channels it reaches: all, odd, even, or one "
-                         "interval of the series.");
-  strip.scope.onClick = [this, macro] {
-    choose(
-        macro, params::macroScopeId(macro), "Scope", params::kNumMacroScopes,
-        [](int i) { return juce::String(params::macroScopeName(i)); },
-        &strips[(size_t)macro].scope);
-  };
+  strip.scope.onClick = [this, macro] { chooseScope(macro); };
 
   strip.curve.setTooltip("How the amount is spread. Uniform moves every "
                          "channel the same, and Taper "
@@ -258,6 +251,46 @@ void MacroPanel::choose(int macro, const juce::String &parameterId,
       });
 }
 
+void MacroPanel::chooseScope(int macro) {
+  juce::PopupMenu menu;
+  menu.setLookAndFeel(&getLookAndFeel());
+  menu.addSectionHeader("Macro " + juce::String(macro + 1) + ": Scope");
+
+  const auto at = chosen(params::macroScopeId(macro));
+  const auto selected = (int)params::MacroScope::Selected;
+
+  for (int i = 0; i < selected; ++i)
+    menu.addItem(i + 1, params::macroScopeName(i), true, i == at);
+
+  // Selected takes the channels picked for LINK, so it needs some to take,
+  // or some it was given before to keep.
+  const auto picked = currentSelection != nullptr ? currentSelection() : 0u;
+  const auto kept =
+      channels != nullptr ? (*channels)[(size_t)macro].load() : 0u;
+
+  menu.addSeparator();
+  menu.addItem(
+      selected + 1,
+      picked != 0 ? juce::String("Selected channels (") +
+                        params::channelListText(picked).replace(",", ", ") + ")"
+                  : juce::String("Selected channels"),
+      channels != nullptr && (picked != 0 || kept != 0), at == selected);
+
+  menu.showMenuAsync(
+      juce::PopupMenu::Options().withStandardItemHeight(22).withTargetComponent(
+          &strips[(size_t)macro].scope),
+      [this, macro, picked, selected](int result) {
+        if (result <= 0)
+          return;
+
+        if (result - 1 == selected && picked != 0 && channels != nullptr)
+          (*channels)[(size_t)macro].store(picked);
+
+        write(params::macroScopeId(macro), result - 1);
+        refresh();
+      });
+}
+
 void MacroPanel::showReading(int macro) {
   auto &strip = strips[(size_t)macro];
 
@@ -375,8 +408,20 @@ void MacroPanel::refresh() {
     // is toggled, and drawButtonFace lets a background that has been named
     // win over the lamp, which is the door the colour swatches go through.
     // Setting only the lamp left every one of these the scheme's own blue.
-    const auto scopeTint =
-        interval >= 0 ? intervalColour(interval) : colours::accent;
+    const auto scopeTint = interval >= 0 && interval < 12
+                               ? intervalColour(interval)
+                               : colours::accent;
+
+    // Which channels, since the word alone does not say.
+    strip.scope.setTooltip(
+        scope == (int)params::MacroScope::Selected && channels != nullptr
+            ? "Reaches channels " +
+                  params::channelListText((*channels)[(size_t)m].load())
+                      .replace(",", ", ") +
+                  ". Pick other channels and choose Selected again to "
+                  "change them."
+            : "Which channels it reaches: all, odd, even, one interval of "
+              "the series, or the channels picked by their numbers.");
 
     strip.scope.setColour(juce::TextButton::buttonOnColourId, scopeTint);
     strip.scope.setToggleState(true, juce::dontSendNotification);

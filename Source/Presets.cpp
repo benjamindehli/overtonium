@@ -365,6 +365,7 @@ juce::StringArray names() {
 namespace {
 const juce::Identifier kPresetTag{"OVERTONIUM_PRESET"};
 const juce::Identifier kParamTag{"PARAM"};
+const juce::Identifier kMacroChannelsTag{"MACRO_CHANNELS"};
 constexpr const char *kExtension = ".ovtpreset";
 } // namespace
 
@@ -406,8 +407,9 @@ juce::String sanitiseName(const juce::String &raw) {
   return name.substring(0, 64).trim();
 }
 
-std::unique_ptr<juce::XmlElement> capture(APVTS &apvts,
-                                          const juce::String &name) {
+std::unique_ptr<juce::XmlElement>
+capture(APVTS &apvts, const juce::String &name,
+        const params::MacroChannels *channels) {
   auto doc = std::make_unique<juce::XmlElement>(kPresetTag);
   doc->setAttribute("name", name);
   doc->setAttribute("version", 1);
@@ -433,12 +435,43 @@ std::unique_ptr<juce::XmlElement> capture(APVTS &apvts,
                         (double)ranged->convertFrom0to1(ranged->getValue()));
   }
 
+  // The one thing in a preset that is not a parameter. Numbered from one, as
+  // the macros are on the panel and in their parameter ids.
+  if (channels != nullptr) {
+    for (int m = 0; m < params::kNumMacros; ++m) {
+      const auto mask = (*channels)[(size_t)m].load();
+
+      if (mask == 0)
+        continue;
+
+      auto *entry = doc->createNewChildElement(kMacroChannelsTag);
+      entry->setAttribute("macro", m + 1);
+      entry->setAttribute("channels", params::channelListText(mask));
+    }
+  }
+
   return doc;
 }
 
-int restore(APVTS &apvts, const juce::XmlElement &doc) {
+int restore(APVTS &apvts, const juce::XmlElement &doc,
+            params::MacroChannels *channels) {
   if (!doc.hasTagName(kPresetTag))
     return -1;
+
+  if (channels != nullptr) {
+    std::array<std::uint32_t, params::kNumMacros> read{};
+
+    for (auto *entry : doc.getChildWithTagNameIterator(kMacroChannelsTag)) {
+      const auto m = entry->getIntAttribute("macro") - 1;
+
+      if (m >= 0 && m < params::kNumMacros)
+        read[(size_t)m] =
+            params::channelListMask(entry->getStringAttribute("channels"));
+    }
+
+    for (int m = 0; m < params::kNumMacros; ++m)
+      (*channels)[(size_t)m].store(read[(size_t)m]);
+  }
 
   int applied = 0;
 
@@ -461,7 +494,8 @@ int restore(APVTS &apvts, const juce::XmlElement &doc) {
   return applied;
 }
 
-bool save(APVTS &apvts, const juce::String &name, juce::String &error) {
+bool save(APVTS &apvts, const juce::String &name, juce::String &error,
+          const params::MacroChannels *channels) {
   const auto clean = sanitiseName(name);
 
   if (clean.isEmpty()) {
@@ -470,7 +504,7 @@ bool save(APVTS &apvts, const juce::String &name, juce::String &error) {
   }
 
   const auto file = userDirectory().getChildFile(clean + kExtension);
-  const auto doc = capture(apvts, clean);
+  const auto doc = capture(apvts, clean, channels);
 
   if (!doc->writeTo(file)) {
     error = "Could not write to " + file.getFullPathName();
@@ -480,7 +514,8 @@ bool save(APVTS &apvts, const juce::String &name, juce::String &error) {
   return true;
 }
 
-bool load(APVTS &apvts, const juce::File &file, juce::String &error) {
+bool load(APVTS &apvts, const juce::File &file, juce::String &error,
+          params::MacroChannels *channels) {
   const auto doc = juce::XmlDocument::parse(file);
 
   if (doc == nullptr) {
@@ -488,7 +523,7 @@ bool load(APVTS &apvts, const juce::File &file, juce::String &error) {
     return false;
   }
 
-  if (restore(apvts, *doc) < 0) {
+  if (restore(apvts, *doc, channels) < 0) {
     error = file.getFileName() + " is not an Overtonium preset.";
     return false;
   }

@@ -2,6 +2,8 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "PluginParameters.h"
+
 namespace ovt::presets {
 
 /// Factory preset names, in menu order.
@@ -36,8 +38,14 @@ juce::String sanitiseName(const juce::String &);
 /// Every parameter except the session, which is the same set a factory preset
 /// decides. Saving a sound and picking one from the menu are the same
 /// operation, so they carry the same things.
-std::unique_ptr<juce::XmlElement> capture(juce::AudioProcessorValueTreeState &,
-                                          const juce::String &name);
+///
+/// @param channels  what each macro on Selected reaches, which is part of the
+/// sound and is not a parameter. Written as an entry of its own for every
+/// macro that has any. Left out when null, which a caller with no processor
+/// to ask passes.
+std::unique_ptr<juce::XmlElement>
+capture(juce::AudioProcessorValueTreeState &, const juce::String &name,
+        const params::MacroChannels *channels = nullptr);
 
 /// Applies a captured preset. Parameters the document does not mention are
 /// left alone rather than reset, so an older file loads into a newer build
@@ -48,17 +56,22 @@ std::unique_ptr<juce::XmlElement> capture(juce::AudioProcessorValueTreeState &,
 /// whoever saved them, and honouring that now would reach over and change
 /// settings the file has no business touching.
 ///
+/// The channels a macro on Selected reaches are set from the document, and a
+/// macro it names none for reaches none, since an older file has no macro on
+/// Selected.
+///
 /// @returns how many parameters it recognised, or -1 if the document is not
 /// one of ours.
-int restore(juce::AudioProcessorValueTreeState &, const juce::XmlElement &);
+int restore(juce::AudioProcessorValueTreeState &, const juce::XmlElement &,
+            params::MacroChannels *channels = nullptr);
 
 /// Writes the current state to the user directory under `name`, replacing a
 /// preset of the same name.
 bool save(juce::AudioProcessorValueTreeState &, const juce::String &name,
-          juce::String &error);
+          juce::String &error, const params::MacroChannels *channels = nullptr);
 
 bool load(juce::AudioProcessorValueTreeState &, const juce::File &,
-          juce::String &error);
+          juce::String &error, params::MacroChannels *channels = nullptr);
 
 /// The state every factory preset starts from, before it sets anything.
 ///

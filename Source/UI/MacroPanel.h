@@ -46,6 +46,12 @@ public:
   /// TopBar::onLearnRequested: what the menu offers is the editor's to say.
   std::function<void(const juce::String &)> onLearnRequested;
 
+  /// Where each macro on Selected keeps its channels, and the channels picked
+  /// for LINK right now, which choosing Selected takes. Both the editor's to
+  /// give, since the panel holds neither.
+  params::MacroChannels *channels = nullptr;
+  std::function<std::uint32_t()> currentSelection;
+
   /// How many macros are made, for the button that opens this to say so.
   static int madeCount(const juce::AudioProcessorValueTreeState &);
 
@@ -107,6 +113,11 @@ private:
   };
 
   void buildStrip(int macro);
+
+  /// The scope's menu, which is choose with one entry that does more than
+  /// set a parameter: Selected takes the channels picked right now.
+  void chooseScope(int macro);
+
   void choose(int macro, const juce::String &parameterId, const char *title,
               int count, const std::function<juce::String(int)> &nameOf,
               juce::Component *under, int firstValue = 0);

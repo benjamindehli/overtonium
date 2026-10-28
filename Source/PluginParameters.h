@@ -3,6 +3,8 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include <array>
+#include <atomic>
+#include <cstdint>
 #include <utility>
 
 #include "dsp/Params.h"
@@ -199,9 +201,37 @@ inline constexpr int kNumMacroRows =
 /// channel, which makes those a way of naming one harmonic rather than a
 /// family. Listed anyway, since a list of intervals with gaps in it is
 /// stranger to read than a few narrow entries.
-enum class MacroScope { All = 0, Odd, Even, Interval };
+///
+/// Selected comes after the twelve, on the end so a lane drawn before it
+/// existed still names the scope it did. It reaches the channels the macro
+/// was given when it was set to Selected, taken from LINK's selection and
+/// kept with the macro, so picking other channels afterwards moves nothing.
+/// See MacroChannels.
+enum class MacroScope {
+  All = 0,
+  Odd,
+  Even,
+  Interval,
+  Selected = Interval + 12
+};
 
-inline constexpr int kNumMacroScopes = (int)MacroScope::Interval + 12;
+inline constexpr int kNumMacroScopes = (int)MacroScope::Selected + 1;
+
+/// The channels each macro on Selected reaches, a bit per channel from the
+/// fundamental.
+///
+/// Not parameters. Eight lists of 32 channels would be 256 switches in every
+/// host's automation menu, or numbers no host should draw a lane for, and a
+/// list of channels is not something anyone automates. So they are kept
+/// beside the parameters, read by the audio thread from here, written into
+/// the session by the processor and into a preset file as an entry of their
+/// own by presets::capture.
+using MacroChannels = std::array<std::atomic<std::uint32_t>, kNumMacros>;
+
+/// A channel mask as the harmonic numbers it holds, "3,5,9,12", which is how
+/// the session and a preset file write it, and back.
+juce::String channelListText(std::uint32_t mask);
+std::uint32_t channelListMask(const juce::String &text);
 
 /// How a macro is shared out across the channels it reaches.
 ///
@@ -224,7 +254,9 @@ const char *macroScopeName(int scope);
 /// Shared rather than written twice: the snapshot asks it to decide what to
 /// offset, and the window asks it to decide what to tint, and those two
 /// disagreeing would colour a control that is not being driven.
-bool macroReaches(int scope, int index0);
+///
+/// @param selected  the macro's own channels, which only Selected reads.
+bool macroReaches(int scope, int index0, std::uint32_t selected = 0);
 
 /// This channel's share of a macro, from the fundamental outwards.
 ///
@@ -416,6 +448,10 @@ struct Cache {
   };
 
   std::array<Macro, (size_t)kNumMacros> macro{};
+
+  /// What each macro on Selected reaches. Owned here rather than pointed at,
+  /// since nothing in the parameter tree holds it.
+  MacroChannels macroChannels{};
 
   /// The low and high end of every row a macro can drive, read once. Every
   /// channel's copy of a row shares one range, so one pair answers for all 32.

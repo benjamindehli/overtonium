@@ -253,6 +253,14 @@ public:
   /// message thread for values that are already sitting in here.
   const ovt::params::Cache &parameters() const noexcept { return paramCache; }
 
+  /// The channels each macro on Selected reaches, which the audio thread reads
+  /// and nothing in the parameter tree holds. Written by the macro panel and
+  /// by a preset of your own, saved with the session here, and cleared by a
+  /// factory preset, none of which use Selected.
+  ovt::params::MacroChannels &macroChannels() noexcept {
+    return paramCache.macroChannels;
+  }
+
 private:
   /// One stereo output, which is the mix.
   ///
