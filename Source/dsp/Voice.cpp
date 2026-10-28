@@ -676,6 +676,13 @@ void Voice::render(float *left, float *right, int numSamples,
           (double)(p.global.bendSemitones + noteBendSemitones) + pt.glideSemis +
           retuneSemis;
 
+      // Where the key itself is, bent and gliding but without this partial's
+      // place in the series or its own wander. The combo organ filters each
+      // key once, whichever lever plays it, so its shape goes by this.
+      const double keySemis =
+          (double)(p.global.bendSemitones + noteBendSemitones) + pt.glideSemis +
+          retuneSemis;
+
       // Read at the start of the block and stepped for the next, as the
       // modulators are. A glide that is not running costs a compare.
       // Nought is set exactly by the line below, so the compare is exact too.
@@ -786,9 +793,18 @@ void Voice::render(float *left, float *right, int numSamples,
       //
       // The frequency goes in as well as the room above it, because one
       // character is a rate limit rather than a shape, and how hard that bites
-      // depends on how fast the wave is asking the amplifier to move.
+      // depends on how fast the wave is asking the amplifier to move. The
+      // others with a shape per pitch read it at the partial's own pitch, as
+      // each tonewheel has its own, except the combo organ. Its filter belongs
+      // to the key, so the 4' lever on C5 has the 8' lever's shape on C5 and
+      // not the 8' shape an octave up, and every partial of a note reads the
+      // shape of the key that is played.
+      const double shapeFreq = p.global.character == Character::Combo
+                                   ? baseFreq * std::exp2(keySemis / 12.0)
+                                   : freq;
+
       const auto &wave =
-          characters.table(p.global.character, freq,
+          characters.table(p.global.character, shapeFreq,
                            foldAliases ? kMostCharacterHarmonics
                                        : highestHarmonicUnder(freq, sampleRate),
                            unit.drive[(size_t)i]);

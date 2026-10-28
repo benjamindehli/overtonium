@@ -2643,6 +2643,40 @@ void testMeasuredCharacters() {
   check(octaveOf(Character::Fm, 69) > -62.0 &&
             octaveOf(Character::Pure, 69) < -90.0,
         "FM's second harmonic reaches the output, and Pure has none");
+
+  // The combo organ filters each key once for every lever, so partial 4 of a
+  // C3 note, which is the 2' lever's pitch on that key, has C3's shape and
+  // not the darker one the 8' has at C5, where the partial sounds.
+  {
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+    engine.setPolyphony(1);
+
+    auto p = makeFlatParams(0.0f);
+    p.osc[3].volume = 0.5f;
+    p.osc[3].tuneBlend = 1.0f;
+    p.osc[3].decay = 8.0f;
+    p.global.character = Character::Combo;
+
+    std::vector<float> l((size_t)N), r((size_t)N);
+    engine.noteOn(48, 1.0f, p);
+    engine.render(l.data(), r.data(), N, p);
+
+    const double key = 440.0 * std::exp2((48.0 - 69.0) / 12.0);
+    const double third =
+        20.0 * std::log10(std::max(1.0e-12, binMagnitude(l, 12.0 * key, sr)) /
+                          binMagnitude(l, 4.0 * key, sr));
+
+    const auto &keyed = kComboRecipes[(size_t)comboBandFor(key)];
+    const auto &own = kComboRecipes[(size_t)comboBandFor(4.0 * key)];
+
+    check(std::abs(third - recipeDb(keyed, 3)) < 1.0 &&
+              recipeDb(keyed, 3) - recipeDb(own, 3) > 6.0,
+          "a high partial on Combo has the shape of the key played (" +
+              std::to_string(third) + " dB against " +
+              std::to_string(recipeDb(keyed, 3)) + ")");
+  }
 }
 
 /// The VCO's wander: a held note's pitch moving about 0.2 cents rms, as the
