@@ -497,7 +497,8 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     bool loaded = false;
 
     plugin().recordEdit("Load preset", [this, &file, &error, &loaded] {
-      loaded = presets::load(plugin().apvts, file, error);
+      loaded =
+          presets::load(plugin().apvts, file, error, &plugin().macroChannels());
     });
 
     if (loaded)
@@ -509,7 +510,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   topBar.onSaveUserPreset = [this](juce::String name) {
     juce::String error;
 
-    if (presets::save(plugin().apvts, name, error))
+    if (presets::save(plugin().apvts, name, error, &plugin().macroChannels()))
       setPresetName(presets::sanitiseName(name));
     else
       complain("Could not save that preset", error);
@@ -623,6 +624,17 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   // Above even MACROS, since a question waiting for an answer should not end
   // up behind a panel someone opens afterwards.
   addChildComponent(notice);
+
+  macroPanel.channels = &plugin().macroChannels();
+  macroPanel.currentSelection = [this] {
+    std::uint32_t mask = 0;
+
+    for (int i = 0; i < kNumHarmonics; ++i)
+      if (selection[(size_t)i])
+        mask |= 1u << i;
+
+    return mask;
+  };
 
   macroPanel.onLearnRequested = [this](const juce::String &id) {
     showLearnMenu(id);
@@ -1642,6 +1654,7 @@ void OvertoniumEditor::followMacroTints() {
   struct Reach {
     int row = 0;
     int scope = 0;
+    std::uint32_t selected = 0;
     ovt::params::MacroCurve curve = ovt::params::MacroCurve::Uniform;
     int anchor = 0;
     juce::Colour colour;
@@ -1660,6 +1673,7 @@ void OvertoniumEditor::followMacroTints() {
       continue;
 
     reach.scope = readInt(ovt::params::macroScopeId(m));
+    reach.selected = plugin().macroChannels()[(size_t)m].load();
     reach.curve =
         (ovt::params::MacroCurve)readInt(ovt::params::macroCurveId(m));
     reach.colour =
@@ -1703,7 +1717,7 @@ void OvertoniumEditor::followMacroTints() {
         if (reach.row == 0 || reach.row - 1 != r)
           continue;
 
-        if (!ovt::params::macroReaches(reach.scope, i))
+        if (!ovt::params::macroReaches(reach.scope, i, reach.selected))
           continue;
 
         // A macro wearing None drives the control without colouring it,

@@ -1595,6 +1595,65 @@ void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
             std::to_string(oddMoved) + " odd, " + std::to_string(evenMoved) +
             " even)");
 
+  // ---- Selected reaches the channels it was given ------------------------
+  //
+  // Harmonics 3, 5, 9 and 12, which no other scope names together. And they
+  // go with the macro wherever its state does: into the session, into a
+  // preset file of your own, and out again when a factory preset is chosen.
+  {
+    const auto given = ovt::params::channelListMask("3,5,9,12");
+    p.macroChannels()[0].store(given);
+    set(ovt::params::macroScopeId(0),
+        (float)(int)ovt::params::MacroScope::Selected);
+
+    const auto reaching = [&] {
+      const auto now = snapshot();
+      std::uint32_t mask = 0;
+
+      for (int i = 0; i < ovt::kNumHarmonics; ++i)
+        if (std::abs(now.osc[(size_t)i].tuneBlend -
+                     resting.osc[(size_t)i].tuneBlend) > 1.0e-5f)
+          mask |= 1u << i;
+
+      return mask;
+    };
+
+    check(reaching() == given,
+          "Selected reaches the channels it was given and no others (" +
+              ovt::params::channelListText(reaching()).toStdString() + ")");
+
+    check(ovt::params::channelListText(given) == "3,5,9,12" &&
+              ovt::params::channelListMask(" 3, 5,x,9,12,40") == given,
+          "and its channels are written as their numbers and read back");
+
+    juce::MemoryBlock session;
+    p.getStateInformation(session);
+    p.macroChannels()[0].store(0);
+    p.setStateInformation(session.getData(), (int)session.getSize());
+
+    check(p.macroChannels()[0].load() == given, "the session keeps them");
+
+    const auto doc =
+        ovt::presets::capture(p.apvts, "Selected", &p.macroChannels());
+    p.macroChannels()[0].store(0);
+    p.macroChannels()[3].store(1u);
+    ovt::presets::restore(p.apvts, *doc, &p.macroChannels());
+
+    check(p.macroChannels()[0].load() == given &&
+              p.macroChannels()[3].load() == 0,
+          "and so does a preset of your own, which also clears a macro it "
+          "names none for");
+
+    p.applyFactoryPreset(presetIndex("Init"));
+
+    check(p.macroChannels()[0].load() == 0,
+          "while a factory preset, which has none, takes them away");
+
+    // Put back as it was before this block, for the curve below.
+    set(ovt::params::macroRowId(0), (float)tuneRow);
+    set(ovt::params::macroAmountId(0), -0.25f);
+  }
+
   // ---- and the curve decides how much each one takes ---------------------
   set(ovt::params::macroScopeId(0), 0.0f);
   set(ovt::params::macroCurveId(0), (float)(int)ovt::params::MacroCurve::Taper);

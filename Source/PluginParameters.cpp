@@ -373,6 +373,8 @@ const char *macroScopeName(int scope) {
     return "Odd";
   case MacroScope::Even:
     return "Even";
+  case MacroScope::Selected:
+    return "Selected";
 
   case MacroScope::Interval:
     break;
@@ -382,7 +384,7 @@ const char *macroScopeName(int scope) {
   // names them rather than written again here, and capitalised to sit beside
   // All, Odd and Even without looking like a different kind of thing. Built
   // once and kept, since this hands back a pointer that has to outlive it.
-  if (scope >= (int)MacroScope::Interval && scope < kNumMacroScopes) {
+  if (scope >= (int)MacroScope::Interval && scope < (int)MacroScope::Selected) {
     static const auto capitalised = [] {
       std::array<juce::String, 12> out;
 
@@ -401,8 +403,33 @@ const char *macroScopeName(int scope) {
   return "All";
 }
 
+juce::String channelListText(std::uint32_t mask) {
+  juce::StringArray numbers;
+
+  for (int i = 0; i < kNumHarmonics; ++i)
+    if (((mask >> i) & 1u) != 0)
+      numbers.add(juce::String(i + 1));
+
+  return numbers.joinIntoString(",");
+}
+
+std::uint32_t channelListMask(const juce::String &text) {
+  std::uint32_t mask = 0;
+
+  // Anything that is not a channel number is skipped rather than refused, as
+  // the session's own selection is read.
+  for (const auto &number : juce::StringArray::fromTokens(text, ",", "")) {
+    const auto i = number.trim().getIntValue() - 1;
+
+    if (i >= 0 && i < kNumHarmonics)
+      mask |= 1u << i;
+  }
+
+  return mask;
+}
+
 /// Whether a macro reaches this channel.
-bool macroReaches(int scope, int index0) {
+bool macroReaches(int scope, int index0, std::uint32_t selected) {
   switch ((MacroScope)scope) {
   case MacroScope::Odd:
     return ((index0 + 1) % 2) == 1;
@@ -411,6 +438,11 @@ bool macroReaches(int scope, int index0) {
 
   case MacroScope::All:
     return true;
+
+  case MacroScope::Selected:
+    static_assert(kNumHarmonics <= 32, "a mask has a bit per channel");
+    return index0 >= 0 && index0 < kNumHarmonics &&
+           ((selected >> index0) & 1u) != 0;
 
   case MacroScope::Interval:
     break;
@@ -696,8 +728,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::ParameterID{macroCurveId(m), 1}, name + " Curve", curves, 0));
 
     // Visual only, and a parameter anyway, because a preset file carries
-    // parameters and nothing else: a patch that makes four macros has to be
-    // able to say what colour they are. See presets::capture.
+    // parameters and, beside them, only the channels a macro on Selected
+    // reaches: a patch that makes four macros has to be able to say what
+    // colour they are. See presets::capture.
     juce::StringArray colours;
     for (int i = 0; i < kNumMacroColours; ++i)
       colours.add(macroColourName(i));
@@ -1516,6 +1549,8 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
         (MacroCurve)juce::jlimit(0, (int)MacroCurve::NumCurves - 1,
                                  (int)std::lround(cached.curve->load()));
 
+    const auto selected = macroChannels[(size_t)m].load();
+
     // Numbered from one on the panel, counted from zero here.
     const auto anchor = juce::jlimit(
         0, kNumHarmonics - 1,
@@ -1525,7 +1560,7 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     const auto &range = rowRange[(size_t)(row - 1)];
 
     for (int i = 0; i < kNumHarmonics; ++i) {
-      if (!macroReaches(scope, i))
+      if (!macroReaches(scope, i, selected))
         continue;
 
       auto *field = macroField(out.osc[(size_t)i], row);

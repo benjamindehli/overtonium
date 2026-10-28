@@ -723,6 +723,11 @@ void OvertoniumProcessor::applyFactoryPreset(int index) {
 
   ovt::presets::apply(apvts, index);
 
+  // A factory preset makes its macros from parameters alone, so none of them
+  // is on Selected, and what an earlier patch gave its macros goes with it.
+  for (auto &mask : paramCache.macroChannels)
+    mask.store(0);
+
   // So a host showing the preset name updates when the change came from the
   // plugin's own menu rather than from the host's.
   updateHostDisplay(
@@ -752,6 +757,13 @@ static const juce::Identifier kCurrentProgramProperty{"overtoniumProgram"};
 /// reopened on a session showed nothing loaded whatever was.
 static const juce::Identifier kPresetNameProperty{"overtoniumPresetName"};
 
+/// Where a macro on Selected keeps its channels in the session, one property
+/// per macro holding the harmonic numbers, as the LINK selection is kept.
+static juce::Identifier macroChannelsProperty(int macro) {
+  return juce::Identifier("overtoniumMacro" + juce::String(macro + 1) +
+                          "Channels");
+}
+
 void OvertoniumProcessor::getStateInformation(juce::MemoryBlock &destData) {
   // Held across the copy and the two session properties, and no further. The
   // editor writes its own things onto this tree from the message thread and a
@@ -769,6 +781,18 @@ void OvertoniumProcessor::getStateInformation(juce::MemoryBlock &destData) {
     copy.setProperty(kPresetNameProperty, loadedPresetName, nullptr);
     return copy;
   }();
+
+  // Written whether or not there is anything to say, since a tree restored
+  // from an older session can still carry a list this one has since cleared.
+  for (int m = 0; m < ovt::params::kNumMacros; ++m) {
+    const auto mask = paramCache.macroChannels[(size_t)m].load();
+
+    if (mask != 0)
+      state.setProperty(macroChannelsProperty(m),
+                        ovt::params::channelListText(mask), nullptr);
+    else
+      state.removeProperty(macroChannelsProperty(m), nullptr);
+  }
 
   // Saved with the session rather than with a patch, like the fold mask and
   // the zoom: which controller moves which knob describes the desk this is
@@ -843,6 +867,12 @@ void OvertoniumProcessor::setStateInformation(const void *data,
       // nothing bound, which is what it had.
       midiLearn.fromTree(tree.getChildWithName(ovt::MidiLearn::kTreeType),
                          *this);
+
+      // A session written before Selected existed has none of these, and its
+      // macros reach nothing on it, which no macro of its could be set to.
+      for (int m = 0; m < ovt::params::kNumMacros; ++m)
+        paramCache.macroChannels[(size_t)m].store(ovt::params::channelListMask(
+            tree.getProperty(macroChannelsProperty(m)).toString()));
 
       // A value that is not a real number, put back to the default.
       //
