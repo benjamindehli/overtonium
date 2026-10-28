@@ -12060,10 +12060,16 @@ void testCharacterControl(OvertoniumProcessor &p) {
                 ovt::ui::characterColour(ovt::Character::Bulb),
             "in its own colour");
 
+      check(bar->getCharacterRingColour() == bar->getCharacterColour(),
+            "and the knobs in its frame light with it");
+
       set(ovt::Character::Pure);
       bar->updatePanelReadouts(48000.0);
 
       check(!bar->isCharacterLit(), "and Pure does not light it");
+
+      check(bar->getCharacterRingColour() == ovt::ui::colours::accent,
+            "while its knobs, which still work on Pure, keep the accent");
     }
   }
 

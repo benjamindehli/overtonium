@@ -1322,6 +1322,21 @@ void TopBar::setRingsLive(std::vector<Control> &controls, bool live) {
   }
 }
 
+/// Likewise only repaints a knob whose colour changes.
+void TopBar::setRingColour(juce::Slider &slider, juce::Colour colour) {
+  if (slider.findColour(juce::Slider::rotarySliderFillColourId) == colour)
+    return;
+
+  slider.setColour(juce::Slider::rotarySliderFillColourId, colour);
+  slider.repaint();
+}
+
+void TopBar::setRingColour(std::vector<Control> &controls,
+                           juce::Colour colour) {
+  for (auto &c : controls)
+    setRingColour(c.knob->slider, colour);
+}
+
 void TopBar::updatePanelReadouts(double hostSampleRate) {
   const auto chosen = [this](const char *id, int count) {
     auto *p = apvts.getParameter(id);
@@ -1406,6 +1421,7 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
     echoButton.setColour(juce::TextButton::textColourOnId, echoColour(which));
     echoButton.setToggleState(running, juce::dontSendNotification);
 
+    setRingColour(echoControls, echoColour(which));
     setRingsLive(echoControls, running);
   }
 
@@ -1429,6 +1445,10 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
     resonatorButton.setColour(juce::TextButton::textColourOnId,
                               resonatorColour(which));
     resonatorButton.setToggleState(running, juce::dontSendNotification);
+
+    // Off has no colour of its own, and its rings are out anyway.
+    if (running)
+      setRingColour(resonatorControls, resonatorColour(which));
 
     setRingsLive(resonatorControls, running);
   }
@@ -1458,6 +1478,7 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
                            reverbColour(which));
     reverbButton.setToggleState(running, juce::dontSendNotification);
 
+    setRingColour(reverbControls, reverbColour(which));
     setRingsLive(reverbControls, running);
   }
 
@@ -1509,6 +1530,14 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
                             characterColour(which));
   characterButton.setToggleState(which != Character::Pure,
                                  juce::dontSendNotification);
+
+  // The knobs in its frame light with it. They still work on Pure, which has
+  // no colour, so there they keep the accent.
+  const auto rings =
+      which == Character::Pure ? colours::accent : characterColour(which);
+
+  for (auto *knob : {&stretch, &track, &wobble})
+    setRingColour(knob->slider, rings);
 }
 
 void TopBar::setZoomChoice(float newZoom) { zoom = newZoom; }
