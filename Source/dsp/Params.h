@@ -213,7 +213,7 @@ struct GlobalParams {
   /// milliseconds it costs everything, at the price of a rougher Limiter.
   bool lookahead = false;
 
-  /// Which of the five, when it is on. Soft is what every patch had before
+  /// Which of the seven, when it is on. Soft is what every patch had before
   /// there was a choice.
   ClipType clipType = ClipType::Soft;
   /// Whether striking a key that is already sounding takes over the voice it

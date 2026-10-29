@@ -1,6 +1,6 @@
 Page: Overtonium presets: the thirty-eight that ship, and saving your own
 URL: https://benjamindehli.github.io/overtonium/presets/
-Last changed: 2026-10-27
+Last changed: 2026-10-29
 
 # Overtonium presets
 
@@ -220,6 +220,6 @@ Saving writes one small file per preset. The menu reads that folder every time i
 | Windows  | `%APPDATA%\Dehli Musikk\Overtonium\Presets`                     |
 | Linux    | `~/.config/Dehli Musikk/Overtonium/Presets`                     |
 
-They are small XML files of parameter values, so you can read them, edit them, keep them under version control and share them by copying the file. The menu sorts them by name, not in the order the filesystem returns them.
+They are small XML files of parameter values, plus the channels of any macro set to Selected, so you can read them, edit them, keep them under version control and share them by copying the file. The menu sorts them by name, not in the order the filesystem returns them.
 
 **Folders become groups.** Make a folder in the preset folder and it appears in the menu as a submenu with everything inside it, nested as deeply as you nest the folders. There is nothing to set up and nothing else to manage. The folders are the groups, so to move a preset between groups you move the file. Groups are listed before the presets that are not in a group, and the loaded preset has a tick wherever it is.

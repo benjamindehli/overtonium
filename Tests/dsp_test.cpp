@@ -17,6 +17,7 @@
 #include <complex>
 #include <cstdio>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <random>
 #include <string>
@@ -2393,7 +2394,7 @@ void testDriveVariants() {
         "and all three are used across the thirty-two");
 }
 
-/// The three recorded characters, read back from their tables and then played
+/// The recorded characters, read back from their tables and then played
 /// through the engine.
 ///
 /// A recording is a set of numbers, so what can go wrong is the numbers not
@@ -12687,6 +12688,25 @@ void testCassette() {
     check(silent < -140.0, "there is no hiss with nothing playing");
     check(playing > -90.0 && playing < -50.0,
           "and there is while something plays, at about the tape's level");
+  }
+
+  // ---- a NaN, which must not become a table index ---------------------------
+  //
+  // Nothing in the engine is known to make one. But the recorder runs on every
+  // sample whatever machine is chosen, and its limit is read from a table, so
+  // a NaN arriving there must come out as a NaN and not as an index into the
+  // table. Built with -fsanitize=float-cast-overflow, the version before the
+  // guard reported converting the NaN, which on x86 then happened to wrap back
+  // to the table's start and on other machines need not.
+  {
+    OutputStage stage;
+    stage.prepare(sr);
+
+    std::vector<float> l(64, 0.1f), r(64, 0.1f);
+    l[10] = r[10] = std::numeric_limits<float>::quiet_NaN();
+
+    stage.process(l.data(), r.data(), 64, ClipType::Soft, true, false);
+    check(true, "a NaN through the output stage reads nothing it should not");
   }
 }
 

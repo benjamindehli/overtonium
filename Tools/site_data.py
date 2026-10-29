@@ -274,7 +274,7 @@ PAGES = [
         "jsonld": ["breadcrumbs"],
         "card": None,
         "card_404": "The bar: character, wobble, resonator, echo, reverb, the converter and CLIP.",
-        "llms": "the bar across the top: the twelve oscillator characters, wobble, the resonator of sympathetic strings with its Piano, Open, Octave and Series modes, bus drive, the echo and the reverb with their three machines each, the converter, the six CLIP machines on the output, the lookahead limiter and the console mix bus, the output meter, and a diagram of the order the signal passes through.",
+        "llms": "the bar across the top: the twelve oscillator characters, wobble, the resonator of sympathetic strings with its Piano, Open, Octave and Series modes, bus drive, the echo and the reverb with their three machines each, the converter, the seven CLIP machines on the output, the lookahead limiter, the console mix bus and the cassette recorder, the output meter, and a diagram of the order the signal passes through.",
         "priority": "0.7",
     },
     {

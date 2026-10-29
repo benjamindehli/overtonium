@@ -519,7 +519,8 @@ void Voice::render(float *left, float *right, int numSamples,
   const double wanderScale =
       kVcoWanderCents * std::sqrt(3.0 * (2.0 - wanderPole) / wanderPole);
 
-  // The two synthesizers, the 6581 and the VCO, whose noise the engine adds
+  // The two synthesizers, the 6581, the VCO and the combo organ, whose noise
+  // the engine adds
   // from every note's power at once. See SynthEngine::renderHiss.
   const bool hiss = p.global.character == Character::Fm ||
                     p.global.character == Character::Pd ||
@@ -959,9 +960,15 @@ void Voice::render(float *left, float *right, int numSamples,
       const Wave *const previous = pt.lastWave;
       pt.lastWave = &wave;
 
+      // The envelope is stepped through a copy held for the block. The output
+      // is written through plain pointers, which as far as the compiler knows
+      // could point at the envelope, so stepping it in place makes it store
+      // and reload its level on every sample. Same arithmetic, same samples.
+      Envelope env = pt.env;
+
       if (previous == nullptr || previous == &wave) {
         for (int n = 0; n < len; ++n) {
-          const float s = wave.at(ph) * pt.env.tick() * g;
+          const float s = wave.at(ph) * env.tick() * g;
 
           l[n] += s * pl;
           r[n] += s * pr;
@@ -979,7 +986,7 @@ void Voice::render(float *left, float *right, int numSamples,
         for (int n = 0; n < len; ++n) {
           const float was = previous->at(ph);
           const float is = wave.at(ph);
-          const float s = (was + (is - was) * mix) * pt.env.tick() * g;
+          const float s = (was + (is - was) * mix) * env.tick() * g;
 
           l[n] += s * pl;
           r[n] += s * pr;
@@ -993,6 +1000,7 @@ void Voice::render(float *left, float *right, int numSamples,
         }
       }
 
+      pt.env = env;
       pt.phase = ph;
     }
 
