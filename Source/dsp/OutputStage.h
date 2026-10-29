@@ -106,9 +106,9 @@ inline const char *clipTypeName(ClipType t) {
 /// row and are already at the 66 px they need to name their units, so the
 /// button growing is those readouts shrinking. ASYM is 23.
 ///
-/// Limiter is shortened because the other four are short. It fits at 32.6 and
-/// could stay, but SOFT, HARD, ASYM, LIMIT and FOLD read as one set of
-/// choices where a single long word among them reads as the odd one.
+/// Limiter is shortened because the others are short. It fits at 32.6 and
+/// could stay, but SOFT, HARD, ASYM, LIMIT, FOLD, CNSL and CASS read as one
+/// set of choices where a single long word among them reads as the odd one.
 ///
 /// Console is shortened the way the preset display fits a long name, by its
 /// consonants: CONSOLE is 42.4 px against the 34 the button has at its
@@ -193,7 +193,7 @@ public:
   /// @param type     which of the seven.
   /// @param shaping  false to pass the audio through at the same delay and
   ///                 otherwise leave it alone, which is the stage switched
-  ///                 off rather than a sixth type.
+  ///                 off rather than an eighth type.
   /// @param ahead    false to give up the window and the delay with it. The
   ///                 processor reports the matching latency from the message
   ///                 thread, so this and what the host has been told change

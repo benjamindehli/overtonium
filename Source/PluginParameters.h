@@ -33,7 +33,7 @@ inline constexpr const char *safetyClipId = "safetyClip";
 ///
 /// Beside the switch rather than replacing it, for the reason echoTypeId is:
 /// a boolean every saved patch stores and every lane points at cannot become a
-/// five-position choice without taking both with it.
+/// choice of several without taking both with it.
 inline constexpr const char *clipTypeId = "clipType";
 
 /// Whether the output stage is allowed its lookahead.
@@ -202,8 +202,10 @@ inline constexpr int kNumMacroRows =
 /// family. Listed anyway, since a list of intervals with gaps in it is
 /// stranger to read than a few narrow entries.
 ///
-/// Selected comes after the twelve, on the end so a lane drawn before it
-/// existed still names the scope it did. It reaches the channels the macro
+/// Selected comes after the twelve, on the end so a saved session or preset
+/// keeps the scope it had. A host's automation lane stores a choice as a share
+/// of the list's length, so a lane drawn before it existed lands a little
+/// further along. It reaches the channels the macro
 /// was given when it was set to Selected, taken from LINK's selection and
 /// kept with the macro, so picking other channels afterwards moves nothing.
 /// See MacroChannels.

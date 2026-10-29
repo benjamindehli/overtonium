@@ -15,7 +15,8 @@ void apply(juce::AudioProcessorValueTreeState &apvts, int index);
 // -----------------------------------------------------------------------------
 // User presets
 //
-// Stored as one small XML file each, holding parameter values and nothing else.
+// Stored as one small XML file each, holding parameter values and, beside
+// them, only the channels each macro on Selected reaches.
 // Deliberately not the whole state tree: that also carries the window size, the
 // zoom and the LINK settings, and loading a sound should not move your window
 // or change your tools. Values are stored plain rather than normalised, so a

@@ -1117,9 +1117,9 @@ void testBusStageFollowsTheCharacter(OvertoniumProcessor &p) {
         "and does not move when the character does (" +
             std::to_string(p.getLatencySamples()) + ")");
 
-  // The other half of the same rule. The lookahead belongs to one of the five
-  // types and is paid by all of them, so switching the stage off entirely has
-  // to leave the figure alone.
+  // The other half of the same rule. The lookahead belongs to three of the
+  // seven types and is paid by all of them, so switching the stage off entirely
+  // has to leave the figure alone.
   auto *clip = p.apvts.getParameter(ovt::params::safetyClipId);
   clip->setValueNotifyingHost(0.0f);
   p.prepareToPlay(48000.0, 512);
@@ -7444,11 +7444,12 @@ void testTheSafetyClipHoldsUnity() {
     set(ovt::params::masterGainId, 1.0f);
     set(ovt::params::safetyClipId, 1.0f);
 
-    // Every one of the five, because the bound is the stage's promise rather
-    // than a property of whichever shape happens to be selected. The limiter
-    // is the one that does not keep it by its shape: it keeps it by seeing
-    // the peak coming, with a hard clip behind it for whatever its window is
-    // too short to have seen, and this is what says so.
+    // Every one of the seven, because the bound is the stage's promise rather
+    // than a property of whichever shape happens to be selected. The limiter,
+    // and Console and Cassette, which end in it, are the ones that do not keep
+    // it by their shape: they keep it by seeing the peak coming, with a hard
+    // clip behind it for whatever the window is too short to have seen, and
+    // this is what says so.
     for (int type = 0; type < (int)ovt::ClipType::NumTypes; ++type) {
       set(ovt::params::clipTypeId,
           (float)type / (float)((int)ovt::ClipType::NumTypes - 1));

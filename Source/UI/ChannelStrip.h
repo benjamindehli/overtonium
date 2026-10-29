@@ -530,7 +530,8 @@ public:
   void mouseWheelMove(const juce::MouseEvent &,
                       const juce::MouseWheelDetails &) override;
 
-  /// Greys the strip out when another strip's solo is silencing it.
+  /// Turns the strip's lights and screens off when another strip's solo is
+  /// silencing it. Its mute and solo stay lit.
   void setSilencedByOthers(bool shouldDim);
 
   /// @returns the region of this strip that needs redrawing, empty if the
