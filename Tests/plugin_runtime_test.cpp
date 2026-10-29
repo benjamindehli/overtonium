@@ -5328,6 +5328,42 @@ void testShapeButtonFollowsTheParameter(OvertoniumProcessor &p) {
 
   check(shown() == "Sine", "and loading a preset puts it back to sine (" +
                                shown().toStdString() + ")");
+
+  // On a channel nobody can hear the screen is off: two different shapes
+  // draw the same dark ground, where lit they differ.
+  ShapeButton *first = nullptr;
+
+  for (auto *b : buttons)
+    if (b->getTitle().contains("Harmonic 1 pitch"))
+      first = b;
+
+  if (first != nullptr) {
+    const auto picture = [first, param](float shape, bool unlit) {
+      param->setValueNotifyingHost(param->convertTo0to1(shape));
+      first->getProperties().set("unlit", unlit);
+      return first->createComponentSnapshot(first->getLocalBounds());
+    };
+
+    const auto same = [](const juce::Image &a, const juce::Image &b) {
+      if (a.getBounds() != b.getBounds())
+        return false;
+
+      for (int y = 0; y < a.getHeight(); ++y)
+        for (int x = 0; x < a.getWidth(); ++x)
+          if (a.getPixelAt(x, y) != b.getPixelAt(x, y))
+            return false;
+
+      return true;
+    };
+
+    check(!same(picture(0.0f, false), picture(4.0f, false)),
+          "a lit screen shows which shape is chosen");
+    check(same(picture(0.0f, true), picture(4.0f, true)),
+          "and on a silenced channel the screen is off, whatever the shape");
+
+    first->getProperties().set("unlit", false);
+    param->setValueNotifyingHost(param->convertTo0to1(0.0f));
+  }
 }
 
 /// A preset tells the host what changed, and nothing else.
