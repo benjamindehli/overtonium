@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -37,6 +38,23 @@ public:
   }
 
   inline float operator()(double phase01) const noexcept { return at(phase01); }
+
+  /// The same read from a fixed-point phase, a 64-bit fraction of a turn,
+  /// which is what the oscillators step: its top kBits are the entry and the
+  /// rest the fraction between it and the next, and adding to it wraps round
+  /// the turn by itself.
+  inline float at(std::uint64_t phase) const noexcept {
+    constexpr int kFractionBits = 64 - kBits;
+    constexpr float kScale = 1.0f / 4503599627370496.0f; // 2^52
+
+    const auto i0 = (size_t)(phase >> kFractionBits);
+    const auto f =
+        (float)(phase & ((std::uint64_t{1} << kFractionBits) - 1u)) * kScale;
+
+    const float a = tbl[i0];
+    const float b = tbl[i0 + 1];
+    return a + f * (b - a);
+  }
 
   /// A quarter turn along, which for a sine is its cosine.
   inline float quarterTurnOn(double phase01) const noexcept {
@@ -88,6 +106,32 @@ inline double wrapPhase(double p) noexcept {
   }
 
   return p;
+}
+
+/// A phase in turns, and a step in turns per sample, as the 64-bit fractions
+/// of a turn the oscillators run on, and back.
+///
+/// The phase is kept in turns between blocks, where everything that sets or
+/// reads it works, and run as a fraction inside the loop, where adding wraps
+/// round the turn by itself and there is no compare and no subtraction. Sixty
+/// four bits rather than thirty-two, which costs the same add on a 64-bit
+/// processor: thirty-two would round a step to a hundred thousandth of a
+/// hertz, enough for a tone to drift measurably off its pitch over a second,
+/// and sixty-four leaves the rounding below what a double holds anyway.
+inline std::uint64_t toFixedPhase(double turns) noexcept {
+  // A phase a hair under one turn can round up to exactly 2^64 in the
+  // multiply, which no 64-bit integer holds, so it stops at the largest
+  // double below that.
+  return (std::uint64_t)std::min(wrapPhase(turns) * 18446744073709551616.0,
+                                 18446744073709549568.0);
+}
+
+inline std::uint64_t toFixedStep(double turnsPerSample) noexcept {
+  return toFixedPhase(turnsPerSample);
+}
+
+inline double fromFixedPhase(std::uint64_t phase) noexcept {
+  return (double)phase * (1.0 / 18446744073709551616.0);
 }
 
 } // namespace ovt
