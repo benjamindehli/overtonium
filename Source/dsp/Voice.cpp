@@ -755,8 +755,8 @@ void Voice::render(float *left, float *right, int numSamples,
 
       // Reduced into the first turn of the table. Sampling a sinusoid above
       // the rate produces the same numbers as sampling the one it folds to, so
-      // this is not an approximation of aliasing, it is the aliasing, and the
-      // inner loop keeps its single compare instead of a modulo per sample.
+      // this is not an approximation of aliasing, it is the aliasing. The
+      // inner loop steps it in fixed point, where it wraps by itself.
       double inc = freq / sampleRate;
       inc -= std::floor(inc);
 
@@ -933,7 +933,10 @@ void Voice::render(float *left, float *right, int numSamples,
         for (int n = 0; n < len; ++n)
           pt.env.tick();
 
-        pt.phase = wrapPhase(pt.phase + inc * (double)len);
+        // Stepped as the loop below steps it, so a partial that comes back
+        // audible is where it would have been had it played throughout.
+        pt.phase = fromFixedPhase(toFixedPhase(pt.phase) +
+                                  toFixedStep(inc) * (std::uint64_t)len);
 
         // Whatever it would have been reading, so that coming back audible
         // does not cross-fade from a table it has not been heard on.
@@ -944,7 +947,9 @@ void Voice::render(float *left, float *right, int numSamples,
       float *l = left + start;
       float *r = right + start;
 
-      double ph = pt.phase;
+      // In fixed point inside the loop. See toFixedPhase.
+      std::uint64_t ph = toFixedPhase(pt.phase);
+      const std::uint64_t step = toFixedStep(inc);
       const float pl = panL[(size_t)i];
       const float pr = panR[(size_t)i];
 
@@ -979,10 +984,7 @@ void Voice::render(float *left, float *right, int numSamples,
           l[n] += s * pl;
           r[n] += s * pr;
 
-          ph += inc;
-          if (ph >= 1.0)
-            ph -= 1.0;
-
+          ph += step;
           g += gInc;
         }
       } else {
@@ -997,17 +999,14 @@ void Voice::render(float *left, float *right, int numSamples,
           l[n] += s * pl;
           r[n] += s * pr;
 
-          ph += inc;
-          if (ph >= 1.0)
-            ph -= 1.0;
-
+          ph += step;
           g += gInc;
           mix += mixInc;
         }
       }
 
       pt.env = env;
-      pt.phase = ph;
+      pt.phase = fromFixedPhase(ph);
     }
 
     // Where the key itself sits, which is what the leaking wheels are placed
@@ -1073,7 +1072,8 @@ void Voice::renderLeaks(float *left, float *right, int len, double keyFreq,
     inc -= std::floor(inc);
 
     if (leak.lastGain <= 1.0e-9f && target <= 1.0e-9f) {
-      leak.phase = wrapPhase(leak.phase + inc * (double)len);
+      leak.phase = fromFixedPhase(toFixedPhase(leak.phase) +
+                                  toFixedStep(inc) * (std::uint64_t)len);
       leak.lastGain = 0.0f;
       continue;
     }
@@ -1089,7 +1089,8 @@ void Voice::renderLeaks(float *left, float *right, int len, double keyFreq,
 
     float g = leak.lastGain;
     const float gInc = (target - g) / (float)len;
-    double ph = leak.phase;
+    std::uint64_t ph = toFixedPhase(leak.phase);
+    const std::uint64_t step = toFixedStep(inc);
 
     for (int n = 0; n < len; ++n) {
       const float s = wave.at(ph) * g * kCentre;
@@ -1097,14 +1098,11 @@ void Voice::renderLeaks(float *left, float *right, int len, double keyFreq,
       left[n] += s;
       right[n] += s;
 
-      ph += inc;
-      if (ph >= 1.0)
-        ph -= 1.0;
-
+      ph += step;
       g += gInc;
     }
 
-    leak.phase = ph;
+    leak.phase = fromFixedPhase(ph);
     leak.lastGain = target;
   }
 }
