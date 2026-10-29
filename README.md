@@ -49,7 +49,7 @@ Start with the [project page](https://benjamindehli.github.io/overtonium/). It h
 
 - **[Tuning](https://benjamindehli.github.io/overtonium/tuning/)**: TUNE from equal to just, inharmonic stretch, eight historical temperaments and an adaptive one on any root, keyboard tracking and per-partial drift
 - **[Controls](https://benjamindehli.github.io/overtonium/controls/)**: every knob on a channel strip, the two-part envelope, LINK for ganging the series, the lamps and meters, and the noise channel with its Karplus-Strong string
-- **[Effects](https://benjamindehli.github.io/overtonium/effects/)**: the bar above the mixer, left to right: the oscillator character and the wobble, the resonator of 88 Karplus-Strong sympathetic strings, the echo, the reverb, the converter and the six CLIP machines on the output
+- **[Effects](https://benjamindehli.github.io/overtonium/effects/)**: the bar above the mixer, left to right: the oscillator character and the wobble, the resonator of 88 Karplus-Strong sympathetic strings, the echo, the reverb, the converter and the seven CLIP machines on the output
 - **[Playing](https://benjamindehli.github.io/overtonium/playing/)**: MPE, legato and glide, the Settings menu, automation with every parameter listed, macros and MIDI Learn
 - **[Presets](https://benjamindehli.github.io/overtonium/presets/)**: the thirty-eight that ship, what a preset stores and deliberately leaves out, switching them with a MIDI program change, and where your own are saved
 - **[Install](https://benjamindehli.github.io/overtonium/install/)**: which download to choose, what to do when a host cannot see the plugin, and building from source
