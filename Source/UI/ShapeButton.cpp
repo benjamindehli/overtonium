@@ -164,17 +164,18 @@ void ShapeButton::paintShape(juce::Graphics &g) {
   paintRecess(g, area, 2.0f);
   paintDisplayGround(g, area, 2.0f, hovered);
 
+  // A screen on a channel nobody can hear is switched off, like the readouts
+  // beside it: the ground and nothing on it. A lit waveform there would say
+  // the opposite of the truth, and a grey one would be a screen showing a
+  // grey picture, which no screen does. The shape is still chosen, and the
+  // menu still says which.
+  if ((bool)getProperties().getWithDefault("unlit", false))
+    return;
+
   // The same accent the tuning digits light up in, so the two displays on a
   // strip read as the same kind of thing rather than as a screen and a label.
-  //
-  // Unlit it goes to the same grey everything else on a silenced channel does,
-  // this being a display and the display beside it having gone dark. A lit
-  // waveform on a channel nobody can hear says the opposite of the truth.
-  const bool live = !(bool)getProperties().getWithDefault("unlit", false);
-
   drawShape(g, area.reduced(3.0f, 2.5f), selectedShape(),
-            live ? colours::accent.withAlpha(hovered ? 1.0f : 0.88f)
-                 : colours::textDim.withAlpha(0.65f));
+            colours::accent.withAlpha(hovered ? 1.0f : 0.88f));
 }
 
 juce::PopupMenu ShapeButton::buildMenu() const {
