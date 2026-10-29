@@ -339,6 +339,9 @@ private:
   /// and in parameter order. Empty when nothing is being recorded.
   std::vector<float> editBaseline;
 
+  /// Where the channels of the macros on Selected stood, likewise.
+  std::array<std::uint32_t, ovt::params::kNumMacros> masksBaseline{};
+
   /// How many gestures are open. The first to open takes the baseline and the
   /// last to close writes the step, so a LINK drag across 32 channels is one
   /// step rather than 32.

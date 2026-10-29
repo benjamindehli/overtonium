@@ -626,6 +626,10 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   addChildComponent(notice);
 
   macroPanel.channels = &plugin().macroChannels();
+  macroPanel.recordEdit = [this](const juce::String &name,
+                                 const std::function<void()> &change) {
+    plugin().recordEdit(name, change);
+  };
   macroPanel.currentSelection = [this] {
     std::uint32_t mask = 0;
 

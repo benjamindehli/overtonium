@@ -13,6 +13,11 @@ namespace {
 /// Only what actually moved is kept. A preset load writes every parameter and
 /// changes perhaps a third of them, and a step that carried all 782 would be
 /// mostly a record of values that were already what they are.
+///
+/// The channels each macro on Selected reaches go with it, though they are not
+/// parameters. A preset load sets them along with the scopes that use them,
+/// and putting a scope back without its channels would leave a macro on
+/// Selected reaching nothing.
 class ParameterEdit final : public juce::UndoableAction {
 public:
   struct Change {
@@ -20,25 +25,40 @@ public:
     float before, after;
   };
 
-  ParameterEdit(std::vector<Change> movedIn, juce::String nameIn)
-      : moved(std::move(movedIn)), name(std::move(nameIn)) {}
+  using Masks = std::array<std::uint32_t, ovt::params::kNumMacros>;
+
+  ParameterEdit(std::vector<Change> movedIn, juce::String nameIn,
+                ovt::params::MacroChannels &channelsIn, Masks beforeIn,
+                Masks afterIn)
+      : moved(std::move(movedIn)), name(std::move(nameIn)),
+        channels(channelsIn), masksBefore(beforeIn), masksAfter(afterIn) {}
 
   /// Nothing, the first time. A step is pushed once the change it describes
   /// has already happened, so writing the values again would only tell every
   /// host in the room about a move it has just been told about. A redo is a
   /// real performance and does write them.
   bool perform() override {
-    if (std::exchange(pushed, true))
+    if (std::exchange(pushed, true)) {
+      setMasks(masksAfter);
       return apply(&Change::after);
+    }
 
     return true;
   }
 
-  bool undo() override { return apply(&Change::before); }
+  bool undo() override {
+    setMasks(masksBefore);
+    return apply(&Change::before);
+  }
 
   int getSizeInUnits() override { return (int)(moved.size() * sizeof(Change)); }
 
 private:
+  void setMasks(const Masks &masks) {
+    for (size_t m = 0; m < masks.size(); ++m)
+      channels[m].store(masks[m]);
+  }
+
   bool apply(float Change::*which) {
     for (const auto &change : moved)
       if (change.param != nullptr)
@@ -49,8 +69,19 @@ private:
 
   std::vector<Change> moved;
   juce::String name;
+  ovt::params::MacroChannels &channels;
+  Masks masksBefore, masksAfter;
   bool pushed = false;
 };
+
+ParameterEdit::Masks masksOf(const ovt::params::MacroChannels &channels) {
+  ParameterEdit::Masks out{};
+
+  for (size_t m = 0; m < out.size(); ++m)
+    out[m] = channels[m].load();
+
+  return out;
+}
 } // namespace
 
 juce::AudioProcessor::BusesProperties OvertoniumProcessor::buses() {
@@ -97,6 +128,8 @@ void OvertoniumProcessor::beginEdit() {
 
   for (const auto *param : getParameters())
     editBaseline.push_back(param->getValue());
+
+  masksBaseline = masksOf(paramCache.macroChannels);
 }
 
 void OvertoniumProcessor::endEdit(const juce::String &name) {
@@ -128,13 +161,16 @@ void OvertoniumProcessor::endEdit(const juce::String &name) {
 
   editBaseline.clear();
 
-  if (moved.empty())
+  const auto masks = masksOf(paramCache.macroChannels);
+
+  if (moved.empty() && masks == masksBaseline)
     return;
 
   // Its own transaction, so one gesture is one step whatever else has
   // happened since.
   undoManager.beginNewTransaction(name);
-  undoManager.perform(new ParameterEdit(std::move(moved), name));
+  undoManager.perform(new ParameterEdit(
+      std::move(moved), name, paramCache.macroChannels, masksBaseline, masks));
 }
 
 void OvertoniumProcessor::recordEdit(const juce::String &name,
