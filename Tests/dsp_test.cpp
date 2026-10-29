@@ -12690,6 +12690,41 @@ void testCassette() {
           "and there is while something plays, at about the tape's level");
   }
 
+  // ---- chosen part way through a note ---------------------------------------
+  //
+  // It runs only while chosen, so choosing it mid-note starts it from rest,
+  // with its delay empty, and the output fades to it over 30 ms. Without the
+  // fade the first millisecond would be silence with a step on each side.
+  {
+    OutputStage stage;
+    stage.prepare(sr);
+
+    constexpr int kBlock = 256, kBlocks = 40;
+    std::vector<float> l((size_t)(kBlock * kBlocks)), r(l.size());
+
+    for (size_t i = 0; i < l.size(); ++i)
+      l[i] = r[i] = (float)(0.5 * std::sin(kTwoPi * 220.0 * (double)i / sr));
+
+    // The largest step from one sample to the next a 220 Hz sine at half
+    // scale takes, with room for the tape's own colouring.
+    const double allowed = 2.0 * 0.5 * kTwoPi * 220.0 / sr;
+    double worst = 0.0;
+
+    for (int b = 0; b < kBlocks; ++b) {
+      const auto type = b < kBlocks / 2 ? ClipType::Soft : ClipType::Cassette;
+      stage.process(l.data() + b * kBlock, r.data() + b * kBlock, kBlock, type,
+                    true, false);
+    }
+
+    for (size_t i = 1; i < l.size(); ++i)
+      worst = std::max(worst, std::abs((double)l[i] - (double)l[i - 1]));
+
+    std::printf("  switched to mid-note: largest step %.4f against %.4f\n",
+                worst, allowed);
+    check(worst < allowed, "chosen part way through a note, it fades in "
+                           "without a click");
+  }
+
   // ---- a NaN, which must not become a table index ---------------------------
   //
   // Nothing in the engine is known to make one. But the recorder runs on every

@@ -259,14 +259,29 @@ private:
   float held = 1.0f;
   float release = 0.0f;
 
-  /// The console's units, run on every sample whatever the type, as the
-  /// limiter's detector is, so choosing Console part way through a note finds
-  /// its filters and its compressor already settled.
+  /// The two machines with memory: the console's units and the recorder.
+  /// Each runs only while it is chosen, since running both on every sample
+  /// cost about one percent of a core whatever the patch used.
   Console console;
-
-  /// The recorder likewise, so its transport, its side chains and the tape
-  /// it holds are running when it is chosen.
   Cassette cassette;
+
+  /// Which of the two is running, if either.
+  enum class Running { None, Console, Cassette };
+
+  /// Runs one of them on a sample, or passes it through for None.
+  void run(Running which, float &left, float &right) noexcept;
+
+  /// Choosing one part way through starts it from rest, and the output fades
+  /// from what was running to it over kFadeSeconds while both run. That
+  /// covers what starting from rest leaves: the recorder's delay starting
+  /// empty and every filter settling. Only the console's slow release stage,
+  /// seconds long, is not settled by the end of it, and it only acts on
+  /// something loud. A machine chosen from the start runs from the start, so
+  /// a render that never switches is the same as it always was.
+  static constexpr double kFadeSeconds = 0.030;
+  Running running = Running::None, leaving = Running::None;
+  bool started = false;
+  int fadeLength = 1, fadeAt = 0;
 };
 
 } // namespace ovt
