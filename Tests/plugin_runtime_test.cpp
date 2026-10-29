@@ -1649,6 +1649,49 @@ void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
     check(p.macroChannels()[0].load() == 0,
           "while a factory preset, which has none, takes them away");
 
+    // And undo puts them back with the scope that uses them. Loading a preset
+    // from the menu is one step; undoing it has to leave macro 1 on Selected
+    // reaching the same four channels, not on Selected reaching nothing.
+    set(ovt::params::macroRowId(0), (float)tuneRow);
+    set(ovt::params::macroScopeId(0),
+        (float)(int)ovt::params::MacroScope::Selected);
+    p.macroChannels()[0].store(given);
+    p.undo().clearUndoHistory();
+
+    p.recordEdit("Load preset",
+                 [&p] { p.applyFactoryPreset(presetIndex("Init")); });
+
+    check(p.macroChannels()[0].load() == 0, "a preset load clears them");
+
+    p.undo().undo();
+
+    check(p.macroChannels()[0].load() == given &&
+              juce::roundToInt(
+                  p.apvts.getParameter(ovt::params::macroScopeId(0))
+                      ->convertFrom0to1(
+                          p.apvts.getParameter(ovt::params::macroScopeId(0))
+                              ->getValue())) ==
+                  (int)ovt::params::MacroScope::Selected,
+          "undoing it puts back the scope and its channels together");
+
+    p.undo().redo();
+
+    check(p.macroChannels()[0].load() == 0, "and redoing it clears them again");
+
+    // Taking new channels with the scope already on Selected moves no
+    // parameter, and is still a step of its own.
+    p.undo().clearUndoHistory();
+    p.macroChannels()[0].store(given);
+    p.recordEdit("Choose a macro's channels",
+                 [&p] { p.macroChannels()[0].store(1u << 6); });
+    p.undo().undo();
+
+    check(p.macroChannels()[0].load() == given,
+          "a change of channels alone can be undone");
+
+    p.undo().clearUndoHistory();
+    p.applyFactoryPreset(presetIndex("Init"));
+
     // Put back as it was before this block, for the curve below.
     set(ovt::params::macroRowId(0), (float)tuneRow);
     set(ovt::params::macroAmountId(0), -0.25f);

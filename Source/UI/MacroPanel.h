@@ -52,6 +52,12 @@ public:
   params::MacroChannels *channels = nullptr;
   std::function<std::uint32_t()> currentSelection;
 
+  /// Runs a change as one step in the undo history. Taking new channels with
+  /// the scope already on Selected moves no parameter, so nothing else would
+  /// record it.
+  std::function<void(const juce::String &, const std::function<void()> &)>
+      recordEdit;
+
   /// How many macros are made, for the button that opens this to say so.
   static int madeCount(const juce::AudioProcessorValueTreeState &);
 

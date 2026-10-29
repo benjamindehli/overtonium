@@ -283,14 +283,22 @@ void MacroPanel::chooseScope(int macro) {
         if (result <= 0)
           return;
 
-        // The enum itself rather than the constant above: MSVC refuses to
-        // read a local constant it was not given, and AppleClang refuses to
-        // be given one it does not need.
-        if (result - 1 == (int)params::MacroScope::Selected && picked != 0 &&
-            channels != nullptr)
-          (*channels)[(size_t)macro].store(picked);
+        const auto change = [this, macro, picked, result] {
+          // The enum itself rather than the constant above: MSVC refuses to
+          // read a local constant it was not given, and AppleClang refuses to
+          // be given one it does not need.
+          if (result - 1 == (int)params::MacroScope::Selected && picked != 0 &&
+              channels != nullptr)
+            (*channels)[(size_t)macro].store(picked);
 
-        write(params::macroScopeId(macro), result - 1);
+          write(params::macroScopeId(macro), result - 1);
+        };
+
+        if (recordEdit != nullptr)
+          recordEdit("Choose a macro's channels", change);
+        else
+          change();
+
         refresh();
       });
 }
