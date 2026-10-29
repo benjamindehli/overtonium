@@ -326,9 +326,8 @@ double Cassette::lostIntegral(double u) const noexcept {
   // Past the table the curve has all but reached its limit, so what it takes
   // away is the rest of the straight line above it. Written as not inside the
   // table rather than past it, so a NaN, which compares false either way,
-  // takes this branch instead of becoming an index. The output stage runs this
-  // whatever machine is chosen, and a wild read is a crash where a NaN out is
-  // only a NaN.
+  // takes this branch instead of becoming an index. A wild read is a crash
+  // where a NaN out is only a NaN.
   if (!(at < kClipTableSize)) {
     const double end = kClipTableSpan * cassette::kClipLimit;
     return clipTable.back() + cassette::kClipLimit * (a - end) -

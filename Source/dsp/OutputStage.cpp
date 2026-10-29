@@ -119,6 +119,7 @@ void OutputStage::prepare(double sampleRate) noexcept {
 
   console.prepare(rate);
   cassette.prepare(rate);
+  fadeLength = std::max(1, (int)(kFadeSeconds * rate + 0.5));
 
   reset();
 }
@@ -158,6 +159,18 @@ void OutputStage::reset() noexcept {
 
   console.reset();
   cassette.reset();
+
+  // Whatever is chosen next starts from here, with nothing to fade from.
+  started = false;
+  leaving = Running::None;
+  fadeAt = fadeLength;
+}
+
+void OutputStage::run(Running which, float &left, float &right) noexcept {
+  if (which == Running::Console)
+    console.process(left, right);
+  else if (which == Running::Cassette)
+    cassette.process(left, right);
 }
 
 float OutputStage::delayed(std::vector<float> &line, float in) noexcept {
@@ -240,24 +253,43 @@ void OutputStage::process(float *left, float *right, int numSamples,
   // The recorder ends in the same limiter, set where it would be used.
   const float ceiling = consoling || taping ? kConsoleCeiling : kLimitCeiling;
 
+  // Which machine with memory this block wants, and whether that is a change.
+  // Once per block, as a host changes the type between blocks.
+  const auto wanted = consoling ? Running::Console
+                      : taping  ? Running::Cassette
+                                : Running::None;
+
+  if (!started) {
+    running = wanted;
+    started = true;
+  } else if (wanted != running) {
+    leaving = running;
+    running = wanted;
+    fadeAt = 0;
+
+    if (running == Running::Console)
+      console.reset();
+    else if (running == Running::Cassette)
+      cassette.reset();
+  }
+
   for (int n = 0; n < numSamples; ++n) {
-    // The console runs on every sample, for the reason the detector does, and
-    // what it makes is only used when it is chosen. Ahead of the delay, so the
-    // limiter after it looks ahead at the console's output.
-    float inLeft = left[n], inRight = right[n];
-    float conLeft = inLeft, conRight = inRight;
-    console.process(conLeft, conRight);
+    // Ahead of the delay, so the limiter after it looks ahead at the
+    // machine's output.
+    const float dryLeft = left[n], dryRight = right[n];
+    float inLeft = dryLeft, inRight = dryRight;
+    run(running, inLeft, inRight);
 
-    // The recorder likewise.
-    float tapeLeft = inLeft, tapeRight = inRight;
-    cassette.process(tapeLeft, tapeRight);
+    if (fadeAt < fadeLength) {
+      float wasLeft = dryLeft, wasRight = dryRight;
+      run(leaving, wasLeft, wasRight);
 
-    if (consoling) {
-      inLeft = conLeft;
-      inRight = conRight;
-    } else if (taping) {
-      inLeft = tapeLeft;
-      inRight = tapeRight;
+      const float t = (float)fadeAt / (float)fadeLength;
+      inLeft = wasLeft + (inLeft - wasLeft) * t;
+      inRight = wasRight + (inRight - wasRight) * t;
+
+      if (++fadeAt == fadeLength)
+        leaving = Running::None;
     }
 
     // Linked, from whichever channel is louder, so the image holds still.
