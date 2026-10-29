@@ -118,6 +118,7 @@ void OutputStage::prepare(double sampleRate) noexcept {
   boxTwo.assign((size_t)fullBox, 1.0f);
 
   console.prepare(rate);
+  cassette.prepare(rate);
 
   reset();
 }
@@ -156,6 +157,7 @@ void OutputStage::reset() noexcept {
   boxOneSum = boxTwoSum = (double)box;
 
   console.reset();
+  cassette.reset();
 }
 
 float OutputStage::delayed(std::vector<float> &line, float in) noexcept {
@@ -233,7 +235,10 @@ void OutputStage::process(float *left, float *right, int numSamples,
                                                : shapeSoft;
 
   const bool consoling = shaping && type == ClipType::Console;
-  const float ceiling = consoling ? kConsoleCeiling : kLimitCeiling;
+  const bool taping = shaping && type == ClipType::Cassette;
+
+  // The recorder ends in the same limiter, set where it would be used.
+  const float ceiling = consoling || taping ? kConsoleCeiling : kLimitCeiling;
 
   for (int n = 0; n < numSamples; ++n) {
     // The console runs on every sample, for the reason the detector does, and
@@ -243,9 +248,16 @@ void OutputStage::process(float *left, float *right, int numSamples,
     float conLeft = inLeft, conRight = inRight;
     console.process(conLeft, conRight);
 
+    // The recorder likewise.
+    float tapeLeft = inLeft, tapeRight = inRight;
+    cassette.process(tapeLeft, tapeRight);
+
     if (consoling) {
       inLeft = conLeft;
       inRight = conRight;
+    } else if (taping) {
+      inLeft = tapeLeft;
+      inRight = tapeRight;
     }
 
     // Linked, from whichever channel is louder, so the image holds still.
@@ -267,7 +279,8 @@ void OutputStage::process(float *left, float *right, int numSamples,
       continue;
     }
 
-    if (type == ClipType::Limiter || type == ClipType::Console) {
+    if (type == ClipType::Limiter || type == ClipType::Console ||
+        type == ClipType::Cassette) {
       // The backstop. It has nothing to do now that the gain arrives with the
       // peak rather than after it, and it stays because this stage has to be
       // bounded whatever arrives: a rate so low that the window is a couple of

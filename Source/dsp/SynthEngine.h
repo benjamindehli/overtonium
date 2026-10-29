@@ -565,7 +565,7 @@ private:
   Wobble wobble;
   BusDrive busDrive;
 
-  /// What the mix runs into on its way out, which is six machines rather
+  /// What the mix runs into on its way out, which is seven machines rather
   /// than the one soft clipper it began as. See OutputStage.
   OutputStage outputStage;
   TapeEcho echo;

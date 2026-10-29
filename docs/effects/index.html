@@ -6,7 +6,7 @@
         <title>Overtonium effects: character, echo, reverb, converter and CLIP</title>
         <meta
             name="description"
-            content="Overtonium&#x27;s top bar: twelve oscillator characters, wobble, a resonator, bus drive, three echoes, three reverbs, a lo-fi converter and six clip machines."
+            content="Overtonium&#x27;s top bar: twelve oscillator characters, wobble, a resonator, bus drive, three echoes, three reverbs, a lo-fi converter and seven clip machines."
         />
         <meta name="author" content="Benjamin Dehli" />
         <meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -21,7 +21,7 @@
         <meta property="og:title" content="Overtonium effects: character, echo, reverb, converter and CLIP" />
         <meta
             property="og:description"
-            content="The bar across the top of Overtonium: twelve oscillator characters that set which oscillator every partial is modelled on, a wobble across the whole series, a resonator of 88 sympathetic strings that resonate with what you play, a bus drive that responds to how hard you play, an echo and a reverb with three machines each, a lo-fi converter, and an output stage with six clip machines including a lookahead limiter and a measured console mix bus."
+            content="The bar across the top of Overtonium: twelve oscillator characters that set which oscillator every partial is modelled on, a wobble across the whole series, a resonator of 88 sympathetic strings that resonate with what you play, a bus drive that responds to how hard you play, an echo and a reverb with three machines each, a lo-fi converter, and an output stage with seven clip machines including a lookahead limiter, a measured console mix bus and a measured cassette recorder."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-effects.jpg" />
         <meta property="og:image:type" content="image/jpeg" />
@@ -33,7 +33,7 @@
         <meta name="twitter:title" content="Overtonium effects: character, echo, reverb, converter and CLIP" />
         <meta
             name="twitter:description"
-            content="The bar across the top of Overtonium: twelve oscillator characters that set which oscillator every partial is modelled on, a wobble across the whole series, a resonator of 88 sympathetic strings that resonate with what you play, a bus drive that responds to how hard you play, an echo and a reverb with three machines each, a lo-fi converter, and an output stage with six clip machines including a lookahead limiter and a measured console mix bus."
+            content="The bar across the top of Overtonium: twelve oscillator characters that set which oscillator every partial is modelled on, a wobble across the whole series, a resonator of 88 sympathetic strings that resonate with what you play, a bus drive that responds to how hard you play, an echo and a reverb with three machines each, a lo-fi converter, and an output stage with seven clip machines including a lookahead limiter, a measured console mix bus and a measured cassette recorder."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-effects.jpg" />
         <meta name="twitter:image:alt" content="The Overtonium wordmark over the plugin window, captioned Effects." />
@@ -50,7 +50,7 @@
                 "@id": "https://benjamindehli.github.io/overtonium/effects/#webpage",
                 "url": "https://benjamindehli.github.io/overtonium/effects/",
                 "name": "Overtonium effects: character, echo, reverb, converter and CLIP",
-                "description": "Overtonium's top bar: twelve oscillator characters, wobble, a resonator, bus drive, three echoes, three reverbs, a lo-fi converter and six clip machines.",
+                "description": "Overtonium's top bar: twelve oscillator characters, wobble, a resonator, bus drive, three echoes, three reverbs, a lo-fi converter and seven clip machines.",
                 "inLanguage": "en-GB",
                 "isPartOf": {
                     "@id": "https://benjamindehli.github.io/overtonium/#website"
@@ -472,7 +472,7 @@
                 <section id="clip">
                     <h2>CLIP</h2>
                     <p>
-                        Six machines behind one button, on the finished output after the master fader, so the master fader sets how hard they are
+                        Seven machines behind one button, on the finished output after the master fader, so the master fader sets how hard they are
                         driven. The fader and the choice are both saved with the preset, so how hard a patch drives this stage is part of the patch.
                         <strong>Soft</strong> is linear up to seven tenths and then rounds off, gradually and symmetrically. Every preset is balanced
                         for Soft. <strong>Hard</strong> is a wall at full scale: nothing happens until the signal reaches it. It sounds like a
@@ -488,33 +488,43 @@
                         bus compressor and a tape stage, into the Limiter with its ceiling at -0.1 dBFS. The transformer thickens the lows as you
                         drive it, because its core saturates on low frequencies long before high ones. The compressor is 4:1 and linked, with its
                         sidechain filtered at 120 Hz so the bass does not pump it, and an automatic release that lets go fast after a short hit and
-                        slowly after a long one. The tape stage adds a steady third harmonic once it is driven, the lows first. It is the only machine
-                        here that changes over time as well as by level, because a compressor does, and it is held at the same level as the others for
-                        a quiet signal, so choosing it does not make a patch louder.
+                        slowly after a long one. The tape stage adds a steady third harmonic once it is driven, the lows first. It changes over time
+                        as well as by level, because a compressor does, and it is held at the same level as the others for a quiet signal, so choosing
+                        it does not make a patch louder.
+                    </p>
+                    <p>
+                        <strong>Cassette</strong> is a four-track cassette recorder at 9.5 cm/s with Dolby B on a normal tape, measured by recording a
+                        test signal onto it and playing it back, into the Limiter with its ceiling at -0.1 dBFS. The lows saturate first, so a bass
+                        line thickens before anything else does, and the top rolls off gently, -3.6 dB at 12 kHz. Dolby lowers the tape's hiss by
+                        about 10 dB, and on this machine it does not quite cancel itself, so quiet highs come back a few decibels duller while loud
+                        ones pass almost untouched. The speed wanders by about a tenth of a percent, with flutter at 68 Hz and a slow wow, so a held
+                        chord moves very slightly in pitch. The hiss is there while something plays, rising a little under loud highs as it does on
+                        tape, and gone when nothing does. It is held at the same level as the others for a quiet signal.
                     </p>
                     <p>
                         Off lets the output go past full scale and reach the host unchanged. Use it when something later in the chain catches the
-                        peaks. None of the six lets the output past full scale. That limit is the purpose of the stage, not a side effect of the
-                        shapes, and each shape stays within it however hard it is driven. The button shortens Asymmetric to ASYM, Limiter to LIMIT and
-                        Console to CNSL to fit, while the menu and your host's automation lane show the full names. It sits under the meter with the
-                        converter readouts, because together they are everything that happens to the signal on its way out. The switch is also in the
-                        Settings menu.
+                        peaks. None of the seven lets the output past full scale. That limit is the purpose of the stage, not a side effect of the
+                        shapes, and each shape stays within it however hard it is driven. The button shortens Asymmetric to ASYM, Limiter to LIMIT,
+                        Console to CNSL and Cassette to CASS to fit, while the menu and your host's automation lane show the full names. It sits under
+                        the meter with the converter readouts, because together they are everything that happens to the signal on its way out. The
+                        switch is also in the Settings menu.
                     </p>
                     <p>
                         With <strong>Limiter lookahead</strong> switched on in the Settings menu, the Limiter looks two milliseconds ahead. The gain
                         reduction is already in place when the peak arrives, instead of following it, and that is what makes it a true limiter and not
                         a clipper. This adds latency. A plugin whose latency changed with the preset would make the host rebuild its processing graph
-                        every time, so the latency applies to all six machines and to the stage when it is off. Overtonium reports 108 samples at 48
+                        every time, so the latency applies to all seven machines and to the stage when it is off. Overtonium reports 108 samples at 48
                         kHz, a little over two milliseconds, which your host compensates for on playback.
                     </p>
                     <p>
-                        <strong>It is off by default</strong>, and the plugin then reports only the bus stage's 12 samples. Only the Limiter and
-                        Console use the lookahead and no factory preset uses either, so with it on everyone else would pay two milliseconds for
+                        <strong>It is off by default</strong>, and the plugin then reports only the bus stage's 12 samples. Only the Limiter, Console
+                        and Cassette use the lookahead and no factory preset uses them, so with it on everyone else would pay two milliseconds for
                         nothing. The limiter still works with it off. The detector sees a single sample instead of a window, so the gain is exact and
                         immediate and the ceiling still holds. But the smoothing is lost, and a gain that jumps in steps is a distortion in itself,
                         about fifteen times as much. It is in Settings and not on the bar because nothing a preset can change is allowed to change
-                        what the plugin reports to your host. If you rely on the Limiter or Console and want them smooth, switch it on. Most hosts
-                        pick up the new figure while running, and some only when playback stops or on reload, so choose before a take, not during one.
+                        what the plugin reports to your host. If you rely on the Limiter, Console or Cassette and want them smooth, switch it on. Most
+                        hosts pick up the new figure while running, and some only when playback stops or on reload, so choose before a take, not
+                        during one.
                     </p>
                 </section>
 

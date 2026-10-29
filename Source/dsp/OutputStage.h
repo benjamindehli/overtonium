@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "Cassette.h"
 #include "Console.h"
 
 namespace ovt {
@@ -12,7 +13,7 @@ namespace ovt {
 /// What the mixer runs into on its way out.
 ///
 /// It began as one soft clipper with a switch, there to stop the instrument
-/// handing a host something louder than it asked for. Six of them now, which
+/// handing a host something louder than it asked for. Seven of them now, which
 /// makes it part of the sound rather than only a guard: the master fader sits
 /// in front of this, so how hard you drive it is a thing a patch decides.
 ///
@@ -60,6 +61,14 @@ enum class ClipType {
   /// harmonic once it is driven. Unity for a quiet 1 kHz tone. See Console.
   Console,
 
+  /// A four-track cassette recorder at 9.5 cm/s with Dolby B, measured from a
+  /// real one, into the limiter with its ceiling at -0.1 dBFS. The lows
+  /// saturate first, the top rolls off, quiet highs come back a little duller
+  /// as the machine's Dolby mistracks, the speed flutters by about a tenth of
+  /// a percent, and the tape hisses while something plays. Unity for a quiet
+  /// 1 kHz tone. See Cassette.
+  Cassette,
+
   NumTypes
 };
 
@@ -77,6 +86,8 @@ inline const char *clipTypeName(ClipType t) {
     return "Fold";
   case ClipType::Console:
     return "Console";
+  case ClipType::Cassette:
+    return "Cassette";
 
   // Listed rather than left to a default, so adding one is a compiler error
   // here until it has a name.
@@ -87,7 +98,7 @@ inline const char *clipTypeName(ClipType t) {
   return "Soft";
 }
 
-/// What the bar's button says, which is the name itself for three of the six.
+/// What the bar's button says, which is the name itself for three of the seven.
 ///
 /// Asymmetric has to be shortened. The button is 62 px wide and gives a label
 /// 46 of them, and in that button's own font ASYMMETRIC is 54.3. The ten
@@ -102,6 +113,8 @@ inline const char *clipTypeName(ClipType t) {
 /// Console is shortened the way the preset display fits a long name, by its
 /// consonants: CONSOLE is 42.4 px against the 34 the button has at its
 /// narrowest, and CNSL reads as the same word where CONS reads as another.
+/// Cassette is shortened by its first syllable, CASS, since its consonants
+/// alone, CSST, read as nothing.
 ///
 /// Only the button abbreviates. The menu it opens, the name the host shows on
 /// the automation lane and the documentation all have room for the word.
@@ -113,6 +126,8 @@ inline const char *clipTypeShortName(ClipType t) {
     return "Limit";
   case ClipType::Console:
     return "Cnsl";
+  case ClipType::Cassette:
+    return "Cass";
 
   case ClipType::Soft:
   case ClipType::Hard:
@@ -124,7 +139,7 @@ inline const char *clipTypeShortName(ClipType t) {
   return clipTypeName(t);
 }
 
-/// The output stage, which is stateful because two of the six are.
+/// The output stage, which is stateful because three of the seven are.
 ///
 /// The four shapers are memoryless and could be free functions. The limiter
 /// carries a gain that walks towards what the signal needs, and that gain is
@@ -175,7 +190,7 @@ public:
 
   /// Shapes both channels in place, and delays them whether or not it shapes.
   ///
-  /// @param type     which of the six.
+  /// @param type     which of the seven.
   /// @param shaping  false to pass the audio through at the same delay and
   ///                 otherwise leave it alone, which is the stage switched
   ///                 off rather than a sixth type.
@@ -248,6 +263,10 @@ private:
   /// limiter's detector is, so choosing Console part way through a note finds
   /// its filters and its compressor already settled.
   Console console;
+
+  /// The recorder likewise, so its transport, its side chains and the tape
+  /// it holds are running when it is chosen.
+  Cassette cassette;
 };
 
 } // namespace ovt

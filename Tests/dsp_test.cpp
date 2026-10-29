@@ -12523,6 +12523,173 @@ void benchmarkLofi() {
 /// them back. Then what the recordings showed of the compressor: linked, its
 /// sidechain filtered at 120 Hz, and an automatic release that lets go fast
 /// after a short hit and slowly after a long one.
+void testCassette() {
+  section("Cassette");
+
+  constexpr double kTwoPi = 6.283185307179586;
+  constexpr double sr = 48000.0;
+
+  // A tone through the recorder, read over its last second with a taper.
+  struct Read {
+    double gainDb, thirdDb;
+  };
+
+  const auto steady = [sr, kTwoPi](double f, double db) {
+    constexpr int kN = 96000;
+    OutputStage stage;
+    stage.prepare(sr);
+
+    const double a = std::pow(10.0, db / 20.0);
+    std::vector<float> l((size_t)kN), r((size_t)kN);
+
+    for (int i = 0; i < kN; ++i)
+      l[(size_t)i] = r[(size_t)i] =
+          (float)(a * std::sin(kTwoPi * f * (double)i / sr));
+
+    stage.process(l.data(), r.data(), kN, ClipType::Cassette, true, false);
+
+    const int from = kN - 48000;
+    std::complex<double> h1{}, h3{};
+    double norm = 0.0;
+
+    for (int i = from; i < kN; ++i) {
+      const double t = (double)(i - from) / 48000.0;
+      const double w = 0.5 - 0.5 * std::cos(kTwoPi * t);
+      norm += w;
+
+      // Each stage starts its transport from the same place, so two tones
+      // read here flutter alike and compare fairly, and over a second the
+      // flutter moves a tone by less than the window can see.
+      const double ph = kTwoPi * f * (double)i / sr;
+      h1 += w * (double)l[(size_t)i] * std::polar(1.0, -ph);
+      h3 += w * (double)l[(size_t)i] * std::polar(1.0, -3.0 * ph);
+    }
+
+    return Read{20.0 * std::log10(2.0 * std::abs(h1) / norm / a),
+                20.0 * std::log10(std::abs(h3) / std::abs(h1))};
+  };
+
+  // ---- unity, and the lows first -------------------------------------------
+  const auto quiet = steady(1000.0, -40.0);
+  std::printf("  1 kHz at -40 dBFS: %+.2f dB\n", quiet.gainDb);
+  check(std::abs(quiet.gainDb) < 0.8,
+        "a quiet 1 kHz tone comes through at unity, give or take the tape's "
+        "slow wobble (" +
+            std::to_string(quiet.gainDb) + " dB)");
+
+  const auto low = steady(30.0, -3.0);
+  const auto mid = steady(1000.0, -3.0);
+  std::printf("  third harmonic at -3 dBFS: 30 Hz %.1f dB, 1 kHz %.1f dB\n",
+              low.thirdDb, mid.thirdDb);
+  check(low.thirdDb > -24.0 && low.thirdDb < -16.0 && mid.thirdDb < -38.0,
+        "the tape saturates the lows first, as measured: a third harmonic "
+        "near -18 dB at 30 Hz and under -38 at 1 kHz");
+
+  // ---- Dolby's mistracking
+  // ---------------------------------------------------
+  const auto quietTop = steady(10000.0, -36.0);
+  const auto loudTop = steady(10000.0, -8.0);
+  std::printf("  10 kHz: %+.2f dB at -36 dBFS, %+.2f dB at -8\n",
+              quietTop.gainDb, loudTop.gainDb);
+  check(loudTop.gainDb - quietTop.gainDb > 2.0,
+        "quiet highs come back duller than loud ones, as the machine's Dolby "
+        "does");
+
+  // ---- the speed -----------------------------------------------------------
+  {
+    // A 3150 Hz tone's period over 16 cycles at a time, which is the speed the
+    // tape played it back at. Sixteen rather than one, since a single cycle's
+    // two crossings move with the hiss as much as with the speed. That keeps
+    // what flutters below about 100 Hz, which is most of it.
+    constexpr int kN = 480000;
+    OutputStage stage;
+    stage.prepare(sr);
+
+    std::vector<float> l((size_t)kN), r((size_t)kN);
+    const double a = std::pow(10.0, -18.0 / 20.0);
+
+    for (int i = 0; i < kN; ++i)
+      l[(size_t)i] = r[(size_t)i] =
+          (float)(a * std::sin(kTwoPi * 3150.0 * (double)i / sr));
+
+    stage.process(l.data(), r.data(), kN, ClipType::Cassette, true, false);
+
+    std::vector<double> crossings;
+
+    for (int i = (int)sr; i < kN; ++i) {
+      const double y0 = (double)l[(size_t)i - 1], y1 = (double)l[(size_t)i];
+
+      if (y0 < 0.0 && y1 >= 0.0)
+        crossings.push_back((double)(i - 1) + y0 / (y0 - y1));
+    }
+
+    constexpr size_t kSpan = 16;
+    const size_t spans = crossings.size() - kSpan;
+
+    double mean = 0.0;
+    for (size_t k = 0; k < spans; ++k)
+      mean += crossings[k + kSpan] - crossings[k];
+    mean /= (double)spans;
+
+    double spread = 0.0;
+    for (size_t k = 0; k < spans; ++k) {
+      const double d = (crossings[k + kSpan] - crossings[k]) / mean - 1.0;
+      spread += d * d;
+    }
+
+    const double rms = 100.0 * std::sqrt(spread / (double)spans);
+
+    std::printf("  wow and flutter: %.3f%% rms\n", rms);
+    check(rms > 0.06 && rms < 0.16,
+          "the speed wanders by about a tenth of a percent, as the "
+          "machine's did (" +
+              std::to_string(rms) + "%)");
+  }
+
+  // ---- the hiss follows the notes
+  // --------------------------------------------
+  {
+    constexpr int kN = 96000;
+
+    const auto noiseAbove = [sr, kN, kTwoPi](double toneDb) {
+      OutputStage stage;
+      stage.prepare(sr);
+
+      std::vector<float> l((size_t)kN), r((size_t)kN);
+      const double a = toneDb < -200.0 ? 0.0 : std::pow(10.0, toneDb / 20.0);
+
+      for (int i = 0; i < kN; ++i)
+        l[(size_t)i] = r[(size_t)i] =
+            (float)(a * std::sin(kTwoPi * 125.0 * (double)i / sr));
+
+      stage.process(l.data(), r.data(), kN, ClipType::Cassette, true, false);
+
+      // What is left once the tone and its harmonics are taken out: the
+      // difference between neighbouring cycles, which a steady 125 Hz tone
+      // repeats every 384 samples and hiss does not.
+      double power = 0.0;
+      int count = 0;
+
+      for (int i = kN / 2; i < kN; ++i) {
+        const double d = (double)l[(size_t)i] - (double)l[(size_t)i - 384];
+        power += d * d;
+        ++count;
+      }
+
+      return 10.0 * std::log10(std::max(1.0e-30, power / (2.0 * count)));
+    };
+
+    const double silent = noiseAbove(-400.0);
+    const double playing = noiseAbove(-20.0);
+
+    std::printf("  hiss: %.1f dBFS with nothing playing, %.1f under a note\n",
+                silent, playing);
+    check(silent < -140.0, "there is no hiss with nothing playing");
+    check(playing > -90.0 && playing < -50.0,
+          "and there is while something plays, at about the tape's level");
+  }
+}
+
 void testConsole() {
   section("Console");
 
@@ -13088,6 +13255,7 @@ int main() {
   testLofi();
   testOutputStage();
   testConsole();
+  testCassette();
   benchmark();
   benchmarkLofi();
 
