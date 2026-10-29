@@ -571,14 +571,21 @@ void Voice::render(float *left, float *right, int numSamples,
           ? std::max(0.0f, p.global.trackDbPerOctave - slide * kSlideTrackDb)
           : p.global.trackDbPerOctave;
 
-  if (tracking > 0.0f) {
-    for (int i = 0; i < kNumHarmonics; ++i) {
-      const auto semis = semitoneOffset(i, (double)blendOf(p, i),
-                                        (double)p.global.stretchCents);
+  // Where each partial sits in the series before anything moves it, worked out
+  // once for the call: the TUNE blend, the slide and STRETCH are all held for
+  // it. Every control block used to work it out again for every partial, and
+  // with STRETCH on that is an exp2 and a log2 each time.
+  std::array<double, kNumHarmonics> nominal{};
 
-      track[(size_t)i] = trackingGain(baseFreq * std::exp2(semis / 12.0),
-                                      baseFreq, (double)tracking);
-    }
+  for (int i = 0; i < kNumHarmonics; ++i)
+    nominal[(size_t)i] =
+        semitoneOffset(i, (double)blendOf(p, i), (double)p.global.stretchCents);
+
+  if (tracking > 0.0f) {
+    for (int i = 0; i < kNumHarmonics; ++i)
+      track[(size_t)i] =
+          trackingGain(baseFreq * std::exp2(nominal[(size_t)i] / 12.0),
+                       baseFreq, (double)tracking);
   } else {
     track.fill(1.0f);
   }
@@ -671,8 +678,7 @@ void Voice::render(float *left, float *right, int numSamples,
       // partial is actually at: the table the character reads, how hard a slew
       // limit bites, and what the lamp is settling towards.
       const double semis =
-          semitoneOffset(i, (double)blendOf(p, i),
-                         (double)p.global.stretchCents) +
+          nominal[(size_t)i] +
           (pmCents + driftCents + (double)unit.cents[(size_t)i]) * 0.01 +
           (double)(p.global.bendSemitones + noteBendSemitones) + pt.glideSemis +
           retuneSemis;
