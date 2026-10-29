@@ -558,8 +558,12 @@ void MacroPanel::paint(juce::Graphics &g) {
   g.drawText("MACROS", header, juce::Justification::centredLeft, false);
 
   if (showing.empty()) {
+    // A sentence to read rather than a caption to glance at. At 12 point it
+    // was the smallest thing in the dialog and the one thing in it to read,
+    // and at 15 it reads about as large as the bold words on the buttons
+    // under it.
     g.setColour(colours::textDim);
-    g.setFont(makeFont(12.0f, false));
+    g.setFont(makeFont(15.0f, false));
     g.drawText("One parameter that moves a whole row, which a host can "
                "automate.",
                emptyMessage, juce::Justification::centred, true);
