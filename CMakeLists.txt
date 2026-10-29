@@ -110,6 +110,7 @@ set(OVERTONIUM_SOURCES
     Source/dsp/SpringReverb.cpp
     Source/dsp/BusDrive.cpp
     Source/dsp/OutputStage.cpp
+    Source/dsp/Cassette.cpp
     Source/dsp/Console.cpp
     Source/dsp/Voice.cpp
     Source/dsp/SynthEngine.cpp
@@ -306,6 +307,7 @@ if(OVERTONIUM_BUILD_TESTS)
         Source/dsp/SpringReverb.cpp
         Source/dsp/BusDrive.cpp
         Source/dsp/OutputStage.cpp
+        Source/dsp/Cassette.cpp
         Source/dsp/Console.cpp
         Source/dsp/Voice.cpp
         Source/dsp/SynthEngine.cpp

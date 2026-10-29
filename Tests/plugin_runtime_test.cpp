@@ -192,7 +192,7 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
       {ovt::params::slideDestId, 3},    {ovt::params::lofiRateId, 8},
       {ovt::params::lofiBitsId, 9},     {ovt::params::echoTypeId, 3},
       {ovt::params::reverbTypeId, 3},   {ovt::params::glideTriggerId, 2},
-      {ovt::params::glideModeId, 2},    {ovt::params::clipTypeId, 6},
+      {ovt::params::glideModeId, 2},    {ovt::params::clipTypeId, 7},
   };
 
   for (const auto &list : globals)

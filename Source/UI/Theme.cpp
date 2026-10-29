@@ -492,12 +492,14 @@ juce::Colour reverbColour(ReverbType t) {
 }
 
 juce::Colour clipColour(ClipType t) {
-  // Soft, Hard, Asymmetric, Limiter, Fold and Console, a sixth apart.
-  constexpr std::array<juce::uint32, 6> kLit{
-      0xff00bbc3, 0xff6da4ff, 0xffce83de, 0xfff47a7d, 0xffd59800, 0xff6ebb5d};
+  // Soft, Hard, Asymmetric, Limiter, Fold, Console and Cassette, a seventh
+  // apart.
+  constexpr std::array<juce::uint32, 7> kLit{0xff00bbc3, 0xff56a9ff, 0xffb88bf1,
+                                             0xffeb79aa, 0xfff0834d, 0xffbfa400,
+                                             0xff57be6e};
   static_assert(kLit.size() == (size_t)ClipType::NumTypes);
 
-  return juce::Colour(kLit[(size_t)std::clamp((int)t, 0, 5)]);
+  return juce::Colour(kLit[(size_t)std::clamp((int)t, 0, 6)]);
 }
 
 namespace {

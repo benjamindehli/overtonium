@@ -279,11 +279,15 @@ void MacroPanel::chooseScope(int macro) {
   menu.showMenuAsync(
       juce::PopupMenu::Options().withStandardItemHeight(22).withTargetComponent(
           &strips[(size_t)macro].scope),
-      [this, macro, picked, selected](int result) {
+      [this, macro, picked](int result) {
         if (result <= 0)
           return;
 
-        if (result - 1 == selected && picked != 0 && channels != nullptr)
+        // The enum itself rather than the constant above: MSVC refuses to
+        // read a local constant it was not given, and AppleClang refuses to
+        // be given one it does not need.
+        if (result - 1 == (int)params::MacroScope::Selected && picked != 0 &&
+            channels != nullptr)
           (*channels)[(size_t)macro].store(picked);
 
         write(params::macroScopeId(macro), result - 1);
