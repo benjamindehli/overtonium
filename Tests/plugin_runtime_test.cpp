@@ -3094,6 +3094,7 @@ void testThePresetDisplaySpells(OvertoniumProcessor &) {
 
       // The space goes and nothing else has to.
       {"Tape Choir", "TAPECHOIR"},
+      {"Tape Pluck", "TAPEPLUCK"},
       {"Vibraphone", "VIBRAPHON"},
 
       // The space, then vowels from the right.
@@ -3102,6 +3103,8 @@ void testThePresetDisplaySpells(OvertoniumProcessor &) {
       {"Metallic Piano", "METALLCPN"},
       {"Odd Harmonics", "ODDHRMNCS"},
       {"Struck Bell", "STRUCKBLL"},
+      {"8-bit Choir", "8-BITCHOR"},
+      {"Combo Organ", "COMBOORGN"},
 
       // And a cut on top of both, which is the longest name there is.
       {"2-bit Fuzz Organ", "2-BTFZZRG"},
