@@ -46,6 +46,12 @@ enum class ClipType {
   /// quiet 1 kHz tone. See Cassette.
   Cassette,
 
+  /// The console's chain printed to the cassette recorder: Console, a limiter
+  /// at -0.1 dBFS, then Cassette, into the limiter at the end. The order the
+  /// outboard chain and the deck were patched in. Unity for a quiet 1 kHz
+  /// tone.
+  Print,
+
   NumTypes
 };
 
@@ -65,6 +71,8 @@ inline const char *clipTypeName(ClipType t) {
     return "Console";
   case ClipType::Cassette:
     return "Cassette";
+  case ClipType::Print:
+    return "Print";
 
   // Listed rather than left to a default, so adding one is a compiler error
   // here until it has a name.
@@ -76,7 +84,8 @@ inline const char *clipTypeName(ClipType t) {
 }
 
 /// What the bar's button says. Some names are shortened to fit the 62 px
-/// button and to read as one set: SOFT, HARD, ASYM, LIMIT, FOLD, CNSL, CASS.
+/// button and to read as one set: SOFT, HARD, ASYM, LIMIT, FOLD, CNSL, CASS,
+/// PRNT.
 /// The menu, the host and the documentation use the full names.
 inline const char *clipTypeShortName(ClipType t) {
   switch (t) {
@@ -88,6 +97,8 @@ inline const char *clipTypeShortName(ClipType t) {
     return "Cnsl";
   case ClipType::Cassette:
     return "Cass";
+  case ClipType::Print:
+    return "Prnt";
 
   case ClipType::Soft:
   case ClipType::Hard:
@@ -130,7 +141,7 @@ public:
 
   /// Shapes both channels in place, and delays them whether or not it shapes.
   ///
-  /// @param type     which of the seven.
+  /// @param type     which of the eight.
   /// @param shaping  false to pass the audio through at the same delay.
   /// @param ahead    false to give up the window and the delay with it. The
   ///                 processor reports the matching latency from the message
@@ -193,13 +204,31 @@ private:
   float held = 1.0f;
   float release = 0.0f;
 
-  /// The two machines with memory. Each runs only while it is chosen, to
-  /// save CPU.
+  /// A limiter with no lookahead: the gain falls at once to what the sample
+  /// needs and recovers over 100 ms. The one between the console and the deck
+  /// in Print, where the outboard chain's limiter sits.
+  struct InstantLimiter {
+    float held = 1.0f, release = 0.0f;
+
+    void process(float &left, float &right, float ceiling) noexcept;
+  };
+
+  /// The machines with memory. Each runs only while it is chosen, to save
+  /// CPU. Print has its own console and deck, so switching between it and
+  /// Console or Cassette can fade with both running.
   Console console;
   Cassette cassette;
+  Console printConsole;
+  Cassette printCassette;
+  InstantLimiter printLimiter;
 
-  /// Which of the two is running, if either.
-  enum class Running { None, Console, Cassette };
+  /// How much lower Print's tape hiss sits than the deck's on its own. Run
+  /// through the outboard chain first, the music goes onto the tape at a
+  /// better level against the hiss. Set by ear.
+  static constexpr double kPrintHissDb = -6.0;
+
+  /// Which of them is running, if any.
+  enum class Running { None, Console, Cassette, Print };
 
   /// Runs one of them on a sample, or passes it through for None.
   void run(Running which, float &left, float &right) noexcept;

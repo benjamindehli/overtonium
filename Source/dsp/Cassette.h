@@ -131,6 +131,11 @@ public:
   /// Runs one stereo sample through the machine.
   void process(float &left, float &right) noexcept;
 
+  /// Moves the tape's own hiss, the floor under everything, by this many dB.
+  /// Nought is the deck as measured. The noise that rises with the signal is
+  /// left as it is.
+  void setHissDb(double db) noexcept { hissTrim = std::pow(10.0, db / 20.0); }
+
 private:
   /// One first-order section, from an analogue prototype by the bilinear
   /// transform with its corner prewarped.
@@ -241,6 +246,7 @@ private:
   Follower gate;
   double gateAttack = 0.0, gateRelease = 0.0, gateOpen = 1.0;
   double hissScale = 0.0, riseScale = 0.0, riseRelease = 0.0;
+  double hissTrim = 1.0;
 
   int writeIndex = 0;
   int lineLength = 1;

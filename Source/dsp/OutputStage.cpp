@@ -97,6 +97,10 @@ void OutputStage::prepare(double sampleRate) noexcept {
 
   console.prepare(rate);
   cassette.prepare(rate);
+  printConsole.prepare(rate);
+  printCassette.prepare(rate);
+  printCassette.setHissDb(kPrintHissDb);
+  printLimiter.release = release;
   fadeLength = std::max(1, (int)(kFadeSeconds * rate + 0.5));
 
   reset();
@@ -135,6 +139,9 @@ void OutputStage::reset() noexcept {
 
   console.reset();
   cassette.reset();
+  printConsole.reset();
+  printCassette.reset();
+  printLimiter.held = 1.0f;
 
   // Whatever is chosen next starts from here, with nothing to fade from.
   started = false;
@@ -142,11 +149,27 @@ void OutputStage::reset() noexcept {
   fadeAt = fadeLength;
 }
 
+void OutputStage::InstantLimiter::process(float &left, float &right,
+                                          float ceiling) noexcept {
+  const float peak = std::max(std::abs(left), std::abs(right));
+  const float wanted = peak > ceiling ? ceiling / peak : 1.0f;
+
+  held = wanted < held ? wanted : wanted + (held - wanted) * release;
+
+  left *= held;
+  right *= held;
+}
+
 void OutputStage::run(Running which, float &left, float &right) noexcept {
-  if (which == Running::Console)
+  if (which == Running::Console) {
     console.process(left, right);
-  else if (which == Running::Cassette)
+  } else if (which == Running::Cassette) {
     cassette.process(left, right);
+  } else if (which == Running::Print) {
+    printConsole.process(left, right);
+    printLimiter.process(left, right, kConsoleCeiling);
+    printCassette.process(left, right);
+  }
 }
 
 float OutputStage::delayed(std::vector<float> &line, float in) noexcept {
@@ -220,15 +243,18 @@ void OutputStage::process(float *left, float *right, int numSamples,
 
   const bool consoling = shaping && type == ClipType::Console;
   const bool taping = shaping && type == ClipType::Cassette;
+  const bool printing = shaping && type == ClipType::Print;
 
-  // The recorder ends in the same limiter, set where it would be used.
-  const float ceiling = consoling || taping ? kConsoleCeiling : kLimitCeiling;
+  // The recorder and the print end in the same limiter as the console.
+  const float ceiling =
+      consoling || taping || printing ? kConsoleCeiling : kLimitCeiling;
 
   // Which machine with memory this block wants, and whether that is a change.
   // Once per block, as a host changes the type between blocks.
-  const auto wanted = consoling ? Running::Console
-                      : taping  ? Running::Cassette
-                                : Running::None;
+  const auto wanted = consoling  ? Running::Console
+                      : taping   ? Running::Cassette
+                      : printing ? Running::Print
+                                 : Running::None;
 
   if (!started) {
     running = wanted;
@@ -238,10 +264,15 @@ void OutputStage::process(float *left, float *right, int numSamples,
     running = wanted;
     fadeAt = 0;
 
-    if (running == Running::Console)
+    if (running == Running::Console) {
       console.reset();
-    else if (running == Running::Cassette)
+    } else if (running == Running::Cassette) {
       cassette.reset();
+    } else if (running == Running::Print) {
+      printConsole.reset();
+      printCassette.reset();
+      printLimiter.held = 1.0f;
+    }
   }
 
   for (int n = 0; n < numSamples; ++n) {
@@ -282,7 +313,7 @@ void OutputStage::process(float *left, float *right, int numSamples,
     }
 
     if (type == ClipType::Limiter || type == ClipType::Console ||
-        type == ClipType::Cassette) {
+        type == ClipType::Cassette || type == ClipType::Print) {
       // The backstop that keeps the stage bounded whatever arrives, such as a
       // rate so low that the window is a couple of samples.
       left[n] = shapeHard(outLeft * gain);
