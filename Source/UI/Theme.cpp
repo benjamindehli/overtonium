@@ -14,13 +14,8 @@ namespace ovt::ui {
 int meterSegments(int height) { return juce::jlimit(6, 24, height / 15); }
 
 namespace {
-/// What each macro colour actually is.
-///
-/// Chosen to be told apart at the size of a knob's ring rather than to be
-/// pretty in a row: eight hues spread around the wheel, all at a lightness
-/// that reads against the panel without competing with a lit mute or solo.
-/// The first is no colour at all, for anyone who would rather the mixer
-/// stayed the colour the series makes it.
+/// The macro colours: none first, then eight hues spread around the wheel
+/// at one lightness, told apart on a knob's ring.
 const juce::Colour kMacroColours[] = {
     juce::Colour(0x00000000), juce::Colour(0xffe0584a),
     juce::Colour(0xffe08a3c), juce::Colour(0xffd8c24a),
@@ -32,18 +27,12 @@ const juce::Colour kMacroColours[] = {
 void drawGearIcon(juce::Graphics &g, juce::Rectangle<float> area,
                   juce::Colour colour) {
   const auto centre = area.getCentre();
-  // 0.38 of the shorter side rather than 0.46, which left a pixel of margin
-  // in a 24 px button and read as a cog jammed into its face. The teeth are
-  // the outermost thing drawn, so the radius is the whole of the margin.
+  // The teeth are the outermost thing drawn, so this radius sets the margin.
   const auto outer = juce::jmin(area.getWidth(), area.getHeight()) * 0.38f;
   const auto root = outer * 0.74f;
 
-  // A filled cog rather than spokes on a ring, which is what it was and what
-  // made it a ship's wheel: a wheel is a rim with spokes reaching in, and a
-  // cog is a solid body with teeth standing out of it. Drawn as one outline
-  // that steps between the two radii, with the bore punched by an even-odd
-  // fill rather than painted over, since what is behind the button is not a
-  // colour this knows.
+  // One outline stepping between the two radii, with the bore punched by an
+  // even-odd fill, since the colour behind the button is not known here.
   constexpr int teeth = 8;
   constexpr float tooth = 0.46f; // of each tooth's share of the circle
 
@@ -80,8 +69,7 @@ void drawGearIcon(juce::Graphics &g, juce::Rectangle<float> area,
 void drawSharedIcon(juce::Graphics &g, juce::Rectangle<float> area,
                     juce::Colour colour) {
   // Three short strokes from the left that meet at one point and run on as a
-  // single line: every note feeding one modulator. Fractions of the side it is
-  // given, so it scales with the switch.
+  // single line. Fractions of the side it is given, so it scales.
   const auto s = juce::jmin(area.getWidth(), area.getHeight());
   const auto c = area.getCentre();
   const auto left = c.x - s * 0.40f;
@@ -107,14 +95,8 @@ void drawSharedIcon(juce::Graphics &g, juce::Rectangle<float> area,
 
 void drawMacroIcon(juce::Graphics &g, juce::Rectangle<float> area,
                    juce::Colour colour) {
-  // Three faders with their caps at different places, which is what the
-  // macro panel looks like and what a macro does: several controls moved
-  // from one place.
-  //
-  // Everything here is a fraction of the height it is given, because the
-  // area is the lamp cap rather than the button, and the cap is some 6 px
-  // shorter: the fixed spacing this had before ran the outer two rows
-  // under the bezel.
+  // Three faders with their caps at different places. Fractions of the height,
+  // since the area is the lamp cap, which is smaller than the button.
   const auto h = area.getHeight();
   const auto w = juce::jmin(area.getWidth() * 0.78f, h * 1.5f);
   const auto centre = area.getCentre();
@@ -130,9 +112,7 @@ void drawMacroIcon(juce::Graphics &g, juce::Rectangle<float> area,
   for (int i = 0; i < 3; ++i) {
     const auto y = centre.y + ((float)i - 1.0f) * step;
 
-    // The rules carry as much of this icon as the caps do, and at a quarter
-    // of the ink they were a hint rather than a line. They are a step back
-    // from the caps rather than a whisper.
+    // The rules a step back from the caps.
     g.setColour(colour.withMultipliedAlpha(0.62f));
     g.fillRoundedRectangle(left, y - track * 0.5f, w, track, track * 0.5f);
 
@@ -144,11 +124,8 @@ void drawMacroIcon(juce::Graphics &g, juce::Rectangle<float> area,
 
 void drawKeyboardIcon(juce::Graphics &g, juce::Rectangle<float> area,
                       juce::Colour colour) {
-  // Three white keys and the two black ones between them, which is the least
-  // of a keyboard that still reads as one.
-  //
-  // Fractions of the cap's height, as the faders beside it are, so the four
-  // icons in the block stay the same size as one another at any zoom.
+  // Three white keys and the two black ones between them, in fractions of the
+  // cap's height so the icons in the block match at any zoom.
   const auto h = area.getHeight();
   const auto outline = juce::jmax(1.0f, h * 0.07f);
   const auto keys = area.withSizeKeepingCentre(h * 0.88f, h * 0.65f);
@@ -169,8 +146,7 @@ void drawKeyboardIcon(juce::Graphics &g, juce::Rectangle<float> area,
 
 void drawTuningForkIcon(juce::Graphics &g, juce::Rectangle<float> area,
                         juce::Colour colour) {
-  // Two tines on a short stem, as tall as the keyboard beside it so the two
-  // stand in their caps with the same air above and below.
+  // Two tines on a short stem, as tall as the keyboard icon.
   const auto h = area.getHeight();
   const auto c = area.getCentre();
   const auto top = c.y - h * 0.325f;
@@ -194,9 +170,8 @@ void drawTuningForkIcon(juce::Graphics &g, juce::Rectangle<float> area,
 
 void drawToolIcon(juce::Graphics &g, juce::Rectangle<float> area,
                   juce::Colour colour, PointerTool tool) {
-  // The arrow sits left of centre when something stands beside it, and in
-  // the middle when nothing does, so the pair reads as one mark rather than
-  // as an arrow that has drifted.
+  // The arrow sits left of centre when a mark stands beside it, and in the
+  // middle when nothing does.
   const auto marked = tool != PointerTool::Pointer;
   const auto h = juce::jmin(area.getHeight() * 0.62f, area.getWidth() * 0.44f);
 
@@ -223,15 +198,12 @@ void drawToolIcon(juce::Graphics &g, juce::Rectangle<float> area,
   if (!marked)
     return;
 
-  // Centred on the arrow rather than on the button, so the two sit on one
-  // line whatever the button's height.
+  // Centred on the arrow rather than on the button.
   const auto markAt =
       juce::Point<float>(arrowAt.x + h * 0.88f, area.getCentreY());
 
   if (tool == PointerTool::Link) {
-    // Two rings side by side, overlapping, which is a chain at any size. The
-    // first attempt drew them as rounded bars touching the arrow, and at
-    // twenty pixels that is one blob rather than two links.
+    // Two overlapping rings, a chain.
     const auto r = h * 0.26f;
 
     g.drawEllipse(markAt.x - r * 1.7f, markAt.y - r, r * 2.0f, r * 2.0f, 1.3f);
@@ -239,13 +211,7 @@ void drawToolIcon(juce::Graphics &g, juce::Rectangle<float> area,
     return;
   }
 
-  // A drawn contour rather than a pencil.
-  //
-  // Two attempts at a pencil both read as a tick: at twenty pixels the body
-  // and the point are three or four pixels each and the eye joins them into
-  // one stroke. A contour is also the truer picture of what this tool does,
-  // which is to sweep a shape across the series rather than to mark a single
-  // control.
+  // A drawn contour, for sweeping a shape across the series.
   const auto w = h * 0.86f;
   const auto half = w * 0.5f;
 
@@ -260,8 +226,7 @@ void drawToolIcon(juce::Graphics &g, juce::Rectangle<float> area,
 }
 
 void ScreenSwitch::paintButton(juce::Graphics &g, bool highlighted, bool) {
-  // Two pixels in from the bounds, which is where the lip of the recess goes,
-  // so a run of them laid edge to edge leaves a margin of panel between each.
+  // Two pixels in from the bounds, so a run of them leaves panel between each.
   const auto area = getLocalBounds().toFloat().reduced(2.0f);
 
   paintRecess(g, area, 2.5f);
@@ -283,24 +248,21 @@ void ScreenSwitch::paintButton(juce::Graphics &g, bool highlighted, bool) {
 
   g.setFont(makeFont(10.0f, true));
 
-  // A half-pixel echo under the lit letter, the bloom a lit segment has on the
-  // readouts, which is most of what tells a lit letter from a bright one.
+  // A half-pixel echo under the lit letter, its bloom.
   if (on) {
     g.setColour(lamp.withAlpha(0.35f));
     g.drawText(getButtonText(), area.translated(0.0f, 0.5f),
                juce::Justification::centred, false);
   }
 
-  // Unlit, faint enough that a lit one beside it is unmistakable, and still
-  // there to be read, since the letter is what says which switch this is.
+  // Unlit, faint but still readable.
   g.setColour(ink);
   g.drawText(getButtonText(), area, juce::Justification::centred, false);
 }
 
 void GlowButton::paintButton(juce::Graphics &g, bool highlighted, bool down) {
-  // The icon is a function and cannot be compared, so it is in the key as a
-  // count of the times it has changed. Most buttons keep one icon for life
-  // and never move it. See iconChanged.
+  // The icon is a function and cannot be compared, so the key holds a count
+  // of its changes instead. See iconChanged.
   LookKey key;
   key.add(getButtonText())
       .add(getToggleState())
@@ -318,8 +280,7 @@ void GlowButton::paintButton(juce::Graphics &g, bool highlighted, bool down) {
 }
 
 void GlowButton::paintCap(juce::Graphics &g, bool highlighted, bool down) {
-  // What the cap is moulded in, for the few buttons that ask for a particular
-  // face. Everything else leaves it and the lamp decides.
+  // The cap colour, for the few buttons that set one.
   const auto fill = findColour(juce::TextButton::buttonColourId);
 
   if (auto *laf = dynamic_cast<OvertoniumLookAndFeel *>(&getLookAndFeel()))
@@ -327,27 +288,17 @@ void GlowButton::paintCap(juce::Graphics &g, bool highlighted, bool down) {
   else
     getLookAndFeel().drawButtonBackground(g, *this, fill, highlighted, down);
 
-  // The same ink whatever the lamp is doing. The word is printed on the
-  // plastic rather than being part of what lights, so it does not change
-  // colour under its own lamp, and the state is read off the cap alone.
+  // The same ink whatever the lamp is doing.
   const auto colour = OvertoniumLookAndFeel::lampLegend();
 
   const auto h = (float)getHeight();
 
-  // The cap rather than the whole button, or anything drawn on it runs out
-  // under the bezel: the moulding is part of this component.
+  // The cap rather than the whole button, which includes the bezel.
   const auto cap = OvertoniumLookAndFeel::lampCapBounds(
       getLocalBounds().toFloat(), OvertoniumLookAndFeel::lampGangOf(*this));
 
-  // An icon takes a flat ink rather than the ramp a word gets, and an opaque
-  // one rather than a translucent one.
-  //
-  // These are drawn as overlapping shapes: three rules with a handle sitting
-  // on each. Handed a colour with alpha in it, every overlap composites twice
-  // and the rule shows straight through the handle that is supposed to be
-  // sitting on it, which is a drawing bug rather than translucency. The ink
-  // is mixed against the plastic here instead and laid on solid, which is the
-  // same colour on the face and has no seams in it.
+  // An icon takes a flat opaque ink, mixed against the plastic here. Icons are
+  // overlapping shapes, and a translucent colour would show the overlaps.
   if (onIcon != nullptr) {
     const auto plastic =
         OvertoniumLookAndFeel::lampFace(fill, getToggleState());
@@ -359,13 +310,8 @@ void GlowButton::paintCap(juce::Graphics &g, bool highlighted, bool down) {
 
   const auto font = makeFont(juce::jlimit(8.0f, 13.0f, h * 0.58f), true);
 
-  // Centred on the cap, laid out across the whole width. Both halves matter.
-  // The cap decides where the middle is, because a ganged one is not centred
-  // in its component: it gives up a whole wall on the outside and half a wall
-  // where it joins, which put the M and the S a pixel out towards the ends of
-  // their block. The width is the button's because these are sized against
-  // the words they carry and REVERB fills its own to within a pixel either
-  // side, so fitting to the cap would take the B off it.
+  // Centred on the cap, since a ganged cap is not centred in its button, but
+  // as wide as the button, since the longest words would not fit the cap.
   const auto line = juce::Rectangle<float>((float)getWidth(), h)
                         .withCentre({cap.getCentreX(), h * 0.5f});
 
@@ -374,9 +320,8 @@ void GlowButton::paintCap(juce::Graphics &g, bool highlighted, bool down) {
                        line.getWidth(), line.getHeight(),
                        juce::Justification::centred, 1, 1.0f);
 
-  // Printed on the plastic rather than painted over it, so the lamp comes
-  // through it: thinnest over the middle where the lamp is, closing up
-  // towards the ends. See OvertoniumLookAndFeel::legendInk.
+  // Thinnest over the middle where the lamp shows through. See
+  // OvertoniumLookAndFeel::legendInk.
   g.setGradientFill(
       OvertoniumLookAndFeel::legendInk(colour, cap, getToggleState()));
 
@@ -386,16 +331,12 @@ void GlowButton::paintCap(juce::Graphics &g, bool highlighted, bool down) {
 juce::Colour bandColour(float t) {
   t = std::clamp(t, 0.0f, 1.0f);
 
-  // The band is the middle of a blue to yellow sweep, cropped at both ends.
-  // The full sweep put pure blue and pure yellow at the extremes, which was
-  // louder than a control surface wants. The hue passes through 360, so the
-  // wrap has to happen after interpolating rather than before.
+  // The middle of a blue to yellow sweep. The hue passes through 360, so it
+  // wraps after interpolating rather than before.
   const auto hue = 238.1f + t * (411.5f - 238.1f);
 
-  // Saturation and value fall towards the warm end because yellow reads far
-  // brighter than blue at equal nominal value. Without this the sevenths would
-  // be several times the luminance of the octaves and would visually swamp
-  // them.
+  // Saturation and value fall towards the warm end, since yellow reads far
+  // brighter than blue at equal value.
   const auto sat = 0.730f + t * (0.585f - 0.730f);
   const auto val = 0.954f + t * (0.863f - 0.954f);
 
@@ -409,18 +350,9 @@ juce::Colour intervalColour(int pitchClass) {
 }
 
 juce::Colour characterColour(Character c) {
-  // The three measured from a synthesizer or a sound chip light in a colour
-  // of the instrument they were measured from: 6581 in the blue of the
-  // startup screen of the computer the chip was made for, PD in the colour of
-  // the model name printed on the synthesizer, and FM in the green of the
-  // synthesizer's membrane buttons.
-  //
-  // The rest are there to tell the characters apart at a glance, so they are
-  // spread as far from each other and from those three as the hue wheel
-  // allows: all at one lightness and saturation in OKLCH, so none stands out
-  // for being brighter, with the eight hues placed in the gaps the three
-  // leave, about thirty degrees apart. The warm end keeps roughly the order
-  // the characters had, with Op-amp still red. Pure does not light.
+  // 6581, PD and FM in a colour of the instrument each was measured from. The
+  // rest at one OKLCH lightness and saturation, spread in hue to be told
+  // apart. Pure does not light.
   switch (c) {
   case Character::Sid:
     return juce::Colour(0xff867ade);
@@ -452,14 +384,8 @@ juce::Colour characterColour(Character c) {
   return colours::textDim;
 }
 
-// The machines light the same way: at the characters' lightness and
-// saturation, each set spread evenly round the hue wheel so the machines in it
-// are as far apart as they can be. Each set is turned so that the first
-// machine of each, which is what a new patch has, lands on a different colour
-// from the others and from Op-amp's red: Piano purple, Tape green, Room amber
-// and Soft teal. The reverb's three sit between the echo's, so the two buttons
-// beside each other never share a colour. Each is a list in the order of its
-// type, checked against the count when it is built.
+// The machines light at the characters' lightness and saturation, each set
+// spread evenly round the hue wheel, in the order of its type.
 
 juce::Colour resonatorColour(ResonatorMode m) {
   // Piano, Open, Octave and Series, a quarter of the wheel apart.
@@ -504,11 +430,8 @@ juce::Colour clipColour(ClipType t) {
 
 namespace {
 // -1 marks the one flexible row (the fader), which absorbs any leftover height.
-//
-// The two text rows are the height they are because of what stands in them.
-// Seven-segment digits are as wide as they are tall, so a row three pixels
-// shorter caps the cell width and a reading like -13.7 runs its figures into
-// each other. Three pixels on each of the two buys legible digits.
+// The two text rows are tall enough for seven-segment digits, which are as wide
+// as they are tall, to stay legible.
 constexpr int kRowHeights[kNumRows] = {
     26, // Header
     38, // TuneKnob
@@ -551,27 +474,12 @@ int rowHeight(Row r) {
 
 namespace {
 
-/// The height the fader wants, and now the least it is ever given.
-///
-/// There used to be a smaller floor beside this, 60, for a window too short to
-/// give every row its height: the fader was squeezed so that nothing had to
-/// scroll. Nothing has to fit any more, so the fader keeps the height it wants
-/// and the rows scroll past it instead, and a minimum below the ideal has
-/// nothing left to mean.
+/// The height the fader wants, and the least it is ever given.
 constexpr int kIdealFaderHeight = 92;
 
-/// The least the scrolling band is ever reduced to.
-///
-/// Enough for the mixer and a little of what is above it: the fader at its
-/// ideal height, its readout, the mute and solo pair, and a knob row or two
-/// for context. Below that the band stops being something you scroll and
-/// becomes a slot you hunt through.
-///
-/// This is what sets the shortest window the plugin allows, and that floor is
-/// the whole reason the scrolling works. It used to be the height of every row
-/// at once, 805, and at 150% zoom a 1080p screen offers about 577 for the
-/// strips, so zooming in far enough to read the knobs was not refused so much
-/// as impossible.
+/// The least the scrolling band is ever reduced to: the fader, its readout,
+/// the mute and solo pair and a knob row or two. This sets the shortest window
+/// the plugin allows.
 constexpr int kMinMiddleHeight = 240;
 
 int fixedHeight(SectionMask collapsed) {
@@ -640,9 +548,8 @@ Section sectionOf(Row r) {
   case Row::Pan:
     return Section::Output;
 
-  // Always on screen. Spelt out rather than left to a default so a new row
-  // has to be put in a section, or deliberately kept out of one, before it
-  // will build.
+  // Always on screen. Listed rather than defaulted, so a new row has to be
+  // put in a section or kept out of one before it will build.
   case Row::Header:
   case Row::TuneKnob:
   case Row::TuneText:
@@ -697,9 +604,7 @@ int preferredStripHeight(SectionMask collapsed) {
 }
 
 int minimumStripHeight(SectionMask) {
-  // No longer anything to do with how much is folded away, because nothing has
-  // to fit any more: what does not fit scrolls. The header is pinned and the
-  // band has a floor, and that is the whole of it.
+  // The same whatever is folded, since what does not fit scrolls.
   return kRowHeights[(size_t)Row::Header] + kMinMiddleHeight;
 }
 
@@ -725,11 +630,6 @@ int rowsAroundTheFader(SectionMask collapsed) {
 }
 } // namespace
 
-/// Every offset at which the band can rest: the top of each scrolling row.
-///
-/// Scrolling snaps to these at the top of the band so that nothing is ever
-/// half over the pinned header. The bottom is free to cut a row off, which is
-/// what tells you there is more below.
 int middleContentHeight(SectionMask collapsed) {
   return rowsAroundTheFader(collapsed) + kIdealFaderHeight;
 }
@@ -743,9 +643,7 @@ Bands layoutBands(juce::Rectangle<int> area, SectionMask collapsed) {
 
   const int around = rowsAroundTheFader(collapsed);
 
-  // The fader takes what is left over, and never less than it wants. Which
-  // means it grows in a window with room to spare, exactly as it always has,
-  // and stops growing the moment there is anything left to scroll.
+  // The fader takes what is left over, and never less than its ideal.
   out.faderHeight =
       juce::jmax(kIdealFaderHeight, out.middle.getHeight() - around);
 
@@ -764,17 +662,9 @@ RowBounds layoutRows(juce::Rectangle<int> area, SectionMask collapsed,
   RowBounds out;
   out[(size_t)Row::Header] = bands.header;
 
-  // The scrolling rows, a pixel at a time.
-  //
-  // A row may sit half over the top of the band. The column covers that with
-  // an opaque cap over its header, which also takes the mouse, so a row under
-  // it is neither seen nor clickable. At the foot there is nothing to cover: a
-  // row runs past the band and is cut off by the column's own edge, which is
-  // what shows there is more underneath.
-  //
-  // A row wholly outside the band comes back empty, which is what a folded row
-  // comes back as, so every caller already copes: the control hides itself and
-  // rowUnder cannot find it.
+  // The scrolling rows, a pixel at a time. A row partly under the header is
+  // covered by the column's HeaderCap. A row wholly outside the band comes
+  // back empty, as a folded row does.
   int y = bands.middle.getY() - clamped;
 
   for (int i = 0; i < kNumRows; ++i) {
@@ -790,8 +680,8 @@ RowBounds layoutRows(juce::Rectangle<int> area, SectionMask collapsed,
     const juce::Rectangle<int> at(bands.middle.getX(), y,
                                   bands.middle.getWidth(), h);
 
-    // Advanced for every row whether it is placed or not. Counting only the
-    // ones that were placed is what made short rows vanish out of order.
+    // Advanced for every row whether it is placed or not, so the rows keep
+    // their order.
     y += h;
 
     const bool gone = h == 0 || at.getBottom() <= bands.middle.getY() ||
@@ -833,10 +723,8 @@ bool rowHasControl(Row r) {
   case Row::Fader:
     return true;
 
-  // The rest carry no control: the header, the rules between the groups, and
-  // the two readouts, which answer with the control above them instead. Spelt
-  // out rather than left to a default so a new row has to be placed on one
-  // side or the other before it will build.
+  // The rest carry no control. Listed rather than defaulted, so a new row has
+  // to be placed on one side before it will build.
   case Row::Header:
   case Row::TuneText:
   case Row::PitchModHeading:
@@ -857,15 +745,12 @@ Row controlRowAt(const RowBounds &rows, juce::Point<int> p) {
   for (int i = 0; i < kNumRows; ++i) {
     const auto &row = rows[(size_t)i];
 
-    // Only the vertical span is tested. The strips carry a couple of pixels of
-    // margin either side, and losing the highlight in that margin would make
-    // the band flicker as the pointer crosses from one channel to the next.
+    // Only the vertical span is tested, so the highlight does not flicker in
+    // the margin between strips.
     if (p.y < row.getY() || p.y >= row.getBottom())
       continue;
 
-    // Two rows answer with the control above them, and everything else
-    // answers for itself. Two exceptions read better as exceptions than as a
-    // switch over twenty-eight rows to say something about two of them.
+    // The two readouts answer with the control above them.
     const auto here = (Row)i;
 
     if (here == Row::TuneText)
@@ -893,11 +778,8 @@ void repaintRowHighlight(juce::Component &c, const RowBounds &rows, Row row) {
 
 void mergeIntoRows(juce::Array<juce::Rectangle<int>> &regions) {
   for (int i = 0; i < regions.size(); ++i) {
-    // Copies, not references into the array. Array::remove shrinks the
-    // storage once the capacity is more than twice the size, and a reference
-    // held across that is pointing at freed memory. Whether it survives comes
-    // down to the allocator: shrinking in place, as glibc does, hides it, and
-    // moving the block, as macOS does, gives garbage.
+    // Copies, not references: Array::remove can shrink the storage and leave
+    // a reference pointing at freed memory.
     auto band = regions.getUnchecked(i);
 
     for (int j = regions.size(); --j > i;) {
@@ -917,8 +799,7 @@ void mergeIntoRows(juce::Array<juce::Rectangle<int>> &regions) {
 void coalesceRegions(juce::Array<juce::Rectangle<int>> &regions, int limit) {
   limit = juce::jmax(1, limit);
 
-  // Left to right, so the pairs considered for merging are neighbours in the
-  // mixer rather than opposite ends of it.
+  // Left to right, so the pairs considered for merging are neighbours.
   std::sort(regions.begin(), regions.end(),
             [](const juce::Rectangle<int> &a, const juce::Rectangle<int> &b) {
               return a.getX() < b.getX();
@@ -1077,10 +958,7 @@ LinkCurve linkCurveFromState(const juce::String &id, int legacy) {
     if (id == linkCurveId((LinkCurve)i))
       return (LinkCurve)i;
 
-  // Written before the names went in, when the list ran Uniform, Tilt up, Tilt
-  // down, Spread. Both tilts become the curve that replaced them, and Spread
-  // has to be moved down a place rather than left where its old index now
-  // points, which is a different curve entirely.
+  // The old index order was Uniform, Tilt up, Tilt down, Spread.
   switch (legacy) {
   case 1:
   case 2:
@@ -1093,8 +971,7 @@ LinkCurve linkCurveFromState(const juce::String &id, int legacy) {
 }
 
 namespace {
-/// Menu ids. Scopes and curves are offset so the two lists cannot be confused
-/// for one another, and neither can be confused for the switch.
+/// Menu ids, in separate blocks so they cannot clash.
 constexpr int kLinkToggleId = 1;
 constexpr int kClearSelectionId = 2;
 constexpr int kScopeBaseId = 100;
@@ -1146,10 +1023,8 @@ juce::PopupMenu buildToolMenu(PointerTool tool, const LinkSettings &settings) {
     m.addItem(kToolBaseId + i, pointerToolName((PointerTool)i), true,
               i == (int)tool);
 
-  // Only Link has anything to set, so the rest of the menu is its, and it
-  // greys out rather than disappearing when another tool is chosen: a menu
-  // that changed length as you moved through it would move the item under
-  // the pointer.
+  // Only Link has settings. They grey out under another tool rather than
+  // disappear, so the items do not move.
   const auto linking = tool == PointerTool::Link;
 
   m.addSeparator();
@@ -1158,9 +1033,7 @@ juce::PopupMenu buildToolMenu(PointerTool tool, const LinkSettings &settings) {
     m.addItem(kScopeBaseId + i, linkScopeName((LinkScope)i), linking,
               i == (int)settings.scope);
 
-  // Under the scopes, since the selection is what one of them reaches. Offered
-  // whichever tool is chosen, because a selection can be made with any of
-  // them and is still there, lit on the numbers, when it is not in use.
+  // Offered whichever tool is chosen, since a selection outlasts the tool.
   m.addItem(kClearSelectionId, "Clear selection", settings.hasSelection);
 
   m.addSeparator();
@@ -1186,8 +1059,8 @@ juce::PopupMenu buildLinkMenu(const LinkSettings &settings) {
   m.addItem(kLinkToggleId, "LINK", true, settings.enabled);
   m.addSeparator();
 
-  // The two lists are only worth reading while the switch is on, so they grey
-  // out with it rather than disappearing, which would move everything else.
+  // The lists grey out with the switch rather than disappear, so the items do
+  // not move.
   m.addSectionHeader("Scope");
   for (int i = 0; i < (int)LinkScope::NumScopes; ++i)
     m.addItem(kScopeBaseId + i, linkScopeName((LinkScope)i), settings.enabled,
@@ -1233,10 +1106,7 @@ float linkCurveWeight(LinkCurve c, int index0, int sourceIndex) {
 
   switch (c) {
   case LinkCurve::Taper:
-    // Measured against the full width rather than against whichever end
-    // happens to be nearer, so the reach is the same wherever you grab. Scaling
-    // it to the nearer end would make a grab on channel 2 drop channel 1 to
-    // nothing in a single step.
+    // Against the full width, so the reach is the same wherever you grab.
     return 1.0f - distance;
 
   case LinkCurve::Uniform:
@@ -1252,11 +1122,8 @@ float linkedValue(LinkCurve curve, float baseline, float delta, float weight,
   float value = baseline;
 
   if (curve == LinkCurve::Spread) {
-    // Pushing up scatters each strip along the direction it was given. Pulling
-    // down gathers them onto the strip being dragged rather than onto a fixed
-    // average, which keeps the knob in your hand as the thing everything
-    // collapses towards instead of leaving it stranded off to one side. Half a
-    // drag is enough to arrive, so the gesture completes in one movement.
+    // Pushing up scatters each strip along its jitter. Pulling down gathers
+    // them onto the dragged strip, arriving at half a drag.
     const auto gather = juce::jlimit(0.0f, 1.0f, -delta * 2.0f);
 
     value = delta >= 0.0f ? baseline + delta * jitter
@@ -1310,7 +1177,7 @@ const char *roleLabel(Role r) {
     return "level";
 
   // Listed rather than defaulted, so a new role has to be given a name before
-  // it will build. An unnamed control is invisible to a screen reader.
+  // it will build.
   case Role::NumRoles:
     break;
   }
@@ -1379,10 +1246,8 @@ const char *roleSuffix(Role r) {
 
 bool roleForRow(Row r, Role &out) {
   switch (r) {
-  // The shape rows deliberately have none. LINK drags a value across the
-  // series by a weighted curve, and there is no weighting a list of named
-  // shapes: half a sawtooth is not a shape. Setting them all at once is
-  // offered by the shape menu itself instead.
+  // The shape rows have none, since a list of shapes cannot be weighted. The
+  // shape menu sets them all at once instead.
   case Row::PmShape:
   case Row::AmShape:
     return false;
@@ -1445,8 +1310,7 @@ bool roleForRow(Row r, Role &out) {
     out = Role::Volume;
     return true;
 
-  // The rows LINK has nothing to reach: the header, the rules, the two
-  // readouts, and mute and solo, which are switches rather than values.
+  // The rows LINK has nothing to reach.
   case Row::Header:
   case Row::TuneText:
   case Row::PitchModHeading:

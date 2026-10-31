@@ -1,28 +1,12 @@
-// Turns a saved preset file into the C++ that adds it to Presets.cpp.
-//
-// Factory presets live as code rather than as embedded data, which is worth
-// having and costs a step: a patch dialled in by hand has to become a case in
-// ovt::presets::apply. The generator that does it, presets::factoryCode, has
-// always been there, but the only way to reach it was a build with
-// OVERTONIUM_PRESET_AUTHORING=1 and a click in a menu, which meant keeping a
-// second build of the plugin around to maintain the first one's presets.
+// Turns a saved preset file into the C++ case that adds it to Presets.cpp,
+// through presets::factoryCode, the same generator the plugin's own menu entry
+// uses.
 //
 //   preset_to_code <file.ovtpreset> [case-number]
 //
-// It writes the case body to stdout, so it pipes and diffs. Updating a preset
-// is then: save it from the plugin, run this, and paste over the case. There
-// is no transcription anywhere in that, which is the point: the values are
-// four-decimal roundings of 769 parameters and nothing reading them would
-// notice one going wrong.
-//
-// Deliberately the same code path the plugin's own menu entry uses rather than
-// a reimplementation. A generator that agreed with the plugin most of the time
-// would be worse than no generator, and the runtime test already holds
-// factoryCode to reproducing every factory preset it is given.
-//
-// It does not edit Presets.cpp. The cases carry hand-written comments above
-// them saying what the patch is and why, which no generator can write and
-// which a generator editing the file in place would quietly lose.
+// It writes the case body to stdout and does not edit Presets.cpp, so the
+// hand-written comments above each case stay as they are. CONTRIBUTING.md has
+// the full procedure.
 
 #include <cstdio>
 #include <memory>
@@ -56,12 +40,9 @@ int main(int argc, char **argv) {
 
   OvertoniumProcessor plugin;
 
-  // From the neutral base rather than from whatever a fresh processor defaults
-  // to. restore leaves anything the file does not mention alone, which is what
-  // lets an older preset load into a newer build, and here that would silently
-  // carry a default the patch never chose into the generated case. The
-  // generator measures against the neutral base, so starting there means the
-  // two agree about what "unchanged" is.
+  // From the neutral base, which the generator measures against, since restore
+  // leaves anything the file does not mention alone and a fresh processor's
+  // defaults would otherwise end up in the generated case.
   ovt::presets::neutralBase(plugin.apvts);
 
   const auto recognised = ovt::presets::restore(plugin.apvts, *doc);

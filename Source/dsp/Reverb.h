@@ -31,10 +31,11 @@ public:
   void prepare(double sampleRate) noexcept;
   void reset() noexcept;
 
-  /// Processes in place.
+  /// Processes in place. Does not allocate.
   void process(float *outL, float *outR, int numSamples,
                const ReverbParams &p) noexcept;
 
+  /// How long the tail rings after the input stops, zero when the room is off.
   float tailSeconds(const ReverbParams &) const noexcept;
 
 private:
@@ -54,6 +55,7 @@ private:
     void push(float x) noexcept;
   };
 
+  /// A Schroeder allpass, used to scatter the input before the network.
   struct Allpass {
     std::vector<float> buffer;
     int write = 0;

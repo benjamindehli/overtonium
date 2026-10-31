@@ -29,26 +29,15 @@ inline constexpr const char *tuningRootId = "tuningRoot";
 inline constexpr const char *referenceHzId = "referenceHz";
 inline constexpr const char *safetyClipId = "safetyClip";
 
-/// Which of the seven machines the output stage uses, when it is on.
-///
-/// Beside the switch rather than replacing it, for the reason echoTypeId is:
-/// a boolean every saved patch stores and every lane points at cannot become a
-/// choice of several without taking both with it.
+/// Which of the seven machines the output stage uses, when it is on. Kept
+/// beside the safetyClip switch, as echoTypeId is beside echoOn.
 inline constexpr const char *clipTypeId = "clipType";
 
 /// Whether the output stage is allowed its lookahead.
 ///
-/// A session parameter rather than part of a patch, which is what makes it
-/// safe: the whole reason the lookahead is paid by every shape is that a
-/// latency depending on the patch would have the host re-plan its graph each
-/// time a preset loaded. Nothing a preset can reach may move it, so this sits
-/// in Settings with the temperament and the polyphony and is listed in
-/// kSessionParamIds with them.
-///
-/// Off by default. Only the Limiter, Console and Cassette use the window at
-/// all, so with it on everyone who never reaches for them pays two
-/// milliseconds for nothing, and no factory preset uses them. On is there for
-/// anyone who does and wants it smooth.
+/// A session parameter in kSessionParamIds, so no preset can change the
+/// latency. Off by default, since only the Limiter, Console and Cassette use
+/// the lookahead.
 inline constexpr const char *lookaheadId = "lookahead";
 inline constexpr const char *mpeId = "mpe";
 inline constexpr const char *lofiRateId = "lofiRate";
@@ -58,34 +47,28 @@ inline constexpr const char *amInPhaseId = "amInPhase";
 inline constexpr const char *glideTriggerId = "glideTrigger";
 inline constexpr const char *glideModeId = "glideMode";
 
-/// Legato, beside the voice count rather than one entry in its list. With one
-/// voice it is the monophonic legato the list's first entry has always been,
-/// and with more the top line, where the highest held note carries on into a
-/// new key above the rest. See SynthEngine::setLegato.
+/// Legato, beside the voice count. With one voice it is monophonic legato,
+/// with more the top line, where the highest held note carries on into a new
+/// key above the rest. See SynthEngine::setLegato.
 inline constexpr const char *legatoId = "legato";
 
-/// How long a held note takes to slide to its new version when the adaptive
-/// temperament retunes it, from at once to a second. A session setting with
-/// the temperament it belongs to, so a preset never moves it. See
+/// How long a held note takes to slide to its new tuning when the adaptive
+/// temperament retunes it, from at once to a second. A session setting. See
 /// SynthEngine::settleAdaptive.
 inline constexpr const char *adaptiveRetuneId = "adaptiveRetune";
 
 /// Whether Adaptive tunes a minor seventh on the harmonic seventh, 7:4 above
-/// its root. On by default. A session setting beside the temperament it
-/// belongs to, so a preset never moves it.
+/// its root. On by default. A session setting.
 inline constexpr const char *adaptiveSeventhId = "adaptiveSeventh";
 
-/// Whether Adaptive keeps the held chord as near home as it can, moving a held
-/// note a comma when a progression would pump, rather than letting the
-/// keyboard drift. Off by default.
+/// Whether Adaptive keeps the held chord near home, moving a held note a
+/// comma when a progression would drift. Off by default.
 inline constexpr const char *adaptiveHomeId = "adaptiveHome";
 
 /// The longest a retune can take, in seconds.
 inline constexpr float kMaxAdaptiveRetuneSeconds = 1.0f;
 
-/// Two settings worth naming, which the Settings menu offers as quick ways to
-/// set the knob. Fast is quick enough to pass for a note that was always
-/// there and is the default, Smooth slow enough to hear the chord settle.
+/// Two named retune times the Settings menu offers. Fast is the default.
 inline constexpr std::array<double, 2> kAdaptiveRetuneSeconds{0.03, 0.3};
 inline constexpr std::array<const char *, 2> kAdaptiveRetuneNames{"Fast",
                                                                   "Smooth"};
@@ -95,13 +78,9 @@ inline constexpr const char *echoOnId = "echoOn";
 
 /// Which machine the repeats come from.
 ///
-/// Separate from the switch rather than replacing it, which is the whole of
-/// the compatibility story: echoOn is a boolean that every saved patch stores
-/// and every automation lane points at, and turning it into a four-position
-/// choice would take both with it. So the panel shows one control with four
-/// positions and writes two parameters, off writing the switch and the other
-/// three writing the switch and a type. A patch made before this existed says
-/// nothing about a type and gets the tape it was recorded on.
+/// Separate from echoOn rather than replacing it, so saved patches and
+/// automation lanes on echoOn keep working. The panel shows one four-position
+/// control that writes both. A patch without a type gets the tape echo.
 inline constexpr const char *echoTypeId = "echoType";
 inline constexpr const char *echoMixId = "echoMix";
 inline constexpr const char *echoTimeId = "echoTime";
@@ -110,8 +89,8 @@ inline constexpr const char *echoAgeId = "echoAge";
 
 inline constexpr const char *reverbOnId = "reverbOn";
 
-/// Which machine the tail comes from. Beside the switch rather than replacing
-/// it, for the reason echoTypeId is.
+/// Which machine the tail comes from. Beside reverbOn, as echoTypeId is
+/// beside echoOn.
 inline constexpr const char *reverbTypeId = "reverbType";
 inline constexpr const char *reverbMixId = "reverbMix";
 inline constexpr const char *reverbDecayId = "reverbDecay";
@@ -158,29 +137,16 @@ inline constexpr const char *panSuffix = "pan";
 
 // ---- macros -----------------------------------------------------------------
 
-/// How many rows can be automated as one.
+/// How many macros there are, so a row can be automated as one.
 ///
-/// Issue #24, which asked for it in the one place the instrument most needs
-/// it: a LINK drag across the TUNE row moves 32 parameters and the host
-/// catches only the last one touched, so a relationship you can edit by hand
-/// cannot be automated at all.
-///
-/// Eight, which is a pool rather than a count: a plugin declares its
-/// parameters once and neither VST3 nor AU can add one later, so "make a
-/// macro" means taking one of these and "remove it" means putting it back.
-/// The panel shows the ones in use and the host sees all eight.
-///
-/// Raising this later disturbs nothing, since parameters added on the end
-/// leave every lane already written pointing where it pointed. Lowering it
-/// would strand automation, so it is the one direction to be sure about.
+/// A fixed pool, since a plugin cannot add parameters later. The panel shows
+/// the ones in use and the host sees all of them. Raising this is safe, since
+/// parameters are appended. Lowering it would strand automation.
 inline constexpr int kNumMacros = 8;
 
-/// The rows a macro can drive, in the order the panel reads them.
-///
-/// Exactly the rows LINK can gang, which is the same restriction for the same
-/// reason: a row of shapes or of mute buttons has no value to offset. The UI
-/// names these again as ui::Role, in this order, and a test holds the two
-/// together rather than trusting them to stay in step.
+/// The rows a macro can drive, in the order the panel reads them. The same
+/// rows LINK can gang. The UI names these again as ui::Role, and a test keeps
+/// the two in step.
 inline constexpr const char *kMacroRows[] = {
     tuneSuffix,   glideSuffix,    pmRateSuffix,  pmDepthSuffix, driftSuffix,
     strikeSuffix, delaySuffix,    attackSuffix,  decaySuffix,   sustainSuffix,
@@ -192,23 +158,10 @@ inline constexpr int kNumMacroRows =
 
 /// Which channels a macro reaches.
 ///
-/// Three that need no argument and then one per interval, rather than a
-/// "same interval" that needs a second menu to say which. Everything from
-/// Interval onwards is a pitch class, so the entry at Interval + 7 is every
-/// channel a fifth above the fundamental: harmonics 3, 6, 12 and 24.
-///
-/// All twelve occur among 32 harmonics, though four of them reach a single
-/// channel, which makes those a way of naming one harmonic rather than a
-/// family. Listed anyway, since a list of intervals with gaps in it is
-/// stranger to read than a few narrow entries.
-///
-/// Selected comes after the twelve, on the end so a saved session or preset
-/// keeps the scope it had. A host's automation lane stores a choice as a share
-/// of the list's length, so a lane drawn before it existed lands a little
-/// further along. It reaches the channels the macro
-/// was given when it was set to Selected, taken from LINK's selection and
-/// kept with the macro, so picking other channels afterwards moves nothing.
-/// See MacroChannels.
+/// All, Odd, Even, then one entry per pitch class from Interval onwards, so
+/// Interval + 7 is every channel a fifth above the fundamental. Selected is
+/// last, so saved sessions keep their scope, and reaches the channels the
+/// macro was given from LINK's selection when it was set. See MacroChannels.
 enum class MacroScope {
   All = 0,
   Odd,
@@ -220,72 +173,51 @@ enum class MacroScope {
 inline constexpr int kNumMacroScopes = (int)MacroScope::Selected + 1;
 
 /// The channels each macro on Selected reaches, a bit per channel from the
-/// fundamental.
-///
-/// Not parameters. Eight lists of 32 channels would be 256 switches in every
-/// host's automation menu, or numbers no host should draw a lane for, and a
-/// list of channels is not something anyone automates. So they are kept
-/// beside the parameters, read by the audio thread from here, written into
-/// the session by the processor and into a preset file as an entry of their
-/// own by presets::capture.
+/// fundamental. Not parameters, since a channel list is not something to
+/// automate. Saved in the session and in preset files separately.
 using MacroChannels = std::array<std::atomic<std::uint32_t>, kNumMacros>;
 
-/// A channel mask as the harmonic numbers it holds, "3,5,9,12", which is how
-/// the session and a preset file write it, and back.
+/// A channel mask as the harmonic numbers it holds, "3,5,9,12", as the
+/// session and preset files write it, and back.
 juce::String channelListText(std::uint32_t mask);
 std::uint32_t channelListMask(const juce::String &text);
 
-/// How a macro is shared out across the channels it reaches.
-///
-/// LINK's third curve, Spread, is not here and cannot be: it scatters each
-/// strip along the direction the drag gave it, relative to the strip under
-/// the mouse, and a macro has neither a direction nor a strip under the
-/// mouse. Taper is measured from the fundamental for the same reason, that
-/// being the one channel a macro can anchor to.
+/// How a macro is shared out across the channels it reaches. Taper is
+/// measured from the anchor channel.
 enum class MacroCurve { Uniform = 0, Taper, NumCurves };
 
-/// The colours a macro can wear, so a control it drives can say which one
-/// has it. The first is no colour at all, for anyone who would rather the
-/// mixer stayed the colour the series makes it.
+/// The colours a macro can wear. The first is no colour.
 inline constexpr int kNumMacroColours = 9;
 
 const char *macroScopeName(int scope);
 
-/// Whether a macro with this scope reaches this channel.
+/// Whether a macro with this scope reaches this channel. Shared by the
+/// snapshot and the window so the tint always matches what is driven.
 ///
-/// Shared rather than written twice: the snapshot asks it to decide what to
-/// offset, and the window asks it to decide what to tint, and those two
-/// disagreeing would colour a control that is not being driven.
-///
+/// @param selected  the macro's own channels, which only Selected reads.
 /// @param selected  the macro's own channels, which only Selected reads.
 bool macroReaches(int scope, int index0, std::uint32_t selected = 0);
 
-/// This channel's share of a macro, from the fundamental outwards.
-///
-/// Shared for the same reason: the snapshot multiplies by it to work out the
-/// offset, and the window multiplies by it to work out where to light the
-/// ring, and a knob showing a result the engine is not playing would be worse
-/// than showing nothing.
+/// This channel's share of a macro. Shared by the snapshot and the window so
+/// the knob ring shows what the engine plays.
 /// @param anchor  the channel a taper leans on hardest, 0-based. Uniform
 ///                ignores it.
 float macroWeight(MacroCurve curve, int index0, int anchor);
 
-/// The range of a row a macro can drive, which is what an amount of 1 spans
-/// and whose skew a macro's own fader borrows, so that pushing the macro
-/// feels like turning the thing it drives. Row 1 is the first real one, since
-/// the list opens with None.
+/// The range of a row a macro can drive: what an amount of 1 spans, and the
+/// skew the macro's fader borrows. Row 0 is None.
 juce::NormalisableRange<float>
 macroRowRange(const juce::AudioProcessorValueTreeState &, int row);
 const char *macroCurveName(MacroCurve);
 const char *macroRowName(int row);
 const char *macroColourName(int colour);
 
-/// What a macro's tint actually is, or a fully transparent colour for the
-/// first entry. Defined in Theme.cpp beside the rest of the palette.
+/// A macro's tint, or a fully transparent colour for the first entry.
+/// Defined in Theme.cpp.
 juce::Colour macroColour(int colour);
 
-/// A macro's parameter ids. The amount is the one a host draws, and the row
-/// is what says whether the macro has been made at all: row 0 is None.
+/// A macro's parameter ids. The amount is the one a host draws, and row 0
+/// (None) means the macro is not in use.
 juce::String macroAmountId(int macro);
 juce::String macroRowId(int macro);
 juce::String macroScopeId(int macro);
@@ -294,15 +226,9 @@ juce::String macroColourId(int macro);
 juce::String macroAnchorId(int macro);
 
 /// What each modulation destination offers, in the order its parameter stores.
-///
-/// Two lists rather than one, because the destinations are not symmetrical.
-/// Pitch can be pushed either side of the note, so both squares mean something
-/// there. Amplitude only ever comes down from the fader, so a unipolar square
-/// would reach nowhere a bipolar one does not, and it offers one square that
-/// gates the whole depth.
-///
-/// Order is storage, not presentation: an index travels in every preset and
-/// every session, so entries are appended and never inserted or removed.
+/// Amplitude has no unipolar square, since it only comes down from the fader.
+/// Entries are appended only, since the index is saved in presets and
+/// sessions.
 inline const std::array<LfoShape, 8> kPitchShapes{
     LfoShape::Sine,          LfoShape::Triangle,
     LfoShape::Sawtooth,      LfoShape::ReverseSawtooth,
@@ -319,8 +245,8 @@ inline const std::array<LfoShape, 7> kAmpShapes{
 juce::StringArray pitchShapeNames();
 juce::StringArray ampShapeNames();
 
-/// The shape a stored index means, clamped, so a file written by a later build
-/// that knows more shapes lands on one this build has rather than out of range.
+/// The shape a stored index means, clamped so an index from a later build
+/// stays in range.
 LfoShape pitchShapeAt(int index);
 LfoShape ampShapeAt(int index);
 
@@ -328,20 +254,19 @@ LfoShape ampShapeAt(int index);
 juce::String oscParamId(const char *suffix, int index0);
 
 /// "noise_attack". The noise channel reuses the strip suffixes where they
-/// apply, and adds one of its own.
+/// apply.
 juce::String noiseParamId(const char *suffix);
 
 // ---- a switch across the whole mixer ----------------------------------------
 //
-// For mute and solo, which every channel carries and which are easy to leave
-// on somewhere down a series of thirty-three.
+// For mute and solo, which every channel carries.
 
 /// How many channels have this switch on, the noise channel among them.
 int channelsSwitchedOn(juce::AudioProcessorValueTreeState &,
                        const char *suffix);
 
-/// Turns it off wherever it is on, and leaves the rest untouched, so a host
-/// sees a gesture only on the channels that actually moved.
+/// Turns it off wherever it is on, so a host sees a gesture only on the
+/// channels that moved.
 void clearChannelSwitch(juce::AudioProcessorValueTreeState &,
                         const char *suffix);
 
@@ -357,27 +282,19 @@ inline constexpr const char *stringPointSuffix = "stringPoint";
 inline constexpr float kMaxStringDecaySeconds = 10.0f;
 inline constexpr float kStringDecayDefault = 1.5f;
 
+/// Every parameter the plugin declares, in host order.
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
-/// Default fader level for a partial: a 1/n roll-off over the first octave-and-
-/// a-bit, which lands somewhere between a drawbar organ and a soft sawtooth.
+/// Default fader level for a partial, a 1/n roll-off over the first octave
+/// and a bit.
 float defaultVolumeFor(int index0);
 
 /// What a strike amount comes to on this strip, as the popup under the knob
-/// shows it: "+81 %  2.0 ms to 512 ms".
-///
-/// The percentage on its own is not something a player can act on. It is the
-/// two times it produces that are being dialled in, and until the panel said
-/// them there was no way to find out but to play a note and listen.
-///
-/// Deliberately not what the host is told. A generic parameter lane can only be
-/// given the parameter's own value, since the figure below depends on two other
-/// controls on the same strip, and a lane that quietly disagreed with the panel
-/// would be worse than one that says less.
+/// shows it: "+81 %  2.0 ms to 512 ms". Not given to the host, since it
+/// depends on two other controls.
 ///
 /// @param delay,attack  this strip's own two rows, in seconds. At an amount of
-///                      nought there is nothing to say about them, so only the
-///                      percentage comes back.
+///                      zero only the percentage comes back.
 juce::String strikeRangeText(float amount, float delay, float attack);
 
 /// Cached atomic pointers, resolved once so the audio thread never does a
@@ -438,9 +355,7 @@ struct Cache {
 
   NoiseChannel noise{};
 
-  /// A macro and what it reaches, plus the span of the row it drives so the
-  /// offset can be worked out without asking the parameters again on the
-  /// audio thread.
+  /// A macro's parameters.
   struct Macro {
     std::atomic<float> *amount = nullptr;
     std::atomic<float> *row = nullptr;
@@ -455,8 +370,8 @@ struct Cache {
   /// since nothing in the parameter tree holds it.
   MacroChannels macroChannels{};
 
-  /// The low and high end of every row a macro can drive, read once. Every
-  /// channel's copy of a row shares one range, so one pair answers for all 32.
+  /// The range of every row a macro can drive, read once. Every channel shares
+  /// one range per row.
   std::array<juce::NormalisableRange<float>, (size_t)kNumMacroRows> rowRange{};
 
   std::atomic<float> *masterGain = nullptr;
@@ -517,64 +432,43 @@ struct Cache {
   Reverb reverb{};
   Resonator resonator{};
 
+  /// Resolves every pointer. Call once, after the APVTS is built.
   void connect(juce::AudioProcessorValueTreeState &apvts);
 
   /// Builds an audio-thread snapshot. @param bendNormalised is -1..1 from the
   /// MIDI wheel.
   void snapshot(SynthParams &out, float bendNormalised) const;
 
+  /// The voice count the polyphony choice allows.
   int polyphonyValue() const;
 
-  /// Whether the polyphony choice is the legato one.
+  /// Whether legato is on, from its switch or the old Legato choice.
   bool legatoValue() const;
 };
 
-/// The polyphony choices, in parameter order.
-/// The voice count each choice allows, in parameter order.
-///
-/// Legato heads the list and is also one voice, so the first two entries agree
-/// on the number and differ in what happens when a key goes down while another
-/// is still held. See kLegatoIndex.
+/// The voice count each polyphony choice allows, in parameter order. The
+/// first two are both one voice. See kLegatoIndex.
 inline const std::array<int, 8> kPolyphonyChoices{1, 1, 2, 4, 6, 8, 12, 16};
 
-/// The list's first entry, monophonic legato. Legato is a switch of its own
-/// now, and the entry stays because a stored choice is a position in this
-/// list: taking it out would move every saved session and automation lane to
-/// the count above. The menu no longer offers it, and a session that stored
-/// it plays as the switch on with one voice, which is exactly what it was.
+/// The list's first entry, monophonic legato. Legato is now its own switch
+/// and the menu no longer offers this, but it stays so stored choices keep
+/// their position. A stored 0 plays as legato with one voice.
 inline constexpr int kLegatoIndex = 0;
 
 /// "Legato", "1 voice", "2 voices" and so on.
 juce::String polyphonyName(int index);
 
-/// What a preset leaves alone.
-///
-/// How you play the instrument and what it is tuned to. A patch describes a
-/// sound, and none of these are part of one: a temperament and a reference
-/// pitch belong to the music you are playing, and polyphony and bend range to
-/// the keyboard you are playing it on. Loading a sound should move none of
-/// them.
-///
-/// This is everything the settings menu offers. That is the rule rather than a
-/// coincidence: the menu is where the instrument is set up and the panel is
-/// where the sound is made, so anything that appears in the menu belongs here.
-/// Adding a setting means adding it here too.
-///
-/// The master fader and the clipper were here and are not any more. The output
-/// stage became seven machines rather than a guard with a switch, which makes
-/// it part of the sound, and the master sits in front of it, so how hard a
-/// patch drives it is something the patch has to be able to say. The cost is
-/// honest: loading a preset now moves the output level.
-///
-/// Named here rather than in Presets.cpp so the code that honours the rule and
-/// the test that checks it cannot come to disagree about what the rule is.
+/// What a preset leaves alone: how the instrument is played and what it is
+/// tuned to, which is everything the Settings menu offers. Adding a setting
+/// means adding it here too. Named here so the preset code and its test
+/// share one list.
 inline const std::array<const char *, 15> kSessionParamIds{
     polyphonyId,      bendRangeId,       atSourceId,    referenceHzId,
     temperamentId,    tuningRootId,      mpeId,         slideDestId,
     oneVoicePerKeyId, phaseResetId,      lookaheadId,   legatoId,
     adaptiveRetuneId, adaptiveSeventhId, adaptiveHomeId};
 
-/// Whether `id` is one of those, for the several places that have to ask.
+/// Whether `id` is one of those.
 inline bool isSessionParam(juce::StringRef id) {
   for (auto *session : kSessionParamIds)
     if (id == juce::StringRef(session))
@@ -583,70 +477,39 @@ inline bool isSessionParam(juce::StringRef id) {
   return false;
 }
 
-/// How far the two pitch wanderers can each take a partial, in cents.
-///
-/// An octave for the modulator, which is there for the shapes that step rather
-/// than sweep: a square on the pitch is a trill and sample and hold is a run
-/// of random notes, and both want real intervals rather than a vibrato's worth
-/// of one. The taper keeps the bottom of the knob where it was, both settings
-/// reaching 25 cents at half travel, and what used to be the whole range now
-/// ends at about three quarters.
-///
-/// The range belongs to the knob rather than to any one shape. A knob whose
-/// end moved with the shape beside it would either read out a number it was
-/// not doing or have a dead stretch at the top, and both are worse than a
-/// sine that can sweep further than anyone needs.
+/// How far the two pitch wanderers can each take a partial, in cents. An
+/// octave for the modulator so stepped shapes can play real intervals, with a
+/// taper that puts 25 cents at half travel.
 inline constexpr float kMaxPitchModCents = 1200.0f;
 inline constexpr float kMaxDriftCents = 25.0f;
 
-/// The longest glide a channel can be given, in seconds, or seconds per octave
-/// under GlideMode::Rate. Five is past anything a portamento is used for and
-/// short enough that the knob's travel is mostly spent where it is played.
+/// The longest glide a channel can be given, in seconds, or seconds per
+/// octave under GlideMode::Rate.
 inline constexpr float kMaxGlideSeconds = 5.0f;
 
 /// Where the needle on the PITCH MOD lamp reads full scale, in cents.
 ///
-/// Deliberately not the knob's maximum, which is the one place in this
-/// instrument a readout and the control feeding it are allowed to disagree.
-/// The needle is for watching vibrato, drift and the end of a glide, and those
-/// live in the first tens of cents: scaled to the octave a square can now jump,
-/// ordinary modulation would sit within a couple of percent of centre and the
-/// lamp would show nothing at all. Past this it pegs, which is honest about
-/// being off the end of a scale rather than pretending to a resolution it does
-/// not have. A test holds it against the drift range so it cannot quietly
-/// shrink below what the other wanderer alone can produce.
+/// Smaller than the knob's maximum so vibrato and drift are visible. Past
+/// this the needle pegs. A test keeps it above the drift range.
 inline constexpr float kPitchNeedleFullScaleCents = 225.0f;
 
 /// The pitch classes a temperament can be built on, in parameter order.
 inline const std::array<const char *, 12> kPitchClassNames{
     "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 
-/// Reference pitches worth offering, in parameter order. Baroque at one end,
-/// old concert pitch at the other, and the handful of values orchestras
-/// actually use in between.
+/// Reference pitches worth offering, in parameter order, from baroque to old
+/// concert pitch.
 inline const std::array<int, 11> kReferenceHzChoices{
     415, 430, 432, 435, 438, 440, 442, 443, 444, 446, 466};
 
-/// What drives the per-channel AT amount, in parameter order.
-///
-/// Aftertouch is the natural source and the one the row is named for, but most
-/// keyboards do not have it, and the wheel is the control everybody's hand
-/// already goes to. So the wheel can stand in for it, and by default does, at
-/// no cost to a controller that sends pressure: a wheel left alone reads zero
-/// and changes nothing.
-///
-/// Polyphonic aftertouch is not on this list. It is per note rather than per
-/// channel, there is nothing ambiguous about where it should go, and it stays
-/// routed whatever this says.
+/// What drives the per-channel AT amount, in parameter order. Polyphonic
+/// aftertouch is always routed, whatever this says.
 enum class AftertouchSource { ChannelPressure = 0, ModWheel, Either };
 
 inline const juce::StringArray slideDestChoices{"Off", "Brightness", "Tuning"};
 
-/// What the oscillator characters are called, in parameter order.
-///
-/// Taken from the names the DSP core already carries rather than written out
-/// again here, so the menu, the button and the enum cannot come to disagree.
-/// See Character.h for what each one is.
+/// What the oscillator characters are called, in parameter order, taken from
+/// the DSP core's own names. See Character.h.
 inline const juce::StringArray &characterChoices() {
   static const juce::StringArray names = [] {
     juce::StringArray out;
@@ -663,13 +526,12 @@ inline const juce::StringArray &characterChoices() {
 inline const std::array<const char *, 3> kAftertouchSourceNames{
     "Channel pressure", "Mod wheel", "Either"};
 
-/// Render rates, in parameter order. Zero means the host's own, which is the
-/// default and the only entry that is not a reduction.
+/// Render rates, in parameter order. Zero means the host's own rate, the
+/// default.
 inline const std::array<int, 8> kLofiRateChoices{0,     32000, 22050, 16000,
                                                  11025, 8000,  6000,  4000};
 
-/// Quantiser depths, in parameter order. Zero means none, which is the default
-/// and is what the rest of the instrument runs at anyway.
+/// Quantiser depths, in parameter order. Zero means none, the default.
 inline const std::array<int, 9> kLofiBitChoices{0, 16, 12, 10, 8, 6, 4, 3, 2};
 
 /// What the menu calls each of them.
@@ -678,34 +540,27 @@ juce::String lofiBitName(int bits);
 
 // ---- reading a level back -----------------------------------------------
 //
-// Three places turn a level into text: the channel readout, the noise readout
-// and the string the host is given. They have to agree, so the floor and the
-// test for silence live here rather than three times over.
+// The channel readout, the noise readout and the host's text share this
+// floor and test for silence.
 
-/// The quietest level a readout counts down to, in decibels.
-///
-/// Set by the width of a seven-segment readout, which holds a sign and four
-/// digits: -99.9 is the quietest figure that fits and -100.0 is the first that
-/// does not. Nothing about the fader stops below it, and the range from here to
-/// silence is a hair of travel, so this is a limit on what can be said rather
-/// than on what can be set.
+/// The quietest level a readout shows, in decibels: -99.9 is the quietest
+/// figure that fits the seven-segment display. The fader goes lower.
 inline constexpr float kQuietestLevelDb = -99.9f;
 
 /// Whether a gain is quieter than any reading could describe.
 inline bool isSilentGain(float gain) noexcept {
-  // Half a display step below the floor, so a level that would round up to the
-  // floor is still given its number instead of being called silence.
+  // Half a display step below the floor, so a level that rounds to the floor
+  // still shows its number.
   return gain <= juce::Decibels::decibelsToGain(kQuietestLevelDb - 0.05f);
 }
 
-/// The decibel figure a readout shows for a gain.
-///
-/// Floored, so it can never ask for a character the display has no cell for.
+/// The decibel figure a readout shows for a gain, floored to what the
+/// display can show.
 inline float levelDecibels(float gain) noexcept {
   return juce::Decibels::gainToDecibels(gain, kQuietestLevelDb);
 }
 
-// The shape of a level fader's travel is levelRange in PluginParameters.cpp,
-// which nothing outside it needs to name.
+// The shape of a level fader's travel is levelRange in
+// PluginParameters.cpp.
 
 } // namespace ovt::params

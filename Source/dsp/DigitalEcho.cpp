@@ -6,17 +6,8 @@
 namespace ovt {
 
 namespace {
-/// What AGE costs the repeats, at the top of the knob.
-///
-/// Eight samples held is the host rate divided by eight, which at 48 kHz is
-/// six, and six bits is sixty-four steps. Both are well past tasteful and that
-/// is the point of the end of a knob: the useful settings are the ones on the
-/// way there, where a repeat is recognisably the signal and audibly older
-/// than it.
-///
-/// Nothing at all at the bottom, rather than a great many bits and a small
-/// hold. A digital delay's whole claim is that a repeat is a copy, so the
-/// clean end of this control has to be exactly that and not nearly that.
+/// What AGE costs the repeats, at the top of the knob. At the bottom there is
+/// no reduction at all, so a repeat is an exact copy.
 constexpr int kMaxHold = 8;
 constexpr float kFewestBits = 6.0f;
 constexpr float kMostBits = 16.0f;
@@ -52,9 +43,8 @@ float DigitalEcho::roughen(Side &s, float x, int hold, float levels) noexcept {
   if (hold <= 1 && levels <= 0.0f)
     return x;
 
-  // The rate first, then the depth, which is the order a converter meets them
-  // and the order that leaves the steps where the ear expects: quantising and
-  // then holding would smear a step across the hold rather than landing on it.
+  // The rate first, then the depth, as a converter meets them, so a step lands
+  // on the hold rather than being smeared across it.
   if (hold > 1) {
     if (--s.remaining <= 0) {
       s.held = x;
@@ -147,14 +137,8 @@ void DigitalEcho::process(float *outL, float *outR, int numSamples,
     const auto dryL = outL[n];
     const auto dryR = outR[n];
 
-    // The input arrives on one side only, and every repeat crosses. That is
-    // the whole of the ping-pong: what the right side holds is what the left
-    // one handed it a delay ago, so the repeats alternate rather than the two
-    // sides each carrying their own copy.
-    //
-    // Summed to the middle on the way in, because a repeat that crosses has
-    // to start somewhere, and starting it on one side of the stereo field
-    // would put the first repeat there rather than the dry signal.
+    // Ping-pong: the input, summed to mono, enters the left side only, and
+    // every repeat crosses to the other side.
     left.buffer[(size_t)left.write] = 0.5f * (dryL + dryR) + wetR * feedback;
     right.buffer[(size_t)right.write] = wetL * feedback;
 
@@ -163,18 +147,9 @@ void DigitalEcho::process(float *outL, float *outR, int numSamples,
     if (++right.write >= bufferLength)
       right.write = 0;
 
-    // The wear is on the way out and not on the way round, which matters more
-    // than it looks. A quantiser inside a feedback loop has a fixed point: one
-    // step times a feedback of a half rounds back up to one step, so the tail
-    // reaches the bottom bit and stays there for ever. It was audible as a low
-    // sound that never went away, at every feedback from a half upwards, and
-    // still there twenty-five seconds later.
-    //
-    // Nothing is lost by moving it. The step the repeats are quantised to
-    // stays the same size while they get quieter, so the tenth repeat is
-    // crushed against a far coarser grid than the first, which is exactly what
-    // a converter does to something fading away and is the same progression
-    // this had when the wear was inside the loop.
+    // The wear is on the way out and not inside the loop. A quantiser inside a
+    // feedback loop has a fixed point at the bottom step, which would leave a
+    // tail that never decays.
     const auto wornL = roughen(left, wetL, hold, levels);
     const auto wornR = roughen(right, wetR, hold, levels);
 

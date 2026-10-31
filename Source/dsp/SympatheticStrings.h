@@ -95,9 +95,7 @@ public:
 
   /// How much the resonator is turned up on the way out, in decibels, so that
   /// on a held chord at the default DECAY it is about as loud as the
-  /// instrument and turning MIX up does not turn the sound down. Measured
-  /// for each mode, since they ring very differently: Octave has only twelve
-  /// tempered strings, which most partials miss.
+  /// instrument. Set per mode, since they ring very differently.
   static float makeUpDecibels(ResonatorMode) noexcept;
 
   /// How quickly the instrument's level and the resonator's follow MIX, the

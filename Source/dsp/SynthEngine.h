@@ -25,15 +25,8 @@ namespace ovt {
 /// What the speed of a key coming up does to the tail it leaves behind.
 ///
 /// A release velocity of 64 is neutral, 127 leaves twice the level and 1 half
-/// of it, geometrically, so two steps down and two steps up undo each other.
-///
-/// Zero is neutral as well, which is the whole reason this is safe to have on
-/// with nothing on the panel to switch it off. A keyboard that cannot sense a
-/// release does not send 64: plenty send a note-off carrying zero, and plenty
-/// send a note-on of velocity zero instead of a note-off at all, which arrives
-/// here as a release of zero. Reading that as the softest possible lift would
-/// halve the tail of every note those players ever release. Nothing is lost by
-/// it either, since a lift of 1 is the same gesture as a lift of 0.
+/// of it, geometrically. Zero is neutral too, since many keyboards send zero
+/// or a note-on of velocity zero when they cannot sense release.
 inline float liftFromVelocity(int velocity) noexcept {
   if (velocity <= 0)
     return 1.0f;
@@ -45,11 +38,13 @@ inline float liftFromVelocity(int velocity) noexcept {
 
 /// Polyphonic voice pool.
 ///
-/// The pool is deliberately larger than the maximum user-selectable polyphony:
-/// when a note is stolen the old voice is handed a 4 ms fade and keeps
-/// rendering out of the surplus, so stealing never clicks.
+/// The pool is larger than the maximum user-selectable polyphony, so a
+/// stolen voice can finish its 4 ms fade from the surplus and stealing
+/// never clicks.
 class SynthEngine {
 public:
+  /// The most voices a player can ask for, and the pool behind them with
+  /// room for stolen voices to fade.
   static constexpr int kMaxPolyphony = 16;
   static constexpr int kPoolSize = kMaxPolyphony + 8;
 
@@ -58,8 +53,8 @@ public:
 
   /// The held chord as Adaptive last settled it, for the Tuning bar. Copies it
   /// into @p out and returns true if it has been settled again since the last
-  /// call, or returns false and leaves @p out alone. From one thread only, and
-  /// not the audio thread, which is the one writing it.
+  /// call, or returns false and leaves @p out alone. Call from one thread
+  /// only, not the audio thread, which writes it.
   bool readAdaptiveSnapshot(AdaptiveSnapshot &out) noexcept {
     return adaptiveSnapshots.read(out);
   }
@@ -68,13 +63,13 @@ public:
   /// told along with the bus stage's. Valid once prepare has run.
   int outputLatency() const noexcept { return outputStage.latency(); }
 
+  /// How many voices may sound at once, up to kMaxPolyphony.
   void setPolyphony(int n) noexcept;
 
   /// Legato. With one voice the instrument is monophonic and the envelope
-  /// carries on rather than starting again while any key is still down. With
-  /// more it plays a top line: a key landing above everything held but the
-  /// highest note carries that note's phrase on, and the rest of the keyboard
-  /// plays as it always does. See noteOnImpl.
+  /// carries on while any key is still down. With more it plays a top line: a
+  /// key landing above everything held but the highest note carries that
+  /// note's phrase on. See noteOnImpl.
   void setLegato(bool on) noexcept;
 
   /// How far apart two key presses can be and still count as one chord, in
@@ -84,15 +79,15 @@ public:
 
   /// How far below the top note a key can land and still be read as the
   /// melody stepping down, when nothing held under it says otherwise, in
-  /// semitones. A major third: melodies move by seconds and thirds, and the
-  /// top of a chord struck under a held melody usually sits further down.
+  /// semitones.
   static constexpr int kStepDown = 4;
 
   /// How quickly a note that has handed its phrase on goes once its key is up,
-  /// in seconds. Short enough that a legato melody does not smear into a pad,
-  /// long enough not to click.
+  /// in seconds. Short enough not to smear, long enough not to click.
   static constexpr double kHandoffFadeSeconds = 0.02;
 
+  /// Ordinary keyboard notes, which belong to no channel. A lift is the
+  /// release velocity as a gain. See liftFromVelocity.
   void noteOn(int note, float velocity, const SynthParams &p) noexcept;
   void noteOff(int note, float lift = 1.0f) noexcept;
   void setSustainPedal(bool down) noexcept;
@@ -102,16 +97,10 @@ public:
 
   // ---- notes that own a channel each ---------------------------------------
   //
-  // For a controller that gives every note its own MIDI channel so it can bend
-  // and press each one separately. The channel is part of the note's identity
-  // here, which is the whole difference: the same key can be down twice at
-  // once on two channels, bent in two directions, and the two are different
-  // voices rather than one retriggering the other.
-  //
-  // These sit alongside the ordinary entry points rather than replacing them,
-  // and the two can be in use at the same time. A voice started by the calls
-  // above belongs to no channel and is only ever found by them, so an ordinary
-  // keyboard playing at the same time can neither steal nor stop one of these.
+  // For MPE, where every note has its own MIDI channel. The channel is part of
+  // the note's identity, so the same key can sound twice on two channels.
+  // These sit alongside the ordinary entry points, and voices started by one
+  // kind are never found by the other.
 
   /// @param channel  1 to 16, and never 0, which is what an ordinary note uses.
   void noteOnPerNote(int channel, int note, float velocity,
@@ -136,10 +125,8 @@ public:
   int getActiveVoiceCount() const noexcept;
 
   /// The widest bend and the strongest pressure on any key still down, the
-  /// pedal's included, for the Playing bar's meters. A key let go is left out,
-  /// so a meter falls back as the key comes up rather than when its tail ends.
-  /// Only what belongs to each note: the wheel and channel pressure are the
-  /// processor's.
+  /// pedal's included, for the Playing bar's meters. Released keys are left
+  /// out. The wheel and channel pressure are tracked by the processor.
   struct HeldExpression {
     /// Signed, in semitones, whichever way the widest one goes.
     float bendSemitones = 0.0f;
@@ -149,24 +136,21 @@ public:
   HeldExpression heldExpression() const noexcept;
 
   /// Where a key that is down is sounding, before any bend or glide, or zero
-  /// if no voice is holding it. What the adaptive temperament chose is not
-  /// visible anywhere else, which is why this exists.
+  /// if no voice is holding it. The only place the adaptive temperament's
+  /// choice can be read.
   double frequencyOfNote(int note) const noexcept;
 
   /// Where a key would sound if it were struck now into silence: the
   /// temperament's pitch for it, or under Adaptive the version its pitch class
-  /// was last given. Where the sympathetic strings of keys nobody is holding
-  /// sit.
+  /// was last given. Used for the sympathetic strings of unheld keys.
   double restingFrequency(int note, const SynthParams &) const noexcept;
 
   /// Which sympathetic strings sound this block, tuned to what, and whose
   /// dampers are up. Public for the tests.
   SympatheticStrings::Plan planStrings(const SynthParams &) const noexcept;
 
-  /// Loudest instance of each partial across the sounding voices, 0..1.
-  ///
-  /// The loudest rather than the sum, so the display shows the shape of the
-  /// patch and does not simply pin itself the moment you play a chord.
+  /// Loudest instance of each partial across the sounding voices, 0..1. The
+  /// loudest rather than the sum, so a chord does not pin the display.
   float getPartialLevel(int index0) const noexcept {
     return partialLevels[(size_t)index0].load(std::memory_order_relaxed);
   }
@@ -178,10 +162,8 @@ public:
 
   // ---- what the strip lamps show -------------------------------------------
   //
-  // All taken from the same voice that produced the meter reading for that
-  // partial, which is the loudest one. Reading each from whichever voice
-  // happened to be furthest through its own envelope would have the lamps
-  // describing a note you cannot pick out of the chord.
+  // All taken from the voice that produced the meter reading for that
+  // partial, which is the loudest one.
 
   /// Envelope position, signed negative once the key-off stage has taken over.
   float getPartialEnvelope(int index0) const noexcept {
@@ -198,8 +180,8 @@ public:
     return partialPitches[(size_t)index0].load(std::memory_order_relaxed);
   }
 
-  /// How far velocity and aftertouch have moved this partial from its fader,
-  /// See Voice::getPartialVelocities.
+  /// How far velocity has moved this partial from its fader. See
+  /// Voice::getPartialVelocities.
   float getPartialVelocity(int index0) const noexcept {
     return partialVelocities[(size_t)index0].load(std::memory_order_relaxed);
   }
@@ -227,8 +209,7 @@ public:
   }
 
   /// Peak of the finished output per channel, after master gain and the
-  /// clipper, so it reports what actually leaves the plugin. Kept separate
-  /// because stereo spread is the whole reason the two can differ.
+  /// output stage, so it reports what actually leaves the plugin.
   float getOutputLevelLeft() const noexcept {
     return outputLevelL.load(std::memory_order_relaxed);
   }
@@ -250,21 +231,20 @@ public:
   }
 
 private:
-  /// Is this the voice holding that note on that channel?
-  ///
-  /// Channel 0 means an ordinary keyboard note, which belongs to no channel,
-  /// so the same comparison serves both kinds and keeps them from finding each
-  /// other. See the per-note entry points above.
+  /// Is this the voice holding that note on that channel? Channel 0 is an
+  /// ordinary keyboard note, so the same comparison keeps the two kinds apart.
   static bool matches(const Voice &v, int channel, int note) noexcept;
 
+  /// Where both kinds of note on and off end up, channel 0 for an ordinary
+  /// note.
   void noteOnImpl(int channel, int note, float velocity,
                   const SynthParams &p) noexcept;
   void noteOffImpl(int channel, int note, float lift) noexcept;
 
   Voice *findFreeVoice() noexcept;
   /// The oldest sounding voice other than `spare`, which is the top line when
-  /// there is one: stealing the melody to make room for the chord under it is
-  /// the one theft that is always heard.
+  /// there is one, since stealing the melody is always heard. `spare` goes
+  /// only when nothing else can.
   Voice *findOldestSounding(int spare = -1) noexcept;
 
   /// The voice it costs least to take outright, for when the pool has nothing
@@ -279,10 +259,8 @@ private:
                     const SynthParams &p) noexcept;
 
   /// What one render pass found worth showing, before it is published.
-  ///
-  /// Gathered rather than stored straight into the atomics because the lo-fi
-  /// path calls sumVoices several times for one block, and a lamp should show
-  /// where the block ended rather than flickering through its chunks.
+  /// Gathered first because the lo-fi path calls sumVoices several times per
+  /// block, and the lamps should show where the block ended.
   struct Activity {
     std::array<float, kNumHarmonics> peaks{};
     std::array<float, kNumHarmonics> envelopes{};
@@ -291,25 +269,14 @@ private:
     std::array<float, kNumHarmonics> velocities{};
     std::array<float, kNumHarmonics> pressures{};
 
-    /// Whether any voice has reported this partial yet in this pass.
-    ///
-    /// Peak-wins decides between voices. It is not a threshold for reporting
-    /// at all, and read as one it loses the whole strip exactly when the
-    /// strip has something to say: a partial can be sounding at a peak of
-    /// zero, because a negative AFTERTOUCH amount has taken its level to the
-    /// bottom of the clamp, or because the fader is down or the partial is
-    /// above Nyquist. Without this the first test is "is it louder than
-    /// nothing", which zero is not, so every lamp on that channel reads the
-    /// nothing the gathering started from.
+    /// Whether any voice has reported this partial yet in this pass. A partial
+    /// can sound at a peak of zero, so a peak above zero cannot stand in for
+    /// this.
     std::array<bool, kNumHarmonics> claimed{};
     bool noiseClaimed = false;
 
-    /// How new the note is that each partial's lamps are showing, by Voice's
-    /// age, so a tie on the peak can go to the newest note. A partial whose
-    /// fader is down is at zero on every note, so without this its lamps go
-    /// to whichever voice comes first in the pool, which is as often a note
-    /// that has finished its partials but is still counted as sounding, by its
-    /// noise channel's release, as the note just played.
+    /// The age of the note each partial's lamps are showing, so a tie on the
+    /// peak, such as a fader at zero, goes to the newest note.
     std::array<uint64_t, kNumHarmonics> ages{};
     uint64_t noiseAge = 0;
 
@@ -340,17 +307,15 @@ private:
   /// Steps the modulators a whole keyboard shares and hands back what it read.
   ///
   /// One value per control block boundary per channel, worked out before any
-  /// voice runs, because a voice renders a whole buffer at a time: a shared
-  /// phase stepped inside one voice's loop would be stepped again by the next
-  /// voice, and the two would hear different things.
-  ///
-  /// Either half is left out when its switch is off, in which case the voices
-  /// read the modulator each note carries. See SharedModulation.
+  /// voice runs, since a shared phase stepped inside each voice's loop would
+  /// be stepped once per voice. Either half is left out when its switch is
+  /// off. See SharedModulation.
   ///
   /// @param numFrames  at most kModChunk, which is what the table holds.
   SharedModulation advanceSharedModulators(int numFrames,
                                            const SynthParams &p) noexcept;
 
+  /// Stores what a render pass gathered into the atomics the editor reads.
   void publish(const Activity &) noexcept;
 
   /// Moves the whole pool to a new render rate, if it is not there already.
@@ -373,30 +338,27 @@ private:
 
   /// Whether a key above has taken this voice's phrase on, and which voice
   /// this one took its phrase from. A note that handed on fades when its key
-  /// comes up rather than ringing out under the one carrying it, and so does
-  /// the upper note of a trill lifted back onto the key below.
+  /// comes up, and so does the upper note of a trill lifted back onto the key
+  /// below.
   std::array<bool, kPoolSize> handedOff{};
   std::array<int, kPoolSize> takenFrom{};
 
   /// Samples rendered since prepare, which is what a press is timed against.
   uint64_t clock = 0;
 
-  /// Lets a voice go when its key comes up, the way the top line wants: a
-  /// short fade for a note that handed its phrase on, or for the upper note of
-  /// a trill whose lower key is still down, and its own release otherwise.
+  /// Lets a voice go when its key comes up: a short fade for a note that
+  /// handed its phrase on, or for the upper note of a trill whose lower key is
+  /// still down, and its own release otherwise.
   void letGo(size_t index, float lift) noexcept;
 
   bool topLine() const noexcept { return legato && polyphony > 1; }
   void forgetLine() noexcept;
 
-  /// The lift each of those was let go at, kept until the pedal comes up.
-  /// The key is long gone by then, so the speed it came up at has to be
-  /// remembered rather than asked for again.
+  /// The lift each of those was released at, kept until the pedal comes up.
   std::array<float, kPoolSize> heldLift{};
 
   /// How much of a block the reduced-rate path takes at a time. Fixed, so the
-  /// scratch is a member and the audio thread never allocates, and large
-  /// enough that the per-chunk setup is lost in the noise.
+  /// scratch is a member and the audio thread never allocates.
   static constexpr int kLofiChunk = 512;
 
   /// Where the pool is rendered when the converter is running, before the
@@ -405,11 +367,8 @@ private:
   std::array<float, kLofiChunk> lofiScratchR{};
 
   /// How much of a block the shared modulators are worked out at a time.
-  ///
-  /// Fixed for the same reason the lo-fi chunk is: the table is a member and
-  /// the audio thread never allocates. Large enough that a host asking for its
-  /// usual buffer gets the whole thing in one pass and the voices are called
-  /// once, as they were before any of this.
+  /// Fixed so the table is a member and the audio thread never allocates, and
+  /// large enough that a usual host buffer takes one pass.
   static constexpr int kModChunk = 2048;
   static constexpr int kModBoundaries = kModChunk / Voice::kControlBlock + 1;
 
@@ -418,14 +377,13 @@ private:
   std::array<float, (kNumHarmonics + 1) * kModBoundaries> sharedPitch{};
   std::array<float, (kNumHarmonics + 1) * kModBoundaries> sharedAmp{};
 
-  /// The modulators themselves, one per channel, which is the whole point:
-  /// they belong to the channel rather than to a note, so they carry on
-  /// between notes and across silence.
+  /// The modulators themselves, one per channel, so they carry on between
+  /// notes and across silence.
   std::array<Lfo, kNumHarmonics + 1> pitchModulators{};
   std::array<Lfo, kNumHarmonics + 1> ampModulators{};
 
-  /// One stream for the shared modulators, since they are one circuit each
-  /// rather than one per voice. Only the random shapes draw from it.
+  /// One stream for the shared modulators. Only the random shapes draw from
+  /// it.
   Xorshift sharedRandom{0x51ed270fu};
 
   /// Where the tonewheel organ's motor is in its turn. One for the whole
@@ -454,23 +412,19 @@ private:
   bool legato = false;
 
   /// The keys that are down in legato, oldest first, so releasing the one
-  /// sounding can fall back to whichever is still held rather than leaving the
-  /// phrase stranded on a key nobody is touching.
-  ///
-  /// A fixed array because this is reached from the audio thread and there are
-  /// only ever 128 keys to hold down at once.
+  /// sounding can fall back to whichever is still held. A fixed array so the
+  /// audio thread never allocates.
   std::array<int, 128> legatoHeld{};
   int legatoDepth = 0;
 
-  /// The tuning the phrase started under. A note-off carries no parameters and
-  /// still has to work out where the key it falls back to sits.
+  /// The tuning the phrase started under, since a note-off carries no
+  /// parameters.
   Temperament legatoTemperament = Temperament::Equal;
   int legatoRoot = 0;
   double legatoReferenceHz = 440.0;
 
-  /// Where a key is tuned. A fixed temperament is a table and answers the same
-  /// whatever is sounding. Adaptive settles it with the held chord. See
-  /// settleAdaptive.
+  /// Where a key is tuned. A fixed temperament is a table. Adaptive settles it
+  /// with the held chord. See settleAdaptive.
   ///
   /// @param self  the voice this key is going to, left out of what it is tuned
   ///              against, since it may still be sounding its old note.
@@ -479,9 +433,8 @@ private:
 
   /// Which of its five versions each pitch class took last, -2 to 2 commas
   /// from its place in just major on the root. A key with nothing to tune
-  /// against takes the version its pitch class used last, which is what keeps
-  /// a progression from wandering off a comma at a time once the chords stop
-  /// overlapping. Cleared on reset.
+  /// against takes this, which keeps a progression from drifting a comma at
+  /// a time. Cleared on reset.
   std::array<int, 12> adaptiveVersion{};
 
   /// Settles every held key, and the one going down if there is one, on the
@@ -498,11 +451,9 @@ private:
   /// fewest held keys, then to agree with what is still ringing, then to keep
   /// to where each pitch class was last.
   ///
-  /// Run on every key that goes down and every one that comes up, so a chord
-  /// changing a note at a time is retuned as it changes: a key that was right
-  /// under the last chord and is wrong under this one slides to its new
-  /// version over adaptiveRetune, or at once if it went down within the chord
-  /// window.
+  /// Run on every key that goes down and every one that comes up. A held key
+  /// that is wrong under the new chord slides to its new version over
+  /// adaptiveRetune, or at once if it went down within the chord window.
   ///
   /// @param note  the key going down, or -1 when one has come up.
   /// @param self  that key's voice, left out of what is already held.
@@ -522,13 +473,11 @@ private:
   bool harmonicSevenths = true;
   bool adaptiveHome = false;
 
-  /// Drops a key from the stack. Nothing happens if it was not in it, which a
-  /// note-off arriving without its note-on will do.
+  /// Drops a key from the stack. Does nothing if it was not in it.
   void legatoRelease(int note) noexcept;
 
-  /// The glide settings as of the last render or note, for the one change of
-  /// pitch that arrives without any: a legato phrase falling back to the key
-  /// still held when the sounding one comes up.
+  /// The glide settings as of the last render or note, for a legato phrase
+  /// falling back to a held key, which arrives without parameters.
   GlideSettings glide;
 
   /// The last note started, for a glide whose voice has already finished and
@@ -555,18 +504,14 @@ private:
   float smoothedMasterGain = -1.0f;
 
   // The master effects. They sit after the voices and before the master fader,
-  // so the fader is a true output level and moving it cannot change the wet to
-  // dry balance underneath it.
+  // so moving the fader cannot change the wet to dry balance.
   //
-  // Wobble is first of the three. It bends the instrument itself, so the echo
-  // repeats what the wobble did rather than adding a wobble of their own,
-  // which is the difference between a warped record being played and a warped
-  // recording of one.
+  // Wobble is first, so the echo repeats what the wobble did rather than
+  // wobbling on its own.
   Wobble wobble;
   BusDrive busDrive;
 
-  /// What the mix runs into on its way out, which is seven machines rather
-  /// than the one soft clipper it began as. See OutputStage.
+  /// What the mix runs into on its way out. See OutputStage.
   OutputStage outputStage;
   TapeEcho echo;
   BucketEcho bucket;

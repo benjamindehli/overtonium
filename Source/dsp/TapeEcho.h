@@ -10,40 +10,23 @@ namespace ovt {
 
 /// A tape echo across the master output.
 ///
-/// Modelled on the parts of a tape loop that matter to the ear rather than on
-/// the machine: the head distance is reached by winding rather than by
-/// jumping, every pass round the loop loses top end and a little of its
-/// bottom, the motor wanders, and the tape saturates when it is driven.
+/// The head distance is reached by winding rather than jumping, every pass
+/// loses top end and a little bottom, the motor wanders, and the tape
+/// saturates when driven.
 ///
-/// Stereo is two tape paths side by side rather than one walking across the
-/// image. Each takes its own channel, feeds only itself and comes back hard on
-/// the side it went out on, so nothing crosses over at any point and wherever
-/// the mixer put a partial is where its repeats stay. Hard panning is safe to
-/// do precisely because the two play at very nearly the same moment.
-///
-/// What separates them is the transport. The two motors run at slightly
-/// different speeds, wander by slightly different amounts and draw from
-/// different random streams, so they never fall into step. Two takes of the
-/// same part never drift together and neither do these: a centred source comes
-/// back as a pair that agrees about the note and disagrees about everything
-/// else.
-///
-/// How far they disagree follows AGE, since holding speed is what a machine in
-/// good order does. A new deck tracks true and its repeat comes back centred.
+/// Stereo is two tape paths side by side. Each takes its own channel, feeds
+/// only itself and comes back on the side it went out on, so a partial's
+/// repeats stay where the mixer put it. The two motors run at slightly
+/// different speeds and depths from different random streams, so the paths
+/// never fall into step. How far they disagree follows AGE.
 class TapeEcho {
 public:
   /// Longest head distance the buffer has to allow for, plus room for the
   /// motor to wander past it.
   static constexpr float kMaxTimeSeconds = 2.0f;
 
-  /// The least worn the machine is allowed to be.
-  ///
-  /// Zero is a transport that holds speed perfectly, which no transport does,
-  /// and which collapses the two paths onto each other: they wander by the
-  /// same nothing, so the repeat comes back in mono. A floor here keeps the
-  /// doubling always present. Measured on a sustained tone, the two channels
-  /// sit at a correlation of 0.77 at this setting, so there is a definite
-  /// width without it reading as a chorus.
+  /// The least worn the machine is allowed to be. At zero both paths wander by
+  /// nothing and the repeat collapses to mono, so a floor keeps some width.
   static constexpr float kMinAge = 0.08f;
 
   void prepare(double sampleRate) noexcept;

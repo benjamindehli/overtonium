@@ -11,70 +11,43 @@
 namespace ovt {
 
 namespace {
-/// Drift is meant to read as gentle chorusing rather than vibrato, so the
-/// rates sit well below anything you would hear as a pitch wobble. Each
-/// partial of each note draws its own rate from this range, log distributed.
+/// Range of drift rates, low enough to read as gentle chorusing rather than
+/// vibrato. Each partial of each note draws its own rate, log distributed.
 constexpr double kDriftMinHz = 0.08;
 constexpr double kDriftMaxHz = 1.10;
 
-/// Corner of the one-pole pair that tilts the noise. Around a kilohertz splits
-/// it into a usable "body" and "air" either side.
+/// Corner of the one-pole pair that tilts the noise, splitting it into
+/// "body" and "air".
 constexpr double kNoiseTiltHz = 1000.0;
 
-/// What the noise channel adds to its string, +12 dB. A pluck rings at about
-/// the level of the burst that struck it, and a burst a few milliseconds long
-/// on a channel that is one layer among thirty-three is faint, so without it
-/// a pluck could not stand beside a full organ even with the channel's fader
-/// at the top. A breath, which builds up of its own accord, is the setting
-/// that wants the fader brought down instead.
+/// What the noise channel adds to its string, +12 dB, so a short pluck can
+/// stand beside a full organ.
 constexpr float kStringGain = 4.0f;
 
 /// Below this an envelope is silent, so restarting it costs nothing. The same
 /// figure the envelope itself calls the end of a release.
 constexpr float kSilent = 1.0e-5f;
 
-/// How long the Bulb character's filament takes to settle at a new pitch.
-///
-/// A tungsten filament of the size used for this has a thermal time constant
-/// in the tens to hundreds of milliseconds, and the loop around it settles
-/// slower than the filament does, which is what makes the bounce famous
-/// enough to be the first thing anyone says about these oscillators. Half a
-/// second is long enough to hear the level walking behind a bend rather than
-/// moving with it.
+/// How long the Bulb character's filament takes to settle at a new pitch,
+/// long enough to hear the level follow a bend.
 constexpr double kBulbSettleSeconds = 0.5;
 
-/// How far out of balance the lamp can get before it has nothing left to give,
-/// in semitones.
-///
-/// A quarter of one, which is deliberately far less than the physics of a
-/// Wien bridge would give you, and the reason is what moves the pitch here. A
-/// bench oscillator is swept by a knob across a decade, and its lamp answers a
-/// frequency that has doubled. This one is moved by vibrato, drift and a
-/// finger, which is to say by cents, and a model faithful to the bench does
-/// nothing at all at that scale: at a semitone of full scale, a 25 cent
-/// vibrato came to 0.8 dB and drift to a hundredth of one, which is a
-/// character nobody can hear. Scaled to the movements the instrument actually
-/// makes, the same model reads as the circuit it is named after.
+/// How far out of balance the lamp can get before it has nothing left to
+/// give, in semitones. Far less than a real Wien bridge, scaled to the
+/// cents that vibrato, drift and a finger move the pitch by, so the effect
+/// can be heard.
 constexpr float kBulbFullScale = 0.25f;
 
-/// How much of the level it gives up once it is that far behind.
-///
-/// A quarter of it at the limit, which is a little over two decibels, and
-/// proportional below that. It has to stop
-/// somewhere: this is an instrument with 32 oscillators playing at once, and
-/// an amplitude movement that reads as character on one reads as a fault on
-/// all of them together.
+/// How much of the level it gives up once it is that far behind, a little
+/// over two decibels at the limit and proportional below it. Kept small
+/// since 32 oscillators move together.
 constexpr float kBulbDepth = 0.25f;
 
-/// What the tremolo leaves of the fader.
+/// What the tremolo leaves of the fader. It only takes away: a shape of 1
+/// removes nothing and -1 removes the whole depth.
 ///
-/// Only ever takes away. At the top of its travel the shape reads 1 and
-/// nothing is removed, at the bottom it reads -1 and the whole depth is, which
-/// is why the amplitude offers one square rather than two: there is no second
-/// direction for a unipolar one to go in.
-///
-/// Clamped because Random is a spline through its points and overshoots them
-/// by a few percent, which would otherwise lift a partial above its own fader.
+/// Clamped because Random is a spline that overshoots its points by a few
+/// percent, which would otherwise lift a partial above its own fader.
 inline float tremoloGain(float shape, float depth) noexcept {
   return std::clamp(1.0f - depth * 0.5f * (1.0f - shape), 0.0f, 1.0f);
 }
@@ -82,10 +55,8 @@ inline float tremoloGain(float shape, float depth) noexcept {
 
 void Voice::setRenderRate(double newSampleRate) noexcept {
   // Drift is the one thing not recomputed here. Its step is latched at
-  // note-on, so a note already sounding when the rate changes wanders at the
-  // old speed until it is played again. Re-deriving it would need the rate
-  // knob's value per partial, which is a lot of plumbing for an artefact that
-  // lasts one note and only on a setting nobody changes mid-phrase.
+  // note-on, so a sounding note keeps the old drift speed until it is played
+  // again.
   sampleRate = std::max(1.0, newSampleRate);
 
   for (auto &pt : partials)
@@ -195,30 +166,17 @@ void Voice::noteOn(int channel, int note, float velocity, const SynthParams &p,
 
   const float vel = std::clamp(velocity, 0.0f, 1.0f);
 
-  // A fresh note starts unbent and under no pressure of its own. A retrigger
-  // lands here too, which is what stops the previous note's bend carrying into
-  // the new one on a channel being reused.
+  // A fresh note starts unbent and under no pressure of its own, so a reused
+  // channel does not carry the previous note's bend.
   noteBendSemitones = 0.0f;
   polyPressure = 0.0f;
 
-  // The smoothing starts where the channel is already holding it rather than
-  // at nothing.
-  //
-  // Per-note pressure is a fact about this key and begins at zero, which is
-  // what the line above says. Channel pressure is a controller that was
-  // already standing somewhere when the key went down, and a note that ramps
-  // up to meet it spends the first 15 ms somewhere the player never asked
-  // for. With a negative AFTERTOUCH amount that is a note starting at full
-  // level and falling to silence, which is a thump on every key struck under
-  // held pressure, and with a positive one it is an audible fade in.
-  //
-  // The smoothing is still what it was. It is there so that moving the
-  // controller does not step the gain, and nothing about that wants the first
-  // block of a note to start from a value the controller is not at.
+  // The smoothing starts where channel pressure already is rather than at
+  // zero, so a note struck under held pressure does not fade in or thump.
   pressureSmoothed = std::clamp(p.global.aftertouch, 0.0f, 1.0f);
 
   // And the slide axis forgets where the last note started it, so the next one
-  // takes its nought from wherever the controller puts it. See setSlide.
+  // takes its zero from wherever the controller puts it. See setSlide.
   slide = 0.0f;
   slideRest = 0.0f;
   slideRested = false;
@@ -231,52 +189,38 @@ void Voice::noteOn(int channel, int note, float velocity, const SynthParams &p,
     const auto &op = p.osc[(size_t)i];
 
     // A note starts at its own pitch. The engine sets it gliding afterwards
-    // when one is due, from wherever it decides the glide comes from.
+    // when one is due.
     pt.glideSemis = 0.0;
     pt.glideStep = 0.0;
 
-    // Each strip decides for itself how much of the key velocity it takes,
-    // latched here so a velocity change cannot alter a note already sounding.
-    // The same shape the two strike scales below are built on, which is what
-    // makes the three rows read alike: see Velocity.h.
+    // Each strip's own velocity sensitivity, latched so a velocity change
+    // cannot alter a note already sounding. See Velocity.h.
     pt.velGain = velocityGain(op.velAmount, vel);
 
-    // The rest of what the blow is worth. The gain above says how loud the
-    // partial comes out, these two say how soon it starts and how quickly it
-    // gets there.
+    // How soon the partial starts and how quickly it gets there, from the same
+    // velocity.
     pt.delayScale = strikeDelayScale(op.strikeAmount, vel);
     pt.attackScale = strikeAttackScale(op.strikeAmount, vel);
     pt.onsetStale = true;
 
-    // Where the partial starts and how fast it rises, the knob and the blow
-    // together. See struckOnset.
+    // Where the partial starts and how fast it rises, the knob and the
+    // velocity together. See struckOnset.
     const auto onset = struckOnset(op.attack, pt.attackScale);
 
     pt.env.configure(op.delay * pt.delayScale, onset.seconds, op.decay,
                      op.sustain, op.swell, op.offLevel, op.release);
 
-    // Starting from silence is only free while the partial is silent.
-    //
-    // Almost always it is: a note lands on a voice nothing else is using. The
-    // exception is a note struck again while it is still sounding, which one
-    // voice per key answers by retriggering where it stands rather than by
-    // taking a second voice. Zeroing the level there, or moving the phase,
-    // puts a step in the output the size of whatever was ringing, and a note
-    // held by the sustain pedal is ringing at its sustain level.
-    //
-    // So the choice is made per partial from what it is actually doing. One
-    // that has decayed away starts clean, with the coherent attack the setting
-    // asks for. One still sounding keeps its level and its phase, and the new
-    // note's attack takes over from there.
+    // Starting from silence is only safe while the partial is silent. A note
+    // struck again while still sounding, such as one held by the sustain
+    // pedal, keeps its level and phase, since resetting them would put a step
+    // in the output. So the choice is made per partial.
     const bool fresh = pt.env.getLevel() <= kSilent;
 
     pt.env.noteOn(fresh && p.global.phaseReset);
 
-    // The lamp reads the pitch of whatever note this partial is now playing.
-    // Left alone, a voice taken over by a note an octave away would open with
-    // the sag of a bend it never made. Only when the partial had stopped: one
-    // still ringing is a continuous tone, and a real oscillator handed a new
-    // frequency is exactly the case this character exists to show.
+    // The lamp reads the pitch of the note this partial now plays, so a reused
+    // voice does not open with the sag of a bend it never made. Only when the
+    // partial had stopped, since one still ringing is a continuous tone.
     if (fresh)
       pt.semisPrimed = false;
 
@@ -297,17 +241,14 @@ void Voice::noteOn(int channel, int note, float velocity, const SynthParams &p,
       pt.phase = (double)onset.turns;
 
       // Fresh points per note per partial, so the random shapes wander
-      // independently rather than all 32 tracing one contour, which is the
-      // same reason the drift draws its own.
+      // independently rather than all 32 tracing one contour.
       pt.pitchLfo.restart(rng);
       pt.ampLfo.restart(rng);
     }
 
-    // The gain ramp restarts from whatever this partial's strip currently asks
-    // for rather than from the previous note's trailing value. Only for a
-    // partial starting clean: one carrying on wants the ramp, since a second
-    // strike at a different velocity moves the gain and the ramp is what keeps
-    // that from being a step of its own.
+    // The gain ramp restarts from what this partial's strip asks for now, but
+    // only for a partial starting clean. One carrying on keeps the ramp, so a
+    // second strike at a different velocity does not step.
     if (fresh)
       pt.gainPrimed = false;
   }
@@ -339,12 +280,9 @@ void Voice::noteOn(int channel, int note, float velocity, const SynthParams &p,
 }
 
 void Voice::retune(int channel, int note, double frequency) noexcept {
-  // A key going down while the phrase is still sounding says nothing about
-  // bend or pressure, and on one channel the ones already in hand belong to
-  // the phrase rather than to the key that started it, so they are left
-  // alone. A key on a channel of its own is another matter: with MPE every
-  // note brings its own bend, pressure and slide, and a phrase carried onto
-  // that key takes the new finger's rather than keeping the last one's.
+  // On the same channel the bend and pressure belong to the phrase and are
+  // left alone. Under MPE every note has its own channel, so a phrase carried
+  // onto a new key takes that finger's bend, pressure and slide.
   if (channel != midiChannel) {
     noteBendSemitones = 0.0f;
     polyPressure = 0.0f;
@@ -405,7 +343,7 @@ void Voice::startGlide(const Pitches &from,
     }
 
     // How long this one takes. Under Rate the time is per octave, so the step
-    // comes out the same whatever the distance and only the arrival moves.
+    // is the same whatever the distance and only the arrival moves.
     const double span = glide.mode == GlideMode::Rate
                             ? seconds * std::abs(offset) / 12.0
                             : seconds;
@@ -421,9 +359,8 @@ void Voice::noteOff(float lift) noexcept {
 
   released = true;
 
-  // The same figure to all thirty-three, since it is one gesture. What each
-  // does with it is its own, because each carries its own key-off level and
-  // its own level to be sitting at when the key comes up.
+  // The same figure to all thirty-three, since it is one gesture. Each
+  // applies it to its own key-off and sustain levels.
   for (auto &pt : partials)
     pt.env.noteOff(lift);
 
@@ -461,8 +398,8 @@ void Voice::takeOver(const Voice &from) noexcept {
     pt.shaftTurns = src.shaftTurns;
 
     // Already sounding, so the gain ramp starts from where the other voice's
-    // was rather than priming itself afresh, and the oscillator starts its
-    // cycle on a crossing so the level it arrives at cannot step.
+    // was, and the oscillator starts its cycle on a crossing so the level
+    // cannot step.
     pt.lastGain = src.lastGain;
     pt.gainPrimed = src.gainPrimed;
     pt.phase = 0.0;
@@ -502,9 +439,8 @@ void Voice::render(float *left, float *right, int numSamples,
 
   const auto &characters = CharacterTables::instance();
 
-  // Which thirty-two units this character's rack came out at. One lookup for
-  // the whole call: the spread is fixed, so it is the same rack for every
-  // block and every note. See UnitSpread.
+  // Which thirty-two units this character's rack came out at. The spread is
+  // fixed, so one lookup serves the whole call. See UnitSpread.
   const auto &unit = UnitSpread::instance().rack(p.global.character);
 
   const bool wheel = p.global.character == Character::Wheel;
@@ -519,9 +455,8 @@ void Voice::render(float *left, float *right, int numSamples,
   const double wanderScale =
       kVcoWanderCents * std::sqrt(3.0 * (2.0 - wanderPole) / wanderPole);
 
-  // The two synthesizers, the 6581, the VCO and the combo organ, whose noise
-  // the engine adds
-  // from every note's power at once. See SynthEngine::renderHiss.
+  // The characters whose noise the engine adds from every note's power at
+  // once. See SynthEngine::renderHiss.
   const bool hiss = p.global.character == Character::Fm ||
                     p.global.character == Character::Pd ||
                     p.global.character == Character::Sid ||
@@ -529,8 +464,8 @@ void Voice::render(float *left, float *right, int numSamples,
                     p.global.character == Character::Combo;
   const auto &sine = SineTable::instance();
 
-  // One pole per control block rather than per sample, which is where every
-  // other slow thing in here is worked out.
+  // One pole per control block rather than per sample, like every other
+  // slow value here.
   const float bulbCoef =
       sampleRate > 0.0
           ? (float)(1.0 - std::exp(-(double)kControlBlock /
@@ -538,11 +473,6 @@ void Voice::render(float *left, float *right, int numSamples,
           : 1.0f;
 
   // Equal-power pan positions, one per partial.
-  //
-  // Placing them by hand rather than fanning them from one control is the
-  // difference between a width setting and an arrangement: a partial can be
-  // put opposite the one a semitone away from it, or the octaves left and the
-  // sevenths right, which is not a shape any single knob could have produced.
   std::array<float, kNumHarmonics> panL{}, panR{};
 
   for (int i = 0; i < kNumHarmonics; ++i) {
@@ -553,28 +483,21 @@ void Voice::render(float *left, float *right, int numSamples,
   }
 
   // How much of each partial the keyboard tracking leaves at this pitch.
-  //
-  // Taken from the nominal position of the partial rather than from the
-  // frequency it is momentarily at, so vibrato and drift do not modulate the
-  // brightness, and worked out once per call rather than once per control
-  // block, since none of it moves while a note sounds.
+  // From the partial's nominal position, so vibrato and drift do not
+  // modulate the brightness, and worked out once per call.
   std::array<float, kNumHarmonics> track{};
 
-  // MPE slide, where it is aimed at brightness. Tracking thins the top of the
-  // series, so a finger pushed forward takes tracking away and pulled back
-  // adds more. It cannot brighten past what the patch already is: there is no
-  // negative tracking, since trackingGain returns 1 for anything at or below
-  // zero. A patch with tracking off is therefore as bright as it gets, and
-  // slide can only darken it.
+  // MPE slide, where it is aimed at brightness. Pushing forward takes
+  // tracking away and pulling back adds more. Since tracking cannot go below
+  // zero, slide can only darken a patch with tracking off.
   const auto tracking =
       p.global.slideDest == SlideDestination::Brightness
           ? std::max(0.0f, p.global.trackDbPerOctave - slide * kSlideTrackDb)
           : p.global.trackDbPerOctave;
 
-  // Where each partial sits in the series before anything moves it, worked out
-  // once for the call: the TUNE blend, the slide and STRETCH are all held for
-  // it. Every control block used to work it out again for every partial, and
-  // with STRETCH on that is an exp2 and a log2 each time.
+  // Where each partial sits in the series before anything moves it, worked
+  // out once per call since the TUNE blend, the slide and STRETCH are held
+  // for it. With STRETCH on that saves an exp2 and a log2 per block.
   std::array<double, kNumHarmonics> nominal{};
 
   for (int i = 0; i < kNumHarmonics; ++i)
@@ -605,10 +528,9 @@ void Voice::render(float *left, float *right, int numSamples,
   const float pressureTarget =
       std::max(std::clamp(p.global.aftertouch, 0.0f, 1.0f), polyPressure);
 
-  // With the render rate turned down, the guard that keeps partials from
-  // folding is exactly the wrong thing to have on: folding is the sound being
-  // asked for. A converter running at 8 kHz does not quietly mute everything
-  // above 4 kHz, it wraps it back down, and so does this.
+  // With the render rate turned down, folding is the sound being asked for,
+  // so the Nyquist guard is turned off, as a low-rate converter wraps rather
+  // than mutes.
   const bool foldAliases = p.lofi.rateHz > 0.0;
 
   // Which control block of this call we are on, for reading the modulators
@@ -622,20 +544,17 @@ void Voice::render(float *left, float *right, int numSamples,
     const float pressure = pressureSmoothed;
 
     // How loud the note's partials are together this block, as the sum of
-    // their squared amplitudes. The wheels that leak into a note and the
-    // synthesizers' noise are both sized from it. Each partial's wheel leaks
-    // on its own and the leaks do not line up in phase, so their powers add.
+    // their squared amplitudes. The leaking wheels and the synthesizers' noise
+    // are sized from it. The leaks are not in phase, so their powers add.
     double notePower = 0.0;
 
     for (int i = 0; i < kNumHarmonics; ++i) {
       auto &pt = partials[(size_t)i];
       const auto &op = p.osc[(size_t)i];
 
-      // Scaled by what the note-on made of the velocity, so turning either
-      // knob under a sounding note moves it by the same proportion the blow
-      // earned rather than throwing that away. The delay is latched in samples
-      // at note-on and only read again by the next one, so it is scaled here to
-      // keep the two calls agreeing rather than because this one uses it.
+      // Scaled by what the note-on made of the velocity, so turning either knob
+      // under a sounding note keeps that proportion. The delay is only read at
+      // the next note-on, and is scaled here to keep the two calls agreeing.
       if (pt.onsetStale || !exactly(op.attack, pt.onsetFor)) {
         pt.onsetFor = op.attack;
         pt.onsetSeconds = struckOnset(op.attack, pt.attackScale).seconds;
@@ -652,13 +571,10 @@ void Voice::render(float *left, float *right, int numSamples,
       const double pmPhaseInc = (double)op.pmRateHz / sampleRate;
 
       // Read where the shape is now and step it at the end of the block, so
-      // the figure used is the one the block starts on. Which shape it is
-      // changes what comes out and nothing about the timing: the square ones
-      // land their edge on a block boundary, two thirds of a millisecond of
-      // grid, which no ear finds on a modulator running at a few hertz.
+      // the value used is the one the block starts on. Square shapes land their
+      // edge on a block boundary, which is inaudible on a slow modulator.
       //
-      // Off the channel's own modulator when the keyboard is sharing one,
-      // which the engine worked out for this very block before any voice ran.
+      // Off the channel's shared modulator when the keyboard is sharing one.
       // See SharedModulation.
       const auto pmShapeValue =
           shared.pitch != nullptr
@@ -673,10 +589,9 @@ void Voice::render(float *left, float *right, int numSamples,
       // wander already in progress instead of jumping.
       const double driftCents = (double)(pt.drift.advance(rng) * op.driftCents);
 
-      // The unit's own tuning error goes in with the modulation rather than
-      // beside it, so everything downstream of this line sees the pitch the
-      // partial is actually at: the table the character reads, how hard a slew
-      // limit bites, and what the lamp is settling towards.
+      // The unit's own tuning error goes in with the modulation, so everything
+      // below sees the pitch the partial is actually at: the table, the slew
+      // limit and the lamp.
       const double semis =
           nominal[(size_t)i] +
           (pmCents + driftCents + (double)unit.cents[(size_t)i]) * 0.01 +
@@ -691,9 +606,8 @@ void Voice::render(float *left, float *right, int numSamples,
           retuneSemis;
 
       // Read at the start of the block and stepped for the next, as the
-      // modulators are. A glide that is not running costs a compare.
-      // Nought is set exactly by the line below, so the compare is exact too.
-      // How far the glide still has to go, for the needle, taken before this
+      // modulators are. Zero is set exactly by the line below, so the compare
+      // is exact too. The remaining glide for the needle is taken before this
       // block's step so it matches the pitch the block plays at.
       const double glideCents = (pt.glideSemis + retuneSemis) * 100.0;
 
@@ -707,11 +621,10 @@ void Voice::render(float *left, float *right, int numSamples,
       // ----------------------------------
       //
       // Pitch and level move once a turn and a little at twice that, by what
-      // this unit was drawn with, and the motor that drives every wheel moves
-      // the pitch at its own rate on top. The shaft rate comes from the pitch
-      // the partial is at before any of this, so the wobble cannot change the
-      // rate it wobbles at. Worked out once a block, like the modulators: a
-      // shaft turns at most 32 times a second and a block is 1500 a second.
+      // this unit was drawn with, and the shared motor moves the pitch at its
+      // own rate on top. The shaft rate comes from the pitch before any of
+      // this, so the wobble cannot change its own rate. Worked out once a
+      // block.
       double wobbleCents = 0.0;
       float wobbleGain = 1.0f;
 
@@ -753,26 +666,21 @@ void Voice::render(float *left, float *right, int numSamples,
       const double freq =
           baseFreq * std::exp2((semis + wobbleCents * 0.01) / 12.0);
 
-      // Reduced into the first turn of the table. Sampling a sinusoid above
-      // the rate produces the same numbers as sampling the one it folds to, so
-      // this is not an approximation of aliasing, it is the aliasing. The
-      // inner loop steps it in fixed point, where it wraps by itself.
+      // Reduced into the first turn of the table. Above the rate this gives the
+      // same samples as the frequency it folds to, which is the aliasing the
+      // lo-fi rate asks for. The inner loop steps it in fixed point, where it
+      // wraps by itself.
       double inc = freq / sampleRate;
       inc -= std::floor(inc);
 
       // ---- amplitude --------------------------------------------------------
       const double amPhaseInc = (double)op.amRateHz / sampleRate;
 
-      // Both ends of the block, because the gain ramps between them: where the
-      // shape is now, and where stepping it lands. That ramp is also what makes
-      // a square edge survivable here. The level does not jump, it slides
-      // across the block, which at 32 samples is a couple of thirds of a
-      // millisecond and reads as an edge rather than as a click.
+      // Both ends of the block, because the gain ramps between them, which also
+      // keeps a square edge from clicking.
       //
-      // Stepped here whether or not it is the modulator being read, so that a
-      // channel handed back its own picks up where this note would have been
-      // rather than from wherever it was left. The same reason the drift is
-      // advanced unconditionally above.
+      // Stepped whether or not it is the modulator being read, so a channel
+      // that stops sharing picks up where this note would have been.
       const auto ownStart = pt.ampLfo.value(op.amShape, kAmpShapeOffset);
       const auto ownEnd = pt.ampLfo.advance(rng, amPhaseInc * (double)len,
                                             op.amShape, kAmpShapeOffset);
@@ -790,22 +698,14 @@ void Voice::render(float *left, float *right, int numSamples,
 
       // ---- which oscillator this is ----------------------------------------
       //
-      // The character's harmonics are harmonics like any others and fold like
-      // any others, so the table is chosen by how much room this partial has
-      // left under Nyquist at the pitch it is at this moment. A partial low
-      // enough gets all of them, one near the top gets a plain sine, and the
-      // ones in between lose them from the top down. With the converter's rate
-      // turned down, folding is the sound being asked for and the full table
-      // is what folds.
+      // The table is chosen by how much room this partial has under Nyquist at
+      // its current pitch, so a high partial loses harmonics from the top down
+      // rather than aliasing. On the lo-fi rate the full table is used, since
+      // folding is wanted.
       //
-      // The frequency goes in as well as the room above it, because one
-      // character is a rate limit rather than a shape, and how hard that bites
-      // depends on how fast the wave is asking the amplifier to move. The
-      // others with a shape per pitch read it at the partial's own pitch, as
-      // each tonewheel has its own, except the combo organ. Its filter belongs
-      // to the key, so the 4' lever on C5 has the 8' lever's shape on C5 and
-      // not the 8' shape an octave up, and every partial of a note reads the
-      // shape of the key that is played.
+      // The frequency also goes in, since the rate-limited character bites
+      // harder on faster waves. The combo organ's filter belongs to the key, so
+      // every partial of a note reads the shape of the key played.
       const double shapeFreq = p.global.character == Character::Combo
                                    ? baseFreq * std::exp2(keySemis / 12.0)
                                    : freq;
@@ -818,18 +718,10 @@ void Voice::render(float *left, float *right, int numSamples,
 
       // ---- what the lamp has not caught up with ----------------------------
       //
-      // A Wien bridge holds its level with a lamp. The filament's resistance
-      // follows how hard the loop is driving it, but only as fast as a
-      // filament can heat and cool, and the gain the loop needs changes with
-      // the frequency because no two ganged parts track each other exactly.
-      // Move the pitch and the level sags until the lamp has settled at the
-      // new one.
-      //
-      // One pole, chasing the pitch with the filament's own time constant.
-      // What is left over is the amplitude error the loop has not corrected
-      // yet. Here the pitch is moved constantly, by vibrato, drift, the wheel
-      // and a finger on an MPE key, so the lamp is never quite caught up and
-      // the level breathes behind everything the hand does.
+      // A Wien bridge holds its level with a lamp that heats and cools slowly,
+      // so when the pitch moves the level sags until the lamp settles. One pole
+      // chases the pitch with the filament's time constant, and what is left
+      // over is the amplitude error.
       float bulb = 1.0f;
 
       if (p.global.character == Character::Bulb) {
@@ -840,29 +732,23 @@ void Voice::render(float *left, float *right, int numSamples,
 
         pt.bulbSettled += (semis - pt.bulbSettled) * bulbCoef;
 
-        // Clamped rather than curved: a filament runs out of range too, and a
-        // clamp is a compare where a soft limit is a divide, on something that
-        // runs 512 times per control block.
+        // Clamped rather than curved, since a clamp is a compare where a soft
+        // limit is a divide, and this runs for every partial.
         const float behind = std::clamp(
             (float)(semis - pt.bulbSettled) / kBulbFullScale, -1.0f, 1.0f);
 
         bulb = 1.0f - behind * kBulbDepth;
       }
 
-      // Aftertouch adds to the fader instead of scaling it, which is what lets
-      // a strip sitting at zero be brought in by pressure alone. Velocity only
-      // ever touches the fader's own contribution.
-      // Aftertouch adds, so a negative amount subtracts and the clamp floors
-      // it at silence. No special case needed for the inverted direction.
+      // Aftertouch adds to the fader instead of scaling it, so a strip at zero
+      // can be brought in by pressure alone, and a negative amount is floored
+      // at silence by the clamp. Velocity only scales the fader's own part.
       const float level =
           std::clamp(op.volume * pt.velGain +
                          std::clamp(op.atAmount, -1.0f, 1.0f) * pressure,
                      0.0f, 1.0f);
-      // The lamp joins the fader, the tracking and the Nyquist fade here, so
-      // it rides the same per-sample ramp they do and a level that is settling
-      // slides rather than steps from block to block. The unit's own level
-      // error joins them as a plain multiply, being a property of the
-      // oscillator rather than of anything the player is doing.
+      // The lamp and the unit's level error join the fader, the tracking and
+      // the Nyquist fade here, so they ride the same per-sample ramp.
       const float base = op.audible ? level * nyq * track[(size_t)i] * bulb *
                                           unit.gain[(size_t)i] * wobbleGain
                                     : 0.0f;
@@ -880,8 +766,7 @@ void Voice::render(float *left, float *right, int numSamples,
       const float gInc = (gEnd - g) / (float)len;
 
       // Stepped whatever the depth says, so turning the knob up mid-note joins
-      // the motion already under way instead of starting it again. The
-      // amplitude was stepped above, where its value was needed.
+      // the motion already under way. The amplitude was stepped above.
       pt.pitchLfo.advance(rng, pmPhaseInc * (double)len, op.pmShape);
 
       pt.lastGain = gEnd;
@@ -891,17 +776,13 @@ void Voice::render(float *left, float *right, int numSamples,
         notePower += amplitude * amplitude;
       }
 
-      // One multiply and one compare per partial per control block. Both terms
-      // are already to hand, so metering costs essentially nothing here.
+      // Metering costs one multiply and one compare per partial per block.
       partialPeaks[(size_t)i] =
           std::max(partialPeaks[(size_t)i], pt.env.getLevel() * gEnd);
 
-      // The same again for the lamps: everything here was worked out above for
-      // the oscillator's own use, so this is four stores and a compare.
-      //
-      // The envelope carries its stage in its sign. Swell and release are the
-      // two that run after the key is up, and they are the ones the second
-      // lamp takes over.
+      // The lamp values, all worked out above for the oscillator's own use.
+      // The envelope carries its stage in its sign: swell and release, which
+      // run after the key is up, are negative.
       const auto stage = pt.env.getStage();
       const auto afterKeyOff =
           stage == Envelope::Stage::Swell || stage == Envelope::Stage::Release;
@@ -909,27 +790,24 @@ void Voice::render(float *left, float *right, int numSamples,
       partialEnvelopes[(size_t)i] =
           afterKeyOff ? -pt.env.getLevel() : pt.env.getLevel();
 
-      // What the tremolo has taken off, rather than what it has left. A
-      // partial with no tremolo on it then reads zero instead of full, which
-      // is a lamp that is dark rather than one that is on and never moves.
+      // What the tremolo has taken off, so a partial with no tremolo reads
+      // zero.
       partialTremolos[(size_t)i] = 1.0f - amEnd;
       // Where the partial is against its note: the modulator, the drift and
       // whatever of a glide is still to travel. Pitch bend is left out, since
-      // it moves every partial alike and is already on the wheel.
+      // it moves every partial alike.
       partialPitches[(size_t)i] = (float)(pmCents + driftCents + glideCents);
 
-      // One lamp for each of the two rows under the heading, each showing
-      // what its own row is doing and nothing else. The velocity half is the
-      // gain itself, which the note-on already latched, so it costs a read.
+      // One lamp for each of the two rows under the heading. The velocity half
+      // is the gain latched at note-on.
       partialVelocities[(size_t)i] = pt.velGain;
       partialPressures[(size_t)i] =
           std::abs(std::clamp(op.atAmount, -1.0f, 1.0f) * pressure);
 
       if ((g <= 1.0e-7f && gEnd <= 1.0e-7f) || pt.env.isSilentlyHolding()) {
         // Inaudible right now: muted, faded out above Nyquist, fader at zero,
-        // or decayed to a sustain of nothing and waiting for the key to come
-        // up. Keep the envelope and phase moving so unmuting or letting go
-        // mid-note picks up in the right place, but skip the oscillator.
+        // or decayed to a sustain of nothing. Keep the envelope and phase
+        // moving so it picks up in the right place, but skip the oscillator.
         for (int n = 0; n < len; ++n)
           pt.env.tick();
 
@@ -954,27 +832,15 @@ void Voice::render(float *left, float *right, int numSamples,
       const float pr = panR[(size_t)i];
 
       // Which table it was reading last block, and which it is reading now.
-      //
-      // They differ whenever a partial crosses one of the lines the tables are
-      // divided by: how much room is left under Nyquist for every character,
-      // and how hard the limit is biting for the rate-limited one. Two tables
-      // hold different numbers at the same phase, so swapping between them puts
-      // a step in the wave, and a step is a click. A vibrato sitting across one
-      // of those lines crosses it twice a cycle and clicks at twice the
-      // vibrato rate.
-      //
-      // So the block that changes tables is played as a cross-fade from one to
-      // the other, the same way the gain slides across a block rather than
-      // stepping at the edge of it. It costs a second table read for 32
-      // samples, on the rare block that crosses, and nothing at all on the
-      // ones that do not.
+      // Swapping tables at the same phase would put a click in the wave, so a
+      // block that changes tables cross-fades from one to the other. It costs a
+      // second read only on the blocks that cross.
       const Wave *const previous = pt.lastWave;
       pt.lastWave = &wave;
 
-      // The envelope is stepped through a copy held for the block. The output
-      // is written through plain pointers, which as far as the compiler knows
-      // could point at the envelope, so stepping it in place makes it store
-      // and reload its level on every sample. Same arithmetic, same samples.
+      // The envelope is stepped through a local copy for the block. The output
+      // pointers could alias it as far as the compiler knows, so stepping it in
+      // place would store and reload its level every sample. Same samples.
       Envelope env = pt.env;
 
       if (previous == nullptr || previous == &wave) {
@@ -1043,7 +909,7 @@ void Voice::render(float *left, float *right, int numSamples,
     midiNote = -1;
 
     // The partials it followed have finished, so whatever is left of it is
-    // below anything audible, and the next note finds its wheels afresh.
+    // inaudible, and the next note finds its wheels afresh.
     for (auto &leak : leaks)
       leak.lastGain = 0.0f;
   }
@@ -1078,10 +944,8 @@ void Voice::renderLeaks(float *left, float *right, int len, double keyFreq,
       continue;
     }
 
-    // A leaking wheel is a wheel, so it has the shape the wheels at its pitch
-    // have. A step between two tables at -50 dB is far below hearing, so a
-    // leak that glides across a band edge changes table without the
-    // cross-fade a partial uses.
+    // A leaking wheel has the shape the wheels at its pitch have. A leak is
+    // quiet enough that changing table without a cross-fade is inaudible.
     const auto &wave =
         tables.table(Character::Wheel, freq,
                      foldAliases ? kMostCharacterHarmonics
@@ -1128,10 +992,9 @@ void Voice::renderNoise(float *left, float *right, int len,
 
   const double amPhaseInc = (double)np.amRateHz / sampleRate;
 
-  // The same two reads the partials take, for the same reason: the gain ramps
-  // between them across the block.
-  // Off the shared modulator when the keyboard is sharing one, the same as
-  // every partial above. The noise channel's run sits after the 32 of them.
+  // The same two reads the partials take, since the gain ramps between them.
+  // Off the shared modulator when the keyboard is sharing one. The noise
+  // channel's run sits after the 32 partials.
   const auto ownStart = noise.ampLfo.value(np.amShape, kAmpShapeOffset);
   const auto ownEnd = noise.ampLfo.advance(noise.rng, amPhaseInc * (double)len,
                                            np.amShape, kAmpShapeOffset);
@@ -1183,31 +1046,28 @@ void Voice::renderNoise(float *left, float *right, int len,
   }
 
   // Colour tilts between the two halves of a complementary one-pole pair.
-  // Both at unity reconstructs the original white noise, so the centre of the
-  // knob is genuinely flat rather than merely filtered less.
+  // Both at unity give back the original white noise, so the centre of the
+  // knob is flat.
   const float colour = std::clamp(np.colour, 0.0f, 1.0f);
   const float lowMix = colour < 0.5f ? 1.0f : 1.0f - (colour - 0.5f) * 2.0f;
   const float highMix = colour < 0.5f ? colour * 2.0f : 1.0f;
 
-  // Placed the same way a partial is, so the one channel that is not part of
-  // the series still sits somewhere rather than always up the middle.
+  // Panned the same way a partial is.
   const float pan = std::clamp(np.pan, -1.0f, 1.0f);
   const float panL = std::sqrt(0.5f * (1.0f - pan));
   const float panR = std::sqrt(0.5f * (1.0f + pan));
 
   // The string, struck by the noise after COLOUR and its envelope have shaped
-  // it, so COLOUR decides how hard and bright the strike is and the envelope
-  // decides whether it is struck once or blown into. Tuned to the pitch the
-  // fundamental is sounding at, bends, its glide and Adaptive's slide
-  // included, without the fundamental's own vibrato and drift, which belong to
-  // that partial rather than to the note.
+  // it. Tuned to the pitch the fundamental is sounding at, with bends, glide
+  // and Adaptive's slide, but without the fundamental's own vibrato and
+  // drift.
   if (stringOn) {
     const double semis = (double)(p.global.bendSemitones + noteBendSemitones) +
                          partials[0].glideSemis + retuneSemis;
 
-    // RELEASE is the damper. Once the key is up the string dies away over
-    // the channel's release time as well as its own, so it has gone by the
-    // time the envelope has. A steal or a fade brings a damper of its own.
+    // RELEASE is the damper. Once the key is up the string also dies away over
+    // the channel's release time, so it has gone by the time the envelope has.
+    // A steal or a fade brings a damper of its own.
     double decay = std::max(1.0e-3, (double)np.stringDecay);
     if (released)
       decay = 1.0 / (1.0 / decay + 1.0 / std::max(5.0e-3, (double)np.release));
@@ -1246,8 +1106,7 @@ void Voice::renderNoise(float *left, float *right, int len,
     g += gInc;
   }
 
-  // Alive while it is being struck or is still above a millionth of full
-  // scale, a hundred and twenty decibels down.
+  // Alive while it is being struck or is still above -120 dBFS.
   noise.stringAlive = stringOn && (noise.env.isActive() || rungPeak >= 1.0e-6f);
 }
 

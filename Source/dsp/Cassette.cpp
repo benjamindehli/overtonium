@@ -15,6 +15,7 @@ double warped(double hz, double sampleRate) noexcept {
   return 2.0 * sampleRate * std::tan(kPi * nyquistSafe / sampleRate);
 }
 
+/// Decibels to a gain.
 double db(double x) noexcept { return std::pow(10.0, x / 20.0); }
 
 /// A peaking section, the analogue prototype's response at w0 by the bilinear
@@ -34,6 +35,7 @@ void peaking(double hz, double gainDb, double q, double sampleRate, double &b0,
   a2 = (1.0 - alpha / a) / a0;
 }
 
+/// A second order low pass, as the cookbook gives it.
 void lowPass(double hz, double q, double sampleRate, double &b0, double &b1,
              double &b2, double &a1, double &a2) noexcept {
   const double w = 2.0 * kPi * std::min(hz, 0.45 * sampleRate) / sampleRate;
@@ -68,6 +70,7 @@ double bandPass(double lowHz, double highHz, double sampleRate, double &b0,
   return 0.5 * kPi * centre / q;
 }
 
+/// A biquad's gain at a frequency.
 template <typename Section>
 double magnitudeAt(const Section &s, double hz, double sampleRate) noexcept {
   const std::complex<double> z1 = std::polar(1.0, -2.0 * kPi * hz / sampleRate);
@@ -107,9 +110,8 @@ double Cassette::Biquad::run(double x) noexcept {
 double Cassette::Follower::run(double x, double attackCoef, double fastCoef,
                                double slowCoef) noexcept {
   // The average of the rectified signal, scaled by pi / 2 so a sine reads its
-  // amplitude, which is the level the shelf was fitted against. Not a peak
-  // follower: the tape's own hiss has peaks four times its average, and a
-  // side chain riding them let a third of the hiss Dolby removes back in.
+  // amplitude. Not a peak follower, since riding the hiss's peaks would let
+  // much of the hiss back in.
   const double level = 1.5707963267948966 * std::abs(x);
 
   fast = level + (level > fast ? attackCoef : fastCoef) * (fast - level);
@@ -227,16 +229,13 @@ void Cassette::prepare(double rate) {
   centreSamples = kFlutterCentre * sr;
   swingSamples = kFlutterSwing * sr;
 
-  // Slow enough to leave every band of the speed alone, which is what keeps
-  // the delay centred rather than walking off with the lowest of them.
+  // Pulls the delay back to its centre, slower than any band of the speed.
   leak = 1.0 - std::exp(-2.0 * kPi * 0.05 / sr);
 
   // The antiderivative of what the limit takes away, by the trapezium rule
-  // from zero. Of what it takes away rather than of the curve, because that is
-  // near nothing for a quiet signal, and so is the error between two entries:
-  // tabulating the whole curve and subtracting the straight line afterwards
-  // left an error the size of a -40 dBFS signal. Even, so only the positive
-  // half is kept.
+  // from zero. Tabulating only what is taken away, rather than the whole
+  // curve, keeps the table's error near nothing for a quiet signal. Even, so
+  // only the positive half is kept.
   clipTable.assign((size_t)kClipTableSize + 1, 0.0);
   clipStep = kClipTableSpan * kClipLimit / kClipTableSize;
 
@@ -324,10 +323,8 @@ double Cassette::lostIntegral(double u) const noexcept {
   const double at = a / clipStep;
 
   // Past the table the curve has all but reached its limit, so what it takes
-  // away is the rest of the straight line above it. Written as not inside the
-  // table rather than past it, so a NaN, which compares false either way,
-  // takes this branch instead of becoming an index. A wild read is a crash
-  // where a NaN out is only a NaN.
+  // away is the rest of the straight line above it. Written as "not inside"
+  // so a NaN takes this branch instead of becoming an index.
   if (!(at < kClipTableSize)) {
     const double end = kClipTableSpan * cassette::kClipLimit;
     return clipTable.back() + cassette::kClipLimit * (a - end) -
@@ -341,9 +338,8 @@ double Cassette::lostIntegral(double u) const noexcept {
 }
 
 double Cassette::clip(Channel &c, double u) const noexcept {
-  // Only what the limit takes away is averaged. Averaging the whole would be
-  // the mean of two neighbouring samples, which is a low pass of its own, 2 dB
-  // down at 10 kHz at 48 kHz, on a signal that is mostly straight through.
+  // Only what the limit takes away is averaged, since averaging the whole
+  // signal would act as a low pass on it.
   const auto lost = [this](double v) { return clipCurve(v) - v; };
 
   const double step = u - c.lastClip;
@@ -385,12 +381,9 @@ double Cassette::rise(Channel &c, double x) noexcept {
 }
 
 double Cassette::decode(Channel &c, double x) noexcept {
-  // A feedback decoder: the shelf lowers what it hears by a depth read from
-  // its own output, so out + depth * band(out) = in. The band is one first
-  // order section, so that is solved for this sample directly.
-  //
-  // The depth is read from the level a step ago, which a side chain that
-  // takes a millisecond to rise cannot tell from now.
+  // A feedback decoder: out + depth * band(out) = in, solved for this sample
+  // directly since the band is one first order section. The depth comes from
+  // the level a step ago.
   const auto &f = c.decodeBand;
 
   if (refresh)
@@ -431,9 +424,8 @@ void Cassette::process(float &left, float &right) noexcept {
   delaySamples = std::clamp(delaySamples, centreSamples - swingSamples,
                             centreSamples + swingSamples);
 
-  // The depths and the wobble are worked out every kControlStep samples. Each
-  // is a power, five of them a sample were most of what this cost, and none
-  // of them moves in less than a millisecond.
+  // The depths and the wobble are each a power and move slowly, so they are
+  // worked out every kControlStep samples to save CPU.
   refresh = controlCount == 0;
   controlCount = (controlCount + 1) % kControlStep;
 

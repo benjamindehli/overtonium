@@ -133,15 +133,12 @@ void SympatheticStrings::process(float *left, float *right, int numSamples,
 
       float peak = 0.0f;
 
-      // How fast a string takes energy in. A string fed at its own pitch
-      // settles at drive / (1 - g), where 1 - g is what it loses each pass,
-      // so a held note's level follows DECAY unless the drive follows the
-      // loss. A short note, though, takes in drive times its length,
-      // whatever DECAY is. No drive keeps both even, so it follows the loss
-      // to the power kLossExponent, which splits the difference: from 0.2 to
-      // 10 s a held note and a short one each move by a few decibels, in
-      // opposite directions. At kCouplingSeconds a held partial drives its
-      // string to kSend of its own level.
+      // How hard a string is fed. A held note settles at drive / (1 - g), so
+      // its level follows DECAY unless the drive follows the loss, while a
+      // short note takes in the same whatever DECAY is. Following the loss to
+      // the power kLossExponent keeps both within a few decibels. At
+      // kCouplingSeconds a held partial drives its string to kSend of its own
+      // level.
       const auto lossAt = [hz](double seconds) {
         return 1.0 - std::pow(10.0, -3.0 / (hz * seconds));
       };
@@ -160,8 +157,7 @@ void SympatheticStrings::process(float *left, float *right, int numSamples,
       for (int n = 0; n < len; ++n) {
         feeding[s] += step;
 
-        // Only an undamped string takes anything in. A damper presses on a
-        // string, and what it does not stop it soon will.
+        // A damped string is fed nothing.
         const auto y = string.tick(in[n] * feeding[s]) * string.audibility();
         peak = std::max(peak, std::abs(y));
         sum[n] += y;

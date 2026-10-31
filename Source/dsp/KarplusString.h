@@ -13,27 +13,20 @@ namespace ovt {
 /// The noise channel's own output, after COLOUR and its envelope, is what
 /// strikes it.
 ///
-/// Tuned continuously rather than once per note. The note it plays bends,
-/// glides and is slid to a new version by Adaptive while it sounds, so the
-/// loop is read at a fractional delay, by third-order Lagrange interpolation,
-/// that moves sample by sample across each block. The lowpass delays the loop
-/// too, by an amount that depends on the pitch, and its exact delay at the
-/// fundamental is taken out of the line's so the string is in tune rather
-/// than flat by however much the damping is.
+/// The pitch can move while the note sounds, so the loop is read at a
+/// fractional delay by third-order Lagrange interpolation, moved sample by
+/// sample across each block. The lowpass's own delay at the fundamental is
+/// taken out of the line's so the string stays in tune.
 ///
-/// Where the loop gets too short to tune, at the top of the keyboard and more
-/// so at low sample rates, the string fades out and leaves the noise as it
-/// was, rather than playing out of tune. Below the lowest pitch it was sized
-/// for it fades out too, since the line is not long enough to reach.
+/// Where the loop gets too short to tune, or the pitch falls below what the
+/// line was sized for, the string fades out and leaves the noise as it was.
 class KarplusString {
 public:
   /// The lowest pitch the line is long enough for, unless told otherwise.
   static constexpr double kLowestHz = 10.0;
 
   /// Sizes the line for the host's rate, long enough for `lowestHz`. The only
-  /// place that allocates. A string that only ever plays one note, as the
-  /// sympathetic strings do, is sized for that note rather than for the
-  /// bottom of the keyboard.
+  /// place that allocates.
   void prepare(double sampleRate, double lowestHz = kLowestHz) noexcept;
 
   /// The rate it is actually being run at, which the converter can lower

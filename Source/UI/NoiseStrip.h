@@ -33,16 +33,11 @@ public:
 
   void resized() override;
 
-  /// See ChannelStrip::setCollapsedSections. The noise channel shares the
-  /// mixer's rows, so it folds with everything else.
+  /// Which sections are folded. See ChannelStrip::setCollapsedSections.
   void setCollapsedSections(SectionMask);
 
-  /// How far the parameters are scrolled, shared by every column.
-  ///
-  /// The gutter, the 32 strips and the noise channel are handed the same
-  /// number by the editor, which is what keeps a caption pointing at the knob
-  /// beside it. Snapped to a row boundary inside layoutRows, so a row is never
-  /// half over the header.
+  /// How far the parameters are scrolled. Every column is handed the same
+  /// number by the editor, so the captions stay beside their knobs.
   void setScroll(int);
 
   /// Asked for when a click lands on one of the rules between sections, which
@@ -55,34 +50,23 @@ public:
   void drawFaderAt(int y);
 
   /// Lights this channel's fader while a drag across the mixer would draw it.
-  /// LINK never reaches the noise channel, so it has no preview of its own and
-  /// this is the only thing that lights its fader.
   void setDrawGlow(bool);
 
   void mouseDown(const juce::MouseEvent &) override;
 
-  /// As TopBar::onLearnRequested. The noise channel is one strip rather than
-  /// a series, so LINK has nothing to say about it either.
+  /// As TopBar::onLearnRequested, with no LINK items.
   std::function<void(const juce::String &)> onLearnRequested;
   void mouseEnter(const juce::MouseEvent &) override;
   void mouseMove(const juce::MouseEvent &) override;
   void mouseExit(const juce::MouseEvent &) override;
 
   /// Keeps a wheel that landed on a control from scrolling the mixer as well.
-  ///
-  /// The strip listens to everything inside it, so that a pointer resting on a
-  /// knob is reported by the strip rather than swallowed by the control. JUCE
-  /// hands that listener every event, wheels included, and Component's own
-  /// handler passes whatever it is given up to the parent. So a scroll the
-  /// knob had already taken went on to the viewport and dragged the series
-  /// sideways under the hand that was turning the knob, whenever the window
-  /// was narrow enough for there to be anything to scroll.
-  ///
-  /// Only a wheel that actually landed on the strip is passed on, which leaves
-  /// the background scrolling the series and a control keeping its own.
+  /// The strip listens deeply for hover, so it hears its controls' wheels too.
+  /// Only a wheel that landed on the strip itself is passed up.
   void mouseWheelMove(const juce::MouseEvent &,
                       const juce::MouseWheelDetails &) override;
 
+  /// Dims the strip while another channel is soloed.
   void setSilencedByOthers(bool shouldDim);
   /// @returns the region of this strip that needs redrawing. See
   /// ChannelStrip::setMeterLevel.
@@ -91,9 +75,8 @@ public:
     return band.isEmpty() ? band : band.translated(meter.getX(), meter.getY());
   }
 
-  /// The lamps on the section rules. Noise has an envelope and a tremolo like
-  /// any other channel, so it gets those two. It has no pitch, so the pitch
-  /// rule stays a plain rule over empty rows. See ChannelStrip::setActivity.
+  /// The lamps on the section rules, with none on the pitch rule. See
+  /// ChannelStrip::setActivity.
   void setActivity(float envelope, float tremolo, float velGain, float pressure,
                    juce::Array<juce::Rectangle<int>> &into);
 
@@ -101,7 +84,7 @@ public:
   bool isHovered() const noexcept { return hovered; }
 
   /// Takes part in the row highlight, so the band crosses the noise channel
-  /// too. LINK never reaches it, so there is nothing here to arm.
+  /// too.
   void setHighlightedRow(Row);
 
 private:
@@ -129,16 +112,15 @@ private:
       offLevel, release, amRate, amDepth, velocity, aftertouch, pan, volume;
 
   /// The string the noise strikes, in the rows a partial's pitch modulation
-  /// takes, since a string is what gives this channel a pitch. Each carries
-  /// its own caption, since the gutter names those rows for the partials.
+  /// takes. Each has its own caption, since the gutter names those rows for
+  /// the partials.
   juce::Slider stringAmount, stringDecay, stringDamp, stringPoint;
   std::array<juce::Rectangle<int>, 4> stringCaptions{};
-  /// The tremolo's shape. No pitch modulator here to give one to.
+  /// The tremolo's shape.
   ShapeButton amShape;
 
   MuteSoloButton muteButton, soloButton;
-  /// COLOUR is a word rather than a figure, so it stays a label. The level is
-  /// the same reading a partial's is and is drawn the same way.
+  /// COLOUR is a word, so it is a label. The level is drawn as a partial's is.
   juce::Label colourReadout;
   SegmentDisplay levelReadout{{}};
   LevelMeter meter;

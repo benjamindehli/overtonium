@@ -8,6 +8,8 @@
 
 namespace ovt::ui {
 
+/// The plugin's look and feel: knobs, faders, lamp caps, combo boxes, the
+/// standalone title bar and the cached channel background.
 class OvertoniumLookAndFeel : public juce::LookAndFeel_V4 {
 public:
   OvertoniumLookAndFeel();
@@ -22,86 +24,52 @@ public:
 
   /// Where a cap sits in a block of two sharing one moulding.
   ///
-  /// The mute and the solo are a two-gang block, the way a console's are. At
-  /// the size they are drawn, two bezels facing each other across a two pixel
-  /// gap spend most of the pair's width on moulding, and the wall is already
-  /// at its floor, so the only pixels to recover are those two. They stay two
-  /// components, each lighting on its own, and the well is drawn as the whole
-  /// block by both of them: what each one shows of it is its own half,
-  /// because a component clips to itself.
+  /// Each of the two components draws the well of the whole block, and its
+  /// own clip shows only its half.
   enum class LampGang { Alone, Left, Right };
 
-  /// Which half of a gang a button is, from the "lampGang" property it
-  /// carries. Read here rather than passed, so that a button's bounds and its
-  /// moulding cannot be told different things.
+  /// Which half of a gang a button is, from its "lampGang" property, so that
+  /// its bounds and its moulding always agree.
   static LampGang lampGangOf(const juce::Component &);
 
   /// Puts a pair into one moulding. Order is left to right.
   static void gangLamps(juce::Component &left, juce::Component &right);
 
-  /// The cap's own rectangle inside a button's bounds, which is what anything
-  /// drawn on the button has to fit: the bezel is part of the component, so a
-  /// word or an icon given the whole bounds runs under the moulding.
-  ///
-  /// A ganged cap gives up only half a wall on the side it joins, the other
-  /// half coming from its neighbour, so the divider between two caps is the
-  /// same width as the moulding around them.
+  /// The cap's own rectangle inside a button's bounds, which is what a word
+  /// or an icon drawn on the button has to fit. A ganged cap gives up only
+  /// half a wall on the side it joins.
   static juce::Rectangle<float> lampCapBounds(juce::Rectangle<float> bounds,
                                               LampGang gang);
 
-  /// The plastic itself, at the middle of the cap where the lamp is behind
-  /// it.
-  ///
-  /// The cap is a white translucent, the same one for every lamp, and what
-  /// a lamp does is shine through it. Unlit, every cap on the panel is
-  /// therefore the same grey, that being what white plastic looks like in an
-  /// unlit room, and the only colour anywhere is what is switched on.
+  /// The colour of the cap's face at its middle, over the lamp. Unlit, every
+  /// cap is the same grey.
   static juce::Colour lampFace(juce::Colour lamp, bool on);
 
-  /// What a word or an icon on a cap is drawn in, lit or not.
-  ///
-  /// Always the same near-black, so a legend never changes colour under its
-  /// own lamp. It is printed on the plastic rather than being part of what
-  /// lights, which is what the machines do and what lets the eye read the
-  /// state off the colour of the cap alone.
-  /// A rectangle on whole pixels.
-  ///
-  /// A filled shape wants its edges on the grid: landed between two pixels it
-  /// gets a row of partial coverage all the way round, which comes out darker
-  /// than its face by whatever is behind it and reads as a border nobody drew.
-  /// A stroked edge wants the opposite, which is why the bounds these come
-  /// from are inset by half a pixel in the first place.
+  /// A rectangle on whole pixels, so a filled shape gets no row of partial
+  /// coverage round its edge.
   static juce::Rectangle<float> snapToPixels(juce::Rectangle<float>);
 
+  /// What a word or an icon on a cap is drawn in: the same near-black, lit or
+  /// not.
   static juce::Colour lampLegend();
 
-  /// The legend as it actually prints on a lit cap: thinnest over the middle,
-  /// where the lamp is and where most light gets through it, and closing up
-  /// towards the ends. Unlit it is very nearly ink, there being nothing
-  /// behind it to pass.
+  /// The legend ink on a cap, lightest over the middle of a lit cap and very
+  /// nearly @p ink when unlit.
   static juce::ColourGradient legendInk(juce::Colour ink,
                                         juce::Rectangle<float> cap, bool on);
 
-  /// A square plastic cap of the kind a tape machine or a desk has, standing
-  /// in a moulded well and lit from behind when its thing is on.
+  /// A square plastic cap standing in a moulded well, lit from behind when
+  /// @p on.
   ///
-  /// The cap does not move when the lamp comes on. These are indicator lamps
-  /// rather than latching switches, and a cap that sinks while its thing is
-  /// on says that pressing it is what turns the thing off, which is the wrong
-  /// way round for ECHO or for a mute. @p down is a finger on it and nothing
-  /// else, so the press lasts as long as the press does.
-  ///
-  /// The cap keeps its colour lit or not and only its brightness moves, which
-  /// is what the real ones do: the lamp is behind a coloured plastic, so an
-  /// unlit amber button is brown and an unlit green one is a dark olive
-  /// rather than grey. That is also what makes the off state readable as a
-  /// lamp that could light rather than as a hole.
+  /// The cap only sinks while @p down, which is a finger on it. Being on does
+  /// not sink it.
   ///
   /// @param lamp  the colour behind the plastic, lit or not.
   static void drawLampCap(juce::Graphics &, juce::Rectangle<float> bounds,
                           juce::Colour lamp, bool on, bool highlighted,
                           bool down, LampGang gang);
 
+  /// Draws a button as a lamp cap in @p fill, taking its gang from the button.
   void drawButtonFace(juce::Graphics &, juce::Button &, bool engaged,
                       const juce::Colour &fill, bool highlighted, bool down);
 
@@ -118,13 +86,8 @@ public:
                     int buttonX, int buttonY, int buttonW, int buttonH,
                     juce::ComboBox &) override;
 
-  /// The standalone's own title bar, which is JUCE's rather than the
-  /// platform's and would otherwise be the grey-green every unstyled JUCE app
-  /// wears, with a red cross and a yellow dash on it. Dressed to match the
-  /// panel underneath, so the window reads as one object.
-  ///
-  /// Only the standalone has one of these. In a host the window belongs to the
-  /// host and none of this is reached. See OvertoniumEditor.
+  /// The standalone's title bar, drawn to match the panel. Not reached in a
+  /// host, which owns the window.
   void drawDocumentWindowTitleBar(juce::DocumentWindow &, juce::Graphics &,
                                   int w, int h, int titleSpaceX,
                                   int titleSpaceW, const juce::Image *icon,
@@ -136,12 +99,9 @@ public:
   juce::Font getPopupMenuFont() override;
   juce::Font getSliderPopupFont(juce::Slider &) override;
 
-  /// paintChannelBackground, drawn from a picture when it has been drawn at
-  /// this size, scale and colour before. Every channel strip is the same size
-  /// and their grain starts at their own corner, so one picture serves all
-  /// thirty-two, and a repaint of the mixer copies it instead of filling
-  /// gradients and grain thirty-two times. Held here, per window, for the
-  /// reason the grain tile is.
+  /// paintChannelBackground, drawn from a cached picture keyed by size, scale
+  /// and colour. The grain starts at each strip's own corner, so one picture
+  /// serves every strip of the same size.
   void drawChannelBackground(juce::Graphics &, juce::Rectangle<int> bounds,
                              juce::Colour base);
 
@@ -153,32 +113,22 @@ private:
     juce::Image picture;
   };
 
-  /// The few sizes in use at once: the strips, the noise strip, and the
-  /// panels the editor fills the same way. Kept short, since a resize makes
-  /// a new size and the old ones are of no more use.
+  /// The few sizes in use at once. Kept short, since a resize makes the old
+  /// sizes useless.
   std::vector<Background> backgrounds;
 
-  /// What keeps the grain tile alive, and the reason it is a member here
-  /// rather than a static beside the function that builds it.
-  ///
-  /// One look and feel exists per editor, so the tile is built when the first
-  /// window opens and released when the last one closes, on the message thread
-  /// with the binary still loaded. Held in a static instead, it would be
-  /// released when the host unloads the plugin, and a juce::Image under
-  /// Windows is backed by Direct2D, so that teardown deadlocks against the
-  /// loader lock. See GrainTile in Theme.h for the whole of it.
-  ///
-  /// Never read. Its existence is the point.
+  /// Keeps the grain tile alive while any editor is open, so it is released
+  /// on the message thread rather than at unload. A static here would
+  /// deadlock against the loader lock on Windows. See GrainTile in Theme.h.
+  /// Never read.
   juce::SharedResourcePointer<GrainTile> grainHolder;
 };
 
-/// Small helper so the codebase has one place that knows how to make a font.
+/// The one place that makes a font.
 juce::Font makeFont(float height, bool bold = false);
 
-/// Fills a channel background under the panel's light source, which comes from
-/// the top left throughout. A brighter left edge and a darker right one make a
-/// run of strips read as raised columns rather than a flat sheet, and the band
-/// of shade along the top is the shadow the header casts onto them.
+/// Fills a channel background: base colour, grain, a lighter left edge, a
+/// darker right one and a band of shade along the top.
 void paintChannelBackground(juce::Graphics &, juce::Rectangle<int> bounds,
                             juce::Colour base);
 
@@ -187,111 +137,67 @@ void paintChannelBackground(juce::Graphics &, juce::Rectangle<int> bounds,
 void paintChannelBackground(juce::Component &, juce::Graphics &,
                             juce::Rectangle<int> bounds, juce::Colour base);
 
-/// Picks out the row under the pointer.
-///
-/// Drawn as a ruled band, so that it reads as a single line running the width
-/// of the mixer, from the caption in the gutter to the channel your hand is on.
-///
-/// In plain light rather than in a colour. It belongs to the pointer rather
-/// than to any one partial, and a band crossing thirty-three channels lands on
-/// thirty-three different hues at once: a tint of its own agrees with a few of
-/// them and argues with the rest, where clear light lifts all of them by the
-/// same amount and leaves the colour underneath saying what it was already
-/// saying. Naming which row and which channel is left to the gutter caption and
-/// the channel number, which both go accent.
+/// Picks out the row under the pointer with a band of plain light, so it
+/// lifts every channel's colour by the same amount.
 void paintRowHighlight(juce::Graphics &, juce::Rectangle<int> row);
 
 /// The same wash turned on its side, marking the channel under the pointer.
-///
-/// The row highlight answers which control you are on, out of twenty-two. This
-/// answers which channel, out of thirty-three, and the two crossing is what
-/// tells you at a glance that you are about to drag the decay of harmonic 19.
 void paintColumnHighlight(juce::Graphics &, juce::Rectangle<int> strip);
 
 /// The ground a lit readout sits on: the tuning digits and the shape glyph.
-///
-/// Not the plain groove the other recesses use. These two are screens rather
-/// than holes in the panel, and a screen is never quite off. The wash of
-/// accent under them is the tint the strip's hover used to be the only source
-/// of, which is where it came from: it looked right there, so it belongs there
-/// all the time. Hovering still lifts it further, so the pointer has somewhere
-/// to go.
+/// A faint accent wash, lifted further when @p hovered.
 void paintDisplayGround(juce::Graphics &, juce::Rectangle<float> area,
                         float corner, bool hovered);
 
-/// The box behind a group of controls on the top bar and the bars under it,
-/// which is what carries the "these belong together" reading. Drawn as a
-/// pocket milled into the panel rather than a box drawn on it.
+/// The pocket milled into the panel behind a group of controls on the top bar
+/// and the bars under it.
 void paintGroupPocket(juce::Graphics &, juce::Rectangle<int> group);
 
 /// The floor of a pocket alone, for a bar that lays something in it before
 /// the shading goes on.
 void paintGroupPocketFill(juce::Graphics &, juce::Rectangle<int> group);
 
-/// The shading round the inside of a pocket, the shadow under its top edge,
-/// the light on its bottom one and its outline, on its own. For drawing again
-/// over something laid in the pocket, so that sits in the same recess.
+/// The shading round the inside of a pocket on its own, for drawing again
+/// over something laid in the pocket.
 void paintGroupPocketShade(juce::Graphics &, juce::Rectangle<int> group);
 
-/// The lip of the opening a screen or a lamp is set into.
+/// The lip around the opening a screen or a lamp is set into, drawn outside
+/// @p opening.
 ///
-/// Around the thing rather than inside it. Every one of them is a few pixels
-/// across, so a border taken out of the picture would leave no picture, and
-/// each already stands in a margin of its own that nothing else is using.
-///
-/// Two fills and a clip, no stroking, which is what keeps it cheap enough for
-/// the lamps. The clip keeps the shadow inside the lip. The light comes from
-/// the top left, as it does everywhere else here, so the walls facing it are
-/// the bottom and the right, and those are the two that come up lit. Call it
-/// before drawing the face, which then covers everything but the lip.
+/// Call it before drawing the face. Both shapes also run under the opening, so
+/// the face has to be opaque or the shadow shows through it.
 ///
 /// @param opening  the face that will be drawn over it.
 /// @param corner  that face's own corner radius. Half the height gives a
-/// round hole, which is what a lamp sits in.
-/// @param depth  how far the lip stands out, in pixels. One is enough to read
-/// and is all the tighter margins have.
-///
-/// Both shapes run under the opening as well as around it, so the face has to
-/// cover its own ground. One drawn at low alpha would show the shadow through
-/// itself: see the lamps, which blend against their backdrop rather than
-/// asking this for a floor to sit on.
+/// round hole.
+/// @param depth  how far the lip stands out, in pixels.
 void paintRecess(juce::Graphics &, juce::Rectangle<float> opening, float corner,
                  float depth = 1.0f);
 
-/// Strokes a path the way a phosphor screen shows one.
-///
-/// Three passes: a wide faint bloom, a narrower brighter one, then the trace
-/// itself. A line drawn once at full strength reads as ink on paper, and these
-/// are meant to read as something lit from behind.
+/// Strokes a path the way a phosphor screen shows one, in three passes: a
+/// wide faint bloom, a narrower brighter one, then the trace itself.
 void strokeGlowing(juce::Graphics &, const juce::Path &, juce::Colour,
                    float thickness);
 
 /// The product wordmark, for the corner of the bar.
 juce::Image logoWordmark();
 
-/// The maker's mark, for the foot of the gutter.
-///
-/// Vector rather than pixels, since it is drawn small and its size depends on
-/// how tall the window is. Returns null if the drawing cannot be parsed, and
-/// every caller has to cope with that rather than assume.
+/// The maker's mark, for the foot of the gutter. Returns null if the drawing
+/// cannot be parsed.
 std::unique_ptr<juce::Drawable> logoMakersMark();
 
-/// A pointer that says what a LINK drag would do to the channels it reaches.
-///
-/// Five bars beside the arrow, in the shape of the curve: level for uniform,
-/// rising or falling for the tilts, scattered for spread. The tool is a mode,
-/// and a mode you cannot see is a mode you forget you are in.
+/// A pointer that shows what a LINK drag would do: five bars beside the arrow
+/// in the shape of the curve.
 juce::MouseCursor linkCursor(LinkCurve);
 
-/// The pointer while a drag across the faders would draw them rather than move
-/// one. A pencil, since that is what the gesture is.
+/// The pencil pointer shown while a drag across the faders would draw them
+/// rather than move one.
 juce::MouseCursor drawCursor();
 
-/// The artwork behind it, exposed for the same reason linkCursorImage is.
+/// The artwork behind drawCursor, exposed so it can be looked at on its own.
 juce::Image drawCursorImage(float scale);
 
-/// The artwork behind linkCursor, exposed so it can be looked at without a
-/// pointer to hang it on.
+/// The artwork behind linkCursor, exposed so it can be looked at on its own.
 juce::Image linkCursorImage(LinkCurve, float scale);
 
 } // namespace ovt::ui

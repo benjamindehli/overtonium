@@ -5,12 +5,11 @@
 
 namespace ovt {
 
-/// What the Adaptive temperament settled the held chord on, for the screen.
+/// What the Adaptive temperament settled the held chord on, for the Tuning bar.
 ///
-/// Published by the engine after every settle, on every key down and up and
-/// on pedal release, and read by the Tuning bar. Plain values only, so it can
-/// be copied whole between threads. It says where each key is going rather
-/// than where it is: a key sliding to a new version reports the version.
+/// Published by the engine after every settle. Plain values only, so it can be
+/// copied whole between threads. A key sliding to a new version reports the
+/// version it is going to.
 struct AdaptiveSnapshot {
   /// More than the engine can ever hold, so nothing is dropped.
   static constexpr int kMaxNotes = 32;
@@ -33,27 +32,22 @@ struct AdaptiveSnapshot {
   /// The key the harmonic seventh is tuned on, or -1 for none.
   int harmonicRoot = -1;
 
-  /// The version each pitch class takes when struck into silence, the one it
-  /// used last, indexed by semitones above the root. Says where a key that is
-  /// not held would land.
+  /// The version each pitch class takes when struck into silence (the one it
+  /// used last), indexed by semitones above the root.
   std::array<int, 12> remembered{};
 
   /// Where A sits, for reading each key against equal temperament.
   double referenceHz = 440.0;
 };
 
-/// Hands the latest of something from one thread to another without either
-/// waiting for the other.
+/// Hands the latest value from one thread to another without either waiting.
 ///
-/// Three copies: one the writer fills, one the reader reads, and one between
-/// them holding the newest finished copy. Publishing swaps the filled copy
-/// into the middle and reading swaps the middle out, each with one atomic
-/// exchange, so the writer never waits on the reader and the reader always
-/// gets a whole copy, never one half written. A copy published before the
-/// reader got to the last one replaces it, which is the point: only the
-/// newest matters.
+/// Three copies: the writer's, the reader's and a middle one holding the
+/// newest finished copy. Publishing and reading each swap with the middle in
+/// one atomic exchange, so the reader always gets a whole copy and an unread
+/// copy is simply replaced by a newer one.
 ///
-/// One writer and one reader. The writer here is the audio thread.
+/// One writer (the audio thread) and one reader.
 template <typename T> class TripleBuffer {
 public:
   /// From the writer only.

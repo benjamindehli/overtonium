@@ -9,15 +9,10 @@ namespace ovt {
 
 /// One turn of a waveform, sampled and read back with linear interpolation.
 ///
-/// A 4096-point table with linear interpolation keeps harmonic distortion
-/// around -95 dBFS, which is inaudible here and roughly an order of magnitude
-/// cheaper than calling std::sin once per sample. With 32 partials x 16 voices
-/// that difference is the whole ball game.
-///
-/// Everything the oscillator can be reads through this one class, at this one
-/// size, so a partial with character on it costs exactly what a plain sine
-/// does: the same two loads and the same interpolation, from a different
-/// table. See Character.h.
+/// 4096 points keep the distortion around -95 dBFS at a fraction of the cost
+/// of std::sin. Every oscillator waveform reads through this class at this
+/// size, so a partial with a character costs the same as a plain sine. See
+/// Character.h.
 class Wave {
 public:
   static constexpr int kBits = 12;
@@ -39,10 +34,8 @@ public:
 
   inline float operator()(double phase01) const noexcept { return at(phase01); }
 
-  /// The same read from a fixed-point phase, a 64-bit fraction of a turn,
-  /// which is what the oscillators step: its top kBits are the entry and the
-  /// rest the fraction between it and the next, and adding to it wraps round
-  /// the turn by itself.
+  /// The same read from a fixed-point phase, a 64-bit fraction of a turn: the
+  /// top kBits are the entry and the rest the fraction towards the next.
   inline float at(std::uint64_t phase) const noexcept {
     constexpr int kFractionBits = 64 - kBits;
     constexpr float kScale = 1.0f / 4503599627370496.0f; // 2^52
@@ -108,20 +101,14 @@ inline double wrapPhase(double p) noexcept {
   return p;
 }
 
-/// A phase in turns, and a step in turns per sample, as the 64-bit fractions
-/// of a turn the oscillators run on, and back.
+/// Converts a phase in turns, or a step in turns per sample, to the 64-bit
+/// fraction of a turn the oscillators run on, where adding wraps by itself.
 ///
-/// The phase is kept in turns between blocks, where everything that sets or
-/// reads it works, and run as a fraction inside the loop, where adding wraps
-/// round the turn by itself and there is no compare and no subtraction. Sixty
-/// four bits rather than thirty-two, which costs the same add on a 64-bit
-/// processor: thirty-two would round a step to a hundred thousandth of a
-/// hertz, enough for a tone to drift measurably off its pitch over a second,
-/// and sixty-four leaves the rounding below what a double holds anyway.
+/// 64 bits rather than 32 because 32 rounds a step coarsely enough for a tone
+/// to drift audibly off pitch.
 inline std::uint64_t toFixedPhase(double turns) noexcept {
-  // A phase a hair under one turn can round up to exactly 2^64 in the
-  // multiply, which no 64-bit integer holds, so it stops at the largest
-  // double below that.
+  // A phase just under one turn can round up to 2^64, which does not fit, so
+  // it is clamped to the largest double below that.
   return (std::uint64_t)std::min(wrapPhase(turns) * 18446744073709551616.0,
                                  18446744073709549568.0);
 }
@@ -130,6 +117,7 @@ inline std::uint64_t toFixedStep(double turnsPerSample) noexcept {
   return toFixedPhase(turnsPerSample);
 }
 
+/// A 64-bit fixed-point phase back to turns.
 inline double fromFixedPhase(std::uint64_t phase) noexcept {
   return (double)phase * (1.0 / 18446744073709551616.0);
 }

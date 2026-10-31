@@ -14,15 +14,11 @@ void SynthEngine::prepare(double newSampleRate) noexcept {
   sympathetic.prepare(sampleRate);
 
   // Builds the oscillator tables if nothing has yet, which takes about eight
-  // milliseconds: each circuit run over a sine, the harmonics read off it, and
-  // a table built for every count of them that fits under Nyquist. They are
-  // built once and then only read, but the first read has to pay for them, and
-  // the first read would otherwise be the first note. Eight milliseconds is
-  // most of a block.
+  // milliseconds. Done here so the first note does not pay for it on the audio
+  // thread.
   (void)CharacterTables::instance();
 
-  // And the racks those circuits were built into, which is a few hundred
-  // draws rather than eight milliseconds but is on the same first-read path.
+  // And the racks those circuits were built into, on the same first-read path.
   (void)UnitSpread::instance();
 
   // Distinct seeds so two voices never draw the same drift contour.
@@ -110,8 +106,8 @@ void SynthEngine::letGo(size_t index, float lift) noexcept {
   auto &v = voices[index];
 
   // Under the top line, a note whose phrase a key above carried on, and the
-  // upper note of a trill whose lower key is still down, both go quickly: the
-  // phrase is somewhere else now, and a full release under it is a smear.
+  // upper note of a trill whose lower key is still down, both go quickly, so
+  // a full release does not smear under the phrase.
   bool quiet = false;
 
   if (topLine()) {
@@ -195,8 +191,8 @@ Voice *SynthEngine::findQuietestExpendable() noexcept {
     if (!v.isActive())
       return &v;
 
-    // A voice on its way out is always a better thing to take than one with a
-    // key still down on it, however loud the two happen to be right now.
+    // A voice already releasing is always taken before one with a key still
+    // down, however loud each is.
     const bool releasing = v.isReleasing();
 
     if (best == nullptr || (releasing && !bestReleasing) ||
@@ -257,8 +253,7 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
   //
   // Always glides from the note played last, held or not, and from its bare
   // frequency once its voice has finished. Legato glides only from a key that
-  // is still down. A key held by the pedal does not count: the pedal holds the
-  // sound, not the hand, and a phrase played detached over it is detached.
+  // is still down. A key held only by the pedal does not count.
   const Voice *latest = nullptr;
   const Voice *latestHeld = nullptr;
 
@@ -295,9 +290,8 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
   // ---- legato ---------------------------------------------------------------
   //
   // One voice, and a key going down while another is still held moves the note
-  // rather than starting it again: the envelopes carry on and a run keeps the
-  // shape the first key gave it. The phrase ends when the last key comes up,
-  // which is the whole difference from one voice without it.
+  // rather than starting it again, so the envelopes carry on. The phrase ends
+  // when the last key comes up.
   if (legato && polyphony <= 1) {
     legatoRelease(note);
 
@@ -326,8 +320,7 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
     }
 
     // Nothing to carry it, so this key starts the phrase. Any tail still
-    // fading from the last one is cut, since a second voice is what legato
-    // exists to avoid.
+    // fading from the last one is cut, so legato stays on one voice.
     for (auto &v : voices)
       if (v.isActive())
         v.steal();
@@ -336,13 +329,10 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
   // ---- the top line ---------------------------------------------------------
   //
   // Legato with more than one voice. A key landing above every held note but
-  // the highest carries the highest note's phrase on: it starts a voice of its
-  // own that takes over that note's envelopes where they stand and glides from
-  // its pitch, so a melody played joined over a chord slides from note to note
-  // without starting again. The note it carried on from is never moved, so a
-  // key that turns out to be part of the chord still sounds, and it fades once
-  // its key comes up rather than ringing out under the melody. Every other key
-  // plays as it always does.
+  // the highest carries the highest note's phrase on: it starts its own voice
+  // that takes over that note's envelopes and glides from its pitch. The note
+  // it carried on from keeps sounding, in case the key was part of a chord,
+  // and fades once its key comes up. Every other key plays as usual.
   const auto now = clock;
   const auto window = (uint64_t)(kChordWindowSeconds * sampleRate);
   bool withOthers = false;
@@ -359,10 +349,9 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
   int spare = -1;
 
   if (topLine()) {
-    // The highest note a hand is holding, and the highest beneath it, and the
-    // highest of the keys struck in the last moment, which are a chord being
-    // played or the melody landing on one. The pedal does not count: it holds
-    // the sound, not the line.
+    // The highest note a hand is holding, the highest beneath it, and the
+    // highest of the keys struck within the chord window. The pedal does not
+    // count.
     int top = -1, beneath = -1, struckTop = -1;
 
     for (size_t i = 0; i < voices.size(); ++i) {
@@ -388,11 +377,9 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
     if (top >= 0) {
       const auto head = voices[(size_t)top].getNote();
 
-      // When a key goes down under the top note, the melody stepping down and
-      // a chord struck under a held melody look the same, and only what the
-      // old melody key does afterwards would tell them apart. So the rule
-      // leans on what is likely, and a wrong guess costs no more than an
-      // attack, since the note it carried on from goes on sounding.
+      // Under the top note, the melody stepping down and a chord struck under a
+      // held melody look the same, so the rule guesses. A wrong guess costs
+      // only an attack, since the note it carried on from goes on sounding.
       bool carries = false;
 
       if (note > head) {
@@ -405,9 +392,8 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
           carries = true;
         } else {
           // Alone under a lone melody, or among keys struck together: the
-          // melody only if it is a step away and the highest of what was just
-          // struck, since a melody moves by seconds and thirds and the top of
-          // a chord sits further down.
+          // melody only if it is within kStepDown and the highest of what was
+          // just struck.
           carries = head - note <= kStepDown && note > struckTop;
         }
       }
@@ -417,20 +403,12 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
     }
   }
 
-  // One key, one voice. The instrument is polyphonic across the keyboard and
-  // monophonic within a key, because a string or a tine or a bar is one
-  // object: striking it again takes over whatever it was already doing rather
-  // than starting a second copy of it beside the first.
+  // One key, one voice. Striking a key again takes over whatever it was
+  // already doing rather than starting a second copy, so repeated taps on a
+  // long release do not pile up. Tails count.
   //
-  // Tails count. A key with a long release that is tapped repeatedly would
-  // otherwise leave every tap ringing and sum them, which no physical
-  // instrument does and which is also the quickest way to reach the clipper.
-  //
-  // Switchable, because summing the tails is a sound as well as a fault: a
-  // bell struck over and over builds up, and somebody wanting that should be
-  // able to have it. The whole rule goes with the switch rather than half of
-  // it, so that off means every strike gets a voice of its own and nothing
-  // about the previous strike is disturbed.
+  // Switchable, since building up is sometimes wanted. Off, every strike gets
+  // a voice of its own and the previous strike is left alone.
   if (p.global.oneVoicePerKey) {
     Voice *held = nullptr;
     size_t heldIndex = 0;
@@ -451,10 +429,9 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
       }
     }
 
-    // A key still down, or held by the pedal, is retriggered where it stands.
-    // That keeps two things the fade would lose: a legato retrigger continues
-    // from the level the envelope is at rather than restarting from silence,
-    // and re-striking a pedalled note takes it back off the pedal.
+    // A key still down, or held by the pedal, is retriggered where it stands,
+    // so the envelope continues from its level and a pedalled note is taken
+    // back off the pedal.
     if (held != nullptr) {
       heldBySustain[heldIndex] = false;
       pressedAt[heldIndex] = now;
@@ -479,15 +456,8 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
   auto *target = findFreeVoice();
 
   if (target == nullptr) {
-    // Pool exhausted: every voice is doing something and the new note cannot
-    // wait for a fade, so one of them has to go this instant. That is a step
-    // in the output whichever it is, and the size of the step is that voice's
-    // current level, so take the quietest.
-    //
-    // It used to take the oldest, which is the right rule for stealing under
-    // the polyphony limit and the wrong one here: the oldest voice is often a
-    // note still being held, while a tail three quarters of the way through
-    // its release is sitting right beside it costing almost nothing to lose.
+    // Pool exhausted, so one voice has to go this instant. The step in the
+    // output is that voice's current level, so take the quietest.
     target = findQuietestExpendable();
 
     if (target == nullptr)
@@ -548,15 +518,12 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
                                    const Voice *self) noexcept {
   // How each interval the keys spell is pure, as steps along the chain of
   // tempered fifths from the lower key to the higher, and how much it counts.
-  // The octave and the fifth carry most, since a mistuned one is the first
-  // thing anyone hears. A seventh counts least, only deciding what nothing
-  // else does, so it comes out the same whether or not the fifth beneath it
-  // is held: 9:5 for a minor seventh, a fifth and a minor third, and 15:8 for
-  // a major, a fifth and a major third. Seconds and the tritone have no one
-  // pure size a chord is reaching for, so they come last of all, at the sizes
-  // the just major scale gives them, 16:15, 9:8 and 45:32. They only tie
-  // together notes nothing stronger does, so every held key is in one group
-  // and the chord comes out the same however it was played.
+  // The octave and the fifth carry most. A seventh counts least, so it comes
+  // out the same whether or not the fifth beneath it is held: 9:5 for a minor
+  // seventh and 15:8 for a major. Seconds and the tritone come last, at the
+  // just major sizes 16:15, 9:8 and 45:32. They only tie together notes
+  // nothing stronger does, so every held key is in one group and the chord
+  // comes out the same however it was played.
   struct Pure {
     int steps;
     int weight;
@@ -599,7 +566,7 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
   static constexpr int kReach = 2;
 
   // A tail is heard while it is still a fair part of what is sounding and
-  // above -60 dB. See the tests for why the floor is there.
+  // above -60 dB.
   static constexpr float kAudibleShare = 0.25f;
   static constexpr float kInaudible = 0.001f;
 
@@ -650,7 +617,7 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
     nodes[(size_t)count++] = {nullptr, note, 0, true, false};
 
   if (count == 0) {
-    // Nothing held, which the screen needs to know as much as anything else.
+    // Nothing held, which the screen needs to know as well.
     AdaptiveSnapshot none;
     none.referenceHz = referenceHz;
     none.remembered = adaptiveVersion;
@@ -665,19 +632,14 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
 
   // ---- the harmonic seventh -------------------------------------------------
   //
-  // A root's minor seventh is tuned 7:4 above it, the harmonic seventh, unless
-  // another held note would then sit out of tune with it. Over the root, its
-  // major third, its fifth and its ninth, the seventh makes a chord whose
-  // notes are harmonics 4, 5, 6, 7 and 9 of one note two octaves below the
-  // root, so every partial of every note lands on another and nothing beats,
-  // where the chain would leave the seventh 9:5 against the seventh harmonic
-  // of the root. A note a minor third, a fourth, a minor second or a tritone
-  // above the root would meet the seventh at a fifth, a fourth or a third
-  // well off pure, which beats much harder, so with one of those held the
-  // seventh keeps the size the chain gives it. It is the only pitch here off
-  // the chain of fifths, which has no 7 in it, so it is left out of what the
-  // chain solves and placed on the root afterwards. Where more than one root
-  // qualifies, the one lowest on the keyboard is the chord.
+  // A root's minor seventh is tuned 7:4 above it, unless another held note
+  // would then be out of tune with it. With the root, major third, fifth and
+  // ninth, the chord is harmonics 4, 5, 6, 7 and 9 of one note. A held minor
+  // third, fourth, minor second or tritone above the root would clash with
+  // it, so then the seventh keeps the chain's size. It is the only pitch off
+  // the chain of fifths, so it is left out of what the chain solves and
+  // placed on the root afterwards. Where more than one root qualifies, the
+  // lowest on the keyboard wins.
   bool held[12] = {};
   int lowestOf[12];
   for (auto &l : lowestOf)
@@ -707,10 +669,9 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
   // -----------------
   //
   // A union of groups, each node carrying how many commas it sits from its
-  // group's first node. Two nodes in one group already have a difference;
-  // an interval that wants another one is a contradiction the chord cannot
-  // be pure without, like the third an augmented triad has one too many of,
-  // and is left out.
+  // group's first node. An interval that wants a different difference from
+  // the one its group already has is a contradiction, such as the extra
+  // third of an augmented triad, and is left out.
   std::array<int, kPoolSize + 1> group{}, offset{};
   for (int i = 0; i < count; ++i) {
     group[(size_t)i] = i;
@@ -765,13 +726,11 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
 
   // ---- then as little out of tune as it can be ------------------------------
   //
-  // Strongest first can leave out more than it has to. In C E G A D the
-  // fourths E to A and A to D are taken before any third, and between them
-  // they put E and A a comma from where C wants them, three thirds and sixths
-  // given up to keep one fourth. So each key is then tried a comma either
-  // way, alone or with one other, and kept there if that leaves less out of
-  // tune, each interval weighed as above, until no move helps. It looks only at
-  // the keys, so the same keys always come out the same.
+  // Strongest first can leave out more than it has to, as in C E G A D, where
+  // two fourths outvote three thirds and sixths. So each key is then tried a
+  // comma either way, alone or with one other, and kept there if that leaves
+  // less out of tune, until no move helps. It looks only at the keys, so the
+  // same keys always come out the same.
   std::array<int, kPoolSize + 1> top{}, settled{};
   for (int i = 0; i < count; ++i)
     std::tie(top[(size_t)i], settled[(size_t)i]) = find(i);
@@ -862,10 +821,9 @@ double SynthEngine::settleAdaptive(int note, int root, double referenceHz,
     if (from > to)
       from = to = (from + to) / 2;
 
-    // With Home on, how near the chord sits to home comes before everything
-    // else, so a progression that would pump moves a held note a comma
-    // instead of taking the keyboard with it. Off, it counts for nothing and
-    // the chord stays wherever the music has taken it.
+    // With Home on, nearness to home comes before everything else, so a
+    // progression that would pump moves a held note a comma instead. Off, it
+    // counts for nothing.
     double bestScore[4] = {1.0e18, 1.0e18, 1.0e18, 1.0e18};
     int bestPlace = from;
 
@@ -1021,9 +979,9 @@ SynthEngine::planStrings(const SynthParams &p) const noexcept {
     // Open is Piano with the sustain pedal always down.
     const bool pedal = p.pedalDown || p.resonator.mode == ResonatorMode::Open;
 
-    // A held key's string is where that key is sounding, before any bend:
-    // a piano's strings do not follow the wheel. The rest wait where a key
-    // struck into silence would sound.
+    // A held key's string is where that key is sounding, before any bend, as a
+    // piano's strings do not follow the wheel. The rest wait where a key struck
+    // into silence would sound.
     std::array<double, kStrings> held{};
     for (const auto &v : voices) {
       const auto s = SympatheticStrings::stringOf(v.getNote());
@@ -1119,9 +1077,8 @@ void SynthEngine::noteOffImpl(int channel, int note, float lift) noexcept {
     }
   }
 
-  // What is left held may sit better now that this key has gone: a note
-  // tuned to fit a key that is no longer there can take the version the
-  // chord now wants.
+  // What is left held may sit better now that this key has gone, so it is
+  // settled again.
   if (adaptiveOn)
     settleAdaptive(-1, legatoRoot, legatoReferenceHz, nullptr);
 }
@@ -1193,9 +1150,8 @@ void SynthEngine::allSoundOff() noexcept {
 namespace {
 /// Rounds to the nearest of 2^(bits-1) steps either side of zero.
 ///
-/// Deliberately does not clamp. This sits ahead of the master fader and the
-/// safety clipper, which is where clipping belongs, and a quantiser that also
-/// clipped would turn a bit-depth setting into a distortion the panel does not
+/// Does not clamp. Clipping belongs to the output stage after the fader, and
+/// a quantiser that clipped would add a distortion the panel does not
 /// mention.
 inline void quantise(float *left, float *right, int n, int bits) noexcept {
   const float levels = (float)(1 << (bits - 1));
@@ -1212,8 +1168,7 @@ double SynthEngine::lofiRenderRate(const SynthParams &p) const noexcept {
   if (p.lofi.rateHz <= 0.0)
     return sampleRate;
 
-  // Asking for more than the host is running at is not a thing anyone can
-  // have, so it reads as off rather than as an upsample.
+  // More than the host rate reads as off rather than as an upsample.
   return std::clamp(p.lofi.rateHz, 1000.0, sampleRate);
 }
 
@@ -1246,8 +1201,7 @@ SynthEngine::advanceSharedModulators(int numFrames,
       (numFrames + Voice::kControlBlock - 1) / Voice::kControlBlock;
   out.stride = kModBoundaries;
 
-  // One channel at a time, because a channel's rate and shape are its own even
-  // though the switch over them is not.
+  // One channel at a time, because each channel has its own rate and shape.
   const auto fill =
       [&](std::array<Lfo, kNumHarmonics + 1> &modulators,
           std::array<float, (kNumHarmonics + 1) * kModBoundaries> &table,
@@ -1321,11 +1275,8 @@ void SynthEngine::sumChunk(float *left, float *right, int numFrames,
     v.render(left, right, numFrames, p, shared);
     rendered[index] = true;
 
-    // The lamps follow the meter rather than being gathered on their own
-    // terms. Whichever voice is loudest on a partial is the one you are
-    // listening to on that partial, so it is the one whose envelope and
-    // modulation are worth showing. Taking the maximum of each separately
-    // would describe no note in particular.
+    // The lamps follow the meter: whichever voice is loudest on a partial is
+    // the one whose envelope and modulation are shown.
     const auto &peaks = v.getPartialPeaks();
     const auto &envelopes = v.getPartialEnvelopes();
     const auto &tremolos = v.getPartialTremolos();
@@ -1334,10 +1285,9 @@ void SynthEngine::sumChunk(float *left, float *right, int numFrames,
     const auto &pressures = v.getPartialPressures();
 
     for (size_t i = 0; i < peaks.size(); ++i) {
-      // A voice that reaches here is sounding, so it has something to say
-      // about this partial even when what it is saying is that the partial
-      // is at zero. See Activity::claimed. The louder voice wins, and on a
-      // tie the newer note. See Activity::ages.
+      // A voice that reaches here is sounding, so it reports this partial even
+      // at zero. See Activity::claimed. The louder voice wins, and on a tie the
+      // newer note. See Activity::ages.
       if (into.claimed[i] &&
           (peaks[i] < into.peaks[i] ||
            (exactly(peaks[i], into.peaks[i]) && v.getAge() <= into.ages[i])))
@@ -1412,8 +1362,7 @@ void SynthEngine::renderHiss(
 
   // Two poles for the low band, and the rest of the noise is the high band,
   // so the two add back up to the noise itself when their gains are equal.
-  // One pole would leave too much of the low band above the split, which
-  // would make the hiss there grow faster than the instrument's does.
+  // One pole would leave too much of the low band above the split.
   const auto split =
       (float)(1.0 - std::exp(-6.283185307179586 * kHissSplitHz / renderRate));
 
@@ -1502,22 +1451,12 @@ void SynthEngine::renderVoices(float *left, float *right, int numSamples,
     if (bits > 0)
       quantise(left, right, numSamples, bits);
   } else {
-    // The whole pool renders slowly and the result is held between frames.
-    //
-    // This is where the setting pays for itself. The obvious way to build a
-    // rate reducer is to render everything at the host rate and then hold the
-    // output, but sampling a sinusoid at 8 kHz gives one particular sequence
-    // of numbers whatever rate you were nominally computing at, so the samples
-    // that survive holding are the only ones worth computing. Thirty-two
-    // oscillators and their envelopes are what this instrument costs, and
-    // against a 48 kHz host they now run a sixth as often.
-    //
-    // Not quite identical to the expensive way: the per-control-block work,
-    // the LFOs and the gain ramps, still lands every 32 frames, which is now
-    // 4 ms rather than 0.7. Modulation is coarser, at the rate the rest of it
-    // is coarser. Everything is still in the right place in real time,
-    // because the coefficients are all derived from the rate being rendered
-    // at.
+    // The whole pool renders at the reduced rate and the result is held between
+    // frames. Sampling at the low rate gives the same numbers as rendering at
+    // the host rate and holding, so this is a real CPU saving rather than a
+    // filter. The per-control-block work lands every 32 frames at the reduced
+    // rate, so modulation is coarser in proportion, but all timings stay
+    // correct since every coefficient follows the render rate.
     setRenderRate(target);
 
     const double ratio = target / sampleRate;
@@ -1580,27 +1519,24 @@ void SynthEngine::render(float *left, float *right, int numSamples,
   clock += (uint64_t)numSamples;
 
   // ---- the resonator --------------------------------------------------------
-  // On the summed channels and before the bus drive, so they ring inside the
-  // instrument and the character drives them with everything else. Off, and
-  // faded out, the stage is not there at all.
+  // On the summed channels and before the bus drive, so the strings ring
+  // inside the instrument and the character drives them too. Off, and faded
+  // out, the stage is skipped.
   if (p.resonator.mode != ResonatorMode::Off || sympathetic.isBusy())
     sympathetic.process(left, right, numSamples, p.resonator, planStrings(p));
 
   // ---- the bus the series is summed onto -----------------------------------
-  // Before the effects, since this is the summing amplifier rather than
-  // something applied to what comes out of one. See BusDrive.
+  // Before the effects, since this is the summing amplifier. See BusDrive.
   busDrive.process(left, right, numSamples, p.global.character,
                    p.global.busDrive);
 
   // ---- master effects, ahead of the fader ----------------------------------
-  // The channel meters above read the partials themselves, so they are taken
-  // before this point. The output meter is taken after it, which is why the
-  // two disagree once a tail is ringing: that is the effects, and it should
-  // show.
+  // The channel meters are taken before this point and the output meter
+  // after it, so the two differ once a tail is ringing.
   wobble.process(left, right, numSamples, p.global.wobbleAmount);
   // Both are asked and each decides whether the type is its own, so the one
-  // that is not chosen empties its loop rather than holding a tail that would
-  // come back if you switched to it.
+  // not chosen empties its loop rather than keeping a tail that would come
+  // back on switching.
   echo.process(left, right, numSamples, p.echo);
   bucket.process(left, right, numSamples, p.echo);
   digital.process(left, right, numSamples, p.echo);
@@ -1635,9 +1571,8 @@ void SynthEngine::render(float *left, float *right, int numSamples,
     smoothedMasterGain = g;
   }
 
-  // Always, because the stage delays whether or not it shapes: its latency is
-  // declared once and must not depend on whether this switch is on. See
-  // OutputStage::kLookaheadSeconds.
+  // Always, because the stage delays whether or not it shapes, so its latency
+  // does not depend on this switch. See OutputStage::kLookaheadSeconds.
   outputStage.process(left, right, numSamples, p.global.clipType,
                       p.global.safetyClip, p.global.lookahead);
 

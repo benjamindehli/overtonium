@@ -16,30 +16,23 @@ constexpr int kHeaderHeight = 34;
 /// The strip of column names between the title and the first macro.
 constexpr int kColumnsHeight = 16;
 
-/// Between the last macro and the two buttons, and under them. The buttons
-/// belong to the list rather than to the card's bottom edge, so they sit just
-/// below the rows with the breathing room underneath instead of above.
+/// Between the last macro and the two buttons, and under them.
 constexpr int kButtonsGap = 12;
 constexpr int kButtonHeight = 26;
 constexpr int kBottomPad = 18;
 constexpr int kMaxCardWidth = 760;
 
 /// What each control on a strip is given, left to right. The amount takes
-/// whatever is left, since it is the one being drawn on and the rest are
-/// menus that only have to hold a word.
+/// whatever is left.
 constexpr int kColourWidth = 30;
 constexpr int kRowWidth = 124;
 constexpr int kScopeWidth = 104;
 constexpr int kCurveWidth = 74;
 constexpr int kAnchorWidth = 40;
-/// Wide enough for a sign, three digits, a point and the unit beside them.
-/// At 74 the digits had 53 px between five cells and came out touching: see
-/// SegmentDisplay::hasRoomForUnit, which is the floor rather than the aim.
-/// The amount gives the difference up and still has the widest column.
+/// Wide enough for a sign, three digits and a point without the cells
+/// touching. See SegmentDisplay::hasRoomForUnit.
 constexpr int kReadingWidth = 92;
-/// Square, like the colour swatch at the other end of the row. Both are a
-/// mark rather than a word and the row is thirty tall, so anything narrower
-/// read as a button that had been squeezed.
+/// Square, like the colour swatch at the other end of the row.
 constexpr int kRemoveWidth = 30;
 constexpr int kGap = 6;
 
@@ -47,8 +40,8 @@ constexpr int kGap = 6;
 
 MacroPanel::MacroPanel(juce::AudioProcessorValueTreeState &state)
     : apvts(state) {
-  // Takes every click that lands on it, including the ones on the dim, which
-  // is what makes clicking away a dismissal rather than a click on the mixer.
+  // Takes clicks on the dim too, so clicking away dismisses rather than
+  // reaching the mixer.
   setInterceptsMouseClicks(true, true);
 
   for (int m = 0; m < params::kNumMacros; ++m)
@@ -79,8 +72,7 @@ MacroPanel::MacroPanel(juce::AudioProcessorValueTreeState &state)
 void MacroPanel::buildStrip(int macro) {
   auto &strip = strips[(size_t)macro];
 
-  // Named for a screen reader, and distinct, which the suite insists on: a
-  // window of 643 sliders is exactly where an unnamed one hides.
+  // Distinct names for a screen reader, which the tests check.
   const auto which = "Macro " + juce::String(macro + 1) + " ";
 
   strip.amount.setTitle(which + "amount");
@@ -91,8 +83,7 @@ void MacroPanel::buildStrip(int macro) {
   strip.anchor.setTitle(which + "taper anchor");
   strip.remove.setTitle("Remove macro " + juce::String(macro + 1));
 
-  // A swatch rather than a word. The colour is the thing it says, and a
-  // button reading "Violet" in grey would be saying it twice and worse.
+  // A swatch rather than a word.
   strip.colour.setTooltip("The colour this macro gives the controls it "
                           "moves.");
   strip.colour.onClick = [this, macro] {
@@ -104,8 +95,7 @@ void MacroPanel::buildStrip(int macro) {
 
   strip.row.setTooltip("Which row of the mixer this macro moves.");
   strip.row.onClick = [this, macro] {
-    // One longer than the rows, since None is on the end of the menu as the
-    // way to remove a macro from inside its own list.
+    // One longer than the rows, for None at the end, which removes the macro.
     choose(
         macro, params::macroRowId(macro), "Row", params::kNumMacroRows + 1,
         [](int i) { return juce::String(params::macroRowName(i)); },
@@ -136,15 +126,12 @@ void MacroPanel::buildStrip(int macro) {
         &strips[(size_t)macro].anchor, 1);
   };
 
-  // A readout rather than a control, so it stays quiet under the pointer:
-  // it has no onClick, which is what a SegmentDisplay reads as a readout.
+  // A readout rather than a control, so it ignores the pointer.
   strip.reading.setInterceptsMouseClicks(false, false);
 
   strip.amount.onValueChange = [this, macro] { showReading(macro); };
 
-  // The amount is the one a host automates, so it is the one worth binding
-  // to a controller: the row, the scope and the curve say what a macro is
-  // rather than what it is doing.
+  // Only the amount can be learned.
   learn::tag(strip.amount, params::macroAmountId(macro));
 
   strip.amount.onPopup = [this, macro] {
@@ -160,9 +147,7 @@ void MacroPanel::buildStrip(int macro) {
     refresh();
   };
 
-  // A channel fader laid on its side, with its own segments rather than a
-  // meter's: the panel is over the mixer and should be made of the same
-  // things it is covering.
+  // Drawn as a channel fader laid on its side.
   strip.amount.getProperties().set("segmentedTrack", true);
   strip.amount.getProperties().set("bipolar", true);
   strip.amount.setTooltip(
@@ -199,8 +184,7 @@ void MacroPanel::make(int macro) {
   if (macro < 0 || macro >= params::kNumMacros)
     return;
 
-  // Pointed at the first real row, which is TUNE, since that is the one issue
-  // #24 asked for and the one a macro is most wanted on.
+  // Pointed at the first real row, TUNE.
   if (chosen(params::macroRowId(macro)) == 0)
     write(params::macroRowId(macro), 1);
 
@@ -262,8 +246,7 @@ void MacroPanel::chooseScope(int macro) {
   for (int i = 0; i < selected; ++i)
     menu.addItem(i + 1, params::macroScopeName(i), true, i == at);
 
-  // Selected takes the channels picked for LINK, so it needs some to take,
-  // or some it was given before to keep.
+  // Selected needs channels, either picked now or kept from before.
   const auto picked = currentSelection != nullptr ? currentSelection() : 0u;
   const auto kept =
       channels != nullptr ? (*channels)[(size_t)macro].load() : 0u;
@@ -284,9 +267,8 @@ void MacroPanel::chooseScope(int macro) {
           return;
 
         const auto change = [this, macro, picked, result] {
-          // The enum itself rather than the constant above: MSVC refuses to
-          // read a local constant it was not given, and AppleClang refuses to
-          // be given one it does not need.
+          // The enum rather than a local constant, which MSVC needs captured
+          // and AppleClang warns about capturing.
           if (result - 1 == (int)params::MacroScope::Selected && picked != 0 &&
               channels != nullptr)
             (*channels)[(size_t)macro].store(picked);
@@ -311,31 +293,12 @@ void MacroPanel::showReading(int macro) {
     return;
   }
 
-  // A share of the control's travel rather than a number of its units.
-  //
-  // Units were wrong twice over. A macro shifts a proportion of the travel,
-  // so what it comes to in seconds or cents depends on where each of the 32
-  // channels is already sitting, and there is no single number to print. And
-  // on a row like decay, which runs from a thousandth of a second to twenty,
-  // the same proportion is a few milliseconds at one end and seconds at the
-  // other.
-  //
-  // A minus and no plus, which is what seven bars can draw: an upright has
-  // to go into the same narrow cell as the minus and what comes out reads as
-  // a speck beside it. The tuning readouts write a sharp partial the same
-  // way, with no sign at all, and a tuner does too.
-  //
+  // A share of the control's travel rather than its units, since a macro
+  // shifts each channel from wherever it sits. A minus and no plus.
   const auto share = (float)strip.amount.getValue() * 100.0f;
 
-  // Every element in the same place whatever the number is, which is what a
-  // display with real cells in it does. Left to itself the reading walks
-  // left and right as the amount passes ten and a hundred, and shuffles
-  // along by half a cell the moment it goes negative.
-  //
-  // Four cells and a point. The amount runs to a hundred either way, so the
-  // first cell is a one or nothing and the sign is a minus or nothing: both
-  // live in that one cell, the sign on the middle bar and the one on the two
-  // uprights beside it. See segmentsFor, where those two glyphs are.
+  // Four cells and a point, each digit in a fixed cell. The first cell holds
+  // the sign and the hundreds digit together. See segmentsFor.
   const auto tenths = juce::roundToInt(std::abs(share) * 10.0f);
   const bool hundred = tenths >= 1000;
   const bool minus = share < 0.0f;
@@ -350,8 +313,7 @@ void MacroPanel::showReading(int macro) {
 
   shown += hundred ? (minus ? "!" : "1") : (minus ? "~" : " ");
 
-  // A leading zero is a blank cell, the way it is on anything with real
-  // cells in it, unless there is a hundreds digit in front of it.
+  // A leading zero is a blank cell.
   shown += hundred || tens > 0 ? digit(tens) : juce::String(" ");
   shown += digit((tenths / 10) % 10);
   shown += ".";
@@ -359,10 +321,7 @@ void MacroPanel::showReading(int macro) {
 
   strip.reading.setReading(shown, true);
 
-  // Said in words as well, because the cells are drawn rather than written
-  // and there is no other way to read them. This was a Label before, whose
-  // text is its own accessible name, so swapping it for a display quietly
-  // took the number away from anyone not looking at it.
+  // The title carries the number for a screen reader.
   strip.reading.setTitle("Amount: " + juce::String(share, 1) + " per cent");
 }
 
@@ -397,29 +356,19 @@ void MacroPanel::refresh() {
 
     strip.curve.setButtonText(params::macroCurveName(curve));
 
-    // The fader borrows the row's own feel, so pushing a macro on a time
-    // moves the way turning that time does rather than running away at the
-    // top. Symmetric, because the amount is signed and a skew applied from
-    // one end would make pulling down behave unlike pushing up.
+    // The fader borrows the row's skew, symmetric because the amount is
+    // signed.
     strip.amount.setSkewFactor((double)params::macroRowRange(apvts, row).skew,
                                true);
 
     // ---- what the scope is, in the colour the mixer says it in ------------
-    // A scope naming an interval lights in that interval's own colour, which
-    // is the colour every channel of it is drawn in across the mixer. So the
-    // word and the channels it reaches are the same colour and the panel is
-    // saying what the mixer is about to show. All, Odd and Even reach the
-    // whole series rather than one interval, so they take the accent, which
-    // is what the chrome uses for anything that is not one partial.
+    // An interval scope lights in that interval's colour, and the others in
+    // the accent.
     const auto scope = chosen(params::macroScopeId(m));
     const auto interval = scope - (int)params::MacroScope::Interval;
 
     //
-    // Through buttonOnColourId rather than the colour the button lights its
-    // word in. JUCE hands a look and feel buttonOnColourId for a button that
-    // is toggled, and drawButtonFace lets a background that has been named
-    // win over the lamp, which is the door the colour swatches go through.
-    // Setting only the lamp left every one of these the scheme's own blue.
+    // Through buttonOnColourId, which drawButtonFace lets win over the lamp.
     const auto scopeTint = interval >= 0 && interval < 12
                                ? intervalColour(interval)
                                : colours::accent;
@@ -446,8 +395,7 @@ void MacroPanel::refresh() {
 
     strip.anchor.setButtonText(juce::String(anchor));
 
-    // And the channel it leans on, in that channel's own colour, so the
-    // number and the strip it names agree without having to be counted to.
+    // And the channel it leans on, in that channel's own colour.
     strip.anchor.setColour(juce::TextButton::buttonOnColourId,
                            intervalColour(harmonic(anchor - 1).pitchClass));
     strip.anchor.setToggleState(true, juce::dontSendNotification);
@@ -485,14 +433,11 @@ void MacroPanel::resized() {
   body.removeFromTop(kHeaderHeight);
 
   // Nothing made yet, so the space a first macro would take carries the line
-  // saying what one is. Taken out of the same body, so the buttons sit under
-  // it exactly as they sit under a list.
+  // saying what one is.
   if (showing.empty())
     emptyMessage = body.removeFromTop(kColumnsHeight + kRowHeight + kRowGap);
 
-  // The names of the columns, kept as rectangles rather than drawn from the
-  // same arithmetic twice: a heading that drifted from the thing under it
-  // would be worse than no heading.
+  // The column names, kept as rectangles so paint uses the same arithmetic.
   if (!showing.empty()) {
     auto line = body.removeFromTop(kColumnsHeight);
 
@@ -534,8 +479,7 @@ void MacroPanel::resized() {
     strip.reading.setBounds(line.removeFromRight(kReadingWidth));
     line.removeFromRight(kGap);
 
-    // Whatever is left, which is what makes the amount the widest thing on
-    // the line: it is the one being drawn on.
+    // Whatever is left.
     strip.amount.setBounds(line);
   }
 
@@ -549,8 +493,7 @@ void MacroPanel::resized() {
 }
 
 void MacroPanel::paint(juce::Graphics &g) {
-  // The mixer still readable underneath, so it is clear what the macros are
-  // over rather than instead of.
+  // The mixer still readable underneath.
   g.fillAll(juce::Colours::black.withAlpha(0.62f));
 
   g.setColour(colours::panel);
@@ -566,10 +509,7 @@ void MacroPanel::paint(juce::Graphics &g) {
   g.drawText("MACROS", header, juce::Justification::centredLeft, false);
 
   if (showing.empty()) {
-    // A sentence to read rather than a caption to glance at. At 12 point it
-    // was the smallest thing in the dialog and the one thing in it to read,
-    // and at 15 it reads about as large as the bold words on the buttons
-    // under it.
+    // A sentence, at about the size of the bold words on the buttons.
     g.setColour(colours::textDim);
     g.setFont(makeFont(15.0f, false));
     g.drawText("One parameter that moves a whole row, which a host can "
@@ -579,11 +519,7 @@ void MacroPanel::paint(juce::Graphics &g) {
     return;
   }
 
-  // What each column is. Named as the parameters are named, so the panel and
-  // the host's own list say the same word about the same thing, and set the
-  // way every other caption in this window is set: upper case, nine point,
-  // bold, dim. A heading in a different hand from the ones over the mixer
-  // reads as belonging to a different program.
+  // Named as the parameters are, and set like every other caption.
   static const char *const names[] = {"ROW", "SCOPE", "CURVE", "AMOUNT",
                                       "PERCENT"};
 
@@ -595,9 +531,7 @@ void MacroPanel::paint(juce::Graphics &g) {
 }
 
 void MacroPanel::mouseDown(const juce::MouseEvent &e) {
-  // Only a click on the dim. Anything inside the card belongs to whatever is
-  // standing there, and a click on the card's own background should not throw
-  // away what somebody is in the middle of setting up.
+  // Only a click on the dim, not on the card's own background.
   if (!card.contains(e.getPosition()) && onDismiss != nullptr)
     onDismiss();
 }
