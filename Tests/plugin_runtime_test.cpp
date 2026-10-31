@@ -12011,15 +12011,31 @@ void testUpdateCheck() {
   using ovt::parseReleaseJson;
 
   const auto good = parseReleaseJson(
-      R"({"version":"1.1.0","url":"https://example.invalid/v1.1.0"})");
+      R"({"version":"1.1.0","url":"https://github.com/benjamindehli/overtonium/releases/tag/v1.1.0"})");
   check(good.has_value(), "a well-formed feed parses");
   check(good && good->version == "1.1.0", "and carries the version");
-  check(good && good->url == "https://example.invalid/v1.1.0",
+  check(good && good->url == "https://github.com/benjamindehli/overtonium/"
+                             "releases/tag/v1.1.0",
         "and the page to send someone to");
 
   const auto noUrl = parseReleaseJson(R"({"version":"1.1.0"})");
-  check(noUrl.has_value() && noUrl->url.isNotEmpty(),
+  check(noUrl.has_value() && noUrl->url == ovt::kLatestRelease,
         "a feed with no url still works, falling back to the releases page");
+
+  // The link is opened in a browser, so only this project's pages pass.
+  for (const char *elsewhere :
+       {"https://example.invalid/v1.1.0",
+        "http://github.com/benjamindehli/overtonium/", "file:///etc/passwd",
+        "javascript:alert(1)",
+        "https://github.com/benjamindehli/overtonium.evil.example/",
+        "https://github.com/someone-else/overtonium/releases",
+        "https://github.com/benjamindehli/overtonium/../../someone-else"}) {
+    const auto moved = parseReleaseJson(
+        juce::String(R"({"version":"1.1.0","url":")") + elsewhere + "\"}");
+    check(moved.has_value() && moved->url == ovt::kLatestRelease,
+          std::string("a link to ") + elsewhere +
+              " is replaced by the releases page");
+  }
 
   for (const char *bad : {"", "{}", "[]", "not json", R"({"version":""})",
                           R"({"version":null})", "null"})
