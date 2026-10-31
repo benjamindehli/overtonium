@@ -85,7 +85,7 @@ Nothing in `Source/` holds anything in a static except plain data, such as table
 
 ## Building
 
-You need CMake 3.22 or newer and a C++17 compiler. JUCE is downloaded at configure time. Pass `-DJUCE_PATH=/path/to/JUCE` to use a local checkout instead.
+You need CMake 3.22 or newer and a C++17 compiler. JUCE is downloaded at configure time. Pass `-DJUCE_PATH=/path/to/JUCE` to use a local checkout instead. The download is the archive of one JUCE commit, and the configure stops if its SHA-256 differs from the one in `CMakeLists.txt`. To move to a new JUCE release, put in the archive of the commit its tag points to, with that archive's hash.
 
 The build copies the plugins into your user plugin folders. Pass `-DOVERTONIUM_INSTALL_AFTER_BUILD=OFF` to skip that. CI does this, and you want it on any machine with no host to rescan them.
 

@@ -26,6 +26,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 #
 # By default JUCE is downloaded at configure time. Point -DJUCE_PATH=/path/to/JUCE at a
 # local checkout to skip the download (useful offline or for CI caching).
+#
+# JUCE 9.0.4, fetched as the archive of the commit its tag points to and checked against
+# that archive's hash. A tag can be moved and a commit cannot, and the hash fails the
+# configure if what arrives is not what was checked.
 # ------------------------------------------------------------------------------------------
 set(JUCE_PATH "" CACHE PATH "Path to an existing JUCE checkout")
 
@@ -33,11 +37,16 @@ if(JUCE_PATH)
     message(STATUS "Overtonium: using local JUCE at ${JUCE_PATH}")
     add_subdirectory("${JUCE_PATH}" JUCE)
 else()
+    # Extracted files get the time they were extracted, so a new archive rebuilds
+    # what depends on it. Newer CMake warns unless this is chosen.
+    if(POLICY CMP0135)
+        cmake_policy(SET CMP0135 NEW)
+    endif()
+
     include(FetchContent)
     FetchContent_Declare(JUCE
-        GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
-        GIT_TAG        9.0.4
-        GIT_SHALLOW    TRUE)
+        URL      https://github.com/juce-framework/JUCE/archive/3fb5cbc0340758596dac39f7c8de47d562b4896e.tar.gz
+        URL_HASH SHA256=2bb7095497a7bb7269dbdf841a7c6aa0939eaeb2a2bc9724ac4758d3ae3565a7)
     FetchContent_MakeAvailable(JUCE)
 endif()
 
