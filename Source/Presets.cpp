@@ -416,6 +416,12 @@ int restore(APVTS &apvts, const juce::XmlElement &doc,
 
     if (auto *p = apvts.getParameter(id)) {
       const auto plain = (float)entry->getDoubleAttribute("value");
+
+      // A range clamps anything else, but a NaN passes through it and would
+      // make every sample NaN, so a file that holds one is skipped there.
+      if (!std::isfinite(plain))
+        continue;
+
       p->setValueNotifyingHost(p->convertTo0to1(plain));
       ++applied;
     }

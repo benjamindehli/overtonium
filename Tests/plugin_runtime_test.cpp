@@ -4385,6 +4385,34 @@ void testUserPresets(OvertoniumProcessor &p) {
           "a document that is not ours is refused");
   }
 
+  // ---- a value that is not a number -----------------------------------------
+  {
+    // A range clamps an infinity, but a NaN passes through it to the audio.
+    for (const char *text : {"nan", "inf", "-inf"}) {
+      juce::XmlElement odd("OVERTONIUM_PRESET");
+      auto *entry = odd.createNewChildElement("PARAM");
+      entry->setAttribute("id", level->paramID);
+      entry->setAttribute("value", text);
+
+      presets::restore(p.apvts, odd);
+
+      check(std::isfinite(level->getValue()),
+            std::string("a file holding ") + text +
+                " leaves the parameter a number");
+    }
+
+    juce::XmlElement nan("OVERTONIUM_PRESET");
+    auto *entry = nan.createNewChildElement("PARAM");
+    entry->setAttribute("id", level->paramID);
+    entry->setAttribute("value", "nan");
+
+    const auto before = level->getValue();
+    presets::restore(p.apvts, nan);
+
+    check(std::abs(level->getValue() - before) < 1.0e-9f,
+          "and a NaN is skipped, not applied");
+  }
+
   // ---- through a real file --------------------------------------------------
   {
     const auto file = juce::File::createTempFile(".ovtpreset");
