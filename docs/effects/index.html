@@ -349,8 +349,8 @@
                     </p>
 
                     <p>
-                        Character is part of the patch, not part of the setup, so a preset can change it and saving a preset stores it. Thirty-three
-                        of the thirty-eight <a href="../presets/">factory presets</a> use one, so most of what you load already uses a circuit or a
+                        Character is part of the patch, not part of the setup, so a preset can change it and saving a preset stores it. Thirty-six of
+                        the forty-one <a href="../presets/">factory presets</a> use one, so most of what you load already uses a circuit or a
                         recording, not the plain sine.
                     </p>
                 </section>
@@ -400,9 +400,9 @@
                     </p>
 
                     <p>
-                        The resonator is part of the patch. Metallic Piano, Space Cowboy and KarplusStrong use it, and the other factory presets have
-                        it off. With eight voices it uses about one percent of a core with the pedal up, and about five percent with every string
-                        freed by the pedal.
+                        The resonator is part of the patch. Metallic Piano, Space Cowboy, KarplusStrong, Tape Pluck and 8-bit Choir use it, and the
+                        other factory presets have it off. With eight voices it uses about one percent of a core with the pedal up, and about five
+                        percent with every string freed by the pedal.
                     </p>
                 </section>
 
@@ -474,14 +474,14 @@
                     <p>
                         Eight machines behind one button, on the finished output after the master fader, so the master fader sets how hard they are
                         driven. The fader and the choice are both saved with the preset, so how hard a patch drives this stage is part of the patch.
-                        <strong>Soft</strong> is linear up to seven tenths and then rounds off, gradually and symmetrically. Every preset is balanced
-                        for Soft. <strong>Hard</strong> is a wall at full scale: nothing happens until the signal reaches it. It sounds like a
-                        converter with no headroom left. <strong>Asymmetric</strong> lets one half of the wave bend over before the other, as a
-                        single-ended stage does. Soft and Hard treat both halves the same and add odd harmonics. Asymmetric adds even ones, so it
-                        sounds different, not just louder. <strong>Limiter</strong> does not change the shape of the wave. It turns the level down as
-                        the signal approaches the ceiling and lets it back up afterwards. <strong>Fold</strong> folds the wave back on itself instead
-                        of flattening it. This makes far more harmonics than the others, and they move with the level, so it sounds tonal where the
-                        others crunch.
+                        <strong>Soft</strong> is linear up to seven tenths and then rounds off, gradually and symmetrically. It is the default, and
+                        about half the factory presets use it. <strong>Hard</strong> is a wall at full scale: nothing happens until the signal reaches
+                        it. It sounds like a converter with no headroom left. <strong>Asymmetric</strong> lets one half of the wave bend over before
+                        the other, as a single-ended stage does. Soft and Hard treat both halves the same and add odd harmonics. Asymmetric adds even
+                        ones, so it sounds different, not just louder. <strong>Limiter</strong> does not change the shape of the wave. It turns the
+                        level down as the signal approaches the ceiling and lets it back up afterwards. <strong>Fold</strong> folds the wave back on
+                        itself instead of flattening it. This makes far more harmonics than the others, and they move with the level, so it sounds
+                        tonal where the others crunch.
                     </p>
                     <p>
                         <strong>Console</strong> is a console's mix bus, measured from a real chain at the settings it is used at: a transformer, a
@@ -526,13 +526,13 @@
                     </p>
                     <p>
                         <strong>It is off by default</strong>, and the plugin then reports only the bus stage's 12 samples. Only the Limiter, Console,
-                        Cassette and Print use the lookahead and no factory preset uses them, so with it on everyone else would pay two milliseconds
-                        for nothing. The limiter still works with it off. The detector sees a single sample instead of a window, so the gain is exact
-                        and immediate and the ceiling still holds. But the smoothing is lost, and a gain that jumps in steps is a distortion in
-                        itself, about fifteen times as much. It is in Settings and not on the bar because nothing a preset can change is allowed to
-                        change what the plugin reports to your host. If you rely on the Limiter, Console, Cassette or Print and want them smooth,
-                        switch it on. Most hosts pick up the new figure while running, and some only when playback stops or on reload, so choose
-                        before a take, not during one.
+                        Cassette and Print use the lookahead and most factory presets use none of them, so with it on most patches would pay two
+                        milliseconds for nothing. The limiter still works with it off. The detector sees a single sample instead of a window, so the
+                        gain is exact and immediate and the ceiling still holds. But the smoothing is lost, and a gain that jumps in steps is a
+                        distortion in itself, about fifteen times as much. It is in Settings and not on the bar because nothing a preset can change is
+                        allowed to change what the plugin reports to your host. If you rely on the Limiter, Console, Cassette or Print and want them
+                        smooth, switch it on. Most hosts pick up the new figure while running, and some only when playback stops or on reload, so
+                        choose before a take, not during one.
                     </p>
                 </section>
 

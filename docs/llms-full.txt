@@ -8,7 +8,7 @@ Every page of https://benjamindehli.github.io/overtonium/ as Markdown, in the or
 
 Page: Overtonium, a free 32-partial additive synthesizer plugin
 URL: https://benjamindehli.github.io/overtonium/
-Last changed: 2026-10-24
+Last changed: 2026-10-31
 
 # Overtonium, a 32-partial additive overtone synthesizer
 
@@ -45,11 +45,11 @@ The whole instrument. Thirty-two channels, a noise channel pinned on the right, 
 
 ## What it sounds like
 
-Eleven of the thirty-eight [factory presets](https://benjamindehli.github.io/overtonium/presets/), played on an Expressive E Osmose, with nothing on the output except the plugin's own effects. All the other audio on this site is the plugin rendering a chord to a file. That keeps those clips accurate, but it cannot show how the plugin responds to playing. This is the only recording of it being played.
+Eleven of the forty-one [factory presets](https://benjamindehli.github.io/overtonium/presets/), played on an Expressive E Osmose, with nothing on the output except the plugin's own effects. All the other audio on this site is the plugin rendering a chord to a file. That keeps those clips accurate, but it cannot show how the plugin responds to playing. This is the only recording of it being played.
 
 [Video: Overtonium sound examples](https://www.youtube.com/watch?v=L1oYdPxGlGA)
 
-[The presets page](https://benjamindehli.github.io/overtonium/presets/#video) has a chapter link for each of the eleven, and a clip of every one of the thirty-eight presets.
+[The presets page](https://benjamindehli.github.io/overtonium/presets/#video) has a chapter link for each of the eleven, and a clip of every one of the forty-one presets.
 
 ## The control to try first
 
@@ -69,7 +69,7 @@ Nothing about the tuning is hard-coded. For harmonic `n` the just interval is `1
 
 - [**Tuning**TUNE, inharmonic stretch, eight historical temperaments and an adaptive one on any root, and how the spectrum thins out higher up the keyboard.](https://benjamindehli.github.io/overtonium/tuning/)
 - [**Controls**Every knob on a channel strip, then the effects on the bar and how to play it from a keyboard, a host or a controller.](https://benjamindehli.github.io/overtonium/controls/)
-- [**Presets**The thirty-eight that ship, what a preset carries, and where your own are kept on each platform.](https://benjamindehli.github.io/overtonium/presets/)
+- [**Presets**The forty-one that ship, what a preset carries, and where your own are kept on each platform.](https://benjamindehli.github.io/overtonium/presets/)
 - [**Install**Installers for macOS and Windows, a zip for Linux, what to do when a host does not see it, and building from source.](https://benjamindehli.github.io/overtonium/install/)
 
 What changed in each version, newest first, and what to know before upgrading are on [the releases page](https://benjamindehli.github.io/overtonium/releases/).
@@ -293,7 +293,7 @@ One held chord, twice. With drift off, each partial stays exactly at its pitch. 
 
 Page: Overtonium controls: every knob on a channel strip
 URL: https://benjamindehli.github.io/overtonium/controls/
-Last changed: 2026-10-29
+Last changed: 2026-10-31
 
 # Overtonium controls
 
@@ -341,7 +341,7 @@ The square and stepped shapes do not click. A partial's gain changes smoothly ac
 
 LINK does not change the shapes. It moves a value across the series along a weighted curve, and a list of named shapes cannot be weighted. Instead, the shape menu can set every channel at once.
 
-**Shared by all notes** is the other entry in that menu, one for each of the two modulators. It is also the switch beside each SHAPE caption on the left of the mixer, marked with three strokes joining into one. By default each note has its own modulator. Play a chord one note at a time and you get three tremolos, each starting when its own key went down, so they move out of step. With the entry ticked, the modulator belongs to the channel instead. A note that arrives late joins the modulation already running, so the chord moves as one however it was played. An instrument with a single tremolo circuit behaves like this, which is why [Wurli](https://benjamindehli.github.io/overtonium/presets/) ships with its tremolo shared and StyloPoly with its vibrato.
+**Shared by all notes** is the other entry in that menu, one for each of the two modulators. It is also the switch beside each SHAPE caption on the left of the mixer, marked with three strokes joining into one. By default each note has its own modulator. Play a chord one note at a time and you get three tremolos, each starting when its own key went down, so they move out of step. With the entry ticked, the modulator belongs to the channel instead. A note that arrives late joins the modulation already running, so the chord moves as one however it was played. An instrument with a single tremolo circuit behaves like this, which is why [Wurli](https://benjamindehli.github.io/overtonium/presets/) and Tape Pluck ship with their tremolo shared, and StyloPoly and Combo Organ with their vibrato.
 
 Each channel keeps its own rate and shape either way. Sharing gives one modulator per channel, not one for the whole instrument, so a patch built on thirty-two rates that never line up still sounds the same with the switch on. The switch is part of the patch, so a preset saves it. Both switches are off unless a patch turns them on.
 
@@ -511,7 +511,7 @@ Each character is also a rack of thirty-two oscillators, not one oscillator used
 
 The button lights in the character's own colour, so you can tell which one is chosen at a glance. FM, PD and 6581 light in a colour of the instrument they were measured from: FM in the green of the synthesizer's membrane buttons, PD in the colour of the model name printed on the synthesizer, and 6581 in the blue of the startup screen of the computer the chip was made for. The others are spread as far apart in hue as they go. Pure does not light, because it adds nothing.
 
-Character is part of the patch, not part of the setup, so a preset can change it and saving a preset stores it. Thirty-three of the thirty-eight [factory presets](https://benjamindehli.github.io/overtonium/presets/) use one, so most of what you load already uses a circuit or a recording, not the plain sine.
+Character is part of the patch, not part of the setup, so a preset can change it and saving a preset stores it. Thirty-six of the forty-one [factory presets](https://benjamindehli.github.io/overtonium/presets/) use one, so most of what you load already uses a circuit or a recording, not the plain sine.
 
 ## Wobble
 
@@ -525,7 +525,7 @@ The resonator is eighty-eight sympathetic strings, one for each key of a piano f
 
 **MIX** goes from the instrument alone to the resonator alone, as on the echo and the reverb. On a held chord the level stays about the same as you turn it up. At 100 % only the resonator is left, so short notes lose their attack there. **DECAY** sets how long a free string rings, from 200 ms to 10 s. The level stays about the same at any setting. **DAMP** sets how quickly the high end dies away. A damper stops its string over 0.8 s at the bottom of the keyboard and 0.25 s at the top, or sooner if DECAY is shorter, so a released bass key leaves the short hum of a felt damper on a heavy string. A string freed only by the pedal gets much less of the signal than a held key's string, so the pedal adds a bloom under a chord instead of making it louder.
 
-The resonator is part of the patch. Metallic Piano, Space Cowboy and KarplusStrong use it, and the other factory presets have it off. With eight voices it uses about one percent of a core with the pedal up, and about five percent with every string freed by the pedal.
+The resonator is part of the patch. Metallic Piano, Space Cowboy, KarplusStrong, Tape Pluck and 8-bit Choir use it, and the other factory presets have it off. With eight voices it uses about one percent of a core with the pedal up, and about five percent with every string freed by the pedal.
 
 ## Bus drive
 
@@ -551,7 +551,7 @@ Shown as two seven-segment readouts under the output meter. Turning the sample r
 
 ## CLIP
 
-Eight machines behind one button, on the finished output after the master fader, so the master fader sets how hard they are driven. The fader and the choice are both saved with the preset, so how hard a patch drives this stage is part of the patch. **Soft** is linear up to seven tenths and then rounds off, gradually and symmetrically. Every preset is balanced for Soft. **Hard** is a wall at full scale: nothing happens until the signal reaches it. It sounds like a converter with no headroom left. **Asymmetric** lets one half of the wave bend over before the other, as a single-ended stage does. Soft and Hard treat both halves the same and add odd harmonics. Asymmetric adds even ones, so it sounds different, not just louder. **Limiter** does not change the shape of the wave. It turns the level down as the signal approaches the ceiling and lets it back up afterwards. **Fold** folds the wave back on itself instead of flattening it. This makes far more harmonics than the others, and they move with the level, so it sounds tonal where the others crunch.
+Eight machines behind one button, on the finished output after the master fader, so the master fader sets how hard they are driven. The fader and the choice are both saved with the preset, so how hard a patch drives this stage is part of the patch. **Soft** is linear up to seven tenths and then rounds off, gradually and symmetrically. It is the default, and about half the factory presets use it. **Hard** is a wall at full scale: nothing happens until the signal reaches it. It sounds like a converter with no headroom left. **Asymmetric** lets one half of the wave bend over before the other, as a single-ended stage does. Soft and Hard treat both halves the same and add odd harmonics. Asymmetric adds even ones, so it sounds different, not just louder. **Limiter** does not change the shape of the wave. It turns the level down as the signal approaches the ceiling and lets it back up afterwards. **Fold** folds the wave back on itself instead of flattening it. This makes far more harmonics than the others, and they move with the level, so it sounds tonal where the others crunch.
 
 **Console** is a console's mix bus, measured from a real chain at the settings it is used at: a transformer, a bus compressor and a tape stage, into the Limiter with its ceiling at -0.1 dBFS. The transformer thickens the lows as you drive it, because its core saturates on low frequencies long before high ones. The compressor is 4:1 and linked, with its sidechain filtered at 120 Hz so the bass does not pump it, and an automatic release that lets go fast after a short hit and slowly after a long one. The tape stage adds a steady third harmonic once it is driven, the lows first. It changes over time as well as by level, because a compressor does, and it is held at the same level as the others for a quiet signal, so choosing it does not make a patch louder.
 
@@ -563,7 +563,7 @@ Off lets the output go past full scale and reach the host unchanged. Use it when
 
 With **Limiter lookahead** switched on in the Settings menu, the Limiter looks two milliseconds ahead. The gain reduction is already in place when the peak arrives, instead of following it, and that is what makes it a true limiter and not a clipper. This adds latency. A plugin whose latency changed with the preset would make the host rebuild its processing graph every time, so the latency applies to all eight machines and to the stage when it is off. Overtonium reports 108 samples at 48 kHz, a little over two milliseconds, which your host compensates for on playback.
 
-**It is off by default**, and the plugin then reports only the bus stage's 12 samples. Only the Limiter, Console, Cassette and Print use the lookahead and no factory preset uses them, so with it on everyone else would pay two milliseconds for nothing. The limiter still works with it off. The detector sees a single sample instead of a window, so the gain is exact and immediate and the ceiling still holds. But the smoothing is lost, and a gain that jumps in steps is a distortion in itself, about fifteen times as much. It is in Settings and not on the bar because nothing a preset can change is allowed to change what the plugin reports to your host. If you rely on the Limiter, Console, Cassette or Print and want them smooth, switch it on. Most hosts pick up the new figure while running, and some only when playback stops or on reload, so choose before a take, not during one.
+**It is off by default**, and the plugin then reports only the bus stage's 12 samples. Only the Limiter, Console, Cassette and Print use the lookahead and most factory presets use none of them, so with it on most patches would pay two milliseconds for nothing. The limiter still works with it off. The detector sees a single sample instead of a window, so the gain is exact and immediate and the ceiling still holds. But the smoothing is lost, and a gain that jumps in steps is a distortion in itself, about fifteen times as much. It is in Settings and not on the bar because nothing a preset can change is allowed to change what the plugin reports to your host. If you rely on the Limiter, Console, Cassette or Print and want them smooth, switch it on. Most hosts pick up the new figure while running, and some only when playback stops or on reload, so choose before a take, not during one.
 
 ## The output meter
 
@@ -852,13 +852,13 @@ Two things to expect. A control jumps to the controller's current position inste
 
 ---
 
-Page: Overtonium presets: the thirty-eight that ship, and saving your own
+Page: Overtonium presets: the forty-one that ship, and saving your own
 URL: https://benjamindehli.github.io/overtonium/presets/
-Last changed: 2026-10-29
+Last changed: 2026-10-31
 
 # Overtonium presets
 
-Thirty-eight presets ship with the plugin. All but a handful were set up on the panel and converted directly from the saved file. What ships is exactly what was played, not an approximation written afterwards.
+Forty-one presets ship with the plugin. All but a handful were set up on the panel and converted directly from the saved file. What ships is exactly what was played, not an approximation written afterwards.
 
 ## Hear them played
 
@@ -884,11 +884,11 @@ Straight to one of them:
 
 ## What ships
 
-Thirty-eight presets. Only two of them are versions of one patch, and they are the place to start: **Just Saw** and **Equal Saw** are identical except for [TUNE](https://benjamindehli.github.io/overtonium/tuning/), and they sound nothing alike.
+Forty-one presets. Only two of them are versions of one patch, and they are the place to start: **Just Saw** and **Equal Saw** are identical except for [TUNE](https://benjamindehli.github.io/overtonium/tuning/), and they sound nothing alike.
 
 Each clip plays the same thing: a spread C major chord, played a note at a time and released all at once. This makes it easy to listen through them in order. The clips are rendered by the plugin, not recorded, so they always match what it does. The levels are the ones each preset sets, not matched to each other. Nothing downloads until you press play.
 
-Thirty-three of them use one of the twelve [oscillator characters](https://benjamindehli.github.io/overtonium/effects/#character). The character is part of the patch like everything else here, so what you hear is the preset as it ships. Keep two of the twelve in mind while listening. Bulb is only audible when the pitch moves, and Op-amp only affects partials above a kilohertz. Both do more when you play them on a keyboard than in a clip of a held chord.
+Thirty-six of them use one of the twelve [oscillator characters](https://benjamindehli.github.io/overtonium/effects/#character). The character is part of the patch like everything else here, so what you hear is the preset as it ships. Keep two of the twelve in mind while listening. Bulb is only audible when the pitch moves, and Op-amp only affects partials above a kilohertz. Both do more when you play them on a keyboard than in a clip of a held chord.
 
 **2-bit Fuzz Organ**
 
@@ -910,6 +910,10 @@ The sawtooth wave of the same chip, on the 6581 character. The character is meas
 
 The triangle wave of the same chip, also on the 6581 character. A triangle wave has odd harmonics that fall with the square of their number, and the chip's also has a few faint even ones
 
+**8-bit Choir**
+
+A breathy choir on the 6581 character, at 16 kHz and 8 bits. It swells in and out slowly, the breath is blown into [the string in the noise channel](https://benjamindehli.github.io/overtonium/controls/#noise), and each note glides into the next. It goes out through the console
+
 **Big Saw**
 
 A sawtooth with a little randomness in it, so it drifts and beats instead of staying still
@@ -917,6 +921,10 @@ A sawtooth with a little randomness in it, so it drifts and beats instead of sta
 **Cathedral**
 
 A principal chorus: octaves and fifths only, a registration an organ builder would recognise. It fades in slowly, the way pipes start to sound
+
+**Combo Organ**
+
+A transistor combo organ on the Combo character, with one vibrato for the whole keyboard, so every held key wavers together. The modulation wheel or aftertouch brings in the upper partials, and the envelopes and the noise channel give each key a click. It goes into a bucket brigade echo and a spring reverb
 
 **DigiLog**
 
@@ -936,7 +944,7 @@ A strike that turns into a pad, without using separate layers. The short partial
 
 **EP Chimes**
 
-A round electric piano with bright chimes above it, at 16 kHz and 8 bits, so the artefacts are part of the sound and not added on top
+A round electric piano with bright chimes above it, at 16 kHz and 8 bits, so the artefacts are part of the sound and not added on top. It goes out through the cassette recorder
 
 **Equal Saw**
 
@@ -968,7 +976,7 @@ The same sound as Equal Saw with every partial at its exact whole-number ratio
 
 **KarplusStrong**
 
-A single fundamental and the noise channel's Karplus-Strong string, struck together, with the resonator's piano strings ringing in sympathy
+A single fundamental and the noise channel's Karplus-Strong string, struck together, with the resonator's piano strings ringing in sympathy, printed to the cassette recorder through the console
 
 **Lo-fi**
 
@@ -1004,7 +1012,7 @@ Staggered envelope delays, so the spectrum builds up gradually instead of starti
 
 **Space Cowboy**
 
-A synthetic tremolo guitar, plucked from [the string in the noise channel](https://benjamindehli.github.io/overtonium/controls/#noise), over a pad with square-wave pitch modulation in some of its partials, and a whistle like a theremin that glides between overlapping notes. The [resonator](https://benjamindehli.github.io/overtonium/effects/#resonator) rings under all of it
+A synthetic tremolo guitar, plucked from [the string in the noise channel](https://benjamindehli.github.io/overtonium/controls/#noise), over a pad with square-wave pitch modulation in some of its partials, and a whistle like a theremin that glides between overlapping notes. The [resonator](https://benjamindehli.github.io/overtonium/effects/#resonator) rings under all of it, and it goes out through the console
 
 **Space Flute**
 
@@ -1034,13 +1042,17 @@ Strings and brass in one patch. Nothing in it starts at the same moment, and how
 
 Like a vowel: a formant peak in the low partials instead of a straight roll-off, and an old echo machine with dark, unsteady repeats
 
+**Tape Pluck**
+
+A plucked string on the VCO character, over a quiet pad that swells in behind it and steps in level. The pluck's tremolo is shared across the keyboard, so a chord pulses together. The [resonator](https://benjamindehli.github.io/overtonium/effects/#resonator) rings under it, and it is printed to the cassette recorder through the console
+
 **Vibraphone**
 
 A fast strike where the fundamental rings for seconds and everything above it is gone within one second
 
 **Wurli**
 
-A Wurlitzer 200A electric piano, with one tremolo circuit for the whole keyboard instead of one per tine, so a whole chord pulses together
+A Wurlitzer 200A electric piano, with one tremolo circuit for the whole keyboard instead of one per tine, so a whole chord pulses together. It goes out through the console
 
 ## What a preset carries
 
