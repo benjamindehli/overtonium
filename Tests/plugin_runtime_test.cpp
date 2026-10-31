@@ -164,7 +164,7 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
       {ovt::params::slideDestId, 3},    {ovt::params::lofiRateId, 8},
       {ovt::params::lofiBitsId, 9},     {ovt::params::echoTypeId, 3},
       {ovt::params::reverbTypeId, 3},   {ovt::params::glideTriggerId, 2},
-      {ovt::params::glideModeId, 2},    {ovt::params::clipTypeId, 7},
+      {ovt::params::glideModeId, 2},    {ovt::params::clipTypeId, 8},
   };
 
   for (const auto &list : globals)
@@ -1048,7 +1048,7 @@ void testBusStageFollowsTheCharacter(OvertoniumProcessor &p) {
         "and does not move when the character does (" +
             std::to_string(p.getLatencySamples()) + ")");
 
-  // The lookahead belongs to three of the seven types and is paid by all of
+  // The lookahead belongs to four of the eight types and is paid by all of
   // them, so switching the stage off has to leave the figure alone.
   auto *clip = p.apvts.getParameter(ovt::params::safetyClipId);
   clip->setValueNotifyingHost(0.0f);
@@ -7174,9 +7174,9 @@ void testTheSafetyClipHoldsUnity() {
     set(ovt::params::masterGainId, 1.0f);
     set(ovt::params::safetyClipId, 1.0f);
 
-    // Every one of the seven. The limiter, and Console and Cassette, which end
-    // in it, keep the bound by seeing the peak coming, with a hard clip behind
-    // it for whatever the window is too short to see.
+    // Every one of the eight. The limiter, and Console, Cassette and Print,
+    // which end in it, keep the bound by seeing the peak coming, with a hard
+    // clip behind it for whatever the window is too short to see.
     for (int type = 0; type < (int)ovt::ClipType::NumTypes; ++type) {
       set(ovt::params::clipTypeId,
           (float)type / (float)((int)ovt::ClipType::NumTypes - 1));

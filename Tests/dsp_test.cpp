@@ -12514,6 +12514,107 @@ void testCassette() {
 /// figures on steady tones at 48 kHz, with its gain at unity on a quiet 1 kHz
 /// tone, and the compressor the recordings showed, linked, its sidechain
 /// filtered at 120 Hz, with a release that lets go fast after a short hit and
+
+/// The Print output machine, the console printed to the cassette recorder:
+/// unity at a quiet tone, the console's third harmonic at a moderate level
+/// where the deck alone is clean, tape hiss 6 dB under the deck's alone, and
+/// the deck's low end at full scale.
+void testPrint() {
+  section("Print");
+
+  constexpr double kTwoPi = 6.283185307179586;
+  constexpr double sr = 48000.0;
+
+  struct Read {
+    double gainDb, thirdDb;
+  };
+
+  const auto steady = [sr, kTwoPi](ClipType type, double f, double db) {
+    constexpr int kN = 96000;
+    OutputStage stage;
+    stage.prepare(sr);
+
+    const double a = std::pow(10.0, db / 20.0);
+    std::vector<float> l((size_t)kN), r((size_t)kN);
+
+    for (int i = 0; i < kN; ++i)
+      l[(size_t)i] = r[(size_t)i] =
+          (float)(a * std::sin(kTwoPi * f * (double)i / sr));
+
+    stage.process(l.data(), r.data(), kN, type, true, false);
+
+    const int from = kN - 48000;
+    std::complex<double> h1{}, h3{};
+    double norm = 0.0;
+
+    for (int i = from; i < kN; ++i) {
+      const double w =
+          0.5 - 0.5 * std::cos(kTwoPi * (double)(i - from) / 48000.0);
+      const double ph = kTwoPi * f * (double)i / sr;
+      norm += w;
+      h1 += w * (double)l[(size_t)i] * std::polar(1.0, -ph);
+      h3 += w * (double)l[(size_t)i] * std::polar(1.0, -3.0 * ph);
+    }
+
+    return Read{20.0 * std::log10(2.0 * std::abs(h1) / norm / a),
+                20.0 * std::log10(std::abs(h3) / std::abs(h1))};
+  };
+
+  const auto quiet = steady(ClipType::Print, 1000.0, -40.0);
+  check(std::abs(quiet.gainDb) < 0.8,
+        "a quiet 1 kHz tone comes through Print at unity (" +
+            std::to_string(quiet.gainDb) + " dB)");
+
+  const auto printed = steady(ClipType::Print, 1000.0, -9.0);
+  const auto taped = steady(ClipType::Cassette, 1000.0, -9.0);
+  std::printf("  1 kHz at -9 dBFS: third harmonic %.1f dB printed, %.1f on "
+              "the deck alone\n",
+              printed.thirdDb, taped.thirdDb);
+  check(printed.thirdDb > -45.0 && taped.thirdDb < -50.0,
+        "at a moderate level it carries the console's third harmonic, where "
+        "the deck alone is clean");
+
+  // The hiss under a quiet note, what is left once the note is taken out:
+  // the difference between neighbouring cycles of a 125 Hz tone, which
+  // repeats every 384 samples where hiss does not. At -38 dBFS, quiet enough
+  // that the flutter's own difference between cycles stays under the hiss,
+  // and loud enough to hold the hiss gate open.
+  const auto hissUnder = [sr, kTwoPi](ClipType type) {
+    constexpr int kN = 96000;
+    OutputStage stage;
+    stage.prepare(sr);
+
+    std::vector<float> l((size_t)kN), r((size_t)kN);
+
+    for (int i = 0; i < kN; ++i)
+      l[(size_t)i] = r[(size_t)i] =
+          (float)(0.012 * std::sin(kTwoPi * 125.0 * (double)i / sr));
+
+    stage.process(l.data(), r.data(), kN, type, true, false);
+
+    double power = 0.0;
+
+    for (int i = kN / 2; i < kN; ++i) {
+      const double d = (double)l[(size_t)i] - (double)l[(size_t)i - 384];
+      power += d * d;
+    }
+
+    return 10.0 * std::log10(power / (double)(kN / 2));
+  };
+
+  const double quieter =
+      hissUnder(ClipType::Print) - hissUnder(ClipType::Cassette);
+  std::printf("  hiss under a quiet note: %+.1f dB against the deck alone\n",
+              quieter);
+  check(quieter < -4.5 && quieter > -7.5,
+        "its tape hiss sits about 6 dB under the deck's on its own");
+
+  const auto low = steady(ClipType::Print, 60.0, 0.0);
+  std::printf("  60 Hz at full scale: third harmonic %.1f dB\n", low.thirdDb);
+  check(low.thirdDb > -25.0,
+        "and at full scale the deck still saturates the lows first");
+}
+
 /// slowly after a long one.
 void testConsole() {
   section("Console");
@@ -13064,6 +13165,7 @@ int main() {
   testOutputStage();
   testConsole();
   testCassette();
+  testPrint();
   benchmark();
   benchmarkLofi();
 
