@@ -61,9 +61,11 @@ std::optional<ReleaseInfo> parseReleaseJson(const juce::String &json) {
   if (info.version.isEmpty())
     return std::nullopt;
 
-  // A feed with a version but no page falls back to the releases page.
-  if (info.url.isEmpty())
-    info.url = "https://github.com/benjamindehli/overtonium/releases/latest";
+  // The link is opened in a browser, so it may only lead to this project's
+  // pages on GitHub, and a ".." could climb out of them. Anything else, or
+  // none, falls back to the releases page.
+  if (!info.url.startsWith(kReleasePages) || info.url.contains(".."))
+    info.url = kLatestRelease;
 
   return info;
 }

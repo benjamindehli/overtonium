@@ -128,10 +128,18 @@ jobs:
         run: |
           base="https://github.com/Tracktion/pluginval/releases/download"
 
+          # Each archive's SHA-256, taken from the v1.0.4 release. Moving to
+          # another version means taking all three again.
           case "$RUNNER_OS" in
-            macOS)   asset=pluginval_macOS.zip ;;
-            Windows) asset=pluginval_Windows.zip ;;
-            Linux)   asset=pluginval_Linux.zip ;;
+            macOS)
+              asset=pluginval_macOS.zip
+              expected=3c4c533bda0c5059eea3ddaea752d757ee2025041f0f47e6bcb0e87f6082b29f ;;
+            Windows)
+              asset=pluginval_Windows.zip
+              expected=c08e61ce3b96db41636f8ec7e76f4c7e2c13ebdac7fa1b5a1f52b4f32ec715ab ;;
+            Linux)
+              asset=pluginval_Linux.zip
+              expected=c01c49d8063965c4c2dea8324468336768f5c9139e0b1caebde14c2400b55352 ;;
           esac
 
           # --fail so a wrong tag or a renamed asset fails here. Without it
@@ -139,6 +147,21 @@ jobs:
           # comes from unzip, about a file that looks like it downloaded.
           curl -sSL --fail --retry 3 -o pluginval.zip \
             "$base/$PLUGINVAL_VERSION/$asset"
+
+          # A release asset can be replaced after the fact, and this one is run
+          # against the plugin, so it has to be the file that was checked.
+          # shasum is the one every macOS has, and sha256sum the one the other
+          # two have.
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            actual=$(shasum -a 256 pluginval.zip | cut -d ' ' -f 1)
+          else
+            actual=$(sha256sum pluginval.zip | cut -d ' ' -f 1)
+          fi
+
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::$asset has SHA-256 $actual, expected $expected"
+            exit 1
+          fi
 
           # The bash on the Windows runners is the one Git ships and it has no
           # unzip, the same reason the release workflow archives with pwsh.
@@ -317,7 +340,10 @@ jobs:
       # one that runs. Prettier's output changes between minor versions, and a
       # check that formats differently from the developer's copy is worse than
       # no check.
-      - run: npm ci
+      #
+      # Without install scripts, as in the release workflow. Prettier needs
+      # none.
+      - run: npm ci --ignore-scripts
 
       - run: npm run format:check
 

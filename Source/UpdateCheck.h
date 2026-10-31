@@ -38,8 +38,15 @@ struct ReleaseInfo {
   juce::String url;
 };
 
+/// Where a release's link may lead, and where it goes instead.
+inline constexpr const char *kReleasePages =
+    "https://github.com/benjamindehli/overtonium/";
+inline constexpr const char *kLatestRelease =
+    "https://github.com/benjamindehli/overtonium/releases/latest";
+
 /// Reads a release description out of the JSON the site publishes.
-/// Returns nothing on anything unexpected.
+/// Returns nothing on anything unexpected. A link outside kReleasePages is
+/// replaced by kLatestRelease.
 std::optional<ReleaseInfo> parseReleaseJson(const juce::String &json);
 
 /// Asks the project page whether there is a newer release.
