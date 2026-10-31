@@ -68,9 +68,6 @@ public:
   /// off.
   std::function<void(juce::Component *)> onLinkClicked;
 
-  /// Latches the draw tool on or off.
-  std::function<void()> onDrawClicked;
-
   /// Which tool the button shows, and the cursor for it.
   void setTool(ovt::ui::PointerTool, ovt::ui::LinkCurve);
 
@@ -147,7 +144,6 @@ public:
   /// Read on the housekeeping tick. See the body.
   void pollDrawModifier();
   void refreshDrawArmed();
-  void toggleDrawLatch();
 
   /// Writes which tool is selected into the session. Both flags the tool is
   /// derived from are written here, and every path that changes either goes

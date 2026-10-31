@@ -499,8 +499,6 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   drawLatched = state.getProperty(kDrawLatched, false);
   drawArmed = drawLatched;
 
-  gutter.onDrawClicked = [this] { toggleDrawLatch(); };
-
   topBar.setLinkEnabled(state.getProperty(kLinkOn, false));
   topBar.setLinkScope((LinkScope)juce::jlimit(
       0, (int)LinkScope::NumScopes - 1, (int)state.getProperty(kLinkScope, 0)));
@@ -1387,13 +1385,6 @@ void OvertoniumEditor::rememberTool() {
 
   tree.setProperty(kLinkOn, topBar.isLinkEnabled(), nullptr);
   tree.setProperty(kDrawLatched, drawLatched, nullptr);
-}
-
-void OvertoniumEditor::toggleDrawLatch() {
-  drawLatched = !drawLatched;
-
-  rememberTool();
-  refreshDrawArmed();
 }
 
 void OvertoniumEditor::syncLinkUi() {
