@@ -29,15 +29,15 @@ inline constexpr const char *tuningRootId = "tuningRoot";
 inline constexpr const char *referenceHzId = "referenceHz";
 inline constexpr const char *safetyClipId = "safetyClip";
 
-/// Which of the seven machines the output stage uses, when it is on. Kept
+/// Which of the eight machines the output stage uses, when it is on. Kept
 /// beside the safetyClip switch, as echoTypeId is beside echoOn.
 inline constexpr const char *clipTypeId = "clipType";
 
 /// Whether the output stage is allowed its lookahead.
 ///
 /// A session parameter in kSessionParamIds, so no preset can change the
-/// latency. Off by default, since only the Limiter, Console and Cassette use
-/// the lookahead.
+/// latency. Off by default, since only the Limiter, Console, Cassette and
+/// Print use the lookahead.
 inline constexpr const char *lookaheadId = "lookahead";
 inline constexpr const char *mpeId = "mpe";
 inline constexpr const char *lofiRateId = "lofiRate";

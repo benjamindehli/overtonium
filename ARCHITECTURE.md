@@ -62,7 +62,7 @@ Source/
                     resonator's 88
     SympatheticStrings.*  the resonator: 88 sympathetic strings, before the bus drive
     Wobble.*        a warped-record wobble on the whole instrument
-    OutputStage.*   the seven machines at the end of the signal chain
+    OutputStage.*   the eight machines at the end of the signal chain
     Cassette.*      the cassette machine's Dolby, record side, tape and transport
     Console.*       the console machine's transformer, compressor and tape stage
     SynthEngine.*   voice pool, allocation, stealing, effects, master stage

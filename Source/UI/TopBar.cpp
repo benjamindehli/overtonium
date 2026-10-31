@@ -475,8 +475,9 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
               "Shapes the output after the master fader. Soft rounds the "
               "peaks, Hard cuts them flat, Asymmetric bends one half of the "
               "wave first, Limiter turns the level down, Fold folds the "
-              "wave back, Console is a mixing console's bus and Cassette a "
-              "cassette recorder. Off lets the output go past full scale.");
+              "wave back, Console is a mixing console's bus, Cassette a "
+              "cassette recorder and Print the console printed to the "
+              "cassette. Off lets the output go past full scale.");
 
   clipButton.onClick = [this] {
     auto m = buildClipMenu();
