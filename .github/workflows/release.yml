@@ -574,8 +574,12 @@ jobs:
           # and a longer version number can push a line past the width it wants
           # to wrap at. Cheaper to reformat here than to land a commit on main
           # that fails its own format job.
-          npm ci --silent
-          npx prettier --write "$page" docs/latest.json
+          #
+          # This job can write to the repository, so no package gets to run an
+          # install script here, and npx runs only what the lockfile installed.
+          # Prettier needs neither.
+          npm ci --silent --ignore-scripts
+          npx --no-install prettier --write "$page" docs/latest.json
 
           # Writes the structured data with the new day, and moves the sitemap
           # date of any page whose words changed above, which is the install

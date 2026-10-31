@@ -317,7 +317,10 @@ jobs:
       # one that runs. Prettier's output changes between minor versions, and a
       # check that formats differently from the developer's copy is worse than
       # no check.
-      - run: npm ci
+      #
+      # Without install scripts, as in the release workflow. Prettier needs
+      # none.
+      - run: npm ci --ignore-scripts
 
       - run: npm run format:check
 
