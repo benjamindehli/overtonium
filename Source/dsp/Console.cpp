@@ -142,9 +142,8 @@ double Console::transformer(Channel &c, double x) const noexcept {
 
   c.flux += fluxCoef * (x - c.flux);
 
-  // What the core can carry of the lows, and the rest lost. Slow enough by
-  // the time it reaches the knee that what the knee adds sits in the lows, so
-  // it is read as it is rather than averaged.
+  // What the core can carry of the lows, and the rest lost. The flux is slow
+  // enough that the knee's harmonics stay low, so it needs no averaging.
   const double p = c.flux;
   const double carried =
       p / std::pow(1.0 + std::pow(std::abs(p / kFluxLimit), kFluxKnee),
@@ -158,9 +157,8 @@ double Console::tape(Channel &c, double x) const noexcept {
 
   const double q = c.tapeLow.run(x);
 
-  // The part past the limit, as its average over the step from the last
-  // sample: the antiderivative of what passes the limit, divided by the step.
-  // A hard limit's corner would otherwise fold its harmonics back down.
+  // The part past the limit, averaged over the step from the last sample by
+  // its antiderivative, so the hard corner does not alias.
   const auto past = [this](double v) {
     const double a = std::abs(v) - tapeLimit;
     return a > 0.0 ? std::copysign(a, v) : 0.0;

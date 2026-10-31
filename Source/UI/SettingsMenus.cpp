@@ -10,13 +10,12 @@
 namespace ovt::ui::settings {
 
 namespace {
-/// The semitone counts anyone actually uses, rather than all 25 of them.
+/// The common semitone counts, rather than all 25.
 constexpr int kBendChoices[] = {0, 1, 2, 3, 4, 5, 7, 12, 24};
 
 /// The order the menu lists the temperaments in: equal and just first, the
-/// historical ones by age, and Adaptive last since it is the one that is not
-/// fixed. The parameter keeps the order they were added in, so a host's lanes
-/// and saved sessions do not move.
+/// historical ones by age, and Adaptive last. The parameter keeps its own
+/// order, so saved sessions do not change.
 constexpr Temperament kTemperamentOrder[] = {
     Temperament::Equal,         Temperament::Just,
     Temperament::Pythagorean,   Temperament::QuarterComma,
@@ -67,9 +66,8 @@ bool legatoOn(juce::AudioProcessorValueTreeState &apvts) {
 }
 
 juce::PopupMenu voices(juce::AudioProcessorValueTreeState &apvts) {
-  // The voice counts, from one up. The list's first entry, monophonic legato,
-  // is the Legato switch with one voice now, so a session that stored it reads
-  // as that: one voice, and Legato ticked.
+  // The voice counts, from one up. The parameter's old legato entry reads as
+  // one voice with Legato ticked.
   const auto index = choiceIndex(apvts, params::polyphonyId);
   const auto oldLegato = index == params::kLegatoIndex;
 
@@ -101,9 +99,7 @@ juce::PopupMenu bendRange(juce::AudioProcessorValueTreeState &apvts) {
 }
 
 juce::PopupMenu aftertouchFrom(juce::AudioProcessorValueTreeState &apvts) {
-  // Which channel-wide control the AT row on every strip listens to. Most
-  // keyboards have no aftertouch, so the wheel stands in for it, and by
-  // default either will do.
+  // Which channel-wide control the AT row on every strip listens to.
   const auto current = choiceIndex(apvts, params::atSourceId);
 
   juce::PopupMenu m;
@@ -164,8 +160,7 @@ juce::PopupMenu referencePitch(juce::AudioProcessorValueTreeState &apvts) {
 }
 
 juce::PopupMenu retune(juce::AudioProcessorValueTreeState &apvts) {
-  // Two quick settings of what is a time, ticked when the knob sits on one,
-  // within a millisecond, and neither ticked anywhere else.
+  // Each is ticked when the time is within a millisecond of it.
   auto *p = apvts.getParameter(params::adaptiveRetuneId);
   const auto seconds =
       p != nullptr ? (double)p->convertFrom0to1(p->getValue()) : 0.0;
@@ -208,9 +203,8 @@ bool apply(juce::AudioProcessorValueTreeState &apvts, int id) {
     return true;
 
   case kLegato: {
-    // From the list's old legato entry, unticking moves to one voice with the
-    // switch off, and ticking is the switch. Either way the count stops
-    // pointing at an entry the menu no longer offers.
+    // Either way the count leaves the old legato entry, which the menu no
+    // longer offers.
     auto *count = apvts.getParameter(params::polyphonyId);
     auto *legatoSwitch = apvts.getParameter(params::legatoId);
 

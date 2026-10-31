@@ -5,13 +5,9 @@
 
 namespace ovt {
 
-/// How the keyboard itself is tuned, as opposed to how each partial is.
+/// How the keyboard itself is tuned, as opposed to how each partial is (TUNE).
 ///
-/// TUNE decides where a partial sits above the note you played. This decides
-/// where that note sits, which until now was always twelve-tone equal
-/// temperament. The two are worth having together: a stack of just-intonation
-/// partials sounds different again over a keyboard that is not equal, and the
-/// beating between them is most of what a temperament is for.
+/// The index is stored by the host, so entries are only ever appended.
 enum class Temperament {
   Equal = 0,
   Just,
@@ -19,20 +15,18 @@ enum class Temperament {
   QuarterComma,
   Werckmeister3,
   Young,
-  /// Retuned as it is played rather than fixed: every pitch class has five
-  /// versions a comma apart around its place in just major on the root, and
-  /// each key takes whichever is purest against what is sounding. The table
-  /// below is the middle versions, on Groven's tempered fifths. See
-  /// SynthEngine::frequencyFor.
+  /// Retuned as it is played: every pitch class has five versions a comma
+  /// apart and each key takes the purest against what is sounding. The table
+  /// below holds the middle versions. See SynthEngine::frequencyFor.
   Adaptive,
-  /// These two came after Adaptive, and are after it here because a host
-  /// stores the choice by its place in the list. The menus show them beside
-  /// the other fixed temperaments.
+  /// After Adaptive to keep stored indices. The menus show them beside the
+  /// other fixed temperaments.
   KirnbergerIII,
   Vallotti,
   NumTemperaments
 };
 
+/// The name the menus show.
 inline const char *temperamentName(Temperament t) {
   switch (t) {
   case Temperament::Just:
@@ -81,15 +75,12 @@ inline constexpr double kSyntonicComma =
 /// by, about two cents.
 inline constexpr double kSchisma = 8.0 * kPureFifth + kPureMajorThird - 6000.0;
 
-/// The fifth Eivind Groven tuned his organs to: narrowed by an eighth of a
-/// schisma, so eight of them and a pure third close five octaves exactly. A
-/// quarter of a cent from pure, which on the third partial of a note in the
-/// middle of the keyboard beats about once every eighteen seconds.
+/// Groven's fifth: narrowed by an eighth of a schisma, so eight of them and a
+/// pure third close five octaves exactly. About a quarter of a cent from pure.
 inline constexpr double kGrovenFifth = kPureFifth - kSchisma / 8.0;
 
-/// The step between the adaptive temperament's versions of a pitch
-/// class: four of those fifths up and a pure third down, a syntonic comma made
-/// a fraction smaller by the tempering, about 20.5 cents.
+/// The step between the Adaptive versions of a pitch class: four Groven
+/// fifths up and a pure third down, about 20.5 cents.
 inline constexpr double kAdaptiveComma =
     4.0 * kGrovenFifth - 2400.0 - kPureMajorThird;
 
@@ -98,16 +89,11 @@ inline constexpr int kFifthOrder[12] = {0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5};
 
 /// Builds a temperament from the twelve fifths that close its circle.
 ///
-/// Nearly every historical temperament is described this way: take the circle
-/// of fifths and say how much each one is narrowed. Deriving the pitch classes
-/// from that rather than copying a table of cents means the defining property
-/// stays visible in the code, and it is checkable, since the twelve have to add
-/// up to seven octaves exactly or the circle does not close.
+/// The twelve must add up to seven octaves for the circle to close.
 ///
 /// @param below  how many fifths below the root the chain starts, so step 0
-///               of `fifths` is the one from that note. Zero starts on the
-///               root. It only matters where the circle is not even, and it
-///               decides where the wolf falls.
+///               of `fifths` is the one from that note. Decides where the wolf
+///               falls in an uneven circle.
 inline std::array<double, 12> fromFifths(const std::array<double, 12> &fifths,
                                          int below = 0) {
   std::array<double, 12> offsets{};
@@ -155,9 +141,7 @@ inline std::array<double, 12> withWolf(double fifth) {
 }
 
 /// Where a temperament with a wolf starts its chain: three fifths below the
-/// root, so on C it runs from Eb to G# and the wolf is G#-Eb. That is where
-/// organs and harpsichords put it, and it keeps C, F, Bb, G, D and A major in
-/// tune, which are the keys most of the music for these temperaments is in.
+/// root, so on C the wolf is G#-Eb, the usual place for it.
 inline constexpr int kWolfBelow = 3;
 
 } // namespace tuning
@@ -220,11 +204,9 @@ temperamentOffsets(Temperament t) noexcept {
       out[5] = fromFifths(fifths);
     }
 
-    // Adaptive: just major again, but built from Groven's fifths and pure
-    // thirds rather than from exact ratios. Each pitch class is so many fifths
-    // and thirds from the root, and with the schisma tempered out, two
-    // spellings of one note that differ by it land on the same pitch, which is
-    // what lets three versions a comma apart reach every chord in every key.
+    // Adaptive: just major built from Groven's fifths and pure thirds. With
+    // the schisma tempered out, spellings that differ by it land on the same
+    // pitch.
     {
       const int fifthsAndThirds[12][2] = {{0, 0},  {-1, -1}, {2, 0},  {1, -1},
                                           {0, 1},  {-1, 0},  {2, 1},  {1, 0},
@@ -277,9 +259,7 @@ temperamentOffsets(Temperament t) noexcept {
 /// Frequency of a MIDI note.
 ///
 /// @param root         pitch class the temperament is built on, 0 == C.
-/// @param referenceHz  where A sits. It stays there in every temperament: the
-///                     offsets are taken relative to A's own, which is what a
-///                     tuner does when they tune A first and work outwards.
+/// @param referenceHz  where A sits, in every temperament.
 inline double noteFrequency(int midiNote, Temperament t, int root,
                             double referenceHz) noexcept {
   double cents = 0.0;

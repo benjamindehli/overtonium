@@ -10,41 +10,22 @@ namespace ovt {
 
 /// A plate reverb.
 ///
-/// A sheet of steel under tension with a driver at one corner and pickups at
-/// two others. What makes it not a room is that it has no geometry to speak
-/// of: a hit spreads across the whole sheet almost at once, so there are no
-/// early reflections to count and no build-up to hear. The tail is simply
-/// there, dense from its first instant, which is why plates were the studio
-/// reverb of choice for thirty years and why a voice sits in one so easily.
+/// A plate has no geometry to speak of, so a hit spreads across the sheet
+/// almost at once and the tail is dense from its first instant, with no early
+/// reflections. The room machine is the opposite: a feedback delay network
+/// whose lines arrive one after another.
 ///
-/// The room next door is a feedback delay network, and it is the opposite
-/// thing: eight lines whose lengths are a geometry, arriving one after
-/// another. Given the same decay time the two sound nothing alike, and this
-/// one is the one to reach for when a sound has to be wet without the wet
-/// being a place.
+/// The shape is Dattorro's. Four allpasses scatter the input, then a tank of
+/// two crossed branches passes it round in a figure of eight, each branch an
+/// allpass that is slowly modulated, a delay, a damping filter, a second
+/// allpass and a second delay. Each output sums taps across both branches, so
+/// the two channels differ without one being a delayed copy of the other.
 ///
-/// **How it is built.** Four allpasses scatter the input before it reaches
-/// anything, then a tank of two branches passes the signal round in a figure
-/// of eight, each branch made of an allpass that is slowly modulated, a delay,
-/// a damping filter, a second allpass and a second delay. Each output is taken
-/// from several taps across the other branch rather than from the end of its
-/// own, which is what makes the two channels differ without either being a
-/// delayed copy of the other. The shape is Dattorro's, which is the one
-/// everybody uses because it is the one that works.
+/// The tank allpasses wander about a millisecond, more than Dattorro's figure,
+/// which keeps a long tail from being heard as the same arrivals repeating.
 ///
-/// **It is a modulated plate**, and the menu says so rather than pretending
-/// otherwise. The two allpasses in the tank wander about a millisecond, which
-/// is far more than a sheet of steel under tension does and more than the
-/// shape was originally given. The reason is the circuit: it is three quarters
-/// of a second long, so at a long decay the same fixed set of arrivals comes
-/// back round again and again and is heard as a pattern rather than a wash.
-/// The wander breaks that up. What it costs is that a held chord moves in a
-/// way a real plate does not, and that turned out to be worth having.
-///
-/// **What the panel means here.** DECAY is the tank's own gain rather than a
-/// room size, since a plate has no size to set. DAMP is the filter in each
-/// branch, which on a real plate is the sheet losing its top end to the air
-/// around it. PRE-DELAY is ahead of everything, as it is on the room.
+/// DECAY sets the tank's gain, DAMP the filter in each branch, and PRE-DELAY
+/// sits ahead of everything.
 class PlateReverb {
 public:
   static constexpr float kMaxPreDelaySeconds = 0.25f;
@@ -52,10 +33,11 @@ public:
   void prepare(double sampleRate) noexcept;
   void reset() noexcept;
 
-  /// Processes in place.
+  /// Processes in place. Does not allocate.
   void process(float *outL, float *outR, int numSamples,
                const ReverbParams &p) noexcept;
 
+  /// How long the tail rings after the input stops, zero when the plate is off.
   float tailSeconds(const ReverbParams &) const noexcept;
 
 private:

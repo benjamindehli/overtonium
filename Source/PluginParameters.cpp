@@ -9,29 +9,12 @@
 namespace ovt::params {
 
 namespace {
-/// A range where equal turns of the knob are equal ratios.
+/// A range where equal turns of the knob are equal ratios, the natural
+/// shape for a time control. setSkewForCentre leaves the bottom of such a wide
+/// range dead. Needs a low end above zero.
 ///
-/// The natural shape for a time control, because a step from 1 ms to 2 ms
-/// matters as much as one from 100 ms to 200 ms, and this gives them the same
-/// amount of travel.
-///
-/// setSkewForCentre cannot. Fitting a power curve through a midpoint across
-/// four and a half decades needs an exponent of about 7.4, and the bottom
-/// eighth of that curve is flat enough to be dead: nudging the knob there
-/// moves the value by nothing at all.
-///
-/// Needs a low end above zero, since nothing has a ratio to zero.
-///
-/// The two conversions work in double and narrow only on the way out. In float
-/// throughout, a value converted to the knob's position and straight back does
-/// not always land on the value it started from: the decay and release
-/// defaults were two such, and auval reports every one of them as a parameter
-/// that would not hold its default. Round-tripping a float through a logarithm
-/// cannot be made exact, since the position is a float too, but double takes
-/// the positions that fail from more than four in ten to about one in twenty,
-/// and every default this plugin ships lands on one that holds. None of this
-/// is on the audio thread: the engine reads cached atomics rather than going
-/// through a range.
+/// The conversions work in double so every default survives the round trip
+/// to a knob position, which auval checks.
 juce::NormalisableRange<float> logRange(float lo, float hi) {
   jassert(lo > 0.0f);
 
@@ -49,16 +32,11 @@ juce::NormalisableRange<float> logRange(float lo, float hi) {
       [](float a, float b, float v) { return juce::jlimit(a, b, v); }};
 }
 
-/// A range that has to include zero, curved so the bottom of it is usable.
+/// A range that includes zero, growing exponentially from the low end so
+/// the slope at the bottom is small but never zero.
 ///
-/// A time that can be switched off cannot be logarithmic, since nothing has a
-/// ratio to zero. This grows exponentially from the low end instead, which
-/// gives the same thing that matters: a slope at the bottom that is small but
-/// never zero, so nudging the knob there always moves the value.
-///
-/// @param centre  the value at half travel, which fixes the curvature. It has
-///                to sit below the midpoint of the range, which for every
-///                control here it does by a wide margin.
+/// @param centre  the value at half travel, which fixes the curvature. Must
+///                sit below the midpoint of the range.
 juce::NormalisableRange<float> expRange(float lo, float hi, float centre) {
   const auto frac = juce::jlimit(0.001f, 0.45f, (centre - lo) / (hi - lo));
 
@@ -80,10 +58,8 @@ juce::NormalisableRange<float> expRange(float lo, float hi, float centre) {
 
 /// A bipolar range with its fine end in the middle.
 ///
-/// Piano stretch lives in the first hundred cents or so and a bell wants a
-/// thousand, so a linear control would spend most of its travel somewhere
-/// nobody goes. Squaring either side of centre puts a quarter of the range in
-/// half the travel and keeps the symmetry a bipolar control needs.
+/// Squaring either side of centre puts a quarter of the range in half the
+/// travel, for piano stretch near zero and bells far out.
 juce::NormalisableRange<float> squaredBipolarRange(float extent) {
   return {-extent, extent,
           [](float lo, float hi, float t) {
@@ -105,7 +81,7 @@ juce::String stretchText(float cents, int) {
          " ct";
 }
 
-/// A glide time, which at nought is no glide rather than an instant one.
+/// A glide time, where zero reads as off.
 juce::String glideText(float seconds, int) {
   if (seconds < 0.0005f)
     return "Off";
@@ -138,9 +114,8 @@ juce::String attackText(float value, int) {
   return timeText(value, 0);
 }
 
-/// The other way, for a host that lets you type a value: degrees for a start
-/// in the cycle, and a time in milliseconds unless it says seconds, since a
-/// bare number on an attack is nearly always meant as one.
+/// The other way, for a host that lets you type a value: degrees for a
+/// start in the cycle, otherwise milliseconds unless it says seconds.
 float attackValue(const juce::String &text) {
   const auto n = text.getFloatValue();
 
@@ -154,12 +129,8 @@ float attackValue(const juce::String &text) {
                       seconds ? n : n / 1000.0f);
 }
 
-/// The ATTACK row's range, linear in the onset scale rather than in seconds.
-///
-/// The knob's travel is octaves of attack from the bottom, the bottom stretch
-/// being the phase region, so a turn of the knob and a blow on the key move
-/// the onset by the same measure: STRIKE is an offset along exactly this
-/// scale. See onsetOctaves.
+/// The ATTACK row's range, linear in octaves of onset with the phase region
+/// at the bottom, the same scale STRIKE offsets along. See onsetOctaves.
 juce::NormalisableRange<float> attackRange() {
   const double span = kOnsetPhaseOctaves;
   const double times = std::log2((double)kMaxAttackSeconds / kShortestAttack);
@@ -177,14 +148,12 @@ juce::NormalisableRange<float> attackRange() {
           [](float lo, float hi, float v) { return juce::jlimit(lo, hi, v); }};
 }
 
-/// A modulator's rate, to the precision the knob can actually be set to by
-/// hand: hundredths below 10 Hz, where a slow sweep lives, and tenths above.
+/// A modulator's rate: hundredths below 10 Hz and tenths above.
 juce::String rateText(float hz, int) {
   return juce::String(hz, hz < 10.0f ? 2 : 1) + " Hz";
 }
 
-/// A depth or a drift in cents. Tenths are audible below 10 cents and noise
-/// above them, and nought is nought rather than a tenth of nothing.
+/// A depth or a drift in cents, with tenths below 10 cents.
 juce::String centsText(float cents, int) {
   if (cents < 0.05f)
     return "0 ct";
@@ -192,11 +161,8 @@ juce::String centsText(float cents, int) {
   return juce::String(cents, cents < 10.0f ? 1 : 0) + " ct";
 }
 
-/// A macro's amount as the panel's reading shows it, a signed percentage to a
-/// tenth. Rounded to whole tenths before the sign is chosen, so a value a hair
-/// either side of zero reads 0.0 % on every platform: the range snaps to its
-/// step in float arithmetic, and on macOS that leaves the centre a few
-/// ten-millionths below zero, which printed as -0.0000.
+/// A macro's amount as a signed percentage to a tenth. Rounded before the
+/// sign is chosen, so a value a hair either side of zero reads 0.0 %.
 juce::String macroAmountText(float v, int) {
   const auto tenths = juce::roundToInt(v * 1000.0f);
 
@@ -208,8 +174,7 @@ juce::String macroAmountText(float v, int) {
          juce::String(size % 10) + " %";
 }
 
-/// The other way, so a host that lets you type a value reads "50" as half way
-/// rather than as fifty times the range.
+/// The other way, so a typed "50" means half way.
 float macroAmountValue(const juce::String &text) {
   return juce::jlimit(-1.0f, 1.0f, text.getFloatValue() / 100.0f);
 }
@@ -218,12 +183,9 @@ juce::String percentText(float v, int) {
   return juce::String(juce::roundToInt(v * 100.0f)) + " %";
 }
 
-/// The echo age has a floor under it that the player has no reason to know
-/// about. It exists so the two tape paths never wander by exactly the same
-/// amount, which is what would collapse the repeat to mono, and it is a fact
-/// about the machine rather than a setting. So the knob reads across its whole
-/// travel and the floor is folded in on the way through, in both directions,
-/// which keeps a typed value and a shown one agreeing.
+/// The echo age has a floor that keeps the two tape paths from wandering
+/// identically, which would collapse the repeat to mono. The text hides it in
+/// both directions, so the knob reads 0 to 100 %.
 juce::String ageText(float v, int) {
   const auto span = 1.0f - TapeEcho::kMinAge;
   const auto shown = (v - TapeEcho::kMinAge) / span;
@@ -244,8 +206,7 @@ juce::String signedPercentText(float v, int) {
   return (pc > 0 ? "+" : "") + juce::String(pc) + " %";
 }
 
-/// Pan reads as a side and a distance, the way a desk marks it, rather than as
-/// a signed number nobody converts in their head.
+/// Pan reads as a side and a distance, the way a desk marks it.
 juce::String panText(float v, int) {
   const auto amount = juce::roundToInt(std::abs(v) * 100.0f);
 
@@ -264,46 +225,24 @@ juce::String gainText(float v, int) {
 
 constexpr float kLevelShape = 2.0f;
 
-/// The fader reaches a shade below the quietest level a readout can name.
-///
-/// Without the margin, -99.9 dB lands on the very bottom of the travel, and
-/// the very bottom is silence, so the floor could be read but never set. The
-/// margin puts it about a hundredth of the way up, leaving a couple of pixels
-/// below it that are too quiet to name and then silence itself.
+/// The fader reaches a little below the quietest level a readout can name,
+/// so that level can be set and not only read.
 constexpr float kFaderFloorDb = kQuietestLevelDb - 2.1f;
 
-/// How a level fader's travel maps to gain.
-///
-/// A square law in decibels, where a plain gain fader is a square law in gain.
-/// The difference is what happens at the quiet end. Spacing the travel by gain
-/// spends almost all of it on the loudest few decibels and leaves everything
-/// below -66 dB inside the last five pixels of a 223 pixel fader, which is why
-/// that end could be read but never set. Spacing it by decibels instead puts
-/// -66 dB about a fifth of the way up, with -99.9 dB at the bottom of the
-/// travel and silence in the last pixel.
-///
-/// Squared rather than straight: a fader linear in decibels would give the top
-/// twelve decibels a tenth of its travel, a quarter of what a gain law gives
-/// them, and that is where most of the mixing happens.
-///
-/// The stored value is still a gain, so presets and saved state mean what they
-/// always did. What changes is where a given level sits along the fader, and
-/// with it any host automation written against the old shape.
+/// How a level fader's travel maps to gain: a square law in decibels, so the
+/// quiet end is reachable and the top still has most of the travel. The
+/// stored value is a gain.
 juce::NormalisableRange<float> levelRange() {
   return {0.0f, 1.0f,
 
           // Travel into gain.
           [](float, float, float norm) {
-            // The bottom of the travel is silence rather than the quietest
-            // readable level, so a fader pulled all the way down is off rather
-            // than very nearly off.
+            // The bottom of the travel is silence.
             if (norm <= 0.0f)
               return 0.0f;
 
-            // The floor has to be handed over rather than left to its default,
-            // which is -100 dB. This fader reaches below that, and a default
-            // that rounds everything past it to silence would make the bottom
-            // hundredth of the travel dead.
+            // The floor is passed explicitly since the default of -100 dB is
+            // above it and would make the bottom of the travel dead.
             return juce::Decibels::decibelsToGain(
                 kFaderFloorDb * std::pow(1.0f - norm, kLevelShape),
                 kFaderFloorDb);
@@ -380,10 +319,8 @@ const char *macroScopeName(int scope) {
     break;
   }
 
-  // Everything past the three is an interval. Taken from the one table that
-  // names them rather than written again here, and capitalised to sit beside
-  // All, Odd and Even without looking like a different kind of thing. Built
-  // once and kept, since this hands back a pointer that has to outlive it.
+  // Everything past the three is an interval, named from intervalName and
+  // capitalised. Built once, since this returns a pointer into it.
   if (scope >= (int)MacroScope::Interval && scope < (int)MacroScope::Selected) {
     static const auto capitalised = [] {
       std::array<juce::String, 12> out;
@@ -416,8 +353,7 @@ juce::String channelListText(std::uint32_t mask) {
 std::uint32_t channelListMask(const juce::String &text) {
   std::uint32_t mask = 0;
 
-  // Anything that is not a channel number is skipped rather than refused, as
-  // the session's own selection is read.
+  // Anything that is not a channel number is skipped.
   for (const auto &number : juce::StringArray::fromTokens(text, ",", "")) {
     const auto i = number.trim().getIntValue() - 1;
 
@@ -448,25 +384,20 @@ bool macroReaches(int scope, int index0, std::uint32_t selected) {
     break;
   }
 
-  // Everything past the three names an interval, and reaches every channel
-  // standing at it: the fifth is harmonics 3, 6, 12 and 24.
+  // Everything past the three is an interval, reaching every channel at
+  // that pitch class.
   return harmonicTable()[(size_t)index0].pitchClass ==
          scope - (int)MacroScope::Interval;
 }
 
-/// This channel's share, from the fundamental outwards.
-///
-/// Taper is measured against the full width of the mixer rather than against
-/// whichever end is nearer, which is what ui::linkCurveWeight does from the
-/// strip under the mouse. A test holds the two together.
+/// This channel's share, from the fundamental outwards. A test holds Taper
+/// together with ui::linkCurveWeight.
 float macroWeight(MacroCurve curve, int index0, int anchor) {
   if (curve != MacroCurve::Taper)
     return 1.0f;
 
-  // Measured against the full width of the mixer rather than against
-  // whichever end is nearer, which is what ui::linkCurveWeight does from the
-  // strip under the mouse. A macro has no strip under the mouse, so it is
-  // told which channel to lean on.
+  // Measured against the full width of the mixer from the anchor channel,
+  // since a macro has no strip under the mouse.
   const auto distance =
       (float)std::abs(juce::jlimit(0, kNumHarmonics - 1, index0) -
                       juce::jlimit(0, kNumHarmonics - 1, anchor)) /
@@ -510,14 +441,10 @@ const char *macroCurveName(MacroCurve c) {
   return "Uniform";
 }
 
-/// What a row is called in a macro's own menu.
-///
-/// Spelt here rather than taken from the panel's row labels, which repeat: two
-/// rows are both called "rate" and three are called "depth", which reads fine
-/// under a heading and not at all in a flat list of nineteen.
+/// What a row is called in a macro's own menu. Spelt out here since the
+/// panel's row labels repeat ("rate", "depth") once out of their headings.
 const char *macroRowName(int row) {
-  // None first, which is a macro nobody has made yet, so this is one longer
-  // than the list of rows.
+  // None first, so this is one longer than the list of rows.
   static const char *const names[] = {"None",
                                       "Tune",
                                       "Glide",
@@ -560,8 +487,8 @@ juce::String noiseParamId(const char *suffix) {
 }
 
 namespace {
-/// Every channel that carries a per-channel switch, in mixer order, with the
-/// noise channel last the way the strip sits.
+/// Every channel that carries a per-channel switch, in mixer order, noise
+/// last.
 std::array<juce::String, kNumHarmonics + 1> channelIds(const char *suffix) {
   std::array<juce::String, kNumHarmonics + 1> ids;
 
@@ -589,9 +516,7 @@ void clearChannelSwitch(juce::AudioProcessorValueTreeState &apvts,
   for (const auto &id : channelIds(suffix)) {
     auto *param = apvts.getParameter(id);
 
-    // Only what is actually on. Writing zero over a zero would report a
-    // gesture on all thirty-three whatever the mixer looked like, and would
-    // put a step in the undo history that changed nothing.
+    // Only what is on, so no gesture or empty undo step is made for the rest.
     if (param == nullptr || param->getValue() <= 0.5f)
       continue;
 
@@ -602,8 +527,7 @@ void clearChannelSwitch(juce::AudioProcessorValueTreeState &apvts,
 }
 
 float defaultVolumeFor(int index0) {
-  // 1/n over the first eight partials, silence above: a soft sawtooth / drawbar
-  // blend that is immediately playable without being a wall of sound.
+  // 1/n over the first eight partials, silence above.
   if (index0 >= 8)
     return 0.0f;
 
@@ -611,7 +535,7 @@ float defaultVolumeFor(int index0) {
 }
 
 namespace {
-/// One name per entry of the list beside it, in the same order.
+/// One name per LfoShape, in the same order.
 const char *const kShapeNames[kNumLfoShapes] = {
     "Sine",   "Triangle",    "Sawtooth",      "Reverse Sawtooth",
     "Square", "Square (up)", "Sample & Hold", "Random"};
@@ -661,10 +585,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::ParameterID{polyphonyId, 1}, "Polyphony", polyChoices,
       5)); // 8 voices
 
-  // On, because an acoustic instrument works this way and because a key with
-  // a long release that is tapped repeatedly otherwise stacks every tap. Off
-  // is for anyone who wants the tails to sum, which is a sound rather than a
-  // fault.
+  // On by default, so a repeatedly tapped key with a long release does not
+  // stack every tap.
   layout.add(std::make_unique<BoolP>(juce::ParameterID{oneVoicePerKeyId, 1},
                                      "No Stack", true));
 
@@ -677,26 +599,18 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   layout.add(std::make_unique<BoolP>(juce::ParameterID{safetyClipId, 1},
                                      "Safety Clip", true));
 
-  // Off, because only the Limiter shape uses the window, no factory preset
-  // reaches for it, and every other patch would be paying two milliseconds of
-  // latency for nothing. The Limiter without it is a rougher limiter rather
-  // than a broken one, and anyone who leans on it can switch it on. See
-  // params::lookaheadId for why it is a session parameter and not a patch's.
+  // Off by default. See params::lookaheadId.
   layout.add(std::make_unique<BoolP>(juce::ParameterID{lookaheadId, 1},
                                      "Lookahead", false));
 
   // ---- the macros ---------------------------------------------------------
   //
-  // Four parameters each, of which one is the point: the amount is what a
-  // host draws, and the other three say what it reaches. Those three are
-  // parameters rather than state so that they travel with a patch by the
-  // rule everything else follows, and so a preset can define what its macros
-  // do rather than inheriting whatever the last one set.
+  // The amount is what a host draws. Row, scope, curve, anchor and colour are
+  // parameters too, so a preset can define what its macros do.
   for (int m = 0; m < kNumMacros; ++m) {
     const auto name = "Macro " + juce::String(m + 1);
 
-    // Bipolar and centred, because a macro that could only push one way would
-    // need the patch dialled at an extreme to be useful in the other.
+    // Bipolar and centred, so a macro can push either way.
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{macroAmountId(m), 1}, name,
         juce::NormalisableRange<float>(-1.0f, 1.0f, 0.0001f), 0.0f,
@@ -704,8 +618,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
             .withStringFromValueFunction(macroAmountText)
             .withValueFromStringFunction(macroAmountValue)));
 
-    // None first, which is what an unmade macro points at. Every one of the
-    // eight starts there, so a fresh instrument has a pool and no macros.
+    // None first, so a fresh instrument has no macros made.
     juce::StringArray rows;
     for (int r = 0; r <= kNumMacroRows; ++r)
       rows.add(macroRowName(r));
@@ -727,30 +640,24 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID{macroCurveId(m), 1}, name + " Curve", curves, 0));
 
-    // Visual only, and a parameter anyway, because a preset file carries
-    // parameters and, beside them, only the channels a macro on Selected
-    // reaches: a patch that makes four macros has to be able to say what
-    // colour they are. See presets::capture.
+    // Visual only, but a parameter so a preset carries it.
     juce::StringArray colours;
     for (int i = 0; i < kNumMacroColours; ++i)
       colours.add(macroColourName(i));
 
-    // Which channel a taper leans on hardest. Numbered as the mixer numbers
-    // its channels rather than from zero, since that is what the person
-    // choosing it is looking at.
+    // Which channel a taper leans on hardest, numbered from 1 as the mixer
+    // shows it.
     layout.add(std::make_unique<juce::AudioParameterInt>(
         juce::ParameterID{macroAnchorId(m), 1}, name + " Anchor", 1,
         kNumHarmonics, 1));
 
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID{macroColourId(m), 1}, name + " Colour", colours,
-        // Each macro starts wearing a different one, so making four in a row
-        // gives four colours without anyone choosing them.
+        // Each macro starts with a different colour.
         1 + m % (kNumMacroColours - 1)));
   }
 
-  // Off by default, because it changes what an incoming channel number means
-  // and most keyboards are not saying anything by it. See
+  // Off by default, since it changes what a MIDI channel means. See
   // OvertoniumProcessor::handleMidiMessage.
   layout.add(
       std::make_unique<BoolP>(juce::ParameterID{mpeId, 1}, "MPE", false));
@@ -840,9 +747,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::NormalisableRange<float>(0.0f, 0.95f), 0.35f,
       FAttr().withStringFromValueFunction(percentText)));
 
-  // Never quite new. See TapeEcho::kMinAge: at zero the two tape paths wander
-  // by the same nothing and the repeat comes back in mono. See ageText for why
-  // the knob still reads from nothing to everything.
+  // Never quite new: see TapeEcho::kMinAge, and ageText for how the knob
+  // reads.
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{echoAgeId, 1}, "Echo Age",
       juce::NormalisableRange<float>(TapeEcho::kMinAge, 1.0f), 0.35f,
@@ -897,9 +803,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         p + "Pitch Mod Shape", pitchShapeNames(), 0));
 
     // How long this partial takes to reach a new note, or how long an octave
-    // takes under Rate. Off by default, so a patch written before glide
-    // existed sounds as it did. Declared where the start phase it replaces
-    // was, which keeps every other parameter at the index it has always had.
+    // takes under Rate. Off by default. Declared where the removed start phase
+    // was, so every other parameter keeps its index.
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(glideSuffix, i), 1}, p + "Glide",
         expRange(0.0f, kMaxGlideSeconds, 0.4f), 0.0f,
@@ -994,8 +899,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   }
 
   // ---- noise channel --------------------------------------------------------
-  // Same controls as a strip, minus everything to do with pitch, plus a colour
-  // control in its place.
+  // Same controls as a strip, minus pitch, plus colour.
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{noiseParamId(colourSuffix), 1}, "Noise Colour",
       juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f,
@@ -1082,28 +986,19 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
   // ---- two switches over all of the above -----------------------------------
   //
-  // Whether a channel's modulator is one circuit the whole keyboard hears or
-  // one per note. They belong with the modulators they govern rather than down
-  // here, and they are here anyway: everything above them shipped, and a
-  // parameter added at the end is one that cannot move anything a lane was
-  // written against on a host that goes by position.
-  //
-  // Named as the panel names them, shared by all notes. Not "sync", which in
-  // this corner of the world means locked to the host's tempo, nor "key sync",
-  // which means restarting on every note, the opposite of what this does. The
-  // ids keep the old "in phase" wording, since an id is what a host and a
-  // saved session find a parameter by, and the names can change freely.
+  // Whether a channel's modulator is shared by the whole keyboard or runs per
+  // note. From here on every parameter is appended at the end, so automation
+  // on hosts that go by position keeps pointing at the same parameters. The
+  // ids keep the old "in phase" wording, since hosts and sessions find a
+  // parameter by id.
   layout.add(std::make_unique<BoolP>(juce::ParameterID{pmInPhaseId, 1},
                                      "Pitch Mod Shared", false));
 
   layout.add(std::make_unique<BoolP>(juce::ParameterID{amInPhaseId, 1},
                                      "Amp Mod Shared", false));
 
-  // On the end, like everything that arrives after a release, so nothing
-  // already automated moves. Every type it will ever have is listed now
-  // rather than added as each one is written, because the length of the list
-  // is part of what a stored choice means: a host keeps a fraction of the
-  // range, so a list that grows moves every lane ever written against it.
+  // On the end. Every type is listed now, since a host stores a choice as a
+  // fraction of the list, so a list that grew would move every lane.
   juce::StringArray echoTypeChoices;
   for (int i = 0; i < (int)EchoType::NumTypes; ++i)
     echoTypeChoices.add(echoTypeName((EchoType)i));
@@ -1128,10 +1023,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::ParameterID{reverbTypeId, 1}, "Reverb Type", reverbTypeChoices,
       (int)ReverbType::Room));
 
-  // When a note glides and what the channels' glide times mean. On the end
-  // for the reason everything after a release is. Both belong to the patch,
-  // so a preset can be a legato lead, and both are two entries long for good:
-  // the length of a choice is part of what a stored value means.
+  // When a note glides and what the glide times mean. On the end. Part of
+  // the patch. Two entries each, fixed, since a choice's length is part of
+  // what a stored value means.
   layout.add(std::make_unique<juce::AudioParameterChoice>(
       juce::ParameterID{glideTriggerId, 1}, "Glide Trigger",
       juce::StringArray{glideTriggerName(GlideTrigger::Always),
@@ -1144,36 +1038,29 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
                         glideModeName(GlideMode::Time)},
       (int)GlideMode::Rate));
 
-  // Legato as a switch beside the voice count, on the end with the rest.
-  // Off, so a session that never asked for it plays as it did. A session
-  // setting like the count it sits beside, so a preset never moves it.
+  // Legato as a switch beside the voice count, on the end. Off by default.
+  // A session setting.
   layout.add(
       std::make_unique<BoolP>(juce::ParameterID{legatoId, 1}, "Legato", false));
 
-  // How long the adaptive temperament takes to move a held note, on the end
-  // like everything since the last release. A session setting beside the
-  // temperament it serves. Curved like the glide, so the short times where a
-  // retune passes unheard have room on the knob, and from zero, where a note
-  // jumps.
+  // How long the adaptive temperament takes to move a held note, on the end.
+  // A session setting. Curved like the glide, from zero, where a note jumps.
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{adaptiveRetuneId, 1}, "Adaptive Retune",
       expRange(0.0f, kMaxAdaptiveRetuneSeconds, 0.12f),
       (float)kAdaptiveRetuneSeconds[0],
       FAttr().withStringFromValueFunction(timeText)));
 
-  // Whether Adaptive uses the harmonic seventh at all, on by default, on the
-  // end with the rest of what it brought.
+  // Whether Adaptive uses the harmonic seventh, on by default, on the end.
   layout.add(std::make_unique<BoolP>(juce::ParameterID{adaptiveSeventhId, 1},
                                      "Adaptive Harmonic Sevenths", true));
 
-  // Whether it stays home rather than drifting, off by default, after it.
+  // Whether Adaptive stays home rather than drifting, off by default.
   layout.add(std::make_unique<BoolP>(juce::ParameterID{adaptiveHomeId, 1},
                                      "Adaptive No Drift", false));
 
-  // The string the noise channel strikes, on the end so nothing a host goes
-  // by position moves. STRING at nought is the channel without one, which is
-  // what every patch written before it had. Part of the patch, since a pluck
-  // is part of the sound.
+  // The string the noise channel strikes, on the end. STRING at zero is the
+  // channel without one. Part of the patch.
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{noiseParamId(stringSuffix), 1}, "Noise String",
       juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f,
@@ -1194,9 +1081,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       "Noise String Point", juce::NormalisableRange<float>(0.0f, 1.0f), 0.25f,
       FAttr().withStringFromValueFunction(percentText)));
 
-  // The resonator, on the end after the noise channel's string. Off is the
-  // instrument without it. Part of the patch, since it is part of the sound,
-  // and the mode's list is declared in full for the reason the reverb's is.
+  // The resonator, on the end. Off by default. Part of the patch, with its
+  // mode list declared in full as the reverb's is.
   juce::StringArray resonatorModeChoices;
   for (int i = 0; i < (int)ResonatorMode::NumModes; ++i)
     resonatorModeChoices.add(resonatorModeName((ResonatorMode)i));
@@ -1259,18 +1145,13 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
     cached.anchor = apvts.getRawParameterValue(macroAnchorId(m));
   }
 
-  // Read once here rather than per block. A row's range is a property of the
-  // layout and cannot move while the plugin is running.
+  // Read once here rather than per block, since a row's range cannot change.
   for (int r = 0; r < kNumMacroRows; ++r) {
     auto &range = rowRange[(size_t)r];
     range = juce::NormalisableRange<float>(0.0f, 1.0f);
 
-    // The whole range, not its two ends. Several of these rows are built by
-    // logRange, which carries its curve in conversion functions rather than
-    // in the skew, so a range rebuilt from start and end alone comes back
-    // linear and silently so. That is what made a quarter turn of a macro
-    // add five seconds to a decay: linear in seconds across a range that
-    // spans four orders of magnitude.
+    // The whole range, not its two ends, since logRange keeps its curve in the
+    // conversion functions and a range rebuilt from its ends would be linear.
     if (auto *p = dynamic_cast<juce::RangedAudioParameter *>(
             apvts.getParameter(oscParamId(kMacroRows[(size_t)r], 0))))
       range = p->getNormalisableRange();
@@ -1364,15 +1245,14 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
 juce::String strikeRangeText(float amount, float delay, float attack) {
   const auto shown = signedPercentText(amount, 0);
 
-  // The same threshold the percentage rounds by, so the two halves of the
-  // reading cannot disagree about whether the knob is doing anything.
+  // The same threshold the percentage rounds by.
   if (std::abs(amount) < 0.005f)
     return shown;
 
   const auto range = strikeRange(amount, delay, attack);
 
-  // An end with no wait to show says where the partial starts instead, which
-  // is what the knob reads there too.
+  // An end with no wait shows where the partial starts instead, as the knob
+  // does.
   const auto end = [](float seconds, float turns) {
     return seconds <= 0.0f && turns > 0.0f ? attackText(-turns * 4.0f, 0)
                                            : timeText(seconds, 0);
@@ -1386,8 +1266,7 @@ juce::String lofiRateName(int hz) {
   if (hz <= 0)
     return "Host";
 
-  // Rates that are not a whole number of kHz are the ones people know by their
-  // exact figure, so they keep it.
+  // Rates that are not a whole number of kHz keep their exact figure.
   return hz % 1000 == 0 ? juce::String(hz / 1000) + " kHz"
                         : juce::String((double)hz / 1000.0, 3) + " kHz";
 }
@@ -1408,15 +1287,10 @@ bool Cache::legatoValue() const {
 
 namespace {
 
-/// The field a row writes into, so a macro can offset any of them without a
-/// switch at every call site.
-///
-/// Every row a macro can drive is a plain float with a range, which is the
-/// same restriction LINK works under and for the same reason: there is
-/// nothing to offset on a row of shapes or of mute buttons.
+/// The field a row writes into, so a macro can offset any of them.
 float *macroField(OscParams &o, int row) {
-  // Shifted by the None the menu opens with, so case 1 is the first
-  // real row. A macro still pointing at None never reaches here.
+  // Shifted by the None the menu opens with, so case 1 is the first real
+  // row.
   switch (row) {
   case 1:
     return &o.tuneBlend;
@@ -1468,8 +1342,7 @@ static_assert(kNumMacroRows == 19,
 } // namespace
 
 void Cache::snapshot(SynthParams &out, float bendNormalised) const {
-  // Solo spans the noise channel too, so soloing a partial silences the noise
-  // and soloing the noise silences the series.
+  // Solo spans the noise channel too.
   bool anySolo = noise.solo->load() > 0.5f;
   for (const auto &o : osc) {
     if (anySolo)
@@ -1513,15 +1386,9 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
 
   // ---- the macros ---------------------------------------------------------
   //
-  // Offsets laid over what the patch says rather than writes into it, which
-  // is the whole point of them: a host draws one lane, 32 channels move, and
-  // nothing in the patch changes. Writing instead would mean 32 parameter
-  // changes per move for the host to catch, which is the problem issue #24
-  // reported rather than a way out of it, and it would overwrite the sound
-  // the macro was supposed to be shaping.
-  //
-  // It also means the knobs do not move when a macro does. That is what a VCA
-  // does, and it is the one thing about these worth knowing in advance.
+  // Offsets laid over the patch rather than written into it, so one host lane
+  // moves 32 channels without changing the patch. The knobs do not move when
+  // a macro does.
   for (int m = 0; m < kNumMacros; ++m) {
     const auto &cached = macro[(size_t)m];
 
@@ -1530,16 +1397,15 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
 
     const auto amount = cached.amount->load();
 
-    // The common case by far, and the one that has to be free.
+    // The common case, and it has to cost nothing.
     if (std::abs(amount) < 1.0e-6f)
       continue;
 
     const int row =
         juce::jlimit(0, kNumMacroRows, (int)std::lround(cached.row->load()));
 
-    // Pointing at None, which is what an unmade macro does. Its amount may
-    // well be somewhere other than zero: taking the row away is how a macro
-    // is removed, and the fader it was on keeps wherever it was left.
+    // Pointing at None, which is an unmade or removed macro. Its amount may
+    // still be non-zero.
     if (row == 0)
       continue;
 
@@ -1568,26 +1434,9 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
       if (field == nullptr)
         continue;
 
-      // Shifted across the control's own travel rather than across its units.
-      //
-      // A row's range is rarely linear: decay spans a thousandth of a second
-      // to ten, so adding the same number of seconds is a twentyfold change
-      // at one end of it and a rounding error at the other. Moving a
-      // proportion of the travel instead means a macro does the same thing
-      // to a control wherever that control is set, and it is what lets the
-      // macro's own fader be linear: equal travel there is equal travel
-      // here.
-      //
-      // Clamped to the ends, so a macro takes a control as far as it goes
-      // and no further. Two macros on one row add up and the clamp holds.
-      //
-      // That a patch sitting near an end of its range has a dead stretch of
-      // fader at that end is the price of the amount spanning the whole
-      // travel, and the whole travel is what it has to span: one macro
-      // reaches up to 32 controls which may be set anywhere, so there is no
-      // single sensible fraction of the range to offer instead. Scaling the
-      // amount down would buy resolution for a patch dialled mid-range by
-      // taking reach away from every other one.
+      // Shifted across the control's own travel rather than its units, so a
+      // macro does the same thing wherever the control is set, and clamped to
+      // the ends. Two macros on one row add up.
       const auto moved =
           range.convertTo0to1(*field) + amount * macroWeight(curve, i, anchor);
 
@@ -1657,18 +1506,15 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
         (Character)pick(character, (int)Character::NumCharacters);
   }
 
-  // From the character rather than from anything anyone can turn, and after
-  // it for that reason. See BusDrive::amountFor.
+  // Set by the character. See BusDrive::amountFor.
   out.global.busDrive = (float)ovt::BusDrive::amountFor(out.global.character);
   out.global.safetyClip = safetyClip->load() > 0.5f;
 
-  // Older states have no such parameter, so a null pointer means a build
-  // that predates the switch, which had the lookahead and no way to refuse
-  // it.
+  // A null pointer means a state without the switch, which always had the
+  // lookahead.
   out.global.lookahead = lookahead == nullptr || lookahead->load() > 0.5f;
 
-  // A patch saved before there were types says nothing about one and reads
-  // back as zero, which is the soft clipper it was made on.
+  // A patch without a type reads zero, the soft clipper.
   out.global.clipType =
       clipType == nullptr
           ? ClipType::Soft
@@ -1694,8 +1540,7 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
 
   out.echo.enabled = echo.on->load() > 0.5f;
 
-  // A patch saved before there were types says nothing about one and reads
-  // back as zero, which is the tape it was made on.
+  // A patch without a type reads zero, the tape echo.
   out.echo.type =
       echo.type == nullptr
           ? EchoType::Tape

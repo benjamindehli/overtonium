@@ -13,9 +13,8 @@
 namespace ovt::ui {
 
 namespace {
-/// The same margins and spacing the top bar keeps, so the groups in a bar
-/// read as more of it: the same space on every side, with one more at the
-/// bottom for the bar's 1 px bottom line.
+/// The top bar's margins, with one more at the bottom for the bar's 1 px
+/// bottom line.
 constexpr int kBarMargin = 7;
 constexpr int kBarPadTop = 5;
 constexpr int kBarPadBottom = 6;
@@ -24,8 +23,7 @@ constexpr int kBarPadBottom = 6;
 constexpr int kRow = 55;
 constexpr int kRowGap = 4;
 
-/// Below the controls in a frame, as in the top bar, so a dial is the size it
-/// is there.
+/// Below the controls in a frame, as in the top bar.
 constexpr int kBelowControls = 1;
 constexpr int kGroupGap = 6;
 constexpr int kGroupPad = 6;
@@ -35,9 +33,8 @@ constexpr int kControlHeight = 24;
 /// How far a screen that fills its group stands in from the group's edge.
 constexpr int kReadoutInset = 5;
 
-/// How close to a whole number of cents an interval has to be to count as
-/// pure. A tempered fifth is a quarter of a cent narrow, which is pure to any
-/// ear and has to read as pure here.
+/// How close in cents an interval has to be to its pure size to count as
+/// pure.
 constexpr double kPureWithin = 1.0;
 
 /// Short enough for the cells the displays have.
@@ -46,8 +43,7 @@ constexpr const char *kSlideWords[] = {"OFF", "BRIGHT", "TUNING"};
 } // namespace
 
 OptionBar::OptionBar(juce::String nameToShow) : name(std::move(nameToShow)) {
-  // Shouted on the panel like everything else, and said normally to a screen
-  // reader.
+  // In capitals on the panel, and in sentence case for a screen reader.
   setTitle(name.substring(0, 1) + name.substring(1).toLowerCase());
 
   addMouseListener(this, true);
@@ -151,11 +147,9 @@ OptionBar::placeGroups(juce::Rectangle<int> area, int *rows) const {
   std::vector<juce::Rectangle<int>> placed;
   placed.reserve(groups.size());
 
-  // Left to right, and onto a new row when the next group does not fit in
-  // what is left of this one, the way the top bar packs its groups. A group
-  // wider than the whole bar, which the top bar never has, wraps its own
-  // controls onto as many lines as it needs inside its frame, one row each,
-  // and nothing stands beside it.
+  // Left to right, onto a new row when the next group does not fit. A group
+  // wider than the whole bar wraps its own controls onto lines inside its
+  // frame and stands alone.
   int row = 0, x = area.getX(), used = 0;
 
   for (const auto &group : groups) {
@@ -231,8 +225,7 @@ void OptionBar::resized() {
     const auto &bounds = groupBounds[g];
 
     // The line the controls go along, one row tall, moving down a row when the
-    // next control does not fit in what is left of it, which only a group
-    // wider than the bar ever needs.
+    // next control does not fit.
     auto line = bounds.withHeight(kRow - kBelowControls);
     auto inner = line.reduced(kGroupPad, 0);
     bool first = true;
@@ -280,8 +273,7 @@ void OptionBar::resized() {
 }
 
 void OptionBar::paint(juce::Graphics &g) {
-  // A shade under the top bar, so the two read as one panel in two layers
-  // rather than as one bar that has grown.
+  // A shade darker than the top bar.
   g.setColour(colours::panel.darker(0.12f));
   g.fillRect(getLocalBounds());
 
@@ -301,17 +293,16 @@ void OptionBar::paint(juce::Graphics &g) {
     // After the pocket, which leaves its own outline colour behind.
     g.setColour(colours::textDim);
 
-    // Centred under each control, a little wider than it so a caption longer
-    // than a narrow display still fits.
     paintGroupGround(g, (int)i, bounds);
 
-    // The pocket's shading again, over whatever the bar laid in it, so that
-    // sits down in the recess rather than on top of its edges.
+    // The pocket's shading again, over whatever the bar laid in it.
     paintGroupPocketShade(g, bounds);
 
     for (const auto &item : groups[i].items)
       if (item.caption.isNotEmpty() && item.shown) {
         g.setColour(captionColour(item));
+        // Centred under each control, a little wider than it so a caption
+        // longer than a narrow display still fits.
         g.drawText(item.caption,
                    LabelledKnob::captionBounds(item.line)
                        .withX(item.control->getX() - kControlGap)
@@ -383,8 +374,7 @@ PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state,
   };
   slide.onClick = [this] { showList(slide, settings::slideTo(apvts), apvts); };
 
-  // Every display as wide as its cells need, so a figure here is the same
-  // width as one anywhere else at this height.
+  // Every display as wide as its cells need.
   const auto natural = [](const SegmentDisplay &d) {
     return d.naturalWidth(kControlHeight);
   };
@@ -408,8 +398,7 @@ PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state,
   addGroup({{&mpe, 44, {}},
             {&aftertouch, natural(aftertouch), "AFTERTOUCH"},
             {&slide, natural(slide), "SLIDE"}});
-  // The wheel and pressure rest at nought and only rise, so they start at the
-  // left end and have no middle to mark.
+  // The wheel and pressure rest at nought, so they have no centre mark.
   wheelNeedle.showCentre(false);
   pressureNeedle.showCentre(false);
 
@@ -423,7 +412,7 @@ PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state,
             {&pressureNeedle, 50, "PRESSURE"}});
 
   // Captioned with the row each is aimed at once it is made, and with its
-  // number until then, so an empty slot still says which macro it is.
+  // number until then.
   std::vector<Item> knobs;
 
   for (int m = 0; m < params::kNumMacros; ++m) {
@@ -520,7 +509,7 @@ void PlayingBar::pushNeedles() {
 void PlayingBar::showActivity(const PlayingActivity &activity) {
   const auto count = juce::String(activity.voicesInUse);
 
-  // Lit at nought too, since nought in use is a true reading.
+  // Lit at nought too.
   if (inUse.getReading() != count || inUse.getTitle().isEmpty()) {
     inUse.setReading(count, true);
     inUse.setTitle("In use: " + count +
@@ -617,8 +606,7 @@ double centsBetween(double low, double high) {
 /// Cents as a display shows them: one decimal, a minus below zero, and a
 /// plain zero for anything that rounds to it.
 juce::String centsReading(double cents) {
-  // No plus, which seven bars cannot draw. A sharp note is the one with no
-  // sign, as on a channel's own readout and on a tuner.
+  // No plus, which seven bars cannot draw.
   if (std::abs(cents) < 0.05)
     return "0.0";
 
@@ -695,10 +683,7 @@ AdaptiveReading AdaptiveReading::of(const AdaptiveSnapshot &snapshot) {
   // ---- the chord as one harmonic series
   // --------------------------------------
   //
-  // The lowest note as a harmonic of something below it, the lowest such
-  // something that every other note is also a harmonic of. A chord that is
-  // one series has every partial of every note landing on another, so
-  // nothing in it beats.
+  // The lowest fundamental of which every note is a harmonic.
   for (int below = 1; below <= 16 && r.harmonics.isEmpty(); ++below) {
     const auto fundamental = low.hz / below;
     juce::StringArray numbers;
@@ -778,8 +763,7 @@ juce::String AdaptiveReading::spoken() const {
 // ---- Tuning -----------------------------------------------------------------
 
 namespace {
-/// In Temperament's order. Eight cells hold every one whole but Pythagorean,
-/// Werckmeister and Kirnberger, which are cut where a reader still knows them.
+/// In Temperament's order, cut to eight cells where needed.
 constexpr const char *kTemperamentWords[] = {
     "EQUAL", "JUST",     "PYTHAG",   "MEANTONE", "WERCKIII",
     "YOUNG", "ADAPTIVE", "KIRNBIII", "VALLOTTI"};
@@ -817,9 +801,7 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
     showList(temperament, settings::temperament(apvts), apvts);
   };
 
-  // Equal temperament is the one that does not care, so the root says nothing
-  // under it and opens nothing, as its Settings entry is greyed out. Unless
-  // the resonator is in Series, which rings the root's harmonics.
+  // Opens nothing when nothing uses the root. See settings::rootInUse.
   root.onClick = [this] {
     if (settings::rootInUse(apvts))
       showList(root, settings::root(apvts), apvts);
@@ -911,8 +893,7 @@ void TuningBar::refresh() {
   reference.setReading(juce::String(hz), true);
   reference.setTitle("Reference pitch: " + juce::String(hz) + " Hz");
 
-  // The switches, PURE, Retune and the drift mean nothing under any other
-  // temperament, so they are only there under Adaptive.
+  // The switches, PURE, Retune and the drift are only shown under Adaptive.
   setGroupShown(adaptiveGroup, adaptive);
   setItemShown(drift, adaptive);
   sevenths.setToggleState(settings::isOn(apvts, params::adaptiveSeventhId),
@@ -937,8 +918,7 @@ void TuningBar::showChord(const AdaptiveSnapshot &snapshot) {
                           " given up"
                     : juce::String("Pure: dark"));
 
-  // Nothing held has nowhere to sit, so its cells stay dark rather than say
-  // zero.
+  // Dark rather than zero when nothing is held.
   const auto held = snapshot.count > 0;
   drift.setReading(held ? juce::String(reading.drift) : juce::String(), held);
   drift.setTitle(held
@@ -961,8 +941,7 @@ bool TuningBar::isWhiteKey(const juce::Component *control) const {
 }
 
 juce::Colour TuningBar::captionColour(const Item &item) const {
-  // The near-black a cap's legend is printed in, since the key under it is
-  // the same plastic.
+  // On a white key, the ink a cap's legend is printed in.
   if (isWhiteKey(item.control))
     return OvertoniumLookAndFeel::lampLegend();
 
@@ -981,14 +960,11 @@ void TuningBar::paintGroupGround(juce::Graphics &g, int group,
   pocket.addRoundedRectangle(bounds.toFloat().reduced(1.0f), 3.0f);
   g.reduceClipRegion(pocket);
 
-  // The unlit plastic every cap on the panel is moulded in, so the white keys
-  // read as part of the same set of parts.
+  // The unlit plastic every cap on the panel is moulded in.
   g.setColour(OvertoniumLookAndFeel::lampFace(colours::accent, false));
 
-  // Each white key runs halfway into the gap either side of it, so two white
-  // keys together, E and F or B and C, are one ground, and out to the pocket's
-  // edge where it is first or last in its line. Top to bottom it runs to the
-  // pocket's edge, or halfway into the gap between two lines.
+  // Each white key runs halfway into the gap either side of it, or out to the
+  // pocket's edge at the end of a line, and the same top to bottom.
   const auto &items = itemsOf(group);
   const auto rowGap = (float)kRowGap;
 

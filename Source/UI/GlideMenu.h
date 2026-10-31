@@ -7,13 +7,7 @@
 namespace ovt::ui {
 
 /// The two glide switches, at the end of the menu a right-click on any
-/// channel's GLIDE knob opens.
-///
-/// They govern every channel at once and belong to the patch, which is the
-/// position the modulators' "in phase" switches are in, and those live in the
-/// menu of the control they are about for the same reason these do: the knob
-/// is where somebody setting up a glide already is. Kept in one place, like
-/// the learn items, because the menu they join is built somewhere else.
+/// channel's GLIDE knob opens. They govern every channel at once.
 namespace glide {
 
 /// Item ids, clear of the LINK menu and of the learn items at 9001.

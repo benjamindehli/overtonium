@@ -8,46 +8,23 @@ namespace ovt {
 namespace {
 constexpr double kTwoPi = 6.283185307179586;
 
-/// The two clocks.
-///
-/// Slow enough to be a drift rather than a vibrato, close enough to each other
-/// that neither sounds like the odd one out, and sharing no common factor, so
-/// the pair never falls into step and never repeats a relationship.
+/// The two clocks: slow, close to each other, and sharing no common factor, so
+/// the pair never falls into step.
 constexpr double kSweepL = 0.31, kSweepR = 0.43;
 
 /// And the one they share, slower than either, which is the clock itself
 /// drifting rather than the two sides disagreeing about where it is.
 constexpr double kDriftRate = 0.19;
 
-/// The movement, split in two because the two halves of it cost different
-/// things.
-///
-/// What the sides do differently is what gives the repeats width, and it is
-/// also the only part that cancels when somebody sums to mono: two delays a
-/// little apart comb when they are added. Measured on a 400 Hz burst at a
-/// quarter of a second, as the correlation between the sides and what summing
-/// them costs against one side alone:
-///
-///   differential       correlation   mono sum
-///   0.0016 / 0.0021        -0.60      -6.97 dB
-///   0.0008 / 0.0011        -0.23      -4.15 dB
-///   0.0005 / 0.0007        +0.35      -1.72 dB
-///
-/// So that half stays small. What both sides do together costs nothing in
-/// mono, because a delay that moves the same way on both is a vibrato rather
-/// than a comb, and a bucket brigade's clock really does drift as a whole.
-/// That is where the depth goes: four times the differential, slower than
-/// either side's own, and audible as the pitch of the repeats breathing.
+/// The movement, in two parts. What the sides do differently gives the repeats
+/// width but combs when summed to mono, so it stays small. What both do
+/// together is a vibrato that costs nothing in mono, so most of the depth goes
+/// there.
 constexpr float kSweepDepthL = 0.0005f, kSweepDepthR = 0.0007f;
 constexpr float kDriftDepth = 0.0020f;
 
-/// Where the reconstruction filter sits at a short setting, and how far the
-/// clock drags it down at a long one.
-///
-/// A line of buckets holds what it holds, so the only way to a longer delay is
-/// a slower clock, and the filter has to follow it down. Fifty milliseconds is
-/// about where these pedals are clean and two seconds is where they are mud,
-/// which is the whole range of the part.
+/// Where the reconstruction filter sits at kClockRefSeconds. It scales down in
+/// proportion as the delay gets longer.
 constexpr float kClockToneHz = 9000.0f;
 constexpr float kClockRefSeconds = 0.05f;
 
@@ -180,29 +157,9 @@ void BucketEcho::process(float *outL, float *outR, int numSamples,
   const auto lpCoef = onePole(toneHz, sampleRate);
   const auto hpCoef = onePole(70.0f, sampleRate);
 
-  // How hard the line is driven, which is what makes the tail grow rather than
-  // only fade. Inside the loop and on the way out, so it compounds along the
-  // tail rather than arriving all at once on the second repeat.
-  //
-  // Eased once every repeat started carrying a pass of it, the first one
-  // included. Measured at full wear on a 400 Hz burst at 0.4 s, as how much
-  // twelfth each repeat comes back with:
-  //
-  //   drive          first   second   third
-  //   1.0 + 3.0 age   -18.8   -21.6    -25.2
-  //   1.0 + 2.2 age   -21.4   -23.8    -27.3
-  //   1.0 + 1.6 age   -24.0   -26.1    -29.5
-  //   0.6 + 1.6 age   -26.7   -28.5    -31.8
-  //
-  // The tail used to sit around -19 with a clean repeat in front of it, and
-  // sits seven or eight decibels under that now: the same dirt spread over one
-  // more repeat and then eased twice by ear.
-  //
-  // The base matters as much as the slope, and for the same reason the tape's
-  // backstop did. At one, a new line still squashed anything the bus handed
-  // it, since the bus runs at 1.5 to 1.9 before the fader. Six tenths leaves a
-  // new line room to pass a loud passage nearly whole and keeps the squeeze
-  // for what the knob actually asks for.
+  // How hard the line is driven. Inside the loop, so the dirt compounds along
+  // the tail. The base sits below one so a new line passes the bus, which runs
+  // above one on a bright patch, nearly whole.
   const auto drive = 0.6f + age * 1.6f;
 
   // The compander. Fast enough to open before the repeat it belongs to and
@@ -212,8 +169,7 @@ void BucketEcho::process(float *outL, float *outR, int numSamples,
   const auto envAttack = (float)std::exp(-1.0 / (0.005 * sampleRate));
   const auto envRelease = (float)std::exp(-1.0 / (0.45 * sampleRate));
 
-  // Enough to hear as the floor of an old pedal, and no more: this is the
-  // thing that would be unbearable if it ran free.
+  // The hiss level at full wear, kept low since it is heard as a floor.
   const auto hiss = age * age * 0.006f;
 
   for (int n = 0; n < numSamples; ++n) {
@@ -281,13 +237,9 @@ void BucketEcho::process(float *outL, float *outR, int numSamples,
     if (++right.write >= bufferLength)
       right.write = 0;
 
-    // What comes out is what the line made of it rather than what was handed
-    // to it. A signal reaches the first repeat through the whole line, so
-    // colouring the feedback path alone left that repeat clean and bright and
-    // every later one dark and driven, which is a step rather than a pedal.
-    //
-    // The hiss is added here rather than in the loop, so feedback cannot pile
-    // it up into something that never decays.
+    // The output is the aged signal, so the first repeat is coloured like every
+    // later one. The hiss is added here rather than in the loop, so feedback
+    // cannot pile it up.
     outL[n] = dryL + (agedL + noiseL - dryL) * mix;
     outR[n] = dryR + (agedR + noiseR - dryR) * mix;
   }

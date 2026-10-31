@@ -1,29 +1,15 @@
-// Renders the pictures the project page uses.
-//
-// The plugin has no dependency on a display, so this builds the editor, plays
-// a chord into it, hands the strips the levels the engine measured and writes
-// the window out with createComponentSnapshot. That means the pictures can be
-// regenerated after a layout change instead of going stale, and it works on a
-// machine with no window server.
+// Renders the pictures the project pages use. It builds the editor, plays a
+// chord into it, hands the strips the levels the engine measured and writes the
+// window out with createComponentSnapshot, so it runs on a machine with no
+// window server.
 //
 //   render_docs_images <output-directory> [scale]
 //
-// The scale is a multiplier on the window, and it is a genuine redraw rather
-// than an upscale: at 4 every knob tick and every segment of a readout is
-// drawn at four times the size. Use it for artwork that needs the window
-// larger than the page shows it.
-//
-// Two things it cannot do. It writes PNG, and turning the results into what
-// the pages actually load is a separate step that CONTRIBUTING.md spells out.
-// JUCE gained a WebP encoder in 9.0.3 and this still does not use it, for two
-// reasons that have nothing to do with what JUCE can encode: the PNGs are
-// themselves shipped, being what the inner pages and the social cards point
-// at, and the step that makes the WebP also re-encodes those PNGs smaller than
-// JUCE writes them. The plugin is built with JUCE_USE_WEBP=0 besides, since
-// nothing it loads is a WebP and carrying the codec cost 717 KB. And DRIFT is
-// random per voice, so the meters and the lamps land somewhere slightly
-// different every run. Everything that is a setting rather than a measurement
-// comes out identical.
+// The scale is a multiplier on the window and a real redraw rather than an
+// upscale, for artwork that needs the window larger than the page shows it. It
+// writes PNG, and CONTRIBUTING.md has the step that turns them into what the
+// pages load. DRIFT is random per voice, so the meters and the lamps differ
+// slightly from run to run.
 
 #include <cmath>
 #include <cstdio>
@@ -43,22 +29,11 @@
 
 namespace {
 
-/// The editor takes its size from the saved state and the zoom, so a picture
-/// has to ask for one rather than accept whatever a session left behind.
-///
-/// Asked of the editor rather than written down here. The numbers used to be
-/// a pair of literals, 1348 by 1010, and the scrollbar that arrived with the
-/// scrolling parameters made the window ten pixels wider without making them
-/// wrong enough to notice: the pictures went on rendering at a size the
-/// window no longer has. fitAllChannels is the same call the Settings menu
-/// makes, and what it means is what these pictures are of.
-///
-/// The height is still a number, because it is a choice rather than a fact.
-/// What fitAllChannels gives is the shortest window that shows every row,
-/// which leaves the faders at their fixed 92 and reads as cramped: the travel
-/// is what a mixer looks like. Anything above the natural height goes to the
-/// faders, so this asks for enough to show them at the length the pages have
-/// always shown them at.
+/// The window height for the pictures, asked for rather than taken from
+/// whatever a session left behind. The width comes from fitAllChannels, the
+/// same call the Settings menu makes. The height is a choice: taller than the
+/// shortest window that shows every row, so the faders show at the length the
+/// pages have always shown them at.
 constexpr int kPictureHeight = 1010;
 
 /// What the pages show. Big Saw puts a 1/n spectrum on the faders and its own
@@ -207,9 +182,8 @@ int main(int argc, char **argv) {
     midi.clear();
   }
 
-  // What the editor's timer would do. Driving it instead of waiting for it is
-  // not a shortcut: a timer needs a message loop, and running one needs
-  // JUCE_MODAL_LOOPS_PERMITTED, which this build does not set.
+  // What the editor's timer would do, driven directly, since a timer needs a
+  // message loop and this build does not set JUCE_MODAL_LOOPS_PERMITTED.
   juce::Array<juce::Rectangle<int>> lamps;
 
   for (int i = 0; i < ovt::kNumHarmonics; ++i) {
@@ -240,8 +214,7 @@ int main(int argc, char **argv) {
   const int detailWidth =
       ovt::ui::kGutterWidth + kDetailChannels * ovt::ui::kStripWidth;
 
-  // Not called "near": the Windows SDK has carried a macro of that name since
-  // the segmented memory models, and this builds there too.
+  // Not called "near", which the Windows SDK defines as a macro.
   const auto closeTo = [](float a, float b) {
     return std::abs(a - b) < 1.0e-6f;
   };
@@ -268,16 +241,13 @@ int main(int argc, char **argv) {
       writePng(*editor, {0, 0, windowWidth, barHeight}, scale,
                png("overtonium-bar"));
 
-  // ---- the Playing and Tuning bars
-  // -------------------------------------------
+  // ---- the Playing and Tuning bars ------------------------------------------
   //
   // Opened only once everything above is written, so those pictures are the
   // window as it first opens. The Tuning bar is shown under Adaptive with C7
-  // held in place of the chord above, the chord the Tuning page describes its
-  // readouts on, so the picture can be checked against what the page says.
-  // The Playing bar shows C7 played with the pedal down, the mod wheel part
-  // way up and some pressure, and three macros made, so its readouts and
-  // knobs have something to show.
+  // held, the chord the Tuning page describes its readouts on. The Playing bar
+  // shows C7 played with the pedal down, the mod wheel part way up, some
+  // pressure and three macros made.
   juce::TextButton *playingButton = nullptr, *tuningButton = nullptr;
   for (auto *b : descendantsOf<juce::TextButton>(*editor)) {
     if (b->getTitle() == "Playing")

@@ -30,16 +30,12 @@ constexpr float kDiffuseRightMs[Reverb::kAllpasses] = {5.13f, 3.91f, 13.61f,
 
 constexpr float kDiffuseCoefficient = 0.65f;
 
-/// Where the input is cut off before it reaches the network.
-///
-/// Fixed rather than offered as a control. A fundamental at full level feeding
-/// a long tail floods everything above it, so this is never wanted open, and
-/// far enough down that it never eats the note itself. On an instrument built
-/// from 32 partials the interest is above here anyway.
+/// Where the input is cut off before it reaches the network, so a fundamental
+/// at full level does not flood a long tail. Fixed, and low enough to leave the
+/// note itself alone.
 constexpr float kLowCutHz = 175.0f;
 
-/// Sets the wet level so that mix at 1 lands in the same country as the dry
-/// signal it replaced. Chosen by measuring, not by taste.
+/// Sets the wet level so that mix at 1 is about as loud as the dry signal.
 constexpr float kOutputScale = 1.0f;
 
 inline float onePole(float cutoffHz, double sampleRate) noexcept {
@@ -187,10 +183,8 @@ void Reverb::process(float *outL, float *outR, int numSamples,
 
   const auto rt60 = std::clamp(p.decaySeconds, 0.1f, 30.0f);
 
-  // The room is sized from the decay rather than set separately. A long tail in
-  // a small room is a spring rather than a place, and a short one in a hall is
-  // a gate, so the two were always turned together anyway. Logarithmic, since
-  // that is how the decay control itself is scaled.
+  // The room is sized from the decay rather than set separately, on a log
+  // scale to match the decay control.
   const auto size = std::clamp((std::log(rt60) - std::log(0.2f)) /
                                    (std::log(20.0f) - std::log(0.2f)),
                                0.0f, 1.0f);
@@ -298,9 +292,6 @@ void Reverb::process(float *outL, float *outR, int numSamples,
     // ---- out --------------------------------------------------------------
     // Alternating signs on the taps, so the two sides are built from different
     // lines in different polarities and the wash is wide by construction.
-    // Nothing narrows it afterwards. There used to be a width control and a
-    // mid/side stage here to serve it, and the only setting it was ever left
-    // at was the top, so both have gone and the taps go straight out.
     const auto wetL = (tap[0] - tap[2] + tap[4] - tap[6]) * kOutputScale;
     const auto wetR = (tap[1] - tap[3] + tap[5] - tap[7]) * kOutputScale;
 

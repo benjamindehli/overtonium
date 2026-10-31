@@ -18,28 +18,16 @@ using APVTS = juce::AudioProcessorValueTreeState;
 struct Applier {
   APVTS &apvts;
 
-  /// What the patch asks for, collected rather than sent as it is decided.
-  ///
-  /// A preset is written as a neutral base and then the handful of rows that
-  /// differ, which reads well and means most parameters are decided twice.
-  /// Sending both is two parameter changes to the host for one final value,
-  /// and the host has no way to know the first was going to be replaced a
-  /// microsecond later. Collecting first means the last word wins and only
-  /// the last word is sent.
+  /// What the patch asks for, collected first so a parameter set twice (by
+  /// the neutral base and then the preset) reaches the host once.
   mutable std::map<juce::String, float> pending{};
 
   void set(const juce::String &id, float plainValue) const {
     pending[id] = plainValue;
   }
 
-  /// Sends what actually differs, once each.
-  ///
-  /// The check matters as much as the collecting. Loading the preset already
-  /// loaded used to report every parameter as having changed when none had,
-  /// and switching between two patches that share most of their rows reported
-  /// the shared ones too. A host is entitled to believe us: Logic keeps
-  /// per-parameter bookkeeping for automation and undo, and this instrument
-  /// has 781 parameters to keep it for.
+  /// Sends only the values that actually differ, once each, so a host is not
+  /// told about changes that did not happen.
   void flush() const {
     for (const auto &wanted : pending) {
       auto *p = apvts.getParameter(wanted.first);
@@ -49,8 +37,8 @@ struct Applier {
 
       const auto target = p->convertTo0to1(wanted.second);
 
-      // Normalised, so the tolerance is the same for every parameter whatever
-      // its range, and far below the smallest step a choice parameter has.
+      // Normalised, so one tolerance suits every range and is far below the
+      // smallest step of a choice parameter.
       if (std::abs(p->getValue() - target) <= 1.0e-6f)
         continue;
 
@@ -70,13 +58,8 @@ struct Applier {
       osc(suffix, i, (float)fn(i + 1));
   }
 
-  /// One value per strip, in order, for a row that was drawn rather than
-  /// derived.
-  ///
-  /// Some of these presets were dialled in by hand, often by dragging one
-  /// knob with LINK fanning it across the series, and the result is thirty-two
-  /// values with no formula behind them. Written out as a list the shape is at
-  /// least visible, where thirty-two separate lines would bury it.
+  /// One value per strip, in order, for a row that was dialled by hand rather
+  /// than derived from a formula.
   void oscTable(const char *suffix, std::initializer_list<float> values) const {
     int i = 0;
 
@@ -88,8 +71,7 @@ struct Applier {
     }
   }
 
-  /// Everything a preset does not explicitly set should start from a known
-  /// state.
+  /// The state every factory preset starts from. See presets::neutralBase.
   void neutralBase() const {
     allOsc(params::tuneSuffix, [](int) { return 1.0; });
     allOsc(params::glideSuffix, [](int) { return 0.0; });
@@ -141,28 +123,15 @@ struct Applier {
     set(params::noiseParamId(params::stringDampSuffix), 0.4f);
     set(params::noiseParamId(params::stringPointSuffix), 0.25f);
 
-    // Everything global that is part of the sound rather than part of the
-    // setup. A preset decides what the instrument is, so it has to decide
-    // these too: loading one with the series stretched into a bell, or the
-    // converter down at eight bits, has to give the patch that was designed
-    // rather than that patch through whatever was left over.
-    //
-    // What a preset must not touch is listed once, as kSessionParamIds, and
-    // nothing here writes to any of it. The temperament is the one worth
-    // spelling out, since this instrument is otherwise full of tunings and it
-    // would be easy to file with them: it belongs with the reference pitch
-    // instead. You set it once for the music you are playing, and loading a
-    // sound in the middle of that should not drag you back to equal.
+    // Everything global that is part of the sound rather than the setup.
+    // Nothing here may write a session parameter, see kSessionParamIds.
     set(params::stretchId, 0.0f);
     set(params::trackId, 0.0f);
 
-    // Which oscillator the partials are is part of the sound in the plainest
-    // sense, and a patch that says nothing gets the one that adds nothing.
+    // The oscillator character. A patch that says nothing gets the plain sine.
     set(params::characterId, (float)(int)Character::Pure);
 
-    // And whether each modulator is one circuit the whole keyboard hears.
-    // Off, so a patch that says nothing gets a modulator per note, which is
-    // what every patch written before there was a switch had.
+    // Each modulator runs per note unless a patch shares it.
     set(params::pmInPhaseId, 0.0f);
     set(params::amInPhaseId, 0.0f);
     set(params::glideTriggerId, (float)(int)GlideTrigger::Always);
@@ -172,20 +141,13 @@ struct Applier {
     set(params::lofiRateId, 0.0f);
     set(params::lofiBitsId, 0.0f);
 
-    // The output stage, which a preset decides because it is part of the sound
-    // rather than part of the desk: seven machines rather than a guard with a
-    // switch, and the master in front of them setting how hard they are
-    // driven. Both were things a preset left alone until that was true.
-    //
-    // Twelve down is the panel default and what every patch was dialled at, so
-    // a preset that says nothing about its level sounds as it always did.
+    // The output stage and the master level driving it, part of the sound.
+    // -12 dB is the panel default.
     set(params::masterGainId, -12.0f);
     set(params::safetyClipId, 1.0f);
     set(params::clipTypeId, (float)(int)ClipType::Soft);
 
-    // Every macro at rest, pointing at the first row. A preset made before
-    // macros existed had no macro doing anything, and that is what loading
-    // one still has to mean.
+    // Every macro at rest, pointing at None.
     for (int m = 0; m < params::kNumMacros; ++m) {
       set(params::macroAmountId(m), 0.0f);
       set(params::macroRowId(m), 0.0f);
@@ -193,21 +155,17 @@ struct Applier {
       set(params::macroCurveId(m), 0.0f);
       set(params::macroAnchorId(m), 1.0f);
 
-      // Each one a different colour, matching the default, so a patch that
-      // makes four macros gets four colours without anybody choosing them.
+      // Each one a different colour, matching the default.
       set(params::macroColourId(m),
           (float)(1 + m % (params::kNumMacroColours - 1)));
     }
 
     // The master effects are off unless a preset switches them on, and their
-    // settings go back to the panel defaults either way, so loading a preset
-    // never leaves the last one's tail behind.
+    // settings go back to the panel defaults either way.
     set(params::echoOnId, 0.0f);
 
-    // The machine the repeats come from, which every patch decides even when
-    // the echo is off: a preset that left it open would take whatever the
-    // session happened to be on. Tape is what there was before there was a
-    // choice, so a preset written then and one written now agree.
+    // The echo machine, set even when the echo is off so nothing carries over
+    // from the session. Tape by default.
     set(params::echoTypeId, (float)(int)EchoType::Tape);
     set(params::reverbTypeId, (float)(int)ReverbType::Room);
     set(params::echoMixId, 0.25f);
@@ -221,21 +179,15 @@ struct Applier {
     set(params::reverbDampId, 0.5f);
     set(params::reverbPreDelayId, 0.0f);
 
-    // No resonator unless a preset asks for it, and its settings back to the
-    // panel defaults either way.
+    // No resonator unless a preset asks for it, settings back to defaults.
     set(params::resonatorModeId, (float)(int)ResonatorMode::Off);
     set(params::resonatorMixId, 0.5f);
     set(params::resonatorDecayId, params::kResonatorDecayDefault);
     set(params::resonatorDampId, 0.4f);
   }
 
-  /// The old stereo spread control, written out as pan positions.
-  ///
-  /// Partials go in mirrored pairs, 1 and 2 in the centre out to 31 and 32 at
-  /// the edges, with the sides alternating so the louder of each pair does not
-  /// always land on the same one. It was a good shape to start from, so the
-  /// presets that used to dial in spread now write it into the pans, where it
-  /// can be taken apart by hand.
+  /// A stereo spread written out as pan positions: mirrored pairs from the
+  /// centre (1 and 2) to the edges (31 and 32), sides alternating per pair.
   void fanOut(double width) const {
     constexpr int lastPair = kNumHarmonics / 2 - 1;
 
@@ -252,13 +204,8 @@ struct Applier {
     }
   }
 
-  /// Switches the reverb on. The room follows the decay, so there is nothing
-  /// else to say about its size.
-  ///
-  /// The machine is named rather than numbered, for the reason character() is:
-  /// a case reading `1.0f` says nothing about what it sounds like. Defaulted to
-  /// the room, which is what every patch written before there was a choice
-  /// asked for and therefore what one written now has to say to mean the same.
+  /// Switches the reverb on. The machine is named rather than numbered so the
+  /// case says what it sounds like. Room by default.
   void reverb(float mix, float decay, float damping,
               ReverbType type = ReverbType::Room) const {
     set(params::reverbOnId, 1.0f);
@@ -268,11 +215,8 @@ struct Applier {
     set(params::reverbDampId, damping);
   }
 
-  /// Which oscillator the partials are.
-  ///
-  /// By name rather than by the number the parameter holds, since a case
-  /// reading `5.0f` says nothing about what it sounds like. The generator
-  /// writes the number, which is equivalent and is checked to be.
+  /// Which oscillator the partials are, by name rather than by number. The
+  /// generator writes the number, which a test checks is equivalent.
   void character(Character c) const { set(params::characterId, (float)(int)c); }
 
   /// What the series is made of, before anything is done to it.
@@ -284,9 +228,7 @@ struct Applier {
     set(params::trackId, trackDbPerOctave);
   }
 
-  /// Switches the echo on. The machine is named for the reason the reverb's
-  /// is, and defaults to the tape for the same reason: it is what a patch
-  /// written before there was a choice asked for.
+  /// Switches the echo on. Tape by default.
   void echo(float mix, float time, float feedback, float age,
             EchoType type = EchoType::Tape) const {
     set(params::echoOnId, 1.0f);
@@ -300,12 +242,8 @@ struct Applier {
 
 // clang-format off
 //
-// One name per line, because the job that checks the docs count the
-// presets by reading this list line by line. That layout used to hold
-// itself up: with thirty-one names the formatter could not fit them into
-// a tidy grid and fell back to one each, and the thirty-second turned
-// them into four columns of eight and the count into zero. It is pinned
-// here rather than left to arithmetic nobody knew was load-bearing.
+// One name per line, since the docs check counts the presets by reading
+// this list line by line.
 const char *const kNames[] = {
     "2-bit Fuzz Organ",
     "60s Organ",
@@ -381,27 +319,21 @@ juce::File userDirectory() {
 }
 
 juce::Array<juce::File> userPresets() {
-  // Recursive, because a folder in the preset directory is a group in the
-  // menu. Making one is how you get a group, which means the filesystem is the
-  // interface for this and there is no second place to manage it.
-  //
-  // Symlinks are not followed. One pointing at a directory above itself would
-  // send this round until it ran out of path, and grouping presets does not
-  // need them.
+  // Recursive, since a folder in the preset directory is a group in the
+  // menu. Symlinks are not followed, so a loop cannot recurse forever.
   auto found = userDirectory().findChildFiles(juce::File::findFiles, true,
                                               juce::String("*") + kExtension,
                                               juce::File::FollowSymlinks::no);
 
-  // Sorted, so the menu does not reorder itself when the filesystem feels like
-  // handing them back in another order. On the whole path rather than the
-  // name, which keeps each folder's presets together and in order inside it.
+  // Sorted on the whole path, so the menu order is stable and each folder's
+  // presets stay together.
   found.sort();
   return found;
 }
 
 juce::String sanitiseName(const juce::String &raw) {
-  // Everything a filename cannot carry on some platform, plus the leading and
-  // trailing whitespace that makes two presets look identical in a menu.
+  // Everything a filename cannot carry on some platform, plus leading and
+  // trailing whitespace.
   auto name = raw.removeCharacters("\\/:*?\"<>|").trim();
 
   return name.substring(0, 64).trim();
@@ -419,10 +351,7 @@ capture(APVTS &apvts, const juce::String &name,
     if (ranged == nullptr)
       continue;
 
-    // The same rule the factory presets follow. A preset someone saves is a
-    // sound they liked, not the state of their keyboard, and writing the
-    // polyphony and the temperament into it would mean recalling that sound
-    // later reached over and changed both.
+    // Session parameters are left out, as for factory presets.
     if (params::isSessionParam(ranged->paramID))
       continue;
 
@@ -430,13 +359,13 @@ capture(APVTS &apvts, const juce::String &name,
     entry->setAttribute("id", ranged->paramID);
 
     // Plain rather than normalised, so widening a range later does not move
-    // every preset that was saved before it.
+    // saved presets.
     entry->setAttribute("value",
                         (double)ranged->convertFrom0to1(ranged->getValue()));
   }
 
   // The one thing in a preset that is not a parameter. Numbered from one, as
-  // the macros are on the panel and in their parameter ids.
+  // on the panel and in the parameter ids.
   if (channels != nullptr) {
     for (int m = 0; m < params::kNumMacros; ++m) {
       const auto mask = (*channels)[(size_t)m].load();
@@ -478,9 +407,7 @@ int restore(APVTS &apvts, const juce::XmlElement &doc,
   for (auto *entry : doc.getChildWithTagNameIterator(kParamTag)) {
     const auto id = entry->getStringAttribute("id");
 
-    // Files written before the rule existed name these. Skipped rather than
-    // honoured, so an old preset stops dragging its author's polyphony and
-    // temperament along with the sound.
+    // Session parameters are skipped even when an older file names them.
     if (params::isSessionParam(id))
       continue;
 
@@ -550,9 +477,8 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
   const auto number = [](float v) {
     auto text = juce::String(v, 4).trimCharactersAtEnd("0");
 
-    // A float literal needs something after the point: 5.0f compiles and 5f
-    // does not. Trimming all the way to the point and then past it is what
-    // made every whole number in the generated code a compiler error.
+    // A float literal needs a digit after the point: 5.0f compiles and 5f does
+    // not.
     if (text.endsWithChar('.'))
       text += "0";
 
@@ -563,17 +489,9 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
     return r->convertFrom0to1(r->getValue());
   };
 
-  // What the generated case has to differ from is what neutralBase leaves,
-  // which is not what the parameters default to. The per-partial levels are
-  // the case that matters: they default to a 1/n spectrum and neutralBase
-  // takes them all to zero, so measuring against the defaults drops any
-  // partial the patch happens to leave at its default and the preset comes
-  // back missing it. A fundamental at full level is exactly that.
-  //
-  // So the baseline is read rather than assumed: the patch is put aside,
-  // neutralBase is run, the result is recorded, and the patch is put back.
-  // That does mean the instrument passes through a neutral state on the way,
-  // which is momentary and only happens when this is deliberately called.
+  // The baseline is what neutralBase leaves, not the parameter defaults,
+  // which differ for the per-partial levels. So the patch is put aside,
+  // neutralBase is run and read, and the patch is put back.
   const auto patch = capture(apvts, name);
 
   ap.neutralBase();
@@ -587,8 +505,7 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
   if (patch != nullptr)
     restore(apvts, *patch);
 
-  // Only what differs, so the generated case reads as a description of the
-  // patch rather than as a dump of all 640 values.
+  // Only what differs from the baseline.
   std::map<juce::String, float> changed;
 
   for (auto *p : apvts.processor.getParameters()) {
@@ -596,9 +513,7 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
     if (ranged == nullptr)
       continue;
 
-    // A preset may not touch the session. Emitting these would put the
-    // temperament and the polyphony of whoever dialled the patch in into a
-    // factory preset, which the test for that rule would then fail.
+    // A preset may not touch the session parameters.
     if (params::isSessionParam(ranged->paramID))
       continue;
 
@@ -609,13 +524,8 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
       changed[ranged->paramID] = plainOf(ranged);
   }
 
-  // A row the whole series shares is one line rather than thirty-two, and a
-  // row that was dragged across the mixer is a table rather than thirty-two.
-  // Both are what the presets already in this file do by hand, and a patch
-  // dialled in with LINK produces a great many of each.
-  //
-  // In panel order, which is the order neutralBase sets them in, so a
-  // generated case reads down the strip the way the strip is drawn.
+  // A row the whole series shares becomes one line and a row that varies
+  // becomes a table, in panel order as neutralBase sets them.
   struct Row {
     const char *suffix;
     const char *constant;
@@ -659,9 +569,7 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
       values.push_back(found->second);
     }
 
-    // Only when the whole series moved. A row where some strips are at the
-    // neutral value and some are not is left as individual sets, since
-    // pretending otherwise would write the neutral value in as if it had been
+    // Only when every strip moved, so a neutral value is never written as if
     // chosen.
     if ((int)values.size() != kNumHarmonics)
       continue;
@@ -677,8 +585,7 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
     const juce::String constant = juce::String("params::") + row.constant;
 
     if (uniform) {
-      // Without the f, because the ones already in this file return a double
-      // and allOsc narrows it once rather than at every call site.
+      // Without the f, since allOsc takes a double and narrows it once.
       lines.add("    ap.allOsc(" + constant + ", [](int) { return " +
                 number(values.front()).dropLastCharacters(1) + "; });");
       continue;
@@ -688,9 +595,7 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
     for (auto v : values)
       written.add(number(v));
 
-    // Wrapped to the column limit the rest of the file keeps to, filling each
-    // line before starting the next, which is what clang-format would do with
-    // a braced list this long.
+    // Wrapped to the column limit, filling each line as clang-format would.
     const juce::String open = "    ap.oscTable(" + constant + ",";
     lines.add(open);
 
@@ -711,9 +616,7 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
     lines.add(line);
   }
 
-  // Whatever the rows above did not account for. Strips first and the rest
-  // after, so a case reads as the mixer and then the bar above it, which is
-  // the order the cases already here are written in.
+  // Whatever the rows above did not cover, strips first and globals after.
   for (bool strips : {true, false})
     for (const auto &entry : changed)
       if (entry.first.startsWithChar('h') == strips)
@@ -733,18 +636,14 @@ void apply(APVTS &apvts, int index) {
     // clang-format off
     //
     // Everything to the closing marker is written by factoryCode and pasted in
-    // whole, most of it tables of thirty-two figures. The generator does its
-    // own wrapping, and a formatter reflowing the result would mean a preset
-    // regenerated from the same patch no longer matched the file it came from,
-    // which is the check that says a preset is what its author dialled in.
+    // whole. Formatting it would stop a regenerated preset matching the file.
     // See Tools/preset_to_code.cpp.
   case 0: // 2-bit Fuzz Organ
   {
     ap.neutralBase();
 
-    // An organ at 8 kHz and 2 bits. The aliasing and the quantisation noise are
-    // the distortion, so the converter is the sound rather than an effect on
-    // it. Aftertouch blends the root note towards a fifth.
+    // An organ at 8 kHz and 2 bits, where the converter is the sound.
+    // Aftertouch blends the root note towards a fifth.
     ap.oscTable(params::attackSuffix,
                 {0.0002f, 0.0002f, 0.0002f, 0.0008f, 0.0008f, 0.0008f, 0.0008f,
                  0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f,
@@ -797,16 +696,8 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // A combo organ that has not been serviced. The partials are pulled off
-    // each other rather than tuned, so the stack beats against itself instead
-    // of fusing, and the noise channel is the key click: a few milliseconds of
-    // it on every note, which is the contact rather than the tone. Diode is
-    // the character, this being the first patch in the set to ask for it.
-    //
-    // The tail is the point. A bucket brigade at nearly eight tenths of
-    // feedback, driven far enough in that the repeats grow rather than fade,
-    // falling into a spring long enough to still be ringing when the next
-    // chord arrives.
+    // A combo organ that has not been serviced: detuned partials that beat, a
+    // noise key click, Diode, and a driven bucket brigade echo into a spring.
 
     ap.oscTable(params::releaseSuffix,
                 {0.0015f, 0.0096f, 0.0082f, 0.008f, 0.008f, 0.008f, 0.008f,
@@ -921,12 +812,8 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // The 6581's pulse at half its width, which is a square: odd partials
-    // falling as one over their number. It is on Op-amp rather than the 6581
-    // character, chosen by ear. Op-amp leaves the partials below a kilohertz
-    // alone and turns the ones above it into triangles, which hardens the top
-    // of the series. The envelope and the clipper are the same as in 6581
-    // Triangle.
+    // The 6581's pulse at half width, a square, on Op-amp, which hardens the
+    // top of the series.
     ap.allOsc(params::attackSuffix, [](int) { return 0.003; });
     ap.allOsc(params::decaySuffix, [](int) { return 0.0539; });
     ap.allOsc(params::sustainSuffix, [](int) { return 0.8222; });
@@ -964,9 +851,7 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // The 6581's sawtooth, on the 6581 character: every partial, falling as one
-    // over its number, each carrying the chip's converter and bow. The
-    // envelope and the clipper are the same as in 6581 Triangle.
+    // The 6581's sawtooth, on the 6581 character.
     ap.allOsc(params::attackSuffix, [](int) { return 0.003; });
     ap.allOsc(params::decaySuffix, [](int) { return 0.0539; });
     ap.allOsc(params::sustainSuffix, [](int) { return 0.8222; });
@@ -994,15 +879,8 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // The 6581's triangle, on the 6581 character. The partials draw the
-    // triangle the chip makes, odd ones falling as the square of their number
-    // and a few faint even ones, and the character gives each of them the
-    // chip's converter and bow, which add the second harmonic, the tail of odd
-    // harmonics and the hiss. Partial 2 is set low, since the bow already
-    // gives the note a second harmonic.
-    //
-    // The level sits low and the clipper is on Fold, as in the other two
-    // 6581 presets.
+    // The 6581's triangle, on the 6581 character, with partial 2 low since
+    // the character adds a second harmonic. Clipper on Fold.
     ap.allOsc(params::attackSuffix, [](int) { return 0.003; });
     ap.allOsc(params::decaySuffix, [](int) { return 0.0539; });
     ap.allOsc(params::sustainSuffix, [](int) { return 0.8222; });
@@ -1047,8 +925,7 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // A sawtooth with a little randomness in it, so it drifts and beats rather
-    // than sitting still.
+    // A sawtooth with a little randomness, so it drifts and beats.
     ap.oscTable(params::tuneSuffix,
                 {0.9873f, 0.9868f, 0.9863f, 0.9858f, 0.9853f, 0.9848f, 0.9842f,
                  0.9837f, 0.9831f, 0.9825f, 0.9818f, 0.9812f, 0.9805f, 0.9798f,
@@ -1121,16 +998,14 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // Principal chorus: octaves and fifths only, the registration an organ
-    // builder would recognise, arriving slowly as the pipes speak.
+    // Principal chorus: octaves and fifths only, arriving slowly.
     static const float levels[kNumHarmonics] = {
         1.00f, 0.80f, 0.55f, 0.60f, 0.00f, 0.40f, 0.00f, 0.45f,
         0.00f, 0.00f, 0.00f, 0.28f, 0.00f, 0.00f, 0.00f, 0.30f,
         0.00f, 0.00f, 0.00f, 0.00f, 0.00f, 0.00f, 0.00f, 0.18f,
         0.00f, 0.00f, 0.00f, 0.00f, 0.00f, 0.00f, 0.00f, 0.12f};
 
-    // Eight ranks in phase add up fast. Scaled so a chord has somewhere to go
-    // rather than living on the clipper.
+    // Scaled so a chord stays off the clipper.
     for (int i = 0; i < kNumHarmonics; ++i)
       ap.osc(params::volumeSuffix, i, 0.62f * levels[i]);
 
@@ -1146,8 +1021,7 @@ void apply(APVTS &apvts, int index) {
 
     ap.fanOut(0.6);
 
-    // A pipe leaning on its own limit, which is what the odd harmonics in a
-    // principal rank are.
+    // Rail, for the odd harmonics of a principal rank.
     ap.character(Character::Rail);
 
     ap.reverb(0.5f, 9.0f, 0.35f);
@@ -1158,13 +1032,9 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // A digital instrument through analogue gear that has seen better days,
-    // which is where the name comes from. The envelope delay climbs with the
-    // partial, from almost nothing on the fundamental to five seconds on the
-    // 32nd, so the series arrives from the bottom up and reads as a filter
-    // opening in steps rather than sweeping. The converter at 16 kHz and 8
-    // bits is what makes the steps audible as steps, and the echo, at as much
-    // feedback as it will take, carries what is left of them.
+    // A digital instrument through worn analogue gear. Envelope delays climb
+    // up the series, so it opens in steps like a filter, through a 16 kHz
+    // 8-bit converter and a high-feedback echo.
 
     ap.oscTable(params::pmRateSuffix,
                 {1.2239f, 1.3432f, 1.4753f, 1.6203f, 1.6266f, 1.6328f, 1.6391f,
@@ -1297,11 +1167,8 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // A soft, round electric piano of the kind written for underwater music.
-    // The body is the fundamental and a few low partials, with the 13th and
-    // the 15th left standing well clear of their neighbours, which is the
-    // tine ringing over the top of an otherwise dark sound. Tracking at
-    // 6 dB per octave is what keeps the right hand from turning glassy.
+    // A soft, round electric piano, with the 13th and 15th partials standing
+    // out as the tine. Tracking keeps the top from turning glassy.
 
     ap.allOsc(params::tuneSuffix, [](int) { return 0.9655; });
     ap.oscTable(params::pmRateSuffix,
@@ -1444,8 +1311,7 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // Nine drawbars on Wheel, with the key-off stage used as a release click:
-    // the upper drawbars jump for two milliseconds as the contacts break.
+    // Nine drawbars on Wheel, with the key-off stage as a release click.
     ap.oscTable(params::tuneSuffix,
                 {0.051f, 0.051f, 0.051f, 0.051f, 0.051f, 0.051f, 0.051f,
                  0.051f, 0.0504f, 0.051f, 0.051f, 0.051f, 0.051f, 0.051f,
@@ -1524,14 +1390,9 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // A strike that becomes a pad, without either half being a layer. The
-    // attacks run from the fastest the row goes to the slowest it does, so the
-    // short partials are the transient and the long ones arrive behind them as
-    // it opens, and the decays reach the full twenty seconds rather than
-    // anything holding on a sustain. Two partials step rather than glide, on a
-    // square each, which is the figure moving behind it. The echo is nearly all
-    // feedback at a quarter of a second, the converter is six bits at 22 kHz,
-    // and the whole series wobbles.
+    // A strike that becomes a pad: attacks from the fastest to the slowest
+    // and long decays, two stepping partials, a high-feedback echo, a 6-bit
+    // converter and wobble.
 
     ap.oscTable(params::strikeSuffix,
                 {0.1225f, 0.2148f, -0.0029f, 0.3443f, -0.0029f, 0.3443f,
@@ -1894,9 +1755,8 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // A round electric piano with bright chimes above it, and the converter
-    // at 16 kHz and 8 bits left on hard enough that the artefacts belong to
-    // the sound rather than sitting on top of it.
+    // A round electric piano with bright chimes, through a 16 kHz 8-bit
+    // converter.
 
     ap.oscTable(params::pmRateSuffix,
                 {2.0212f, 2.0445f, 2.0681f, 2.092f, 2.1162f, 2.1406f, 2.1653f,
@@ -2079,8 +1939,7 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // The other half of a pair to be A/B'd: the same sound as Just Saw
-    // but with every partial pulled back to equal temperament.
+    // Just Saw in equal temperament, to compare against it.
     ap.allOsc(params::tuneSuffix, [](int) { return 0.0; });
     ap.allOsc(params::attackSuffix, [](int) { return 0.0002; });
     ap.allOsc(params::swellSuffix, [](int) { return 0.0; });
@@ -2096,10 +1955,8 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // The electric piano an FM synthesizer makes rather than the instrument
-    // it is imitating, on FM: a hard, metallic attack over a body that is
-    // very nearly a sine, and none of the mechanical noise a real one would
-    // bring with it.
+    // An FM electric piano on FM: a hard metallic attack over a near sine
+    // body.
 
     ap.oscTable(params::pmRateSuffix,
                 {1.2435f, 1.0877f, 1.2055f, 1.183f, 1.7273f, 1.2281f, 1.2413f,
@@ -2199,8 +2056,8 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // Wet fingers on glass. Each partial arrives later and vibrates faster than
-    // the one below it.
+    // Wet fingers on glass. Each partial arrives later and vibrates faster
+    // than the one below it.
     ap.oscTable(params::pmRateSuffix,
                 {4.8f, 5.1f, 5.4f, 5.7f, 6.0f, 6.3f, 6.6f, 6.9f, 7.2f, 7.5f,
                  7.8f, 8.1f, 8.4f, 8.7f, 9.0f, 9.3f, 9.6f, 9.9f, 10.2f, 10.5f,
@@ -2246,14 +2103,9 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // A pad that arrives from the bottom up. Every note glides from the last
-    // one over a fixed time, and that time grows up the series from nothing on
-    // the fundamental to two and a half seconds on the thirty-second, so the
-    // pitch lands at once and the brightness slides in after it. Velocity
-    // reaches only the upper partials and STRIKE stretches a soft note's
-    // attack, so played gently it stays round and slow, and played hard the
-    // top and a burst of noise come in at once and it turns bright and
-    // punchy. A smooth random tremolo on every partial keeps it moving.
+    // A pad that arrives from the bottom up: glide times grow up the series,
+    // and velocity brings in the top and a noise burst, so it plays round
+    // when soft and bright when hard.
 
     ap.oscTable(params::glideSuffix,
                 {0.0002f, 0.0055f, 0.0119f, 0.0191f, 0.0274f, 0.0369f, 0.0478f,
@@ -2402,13 +2254,8 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // A struck bar. The attack is the fastest the row goes and nothing
-    // sustains, so every partial rings down from the moment it is hit, each for
-    // its own length, from a third of a second out to three. The tone is not in
-    // the fundamental at all: the fourth and eleventh partials carry it and
-    // everything below them sits under one percent, which is what a bar does
-    // and a string does not. STRETCH pulls the series in rather than spreading
-    // it, and a slow random tremolo keeps the ring from sitting still.
+    // A struck bar. Nothing sustains, the 4th and 11th partials carry the
+    // tone, and STRETCH pulls the series in.
 
     ap.oscTable(params::driftSuffix,
                 {0.9934f, 0.9934f, 0.9934f, 0.2805f, 0.9934f, 0.9934f, 0.9934f,
@@ -2570,8 +2417,8 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // The other half of a pair to be A/B'd: the same sound as Equal Saw
-    // but with every partial at its just interval.
+    // Equal Saw with every partial at its just interval, to compare against
+    // it.
     ap.allOsc(params::attackSuffix, [](int) { return 0.0002; });
     ap.allOsc(params::swellSuffix, [](int) { return 0.0; });
     ap.allOsc(params::releaseSuffix, [](int) { return 0.001; });
@@ -2586,12 +2433,8 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // A fundamental and a Karplus-Strong string, both struck, ringing into
-    // the resonator's piano strings. The fundamental is the only partial up,
-    // on Diode, and dies away over a few seconds. The noise channel has STRING
-    // all the way up, so it is the string alone, struck by a burst of noise
-    // a couple of tens of milliseconds long. The resonator is in Piano, so
-    // the strings of held keys answer both.
+    // A struck fundamental on Diode and a Karplus-Strong string from the
+    // noise channel, ringing into the resonator in Piano mode.
     ap.oscTable(params::attackSuffix,
                 {0.0003f, 0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f,
                  0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f,
@@ -2648,8 +2491,7 @@ void apply(APVTS &apvts, int index) {
     ap.neutralBase();
 
     // 8 kHz and 8 bits, soft, with very short partials arriving at different
-    // times. The territory of a Roland D-50, a Korg Wavestation or a granular
-    // synthesizer.
+    // times.
     ap.oscTable(params::pmRateSuffix,
                 {3.8834f, 21.2852f, 0.0972f, 4.9283f, 17.7814f, 2.8067f,
                  0.1676f, 0.9272f, 1.6633f, 3.7316f, 0.1116f, 14.545f, 6.5233f,
@@ -2834,8 +2676,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbPreDelay", 0.0115f);
     ap.set("stretch", 23.901f);
     ap.set("track", 9.0f);
-    // The resonator as a piano's own strings: the held keys ring on, and the
-    // pedal lets every string ring.
+    // The resonator as a piano's own strings.
     ap.set("masterGain", -13.0f);
     ap.set("resonatorDamp", 0.0668f);
     ap.set("resonatorDecay", 1.5984f);
@@ -2847,7 +2688,7 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // Plucked steel teeth: irregular vibrato per partial, with one bent far
+    // Plucked steel teeth: irregular vibrato per partial, one bent far
     // further than the rest.
     ap.oscTable(params::pmRateSuffix,
                 {0.7705f, 1.3255f, 2.0219f, 4.0f, 4.0f, 4.0f, 1.6645f, 4.0f,
@@ -2962,7 +2803,7 @@ void apply(APVTS &apvts, int index) {
     ap.neutralBase();
 
     // A very round electric piano on PD, with almost nothing above the low
-    // partials, as though the tines were nylon rather than steel.
+    // partials.
 
     ap.oscTable(params::pmRateSuffix,
                 {0.1924f, 0.6835f, 0.1908f, 2.0106f, 1.2654f, 0.2465f, 2.4615f,
@@ -3131,9 +2972,7 @@ void apply(APVTS &apvts, int index) {
                  0.0f, 0.0526f, 0.0f, 0.0476f, 0.0f, 0.0435f, 0.0f, 0.04f,
                  0.0f, 0.037f, 0.0f, 0.0345f, 0.0f, 0.0323f, 0.0f});
 
-    // The one character that cannot make an even harmonic, since it clips both
-    // halves of the wave alike. Anything else here would fill in the gaps this
-    // patch is made of.
+    // Rail clips both halves alike, so it adds no even harmonics.
     ap.character(Character::Rail);
     ap.set("masterGain", -10.0f);
     break;
@@ -3214,8 +3053,7 @@ void apply(APVTS &apvts, int index) {
 
     ap.fanOut(1.0);
 
-    // The level already breathes on its own rate per partial. This adds the
-    // one that breathes with the pitch instead.
+    // Bulb adds a pitch-linked breathing to the level's own.
     ap.character(Character::Bulb);
 
     ap.reverb(0.45f, 8.0f, 0.4f, ReverbType::Plate);
@@ -3227,8 +3065,7 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // Staggered envelope delays, so the spectrum unfolds rather than arriving
-    // at once, with mirrored pans across the series.
+    // Staggered envelope delays so the spectrum unfolds, with mirrored pans.
     ap.oscTable(params::pmRateSuffix,
                 {1.2542f, 1.6849f, 2.4576f, 0.153f, 0.2013f, 2.5563f, 3.209f,
                  0.5424f, 0.1855f, 3.0829f, 0.4622f, 0.1945f, 1.9676f, 2.1286f,
@@ -3293,10 +3130,8 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // A synthetic tremolo guitar, plucked from the string in the noise
-    // channel, over a pad with square-wave pitch modulation stepping through
-    // some of its partials, and a whistle like a theremin that glides between
-    // overlapping notes. The resonator, open, rings under all of it.
+    // A tremolo guitar plucked from the noise string, over a stepping pad and
+    // a gliding theremin-like whistle, with the resonator open.
 
     ap.set("h01_attack", -1.0f);
     ap.set("h01_decay", 1.4003f);
@@ -3469,9 +3304,7 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // A synthesised pan flute a long way off. The breath is the noise
-    // channel, held rather than struck so it stays under the note, and the
-    // echo and the reverb between them do the work of putting it somewhere.
+    // A synthesised pan flute far off. The breath is the held noise channel.
 
     ap.oscTable(params::pmRateSuffix,
                 {1.3544f, 2.1602f, 2.7113f, 3.7712f, 7.7323f, 0.3224f, 2.9698f,
@@ -3596,18 +3429,9 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // Two instruments in one patch, split by where a partial sits in the series
-    // rather than by layering one over the other. The bottom three sustain,
-    // take between a fifth of a second and three quarters to arrive and let go
-    // over a second, which is the dark soft pad. Everything from the fourth up
-    // attacks in a few milliseconds at most, sustains at nothing and is gone
-    // inside half a second, which is the sparkle on top of it. They are the
-    // same note read at two speeds rather than two sounds crossfaded.
-    //
-    // The delay runs the other way to the attack, longest on the second and
-    // third partials and almost nothing at the top, so the bright half is
-    // already ringing by the time the pad opens underneath it. A short dark
-    // noise tick sits under the onset and comes further in under pressure.
+    // Two instruments split across the series: the bottom three partials are
+    // a slow dark pad and the rest a fast sparkle, with delays running the
+    // other way so the sparkle rings first.
 
     ap.allOsc(params::pmShapeSuffix, [](int) { return 7.0; });
     ap.oscTable(params::pmRateSuffix,
@@ -3670,10 +3494,7 @@ void apply(APVTS &apvts, int index) {
                  0.9429f, 0.9665f, 0.9777f, 0.9819f, 0.9838f, 0.9815f, 0.9857f,
                  0.9905f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
                  1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f});
-    // Every channel up by 6.87 dB against what this patch shipped as, which
-    // puts the fundamental at nought and leaves every interval between the
-    // partials exactly where it was. The echo stopped squashing what it is
-    // handed, so the patch can be fed at the level it was written for.
+    // Levels with the fundamental at 0 dB.
     ap.oscTable(params::volumeSuffix,
                 {1.0f, 0.5189f, 0.289f, 0.7048f, 0.1465f, 0.0362f, 0.0064f,
                  0.6453f, 0.5716f, 0.5034f, 0.4414f, 0.3805f, 0.3302f, 0.2846f,
@@ -3816,14 +3637,9 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // A slow pad that will not hold still. Seven partials trill rather than
-    // waver, on squares set to whole intervals: two of them a fifth and five
-    // an octave, some swinging both ways and some only upward, so each one
-    // steps between two notes of the chord instead of wobbling around one.
-    // The 30th and 31st slide back down a fifth rather than jumping, on
-    // reverse sawtooths, and the top three take their level from sample and
-    // hold, so which of them is loudest changes at random. Five seconds of
-    // attack under all of it.
+    // A slow pad that will not hold still: partials trill on squares set to
+    // fifths and octaves, two slide down a fifth, the top three take their
+    // level from sample and hold.
 
     ap.oscTable(params::driftSuffix,
                 {0.1189f, 1.4916f, 1.4916f, 1.4916f, 1.4916f, 1.4916f, 1.4916f,
@@ -4023,12 +3839,10 @@ void apply(APVTS &apvts, int index) {
     ap.allOsc(params::velSuffix,
               [](int n) { return std::min(1.0, 0.2 + 0.06 * (n - 1)); });
 
-    // The top of a struck body hardens as it climbs, and this is the only
-    // character whose harmonics arrive with the pitch rather than sitting on
-    // every partial equally.
+    // Op-amp hardens the top of the series as the pitch climbs.
     ap.character(Character::Opamp);
 
-    // A small, quick room. Struck things are heard somewhere.
+    // A small, quick room.
     ap.reverb(0.22f, 1.8f, 0.5f);
     ap.set("clipType", 1.0f); // Hard
     break;
@@ -4037,15 +3851,8 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // Voice 3 of a Dubreq Stylophone S-1, the last of its three positions,
-    // with the vibrato switched on: thirty cents at six hertz across the whole
-    // series, which is about what the original gives with both its controls
-    // centred. Polyphonic, which a Stylophone is not, after the plugin it is
-    // named for.
-    //
-    // Every partial's level wanders on a smooth random contour of its own, at
-    // a little over a tenth of full depth. That is what keeps thirty-two sine
-    // waves from sounding like thirty-two sine waves.
+    // Voice 3 of a Dubreq Stylophone S-1 with vibrato on, made polyphonic.
+    // Each partial's level wanders a little on its own.
 
     ap.allOsc(params::pmRateSuffix, [](int) { return 6.002; });
     ap.allOsc(params::pmDepthSuffix, [](int) { return 30.1444; });
@@ -4100,9 +3907,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 0.4f);
     ap.character(Character::Opamp);
     ap.set("wobble", 0.0408f);
-    // A vibrato you set once and hear on every key, which is what one
-    // oscillator with one vibrato circuit on it does. A Stylophone has no
-    // second note to be out of step with, and this one has thirty-one.
+    // One shared vibrato, as a single oscillator would have.
     ap.set("pmInPhase", 1.0f);
     break;
   }
@@ -4110,14 +3915,8 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // Strings and brass in one patch, synthesised rather than either of them
-    // sampled. What makes it an ensemble rather than one player is that nothing
-    // in it arrives at the same moment, and the blow is what decides by how
-    // much: the attack is twenty-odd milliseconds, and a strike amount of about
-    // 80% stretches that towards two seconds as the touch softens. A hard chord
-    // is simply there, a quiet one swells in with the series drifting apart on
-    // the way. The tremolo is random and deepens up the series, so the players
-    // never settle together.
+    // Strings and brass as an ensemble: a strike amount stretches the attack
+    // as the touch softens, and a random tremolo deepens up the series.
 
     ap.oscTable(params::pmDepthSuffix,
                 {3.0539f, 7.5661f, 10.6856f, 10.8007f, 10.9168f, 11.0337f,
@@ -4321,8 +4120,8 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // Vowel-ish: a formant hump in the low partials rather than a straight
-    // roll-off, breathing at its own rate on every channel.
+    // Vowel-ish: a formant hump in the low partials, breathing on every
+    // channel.
     ap.allOsc(params::volumeSuffix, [](int n) {
       const double formant = std::exp(-0.5 * std::pow((n - 3.0) / 2.6, 2.0));
       return n <= 14 ? 0.25 + 0.75 * formant : 0.0;
@@ -4335,12 +4134,10 @@ void apply(APVTS &apvts, int index) {
     ap.allOsc(params::driftSuffix, [](int) { return 14.0; });
     ap.allOsc(params::velSuffix, [](int) { return 0.4; });
 
-    // Voices thin out at the top of a range rather than getting brighter, and
-    // the machine takes a little more off after them.
+    // Voices thin out at the top of their range.
     ap.series(0.0f, 3.5f);
 
-    // The machine as well as the voices: an octave on every partial is the
-    // half of tape and valve nobody minds.
+    // Valve adds an octave on every partial.
     ap.character(Character::Valve);
 
     ap.fanOut(0.85);
@@ -4355,8 +4152,8 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // A fast strike where the fundamental rings for seconds and everything
-    // above it is gone inside one.
+    // A fast strike where the fundamental rings for seconds and the rest is
+    // gone inside one.
     ap.oscTable(params::driftSuffix,
                 {0.0183f, 0.0f, 0.0f, 0.0637f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                  0.0647f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
@@ -4500,9 +4297,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_offLevel", 1.0f);
     ap.set("noise_release", 0.2451f);
     ap.set("noise_volume", 0.0234f);
-    // One tremolo circuit across the whole keyboard rather than one per tine,
-    // which is what a 200A has: the wobble is in the amplifier, after the
-    // reeds, so a chord breathes as one thing.
+    // One tremolo across the whole keyboard, in the amplifier as on a 200A.
     ap.set("amInPhase", 1.0f);
     break;
   }
@@ -4512,9 +4307,8 @@ void apply(APVTS &apvts, int index) {
     break;
   }
 
-  // Everything above decided what it wanted. This is the only place any of it
-  // reaches the host, as one write per parameter and none at all for the ones
-  // already there.
+  // The only place the preset reaches the host, one write per changed
+  // parameter.
   ap.flush();
 }
 

@@ -8,23 +8,15 @@ namespace ovt {
 namespace {
 constexpr float kTwoPi = 6.283185307179586f;
 
-/// The two motors.
-///
-/// Slow enough to hear as drift rather than as vibrato, and deliberately not
-/// the same on both sides: the rates are close but share no common factor, so
-/// the two paths never fall into step and never repeat a relationship. The
-/// depths differ a little too, so one side is the loose take and the other the
-/// tighter one.
-///
-/// Fixed rather than offered as controls. What matters is that they differ,
-/// not by how much, and a pair of knobs whose only wrong setting is "equal" is
-/// a pair of knobs nobody needs.
+/// The two motors. The rates are close but share no common factor, so the two
+/// paths never fall into step, and the depths differ a little so one side is
+/// looser than the other.
 constexpr double kWowRateL = 0.70, kWowRateR = 0.83;
 constexpr float kFlutterRateL = 6.3f, kFlutterRateR = 5.31f;
 constexpr float kWowDepthL = 0.0060f, kWowDepthR = 0.0072f;
 constexpr float kFlutterDepthL = 0.0012f, kFlutterDepthR = 0.0009f;
 
-/// Soft compression above a threshold. Used twice, for two different jobs.
+/// Soft compression above a threshold.
 inline float lean(float x, float threshold) noexcept {
   const float a = std::abs(x);
   if (a <= threshold)
@@ -95,9 +87,8 @@ float TapeEcho::Head::read(float delaySamples) const noexcept {
   const auto whole = (int)clamped;
   const auto frac = clamped - (float)whole;
 
-  // Reading backwards from the write head. The two taps either side of the
-  // fractional position are linearly blended, which loses a little top end at
-  // the extremes of the wander and is exactly what the medium does anyway.
+  // Reading backwards from the write head, blending the two taps either side
+  // of the fractional position.
   auto index = write - whole;
   while (index < 0)
     index += length;
@@ -195,25 +186,8 @@ void TapeEcho::process(float *outL, float *outR, int numSamples,
   const auto glide = (float)std::exp(-1.0 / (0.09 * sampleRate));
 
   // The repeats darken from the top and thin from the bottom. A new machine
-  // keeps nearly everything, a worn one hands back very little.
-  //
-  // Lifted once the first repeat started going through this like the others,
-  // since the whole tail gained a pass of it. Measured at a middling wear as
-  // how much of a 7 kHz tone survives, against a 300 Hz one in the same burst:
-  //
-  //   tone                     first repeat   second
-  //    700 + 11000 brightness      0.114        0.025
-  //    900 + 14000 brightness      0.130        0.033
-  //   1100 + 17000 brightness      0.143        0.040
-  //
-  // The middle one, which is a little brighter than the machine was before the
-  // first repeat was corrected and a little darker than it would be without
-  // the correction at all.
-  //
-  // Worth knowing while reading this: what the wear stage does to a repeat is
-  // almost entirely this filter. Its compression only bites above 0.6, which
-  // repeats rarely reach, so the harmonics it adds measure around -90 dB. A
-  // tape echo is a tone control that wobbles, not a distortion.
+  // keeps nearly everything, a worn one hands back very little. This filter is
+  // almost all of what wear does to a repeat.
   const auto brightness = 1.0f - age;
   const auto toneHz = 900.0f + brightness * brightness * 14000.0f;
   const auto lpCoef = onePole(toneHz, sampleRate);
@@ -238,39 +212,20 @@ void TapeEcho::process(float *outL, float *outR, int numSamples,
     left.dc = left.damp + (left.dc - left.damp) * hpCoef;
     right.dc = right.damp + (right.dc - right.damp) * hpCoef;
 
-    // Two stages, and they are not the same thing. The first is character and
-    // follows the wear, so a new machine passes its repeats through untouched.
-    // The second is a backstop that is always there: at 95% feedback a steady
-    // tone can otherwise pile up to twenty times what went in.
-    //
-    // The backstop sits at 1.6 rather than just under one, which is where it
-    // started, because the echo is fed the summed series before the master
-    // fader and that runs at 1.5 to 1.9 on a bright patch. A ceiling under one
-    // was therefore not a backstop at all but a compressor engaged on every
-    // note, and most of what the repeats sounded like was it rather than the
-    // tape. Measured on a 300 Hz burst at middling wear, as the third harmonic
-    // the repeats come back with:
-    //
-    //   what the bus hands it   ceiling at 0.95   ceiling at 1.6
-    //            0.80                -58.6 dB         -58.6 dB
-    //            1.20                -30.0            -33.1
-    //            1.70                -18.3            -26.3
-    //
-    // It is still a backstop: held at 95% feedback with 1.7 going in, the loop
-    // settles at 2.15 rather than running away, where the master's own clipper
-    // is waiting for it.
+    // Two stages. The first is character and follows the wear, so a new
+    // machine passes its repeats through untouched. The second is a backstop
+    // that is always there, since at 95% feedback a steady tone can otherwise
+    // pile up to twenty times what went in. It sits at 1.6 rather than under
+    // one because the summed bus feeding the echo runs above one on a bright
+    // patch, and a lower ceiling would compress every note.
     const auto agedL = lean(worn(left.damp - left.dc, age), 1.6f);
     const auto agedR = lean(worn(right.damp - right.dc, age), 1.6f);
 
     const auto dryL = outL[n];
     const auto dryR = outR[n];
 
-    // What comes out is what the machine made of it, not what was written to
-    // it. The signal has already been through the record head, the tape and
-    // the playback head by the time the first repeat is heard, so colouring
-    // only the feedback path left that one repeat untouched and every later
-    // one worn: measured at full wear, a twelfth 68 dB below the first repeat
-    // and 19 below the second, which is a step rather than a machine.
+    // The output is the aged signal, not what was written, so the first repeat
+    // is coloured like every later one.
 
     // Each loop takes its own channel, feeds only itself, and comes back on
     // the side it went out on. Nothing crosses over at any point, so wherever

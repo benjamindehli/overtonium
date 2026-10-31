@@ -10,27 +10,15 @@ namespace ovt {
 /// Per-partial envelope: delay plus ADSR on the way in, and a two-stage key-off
 /// on the way out.
 ///
-/// Linear attack, exponential decay and release. The exponential segments are
-/// what make additive tones read as "plucked" or "struck" rather than
-/// synthetic, and they let each partial die away at its own rate, which is the
-/// whole point of a 32-channel envelope section.
+/// Linear attack, exponential decay and release. The delay stage holds before
+/// the attack begins.
 ///
-/// The delay stage holds before the attack begins, so partials can be made to
-/// arrive at different times and the spectrum unfolds instead of appearing all
-/// at once.
+/// On key-off the level first swells to a key-off level of its own, then
+/// releases. A key-off level of zero skips the swell.
 ///
-/// Letting go of the key does not simply fade from wherever the level sat. It
-/// swells to a key-off level of its own first, and only then releases. Above
-/// the sustain that is a release click or a bloom, the sound a damper or a
-/// hammer return makes. Below it, it is the fast initial drop into a long tail
-/// that a piano or a struck bell actually has. A key-off level of zero skips
-/// the stage entirely, which is the default and is exactly what the envelope
-/// did before it had one.
-///
-/// Times are "to within 1%": a decay time of 0.5 s means the level has covered
-/// 99% of the distance to the sustain level after 0.5 s. The swell is the
-/// exception and is exact, because the release has to start on schedule rather
-/// than whenever an exponential happens to arrive.
+/// Times are "to within 1%": a decay of 0.5 s covers 99% of the distance to
+/// the sustain level in 0.5 s. The swell is exact, so the release starts on
+/// schedule.
 class Envelope {
 public:
   enum class Stage { Idle, Delay, Attack, Decay, Sustain, Swell, Release };
@@ -40,8 +28,7 @@ public:
     dirty = true;
   }
 
-  /// Cheap to call every block: coefficients are only recomputed when something
-  /// moves.
+  /// Cheap to call every block: coefficients are only recomputed on a change.
   void configure(float delay, float a, float d, float s, float swell,
                  float offLvl, float r) noexcept {
     if (!dirty && exactly(delay, delayTime) && exactly(a, attackTime) &&
@@ -74,26 +61,17 @@ public:
 
     forcedRelease = false;
 
-    // Latched in samples at note-on, so turning the knob afterwards cannot
-    // retime a note that is already waiting.
+    // Latched at note-on, so a knob change cannot retime a waiting note.
     delayRemaining = (int)(std::max(0.0f, delayTime) * sampleRate);
     stage = delayRemaining > 0 ? Stage::Delay : Stage::Attack;
   }
 
-  /// @param lift  what the speed of the key coming up does to the level the
-  /// tail starts from. One is the patch exactly as it is written, and is what
-  /// every keyboard that cannot sense a release sends. See liftFromVelocity.
+  /// @param lift  scales the level the tail starts from, from the release
+  /// velocity. One leaves the patch as written. See liftFromVelocity.
   ///
-  /// It scales the level the tail would have started from rather than the
-  /// key-off level itself, because a key-off level of zero means "release from
-  /// wherever you are" rather than "release from silence", and zero times
-  /// anything is zero. So on the patches that set one it moves that, and on
-  /// the ones that do not it moves the sustain, which is every patch.
-  ///
-  /// Only downwards on a partial already sounding at full, since the envelope
-  /// runs to one and there is no room above it. A tail louder than the note it
-  /// came from would have to come out of the fader, and that is a different
-  /// control with the whole series behind it.
+  /// It scales the starting level rather than the key-off level, since a
+  /// key-off level of zero means "release from the current level". The result
+  /// is clamped to one.
   void noteOff(float lift = 1.0f) noexcept {
     if (stage == Stage::Idle)
       return;
@@ -105,16 +83,12 @@ public:
       return;
     }
 
-    // Latched, like the time below it. A knob moved during a release cannot
-    // retime one that has already started, and the same goes for where it is
-    // heading: the note was let go at a speed, and that speed is spent.
+    // Latched, so a knob change cannot move a key-off already under way.
     swellTarget = std::clamp((offLevel <= kEpsilon ? level : offLevel) * lift,
                              0.0f, 1.0f);
 
-    // Latched in samples, so the release starts when the knob says it does.
-    // The exponential itself only covers 99% of the distance in that time, and
-    // waiting for the rest of it would push the release out by more than twice
-    // the swell.
+    // Counted in samples, so the release starts exactly when the swell time
+    // says, not when the exponential arrives.
     swellRemaining = (int)(std::max(0.0f, swellTime) * sampleRate);
     stage = Stage::Swell;
   }
@@ -129,6 +103,7 @@ public:
     stage = Stage::Release;
   }
 
+  /// Silences at once, for a voice being cleared.
   void reset() noexcept {
     stage = Stage::Idle;
     level = 0.0f;
@@ -142,25 +117,20 @@ public:
   Stage getStage() const noexcept { return stage; }
   float getLevel() const noexcept { return level; }
 
-  /// True when the envelope is holding at silence and nothing but a key-off
-  /// can change that.
-  ///
-  /// A partial with no sustain but a key-off level sits here for as long as
-  /// the key is down, which on a held chord is most of the time. Saying so
-  /// lets the caller skip the oscillator without dropping the note, which is
-  /// the work the old early exit to Idle used to save by mistake.
+  /// True when the envelope is holding at silence until a key-off, so the
+  /// caller can skip the oscillator without dropping the note.
   bool isSilentlyHolding() const noexcept {
     return stage == Stage::Sustain && level < kEpsilon;
   }
 
+  /// Advances one sample and returns the level, 0 to 1.
   inline float tick() noexcept {
     switch (stage) {
     case Stage::Idle:
       return 0.0f;
 
     case Stage::Delay:
-      // Holds wherever the level already sat, which keeps a legato retrigger
-      // from dropping out during the wait.
+      // Holds the current level, so a legato retrigger does not drop out.
       if (--delayRemaining <= 0)
         stage = Stage::Attack;
       break;
@@ -179,15 +149,8 @@ public:
       if (level - sustainLevel < kEpsilon) {
         level = sustainLevel;
 
-        // A decay that lands on a sustain of zero used to mean the note was
-        // finished. That stopped being true when the key-off stage arrived: a
-        // key-off level above zero still has something to say when the key is
-        // let go, and going idle here threw the note away before it could.
-        // Which is exactly the sound a music box or a thumb piano makes, so it
-        // is the case that matters most.
-        //
-        // So it holds at silence and waits instead. Only when both levels are
-        // zero is there genuinely nothing left to come.
+        // A zero sustain still waits for key-off if there is a key-off
+        // level to swell to. Only both at zero ends the note here.
         stage = (sustainLevel < kEpsilon && offLevel <= kEpsilon)
                     ? Stage::Idle
                     : Stage::Sustain;
@@ -238,9 +201,8 @@ private:
         releaseTime = -1.0f;
   int delayRemaining = 0, swellRemaining = 0;
 
-  /// Where the current key-off is heading, which is the key-off level unless
-  /// the lift scaled it. Held apart from offLevel because that one is written
-  /// from the knob every block and would overwrite a note already let go.
+  /// Where the current key-off is heading. Separate from offLevel, which is
+  /// rewritten from the knob every block.
   float swellTarget = 0.0f;
 
   float attackInc = 0.0f, decayCoef = 0.0f, swellCoef = 0.0f,

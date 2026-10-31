@@ -8,41 +8,19 @@ namespace ovt {
 /// A linear-phase half-band low pass, for running one stage at twice the rate
 /// the rest of the instrument does.
 ///
-/// Half-band because the job is always the same job: let everything below the
-/// old Nyquist through and stop everything above it. A filter cut at exactly a
-/// quarter of the doubled rate has every second coefficient equal to zero,
-/// which is half the arithmetic for free and is why this shape is the one
-/// everybody uses for doubling.
-///
-/// Twenty-five taps, from measuring rather than from taste. A rate limit is
-/// the harshest thing this instrument does to a waveform, so it is what the
-/// length was chosen against: a 3.1 kHz partial at 80% of full scale, limited
-/// hard, leaving products where nothing legitimate can land.
-///
-///   taps  latency  worst folded product
-///      9        4        -44 dB
-///     17        8        -73 dB
-///     25       12        -91 dB
-///     33       16        -91 dB
-///     49       24        -91 dB
-///
-/// Nine taps is not worth doing. Seventeen is already inaudible and would cost
-/// four samples less. Twenty-five is where the curve flattens, so it is where
-/// the length stops being a trade and starts being waste, and 0.25 ms of
-/// latency is a quarter of one buffer at any rate anybody runs.
-///
-/// Kaiser windowed at beta 8, which puts the stopband past where the taps run
-/// out, so the measurement above is the length talking rather than the window.
+/// The cut sits at a quarter of the doubled rate, which makes every second
+/// coefficient zero. 25 taps, Kaiser windowed at beta 8, is where the folded
+/// products of a hard rate limit stop falling (about -91 dB) for 12 samples of
+/// latency.
 class Halfband {
 public:
-  /// Taps either side of the middle one. The group delay is this many samples
-  /// at the rate the filter runs at, so a signal that goes up through one of
-  /// these and back down through another comes out this many samples late at
-  /// the rate it arrived at.
+  /// Taps either side of the middle one, which is also the group delay in
+  /// samples at the rate the filter runs at. A round trip up and back down
+  /// comes out this many samples late at the original rate.
   static constexpr int kHalf = 12;
   static constexpr int kTaps = 2 * kHalf + 1;
 
-  /// Built once, read for the life of the process.
+  /// The coefficients, built once and read for the life of the process.
   static const std::array<double, kTaps> &kernel() noexcept {
     static const auto built = build();
     return built;
@@ -70,13 +48,10 @@ private:
       h[(size_t)(i + kHalf)] = sinc * w;
     }
 
-    // Normalised in two halves rather than as a whole, because the middle tap
-    // is not an ordinary one. It is the only even tap that is not zero, so it
-    // alone carries the samples that were already there: fixing it at exactly
-    // a half makes doubling hand those back untouched, and the interpolated
-    // ones are the only ones the filter has to invent. Normalising the sum
-    // instead leaves the middle tap near a half rather than at it, and that
-    // difference is a quiet copy of the input running through everything.
+    // The odd taps are normalised on their own and the middle tap is set to
+    // exactly a half, so doubling passes the existing samples through
+    // untouched. Normalising the whole sum would leave a faint copy of the
+    // input in everything.
     double odd = 0.0;
 
     for (int i = -kHalf; i <= kHalf; ++i)

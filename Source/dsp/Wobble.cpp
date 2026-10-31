@@ -67,11 +67,8 @@ float Wobble::read(const std::vector<float> &line, int at,
   if (length <= 2)
     return 0.0f;
 
-  // Zero is allowed, and reads back exactly the sample just written. That
-  // matters at the moment the control leaves zero: the line holds nothing yet,
-  // and anything further back than the write head would be the silence it was
-  // cleared to. The glide is what keeps it safe from there, since the read
-  // point recedes more slowly than the line fills.
+  // Zero is allowed and reads back the sample just written, which is what lets
+  // the control leave zero from a cleared line without a gap.
   const auto clamped = std::clamp(delaySamples, 0.0f, (float)(length - 2));
   const auto whole = (int)clamped;
   const auto frac = clamped - (float)whole;

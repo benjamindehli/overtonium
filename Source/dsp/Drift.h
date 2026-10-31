@@ -4,17 +4,15 @@
 
 namespace ovt {
 
-/// xorshift32. Deterministic, allocation free and safe on the audio thread,
-/// which is all a modulation source needs. It is not a good general purpose
-/// generator and is not used as one.
+/// xorshift32. Deterministic, allocation free and safe on the audio thread.
+/// Meant for modulation, not as a general purpose generator.
 class Xorshift {
 public:
   explicit Xorshift(uint32_t seed = 1u) noexcept { reseed(seed); }
 
-  /// Plain xorshift correlates noticeably between nearby seeds for the first
-  /// few hundred outputs, so the seed is avalanched first and the state warmed
-  /// up before anyone sees it. A zero state would lock the generator up, hence
-  /// the forced low bit.
+  /// Avalanches the seed and warms the state up, since plain xorshift
+  /// correlates between nearby seeds at first. The low bit is forced because a
+  /// zero state would lock the generator.
   void reseed(uint32_t seed) noexcept {
     seed ^= 0x9e3779b9u;
     seed ^= seed >> 16;
@@ -48,11 +46,8 @@ private:
   uint32_t state = 1u;
 };
 
-/// Catmull-Rom through four points, at `t` between the middle two.
-///
-/// Free rather than a member because two things draw the same contour: the
-/// per-partial drift, and the Random shape an LFO can be set to. One copy so
-/// the two cannot come to disagree about what "random but smooth" sounds like.
+/// Catmull-Rom through four points, at `t` between the middle two. Shared by
+/// the per-partial drift and the LFO's Random shape.
 inline float catmullRom(const float (&p)[4], float t) noexcept {
   const float a = p[1];
   const float b = 0.5f * (p[2] - p[0]);
@@ -62,12 +57,9 @@ inline float catmullRom(const float (&p)[4], float t) noexcept {
   return ((d * t + c) * t + b) * t + a;
 }
 
-/// A smooth random contour.
-///
-/// Random points are drawn at a fixed rate and joined with a Catmull-Rom
-/// spline. Sample and hold would step between them, and a lowpassed noise
-/// source would wander in amplitude as well as value. This does neither: the
-/// output is continuous, and it stays inside roughly +-1 whatever the rate.
+/// A smooth random contour: random points drawn at a fixed rate and joined
+/// with a Catmull-Rom spline. Continuous, and stays inside roughly +-1
+/// whatever the rate.
 class SmoothRandom {
 public:
   /// @param rateHz          how often a new point is drawn
@@ -76,8 +68,8 @@ public:
     increment = stepsPerSecond > 0.0 ? rateHz / stepsPerSecond : 0.0;
     phase = 0.0;
 
-    // Seeding all four points means a note begins part way into a wander
-    // rather than from a shared zero, so voices never start in unison.
+    // Seeding all four points starts each voice part way into a wander, so
+    // voices never start in unison.
     for (auto &p : points)
       p = rng.bipolar();
   }

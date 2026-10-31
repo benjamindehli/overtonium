@@ -12,10 +12,8 @@ inline constexpr int kNumHarmonics = 32;
 
 /// Tuning data for one partial of the harmonic series.
 ///
-/// Everything is derived from the harmonic number n rather than hard-coded, so
-/// the just-intonation frequency is exact (blend == 1 gives precisely n *
-/// fundamental). Rounded to whole cents this reproduces the classic overtone
-/// deviation table:
+/// Derived from the harmonic number n, so blend == 1 gives exactly n *
+/// fundamental. Rounded to whole cents:
 ///
 ///         n   semis  cents   interval        n   semis  cents   interval
 ///          1     0      0    prime/octave   17    49     +5     minor second
@@ -44,6 +42,7 @@ struct HarmonicInfo {
   int pitchClass = 0; ///< etSemitones mod 12, used for the interval name/colour
 };
 
+/// The 32 partials, built once on first use.
 inline const std::array<HarmonicInfo, kNumHarmonics> &harmonicTable() noexcept {
   static const std::array<HarmonicInfo, kNumHarmonics> table = [] {
     std::array<HarmonicInfo, kNumHarmonics> t{};
@@ -72,31 +71,19 @@ inline const HarmonicInfo &harmonic(int index0) noexcept {
   return harmonicTable()[(size_t)index0];
 }
 
-/// How far partial n sits above its own harmonic, in cents.
+/// How far partial n sits above its own harmonic, in cents, following the
+/// stiff-string law n * f0 * sqrt(1 + B * n^2). Applied on top of TUNE.
 ///
-/// Real sounding bodies are not integer multiples of anything. A string with
-/// any bending stiffness rings at n * f0 * sqrt(1 + B * n^2), sharp of the
-/// harmonic and increasingly so up the series. That is why a piano sounds like
-/// a piano rather than like a sawtooth, and it is what a tuner is matching
-/// when they stretch the octaves. Push the same law further and the partials
-/// stop agreeing on a fundamental at all, which is a bell.
-///
-/// It is a separate axis from TUNE rather than more of it. TUNE decides
-/// whether the series reads as one timbre or as a chord. This decides whether
-/// it is a string or a bar, and the two combine.
-///
-/// @param stretchCents  how far the top partial is displaced. That rather than
-///                      B itself, which is a number between 0.00003 and 0.008
-///                      and says nothing to anyone. Zero is the plain harmonic
-///                      series, negative compresses it.
+/// @param stretchCents  how far the top partial is displaced, used in place of
+///                      B. Zero is the plain harmonic series, negative
+///                      compresses it.
 inline double inharmonicCents(int index0, double stretchCents) noexcept {
   if (exactly(stretchCents, 0.0))
     return 0.0;
 
   constexpr double top = (double)kNumHarmonics;
 
-  // Fixed by the top partial landing exactly where the dial says, so the
-  // control reads as a measurement rather than as an amount.
+  // B is chosen so the top partial lands exactly on stretchCents.
   const double b = (std::exp2(stretchCents / 600.0) - 1.0) / (top * top);
   const double n = (double)(index0 + 1);
 
@@ -107,9 +94,8 @@ inline double inharmonicCents(int index0, double stretchCents) noexcept {
 ///
 /// @param blend  0 == equal temperament (snapped to the nearest semitone), 1 ==
 /// just intonation (an exact n:1 ratio with the fundamental).
-/// @param stretchCents  inharmonicity, applied on top of whichever of those
-/// two the blend has arrived at. Defaulted so the plain harmonic series stays
-/// the thing you get by not asking for anything.
+/// @param stretchCents  inharmonicity, applied on top of the blend. Zero is
+/// the plain harmonic series.
 inline double semitoneOffset(int index0, double blend,
                              double stretchCents = 0.0) noexcept {
   const auto &h = harmonic(index0);
@@ -118,6 +104,7 @@ inline double semitoneOffset(int index0, double blend,
          inharmonicCents(index0, stretchCents) * 0.01;
 }
 
+/// The interval name for a pitch class, as shown in the table above.
 inline const char *intervalName(int pitchClass) noexcept {
   static const char *names[12] = {
       "prime/octave", "minor second", "major second",  "minor third",

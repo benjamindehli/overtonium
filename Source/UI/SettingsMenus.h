@@ -3,10 +3,8 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
-/// The choices the Settings menu offers that the bars under the top bar offer
-/// too, built in one place so a list cannot say one thing in the menu and
-/// another in a bar, and carried out in one place so choosing from either does
-/// the same thing.
+/// The lists both the Settings menu and the option bars offer, built and
+/// carried out in one place so the two agree.
 namespace ovt::ui::settings {
 
 /// Item ids, the same wherever the item appears. Each list counts up from its
@@ -33,12 +31,16 @@ enum Id : int {
 /// The voice counts, from one up, with the one in use ticked.
 juce::PopupMenu voices(juce::AudioProcessorValueTreeState &);
 
-/// The bend ranges anyone actually uses, in semitones.
+/// The common bend ranges, in semitones.
 juce::PopupMenu bendRange(juce::AudioProcessorValueTreeState &);
 
+/// Which control the AT row listens to: pressure, the wheel or either.
 juce::PopupMenu aftertouchFrom(juce::AudioProcessorValueTreeState &);
+
+/// What an MPE slide moves.
 juce::PopupMenu slideTo(juce::AudioProcessorValueTreeState &);
 
+/// The temperaments, the root they are built on, and the reference pitch.
 juce::PopupMenu temperament(juce::AudioProcessorValueTreeState &);
 juce::PopupMenu root(juce::AudioProcessorValueTreeState &);
 juce::PopupMenu referencePitch(juce::AudioProcessorValueTreeState &);
@@ -60,9 +62,8 @@ bool isOn(juce::AudioProcessorValueTreeState &, const char *id);
 /// The index of a choice parameter's current choice.
 int choiceIndex(juce::AudioProcessorValueTreeState &, const char *id);
 
-/// Whether the root decides anything you can hear. Every temperament but
-/// equal is built on it, and so is the resonator's Series mode, which rings
-/// the root's own harmonics whatever the temperament.
+/// Whether the root decides anything you can hear: under any temperament but
+/// equal, or with the resonator in Series.
 bool rootInUse(juce::AudioProcessorValueTreeState &);
 
 /// Carries out a choice from any of the lists above, or one of the switches.

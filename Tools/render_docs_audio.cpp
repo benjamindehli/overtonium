@@ -1,17 +1,8 @@
-// Every clip the project pages play, rendered by the plugin itself.
-//
-// The pairs come first: Just Saw and Equal Saw differ in TUNE and in nothing
-// else, which makes them the one pair worth hearing rather than reading about,
-// and the rest of the tuning page is built the same way. Then one clip per
-// factory preset, on a gesture they all share. All of them are rendered from
-// the shipped presets rather than recorded, so a change to a preset or to the
-// tuning maths is one command away from being audible on the page rather than
-// quietly out of date.
-//
-// Mono wherever a patch pans nothing, so a stereo file cannot be two copies of
-// one signal. Ogg first and FLAC behind it, which is the only pair JUCE can
-// write that covers every browser, and the order the pages ask for them in.
-// CONTRIBUTING.md says why the fallback is lossless.
+// Renders every clip the project pages play, from the shipped presets through
+// the plugin itself: the tuning pairs and sweeps first, then one clip per
+// factory preset on a gesture they all share. Mono wherever a patch pans
+// nothing. Ogg first and FLAC behind it, the pair JUCE can write that covers
+// every browser.
 //
 //   cmake --build build --target overtonium_render_docs_audio
 //   ./build/overtonium_render_docs_audio_artefacts/
@@ -35,13 +26,10 @@ int indexOf(const juce::String &name) {
   return ovt::presets::names().indexOf(name);
 }
 
-/// A preset's name as the file it is written to and the page links it by.
-///
-/// Lowercased, spaces to hyphens, and anything else that is not a letter, a
-/// digit or a hyphen dropped, which leaves "2-bit Fuzz Organ" as
-/// "2-bit-fuzz-organ" and "Lo-fi" as "lo-fi". The presets page has to spell
-/// these the same way, so it is worth them falling out of the name rather than
-/// being a second list to keep.
+/// A preset's name as the file it is written to and the page links it by:
+/// lowercased, spaces to hyphens, and anything else that is not a letter, a
+/// digit or a hyphen dropped, so "2-bit Fuzz Organ" becomes "2-bit-fuzz-organ".
+/// The presets page spells them the same way.
 juce::String slugOf(const juce::String &name) {
   juce::String out;
 
@@ -54,11 +42,9 @@ juce::String slugOf(const juce::String &name) {
   return out;
 }
 
-/// What to do to the controls as a clip runs.
-///
-/// Called once per block with how far through the held section it is, 0 to 1,
-/// which is what lets a clip sweep a knob rather than only sit at one end of
-/// it. Empty for a clip that holds still.
+/// What to do to the controls as a clip runs, called once per block with how
+/// far through the held section it is, 0 to 1. Empty for a clip that holds
+/// still.
 using Move = std::function<void(OvertoniumProcessor &, double)>;
 
 void setPlain(OvertoniumProcessor &p, const juce::String &id, float plain) {
@@ -125,9 +111,8 @@ juce::AudioBuffer<float> render(OvertoniumProcessor &p,
   out.applyGainRamp(out.getNumSamples() - fade, fade, 1.0f, 0.0f);
   out.applyGainRamp(0, (int)(0.005 * kRate), 0.0f, 1.0f);
 
-  // None of these patches pans anything, so both channels carry the same
-  // samples and a stereo file would be two copies of one signal. Checked
-  // rather than assumed, and kept stereo if that ever stops being true.
+  // Mono when both channels carry the same samples, which is every patch here,
+  // and stereo otherwise.
   for (int n = 0; n < out.getNumSamples(); ++n)
     if (!juce::exactlyEqual(out.getSample(0, n), out.getSample(1, n)))
       return out;
@@ -265,9 +250,9 @@ int main(int argc, char **argv) {
     if (!write(buffer, dir.getChildFile(slug + ".ogg"), ogg, 5))
       std::printf("    ogg FAILED\n");
 
-    // The fallback is lossless, so it is the file the page links to for anyone
-    // who cannot play either. Level 8 is the encoder working hardest, which
-    // costs nothing here: these are rendered once and served thereafter.
+    // The fallback is lossless, since it is the file the page links to for
+    // anyone who cannot play either. Level 8 is the slowest encoder setting,
+    // which costs nothing for files rendered once.
     if (!write(buffer, dir.getChildFile(slug + ".flac"), flac, 8))
       std::printf("    flac FAILED\n");
   };
@@ -279,11 +264,8 @@ int main(int argc, char **argv) {
          render(p, name, {48}, 3.2, 0.6));
   }
 
-  // The two above give the ends. This gives the middle, which is the part the
-  // page actually claims: that it sweeps rather than switches.
-  //
-  // Equal first and just last, so it starts where every other synthesizer
-  // starts and arrives at the thing this one can do, rather than the reverse.
+  // The middle of the sweep, which is what the page claims: that it sweeps
+  // rather than switches. Equal first and just last.
   {
     OvertoniumProcessor p;
     save("tune-sweep",
@@ -328,9 +310,8 @@ int main(int argc, char **argv) {
   // ---- TRACK, heard by playing up the keyboard -----------------------------
   //
   // The rolloff sits at a fixed 1 kHz while the partials climb through it, so
-  // it only shows across a run: a bass note keeps nearly all of its series and
-  // a treble note has walked most of its into the rolloff. One note would show
-  // nothing, since the fundamental holds its level either way.
+  // it shows across a run: a bass note keeps nearly all of its series and a
+  // treble note has walked most of its into the rolloff.
   {
     const std::vector<Step> run{{36, 0.0, 1.0},
                                 {48, 1.2, 1.0},
@@ -349,17 +330,10 @@ int main(int argc, char **argv) {
 
   // ---- one clip per factory preset ------------------------------------------
   //
-  // The same gesture on every one of them, so the presets page can be played
-  // down rather than each patch showing itself off in its own way. A spread C
-  // major arriving a note at a time, held together, then let go with room for
-  // whatever rings on: that is an attack, an ensemble and a release, which is
-  // most of what a patch is. Anything that needs the keyboard to show, like
-  // tracking, has its own clip on the tuning page already.
-  //
-  // Levels are left where the presets put them rather than matched to each
-  // other. Two clips meant to be compared have to be the same loudness, and a
-  // set meant to be browsed has to be honest about which patches are quiet
-  // ones.
+  // The same gesture on every one of them, so the clips can be compared: a
+  // spread C major arriving a note at a time, held together, then let go with
+  // room for whatever rings on. Levels are left where the presets put them, so
+  // the quiet patches sound quiet.
   {
     const std::vector<Step> chord{
         {48, 0.00, 3.0}, {55, 0.30, 2.7}, {60, 0.60, 2.4}, {64, 0.90, 2.1}};
@@ -373,10 +347,9 @@ int main(int argc, char **argv) {
   // ---- glide, the series arriving a partial at a time ----------------------
   //
   // The Glide preset, whose times rise from nothing on the fundamental to two
-  // and a half seconds on the thirty-second, against the same phrase with
-  // every time at zero. Up a fifth, up a fourth and down the octave, held long
-  // enough that the upper partials can be heard still on their way when the
-  // pitch has long since landed.
+  // and a half seconds on the thirty-second, against the same phrase with every
+  // time at zero. Up a fifth, up a fourth and down the octave, held long enough
+  // to hear the upper partials still on their way after the pitch has landed.
   {
     const std::vector<Step> phrase{
         {48, 0.0, 2.0}, {55, 2.2, 2.0}, {60, 4.4, 2.0}, {48, 6.6, 2.0}};
@@ -398,19 +371,15 @@ int main(int argc, char **argv) {
 
   // ---- legato, a melody over chords ----------------------------------------
   //
-  // A line held from note to note, each key going down just before the last
-  // comes up, over a chord struck once a bar and let go just before the next.
-  // On Synth Ensemble played softly, where STRIKE stretches the attack to
-  // about half a second, so every newly struck note swells in. With Legato off
-  // the line swells in again on every note. With it on and eight voices the
-  // line carries on at the level it reached while the chords still swell in
-  // underneath it.
+  // A line held from note to note over a chord struck once a bar, on Synth
+  // Ensemble played softly, where STRIKE stretches the attack to about half a
+  // second. With Legato off the line swells in on every note. With it on and
+  // eight voices the line carries on at its level while the chords swell in
+  // underneath.
   //
-  // Two notes of the line to a bar. The first lands with the chord, as the
-  // highest key struck and no more than a major third under the note before,
-  // and the second goes down halfway through the bar over the chord still
-  // held, which are the two ways the top line reads a key as the melody. See
-  // SynthEngine::noteOnImpl.
+  // Two notes of the line to a bar: one landing with the chord as its highest
+  // key, and one over the chord still held, the two ways the top line reads a
+  // key as the melody. See SynthEngine::noteOnImpl.
   {
     constexpr float kSoft = 0.3f;
     constexpr double kBar = 1.2;

@@ -16,16 +16,8 @@
 
 namespace ovt::ui {
 
-/// The stereo output meter.
-///
-/// Horizontal and split, because the two channels only differ once the panning
-/// is dialled in and a summed meter would hide exactly that. Carries a peak
-/// hold, since the thing you most want from an output meter is what it hit a
-/// moment ago rather than what it is doing right now.
-///
-/// Segmented, like the channel meters, and for the same two reasons: it reads
-/// at a glance, and it only asks to be redrawn when a lamp changes rather than
-/// on every frame in which the level moves at all.
+/// The stereo output meter: two horizontal segmented bars with a peak hold.
+/// It only repaints when a lamp changes.
 class StereoOutputMeter : public juce::Component {
 public:
   StereoOutputMeter() { setInterceptsMouseClicks(false, false); }
@@ -34,11 +26,7 @@ public:
   /// any lamps.
   static constexpr int kScaleHeight = 4;
 
-  /// Where the two bars actually are, which is not the whole of this: the
-  /// scale runs underneath them. The fader that lies over the meter reads it
-  /// from here rather than measuring the same thing again, since a cap four
-  /// pixels below the lamps it is supposed to be standing on reads as a
-  /// control that has come loose.
+  /// Where the two bars are, above the scale. The master fader lies over this.
   juce::Rectangle<int> barBounds() const {
     return getLocalBounds().withTrimmedBottom(kScaleHeight);
   }
@@ -58,13 +46,11 @@ private:
     int hold = 0;
 
     /// Lamps alight, and the one holding the peak, or -1 when there is none.
-    /// Kept rather than derived so they can hold still while the level wobbles
-    /// across a boundary.
+    /// Kept rather than derived so they hold still at a boundary.
     int lit = 0;
     int peakLamp = -1;
 
-    /// @returns true when a lamp changed, which is the only time redrawing
-    /// would show anything.
+    /// @returns true when a lamp changed and a repaint is needed.
     bool advance(float level, int count);
   };
 
@@ -74,6 +60,9 @@ private:
   Bar left, right;
 };
 
+/// The bar along the top of the window: presets, the series knobs, the
+/// character, the resonator, the echo, the reverb, the output meter and the
+/// buttons that open the menus, the macro panel and the option bars.
 class TopBar : public juce::Component {
 public:
   TopBar(juce::AudioProcessorValueTreeState &apvts,
@@ -83,25 +72,18 @@ public:
   void resized() override;
 
   /// A right-click on one of the bar's own controls, carrying the parameter
-  /// it moves. The bar puts up no menu itself: what it offers is the editor's
-  /// to decide, the same way the gutter hands back the LINK button's anchor.
-  ///
-  /// Learn items only, with none of the LINK settings the mixer's menu
-  /// carries, since what LINK does is gang channel strips and none of these
-  /// is one.
+  /// it moves. The editor puts up the MIDI Learn menu.
   std::function<void(const juce::String &)> onLearnRequested;
 
   /// Fired when MACROS is clicked, which puts the macro panel up over the
-  /// mixer. On the bar rather than in the gutter because it opens something,
-  /// which is what the two buttons beside it do. See ui::MacroPanel.
+  /// mixer. See ui::MacroPanel.
   std::function<void()> onMacrosClicked;
 
   /// Fired when one of the three tools is chosen from the tool menu.
   std::function<void(PointerTool)> onToolChosen;
 
-  /// Fired when PLAYING or TUNING is clicked. The editor opens or closes the
-  /// bar and says so back through setBarsOpen, so a lamp follows its bar
-  /// rather than the click.
+  /// Fired when PLAYING or TUNING is clicked. The editor answers through
+  /// setBarsOpen, so a lamp follows its bar rather than the click.
   std::function<void()> onPlayingClicked, onTuningClicked;
 
   /// Lights PLAYING and TUNING while their bars are open.
@@ -113,19 +95,14 @@ public:
 
   void mouseDown(const juce::MouseEvent &) override;
 
-  /// Heard from every control in the bar too, since the bar listens deeply
-  /// for right-clicks, and Component's own handler passes whatever it is
-  /// given up to the parent. So a wheel a knob had already taken went on to
-  /// the editor and scrolled the mixer under the hand turning the knob. Only
-  /// a wheel that landed on the bar itself is passed on, as the noise strip
-  /// does it.
+  /// Heard from every control in the bar too, since the bar listens deeply.
+  /// Only a wheel that landed on the bar itself is passed up, so turning a
+  /// knob does not also scroll the mixer.
   void mouseWheelMove(const juce::MouseEvent &,
                       const juce::MouseWheelDetails &) override;
 
   /// Says a newer release is out: SETTINGS lights, and the release is the
-  /// first item in its menu, which goes to it. Called with an empty version to
-  /// say nothing, which is the state it starts in and stays in for anyone who
-  /// has not turned the check on.
+  /// first item in its menu. An empty version says nothing.
   void setUpdateAvailable(const juce::String &version, const juce::String &url);
 
   /// The release SETTINGS is saying is out, or empty. Read back by the tests.
@@ -140,20 +117,14 @@ public:
   std::function<void(float)> onZoomChanged;
 
   /// Sets the window back to the size that shows the whole mixer.
-  ///
-  /// The window remembers what it was left at, which is what a window should
-  /// do and is also a one-way trip: drag it narrow, close it, and every
-  /// session after that opens narrow. This is the way back.
   std::function<void()> onFitAllChannels;
 
-  /// History. It lives at the head of the Settings menu because that is the
-  /// only menu the window has, and because a keyboard shortcut cannot be
-  /// relied on: most hosts keep Cmd-Z for themselves.
+  /// Undo and redo, at the head of the Settings menu, since most hosts keep
+  /// Cmd-Z for themselves.
   std::function<void()> onUndo, onRedo;
 
   /// The update-check setting, read when the menu opens and written when it is
-  /// toggled. The editor owns the value, since it is the editor that saves it
-  /// with the session and starts the check.
+  /// toggled. The editor owns the value.
   std::function<bool()> isUpdateCheckAllowed;
   std::function<void(bool)> onUpdateCheckToggled;
   std::function<bool()> canUndo, canRedo;
@@ -162,15 +133,12 @@ public:
   void setPresetName(const juce::String &);
   juce::String getPresetName() const;
 
-  /// What the character button is showing. Written from the parameter by
-  /// updatePanelReadouts and read back here, which is the only way to check a
-  /// button that cannot be clicked without a window to put its menu in.
+  /// What the character button is showing. Read back by the tests.
   juce::String getCharacterName() const {
     return characterButton.getButtonText();
   }
 
-  /// Whether the character button is lit, and in what. Read back by the tests
-  /// for the same reason the name is: a button is otherwise nothing but paint.
+  /// Whether the character button is lit, and in what. Read back by the tests.
   bool isCharacterLit() const { return characterButton.getToggleState(); }
 
   juce::Colour getCharacterColour() const {
@@ -201,45 +169,36 @@ public:
   /// Asked for when "Clear selection" is chosen from the menu.
   std::function<void()> onSelectionCleared;
 
-  /// The switch, the scope and the curve, in one menu.
-  ///
-  /// Shared by the button in the bar and by a right-click anywhere on a strip,
-  /// so there is one list rather than two that can drift apart.
+  /// The LINK menu, for the button in the bar and a right-click on a strip.
   ///
   /// @param anchor       what to hang the menu off, or nullptr to put it
   ///                      under the pointer.
   /// @param parameterId   what a right-click landed on, empty when the menu
   ///                      came from the LINK button instead.
-  /// @param map           where a learned binding goes. Passed in rather than
-  ///                      reached for, since the bar is given its state tree
-  ///                      and not the processor behind it.
-  /// No default for the tool. It had one, and both callers left it out, so
-  /// the menu built itself as though the plain pointer were always chosen:
-  /// a permanent tick on Pointer and LINK's two lists greyed out for good.
+  /// @param map           where a learned binding goes
+  /// @param tool          the tool now chosen. No default, so callers cannot
+  ///                      leave it out.
   void showLinkMenu(juce::Component *anchor, const juce::String &parameterId,
                     MidiLearn *map, PointerTool tool);
 
-  /// The bar reflows onto further rows when the groups no longer fit across
-  /// one, so nothing has to be dropped on a narrow window. Static because the
-  /// editor has to know the height before it can hand the bar its bounds.
+  /// The bar's height at this width, since it reflows onto further rows when
+  /// the groups do not fit across one. Static because the editor needs it
+  /// before it sets the bar's bounds.
   static int heightForWidth(int width);
 
   /// Narrowest window the bar can lay out without hiding a group. The editor
-  /// takes this as a floor, since refusing to shrink further is better than
-  /// quietly dropping controls.
+  /// takes this as a floor.
   static int minimumWidth();
 
-  /// Refreshes what the bar reads back from the parameters rather than from a
-  /// slider: the two converter readouts and the character the oscillators are
-  /// set to. The host rate has to be passed in because "leave it alone" is a
-  /// setting whose value only the processor knows.
+  /// Refreshes what the bar reads from the parameters rather than from a
+  /// slider, such as the converter readouts and the character. The host rate is
+  /// passed in for the setting that follows the host.
   void updatePanelReadouts(double hostSampleRate);
   void setOutputLevels(float l, float r) { meter.push(l, r); }
   void setZoomChoice(float zoom);
 
 private:
-  /// The release SETTINGS is currently advertising, and where it sends
-  /// someone who clicks. Empty when there is nothing to say.
+  /// The release SETTINGS is advertising and its link, empty when none.
   juce::String updateVersion, updateUrl;
 
   using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
@@ -258,101 +217,56 @@ private:
                const juce::String &caption, const juce::String &paramId,
                const juce::String &tooltip, juce::Component &popupParent);
 
-  /// Polyphony, bend range and the two output switches. All of them are set
-  /// once and left, which is a menu rather than a panel.
+  /// Puts up the Settings menu.
   void showSettingsMenu();
 
 public:
-  /// The same menu as data, built rather than shown.
-  ///
-  /// Kept apart from showing it for the reason the LINK menu is: a menu that
-  /// can only be reached by clicking is a menu that never gets tested, and
-  /// showing one needs a real window. This can be walked without either.
+  /// The Settings menu as data, so tests can walk it without a window.
   juce::PopupMenu buildSettingsMenu();
 
-  /// The echo's four positions: off, and one per machine.
-  ///
-  /// A menu rather than a switch, for the same reason the character is one.
-  /// Behind it are two parameters rather than one: the switch that turns the
-  /// echo on is older than the choice of machine, and every saved patch stores
-  /// it and every automation lane points at it, so it stayed where it was and
-  /// the type arrived beside it. Off writes the switch, the other three write
-  /// the switch and a type.
-  ///
-  /// Built as data for the same reason the settings menu is: a menu that can
-  /// only be reached by clicking is a menu that never gets tested.
+  /// The clipper's machines, and applying a choice from that menu.
   juce::PopupMenu buildClipMenu();
   void chooseClip(int id);
 
+  /// The echo's four positions: off, and one per machine. Off writes the
+  /// echo's on switch, the others write the switch and a type.
   juce::PopupMenu buildEchoMenu();
 
-  /// The same, for the reverb, and for the same two reasons: its on switch
-  /// predates the choice of machine, and a menu built as data is a menu that
-  /// can be tested without being clicked.
+  /// The same, for the reverb.
   juce::PopupMenu buildReverbMenu();
 
-  /// What the resonator is tuned to, or Off. One parameter rather than a
-  /// switch and a type, since the resonator arrived with its
-  /// modes and there was no older switch to keep.
+  /// What the resonator is tuned to, or Off, in one parameter.
   juce::PopupMenu buildResonatorMenu();
 
-  /// How wide the two buttons that say a value have to be.
-  ///
-  /// Each is sized for the longest word it can show, in the capitals the bar
-  /// shouts everything in, plus the air either side that every other button
-  /// here has. A word that does not fit is drawn with its middle taken out and
-  /// nothing says so, which is why a test measures these rather than trusting
-  /// them. See testBarButtonsFitTheirWords.
-  /// OP-AMP is the longest character, at 51 px, and the resonator's longest
-  /// mode is 49 px, so both land on the same figure.
+  /// How wide the buttons that name a machine are, each sized for the longest
+  /// word it can show. A word that does not fit is silently cut, so a test
+  /// measures these. See testBarButtonsFitTheirWords.
   static constexpr int kCharacterWidth = 62;
   static constexpr int kResonatorWidth = 62;
   static constexpr int kEchoWidth = 62;
   static constexpr int kReverbWidth = 58;
 
-  /// The word painted under each of those, saying what the button chooses.
-  ///
-  /// In the same order as the four widths above, and public for the same
-  /// reason they are: a word wider than the button it sits under is drawn
-  /// with its middle taken out and nothing says so. See
-  /// testBarButtonsFitTheirWords.
+  /// The caption under each of those buttons, in the same order as the
+  /// widths above, and checked by the same test.
   static constexpr const char *kGroupNames[] = {"CHARACTER", "RESONATOR",
                                                 "ECHO", "REVERB"};
 
-  /// The clipper's switch, under the meter beside the converter readouts.
-  ///
-  /// Sized for the one word it ever says, at the font a button this short
-  /// picks for itself, which is the same 9 px the captions around it use.
-  /// Wide enough for the longest shape's name rather than for the word CLIP,
-  /// since the button says which machine is running the way the echo's and
-  /// the reverb's do.
-  /// 50 rather than the 62 it had, which was sized for the word LIMITER
-  /// before the button started shortening to LIMIT and ASYM. The widest
-  /// label is now 33 px of text, and the twelve given back go to the
-  /// converter readouts beside it, which need 53 each to name their units.
+  /// The clipper's button, under the meter beside the converter readouts,
+  /// wide enough for the longest machine's short name.
   static constexpr int kClipWidth = 50;
 
-  /// The one word it ever says. Shared with the tests, which have to pick this
-  /// button out of the bar's children: it is the only one that stands in the
-  /// caption band rather than on the line of controls.
+  /// The clipper's caption. Shared with the tests, which find the button by it.
   static constexpr const char *kClipName = "CLIP";
 
-  /// What the Settings menu says this build is, as it says it.
-  ///
-  /// Built here rather than written out at the point it is drawn, so the test
-  /// that checks the menu names the version can ask the same question the menu
-  /// answers instead of assembling the string a second time and agreeing with
-  /// itself.
+  /// The version line the Settings menu shows. Public for the tests.
   static juce::String versionLine();
 
 private:
-  /// Whether an effect's knobs show a lit ring. Off means the stage is not in
-  /// the signal, and a knob that is not doing anything should not look as
-  /// though it is.
+  /// Whether an effect's knobs show a lit ring, which they do only while the
+  /// stage is in the signal.
   void setRingsLive(std::vector<Control> &controls, bool live);
 
-  /// The colour a group's rings light in, which is its button's, so the knobs
-  /// read as belonging to the machine they set.
+  /// The colour a group's rings light in, which is its button's.
   static void setRingColour(juce::Slider &, juce::Colour);
   static void setRingColour(std::vector<Control> &controls, juce::Colour);
 
@@ -367,28 +281,19 @@ private:
 
 public:
 private:
-  /// The factory list, then whatever has been saved, then what can be done
-  /// with them.
+  /// Puts up the preset menu.
   void showPresetMenu();
 
 public:
-  /// The same menu as data, built rather than shown.
+  /// The preset menu as data, so tests can walk it without a window.
   ///
-  /// Two submenus and then the actions, rather than one flat list. Twenty-six
-  /// factory presets and however many of your own runs off the bottom of a
-  /// short screen, and a menu that scrolls is a menu you cannot see the shape
-  /// of. Folders inside the preset directory become groups under Saved, nested
-  /// as deeply as they are on disk.
-  ///
-  /// Split from showing it for the reason the settings menu is: showing one
-  /// needs a real window, and a menu that can only be reached by clicking is a
-  /// menu no test ever walks.
+  /// A Factory submenu, a Saved submenu and then the actions. Folders inside
+  /// the preset directory become nested groups under Saved.
   juce::PopupMenu buildPresetMenu();
 
 private:
-  /// The list behind a choice shown on the panel: the two converter settings
-  /// and the oscillator character. Built here rather than inline so whatever
-  /// opens one shares the list with whatever else reads it.
+  /// Puts up the list behind a choice parameter shown on the panel, such as
+  /// the converter settings and the oscillator character.
   void showChoiceMenu(const char *paramId, const juce::StringArray &choices,
                       juce::Component *anchor);
 
@@ -418,10 +323,8 @@ private:
   /// Packs the groups into as many rows as it takes.
   static RowPlan planRows(int width, int maxRows);
 
-  /// Clears every control's bounds before a fresh pass. Without this a control
-  /// that does not get placed keeps whatever position it had when the window
-  /// was wider, which is what put the preset and poly captions on top of one
-  /// another.
+  /// Clears every control's bounds before a fresh pass, so a control that is
+  /// not placed does not keep a stale position.
   void parkControls();
 
   void layoutRow(juce::Rectangle<int> row, int firstGroup, int lastGroup);
@@ -431,81 +334,50 @@ private:
 
   juce::AudioProcessorValueTreeState &apvts;
 
-  // Anything that exists on all 32 strips now lives on the master channel.
-  // What is left here is the handful of genuinely single global values, which
-  // have nothing to stay relative to and so are ordinary absolute knobs.
-  /// The output level, laid over the meter rather than beside it.
-  ///
-  /// Every one of the thirty-three channels sets its level with a fader whose
-  /// meter runs behind it, so the master reads as the odd one out when it is a
-  /// knob. Laid on its side over the output meter it matches them, and the
-  /// forty-eight pixels it used to take plus its gap go to the meter instead,
-  /// which is the one thing on this bar worth more room.
+  /// The output level, a fader laid over the output meter as the channel
+  /// faders are over theirs.
   juce::Slider masterFader{juce::Slider::LinearHorizontal,
                            juce::Slider::NoTextBox};
 
-  /// What the series does, as opposed to what is done to it afterwards. Both
-  /// are properties of the instrument, so they stand between the tools and the
-  /// two effect boxes rather than among either.
+  /// The knobs that shape the harmonic series itself.
   LabelledKnob stretch{"STRETCH"}, track{"TRACK"}, wobble{"WOBBLE"};
 
   StereoOutputMeter meter;
 
-  /// Under the meter, at the end of the chain, which is where a converter
-  /// sits. On the panel rather than in a menu because they are part of a
-  /// preset: loading one can change them, so they have to be visible.
+  /// The converter's rate and bits, under the meter. On the panel because a
+  /// preset can change them.
   SegmentDisplay rateDisplay{"kHz"},
       bitsDisplay{"bit", SegmentDisplay::Bars::Seven, 2};
 
-  /// Which oscillator the partials are, at the head of the group that says
-  /// what the series is. A word rather than a readout, since none of these is
-  /// a number, and on the panel rather than in a menu for the same reason the
-  /// converter is: a preset decides it, so it has to be visible.
-  ///
-  /// It lights in the character's own colour, and does not light at all on
-  /// Pure, which is the one that adds nothing.
+  /// The oscillator character. Lights in the character's colour, and not at
+  /// all on Pure.
   GlowButton characterButton;
 
-  /// What the resonator is tuned to, beside the character in the
-  /// same group, since both are the instrument rather than something done to
-  /// it afterwards. Lit while they ring along, and saying OFF when they do
-  /// not, the way the echo's and the reverb's buttons do.
+  /// What the resonator is tuned to. Lit while it rings, and saying OFF when
+  /// it does not.
   GlowButton resonatorButton;
 
-  /// The logo, rescaled once to the size it is drawn at. Scaling a 2464 px
-  /// image down to 150 on every repaint would be both slow and soft.
+  /// The logo, rescaled once to the size it is drawn at rather than on every
+  /// repaint.
   juce::Image logo, logoScaled;
 
-  /// Fourteen bars, because it has to spell: Glockenspiel and Wurli are not
-  /// things seven can say. The one display on the panel that carries a name
-  /// rather than a number.
-  /// Nine cells, always. Sizing itself to the reading meant the letters grew
-  /// and shrank as presets were loaded, so the same display was a different
-  /// instrument depending on what was in it, and nine is where it looks best:
-  /// wide enough for most of the names whole and narrow enough that the cells
-  /// stay the size they want to be. Longer names are fitted by
-  /// SegmentDisplay::squeeze and shorter ones leave the rest of the cells
-  /// standing unlit, which is what a display with a real number of digits in
-  /// it does.
+  /// The preset name, in nine fourteen-segment cells so it can spell. Always
+  /// nine, so the letters keep their size. Longer names are fitted by
+  /// SegmentDisplay::squeeze.
   SegmentDisplay presetDisplay{{}, SegmentDisplay::Bars::Fourteen, 9};
 
-  /// The name as it was given, which the display cannot hand back: its cells
-  /// have no lower case and it upper-cases what it is told. Saving a preset
-  /// reads this, and so does the check that decides whether the bar has
-  /// drifted from what is loaded.
+  /// The name as it was given, since the display upper-cases it.
   juce::String presetName;
 
-  /// Icons rather than words, for the reason kGroupMinWidth gives.
+  /// Icons rather than words, to save width. See kGroupMinWidth.
   GlowButton settingsButton, macroButton;
 
-  /// Under those two, opening the bars between this one and the mixer. A
-  /// keyboard and a tuning fork, for the reason the two above wear icons.
+  /// Under those two, opening the Playing and Tuning bars.
   GlowButton playingButton, tuningButton;
   int macrosMade = 0;
 
-  /// Whether LINK is on. The switch itself is a button in the gutter, since
-  /// that is the column the tool belongs to, but what it switches lives here
-  /// with the scope and the curve it goes with.
+  /// Whether LINK is on. The switch is in the gutter, but its state lives here
+  /// with the scope and the curve.
   bool linkOn = false;
 
   /// Held between opening the menu and acting on it, so the ids the menu hands
@@ -515,19 +387,7 @@ private:
   std::unique_ptr<juce::AlertWindow> nameWindow;
   GlowButton echoButton, reverbButton, clipButton;
 
-  /// The clipper is a plain switch, so it takes a plain attachment. The two
-  /// effects cannot: their buttons open a menu over two parameters.
-  ///
-  /// Declared after the button rather than beside the alias it is built from,
-  /// and that is the whole of why it is here. Members are destroyed in reverse
-  /// order, so an attachment declared first outlives its button, and an
-  /// attachment's destructor asks the button to stop listening to it. The
-  /// sanitizers catch that as a call on an object that is no longer a Button,
-  /// and nothing else does: the memory is still there and still looks right.
-
-  /// Likewise. Zoom is set once to suit the screen and then left, and giving
-  /// its box back to the bar is what lets the output group keep its readouts
-  /// legible at the width the window opens at.
+  /// The zoom, set from the Settings menu.
   float zoom = 1.0f;
 
   std::vector<Control> resonatorControls, echoControls, reverbControls;
