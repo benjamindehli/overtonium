@@ -465,7 +465,7 @@ void Cassette::process(float &left, float &right) noexcept {
                                        t * (3.0 * (x0 - x1) + x2 - xm1)));
 
     const double hiss = c.hissShelf.run(uniform(c.rng) + uniform(c.rng)) *
-                            hissScale * std::sqrt(1.5) * open +
+                            hissScale * hissTrim * std::sqrt(1.5) * open +
                         rise(c, (double)in);
 
     return (float)(trim * decode(c, read * level + hiss));

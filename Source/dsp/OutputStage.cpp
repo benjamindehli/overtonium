@@ -99,6 +99,7 @@ void OutputStage::prepare(double sampleRate) noexcept {
   cassette.prepare(rate);
   printConsole.prepare(rate);
   printCassette.prepare(rate);
+  printCassette.setHissDb(kPrintHissDb);
   printLimiter.release = release;
   fadeLength = std::max(1, (int)(kFadeSeconds * rate + 0.5));
 

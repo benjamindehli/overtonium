@@ -222,6 +222,11 @@ private:
   Cassette printCassette;
   InstantLimiter printLimiter;
 
+  /// How much lower Print's tape hiss sits than the deck's on its own. Run
+  /// through the outboard chain first, the music goes onto the tape at a
+  /// better level against the hiss. Set by ear.
+  static constexpr double kPrintHissDb = -6.0;
+
   /// Which of them is running, if any.
   enum class Running { None, Console, Cassette, Print };
 

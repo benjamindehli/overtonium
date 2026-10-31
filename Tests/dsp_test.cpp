@@ -12517,7 +12517,8 @@ void testCassette() {
 
 /// The Print output machine, the console printed to the cassette recorder:
 /// unity at a quiet tone, the console's third harmonic at a moderate level
-/// where the deck alone is clean, and the deck's low end at full scale.
+/// where the deck alone is clean, tape hiss 6 dB under the deck's alone, and
+/// the deck's low end at full scale.
 void testPrint() {
   section("Print");
 
@@ -12572,6 +12573,41 @@ void testPrint() {
   check(printed.thirdDb > -45.0 && taped.thirdDb < -50.0,
         "at a moderate level it carries the console's third harmonic, where "
         "the deck alone is clean");
+
+  // The hiss under a quiet note, what is left once the note is taken out:
+  // the difference between neighbouring cycles of a 125 Hz tone, which
+  // repeats every 384 samples where hiss does not. At -38 dBFS, quiet enough
+  // that the flutter's own difference between cycles stays under the hiss,
+  // and loud enough to hold the hiss gate open.
+  const auto hissUnder = [sr, kTwoPi](ClipType type) {
+    constexpr int kN = 96000;
+    OutputStage stage;
+    stage.prepare(sr);
+
+    std::vector<float> l((size_t)kN), r((size_t)kN);
+
+    for (int i = 0; i < kN; ++i)
+      l[(size_t)i] = r[(size_t)i] =
+          (float)(0.012 * std::sin(kTwoPi * 125.0 * (double)i / sr));
+
+    stage.process(l.data(), r.data(), kN, type, true, false);
+
+    double power = 0.0;
+
+    for (int i = kN / 2; i < kN; ++i) {
+      const double d = (double)l[(size_t)i] - (double)l[(size_t)i - 384];
+      power += d * d;
+    }
+
+    return 10.0 * std::log10(power / (double)(kN / 2));
+  };
+
+  const double quieter =
+      hissUnder(ClipType::Print) - hissUnder(ClipType::Cassette);
+  std::printf("  hiss under a quiet note: %+.1f dB against the deck alone\n",
+              quieter);
+  check(quieter < -4.5 && quieter > -7.5,
+        "its tape hiss sits about 6 dB under the deck's on its own");
 
   const auto low = steady(ClipType::Print, 60.0, 0.0);
   std::printf("  60 Hz at full scale: third harmonic %.1f dB\n", low.thirdDb);
